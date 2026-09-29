@@ -1,0 +1,22 @@
+{
+  "plugins": [
+    {
+      "id": "theme",
+      "name": "个性化主题",
+      "icon": "🎨",
+      "version": "1.0.0",
+      "author": "信息捞捞队",
+      "description": "切换深色模式和主题配色。",
+      "default": true
+    },
+    {
+      "id": "course-schedule",
+      "name": "课程表",
+      "icon": "📚",
+      "version": "1.0.0",
+      "author": "（宋苗雪）",
+      "description": "按周查看课程，支持单双周、冬夏作息切换、冲突检测。数据只保存在本机。",
+      "default": true
+    }
+  ]
+}

@@ -32,7 +32,12 @@ plugins/_template/      新插件模板
 | `api.getClassItems()` / `api.getSelectedDate()` / `api.goToDate(日期)` / `api.refresh()` | 读取班级事项、跳转、刷新日历 |
 | `api.util.esc(文本)` | **把用户输入放进 HTML 前必须转义**，防止注入 |
 
-参考示例：`plugins/theme`（主题）、`plugins/timetable`（课程表）。
+参考示例：`plugins/theme`（主题，用接口写的插件）、`plugins/course-schedule`（课程表，独立页面嵌入）。
+
+## 已经做好了一个独立的 HTML 页面？
+不用改写。把它改名为 `app.html` 放进 `plugins/<插件id>/`，再复制 `plugins/course-schedule/plugin.js`，把里面的 id、标题、路径改成你的即可。要求：
+- 单文件、不依赖外部网站；
+- localStorage 的键统一加 `personal_<插件id>_` 前缀，避免和别人冲突。
 
 ## 规则
 - 个人数据只用 `api.storage` 存在本机，不要偷偷上传到别的服务器。
