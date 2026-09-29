@@ -11,6 +11,8 @@
   :root {
     --bg: #f5f5f7; --card: #fff; --line: #e5e5ea; --text: #1d1d1f; --sub: #86868b;
     --red: #ff3b30; --blue: #007aff; --green: #34c759; --gray: #8e8e93; --purple: #af52de; --today: #ff3b30;
+    --accent: #007aff; --hover: #f0f0f2; --muted-bg: #fafafa; --muted-text: #c7c7cc; --selected: #eef5ff;
+    --note-bg: #fff8e1; --danger-bg: #fff3f2;
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text);
@@ -22,14 +24,14 @@
   #monthLabel { font-size: 18px; font-weight: 600; min-width: 110px; }
   button { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--text);
     border-radius: 8px; padding: 6px 12px; cursor: pointer; }
-  button:hover { background: #f0f0f2; }
-  button.primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+  button:hover { background: var(--hover); }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
   button.small { padding: 2px 8px; font-size: 12px; }
-  button.link { border: none; background: none; color: var(--blue); padding: 2px 4px; font-size: 12px; }
+  button.link { border: none; background: none; color: var(--accent); padding: 2px 4px; font-size: 12px; }
   .spacer { flex: 1; }
   .legend { display: flex; gap: 8px; font-size: 12px; color: var(--sub); flex-wrap: wrap; }
   .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 3px; vertical-align: -1px; }
-  #banner { display: none; margin: 10px 16px 0; padding: 8px 12px; border-radius: 8px; background: #fff3f2; color: var(--red); }
+  #banner { display: none; margin: 10px 16px 0; padding: 8px 12px; border-radius: 8px; background: var(--danger-bg); color: var(--red); }
   #banner.show { display: block; }
 
   main { display: flex; gap: 16px; padding: 14px 16px; align-items: flex-start; }
@@ -39,8 +41,8 @@
   .cell { min-height: 100px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
     padding: 4px 6px; cursor: pointer; overflow: hidden; }
   .cell:nth-child(7n) { border-right: none; }
-  .cell.other { background: #fafafa; color: #c7c7cc; }
-  .cell.selected { background: #eef5ff; }
+  .cell.other { background: var(--muted-bg); color: var(--muted-text); }
+  .cell.selected { background: var(--selected); }
   .daynum { text-align: right; font-size: 13px; margin-bottom: 2px; }
   .cell.today .daynum span { background: var(--today); color: #fff; border-radius: 50%;
     display: inline-block; width: 24px; height: 24px; line-height: 24px; text-align: center; }
@@ -54,13 +56,13 @@
   #side { width: 340px; background: var(--card); border-radius: 12px; border: 1px solid var(--line); padding: 14px; }
   #side h2 { font-size: 16px; margin: 0 0 10px; display: flex; justify-content: space-between; align-items: center; }
   #side h3 { font-size: 14px; margin: 16px 0 8px; color: var(--sub); }
-  .item { border-left: 4px solid var(--gray); background: #fafafa; border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
+  .item { border-left: 4px solid var(--gray); background: var(--muted-bg); border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
   .item.b-作业 { border-color: var(--red); } .item.b-会议 { border-color: var(--blue); }
   .item.b-活动 { border-color: var(--green); } .item.b-通知 { border-color: var(--gray); } .item.b-个人 { border-color: var(--purple); }
   .item.done .title, .item.done .sum { text-decoration: line-through; opacity: .5; }
   .item .title { font-weight: 600; }
   .item .meta { color: var(--sub); font-size: 12px; margin-top: 3px; }
-  .item .note { font-size: 12px; margin-top: 4px; background: #fff8e1; border-radius: 4px; padding: 3px 6px; }
+  .item .note { font-size: 12px; margin-top: 4px; background: var(--note-bg); border-radius: 4px; padding: 3px 6px; }
   .item details { margin-top: 4px; font-size: 12px; color: var(--sub); }
   .item .ops { margin-top: 6px; display: flex; gap: 4px; flex-wrap: wrap; }
   .tag { font-size: 11px; color: var(--sub); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; margin-left: 4px; font-weight: normal; }
@@ -74,15 +76,36 @@
   #modal form { background: var(--card); border-radius: 14px; padding: 16px; width: min(420px, 92vw); }
   #modal h3 { margin: 0 0 10px; }
   #modal label { display: block; font-size: 13px; color: var(--sub); margin-top: 8px; }
-  #modal input, #modal textarea { width: 100%; font: inherit; padding: 8px; border: 1px solid var(--line); border-radius: 8px; margin-top: 3px; }
+  #modal input, #modal textarea { background: var(--card); color: var(--text); width: 100%; font: inherit; padding: 8px; border: 1px solid var(--line); border-radius: 8px; margin-top: 3px; }
   #modal .row { display: flex; gap: 8px; } #modal .row > div { flex: 1; }
   #modal .btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
 
+  #monthWrap { position: relative; display: inline-block; cursor: pointer; }
+  #monthWrap::after { content: " ▾"; font-size: 12px; color: var(--sub); }
+  #jumpDate { position: absolute; inset: 0; opacity: 0; width: 100%; cursor: pointer; }
+  nav#tabs { display: flex; gap: 4px; padding: 8px 16px 0; overflow-x: auto; }
+  nav#tabs button { border-radius: 8px 8px 0 0; border-bottom: none; white-space: nowrap; }
+  nav#tabs button.on { background: var(--card); font-weight: 600; color: var(--accent); }
+  .view { display: none; } .view.on { display: block; }
+  main.view.on { display: flex; }
+  .panel { margin: 0 16px 16px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .panel h2 { margin: 0 0 12px; font-size: 17px; }
+  .store-item { display: flex; gap: 12px; align-items: flex-start; border-bottom: 1px solid var(--line); padding: 12px 0; }
+  .store-item:last-child { border-bottom: none; }
+  .store-item .icon { font-size: 28px; width: 40px; text-align: center; }
+  .store-item .info { flex: 1; }
+  .store-item .name { font-weight: 600; }
+  .store-item .desc, .store-item .by { color: var(--sub); font-size: 12px; margin-top: 2px; }
+  .store-item .err { color: var(--red); font-size: 12px; margin-top: 2px; }
+  .panel input, .panel select, .panel textarea { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); }
   @media (max-width: 800px) {
     header { padding: 10px 12px; }
     header h1 { font-size: 16px; }
     .legend { width: 100%; order: 10; }
     main { flex-direction: column; padding: 10px; }
+    main.view.on { display: flex; }
+    .panel { margin: 0 10px 10px; }
+    nav#tabs { padding: 8px 10px 0; }
     #side { width: 100%; }
     .cell { min-height: 58px; padding: 2px 3px; }
     .chip { font-size: 10px; padding: 0 3px; }
@@ -95,7 +118,7 @@
   <button id="prevBtn">‹</button>
   <button id="todayBtn">今天</button>
   <button id="nextBtn">›</button>
-  <span id="monthLabel"></span>
+  <label id="monthWrap" title="跳转到指定日期"><span id="monthLabel"></span><input type="date" id="jumpDate" aria-label="跳转到日期"></label>
   <span class="spacer"></span>
   <button id="addBtn" class="primary">＋ 我的事项</button>
   <span class="legend">
@@ -104,8 +127,10 @@
   </span>
 </header>
 <div id="banner"></div>
+<nav id="tabs"></nav>
 
-<main>
+<section class="view on" data-view="calendar">
+<main class="view on" style="display:flex">
   <div id="calendar">
     <div class="week-head">
       <div>周一</div><div>周二</div><div>周三</div><div>周四</div><div>周五</div><div>周六</div><div>周日</div>
@@ -130,6 +155,16 @@
   <span id="updated"></span>
   <span>· 班级事项由班委统一整理；「我的事项」和你的标记只保存在这台设备上，不会上传。</span>
 </footer>
+</section>
+<div id="pluginViews"></div>
+
+<section class="view" data-view="store">
+  <div class="panel">
+    <h2>🧩 插件商店</h2>
+    <div class="desc" style="color:var(--sub);font-size:12px;margin-bottom:8px">打开或关闭功能模块。设置只保存在这台设备上，切换后自动刷新页面。</div>
+    <div id="storeList">加载中…</div>
+  </div>
+</section>
 
 <div id="modal">
   <form id="form">
@@ -149,10 +184,12 @@
   </form>
 </div>
 
+<script src="config.js"></script>
 <script>
 // ===== 配置：班级数据只读接口（匿名密钥只能读 class_info，不能改） =====
-const SUPABASE_URL = "https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjMzNzEwOTUyNjksInJvbGUiOiJhbm9uIn0.WaD9_FSQy0vUU7Vi6H-PtzC-kTU8wNvE5R9yVJU5Mhk";
+const CFG = window.APP_CONFIG || {};
+const SUPABASE_URL = CFG.SUPABASE_URL || "";
+const SUPABASE_ANON_KEY = CFG.SUPABASE_ANON_KEY || "";
 const COLS = "id,msg_type,subject,summary,event_time,location,prepare,original,publish_date,need_confirm";
 
 const $ = (id) => document.getElementById(id);
@@ -185,7 +222,9 @@ function parseTime(t) {
 function allItems() {
   const cls = classRecords.map((r) => ({ ...r, _key: "c" + r.id, _mine: false }));
   const own = mine.map((r) => ({ ...r, msg_type: "个人", _key: r.id, _mine: true }));
-  return cls.concat(own).map((r) => {
+  const ext = pluginItems();
+  return cls.concat(own, ext).map((r) => {
+    if (r._plugin) return { ...r, _p: parseTime(r.event_time) };
     const mk = marks[r._key] || {};
     return { ...r, _done: !!(r._mine ? r.done : mk.done), _hidden: !r._mine && !!mk.hidden,
              _note: r._mine ? r.note : mk.note, _p: parseTime(r.event_time) };
@@ -229,16 +268,27 @@ function renderGrid() {
       (k === keyOf(today) ? " today" : "") + (k === selectedKey ? " selected" : "");
     let html = `<div class="daynum"><span>${d.getDate()}</span></div>`;
     items.slice(0, maxChips).forEach((r) => {
-      html += `<div class="chip t-${esc(r.msg_type)}${r._done ? " done" : ""}" title="${esc(chipText(r))}">${esc(chipText(r, compact))}</div>`;
+      const style = r._color ? ` style="background:${esc(r._color)}"` : "";
+      html += `<div class="chip t-${esc(r.msg_type)}${r._done ? " done" : ""}"${style} title="${esc(chipText(r))}">${esc(chipText(r, compact))}</div>`;
     });
     if (items.length > maxChips) html += `<div class="more">还有 ${items.length - maxChips} 项</div>`;
     cell.innerHTML = html;
-    cell.onclick = () => { selectedKey = k; renderGrid(); renderSide(); };
+    cell.onclick = () => { selectedKey = k; renderGrid(); renderSide(); emit("dayselected", k); };
     grid.appendChild(cell);
   }
 }
 
+function pluginItemHtml(r) {
+  const when = r._p ? (r._p.time || "全天") : "";
+  return `<div class="item" style="border-color:${esc(r._color || "var(--gray)")}">
+    <div class="title">${esc(when)} · ${esc(r.subject || "")}<span class="tag">${esc(r._pluginName)}</span></div>
+    ${r.summary ? `<div class="sum">${esc(r.summary)}</div>` : ""}
+    ${r.location ? `<div class="meta">📍 ${esc(r.location)}</div>` : ""}
+  </div>`;
+}
+
 function itemHtml(r, showDate) {
+  if (r._plugin) return pluginItemHtml(r);
   let when = r._p ? (r._p.time || "全天") : "时间待定";
   if (showDate && r._p) when = `${r._p.day} ${when}`;
   if (r.msg_type === "作业" && r._p) when += " 截止";
@@ -273,7 +323,7 @@ function renderSide() {
   $("undatedList").innerHTML = undated.length ? undated.map((r) => itemHtml(r, true)).join("") : `<div class="empty">暂无</div>`;
 }
 
-function renderAll() { indexItems(); renderGrid(); renderSide(); }
+function renderAll() { indexItems(); renderGrid(); renderSide(); syncJump(); }
 
 function showBanner(msg) { const b = $("banner"); b.textContent = msg; b.classList.toggle("show", !!msg); }
 
@@ -383,7 +433,7 @@ $("icsBtn").onclick = () => {
   const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//class-calendar//CN", "CALSCALE:GREGORIAN"];
   let n = 0;
   for (const r of allItems()) {
-    if (!r._p || r._hidden || r._done) continue;
+    if (!r._p || r._hidden || r._done || r._plugin) continue;
     const d = r._p.day.replace(/-/g, "");
     lines.push("BEGIN:VEVENT", `UID:${r._key}@class-calendar`, `DTSTAMP:${stamp}`);
     if (r._p.time) {
@@ -415,7 +465,156 @@ $("refreshBtn").onclick = loadClass;
 $("showHidden").onchange = renderAll;
 window.addEventListener("resize", renderGrid);
 
+
+// ===== 跳转到指定日期 =====
+$("jumpDate").onchange = (e) => {
+  const v = e.target.value; if (!v) return;
+  const d = new Date(v + "T00:00:00");
+  viewYear = d.getFullYear(); viewMonth = d.getMonth(); selectedKey = v;
+  showView("calendar"); renderAll(); emit("dayselected", v);
+};
+function syncJump() { $("jumpDate").value = selectedKey; }
+
+// ===== 插件系统 =====
+// 插件是 plugins/<id>/plugin.js，通过 CalendarApp.register({...}) 注册。
+// 插件清单在 plugins/registry.json，只加载清单里列出的插件（经过审核的代码）。
+const LS_PLUGINS = "plugins_enabled_v1";
+const pluginState = {};          // id -> { meta, loaded, error }
+const eventSources = [];         // { plugin, name, fn(startKey, endKey) }
+const listeners = {};            // event -> [fn]
+const pluginTabs = [];           // { id, title, plugin, el }
+let registry = [];
+
+function emit(evt, arg) { (listeners[evt] || []).forEach((fn) => { try { fn(arg); } catch (e) { console.error(e); } }); }
+
+function gridRange() {
+  const first = new Date(viewYear, viewMonth, 1);
+  const start = new Date(viewYear, viewMonth, 1 - (first.getDay() + 6) % 7);
+  const end = new Date(start); end.setDate(end.getDate() + 41);
+  return [keyOf(start), keyOf(end)];
+}
+
+function pluginItems() {
+  const [s, e] = gridRange();
+  const out = [];
+  for (const src of eventSources) {
+    try {
+      for (const it of src.fn(s, e) || []) {
+        if (!it || !it.date) continue;
+        out.push({ _plugin: src.plugin, _pluginName: src.name, _key: `x_${src.plugin}_${it.id ?? out.length}`,
+          _color: it.color || "", msg_type: "插件", subject: it.title || "", summary: it.detail || "",
+          location: it.location || "", event_time: it.date + (it.time ? " " + it.time : "") });
+      }
+    } catch (err) { console.error("插件事件源出错", src.plugin, err); }
+  }
+  return out;
+}
+
+const DEFAULT_THEME = {};
+function makeApi(meta) {
+  const ns = (k) => `plg_${meta.id}_${k}`;
+  return {
+    id: meta.id,
+    storage: { get: (k, d) => load(ns(k), d), set: (k, v) => save(ns(k), v) },
+    addTab({ id, title, render }) {
+      const el = document.createElement("section");
+      el.className = "view"; el.dataset.view = `p_${meta.id}_${id}`;
+      $("pluginViews").appendChild(el);
+      pluginTabs.push({ id: el.dataset.view, title, plugin: meta.id, el, render });
+      renderTabs();
+      try { render(el); } catch (e) { el.textContent = "插件界面出错：" + e.message; }
+    },
+    addEventSource(fn) { eventSources.push({ plugin: meta.id, name: meta.name, fn }); renderAll(); },
+    setTheme(vars) {
+      for (const [k, v] of Object.entries(vars || {})) {
+        if (!(k in DEFAULT_THEME)) DEFAULT_THEME[k] = getComputedStyle(document.documentElement).getPropertyValue("--" + k);
+        document.documentElement.style.setProperty("--" + k, v);
+      }
+    },
+    resetTheme() { for (const k in DEFAULT_THEME) document.documentElement.style.removeProperty("--" + k); },
+    on(evt, fn) { (listeners[evt] ||= []).push(fn); },
+    refresh: () => renderAll(),
+    goToDate(v) { $("jumpDate").value = v; $("jumpDate").onchange({ target: { value: v } }); },
+    getClassItems: () => classRecords.map((r) => ({ ...r })),
+    getSelectedDate: () => selectedKey,
+    util: { esc, keyOf, parseTime, pad },
+  };
+}
+
+window.CalendarApp = {
+  version: 1,
+  register(def) {
+    const st = pluginState[def.id];
+    if (!st) { console.warn("未在 registry.json 中登记的插件被拒绝：", def.id); return; }
+    try { def.init(makeApi(st.meta)); st.loaded = true; }
+    catch (e) { st.error = e.message; console.error(e); }
+    renderStore();
+  },
+};
+
+function enabledSet() {
+  const saved = load(LS_PLUGINS, null);
+  if (saved) return new Set(saved);
+  return new Set(registry.filter((p) => p.default).map((p) => p.id));
+}
+
+async function loadPlugins() {
+  try {
+    const res = await fetch("plugins/registry.json", { cache: "no-cache" });
+    registry = (await res.json()).plugins || [];
+  } catch (e) { registry = []; $("storeList").textContent = "插件清单加载失败：" + e.message; return; }
+  const on = enabledSet();
+  for (const meta of registry) {
+    pluginState[meta.id] = { meta, loaded: false, error: "" };
+    if (!on.has(meta.id)) continue;
+    const sc = document.createElement("script");
+    sc.src = `plugins/${meta.id}/plugin.js?v=${encodeURIComponent(meta.version || "")}`;
+    sc.onerror = () => { pluginState[meta.id].error = "脚本加载失败"; renderStore(); };
+    document.body.appendChild(sc);
+  }
+  renderStore();
+}
+
+function renderStore() {
+  const on = enabledSet();
+  $("storeList").innerHTML = registry.length ? registry.map((p) => {
+    const st = pluginState[p.id] || {};
+    const isOn = on.has(p.id);
+    return `<div class="store-item">
+      <div class="icon">${esc(p.icon || "🧩")}</div>
+      <div class="info"><div class="name">${esc(p.name)} <span class="tag">v${esc(p.version || "1")}</span></div>
+        <div class="desc">${esc(p.description || "")}</div>
+        <div class="by">作者：${esc(p.author || "未知")}</div>
+        ${st.error ? `<div class="err">出错：${esc(st.error)}</div>` : ""}</div>
+      <button class="${isOn ? "" : "primary"} small" data-plugin="${esc(p.id)}">${isOn ? "关闭" : "启用"}</button>
+    </div>`;
+  }).join("") : `<div class="empty">暂时没有插件</div>`;
+}
+
+$("storeList").onclick = (e) => {
+  const b = e.target.closest("button[data-plugin]"); if (!b) return;
+  const on = enabledSet(); const id = b.dataset.plugin;
+  on.has(id) ? on.delete(id) : on.add(id);
+  save(LS_PLUGINS, [...on]);
+  location.hash = "store"; location.reload();
+};
+
+function renderTabs() {
+  const tabs = [{ id: "calendar", title: "📅 日历" }, ...pluginTabs, { id: "store", title: "🧩 插件商店" }];
+  const cur = document.querySelector(".view.on[data-view]")?.dataset.view || "calendar";
+  $("tabs").innerHTML = tabs.map((t) => `<button data-tab="${esc(t.id)}" class="${t.id === cur ? "on" : ""}">${esc(t.title)}</button>`).join("");
+}
+$("tabs").onclick = (e) => { const b = e.target.closest("button[data-tab]"); if (b) showView(b.dataset.tab); };
+function showView(id) {
+  document.querySelectorAll("[data-view]").forEach((v) => v.classList.toggle("on", v.dataset.view === id));
+  document.querySelector('main').style.display = id === "calendar" ? "flex" : "none";
+  renderTabs();
+  if (id === "calendar") renderAll();
+}
+
+renderTabs();
 loadClass();
+loadPlugins().then(() => { if (location.hash === "#store") { showView("store"); history.replaceState(null, "", location.pathname); } });
 </script>
 </body>
 </html>
