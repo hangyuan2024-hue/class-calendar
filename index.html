@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="班级日历">
+<meta name="theme-color" content="#ffffff">
+<title>班级群日历</title>
+<style>
+  :root {
+    --bg: #f5f5f7; --card: #fff; --line: #e5e5ea; --text: #1d1d1f; --sub: #86868b;
+    --red: #ff3b30; --blue: #007aff; --green: #34c759; --gray: #8e8e93; --purple: #af52de; --today: #ff3b30;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; font-size: 14px;
+    padding-bottom: env(safe-area-inset-bottom); }
+  header { display: flex; align-items: center; gap: 8px; padding: 12px 16px; background: var(--card);
+    border-bottom: 1px solid var(--line); flex-wrap: wrap; position: sticky; top: 0; z-index: 5; }
+  header h1 { font-size: 18px; margin: 0 8px 0 0; }
+  #monthLabel { font-size: 18px; font-weight: 600; min-width: 110px; }
+  button { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--text);
+    border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+  button:hover { background: #f0f0f2; }
+  button.primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+  button.small { padding: 2px 8px; font-size: 12px; }
+  button.link { border: none; background: none; color: var(--blue); padding: 2px 4px; font-size: 12px; }
+  .spacer { flex: 1; }
+  .legend { display: flex; gap: 8px; font-size: 12px; color: var(--sub); flex-wrap: wrap; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 3px; vertical-align: -1px; }
+  #banner { display: none; margin: 10px 16px 0; padding: 8px 12px; border-radius: 8px; background: #fff3f2; color: var(--red); }
+  #banner.show { display: block; }
+
+  main { display: flex; gap: 16px; padding: 14px 16px; align-items: flex-start; }
+  #calendar { flex: 1; background: var(--card); border-radius: 12px; overflow: hidden; border: 1px solid var(--line); }
+  .week-head, .grid { display: grid; grid-template-columns: repeat(7, 1fr); }
+  .week-head div { padding: 8px; text-align: right; color: var(--sub); font-size: 12px; border-bottom: 1px solid var(--line); }
+  .cell { min-height: 100px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
+    padding: 4px 6px; cursor: pointer; overflow: hidden; }
+  .cell:nth-child(7n) { border-right: none; }
+  .cell.other { background: #fafafa; color: #c7c7cc; }
+  .cell.selected { background: #eef5ff; }
+  .daynum { text-align: right; font-size: 13px; margin-bottom: 2px; }
+  .cell.today .daynum span { background: var(--today); color: #fff; border-radius: 50%;
+    display: inline-block; width: 24px; height: 24px; line-height: 24px; text-align: center; }
+  .chip { font-size: 12px; color: #fff; border-radius: 4px; padding: 1px 5px; margin-bottom: 2px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chip.done { opacity: .4; text-decoration: line-through; }
+  .more { font-size: 11px; color: var(--sub); }
+  .t-作业 { background: var(--red); } .t-会议 { background: var(--blue); }
+  .t-活动 { background: var(--green); } .t-通知 { background: var(--gray); } .t-个人 { background: var(--purple); }
+
+  #side { width: 340px; background: var(--card); border-radius: 12px; border: 1px solid var(--line); padding: 14px; }
+  #side h2 { font-size: 16px; margin: 0 0 10px; display: flex; justify-content: space-between; align-items: center; }
+  #side h3 { font-size: 14px; margin: 16px 0 8px; color: var(--sub); }
+  .item { border-left: 4px solid var(--gray); background: #fafafa; border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
+  .item.b-作业 { border-color: var(--red); } .item.b-会议 { border-color: var(--blue); }
+  .item.b-活动 { border-color: var(--green); } .item.b-通知 { border-color: var(--gray); } .item.b-个人 { border-color: var(--purple); }
+  .item.done .title, .item.done .sum { text-decoration: line-through; opacity: .5; }
+  .item .title { font-weight: 600; }
+  .item .meta { color: var(--sub); font-size: 12px; margin-top: 3px; }
+  .item .note { font-size: 12px; margin-top: 4px; background: #fff8e1; border-radius: 4px; padding: 3px 6px; }
+  .item details { margin-top: 4px; font-size: 12px; color: var(--sub); }
+  .item .ops { margin-top: 6px; display: flex; gap: 4px; flex-wrap: wrap; }
+  .tag { font-size: 11px; color: var(--sub); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; margin-left: 4px; font-weight: normal; }
+  .warn { color: #ff9500; font-size: 12px; margin-top: 3px; }
+  .empty { color: var(--sub); }
+  footer { padding: 4px 16px 24px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; color: var(--sub); font-size: 12px; }
+  label.check { font-size: 12px; color: var(--sub); }
+
+  #modal { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: none; align-items: center; justify-content: center; z-index: 20; }
+  #modal.open { display: flex; }
+  #modal form { background: var(--card); border-radius: 14px; padding: 16px; width: min(420px, 92vw); }
+  #modal h3 { margin: 0 0 10px; }
+  #modal label { display: block; font-size: 13px; color: var(--sub); margin-top: 8px; }
+  #modal input, #modal textarea { width: 100%; font: inherit; padding: 8px; border: 1px solid var(--line); border-radius: 8px; margin-top: 3px; }
+  #modal .row { display: flex; gap: 8px; } #modal .row > div { flex: 1; }
+  #modal .btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+
+  @media (max-width: 800px) {
+    header { padding: 10px 12px; }
+    header h1 { font-size: 16px; }
+    .legend { width: 100%; order: 10; }
+    main { flex-direction: column; padding: 10px; }
+    #side { width: 100%; }
+    .cell { min-height: 58px; padding: 2px 3px; }
+    .chip { font-size: 10px; padding: 0 3px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>📅 班级群日历</h1>
+  <button id="prevBtn">‹</button>
+  <button id="todayBtn">今天</button>
+  <button id="nextBtn">›</button>
+  <span id="monthLabel"></span>
+  <span class="spacer"></span>
+  <button id="addBtn" class="primary">＋ 我的事项</button>
+  <span class="legend">
+    <span><i class="t-作业"></i>作业</span><span><i class="t-会议"></i>会议</span>
+    <span><i class="t-活动"></i>活动</span><span><i class="t-通知"></i>通知</span><span><i class="t-个人"></i>我的</span>
+  </span>
+</header>
+<div id="banner"></div>
+
+<main>
+  <div id="calendar">
+    <div class="week-head">
+      <div>周一</div><div>周二</div><div>周三</div><div>周四</div><div>周五</div><div>周六</div><div>周日</div>
+    </div>
+    <div class="grid" id="grid"></div>
+  </div>
+  <aside id="side">
+    <h2><span id="sideTitle"></span><button class="small" id="addDayBtn">＋ 这天加事项</button></h2>
+    <div id="dayList"></div>
+    <h3>时间待定（请去群里核实）</h3>
+    <div id="undatedList"></div>
+  </aside>
+</main>
+
+<footer>
+  <button id="refreshBtn" class="small">刷新班级数据</button>
+  <button id="icsBtn" class="small">导出到手机日历</button>
+  <button id="exportBtn" class="small">备份我的数据</button>
+  <button id="importBtn" class="small">恢复备份</button>
+  <input type="file" id="importFile" accept=".json,application/json" hidden>
+  <label class="check"><input type="checkbox" id="showHidden"> 显示已隐藏</label>
+  <span id="updated"></span>
+  <span>· 班级事项由班委统一整理；「我的事项」和你的标记只保存在这台设备上，不会上传。</span>
+</footer>
+
+<div id="modal">
+  <form id="form">
+    <h3 id="formTitle">添加我的事项</h3>
+    <input type="hidden" id="fId">
+    <label>标题 <input id="fTitle" required maxlength="60" placeholder="例如：社团例会"></label>
+    <div class="row">
+      <div><label>日期 <input type="date" id="fDate" required></label></div>
+      <div><label>时间（可不填） <input type="time" id="fTime"></label></div>
+    </div>
+    <label>地点 <input id="fLoc" maxlength="60"></label>
+    <label>备注 <textarea id="fNote" rows="3" maxlength="500"></textarea></label>
+    <div class="btns">
+      <button type="button" id="cancelBtn">取消</button>
+      <button type="submit" class="primary">保存</button>
+    </div>
+  </form>
+</div>
+
+<script>
+// ===== 配置：班级数据只读接口（匿名密钥只能读 class_info，不能改） =====
+const SUPABASE_URL = "https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com";
+const SUPABASE_ANON_KEY = "__SUPABASE_ANON_KEY__";
+const COLS = "id,msg_type,subject,summary,event_time,location,prepare,original,publish_date,need_confirm";
+
+const $ = (id) => document.getElementById(id);
+const pad = (n) => String(n).padStart(2, "0");
+const keyOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const WEEK = ["日", "一", "二", "三", "四", "五", "六"];
+
+// ===== 本地存储（只在这台设备上） =====
+const LS_MINE = "personal_events_v1";
+const LS_MARK = "personal_marks_v1";
+const LS_CACHE = "class_cache_v1";
+const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+let mine = load(LS_MINE, []);      // 我的事项
+let marks = load(LS_MARK, {});     // 对班级事项的标记：{ "c11": {done, hidden, note} }
+
+let classRecords = [];
+let byDay = {}, undated = [];
+const today = new Date();
+let viewYear = today.getFullYear(), viewMonth = today.getMonth();
+let selectedKey = keyOf(today);
+
+function parseTime(t) {
+  const m = String(t || "").trim().match(/^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2}))?/);
+  return m ? { day: m[1], time: m[2] || "" } : null;
+}
+
+function allItems() {
+  const cls = classRecords.map((r) => ({ ...r, _key: "c" + r.id, _mine: false }));
+  const own = mine.map((r) => ({ ...r, msg_type: "个人", _key: r.id, _mine: true }));
+  return cls.concat(own).map((r) => {
+    const mk = marks[r._key] || {};
+    return { ...r, _done: !!(r._mine ? r.done : mk.done), _hidden: !r._mine && !!mk.hidden,
+             _note: r._mine ? r.note : mk.note, _p: parseTime(r.event_time) };
+  }).filter((r) => $("showHidden").checked || !r._hidden);
+}
+
+function indexItems() {
+  byDay = {}; undated = [];
+  for (const r of allItems()) {
+    if (!r._p) { undated.push(r); continue; }
+    (byDay[r._p.day] ||= []).push(r);
+  }
+  for (const k in byDay) byDay[k].sort((a, b) => {
+    if (!a._p.time && b._p.time) return -1;
+    if (a._p.time && !b._p.time) return 1;
+    return a._p.time.localeCompare(b._p.time);
+  });
+}
+
+function chipText(r, compact) {
+  const title = r.subject || r.summary || r.msg_type;
+  if (compact) return `${r.need_confirm ? "⚠" : ""}${title}`;
+  const prefix = r.msg_type === "作业" ? "截止 " : "";
+  return `${r.need_confirm ? "⚠" : ""}${r._p && r._p.time ? r._p.time + " " : ""}${prefix}${title}`;
+}
+
+function renderGrid() {
+  $("monthLabel").textContent = `${viewYear}年${viewMonth + 1}月`;
+  const first = new Date(viewYear, viewMonth, 1);
+  const start = new Date(viewYear, viewMonth, 1 - (first.getDay() + 6) % 7);
+  const compact = window.innerWidth <= 800;
+  const maxChips = compact ? 2 : 3;
+  const grid = $("grid");
+  grid.innerHTML = "";
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+    const k = keyOf(d);
+    const items = byDay[k] || [];
+    const cell = document.createElement("div");
+    cell.className = "cell" + (d.getMonth() !== viewMonth ? " other" : "") +
+      (k === keyOf(today) ? " today" : "") + (k === selectedKey ? " selected" : "");
+    let html = `<div class="daynum"><span>${d.getDate()}</span></div>`;
+    items.slice(0, maxChips).forEach((r) => {
+      html += `<div class="chip t-${esc(r.msg_type)}${r._done ? " done" : ""}" title="${esc(chipText(r))}">${esc(chipText(r, compact))}</div>`;
+    });
+    if (items.length > maxChips) html += `<div class="more">还有 ${items.length - maxChips} 项</div>`;
+    cell.innerHTML = html;
+    cell.onclick = () => { selectedKey = k; renderGrid(); renderSide(); };
+    grid.appendChild(cell);
+  }
+}
+
+function itemHtml(r, showDate) {
+  let when = r._p ? (r._p.time || "全天") : "时间待定";
+  if (showDate && r._p) when = `${r._p.day} ${when}`;
+  if (r.msg_type === "作业" && r._p) when += " 截止";
+  const meta = [];
+  if (r.location) meta.push("📍 " + esc(r.location));
+  if (r.prepare) meta.push("🎒 " + esc(r.prepare));
+  const k = esc(r._key);
+  const ops = r._mine
+    ? `<button class="link" data-act="done" data-k="${k}">${r._done ? "取消完成" : "✓ 完成"}</button>
+       <button class="link" data-act="edit" data-k="${k}">编辑</button>
+       <button class="link" data-act="del" data-k="${k}">删除</button>`
+    : `<button class="link" data-act="done" data-k="${k}">${r._done ? "取消完成" : "✓ 完成"}</button>
+       <button class="link" data-act="note" data-k="${k}">${r._note ? "改备注" : "加备注"}</button>
+       <button class="link" data-act="hide" data-k="${k}">${r._hidden ? "取消隐藏" : "隐藏"}</button>`;
+  return `<div class="item b-${esc(r.msg_type)}${r._done ? " done" : ""}">
+    <div class="title">${esc(when)} · ${r._mine ? "我的" : esc(r.msg_type)}${r.subject ? " · " + esc(r.subject) : ""}
+      <span class="tag">${r._mine ? "仅自己可见" : "班级"}</span></div>
+    ${r.summary ? `<div class="sum">${esc(r.summary)}</div>` : ""}
+    ${meta.length ? `<div class="meta">${meta.join("　")}</div>` : ""}
+    ${r.need_confirm ? `<div class="warn">⚠ 信息不完整，建议去群里核实</div>` : ""}
+    ${r._note ? `<div class="note">📝 ${esc(r._note)}</div>` : ""}
+    ${r.original ? `<details><summary>原文</summary>${esc(r.original)}</details>` : ""}
+    <div class="ops">${ops}</div>
+  </div>`;
+}
+
+function renderSide() {
+  const d = new Date(selectedKey + "T00:00:00");
+  $("sideTitle").textContent = `${d.getMonth() + 1}月${d.getDate()}日 周${WEEK[d.getDay()]}`;
+  const items = byDay[selectedKey] || [];
+  $("dayList").innerHTML = items.length ? items.map((r) => itemHtml(r, false)).join("") : `<div class="empty">这天没有安排</div>`;
+  $("undatedList").innerHTML = undated.length ? undated.map((r) => itemHtml(r, true)).join("") : `<div class="empty">暂无</div>`;
+}
+
+function renderAll() { indexItems(); renderGrid(); renderSide(); }
+
+function showBanner(msg) { const b = $("banner"); b.textContent = msg; b.classList.toggle("show", !!msg); }
+
+async function loadClass() {
+  const cache = load(LS_CACHE, null);
+  if (cache) { classRecords = cache.records || []; $("updated").textContent = `班级数据更新于 ${cache.at}`; renderAll(); }
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/class_info?select=${COLS}&order=id.asc&limit=2000`, {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY },
+    });
+    if (!res.ok) throw new Error(res.status + " " + (await res.text()).slice(0, 120));
+    classRecords = await res.json();
+    const at = new Date().toLocaleString("zh-CN", { hour12: false });
+    save(LS_CACHE, { records: classRecords, at });
+    $("updated").textContent = `班级数据更新于 ${at}`;
+    showBanner("");
+  } catch (e) {
+    showBanner("班级数据加载失败" + (cache ? "，当前显示的是上次缓存的数据" : "") + "：" + e.message);
+  }
+  renderAll();
+}
+
+// ===== 操作 =====
+function setMark(k, patch) { marks[k] = { ...(marks[k] || {}), ...patch }; save(LS_MARK, marks); renderAll(); }
+
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-act]");
+  if (!b) return;
+  const k = b.dataset.k, act = b.dataset.act;
+  if (k.startsWith("c")) {
+    const mk = marks[k] || {};
+    if (act === "done") setMark(k, { done: !mk.done });
+    if (act === "hide") setMark(k, { hidden: !mk.hidden });
+    if (act === "note") {
+      const v = prompt("备注（只保存在这台设备上）", mk.note || "");
+      if (v !== null) setMark(k, { note: v.trim() });
+    }
+  } else {
+    const i = mine.findIndex((x) => x.id === k);
+    if (i < 0) return;
+    if (act === "done") { mine[i].done = !mine[i].done; save(LS_MINE, mine); renderAll(); }
+    if (act === "del" && confirm("确定删除这条事项吗？")) { mine.splice(i, 1); save(LS_MINE, mine); renderAll(); }
+    if (act === "edit") openForm(mine[i]);
+  }
+});
+
+function openForm(r) {
+  $("formTitle").textContent = r ? "编辑我的事项" : "添加我的事项";
+  const p = r ? parseTime(r.event_time) : null;
+  $("fId").value = r ? r.id : "";
+  $("fTitle").value = r ? r.subject : "";
+  $("fDate").value = p ? p.day : selectedKey;
+  $("fTime").value = p ? p.time : "";
+  $("fLoc").value = r ? (r.location || "") : "";
+  $("fNote").value = r ? (r.note || "") : "";
+  $("modal").classList.add("open");
+  setTimeout(() => $("fTitle").focus(), 50);
+}
+$("form").onsubmit = (e) => {
+  e.preventDefault();
+  const rec = {
+    id: $("fId").value || "p" + Date.now(),
+    subject: $("fTitle").value.trim(),
+    event_time: $("fDate").value + ($("fTime").value ? " " + $("fTime").value : ""),
+    location: $("fLoc").value.trim(),
+    note: $("fNote").value.trim(),
+  };
+  const i = mine.findIndex((x) => x.id === rec.id);
+  if (i >= 0) mine[i] = { ...mine[i], ...rec }; else mine.push(rec);
+  save(LS_MINE, mine);
+  $("modal").classList.remove("open");
+  selectedKey = rec.event_time.slice(0, 10);
+  renderAll();
+};
+$("cancelBtn").onclick = () => $("modal").classList.remove("open");
+$("modal").onclick = (e) => { if (e.target === $("modal")) $("modal").classList.remove("open"); };
+
+// ===== 备份 / 恢复 =====
+function download(name, text, type) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], { type }));
+  a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+$("exportBtn").onclick = () => download(`我的日历备份-${keyOf(new Date())}.json`,
+  JSON.stringify({ version: 1, mine, marks }, null, 2), "application/json");
+$("importBtn").onclick = () => $("importFile").click();
+$("importFile").onchange = async (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const data = JSON.parse(await f.text());
+    if (!Array.isArray(data.mine) || typeof data.marks !== "object") throw new Error("格式不对");
+    if (!confirm(`将恢复 ${data.mine.length} 条我的事项，并覆盖当前设备上的数据，继续吗？`)) return;
+    mine = data.mine; marks = data.marks || {};
+    save(LS_MINE, mine); save(LS_MARK, marks); renderAll();
+    alert("恢复完成");
+  } catch (err) { alert("恢复失败：" + err.message); }
+  e.target.value = "";
+};
+
+// ===== 导出到手机日历（.ics） =====
+function icsEscape(s) { return String(s || "").replace(/\\/g, "\\\\").replace(/[,;]/g, (c) => "\\" + c).replace(/\n/g, "\\n"); }
+$("icsBtn").onclick = () => {
+  const now = new Date();
+  const stamp = `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}T${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}00Z`;
+  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//class-calendar//CN", "CALSCALE:GREGORIAN"];
+  let n = 0;
+  for (const r of allItems()) {
+    if (!r._p || r._hidden || r._done) continue;
+    const d = r._p.day.replace(/-/g, "");
+    lines.push("BEGIN:VEVENT", `UID:${r._key}@class-calendar`, `DTSTAMP:${stamp}`);
+    if (r._p.time) {
+      const t = r._p.time.replace(":", "") + "00";
+      lines.push(`DTSTART:${d}T${t}`, `DURATION:PT1H`);
+      lines.push("BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:提醒", "TRIGGER:-PT1H", "END:VALARM");
+    } else {
+      const next = new Date(r._p.day + "T00:00:00"); next.setDate(next.getDate() + 1);
+      lines.push(`DTSTART;VALUE=DATE:${d}`, `DTEND;VALUE=DATE:${keyOf(next).replace(/-/g, "")}`);
+    }
+    const title = `${r.need_confirm ? "【需确认】" : ""}${r._mine ? "" : "[" + r.msg_type + "]"}${r.subject || r.summary || ""}`;
+    const desc = [r.summary, r.prepare ? "需准备：" + r.prepare : "", r._note ? "备注：" + r._note : "", r.original ? "原文：" + r.original : ""].filter(Boolean).join("\n");
+    lines.push(`SUMMARY:${icsEscape(title)}`, `DESCRIPTION:${icsEscape(desc)}`);
+    if (r.location) lines.push(`LOCATION:${icsEscape(r.location)}`);
+    lines.push("END:VEVENT"); n++;
+  }
+  lines.push("END:VCALENDAR");
+  if (!n) { alert("没有可导出的事项"); return; }
+  download(`班级日历-${keyOf(now)}.ics`, lines.join("\r\n"), "text/calendar");
+};
+
+// ===== 其他按钮 =====
+$("prevBtn").onclick = () => { if (--viewMonth < 0) { viewMonth = 11; viewYear--; } renderGrid(); };
+$("nextBtn").onclick = () => { if (++viewMonth > 11) { viewMonth = 0; viewYear++; } renderGrid(); };
+$("todayBtn").onclick = () => { viewYear = today.getFullYear(); viewMonth = today.getMonth(); selectedKey = keyOf(today); renderAll(); };
+$("addBtn").onclick = () => openForm(null);
+$("addDayBtn").onclick = () => openForm(null);
+$("refreshBtn").onclick = loadClass;
+$("showHidden").onchange = renderAll;
+window.addEventListener("resize", renderGrid);
+
+loadClass();
+</script>
+</body>
+</html>
