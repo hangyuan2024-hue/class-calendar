@@ -17,6 +17,15 @@
       "author": "（宋苗雪）",
       "description": "按周查看课程，支持单双周、冬夏作息切换、冲突检测。数据只保存在本机。",
       "default": true
+    },
+    {
+      "id": "personal-diary",
+      "name": "个人日记",
+      "icon": "📝",
+      "version": "1.0.0",
+      "author": "（I can't）",
+      "description": "每天一篇日记，自动保存、本机加密存储，可记录当天天气。日记内容不上传。",
+      "default": false
     }
   ]
 }
