@@ -5,6 +5,7 @@ CalendarApp.register({
   init(api) {
     const { esc, keyOf } = api.util;
     const MAX_WEEK = 16;
+    const DEFAULT_WEEK1 = "2026-09-14"; // 与 app.html 里 semesterStartDate() 一致
     const PERIODS = {
       winter: ["08:00-08:50", "09:00-09:50", "10:10-11:00", "11:10-12:00", "14:00-14:50",
                "15:00-15:50", "16:10-17:00", "17:10-18:00", "19:10-20:00", "20:10-21:00"],
@@ -33,11 +34,14 @@ CalendarApp.register({
 
     // 往日历里加课程
     api.addEventSource((startKey, endKey) => {
-      const first = api.storage.get("week1", "");
+      const first = api.storage.get("week1", DEFAULT_WEEK1);
       if (!first || !api.storage.get("sync", true)) return [];
       const courses = read("personal_course_schedule_courses_v1", []);
       if (!Array.isArray(courses) || !courses.length) return [];
-      const mode = read("personal_course_schedule_time_mode_v1", "winter") === "summer" ? "summer" : "winter";
+      // 用户没手动切换过时，按 app.html 的 defaultTimeMode()：5~10 月夏秋季，其余冬春季
+      const saved = localStorage.getItem("personal_course_schedule_time_mode_v1");
+      const m = new Date().getMonth() + 1;
+      const mode = saved === "summer" || saved === "winter" ? saved : (m >= 5 && m <= 10 ? "summer" : "winter");
       const times = PERIODS[mode];
       const w1 = new Date(first + "T00:00:00");
       const out = [];
@@ -66,12 +70,12 @@ CalendarApp.register({
             <span class="csTip" style="color:var(--sub);font-size:12px"></span>
           </div>
           <div class="panel" style="padding:0;overflow:hidden">
-            <iframe src="plugins/course-schedule/app.html" title="课程表"
+            <iframe src="plugins/course-schedule/app.html?v=1.1.0" title="课程表"
               style="width:100%;border:0;display:block;min-height:70vh"></iframe></div>`;
         const q = (s) => el.querySelector(s);
-        q(".csW1").value = api.storage.get("week1", "");
+        q(".csW1").value = api.storage.get("week1", DEFAULT_WEEK1);
         q(".csSync").checked = api.storage.get("sync", true);
-        const tip = () => { q(".csTip").textContent = api.storage.get("week1", "") ? "" : "填写后，课程会自动出现在日历上"; };
+        const tip = () => { q(".csTip").textContent = api.storage.get("week1", DEFAULT_WEEK1) ? "" : "填写后，课程会自动出现在日历上"; };
         tip();
         q(".csW1").onchange = (e) => {
           let v = e.target.value;

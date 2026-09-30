@@ -13,18 +13,18 @@
       "id": "course-schedule",
       "name": "课程表",
       "icon": "📚",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "author": "（宋苗雪）",
-      "description": "按周查看课程，支持单双周、冬夏作息切换、冲突检测。数据只保存在本机。",
+      "description": "按周查看课程，自动定位当前教学周，支持单双周、冬夏作息切换、冲突检测。课程可同步到日历。数据只保存在本机。",
       "default": true
     },
     {
       "id": "personal-diary",
       "name": "个人日记",
       "icon": "📝",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "author": "（I can't）",
-      "description": "每天一篇日记，自动保存、本机加密存储，可记录当天天气。日记内容不上传。",
+      "description": "图文情绪手帐：每日心情、插入照片、记录天气，自动保存。日记和照片只保存在本机，不上传。",
       "default": false
     }
   ]

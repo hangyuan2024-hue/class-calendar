@@ -132,6 +132,11 @@ button {
   display: flex;
   gap: 10px;
   align-items: center;
+  flex-wrap: wrap; /* 窄屏时按钮换行，避免被挤成竖排 */
+}
+
+.header-actions .btn {
+  white-space: nowrap;
 }
 
 /* 时间模式切换 */
@@ -234,6 +239,10 @@ button {
 
 .btn-today:hover {
   background: #eef3ff;
+}
+
+.modal-sm {
+  max-width: 380px;
 }
 
 .btn-cancel {
@@ -657,7 +666,7 @@ button {
   }
 }
 
-    </style>
+</style>
   </head>
   <body>
     <header class="app-header">
@@ -765,6 +774,8 @@ var COURSES_KEY = "personal_course_schedule_courses_v1";
 var SEMESTER_KEY = "personal_course_schedule_semester_v1";
 var TIME_MODE_KEY = "personal_course_schedule_time_mode_v1";
 var WEEK_KEY = "personal_course_schedule_current_week_v1";
+/* 用户是否主动切换过周次的标记：只有为 "1" 时才使用 WEEK_KEY 中的当前查看周 */
+var WEEK_USER_SET_KEY = "personal_course_schedule_week_user_set_v1";
 var MAX_WEEK = 16;
 
 /* ===== 时间模式 ===== */
@@ -852,13 +863,20 @@ function saveTimeMode() {
   } catch (e) {}
 }
 
+/* 当前查看周的默认值：
+ * 首次打开（用户从未主动切换过周次）→ 自动显示真实教学周 actualWeek；
+ * 用户通过周导航主动切换过周次后 → 使用 localStorage 中保存的当前查看周。
+ * 这样旧数据里错误的 currentWeek=1 不会把页面卡在第1周。
+ */
 function loadWeek() {
   try {
-    var v = parseInt(localStorage.getItem(WEEK_KEY), 10);
-    return isFinite(v) && v >= 1 && v <= MAX_WEEK ? v : 1;
-  } catch (e) {
-    return 1;
-  }
+    if (localStorage.getItem(WEEK_USER_SET_KEY) === "1") {
+      var v = parseInt(localStorage.getItem(WEEK_KEY), 10);
+      if (isFinite(v) && v >= 1 && v <= MAX_WEEK) return v;
+    }
+  } catch (e) {}
+  var actual = weekOfToday();
+  return actual >= 1 && actual <= MAX_WEEK ? actual : 1;
 }
 
 function saveWeek() {
@@ -887,9 +905,40 @@ function timeRangeText(s, e) {
   return (times[s - 1] || "") + " → " + (times[e - 1] || "");
 }
 
+/* ===== 教学周（固定基准） =====
+ * 固定条件：2026年9月14日（星期一）= 第1周周一。
+ * JavaScript 月份从 0 开始：8 代表 9 月。
+ * 教学周只由"今天与学期起始日期的天数差"计算，绝不使用自然周、当前月份第几周、
+ * 不以 new Date() 所在周作为第1周，也绝不读取 localStorage 中的当前查看周。
+ */
+function semesterStartDate() {
+  return new Date(2026, 8, 14);
+}
+
+/* 真实日期所在教学周（1 起）：
+ * actualWeek = Math.floor(dayDifference / 7) + 1
+ * 例如：2026-09-14→第1周，09-21→第2周，09-28→第3周，09-29→第3周
+ */
+function weekOfToday() {
+  var today = new Date();
+  today.setHours(0, 0, 0, 0);
+  var dayDifference = Math.round((today - semesterStartDate()) / 86400000);
+  return Math.floor(dayDifference / 7) + 1;
+}
+
+/* 今天对应的课程表列索引（0=周一 ... 6=周日）。
+ * Date.getDay()：0=周日 1=周一 ... 6=周六
+ * 转换公式：courseDayIndex = (date.getDay() + 6) % 7
+ */
 function todayIndex() {
-  var d = new Date().getDay();
-  return d === 0 ? 6 : d - 1;
+  return (new Date().getDay() + 6) % 7;
+}
+
+/* 是否正在查看"本周"：只有 viewingWeek === actualWeek 时，"今天"标记才显示。
+ * 这里只用真实日期重新计算的 actualWeek，绝不读取旧的 currentWeek。
+ */
+function isTodayVisible() {
+  return state.currentWeek === weekOfToday();
 }
 
 /* ===== 周次解析 =====
@@ -996,12 +1045,13 @@ function render() {
 
   var times = currentTimes();
   var tIdx = todayIndex();
+  var showToday = isTodayVisible();
   var html = [];
 
   /* 表头 */
   html.push('<div class="grid-head" style="grid-row:1;grid-column:1"></div>');
   for (var d = 0; d < 7; d++) {
-    var isToday = d === tIdx;
+    var isToday = showToday && d === tIdx;
     html.push(
       '<div class="grid-head day-head' + (isToday ? " today" : "") + '" data-day="' + d + '" style="grid-row:1;grid-column:' + (d + 2) + '">' +
       DAY_NAMES[d] +
@@ -1017,7 +1067,7 @@ function render() {
       '<span class="period-time">' + times[p] + "</span></div>"
     );
     for (var d2 = 0; d2 < 7; d2++) {
-      html.push('<div class="grid-cell' + (d2 === tIdx ? " today-col" : "") + '" style="grid-row:' + (p + 2) + ';grid-column:' + (d2 + 2) + '"></div>');
+      html.push('<div class="grid-cell' + (showToday && d2 === tIdx ? " today-col" : "") + '" style="grid-row:' + (p + 2) + ';grid-column:' + (d2 + 2) + '"></div>');
     }
   }
   gridEl.innerHTML = html.join("");
@@ -1242,6 +1292,10 @@ function changeWeek(delta) {
   if (w === state.currentWeek) return;
   state.currentWeek = w;
   saveWeek();
+  /* 标记：用户已主动切换过周次，此后刷新保留用户选择的当前查看周 */
+  try {
+    localStorage.setItem(WEEK_USER_SET_KEY, "1");
+  } catch (e) {}
   render();
 }
 
@@ -1334,6 +1388,18 @@ function init() {
     updateEndSelect(null);
   });
   todayBtn.addEventListener("click", function () {
+    /* 点击"今天"：切回真实教学周，并定位到今日列 */
+    var targetWeek = weekOfToday();
+    if (targetWeek < 1) targetWeek = 1;
+    if (targetWeek > MAX_WEEK) targetWeek = MAX_WEEK;
+    if (state.currentWeek !== targetWeek) {
+      state.currentWeek = targetWeek;
+      saveWeek();
+      try {
+        localStorage.setItem(WEEK_USER_SET_KEY, "1");
+      } catch (e) {}
+      render();
+    }
     var heads = gridEl.querySelectorAll(".grid-head.day-head");
     var el = heads[todayIndex()];
     if (!el) return;
@@ -1421,6 +1487,6 @@ function init() {
 
 init();
 
-    </script>
+</script>
   </body>
 </html>

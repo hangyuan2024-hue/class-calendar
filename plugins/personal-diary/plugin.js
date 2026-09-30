@@ -1,5 +1,5 @@
 // 个人日记插件：组员开发的独立页面 app.html 通过 iframe 嵌入。
-// 日记正文只存本机（personal_diary_* 键，AES-GCM 加密）；天气功能会联网查询 Open-Meteo。
+// 图文情绪手帐：文字/心情本机加密保存，照片存本机 IndexedDB；天气功能会联网查询 Open-Meteo。
 CalendarApp.register({
   id: "personal-diary",
   init(api) {
@@ -7,7 +7,7 @@ CalendarApp.register({
       id: "main", title: "📝 日记",
       render(el) {
         el.innerHTML = `<div class="panel" style="padding:0;overflow:hidden">
-          <iframe src="plugins/personal-diary/app.html" title="个人日记" allow="geolocation"
+          <iframe src="plugins/personal-diary/app.html?v=1.1.0" title="个人日记" allow="geolocation"
             style="width:100%;border:0;display:block;min-height:75vh"></iframe></div>`;
         const frame = el.querySelector("iframe");
         const fit = () => {

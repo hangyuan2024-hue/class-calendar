@@ -84,15 +84,147 @@
   input[type=date]{border:1px solid var(--line);border-radius:999px;background:var(--board);color:var(--ink);padding:8px 14px;font-size:13.5px;font-family:inherit}
   input[type=date]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
+  /* ============ 自定义日历（替代原生 date picker，支持心情背景） ============
+     原生 <input type="date"> 弹出的日历由浏览器内核绘制，无法注入内容，
+     故自建日历弹层；原生 input 保留在页面上（位置/value 不变），
+     上面盖一层透明按钮接管点击，原生日历不会再弹出。 */
+  .date-pick-wrap{position:relative;display:inline-flex}
+  .date-trigger{position:absolute;inset:0;border:0;background:transparent;cursor:pointer;border-radius:999px;padding:0;font-family:inherit}
+  .date-trigger:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+  .cal-pop{
+    position:absolute;top:calc(100% + 8px);left:50%;transform:translateX(-50%);
+    width:274px;z-index:10001;
+    background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow-md);padding:9px 9px 7px;
+    -webkit-user-select:none;user-select:none;
+  }
+  .cal-pop[hidden]{display:none}
+  .cal-head{display:flex;align-items:center;justify-content:space-between;gap:1px;margin-bottom:5px}
+  .cal-nav{width:26px;height:26px;flex:0 0 26px;border:0;background:transparent;color:var(--ink-soft);font-size:15px;line-height:1;border-radius:8px;cursor:pointer;font-family:inherit;padding:0;transition:background .12s ease,color .12s ease}
+  .cal-nav:hover{background:var(--accent-soft);color:var(--accent)}
+  .cal-nav:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  .cal-title{flex:1;text-align:center;font-size:13px;font-weight:700;letter-spacing:.02em;color:var(--ink);white-space:nowrap}
+  .cal-week{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:3px}
+  .cal-week span{text-align:center;font-size:10.5px;color:var(--ink-soft);font-weight:600;padding:1px 0}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+  .cal-day{
+    position:relative;aspect-ratio:1/1;min-height:32px;border:0;background:transparent;border-radius:9px;
+    cursor:pointer;font-family:inherit;font-size:12.5px;color:var(--ink);
+    display:flex;align-items:center;justify-content:center;padding:0;overflow:hidden;
+    transition:background .12s ease,color .12s ease;
+  }
+  .cal-day:hover{background:var(--accent-soft)}
+  .cal-day:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  .cal-day .cal-num{position:relative;z-index:1;font-variant-numeric:tabular-nums;line-height:1}
+  /* 心情图标作为背景：半透明，日期数字仍然清晰可读 */
+  .cal-day .cal-mood{
+    position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    font-size:21px;line-height:1;opacity:.32;pointer-events:none;
+  }
+  .cal-day.out{color:var(--ink-soft);opacity:.4}
+  .cal-day.is-today{box-shadow:inset 0 0 0 1.5px var(--accent);font-weight:700}
+  .cal-day.is-sel{background:var(--accent);color:#fff;font-weight:700;box-shadow:none}
+  .cal-day.is-sel:hover{background:var(--accent)}
+  .cal-day.is-sel .cal-mood{opacity:.45}
+  .cal-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:7px;padding-top:6px;border-top:1px dashed var(--line)}
+  .cal-hint{font-size:10.5px;color:var(--ink-soft);line-height:1.25}
+  .cal-today{border:1px solid var(--line);background:var(--board);color:var(--ink);border-radius:999px;padding:4px 10px;font-size:11.5px;font-family:inherit;cursor:pointer;font-weight:600;flex:0 0 auto;transition:border-color .12s ease}
+  .cal-today:hover{border-color:var(--line-strong)}
+  .cal-today:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+  /* ============ 心情 ============ */
+  .mood-card{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow-sm);padding:13px 14px 15px;margin-bottom:16px}
+  .mood-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:10px}
+  .mood-title{font-size:14px;font-weight:700;letter-spacing:.04em}
+  .mood-sub{font-size:11.5px;color:var(--ink-soft)}
+  .mood-list{display:flex;flex-wrap:wrap;gap:8px}
+  .mood-btn{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);background:var(--board);color:var(--ink);border-radius:999px;padding:7px 13px;font-size:13px;font-family:inherit;cursor:pointer;font-weight:600;line-height:1;transition:transform .12s ease,background .15s ease,border-color .15s ease,box-shadow .15s ease}
+  .mood-btn:hover{border-color:var(--line-strong);transform:translateY(-1px)}
+  .mood-btn:active{transform:scale(.94)}
+  .mood-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .mood-btn .mood-emoji{font-size:16px}
+  .mood-btn .mood-dot{font-size:11px;margin-right:-1px}
+  .mood-btn.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);box-shadow:0 3px 10px rgba(201,123,74,.18)}
+  @media (prefers-color-scheme: dark){ .mood-btn.on{box-shadow:0 3px 10px rgba(0,0,0,.35)} }
+  .mood-btn.pop{animation:moodpop .28s ease}
+  @keyframes moodpop{0%{transform:scale(1)}45%{transform:scale(1.15)}100%{transform:scale(1)}}
+
   /* ============ 日记纸 ============ */
   .journal{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);overflow:hidden;transition:box-shadow .25s ease}
   .journal:focus-within{box-shadow:var(--shadow-md)}
   .journal-head{padding:14px 18px 9px;border-bottom:1px dashed var(--line)}
   .j-hint{font-size:12.5px;color:var(--ink-soft);font-variant-numeric:tabular-nums}
-  textarea{display:block;width:100%;min-height:340px;border:0;resize:vertical;background:repeating-linear-gradient(transparent,transparent 27px,var(--line) 28px);line-height:28px;font-size:16px;color:var(--ink);padding:14px 18px;font-family:inherit;caret-color:var(--accent)}
-  @media (prefers-color-scheme: dark){ textarea{background:repeating-linear-gradient(transparent,transparent 27px,rgba(226,154,103,.14) 28px)} }
-  textarea:focus{outline:none}
-  textarea::placeholder{color:var(--ink-soft);opacity:.75}
+  /* 手帐纸：横线纸底 + 内描边 */
+  .paper-wrap{position:relative;padding:12px 14px 18px}
+  .paper{
+    position:relative;min-height:440px;border-radius:14px;padding:6px 14px 22px;
+    background-image:repeating-linear-gradient(transparent 0,transparent 27px,var(--line) 27px,var(--line) 28px);
+    background-position:0 6px;
+    box-shadow:inset 0 0 0 1px var(--line),inset 0 16px 28px -26px rgba(90,74,48,.5);
+    transition:box-shadow .25s ease;
+  }
+  @media (prefers-color-scheme: dark){
+    .paper{background-image:repeating-linear-gradient(transparent 0,transparent 27px,rgba(226,154,103,.14) 27px,rgba(226,154,103,.14) 28px)}
+  }
+  .journal:focus-within .paper{box-shadow:inset 0 0 0 1px var(--line-strong),inset 0 16px 28px -24px rgba(90,74,48,.55)}
+
+  /* 文字块 */
+  .blk-text{min-height:28px;line-height:28px;font-size:16px;color:var(--ink);outline:none;white-space:pre-wrap;word-break:break-word;caret-color:var(--accent);border-radius:6px}
+  .blk-text:focus{background:rgba(201,123,74,.06)}
+  .blk-text.is-empty::before{content:attr(data-ph);color:var(--ink-soft);opacity:.75;pointer-events:none}
+
+  /* 照片块（拍立得 + 胶带 + 轻微旋转） */
+  .blk-img{
+    position:absolute;background:#fff;padding:6px 6px 16px;border-radius:6px;
+    box-shadow:0 8px 18px rgba(90,74,48,.22);
+    touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab;
+    transition:box-shadow .18s ease;
+  }
+  .blk-img img{display:block;width:100%;height:100%;object-fit:cover;border-radius:3px;pointer-events:none;background:var(--board)}
+  .blk-img.dragging{cursor:grabbing;box-shadow:0 18px 34px rgba(90,74,48,.34)}
+  .blk-img.active{z-index:60}
+  .blk-img .photo-tape{
+    position:absolute;top:-11px;left:50%;width:58px;height:20px;margin-left:-29px;border-radius:2px;
+    background:linear-gradient(180deg,rgba(232,206,158,.78),rgba(219,188,132,.6));
+    box-shadow:0 1px 3px rgba(90,74,48,.18);transform:rotate(-3deg);
+    border-left:2px dashed rgba(255,255,255,.55);border-right:2px dashed rgba(255,255,255,.55);
+    pointer-events:none;
+  }
+  .blk-img .photo-del{
+    position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:50%;border:0;padding:0;
+    background:rgba(201,79,66,.92);color:#fff;font-size:14px;line-height:20px;cursor:pointer;z-index:4;
+    box-shadow:0 2px 6px rgba(0,0,0,.25);opacity:0;transition:opacity .15s ease,transform .12s ease;
+  }
+  .blk-img:hover .photo-del,.blk-img.active .photo-del{opacity:1}
+  .blk-img .photo-del:active{transform:scale(.9)}
+  .blk-img .handle{
+    position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;border:2px solid var(--accent);
+    opacity:0;transition:opacity .15s ease;touch-action:none;z-index:2;
+  }
+  .blk-img:hover .handle,.blk-img.active .handle{opacity:1}
+  .handle.nw{left:-8px;top:-8px;cursor:nwse-resize}
+  .handle.ne{right:-8px;top:-8px;cursor:nesw-resize}
+  .handle.sw{left:-8px;bottom:-8px;cursor:nesw-resize}
+  .handle.se{right:-8px;bottom:-8px;cursor:nwse-resize}
+  .blk-img.lost img{background:repeating-linear-gradient(45deg,var(--board) 0 8px,var(--accent-soft) 8px 16px)}
+  .blk-img.lost::after{content:"🖼️ 图片已丢失";position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);text-align:center;font-size:11.5px;color:var(--ink-soft);pointer-events:none}
+  @media (hover:none){
+    .blk-img .handle{opacity:.95;width:18px;height:18px}
+    .blk-img .photo-del{opacity:1}
+  }
+
+  /* 小贴纸 */
+  .stickers{position:absolute;inset:0;pointer-events:none;overflow:hidden;border-radius:14px}
+  .sticker{position:absolute;font-size:19px;opacity:.7}
+
+  /* 手帐工具条 */
+  .paper-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:0 18px 14px}
+  .tool-btn{border:1px dashed var(--line-strong);background:var(--board);color:var(--accent);border-radius:999px;padding:8px 16px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;transition:transform .12s ease,background .12s ease}
+  .tool-btn:hover{background:var(--accent-soft)}
+  .tool-btn:active{transform:scale(.96)}
+  .tool-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .tool-hint{font-size:11.5px;color:var(--ink-soft)}
   .meta{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:11px 18px;border-top:1px dashed var(--line);font-size:12px;color:var(--ink-soft)}
   .status{display:inline-flex;align-items:center;gap:6px;opacity:.85}
   .status .dot{width:6px;height:6px;border-radius:50%;background:var(--ok);opacity:0;transition:opacity .2s ease}
@@ -112,6 +244,8 @@
   .hist-left{display:flex;align-items:baseline;gap:8px;min-width:0}
   .hist-date{font-size:14.5px;font-weight:600}
   .hist-week{font-size:11.5px;color:var(--accent);background:var(--accent-soft);border-radius:6px;padding:1px 7px;white-space:nowrap}
+  .hist-mood{font-size:14px;line-height:1}
+  .hist-pics{font-size:11px;color:var(--ink-soft);background:var(--board);border:1px solid var(--line);border-radius:6px;padding:1px 6px;white-space:nowrap}
   .hist-meta{font-size:11.5px;color:var(--ink-soft);white-space:nowrap}
   .hist-empty{color:var(--ink-soft);font-size:13px;padding:6px 2px}
 
@@ -135,14 +269,36 @@
   .dg-msg.err{color:var(--danger)}
   .dg-msg.ok{color:var(--ok)}
 
+  /* ============ TextCursor 动效（React Bits TextCursor 移植 · 全页面版） ============
+     整页固定浮层，pointer-events:none 只做视觉叠加，不拦截任何点击/拖拽/滚动。
+     坐标直接使用 e.clientX / e.clientY（视口坐标），因此滚动页面时笔迹依然跟随鼠标。 */
+  .text-cursor-layer{
+    position:fixed;top:0;left:0;right:0;bottom:0;overflow:hidden;
+    pointer-events:none;z-index:9999;
+  }
+  .text-cursor-item{
+    position:absolute;user-select:none;-webkit-user-select:none;white-space:nowrap;
+    font-size:1.5rem;line-height:1;color:var(--accent);
+    opacity:0;transform:scale(1);will-change:transform,opacity;
+    transition:opacity var(--tc-exit,.5s) ease-out,transform var(--tc-exit,.5s) ease-out;
+  }
+  .text-cursor-item.is-in{opacity:.45}
+  .text-cursor-item.is-out{opacity:0;transform:scale(0)}
+  .text-cursor-static{display:inline-block;transform:rotate(var(--tc-angle,0deg))}
+  .text-cursor-float{display:inline-block;animation:tc-float 2s ease-in-out infinite alternate}
+  @keyframes tc-float{
+    0%{transform:rotate(var(--tc-angle,0deg)) translate(0,0) rotate(0deg)}
+    100%{transform:rotate(var(--tc-angle,0deg)) translate(var(--tc-rx,0px),var(--tc-ry,0px)) rotate(var(--tc-rr,0deg))}
+  }
+
   @media (prefers-reduced-motion: reduce){ *,*::before,*::after{transition:none!important;animation:none!important} }
   @media (min-width:700px){ .wrap{padding-top:36px} }
-  @media print{ .date-card,.recent,.clock,.weather{display:none} body{background:#fff} .journal{border:1px solid #ccc;box-shadow:none} textarea{min-height:0;background:none} }
+  @media print{ .date-card,.recent,.clock,.weather,.mood-card,.paper-tools,.photo-del,.handle,.stickers,.tool-hint,.text-cursor-layer,.cal-pop,.date-trigger{display:none} body{background:#fff} .journal{border:1px solid #ccc;box-shadow:none} .paper{min-height:0;box-shadow:none} .blk-img{box-shadow:none} }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header>
+  <header id="hero">
     <p class="kicker">MY DIARY</p>
     <h1>我的日记</h1>
     <div class="clock" id="clock">2026年9月29日 星期二 20:25:46</div>
@@ -161,14 +317,49 @@
       <button class="arrow" id="nextDay" title="后一天" aria-label="后一天">›</button>
     </div>
     <div class="d-actions">
-      <input type="date" id="datePicker" aria-label="选择日期" value="2026-09-21">
+      <span class="date-pick-wrap" id="dateWrap">
+        <input type="date" id="datePicker" aria-label="选择日期" value="2026-09-21" tabindex="-1">
+        <button type="button" class="date-trigger" id="dateTrigger" aria-label="选择日期" aria-haspopup="dialog" aria-expanded="false"></button>
+        <div class="cal-pop" id="calPop" hidden role="dialog" aria-label="选择日期">
+          <div class="cal-head">
+            <button type="button" class="cal-nav" data-step="-12" aria-label="上一年">«</button>
+            <button type="button" class="cal-nav" data-step="-1" aria-label="上个月">‹</button>
+            <span class="cal-title" id="calTitle"></span>
+            <button type="button" class="cal-nav" data-step="1" aria-label="下个月">›</button>
+            <button type="button" class="cal-nav" data-step="12" aria-label="下一年">»</button>
+          </div>
+          <div class="cal-week"></div>
+          <div class="cal-grid" id="calGrid"></div>
+          <div class="cal-foot">
+            <span class="cal-hint">日期背景为当天记录的心情</span>
+            <button type="button" class="cal-today" id="calToday">回到今天</button>
+          </div>
+        </div>
+      </span>
       <button class="btn primary" id="todayBtn">今天</button>
     </div>
   </section>
 
+  <section class="mood-card" aria-label="心情记录">
+    <div class="mood-head">
+      <span class="mood-title" id="moodTitle">今天的心情</span>
+      <span class="mood-sub" id="moodSub">选一个此刻的心情</span>
+    </div>
+    <div class="mood-list" id="moodList"></div>
+  </section>
+
   <article class="journal">
     <div class="journal-head"><div class="j-hint" id="jTime">写下今天发生的事情吧……</div></div>
-    <textarea id="content" placeholder="写下今天发生的事情吧……"></textarea>
+    <div class="paper-wrap">
+      <div class="paper" id="paper"></div>
+      <div class="stickers" id="stickers" aria-hidden="true"></div>
+    </div>
+    <div class="paper-tools">
+      <button class="tool-btn" id="addText" type="button">＋ 文字</button>
+      <button class="tool-btn" id="addPhoto" type="button">📷 添加照片</button>
+      <span class="tool-hint">照片只保存在本机 · 可拖动 / 缩放 / 删除</span>
+    </div>
+    <input type="file" id="photoInput" accept="image/*" multiple hidden>
     <div class="meta">
       <div class="status" id="statusBox"><span class="dot"></span><span id="statusTxt">已切换</span></div>
       <div class="word-count" id="wordCount">0 字</div>
@@ -271,7 +462,10 @@
 
   /* ================= 模块 3：存储键 ================= */
   var K = {
-    diary: function(day){ return PREFIX + "diary_" + day; },          // 日记正文（当前+旧格式）
+    diary: function(day){ return PREFIX + "diary_" + day; },          // 日记正文（旧格式，兼容保留）
+    page: function(day){ return PREFIX + "diary_page_" + day; },      // 图文手帐整页（加密 JSON）
+    mood: function(day){ return PREFIX + "mood_" + day; },            // 每日心情
+    photo: function(id){ return PREFIX + "photo_" + id; },            // 照片兜底存储（IndexedDB 不可用时）
     updated: function(day){ return PREFIX + "updated_" + day; },      // 旧版本保存时间
     dayWeather: function(day){ return PREFIX + "diary_weather_" + day; },
     key: PREFIX + "diary_key",
@@ -388,7 +582,7 @@
     return safeGetItem(storage(), K.updated(day)) || "";
   }
 
-  /** 构建历史日期列表：meta ∪ 扫描到的旧 diary 键 */
+  /** 构建历史日期列表：meta ∪ 扫描到的旧 diary 键 ∪ 只记了心情的日期 */
   function buildHistory(){
     var map = {};
     var list = readMeta();
@@ -400,10 +594,16 @@
         for (var i = 0; i < s.length; i++) {
           var key = s.key(i) || "";
           var prefix = PREFIX + "diary_";
+          var moodPrefix = PREFIX + "mood_";
           if (key.indexOf(prefix) === 0) {
             var day = key.slice(prefix.length);
             if (/^\d{4}-\d{2}-\d{2}$/.test(day) && !(day in map)) {
               map[day] = safeGetItem(s, K.updated(day)) || "";
+            }
+          } else if (key.indexOf(moodPrefix) === 0) {
+            var mday = key.slice(moodPrefix.length);
+            if (/^\d{4}-\d{2}-\d{2}$/.test(mday) && !(mday in map)) {
+              map[mday] = "";
             }
           }
         }
@@ -418,10 +618,12 @@
 
   var el = {
     dateMain: $("dateMain"), dateSub: $("dateSub"), jTime: $("jTime"),
-    content: $("content"), picker: $("datePicker"), clock: $("clock"),
+    paper: $("paper"), stickers: $("stickers"), picker: $("datePicker"), clock: $("clock"),
     statusBox: $("statusBox"), statusTxt: $("statusTxt"), wordCount: $("wordCount"),
     histList: $("histList"), weatherTxt: $("weatherTxt"), weather: $("weather"),
-    cityDlg: $("cityDlg"), cityInput: $("cityInput"), cityMsg: $("cityMsg")
+    cityDlg: $("cityDlg"), cityInput: $("cityInput"), cityMsg: $("cityMsg"),
+    moodList: $("moodList"), moodTitle: $("moodTitle"), moodSub: $("moodSub"),
+    photoInput: $("photoInput")
   };
 
   var curDate; // 当前浏览的日期（Date，本地）
@@ -433,11 +635,28 @@
   }
 
   /* ================= 模块 8：字数 / 头部提示 ================= */
+  /** 取某个文字块的纯文本 */
+  function blockText(node){
+    if (!node) return "";
+    var t = node.innerText != null ? node.innerText : node.textContent;
+    return String(t == null ? "" : t).replace(/\u00a0/g, " ").replace(/\n+$/, "");
+  }
+  /** 当前手帐是否已有内容（文字或照片） */
+  function hasContent(){
+    if (!el.paper) return false;
+    var t = el.paper.querySelectorAll(".blk-text");
+    for (var i = 0; i < t.length; i++) if (blockText(t[i]).trim()) return true;
+    return el.paper.querySelectorAll(".blk-img").length > 0;
+  }
   function updateWordCount(){
-    el.wordCount.textContent = (el.content.value.trim().length) + " 字";
+    if (!el.paper) return;
+    var n = 0, t = el.paper.querySelectorAll(".blk-text");
+    for (var i = 0; i < t.length; i++) n += blockText(t[i]).trim().length;
+    var pics = el.paper.querySelectorAll(".blk-img").length;
+    el.wordCount.textContent = n + " 字" + (pics ? " · " + pics + " 图" : "");
   }
   function updateHead(){
-    if (el.content.value.trim()) {
+    if (hasContent()) {
       var t = getUpdated(toKey(curDate));
       el.jTime.textContent = "最后保存 · " + (hhmm(t) || "—");
     } else {
@@ -453,34 +672,104 @@
     setStatus("saving", "正在保存…");
     saveTimer = setTimeout(function(){ doSaveFixed(); }, 700);
     updateWordCount();
+    updateHead();
+  }
+
+  /** 采集当前纸面上的手帐内容（数组顺序 = 插入顺序：文字↓图片↓文字↓图片） */
+  function collectBlocks(){
+    var out = [];
+    if (!el.paper) return out;
+    var kids = el.paper.children;
+    for (var i = 0; i < kids.length; i++) {
+      var n = kids[i];
+      if (!n.classList) continue;
+      if (n.classList.contains("blk-img")) {
+        out.push({
+          type: "image",
+          id: n.getAttribute("data-id") || "",
+          x: Math.round(parseFloat(n.style.left) || 0),
+          y: Math.round(parseFloat(n.style.top) || 0),
+          width: Math.round(n.offsetWidth),
+          height: Math.round(n.offsetHeight),
+          rot: parseFloat(n.getAttribute("data-rot") || "0") || 0
+        });
+      } else if (n.classList.contains("blk-text")) {
+        out.push({ type: "text", content: blockText(n) });
+      }
+    }
+    return out;
+  }
+
+  /** 组装某一天的完整页面数据（文字 + 照片 + 心情 + 天气） */
+  function collectPage(day){
+    var mood = readMood(day);
+    var snap = readSnap(day);
+    return {
+      date: day,
+      mood: mood ? { key: mood.mood, emoji: mood.emoji, label: mood.label } : null,
+      weather: snap ? {
+        city: snap.city || "",
+        temperature: (snap.temp != null ? snap.temp : null),
+        high: (snap.high != null ? snap.high : null),
+        low: (snap.low != null ? snap.low : null)
+      } : null,
+      blocks: collectBlocks()
+    };
+  }
+
+  function pageHasContent(page){
+    if (!page || !page.blocks) return false;
+    for (var i = 0; i < page.blocks.length; i++) {
+      var b = page.blocks[i];
+      if (!b) continue;
+      if (b.type === "image" && b.id) return true;
+      if (b.type === "text" && b.content && b.content.trim()) return true;
+    }
+    return false;
+  }
+  function pageText(page){
+    var out = [];
+    (page.blocks || []).forEach(function(b){ if (b && b.type === "text" && b.content) out.push(b.content); });
+    return out.join("\n");
+  }
+  function pageImageCount(page){
+    var n = 0;
+    (page.blocks || []).forEach(function(b){ if (b && b.type === "image" && b.id) n++; });
+    return n;
   }
 
   /**
-   * 把"当前日期 key + 当前正文"固定捕获后立即保存到该日期。
-   * 不依赖可能随后变化的 curDate / 当前 textarea，保证：
+   * 把"当前日期 key + 当前手帐页"固定捕获后立即保存到该日期。
+   * 不依赖可能随后变化的 curDate / 当前纸面，保证：
    *   - 切换日期前旧内容一定落到正确的旧日期；
    *   - 切换发生后，旧的防抖任务（若有）也不会污染新日期。
    */
   function doSaveFixed(){
     var s = storage();
     if (!s) { setStatus("", "无法保存：本地存储不可用"); return; }
-    var day = toKey(curDate);       // 提前捕获固定日期 key
-    var text = el.content.value;    // 提前捕获固定正文
-    commitWrite(day, text);
+    var day = toKey(curDate);                 // 提前捕获固定日期 key
+    commitPage(day, collectPage(day));        // 提前捕获固定内容
   }
 
-  /** 底层写入：对固定 day+text 执行加密保存 / 清空。返回 Promise，完成后才允许切换日期 */
-  function commitWrite(day, text){
+  /**
+   * 底层写入：对固定 day + page 执行 AES-GCM 加密保存 / 清空。
+   * 主键 personal_diary_page_<day>；同时把纯文字同步写回旧的 personal_diary_<day>，保证旧格式可读。
+   * 返回 Promise，完成后才允许切换日期。
+   */
+  function commitPage(day, page){
     var s = storage();
+    if (!s) return Promise.resolve();
     var stamp = timeStampNow();
-    var hasText = text && text.trim().length > 0;
+    var has = pageHasContent(page);
+    var text = pageText(page);
+    var nImg = pageImageCount(page);
 
     function finalize(){
       var list = readMeta();
-      if (hasText) {
+      if (has) {
         var found = false;
-        for (var i = 0; i < list.length; i++) if (list[i].d === day) { list[i].u = stamp; found = true; break; }
-        if (!found) list.push({ d: day, u: stamp });
+        for (var i = 0; i < list.length; i++) if (list[i].d === day) { list[i].u = stamp; list[i].n = nImg; found = true; break; }
+        if (!found) list.push({ d: day, u: stamp, n: nImg });
       } else {
         list = list.filter(function(x){ return x.d !== day; });
       }
@@ -492,23 +781,29 @@
         renderHistory();
       }
     }
-    // 保存失败时同样只在仍在当前日期时才提示
     function fail(){ if (toKey(curDate) === day) setStatus("", "保存失败，请重试"); }
 
-    if (hasText) {
-      var doWrite = function(payload){
-        safeSetItem(s, K.diary(day), payload);
-        finalize();
-      };
-      if (hasSubtle) {
-        return encryptText(text).then(doWrite).catch(fail);
+    /** 兼容旧格式：把纯文字同步写入 personal_diary_<day>（无文字则清掉） */
+    function writeLegacy(){
+      if (text && text.trim()) {
+        if (hasSubtle) return encryptText(text).then(function(e){ safeSetItem(s, K.diary(day), e); });
+        safeSetItem(s, K.diary(day), encFallback(text));
+        return Promise.resolve();
       }
-      doWrite(encFallback(text));
+      safeRemoveItem(s, K.diary(day));
       return Promise.resolve();
     }
-    safeRemoveItem(s, K.diary(day));
-    finalize();
-    return Promise.resolve();
+
+    if (!has) {
+      safeRemoveItem(s, K.page(day));
+      return writeLegacy().then(finalize).catch(fail);
+    }
+    var payload = JSON.stringify({ v: 2, page: page });
+    var enc = hasSubtle ? encryptText(payload) : Promise.resolve(encFallback(payload));
+    return enc.then(function(cipher){
+      safeSetItem(s, K.page(day), cipher);
+      return writeLegacy();
+    }).then(finalize).catch(fail);
   }
 
   /** 切换日期前调用：立即落盘当前日期内容，并取消挂起的防抖保存，返回 Promise 以便等待保存完成 */
@@ -516,22 +811,60 @@
     clearTimeout(saveTimer);
     saveTimer = null;
     if (!storage()) return Promise.resolve();
-    return commitWrite(toKey(curDate), el.content.value);   // 固定捕获当前日期
+    var day = toKey(curDate);                 // 固定捕获当前日期
+    return commitPage(day, collectPage(day));
   }
 
-  /* ================= 模块 10：加载当日正文（带竞态保护） ================= */
+  /* ================= 模块 10：加载当日手帐（带竞态保护 + 旧数据兼容） ================= */
   var loadToken = 0;   // 递增令牌：只有最后一次请求可写回，防止快速切换时旧解密覆盖新页面
+
+  /**
+   * 读取某天页面数据：
+   *  - 优先 personal_diary_page_<day>（加密 JSON）
+   *  - 没有时读取旧的纯文字日记，自动转换为 [{type:"text",content:"旧日记内容"}]，不丢失历史数据
+   */
+  function readPage(day){
+    var s = storage();
+    var raw = safeGetItem(s, K.page(day));
+    var base;
+    if (raw == null) base = Promise.resolve("");
+    else if (hasSubtle) base = decryptText(raw);
+    else base = Promise.resolve(decFallback(raw) || raw);
+
+    return base.then(function(json){
+      var obj = jsonParseSafe(json, null);
+      // 兼容两种包裹：{v:2,page:{...}} 与直接 {blocks:[...]}
+      var pg = (obj && typeof obj === "object" && obj.page && typeof obj.page === "object") ? obj.page : obj;
+      if (pg && typeof pg === "object" && Array.isArray(pg.blocks)) {
+        return { page: pg, migrated: false };
+      }
+      // 兼容旧数据：只有文字的日记 -> block 结构
+      return readDiary(day).then(function(txt){
+        var mood = readMood(day);
+        return {
+          page: {
+            date: day,
+            mood: mood ? { key: mood.mood, emoji: mood.emoji, label: mood.label } : null,
+            weather: null,
+            blocks: [{ type: "text", content: txt || "" }]
+          },
+          migrated: !!(txt && txt.trim())
+        };
+      });
+    });
+  }
 
   function loadContent(day){
     var myToken = ++loadToken;
     var expectedKey = String(day);
-    readDiary(day).then(function(txt){
+    readPage(day).then(function(res){
       // 若期间又发起了新的加载请求，或当前浏览日期已变化，则丢弃本次结果
       if (myToken !== loadToken) return;
       if (toKey(curDate) !== expectedKey) return;
-      el.content.value = txt;
+      renderPage(res.page, day);
       updateHead();
       updateWordCount();
+      if (res.migrated) commitPage(day, collectPage(day));   // 旧数据迁移落盘（保留旧键不删）
     });
   }
 
@@ -847,6 +1180,901 @@
     }
   }
 
+  /* ================= 模块 16：每日心情 ================= */
+  var MOODS = [
+    { key: "happy",   emoji: "😀", label: "开心" },
+    { key: "calm",    emoji: "😌", label: "平静" },
+    { key: "loved",   emoji: "🥰", label: "幸福" },
+    { key: "excited", emoji: "🤩", label: "兴奋" },
+    { key: "tired",   emoji: "😴", label: "疲惫" },
+    { key: "sad",     emoji: "😔", label: "难过" },
+    { key: "anxious", emoji: "😟", label: "焦虑" },
+    { key: "angry",   emoji: "😡", label: "生气" }
+  ];
+
+  /** 读取某天心情：{date,mood,emoji,label,updatedAt} 或 null */
+  function readMood(day){
+    var o = jsonParseSafe(safeGetItem(storage(), K.mood(day)), null);
+    if (o && typeof o === "object" && o.mood) return o;
+    return null;
+  }
+  /** 保存 / 清除某天心情（每天只保留一个主要心情） */
+  function saveMood(day, m){
+    var s = storage();
+    if (!s) return;
+    if (!m) { safeRemoveItem(s, K.mood(day)); return; }
+    safeSetItem(s, K.mood(day), JSON.stringify({
+      date: day, mood: m.key, emoji: m.emoji, label: m.label, updatedAt: timeStampNow()
+    }));
+  }
+  function moodByKey(key){
+    for (var i = 0; i < MOODS.length; i++) if (MOODS[i].key === key) return MOODS[i];
+    return null;
+  }
+  function renderMood(){
+    if (!el.moodList) return;
+    var day = toKey(curDate);
+    var cur = readMood(day);
+    if (el.moodTitle) el.moodTitle.textContent = (day === todayKey()) ? "今天的心情" : "当天的心情";
+    if (el.moodSub) el.moodSub.textContent = cur ? ("已选：" + cur.label + " · 可随时修改") : "选一个此刻的心情";
+    var html = "";
+    for (var i = 0; i < MOODS.length; i++) {
+      var m = MOODS[i];
+      var on = !!(cur && cur.mood === m.key);
+      html += '<button type="button" class="mood-btn' + (on ? " on" : "") + '" data-mood="' + esc(m.key) + '" aria-pressed="' + (on ? "true" : "false") + '">' +
+        (on ? '<span class="mood-dot">🟡</span>' : '') +
+        '<span class="mood-emoji">' + m.emoji + '</span>' +
+        '<span class="mood-label">' + esc(m.label) + '</span></button>';
+    }
+    el.moodList.innerHTML = html;
+  }
+  /** 选择心情：每天只能有一个，再点一次可取消，随时可改 */
+  function pickMood(key){
+    var day = toKey(curDate);
+    var cur = readMood(day);
+    var next = moodByKey(key);
+    if (!next) return;
+    if (cur && cur.mood === next.key) next = null;
+    saveMood(day, next);
+    renderMood();
+    if (next) {
+      var b = el.moodList.querySelector('button[data-mood="' + key + '"]');
+      if (b) { b.classList.add("pop"); setTimeout(function(){ b.classList.remove("pop"); }, 300); }
+    }
+    renderHistory();
+    scheduleSave();          // 同步落盘：页面数据里的 mood 字段
+  }
+
+  /* 小贴纸（按日期稳定生成，纯装饰） */
+  var STICKER_POOL = ["🌿", "✨", "🌸", "☕", "🎀", "🍂", "⭐", "🌙", "🕊️", "🍁"];
+  function renderStickers(day){
+    if (!el.stickers) return;
+    var h = 2166136261;
+    for (var i = 0; i < day.length; i++) { h ^= day.charCodeAt(i); h = (h * 16777619) >>> 0; }
+    var n = 3 + (h % 3);
+    var html = "";
+    for (var k = 0; k < n; k++) {
+      h = (h * 1103515245 + 12345) >>> 0;
+      var top = 3 + (h % 90);
+      var left = 2 + ((h >>> 7) % 92);
+      var rot = ((h >>> 13) % 32) - 16;
+      var em = STICKER_POOL[(h >>> 5) % STICKER_POOL.length];
+      html += '<span class="sticker" style="top:' + top + '%;left:' + left + '%;transform:rotate(' + rot + 'deg)">' + em + '</span>';
+    }
+    el.stickers.innerHTML = html;
+  }
+
+  /* ================= 模块 17：照片仓库（IndexedDB：personal_diary_db / photos） ================= */
+  var DB_NAME = "personal_diary_db";
+  var DB_STORE = "photos";
+  var DB_VER = 1;
+  var MAX_EDGE = 1600;              // 照片最长边压缩上限，控制体积
+  var dbPromise = null;
+  var photoURLs = {};               // id -> objectURL，切换日期/删除时释放
+
+  function idbOpen(){
+    if (dbPromise) return dbPromise;
+    dbPromise = new Promise(function(resolve){
+      var req;
+      try {
+        if (!window.indexedDB) { resolve(null); return; }
+        req = window.indexedDB.open(DB_NAME, DB_VER);
+      } catch (e) { resolve(null); return; }
+      req.onupgradeneeded = function(){
+        var db = req.result;
+        if (!db.objectStoreNames.contains(DB_STORE)) {
+          var os = db.createObjectStore(DB_STORE, { keyPath: "id" });
+          try { os.createIndex("day", "day", { unique: false }); } catch (e) {}
+        }
+      };
+      req.onsuccess = function(){ resolve(req.result); };
+      req.onerror = function(){ resolve(null); };
+      req.onblocked = function(){ resolve(null); };
+    });
+    return dbPromise;
+  }
+
+  function idbTx(mode, fn){
+    return idbOpen().then(function(db){
+      if (!db) return null;
+      return new Promise(function(resolve){
+        var tx, out;
+        try { tx = db.transaction(DB_STORE, mode); } catch (e) { resolve(null); return; }
+        try { out = fn(tx.objectStore(DB_STORE)); } catch (e) { resolve(null); return; }
+        tx.oncomplete = function(){ resolve(out && out.result !== undefined ? out.result : true); };
+        tx.onerror = function(){ resolve(null); };
+        tx.onabort = function(){ resolve(null); };
+      });
+    }).catch(function(){ return null; });
+  }
+  function idbPut(rec){ return idbTx("readwrite", function(os){ return os.put(rec); }).then(function(r){ return r !== null; }); }
+  function idbGet(id){ return idbTx("readonly", function(os){ return os.get(id); }); }
+  function idbDel(id){ return idbTx("readwrite", function(os){ return os.delete(id); }); }
+
+  function blobToDataURL(blob){
+    return new Promise(function(resolve){
+      try {
+        var fr = new FileReader();
+        fr.onload = function(){ resolve(typeof fr.result === "string" ? fr.result : null); };
+        fr.onerror = function(){ resolve(null); };
+        fr.readAsDataURL(blob);
+      } catch (e) { resolve(null); }
+    });
+  }
+
+  /** 存照片：IndexedDB 优先；不可用时回退 localStorage（personal_photo_<id>） */
+  function photoPut(id, day, blob){
+    var rec = { id: id, day: day, blob: blob, type: (blob && blob.type) || "", createdAt: Date.now() };
+    return idbPut(rec).then(function(ok){
+      if (ok) return "idb";
+      return blobToDataURL(blob).then(function(du){
+        if (du && du.length < 2000000) { safeSetItem(storage(), K.photo(id), du); return "local"; }
+        return null;
+      });
+    });
+  }
+  /** 取照片可显示地址：IndexedDB -> objectURL；回退 localStorage -> dataURL */
+  function photoGetURL(id){
+    if (!id) return Promise.resolve(null);
+    return idbGet(id).then(function(rec){
+      if (rec && rec.blob) {
+        try {
+          var u = URL.createObjectURL(rec.blob);
+          photoURLs[id] = u;
+          return u;
+        } catch (e) {}
+      }
+      return safeGetItem(storage(), K.photo(id)) || null;
+    }).catch(function(){ return safeGetItem(storage(), K.photo(id)) || null; });
+  }
+  /** 删除照片：页面元素 + IndexedDB + 兜底存储一起删 */
+  function photoDel(id){
+    if (!id) return Promise.resolve();
+    if (photoURLs[id]) { try { URL.revokeObjectURL(photoURLs[id]); } catch (e) {} delete photoURLs[id]; }
+    safeRemoveItem(storage(), K.photo(id));
+    return idbDel(id);
+  }
+  function releasePhotoURLs(){
+    Object.keys(photoURLs).forEach(function(k){ try { URL.revokeObjectURL(photoURLs[k]); } catch (e) {} });
+    photoURLs = {};
+  }
+
+  /** 读取图片文件并等比压缩 -> {blob, ratio}；失败返回 null */
+  function processImage(file){
+    return new Promise(function(resolve){
+      var url;
+      try { url = URL.createObjectURL(file); } catch (e) { resolve(null); return; }
+      var img = new Image();
+      img.onload = function(){
+        var w = img.naturalWidth || 1, h = img.naturalHeight || 1;
+        var ratio = w / h;
+        var scale = Math.min(1, MAX_EDGE / Math.max(w, h));
+        var tw = Math.max(1, Math.round(w * scale)), th = Math.max(1, Math.round(h * scale));
+        var done = function(blob){
+          try { URL.revokeObjectURL(url); } catch (e) {}
+          resolve({ blob: blob || file, ratio: ratio });
+        };
+        try {
+          var cv = document.createElement("canvas");
+          cv.width = tw; cv.height = th;
+          cv.getContext("2d").drawImage(img, 0, 0, tw, th);
+          if (cv.toBlob) { cv.toBlob(function(b){ done(b); }, "image/jpeg", 0.86); return; }
+        } catch (e) {}
+        done(file);
+      };
+      img.onerror = function(){ try { URL.revokeObjectURL(url); } catch (e) {} resolve(null); };
+      img.src = url;
+    });
+  }
+
+  /* ================= 模块 18：图文手帐（Block 编辑器） ================= */
+  var ROTS = [-3, 2, -2, 3, -1, 1.5, -1.5, 2.5];
+  var zTop = 20;
+
+  function paperWidth(){ return el.paper ? (el.paper.clientWidth || 320) : 320; }
+  function newPhotoId(){ return "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+  /** 纸面高度自适应：跟随文字流与照片下沿 */
+  function updatePaperHeight(){
+    if (!el.paper) return;
+    var maxB = 0, i;
+    var imgs = el.paper.querySelectorAll(".blk-img");
+    for (i = 0; i < imgs.length; i++) {
+      var b = (parseFloat(imgs[i].style.top) || 0) + imgs[i].offsetHeight + 30;
+      if (b > maxB) maxB = b;
+    }
+    var txt = el.paper.querySelectorAll(".blk-text");
+    for (i = 0; i < txt.length; i++) {
+      var tb = txt[i].offsetTop + txt[i].offsetHeight + 24;
+      if (tb > maxB) maxB = tb;
+    }
+    el.paper.style.minHeight = Math.max(440, maxB) + "px";
+  }
+
+  /** 清空纸面（切换日期时先清，避免闪现上一天内容） */
+  function clearPaper(){
+    releasePhotoURLs();
+    if (el.paper) el.paper.innerHTML = "";
+  }
+
+  function placeCaretAtEnd(node){
+    try {
+      var r = document.createRange();
+      r.selectNodeContents(node);
+      r.collapse(false);
+      var sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(r);
+    } catch (e) {}
+  }
+  function refreshTextEmpty(node){
+    if (node && node.classList) node.classList.toggle("is-empty", !blockText(node).trim());
+  }
+
+  /** 文字块 */
+  function addTextBlock(content, focus){
+    var d = document.createElement("div");
+    d.className = "blk-text";
+    d.setAttribute("contenteditable", "true");
+    d.setAttribute("role", "textbox");
+    d.setAttribute("data-ph", "写点什么…");
+    if (content) d.textContent = content;
+    refreshTextEmpty(d);
+    d.addEventListener("input", function(){
+      refreshTextEmpty(d);
+      updateWordCount();
+      updatePaperHeight();
+      scheduleSave();
+      maybeAskCityForPastDay();          // 补写历史日记时仍会提示选择城市
+    });
+    d.addEventListener("blur", function(){
+      refreshTextEmpty(d);
+      updatePaperHeight();
+      scheduleSave();
+    });
+    d.addEventListener("paste", function(e){
+      var cd = e.clipboardData || window.clipboardData;
+      if (!cd) return;
+      if (cd.items) {
+        for (var i = 0; i < cd.items.length; i++) {
+          var it = cd.items[i];
+          if (it.kind === "file" && it.type && it.type.indexOf("image/") === 0) return;  // 图片交给纸面处理
+        }
+      }
+      e.preventDefault();
+      var txt = cd.getData("text/plain") || "";
+      if (txt) { try { document.execCommand("insertText", false, txt); } catch (err) { d.textContent += txt; } }
+    });
+    el.paper.appendChild(d);
+    if (focus) { d.focus(); placeCaretAtEnd(d); }
+    updatePaperHeight();
+    return d;
+  }
+
+  /** 图片块：拍立得外观 + 胶带 + 拖动 + 四角缩放 + 右上角删除 */
+  function addImageBlock(b, focus){
+    var id = b.id;
+    var rot = (b.rot != null ? b.rot : 0);
+    var fig = document.createElement("div");
+    fig.className = "blk-img";
+    fig.setAttribute("data-id", id);
+    fig.setAttribute("data-rot", String(rot));
+    fig.style.left = Math.round(b.x || 0) + "px";
+    fig.style.top = Math.round(b.y || 0) + "px";
+    fig.style.width = Math.round(b.width || 180) + "px";
+    fig.style.height = Math.round(b.height || 140) + "px";
+    fig.style.transform = "rotate(" + rot + "deg)";
+    fig.style.zIndex = String(++zTop);
+
+    var tape = document.createElement("span");
+    tape.className = "photo-tape";
+    fig.appendChild(tape);
+
+    var img = document.createElement("img");
+    img.alt = "手帐照片";
+    img.draggable = false;
+    fig.appendChild(img);
+
+    var del = document.createElement("button");
+    del.type = "button";
+    del.className = "photo-del";
+    del.setAttribute("aria-label", "删除照片");
+    del.textContent = "×";
+    del.addEventListener("pointerdown", function(e){ e.stopPropagation(); });
+    del.addEventListener("click", function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      removeImageBlock(fig, id);
+    });
+    fig.appendChild(del);
+
+    ["nw", "ne", "sw", "se"].forEach(function(pos){
+      var h = document.createElement("span");
+      h.className = "handle " + pos;
+      h.setAttribute("data-pos", pos);
+      fig.appendChild(h);
+    });
+
+    bindImageDrag(fig);
+    el.paper.appendChild(fig);
+
+    photoGetURL(id).then(function(u){
+      if (u) img.src = u;
+      else fig.classList.add("lost");
+    });
+    if (focus) fig.classList.add("active");
+    return fig;
+  }
+
+  /** 删除照片：页面消失 + IndexedDB 删除 + 保存 */
+  function removeImageBlock(fig, id){
+    if (fig && fig.parentNode) fig.parentNode.removeChild(fig);
+    photoDel(id);
+    updatePaperHeight();
+    updateWordCount();
+    scheduleSave();
+  }
+
+  function bindImageDrag(fig){
+    var mode = null, pos = null, sx = 0, sy = 0, ox = 0, oy = 0, ow = 0, oh = 0, ratio = 1;
+
+    function onDown(e){
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      var t = e.target;
+      if (t && t.classList && t.classList.contains("photo-del")) return;
+      pos = (t && t.classList && t.classList.contains("handle")) ? t.getAttribute("data-pos") : null;
+      mode = pos ? "resize" : "move";
+      sx = e.clientX; sy = e.clientY;
+      ox = parseFloat(fig.style.left) || 0;
+      oy = parseFloat(fig.style.top) || 0;
+      ow = fig.offsetWidth; oh = fig.offsetHeight;
+      ratio = oh ? (ow / oh) : 1;
+      fig.classList.add("dragging", "active");
+      fig.style.zIndex = String(++zTop);
+      try { fig.setPointerCapture(e.pointerId); } catch (err) {}
+      if (e.preventDefault) e.preventDefault();
+    }
+
+    function onMove(e){
+      if (!mode) return;
+      var dx = e.clientX - sx, dy = e.clientY - sy;
+      if (mode === "move") {
+        var nx = ox + dx, ny = oy + dy;
+        var maxX = paperWidth() - 40;
+        if (nx < -12) nx = -12;
+        if (nx > maxX) nx = maxX;
+        if (ny < -8) ny = -8;
+        fig.style.left = Math.round(nx) + "px";
+        fig.style.top = Math.round(ny) + "px";
+      } else {
+        var w = (pos === "ne" || pos === "se") ? ow + dx : ow - dx;
+        var minW = 72, maxW = Math.max(160, paperWidth() + 60);
+        if (w < minW) w = minW;
+        if (w > maxW) w = maxW;
+        var h = Math.round(w / ratio);
+        var x = (pos === "nw" || pos === "sw") ? ox + (ow - w) : ox;
+        var y = (pos === "nw" || pos === "ne") ? oy + (oh - h) : oy;
+        fig.style.width = Math.round(w) + "px";
+        fig.style.height = h + "px";
+        fig.style.left = Math.round(x) + "px";
+        fig.style.top = Math.round(y) + "px";
+      }
+      updatePaperHeight();
+      if (e.preventDefault) e.preventDefault();
+    }
+
+    function onUp(e){
+      if (!mode) return;
+      mode = null;
+      fig.classList.remove("dragging");
+      try { fig.releasePointerCapture(e.pointerId); } catch (err) {}
+      updatePaperHeight();
+      scheduleSave();
+    }
+
+    fig.addEventListener("pointerdown", onDown);
+    fig.addEventListener("pointermove", onMove);
+    fig.addEventListener("pointerup", onUp);
+    fig.addEventListener("pointercancel", onUp);
+  }
+
+  /** 当前纸面内容的下沿（用于新照片依次排在下方，避免相互压住） */
+  function contentBottom(){
+    var maxB = 10, i;
+    var imgs = el.paper.querySelectorAll(".blk-img");
+    for (i = 0; i < imgs.length; i++) {
+      var b = (parseFloat(imgs[i].style.top) || 0) + imgs[i].offsetHeight;
+      if (b > maxB) maxB = b;
+    }
+    var txt = el.paper.querySelectorAll(".blk-text");
+    for (i = 0; i < txt.length; i++) {
+      var tb = txt[i].offsetTop + txt[i].offsetHeight;
+      if (tb > maxB) maxB = tb;
+    }
+    return maxB;
+  }
+
+  /** 添加照片（本地选择 / 粘贴 / 拖入），图片只存本机 */
+  function addPhotos(files){
+    var arr = [];
+    for (var i = 0; i < files.length && arr.length < 9; i++) {
+      var f = files[i];
+      if (!f || !f.type || f.type.indexOf("image/") !== 0) continue;
+      arr.push(f);
+    }
+    if (!arr.length) { setStatus("", "只支持图片文件"); return; }
+
+    setStatus("saving", "正在添加照片…");
+    var day = toKey(curDate);
+    var base = el.paper.querySelectorAll(".blk-img").length;
+
+    Promise.all(arr.map(function(file, k){
+      return processImage(file).then(function(res){
+        if (!res) return false;
+        var id = newPhotoId();
+        return photoPut(id, day, res.blob).then(function(where){
+          if (!where) return false;
+          var w = Math.min(240, Math.round(paperWidth() * 0.56));
+          var inner = Math.max(60, w - 12);
+          var h = Math.round(inner / (res.ratio || 1.2)) + 22;
+          var idx = base + k;
+          addImageBlock({
+            id: id,
+            x: 14 + (idx % 3) * 18,        // 轻微错位，避免完全对齐
+            y: contentBottom() + 14,       // 依次排在现有内容下方
+            width: w, height: h,
+            rot: ROTS[idx % ROTS.length]
+          }, true);
+          return true;
+        });
+      }).catch(function(){ return false; });
+    })).then(function(rs){
+      var okCount = rs.filter(Boolean).length;
+      updatePaperHeight();
+      updateWordCount();
+      if (okCount) scheduleSave();
+      else setStatus("", "照片添加失败，请重试");
+    });
+  }
+
+  /** 把某天数据渲染到纸面（Block 顺序 = 文字↓图片↓文字↓图片） */
+  function renderPage(page, day){
+    clearPaper();
+    var blocks = (page && Array.isArray(page.blocks)) ? page.blocks : [];
+    var hasText = false;
+    blocks.forEach(function(b){
+      if (!b) return;
+      if (b.type === "image" && b.id) addImageBlock(b, false);
+      else if (b.type === "text") { addTextBlock(b.content || "", false); hasText = true; }
+    });
+    if (!hasText) addTextBlock("", false);
+    updatePaperHeight();
+    updateWordCount();
+  }
+
+  /* ================= 模块 19：TextCursor 动效 =================
+     来源：React Bits「TextCursor」(JS + CSS 版) https://reactbits.dev/micro/text-cursor
+     原版是 React + motion 组件；本项目是零依赖单文件页面，故按官方源码 1:1 移植为
+     原生 DOM + CSS 动画，参数、行为、生命周期清理保持一致：
+       - 鼠标累计位移 >= spacing 时沿轨迹补点，最多保留 maxPoints 个
+       - 每个点按鼠标方向旋转，随机轻微浮动，鼠标停下后逐个淡出移除
+     作用范围：**整页**。动效挂在 body 上的固定浮层里，页面任意位置移动鼠标都会留下笔迹；
+     浮层 pointer-events:none，不会拦截点击、拖拽、选择或滚动。
+     抑制条件（两种，任一满足即不产生笔迹，并立即清空已显示的笔迹）：
+       1) 正在编辑文字：焦点落在 input / textarea / select / contenteditable 上；
+       2) 正在编辑时鼠标划过正文，不会在字上叠笔迹，避免干扰阅读与输入。
+     设备条件：仅「精确指针 + 支持 hover」的设备挂载；触摸设备完全不挂载。
+  */
+  var TC_OPTIONS = {
+    text: "✎",                    // 手帐风格笔迹（原版默认 "⚛️"）
+    spacing: 90,                  // 每移动 90px 落一个点（原版 100）
+    followMouseDirection: true,
+    randomFloat: true,
+    exitDuration: 0.5,
+    removalInterval: 30,
+    idleBeforeRemoval: 350,       // 停笔后多少毫秒开始回收（原版 100，太短会几乎看不见）
+    maxPoints: 4
+  };
+
+  /* 「减弱动效」环境下的降级参数：仍然显示笔迹，但不浮动、不旋转、数量更少 */
+  var TC_OPTIONS_CALM = {
+    text: "✎",
+    spacing: 110,
+    followMouseDirection: false,
+    randomFloat: false,
+    exitDuration: 0.2,
+    removalInterval: 30,
+    idleBeforeRemoval: 500,
+    maxPoints: 3
+  };
+
+  /* 是否因为系统「减弱动效」偏好而彻底关闭本动效。
+     默认 false，原因（重要）：
+       Windows「设置 → 辅助功能 → 视觉效果 → 动画效果」一旦关闭，Chrome / Edge 会把
+       prefers-reduced-motion 报成 reduce。此时即使设备是完全正常的桌面 + 鼠标，动效也会被
+       静默禁用，表现为"这个动效无法实现"。
+     本动效只是标题区的小装饰、无眩晕风险，所以默认**降级而非关闭**：
+     检测到 reduce 时改用 TC_OPTIONS_CALM（无浮动、无旋转、点数更少）。
+     如需严格遵循系统偏好、直接不显示，把下面改成 true 即可。 */
+  var TC_RESPECT_REDUCED_MOTION = false;
+
+  var textCursor = null;
+
+  function prefersReducedMotion(){
+    try { return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); }
+    catch (e) { return false; }
+  }
+
+  /** 是否真的是「有鼠标的桌面设备」：这是唯一必须满足的硬条件 */
+  function hasMousePointer(){
+    try { return !!(window.matchMedia && window.matchMedia("(hover: hover) and (pointer: fine)").matches); }
+    catch (e) { return false; }
+  }
+
+  /** 是否适合启用（触摸设备一律不挂载，不会出现异常光标） */
+  function textCursorSupported(){
+    if (!hasMousePointer()) return false;
+    if (TC_RESPECT_REDUCED_MOTION && prefersReducedMotion()) return false;
+    return true;
+  }
+
+  /** 当前应使用的参数：减弱动效环境下自动降级 */
+  function textCursorOptions(){
+    return prefersReducedMotion() ? TC_OPTIONS_CALM : TC_OPTIONS;
+  }
+
+  /** 当前是否正在编辑文字（输入框 / 文本域 / 下拉 / contenteditable 获得焦点） */
+  function isEditingText(){
+    try {
+      var a = document.activeElement;
+      if (!a || a === document.body || a === document.documentElement) return false;
+      if (a.isContentEditable) return true;
+      var tag = (a.tagName || "").toLowerCase();
+      return tag === "input" || tag === "textarea" || tag === "select";
+    } catch (e) { return false; }
+  }
+
+  /** 排查用：控制台执行 textCursorStatus() 可看到"为什么没有动效" */
+  function textCursorStatus(){
+    return {
+      scope: "整页（body 固定浮层）",
+      hasMousePointer: hasMousePointer(),
+      prefersReducedMotion: prefersReducedMotion(),
+      respectReducedMotion: TC_RESPECT_REDUCED_MOTION,
+      mode: prefersReducedMotion() ? "calm（降级）" : "normal（完整）",
+      mounted: !!document.querySelector(".text-cursor-layer"),
+      editingText: isEditingText(),
+      hint: !hasMousePointer()
+        ? "未检测到精确指针（触摸设备），按设计不挂载"
+        : (TC_RESPECT_REDUCED_MOTION && prefersReducedMotion()
+            ? "系统开启了减弱动效，且 TC_RESPECT_REDUCED_MOTION = true，按配置不挂载"
+            : (isEditingText()
+                ? "当前焦点在文字编辑区，按设计临时不产生笔迹；点击页面空白处即恢复"
+                : "满足启用条件，页面任意位置移动鼠标即可看到笔迹"))
+    };
+  }
+
+  /**
+   * 挂载动效，返回 { destroy } 句柄。
+   * container 是挂在 body 上的整页固定浮层；坐标直接使用 e.clientX / e.clientY（视口坐标），
+   * 因此页面滚动时笔迹依然精确跟随鼠标，不需要换算容器偏移。
+   * destroy 会移除监听、回收定时器与 rAF、并一次性摘除浮层与全部节点，
+   * 与 React 版 useEffect 的清理逻辑一一对应，不会留下内存泄漏。
+   */
+  function mountTextCursor(container, opts){
+    var o = opts || TC_OPTIONS;
+    container.setAttribute("aria-hidden", "true");
+
+    var trail = [];              // 存活中的点（最多 maxPoints 个）
+    var lastMoveTime = Date.now();
+    var ticking = false;
+    var pending = null;
+    var rafId = 0;
+    // 缓存"是否正在编辑文字"：只在焦点变化时重算，避免每次 mousemove 都做样式查询
+    var editing = isEditingText();
+
+    function randomData(){
+      return o.randomFloat
+        ? { rx: Math.random() * 10 - 5, ry: Math.random() * 10 - 5, rr: Math.random() * 10 - 5 }
+        : { rx: 0, ry: 0, rr: 0 };
+    }
+
+    function makeItem(p){
+      var el = document.createElement("div");
+      el.className = "text-cursor-item";
+      el.style.left = p.x + "px";      // 视口坐标，与 .text-cursor-layer 的 fixed 定位一致
+      el.style.top = p.y + "px";
+      el.style.setProperty("--tc-angle", p.angle + "deg");
+      el.style.setProperty("--tc-rx", p.rx + "px");
+      el.style.setProperty("--tc-ry", p.ry + "px");
+      el.style.setProperty("--tc-rr", p.rr + "deg");
+      el.style.setProperty("--tc-exit", o.exitDuration + "s");
+      var span = document.createElement("span");
+      span.className = o.randomFloat ? "text-cursor-float" : "text-cursor-static";
+      span.textContent = o.text;
+      el.appendChild(span);
+      container.appendChild(el);
+      return { el: el, x: p.x, y: p.y };
+    }
+
+    function pushPoint(p){
+      var rec = makeItem(p);
+      trail.push(rec);
+      requestAnimationFrame(function(){ rec.el.classList.add("is-in"); });   // 入场淡入
+      return rec;
+    }
+
+    /** 移除最旧的点：先播淡出，transitionend（或超时兜底）后再摘除节点 */
+    function removeOldest(){
+      var rec = trail.shift();
+      if (!rec) return;
+      var el = rec.el;
+      var done = function(){
+        el.removeEventListener("transitionend", done);
+        if (el.parentNode) el.parentNode.removeChild(el);
+      };
+      el.addEventListener("transitionend", done);
+      setTimeout(done, (o.exitDuration + 0.25) * 1000);
+      el.classList.add("is-out");
+    }
+
+    /** 立即清空全部笔迹（进入文字编辑时调用，避免笔迹叠在正在输入的字上） */
+    function clearTrail(){
+      while (trail.length) removeOldest();
+    }
+
+    function flush(){
+      ticking = false;
+      var p = pending;
+      pending = null;
+      if (!p) return;
+
+      if (trail.length === 0) {
+        var d0 = randomData();
+        pushPoint({ x: p.x, y: p.y, angle: 0, rx: d0.rx, ry: d0.ry, rr: d0.rr });
+      } else {
+        var last = trail[trail.length - 1];
+        var dx = p.x - last.x;
+        var dy = p.y - last.y;
+        var distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance >= o.spacing) {
+          var rawAngle = Math.atan2(dy, dx) * 180 / Math.PI;
+          var angle = o.followMouseDirection ? rawAngle : 0;
+          var steps = Math.floor(distance / o.spacing);
+          for (var i = 1; i <= steps; i++) {
+            var t = (o.spacing * i) / distance;
+            var d = randomData();
+            pushPoint({ x: last.x + dx * t, y: last.y + dy * t, angle: angle, rx: d.rx, ry: d.ry, rr: d.rr });
+          }
+        }
+      }
+      while (trail.length > o.maxPoints) removeOldest();
+      lastMoveTime = Date.now();
+    }
+
+    function onMove(e){
+      if (editing) {                          // 正在编辑文字：不产生笔迹
+        if (trail.length) clearTrail();
+        return;
+      }
+      pending = { x: e.clientX, y: e.clientY };
+      if (ticking) return;
+      ticking = true;
+      rafId = requestAnimationFrame(flush);   // 每帧最多处理一次，高频移动/滚动不卡顿
+    }
+
+    /** 焦点变化时重算编辑态；一进入编辑就立刻清空已有笔迹 */
+    function onFocusChange(){
+      editing = isEditingText();
+      if (editing && trail.length) clearTrail();
+    }
+
+    // 鼠标停下 idleBeforeRemoval 毫秒后，每 removalInterval 毫秒回收最旧的一个点
+    var timer = setInterval(function(){
+      if (Date.now() - lastMoveTime > (o.idleBeforeRemoval || 100) && trail.length > 0) removeOldest();
+    }, o.removalInterval);
+
+    // 监听整页：页面任意位置移动鼠标都会留下笔迹
+    document.addEventListener("mousemove", onMove, { passive: true });
+    document.addEventListener("focusin", onFocusChange);
+    document.addEventListener("focusout", onFocusChange);
+
+    return {
+      destroy: function(){
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("focusin", onFocusChange);
+        document.removeEventListener("focusout", onFocusChange);
+        clearInterval(timer);
+        if (rafId) cancelAnimationFrame(rafId);
+        rafId = 0;
+        ticking = false;
+        pending = null;
+        trail.length = 0;
+        if (container.parentNode) container.parentNode.removeChild(container);
+      }
+    };
+  }
+
+  function initTextCursor(){
+    if (!textCursorSupported()) return null;   // 触摸设备：不挂载，不出现异常光标
+    var layer = document.createElement("div");
+    layer.className = "text-cursor-layer";
+    document.body.appendChild(layer);
+    try { textCursor = mountTextCursor(layer, textCursorOptions()); }
+    catch (e) {
+      textCursor = null;
+      if (layer.parentNode) layer.parentNode.removeChild(layer);
+    }
+    return textCursor;
+  }
+
+  /* ================= 模块 20：自定义日历（日期格带心情背景） =================
+     原生 <input type="date"> 弹出的日历由浏览器内核绘制，CSS/JS 都无法往里注入内容，
+     所以这里自建日历弹层来替代它：
+       - 每个日期格把「当天记录的心情 emoji」当作半透明背景（opacity .32），日期数字仍清晰可读
+       - 当天没有记录心情时，只显示日期数字
+       - 今天用描边标出，当前选中日期用主色填充
+     原生 input 仍保留在页面上（外观、位置、value 全不变，其他逻辑照旧读 el.picker.value），
+     上面盖一层透明按钮接管点击，因此原生日历不会再弹出。
+  */
+  var CAL_WEEK = ["一", "二", "三", "四", "五", "六", "日"];
+  var calMonth = null;      // 当前展示的月份（该月 1 号）
+  var calOpen = false;
+
+  function calPop(){ return document.getElementById("calPop"); }
+
+  /** 渲染 calMonth 这个月的月历；有心情记录的日期用该心情 emoji 做半透明背景 */
+  function renderCal(){
+    var pop = calPop();
+    if (!pop || !calMonth) return;
+    var y = calMonth.getFullYear(), m = calMonth.getMonth();
+    var title = document.getElementById("calTitle");
+    if (title) title.textContent = y + "年" + (m + 1) + "月";
+
+    var week = pop.querySelector(".cal-week");
+    if (week && !week.children.length) {
+      var wh = "";
+      for (var w = 0; w < 7; w++) wh += "<span>" + CAL_WEEK[w] + "</span>";
+      week.innerHTML = wh;
+    }
+
+    var offset = (new Date(y, m, 1).getDay() + 6) % 7;         // 周一为一周的第一天
+    var daysInMonth = new Date(y, m + 1, 0).getDate();
+    var prevDays = new Date(y, m, 0).getDate();
+    var rows = Math.ceil((offset + daysInMonth) / 7);
+    var total = rows * 7;
+    var sel = toKey(curDate), today = todayKey();
+
+    var html = "";
+    for (var i = 0; i < total; i++) {
+      var dObj, out = false;
+      if (i < offset) { dObj = new Date(y, m - 1, prevDays - offset + 1 + i); out = true; }
+      else if (i >= offset + daysInMonth) { dObj = new Date(y, m + 1, i - offset - daysInMonth + 1); out = true; }
+      else { dObj = new Date(y, m, i - offset + 1); }
+
+      var day = toKey(dObj);
+      var mood = readMood(day);                                 // 没有记录则为 null
+      var cls = "cal-day" + (out ? " out" : "") + (day === today ? " is-today" : "") + (day === sel ? " is-sel" : "");
+      html += '<button type="button" class="' + cls + '" data-day="' + esc(day) + '"' +
+        (day === sel ? ' aria-current="date"' : '') +
+        ' aria-label="' + esc(fmtDate(dObj) + (mood ? "，" + mood.label : "，无心情记录")) + '">' +
+        (mood ? '<span class="cal-mood" aria-hidden="true">' + mood.emoji + '</span>' : '') +
+        '<span class="cal-num">' + dObj.getDate() + '</span></button>';
+    }
+    var grid = document.getElementById("calGrid");
+    if (grid) grid.innerHTML = html;
+  }
+
+  function openCal(){
+    var pop = calPop();
+    if (!pop) return;
+    calMonth = new Date(curDate.getFullYear(), curDate.getMonth(), 1);
+    renderCal();
+    pop.hidden = false;
+    calOpen = true;
+    var t = document.getElementById("dateTrigger");
+    if (t) t.setAttribute("aria-expanded", "true");
+    setTimeout(function(){                                      // 打开后把焦点放到当前选中日期，方便键盘操作
+      var b = pop.querySelector(".cal-day.is-sel") || pop.querySelector(".cal-day:not(.out)");
+      if (b && b.focus) b.focus();
+    }, 0);
+  }
+  function closeCal(){
+    var pop = calPop();
+    if (!pop || !calOpen) return;
+    pop.hidden = true;
+    calOpen = false;
+    var t = document.getElementById("dateTrigger");
+    if (t) t.setAttribute("aria-expanded", "false");
+  }
+  function toggleCal(){ if (calOpen) closeCal(); else openCal(); }
+
+  function bindCal(){
+    var wrap = document.getElementById("dateWrap");
+    var pop = calPop();
+    if (!wrap || !pop) return;
+
+    var trigger = document.getElementById("dateTrigger");
+    if (trigger) trigger.addEventListener("click", function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      toggleCal();
+    });
+
+    pop.addEventListener("click", function(e){
+      var t = e.target;
+      var nav = t.closest ? t.closest(".cal-nav") : null;
+      if (nav) {
+        var step = parseInt(nav.getAttribute("data-step"), 10) || 0;
+        calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + step, 1);
+        renderCal();
+        return;
+      }
+      if (t.closest && t.closest(".cal-today")) { closeCal(); go(todayKey()); return; }
+      var cell = t.closest ? t.closest(".cal-day") : null;
+      if (cell) {
+        var day = cell.getAttribute("data-day");
+        closeCal();
+        if (day) go(day);
+      }
+    });
+
+    // 点击弹层外部关闭
+    document.addEventListener("click", function(e){
+      if (!calOpen) return;
+      if (wrap.contains(e.target) || pop.contains(e.target)) return;
+      closeCal();
+    });
+
+    // Esc 关闭；方向键在日期格之间移动焦点
+    document.addEventListener("keydown", function(e){
+      if (!calOpen) return;
+      if (e.key === "Escape") {
+        closeCal();
+        var tg = document.getElementById("dateTrigger");
+        if (tg) tg.focus();
+        return;
+      }
+      var step = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1
+               : e.key === "ArrowUp" ? -7 : e.key === "ArrowDown" ? 7 : 0;
+      if (!step) return;
+      var cur = document.activeElement;
+      if (!cur || !cur.classList || !cur.classList.contains("cal-day")) return;
+      e.preventDefault();
+      var list = Array.prototype.slice.call(pop.querySelectorAll(".cal-day"));
+      var idx = list.indexOf(cur);
+      if (idx < 0) return;
+      var next = list[idx + step];
+      if (!next) {                                              // 跨月：翻页后聚焦首/末个日期
+        calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + (step < 0 ? -1 : 1), 1);
+        renderCal();
+        var list2 = Array.prototype.slice.call(pop.querySelectorAll(".cal-day"));
+        next = step < 0 ? list2[list2.length + step] : list2[step - 1];
+      }
+      if (next && next.focus) next.focus();
+    });
+  }
+
   /* ================= 模块 12：渲染 ================= */
   function render(){
     var day = toKey(curDate);
@@ -854,7 +2082,15 @@
     el.dateMain.textContent = fmtDate(d);
     el.dateSub.textContent = WEEK[d.getDay()];
     el.picker.value = day;
-    loadContent(day);
+    var dTrig = document.getElementById("dateTrigger");
+    if (dTrig) dTrig.setAttribute("aria-label", "选择日期，当前 " + fmtDate(d));
+    if (calOpen) renderCal();     // 日历展开时同步高亮当前选中日期
+    clearTimeout(cityAskTimer);   // 换日期后作废挂起的"选城市"提示
+    cityAskTimer = null;
+    renderMood();                 // 恢复当天保存的心情
+    renderStickers(day);          // 手帐贴纸（按日期稳定生成）
+    clearPaper();                 // 先清空，避免切换瞬间显示上一天的图文
+    loadContent(day);             // 异步恢复当天的手帐内容
     updateHead();
     updateWordCount();
     renderWeather();
@@ -872,9 +2108,15 @@
       var week = WEEK[d.getDay()];
       var weekShort = week.length > 2 ? week.slice(2, 3) : "";
       var t = getUpdated(day);
+      var mood = readMood(day);                     // 当天心情 emoji
+      var m = findMeta(day);
+      var pics = (m && m.n) ? m.n : 0;              // 当天照片数
       html += '<button class="hist-item" data-key="' + esc(day) + '">' +
         '<span class="hist-left"><span class="hist-date">' + esc(day) + '</span>' +
-        '<span class="hist-week">' + esc(weekShort) + '</span></span>' +
+        '<span class="hist-week">' + esc(weekShort) + '</span>' +
+        (mood ? '<span class="hist-mood" title="' + esc(mood.label || "") + '">' + esc(mood.emoji || "") + '</span>' : '') +
+        (pics > 0 ? '<span class="hist-pics">📷' + pics + '</span>' : '') +
+        '</span>' +
         '<span class="hist-meta">' + (hhmm(t) ? esc(hhmm(t)) : "") + '</span></button>';
     });
     el.histList.innerHTML = html;
@@ -933,16 +2175,28 @@
 
   /**
    * 补写历史日记时：该日期没有任何天气记录，就提示用户手动选择城市。
-   * 每个日期每次会话只提示一次，取消后仍可点天气条重新选择。
+   * 每天每次会话只提示一次；取消后仍可点天气条重新选择。
+   * 注意：等用户停手 2.5 秒且仍停在纸面上才弹，避免打字中途抢焦点。
    */
-  function maybeAskCityForPastDay(){
+  var cityAskTimer = null;
+  function scheduleCityAsk(){
     var day = toKey(curDate);
     if (day >= todayKey()) return;
     if (hasWeather(readSnap(day))) return;
     if (cityAsked[day]) return;
-    cityAsked[day] = true;
-    openCityDlg();
+    clearTimeout(cityAskTimer);
+    cityAskTimer = setTimeout(function(){
+      cityAskTimer = null;
+      if (toKey(curDate) !== day) return;
+      if (hasWeather(readSnap(day))) return;
+      if (cityAsked[day]) return;
+      var ae = document.activeElement;
+      if (!ae || !el.paper || !el.paper.contains(ae)) return;   // 已离开纸面，不再打断
+      cityAsked[day] = true;
+      openCityDlg();
+    }, 2500);
   }
+  function maybeAskCityForPastDay(){ scheduleCityAsk(); }
 
   /* ================= 模块 15：绑定与初始化 ================= */
   function bindEvents(){
@@ -950,7 +2204,38 @@
     $("nextDay").addEventListener("click", function(){ shiftDays(1); });
     $("todayBtn").addEventListener("click", function(){ go(todayKey()); });
     el.picker.addEventListener("change", function(){ if (el.picker.value) go(el.picker.value); });
-    el.content.addEventListener("input", function(){ scheduleSave(); maybeAskCityForPastDay(); });
+    bindCal();   // 自定义日历（带心情背景），替代原生日历弹层
+    // 心情：单选，可随时修改
+    el.moodList.addEventListener("click", function(e){
+      var b = e.target.closest && e.target.closest("button[data-mood]");
+      if (b) pickMood(b.getAttribute("data-mood"));
+    });
+    // 手帐：加文字 / 加照片（本地选择、粘贴、拖入）
+    $("addText").addEventListener("click", function(){ addTextBlock("", true); scheduleSave(); });
+    $("addPhoto").addEventListener("click", function(){ el.photoInput.click(); });
+    el.photoInput.addEventListener("change", function(){
+      var files = el.photoInput.files;
+      if (files && files.length) addPhotos(files);
+      el.photoInput.value = "";
+    });
+    el.paper.addEventListener("paste", function(e){
+      var items = e.clipboardData && e.clipboardData.items;
+      if (!items) return;
+      var imgs = [];
+      for (var i = 0; i < items.length; i++) {
+        if (items[i].kind === "file" && items[i].type && items[i].type.indexOf("image/") === 0) {
+          var f = items[i].getAsFile();
+          if (f) imgs.push(f);
+        }
+      }
+      if (imgs.length) { e.preventDefault(); addPhotos(imgs); }
+    });
+    el.paper.addEventListener("dragover", function(e){ e.preventDefault(); });
+    el.paper.addEventListener("drop", function(e){
+      var files = e.dataTransfer && e.dataTransfer.files;
+      if (files && files.length) { e.preventDefault(); addPhotos(files); }
+    });
+    window.addEventListener("resize", function(){ updatePaperHeight(); });
     el.histList.addEventListener("click", function(e){
       var b = e.target.closest && e.target.closest("button[data-key]");
       if (b) go(b.getAttribute("data-key"));
@@ -987,6 +2272,13 @@
     bindEvents();
     render();
     // 天气：render() 内已按"该日是否已有记录"决定恢复 / 查询 / 等待用户手动选择城市（不静默定位）
+    idbOpen();   // 预热照片库（IndexedDB：personal_diary_db）
+    // TextCursor 动效（仅桌面精确指针设备挂载；失败不影响页面其余功能）
+    window.textCursorStatus = textCursorStatus;   // 控制台可执行 textCursorStatus() 查看未生效原因
+    try { initTextCursor(); } catch (e) { textCursor = null; }
+    window.addEventListener("pagehide", function(){
+      if (textCursor) { textCursor.destroy(); textCursor = null; }   // 卸载时清理监听/定时器/DOM
+    });
   }
 
   try { init(); }
