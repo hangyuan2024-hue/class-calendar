@@ -30,12 +30,16 @@
   .signup-only { display:none; }
   .hidden { display:none !important; }
   form.signup .signup-only { display:block; }
+  .roles { display:flex; gap:8px; }
+  .rolepick { flex:1; display:flex; align-items:center; justify-content:center; gap:6px; margin:0; padding:10px; border:1px solid var(--line);
+    border-radius:10px; color:var(--text); font-size:15px; cursor:pointer; }
+  .rolepick:has(input:checked) { border-color:var(--accent); background:rgba(0,122,255,.08); }
 </style>
 </head>
 <body>
 <div class="card">
   <h1>📅 班级群日历</h1>
-  <div class="sub">开发者、测试员登录后可以管理插件</div>
+  <div class="sub">登录后查看你的班级日历</div>
   <div id="already" class="hidden" style="text-align:center">
     <div style="margin-bottom:14px">已登录为 <strong id="alreadyName"></strong></div>
     <button class="go" type="button" id="continueBtn" style="margin-top:0">继续</button>
@@ -50,9 +54,17 @@
     <label for="account">账号</label>
     <input id="account" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="20" required>
     <div class="hint signup-only">3~20 位小写字母、数字或下划线，比如学号</div>
+    <div class="signup-only">
+      <label>我是</label>
+      <div class="roles">
+        <label class="rolepick"><input type="radio" name="role" value="student" checked> 🎒 学生</label>
+        <label class="rolepick"><input type="radio" name="role" value="teacher"> 👩‍🏫 老师</label>
+      </div>
+      <div class="hint">老师注册后可以创建班级、任命班委；学生注册后输入班级码申请入班。</div>
+    </div>
     <label for="name" class="signup-only">姓名</label>
     <input id="name" class="signup-only" maxlength="30" autocomplete="name">
-    <div class="hint signup-only">会显示为你开发的插件的作者</div>
+    <div class="hint signup-only">请填真实姓名，老师审批入班时要看</div>
     <label for="password">密码</label>
     <input id="password" type="password" autocomplete="current-password" required>
     <label for="password2" class="signup-only">确认密码</label>
@@ -80,15 +92,17 @@ function setMode(m) {
   document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("on", b.dataset.mode === m));
   $("go").textContent = m === "signup" ? "注册并登录" : "登录";
   $("password").autocomplete = m === "signup" ? "new-password" : "current-password";
-  $("note").textContent = m === "signup" ? "新注册的账号默认是学生身份；开发者、测试员身份由管理员分配。" : "";
+  $("note").textContent = m === "signup" ? "开发者、测试员身份由管理员在后台分配。" : "";
   $("msg").textContent = "";
 }
 document.querySelector(".tabs").onclick = (e) => { const b = e.target.closest("button[data-mode]"); if (b) setMode(b.dataset.mode); };
 
 async function afterLogin() {
   const me = await CCAuth.me();
-  const staff = me && CCAuth.STAFF.includes(me.role);
-  location.href = safeNext || (staff ? "dev.html" : "index.html");
+  let dest = "index.html";
+  if (me && me.role === "teacher") dest = "class.html";
+  else if (me && ["admin", "developer", "tester"].includes(me.role)) dest = "dev.html";
+  location.href = safeNext || dest;
 }
 
 form.onsubmit = async (e) => {
@@ -98,7 +112,8 @@ form.onsubmit = async (e) => {
   if (mode === "signup" && password !== $("password2").value) { $("msg").textContent = "两次输入的密码不一样"; return; }
   $("go").disabled = true;
   try {
-    if (mode === "signup") await CCAuth.signUp(account, password, $("name").value);
+    if (mode === "signup") await CCAuth.signUp(account, password, $("name").value,
+      (document.querySelector('input[name=role]:checked') || {}).value);
     else await CCAuth.signIn(account, password);
     await afterLogin();
   } catch (err) {

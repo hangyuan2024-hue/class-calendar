@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>我的班级 · 班级群日历</title>
+<style>
+  :root { --bg:#f5f5f7; --card:#fff; --line:#e5e5ea; --text:#1d1d1f; --sub:#86868b; --accent:#007aff;
+    --red:#ff3b30; --green:#34c759; --orange:#ff9500; --muted:#fafafa; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#000; --card:#1c1c1e; --line:#38383a; --text:#f2f2f7; --sub:#98989f; --muted:#141416; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; font-size:14px; }
+  header { position:sticky; top:0; z-index:5; display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:12px 16px;
+    background:var(--card); border-bottom:1px solid var(--line); }
+  header h1 { font-size:18px; margin:0; }
+  .spacer { flex:1; }
+  .who { color:var(--sub); font-size:13px; }
+  main { max-width:900px; margin:0 auto; padding:16px; }
+  section.card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:16px; }
+  section.card h2 { font-size:16px; margin:0 0 4px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .desc { color:var(--sub); font-size:12px; margin-bottom:12px; }
+  button, .btn { font:inherit; border:1px solid var(--line); background:var(--card); color:var(--text); border-radius:8px; padding:6px 12px;
+    cursor:pointer; text-decoration:none; display:inline-block; white-space:nowrap; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.danger { color:var(--red); }
+  button.small { padding:3px 9px; font-size:12px; }
+  button:disabled { opacity:.5; cursor:wait; }
+  input, select { font:inherit; padding:7px 10px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--text); }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .badge { display:inline-block; font-size:11px; padding:1px 7px; border-radius:10px; border:1px solid var(--line); color:var(--sub); white-space:nowrap; font-weight:normal; }
+  .badge.ok { color:var(--green); border-color:var(--green); }
+  .badge.wait { color:var(--orange); border-color:var(--orange); }
+  .badge.mon { color:var(--accent); border-color:var(--accent); }
+  .code { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:22px; letter-spacing:4px; font-weight:700; }
+  .codebox { display:flex; align-items:center; gap:10px; flex-wrap:wrap; background:var(--muted); border:1px dashed var(--line); border-radius:10px; padding:10px 12px; margin:10px 0; }
+  .item { border-top:1px solid var(--line); padding:10px 0; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .item .grow { flex:1; min-width:140px; }
+  .item .meta { color:var(--sub); font-size:12px; }
+  .perms { display:flex; gap:10px; flex-wrap:wrap; font-size:12px; color:var(--sub); }
+  .perms label { display:flex; align-items:center; gap:3px; }
+  .empty { color:var(--sub); padding:6px 0; }
+  details.cls { border-top:1px solid var(--line); padding-top:10px; margin-top:10px; }
+  details.cls > summary { cursor:pointer; list-style:none; display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-weight:600; font-size:15px; }
+  details.cls > summary::-webkit-details-marker { display:none; }
+  details.cls > summary::before { content:"▸"; color:var(--sub); }
+  details.cls[open] > summary::before { content:"▾"; }
+  h3 { font-size:13px; color:var(--sub); margin:14px 0 4px; font-weight:600; }
+  #toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:#1d1d1f; color:#fff; padding:10px 16px; border-radius:10px;
+    font-size:13px; opacity:0; transition:opacity .2s; pointer-events:none; max-width:90vw; z-index:50; }
+  #toast.show { opacity:.92; } #toast.err { background:var(--red); }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🏫 我的班级</h1>
+  <span class="spacer"></span>
+  <span class="who" id="who">加载中…</span>
+  <a class="btn" href="index.html">返回日历</a>
+  <a class="btn hidden" id="devLink" href="dev.html">插件后台</a>
+  <button id="logout">退出</button>
+</header>
+
+<main>
+  <!-- 学生：加入班级 -->
+  <section class="card" id="joinCard">
+    <h2>加入班级</h2>
+    <div class="desc">输入老师给的 6 位班级码，提交后等老师批准即可看到班级日历。</div>
+    <form class="row" id="joinForm">
+      <input id="joinCode" maxlength="6" placeholder="班级码，如 K7M2QX" autocapitalize="characters" spellcheck="false" style="width:180px; text-transform:uppercase">
+      <button class="primary" id="joinBtn" type="submit">申请加入</button>
+    </form>
+  </section>
+
+  <section class="card" id="myCard">
+    <h2>我加入的班级</h2>
+    <div id="myList" class="empty">加载中…</div>
+  </section>
+
+  <!-- 老师：我的班级 -->
+  <section class="card hidden" id="teachCard">
+    <h2>我管理的班级</h2>
+    <div class="desc">把班级码发到班群，同学申请后在这里批准；可以把同学设为班委，并单独开关每项权限。</div>
+    <form class="row" id="createForm">
+      <input id="newName" maxlength="40" placeholder="新班级名称，如 计科2501" style="flex:1; min-width:180px">
+      <button class="primary" id="createBtn" type="submit">创建班级</button>
+    </form>
+    <div id="teachList"></div>
+  </section>
+
+  <!-- 管理员：所有班级 -->
+  <section class="card hidden" id="adminCard">
+    <h2>所有班级 <span class="badge">管理员</span></h2>
+    <div class="desc">可以把班级转交给真正的班主任（对方需要先注册老师账号）。</div>
+    <div id="adminList" class="empty">加载中…</div>
+  </section>
+</main>
+<div id="toast"></div>
+
+<script src="config.js"></script>
+<script src="auth.js"></script>
+<script>
+const { rest, rpc, esc, PERM_NAMES } = CCAuth;
+const $ = (id) => document.getElementById(id);
+let me = null, mine = [];
+
+function toast(msg, err) {
+  const t = $("toast"); t.textContent = msg; t.className = "show" + (err ? " err" : "");
+  clearTimeout(toast._t); toast._t = setTimeout(() => (t.className = ""), 2600);
+}
+async function guard(btn, fn) {
+  if (btn) btn.disabled = true;
+  try { await fn(); return true; } catch (e) { toast(e.message, true); return false; } finally { if (btn) btn.disabled = false; }
+}
+const fmt = (t) => t ? new Date(t).toLocaleDateString("zh-CN") : "";
+const permList = (c) => Object.keys(PERM_NAMES).filter((k) => c[k]).map((k) => PERM_NAMES[k]);
+
+async function load() {
+  mine = await rpc("my_classes");
+  renderMine();
+  if (me.role === "teacher" || me.role === "admin") await renderTeaching();
+  if (me.role === "admin") renderAdmin().catch((e) => toast(e.message, true));
+}
+
+// ---------- 学生视角 ----------
+function renderMine() {
+  const list = mine.filter((c) => !c.is_teacher);
+  $("myList").className = list.length ? "" : "empty";
+  $("myList").innerHTML = list.length ? list.map((c) => {
+    const pending = c.status === "pending";
+    const mon = c.member_role === "monitor";
+    return `<div class="item"><div class="grow">
+        <div><strong>${esc(c.name)}</strong>
+          ${pending ? `<span class="badge wait">等待老师批准</span>` : `<span class="badge ok">已入班</span>`}
+          ${mon ? `<span class="badge mon">班委</span>` : ""}</div>
+        <div class="meta">老师：${esc(c.teacher_name || "")}${mon ? " · 我的权限：" + (permList(c).join("、") || "暂无") : ""}</div>
+        <div class="roster" id="roster_${esc(c.id)}"></div></div>
+      ${mon && c.can_view_members ? `<button class="small" data-act="roster" data-id="${esc(c.id)}">成员名单</button>` : ""}
+      <button class="small danger" data-act="leave" data-id="${esc(c.id)}" data-name="${esc(c.name)}">${pending ? "撤回申请" : "退出班级"}</button>
+    </div>`;
+  }).join("") : "还没有加入任何班级。";
+}
+
+$("joinForm").onsubmit = (e) => {
+  e.preventDefault();
+  guard($("joinBtn"), async () => {
+    const code = $("joinCode").value.trim().toUpperCase();
+    if (!/^[A-Z0-9]{6}$/.test(code)) throw new Error("班级码是 6 位字母或数字");
+    const r = await rpc("join_class", { ccode: code });
+    toast(r.status === "approved" ? `你已经在「${r.class_name}」里了` : `已申请加入「${r.class_name}」，等老师批准`);
+    $("joinCode").value = "";
+    await load();
+  });
+};
+
+// ---------- 老师视角 ----------
+const rosters = {};
+async function renderTeaching() {
+  const list = mine.filter((c) => c.is_teacher);
+  const open = new Set([...document.querySelectorAll("details.cls[open]")].map((d) => d.dataset.id));
+  if (!open.size && list.length === 1) open.add(list[0].id);
+  for (const c of list) { try { rosters[c.id] = await rpc("class_roster", { cid: c.id }); } catch (e) { rosters[c.id] = []; } }
+  $("teachList").innerHTML = list.length ? list.map((c) => {
+    const r = rosters[c.id] || [];
+    const pend = r.filter((m) => m.status === "pending"), ok = r.filter((m) => m.status === "approved");
+    return `<details class="cls" data-id="${esc(c.id)}" ${open.has(c.id) ? "open" : ""}>
+      <summary>${esc(c.name)} <span class="badge">${ok.length} 人</span>${pend.length ? `<span class="badge wait">${pend.length} 人待批准</span>` : ""}</summary>
+      <div class="codebox"><span class="meta">班级码</span><span class="code">${esc(c.code)}</span>
+        <button class="small" data-act="copy" data-code="${esc(c.code)}" data-name="${esc(c.name)}">复制邀请语</button>
+        <button class="small" data-act="regen" data-id="${esc(c.id)}">重置班级码</button>
+        <button class="small" data-act="rename" data-id="${esc(c.id)}" data-name="${esc(c.name)}">改名</button></div>
+      ${pend.length ? `<h3>待批准</h3>` + pend.map((m) => `<div class="item"><div class="grow">${esc(m.name)} <span class="meta">${esc(m.account)} · ${fmt(m.joined_at)} 申请</span></div>
+          <button class="small primary" data-act="approve" data-cid="${esc(c.id)}" data-uid="${esc(m.user_id)}">批准</button>
+          <button class="small danger" data-act="reject" data-cid="${esc(c.id)}" data-uid="${esc(m.user_id)}">拒绝</button></div>`).join("") : ""}
+      <h3>成员</h3>
+      ${ok.length ? ok.map((m) => `<div class="item" data-cid="${esc(c.id)}" data-uid="${esc(m.user_id)}"><div class="grow">${esc(m.name)} <span class="meta">${esc(m.account)}</span></div>
+          <select data-act="role"><option value="student" ${m.member_role === "student" ? "selected" : ""}>学生</option>
+            <option value="monitor" ${m.member_role === "monitor" ? "selected" : ""}>班委</option></select>
+          <span class="perms ${m.member_role === "monitor" ? "" : "hidden"}">${Object.entries(PERM_NAMES).map(([k, v]) =>
+            `<label><input type="checkbox" data-perm="${k}" ${m[k] ? "checked" : ""}> ${v}</label>`).join("")}</span>
+          <button class="small danger" data-act="remove" data-name="${esc(m.name)}">移出</button></div>`).join("")
+        : `<div class="empty">还没有成员。把班级码发到班群里吧。</div>`}
+    </details>`;
+  }).join("") : `<div class="empty" style="margin-top:10px">还没有班级，先创建一个。</div>`;
+}
+
+$("createForm").onsubmit = (e) => {
+  e.preventDefault();
+  guard($("createBtn"), async () => {
+    const r = await rpc("create_class", { cname: $("newName").value });
+    $("newName").value = ""; toast(`已创建，班级码 ${r.code}`);
+    await load();
+    const d = document.querySelector(`details.cls[data-id="${r.id}"]`); if (d) d.open = true;
+  });
+};
+
+async function saveMember(row) {
+  const role = row.querySelector("select[data-act=role]").value;
+  const p = (k) => !!(row.querySelector(`input[data-perm=${k}]`) || {}).checked;
+  row.querySelector(".perms").classList.toggle("hidden", role !== "monitor");
+  const ok = await guard(null, () => rpc("set_member", { cid: row.dataset.cid, uid: row.dataset.uid, mrole: role,
+    p_ingest: p("can_ingest"), p_edit: p("can_edit"), p_delete: p("can_delete"), p_view: p("can_view_members") }));
+  if (ok) toast(role === "monitor" ? "班委权限已更新" : "已设为普通学生"); else await load();
+}
+$("teachList").addEventListener("change", (e) => {
+  const row = e.target.closest(".item[data-uid]"); if (!row) return;
+  if (e.target.matches("select[data-act=role]") && e.target.value === "monitor" && !row.querySelector("input[data-perm]:checked")) {
+    // 新任命的班委默认开「增改事项」
+    row.querySelector("input[data-perm=can_edit]").checked = true;
+  }
+  saveMember(row);
+});
+
+// ---------- 管理员 ----------
+async function renderAdmin() {
+  const cls = await rest("classes?select=id,name,code,teacher_id,created_at&order=created_at.asc");
+  const ppl = await rest("profiles?select=id,account,display_name");
+  const name = (id) => { const p = ppl.find((x) => x.id === id); return p ? `${p.display_name}（${p.account}）` : "未知"; };
+  $("adminList").className = cls.length ? "" : "empty";
+  $("adminList").innerHTML = cls.length ? cls.map((c) => `<div class="item"><div class="grow"><strong>${esc(c.name)}</strong>
+      <div class="meta">老师 ${esc(name(c.teacher_id))} · 班级码 ${esc(c.code)} · 创建于 ${fmt(c.created_at)}</div></div>
+      <button class="small" data-act="transfer" data-id="${esc(c.id)}">转交老师</button></div>`).join("") : "还没有班级。";
+}
+
+// ---------- 按钮 ----------
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-act]"); if (!b) return;
+  const act = b.dataset.act;
+  if (act === "copy") {
+    const text = `请用班级群日历加入「${b.dataset.name}」：打开 ${location.origin}${location.pathname.replace(/[^/]*$/, "")}login.html 注册（选“学生”，填真实姓名），然后在「我的班级」输入班级码 ${b.dataset.code} 申请加入。`;
+    navigator.clipboard.writeText(text).then(() => toast("已复制，发到班群即可"), () => prompt("复制下面这段发到班群：", text));
+    return;
+  }
+  guard(b, async () => {
+    if (act === "leave") { if (!confirm(`确定退出「${b.dataset.name}」？`)) return;
+      await rest(`class_members?class_id=eq.${b.dataset.id}&user_id=eq.${me.id}`, { method: "DELETE" }); toast("已退出"); }
+    if (act === "roster") {
+      const box = $("roster_" + b.dataset.id);
+      if (box.innerHTML) { box.innerHTML = ""; return; }
+      const r = await rpc("class_roster", { cid: b.dataset.id });
+      box.innerHTML = `<div class="meta" style="margin-top:6px">${r.map((m) => esc(m.name) + (m.member_role === "monitor" ? "（班委）" : "")).join("、")}</div>`;
+      return;
+    }
+    if (act === "regen") { if (!confirm("重置后旧班级码立即失效，已入班的同学不受影响。继续？")) return;
+      await rpc("regenerate_class_code", { cid: b.dataset.id }); toast("班级码已重置"); }
+    if (act === "rename") { const n = prompt("新的班级名称：", b.dataset.name); if (!n || !n.trim()) return;
+      const r = await rest(`classes?id=eq.${b.dataset.id}`, { method: "PATCH", headers: { Prefer: "return=representation" }, body: JSON.stringify({ name: n.trim().slice(0, 40) }) });
+      if (!r || !r.length) throw new Error("没有权限修改"); toast("已改名"); }
+    if (act === "approve") { await rpc("review_member", { cid: b.dataset.cid, uid: b.dataset.uid, approve: true }); toast("已批准"); }
+    if (act === "reject") { if (!confirm("拒绝这个申请？")) return;
+      await rpc("review_member", { cid: b.dataset.cid, uid: b.dataset.uid, approve: false }); toast("已拒绝"); }
+    if (act === "remove") { const row = b.closest(".item"); if (!confirm(`把 ${b.dataset.name} 移出班级？`)) return;
+      await rest(`class_members?class_id=eq.${row.dataset.cid}&user_id=eq.${row.dataset.uid}`, { method: "DELETE" }); toast("已移出"); }
+    if (act === "transfer") { const acct = prompt("转交给哪个老师账号？（对方需要先注册为老师）"); if (!acct) return;
+      await rpc("transfer_class", { cid: b.dataset.id, acct: acct.trim() }); toast("已转交"); }
+    await load();
+  });
+});
+
+$("logout").onclick = async () => { await CCAuth.signOut(); location.href = "login.html"; };
+(async () => {
+  const s = await CCAuth.session();
+  if (!s) { location.href = "login.html?next=class.html"; return; }
+  me = await CCAuth.me();
+  if (!me) { await CCAuth.signOut(); location.href = "login.html?next=class.html"; return; }
+  $("who").textContent = `${me.display_name}（${CCAuth.ROLE_NAMES[me.role] || me.role}）`;
+  const teacher = me.role === "teacher" || me.role === "admin";
+  $("teachCard").classList.toggle("hidden", !teacher);
+  $("adminCard").classList.toggle("hidden", me.role !== "admin");
+  $("devLink").classList.toggle("hidden", !CCAuth.STAFF.includes(me.role));
+  if (me.role === "teacher") { $("joinCard").classList.add("hidden"); $("myCard").classList.add("hidden"); }
+  try { await load(); } catch (e) { toast(e.message, true); }
+})();
+</script>
+</body>
+</html>

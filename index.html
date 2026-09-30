@@ -100,7 +100,28 @@
   .panel input, .panel select, .panel textarea { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); }
   .userchip { display:inline-flex; gap:6px; align-items:center; font-size:13px; }
   .userchip .chiplink { color: var(--accent); text-decoration: none; white-space: nowrap; }
+  #classBar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:8px 16px 0; font-size:14px; }
+  #classBar #className { font-weight:600; }
+  #classBar .spacer { flex:1; }
+  .btnlink { color: var(--accent); text-decoration:none; padding:2px 8px; border:1px solid var(--line); border-radius:8px; background:var(--card); font-size:12px; }
+  #notice { margin:12px 16px 0; padding:12px 14px; border-radius:10px; background:var(--card); border:1px solid var(--line); }
+  #notice a { color: var(--accent); }
+  #ingestPanel { margin:10px 16px 0; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; }
+  #ingestPanel textarea { width:100%; font:inherit; padding:8px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--text); }
+  .ingest-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px; }
+  #ingestStatus { color: var(--sub); font-size:13px; } #ingestStatus.err { color: var(--red); }
+  .modal2 { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: none; align-items: center; justify-content: center; z-index: 20; }
+  .modal2.open { display: flex; }
+  .modal2 form { background: var(--card); border-radius: 14px; padding: 16px; width: min(460px, 92vw); max-height: 90vh; overflow:auto; }
+  .modal2 h3 { margin: 0 0 10px; }
+  .modal2 label { display: block; font-size: 13px; color: var(--sub); margin-top: 8px; }
+  .modal2 label.check { display:flex; gap:6px; align-items:center; }
+  .modal2 input:not([type=checkbox]), .modal2 textarea, .modal2 select { background: var(--card); color: var(--text); width: 100%; font: inherit; padding: 8px; border: 1px solid var(--line); border-radius: 8px; margin-top: 3px; }
+  .modal2 .row { display: flex; gap: 8px; } .modal2 .row > div { flex: 1; }
+  .modal2 .btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+  .hidden { display: none !important; }
   @media (max-width: 800px) {
+    #classBar { padding: 8px 10px 0; }
     header { padding: 10px 12px; }
     header h1 { font-size: 16px; }
     .legend { width: 100%; order: 10; }
@@ -130,6 +151,25 @@
   </span>
 </header>
 <div id="banner"></div>
+<div id="classBar" class="hidden">
+  <span id="className"></span>
+  <select id="classSel" class="hidden" aria-label="切换班级"></select>
+  <span id="classRole" class="tag"></span>
+  <span class="spacer"></span>
+  <button id="cAddBtn" class="small hidden">＋ 班级事项</button>
+  <button id="cIngestBtn" class="small hidden">📋 粘贴群消息</button>
+  <a class="small btnlink" href="class.html">班级管理</a>
+</div>
+<div id="notice" class="hidden"></div>
+<section id="ingestPanel" class="hidden">
+  <textarea id="ingestText" rows="6" placeholder="把班级群里的消息整段粘贴到这里，闲聊会自动过滤。"></textarea>
+  <div class="ingest-row">
+    <label>消息发布日期 <input type="date" id="ingestDate"></label>
+    <button id="ingestGo" class="primary small">AI 整理并发布到班级</button>
+    <button id="ingestClose" class="small">收起</button>
+    <span id="ingestStatus"></span>
+  </div>
+</section>
 <nav id="tabs"></nav>
 
 <section class="view on" data-view="calendar">
@@ -187,6 +227,31 @@
   </form>
 </div>
 
+<div id="cmodal" class="modal2">
+  <form id="cform">
+    <h3 id="cformTitle">添加班级事项</h3>
+    <input type="hidden" id="cId">
+    <div class="row">
+      <div><label>类型 <select id="cType"><option>作业</option><option>会议</option><option>活动</option><option>通知</option></select></label></div>
+      <div><label>科目 / 标题 <input id="cSubject" maxlength="60" required placeholder="例如：高等数学"></label></div>
+    </div>
+    <label>内容 <textarea id="cSummary" rows="2" maxlength="300" placeholder="例如：第三章习题 1-15，交到学习通"></textarea></label>
+    <div class="row">
+      <div><label>日期 <input type="date" id="cDate"></label></div>
+      <div><label>时间（可不填） <input type="time" id="cTime"></label></div>
+    </div>
+    <div class="row">
+      <div><label>地点 <input id="cLoc" maxlength="60"></label></div>
+      <div><label>需准备 <input id="cPrep" maxlength="100"></label></div>
+    </div>
+    <label class="check"><input type="checkbox" id="cConfirm"> 信息还不确定（提醒同学去群里核实）</label>
+    <div class="btns">
+      <button type="button" id="cCancel">取消</button>
+      <button type="submit" class="primary" id="cSave">发布到班级</button>
+    </div>
+  </form>
+</div>
+
 <script src="config.js"></script>
 <script src="auth.js"></script>
 <script>
@@ -213,6 +278,11 @@ let mine = load(LS_MINE, []);      // 我的事项
 let marks = load(LS_MARK, {});     // 对班级事项的标记：{ "c11": {done, hidden, note} }
 
 let classRecords = [];
+let myClasses = [];       // 我已入班/我教的班（含权限）
+let pendingClasses = [];  // 等待老师批准的
+let currentClass = null;
+const LS_CUR_CLASS = "current_class_v1";
+const can = (perm) => !!(currentClass && currentClass[perm]);
 let byDay = {}, undated = [];
 const today = new Date();
 let viewYear = today.getFullYear(), viewMonth = today.getMonth();
@@ -306,7 +376,9 @@ function itemHtml(r, showDate) {
        <button class="link" data-act="del" data-k="${k}">删除</button>`
     : `<button class="link" data-act="done" data-k="${k}">${r._done ? "取消完成" : "✓ 完成"}</button>
        <button class="link" data-act="note" data-k="${k}">${r._note ? "改备注" : "加备注"}</button>
-       <button class="link" data-act="hide" data-k="${k}">${r._hidden ? "取消隐藏" : "隐藏"}</button>`;
+       <button class="link" data-act="hide" data-k="${k}">${r._hidden ? "取消隐藏" : "隐藏"}</button>
+       ${can("can_edit") ? `<button class="link" data-cact="cedit" data-id="${esc(r.id)}">修改</button>` : ""}
+       ${can("can_delete") ? `<button class="link" data-cact="cdel" data-id="${esc(r.id)}" style="color:var(--red)">删除</button>` : ""}`;
   return `<div class="item b-${esc(r.msg_type)}${r._done ? " done" : ""}">
     <div class="title">${esc(when)} · ${r._mine ? "我的" : esc(r.msg_type)}${r.subject ? " · " + esc(r.subject) : ""}
       <span class="tag">${r._mine ? "仅自己可见" : "班级"}</span></div>
@@ -331,29 +403,163 @@ function renderAll() { indexItems(); renderGrid(); renderSide(); syncJump(); }
 
 function showBanner(msg) { const b = $("banner"); b.textContent = msg; b.classList.toggle("show", !!msg); }
 
+function showNotice(html) { const n = $("notice"); n.innerHTML = html || ""; n.classList.toggle("hidden", !html); }
+
+async function loadMyClasses() {
+  myClasses = []; pendingClasses = []; currentClass = null;
+  if (!currentUser) return;
+  const all = await CCAuth.rpc("my_classes");
+  myClasses = all.filter((c) => c.status === "approved");
+  pendingClasses = all.filter((c) => c.status === "pending");
+  const saved = load(LS_CUR_CLASS, null);
+  currentClass = myClasses.find((c) => c.id === saved) || myClasses[0] || null;
+}
+
+function renderClassBar() {
+  const bar = $("classBar");
+  bar.classList.toggle("hidden", !currentClass);
+  if (!currentClass) return;
+  const multi = myClasses.length > 1;
+  $("className").textContent = multi ? "" : "🏫 " + currentClass.name;
+  const sel = $("classSel");
+  sel.classList.toggle("hidden", !multi);
+  sel.innerHTML = myClasses.map((c) => `<option value="${esc(c.id)}" ${c.id === currentClass.id ? "selected" : ""}>🏫 ${esc(c.name)}</option>`).join("");
+  const roleName = currentClass.is_teacher ? "老师" : currentClass.member_role === "monitor" ? "班委" : "学生";
+  $("classRole").textContent = roleName;
+  $("cAddBtn").classList.toggle("hidden", !can("can_edit"));
+  $("cIngestBtn").classList.toggle("hidden", !can("can_ingest"));
+}
+$("classSel").onchange = (e) => {
+  currentClass = myClasses.find((c) => c.id === e.target.value) || null;
+  save(LS_CUR_CLASS, currentClass && currentClass.id);
+  $("ingestPanel").classList.add("hidden");
+  renderClassBar(); loadClass();
+};
+
 async function loadClass() {
+  if (!currentUser) {
+    classRecords = []; renderAll();
+    showNotice(`登录后可以看到你的班级日历。<a href="login.html?next=index.html">登录 / 注册 →</a>（不登录也能使用「我的事项」和插件）`);
+    return;
+  }
+  if (!currentClass) {
+    classRecords = []; renderAll();
+    const teacher = currentUser.role === "teacher" || currentUser.role === "admin";
+    showNotice(pendingClasses.length
+      ? `已申请加入「${esc(pendingClasses.map((c) => c.name).join("、"))}」，等老师批准后这里就会显示班级日历。<a href="class.html">查看 →</a>`
+      : teacher ? `你还没有班级。<a href="class.html">去创建班级 →</a>` : `你还没有加入班级。<a href="class.html">输入班级码加入 →</a>`);
+    return;
+  }
+  showNotice("");
   const cache = load(LS_CACHE, null);
-  if (cache) { classRecords = cache.records || []; $("updated").textContent = `班级数据更新于 ${cache.at}`; renderAll(); }
+  const cacheOk = cache && cache.classId === currentClass.id;
+  if (cacheOk) { classRecords = cache.records || []; $("updated").textContent = `班级数据更新于 ${cache.at}`; renderAll(); }
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/class_info?select=${COLS}&order=id.asc&limit=2000`, {
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY },
-    });
-    if (!res.ok) throw new Error(res.status + " " + (await res.text()).slice(0, 120));
-    classRecords = await res.json();
+    classRecords = await CCAuth.rest(`class_info?select=${COLS}&class_id=eq.${encodeURIComponent(currentClass.id)}&order=id.asc&limit=2000`);
     const at = new Date().toLocaleString("zh-CN", { hour12: false });
-    save(LS_CACHE, { records: classRecords, at });
+    save(LS_CACHE, { classId: currentClass.id, records: classRecords, at });
     $("updated").textContent = `班级数据更新于 ${at}`;
     showBanner("");
   } catch (e) {
-    showBanner("班级数据加载失败" + (cache ? "，当前显示的是上次缓存的数据" : "") + "：" + e.message);
+    showBanner("班级数据加载失败" + (cacheOk ? "，当前显示的是上次缓存的数据" : "") + "：" + e.message);
   }
   renderAll();
 }
+
+// ===== 班委 / 老师：发布、修改、删除班级事项 =====
+function openClassForm(r) {
+  $("cformTitle").textContent = r ? "修改班级事项" : "添加班级事项";
+  $("cSave").textContent = r ? "保存修改" : "发布到班级";
+  const p = r ? parseTime(r.event_time) : null;
+  $("cId").value = r ? r.id : "";
+  $("cType").value = r ? r.msg_type : "作业";
+  $("cSubject").value = r ? (r.subject || "") : "";
+  $("cSummary").value = r ? (r.summary || "") : "";
+  $("cDate").value = p ? p.day : selectedKey;
+  $("cTime").value = p ? p.time : "";
+  $("cLoc").value = r ? (r.location || "") : "";
+  $("cPrep").value = r ? (r.prepare || "") : "";
+  $("cConfirm").checked = r ? !!r.need_confirm : false;
+  $("cmodal").classList.add("open");
+}
+$("cAddBtn").onclick = () => openClassForm(null);
+$("cCancel").onclick = () => $("cmodal").classList.remove("open");
+$("cmodal").onclick = (e) => { if (e.target === $("cmodal")) $("cmodal").classList.remove("open"); };
+$("cform").onsubmit = async (e) => {
+  e.preventDefault();
+  const id = $("cId").value;
+  const date = $("cDate").value, time = $("cTime").value;
+  const rec = {
+    msg_type: $("cType").value, subject: $("cSubject").value.trim(), summary: $("cSummary").value.trim(),
+    event_time: date ? date + (time ? " " + time : "") : "", location: $("cLoc").value.trim(), prepare: $("cPrep").value.trim(),
+    need_confirm: $("cConfirm").checked || !date,
+  };
+  if (!rec.subject) { alert("请填写科目或标题"); return; }
+  $("cSave").disabled = true;
+  try {
+    if (id) {
+      const r = await CCAuth.rest(`class_info?id=eq.${encodeURIComponent(id)}`, { method: "PATCH", headers: { Prefer: "return=representation" }, body: JSON.stringify(rec) });
+      if (!r || !r.length) throw new Error("没有修改权限");
+    } else {
+      rec.class_id = currentClass.id;
+      rec.publish_date = keyOf(new Date());
+      rec.original = "（由" + (currentUser.display_name || "班委") + "手动发布）";
+      await CCAuth.rest("class_info", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify(rec) });
+    }
+    $("cmodal").classList.remove("open");
+    if (date) selectedKey = date;
+    await loadClass();
+  } catch (err) { alert("保存失败：" + err.message); }
+  finally { $("cSave").disabled = false; }
+};
+async function deleteClassItem(id) {
+  const r = classRecords.find((x) => String(x.id) === String(id));
+  if (!confirm(`删除「${r ? (r.subject || r.summary) : "这条事项"}」？全班都会看不到它。`)) return;
+  try {
+    await CCAuth.rest(`class_info?id=eq.${encodeURIComponent(id)}`, { method: "DELETE" });
+    await loadClass();
+  } catch (err) { alert("删除失败：" + err.message); }
+}
+
+// ===== 班委 / 老师：粘贴群消息让 AI 整理 =====
+async function ingestMessages(classId, text, pubDate) {
+  const job = await CCAuth.rpc("ingest_class_messages", { cid: classId, msg: text, pub_date: pubDate });
+  const t0 = Date.now();
+  while (Date.now() - t0 < 330000) {
+    await new Promise((res) => setTimeout(res, 3000));
+    const st = await CCAuth.rpc("ingest_job_status", { jid: job.job_id });
+    if (st.status === "done") return st;
+    if (st.status === "failed") throw new Error(st.message || "整理失败");
+    $("ingestStatus").textContent = `AI 正在整理，已等待 ${Math.round((Date.now() - t0) / 1000)} 秒…`;
+  }
+  throw new Error("等太久了，稍后点「刷新班级数据」看看是否已加入日历");
+}
+$("cIngestBtn").onclick = () => { $("ingestPanel").classList.toggle("hidden"); $("ingestDate").value = $("ingestDate").value || keyOf(new Date()); $("ingestText").focus(); };
+$("ingestClose").onclick = () => $("ingestPanel").classList.add("hidden");
+$("ingestGo").onclick = async () => {
+  const text = $("ingestText").value.trim(), st = $("ingestStatus");
+  if (!text) { st.textContent = "先粘贴群消息"; st.className = "err"; return; }
+  $("ingestGo").disabled = true; st.className = ""; st.textContent = "已提交，AI 正在整理，大约需要半分钟到一分钟…";
+  try {
+    const res = await ingestMessages(currentClass.id, text, $("ingestDate").value || keyOf(new Date()));
+    await loadClass();
+    const added = res.added || 0;
+    st.textContent = added > 0 ? `整理完成，新增 ${added} 条事项 ✓` : "整理完成，没有发现需要记录的事项";
+    $("ingestText").value = "";
+  } catch (err) { st.textContent = "整理失败：" + err.message; st.className = "err"; }
+  finally { $("ingestGo").disabled = false; }
+};
 
 // ===== 操作 =====
 function setMark(k, patch) { marks[k] = { ...(marks[k] || {}), ...patch }; save(LS_MARK, marks); renderAll(); }
 
 document.addEventListener("click", (e) => {
+  const cb = e.target.closest("button[data-cact]");
+  if (cb) {
+    if (cb.dataset.cact === "cedit") openClassForm(classRecords.find((x) => String(x.id) === cb.dataset.id));
+    if (cb.dataset.cact === "cdel") deleteClassItem(cb.dataset.id);
+    return;
+  }
   const b = e.target.closest("button[data-act]");
   if (!b) return;
   const k = b.dataset.k, act = b.dataset.act;
@@ -465,7 +671,7 @@ $("nextBtn").onclick = () => { if (++viewMonth > 11) { viewMonth = 0; viewYear++
 $("todayBtn").onclick = () => { viewYear = today.getFullYear(); viewMonth = today.getMonth(); selectedKey = keyOf(today); renderAll(); };
 $("addBtn").onclick = () => openForm(null);
 $("addDayBtn").onclick = () => openForm(null);
-$("refreshBtn").onclick = loadClass;
+$("refreshBtn").onclick = async () => { try { await loadMyClasses(); } catch (e) {} renderClassBar(); loadClass(); };
 $("showHidden").onchange = renderAll;
 window.addEventListener("resize", renderGrid);
 
@@ -719,7 +925,13 @@ function showView(id) {
 }
 
 renderTabs();
-loadClass();
+(async () => {
+  try { currentUser = await CCAuth.me(); } catch (e) { currentUser = null; }
+  renderUserChip();
+  try { await loadMyClasses(); } catch (e) { showBanner("读取班级失败：" + e.message); }
+  renderClassBar();
+  loadClass();
+})();
 loadPlugins().then(() => { if (location.hash === "#store") { showView("store"); history.replaceState(null, "", location.pathname); } });
 </script>
 </body>
