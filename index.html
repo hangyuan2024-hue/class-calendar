@@ -5,176 +5,345 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="班级日历">
-<meta name="theme-color" content="#ffffff">
+<meta name="theme-color" content="#f5f6f8">
 <title>班级群日历</title>
+<script>try { if (localStorage.getItem("ui_mode_v1") === '"simple"') document.documentElement.classList.add("simple"); } catch (e) {}</script>
 <style>
   :root {
-    --bg: #f5f5f7; --card: #fff; --line: #e5e5ea; --text: #1d1d1f; --sub: #86868b;
-    --red: #ff3b30; --blue: #007aff; --green: #34c759; --gray: #8e8e93; --purple: #af52de; --today: #ff3b30;
-    --accent: #007aff; --hover: #f0f0f2; --muted-bg: #fafafa; --muted-text: #c7c7cc; --selected: #eef5ff;
-    --note-bg: #fff8e1; --danger-bg: #fff3f2;
+    --bg: #f5f6f8; --card: #ffffff; --line: #e7e8ec; --text: #16181d; --sub: #7b808a;
+    --red: #ef5350; --blue: #3b7bf6; --green: #1fa971; --gray: #8a909b; --purple: #9b5de5; --today: #2f6bff;
+    --accent: #2f6bff; --hover: #f1f2f5; --muted-bg: #fafbfc; --muted-text: #c4c8cf; --selected: #eef3ff;
+    --note-bg: #fff6dc; --danger-bg: #fff0ef;
+    --radius: 16px; --shadow: 0 1px 2px rgba(16,24,40,.04), 0 6px 24px rgba(16,24,40,.05);
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text);
-    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; font-size: 14px;
-    padding-bottom: env(safe-area-inset-bottom); }
-  header { display: flex; align-items: center; gap: 8px; padding: 12px 16px; background: var(--card);
-    border-bottom: 1px solid var(--line); flex-wrap: wrap; position: sticky; top: 0; z-index: 5; }
-  header h1 { font-size: 18px; margin: 0 8px 0 0; }
-  #monthLabel { font-size: 18px; font-weight: 600; min-width: 110px; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased; padding-bottom: env(safe-area-inset-bottom); }
+  a { color: var(--accent); text-decoration: none; }
   button { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--text);
-    border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+    border-radius: 10px; padding: 6px 12px; cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
   button:hover { background: var(--hover); }
-  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
-  button.small { padding: 2px 8px; font-size: 12px; }
-  button.link { border: none; background: none; color: var(--accent); padding: 2px 4px; font-size: 12px; }
+  button:disabled { opacity: .55; cursor: default; }
+  button.primary { background: var(--accent); color: #fff; border-color: transparent; font-weight: 500; }
+  button.primary:hover { filter: brightness(1.06); background: var(--accent); }
+  button.small { padding: 4px 10px; font-size: 13px; }
+  button.ghost { border-color: transparent; background: transparent; }
+  button.ghost:hover { background: var(--hover); }
+  button.link { border: none; background: none; color: var(--accent); padding: 2px 6px; font-size: 12px; border-radius: 6px; }
+  button.link:hover { background: var(--hover); }
   .spacer { flex: 1; }
-  .legend { display: flex; gap: 8px; font-size: 12px; color: var(--sub); flex-wrap: wrap; }
-  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 3px; vertical-align: -1px; }
-  #banner { display: none; margin: 10px 16px 0; padding: 8px 12px; border-radius: 8px; background: var(--danger-bg); color: var(--red); }
+  .hidden { display: none !important; }
+  .tag { font-size: 11px; color: var(--sub); background: var(--hover); border-radius: 6px; padding: 1px 6px; margin-left: 4px; font-weight: 500; white-space: nowrap; }
+
+  /* 事件颜色：每种类型只定义一个 --c，其余都按它来调浅色背景 */
+  .t-作业 { --c: var(--red); } .t-会议 { --c: var(--blue); } .t-活动 { --c: var(--green); }
+  .t-通知 { --c: var(--gray); } .t-个人 { --c: var(--purple); } .t-插件 { --c: var(--gray); }
+  .b-作业 { --c: var(--red); } .b-会议 { --c: var(--blue); } .b-活动 { --c: var(--green); }
+  .b-通知 { --c: var(--gray); } .b-个人 { --c: var(--purple); }
+
+  /* ===== 顶栏 ===== */
+  header.appbar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 10px;
+    padding: 10px 20px; background: color-mix(in srgb, var(--bg) 82%, transparent);
+    backdrop-filter: saturate(180%) blur(16px); -webkit-backdrop-filter: saturate(180%) blur(16px);
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent); }
+  .brand { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 16px; font-weight: 650; letter-spacing: .2px; white-space: nowrap; }
+  .brand .logo { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; font-size: 16px;
+    background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #9b5de5)); color: #fff; box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 30%, transparent); }
+  #classBar { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 4px 6px 4px 12px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 999px; font-size: 13px; }
+  #className { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #classSel { font: inherit; font-weight: 600; border: none; background: transparent; color: var(--text); max-width: 180px; padding: 0; cursor: pointer; }
+  #classSel:focus { outline: none; }
+  #classRole { margin-left: 0; }
+  #classBar .pill-link { font-size: 12px; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+  #classBar .pill-link:hover { background: var(--hover); }
+
+  .seg { display: inline-flex; padding: 3px; gap: 2px; background: color-mix(in srgb, var(--text) 6%, transparent); border-radius: 11px; }
+  .seg button { border: none; background: transparent; border-radius: 8px; padding: 4px 12px; font-size: 13px; color: var(--sub); white-space: nowrap; }
+  .seg button:hover { background: transparent; color: var(--text); }
+  .seg button.on { background: var(--card); color: var(--text); font-weight: 600; box-shadow: 0 1px 3px rgba(16,24,40,.12); }
+
+  .menuwrap { position: relative; }
+  #userChip { display: inline-flex; align-items: center; gap: 8px; padding: 3px 10px 3px 3px; border-radius: 999px; font-size: 13px; }
+  #userChip .av { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-weight: 600; font-size: 13px;
+    background: color-mix(in srgb, var(--accent) 14%, var(--card)); color: var(--accent); }
+  #userChip .who { display: flex; flex-direction: column; line-height: 1.15; text-align: left; }
+  #userChip .who small { color: var(--sub); font-size: 11px; }
+  #userChip.guest { padding: 6px 14px; }
+  .menu { position: absolute; right: 0; top: calc(100% + 8px); width: 260px; background: var(--card); border: 1px solid var(--line);
+    border-radius: 14px; box-shadow: 0 12px 40px rgba(16,24,40,.16); padding: 6px; z-index: 30; }
+  .menu .mhead { padding: 10px 10px 8px; }
+  .menu .mhead b { display: block; font-size: 14px; }
+  .menu .mhead span { color: var(--sub); font-size: 12px; }
+  .menu hr { border: none; border-top: 1px solid var(--line); margin: 6px 4px; }
+  .menu .mi { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: none; background: none;
+    padding: 8px 10px; border-radius: 9px; font-size: 13px; color: var(--text); cursor: pointer; }
+  .menu .mi:hover { background: var(--hover); }
+  .menu .mi .ic { width: 18px; text-align: center; }
+  .menu .mi.danger { color: var(--red); }
+  .menu label.mi input { margin: 0 2px; accent-color: var(--accent); }
+  .menu .mnote { color: var(--sub); font-size: 11px; padding: 4px 10px 6px; line-height: 1.5; }
+
+  /* ===== 第二行：标签页 + 班级操作 ===== */
+  .toolbar { display: flex; align-items: center; gap: 8px; padding: 14px 20px 0; max-width: 1360px; margin: 0 auto; }
+  nav#tabs { overflow-x: auto; scrollbar-width: none; max-width: 100%; }
+  nav#tabs::-webkit-scrollbar { display: none; }
+  .toolbar .cact { display: flex; gap: 8px; }
+  .toolbar .cact button { display: inline-flex; align-items: center; gap: 6px; }
+  .wrap { max-width: 1360px; margin: 0 auto; }
+
+  #banner { display: none; margin: 12px 20px 0; padding: 10px 14px; border-radius: 12px; background: var(--danger-bg); color: var(--red); font-size: 13px; }
   #banner.show { display: block; }
+  #notice { margin: 14px 20px 0; padding: 14px 16px; border-radius: var(--radius); background: var(--card); box-shadow: var(--shadow); }
+  #ingestPanel { margin: 14px 20px 0; background: var(--card); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow);
+    border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--line)); }
+  #ingestPanel .ip-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-weight: 600; }
+  #ingestPanel .ip-head small { color: var(--sub); font-weight: 400; }
+  #ingestPanel textarea { width: 100%; font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--muted-bg); color: var(--text); resize: vertical; }
+  #ingestPanel textarea:focus { outline: 2px solid color-mix(in srgb, var(--accent) 35%, transparent); border-color: var(--accent); }
+  .ingest-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px; font-size: 13px; color: var(--sub); }
+  .ingest-row input[type=date] { font: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 3px 6px; background: var(--card); color: var(--text); }
+  #ingestStatus { color: var(--sub); font-size: 13px; } #ingestStatus.err { color: var(--red); }
 
-  main { display: flex; gap: 16px; padding: 14px 16px; align-items: flex-start; }
-  #calendar { flex: 1; background: var(--card); border-radius: 12px; overflow: hidden; border: 1px solid var(--line); }
-  .week-head, .grid { display: grid; grid-template-columns: repeat(7, 1fr); }
-  .week-head div { padding: 8px; text-align: right; color: var(--sub); font-size: 12px; border-bottom: 1px solid var(--line); }
-  .cell { min-height: 100px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
-    padding: 4px 6px; cursor: pointer; overflow: hidden; }
-  .cell:nth-child(7n) { border-right: none; }
-  .cell.other { background: var(--muted-bg); color: var(--muted-text); }
-  .cell.selected { background: var(--selected); }
-  .daynum { text-align: right; font-size: 13px; margin-bottom: 2px; }
-  .cell.today .daynum span { background: var(--today); color: #fff; border-radius: 50%;
-    display: inline-block; width: 24px; height: 24px; line-height: 24px; text-align: center; }
-  .chip { font-size: 12px; color: #fff; border-radius: 4px; padding: 1px 5px; margin-bottom: 2px;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .chip.done { opacity: .4; text-decoration: line-through; }
-  .more { font-size: 11px; color: var(--sub); }
-  .t-作业 { background: var(--red); } .t-会议 { background: var(--blue); }
-  .t-活动 { background: var(--green); } .t-通知 { background: var(--gray); } .t-个人 { background: var(--purple); }
-
-  #side { width: 340px; background: var(--card); border-radius: 12px; border: 1px solid var(--line); padding: 14px; }
-  #side h2 { font-size: 16px; margin: 0 0 10px; display: flex; justify-content: space-between; align-items: center; }
-  #side h3 { font-size: 14px; margin: 16px 0 8px; color: var(--sub); }
-  .item { border-left: 4px solid var(--gray); background: var(--muted-bg); border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
-  .item.b-作业 { border-color: var(--red); } .item.b-会议 { border-color: var(--blue); }
-  .item.b-活动 { border-color: var(--green); } .item.b-通知 { border-color: var(--gray); } .item.b-个人 { border-color: var(--purple); }
-  .item.done .title, .item.done .sum { text-decoration: line-through; opacity: .5; }
-  .item .title { font-weight: 600; }
-  .item .meta { color: var(--sub); font-size: 12px; margin-top: 3px; }
-  .item .note { font-size: 12px; margin-top: 4px; background: var(--note-bg); border-radius: 4px; padding: 3px 6px; }
-  .item details { margin-top: 4px; font-size: 12px; color: var(--sub); }
-  .item .ops { margin-top: 6px; display: flex; gap: 4px; flex-wrap: wrap; }
-  .tag { font-size: 11px; color: var(--sub); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; margin-left: 4px; font-weight: normal; }
-  .warn { color: #ff9500; font-size: 12px; margin-top: 3px; }
-  .empty { color: var(--sub); }
-  footer { padding: 4px 16px 24px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; color: var(--sub); font-size: 12px; }
-  label.check { font-size: 12px; color: var(--sub); }
-
-  #modal { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: none; align-items: center; justify-content: center; z-index: 20; }
-  #modal.open { display: flex; }
-  #modal form { background: var(--card); border-radius: 14px; padding: 16px; width: min(420px, 92vw); }
-  #modal h3 { margin: 0 0 10px; }
-  #modal label { display: block; font-size: 13px; color: var(--sub); margin-top: 8px; }
-  #modal input, #modal textarea { background: var(--card); color: var(--text); width: 100%; font: inherit; padding: 8px; border: 1px solid var(--line); border-radius: 8px; margin-top: 3px; }
-  #modal .row { display: flex; gap: 8px; } #modal .row > div { flex: 1; }
-  #modal .btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
-
-  #monthWrap { position: relative; display: inline-block; cursor: pointer; }
-  #monthWrap::after { content: " ▾"; font-size: 12px; color: var(--sub); }
+  /* ===== 日历（普通模式） ===== */
+  main#mainCal { display: flex; gap: 16px; padding: 14px 20px; align-items: flex-start; }
+  #calendar { flex: 1; min-width: 0; background: var(--card); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+  .cal-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px; flex-wrap: wrap; }
+  #monthWrap { position: relative; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; border-radius: 8px; padding: 2px 6px; margin-left: -6px; }
+  #monthWrap:hover { background: var(--hover); }
+  #monthLabel { font-size: 20px; font-weight: 700; letter-spacing: .3px; font-variant-numeric: tabular-nums; }
+  #monthWrap::after { content: "▾"; font-size: 11px; color: var(--sub); }
   #jumpDate { position: absolute; inset: 0; opacity: 0; width: 100%; cursor: pointer; }
-  nav#tabs { display: flex; gap: 4px; padding: 8px 16px 0; overflow-x: auto; }
-  nav#tabs button { border-radius: 8px 8px 0 0; border-bottom: none; white-space: nowrap; }
-  nav#tabs button.on { background: var(--card); font-weight: 600; color: var(--accent); }
+  .navgrp { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .navgrp button { border: none; border-radius: 0; padding: 4px 11px; font-size: 13px; }
+  .navgrp button + button { border-left: 1px solid var(--line); }
+  .legend { display: flex; gap: 12px; font-size: 12px; color: var(--sub); flex-wrap: wrap; }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .legend i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); display: inline-block; }
+  .week-head, .grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+  .week-head div { padding: 6px 10px; color: var(--sub); font-size: 12px; font-weight: 500; border-bottom: 1px solid var(--line); }
+  .week-head div:nth-child(n+6) { color: color-mix(in srgb, var(--sub) 70%, var(--accent)); }
+  .cell { min-height: 108px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
+    padding: 6px; cursor: pointer; overflow: hidden; transition: background .12s; }
+  .cell:hover { background: var(--muted-bg); }
+  .cell:nth-child(7n) { border-right: none; }
+  .cell:nth-last-child(-n+7) { border-bottom: none; }
+  .cell.other { background: var(--muted-bg); color: var(--muted-text); }
+  .cell.other .chip { opacity: .55; }
+  .cell.selected { background: var(--selected); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 45%, transparent); }
+  .daynum { font-size: 13px; margin-bottom: 4px; font-variant-numeric: tabular-nums; font-weight: 500; }
+  .daynum span { display: inline-grid; place-items: center; min-width: 24px; height: 24px; border-radius: 50%; }
+  .cell.today .daynum span { background: var(--today); color: #fff; font-weight: 650; }
+  .chip { font-size: 12px; border-radius: 6px; padding: 1px 6px; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    background: color-mix(in srgb, var(--c, var(--gray)) 13%, var(--card)); color: color-mix(in srgb, var(--c, var(--gray)) 78%, var(--text));
+    border-left: 3px solid var(--c, var(--gray)); font-weight: 500; }
+  .chip.done { opacity: .45; text-decoration: line-through; }
+  .more { font-size: 11px; color: var(--sub); padding-left: 4px; }
+
+  #side { width: 360px; flex-shrink: 0; background: var(--card); border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow); position: sticky; top: 72px; }
+  #side h2 { font-size: 17px; margin: 0 0 14px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  #side h3 { font-size: 12px; margin: 20px 0 10px; color: var(--sub); font-weight: 600; letter-spacing: .5px; }
+  .item { position: relative; background: var(--muted-bg); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px 10px 16px; margin-bottom: 8px; }
+  .item::before { content: ""; position: absolute; left: 6px; top: 10px; bottom: 10px; width: 3px; border-radius: 3px; background: var(--c, var(--gray)); }
+  .item.done .title, .item.done .sum { text-decoration: line-through; opacity: .5; }
+  .item .title { font-weight: 600; font-size: 15px; margin-top: 4px; }
+  .item .ihead { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--sub); }
+  .item .ihead .atype { margin-right: 0; }
+  .item .iwhen { font-variant-numeric: tabular-nums; }
+  .item .iscope { font-size: 11px; color: var(--muted-text); }
+  .item .sum { color: color-mix(in srgb, var(--text) 75%, var(--sub)); }
+  .item .sum { margin-top: 2px; }
+  .item .meta { color: var(--sub); font-size: 12px; margin-top: 4px; }
+  .item .note { font-size: 12px; margin-top: 6px; background: var(--note-bg); border-radius: 8px; padding: 4px 8px; }
+  .item details { margin-top: 6px; font-size: 12px; color: var(--sub); }
+  .item details summary { cursor: pointer; }
+  .item .ops { margin-top: 6px; display: flex; gap: 2px; flex-wrap: wrap; margin-left: -6px; }
+  .warn { color: #e08600; font-size: 12px; margin-top: 4px; }
+  .empty { color: var(--sub); font-size: 13px; padding: 6px 0; }
+  footer.foot { padding: 0 20px 28px; color: var(--sub); font-size: 12px; }
+
+  /* ===== 简洁模式：今天 + 接下来两周 ===== */
+  #agenda { max-width: 760px; margin: 0 auto; padding: 18px 20px 40px; }
+  .hero { margin-bottom: 18px; }
+  .hero .date { color: var(--sub); font-size: 13px; }
+  .hero h2 { font-size: 26px; margin: 2px 0 14px; font-weight: 700; letter-spacing: .3px; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .stat { background: var(--card); border-radius: 14px; padding: 12px 14px; box-shadow: var(--shadow); }
+  .stat b { display: block; font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
+  .stat span { color: var(--sub); font-size: 12px; }
+  .stat.hot b { color: var(--red); }
+  .aday { margin-top: 22px; }
+  .aday-h { display: flex; align-items: baseline; gap: 8px; margin: 0 4px 8px; }
+  .aday-h b { font-size: 15px; }
+  .aday-h span { color: var(--sub); font-size: 12px; }
+  .aday-h.overdue b { color: var(--red); }
+  .acard { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+  .arow { display: flex; gap: 12px; padding: 12px 14px; align-items: flex-start; }
+  .arow + .arow { border-top: 1px solid var(--line); }
+  .chk { flex-shrink: 0; width: 22px; height: 22px; padding: 0; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--c, var(--gray)) 70%, var(--card));
+    background: transparent; margin-top: 1px; display: grid; place-items: center; font-size: 12px; color: #fff; line-height: 1; }
+  .chk:hover { background: color-mix(in srgb, var(--c, var(--gray)) 12%, transparent); }
+  .arow.done .chk { background: var(--c, var(--gray)); border-color: var(--c, var(--gray)); }
+  .adot { flex-shrink: 0; width: 10px; height: 10px; border-radius: 50%; background: var(--c, var(--gray)); margin: 7px 6px 0; }
+  .abody { flex: 1; min-width: 0; cursor: pointer; }
+  .atitle { font-weight: 600; font-size: 15px; }
+  .arow.done .atitle, .arow.done .asub { text-decoration: line-through; opacity: .45; }
+  .asub { color: var(--sub); font-size: 13px; margin-top: 2px; }
+  .atype { display: inline-block; font-size: 11px; font-weight: 600; padding: 0 6px; border-radius: 5px; margin-right: 6px; vertical-align: 1px;
+    background: color-mix(in srgb, var(--c, var(--gray)) 13%, var(--card)); color: color-mix(in srgb, var(--c, var(--gray)) 80%, var(--text)); }
+  .atime { flex-shrink: 0; color: var(--sub); font-size: 13px; font-variant-numeric: tabular-nums; padding-top: 1px; }
+  .atime.due { color: var(--red); font-weight: 600; }
+  .aextra { display: none; margin-top: 8px; font-size: 13px; }
+  .arow.open .aextra { display: block; }
+  .aextra .meta { color: var(--sub); font-size: 12px; margin-top: 4px; }
+  .aextra .note { font-size: 12px; margin-top: 6px; background: var(--note-bg); border-radius: 8px; padding: 4px 8px; }
+  .aextra details { margin-top: 6px; font-size: 12px; color: var(--sub); }
+  .aextra .ops { margin-top: 6px; display: flex; gap: 2px; flex-wrap: wrap; margin-left: -6px; }
+  .aempty { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; color: var(--sub); font-size: 13px; }
+  .afoot { text-align: center; margin-top: 26px; }
+
+  /* 模式切换 */
+  html.simple main#mainCal, html.simple nav#tabs, html.simple footer.foot { display: none !important; }
+  html:not(.simple) #agenda { display: none; }
+  html.simple .toolbar { max-width: 760px; padding-top: 18px; }
+  html.simple #agenda { padding-top: 6px; }
+
+  /* ===== 插件与商店 ===== */
   .view { display: none; } .view.on { display: block; }
-  main.view.on { display: flex; }
-  .panel { margin: 0 16px 16px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .panel { margin: 14px 20px 20px; background: var(--card); border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow); }
   .panel h2 { margin: 0 0 12px; font-size: 17px; }
-  .store-item { display: flex; gap: 12px; align-items: flex-start; border-bottom: 1px solid var(--line); padding: 12px 0; }
+  .store-item { display: flex; gap: 14px; align-items: center; border-bottom: 1px solid var(--line); padding: 14px 0; }
   .store-item:last-child { border-bottom: none; }
-  .store-item .icon { font-size: 28px; width: 40px; text-align: center; }
-  .store-item .info { flex: 1; }
+  .store-item .icon { font-size: 24px; width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; background: var(--hover); flex-shrink: 0; }
+  .store-item .info { flex: 1; min-width: 0; }
   .store-item .name { font-weight: 600; }
   .store-item .desc, .store-item .by { color: var(--sub); font-size: 12px; margin-top: 2px; }
   .store-item .err { color: var(--red); font-size: 12px; margin-top: 2px; }
   .panel input, .panel select, .panel textarea { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); }
-  .userchip { display:inline-flex; gap:6px; align-items:center; font-size:13px; }
-  .userchip .chiplink { color: var(--accent); text-decoration: none; white-space: nowrap; }
-  #classBar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:8px 16px 0; font-size:14px; }
-  #classBar #className { font-weight:600; }
-  #classBar .spacer { flex:1; }
-  .btnlink { color: var(--accent); text-decoration:none; padding:2px 8px; border:1px solid var(--line); border-radius:8px; background:var(--card); font-size:12px; }
-  #notice { margin:12px 16px 0; padding:12px 14px; border-radius:10px; background:var(--card); border:1px solid var(--line); }
-  #notice a { color: var(--accent); }
-  #ingestPanel { margin:10px 16px 0; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; }
-  #ingestPanel textarea { width:100%; font:inherit; padding:8px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--text); }
-  .ingest-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px; }
-  #ingestStatus { color: var(--sub); font-size:13px; } #ingestStatus.err { color: var(--red); }
-  .modal2 { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: none; align-items: center; justify-content: center; z-index: 20; }
-  .modal2.open { display: flex; }
-  .modal2 form { background: var(--card); border-radius: 14px; padding: 16px; width: min(460px, 92vw); max-height: 90vh; overflow:auto; }
-  .modal2 h3 { margin: 0 0 10px; }
-  .modal2 label { display: block; font-size: 13px; color: var(--sub); margin-top: 8px; }
-  .modal2 label.check { display:flex; gap:6px; align-items:center; }
-  .modal2 input:not([type=checkbox]), .modal2 textarea, .modal2 select { background: var(--card); color: var(--text); width: 100%; font: inherit; padding: 8px; border: 1px solid var(--line); border-radius: 8px; margin-top: 3px; }
-  .modal2 .row { display: flex; gap: 8px; } .modal2 .row > div { flex: 1; }
-  .modal2 .btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
-  .hidden { display: none !important; }
+
+  /* ===== 弹窗 ===== */
+  #modal, .modal2 { position: fixed; inset: 0; background: rgba(16,24,40,.38); display: none; align-items: center; justify-content: center; z-index: 40;
+    backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+  #modal.open, .modal2.open { display: flex; }
+  #modal form, .modal2 form { background: var(--card); border-radius: 18px; padding: 20px; width: min(460px, 92vw); max-height: 90vh; overflow: auto;
+    box-shadow: 0 24px 60px rgba(16,24,40,.25); }
+  #modal h3, .modal2 h3 { margin: 0 0 6px; font-size: 18px; }
+  #modal label, .modal2 label { display: block; font-size: 12px; color: var(--sub); margin-top: 10px; font-weight: 500; }
+  .modal2 label.check { display: flex; gap: 6px; align-items: center; font-size: 13px; }
+  #modal input, #modal textarea, .modal2 input:not([type=checkbox]), .modal2 textarea, .modal2 select {
+    background: var(--muted-bg); color: var(--text); width: 100%; font: inherit; font-size: 14px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px; margin-top: 4px; }
+  #modal input:focus, #modal textarea:focus, .modal2 input:focus, .modal2 textarea:focus, .modal2 select:focus {
+    outline: 2px solid color-mix(in srgb, var(--accent) 30%, transparent); border-color: var(--accent); background: var(--card); }
+  #modal .row, .modal2 .row { display: flex; gap: 10px; } #modal .row > div, .modal2 .row > div { flex: 1; min-width: 0; }
+  #modal .btns, .modal2 .btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+
   @media (max-width: 800px) {
-    #classBar { padding: 8px 10px 0; }
-    header { padding: 10px 12px; }
-    header h1 { font-size: 16px; }
-    .legend { width: 100%; order: 10; }
-    main { flex-direction: column; padding: 10px; }
-    main.view.on { display: flex; }
-    .panel { margin: 0 10px 10px; }
-    nav#tabs { padding: 8px 10px 0; }
-    #side { width: 100%; }
-    .cell { min-height: 58px; padding: 2px 3px; }
-    .chip { font-size: 10px; padding: 0 3px; }
+    header.appbar { padding: 8px 12px; gap: 8px; flex-wrap: wrap; }
+    .brand .bname { display: none; }
+    #classBar { order: 10; width: 100%; justify-content: flex-start; }
+    #classBar .pill-sp { flex: 1; }
+    #userChip .who { display: none; }
+    #userChip { padding: 3px; }
+    #userChip.guest { padding: 6px 12px; }
+    #addBtn .lbl { display: none; }
+    #addBtn { padding: 5px 11px; }
+    .seg button { padding: 4px 10px; }
+    .toolbar { padding: 10px 12px 0; flex-wrap: wrap; }
+    .toolbar .cact { width: 100%; }
+    .toolbar .cact button { flex: 1; justify-content: center; }
+    #banner, #notice, #ingestPanel { margin-left: 12px; margin-right: 12px; }
+    main#mainCal { flex-direction: column; padding: 10px 12px; }
+    .panel { margin: 10px 12px 12px; }
+    #side { width: 100%; position: static; }
+    .cal-head { padding: 12px 12px 8px; }
+    .legend { width: 100%; order: 10; gap: 10px; }
+    .week-head div { padding: 6px 4px; text-align: center; }
+    .cell { min-height: 60px; padding: 3px 2px; }
+    .daynum { text-align: center; }
+    .chip { font-size: 10px; padding: 0 3px; border-left-width: 2px; border-radius: 4px; }
+    footer.foot { padding: 0 12px 24px; }
+    #agenda { padding: 14px 12px 32px; }
+    .hero h2 { font-size: 22px; }
+    .stat { padding: 10px 12px; }
+    .stat b { font-size: 20px; }
+    .menu { position: fixed; left: 12px; right: 12px; top: 58px; width: auto; }
   }
 </style>
 </head>
 <body>
-<header>
-  <h1>📅 班级群日历</h1>
-  <button id="prevBtn">‹</button>
-  <button id="todayBtn">今天</button>
-  <button id="nextBtn">›</button>
-  <label id="monthWrap" title="跳转到指定日期"><span id="monthLabel"></span><input type="date" id="jumpDate" aria-label="跳转到日期"></label>
+<header class="appbar">
+  <h1 class="brand"><span class="logo">📅</span><span class="bname">班级日历</span></h1>
+  <div id="classBar" class="hidden">
+    <span id="className"></span>
+    <select id="classSel" class="hidden" aria-label="切换班级"></select>
+    <span id="classRole" class="tag"></span>
+    <span class="pill-sp"></span>
+    <a class="pill-link" href="class.html">班级管理</a>
+  </div>
   <span class="spacer"></span>
-  <span id="userChip" class="userchip"></span>
-  <button id="addBtn" class="primary">＋ 我的事项</button>
-  <span class="legend">
-    <span><i class="t-作业"></i>作业</span><span><i class="t-会议"></i>会议</span>
-    <span><i class="t-活动"></i>活动</span><span><i class="t-通知"></i>通知</span><span><i class="t-个人"></i>我的</span>
-  </span>
+  <div id="modeSwitch" class="seg" role="group" aria-label="显示模式">
+    <button data-mode="simple" title="只看今天和接下来两周要做的事">简洁</button>
+    <button data-mode="normal" title="完整月历、插件和所有工具">普通</button>
+  </div>
+  <button id="addBtn" class="primary" title="添加只自己可见的事项">＋<span class="lbl"> 我的事项</span></button>
+  <div class="menuwrap">
+    <button id="userChip" class="ghost" aria-haspopup="true"></button>
+    <div id="menu" class="menu hidden">
+      <div class="mhead" id="menuHead"></div>
+      <a class="mi" id="menuLogin" href="login.html?next=index.html"><span class="ic">🔑</span>登录 / 注册</a>
+      <a class="mi" href="class.html"><span class="ic">🏫</span>班级管理</a>
+      <a class="mi hidden" id="menuDev" href="dev.html"><span class="ic">🧩</span>插件后台</a>
+      <hr>
+      <button class="mi" id="refreshBtn"><span class="ic">↻</span>刷新班级数据</button>
+      <button class="mi" id="icsBtn"><span class="ic">📲</span>导出到手机日历</button>
+      <button class="mi" id="exportBtn"><span class="ic">⤓</span>备份我的数据</button>
+      <button class="mi" id="importBtn"><span class="ic">⤒</span>恢复备份</button>
+      <input type="file" id="importFile" accept=".json,application/json" hidden>
+      <label class="mi"><input type="checkbox" id="showHidden"> 显示已隐藏的事项</label>
+      <hr>
+      <div class="mnote"><span id="updated"></span><br>「我的事项」和你的标记只保存在这台设备上，不会上传。</div>
+      <button class="mi danger hidden" id="logoutBtn"><span class="ic">⎋</span>退出登录</button>
+    </div>
+  </div>
 </header>
+<div class="wrap">
 <div id="banner"></div>
-<div id="classBar" class="hidden">
-  <span id="className"></span>
-  <select id="classSel" class="hidden" aria-label="切换班级"></select>
-  <span id="classRole" class="tag"></span>
-  <span class="spacer"></span>
-  <button id="cAddBtn" class="small hidden">＋ 班级事项</button>
-  <button id="cIngestBtn" class="small hidden">📋 粘贴群消息</button>
-  <a class="small btnlink" href="class.html">班级管理</a>
-</div>
 <div id="notice" class="hidden"></div>
+<div class="toolbar">
+  <nav id="tabs" class="seg"></nav>
+  <span class="spacer"></span>
+  <div class="cact">
+    <button id="cIngestBtn" class="small hidden">✨ AI 整理群消息</button>
+    <button id="cAddBtn" class="small hidden">＋ 班级事项</button>
+  </div>
+</div>
 <section id="ingestPanel" class="hidden">
-  <textarea id="ingestText" rows="6" placeholder="把班级群里的消息整段粘贴到这里，闲聊会自动过滤。"></textarea>
+  <div class="ip-head">✨ 粘贴群消息 <small>AI 会提取作业、会议、活动和通知，闲聊自动过滤</small></div>
+  <textarea id="ingestText" rows="6" placeholder="把班级群里的消息整段粘贴到这里"></textarea>
   <div class="ingest-row">
     <label>消息发布日期 <input type="date" id="ingestDate"></label>
-    <button id="ingestGo" class="primary small">AI 整理并发布到班级</button>
-    <button id="ingestClose" class="small">收起</button>
+    <span class="spacer"></span>
     <span id="ingestStatus"></span>
+    <button id="ingestClose" class="small ghost">收起</button>
+    <button id="ingestGo" class="primary small">AI 整理并发布到班级</button>
   </div>
 </section>
-<nav id="tabs"></nav>
 
 <section class="view on" data-view="calendar">
-<main class="view on" style="display:flex">
+<div id="agenda"></div>
+<main id="mainCal" class="view on" style="display:flex">
   <div id="calendar">
+    <div class="cal-head">
+      <label id="monthWrap" title="跳转到指定日期"><span id="monthLabel"></span><input type="date" id="jumpDate" aria-label="跳转到日期"></label>
+      <div class="navgrp"><button id="prevBtn" aria-label="上个月">‹</button><button id="todayBtn">今天</button><button id="nextBtn" aria-label="下个月">›</button></div>
+      <span class="spacer"></span>
+      <span class="legend">
+        <span><i class="t-作业"></i>作业</span><span><i class="t-会议"></i>会议</span>
+        <span><i class="t-活动"></i>活动</span><span><i class="t-通知"></i>通知</span><span><i class="t-个人"></i>我的</span>
+      </span>
+    </div>
     <div class="week-head">
       <div>周一</div><div>周二</div><div>周三</div><div>周四</div><div>周五</div><div>周六</div><div>周日</div>
     </div>
@@ -183,21 +352,11 @@
   <aside id="side">
     <h2><span id="sideTitle"></span><button class="small" id="addDayBtn">＋ 这天加事项</button></h2>
     <div id="dayList"></div>
-    <h3>时间待定（请去群里核实）</h3>
+    <h3>时间待定 · 请去群里核实</h3>
     <div id="undatedList"></div>
   </aside>
 </main>
-
-<footer>
-  <button id="refreshBtn" class="small">刷新班级数据</button>
-  <button id="icsBtn" class="small">导出到手机日历</button>
-  <button id="exportBtn" class="small">备份我的数据</button>
-  <button id="importBtn" class="small">恢复备份</button>
-  <input type="file" id="importFile" accept=".json,application/json" hidden>
-  <label class="check"><input type="checkbox" id="showHidden"> 显示已隐藏</label>
-  <span id="updated"></span>
-  <span>· 班级事项由班委统一整理；「我的事项」和你的标记只保存在这台设备上，不会上传。</span>
-</footer>
+<footer class="foot">班级事项由班委统一整理；「我的事项」和你的标记只保存在这台设备上。更多工具在右上角头像菜单里。</footer>
 </section>
 <div id="pluginViews"></div>
 
@@ -208,6 +367,7 @@
     <div id="storeList">加载中…</div>
   </div>
 </section>
+</div>
 
 <div id="modal">
   <form id="form">
@@ -342,7 +502,7 @@ function renderGrid() {
       (k === keyOf(today) ? " today" : "") + (k === selectedKey ? " selected" : "");
     let html = `<div class="daynum"><span>${d.getDate()}</span></div>`;
     items.slice(0, maxChips).forEach((r) => {
-      const style = r._color ? ` style="background:${esc(r._color)}"` : "";
+      const style = r._color ? ` style="--c:${esc(r._color)}"` : "";
       html += `<div class="chip t-${esc(r.msg_type)}${r._done ? " done" : ""}"${style} title="${esc(chipText(r))}">${esc(chipText(r, compact))}</div>`;
     });
     if (items.length > maxChips) html += `<div class="more">还有 ${items.length - maxChips} 项</div>`;
@@ -354,7 +514,7 @@ function renderGrid() {
 
 function pluginItemHtml(r) {
   const when = r._p ? (r._p.time || "全天") : "";
-  return `<div class="item" style="border-color:${esc(r._color || "var(--gray)")}">
+  return `<div class="item" style="--c:${esc(r._color || "var(--gray)")}">
     <div class="title">${esc(when)} · ${esc(r.subject || "")}<span class="tag">${esc(r._pluginName)}</span></div>
     ${r.summary ? `<div class="sum">${esc(r.summary)}</div>` : ""}
     ${r.location ? `<div class="meta">📍 ${esc(r.location)}</div>` : ""}
@@ -366,6 +526,18 @@ function itemHtml(r, showDate) {
   let when = r._p ? (r._p.time || "全天") : "时间待定";
   if (showDate && r._p) when = `${r._p.day} ${when}`;
   if (r.msg_type === "作业" && r._p) when += " 截止";
+  const title = r.subject || r.summary || r.msg_type;
+  return `<div class="item b-${esc(r.msg_type)}${r._done ? " done" : ""}">
+    <div class="ihead"><span class="atype">${r._mine ? "我的" : esc(r.msg_type)}</span><span class="iwhen">${esc(when)}</span>
+      <span class="spacer"></span><span class="iscope">${r._mine ? "仅自己可见" : "班级"}</span></div>
+    <div class="title">${esc(title)}</div>
+    ${r.subject && r.summary ? `<div class="sum">${esc(r.summary)}</div>` : ""}
+    ${detailHtml(r)}
+  </div>`;
+}
+
+// 事项的补充信息和操作按钮（普通模式侧栏、简洁模式展开后共用）
+function detailHtml(r) {
   const meta = [];
   if (r.location) meta.push("📍 " + esc(r.location));
   if (r.prepare) meta.push("🎒 " + esc(r.prepare));
@@ -379,17 +551,100 @@ function itemHtml(r, showDate) {
        <button class="link" data-act="hide" data-k="${k}">${r._hidden ? "取消隐藏" : "隐藏"}</button>
        ${can("can_edit") ? `<button class="link" data-cact="cedit" data-id="${esc(r.id)}">修改</button>` : ""}
        ${can("can_delete") ? `<button class="link" data-cact="cdel" data-id="${esc(r.id)}" style="color:var(--red)">删除</button>` : ""}`;
-  return `<div class="item b-${esc(r.msg_type)}${r._done ? " done" : ""}">
-    <div class="title">${esc(when)} · ${r._mine ? "我的" : esc(r.msg_type)}${r.subject ? " · " + esc(r.subject) : ""}
-      <span class="tag">${r._mine ? "仅自己可见" : "班级"}</span></div>
-    ${r.summary ? `<div class="sum">${esc(r.summary)}</div>` : ""}
-    ${meta.length ? `<div class="meta">${meta.join("　")}</div>` : ""}
+  return `${meta.length ? `<div class="meta">${meta.join("　")}</div>` : ""}
     ${r.need_confirm ? `<div class="warn">⚠ 信息不完整，建议去群里核实</div>` : ""}
     ${r._note ? `<div class="note">📝 ${esc(r._note)}</div>` : ""}
     ${r.original ? `<details><summary>原文</summary>${esc(r.original)}</details>` : ""}
-    <div class="ops">${ops}</div>
+    <div class="ops">${ops}</div>`;
+}
+
+// ===== 简洁模式：今天 + 接下来两周 =====
+const LS_MODE = "ui_mode_v1";
+let uiMode = load(LS_MODE, "normal") === "simple" ? "simple" : "normal";
+const AGENDA_DAYS = 14;
+const agendaOpen = new Set();
+
+function setMode(m) {
+  uiMode = m; save(LS_MODE, m);
+  document.documentElement.classList.toggle("simple", m === "simple");
+  document.querySelectorAll("#modeSwitch button").forEach((b) => b.classList.toggle("on", b.dataset.mode === m));
+  if (m === "simple" && document.querySelector(".view.on[data-view]")?.dataset.view !== "calendar") showView("calendar");
+  else renderAll();
+}
+$("modeSwitch").onclick = (e) => { const b = e.target.closest("button[data-mode]"); if (b && b.dataset.mode !== uiMode) setMode(b.dataset.mode); };
+
+function agendaRow(r) {
+  const k = esc(r._key);
+  const style = r._plugin && r._color ? ` style="--c:${esc(r._color)}"` : "";
+  const title = r.subject || r.summary || r.msg_type;
+  const sub = r.subject && r.summary ? r.summary : "";
+  const typeName = r._plugin ? r._pluginName : r._mine ? "我的" : r.msg_type;
+  const due = r.msg_type === "作业" && r._p && r._p.time;
+  const time = r._p ? (r._p.time ? r._p.time + (due ? " 截止" : "") : "全天") : "待定";
+  const open = agendaOpen.has(r._key);
+  return `<div class="arow t-${esc(r.msg_type)}${r._done ? " done" : ""}${open ? " open" : ""}" data-row="${k}"${style}>
+    ${r._plugin ? `<span class="adot"></span>` : `<button class="chk" data-act="done" data-k="${k}" title="${r._done ? "标记为未完成" : "标记为完成"}">${r._done ? "✓" : ""}</button>`}
+    <div class="abody">
+      <div class="atitle">${r.need_confirm ? "⚠ " : ""}${esc(title)}</div>
+      <div class="asub"><span class="atype">${esc(typeName)}</span>${esc(sub)}${!sub && r.location ? "📍 " + esc(r.location) : ""}</div>
+      ${r._plugin ? "" : `<div class="aextra">${detailHtml(r)}</div>`}
+    </div>
+    <span class="atime${due && !r._done ? " due" : ""}">${esc(time)}</span>
   </div>`;
 }
+
+function renderAgenda() {
+  const box = $("agenda");
+  if (uiMode !== "simple") { box.innerHTML = ""; return; }
+  const t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const dayKey = (i) => keyOf(new Date(t0.getFullYear(), t0.getMonth(), t0.getDate() + i));
+  // 过去 7 天里还没完成的作业
+  const overdue = [];
+  for (let i = -7; i < 0; i++) for (const r of byDay[dayKey(i)] || []) if (r.msg_type === "作业" && !r._done) overdue.push(r);
+  let upcoming = 0, homework = 0, todayCount = 0;
+  const sections = [];
+  for (let i = 0; i < AGENDA_DAYS; i++) {
+    const k = dayKey(i), items = byDay[k] || [];
+    const pending = items.filter((r) => !r._done);
+    upcoming += pending.length;
+    homework += pending.filter((r) => r.msg_type === "作业").length;
+    if (i === 0) todayCount = pending.length;
+    if (!items.length && i !== 0) continue;
+    const d = new Date(k + "T00:00:00");
+    const wk = Math.floor((i + (today.getDay() + 6) % 7) / 7);   // 0 本周，1 下周
+    const label = i === 0 ? "今天" : i === 1 ? "明天" : i === 2 ? "后天"
+      : wk === 0 ? `周${WEEK[d.getDay()]}` : wk === 1 ? `下周${WEEK[d.getDay()]}` : `${d.getMonth() + 1}月${d.getDate()}日`;
+    const body = items.length ? `<div class="acard">${items.map(agendaRow).join("")}</div>`
+      : `<div class="aempty">今天没有安排，轻松一下 ☕</div>`;
+    sections.push(`<div class="aday"><div class="aday-h"><b>${label}</b><span>${d.getMonth() + 1}月${d.getDate()}日${i > 2 ? "" : " 周" + WEEK[d.getDay()]}${pending.length ? ` · ${pending.length} 项` : ""}</span></div>${body}</div>`);
+  }
+  const h = new Date().getHours();
+  const hi = h < 5 ? "夜深了" : h < 9 ? "早上好" : h < 12 ? "上午好" : h < 14 ? "中午好" : h < 18 ? "下午好" : "晚上好";
+  const name = currentUser ? "，" + esc(currentUser.display_name) : "";
+  box.innerHTML = `
+    <div class="hero">
+      <div class="date">${today.getMonth() + 1}月${today.getDate()}日 周${WEEK[today.getDay()]}${currentClass ? " · " + esc(currentClass.name) : ""}</div>
+      <h2>${hi}${name}</h2>
+      <div class="stats">
+        <div class="stat"><b>${todayCount}</b><span>今天待办</span></div>
+        <div class="stat"><b>${upcoming}</b><span>两周内待办</span></div>
+        <div class="stat${homework || overdue.length ? " hot" : ""}"><b>${homework + overdue.length}</b><span>作业没交${overdue.length ? ` · ${overdue.length} 项过期` : ""}</span></div>
+      </div>
+    </div>
+    ${overdue.length ? `<div class="aday"><div class="aday-h overdue"><b>已过期</b><span>还没标记完成的作业</span></div><div class="acard">${overdue.map(agendaRow).join("")}</div></div>` : ""}
+    ${sections.join("")}
+    ${undated.length ? `<div class="aday"><div class="aday-h"><b>时间待定</b><span>请去群里核实</span></div><div class="acard">${undated.map(agendaRow).join("")}</div></div>` : ""}
+    <div class="afoot"><button class="small ghost" id="toNormal">查看完整月历 →</button></div>`;
+  $("toNormal").onclick = () => setMode("normal");
+}
+$("agenda").addEventListener("click", (e) => {
+  if (e.target.closest("button, a, summary, details")) return;
+  const row = e.target.closest(".arow[data-row]");
+  if (!row || !row.querySelector(".aextra")) return;
+  const k = row.dataset.row;
+  agendaOpen.has(k) ? agendaOpen.delete(k) : agendaOpen.add(k);
+  row.classList.toggle("open");
+});
 
 function renderSide() {
   const d = new Date(selectedKey + "T00:00:00");
@@ -399,7 +654,7 @@ function renderSide() {
   $("undatedList").innerHTML = undated.length ? undated.map((r) => itemHtml(r, true)).join("") : `<div class="empty">暂无</div>`;
 }
 
-function renderAll() { indexItems(); renderGrid(); renderSide(); syncJump(); }
+function renderAll() { indexItems(); renderGrid(); renderSide(); renderAgenda(); syncJump(); }
 
 function showBanner(msg) { const b = $("banner"); b.textContent = msg; b.classList.toggle("show", !!msg); }
 
@@ -681,6 +936,7 @@ $("jumpDate").onchange = (e) => {
   const v = e.target.value; if (!v) return;
   const d = new Date(v + "T00:00:00");
   viewYear = d.getFullYear(); viewMonth = d.getMonth(); selectedKey = v;
+  if (uiMode === "simple") setMode("normal");
   showView("calendar"); renderAll(); emit("dayselected", v);
 };
 function syncJump() { $("jumpDate").value = selectedKey; }
@@ -706,8 +962,14 @@ function gridRange() {
   return [keyOf(start), keyOf(end)];
 }
 
+function agendaRange() {
+  const a = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 7);
+  const b = new Date(today.getFullYear(), today.getMonth(), today.getDate() + AGENDA_DAYS - 1);
+  return [keyOf(a), keyOf(b)];
+}
+
 function pluginItems() {
-  const [s, e] = gridRange();
+  const [s, e] = uiMode === "simple" ? agendaRange() : gridRange();
   const out = [];
   for (const src of eventSources) {
     try {
@@ -904,12 +1166,27 @@ $("storeList").onclick = (e) => {
 // ===== 登录状态 =====
 function renderUserChip() {
   const el = $("userChip");
-  if (!currentUser) { el.innerHTML = `<a class="chiplink" href="login.html?next=index.html">登录</a>`; return; }
+  $("logoutBtn").classList.toggle("hidden", !currentUser);
+  $("menuLogin").classList.toggle("hidden", !!currentUser);
+  $("menuDev").classList.toggle("hidden", !isStaff());
+  if (!currentUser) {
+    el.className = "guest"; el.textContent = "登录";
+    $("menuHead").innerHTML = `<b>未登录</b><span>登录后可以看到班级日历</span>`;
+    return;
+  }
   const role = CCAuth.ROLE_NAMES[currentUser.role] || currentUser.role;
-  el.innerHTML = `<a class="chiplink" href="${isStaff() ? "dev.html" : "#"}" title="${isStaff() ? "进入插件后台" : ""}">👤 ${esc(currentUser.display_name)} · ${esc(role)}</a>
-    <button class="small" id="logoutBtn">退出</button>`;
-  $("logoutBtn").onclick = async () => { await CCAuth.signOut(); location.reload(); };
+  const name = currentUser.display_name || currentUser.account || "我";
+  el.className = "ghost";
+  el.innerHTML = `<span class="av">${esc([...name][0])}</span><span class="who">${esc(name)}<small>${esc(role)}</small></span>`;
+  $("menuHead").innerHTML = `<b>${esc(name)}</b><span>${esc(role)}${currentUser.account ? " · " + esc(currentUser.account) : ""}</span>`;
 }
+$("logoutBtn").onclick = async () => { await CCAuth.signOut(); location.reload(); };
+
+// ===== 头像菜单 =====
+const closeMenu = () => $("menu").classList.add("hidden");
+$("userChip").onclick = (e) => { e.stopPropagation(); $("menu").classList.toggle("hidden"); };
+document.addEventListener("click", (e) => { if (!e.target.closest("#menu") || e.target.closest("button.mi, a.mi")) closeMenu(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMenu(); });
 
 function renderTabs() {
   const tabs = [{ id: "calendar", title: "📅 日历" }, ...pluginTabs, { id: "store", title: "🧩 插件商店" }];
@@ -924,6 +1201,8 @@ function showView(id) {
   if (id === "calendar") renderAll();
 }
 
+document.documentElement.classList.toggle("simple", uiMode === "simple");
+document.querySelectorAll("#modeSwitch button").forEach((b) => b.classList.toggle("on", b.dataset.mode === uiMode));
 renderTabs();
 (async () => {
   try { currentUser = await CCAuth.me(); } catch (e) { currentUser = null; }
