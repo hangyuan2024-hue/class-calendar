@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>登录 · 班级群日历</title>
+<style>
+  :root { --bg:#f5f5f7; --card:#fff; --line:#e5e5ea; --text:#1d1d1f; --sub:#86868b; --accent:#007aff; --red:#ff3b30; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#000; --card:#1c1c1e; --line:#38383a; --text:#f2f2f7; --sub:#98989f; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px 16px;
+    background:var(--bg); color:var(--text); font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; font-size:15px; }
+  .card { width:100%; max-width:380px; background:var(--card); border:1px solid var(--line); border-radius:16px; padding:28px 24px; }
+  h1 { font-size:22px; margin:0 0 4px; text-align:center; }
+  .sub { color:var(--sub); font-size:13px; text-align:center; margin-bottom:20px; }
+  .tabs { display:flex; background:var(--bg); border-radius:10px; padding:3px; margin-bottom:18px; }
+  .tabs button { flex:1; border:none; background:none; padding:8px; border-radius:8px; font:inherit; color:var(--sub); cursor:pointer; }
+  .tabs button.on { background:var(--card); color:var(--text); font-weight:600; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  label { display:block; font-size:13px; color:var(--sub); margin:12px 0 4px; }
+  input { width:100%; font:inherit; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--text); }
+  input:focus { outline:none; border-color:var(--accent); }
+  .hint { font-size:12px; color:var(--sub); margin-top:4px; }
+  button.go { width:100%; margin-top:20px; padding:11px; border:none; border-radius:10px; background:var(--accent); color:#fff; font:inherit; font-weight:600; cursor:pointer; }
+  button.go:disabled { opacity:.6; cursor:wait; }
+  #msg { min-height:20px; margin-top:12px; font-size:13px; color:var(--red); text-align:center; }
+  .foot { margin-top:18px; text-align:center; font-size:13px; }
+  .foot a { color:var(--accent); text-decoration:none; }
+  .signup-only { display:none; }
+  .hidden { display:none !important; }
+  form.signup .signup-only { display:block; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>📅 班级群日历</h1>
+  <div class="sub">开发者、测试员登录后可以管理插件</div>
+  <div id="already" class="hidden" style="text-align:center">
+    <div style="margin-bottom:14px">已登录为 <strong id="alreadyName"></strong></div>
+    <button class="go" type="button" id="continueBtn" style="margin-top:0">继续</button>
+    <button type="button" id="switchBtn" style="margin-top:10px;width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--text);font:inherit;cursor:pointer">换个账号登录</button>
+  </div>
+  <div id="loginBox">
+  <div class="tabs">
+    <button type="button" data-mode="login" class="on">登录</button>
+    <button type="button" data-mode="signup">注册</button>
+  </div>
+  <form id="form" autocomplete="on" novalidate>
+    <label for="account">账号</label>
+    <input id="account" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="20" required>
+    <div class="hint signup-only">3~20 位小写字母、数字或下划线，比如学号</div>
+    <label for="name" class="signup-only">姓名</label>
+    <input id="name" class="signup-only" maxlength="30" autocomplete="name">
+    <div class="hint signup-only">会显示为你开发的插件的作者</div>
+    <label for="password">密码</label>
+    <input id="password" type="password" autocomplete="current-password" required>
+    <label for="password2" class="signup-only">确认密码</label>
+    <input id="password2" class="signup-only" type="password" autocomplete="new-password">
+    <button class="go" id="go" type="submit">登录</button>
+    <div id="msg" role="alert"></div>
+  </form>
+  <div class="foot signup-only-note" id="note"></div>
+  </div>
+  <div class="foot"><a href="index.html">← 不登录，直接看日历</a></div>
+</div>
+
+<script src="config.js"></script>
+<script src="auth.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const form = $("form");
+let mode = "login";
+const next = new URLSearchParams(location.search).get("next");
+const safeNext = next && /^[a-z0-9_-]+\.html([?#].*)?$/i.test(next) ? next : null;
+
+function setMode(m) {
+  mode = m;
+  form.classList.toggle("signup", m === "signup");
+  document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("on", b.dataset.mode === m));
+  $("go").textContent = m === "signup" ? "注册并登录" : "登录";
+  $("password").autocomplete = m === "signup" ? "new-password" : "current-password";
+  $("note").textContent = m === "signup" ? "新注册的账号默认是学生身份；开发者、测试员身份由管理员分配。" : "";
+  $("msg").textContent = "";
+}
+document.querySelector(".tabs").onclick = (e) => { const b = e.target.closest("button[data-mode]"); if (b) setMode(b.dataset.mode); };
+
+async function afterLogin() {
+  const me = await CCAuth.me();
+  const staff = me && CCAuth.STAFF.includes(me.role);
+  location.href = safeNext || (staff ? "dev.html" : "index.html");
+}
+
+form.onsubmit = async (e) => {
+  e.preventDefault();
+  $("msg").textContent = "";
+  const account = $("account").value, password = $("password").value;
+  if (mode === "signup" && password !== $("password2").value) { $("msg").textContent = "两次输入的密码不一样"; return; }
+  $("go").disabled = true;
+  try {
+    if (mode === "signup") await CCAuth.signUp(account, password, $("name").value);
+    else await CCAuth.signIn(account, password);
+    await afterLogin();
+  } catch (err) {
+    $("msg").textContent = err.message;
+  } finally {
+    $("go").disabled = false;
+  }
+};
+
+(async () => {
+  const s = await CCAuth.session();
+  if (!s) return;
+  const me = await CCAuth.me();
+  if (!me) return;
+  $("alreadyName").textContent = `${me.display_name}（${CCAuth.ROLE_NAMES[me.role] || me.role}）`;
+  $("already").classList.remove("hidden"); $("loginBox").classList.add("hidden");
+})();
+$("continueBtn").onclick = afterLogin;
+$("switchBtn").onclick = async () => {
+  await CCAuth.signOut();
+  $("already").classList.add("hidden"); $("loginBox").classList.remove("hidden");
+};
+</script>
+</body>
+</html>

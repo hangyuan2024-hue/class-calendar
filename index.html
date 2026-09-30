@@ -98,6 +98,8 @@
   .store-item .desc, .store-item .by { color: var(--sub); font-size: 12px; margin-top: 2px; }
   .store-item .err { color: var(--red); font-size: 12px; margin-top: 2px; }
   .panel input, .panel select, .panel textarea { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); }
+  .userchip { display:inline-flex; gap:6px; align-items:center; font-size:13px; }
+  .userchip .chiplink { color: var(--accent); text-decoration: none; white-space: nowrap; }
   @media (max-width: 800px) {
     header { padding: 10px 12px; }
     header h1 { font-size: 16px; }
@@ -120,6 +122,7 @@
   <button id="nextBtn">›</button>
   <label id="monthWrap" title="跳转到指定日期"><span id="monthLabel"></span><input type="date" id="jumpDate" aria-label="跳转到日期"></label>
   <span class="spacer"></span>
+  <span id="userChip" class="userchip"></span>
   <button id="addBtn" class="primary">＋ 我的事项</button>
   <span class="legend">
     <span><i class="t-作业"></i>作业</span><span><i class="t-会议"></i>会议</span>
@@ -185,6 +188,7 @@
 </div>
 
 <script src="config.js"></script>
+<script src="auth.js"></script>
 <script>
 // ===== 配置：班级数据只读接口（匿名密钥只能读 class_info，不能改） =====
 const CFG = window.APP_CONFIG || {};
@@ -476,14 +480,16 @@ $("jumpDate").onchange = (e) => {
 function syncJump() { $("jumpDate").value = selectedKey; }
 
 // ===== 插件系统 =====
-// 插件是 plugins/<id>/plugin.js，通过 CalendarApp.register({...}) 注册。
-// 插件清单在 plugins/registry.json，只加载清单里列出的插件（经过审核的代码）。
+// 插件存在数据库里：已发布版本所有人可见；开发者/测试员/管理员额外能看到「测试中」的版本。
+// 插件 = plugin.js（用 CalendarApp.register 注册）和/或 app.html（独立页面，自动嵌入为标签页）。
 const LS_PLUGINS = "plugins_enabled_v1";
-const pluginState = {};          // id -> { meta, loaded, error }
+const LS_PLUGIN_CACHE = "plugin_cache_v1";   // 已发布插件的代码缓存，没网时也能用
+const pluginState = {};          // id -> { meta, loaded, error, appUrl }
 const eventSources = [];         // { plugin, name, fn(startKey, endKey) }
 const listeners = {};            // event -> [fn]
 const pluginTabs = [];           // { id, title, plugin, el }
 let registry = [];
+let currentUser = null;
 
 function emit(evt, arg) { (listeners[evt] || []).forEach((fn) => { try { fn(arg); } catch (e) { console.error(e); } }); }
 
@@ -510,12 +516,34 @@ function pluginItems() {
   return out;
 }
 
+// 把插件的 app.html 嵌进一个容器，并按内容自动调整高度
+function mountAppFrame(el, url, title, opts = {}) {
+  const wrap = document.createElement("div");
+  wrap.className = "panel"; wrap.style.cssText = "padding:0;overflow:hidden";
+  const frame = document.createElement("iframe");
+  frame.src = url; frame.title = title;
+  frame.setAttribute("allow", "geolocation; clipboard-read; clipboard-write");
+  const minH = opts.minHeight || "75vh";
+  frame.style.cssText = `width:100%;border:0;display:block;min-height:${minH}`;
+  wrap.appendChild(frame); el.appendChild(wrap);
+  const fit = () => { try { const h = frame.contentDocument.documentElement.scrollHeight; if (h) frame.style.height = h + "px"; } catch (e) {} };
+  frame.addEventListener("load", () => { fit(); try { new ResizeObserver(fit).observe(frame.contentDocument.body); } catch (e) {} });
+  return frame;
+}
+
 const DEFAULT_THEME = {};
 function makeApi(meta) {
   const ns = (k) => `plg_${meta.id}_${k}`;
+  const st = pluginState[meta.id] || {};
   return {
     id: meta.id,
+    meta: { name: meta.name, icon: meta.icon, version: meta.version, channel: meta.channel },
     storage: { get: (k, d) => load(ns(k), d), set: (k, v) => save(ns(k), v) },
+    appUrl: st.appUrl || null,
+    mountApp(el, opts) {
+      if (!st.appUrl) { el.textContent = "这个插件没有上传 app.html"; return null; }
+      return mountAppFrame(el, st.appUrl, meta.name, opts);
+    },
     addTab({ id, title, render }) {
       const el = document.createElement("section");
       el.className = "view"; el.dataset.view = `p_${meta.id}_${id}`;
@@ -542,10 +570,11 @@ function makeApi(meta) {
 }
 
 window.CalendarApp = {
-  version: 1,
+  version: 2,
   register(def) {
-    const st = pluginState[def.id];
-    if (!st) { console.warn("未在 registry.json 中登记的插件被拒绝：", def.id); return; }
+    const st = pluginState[def && def.id];
+    if (!st) { console.warn("插件商店里没有这个插件，已拒绝：", def && def.id); return; }
+    if (st.loaded) return;
     try { def.init(makeApi(st.meta)); st.loaded = true; }
     catch (e) { st.error = e.message; console.error(e); }
     renderStore();
@@ -555,40 +584,107 @@ window.CalendarApp = {
 function enabledSet() {
   const saved = load(LS_PLUGINS, null);
   if (saved) return new Set(saved);
-  return new Set(registry.filter((p) => p.default).map((p) => p.id));
+  return new Set(registry.filter((p) => p.default_on).map((p) => p.id));
+}
+
+const isStaff = () => !!(currentUser && CCAuth.STAFF.includes(currentUser.role));
+
+async function fetchRegistry() {
+  const cols = "id,name,icon,description,version,author_name,default_on,published_at";
+  const rows = await CCAuth.rest(`plugins?select=${cols}&order=created_at.asc`);
+  const list = rows.filter((p) => p.published_at).map((p) => ({ ...p, channel: "published" }));
+  if (isStaff()) {
+    const drafts = await CCAuth.rest("plugin_drafts?select=plugin_id,name,icon,description,version,status&status=eq.testing");
+    for (const d of drafts) {
+      const base = rows.find((p) => p.id === d.plugin_id) || {};
+      const entry = { id: d.plugin_id, name: d.name, icon: d.icon, description: d.description, version: d.version,
+        author_name: base.author_name, default_on: false, channel: "testing", liveVersion: base.published_at ? base.version : null };
+      const i = list.findIndex((p) => p.id === d.plugin_id);
+      if (i >= 0) list[i] = entry; else list.push(entry);
+    }
+  }
+  return list;
+}
+
+async function fetchCode(meta, cache) {
+  if (meta.channel === "published") {
+    const c = cache[meta.id];
+    if (c && c.version === meta.version) return c;
+    const r = (await CCAuth.rest(`plugins?select=code,app_html,version&id=eq.${encodeURIComponent(meta.id)}`))[0];
+    if (!r) throw new Error("插件内容读取失败");
+    cache[meta.id] = { version: meta.version, code: r.code, app_html: r.app_html, meta: { ...meta } };
+    try { save(LS_PLUGIN_CACHE, cache); } catch (e) { console.warn("插件缓存空间不足", e); }
+    return cache[meta.id];
+  }
+  const r = (await CCAuth.rest(`plugin_drafts?select=code,app_html&plugin_id=eq.${encodeURIComponent(meta.id)}`))[0];
+  if (!r) throw new Error("测试版读取失败");
+  return r;
+}
+
+function runPlugin(meta, code, html) {
+  const st = pluginState[meta.id];
+  if (html) st.appUrl = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+  if (code) {
+    const sc = document.createElement("script");
+    sc.src = URL.createObjectURL(new Blob([code + `\n//# sourceURL=plugin-${meta.id}.js`], { type: "text/javascript" }));
+    sc.onerror = () => { st.error = "脚本加载失败"; renderStore(); };
+    document.body.appendChild(sc);
+  } else if (html) {
+    // 只有 app.html：自动生成一个标签页
+    CalendarApp.register({ id: meta.id, init(api) {
+      api.addTab({ id: "main", title: `${meta.icon || "🧩"} ${meta.name}`, render(el) { api.mountApp(el); } });
+    } });
+  }
 }
 
 async function loadPlugins() {
+  const cache = load(LS_PLUGIN_CACHE, {});
+  let offline = false;
   try {
-    const res = await fetch("plugins/registry.json", { cache: "no-cache" });
-    registry = (await res.json()).plugins || [];
-  } catch (e) { registry = []; $("storeList").textContent = "插件清单加载失败：" + e.message; return; }
+    currentUser = await CCAuth.me();
+    renderUserChip();
+    registry = await fetchRegistry();
+  } catch (e) {
+    offline = true;
+    registry = Object.values(cache).map((c) => c.meta).filter(Boolean);
+    showBanner("插件商店连接失败" + (registry.length ? "，正在使用本机缓存的插件" : "") + "：" + e.message);
+  }
   const on = enabledSet();
   for (const meta of registry) {
-    pluginState[meta.id] = { meta, loaded: false, error: "" };
+    pluginState[meta.id] = { meta, loaded: false, error: "", appUrl: null };
     if (!on.has(meta.id)) continue;
-    const sc = document.createElement("script");
-    sc.src = `plugins/${meta.id}/plugin.js?v=${encodeURIComponent(meta.version || "")}`;
-    sc.onerror = () => { pluginState[meta.id].error = "脚本加载失败"; renderStore(); };
-    document.body.appendChild(sc);
+    try {
+      const r = offline ? cache[meta.id] : await fetchCode(meta, cache);
+      runPlugin(meta, r.code, r.app_html);
+    } catch (e) { pluginState[meta.id].error = e.message; }
+  }
+  // 清理已下架插件的缓存
+  if (!offline) {
+    const live = new Set(registry.filter((p) => p.channel === "published").map((p) => p.id));
+    let changed = false;
+    for (const id of Object.keys(cache)) if (!live.has(id)) { delete cache[id]; changed = true; }
+    if (changed) try { save(LS_PLUGIN_CACHE, cache); } catch (e) {}
   }
   renderStore();
 }
 
 function renderStore() {
   const on = enabledSet();
-  $("storeList").innerHTML = registry.length ? registry.map((p) => {
+  const staffTip = isStaff() ? `<div class="desc" style="color:var(--sub);font-size:12px;margin-bottom:8px">你是${esc(CCAuth.ROLE_NAMES[currentUser.role])}，能看到「测试中」的版本。<a href="dev.html">进入插件后台 →</a></div>` : "";
+  $("storeList").innerHTML = staffTip + (registry.length ? registry.map((p) => {
     const st = pluginState[p.id] || {};
     const isOn = on.has(p.id);
+    const testing = p.channel === "testing";
     return `<div class="store-item">
       <div class="icon">${esc(p.icon || "🧩")}</div>
-      <div class="info"><div class="name">${esc(p.name)} <span class="tag">v${esc(p.version || "1")}</span></div>
+      <div class="info"><div class="name">${esc(p.name)} <span class="tag">v${esc(p.version || "1")}</span>
+          ${testing ? `<span class="tag" style="color:#ff9500;border-color:#ff9500">测试中${p.liveVersion ? "（线上 v" + esc(p.liveVersion) + "）" : "（未上线）"}</span>` : ""}</div>
         <div class="desc">${esc(p.description || "")}</div>
-        <div class="by">作者：${esc(p.author || "未知")}</div>
+        <div class="by">作者：${esc(p.author_name || "未知")}</div>
         ${st.error ? `<div class="err">出错：${esc(st.error)}</div>` : ""}</div>
       <button class="${isOn ? "" : "primary"} small" data-plugin="${esc(p.id)}">${isOn ? "关闭" : "启用"}</button>
     </div>`;
-  }).join("") : `<div class="empty">暂时没有插件</div>`;
+  }).join("") : `<div class="empty">暂时没有插件</div>`);
 }
 
 $("storeList").onclick = (e) => {
@@ -598,6 +694,16 @@ $("storeList").onclick = (e) => {
   save(LS_PLUGINS, [...on]);
   location.hash = "store"; location.reload();
 };
+
+// ===== 登录状态 =====
+function renderUserChip() {
+  const el = $("userChip");
+  if (!currentUser) { el.innerHTML = `<a class="chiplink" href="login.html?next=index.html">登录</a>`; return; }
+  const role = CCAuth.ROLE_NAMES[currentUser.role] || currentUser.role;
+  el.innerHTML = `<a class="chiplink" href="${isStaff() ? "dev.html" : "#"}" title="${isStaff() ? "进入插件后台" : ""}">👤 ${esc(currentUser.display_name)} · ${esc(role)}</a>
+    <button class="small" id="logoutBtn">退出</button>`;
+  $("logoutBtn").onclick = async () => { await CCAuth.signOut(); location.reload(); };
+}
 
 function renderTabs() {
   const tabs = [{ id: "calendar", title: "📅 日历" }, ...pluginTabs, { id: "store", title: "🧩 插件商店" }];

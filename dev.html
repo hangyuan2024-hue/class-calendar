@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>插件后台 · 班级群日历</title>
+<style>
+  :root { --bg:#f5f5f7; --card:#fff; --line:#e5e5ea; --text:#1d1d1f; --sub:#86868b; --accent:#007aff;
+    --red:#ff3b30; --green:#34c759; --orange:#ff9500; --muted:#fafafa; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#000; --card:#1c1c1e; --line:#38383a; --text:#f2f2f7; --sub:#98989f; --muted:#141416; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; font-size:14px; }
+  header { position:sticky; top:0; z-index:5; display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:12px 16px;
+    background:var(--card); border-bottom:1px solid var(--line); }
+  header h1 { font-size:18px; margin:0; }
+  .spacer { flex:1; }
+  .who { color:var(--sub); font-size:13px; }
+  .badge { display:inline-block; font-size:11px; padding:1px 7px; border-radius:10px; border:1px solid var(--line); color:var(--sub); white-space:nowrap; }
+  .badge.pub { color:var(--green); border-color:var(--green); }
+  .badge.test { color:var(--orange); border-color:var(--orange); }
+  .badge.rej { color:var(--red); border-color:var(--red); }
+  main { max-width:960px; margin:0 auto; padding:16px; }
+  section.card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:16px; }
+  section.card h2 { font-size:16px; margin:0 0 4px; }
+  .desc { color:var(--sub); font-size:12px; margin-bottom:12px; }
+  button, .btn { font:inherit; border:1px solid var(--line); background:var(--card); color:var(--text); border-radius:8px; padding:6px 12px; cursor:pointer; text-decoration:none; display:inline-block; }
+  button:hover { filter:brightness(.97); }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.danger { color:var(--red); }
+  button.small { padding:3px 9px; font-size:12px; }
+  button:disabled { opacity:.5; cursor:wait; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px 14px; }
+  label.f { display:flex; flex-direction:column; gap:4px; font-size:13px; color:var(--sub); }
+  label.f.full { grid-column:1 / -1; }
+  input, select, textarea { font:inherit; padding:7px 10px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--text); }
+  textarea { resize:vertical; }
+  .row { display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-bottom:1px solid var(--line); }
+  .row:last-child { border-bottom:none; }
+  .row .icon { font-size:24px; width:34px; text-align:center; }
+  .row .info { flex:1; min-width:0; }
+  .row .name { font-weight:600; }
+  .row .meta { color:var(--sub); font-size:12px; margin-top:2px; }
+  .row .ops { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
+  .note { font-size:12px; margin-top:4px; padding:4px 8px; border-radius:6px; background:#fff3f2; color:var(--red); }
+  @media (prefers-color-scheme: dark) { .note { background:#3a1c1c; } }
+  .empty { color:var(--sub); padding:8px 0; }
+  #checks { margin-top:10px; font-size:13px; }
+  #checks .e { color:var(--red); } #checks .w { color:var(--orange); } #checks .o { color:var(--green); }
+  table { width:100%; border-collapse:collapse; }
+  td, th { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); font-size:13px; }
+  th { color:var(--sub); font-weight:normal; }
+  #toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:#1d1d1f; color:#fff; padding:10px 16px; border-radius:10px;
+    font-size:13px; opacity:0; transition:opacity .2s; pointer-events:none; max-width:90vw; z-index:50; }
+  #toast.show { opacity:.92; }
+  #toast.err { background:var(--red); }
+  #viewer { position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; align-items:center; justify-content:center; z-index:40; padding:16px; }
+  #viewer.open { display:flex; }
+  #viewer .box { background:var(--card); border-radius:14px; width:min(900px, 100%); max-height:90vh; display:flex; flex-direction:column; padding:16px; gap:10px; }
+  #viewer pre { margin:0; flex:1; overflow:auto; background:var(--muted); border:1px solid var(--line); border-radius:8px; padding:10px; font-size:12px; white-space:pre-wrap; word-break:break-all; }
+  .hidden { display:none !important; }
+  @media (max-width:640px) { .grid2 { grid-template-columns:1fr; } .row { flex-wrap:wrap; } .row .ops { width:100%; justify-content:flex-start; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>🧩 插件后台</h1>
+  <span class="spacer"></span>
+  <span class="who" id="who">加载中…</span>
+  <a class="btn" href="index.html">返回日历</a>
+  <button id="logout">退出</button>
+</header>
+
+<main>
+  <section class="card hidden" id="noRole">
+    <h2>你目前没有后台权限</h2>
+    <div class="desc">后台只对开发者、测试员和管理员开放。需要的话请把你的账号发给管理员分配身份，分配后刷新本页即可。</div>
+  </section>
+
+  <!-- 开发者：上传 -->
+  <section class="card hidden" id="uploadCard" data-roles="developer admin">
+    <h2>上传插件 / 发布新版本</h2>
+    <div class="desc">提交后进入「测试中」，开发者和测试员可以在插件商店里试用；管理员审核通过后才对所有同学上线。作者会自动填成你的账号姓名。</div>
+    <form id="upForm" novalidate>
+      <div class="grid2">
+        <label class="f">插件
+          <select id="upTarget"><option value="__new">＋ 新插件</option></select>
+        </label>
+        <label class="f" id="idWrap">插件 ID（英文，发布后不能改）
+          <input id="upId" placeholder="如 study-log" maxlength="40" autocapitalize="none" spellcheck="false">
+        </label>
+        <label class="f">名称 <input id="upName" maxlength="30" placeholder="如 学习日志"></label>
+        <label class="f">图标（一个 emoji） <input id="upIcon" maxlength="8" value="🧩"></label>
+        <label class="f">版本号 <input id="upVersion" placeholder="1.0.0" maxlength="20"></label>
+        <label class="f">一句话介绍 <input id="upDesc" maxlength="200" placeholder="显示在插件商店里"></label>
+        <label class="f">plugin.js（用接口写的插件，可选）
+          <input type="file" id="upCode" accept=".js,text/javascript">
+        </label>
+        <label class="f">app.html（独立页面，可选）
+          <input type="file" id="upHtml" accept=".html,.htm,text/html">
+        </label>
+      </div>
+      <div class="desc" style="margin-top:8px">两个文件至少选一个。只有 app.html 时会自动生成一个标签页把它嵌进去；更新版本时不选文件就沿用上一版的文件。</div>
+      <div id="checks"></div>
+      <div style="margin-top:12px; display:flex; gap:8px">
+        <button class="primary" id="upBtn" type="submit">提交测试</button>
+        <button type="button" id="upReset">清空</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- 开发者：我的插件 -->
+  <section class="card hidden" id="mineCard" data-roles="developer admin">
+    <h2>我的插件</h2>
+    <div id="mineList" class="empty">加载中…</div>
+  </section>
+
+  <!-- 测试：测试中的插件 -->
+  <section class="card hidden" id="testCard" data-roles="tester developer admin">
+    <h2>测试中的插件</h2>
+    <div class="desc">回到日历 → 🧩 插件商店，带「测试中」标记的就是这些，点「启用」即可试用。发现问题直接告诉作者。</div>
+    <div id="testList" class="empty">加载中…</div>
+  </section>
+
+  <!-- 管理员：审核 -->
+  <section class="card hidden" id="reviewCard" data-roles="admin">
+    <h2>待审核</h2>
+    <div class="desc">发布前请先「查看代码」。体检会标出外部网址、读取登录信息等需要留意的写法。</div>
+    <div id="reviewList" class="empty">加载中…</div>
+  </section>
+
+  <section class="card hidden" id="pubCard" data-roles="admin">
+    <h2>已发布</h2>
+    <div id="pubList" class="empty">加载中…</div>
+  </section>
+
+  <section class="card hidden" id="usersCard" data-roles="admin">
+    <h2>用户与身份</h2>
+    <div class="desc">新注册的账号都是「学生」。在这里给队员分配开发者、测试员身份。</div>
+    <input id="userFilter" placeholder="搜索账号或姓名" style="margin-bottom:8px; width:100%; max-width:260px">
+    <div style="overflow-x:auto"><table><thead><tr><th>账号</th><th>姓名</th><th>身份</th><th>注册时间</th></tr></thead><tbody id="userRows"></tbody></table></div>
+  </section>
+</main>
+
+<div id="viewer"><div class="box">
+  <div style="display:flex; align-items:center; gap:8px"><strong id="vTitle"></strong><span class="spacer"></span>
+    <button id="vTabCode" class="small">plugin.js</button><button id="vTabHtml" class="small">app.html</button><button id="vClose" class="small">关闭</button></div>
+  <div id="vScan" style="font-size:13px"></div>
+  <pre id="vBody"></pre>
+</div></div>
+<div id="toast"></div>
+
+<script src="config.js"></script>
+<script src="auth.js"></script>
+<script>
+const { rest, rpc, esc, ROLE_NAMES } = CCAuth;
+const $ = (id) => document.getElementById(id);
+let me = null, plugins = [], drafts = [];
+
+function toast(msg, err) {
+  const t = $("toast"); t.textContent = msg; t.className = "show" + (err ? " err" : "");
+  clearTimeout(toast._t); toast._t = setTimeout(() => (t.className = ""), 2600);
+}
+async function guard(btn, fn) {
+  if (btn) btn.disabled = true;
+  try { await fn(); } catch (e) { toast(e.message, true); } finally { if (btn) btn.disabled = false; }
+}
+const fmt = (t) => t ? new Date(t).toLocaleString("zh-CN", { hour12: false }).replace(/:\d\d$/, "") : "";
+const ID_RE = /^[a-z0-9][a-z0-9-]{1,39}$/;
+const VER_RE = /^\d+\.\d+\.\d+$/;
+const bump = (v) => { const m = String(v || "").match(/^(\d+)\.(\d+)\.(\d+)$/); return m ? `${m[1]}.${m[2]}.${+m[3] + 1}` : "1.0.0"; };
+const cmpVer = (a, b) => { const x = String(a).split(".").map(Number), y = String(b).split(".").map(Number);
+  for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0); return 0; };
+
+// ---------- 代码体检（上传前 & 审核时共用） ----------
+function scan(code, html, id) {
+  const out = []; // [级别 e/w/o, 文字]
+  const all = (code || "") + "\n" + (html || "");
+  if (code != null) {
+    if (!/CalendarApp\.register\s*\(/.test(code)) out.push(["e", "plugin.js 里没有 CalendarApp.register(...)"]);
+    else if (id && !new RegExp(`id\\s*:\\s*["'\`]${id.replace(/[-]/g, "\\-")}["'\`]`).test(code)) out.push(["e", `plugin.js 里注册的 id 必须是 "${id}"`]);
+  }
+  if (html != null && !/<html[\s>]|<!doctype html/i.test(html)) out.push(["w", "app.html 看起来不是完整的 HTML 页面"]);
+  if (/cc_session|access_token|refresh_token/.test(all)) out.push(["e", "代码里出现了登录凭证相关字样（cc_session / token），插件不应读取登录信息"]);
+  if (/\beval\s*\(|new\s+Function\s*\(/.test(all)) out.push(["w", "使用了 eval / new Function，请确认用途"]);
+  if (/document\.cookie/.test(all)) out.push(["w", "读取了 document.cookie"]);
+  const hosts = [...new Set((all.match(/https?:\/\/[a-z0-9.-]+/gi) || []).map((u) => u.replace(/^https?:\/\//i, "").toLowerCase()))]
+    .filter((h) => !/^(www\.w3\.org|reactbits\.dev)$/.test(h));
+  if (hosts.length) out.push(["w", "会访问外部网址：" + hosts.join("、") + "（离线时这些功能可能不可用，涉及隐私需在说明里写清）"]);
+  if (/<script[^>]+src\s*=\s*["']https?:/i.test(all)) out.push(["w", "从外部网站加载脚本，国内网络可能打不开"]);
+  const keys = [...all.matchAll(/localStorage\.(?:setItem|getItem)\(\s*["'`]([^"'`]+)["'`]/g)].map((m) => m[1])
+    .filter((k) => !/^(personal_|plg_)/.test(k));
+  if (keys.length) out.push(["w", "本地存储键没有用 personal_ 前缀：" + [...new Set(keys)].slice(0, 5).join("、")]);
+  if (code != null && code.length > 1048576) out.push(["e", "plugin.js 超过 1MB"]);
+  if (html != null && html.length > 3 * 1048576) out.push(["e", "app.html 超过 3MB"]);
+  if (!out.some((x) => x[0] !== "o")) out.push(["o", "没有发现问题"]);
+  return out;
+}
+const scanHtml = (list) => list.map(([lv, t]) => `<div class="${lv}">${lv === "e" ? "✗" : lv === "w" ? "⚠" : "✓"} ${esc(t)}</div>`).join("");
+
+// ---------- 数据 ----------
+async function loadData() {
+  const cols = "id,author_id,author_name,name,icon,description,version,default_on,published_at,created_at";
+  plugins = await rest(`plugins?select=${cols}&order=created_at.asc`);
+  drafts = await rest("plugin_drafts?select=plugin_id,name,icon,description,version,status,review_note,updated_at&order=updated_at.desc");
+}
+const draftOf = (id) => drafts.find((d) => d.plugin_id === id);
+const pluginOf = (id) => plugins.find((p) => p.id === id);
+
+function statusBadges(p) {
+  const d = draftOf(p.id); const b = [];
+  if (p.published_at) b.push(`<span class="badge pub">已发布 v${esc(p.version)}</span>`);
+  if (d && d.status === "testing") b.push(`<span class="badge test">测试中 v${esc(d.version)}</span>`);
+  if (d && d.status === "rejected") b.push(`<span class="badge rej">被驳回 v${esc(d.version)}</span>`);
+  if (!p.published_at && !d) b.push(`<span class="badge">草稿（还没提交文件）</span>`);
+  if (p.default_on && p.published_at) b.push(`<span class="badge">默认开启</span>`);
+  return b.join(" ");
+}
+
+function renderMine() {
+  const mine = plugins.filter((p) => p.author_id === me.id);
+  $("mineList").className = mine.length ? "" : "empty";
+  $("mineList").innerHTML = mine.length ? mine.map((p) => {
+    const d = draftOf(p.id); const show = d || p;
+    return `<div class="row"><div class="icon">${esc(show.icon || "🧩")}</div>
+      <div class="info"><div class="name">${esc(show.name || p.id)} <span class="meta">${esc(p.id)}</span></div>
+        <div class="meta">${statusBadges(p)}</div>
+        ${d && d.status === "rejected" && d.review_note ? `<div class="note">驳回意见：${esc(d.review_note)}</div>` : ""}</div>
+      <div class="ops">
+        <button class="small primary" data-act="update" data-id="${esc(p.id)}">上传新版本</button>
+        ${d ? `<button class="small" data-act="view" data-id="${esc(p.id)}">查看代码</button>
+               <button class="small danger" data-act="withdraw" data-id="${esc(p.id)}">撤回测试版</button>` : ""}
+        ${!p.published_at ? `<button class="small danger" data-act="delete" data-id="${esc(p.id)}">删除</button>` : ""}
+      </div></div>`;
+  }).join("") : "还没有插件。在上面上传第一个吧。";
+
+  const sel = $("upTarget"), cur = sel.value;
+  sel.innerHTML = `<option value="__new">＋ 新插件</option>` +
+    mine.map((p) => `<option value="${esc(p.id)}">${esc((draftOf(p.id) || p).name || p.id)}（${esc(p.id)}）</option>`).join("");
+  if ([...sel.options].some((o) => o.value === cur)) sel.value = cur;
+}
+
+function renderTesting() {
+  const list = drafts.filter((d) => d.status === "testing");
+  $("testList").className = list.length ? "" : "empty";
+  $("testList").innerHTML = list.length ? list.map((d) => {
+    const p = pluginOf(d.plugin_id) || {};
+    return `<div class="row"><div class="icon">${esc(d.icon)}</div>
+      <div class="info"><div class="name">${esc(d.name)} <span class="badge test">v${esc(d.version)}</span></div>
+        <div class="meta">作者 ${esc(p.author_name || "未知")} · 提交于 ${fmt(d.updated_at)}${p.published_at ? ` · 线上版本 v${esc(p.version)}` : " · 新插件"}</div>
+        <div class="meta">${esc(d.description)}</div></div></div>`;
+  }).join("") : "现在没有测试中的插件。";
+}
+
+function renderReview() {
+  const list = drafts.filter((d) => d.status === "testing");
+  $("reviewList").className = list.length ? "" : "empty";
+  $("reviewList").innerHTML = list.length ? list.map((d) => {
+    const p = pluginOf(d.plugin_id) || {};
+    return `<div class="row"><div class="icon">${esc(d.icon)}</div>
+      <div class="info"><div class="name">${esc(d.name)} <span class="badge test">v${esc(d.version)}</span></div>
+        <div class="meta">${esc(d.plugin_id)} · 作者 ${esc(p.author_name || "未知")} · ${fmt(d.updated_at)}${p.published_at ? ` · 替换线上 v${esc(p.version)}` : " · 首次发布"}</div>
+        <div class="meta">${esc(d.description)}</div></div>
+      <div class="ops">
+        <button class="small" data-act="view" data-id="${esc(d.plugin_id)}">查看代码</button>
+        <button class="small primary" data-act="publish" data-id="${esc(d.plugin_id)}">发布</button>
+        <button class="small danger" data-act="reject" data-id="${esc(d.plugin_id)}">驳回</button>
+      </div></div>`;
+  }).join("") : "没有待审核的插件。";
+
+  const pub = plugins.filter((p) => p.published_at);
+  $("pubList").className = pub.length ? "" : "empty";
+  $("pubList").innerHTML = pub.length ? pub.map((p) => `<div class="row"><div class="icon">${esc(p.icon)}</div>
+      <div class="info"><div class="name">${esc(p.name)} <span class="badge pub">v${esc(p.version)}</span></div>
+        <div class="meta">${esc(p.id)} · 作者 ${esc(p.author_name || "未指定")} · 发布于 ${fmt(p.published_at)}</div></div>
+      <div class="ops">
+        <label class="meta" style="display:flex;align-items:center;gap:4px"><input type="checkbox" data-act="default" data-id="${esc(p.id)}" ${p.default_on ? "checked" : ""}> 默认开启</label>
+        <button class="small" data-act="author" data-id="${esc(p.id)}">转交作者</button>
+        <button class="small danger" data-act="unpublish" data-id="${esc(p.id)}">下架</button>
+      </div></div>`).join("") : "还没有已发布的插件。";
+}
+
+let users = [];
+async function loadUsers() {
+  users = await rest("profiles?select=id,account,display_name,role,created_at&order=created_at.asc");
+  renderUsers();
+}
+function renderUsers() {
+  const q = $("userFilter").value.trim().toLowerCase();
+  const list = users.filter((u) => !q || u.account.includes(q) || u.display_name.toLowerCase().includes(q));
+  $("userRows").innerHTML = list.map((u) => `<tr><td>${esc(u.account)}</td><td>${esc(u.display_name)}</td>
+    <td><select data-uid="${esc(u.id)}" ${u.id === me.id ? "disabled title=\"不能修改自己的身份\"" : ""}>
+      ${Object.entries(ROLE_NAMES).map(([k, v]) => `<option value="${k}" ${u.role === k ? "selected" : ""}>${v}</option>`).join("")}
+    </select></td><td class="meta">${fmt(u.created_at)}</td></tr>`).join("") || `<tr><td colspan="4" class="empty">没有匹配的用户</td></tr>`;
+}
+$("userFilter").oninput = renderUsers;
+$("userRows").onchange = (e) => {
+  const s = e.target.closest("select[data-uid]"); if (!s) return;
+  const u = users.find((x) => x.id === s.dataset.uid);
+  guard(s, async () => {
+    const r = await rest(`profiles?id=eq.${encodeURIComponent(u.id)}`, {
+      method: "PATCH", headers: { Prefer: "return=representation" }, body: JSON.stringify({ role: s.value }) });
+    if (!r || !r.length) throw new Error("没有权限修改");
+    u.role = s.value; toast(`${u.display_name} 已设为${ROLE_NAMES[u.role]}`);
+  }).then(() => { if (u.role !== s.value) renderUsers(); });
+};
+
+async function refresh() { await loadData(); renderAll(); }
+function renderAll() {
+  if (has("developer", "admin")) renderMine();
+  if (has("tester", "developer", "admin")) renderTesting();
+  if (has("admin")) renderReview();
+}
+const has = (...roles) => roles.includes(me.role);
+
+// ---------- 上传 ----------
+function fillForm(id) {
+  const isNew = id === "__new";
+  $("idWrap").classList.toggle("hidden", !isNew);
+  $("upCode").value = ""; $("upHtml").value = ""; $("checks").innerHTML = "";
+  if (isNew) { $("upId").value = ""; $("upName").value = ""; $("upIcon").value = "🧩"; $("upVersion").value = "1.0.0"; $("upDesc").value = ""; return; }
+  const p = pluginOf(id), d = draftOf(id), src = d || p;
+  $("upName").value = src.name || ""; $("upIcon").value = src.icon || "🧩"; $("upDesc").value = src.description || "";
+  const base = [d && d.version, p && p.version].filter(Boolean).sort(cmpVer).pop();
+  $("upVersion").value = base ? bump(base) : "1.0.0";
+}
+$("upTarget").onchange = (e) => fillForm(e.target.value);
+$("upReset").onclick = () => { $("upTarget").value = "__new"; fillForm("__new"); };
+
+async function readFile(inp) { const f = inp.files[0]; return f ? await f.text() : null; }
+async function previousFiles(id) {
+  const tryGet = async (path) => { try { const r = await rest(path); return r && r[0]; } catch { return null; } };
+  return (await tryGet(`plugin_drafts?select=code,app_html&plugin_id=eq.${encodeURIComponent(id)}`))
+      || (await tryGet(`plugins?select=code,app_html&id=eq.${encodeURIComponent(id)}`)) || {};
+}
+
+$("upForm").onsubmit = (e) => {
+  e.preventDefault();
+  guard($("upBtn"), async () => {
+    const isNew = $("upTarget").value === "__new";
+    const id = isNew ? $("upId").value.trim().toLowerCase() : $("upTarget").value;
+    const name = $("upName").value.trim(), icon = $("upIcon").value.trim() || "🧩";
+    const version = $("upVersion").value.trim(), description = $("upDesc").value.trim();
+    if (!ID_RE.test(id)) throw new Error("插件 ID 只能用小写字母、数字和连字符，2~40 位，比如 study-log");
+    if (isNew && pluginOf(id)) throw new Error("这个 ID 已经被用了，换一个");
+    if (!name) throw new Error("请填写名称");
+    if (!VER_RE.test(version)) throw new Error("版本号格式应为 1.0.0");
+    const p = pluginOf(id);
+    if (p && p.version && cmpVer(version, p.version) <= 0) throw new Error(`版本号要比线上的 v${p.version} 大`);
+
+    let code = await readFile($("upCode")), html = await readFile($("upHtml"));
+    if (!isNew && code == null && html == null) { const prev = await previousFiles(id); code = prev.code ?? null; html = prev.app_html ?? null; }
+    if (code == null && html == null) throw new Error("请至少选择 plugin.js 或 app.html 其中一个文件");
+
+    const checks = scan(code, html, id);
+    $("checks").innerHTML = scanHtml(checks);
+    if (checks.some((c) => c[0] === "e")) throw new Error("文件没通过检查，请按上面的红色提示修改");
+
+    if (isNew) await rest("plugins", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ id }) });
+    await rest("plugin_drafts?on_conflict=plugin_id", {
+      method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify({ plugin_id: id, name, icon, description, version, code, app_html: html }),
+    });
+    toast("已提交，进入测试中");
+    await refresh();
+    $("upTarget").value = id; fillForm(id);
+    $("checks").innerHTML = `<div style="color:var(--sub)">刚才提交的 v${esc(version)} 体检结果：</div>` + scanHtml(checks);
+  });
+};
+
+// ---------- 列表里的按钮 ----------
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-act]"); if (!b) return;
+  const id = b.dataset.id, act = b.dataset.act;
+  if (act === "update") { $("upTarget").value = id; fillForm(id); $("uploadCard").scrollIntoView({ behavior: "smooth" }); return; }
+  if (act === "view") { openViewer(id); return; }
+  guard(b, async () => {
+    if (act === "withdraw") { if (!confirm("撤回测试版？已发布的版本不受影响。")) return;
+      await rest(`plugin_drafts?plugin_id=eq.${encodeURIComponent(id)}`, { method: "DELETE" }); toast("已撤回"); }
+    if (act === "delete") { if (!confirm(`删除插件 ${id}？此操作不能撤销。`)) return;
+      await rest(`plugins?id=eq.${encodeURIComponent(id)}`, { method: "DELETE" }); toast("已删除"); }
+    if (act === "publish") { const d = draftOf(id); if (!confirm(`发布「${d.name}」v${d.version}？发布后所有同学都能看到。`)) return;
+      await rpc("publish_plugin", { pid: id }); toast("已发布"); }
+    if (act === "reject") { const note = prompt("驳回意见（作者能看到）："); if (note === null) return;
+      await rpc("reject_plugin", { pid: id, note }); toast("已驳回"); }
+    if (act === "unpublish") { if (!confirm("下架后同学们将看不到这个插件，确定吗？")) return;
+      await rpc("unpublish_plugin", { pid: id }); toast("已下架"); }
+    if (act === "author") { const acct = prompt("转交给哪个账号？（对方需要先注册）"); if (!acct) return;
+      await rpc("set_plugin_author", { pid: id, acct: acct.trim() }); toast("作者已更新"); }
+    await refresh();
+  });
+});
+document.addEventListener("change", (e) => {
+  const c = e.target.closest("input[data-act=default]"); if (!c) return;
+  guard(c, async () => {
+    await rest(`plugins?id=eq.${encodeURIComponent(c.dataset.id)}`, { method: "PATCH", headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ default_on: c.checked }) });
+    toast(c.checked ? "新用户默认开启" : "已取消默认开启"); await refresh();
+  });
+});
+
+// ---------- 代码查看 ----------
+let viewing = null;
+async function openViewer(id) {
+  const d = draftOf(id);
+  const r = (await rest(`plugin_drafts?select=code,app_html&plugin_id=eq.${encodeURIComponent(id)}`))[0] || {};
+  viewing = r;
+  $("vTitle").textContent = `${d ? d.name + " v" + d.version : id}`;
+  $("vScan").innerHTML = scanHtml(scan(r.code, r.app_html, id)).replace(/class="(\w)"/g, (m, lv) =>
+    `style="color:var(--${lv === "e" ? "red" : lv === "w" ? "orange" : "green"})"`);
+  $("vTabCode").disabled = r.code == null; $("vTabHtml").disabled = r.app_html == null;
+  showCode(r.code != null ? "code" : "html");
+  $("viewer").classList.add("open");
+}
+function showCode(which) {
+  const txt = which === "code" ? viewing.code : viewing.app_html;
+  $("vBody").textContent = txt == null ? "（没有这个文件）" : txt;
+  $("vTabCode").classList.toggle("primary", which === "code"); $("vTabHtml").classList.toggle("primary", which === "html");
+}
+$("vTabCode").onclick = () => showCode("code");
+$("vTabHtml").onclick = () => showCode("html");
+$("vClose").onclick = () => $("viewer").classList.remove("open");
+$("viewer").onclick = (e) => { if (e.target.id === "viewer") $("viewer").classList.remove("open"); };
+
+// ---------- 启动 ----------
+$("logout").onclick = async () => { await CCAuth.signOut(); location.href = "login.html"; };
+(async () => {
+  const s = await CCAuth.session();
+  if (!s) { location.href = "login.html?next=dev.html"; return; }
+  me = await CCAuth.me();
+  if (!me) { toast("读取账号信息失败，请重新登录", true); await CCAuth.signOut(); setTimeout(() => (location.href = "login.html?next=dev.html"), 1200); return; }
+  $("who").innerHTML = `${esc(me.display_name)}（${esc(me.account)}） <span class="badge">${esc(ROLE_NAMES[me.role] || me.role)}</span>`;
+  const staff = CCAuth.STAFF.includes(me.role);
+  $("noRole").classList.toggle("hidden", staff);
+  document.querySelectorAll("[data-roles]").forEach((el) => el.classList.toggle("hidden", !el.dataset.roles.split(" ").includes(me.role)));
+  if (!staff) return;
+  fillForm("__new");
+  try { await refresh(); } catch (e) { toast(e.message, true); }
+  if (has("admin")) loadUsers().catch((e) => toast(e.message, true));
+})();
+</script>
+</body>
+</html>

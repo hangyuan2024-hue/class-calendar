@@ -1,4 +1,4 @@
-// 课程表插件：组员开发的独立页面 app.html 通过 iframe 嵌入；
+// 课程表插件：组员开发的独立页面 app.html 由 api.mountApp 嵌入；
 // 另外把课程同步到日历（读取 app.html 存在本机的 personal_course_schedule_* 数据）。
 CalendarApp.register({
   id: "course-schedule",
@@ -68,10 +68,7 @@ CalendarApp.register({
             同步到日历：第 1 周周一是 <input type="date" class="csW1">
             <label class="check"><input type="checkbox" class="csSync"> 在日历里显示课程</label>
             <span class="csTip" style="color:var(--sub);font-size:12px"></span>
-          </div>
-          <div class="panel" style="padding:0;overflow:hidden">
-            <iframe src="plugins/course-schedule/app.html?v=1.1.0" title="课程表"
-              style="width:100%;border:0;display:block;min-height:70vh"></iframe></div>`;
+          </div>`;
         const q = (s) => el.querySelector(s);
         q(".csW1").value = api.storage.get("week1", DEFAULT_WEEK1);
         q(".csSync").checked = api.storage.get("sync", true);
@@ -83,10 +80,7 @@ CalendarApp.register({
           api.storage.set("week1", v); tip(); api.refresh();
         };
         q(".csSync").onchange = (e) => { api.storage.set("sync", e.target.checked); api.refresh(); };
-
-        const frame = q("iframe");
-        const fit = () => { try { const h = frame.contentDocument.documentElement.scrollHeight; if (h) frame.style.height = h + "px"; } catch (e) {} };
-        frame.addEventListener("load", () => { fit(); try { new ResizeObserver(fit).observe(frame.contentDocument.body); } catch (e) {} });
+        api.mountApp(el, { minHeight: "70vh" });
       },
     });
   },
