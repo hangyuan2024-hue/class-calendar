@@ -12,7 +12,7 @@
 (function () {
   try {
     var s = JSON.parse(localStorage.getItem("ui_skin_v1") || '"vivid"');
-    if (["vivid", "clean", "dark"].indexOf(s) < 0) s = "vivid";
+    if (["vivid", "clean", "dark", "cyber"].indexOf(s) < 0) s = "vivid";
     document.documentElement.dataset.skin = s;
     var bg = localStorage.getItem("ui_bg_v1");
     if (bg) {
@@ -68,6 +68,103 @@
     --nav-on-bg: transparent; --nav-on-shadow: none; --col-border: #2f3336;
     color-scheme: dark;
   }
+  [data-skin=cyber] {
+    --bg: #07060f; --bg2: #07060f; --card: #100d24; --line: rgba(0, 240, 255, .2); --text: #e9f6ff; --sub: #8d93bf;
+    --accent: #00f0ff; --ink: #ff2bd6; --ink-text: #12001a; --today: #ff2bd6;
+    --red: #ff3d71; --blue: #00c8ff; --green: #39ffa5; --gray: #8d93bf; --purple: #b46bff;
+    --hover: rgba(0, 240, 255, .08); --muted-bg: rgba(255, 255, 255, .04); --muted-text: #4a4d73; --selected: rgba(0, 240, 255, .12);
+    --note-bg: rgba(255, 214, 0, .12); --danger-bg: rgba(255, 61, 113, .14);
+    --r-xl: 6px; --r: 6px; --r-sm: 4px; --border: rgba(0, 240, 255, .28);
+    --shadow: 0 0 0 1px rgba(0, 240, 255, .06), 0 0 24px -6px rgba(0, 240, 255, .25);
+    --tile-a: linear-gradient(135deg, #ff2bd6 0%, #7a1cff 100%); --tile-b: linear-gradient(135deg, #00e5ff 0%, #2a3cff 100%); --tile-text: #ffffff;
+    --hero: linear-gradient(160deg, rgba(122, 28, 255, .35), rgba(0, 229, 255, .12) 70%), #0c0a20;
+    --fd: "ZCOOL QingKe HuangYou", "PingFang SC", sans-serif; --fd-weight: 400;
+    --nav-on-bg: rgba(0, 240, 255, .1); --nav-on-shadow: inset 3px 0 0 #00f0ff; --col-border: rgba(0, 240, 255, .14);
+    --c1: #00c8ff; --c2: #ff2bd6;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Cascadia Mono", monospace;
+    --m-body: #120c2c; --m-line: #00f0ff; --m-top: #ff2bd6; --m-eyes: none; --m-visor: inline; --m-mouth: #00f0ff; --m-star: #39ffa5; --m-shadow: rgba(0, 240, 255, .25);
+    color-scheme: dark;
+  }
+  /* 元宇宙：天空 + 透视网格地面 + 扫描线 */
+  [data-skin=cyber] body { background:
+      radial-gradient(ellipse 70% 40% at 50% 100%, rgba(255, 43, 214, .22), transparent 70%),
+      linear-gradient(180deg, #07060f 0%, #12082e 55%, #1a0636 100%) fixed; }
+  [data-skin=cyber] body::before { content: ""; position: fixed; left: -50%; right: -50%; bottom: -10vh; height: 55vh; z-index: 0; pointer-events: none; opacity: .55;
+    background-image: linear-gradient(rgba(255, 43, 214, .55) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 240, 255, .45) 1px, transparent 1px);
+    background-size: 60px 60px; transform: perspective(320px) rotateX(62deg); transform-origin: 50% 0;
+    -webkit-mask-image: linear-gradient(transparent, #000 40%); mask-image: linear-gradient(transparent, #000 40%); animation: gridrun 3s linear infinite; }
+  [data-skin=cyber] body::after { content: ""; position: fixed; inset: 0; z-index: 100; pointer-events: none;
+    background: repeating-linear-gradient(0deg, rgba(0, 0, 0, .18) 0 1px, transparent 1px 3px); mix-blend-mode: multiply; }
+  @keyframes gridrun { to { background-position: 0 60px, 0 0; } }
+  @media (prefers-reduced-motion: reduce) { [data-skin=cyber] body::before { animation: none; } }
+  [data-skin=cyber] .surface, [data-skin=cyber] .tile, [data-skin=cyber] .stat, [data-skin=cyber] .hero {
+    background-image: linear-gradient(#00f0ff, #00f0ff), linear-gradient(#00f0ff, #00f0ff), linear-gradient(#ff2bd6, #ff2bd6), linear-gradient(#ff2bd6, #ff2bd6);
+    background-size: 14px 2px, 2px 14px, 14px 2px, 2px 14px; background-repeat: no-repeat;
+    background-position: 0 0, 0 0, 100% 100%, 100% 100%; }
+  [data-skin=cyber] .surface { background-color: rgba(16, 13, 36, .82); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+  [data-skin=cyber] .tile.a { background-color: transparent; background-image: linear-gradient(#fff, #fff), linear-gradient(#fff, #fff), linear-gradient(#fff, #fff), linear-gradient(#fff, #fff), var(--tile-a); background-size: 14px 2px, 2px 14px, 14px 2px, 2px 14px, auto; background-repeat: no-repeat; background-position: 0 0, 0 0, 100% 100%, 100% 100%, 0 0; }
+  [data-skin=cyber] .tile.b { background-color: transparent; background-image: linear-gradient(#fff, #fff), linear-gradient(#fff, #fff), linear-gradient(#fff, #fff), linear-gradient(#fff, #fff), var(--tile-b); background-size: 14px 2px, 2px 14px, 14px 2px, 2px 14px, auto; background-repeat: no-repeat; background-position: 0 0, 0 0, 100% 100%, 100% 100%, 0 0; }
+  [data-skin=cyber] .hero { background-color: #0c0a20; background-image: linear-gradient(#00f0ff, #00f0ff), linear-gradient(#00f0ff, #00f0ff), linear-gradient(#ff2bd6, #ff2bd6), linear-gradient(#ff2bd6, #ff2bd6), var(--hero); background-size: 14px 2px, 2px 14px, 14px 2px, 2px 14px, auto; background-repeat: no-repeat; background-position: 0 0, 0 0, 100% 100%, 100% 100%, 0 0;
+    border: 1px solid var(--border); color: var(--text); box-shadow: var(--shadow); }
+  [data-skin=cyber] .hero::before { content: ""; position: absolute; inset: 0; opacity: .35; pointer-events: none;
+    background: linear-gradient(rgba(0, 240, 255, .25) 1px, transparent 1px) 0 0/100% 18px; }
+  [data-skin=cyber] .hero .date, [data-skin=cyber] .tag, [data-skin=cyber] .atime, [data-skin=cyber] .due-tag, [data-skin=cyber] #monthLabel,
+  [data-skin=cyber] .daynum, [data-skin=cyber] .stat b, [data-skin=cyber] .tile .big, [data-skin=cyber] .ring .rv, [data-skin=cyber] .pomo .pt b,
+  [data-skin=cyber] .wsz, [data-skin=cyber] .mini { font-family: var(--mono); letter-spacing: .5px; }
+  [data-skin=cyber] .hero .date { background: rgba(0, 240, 255, .12); color: #00f0ff; border: 1px solid rgba(0, 240, 255, .4); border-radius: 2px; }
+  [data-skin=cyber] .hero h3, [data-skin=cyber] .vhead h2, [data-skin=cyber] .brand, [data-skin=cyber] #className, [data-skin=cyber] .sec-h b, [data-skin=cyber] .widget h4 {
+    color: #f4fbff; text-shadow: 0 0 6px rgba(0, 240, 255, .9), 0 0 18px rgba(0, 240, 255, .45), 2px 0 0 rgba(255, 43, 214, .55); }
+  [data-skin=cyber] .tile b, [data-skin=cyber] .tile .big { text-shadow: 0 0 10px rgba(255, 255, 255, .6); }
+  [data-skin=cyber] .tile .go, [data-skin=cyber] .btn.ink, [data-skin=cyber] #addBtn, [data-skin=cyber] #modal .btns button.primary, [data-skin=cyber] .modal2 .btns button.primary {
+    background: #0a0418; color: #00f0ff; border: 1px solid #00f0ff; box-shadow: 0 0 12px rgba(0, 240, 255, .45), inset 0 0 8px rgba(0, 240, 255, .25); border-radius: 2px; text-shadow: 0 0 6px rgba(0, 240, 255, .8); }
+  [data-skin=cyber] #addBtn { color: #ff2bd6; border-color: #ff2bd6; box-shadow: 0 0 16px rgba(255, 43, 214, .55), inset 0 0 10px rgba(255, 43, 214, .3); text-shadow: 0 0 8px rgba(255, 43, 214, .9); }
+  [data-skin=cyber] .btn, [data-skin=cyber] button.small, [data-skin=cyber] .navgrp { border-radius: 2px; }
+  [data-skin=cyber] .nav { border-radius: 2px; } [data-skin=cyber] .nav.on { color: #00f0ff; text-shadow: 0 0 8px rgba(0, 240, 255, .8); }
+  [data-skin=cyber] .nav span { font-family: var(--mono); font-size: 15px; letter-spacing: 1px; }
+  @media (max-width: 700px) { [data-skin=cyber] .nav span { font-size: 10.5px; letter-spacing: 0; white-space: nowrap; } [data-skin=cyber] .rail { background: rgba(7, 6, 15, .88); border-top-color: rgba(0, 240, 255, .25); } }
+  [data-skin=cyber] .av { background: linear-gradient(135deg, #ff2bd6, #00f0ff); border-radius: 4px; color: #0a0418; }
+  [data-skin=cyber] .cb-badge { background: #0a0418; color: #00f0ff; border: 2px solid #00f0ff; box-shadow: 0 0 14px rgba(0, 240, 255, .6); border-radius: 6px; }
+  [data-skin=cyber] .qbtn .qi { border-radius: 4px; background: #0a0418 !important; border: 1px solid currentColor; box-shadow: 0 0 12px -2px currentColor !important; }
+  [data-skin=cyber] #cIngestBtn .qi { color: #00f0ff; } [data-skin=cyber] #cAddBtn .qi { color: #b46bff; } [data-skin=cyber] #qMine .qi { color: #ff2bd6; }
+  [data-skin=cyber] #qPlan .qi { color: #ffe600; } [data-skin=cyber] #qIcs .qi { color: #39ffa5; } [data-skin=cyber] #qTools .qi { color: #ff7a00; }
+  [data-skin=cyber] .chk { border-radius: 2px; } [data-skin=cyber] .arow.done .chk { box-shadow: 0 0 10px var(--c); }
+  [data-skin=cyber] .cell.today .daynum span { box-shadow: 0 0 12px #ff2bd6; border-radius: 2px; }
+  [data-skin=cyber] .mascot { filter: drop-shadow(0 0 10px rgba(0, 240, 255, .7)); }
+  [data-skin=cyber] .post.notice { background: rgba(255, 43, 214, .08); border-color: rgba(255, 43, 214, .55); }
+  [data-skin=cyber] #cheer { border-radius: 4px; border-color: #00f0ff; box-shadow: 0 0 24px rgba(0, 240, 255, .45); }
+  [data-skin=cyber] .rail { border-right: 1px solid rgba(0, 240, 255, .12); }
+  [data-skin=cyber] .vhead { background: rgba(7, 6, 15, .7); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+  [data-skin=cyber] .hero h3 { position: relative; }
+  @media (prefers-reduced-motion: no-preference) {
+    [data-skin=cyber] .hero h3 { animation: glitch 6s steps(1) infinite; }
+  }
+  @keyframes glitch { 0%, 92%, 100% { transform: none; clip-path: none; } 93% { transform: translate(-3px, 1px); clip-path: inset(10% 0 55% 0); } 94% { transform: translate(3px, -1px); clip-path: inset(60% 0 8% 0); } 95% { transform: none; clip-path: none; } }
+  .pv.cyber { background: linear-gradient(180deg, #12082e, #07060f); border: 1px solid rgba(0, 240, 255, .4); }
+  .pv.cyber i { left: 8px; top: 30px; width: 44%; height: 34px; background: linear-gradient(135deg, #ff2bd6, #7a1cff); border-radius: 2px; box-shadow: 0 0 10px #ff2bd6; }
+  .pv.cyber em { right: 8px; top: 30px; width: 40%; height: 34px; background: linear-gradient(135deg, #00e5ff, #2a3cff); border-radius: 2px; box-shadow: 0 0 10px #00f0ff; }
+  .metabtn { position: absolute; right: 16px; top: 16px; z-index: 2; font-size: 12px; font-weight: 800; padding: 5px 12px; border-radius: 999px; color: #fff;
+    background: linear-gradient(135deg, #7a1cff, #ff2bd6); box-shadow: 0 0 14px rgba(255, 43, 214, .55); letter-spacing: .5px; }
+  .metabtn:hover { filter: brightness(1.1); }
+  [data-skin=cyber] .metabtn { background: #0a0418; color: #00f0ff; border: 1px solid #00f0ff; border-radius: 2px; font-family: var(--mono); box-shadow: 0 0 12px rgba(0, 240, 255, .5); }
+  .hero .mascot { pointer-events: none; }
+  .hero > .metabtn { position: absolute; }
+  .hero h3, .hero .say { padding-right: 0; }
+  @media (max-width: 700px) { .metabtn { top: 12px; right: 12px; font-size: 11px; padding: 4px 10px; } }
+  /* 进入 / 离开元宇宙的过场 */
+  #warp { position: fixed; inset: 0; z-index: 200; background: #05040c; color: #00f0ff; display: none; align-items: center; justify-content: center; overflow: hidden; cursor: pointer;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+  #warp.on { display: flex; }
+  #warp .tunnel { position: absolute; inset: -50%; background: repeating-radial-gradient(circle at 50% 50%, transparent 0 22px, rgba(0, 240, 255, .35) 23px 24px, transparent 25px 46px, rgba(255, 43, 214, .3) 47px 48px);
+    animation: tunnel 1.6s cubic-bezier(.5, 0, .9, .6) forwards; opacity: .9; }
+  @keyframes tunnel { from { transform: scale(.2); opacity: 0; } 30% { opacity: .9; } to { transform: scale(3.2); opacity: .1; } }
+  #warp .term { position: relative; width: min(520px, 86vw); font-size: 14px; line-height: 1.9; text-shadow: 0 0 8px rgba(0, 240, 255, .8); }
+  #warp .term .ok { color: #39ffa5; } #warp .term .pk { color: #ff2bd6; }
+  #warp .term .big { font-family: "ZCOOL QingKe HuangYou", sans-serif; font-size: 40px; color: #fff; letter-spacing: 3px; line-height: 1.2; margin-top: 10px;
+    text-shadow: 0 0 10px #00f0ff, 0 0 30px #00f0ff, 3px 0 0 #ff2bd6; }
+  #warp .skip { position: absolute; bottom: 24px; font-size: 12px; color: #8d93bf; }
+  #warp.flash::after { content: ""; position: absolute; inset: 0; background: #fff; animation: flash .35s ease-out forwards; }
+  @keyframes flash { from { opacity: .9; } to { opacity: 0; } }
+
   :root { --surface: var(--card); --bg-dim: .35; --bg-blur: 0px; }
   html.has-bg { --surface: color-mix(in srgb, var(--card) 80%, transparent); --col-border: transparent; }
 
@@ -374,7 +471,8 @@
   .gi small { color: var(--sub); font-size: 12px; margin-left: auto; text-align: right; }
   .gi.danger { color: var(--red); }
   .gx { padding: 16px 18px; }
-  .skins { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .skins { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  @media (max-width: 700px) { .skins { grid-template-columns: repeat(2, 1fr); } }
   .skin { border-radius: var(--r-sm); border: 2px solid var(--line); padding: 6px; text-align: center; font-size: 13px; font-weight: 700; background: var(--surface); }
   .skin.on { border-color: var(--accent); }
   .skin .pv { height: 74px; border-radius: 10px; margin-bottom: 6px; position: relative; overflow: hidden; }
@@ -920,6 +1018,7 @@
           <button class="skin" data-skin="vivid"><div class="pv vivid"><i></i><em></em></div>元气</button>
           <button class="skin" data-skin="clean"><div class="pv clean"><i></i><em></em></div>简约</button>
           <button class="skin" data-skin="dark"><div class="pv dark"><i></i><em></em></div>夜间</button>
+          <button class="skin" data-skin="cyber"><div class="pv cyber"><i></i><em></em></div>捞捞元宇宙</button>
         </div>
       </div>
       <div class="gx">
@@ -990,20 +1089,29 @@
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
     <g id="mascotArt">
-      <ellipse cx="60" cy="112" rx="30" ry="5" fill="rgba(10,50,90,.15)"/>
-      <g class="wave"><path d="M96 74 q16 -4 18 -22" fill="none" stroke="#0e2240" stroke-width="5" stroke-linecap="round"/><circle cx="114" cy="50" r="6" fill="#fff" stroke="#0e2240" stroke-width="4"/></g>
-      <path d="M24 78 q-12 6 -12 18" fill="none" stroke="#0e2240" stroke-width="5" stroke-linecap="round"/>
-      <rect x="22" y="28" width="76" height="78" rx="24" fill="#ffffff" stroke="#0e2240" stroke-width="5"/>
-      <path d="M22 54 V52 a24 24 0 0 1 24 -24 h28 a24 24 0 0 1 24 24 v2 z" fill="#ff8a3d" stroke="#0e2240" stroke-width="5" stroke-linejoin="round"/>
-      <rect x="40" y="16" width="9" height="22" rx="4.5" fill="#0e2240"/><rect x="71" y="16" width="9" height="22" rx="4.5" fill="#0e2240"/>
-      <ellipse cx="46" cy="74" rx="6" ry="7.5" fill="#0e2240"/><ellipse cx="74" cy="74" rx="6" ry="7.5" fill="#0e2240"/>
-      <circle cx="48" cy="71" r="2.2" fill="#fff"/><circle cx="76" cy="71" r="2.2" fill="#fff"/>
-      <ellipse cx="36" cy="86" rx="6" ry="3.5" fill="#ff9db5" opacity=".8"/><ellipse cx="84" cy="86" rx="6" ry="3.5" fill="#ff9db5" opacity=".8"/>
-      <path d="M54 86 q6 6 12 0" fill="none" stroke="#0e2240" stroke-width="4" stroke-linecap="round"/>
-      <path d="M104 18 l3 7 7 3 -7 3 -3 7 -3 -7 -7 -3 7 -3z" fill="#ffd23f"/>
+      <ellipse cx="60" cy="112" rx="30" ry="5" style="fill:var(--m-shadow, rgba(10,50,90,.15))"/>
+      <g class="wave"><path d="M96 74 q16 -4 18 -22" fill="none" style="stroke:var(--m-line, #0e2240)" stroke-width="5" stroke-linecap="round"/><circle cx="114" cy="50" r="6" style="fill:var(--m-body, #fff);stroke:var(--m-line, #0e2240)" stroke-width="4"/></g>
+      <path d="M24 78 q-12 6 -12 18" fill="none" style="stroke:var(--m-line, #0e2240)" stroke-width="5" stroke-linecap="round"/>
+      <rect x="22" y="28" width="76" height="78" rx="24" style="fill:var(--m-body, #ffffff);stroke:var(--m-line, #0e2240)" stroke-width="5"/>
+      <path d="M22 54 V52 a24 24 0 0 1 24 -24 h28 a24 24 0 0 1 24 24 v2 z" style="fill:var(--m-top, #ff8a3d);stroke:var(--m-line, #0e2240)" stroke-width="5" stroke-linejoin="round"/>
+      <rect x="40" y="16" width="9" height="22" rx="4.5" style="fill:var(--m-line, #0e2240)"/><rect x="71" y="16" width="9" height="22" rx="4.5" style="fill:var(--m-line, #0e2240)"/>
+      <g style="display:var(--m-eyes, inline)">
+        <ellipse cx="46" cy="74" rx="6" ry="7.5" fill="#0e2240"/><ellipse cx="74" cy="74" rx="6" ry="7.5" fill="#0e2240"/>
+        <circle cx="48" cy="71" r="2.2" fill="#fff"/><circle cx="76" cy="71" r="2.2" fill="#fff"/>
+        <ellipse cx="36" cy="86" rx="6" ry="3.5" fill="#ff9db5" opacity=".8"/><ellipse cx="84" cy="86" rx="6" ry="3.5" fill="#ff9db5" opacity=".8"/>
+      </g>
+      <g style="display:var(--m-visor, none)">
+        <path d="M28 64 h64 a4 4 0 0 1 4 4 v10 a6 6 0 0 1 -6 6 h-18 l-6 -6 h-8 l-6 6 h-18 a6 6 0 0 1 -6 -6 v-10 a4 4 0 0 1 4 -4z" fill="#0a0420" stroke="#00f0ff" stroke-width="3"/>
+        <path d="M34 72 h18 M68 72 h18" stroke="#ff2bd6" stroke-width="4" stroke-linecap="round"/>
+        <path d="M22 92 h10 M88 92 h10 M30 100 h6" stroke="#00f0ff" stroke-width="2" opacity=".7"/>
+      </g>
+      <path d="M54 88 q6 6 12 0" fill="none" style="stroke:var(--m-mouth, #0e2240)" stroke-width="4" stroke-linecap="round"/>
+      <path d="M104 18 l3 7 7 3 -7 3 -3 7 -3 -7 -7 -3 7 -3z" style="fill:var(--m-star, #ffd23f)"/>
     </g>
   </defs>
 </svg>
+
+<div id="warp" role="dialog" aria-label="进入捞捞元宇宙"><div class="tunnel"></div><div class="term" id="warpTerm"></div><div class="skip">点一下跳过</div></div>
 
 <div id="placeSheet" class="modal2">
   <form id="placeForm">
@@ -1230,12 +1338,17 @@ const agendaOpen = new Set();
 
 // ===== 外观：风格 + 自定义背景（只存在这台设备上） =====
 const LS_SKIN = "ui_skin_v1", LS_BG = "ui_bg_v1", LS_BG_OPTS = "ui_bg_opts_v1";
-const SKIN_COLOR = { vivid: "#cdeeff", clean: "#ffffff", dark: "#000000" };
+const SKIN_COLOR = { vivid: "#cdeeff", clean: "#ffffff", dark: "#000000", cyber: "#07060f" };
+// 元宇宙里的叫法
+const CYBER_NAMES = { 首页: "主控台", 作业: "任务清单", 班级墙: "广播频道", 日历: "时间线", 规划: "作战室", 工具: "模组库", 我的: "身份档案", 成长: "成长数据", 班级: "班级节点", 班级日历: "捞捞元宇宙" };
+const cyName = (t) => (document.documentElement.dataset.skin === "cyber" && CYBER_NAMES[t]) || t;
 function applyLook() {
   const root = document.documentElement;
   const skin = load(LS_SKIN, "vivid");
   root.dataset.skin = SKIN_COLOR[skin] ? skin : "vivid";
   document.querySelector('meta[name="theme-color"]').content = SKIN_COLOR[root.dataset.skin];
+  document.querySelectorAll(".vhead h2, .brand .bname").forEach((h) => { h.dataset.t ||= h.textContent; h.textContent = cyName(h.dataset.t); });
+  if (typeof renderTabs === "function" && document.getElementById("tabs").childElementCount) renderTabs();
   let bg = null; try { bg = localStorage.getItem(LS_BG); } catch (e) {}
   const o = load(LS_BG_OPTS, {});
   const dim = o.dim == null ? 40 : o.dim, blur = o.blur == null ? 6 : o.blur;
@@ -1252,7 +1365,31 @@ function applyLook() {
   $("bgOpts").classList.toggle("hidden", !bg);
   $("bgDim").value = dim; $("bgBlur").value = blur;
 }
-$("skinPick").onclick = (e) => { const b = e.target.closest("[data-skin]"); if (!b) return; save(LS_SKIN, b.dataset.skin); applyLook(); };
+$("skinPick").onclick = (e) => { const b = e.target.closest("[data-skin]"); if (!b) return; if (b.dataset.skin === "cyber") enterMeta(); else setSkin(b.dataset.skin); };
+function setSkin(k) { save(LS_SKIN, k); applyLook(); try { renderAll(); } catch (e) {} }
+// 进入 / 离开捞捞元宇宙
+const LS_SKIN_PREV = "ui_skin_prev_v1";
+let warpTimers = [];
+function warp(lines, done, total) {
+  const w = $("warp"), term = $("warpTerm"), reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  warpTimers.forEach(clearTimeout); warpTimers = [];
+  term.innerHTML = ""; w.classList.remove("flash"); w.classList.add("on");
+  const tun = w.querySelector(".tunnel"); tun.style.animation = "none"; void tun.offsetWidth; tun.style.animation = "";
+  const finish = () => { warpTimers.forEach(clearTimeout); warpTimers = []; done(); w.classList.add("flash"); warpTimers.push(setTimeout(() => w.classList.remove("on", "flash"), 380)); w.onclick = null; };
+  w.onclick = finish;
+  if (reduce) { term.innerHTML = lines.map((l) => `<div>${l}</div>`).join(""); warpTimers.push(setTimeout(finish, 500)); return; }
+  lines.forEach((l, i) => warpTimers.push(setTimeout(() => term.insertAdjacentHTML("beforeend", `<div>${l}</div>`), 120 + i * (total / lines.length))));
+  warpTimers.push(setTimeout(finish, total + 450));
+}
+function enterMeta() {
+  const cur = load(LS_SKIN, "vivid"); if (cur !== "cyber") save(LS_SKIN_PREV, cur);
+  const name = currentUser ? esc(currentUser.display_name) : "访客";
+  warp([`&gt; 正在连接 <span class="pk">LAOLAO://META</span> …`, `&gt; 同步班级数据 ……… <span class="ok">OK</span>`, `&gt; 加载身份档案：${name} ……… <span class="ok">OK</span>`,
+        `<div class="big">捞捞元宇宙</div>`, `<span class="ok">欢迎接入，${name}</span>`], () => setSkin("cyber"), 1500);
+}
+function exitMeta() {
+  warp([`&gt; 断开连接 …`, `<span class="ok">已回到现实世界</span>`], () => setSkin(load(LS_SKIN_PREV, "vivid") === "cyber" ? "vivid" : load(LS_SKIN_PREV, "vivid")), 500);
+}
 $("bgFile").onchange = async (e) => {
   const f = e.target.files[0]; e.target.value = ""; if (!f) return;
   try {
@@ -1323,9 +1460,11 @@ function renderAgenda() {
   const todayHw = (byDay[dayKey(0)] || []).filter((r) => r.msg_type === "作业" && !r._done).length;
   const say = overdue.length ? `有 ${overdue.length} 项作业已经过期了，快去看看！`
     : todayHw ? `今天有 ${todayHw} 项作业要交，别忘啦～` : todayCount ? `今天有 ${todayCount} 件事，一件件来` : "今天没有要交的作业，喘口气吧～";
+  const meta = document.documentElement.dataset.skin === "cyber";
   $("hero").innerHTML = `<div class="hero">
+      <button class="metabtn" id="metaBtn">${meta ? "⏏ 退出元宇宙" : "🌐 进入捞捞元宇宙"}</button>
       <div class="date">📅 ${today.getMonth() + 1}月${today.getDate()}日 周${WEEK[today.getDay()]}</div>
-      <h3>${hi}${name}</h3>
+      <h3>${meta ? (currentUser ? "欢迎接入" + name : "欢迎接入，访客") : hi + name}</h3>
       <div class="say">${say}</div>
       <svg class="mascot" viewBox="0 0 120 120" aria-hidden="true"><use href="#mascotArt"/></svg>
     </div>`;
@@ -2000,9 +2139,9 @@ function renderTabs() {
   let cur = currentView();
   const pinned = railPins().some((t) => t.view === cur);
   if (cur.startsWith("p_") && !pinned) cur = "tools";
-  $("tabs").innerHTML = NAV.map(([id, t]) => `<button class="nav${id === cur ? " on" : ""}${id === "tools" || id === "plan" ? " desk" : ""}${id === "plan" && !funOpts().plan ? " hidden" : ""}" data-tab="${id}">${icon(id)}<span>${t}</span>${id === "homework" && hwBadge ? `<em class="badge">${hwBadge}</em>` : ""}</button>`).join("")
+  $("tabs").innerHTML = NAV.map(([id, t]) => `<button class="nav${id === cur ? " on" : ""}${id === "tools" || id === "plan" ? " desk" : ""}${id === "plan" && !funOpts().plan ? " hidden" : ""}" data-tab="${id}">${icon(id)}<span>${cyName(t)}</span>${id === "homework" && hwBadge ? `<em class="badge">${hwBadge}</em>` : ""}</button>`).join("")
     + railPins().map((t, i) => `<button class="nav pin${i ? " desk" : ""}${t.view === cur ? " on" : ""}" data-tab="${esc(t.view)}"><span class="emo">${esc(t.icon)}</span><span>${esc(t.name)}</span></button>`).join("")
-    + `<a class="nav desk" href="class.html">${icon("class")}<span>班级</span></a>`;
+    + `<a class="nav desk" href="class.html">${icon("class")}<span>${cyName("班级")}</span></a>`;
 }
 function renderTools() {
   const L = homeLayout();
@@ -2252,6 +2391,7 @@ function cheer(kind, info) {
     const s = info.streak, m = { 3: "三天了，开了个好头", 7: "一整周！习惯正在养成", 14: "两周不间断，太强了", 21: "21 天，这已经是你的习惯了", 30: "坚持一个月，值得骄傲" }[s];
     t = m ? `连续打卡 ${s} 天！` : `「${info.name}」打卡成功`; sub = m || (s > 1 ? `已经连续 ${s} 天了` : "明天也来哦");
   } else { const pool = CHEER_LINES[kind] || CHEER_LINES.item; [t, sub] = pool[Math.floor(Math.random() * pool.length)]; }
+  if (document.documentElement.dataset.skin === "cyber" && kind !== "preview") { t = "▶ " + t; sub = sub + " // +10 EXP"; }
   $("cheerT").textContent = t; $("cheerS").textContent = sub;
   const st = $("cheerSt");
   st.style.display = o.cheer === "text" ? "none" : "";
@@ -2271,6 +2411,8 @@ function confetti(n) {
     document.body.appendChild(c); setTimeout(() => c.remove(), 1300);
   }
 }
+
+document.addEventListener("click", (e) => { if (e.target.closest("#metaBtn")) { document.documentElement.dataset.skin === "cyber" ? exitMeta() : enterMeta(); } });
 
 // ===== 首页卡片 · 工具摆放（只存在这台设备上） =====
 const LS_LAYOUT = "home_layout_v1";
