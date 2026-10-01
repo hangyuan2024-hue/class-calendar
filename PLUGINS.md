@@ -21,11 +21,21 @@
 1. **`app.html`（推荐新手用）**：一个完整的、单文件的网页（CSS、JS 都写在里面）。上传后自动变成日历顶部的一个标签页。
 2. **`plugin.js`**：用接口写的插件，可以往日历里加事项、改主题、加多个标签页等。两个都有时，在 plugin.js 里用 `api.mountApp(el)` 把 app.html 放到你想要的位置。
 
+### 插件运行在「隔离间」里（安全规则，2026-10 起）
+所有插件（plugin.js 和 app.html）都在 `sandbox.html` 隔离间里运行（iframe sandbox，不同源）：
+- 拿不到登录信息、读不到日历网页自己的存储、调不了数据库接口，也不能把整个网页跳走。
+- `localStorage` 照常可以用，但每个插件**有自己独立的一份**（同一个插件的 plugin.js 和 app.html 共用），别的插件和日历网页都看不到。以前存在网页里的数据会在第一次运行时自动搬过来。
+- 没有 `indexedDB`（用 localStorage 代替）；`alert / confirm`、下载文件、打开新窗口可以用。
+- plugin.js 会运行两次：一次在后台（负责 `addEventSource`、`setTheme`），每个标签页再各运行一次（负责 `render`）。所以 `init` 里不要做「只能做一次」的事。
+- `api.mountApp(el)` 会把 app.html 放在标签页内容的下方。
+- `api.setTheme` 只能改已有的颜色变量，值只能是颜色（如 `#ff5f8f`、`rgb(...)`）。
+- `api.addEventSource` 返回的事项只认 `id、date(YYYY-MM-DD)、time(HH:MM)、title、detail、location、color(颜色)`，其余忽略。
+
 ### app.html 的要求
-- 单文件，**不引用外部 CSS/JS 文件**（国内网络可能打不开）。
-- 本地存储的键统一加前缀 `personal_<插件id>_`，避免和别人冲突。
-- 不要读取 `cc_session_v1`（登录信息），审核时会被直接驳回。
-- 如果要联网（比如查天气），在「一句话介绍」或 README 里写清楚会访问什么网站、发送了什么数据。
+- 单文件，**不引用外部 CSS/JS 文件**（国内网络可能打不开；隔离间也只允许内联脚本）。
+- 本地存储的键统一加前缀 `personal_<插件id>_`，方便以后迁移。
+- 如果要联网（比如查天气），只能访问 https 网址，并在「一句话介绍」或 README 里写清楚会访问什么网站、发送了什么数据。
+- 发布前管理员必须先「查看代码」；查看之后作者再改代码，发布会被拒绝，需要重新查看。
 
 ### plugin.js 的写法
 ```js

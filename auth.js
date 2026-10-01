@@ -104,10 +104,13 @@
     return signIn(account, password);
   }
 
+  // 退出：先让服务器作废这次登录（包括刷新令牌），再清掉本机的登录信息
   async function signOut() {
-    const s = load();
+    let s = null;
+    try { s = await session(); } catch {}
+    s = s || load();
+    if (s) { try { await call(BASE + "/auth/v1/logout?scope=local", { method: "POST" }, s.access_token); } catch {} }
     store(null); meCache = null;
-    if (s) { try { await call(BASE + "/auth/v1/logout", { method: "POST" }, s.access_token); } catch {} }
   }
 
   // PostgREST 查询：path 如 "plugins?select=id,name"
