@@ -544,6 +544,47 @@
   .sugg button:hover { color: var(--text); border-style: solid; }
   .gsel { margin-left: auto; font: inherit; font-size: 13px; padding: 5px 8px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--text); }
 
+  /* ================= 规划：四象限 + 番茄钟 ================= */
+  #qPlan .qi { background: linear-gradient(180deg, #ffd56b, #ffb11f); box-shadow: 0 8px 16px -10px rgba(255,177,31,.8); }
+  .quad-tip { margin: 0 20px 10px; color: var(--sub); font-size: 13px; }
+  .quads { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0 16px; }
+  .quad { padding: 12px 12px 10px; min-height: 190px; display: flex; flex-direction: column; border-top: 4px solid var(--q); transition: box-shadow .15s; }
+  .quad.drop { box-shadow: 0 0 0 2px var(--q), var(--shadow); }
+  .quad.q1 { --q: #ef4b3f; } .quad.q2 { --q: #1e8cff; } .quad.q3 { --q: #e8a10c; } .quad.q4 { --q: #8b9cb2; }
+  .quad h4 { margin: 0; font-size: 15.5px; font-weight: 800; display: flex; align-items: baseline; gap: 6px; }
+  [data-skin=vivid] .quad h4 { font-family: var(--fd); font-weight: var(--fd-weight); font-size: 19px; letter-spacing: .5px; }
+  .quad h4 em { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; letter-spacing: 0; font-style: normal; font-size: 12px; font-weight: 700; color: var(--q); }
+  .quad h4 small { margin-left: auto; color: var(--sub); font-size: 12px; font-weight: 600; font-family: -apple-system, "PingFang SC", sans-serif; }
+  .quad .qd { color: var(--sub); font-size: 12px; margin: 2px 0 8px; }
+  .qitems { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .qit { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 10px; background: var(--muted-bg); font-size: 14px; cursor: grab; }
+  .qit .chk { width: 20px; height: 20px; font-size: 11px; border-width: 2px; }
+  .qit .qt { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+  .qit .qt small { color: var(--sub); font-weight: 400; margin-left: 4px; font-size: 12px; }
+  .qit.done .qt { text-decoration: line-through; opacity: .45; }
+  .qmv { flex-shrink: 0; max-width: 26px; appearance: none; -webkit-appearance: none; border: 0; background: transparent; color: var(--sub); font: inherit; font-size: 15px; width: 26px; height: 26px; border-radius: 8px; text-align: center; cursor: pointer; padding: 0; }
+  .qmv:hover { background: var(--hover); color: var(--text); }
+  .qadd { display: flex; gap: 6px; margin-top: 8px; }
+  .qadd input { flex: 1; min-width: 0; font: inherit; font-size: 13px; padding: 6px 10px; border: 1px dashed var(--line); border-radius: 10px; background: transparent; color: var(--text); }
+  .qadd input:focus { border-style: solid; outline: none; border-color: var(--q); }
+  .qempty { color: var(--muted-text); font-size: 12.5px; padding: 6px 2px; }
+  .pomo { margin: 0 16px; padding: 18px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+  .pomo .pr { position: relative; width: 150px; height: 150px; flex-shrink: 0; }
+  .pomo .pr svg { width: 150px; height: 150px; }
+  .pomo .pt { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; }
+  .pomo .pt b { font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: 1px; display: block; }
+  .pomo .pt span { font-size: 12px; color: var(--sub); }
+  .pomo .pc { flex: 1 1 220px; min-width: 0; }
+  .pomo .pt span { display: block; max-width: 110px; margin: 0 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pomo select { font: inherit; font-size: 14px; width: 100%; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--muted-bg); color: var(--text); }
+  .pomo .pbtns { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .pomo .plen { display: flex; gap: 6px; margin-top: 10px; font-size: 13px; color: var(--sub); align-items: center; flex-wrap: wrap; }
+  .pomo .plen button { padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); font-size: 13px; }
+  .pomo .plen button.on { background: var(--ink); color: var(--ink-text); border-color: transparent; }
+  .pomo .pstat { margin-top: 12px; font-size: 13px; color: var(--sub); }
+  .pomo .pstat b { color: var(--text); }
+  .tomatoes { letter-spacing: 2px; }
+
   /* 完成鼓励 */
   #cheer { position: fixed; left: 50%; bottom: 36px; transform: translate(-50%, 30px); opacity: 0; pointer-events: none; z-index: 60;
     display: flex; align-items: center; gap: 12px; background: var(--card); color: var(--text); border: 1px solid var(--line);
@@ -572,6 +613,11 @@
     .composer, #wallList, .wfilter, .reports, .home-pins, .home-prog, .trend { margin-left: 12px; margin-right: 12px; }
     #cheer { bottom: calc(84px + env(safe-area-inset-bottom)); }
     .habit { padding: 12px 12px; gap: 10px; }
+    .quads, .pomo { margin-left: 12px; margin-right: 12px; }
+    .quads { gap: 8px; }
+    .quad { padding: 10px 8px 8px; min-height: 160px; }
+    .qit { padding: 6px; font-size: 13.5px; gap: 6px; }
+    .pomo { justify-content: center; }
     .habit .hi { width: 40px; height: 40px; font-size: 21px; border-radius: 13px; }
     .habit .hn { flex-wrap: wrap; gap: 0 8px; font-size: 15px; }
     .dots { gap: 3px; } .dots i { width: 10px; height: 10px; border-radius: 3px; }
@@ -647,6 +693,7 @@
       <button class="qbtn hidden" id="cIngestBtn"><span class="qi">✨</span>AI 整理</button>
       <button class="qbtn hidden" id="cAddBtn"><span class="qi">📣</span>发布事项</button>
       <button class="qbtn" id="qMine"><span class="qi">✏️</span>记一件事</button>
+      <button class="qbtn" id="qPlan" data-tab="plan"><span class="qi">🎯</span>四象限</button>
       <button class="qbtn" id="qIcs" data-tab="growth"><span class="qi">🔥</span>打卡成长</button>
       <button class="qbtn" id="qTools" data-tab="tools"><span class="qi">🧩</span>更多工具</button>
     </div>
@@ -690,6 +737,26 @@
       <div id="wallList"></div>
       <div class="afoot">班级墙只有本班同学和老师能看到。发言请友善，不当内容可以举报，老师会处理。</div>
     </div>
+  </section>
+
+  <!-- 规划：四象限 + 番茄钟 -->
+  <section class="view" data-view="plan">
+    <header class="vhead"><button class="back" data-tab="home" aria-label="返回首页">‹</button><h2>规划</h2></header>
+    <div class="sec-h" style="margin-top:4px"><b>四象限</b><span>按「重要」和「紧急」把事情分成四类</span></div>
+    <div class="quad-tip">已经按截止时间和类型帮你自动分好了，觉得不对就用 ⇄ 换个格子（电脑上可以直接拖）。</div>
+    <div class="quads" id="quads"></div>
+    <div class="sec-h"><b>番茄钟</b><span>专注一段时间，再休息一下</span></div>
+    <div class="pomo surface" id="pomo">
+      <div class="pr"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="44" fill="none" class="ptrk" stroke-width="7"/><circle id="pArc" cx="50" cy="50" r="44" fill="none" stroke-width="7" stroke-linecap="round" transform="rotate(-90 50 50)"/></svg>
+        <div class="pt"><div><b id="pTime">25:00</b><span id="pMode">准备开始</span></div></div></div>
+      <div class="pc">
+        <select id="pTask" aria-label="这次专注做什么"></select>
+        <div class="plen" id="pLen">专注 <button data-len="15">15 分钟</button><button data-len="25">25 分钟</button><button data-len="45">45 分钟</button></div>
+        <div class="pbtns"><button class="btn ink" id="pStart">开始专注</button><button class="btn hidden" id="pPause">暂停</button><button class="btn hidden" id="pStop">放弃</button></div>
+        <div class="pstat" id="pStat"></div>
+      </div>
+    </div>
+    <div class="afoot">四象限的分类和番茄记录只保存在这台设备上。</div>
   </section>
 
   <!-- 成长 -->
@@ -785,14 +852,16 @@
       </div>
     </div>
 
-    <div class="sec-h"><b>趣味功能</b><span>需要哪个开哪个</span></div>
+    <div class="sec-h"><b>趣味与效率</b><span>需要哪个开哪个</span></div>
     <div class="group surface">
       <label class="gi"><span class="ic">🎉</span>完成时的鼓励
         <select class="gsel" id="optCheer"><option value="mascot">捞捞小人</option><option value="sticker">表情包</option><option value="text">只要文字</option><option value="off">关闭</option></select></label>
       <label class="gi"><span class="ic">✨</span>撒花动画<input type="checkbox" class="switch" id="optConfetti"></label>
       <label class="gi"><span class="ic">⭕</span>首页显示本周进度环<input type="checkbox" class="switch" id="optRings"></label>
       <label class="gi"><span class="ic">🔥</span>习惯打卡<input type="checkbox" class="switch" id="optHabits"></label>
+      <label class="gi"><span class="ic">🎯</span>四象限和番茄钟<input type="checkbox" class="switch" id="optPlan"></label>
       <button class="gi" data-tab="growth"><span class="ic">📈</span>查看成长页<small>进度环、趋势图、打卡</small></button>
+      <button class="gi" data-tab="plan" id="meToPlan"><span class="ic">🗂️</span>打开规划页<small>四象限、番茄钟</small></button>
     </div>
 
     <div class="sec-h"><b>班级与账号</b></div>
@@ -1267,7 +1336,7 @@ function renderSide() {
   $("undatedList").innerHTML = undated.length ? undated.map((r) => itemHtml(r, true)).join("") : `<div class="empty">暂无</div>`;
 }
 
-function renderAll() { indexItems(); renderGrid(); renderSide(); renderAgenda(); renderHomework(); renderRail(); renderGrowth(); syncJump(); }
+function renderAll() { indexItems(); renderGrid(); renderSide(); renderAgenda(); renderHomework(); renderRail(); renderGrowth(); renderPlan(); syncJump(); }
 
 function showBanner(msg) { const b = $("banner"); b.textContent = msg; b.classList.toggle("show", !!msg); }
 
@@ -1298,10 +1367,7 @@ function renderClassBar() {
   $("classRole").textContent = roleName;
   $("cAddBtn").classList.toggle("hidden", !can("can_edit"));
   $("cIngestBtn").classList.toggle("hidden", !can("can_ingest"));
-  // 快捷按钮一行最多 4 个：班委多了两个按钮时，收起不常用的
-  const extra = (can("can_edit") ? 1 : 0) + (can("can_ingest") ? 1 : 0);
-  $("qTools").classList.toggle("hidden", extra >= 1);
-  $("qIcs").classList.toggle("hidden", extra >= 2 || !funOpts().habits);
+  renderQuick();
 }
 $("classSel").onchange = (e) => {
   currentClass = myClasses.find((c) => c.id === e.target.value) || null;
@@ -1827,19 +1893,21 @@ const ICONS = {
           '<rect x="3" y="3" width="8" height="8" rx="2.2" fill="currentColor"/><rect x="13" y="3" width="8" height="8" rx="2.2" fill="currentColor"/><rect x="3" y="13" width="8" height="8" rx="2.2" fill="currentColor"/><circle cx="17" cy="17" r="4.2" fill="currentColor"/>'],
   wall: ['<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v9a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4A2.5 2.5 0 0 1 3 14.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M8 8.5h8M8 12h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
          '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v9a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4A2.5 2.5 0 0 1 3 14.5z" fill="currentColor"/><path d="M8 8.5h8M8 12h5" stroke="var(--bg2)" stroke-width="2" stroke-linecap="round"/>'],
+  plan: ['<rect x="3.5" y="3.5" width="17" height="17" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3.5v17M3.5 12h17" stroke="currentColor" stroke-width="2"/>',
+         '<rect x="3" y="3" width="8" height="8" rx="2" fill="currentColor"/><rect x="13" y="3" width="8" height="8" rx="2" fill="currentColor" opacity=".75"/><rect x="3" y="13" width="8" height="8" rx="2" fill="currentColor" opacity=".55"/><rect x="13" y="13" width="8" height="8" rx="2" fill="currentColor" opacity=".35"/>'],
   me: ['<circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
        '<circle cx="12" cy="8" r="4.5" fill="currentColor"/><path d="M3.5 21c0-4.8 3.8-7.5 8.5-7.5s8.5 2.7 8.5 7.5z" fill="currentColor"/>'],
   class: ['<path d="M2.5 9 12 4l9.5 5-9.5 5z M6.5 11.2V16c0 1.6 2.5 3 5.5 3s5.5-1.4 5.5-3v-4.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>', ""],
 };
 const icon = (k) => `<svg viewBox="0 0 24 24" class="o" aria-hidden="true">${ICONS[k][0]}</svg>` + (ICONS[k][1] ? `<svg viewBox="0 0 24 24" class="f" aria-hidden="true">${ICONS[k][1]}</svg>` : "");
-const NAV = [["home", "首页"], ["homework", "作业"], ["wall", "班级墙"], ["calendar", "日历"], ["tools", "工具"], ["me", "我的"]];
+const NAV = [["home", "首页"], ["homework", "作业"], ["wall", "班级墙"], ["calendar", "日历"], ["plan", "规划"], ["tools", "工具"], ["me", "我的"]];
 let hwBadge = 0;
 
 function currentView() { return document.querySelector(".view.on[data-view]")?.dataset.view || "home"; }
 function renderTabs() {
   let cur = currentView();
   if (cur.startsWith("p_")) cur = "tools";
-  $("tabs").innerHTML = NAV.map(([id, t]) => `<button class="nav${id === cur ? " on" : ""}${id === "tools" ? " desk" : ""}" data-tab="${id}">${icon(id)}<span>${t}</span>${id === "homework" && hwBadge ? `<em class="badge">${hwBadge}</em>` : ""}</button>`).join("")
+  $("tabs").innerHTML = NAV.map(([id, t]) => `<button class="nav${id === cur ? " on" : ""}${id === "tools" || id === "plan" ? " desk" : ""}${id === "plan" && !funOpts().plan ? " hidden" : ""}" data-tab="${id}">${icon(id)}<span>${t}</span>${id === "homework" && hwBadge ? `<em class="badge">${hwBadge}</em>` : ""}</button>`).join("")
     + `<a class="nav desk" href="class.html">${icon("class")}<span>班级</span></a>`;
 }
 function renderTools() {
@@ -1861,6 +1929,7 @@ function showView(id) {
   if (["home", "calendar", "homework"].includes(id)) renderAll();
   if (id === "wall") loadWall();
   if (id === "growth") renderGrowth();
+  if (id === "plan") renderPlan();
   if (scrollStore) $("storeAnchor").scrollIntoView();
   else window.scrollTo(0, 0);
 }
@@ -1895,7 +1964,15 @@ $("qMine").onclick = () => openForm(null);
 
 // ===== 成长：完成记录、习惯打卡、进度环、趋势图、完成鼓励（都只存在这台设备上） =====
 const LS_DONE_LOG = "done_log_v1", LS_HABITS = "habits_v1", LS_HABIT_LOG = "habit_log_v1", LS_FUN = "fun_opts_v1";
-const FUN_DEFAULT = { cheer: "mascot", confetti: true, rings: true, habits: true };
+const FUN_DEFAULT = { cheer: "mascot", confetti: true, rings: true, habits: true, plan: true };
+// 首页快捷按钮一行最多 4 个，按顺序挑：班委/老师的两个 → 记一件事 → 四象限 → 打卡 → 更多工具
+function renderQuick() {
+  const o = funOpts();
+  const want = [["cIngestBtn", can("can_ingest")], ["cAddBtn", can("can_edit")], ["qMine", true], ["qPlan", o.plan], ["qIcs", o.habits], ["qTools", true]];
+  let n = 0;
+  for (const [id, on] of want) { const show = on && n < 4; if (show) n++; $(id).classList.toggle("hidden", !show); }
+  $("meToPlan").classList.toggle("hidden", !o.plan);
+}
 const funOpts = () => ({ ...FUN_DEFAULT, ...load(LS_FUN, {}) });
 let doneLog = load(LS_DONE_LOG, {});
 let habits = load(LS_HABITS, []);
@@ -2030,7 +2107,7 @@ function renderGrowth() {
   const o = funOpts();
   $("homeProg").classList.toggle("hidden", !o.rings);
   if (o.rings) $("homeProg").innerHTML = `<div class="rings">${ringsHtml(74)}</div>`;
-  $("qIcs").classList.toggle("hidden", !o.habits || (can("can_edit") && can("can_ingest")));
+  renderQuick();
   const v = document.querySelector('.view[data-view="growth"]');
   if (!v || !v.classList.contains("on")) return;
   $("gRings").innerHTML = ringsHtml(96);
@@ -2043,13 +2120,14 @@ function renderGrowth() {
 // 设置：趣味功能
 function syncFunUI() {
   const o = funOpts();
-  $("optCheer").value = o.cheer; $("optConfetti").checked = o.confetti; $("optRings").checked = o.rings; $("optHabits").checked = o.habits;
+  $("optCheer").value = o.cheer; $("optConfetti").checked = o.confetti; $("optRings").checked = o.rings; $("optHabits").checked = o.habits; $("optPlan").checked = o.plan;
 }
 const setFun = (patch) => { save(LS_FUN, { ...funOpts(), ...patch }); renderGrowth(); };
 $("optCheer").onchange = (e) => { setFun({ cheer: e.target.value }); if (e.target.value !== "off") cheer("preview"); };
 $("optConfetti").onchange = (e) => setFun({ confetti: e.target.checked });
 $("optRings").onchange = (e) => setFun({ rings: e.target.checked });
 $("optHabits").onchange = (e) => setFun({ habits: e.target.checked });
+$("optPlan").onchange = (e) => { setFun({ plan: e.target.checked }); renderTabs(); };
 syncFunUI();
 
 // 完成鼓励
@@ -2058,6 +2136,7 @@ const CHEER_LINES = {
   homework: [["作业搞定！", "比截止时间早，就是赢"], ["交作业达人", "又少了一件心事"], ["这题难不倒你", "继续冲"]],
   allhw: [["本周作业全部完成！", "可以安心休息一下了 🎉"]],
   preview: [["就像这样", "完成事项时会这样鼓励你"]],
+  pomo: [["专注完成一个番茄 🍅", "起来走走，休息 5 分钟"], ["又一个番茄到手 🍅", "喝口水，眼睛看看远处"]],
 };
 const STICKERS = ["🎉", "👏", "💪", "🌟", "🥳", "😎", "🙌", "🍀"];
 let cheerTimer = 0;
@@ -2093,6 +2172,151 @@ function confetti(n) {
     document.body.appendChild(c); setTimeout(() => c.remove(), 1300);
   }
 }
+
+// ===== 规划：四象限 =====
+const LS_QUAD = "quad_v1", LS_QTODO = "quad_todos_v1";
+let quadMap = load(LS_QUAD, {});      // 事项 key -> 1..4（自己调整过的）
+let qTodos = load(LS_QTODO, []);      // 直接加在象限里的小待办 {id, text, q, done}
+const QUADS = [
+  [1, "重要且紧急", "马上做", "两天内截止的作业、会议，先把它们解决"],
+  [2, "重要不紧急", "计划做", "复习、长期作业、习惯——最值得投入时间的地方"],
+  [3, "紧急不重要", "尽快处理", "填表、报名这类小事，花几分钟打发掉"],
+  [4, "不重要不紧急", "少做", "有空再说，别让它占用整块时间"],
+];
+function autoQuad(r) {
+  const n = r._p ? dayDiff(r._p.day) : 99;
+  const urgent = n <= 2;
+  const important = r._mine || r.msg_type === "作业" || r.msg_type === "会议";
+  return important ? (urgent ? 1 : 2) : (urgent ? 3 : 4);
+}
+function planItems() {
+  const items = allItems().filter((r) => !r._plugin && (!r._p || (dayDiff(r._p.day) >= -14 && dayDiff(r._p.day) <= 14)))
+    .filter((r) => !r._done || doneLog[r._key] === todayKey());
+  const todos = qTodos.filter((t) => !t.done || doneLog[t.id] === todayKey())
+    .map((t) => ({ _key: t.id, _todo: true, subject: t.text, _done: t.done, q: t.q }));
+  return items.map((r) => ({ ...r, q: quadMap[r._key] || autoQuad(r) })).concat(todos);
+}
+function qItemHtml(r) {
+  const k = esc(r._key);
+  const due = r._p ? (dayDiff(r._p.day) < 0 ? "已过期" : dayDiff(r._p.day) === 0 ? "今天" : dayDiff(r._p.day) === 1 ? "明天" : `${+r._p.day.slice(5, 7)}/${+r._p.day.slice(8)}`) : "";
+  return `<div class="qit t-${esc(r.msg_type || "个人")}${r._done ? " done" : ""}" draggable="true" data-qk="${k}">
+    <button class="chk" ${r._todo ? `data-qdone="${k}"` : `data-act="done" data-k="${k}"`} title="${r._done ? "标记为未完成" : "标记为完成"}">${r._done ? "✓" : ""}</button>
+    <span class="qt">${esc(r.subject || r.summary || r.msg_type)}${due ? `<small>${due}</small>` : ""}</span>
+    <select class="qmv" data-qmv="${k}" aria-label="移到其他象限" title="移到其他象限"><option value="">⇄</option>${QUADS.filter(([n]) => n !== r.q).map(([n, t]) => `<option value="${n}">移到「${t}」</option>`).join("")}${r._todo ? `<option value="del">删除这条</option>` : ""}</select>
+  </div>`;
+}
+function renderPlan() {
+  const v = document.querySelector('.view[data-view="plan"]');
+  if (!v || !v.classList.contains("on")) return;
+  const items = planItems();
+  $("quads").innerHTML = QUADS.map(([n, name, act, desc]) => {
+    const list = items.filter((r) => r.q === n).sort((a, b) => (a._done - b._done) || ((a._p ? a._p.day : "9") > (b._p ? b._p.day : "9") ? 1 : -1));
+    const left = list.filter((r) => !r._done).length;
+    return `<div class="quad q${n} surface" data-q="${n}">
+      <h4>${name}<em>${act}</em><small>${left ? left + " 项" : ""}</small></h4>
+      <div class="qd">${desc}</div>
+      <div class="qitems">${list.map(qItemHtml).join("") || `<div class="qempty">${n === 1 ? "没有火烧眉毛的事 👍" : "空的"}</div>`}</div>
+      <div class="qadd"><input data-qadd="${n}" maxlength="40" placeholder="＋ 加一条，回车保存"></div>
+    </div>`;
+  }).join("");
+  renderPomoTasks(items);
+}
+function moveQuad(k, q) {
+  if (k.startsWith("q")) { const t = qTodos.find((x) => x.id === k); if (t) t.q = q; save(LS_QTODO, qTodos); }
+  else { quadMap[k] = q; save(LS_QUAD, quadMap); }
+  renderPlan();
+}
+$("quads").addEventListener("change", (e) => {
+  const sel = e.target.closest("[data-qmv]"); if (!sel || !sel.value) return;
+  const k = sel.dataset.qmv;
+  if (sel.value === "del") { qTodos = qTodos.filter((t) => t.id !== k); save(LS_QTODO, qTodos); renderPlan(); return; }
+  moveQuad(k, +sel.value);
+});
+$("quads").addEventListener("keydown", (e) => {
+  const inp = e.target.closest("[data-qadd]"); if (!inp || e.key !== "Enter") return;
+  const text = inp.value.trim(); if (!text) return;
+  qTodos.push({ id: "q" + Date.now(), text, q: +inp.dataset.qadd, done: false }); save(LS_QTODO, qTodos);
+  renderPlan(); document.querySelector(`[data-qadd="${inp.dataset.qadd}"]`)?.focus();
+});
+$("quads").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-qdone]"); if (!b) return;
+  const t = qTodos.find((x) => x.id === b.dataset.qdone); if (!t) return;
+  t.done = !t.done; save(LS_QTODO, qTodos); logDone(t.id, t.done); renderPlan(); renderGrowth();
+  if (t.done) cheer("item");
+});
+let dragK = null;
+$("quads").addEventListener("dragstart", (e) => { const it = e.target.closest("[data-qk]"); if (it) { dragK = it.dataset.qk; e.dataTransfer.effectAllowed = "move"; } });
+$("quads").addEventListener("dragover", (e) => { const q = e.target.closest(".quad"); if (q && dragK) { e.preventDefault(); document.querySelectorAll(".quad.drop").forEach((x) => x !== q && x.classList.remove("drop")); q.classList.add("drop"); } });
+$("quads").addEventListener("dragleave", (e) => { const q = e.target.closest(".quad"); if (q && !q.contains(e.relatedTarget)) q.classList.remove("drop"); });
+$("quads").addEventListener("drop", (e) => { const q = e.target.closest(".quad"); if (q && dragK) { e.preventDefault(); moveQuad(dragK, +q.dataset.q); } dragK = null; });
+
+// ===== 规划：番茄钟 =====
+const LS_POMO = "pomo_state_v1", LS_POMO_LOG = "pomo_log_v1";
+let pomo = load(LS_POMO, { len: 25, mode: "idle", end: 0, left: 0, task: "" });   // mode: idle / focus / break / paused
+let pomoLog = load(LS_POMO_LOG, {});
+let pomoTimer = 0;
+const PCIRC = 2 * Math.PI * 44;
+const fmtMs = (ms) => { const s = Math.max(0, Math.round(ms / 1000)); return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`; };
+function savePomo() { save(LS_POMO, pomo); }
+function renderPomoTasks(items) {
+  const sel = $("pTask"), cur = pomo.task;
+  const opts = (items || planItems()).filter((r) => !r._done && (r.q === 1 || r.q === 2));
+  sel.innerHTML = `<option value="">自由专注（不绑定事项）</option>` + opts.map((r) => `<option value="${esc(r.subject || r.summary || "")}">${r.q === 1 ? "🔴" : "🔵"} ${esc(r.subject || r.summary || "")}</option>`).join("");
+  sel.value = [...sel.options].some((o) => o.value === cur) ? cur : "";
+  sel.disabled = pomo.mode === "focus" || pomo.mode === "paused";
+}
+function beep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [0, .25, .5].forEach((t) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.value = 880; g.gain.setValueAtTime(.18, ctx.currentTime + t); g.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + t + .2); o.connect(g).connect(ctx.destination); o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + .22); });
+  } catch (e) {}
+  try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch (e) {}
+}
+function pomoTick() {
+  const now = Date.now();
+  if ((pomo.mode === "focus" || pomo.mode === "break") && now >= pomo.end) {
+    if (pomo.mode === "focus") {
+      const t = todayKey(); pomoLog[t] = (pomoLog[t] || 0) + 1; save(LS_POMO_LOG, pomoLog);
+      pomo = { ...pomo, mode: "break", end: now + 5 * 60000 }; beep(); cheer("pomo");
+    } else { pomo = { ...pomo, mode: "idle" }; beep(); }
+    savePomo();
+  }
+  renderPomo();
+}
+function renderPomo() {
+  const total = (pomo.mode === "break" ? 5 : pomo.len) * 60000;
+  const left = pomo.mode === "focus" || pomo.mode === "break" ? pomo.end - Date.now() : pomo.mode === "paused" ? pomo.left : total;
+  const f = Math.max(0, Math.min(1, left / total));
+  $("pTime").textContent = fmtMs(left);
+  $("pMode").textContent = { idle: "准备开始", focus: pomo.task ? "专注：" + pomo.task : "专注中", break: "休息一下", paused: "已暂停" }[pomo.mode];
+  const arc = $("pArc");
+  arc.setAttribute("stroke", pomo.mode === "break" ? "var(--green)" : "var(--red)");
+  arc.setAttribute("stroke-dasharray", `${(PCIRC * f).toFixed(1)} ${PCIRC.toFixed(1)}`);
+  document.querySelector("#pomo .ptrk").setAttribute("stroke", "color-mix(in srgb, var(--text) 9%, transparent)");
+  const running = pomo.mode === "focus" || pomo.mode === "break";
+  $("pStart").textContent = pomo.mode === "paused" ? "继续" : pomo.mode === "break" ? "跳过休息" : "开始专注";
+  $("pStart").classList.toggle("hidden", pomo.mode === "focus");
+  $("pPause").classList.toggle("hidden", pomo.mode !== "focus");
+  $("pStop").classList.toggle("hidden", !(pomo.mode === "focus" || pomo.mode === "paused"));
+  $("pLen").querySelectorAll("button").forEach((b) => { b.classList.toggle("on", +b.dataset.len === pomo.len); b.disabled = pomo.mode !== "idle"; });
+  const n = pomoLog[todayKey()] || 0;
+  const week = [...Array(7)].reduce((a, _, i) => a + (pomoLog[shiftDay(todayKey(), -i)] || 0), 0);
+  $("pStat").innerHTML = n ? `今天专注了 <b>${n}</b> 个番茄 <span class="tomatoes">${"🍅".repeat(Math.min(n, 12))}</span><br>最近 7 天共 ${week} 个` : `今天还没开始专注。最近 7 天共 ${week} 个番茄`;
+  $("pTask").disabled = pomo.mode === "focus" || pomo.mode === "paused";
+  document.title = running ? `${pomo.mode === "focus" ? "🍅" : "☕"} ${fmtMs(left)} · 班级群日历` : "班级群日历";
+  clearInterval(pomoTimer);
+  if (running) pomoTimer = setInterval(pomoTick, 1000);
+}
+$("pStart").onclick = () => {
+  if (pomo.mode === "paused") pomo = { ...pomo, mode: "focus", end: Date.now() + pomo.left };
+  else if (pomo.mode === "break") pomo = { ...pomo, mode: "idle" };
+  else pomo = { ...pomo, mode: "focus", end: Date.now() + pomo.len * 60000, task: $("pTask").value };
+  savePomo(); renderPomo();
+};
+$("pPause").onclick = () => { pomo = { ...pomo, mode: "paused", left: pomo.end - Date.now() }; savePomo(); renderPomo(); };
+$("pStop").onclick = () => { if (!confirm("放弃这个番茄？这次不会计入记录。")) return; pomo = { ...pomo, mode: "idle" }; savePomo(); renderPomo(); };
+$("pLen").onclick = (e) => { const b = e.target.closest("[data-len]"); if (!b || pomo.mode !== "idle") return; pomo.len = +b.dataset.len; savePomo(); renderPomo(); };
+pomoTick();   // 页面刷新后接着计时
 
 // ===== 班级墙 =====
 let wallPosts = [], wallReported = new Set(), wallFilter = "all", wallReports = [], wallLoadedFor = null;
