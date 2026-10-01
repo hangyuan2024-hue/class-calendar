@@ -2053,8 +2053,9 @@ async function handleUnsub() {
   setTimeout(() => showBanner(""), 8000);
 }
 // 截止提醒、失败重发：谁开着网页谁顺手推一下（数据库有定时任务时也会自己跑）
-function mailTick() { if (currentUser) CCAuth.rpc("mail_tick").catch(() => {}); }
-setInterval(mailTick, 10 * 60 * 1000);
+// 定时让数据库把该发的提醒发出去：网页在后台时不发，每人错开时间（几千人同时开着也不会挤在同一秒）
+function mailTick() { if (currentUser && !document.hidden) CCAuth.rpc("mail_tick").catch(() => {}); }
+setInterval(mailTick, (10 + Math.random() * 5) * 60 * 1000);
 
 // ===== 感谢名单 =====
 let credits = [], creditEdit = null;
@@ -2912,6 +2913,12 @@ renderTabs(); renderTools();
   renderClassBar();
   await loadFeatures();
   loadClass();
-  handleUnsub(); loadMail(); mailTick();
+  handleUnsub(); loadMail(); setTimeout(mailTick, 20000 + Math.random() * 100000);
 })();
 loadPlugins().then(() => { if (location.hash === "#store") { showView("store"); history.replaceState(null, "", location.pathname); } });
+
+// ===== 离线缓存：网页文件存在手机/电脑上，第二次打开几乎不用等，也给服务器减负 =====
+try {
+  if ("serviceWorker" in navigator && (location.protocol === "https:" || localStorage.getItem("sw_test")))
+    window.addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(() => {}); });
+} catch (e) {}

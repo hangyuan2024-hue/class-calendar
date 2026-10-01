@@ -40,19 +40,41 @@
     return m || `请求失败（${status}）`;
   }
 
+  // 人多的时候：读数据的请求遇到「服务器忙 / 网络抖动」会自动重试（等一小会儿、每人错开时间），
+  // 写数据的请求不重试（避免重复提交）。每个请求最多等 20 秒。
+  const SAFE_RPC = /\/rpc\/(my_classes|my_perms|feature_state|mail_my|growth_board|wall_my_reports|wall_report_list|credit_list|class_roster|parse_feedback_list|ingest_job_status|class_features_get|admin_features|ics_my_feed)$/;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   async function call(url, opts, token) {
-    let res;
-    try {
-      res = await fetch(url, {
-        ...opts,
-        headers: { apikey: KEY, Authorization: "Bearer " + (token || KEY), "Content-Type": "application/json", ...(opts.headers || {}) },
-      });
-    } catch (e) { throw new Error("网络连接失败，请检查网络后重试"); }
-    const text = await res.text();
-    let body = null;
-    try { body = text ? JSON.parse(text) : null; } catch { body = { message: text }; }
-    if (!res.ok) throw new Error(humanError(body || {}, res.status));
-    return body;
+    const method = (opts.method || "GET").toUpperCase();
+    const retryable = method === "GET" || SAFE_RPC.test(url.split("?")[0]);
+    for (let attempt = 0; ; attempt++) {
+      let res, netErr = null;
+      const ctl = typeof AbortController === "function" ? new AbortController() : null;
+      const timer = ctl ? setTimeout(() => ctl.abort(), 20000) : 0;
+      try {
+        res = await fetch(url, {
+          ...opts, signal: ctl ? ctl.signal : undefined,
+          headers: { apikey: KEY, Authorization: "Bearer " + (token || KEY), "Content-Type": "application/json", ...(opts.headers || {}) },
+        });
+      } catch (e) { netErr = e; } finally { clearTimeout(timer); }
+      const busy = netErr || (res && [429, 502, 503, 504].includes(res.status));
+      // 服务器忙：最多重试 3 次；连不上网：只重试 1 次（断网时别让人干等）
+      const maxTry = netErr ? (navigator.onLine === false ? 0 : 1) : 3;
+      if (busy && retryable && attempt < maxTry) {
+        const ra = res && Number(res.headers.get("Retry-After"));
+        await sleep(ra ? Math.min(ra, 10) * 1000 : 500 * 2 ** attempt + Math.random() * 600);
+        continue;
+      }
+      if (netErr) throw new Error(netErr.name === "AbortError" ? "服务器响应太慢，请稍后重试" : "网络连接失败，请检查网络后重试");
+      const text = await res.text();
+      let body = null;
+      try { body = text ? JSON.parse(text) : null; } catch { body = { message: text }; }
+      if (!res.ok) {
+        if ([429, 502, 503, 504].includes(res.status)) throw new Error("现在用的人太多了，请过一会儿再试");
+        const err = new Error(humanError(body || {}, res.status)); err.status = res.status; throw err;
+      }
+      return body;
+    }
   }
 
   function keep(j) {
@@ -75,7 +97,8 @@
       refreshing = call(BASE + "/auth/v1/token?grant_type=refresh_token",
         { method: "POST", body: JSON.stringify({ refresh_token: s.refresh_token }) })
         .then(keep)
-        .catch(() => { store(null); return null; })
+        // 只有服务器明确说「登录已失效」才退出；网络不好、服务器忙时保留登录，下次再续
+        .catch((e) => { if (e && (e.status === 400 || e.status === 401)) { store(null); return null; } return s; })
         .finally(() => { refreshing = null; });
     }
     return refreshing;
@@ -122,9 +145,14 @@
     return rest("rpc/" + fn, { method: "POST", body: JSON.stringify(args || {}) });
   }
 
-  let meCache = null;
-  async function me() {
-    if (meCache) return meCache;
+  let meCache = null, meLoading = null;
+  // 同一时间多处要用户信息时只请求一次
+  function me() {
+    if (meCache) return Promise.resolve(meCache);
+    if (!meLoading) meLoading = loadMe().finally(() => { meLoading = null; });
+    return meLoading;
+  }
+  async function loadMe() {
     const s = await session();
     if (!s || !s.user_id) return null;
     try {
