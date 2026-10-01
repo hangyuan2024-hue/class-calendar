@@ -809,6 +809,60 @@
   .unsure .ux:first-of-type { border-top: 0; }
   .unsure .ux em { font-style: normal; color: #c27803; margin-right: 6px; font-size: 12px; }
   .feat-off { display: none !important; }
+  /* ===== 排行榜 ===== */
+  .rk-seg { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--muted-bg); gap: 2px; }
+  .rk-seg button { border: 0; background: none; font: inherit; font-size: 13px; font-weight: 700; color: var(--sub); padding: 5px 12px; border-radius: 999px; cursor: pointer; }
+  .rk-seg button.on { background: var(--surface); color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  .rank-entry { display: flex; align-items: center; gap: 12px; margin: 12px 16px 0; padding: 14px 16px; width: calc(100% - 32px); border: 0; text-align: left; font: inherit; color: var(--text); cursor: pointer; }
+  .rank-entry .re-i { font-size: 28px; }
+  .rank-entry b { display: block; font-size: 16px; }
+  .rank-entry small { color: var(--sub); font-size: 13px; }
+  .rank-entry .re-go { margin-left: auto; font-size: 24px; color: var(--sub); }
+  .rk-class { margin: 0 16px; padding: 16px 18px; display: grid; gap: 10px; }
+  .rk-class .rc-top { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .rk-class .rc-top b { font-size: 17px; }
+  .rk-class .rc-num { margin-left: auto; font-size: 26px; font-weight: 900; color: var(--accent); }
+  .rk-class .rc-num small { font-size: 12px; color: var(--sub); font-weight: 600; margin-left: 2px; }
+  .rk-bar { height: 10px; border-radius: 999px; background: var(--muted-bg); overflow: hidden; }
+  .rk-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #4fd1c5, #3b82f6); }
+  .rk-class .rc-sub { font-size: 13px; color: var(--sub); display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .podium { display: grid; grid-template-columns: 1fr 1.15fr 1fr; align-items: end; gap: 10px; margin: 18px 16px 0; }
+  .pod { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
+  .pod .pav { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; font-size: 22px; font-weight: 900; color: #fff; position: relative; box-shadow: 0 0 0 3px var(--surface), 0 8px 18px -8px rgba(0,0,0,.35); }
+  .pod.p1 .pav { width: 70px; height: 70px; font-size: 28px; }
+  .pod .medal { position: absolute; right: -8px; bottom: -6px; font-size: 22px; }
+  .pod .pn { font-weight: 800; font-size: 14px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pod .pp { font-size: 12px; color: var(--sub); }
+  .pod .block { width: 100%; border-radius: 14px 14px 6px 6px; display: grid; place-items: center; font-size: 26px; font-weight: 900; color: rgba(255,255,255,.95); }
+  .pod.p1 .block { height: 96px; background: linear-gradient(180deg, #ffd25a, #f59e0b); }
+  .pod.p2 .block { height: 72px; background: linear-gradient(180deg, #d9e2ef, #94a3b8); }
+  .pod.p3 .block { height: 56px; background: linear-gradient(180deg, #f3b48a, #c2703d); }
+  .pod.empty .pav { background: var(--muted-bg) !important; color: var(--sub); box-shadow: none; }
+  .pod.me .pn::after, .rk-row.me .rn::after { content: "我"; margin-left: 4px; font-size: 11px; padding: 0 6px; border-radius: 999px; background: var(--accent); color: #fff; vertical-align: 2px; }
+  .rk-list { margin: 14px 16px 0; padding: 4px 0; }
+  .rk-row { display: grid; grid-template-columns: 32px 38px 1fr auto; align-items: center; gap: 10px; padding: 10px 14px; }
+  .rk-row + .rk-row { border-top: 1px solid var(--line); }
+  .rk-row.me { background: color-mix(in srgb, var(--accent) 9%, transparent); }
+  .rk-row .rr { font-weight: 900; color: var(--sub); text-align: center; }
+  .rk-row .rav { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-weight: 800; }
+  .rk-row .rn { font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rk-row .rs { font-size: 12px; color: var(--sub); margin-top: 2px; }
+  .rk-row .rbar { height: 5px; border-radius: 999px; background: var(--muted-bg); margin-top: 6px; overflow: hidden; }
+  .rk-row .rbar i { display: block; height: 100%; background: var(--accent); border-radius: inherit; }
+  .rk-row .rpts { font-weight: 900; font-size: 17px; text-align: right; }
+  .rk-row .rpts small { display: block; font-size: 11px; color: var(--sub); font-weight: 600; }
+  .rk-me { margin: 14px 16px 0; padding: 14px 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; font-size: 14px; }
+  .rk-me b { font-size: 16px; }
+  .rk-opts { margin: 14px 16px 0; padding: 12px 16px; font-size: 13px; color: var(--sub); display: grid; gap: 10px; }
+  .rk-opts .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .rk-opts summary { cursor: pointer; }
+  .rk-opts ul { margin: 6px 0 0; padding-left: 18px; line-height: 1.8; }
+  .rk-empty { margin: 18px 16px 0; padding: 26px 18px; text-align: center; color: var(--sub); }
+  .rk-empty svg { width: 84px; height: 84px; display: block; margin: 0 auto 8px; }
+  .wrank .wr-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 14px; }
+  .wrank .wr-row b { margin-left: auto; }
+  [data-skin=cyber] .pod .block { background: linear-gradient(180deg, rgba(0,240,255,.5), rgba(255,43,214,.35)) !important; border: 1px solid #00f0ff; }
+  [data-skin=cyber] .rk-bar i, [data-skin=cyber] .rk-row .rbar i { background: linear-gradient(90deg, #00f0ff, #ff2bd6); }
   .feat-notice { margin: 12px 16px 0; padding: 12px 16px; font-size: 13px; color: var(--sub); }
   .feat-notice b { color: var(--text); }
   .feat-notice li { margin: 2px 0; }
@@ -1088,6 +1142,7 @@
   <section class="view" data-view="growth">
     <header class="vhead"><button class="back" data-tab="home" aria-label="返回首页">‹</button><h2>成长</h2></header>
     <div class="surface" style="margin:0 16px"><div class="rings" id="gRings"></div></div>
+    <button class="rank-entry surface" data-tab="rank" data-feat="rank" id="rankEntry"><span class="re-i">🏆</span><span><b>班级成长排行榜</b><small id="rankEntrySub">完成作业、打卡、番茄钟都能攒成长值</small></span><span class="re-go">›</span></button>
     <div class="sec-h"><b>最近 14 天</b><span>每天完成了多少事、打了多少卡</span></div>
     <div class="trend surface" id="gTrend"></div>
     <div class="sec-h"><b>习惯打卡</b><span>小目标，每天勾一下</span></div>
@@ -1255,6 +1310,13 @@
       <label class="gi"><span class="ic">👁</span>显示已隐藏的事项<input type="checkbox" id="showHidden" class="switch"></label>
     </div>
     <div class="afoot">班级事项由班委统一整理。「我的事项」、完成标记和背景图只保存在这台设备上，不会上传。</div>
+  </section>
+
+  <!-- 班级成长排行榜 -->
+  <section class="view" data-view="rank">
+    <header class="vhead"><button class="back" data-tab="growth" aria-label="返回">‹</button><h2>排行榜</h2><span class="spacer"></span>
+      <div class="rk-seg" id="rankPeriod"><button data-p="week" class="on">本周</button><button data-p="month">本月</button><button data-p="all">总榜</button></div></header>
+    <div id="rankBox"></div>
   </section>
 
   <!-- 感谢名单 -->
@@ -1432,8 +1494,8 @@ const can = (perm) => !!(currentClass && currentClass[perm]);
 let FEAT = {};
 const feat = (k) => !FEAT[k] || FEAT[k].on !== false;
 const featWhy = (k) => (FEAT[k] && FEAT[k].why) || "";
-const FEAT_NAME = { ingest_cloud: "云端 AI 整理", ingest_local: "本地整理", local_ai: "本地 AI", ask: "AI 问答", wall: "班级墙", homework: "作业页", plan: "规划", growth: "成长与打卡", metaverse: "捞捞元宇宙", tools: "工具与插件", custom_bg: "自定义背景", mine: "记一件事" };
-const VIEW_FEAT = { homework: "homework", wall: "wall", plan: "plan", growth: "growth", ask: "ask", tools: "tools" };
+const FEAT_NAME = { ingest_cloud: "云端 AI 整理", ingest_local: "本地整理", local_ai: "本地 AI", ask: "AI 问答", wall: "班级墙", homework: "作业页", plan: "规划", growth: "成长与打卡", metaverse: "捞捞元宇宙", tools: "工具与插件", custom_bg: "自定义背景", mine: "记一件事", rank: "成长排行榜" };
+const VIEW_FEAT = { homework: "homework", wall: "wall", plan: "plan", growth: "growth", ask: "ask", tools: "tools", rank: "rank" };
 const viewOn = (id) => (id.startsWith("p_") ? feat("tools") : !VIEW_FEAT[id] || feat(VIEW_FEAT[id]));
 const ingestPersonal = () => !can("can_ingest");      // 没有班级整理权限的人：整理结果只进自己的「我的事项」
 // 普通学生要老师在本班打开「本地整理 · 学生」才有；班委要有「AI 整理」权限
@@ -1582,7 +1644,7 @@ const agendaOpen = new Set();
 const LS_SKIN = "ui_skin_v1", LS_BG = "ui_bg_v1", LS_BG_OPTS = "ui_bg_opts_v1";
 const SKIN_COLOR = { vivid: "#cdeeff", clean: "#ffffff", dark: "#000000", cyber: "#07060f" };
 // 元宇宙里的叫法
-const CYBER_NAMES = { 感谢名单: "荣誉殿堂", 首页: "主控台", 作业: "任务清单", 班级墙: "广播频道", 日历: "时间线", 规划: "作战室", 工具: "模组库", 我的: "身份档案", 问答: "AI 终端", 成长: "成长数据", 班级: "班级节点", 班级日历: "捞捞元宇宙" };
+const CYBER_NAMES = { 排行榜: "战力榜", 感谢名单: "荣誉殿堂", 首页: "主控台", 作业: "任务清单", 班级墙: "广播频道", 日历: "时间线", 规划: "作战室", 工具: "模组库", 我的: "身份档案", 问答: "AI 终端", 成长: "成长数据", 班级: "班级节点", 班级日历: "捞捞元宇宙" };
 const cyName = (t) => (document.documentElement.dataset.skin === "cyber" && CYBER_NAMES[t]) || t;
 function applyLook() {
   const root = document.documentElement;
@@ -2436,6 +2498,7 @@ $("askBox").onclick = (e) => { const b = e.target.closest("[data-q]"); if (b) as
 function setMark(k, patch) {
   marks[k] = { ...(marks[k] || {}), ...patch }; save(LS_MARK, marks);
   if ("done" in patch) logDone(k, patch.done);
+  if ("done" in patch && /^c\d+$/.test(k)) growthLog("done", k.slice(1), !patch.done);
   renderAll();
   if (patch.done) cheerFor(k);
 }
@@ -2885,6 +2948,7 @@ function showView(id) {
   if (id === "plan") renderPlan();
   if (id === "ask") renderAsk();
   if (id === "credits") loadCredits();
+  if (id === "rank") loadRank();
   if (scrollStore) $("storeAnchor").scrollIntoView();
   else window.scrollTo(0, 0);
 }
@@ -2924,6 +2988,77 @@ $("nameForm").onsubmit = async (e) => {
   } catch (err) { $("ndStatus").textContent = "保存失败：" + err.message; }
   finally { b.disabled = false; }
 };
+
+// ===== 班级成长排行榜 =====
+// 完成班级事项、习惯打卡、番茄钟会记到数据库里攒成长值（老师不参加排名）
+function growthLog(kind, ref, undo) {
+  if (!currentUser || !currentClass || currentClass.is_teacher || !feat("rank")) return;
+  CCAuth.rpc("growth_log", { cid: currentClass.id, k: kind, r: String(ref), undo: !!undo }).then(() => { rankCache = null; }).catch(() => {});
+}
+let rankCache = null, rankPeriod = "week", rankSynced = {};
+async function loadRankData(period) {
+  const cid = currentClass.id;
+  // 以前在这台设备上勾过「完成」的班级事项，第一次打开时补记上
+  if (!rankSynced[cid] && !currentClass.is_teacher) {
+    rankSynced[cid] = true;
+    const ids = classRecords.filter((r) => (marks["c" + r.id] || {}).done).map((r) => r.id);
+    if (ids.length) { try { await CCAuth.rpc("growth_sync_done", { cid, ids }); } catch (e) {} }
+  }
+  const data = await CCAuth.rpc("growth_board", { cid, period });
+  rankCache = { cid, period, data };
+  return data;
+}
+const AV_COLORS = ["#ff8a5b", "#4f9dff", "#34c38f", "#a66cff", "#ff5d8f", "#f5a623", "#22b8cf", "#7c8cff"];
+const avColor = (name) => AV_COLORS[[...String(name)].reduce((a, c) => a + c.codePointAt(0), 0) % AV_COLORS.length];
+const PERIOD_NAME = { week: "本周", month: "本月", all: "总共" };
+async function loadRank() {
+  const box = $("rankBox");
+  document.querySelectorAll("#rankPeriod [data-p]").forEach((b) => b.classList.toggle("on", b.dataset.p === rankPeriod));
+  if (!currentUser || !currentClass) { box.innerHTML = `<div class="rk-empty surface">加入班级后就能和同学一起攒成长值、上排行榜啦</div>`; return; }
+  box.innerHTML = `<div class="rk-empty surface">加载中…</div>`;
+  let d;
+  try { d = await loadRankData(rankPeriod); } catch (e) { box.innerHTML = `<div class="rk-empty surface">排行榜暂时打不开：${esc(e.message)}<br><small>（管理员需要在扣子终端运行一次 setupaccounts.py）</small></div>`; return; }
+  renderRank(d);
+}
+function renderRank(d) {
+  const box = $("rankBox"), rows = d.rows, c = d.class, P = PERIOD_NAME[rankPeriod];
+  const cname = currentClass.nickname || currentClass.name, top = rows.length ? rows[0].points : 1;
+  const av = (r, cls) => `<div class="${cls}" style="background:${r.anon && !d.teacher && !r.me ? "#9aa5b5" : avColor(r.name)}">${esc([...r.name][0] || "?")}`;
+  const pod = (r, i) => !r ? `<div class="pod p${i} empty"><div class="pav">?</div><div class="pn">虚位以待</div><div class="pp">&nbsp;</div><div class="block">${i}</div></div>`
+    : `<div class="pod p${i}${r.me ? " me" : ""}">${av(r, "pav")}<span class="medal">${["🥇", "🥈", "🥉"][i - 1]}</span></div><div class="pn">${esc(r.name)}</div><div class="pp">${r.points} 成长值</div><div class="block">${r.rank}</div></div>`;
+  const stat = (r) => [r.hw ? `✓ 作业 ${r.hw}` : "", r.done - r.hw > 0 ? `✓ 其它 ${r.done - r.hw}` : "", r.habits ? `🔥 打卡 ${r.habits}` : "", r.pomos ? `🍅 ${r.pomos}` : ""].filter(Boolean).join(" · ") || "刚刚起步";
+  const me = rows.find((r) => r.me);
+  const rate = c.hw_rate;
+  box.innerHTML = `
+    <div class="rk-class surface">
+      <div class="rc-top"><b>🏫 ${esc(cname)}</b><span class="meta">${P}全班一起攒了</span><span class="rc-num">${c.points}<small>成长值</small></span></div>
+      ${rate != null ? `<div class="rk-bar"><i style="width:${Math.min(100, rate)}%"></i></div>
+      <div class="rc-sub"><span>本周作业完成率 <b>${rate}%</b>（${c.hw_items} 项作业）</span><span>${c.active}/${c.members} 位同学在努力</span></div>`
+      : `<div class="rc-sub"><span>本周还没有要交的作业</span><span>${c.active}/${c.members} 位同学在努力</span></div>`}
+    </div>
+    ${rows.length ? `<div class="podium">${pod(rows[1], 2)}${pod(rows[0], 1)}${pod(rows[2], 3)}</div>
+      ${rows.length > 3 ? `<div class="rk-list surface">${rows.slice(3).map((r) => `<div class="rk-row${r.me ? " me" : ""}"><div class="rr">${r.rank}</div>${av(r, "rav")}</div>
+        <div style="min-width:0"><div class="rn">${esc(r.name)}</div><div class="rs">${stat(r)}</div><div class="rbar"><i style="width:${Math.round(100 * r.points / Math.max(1, top))}%"></i></div></div>
+        <div class="rpts">${r.points}<small>成长值</small></div></div>`).join("")}</div>` : ""}`
+      : `<div class="rk-empty surface"><svg viewBox="0 0 120 120" aria-hidden="true"><use href="#mascotArt"/></svg>${P}还没有人上榜。<br>完成一项作业就能上榜，先到先得！</div>`}
+    ${d.member ? `<div class="rk-me surface">${d.my_mode === "off" ? `<span>你选择了<b>不参加</b>排行，成长值照样会记着。</span>`
+        : me ? `<span>我：<b>第 ${me.rank} 名</b> · ${me.points} 成长值</span><span class="meta">${stat(me)}</span>`
+        : `<span>你${P}还没有攒成长值，完成一项作业试试？</span>`}</div>` : ""}
+    <div class="rk-opts surface">
+      ${d.member ? `<div class="row">我在榜上显示为：<div class="rk-seg" id="rankMode">${[["show", "实名"], ["anon", "匿名"], ["off", "不参加"]].map(([k, t]) => `<button data-m="${k}" class="${d.my_mode === k ? "on" : ""}">${t}</button>`).join("")}</div></div>` : ""}
+      ${d.teacher ? `<div>👀 你是老师，能看到匿名同学的真名；老师自己不参加排名。</div>` : ""}
+      <details><summary>成长值怎么算？</summary><ul>
+        <li>完成一项班级作业 <b>+10</b>，其它班级事项 <b>+5</b>（在日历或作业页里打勾）</li>
+        <li>习惯打卡一次 <b>+3</b>，每天最多算 5 次</li>
+        <li>完成一个番茄钟 <b>+2</b>，每天最多算 12 个</li>
+        <li>排名只是互相鼓励，可以随时选择匿名或不参加</li></ul></details>
+    </div>`;
+}
+$("rankPeriod").onclick = (e) => { const b = e.target.closest("[data-p]"); if (!b) return; rankPeriod = b.dataset.p; loadRank(); };
+$("rankBox").addEventListener("click", async (e) => {
+  const b = e.target.closest("#rankMode [data-m]"); if (!b) return;
+  try { await CCAuth.rpc("rank_set_pref", { cid: currentClass.id, m: b.dataset.m }); rankCache = null; loadRank(); } catch (err) { alert("设置失败：" + err.message); }
+});
 
 // ===== 感谢名单 =====
 let credits = [], creditEdit = null;
@@ -3146,6 +3281,7 @@ function toggleHabit(id) {
   const t = todayKey(), log = (habitLog[id] ||= {});
   if (log[t]) delete log[t]; else log[t] = true;
   save(LS_HABIT_LOG, habitLog); renderGrowth(); renderWidgets();
+  growthLog("habit", id + "|" + t, !log[t]);
   if (log[t]) { const h = habits.find((x) => x.id === id); cheer("habit", { name: h.name, streak: streakOf(h) }); }
 }
 
@@ -3233,6 +3369,7 @@ const WDEF = {
   "w:quick": { name: "快捷按钮", icon: "⚡", w: 4, h: 1, minW: 2, fixed: true },
   "w:habits": { name: "今日打卡", icon: "🔥", w: 2, h: 2, on: () => funOpts().habits },
   "w:pomo": { name: "番茄钟", icon: "🍅", w: 2, h: 1, on: () => funOpts().plan },
+  "w:rank": { name: "排行榜", icon: "🏆", w: 2, h: 1, on: () => feat("rank") && !!currentClass },
 };
 function homeLayout() {
   const L = load(LS_LAYOUT, null);
@@ -3243,6 +3380,7 @@ const saveLayout = (L) => { save(LS_LAYOUT, L); renderTabs(); renderTools(); };
 function toolList() {
   const o = funOpts(), out = feat("growth") ? [{ id: "t:growth", view: "growth", icon: "📈", name: "成长", desc: "进度环、趋势图和习惯打卡" }] : [];
   if (o.plan) out.push({ id: "t:plan", view: "plan", icon: "🎯", name: "规划", desc: "四象限和番茄钟" });
+  if (feat("rank") && currentClass) out.push({ id: "t:rank", view: "rank", icon: "🏆", name: "排行榜", desc: "班级成长排行榜" });
   for (const t of feat("tools") ? pluginTabs : []) {
     const meta = (pluginState[t.plugin] || {}).meta || {};
     out.push({ id: "p:" + t.id, view: t.id, icon: t.icon, name: String(t.title).replace(/^\p{Extended_Pictographic}️?\s*/u, ""), desc: meta.description || "", plugin: t.plugin });
@@ -3308,6 +3446,14 @@ function cardBody(id, w, h) {
       ${habits.length ? habits.slice(0, Math.max(1, h * 3 - 1)).map((x) => { const on = (habitLog[x.id] || {})[t];
         return `<div class="whabit"><span>${esc(x.icon)} ${esc(x.name)}</span><button class="hchk${on ? " on" : ""}" data-whabit="${esc(x.id)}">${on ? "✓" : "打卡"}</button></div>`; }).join("")
         : `<div class="empty">还没有习惯，<a href="#" data-tab="growth">去添加</a></div>`}</div>`;
+  }
+  if (id === "w:rank") {
+    if (!rankCache || rankCache.cid !== (currentClass && currentClass.id)) { loadRankData("week").then(() => renderWidgets()).catch(() => {}); return `<div class="surface wb wsimple wrank"><h5>🏆 本周排行</h5><div class="empty">加载中…</div></div>`; }
+    const rows = rankCache.data.rows, me = rows.find((r) => r.me), n = big ? 5 : 3;
+    return `<div class="surface wb wsimple wrank"><h5>🏆 本周排行<span class="spacer"></span><button class="small" data-tab="rank">全部</button></h5>
+      ${rows.length ? rows.slice(0, n).map((r) => `<div class="wr-row">${["🥇", "🥈", "🥉"][r.rank - 1] || r.rank + "."} ${esc(r.name)}${r.me ? "（我）" : ""}<b>${r.points}</b></div>`).join("")
+        + (me && me.rank > n ? `<div class="wr-row meta">我：第 ${me.rank} 名<b>${me.points}</b></div>` : "")
+        : `<div class="empty">这周还没人上榜，完成一项作业就能上榜！</div>`}</div>`;
   }
   if (id === "w:pomo") {
     return `<div class="surface wb wsimple"><h5>🍅 番茄钟</h5><div class="wpomo"><div><b id="wgPomoTime">--:--</b><div class="meta" id="wgPomoMode"></div></div>
@@ -3547,6 +3693,7 @@ function pomoTick() {
   if ((pomo.mode === "focus" || pomo.mode === "break") && now >= pomo.end) {
     if (pomo.mode === "focus") {
       const t = todayKey(); pomoLog[t] = (pomoLog[t] || 0) + 1; save(LS_POMO_LOG, pomoLog);
+      growthLog("pomo", t + "|" + pomoLog[t], false);
       pomo = { ...pomo, mode: "break", end: now + 5 * 60000 }; beep(); cheer("pomo");
     } else { pomo = { ...pomo, mode: "idle" }; beep(); }
     savePomo();
