@@ -97,6 +97,7 @@
   html.has-bg .rail { background: var(--surface); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
   html.has-bg .aday-h, html.has-bg .sec-h, html.has-bg .legend, html.has-bg .hw-head, html.has-bg #classBar .cb-main, html.has-bg .afoot {
     text-shadow: 0 0 10px var(--bg), 0 0 4px var(--bg); }
+  html.has-bg .wcard .surface { background: var(--surface); }
   html.has-bg .surface, html.has-bg .vhead { -webkit-backdrop-filter: blur(18px) saturate(160%); backdrop-filter: blur(18px) saturate(160%); }
 
   .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: 999px; padding: 8px 16px;
@@ -585,6 +586,80 @@
   .pomo .pstat b { color: var(--text); }
   .tomatoes { letter-spacing: 2px; }
 
+  /* ================= 首页卡片（可自定义） ================= */
+  .widgets { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: 128px; grid-auto-flow: row dense; gap: 12px; margin: 14px 16px 0; }
+  .wcard { position: relative; min-width: 0; grid-column: span var(--w, 2); grid-row: span var(--h, 1); overflow: hidden; border-radius: var(--r-xl); }
+  .wcard > .wb { height: 100%; }
+  .wcard .wb.surface { border-radius: var(--r-xl); }
+  .wcard .tile { height: 100%; min-height: 0; width: 100%; }
+  .wcard .quick { margin: 0; height: 100%; align-items: center; }
+  .wcard .home-pins, .wcard .home-prog { margin: 0; height: 100%; }
+  .wcard .home-prog .rings { padding: 10px 6px; height: 100%; align-content: center; }
+  .wcard .home-pins span { -webkit-line-clamp: calc(var(--h) * 3); }
+  .wlist { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow: hidden; }
+  .wlist .wrow2 { display: flex; gap: 8px; align-items: center; font-size: 13px; font-weight: 600; background: rgba(255,255,255,.22); border-radius: 10px; padding: 5px 8px; }
+  [data-skin=clean] .wlist .wrow2, [data-skin=dark] .wlist .wrow2 { background: var(--hover); }
+  .wlist .wrow2 span:first-child { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  [data-skin=vivid] .tile .due-tag { background: rgba(255,255,255,.9); }
+  .tile.has-list .big { margin-top: 6px; font-size: 34px; }
+  .tile .mini { margin-top: 8px; }
+  [data-skin=vivid] .tile .mini button { color: #fff; } [data-skin=vivid] .tile .mini .wd { color: rgba(255,255,255,.8); }
+  [data-skin=vivid] .tile .mini button.t { background: #fff; color: var(--accent); }
+  [data-skin=vivid] .tile .mini button i { background: #fff; }
+  .tile .mini button { height: 26px; font-size: 12px; }
+  .wsimple { height: 100%; padding: 14px 16px; display: flex; flex-direction: column; min-height: 0; }
+  .wsimple h5 { margin: 0 0 6px; font-size: 15px; font-weight: 800; display: flex; align-items: center; gap: 6px; }
+  [data-skin=vivid] .wsimple h5 { font-family: var(--fd); font-weight: var(--fd-weight); font-size: 19px; letter-spacing: .5px; }
+  .wsimple h5 .spacer + * { font-family: -apple-system, "PingFang SC", sans-serif; }
+  .whabit { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 14px; font-weight: 600; }
+  .whabit span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .whabit .hchk { padding: 3px 10px; font-size: 12px; }
+  .wpomo { display: flex; align-items: center; gap: 12px; flex: 1; }
+  .wpomo b { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .launch { height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 6px; padding: 14px 16px; text-align: left; width: 100%; cursor: pointer; }
+  .launch .li { font-size: 34px; line-height: 1; }
+  .launch b { font-size: 16px; font-weight: 800; }
+  .launch small { color: var(--sub); font-size: 12.5px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .wframe { height: 100%; display: flex; flex-direction: column; }
+  .wframe .wfh { display: flex; align-items: center; gap: 8px; padding: 8px 12px; font-weight: 800; font-size: 14px; border-bottom: 1px solid var(--line); }
+  .wframe iframe { flex: 1; width: 100%; border: 0; background: var(--card); }
+  .wedit-entry { text-align: center; margin: 12px 0 0; }
+  .wedit-entry .small { color: var(--sub); }
+  html.wediting .wedit-entry { display: none; }
+  .wedit-bar { position: sticky; top: 56px; z-index: 7; margin: 4px 16px 0; padding: 12px 14px; border-radius: var(--r); background: var(--ink); color: var(--ink-text); box-shadow: 0 14px 30px -12px rgba(0,0,0,.45); }
+  .wedit-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; }
+  .wedit-top b { font-size: 15px; }
+  .wedit-top span { opacity: .75; }
+  .wedit-bar .small { background: transparent; color: inherit; border-color: color-mix(in srgb, var(--ink-text) 35%, transparent); }
+  .wedit-bar .btn.ink { background: var(--ink-text); color: var(--ink); }
+  .wadd { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .wadd:empty { display: none; }
+  .wadd button { font-size: 13px; padding: 4px 10px; border-radius: 999px; border: 1px dashed color-mix(in srgb, var(--ink-text) 45%, transparent); color: inherit; }
+  .wadd button:hover { border-style: solid; }
+  html.wediting .wcard { outline: 2px dashed color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: -2px; cursor: grab; }
+  html.wediting .wcard > .wb { pointer-events: none; filter: saturate(.9); }
+  html.wediting .wcard.dragging { opacity: .4; }
+  html.wediting .wcard.over { outline-style: solid; }
+  .wctl { display: none; }
+  html.wediting .wctl { display: flex; position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+  .wctl > * { pointer-events: auto; }
+  .wctl .wx, .wctl .wmv { position: absolute; top: 6px; width: 28px; height: 28px; border-radius: 50%; background: var(--ink); color: var(--ink-text); display: grid; place-items: center; font-size: 15px; box-shadow: 0 4px 10px rgba(0,0,0,.25); }
+  .wctl .wx { right: 6px; }
+  .wctl .wmv.l { left: 6px; } .wctl .wmv.r { left: 38px; }
+  .wctl .wsz { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); font-size: 12px; font-weight: 800; padding: 3px 10px; border-radius: 999px; background: var(--ink); color: var(--ink-text); white-space: nowrap; }
+  .wctl .wrs { position: absolute; right: 0; bottom: 0; width: 34px; height: 34px; cursor: nwse-resize; touch-action: none;
+    background: linear-gradient(135deg, transparent 50%, var(--accent) 50%); border-bottom-right-radius: var(--r-xl); }
+  .wctl .wrs::after { content: ""; position: absolute; right: 7px; bottom: 7px; width: 10px; height: 10px; border-right: 2px solid #fff; border-bottom: 2px solid #fff; }
+  .wghost { grid-column: span 2; border: 2px dashed var(--line); border-radius: var(--r-xl); display: grid; place-items: center; color: var(--sub); font-size: 13px; }
+  .tool { position: relative; }
+  .tool .tplace { position: absolute; right: 2px; top: 0; width: 26px; height: 26px; border-radius: 50%; font-size: 15px; color: var(--sub); line-height: 1; }
+  .tool .tplace:hover { background: var(--hover); color: var(--text); }
+  .tool .tbadge { font-size: 10.5px; color: var(--accent); font-weight: 700; }
+  .nav .emo { width: 26px; height: 26px; display: grid; place-items: center; font-size: 21px; flex-shrink: 0; }
+  .sizepick { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0 0 24px; }
+  .sizepick button { padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line); font-size: 13px; font-weight: 600; }
+  .sizepick button.on { background: var(--ink); color: var(--ink-text); border-color: transparent; }
+
   /* 完成鼓励 */
   #cheer { position: fixed; left: 50%; bottom: 36px; transform: translate(-50%, 30px); opacity: 0; pointer-events: none; z-index: 60;
     display: flex; align-items: center; gap: 12px; background: var(--card); color: var(--text); border: 1px solid var(--line);
@@ -613,6 +688,15 @@
     .composer, #wallList, .wfilter, .reports, .home-pins, .home-prog, .trend { margin-left: 12px; margin-right: 12px; }
     #cheer { bottom: calc(84px + env(safe-area-inset-bottom)); }
     .habit { padding: 12px 12px; gap: 10px; }
+    .widgets { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 116px; gap: 10px; margin-left: 12px; margin-right: 12px; }
+    .wcard.w1, .wcard.w2 { grid-column: span 1; } .wcard.w3, .wcard.w4 { grid-column: span 2; }
+    .wedit-bar { position: fixed; top: auto; left: 12px; right: 12px; bottom: calc(74px + env(safe-area-inset-bottom)); margin: 0; z-index: 35; padding: 10px 12px; }
+    .wedit-top span:not(.spacer) { display: none; }
+    .wadd { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+    .wadd button { flex-shrink: 0; }
+    html.wediting #addBtn { display: none; }
+    html.wediting .col { padding-bottom: 240px; }
+    .launch .li { font-size: 28px; }
     .quads, .pomo { margin-left: 12px; margin-right: 12px; }
     .quads { gap: 8px; }
     .quad { padding: 10px 8px 8px; min-height: 160px; }
@@ -686,16 +770,22 @@
     </div>
     <div id="notice" class="surface hidden"></div>
     <div id="hero"></div>
-    <div id="homePins" class="home-pins surface hidden" data-tab="wall"></div>
-    <div id="tiles" class="tiles"></div>
-    <div id="homeProg" class="home-prog surface hidden" data-tab="growth" style="cursor:pointer"></div>
-    <div class="quick">
+    <div id="wEditBar" class="wedit-bar hidden">
+      <div class="wedit-top"><b>自定义首页</b><span>拖动排序，拖右下角调大小，点 × 移走</span><span class="spacer"></span>
+        <button class="small" id="wReset">恢复默认</button><button class="btn ink sm" id="wDone">完成</button></div>
+      <div class="wadd" id="wAddList"></div>
+    </div>
+    <div id="widgets" class="widgets"></div>
+    <div class="wedit-entry"><button class="small" id="wEdit">✏️ 自定义首页</button></div>
+    <div id="wParts" hidden>
+    <div class="quick" id="quickPart">
       <button class="qbtn hidden" id="cIngestBtn"><span class="qi">✨</span>AI 整理</button>
       <button class="qbtn hidden" id="cAddBtn"><span class="qi">📣</span>发布事项</button>
       <button class="qbtn" id="qMine"><span class="qi">✏️</span>记一件事</button>
       <button class="qbtn" id="qPlan" data-tab="plan"><span class="qi">🎯</span>四象限</button>
       <button class="qbtn" id="qIcs" data-tab="growth"><span class="qi">🔥</span>打卡成长</button>
       <button class="qbtn" id="qTools" data-tab="tools"><span class="qi">🧩</span>更多工具</button>
+    </div>
     </div>
     <section id="ingestPanel" class="surface hidden">
       <div class="ip-head">✨ 粘贴群消息 <small>AI 会提取作业、会议、活动和通知，闲聊自动过滤</small></div>
@@ -914,6 +1004,17 @@
     </g>
   </defs>
 </svg>
+
+<div id="placeSheet" class="modal2">
+  <form id="placeForm">
+    <h3 id="placeTitle">放在哪里</h3>
+    <div class="meta">工具页里始终都能找到它，下面可以再多放一个地方。</div>
+    <label class="check" style="margin-top:16px"><input type="checkbox" id="placeHome"> 放到首页，做成一张卡片</label>
+    <div id="placeSizes" class="sizepick"></div>
+    <label class="check" style="margin-top:14px"><input type="checkbox" id="placeRail"> 放到左侧导航栏（手机上是底部栏，最多 1 个）</label>
+    <div class="btns"><button type="button" id="placeCancel">取消</button><button type="submit" class="primary">保存</button></div>
+  </form>
+</div>
 
 <div id="cheer" role="status" aria-live="polite"><span class="st" id="cheerSt"></span><div><b id="cheerT"></b><span id="cheerS"></span></div></div>
 
@@ -1228,18 +1329,7 @@ function renderAgenda() {
       <div class="say">${say}</div>
       <svg class="mascot" viewBox="0 0 120 120" aria-hidden="true"><use href="#mascotArt"/></svg>
     </div>`;
-  const hwLeft = homework + overdue.length;
-  $("tiles").innerHTML = `
-    <button class="tile a" data-tab="homework" id="statHw">
-      <svg class="deco" viewBox="0 0 100 100"><path d="M18 52 l22 22 l44 -48" fill="none" stroke="#fff" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <b>作业</b><small>${overdue.length ? `${overdue.length} 项已过期` : "两周内要交"}</small>
-      <span class="big">${hwLeft}</span><span class="go">去完成 ▶</span>
-    </button>
-    <button class="tile b" data-tab="calendar">
-      <svg class="deco" viewBox="0 0 100 100"><rect x="12" y="20" width="76" height="68" rx="16" fill="none" stroke="#fff" stroke-width="10"/><path d="M12 42h76M34 10v20M66 10v20" stroke="#fff" stroke-width="10" stroke-linecap="round"/></svg>
-      <b>日历</b><small>今天 ${todayCount} 项 · 两周 ${upcoming} 项</small>
-      <span class="big">${today.getDate()}</span><span class="go">打开 ▶</span>
-    </button>`;
+  homeStats = { hwLeft: homework + overdue.length, overdue: overdue.length, todayCount, upcoming };
   box.innerHTML = `
     ${overdue.length ? `<div class="aday"><div class="aday-h overdue"><b>已过期</b><span>还没标记完成的作业</span></div><div class="acard surface">${overdue.map(agendaRow).join("")}</div></div>` : ""}
     ${sections.join("")}
@@ -1336,7 +1426,7 @@ function renderSide() {
   $("undatedList").innerHTML = undated.length ? undated.map((r) => itemHtml(r, true)).join("") : `<div class="empty">暂无</div>`;
 }
 
-function renderAll() { indexItems(); renderGrid(); renderSide(); renderAgenda(); renderHomework(); renderRail(); renderGrowth(); renderPlan(); syncJump(); }
+function renderAll() { indexItems(); renderGrid(); renderSide(); renderAgenda(); renderHomework(); renderRail(); renderGrowth(); renderPlan(); renderWidgets(); syncJump(); }
 
 function showBanner(msg) { const b = $("banner"); b.textContent = msg; b.classList.toggle("show", !!msg); }
 
@@ -1906,18 +1996,25 @@ let hwBadge = 0;
 function currentView() { return document.querySelector(".view.on[data-view]")?.dataset.view || "home"; }
 function renderTabs() {
   let cur = currentView();
-  if (cur.startsWith("p_")) cur = "tools";
+  const pinned = railPins().some((t) => t.view === cur);
+  if (cur.startsWith("p_") && !pinned) cur = "tools";
   $("tabs").innerHTML = NAV.map(([id, t]) => `<button class="nav${id === cur ? " on" : ""}${id === "tools" || id === "plan" ? " desk" : ""}${id === "plan" && !funOpts().plan ? " hidden" : ""}" data-tab="${id}">${icon(id)}<span>${t}</span>${id === "homework" && hwBadge ? `<em class="badge">${hwBadge}</em>` : ""}</button>`).join("")
+    + railPins().map((t, i) => `<button class="nav pin${i ? " desk" : ""}${t.view === cur ? " on" : ""}" data-tab="${esc(t.view)}"><span class="emo">${esc(t.icon)}</span><span>${esc(t.name)}</span></button>`).join("")
     + `<a class="nav desk" href="class.html">${icon("class")}<span>班级</span></a>`;
 }
 function renderTools() {
-  $("toolGrid").innerHTML = pluginTabs.map((t) => {
-    const label = String(t.title).replace(/^\p{Extended_Pictographic}️?\s*/u, "");
-    return `<button class="tool" data-tab="${esc(t.id)}"><span class="ti">${esc(t.icon)}</span>${esc(label)}</button>`;
+  const L = homeLayout();
+  $("toolGrid").innerHTML = toolList().map((t) => {
+    const where = [L.home.some((x) => x.id === t.id) ? "首页" : "", L.rail.includes(t.id) ? "侧栏" : ""].filter(Boolean).join(" · ");
+    return `<div class="tool"><button class="tool" style="padding:0" data-tab="${esc(t.view)}"><span class="ti">${esc(t.icon)}</span>${esc(t.name)}</button>
+      ${where ? `<span class="tbadge">${where}</span>` : ""}
+      <button class="tplace" data-place="${esc(t.id)}" aria-label="设置「${esc(t.name)}」放在哪里" title="放在哪里">⋯</button></div>`;
   }).join("") + `<button class="tool" data-tab="store"><span class="ti">🛍️</span>插件商店</button>`;
+  renderTabs(); renderWidgets();
 }
 document.addEventListener("click", (e) => {
   const b = e.target.closest("[data-tab]"); if (!b) return;
+  if (document.documentElement.classList.contains("wediting") && b.closest("#widgets")) return;
   e.preventDefault(); showView(b.dataset.tab);
 });
 function showView(id) {
@@ -2096,17 +2193,17 @@ $("hSugg").onclick = (e) => { const b = e.target.closest("[data-sugg]"); if (b) 
 $("habitList").onclick = (e) => {
   const d = e.target.closest("[data-hdel]");
   if (d) { const h = habits.find((x) => x.id === d.dataset.hdel); if (h && confirm(`删除「${h.name}」和它的打卡记录？`)) { habits = habits.filter((x) => x !== h); delete habitLog[h.id]; save(LS_HABITS, habits); save(LS_HABIT_LOG, habitLog); renderGrowth(); } return; }
-  const b = e.target.closest("[data-habit]"); if (!b) return;
-  const id = b.dataset.habit, t = todayKey(), log = (habitLog[id] ||= {});
-  if (log[t]) delete log[t]; else log[t] = true;
-  save(LS_HABIT_LOG, habitLog); renderGrowth();
-  if (log[t]) { const h = habits.find((x) => x.id === id); cheer("habit", { name: h.name, streak: streakOf(h) }); }
+  const b = e.target.closest("[data-habit]"); if (b) toggleHabit(b.dataset.habit);
 };
+function toggleHabit(id) {
+  const t = todayKey(), log = (habitLog[id] ||= {});
+  if (log[t]) delete log[t]; else log[t] = true;
+  save(LS_HABIT_LOG, habitLog); renderGrowth(); renderWidgets();
+  if (log[t]) { const h = habits.find((x) => x.id === id); cheer("habit", { name: h.name, streak: streakOf(h) }); }
+}
 
 function renderGrowth() {
   const o = funOpts();
-  $("homeProg").classList.toggle("hidden", !o.rings);
-  if (o.rings) $("homeProg").innerHTML = `<div class="rings">${ringsHtml(74)}</div>`;
   renderQuick();
   const v = document.querySelector('.view[data-view="growth"]');
   if (!v || !v.classList.contains("on")) return;
@@ -2172,6 +2269,228 @@ function confetti(n) {
     document.body.appendChild(c); setTimeout(() => c.remove(), 1300);
   }
 }
+
+// ===== 首页卡片 · 工具摆放（只存在这台设备上） =====
+const LS_LAYOUT = "home_layout_v1";
+let homeStats = { hwLeft: 0, overdue: 0, todayCount: 0, upcoming: 0 };
+const W_DEFAULT = { home: [{ id: "w:pins", w: 4, h: 1 }, { id: "w:hw", w: 2, h: 1 }, { id: "w:cal", w: 2, h: 1 }, { id: "w:rings", w: 4, h: 1 }, { id: "w:quick", w: 4, h: 1 }], rail: [] };
+const WDEF = {
+  "w:hw": { name: "作业", icon: "📝", w: 2, h: 1 },
+  "w:cal": { name: "日历", icon: "📅", w: 2, h: 1 },
+  "w:pins": { name: "置顶通知", icon: "📌", w: 4, h: 1 },
+  "w:rings": { name: "本周进度", icon: "⭕", w: 4, h: 1, on: () => funOpts().rings },
+  "w:quick": { name: "快捷按钮", icon: "⚡", w: 4, h: 1, minW: 2, fixed: true },
+  "w:habits": { name: "今日打卡", icon: "🔥", w: 2, h: 2, on: () => funOpts().habits },
+  "w:pomo": { name: "番茄钟", icon: "🍅", w: 2, h: 1, on: () => funOpts().plan },
+};
+function homeLayout() {
+  const L = load(LS_LAYOUT, null);
+  return L && Array.isArray(L.home) ? { home: L.home, rail: L.rail || [] } : JSON.parse(JSON.stringify(W_DEFAULT));
+}
+const saveLayout = (L) => { save(LS_LAYOUT, L); renderTabs(); renderTools(); };
+// 工具：内置的「成长」「规划」+ 已启用插件的标签页
+function toolList() {
+  const o = funOpts(), out = [{ id: "t:growth", view: "growth", icon: "📈", name: "成长", desc: "进度环、趋势图和习惯打卡" }];
+  if (o.plan) out.push({ id: "t:plan", view: "plan", icon: "🎯", name: "规划", desc: "四象限和番茄钟" });
+  for (const t of pluginTabs) {
+    const meta = (pluginState[t.plugin] || {}).meta || {};
+    out.push({ id: "p:" + t.id, view: t.id, icon: t.icon, name: String(t.title).replace(/^\p{Extended_Pictographic}️?\s*/u, ""), desc: meta.description || "", plugin: t.plugin });
+  }
+  return out;
+}
+const toolById = (id) => toolList().find((t) => t.id === id);
+const railPins = () => homeLayout().rail.map(toolById).filter(Boolean);
+function cardInfo(id) { return WDEF[id] || toolById(id); }
+function cardAvailable(id) { const d = WDEF[id]; return d ? (!d.on || d.on()) : !!toolById(id); }
+const isMobile = () => matchMedia("(max-width: 700px)").matches;
+
+function miniCalHtml() {
+  const y = today.getFullYear(), m = today.getMonth(), first = new Date(y, m, 1), start = new Date(y, m, 1 - (first.getDay() + 6) % 7);
+  let html = ["一", "二", "三", "四", "五", "六", "日"].map((w) => `<span class="wd">${w}</span>`).join("");
+  for (let i = 0; i < 35; i++) {
+    const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i), k = keyOf(d);
+    html += `<button data-day="${k}" class="${d.getMonth() !== m ? "o" : ""}${k === keyOf(today) ? " t" : ""}">${d.getDate()}${(byDay[k] || []).some((r) => !r._done) ? "<i></i>" : ""}</button>`;
+  }
+  return `<div class="mini">${html}</div>`;
+}
+function hwTodo() {
+  return allItems().filter((r) => r.msg_type === "作业" && r._p && !r._done && dayDiff(r._p.day) >= -30)
+    .sort((a, b) => (a._p.day + a._p.time).localeCompare(b._p.day + b._p.time));
+}
+function cardBody(id, w, h) {
+  const cols = isMobile() ? (w >= 3 ? 2 : 1) : w, big = h >= 2, wide = cols >= 3 || (isMobile() && cols >= 2);
+  const S = homeStats;
+  if (id === "w:hw") {
+    const list = hwTodo(), n = big ? h * 3 - 1 : wide ? 2 : 0;
+    return `<button class="tile a wb${n ? " has-list" : ""}" data-tab="homework" id="statHw">
+      ${n ? "" : `<svg class="deco" viewBox="0 0 100 100"><path d="M18 52 l22 22 l44 -48" fill="none" stroke="#fff" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/></svg>`}
+      <b>作业</b><small>${S.overdue ? `${S.overdue} 项已过期` : "两周内要交"}</small>
+      ${n ? `<div class="wlist">${list.slice(0, n).map((r) => { const di = dueInfo(r); return `<div class="wrow2"><span>${esc(r.subject || r.summary || "作业")}</span><span class="due-tag ${di.cls}">${esc(di.text)}</span></div>`; }).join("") || `<div class="wrow2"><span>没有要交的作业 🎉</span></div>`}</div>` : ""}
+      ${n && big ? "" : `<span class="big">${S.hwLeft}</span>`}<span class="go">去完成 ▶</span></button>`;
+  }
+  if (id === "w:cal") {
+    if (big && cols >= 2) return `<div class="tile b wb" data-tab="calendar" style="cursor:pointer"><b>${today.getMonth() + 1}月</b>${miniCalHtml()}</div>`;
+    const items = (byDay[todayKey()] || []).filter((r) => !r._done);
+    const n = big ? h * 3 - 1 : wide ? 2 : 0;
+    return `<button class="tile b wb${n ? " has-list" : ""}" data-tab="calendar">
+      ${n ? "" : `<svg class="deco" viewBox="0 0 100 100"><rect x="12" y="20" width="76" height="68" rx="16" fill="none" stroke="#fff" stroke-width="10"/><path d="M12 42h76M34 10v20M66 10v20" stroke="#fff" stroke-width="10" stroke-linecap="round"/></svg>`}
+      <b>日历</b><small>今天 ${S.todayCount} 项 · 两周 ${S.upcoming} 项</small>
+      ${n ? `<div class="wlist">${items.slice(0, n).map((r) => `<div class="wrow2"><span>${esc(r.subject || r.summary || "")}</span><span>${esc(r._p.time || "全天")}</span></div>`).join("") || `<div class="wrow2"><span>今天没有安排 ☕</span></div>`}</div>` : ""}
+      ${n && big ? "" : `<span class="big">${today.getDate()}</span>`}<span class="go">打开 ▶</span></button>`;
+  }
+  if (id === "w:rings") {
+    const html = ringsHtml(big ? 96 : 70);
+    const keep = cols <= 1 ? 1 : cols === 2 && !isMobile() ? 2 : 3;
+    const parts = html.split('<div class="ring">').slice(1).slice(0, keep).map((x) => '<div class="ring">' + x).join("");
+    return `<div class="home-prog surface wb" id="homeProg" data-tab="growth" style="cursor:pointer"><div class="rings" style="grid-template-columns:repeat(${keep},1fr)">${parts}</div></div>`;
+  }
+  if (id === "w:pins") {
+    let posts = []; try { posts = wallPosts; } catch (e) {}
+    const top = posts.filter((p) => p.pinned_at && !p.hidden).sort((a, b) => b.pinned_at.localeCompare(a.pinned_at))[0];
+    if (!top) return `<div class="home-pins surface wb" id="homePins" data-tab="wall" data-empty="1"><span class="pi">📌</span><div><b>置顶通知</b><span>班级墙里置顶的内容会显示在这里</span></div></div>`;
+    return `<div class="home-pins surface wb" id="homePins" data-tab="wall"><span class="pi">📌</span><div><b>${top.is_notice ? "置顶通知" : "班级墙置顶"} · ${esc(top.author_name)}</b><span>${esc(top.title ? top.title + "：" + top.body : top.body)}</span></div></div>`;
+  }
+  if (id === "w:quick") return `<div class="wb" data-slot="quick"></div>`;
+  if (id === "w:habits") {
+    const t = todayKey();
+    return `<div class="surface wb wsimple"><h5>🔥 今日打卡<span class="spacer"></span><button class="small" data-tab="growth">全部</button></h5>
+      ${habits.length ? habits.slice(0, Math.max(1, h * 3 - 1)).map((x) => { const on = (habitLog[x.id] || {})[t];
+        return `<div class="whabit"><span>${esc(x.icon)} ${esc(x.name)}</span><button class="hchk${on ? " on" : ""}" data-whabit="${esc(x.id)}">${on ? "✓" : "打卡"}</button></div>`; }).join("")
+        : `<div class="empty">还没有习惯，<a href="#" data-tab="growth">去添加</a></div>`}</div>`;
+  }
+  if (id === "w:pomo") {
+    return `<div class="surface wb wsimple"><h5>🍅 番茄钟</h5><div class="wpomo"><div><b id="wgPomoTime">--:--</b><div class="meta" id="wgPomoMode"></div></div>
+      <span class="spacer"></span><button class="btn ink sm" data-tab="plan">${pomo.mode === "focus" ? "查看" : "去专注"}</button></div></div>`;
+  }
+  const t = toolById(id); if (!t) return "";
+  const app = t.plugin && (pluginState[t.plugin] || {}).appUrl;
+  if (app && big && cols >= 2) return `<div class="surface wb wframe"><div class="wfh">${esc(t.icon)} ${esc(t.name)}<span class="spacer"></span><button class="small" data-tab="${esc(t.view)}">打开</button></div><iframe src="${app}" title="${esc(t.name)}" loading="lazy"></iframe></div>`;
+  return `<button class="surface wb launch" data-tab="${esc(t.view)}"><span class="li">${esc(t.icon)}</span><b>${esc(t.name)}</b>${(cols >= 2 || big) && t.desc ? `<small>${esc(t.desc)}</small>` : ""}</button>`;
+}
+let wEditing = false;
+function sizeLabel(w, h) { return `${isMobile() ? (w >= 3 ? 2 : 1) : w}×${h}`; }
+function renderWidgets() {
+  const box = $("widgets"); if (!box) return;
+  const quick = $("quickPart"); $("wParts").appendChild(quick);   // 快捷按钮是固定元素，先收好再重画
+  const L = homeLayout();
+  const cards = L.home.filter((c) => cardAvailable(c.id));
+  box.innerHTML = cards.map((c, i) => {
+    const d = cardInfo(c.id) || {};
+    return `<div class="wcard w${c.w} h${c.h}" style="--w:${c.w};--h:${c.h}" data-wid="${esc(c.id)}" data-i="${i}" ${wEditing ? 'draggable="true"' : ""}>
+      ${cardBody(c.id, c.w, c.h)}
+      <div class="wctl">${d.fixed ? "" : `<button class="wx" data-wx="${esc(c.id)}" aria-label="从首页移走">×</button>`}
+        <button class="wmv l" data-wmv="-1" aria-label="往前挪">‹</button><button class="wmv r" data-wmv="1" aria-label="往后挪">›</button>
+        <button class="wsz" data-wsz title="点一下换个大小">${esc(d.name || "")} ${sizeLabel(c.w, c.h)} ⇲</button><span class="wrs" data-wrs aria-label="拖动调整大小"></span></div>
+    </div>`;
+  }).join("");
+  const slot = box.querySelector('[data-slot="quick"]'); if (slot) slot.appendChild(quick);
+  // 没有置顶时，平时不占位置；编辑时显示占位
+  const pin = box.querySelector('[data-wid="w:pins"]'); if (pin && pin.querySelector("[data-empty]") && !wEditing) pin.classList.add("hidden");
+  if (wEditing) {
+    const missing = Object.keys(WDEF).filter((id) => cardAvailable(id) && !L.home.some((c) => c.id === id)).map((id) => [id, WDEF[id]])
+      .concat(toolList().filter((t) => !L.home.some((c) => c.id === t.id)).map((t) => [t.id, t]));
+    $("wAddList").innerHTML = missing.map(([id, d]) => `<button data-wadd="${esc(id)}">＋ ${esc(d.icon)} ${esc(d.name)}</button>`).join("");
+  }
+  if (typeof renderPomo === "function" && document.getElementById("wgPomoTime")) renderPomo();
+}
+function setEditing(on) {
+  wEditing = on;
+  document.documentElement.classList.toggle("wediting", on);
+  $("wEditBar").classList.toggle("hidden", !on);
+  renderWidgets();
+}
+$("wEdit").onclick = () => setEditing(true);
+$("wDone").onclick = () => setEditing(false);
+$("wReset").onclick = () => { if (confirm("首页卡片恢复成默认的样子？")) { const L = homeLayout(); save(LS_LAYOUT, { home: W_DEFAULT.home, rail: L.rail }); renderWidgets(); renderTools(); } };
+$("wAddList").onclick = (e) => {
+  const b = e.target.closest("[data-wadd]"); if (!b) return;
+  const L = homeLayout(), d = cardInfo(b.dataset.wadd) || {};
+  L.home.push({ id: b.dataset.wadd, w: d.w || 2, h: d.h || 1 }); saveLayout(L);
+};
+$("widgets").addEventListener("click", (e) => {
+  const hb = e.target.closest("[data-whabit]"); if (hb && !wEditing) { toggleHabit(hb.dataset.whabit); return; }
+  const day = e.target.closest("button[data-day]"); if (day && !wEditing) { e.stopPropagation(); $("jumpDate").value = day.dataset.day; $("jumpDate").onchange({ target: { value: day.dataset.day } }); return; }
+  if (!wEditing) return;
+  const L = homeLayout(), card = e.target.closest(".wcard"); if (!card) return;
+  const i = L.home.findIndex((c) => c.id === card.dataset.wid);
+  const x = e.target.closest("[data-wx]");
+  if (x) { L.home.splice(i, 1); saveLayout(L); return; }
+  if (e.target.closest("[data-wsz]")) {   // 点尺寸标签：在几种常用大小之间切换
+    const d = cardInfo(card.dataset.wid) || {}, c = L.home[i];
+    const presets = (isMobile() ? [[2, 1], [4, 1], [2, 2], [4, 2]] : [[1, 1], [2, 1], [4, 1], [2, 2], [4, 2]]).filter(([w]) => !d.minW || w >= d.minW);
+    const k = presets.findIndex(([w, h]) => (isMobile() ? (w >= 3) === (c.w >= 3) : w === c.w) && h === c.h);
+    [c.w, c.h] = presets[(k + 1) % presets.length]; saveLayout(L); return;
+  }
+  const mv = e.target.closest("[data-wmv]");
+  if (mv) { const j = i + Number(mv.dataset.wmv); if (j >= 0 && j < L.home.length) { [L.home[i], L.home[j]] = [L.home[j], L.home[i]]; saveLayout(L); } }
+}, true);
+// 拖动排序（电脑）
+let wDrag = null;
+$("widgets").addEventListener("dragstart", (e) => { if (!wEditing) return; const c = e.target.closest(".wcard"); if (!c) return; wDrag = c.dataset.wid; c.classList.add("dragging"); e.dataTransfer.effectAllowed = "move"; });
+$("widgets").addEventListener("dragover", (e) => { if (!wDrag) return; const c = e.target.closest(".wcard"); if (!c) return; e.preventDefault(); document.querySelectorAll(".wcard.over").forEach((x) => x !== c && x.classList.remove("over")); c.classList.add("over"); });
+$("widgets").addEventListener("drop", (e) => {
+  if (!wDrag) return; const c = e.target.closest(".wcard"); e.preventDefault();
+  if (c && c.dataset.wid !== wDrag) { const L = homeLayout(), from = L.home.findIndex((x) => x.id === wDrag), item = L.home.splice(from, 1)[0];
+    const to = L.home.findIndex((x) => x.id === c.dataset.wid); L.home.splice(to, 0, item); saveLayout(L); }
+  wDrag = null;
+});
+$("widgets").addEventListener("dragend", () => { wDrag = null; renderWidgets(); });
+// 拖右下角调整大小（鼠标和手指都行），按格子吸附
+$("widgets").addEventListener("pointerdown", (e) => {
+  const h = e.target.closest("[data-wrs]"); if (!h || !wEditing) return;
+  e.preventDefault(); e.stopPropagation();
+  const card = h.closest(".wcard"), id = card.dataset.wid, L = homeLayout(), c = L.home.find((x) => x.id === id), d = cardInfo(id) || {};
+  const box = $("widgets"), cs = getComputedStyle(box), cols = cs.gridTemplateColumns.split(" ").length;
+  const gap = parseFloat(cs.columnGap) || 12, colW = (box.clientWidth - gap * (cols - 1)) / cols, rowH = parseFloat(cs.gridAutoRows) || 128;
+  const sx = e.clientX, sy = e.clientY, startCols = isMobile() ? (c.w >= 3 ? 2 : 1) : c.w, sh = c.h;
+  card.setAttribute("draggable", "false");
+  const move = (ev) => {
+    const dx = ev.clientX - sx;
+    // 手机只有两列：横向拖超过 40px 就在「半行 / 整行」之间切换（靠右的卡片往左拖也能变宽）
+    let nc = isMobile() ? (Math.abs(dx) > 40 ? (startCols === 1 ? 2 : (dx < 0 ? 1 : 2)) : startCols)
+      : Math.max(1, Math.min(cols, startCols + Math.round(dx / (colW + gap))));
+    let nh = Math.max(1, Math.min(4, sh + Math.round((ev.clientY - sy) / (rowH + gap))));
+    let nw = isMobile() ? (nc >= 2 ? 4 : 2) : nc;
+    if (d.minW && nw < d.minW) nw = d.minW;
+    if (nw !== c.w || nh !== c.h) {
+      c.w = nw; c.h = nh;
+      card.className = `wcard w${nw} h${nh}`; card.style.setProperty("--w", nw); card.style.setProperty("--h", nh);
+      card.querySelector(".wb")?.replaceWith(document.createRange().createContextualFragment(cardBody(id, nw, nh)));
+      if (id === "w:quick") { const slot = card.querySelector('[data-slot="quick"]'); slot && slot.appendChild($("quickPart")); }
+      card.querySelector(".wsz").textContent = `${d.name || ""} ${sizeLabel(nw, nh)}`;
+    }
+  };
+  const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); save(LS_LAYOUT, L); renderWidgets(); };
+  window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
+});
+window.addEventListener("resize", () => { clearTimeout(renderWidgets._t); renderWidgets._t = setTimeout(renderWidgets, 200); });
+
+// 工具摆放设置
+let placing = null, placeSize = { w: 2, h: 1 };
+const SIZES = [["小", 1, 1], ["中", 2, 1], ["宽", 4, 1], ["大", 2, 2], ["超大", 4, 2]];
+function renderSizePick() { $("placeSizes").innerHTML = SIZES.map(([n, w, h]) => `<button type="button" data-sz="${w},${h}" class="${placeSize.w === w && placeSize.h === h ? "on" : ""}">${n}</button>`).join(""); }
+$("toolGrid").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-place]"); if (!b) return;
+  e.stopPropagation();
+  placing = b.dataset.place; const t = toolById(placing), L = homeLayout(), c = L.home.find((x) => x.id === placing);
+  placeSize = c ? { w: c.w, h: c.h } : { w: 2, h: 1 };
+  $("placeTitle").textContent = `「${t.name}」放在哪里`;
+  $("placeHome").checked = !!c; $("placeRail").checked = L.rail.includes(placing);
+  renderSizePick(); $("placeSizes").classList.toggle("hidden", !c);
+  $("placeSheet").classList.add("open");
+}, true);
+$("placeHome").onchange = () => $("placeSizes").classList.toggle("hidden", !$("placeHome").checked);
+$("placeSizes").onclick = (e) => { const b = e.target.closest("[data-sz]"); if (!b) return; const [w, h] = b.dataset.sz.split(",").map(Number); placeSize = { w, h }; renderSizePick(); };
+$("placeCancel").onclick = () => $("placeSheet").classList.remove("open");
+$("placeSheet").onclick = (e) => { if (e.target === $("placeSheet")) $("placeSheet").classList.remove("open"); };
+$("placeForm").onsubmit = (e) => {
+  e.preventDefault();
+  const L = homeLayout(), i = L.home.findIndex((x) => x.id === placing);
+  if ($("placeHome").checked) { if (i >= 0) Object.assign(L.home[i], placeSize); else L.home.splice(Math.max(0, L.home.length - 1), 0, { id: placing, ...placeSize }); }
+  else if (i >= 0) L.home.splice(i, 1);
+  L.rail = L.rail.filter((x) => x !== placing); if ($("placeRail").checked) L.rail.push(placing);
+  saveLayout(L); $("placeSheet").classList.remove("open");
+};
 
 // ===== 规划：四象限 =====
 const LS_QUAD = "quad_v1", LS_QTODO = "quad_todos_v1";
@@ -2304,6 +2623,8 @@ function renderPomo() {
   $("pStat").innerHTML = n ? `今天专注了 <b>${n}</b> 个番茄 <span class="tomatoes">${"🍅".repeat(Math.min(n, 12))}</span><br>最近 7 天共 ${week} 个` : `今天还没开始专注。最近 7 天共 ${week} 个番茄`;
   $("pTask").disabled = pomo.mode === "focus" || pomo.mode === "paused";
   document.title = running ? `${pomo.mode === "focus" ? "🍅" : "☕"} ${fmtMs(left)} · 班级群日历` : "班级群日历";
+  const wt = document.getElementById("wgPomoTime");
+  if (wt) { wt.textContent = fmtMs(left); $("wgPomoMode").textContent = $("pMode").textContent; }
   clearInterval(pomoTimer);
   if (running) pomoTimer = setInterval(pomoTick, 1000);
 }
@@ -2388,7 +2709,7 @@ function renderWall() {
   if (!has) {
     $("wallNoClass").innerHTML = !currentUser ? `登录并加入班级后就能在班级墙发言。<a href="login.html?next=index.html">登录 / 注册</a>`
       : `加入班级后就能在班级墙发言。<a href="class.html">输入班级码加入</a>`;
-    $("homePins").classList.add("hidden");
+    renderWidgets();
     return;
   }
   const r = myWallRole();
@@ -2415,8 +2736,7 @@ function renderWall() {
         <button class="small" data-w="dismiss" data-id="${x.id}">没问题，保留</button></div></div>`).join("")}</div>` : "";
   // 首页：最新置顶
   const top = wallPosts.filter((p) => p.pinned_at && !p.hidden).sort((a, b) => b.pinned_at.localeCompare(a.pinned_at))[0];
-  $("homePins").classList.toggle("hidden", !top);
-  if (top) $("homePins").innerHTML = `<span class="pi">📌</span><div><b>${top.is_notice ? "置顶通知" : "班级墙置顶"} · ${esc(top.author_name)}</b><span>${esc(top.title || top.body)}</span></div>`;
+  renderWidgets();
 }
 
 function wallCount() {
