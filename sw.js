@@ -1,8 +1,8 @@
 // 离线缓存（Service Worker）：只缓存网页自己的文件，不缓存任何数据接口的内容
 // - 打开页面：先联网拿最新版，4 秒没拿到或断网时用缓存，保证更新能马上生效、没网也能打开
 // - 脚本、字体等文件：先用缓存秒开，后台再悄悄更新
-const CACHE = "cc-static-v1";
-const PRECACHE = ["./", "index.html", "login.html", "boot.js", "guard.js", "auth.js", "config.js", "parse.js", "app.js", "sandbox.html", "display.woff"];
+const CACHE = "cc-static-v2";
+const PRECACHE = ["./", "index.html", "login.html", "boot.js", "guard.js", "auth.js", "config.js", "parse.js", "app.js", "sandbox.html", "display.woff", "favicon.svg", "favicon-32.png", "apple-touch-icon.png"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => Promise.all(PRECACHE.map((u) => c.add(new Request(u, { cache: "reload" })).catch(() => {})))).then(() => self.skipWaiting()));
