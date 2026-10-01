@@ -1,399 +1,647 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-skin="vivid">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="班级日历">
-<meta name="theme-color" content="#f5f6f8">
+<meta name="theme-color" content="#cdeeff">
 <title>班级群日历</title>
-<script>try { if (localStorage.getItem("ui_mode_v1") === '"simple"') document.documentElement.classList.add("simple"); } catch (e) {}</script>
+<script>
+// 尽早套用风格和背景，避免页面先白一下再变
+(function () {
+  try {
+    var s = JSON.parse(localStorage.getItem("ui_skin_v1") || '"vivid"');
+    if (["vivid", "clean", "dark"].indexOf(s) < 0) s = "vivid";
+    document.documentElement.dataset.skin = s;
+    var bg = localStorage.getItem("ui_bg_v1");
+    if (bg) {
+      var o = JSON.parse(localStorage.getItem("ui_bg_opts_v1") || "{}");
+      var r = document.documentElement;
+      r.classList.add("has-bg");
+      r.style.setProperty("--bg-img", 'url("' + bg + '")');
+      r.style.setProperty("--bg-dim", (o.dim == null ? 40 : o.dim) / 100);
+      r.style.setProperty("--bg-blur", (o.blur == null ? 6 : o.blur) + "px");
+    }
+  } catch (e) {}
+})();
+</script>
+<link rel="preload" href="display.woff" as="font" type="font/woff" crossorigin>
 <style>
-  :root {
-    --bg: #f5f6f8; --card: #ffffff; --line: #e7e8ec; --text: #16181d; --sub: #7b808a;
-    --red: #ef5350; --blue: #3b7bf6; --green: #1fa971; --gray: #8a909b; --purple: #9b5de5; --today: #2f6bff;
-    --accent: #2f6bff; --hover: #f1f2f5; --muted-bg: #fafbfc; --muted-text: #c4c8cf; --selected: #eef3ff;
-    --note-bg: #fff6dc; --danger-bg: #fff0ef;
-    --radius: 16px; --shadow: 0 1px 2px rgba(16,24,40,.04), 0 6px 24px rgba(16,24,40,.05);
+  /* 标题字体：站酷庆科黄油体（SIL OFL 开源字体，已裁成常用 3500 字，放在网站里，不依赖外网） */
+  @font-face { font-family: "ZCOOL QingKe HuangYou"; src: url("display.woff") format("woff"); font-display: swap; }
+  /* ================= 风格变量 ================= */
+  :root, [data-skin=vivid] {
+    --bg: #cdeeff; --bg2: #f3fbff; --card: #ffffff; --line: #e3edf6; --text: #0e2240; --sub: #687d97;
+    --accent: #1ea0ff; --ink: #0e2240; --ink-text: #ffffff; --today: #ff7b2e;
+    --red: #ff6a3d; --blue: #1ea0ff; --green: #17c29a; --gray: #8b9cb2; --purple: #8c6bff;
+    --hover: #eef6fd; --muted-bg: #f5f9fd; --muted-text: #b5c3d3; --selected: #e1f3ff; --note-bg: #fff3d9; --danger-bg: #ffefe8;
+    --r-xl: 28px; --r: 20px; --r-sm: 14px; --border: transparent;
+    --shadow: 0 14px 34px -16px rgba(20, 110, 190, .35);
+    --tile-a: linear-gradient(140deg, #ffb45a 0%, #ff8838 100%);
+    --tile-b: linear-gradient(140deg, #8adbff 0%, #3cb2ff 100%);
+    --tile-text: #ffffff;
+    --hero: linear-gradient(165deg, #4fc2ff 0%, #8fdcff 58%, #c9f0ff 100%);
+    --fd: "ZCOOL QingKe HuangYou", "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
+    --fd-weight: 400;
+    --nav-on-bg: #ffffff; --nav-on-shadow: 0 8px 20px -10px rgba(20,110,190,.45);
+    --col-border: transparent;
   }
+  [data-skin=clean] {
+    --bg: #ffffff; --bg2: #ffffff; --card: #ffffff; --line: #eff3f4; --text: #0f1419; --sub: #536471;
+    --accent: #1d9bf0; --ink: #0f1419; --ink-text: #ffffff; --today: #1d9bf0;
+    --red: #f4212e; --blue: #1d9bf0; --green: #00ba7c; --gray: #8b98a5; --purple: #7856ff;
+    --hover: #f7f9f9; --muted-bg: #f7f9f9; --muted-text: #cfd9de; --selected: #e8f5fd; --note-bg: #fff8e1; --danger-bg: #fdecee;
+    --r-xl: 16px; --r: 16px; --r-sm: 12px; --border: #eff3f4; --shadow: none;
+    --tile-a: #ffffff; --tile-b: #ffffff; --tile-text: #0f1419; --hero: transparent;
+    --fd: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; --fd-weight: 800;
+    --nav-on-bg: transparent; --nav-on-shadow: none; --col-border: #eff3f4;
+  }
+  [data-skin=dark] {
+    --bg: #000000; --bg2: #000000; --card: #000000; --line: #2f3336; --text: #e7e9ea; --sub: #71767b;
+    --accent: #1d9bf0; --ink: #eff3f4; --ink-text: #0f1419; --today: #1d9bf0;
+    --red: #f4212e; --blue: #1d9bf0; --green: #00ba7c; --gray: #8b98a5; --purple: #8f7bff;
+    --hover: #16181c; --muted-bg: #16181c; --muted-text: #3e4144; --selected: #031018; --note-bg: #2a2410; --danger-bg: #2a0f12;
+    --r-xl: 16px; --r: 16px; --r-sm: 12px; --border: #2f3336; --shadow: none;
+    --tile-a: #000000; --tile-b: #000000; --tile-text: #e7e9ea; --hero: transparent;
+    --fd: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; --fd-weight: 800;
+    --nav-on-bg: transparent; --nav-on-shadow: none; --col-border: #2f3336;
+    color-scheme: dark;
+  }
+  :root { --surface: var(--card); --bg-dim: .35; --bg-blur: 0px; }
+  html.has-bg { --surface: color-mix(in srgb, var(--card) 80%, transparent); --col-border: transparent; }
+
+  /* ================= 基础 ================= */
   * { box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
-  body { margin: 0; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5;
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
-    -webkit-font-smoothing: antialiased; padding-bottom: env(safe-area-inset-bottom); }
+  body { margin: 0; color: var(--text); font-size: 15px; line-height: 1.5;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased; background: var(--bg2); min-height: 100vh; }
+  [data-skin=vivid] body { background: linear-gradient(180deg, var(--bg) 0, var(--bg2) 520px) no-repeat, var(--bg2); }
+  /* 元气风格的跑道线条装饰 */
+  [data-skin=vivid] body::before { content: ""; position: fixed; inset: 0 0 auto 0; height: 560px; pointer-events: none; z-index: 0; opacity: .55;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 560' preserveAspectRatio='none'%3E%3Cg fill='none' stroke='%23ffffff' stroke-width='3' opacity='.7'%3E%3Cpath d='M-40 420 C 220 200 420 520 680 300 S 1100 80 1260 220'/%3E%3Cpath d='M-40 460 C 240 240 440 560 700 340 S 1120 120 1260 260'/%3E%3Cpath d='M-40 380 C 200 160 400 480 660 260 S 1080 40 1260 180' stroke-dasharray='2 14' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E") center/100% 100% no-repeat; }
+  #bgLayer { display: none; }
+  html.has-bg body { background: var(--bg); }
+  html.has-bg body::before { display: none; }
+  html.has-bg #bgLayer { display: block; position: fixed; inset: -40px; z-index: 0; background: var(--bg-img) center/cover no-repeat; filter: blur(var(--bg-blur)); }
+  html.has-bg #bgLayer::after { content: ""; position: absolute; inset: 0; background: var(--bg); opacity: var(--bg-dim); }
+
   a { color: var(--accent); text-decoration: none; }
-  button { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--text);
-    border-radius: 10px; padding: 6px 12px; cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
-  button:hover { background: var(--hover); }
-  button:disabled { opacity: .55; cursor: default; }
-  button.primary { background: var(--accent); color: #fff; border-color: transparent; font-weight: 500; }
-  button.primary:hover { filter: brightness(1.06); background: var(--accent); }
-  button.small { padding: 4px 10px; font-size: 13px; }
-  button.ghost { border-color: transparent; background: transparent; }
-  button.ghost:hover { background: var(--hover); }
-  button.link { border: none; background: none; color: var(--accent); padding: 2px 6px; font-size: 12px; border-radius: 6px; }
-  button.link:hover { background: var(--hover); }
-  .spacer { flex: 1; }
+  button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; padding: 0; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .hidden { display: none !important; }
-  .tag { font-size: 11px; color: var(--sub); background: var(--hover); border-radius: 6px; padding: 1px 6px; margin-left: 4px; font-weight: 500; white-space: nowrap; }
+  .spacer { flex: 1; }
+  .surface { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); box-shadow: var(--shadow); }
+  /* 有背景图时：导航和小标题也垫一层毛玻璃，保证看得清 */
+  html.has-bg .rail { background: var(--surface); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
+  html.has-bg .aday-h, html.has-bg .sec-h, html.has-bg .legend, html.has-bg .hw-head, html.has-bg #classBar .cb-main, html.has-bg .afoot {
+    text-shadow: 0 0 10px var(--bg), 0 0 4px var(--bg); }
+  html.has-bg .surface, html.has-bg .vhead { -webkit-backdrop-filter: blur(18px) saturate(160%); backdrop-filter: blur(18px) saturate(160%); }
 
-  /* 事件颜色：每种类型只定义一个 --c，其余都按它来调浅色背景 */
-  .t-作业 { --c: var(--red); } .t-会议 { --c: var(--blue); } .t-活动 { --c: var(--green); }
-  .t-通知 { --c: var(--gray); } .t-个人 { --c: var(--purple); } .t-插件 { --c: var(--gray); }
-  .b-作业 { --c: var(--red); } .b-会议 { --c: var(--blue); } .b-活动 { --c: var(--green); }
-  .b-通知 { --c: var(--gray); } .b-个人 { --c: var(--purple); }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: 999px; padding: 8px 16px;
+    font-size: 14px; font-weight: 600; border: 1px solid var(--line); background: var(--surface); color: var(--text); white-space: nowrap; transition: background .15s, transform .1s; }
+  .btn:hover { background: var(--hover); }
+  .btn:active { transform: scale(.97); }
+  .btn.ink { background: var(--ink); color: var(--ink-text); border-color: transparent; }
+  .btn.ink:hover { filter: brightness(1.15); }
+  .btn.accent { background: var(--accent); color: #fff; border-color: transparent; }
+  .btn.sm { padding: 5px 12px; font-size: 13px; }
+  .btn:disabled { opacity: .55; cursor: default; }
+  button.small { border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; font-size: 13px; font-weight: 600; background: var(--surface); }
+  button.small:hover { background: var(--hover); }
+  button.primary { background: var(--accent); color: #fff; border-color: transparent; }
+  button.link { color: var(--accent); padding: 3px 8px; font-size: 13px; border-radius: 8px; }
+  button.link:hover { background: var(--hover); }
+  .tag { font-size: 11px; color: var(--sub); background: var(--hover); border-radius: 6px; padding: 1px 7px; font-weight: 600; white-space: nowrap; }
 
-  /* ===== 顶栏 ===== */
-  header.appbar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 10px;
-    padding: 10px 20px; background: color-mix(in srgb, var(--bg) 82%, transparent);
-    backdrop-filter: saturate(180%) blur(16px); -webkit-backdrop-filter: saturate(180%) blur(16px);
-    border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent); }
-  .brand { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 16px; font-weight: 650; letter-spacing: .2px; white-space: nowrap; }
-  .brand .logo { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; font-size: 16px;
-    background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #9b5de5)); color: #fff; box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 30%, transparent); }
-  #classBar { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 4px 6px 4px 12px;
-    background: var(--card); border: 1px solid var(--line); border-radius: 999px; font-size: 13px; }
-  #className { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #classSel { font: inherit; font-weight: 600; border: none; background: transparent; color: var(--text); max-width: 180px; padding: 0; cursor: pointer; }
-  #classSel:focus { outline: none; }
-  #classRole { margin-left: 0; }
-  #classBar .pill-link { font-size: 12px; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
-  #classBar .pill-link:hover { background: var(--hover); }
+  .t-作业, .b-作业 { --c: var(--red); } .t-会议, .b-会议 { --c: var(--blue); } .t-活动, .b-活动 { --c: var(--green); }
+  .t-通知, .b-通知 { --c: var(--gray); } .t-个人, .b-个人 { --c: var(--purple); } .t-插件 { --c: var(--gray); }
 
-  .seg { display: inline-flex; padding: 3px; gap: 2px; background: color-mix(in srgb, var(--text) 6%, transparent); border-radius: 11px; }
-  .seg button { border: none; background: transparent; border-radius: 8px; padding: 4px 12px; font-size: 13px; color: var(--sub); white-space: nowrap; }
-  .seg button:hover { background: transparent; color: var(--text); }
-  .seg button.on { background: var(--card); color: var(--text); font-weight: 600; box-shadow: 0 1px 3px rgba(16,24,40,.12); }
+  /* ================= 整体框架：左侧导航 · 中间内容 · 右侧栏 ================= */
+  .shell { position: relative; z-index: 1; display: grid; grid-template-columns: 244px minmax(0, 640px) 320px;
+    justify-content: center; column-gap: 28px; min-height: 100vh; }
+  .rail { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; padding: 14px 8px 18px; gap: 6px; }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 6px 12px 14px; font-family: var(--fd); font-weight: var(--fd-weight); font-size: 22px; letter-spacing: 1px; }
+  .brand svg { width: 40px; height: 40px; flex-shrink: 0; }
+  #tabs { display: flex; flex-direction: column; gap: 4px; }
+  .nav { display: flex; align-items: center; gap: 16px; padding: 11px 16px; border-radius: 999px; font-size: 18px; color: var(--text); width: fit-content; transition: background .15s; }
+  .nav:hover { background: var(--hover); }
+  .nav svg { width: 26px; height: 26px; flex-shrink: 0; }
+  .nav .f { display: none; } .nav.on .f { display: block; } .nav.on .o { display: none; }
+  .nav.on { font-weight: 700; background: var(--nav-on-bg); box-shadow: var(--nav-on-shadow); }
+  [data-skin=vivid] .nav.on { color: var(--accent); }
+  .nav .badge { min-width: 18px; height: 18px; border-radius: 9px; background: var(--red); color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; padding: 0 5px; margin-left: -10px; margin-top: -16px; }
+  #addBtn { margin-top: 14px; width: 88%; padding: 14px; font-size: 17px; font-weight: 700; border-radius: 999px; background: var(--ink); color: var(--ink-text); box-shadow: var(--shadow); }
+  [data-skin=vivid] #addBtn { background: linear-gradient(135deg, #2bb0ff, #1e8cff); color: #fff; }
+  #addBtn:hover { filter: brightness(1.08); }
+  #addBtn .plus { display: none; }
+  #userChip { margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 999px; text-align: left; width: 100%; }
+  #userChip:hover { background: var(--hover); }
+  #userChip.guest { justify-content: center; font-weight: 700; border: 1px solid var(--line); background: var(--surface); }
+  .av { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 16px; flex-shrink: 0;
+    color: #fff; background: linear-gradient(135deg, #ffb45a, #ff6a8b); }
+  [data-skin=clean] .av, [data-skin=dark] .av { background: var(--accent); }
+  #userChip .who { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; font-weight: 700; font-size: 15px; }
+  #userChip .who small { color: var(--sub); font-weight: 400; font-size: 13px; }
 
-  .menuwrap { position: relative; }
-  #userChip { display: inline-flex; align-items: center; gap: 8px; padding: 3px 10px 3px 3px; border-radius: 999px; font-size: 13px; }
-  #userChip .av { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-weight: 600; font-size: 13px;
-    background: color-mix(in srgb, var(--accent) 14%, var(--card)); color: var(--accent); }
-  #userChip .who { display: flex; flex-direction: column; line-height: 1.15; text-align: left; }
-  #userChip .who small { color: var(--sub); font-size: 11px; }
-  #userChip.guest { padding: 6px 14px; }
-  .menu { position: absolute; right: 0; top: calc(100% + 8px); width: 260px; background: var(--card); border: 1px solid var(--line);
-    border-radius: 14px; box-shadow: 0 12px 40px rgba(16,24,40,.16); padding: 6px; z-index: 30; }
-  .menu .mhead { padding: 10px 10px 8px; }
-  .menu .mhead b { display: block; font-size: 14px; }
-  .menu .mhead span { color: var(--sub); font-size: 12px; }
-  .menu hr { border: none; border-top: 1px solid var(--line); margin: 6px 4px; }
-  .menu .mi { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: none; background: none;
-    padding: 8px 10px; border-radius: 9px; font-size: 13px; color: var(--text); cursor: pointer; }
-  .menu .mi:hover { background: var(--hover); }
-  .menu .mi .ic { width: 18px; text-align: center; }
-  .menu .mi.danger { color: var(--red); }
-  .menu label.mi input { margin: 0 2px; accent-color: var(--accent); }
-  .menu .mnote { color: var(--sub); font-size: 11px; padding: 4px 10px 6px; line-height: 1.5; }
+  .col { min-width: 0; border-left: 1px solid var(--col-border); border-right: 1px solid var(--col-border); padding-bottom: 60px; }
+  .siderail { position: sticky; top: 0; height: 100vh; overflow-y: auto; padding: 14px 0 24px; display: flex; flex-direction: column; gap: 16px; scrollbar-width: none; }
+  .siderail::-webkit-scrollbar { display: none; }
 
-  /* ===== 第二行：标签页 + 班级操作 ===== */
-  .toolbar { display: flex; align-items: center; gap: 8px; padding: 14px 20px 0; max-width: 1360px; margin: 0 auto; }
-  nav#tabs { overflow-x: auto; scrollbar-width: none; max-width: 100%; }
-  nav#tabs::-webkit-scrollbar { display: none; }
-  .toolbar .cact { display: flex; gap: 8px; }
-  .toolbar .cact button { display: inline-flex; align-items: center; gap: 6px; }
-  .wrap { max-width: 1360px; margin: 0 auto; }
+  /* 顶部标题栏 */
+  .vhead { position: sticky; top: 0; z-index: 6; display: flex; align-items: center; gap: 12px; padding: 12px 18px; min-height: 56px;
+    background: color-mix(in srgb, var(--bg2) 78%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+  [data-skin=vivid] .vhead { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  [data-skin=vivid] .vhead.stuck { background: color-mix(in srgb, var(--bg) 70%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+  .vhead h2 { margin: 0; font-size: 21px; font-weight: 800; letter-spacing: .3px; }
+  [data-skin=vivid] .vhead h2 { font-family: var(--fd); font-weight: var(--fd-weight); font-size: 26px; letter-spacing: 1px; }
+  .vhead .back { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-size: 22px; }
+  .vhead .back:hover { background: var(--hover); }
+  .mavatar { display: none; }
+  .pad { padding: 0 16px; }
+  .sec-h { display: flex; align-items: baseline; gap: 8px; margin: 26px 20px 10px; }
+  .sec-h b { font-size: 18px; font-weight: 800; }
+  [data-skin=vivid] .sec-h b { font-family: var(--fd); font-weight: var(--fd-weight); font-size: 21px; letter-spacing: 1px; }
+  .sec-h span { color: var(--sub); font-size: 13px; }
 
-  #banner { display: none; margin: 12px 20px 0; padding: 10px 14px; border-radius: 12px; background: var(--danger-bg); color: var(--red); font-size: 13px; }
+  #banner { display: none; margin: 10px 16px 0; padding: 10px 14px; border-radius: var(--r-sm); background: var(--danger-bg); color: var(--red); font-size: 13px; }
   #banner.show { display: block; }
-  #notice { margin: 14px 20px 0; padding: 14px 16px; border-radius: var(--radius); background: var(--card); box-shadow: var(--shadow); }
-  #ingestPanel { margin: 14px 20px 0; background: var(--card); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow);
-    border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--line)); }
-  #ingestPanel .ip-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-weight: 600; }
+  #notice { margin: 12px 16px 0; padding: 14px 16px; font-size: 14px; }
+
+  /* ================= 首页 ================= */
+  #classBar { display: flex; align-items: center; gap: 12px; padding: 4px 20px 14px; }
+  .cb-badge { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; font-size: 22px; font-weight: 800;
+    color: #fff; background: linear-gradient(135deg, #ff9a4a, #ff5d6c); box-shadow: 0 0 0 3px #fff, 0 8px 18px -8px rgba(255,93,108,.6); }
+  [data-skin=clean] .cb-badge, [data-skin=dark] .cb-badge { background: var(--accent); box-shadow: none; width: 44px; height: 44px; font-size: 19px; }
+  .cb-main { min-width: 0; flex: 1; }
+  #className { font-size: 22px; font-weight: 800; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: .5px; }
+  [data-skin=vivid] #className { font-family: var(--fd); font-weight: var(--fd-weight); font-size: 26px; letter-spacing: 1.5px; }
+  #classSel { font: inherit; font-size: 20px; font-weight: 800; border: none; background: transparent; color: var(--text); padding: 0; max-width: 100%; cursor: pointer; }
+  [data-skin=vivid] #classSel { font-family: var(--fd); font-weight: var(--fd-weight); font-size: 24px; }
+  .cb-sub { display: flex; gap: 8px; align-items: center; margin-top: 2px; font-size: 13px; color: var(--sub); }
+
+  .hero { position: relative; margin: 0 16px; padding: 22px 22px 20px; border-radius: var(--r-xl); overflow: hidden; background: var(--hero); color: var(--text); min-height: 150px; }
+  [data-skin=vivid] .hero { color: #0b2a4a; box-shadow: var(--shadow); }
+  [data-skin=vivid] .hero::before { content: ""; position: absolute; inset: 0; opacity: .5; pointer-events: none;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 200' preserveAspectRatio='none'%3E%3Cg fill='none' stroke='%23ffffff' stroke-width='2.5'%3E%3Cpath d='M-10 170 C 140 60 260 200 400 90 S 560 10 620 60'/%3E%3Cpath d='M-10 190 C 150 80 270 220 410 110 S 570 30 620 80'/%3E%3C/g%3E%3C/svg%3E") center/100% 100% no-repeat; }
+  [data-skin=clean] .hero, [data-skin=dark] .hero { padding: 6px 20px 4px; min-height: 0; }
+  .hero > * { position: relative; }
+  .hero .date { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: rgba(255,255,255,.55); }
+  [data-skin=clean] .hero .date, [data-skin=dark] .hero .date { background: none; padding: 0; color: var(--sub); font-weight: 500; }
+  .hero h3 { margin: 10px 0 6px; font-family: var(--fd); font-weight: var(--fd-weight); font-size: 34px; line-height: 1.15; letter-spacing: 1.5px; max-width: 64%; }
+  [data-skin=clean] .hero h3, [data-skin=dark] .hero h3 { font-size: 26px; letter-spacing: .3px; max-width: none; margin: 4px 0 2px; }
+  .hero .say { font-size: 14px; font-weight: 600; max-width: 62%; }
+  [data-skin=clean] .hero .say, [data-skin=dark] .hero .say { color: var(--sub); font-weight: 400; max-width: none; }
+  .mascot { position: absolute; right: 14px; bottom: -6px; width: 138px; height: 138px; }
+  [data-skin=clean] .mascot, [data-skin=dark] .mascot { display: none; }
+  @media (prefers-reduced-motion: no-preference) {
+    [data-skin=vivid] .mascot .wave { transform-origin: 98px 70px; animation: wave 2.4s ease-in-out 1s 2; }
+  }
+  @keyframes wave { 0%,100% { transform: rotate(0); } 25% { transform: rotate(-14deg); } 50% { transform: rotate(8deg); } 75% { transform: rotate(-10deg); } }
+
+  .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 16px 0; }
+  .tile { position: relative; overflow: hidden; text-align: left; padding: 18px 18px 16px; border-radius: var(--r-xl); color: var(--tile-text); min-height: 150px;
+    display: flex; flex-direction: column; border: 1px solid var(--border); box-shadow: var(--shadow); transition: transform .12s; }
+  .tile:active { transform: scale(.98); }
+  .tile.a { background: var(--tile-a); } .tile.b { background: var(--tile-b); }
+  [data-skin=clean] .tile:hover, [data-skin=dark] .tile:hover { background: var(--hover); }
+  .tile b { font-family: var(--fd); font-weight: var(--fd-weight); font-size: 30px; line-height: 1.1; letter-spacing: 1.5px; }
+  [data-skin=clean] .tile b, [data-skin=dark] .tile b { font-size: 20px; letter-spacing: .3px; }
+  .tile small { font-size: 13px; font-weight: 600; opacity: .85; margin-top: 4px; }
+  [data-skin=clean] .tile small, [data-skin=dark] .tile small { color: var(--sub); opacity: 1; font-weight: 400; }
+  .tile .big { font-size: 46px; font-weight: 800; line-height: 1; margin-top: auto; font-variant-numeric: tabular-nums; }
+  [data-skin=vivid] .tile .big { text-shadow: 0 3px 0 rgba(0,0,0,.08); }
+  .tile .go { position: absolute; right: 14px; bottom: 16px; padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 700; background: var(--ink); color: var(--ink-text); }
+  .tile .deco { position: absolute; right: -10px; top: -14px; width: 110px; height: 110px; opacity: .3; }
+  [data-skin=clean] .tile .deco, [data-skin=dark] .tile .deco { display: none; }
+  .tile.b .big { color: inherit; }
+  [data-skin=clean] .tile.a .big, [data-skin=dark] .tile.a .big { color: var(--red); }
+
+  .quick { display: flex; justify-content: space-around; gap: 4px; margin: 18px 10px 0; }
+  .qbtn { flex: 0 1 25%; }
+  .qbtn { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 6px 2px; font-size: 13px; font-weight: 600; border-radius: var(--r-sm); text-align: center; }
+  .qbtn:hover { background: var(--hover); }
+  .qbtn .qi { width: 64px; height: 50px; border-radius: 26px; display: grid; place-items: center; font-size: 22px;
+    background: linear-gradient(180deg, #8ad8ff, #5fb6ff); color: #fff; box-shadow: 0 8px 16px -10px rgba(30,140,255,.8); }
+  .qbtn .qi svg { width: 26px; height: 26px; }
+  #cAddBtn .qi { background: linear-gradient(180deg, #b6a6ff, #8c6bff); box-shadow: 0 8px 16px -10px rgba(140,107,255,.8); }
+  #qMine .qi { background: linear-gradient(180deg, #ffc477, #ff9442); box-shadow: 0 8px 16px -10px rgba(255,148,66,.8); }
+  #qIcs .qi { background: linear-gradient(180deg, #7de6c4, #17c29a); box-shadow: 0 8px 16px -10px rgba(23,194,154,.8); }
+  #qTools .qi { background: linear-gradient(180deg, #ffa3c0, #ff6a8b); box-shadow: 0 8px 16px -10px rgba(255,106,139,.8); }
+  [data-skin=clean] .qbtn .qi, [data-skin=dark] .qbtn .qi { background: var(--hover) !important; color: var(--text); box-shadow: none !important; width: 52px; height: 52px; }
+
+  #ingestPanel { margin: 16px 16px 0; padding: 16px; }
+  #ingestPanel .ip-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-weight: 700; flex-wrap: wrap; }
   #ingestPanel .ip-head small { color: var(--sub); font-weight: 400; }
-  #ingestPanel textarea { width: 100%; font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--muted-bg); color: var(--text); resize: vertical; }
-  #ingestPanel textarea:focus { outline: 2px solid color-mix(in srgb, var(--accent) 35%, transparent); border-color: var(--accent); }
+  #ingestPanel textarea { width: 100%; font: inherit; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--muted-bg); color: var(--text); resize: vertical; }
   .ingest-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px; font-size: 13px; color: var(--sub); }
-  .ingest-row input[type=date] { font: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 3px 6px; background: var(--card); color: var(--text); }
-  #ingestStatus { color: var(--sub); font-size: 13px; } #ingestStatus.err { color: var(--red); }
+  .ingest-row input[type=date] { font: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 3px 6px; background: var(--surface); color: var(--text); }
+  #ingestStatus.err { color: var(--red); }
 
-  /* ===== 日历（普通模式） ===== */
-  main#mainCal { display: flex; gap: 16px; padding: 14px 20px; align-items: flex-start; }
-  #calendar { flex: 1; min-width: 0; background: var(--card); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
-  .cal-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px; flex-wrap: wrap; }
-  #monthWrap { position: relative; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; border-radius: 8px; padding: 2px 6px; margin-left: -6px; }
-  #monthWrap:hover { background: var(--hover); }
-  #monthLabel { font-size: 20px; font-weight: 700; letter-spacing: .3px; font-variant-numeric: tabular-nums; }
-  #monthWrap::after { content: "▾"; font-size: 11px; color: var(--sub); }
-  #jumpDate { position: absolute; inset: 0; opacity: 0; width: 100%; cursor: pointer; }
-  .navgrp { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-  .navgrp button { border: none; border-radius: 0; padding: 4px 11px; font-size: 13px; }
-  .navgrp button + button { border-left: 1px solid var(--line); }
-  .legend { display: flex; gap: 12px; font-size: 12px; color: var(--sub); flex-wrap: wrap; }
-  .legend span { display: inline-flex; align-items: center; gap: 5px; }
-  .legend i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); display: inline-block; }
-  .week-head, .grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
-  .week-head div { padding: 6px 10px; color: var(--sub); font-size: 12px; font-weight: 500; border-bottom: 1px solid var(--line); }
-  .week-head div:nth-child(n+6) { color: color-mix(in srgb, var(--sub) 70%, var(--accent)); }
-  .cell { min-height: 108px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
-    padding: 6px; cursor: pointer; overflow: hidden; transition: background .12s; }
-  .cell:hover { background: var(--muted-bg); }
-  .cell:nth-child(7n) { border-right: none; }
-  .cell:nth-last-child(-n+7) { border-bottom: none; }
-  .cell.other { background: var(--muted-bg); color: var(--muted-text); }
-  .cell.other .chip { opacity: .55; }
-  .cell.selected { background: var(--selected); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 45%, transparent); }
-  .daynum { font-size: 13px; margin-bottom: 4px; font-variant-numeric: tabular-nums; font-weight: 500; }
-  .daynum span { display: inline-grid; place-items: center; min-width: 24px; height: 24px; border-radius: 50%; }
-  .cell.today .daynum span { background: var(--today); color: #fff; font-weight: 650; }
-  .chip { font-size: 12px; border-radius: 6px; padding: 1px 6px; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    background: color-mix(in srgb, var(--c, var(--gray)) 13%, var(--card)); color: color-mix(in srgb, var(--c, var(--gray)) 78%, var(--text));
-    border-left: 3px solid var(--c, var(--gray)); font-weight: 500; }
-  .chip.done { opacity: .45; text-decoration: line-through; }
-  .more { font-size: 11px; color: var(--sub); padding-left: 4px; }
-
-  #side { width: 360px; flex-shrink: 0; background: var(--card); border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow); position: sticky; top: 72px; }
-  #side h2 { font-size: 17px; margin: 0 0 14px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-  #side h3 { font-size: 12px; margin: 20px 0 10px; color: var(--sub); font-weight: 600; letter-spacing: .5px; }
-  .item { position: relative; background: var(--muted-bg); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px 10px 16px; margin-bottom: 8px; }
-  .item::before { content: ""; position: absolute; left: 6px; top: 10px; bottom: 10px; width: 3px; border-radius: 3px; background: var(--c, var(--gray)); }
-  .item.done .title, .item.done .sum { text-decoration: line-through; opacity: .5; }
-  .item .title { font-weight: 600; font-size: 15px; margin-top: 4px; }
-  .item .ihead { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--sub); }
-  .item .ihead .atype { margin-right: 0; }
-  .item .iwhen { font-variant-numeric: tabular-nums; }
-  .item .iscope { font-size: 11px; color: var(--muted-text); }
-  .item .sum { color: color-mix(in srgb, var(--text) 75%, var(--sub)); }
-  .item .sum { margin-top: 2px; }
-  .item .meta { color: var(--sub); font-size: 12px; margin-top: 4px; }
-  .item .note { font-size: 12px; margin-top: 6px; background: var(--note-bg); border-radius: 8px; padding: 4px 8px; }
-  .item details { margin-top: 6px; font-size: 12px; color: var(--sub); }
-  .item details summary { cursor: pointer; }
-  .item .ops { margin-top: 6px; display: flex; gap: 2px; flex-wrap: wrap; margin-left: -6px; }
-  .warn { color: #e08600; font-size: 12px; margin-top: 4px; }
-  .empty { color: var(--sub); font-size: 13px; padding: 6px 0; }
-  footer.foot { padding: 0 20px 28px; color: var(--sub); font-size: 12px; }
-
-  /* ===== 简洁模式：今天 + 接下来两周 ===== */
-  #agenda { max-width: 760px; margin: 0 auto; padding: 18px 20px 40px; }
-  .hero { margin-bottom: 18px; }
-  .hero .date { color: var(--sub); font-size: 13px; }
-  .hero h2 { font-size: 26px; margin: 2px 0 14px; font-weight: 700; letter-spacing: .3px; }
-  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-  .stat { background: var(--card); border-radius: 14px; padding: 12px 14px; box-shadow: var(--shadow); }
-  .stat b { display: block; font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
-  .stat span { color: var(--sub); font-size: 12px; }
-  .stat.hot b { color: var(--red); }
-  .aday { margin-top: 22px; }
+  /* 时间线 */
+  .aday { margin-top: 22px; padding: 0 16px; }
   .aday-h { display: flex; align-items: baseline; gap: 8px; margin: 0 4px 8px; }
-  .aday-h b { font-size: 15px; }
+  .aday-h b { font-size: 16px; font-weight: 800; }
   .aday-h span { color: var(--sub); font-size: 12px; }
   .aday-h.overdue b { color: var(--red); }
-  .acard { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
-  .arow { display: flex; gap: 12px; padding: 12px 14px; align-items: flex-start; }
+  .acard { overflow: hidden; }
+  .arow { display: flex; gap: 12px; padding: 14px 16px; align-items: flex-start; transition: background .12s; }
+  .arow:hover { background: color-mix(in srgb, var(--hover) 70%, transparent); }
   .arow + .arow { border-top: 1px solid var(--line); }
-  .chk { flex-shrink: 0; width: 22px; height: 22px; padding: 0; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--c, var(--gray)) 70%, var(--card));
-    background: transparent; margin-top: 1px; display: grid; place-items: center; font-size: 12px; color: #fff; line-height: 1; }
-  .chk:hover { background: color-mix(in srgb, var(--c, var(--gray)) 12%, transparent); }
+  .chk { flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--c, var(--gray)) 75%, transparent);
+    margin-top: 1px; display: grid; place-items: center; font-size: 13px; color: #fff; line-height: 1; }
+  .chk:hover { background: color-mix(in srgb, var(--c, var(--gray)) 14%, transparent); }
   .arow.done .chk { background: var(--c, var(--gray)); border-color: var(--c, var(--gray)); }
-  .adot { flex-shrink: 0; width: 10px; height: 10px; border-radius: 50%; background: var(--c, var(--gray)); margin: 7px 6px 0; }
+  .adot { flex-shrink: 0; width: 10px; height: 10px; border-radius: 50%; background: var(--c, var(--gray)); margin: 8px 7px 0; }
   .abody { flex: 1; min-width: 0; cursor: pointer; }
-  .atitle { font-weight: 600; font-size: 15px; }
+  .atitle { font-weight: 700; font-size: 15.5px; }
   .arow.done .atitle, .arow.done .asub { text-decoration: line-through; opacity: .45; }
-  .asub { color: var(--sub); font-size: 13px; margin-top: 2px; }
-  .atype { display: inline-block; font-size: 11px; font-weight: 600; padding: 0 6px; border-radius: 5px; margin-right: 6px; vertical-align: 1px;
-    background: color-mix(in srgb, var(--c, var(--gray)) 13%, var(--card)); color: color-mix(in srgb, var(--c, var(--gray)) 80%, var(--text)); }
-  .atime { flex-shrink: 0; color: var(--sub); font-size: 13px; font-variant-numeric: tabular-nums; padding-top: 1px; }
-  .atime.due { color: var(--red); font-weight: 600; }
+  .asub { color: var(--sub); font-size: 13.5px; margin-top: 2px; }
+  .atype { display: inline-block; font-size: 11px; font-weight: 700; padding: 0 7px; border-radius: 6px; margin-right: 6px; vertical-align: 1px;
+    background: color-mix(in srgb, var(--c, var(--gray)) 15%, transparent); color: color-mix(in srgb, var(--c, var(--gray)) 85%, var(--text)); }
+  .atime { flex-shrink: 0; color: var(--sub); font-size: 13px; font-variant-numeric: tabular-nums; padding-top: 2px; }
+  .atime.due { color: var(--red); font-weight: 700; }
   .aextra { display: none; margin-top: 8px; font-size: 13px; }
   .arow.open .aextra { display: block; }
-  .aextra .meta { color: var(--sub); font-size: 12px; margin-top: 4px; }
-  .aextra .note { font-size: 12px; margin-top: 6px; background: var(--note-bg); border-radius: 8px; padding: 4px 8px; }
-  .aextra details { margin-top: 6px; font-size: 12px; color: var(--sub); }
-  .aextra .ops { margin-top: 6px; display: flex; gap: 2px; flex-wrap: wrap; margin-left: -6px; }
-  .aempty { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; color: var(--sub); font-size: 13px; }
-  .afoot { text-align: center; margin-top: 26px; }
+  .aempty { padding: 18px; color: var(--sub); font-size: 14px; }
+  .afoot { text-align: center; margin: 26px 16px 0; color: var(--sub); font-size: 12px; }
 
-  /* 模式切换 */
-  html.simple main#mainCal, html.simple footer.foot { display: none !important; }
-  html.simple nav#tabs button:not([data-tab=calendar]):not([data-tab=homework]) { display: none; }
-  html:not(.simple) #agenda { display: none; }
-  html.simple .toolbar { max-width: 760px; padding-top: 18px; }
-  html.simple #agenda { padding-top: 6px; }
+  .item { position: relative; background: var(--muted-bg); border-radius: var(--r-sm); padding: 12px 14px 12px 18px; margin-bottom: 10px; }
+  .item::before { content: ""; position: absolute; left: 7px; top: 12px; bottom: 12px; width: 3px; border-radius: 3px; background: var(--c, var(--gray)); }
+  .item.done .title, .item.done .sum { text-decoration: line-through; opacity: .5; }
+  .item .title { font-weight: 700; font-size: 15px; margin-top: 4px; }
+  .item .ihead { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--sub); }
+  .item .ihead .atype { margin-right: 0; }
+  .item .iscope { font-size: 11px; color: var(--muted-text); }
+  .item .sum { color: var(--sub); }
+  .meta { color: var(--sub); font-size: 12px; margin-top: 4px; }
+  .note { font-size: 12px; margin-top: 6px; background: var(--note-bg); border-radius: 8px; padding: 4px 8px; }
+  details { margin-top: 6px; font-size: 12px; color: var(--sub); } details summary { cursor: pointer; }
+  .ops { margin-top: 6px; display: flex; gap: 2px; flex-wrap: wrap; margin-left: -8px; }
+  .warn { color: #e08600; font-size: 12px; margin-top: 4px; }
+  .empty { color: var(--sub); font-size: 14px; padding: 6px 0; }
 
-  /* ===== 作业页 ===== */
-  #hwView { max-width: 820px; margin: 0 auto; padding: 18px 20px 40px; }
-  .hw-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
-  .hw-head h2 { margin: 0; font-size: 24px; font-weight: 700; }
+  /* ================= 作业页 ================= */
+  .hw-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 4px 20px 12px; }
+  .hw-head h2 { margin: 0; font-size: 22px; font-weight: 800; }
+  [data-skin=vivid] .hw-head h2 { font-family: var(--fd); font-weight: var(--fd-weight); font-size: 28px; letter-spacing: 1px; }
   .hw-head .range { color: var(--sub); font-size: 13px; }
-  .hw-prog { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 16px; margin-bottom: 6px; }
-  .hw-prog .row1 { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; color: var(--sub); }
-  .hw-prog .row1 b { font-size: 22px; color: var(--text); font-variant-numeric: tabular-nums; margin-right: 4px; }
-  .bar { height: 8px; background: var(--hover); border-radius: 99px; overflow: hidden; margin-top: 10px; }
+  .hw-prog { margin: 0 16px; padding: 16px 18px; }
+  [data-skin=vivid] .hw-prog { background: var(--tile-a); color: #fff; border: 0; }
+  .hw-prog .row1 { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; gap: 10px; flex-wrap: wrap; }
+  .hw-prog .row1 b { font-size: 30px; font-weight: 800; margin-right: 4px; font-variant-numeric: tabular-nums; }
+  .bar { height: 10px; background: color-mix(in srgb, var(--text) 10%, transparent); border-radius: 99px; overflow: hidden; margin-top: 10px; }
+  [data-skin=vivid] .bar { background: rgba(255,255,255,.35); }
   .bar i { display: block; height: 100%; background: var(--green); border-radius: 99px; transition: width .3s; }
-  .due-tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 99px; white-space: nowrap;
-    background: var(--hover); color: var(--sub); }
-  .due-tag.late, .due-tag.today { background: color-mix(in srgb, var(--red) 14%, var(--card)); color: var(--red); }
-  .due-tag.soon { background: color-mix(in srgb, #f59e0b 16%, var(--card)); color: #c27803; }
+  [data-skin=vivid] .bar i { background: #fff; }
+  .due-tag { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 99px; white-space: nowrap; background: var(--hover); color: var(--sub); }
+  .due-tag.late, .due-tag.today { background: color-mix(in srgb, var(--red) 15%, transparent); color: var(--red); }
+  .due-tag.soon { background: color-mix(in srgb, #f59e0b 18%, transparent); color: #c27803; }
   .hw-side { flex-shrink: 0; text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
   .hw-side small { color: var(--sub); font-size: 12px; font-variant-numeric: tabular-nums; }
-  .stat.link { cursor: pointer; } .stat.link:hover { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--accent) 35%, transparent), var(--shadow); }
+  .navgrp { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--surface); }
+  .navgrp button { padding: 5px 13px; font-size: 13px; font-weight: 600; }
+  .navgrp button:hover { background: var(--hover); }
+  .navgrp button + button { border-left: 1px solid var(--line); }
 
-  /* ===== 插件与商店 ===== */
-  .view { display: none; } .view.on { display: block; }
-  .panel { margin: 14px 20px 20px; background: var(--card); border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow); }
-  .panel h2 { margin: 0 0 12px; font-size: 17px; }
+  /* ================= 日历页 ================= */
+  #monthWrap { position: relative; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+  #monthLabel { font-size: 21px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  [data-skin=vivid] #monthLabel { font-family: var(--fd); font-weight: var(--fd-weight); font-size: 26px; letter-spacing: 1px; }
+  #monthWrap::after { content: "▾"; font-size: 11px; color: var(--sub); }
+  #jumpDate { position: absolute; inset: 0; opacity: 0; width: 100%; cursor: pointer; }
+  .legend { display: flex; gap: 14px; font-size: 12px; color: var(--sub); flex-wrap: wrap; padding: 0 20px 10px; }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .legend i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); display: inline-block; }
+  #calendar { margin: 0 16px; overflow: hidden; }
+  .week-head, .grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+  .week-head div { padding: 10px 8px 6px; color: var(--sub); font-size: 12px; font-weight: 600; text-align: center; }
+  .cell { min-height: 92px; padding: 6px 4px; cursor: pointer; overflow: hidden; border-top: 1px solid var(--line); transition: background .12s; }
+  .cell:hover { background: var(--hover); }
+  .cell.other { color: var(--muted-text); }
+  .cell.other .chip { opacity: .5; }
+  .cell.selected { background: var(--selected); }
+  .daynum { font-size: 13px; margin-bottom: 4px; font-variant-numeric: tabular-nums; font-weight: 600; text-align: center; }
+  .daynum span { display: inline-grid; place-items: center; min-width: 26px; height: 26px; border-radius: 50%; }
+  .cell.today .daynum span { background: var(--today); color: #fff; font-weight: 800; }
+  .chip { font-size: 11.5px; border-radius: 6px; padding: 1px 5px; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600;
+    background: color-mix(in srgb, var(--c, var(--gray)) 16%, transparent); color: color-mix(in srgb, var(--c, var(--gray)) 85%, var(--text)); }
+  .chip.done { opacity: .45; text-decoration: line-through; }
+  .more { font-size: 11px; color: var(--sub); text-align: center; }
+  #side { margin: 14px 16px 0; padding: 18px; }
+  #side h2 { font-size: 18px; margin: 0 0 14px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  #side h3 { font-size: 13px; margin: 20px 0 10px; color: var(--sub); }
+
+  /* ================= 工具 / 插件 ================= */
+  .tool-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px 6px; padding: 6px 12px 4px; }
+  .tool { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 8px 2px; border-radius: var(--r-sm); font-size: 13px; font-weight: 600; text-align: center; }
+  .tool:hover { background: var(--hover); }
+  .tool .ti { width: 58px; height: 58px; border-radius: 20px; display: grid; place-items: center; font-size: 28px; background: var(--surface); box-shadow: var(--shadow); border: 1px solid var(--border); }
+  [data-skin=vivid] .tool .ti { background: linear-gradient(160deg, #ffffff, #e4f5ff); }
+  #storeWrap { margin: 0 16px; padding: 4px 16px; }
   .store-item { display: flex; gap: 14px; align-items: center; border-bottom: 1px solid var(--line); padding: 14px 0; }
   .store-item:last-child { border-bottom: none; }
-  .store-item .icon { font-size: 24px; width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; background: var(--hover); flex-shrink: 0; }
+  .store-item .icon { font-size: 24px; width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; background: var(--hover); flex-shrink: 0; }
   .store-item .info { flex: 1; min-width: 0; }
-  .store-item .name { font-weight: 600; }
-  .store-item .desc, .store-item .by { color: var(--sub); font-size: 12px; margin-top: 2px; }
+  .store-item .name { font-weight: 700; }
+  .store-item .desc, .store-item .by { color: var(--sub); font-size: 12.5px; margin-top: 2px; }
   .store-item .err { color: var(--red); font-size: 12px; margin-top: 2px; }
-  .panel input, .panel select, .panel textarea { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); }
+  .panel { margin: 10px 16px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); box-shadow: var(--shadow); padding: 16px; }
+  .panel h2 { margin: 0 0 12px; font-size: 18px; }
+  .panel input, .panel select, .panel textarea { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); }
+  .view { display: none; } .view.on { display: block; }
+  [data-view=homework] > .vhead h2 { display: none; }
+  @media (min-width: 701px) { [data-view=homework] > .vhead { display: none; } .hw-head { padding-top: 16px; } }
 
-  /* ===== 弹窗 ===== */
-  #modal, .modal2 { position: fixed; inset: 0; background: rgba(16,24,40,.38); display: none; align-items: center; justify-content: center; z-index: 40;
-    backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+  /* ================= 我的 ================= */
+  .me-card { margin: 0 16px; padding: 22px 20px; display: flex; align-items: center; gap: 16px; }
+  .me-card .av { width: 64px; height: 64px; font-size: 26px; box-shadow: 0 0 0 4px var(--surface); }
+  .me-card b { font-size: 21px; display: block; }
+  [data-skin=vivid] .me-card b { font-family: var(--fd); font-weight: var(--fd-weight); font-size: 26px; letter-spacing: 1px; }
+  .me-card span { color: var(--sub); font-size: 13px; }
+  .group { margin: 0 16px; overflow: hidden; }
+  .gi { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 18px; text-align: left; font-size: 15px; color: var(--text); }
+  .gi + .gi, .gi + .gx, .gx + .gi { border-top: 1px solid var(--line); }
+  button.gi:hover, a.gi:hover, label.gi:hover { background: var(--hover); }
+  .gi .ic { width: 22px; text-align: center; }
+  .gi small { color: var(--sub); font-size: 12px; margin-left: auto; text-align: right; }
+  .gi.danger { color: var(--red); }
+  .gx { padding: 16px 18px; }
+  .skins { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .skin { border-radius: var(--r-sm); border: 2px solid var(--line); padding: 6px; text-align: center; font-size: 13px; font-weight: 700; background: var(--surface); }
+  .skin.on { border-color: var(--accent); }
+  .skin .pv { height: 74px; border-radius: 10px; margin-bottom: 6px; position: relative; overflow: hidden; }
+  .skin .pv i, .skin .pv em { position: absolute; border-radius: 6px; }
+  .pv.vivid { background: linear-gradient(180deg, #8fdcff, #e9f8ff); }
+  .pv.vivid i { left: 8px; top: 30px; width: 44%; height: 34px; background: linear-gradient(140deg, #ffb45a, #ff8838); border-radius: 10px; }
+  .pv.vivid em { right: 8px; top: 30px; width: 40%; height: 34px; background: linear-gradient(140deg, #8adbff, #3cb2ff); border-radius: 10px; }
+  .pv.clean { background: #fff; border: 1px solid #eff3f4; }
+  .pv.clean i { left: 8px; right: 8px; top: 12px; height: 10px; background: #0f1419; opacity: .85; width: 50%; }
+  .pv.clean em { left: 8px; right: 8px; top: 32px; height: 30px; border: 1px solid #e1e8ed; }
+  .pv.dark { background: #000; border: 1px solid #2f3336; }
+  .pv.dark i { left: 8px; top: 12px; height: 10px; background: #e7e9ea; width: 50%; }
+  .pv.dark em { left: 8px; right: 8px; top: 32px; height: 30px; border: 1px solid #2f3336; }
+  .bgrow { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .bgthumb { width: 96px; height: 64px; border-radius: 12px; background: var(--hover) center/cover no-repeat; border: 1px solid var(--line); display: grid; place-items: center; color: var(--sub); font-size: 12px; }
+  .slider { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 13px; color: var(--sub); }
+  .slider input { flex: 1; accent-color: var(--accent); }
+  .switch { margin-left: auto; accent-color: var(--accent); width: 18px; height: 18px; }
+
+  /* ================= 右侧栏 ================= */
+  .widget { padding: 16px 16px 12px; }
+  .widget h4 .small { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; font-size: 13px; letter-spacing: 0; }
+  .widget h4 { margin: 0 0 10px; font-size: 18px; font-weight: 800; display: flex; align-items: center; }
+  [data-skin=vivid] .widget h4 { font-family: var(--fd); font-weight: var(--fd-weight); font-size: 21px; letter-spacing: 1px; }
+  .mini { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .mini .wd { color: var(--sub); font-size: 11px; padding-bottom: 4px; }
+  .mini button { height: 34px; border-radius: 50%; position: relative; font-weight: 600; }
+  .mini button:hover { background: var(--hover); }
+  .mini button.o { color: var(--muted-text); }
+  .mini button.t { background: var(--today); color: #fff; }
+  .mini button i { position: absolute; left: 50%; bottom: 3px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--red); }
+  .mini button.t i { background: #fff; }
+  .wrow { display: flex; gap: 10px; align-items: center; padding: 9px 0; border-top: 1px solid var(--line); font-size: 14px; }
+  .wrow:first-of-type { border-top: 0; }
+  .wrow .n { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rail-foot { color: var(--sub); font-size: 12px; padding: 0 8px; line-height: 1.7; }
+
+  /* ================= 弹窗 ================= */
+  #modal, .modal2 { position: fixed; inset: 0; background: rgba(8, 20, 40, .42); display: none; align-items: center; justify-content: center; z-index: 50;
+    -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
   #modal.open, .modal2.open { display: flex; }
-  #modal form, .modal2 form { background: var(--card); border-radius: 18px; padding: 20px; width: min(460px, 92vw); max-height: 90vh; overflow: auto;
-    box-shadow: 0 24px 60px rgba(16,24,40,.25); }
-  #modal h3, .modal2 h3 { margin: 0 0 6px; font-size: 18px; }
-  #modal label, .modal2 label { display: block; font-size: 12px; color: var(--sub); margin-top: 10px; font-weight: 500; }
+  #modal form, .modal2 form { background: var(--card); color: var(--text); border-radius: 22px; padding: 22px; width: min(480px, 92vw); max-height: 90vh; overflow: auto; box-shadow: 0 30px 70px rgba(8,20,40,.3); border: 1px solid var(--border); }
+  #modal h3, .modal2 h3 { margin: 0 0 6px; font-size: 20px; font-weight: 800; }
+  #modal label, .modal2 label { display: block; font-size: 12px; color: var(--sub); margin-top: 12px; font-weight: 600; }
   .modal2 label.check { display: flex; gap: 6px; align-items: center; font-size: 13px; }
   #modal input, #modal textarea, .modal2 input:not([type=checkbox]), .modal2 textarea, .modal2 select {
-    background: var(--muted-bg); color: var(--text); width: 100%; font: inherit; font-size: 14px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px; margin-top: 4px; }
-  #modal input:focus, #modal textarea:focus, .modal2 input:focus, .modal2 textarea:focus, .modal2 select:focus {
-    outline: 2px solid color-mix(in srgb, var(--accent) 30%, transparent); border-color: var(--accent); background: var(--card); }
+    background: var(--muted-bg); color: var(--text); width: 100%; font: inherit; font-size: 15px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; margin-top: 5px; }
   #modal .row, .modal2 .row { display: flex; gap: 10px; } #modal .row > div, .modal2 .row > div { flex: 1; min-width: 0; }
-  #modal .btns, .modal2 .btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+  #modal .btns, .modal2 .btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+  #modal .btns button, .modal2 .btns button { padding: 9px 18px; border-radius: 999px; font-weight: 700; border: 1px solid var(--line); }
+  #modal .btns button.primary, .modal2 .btns button.primary { border-color: transparent; background: var(--ink); color: var(--ink-text); }
 
-  @media (max-width: 800px) {
-    header.appbar { padding: 8px 12px; gap: 8px; flex-wrap: wrap; }
-    .brand .bname { display: none; }
-    #classBar { order: 10; width: 100%; justify-content: flex-start; }
-    #classBar .pill-sp { flex: 1; }
-    #userChip .who { display: none; }
-    #userChip { padding: 3px; }
-    #userChip.guest { padding: 6px 12px; }
-    #addBtn .lbl { display: none; }
-    #hwView { padding: 14px 12px 32px; }
-    .hw-head h2 { font-size: 21px; }
-    #addBtn { padding: 5px 11px; }
-    .seg button { padding: 4px 10px; }
-    .toolbar { padding: 10px 12px 0; flex-wrap: wrap; }
-    .toolbar .cact { width: 100%; }
-    .toolbar .cact button { flex: 1; justify-content: center; }
-    #banner, #notice, #ingestPanel { margin-left: 12px; margin-right: 12px; }
-    main#mainCal { flex-direction: column; padding: 10px 12px; }
-    .panel { margin: 10px 12px 12px; }
-    #side { width: 100%; position: static; }
-    .cal-head { padding: 12px 12px 8px; }
-    .legend { width: 100%; order: 10; gap: 10px; }
-    .week-head div { padding: 6px 4px; text-align: center; }
-    .cell { min-height: 60px; padding: 3px 2px; }
-    .daynum { text-align: center; }
-    .chip { font-size: 10px; padding: 0 3px; border-left-width: 2px; border-radius: 4px; }
-    footer.foot { padding: 0 12px 24px; }
-    #agenda { padding: 14px 12px 32px; }
-    .hero h2 { font-size: 22px; }
-    .stat { padding: 10px 12px; }
-    .stat b { font-size: 20px; }
-    .menu { position: fixed; left: 12px; right: 12px; top: 58px; width: auto; }
+  /* ================= 响应式 ================= */
+  @media (max-width: 1240px) { .shell { grid-template-columns: 244px minmax(0, 640px); } .siderail { display: none; } }
+  @media (max-width: 1000px) {
+    .shell { grid-template-columns: 80px minmax(0, 640px); column-gap: 18px; }
+    .brand span, .nav span, #userChip .who, #addBtn .lbl { display: none; }
+    .brand { padding: 6px 0 14px; justify-content: center; } .rail { align-items: center; }
+    #addBtn { width: 56px; height: 56px; padding: 0; } #addBtn .plus { display: inline; font-size: 28px; font-weight: 400; }
+    #userChip { width: auto; padding: 6px; }
+  }
+  @media (max-width: 700px) {
+    body { font-size: 15px; }
+    .shell { display: block; }
+    .col { border: 0; padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+    .rail { position: fixed; z-index: 30; left: 0; right: 0; bottom: 0; top: auto; height: auto; flex-direction: row; padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+      background: color-mix(in srgb, var(--bg2) 86%, transparent); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); border-top: 1px solid var(--line); }
+    .brand, #userChip, .nav.desk { display: none !important; }
+    #tabs { flex-direction: row; flex: 1; justify-content: space-around; }
+    .nav { flex-direction: column; gap: 2px; padding: 6px 10px; font-size: 11px; border-radius: 14px; }
+    .nav span { display: block; }
+    .nav svg { width: 24px; height: 24px; }
+    .nav.on { background: none; box-shadow: none; }
+    .nav .badge { position: absolute; margin: -4px 0 0 14px; }
+    .nav { position: relative; }
+    #addBtn { position: fixed; right: 18px; bottom: calc(76px + env(safe-area-inset-bottom)); width: 58px; height: 58px; margin: 0; z-index: 31; }
+    .mavatar { display: grid; width: 34px; height: 34px; font-size: 14px; }
+    .vhead { padding: 10px 14px; min-height: 52px; }
+    .hero h3 { font-size: 28px; max-width: 62%; }
+    .mascot { width: 116px; height: 116px; right: 6px; }
+    .tile { min-height: 132px; padding: 16px 14px 14px; }
+    .tile b { font-size: 24px; }
+    .tile .big { font-size: 38px; }
+    .tile .go { right: 10px; bottom: 12px; padding: 5px 10px; font-size: 12px; }
+    .cell { min-height: 62px; padding: 3px 1px; }
+    .chip { font-size: 10px; padding: 0 3px; border-radius: 4px; }
+    .tool-grid { grid-template-columns: repeat(4, 1fr); }
+    #modal, .modal2 { align-items: flex-end; }
+    #modal form, .modal2 form { width: 100%; border-radius: 24px 24px 0 0; padding-bottom: calc(22px + env(safe-area-inset-bottom)); }
   }
 </style>
 </head>
 <body>
-<header class="appbar">
-  <h1 class="brand"><span class="logo">📅</span><span class="bname">班级日历</span></h1>
-  <div id="classBar" class="hidden">
-    <span id="className"></span>
-    <select id="classSel" class="hidden" aria-label="切换班级"></select>
-    <span id="classRole" class="tag"></span>
-    <span class="pill-sp"></span>
-    <a class="pill-link" href="class.html">班级管理</a>
-  </div>
-  <span class="spacer"></span>
-  <div id="modeSwitch" class="seg" role="group" aria-label="显示模式">
-    <button data-mode="simple" title="只看今天和接下来两周要做的事">简洁</button>
-    <button data-mode="normal" title="完整月历、插件和所有工具">普通</button>
-  </div>
-  <button id="addBtn" class="primary" title="添加只自己可见的事项">＋<span class="lbl"> 我的事项</span></button>
-  <div class="menuwrap">
-    <button id="userChip" class="ghost" aria-haspopup="true"></button>
-    <div id="menu" class="menu hidden">
-      <div class="mhead" id="menuHead"></div>
-      <a class="mi" id="menuLogin" href="login.html?next=index.html"><span class="ic">🔑</span>登录 / 注册</a>
-      <a class="mi" href="class.html"><span class="ic">🏫</span>班级管理</a>
-      <a class="mi hidden" id="menuDev" href="dev.html"><span class="ic">🧩</span>插件后台</a>
-      <hr>
-      <button class="mi" id="refreshBtn"><span class="ic">↻</span>刷新班级数据</button>
-      <button class="mi" id="icsBtn"><span class="ic">📲</span>导出到手机日历</button>
-      <button class="mi" id="exportBtn"><span class="ic">⤓</span>备份我的数据</button>
-      <button class="mi" id="importBtn"><span class="ic">⤒</span>恢复备份</button>
-      <input type="file" id="importFile" accept=".json,application/json" hidden>
-      <label class="mi"><input type="checkbox" id="showHidden"> 显示已隐藏的事项</label>
-      <hr>
-      <div class="mnote"><span id="updated"></span><br>「我的事项」和你的标记只保存在这台设备上，不会上传。</div>
-      <button class="mi danger hidden" id="logoutBtn"><span class="ic">⎋</span>退出登录</button>
-    </div>
-  </div>
-</header>
-<div class="wrap">
-<div id="banner"></div>
-<div id="notice" class="hidden"></div>
-<div class="toolbar">
-  <nav id="tabs" class="seg"></nav>
-  <span class="spacer"></span>
-  <div class="cact">
-    <button id="cIngestBtn" class="small hidden">✨ AI 整理群消息</button>
-    <button id="cAddBtn" class="small hidden">＋ 班级事项</button>
-  </div>
-</div>
-<section id="ingestPanel" class="hidden">
-  <div class="ip-head">✨ 粘贴群消息 <small>AI 会提取作业、会议、活动和通知，闲聊自动过滤</small></div>
-  <textarea id="ingestText" rows="6" placeholder="把班级群里的消息整段粘贴到这里"></textarea>
-  <div class="ingest-row">
-    <label>消息发布日期 <input type="date" id="ingestDate"></label>
-    <span class="spacer"></span>
-    <span id="ingestStatus"></span>
-    <button id="ingestClose" class="small ghost">收起</button>
-    <button id="ingestGo" class="primary small">AI 整理并发布到班级</button>
-  </div>
-</section>
+<div id="bgLayer"></div>
+<div class="shell">
 
-<section class="view on" data-view="calendar">
-<div id="agenda"></div>
-<main id="mainCal" class="view on" style="display:flex">
-  <div id="calendar">
-    <div class="cal-head">
+<!-- ========== 左侧导航（手机上变成底部标签栏） ========== -->
+<aside class="rail">
+  <div class="brand">
+    <svg viewBox="0 0 120 120" aria-hidden="true"><use href="#mascotArt"/></svg><span>班级日历</span>
+  </div>
+  <nav id="tabs" aria-label="主导航"></nav>
+  <button id="addBtn" title="添加只自己可见的事项"><span class="plus">＋</span><span class="lbl">记一件事</span></button>
+  <button id="userChip"></button>
+</aside>
+
+<!-- ========== 中间内容 ========== -->
+<main class="col">
+  <div id="banner"></div>
+
+  <!-- 首页 -->
+  <section class="view on" data-view="home">
+    <header class="vhead"><button class="av mavatar" data-tab="me" aria-label="我的"></button><h2>首页</h2></header>
+    <div id="classBar" class="hidden">
+      <div class="cb-badge" id="cbBadge">班</div>
+      <div class="cb-main">
+        <span id="className"></span>
+        <select id="classSel" class="hidden" aria-label="切换班级"></select>
+        <div class="cb-sub"><span id="classRole" class="tag"></span><a href="class.html">班级管理</a></div>
+      </div>
+    </div>
+    <div id="notice" class="surface hidden"></div>
+    <div id="hero"></div>
+    <div id="tiles" class="tiles"></div>
+    <div class="quick">
+      <button class="qbtn hidden" id="cIngestBtn"><span class="qi">✨</span>AI 整理</button>
+      <button class="qbtn hidden" id="cAddBtn"><span class="qi">📣</span>发布事项</button>
+      <button class="qbtn" id="qMine"><span class="qi">✏️</span>记一件事</button>
+      <button class="qbtn" id="qIcs"><span class="qi">📲</span>导入手机</button>
+      <button class="qbtn" id="qTools" data-tab="tools"><span class="qi">🧩</span>更多工具</button>
+    </div>
+    <section id="ingestPanel" class="surface hidden">
+      <div class="ip-head">✨ 粘贴群消息 <small>AI 会提取作业、会议、活动和通知，闲聊自动过滤</small></div>
+      <textarea id="ingestText" rows="6" placeholder="把班级群里的消息整段粘贴到这里"></textarea>
+      <div class="ingest-row">
+        <label>消息发布日期 <input type="date" id="ingestDate"></label>
+        <span class="spacer"></span>
+        <span id="ingestStatus"></span>
+        <button id="ingestClose" class="small">收起</button>
+        <button id="ingestGo" class="btn ink sm">AI 整理并发布到班级</button>
+      </div>
+    </section>
+    <div id="agenda"></div>
+  </section>
+
+  <!-- 作业 -->
+  <section class="view" data-view="homework">
+    <header class="vhead"><button class="av mavatar" data-tab="me" aria-label="我的"></button><h2>作业</h2></header>
+    <div id="hwView"></div>
+  </section>
+
+  <!-- 日历 -->
+  <section class="view" data-view="calendar">
+    <header class="vhead">
+      <button class="av mavatar" data-tab="me" aria-label="我的"></button>
       <label id="monthWrap" title="跳转到指定日期"><span id="monthLabel"></span><input type="date" id="jumpDate" aria-label="跳转到日期"></label>
-      <div class="navgrp"><button id="prevBtn" aria-label="上个月">‹</button><button id="todayBtn">今天</button><button id="nextBtn" aria-label="下个月">›</button></div>
       <span class="spacer"></span>
-      <span class="legend">
-        <span><i class="t-作业"></i>作业</span><span><i class="t-会议"></i>会议</span>
-        <span><i class="t-活动"></i>活动</span><span><i class="t-通知"></i>通知</span><span><i class="t-个人"></i>我的</span>
-      </span>
+      <div class="navgrp"><button id="prevBtn" aria-label="上个月">‹</button><button id="todayBtn">今天</button><button id="nextBtn" aria-label="下个月">›</button></div>
+    </header>
+    <div class="legend">
+      <span><i class="t-作业"></i>作业</span><span><i class="t-会议"></i>会议</span>
+      <span><i class="t-活动"></i>活动</span><span><i class="t-通知"></i>通知</span><span><i class="t-个人"></i>我的</span>
     </div>
-    <div class="week-head">
-      <div>周一</div><div>周二</div><div>周三</div><div>周四</div><div>周五</div><div>周六</div><div>周日</div>
+    <div id="mainCal">
+      <div id="calendar" class="surface">
+        <div class="week-head"><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div><div>日</div></div>
+        <div class="grid" id="grid"></div>
+      </div>
+      <aside id="side" class="surface">
+        <h2><span id="sideTitle"></span><button class="small" id="addDayBtn">＋ 这天加事项</button></h2>
+        <div id="dayList"></div>
+        <h3>时间待定，请去群里核实</h3>
+        <div id="undatedList"></div>
+      </aside>
     </div>
-    <div class="grid" id="grid"></div>
-  </div>
-  <aside id="side">
-    <h2><span id="sideTitle"></span><button class="small" id="addDayBtn">＋ 这天加事项</button></h2>
-    <div id="dayList"></div>
-    <h3>时间待定 · 请去群里核实</h3>
-    <div id="undatedList"></div>
-  </aside>
-</main>
-<footer class="foot">班级事项由班委统一整理；「我的事项」和你的标记只保存在这台设备上。更多工具在右上角头像菜单里。</footer>
-</section>
-<section class="view" data-view="homework"><div id="hwView"></div></section>
-<div id="pluginViews"></div>
+  </section>
 
-<section class="view" data-view="store">
-  <div class="panel">
-    <h2>🧩 插件商店</h2>
-    <div class="desc" style="color:var(--sub);font-size:12px;margin-bottom:8px">打开或关闭功能模块。设置只保存在这台设备上，切换后自动刷新页面。</div>
-    <div id="storeList">加载中…</div>
-  </div>
-</section>
+  <!-- 工具 -->
+  <section class="view" data-view="tools">
+    <header class="vhead"><button class="av mavatar" data-tab="me" aria-label="我的"></button><h2>工具</h2></header>
+    <div class="sec-h" style="margin-top:6px"><b>已启用</b><span>在插件商店里打开的功能会出现在这里</span></div>
+    <div id="toolGrid" class="tool-grid"></div>
+    <div class="sec-h" id="storeAnchor"><b>插件商店</b><span>设置只保存在这台设备上，切换后自动刷新</span></div>
+    <div id="storeWrap" class="surface"><div id="storeList">加载中…</div></div>
+  </section>
+
+  <!-- 我的 -->
+  <section class="view" data-view="me">
+    <header class="vhead"><h2>我的</h2></header>
+    <div id="meCard" class="me-card surface"></div>
+
+    <div class="sec-h"><b>外观</b><span>只对这台设备生效</span></div>
+    <div class="group surface">
+      <div class="gx">
+        <div class="skins" id="skinPick">
+          <button class="skin" data-skin="vivid"><div class="pv vivid"><i></i><em></em></div>元气</button>
+          <button class="skin" data-skin="clean"><div class="pv clean"><i></i><em></em></div>简约</button>
+          <button class="skin" data-skin="dark"><div class="pv dark"><i></i><em></em></div>夜间</button>
+        </div>
+      </div>
+      <div class="gx">
+        <div class="bgrow">
+          <div class="bgthumb" id="bgThumb">无</div>
+          <div>
+            <div style="font-weight:700">背景图片</div>
+            <div class="meta">换成你喜欢的图，任何风格都能用</div>
+            <div style="display:flex;gap:8px;margin-top:8px">
+              <label class="btn sm" for="bgFile">上传图片</label>
+              <button class="btn sm hidden" id="bgRemove">移除</button>
+            </div>
+            <input type="file" id="bgFile" accept="image/*" hidden>
+          </div>
+        </div>
+        <div id="bgOpts" class="hidden">
+          <label class="slider">遮罩 <input type="range" id="bgDim" min="0" max="90" step="5"></label>
+          <label class="slider">模糊 <input type="range" id="bgBlur" min="0" max="24" step="2"></label>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec-h"><b>班级与账号</b></div>
+    <div class="group surface">
+      <a class="gi" href="class.html"><span class="ic">🏫</span>班级管理<small>加入班级、审批同学</small></a>
+      <a class="gi hidden" id="menuDev" href="dev.html"><span class="ic">🧩</span>插件后台</a>
+      <a class="gi" id="menuLogin" href="login.html?next=index.html"><span class="ic">🔑</span>登录 / 注册</a>
+      <button class="gi danger hidden" id="logoutBtn"><span class="ic">⎋</span>退出登录</button>
+    </div>
+
+    <div class="sec-h"><b>数据</b><span id="updated"></span></div>
+    <div class="group surface">
+      <button class="gi" id="refreshBtn"><span class="ic">↻</span>刷新班级数据</button>
+      <button class="gi" id="icsBtn"><span class="ic">📲</span>导出到手机日历<small>生成 .ics 文件</small></button>
+      <button class="gi" id="exportBtn"><span class="ic">⤓</span>备份我的数据</button>
+      <button class="gi" id="importBtn"><span class="ic">⤒</span>恢复备份</button>
+      <input type="file" id="importFile" accept=".json,application/json" hidden>
+      <label class="gi"><span class="ic">👁</span>显示已隐藏的事项<input type="checkbox" id="showHidden" class="switch"></label>
+    </div>
+    <div class="afoot">班级事项由班委统一整理。「我的事项」、完成标记和背景图只保存在这台设备上，不会上传。</div>
+  </section>
+
+  <div id="pluginViews"></div>
+</main>
+
+<!-- ========== 右侧栏（宽屏） ========== -->
+<aside class="siderail">
+  <div class="widget surface"><h4 id="miniTitle"></h4><div class="mini" id="miniCal"></div></div>
+  <div class="widget surface"><h4>这周的作业<span class="spacer"></span><button class="small" data-tab="homework">全部</button></h4><div id="miniHw"></div></div>
+  <div class="rail-foot">信息捞捞队 · 班级群信息整理助手<br>群消息由 AI 整理，有出入以群里为准</div>
+</aside>
 </div>
+
+<!-- 吉祥物「捞捞」：一页会动的小日历 -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <g id="mascotArt">
+      <ellipse cx="60" cy="112" rx="30" ry="5" fill="rgba(10,50,90,.15)"/>
+      <g class="wave"><path d="M96 74 q16 -4 18 -22" fill="none" stroke="#0e2240" stroke-width="5" stroke-linecap="round"/><circle cx="114" cy="50" r="6" fill="#fff" stroke="#0e2240" stroke-width="4"/></g>
+      <path d="M24 78 q-12 6 -12 18" fill="none" stroke="#0e2240" stroke-width="5" stroke-linecap="round"/>
+      <rect x="22" y="28" width="76" height="78" rx="24" fill="#ffffff" stroke="#0e2240" stroke-width="5"/>
+      <path d="M22 54 V52 a24 24 0 0 1 24 -24 h28 a24 24 0 0 1 24 24 v2 z" fill="#ff8a3d" stroke="#0e2240" stroke-width="5" stroke-linejoin="round"/>
+      <rect x="40" y="16" width="9" height="22" rx="4.5" fill="#0e2240"/><rect x="71" y="16" width="9" height="22" rx="4.5" fill="#0e2240"/>
+      <ellipse cx="46" cy="74" rx="6" ry="7.5" fill="#0e2240"/><ellipse cx="74" cy="74" rx="6" ry="7.5" fill="#0e2240"/>
+      <circle cx="48" cy="71" r="2.2" fill="#fff"/><circle cx="76" cy="71" r="2.2" fill="#fff"/>
+      <ellipse cx="36" cy="86" rx="6" ry="3.5" fill="#ff9db5" opacity=".8"/><ellipse cx="84" cy="86" rx="6" ry="3.5" fill="#ff9db5" opacity=".8"/>
+      <path d="M54 86 q6 6 12 0" fill="none" stroke="#0e2240" stroke-width="4" stroke-linecap="round"/>
+      <path d="M104 18 l3 7 7 3 -7 3 -3 7 -3 -7 -7 -3 7 -3z" fill="#ffd23f"/>
+    </g>
+  </defs>
+</svg>
 
 <div id="modal">
   <form id="form">
-    <h3 id="formTitle">添加我的事项</h3>
+    <h3 id="formTitle">记一件事</h3>
     <input type="hidden" id="fId">
     <label>标题 <input id="fTitle" required maxlength="60" placeholder="例如：社团例会"></label>
     <div class="row">
@@ -580,21 +828,54 @@ function detailHtml(r) {
     <div class="ops">${ops}</div>`;
 }
 
-// ===== 简洁模式：今天 + 接下来两周 =====
-const LS_MODE = "ui_mode_v1";
-let uiMode = load(LS_MODE, "normal") === "simple" ? "simple" : "normal";
+// ===== 首页时间线：今天 + 接下来两周 =====
 const AGENDA_DAYS = 14;
 const agendaOpen = new Set();
 
-function setMode(m) {
-  uiMode = m; save(LS_MODE, m);
-  document.documentElement.classList.toggle("simple", m === "simple");
-  document.querySelectorAll("#modeSwitch button").forEach((b) => b.classList.toggle("on", b.dataset.mode === m));
-  const cur = document.querySelector(".view.on[data-view]")?.dataset.view;
-  if (m === "simple" && cur !== "calendar" && cur !== "homework") showView("calendar");
-  else { renderTabs(); renderAll(); }
+// ===== 外观：风格 + 自定义背景（只存在这台设备上） =====
+const LS_SKIN = "ui_skin_v1", LS_BG = "ui_bg_v1", LS_BG_OPTS = "ui_bg_opts_v1";
+const SKIN_COLOR = { vivid: "#cdeeff", clean: "#ffffff", dark: "#000000" };
+function applyLook() {
+  const root = document.documentElement;
+  const skin = load(LS_SKIN, "vivid");
+  root.dataset.skin = SKIN_COLOR[skin] ? skin : "vivid";
+  document.querySelector('meta[name="theme-color"]').content = SKIN_COLOR[root.dataset.skin];
+  let bg = null; try { bg = localStorage.getItem(LS_BG); } catch (e) {}
+  const o = load(LS_BG_OPTS, {});
+  const dim = o.dim == null ? 40 : o.dim, blur = o.blur == null ? 6 : o.blur;
+  root.classList.toggle("has-bg", !!bg);
+  if (bg) {
+    root.style.setProperty("--bg-img", `url("${bg}")`);
+    root.style.setProperty("--bg-dim", dim / 100);
+    root.style.setProperty("--bg-blur", blur + "px");
+  } else root.style.removeProperty("--bg-img");
+  document.querySelectorAll("#skinPick .skin").forEach((b) => b.classList.toggle("on", b.dataset.skin === root.dataset.skin));
+  $("bgThumb").style.backgroundImage = bg ? `url("${bg}")` : "";
+  $("bgThumb").textContent = bg ? "" : "无";
+  $("bgRemove").classList.toggle("hidden", !bg);
+  $("bgOpts").classList.toggle("hidden", !bg);
+  $("bgDim").value = dim; $("bgBlur").value = blur;
 }
-$("modeSwitch").onclick = (e) => { const b = e.target.closest("button[data-mode]"); if (b && b.dataset.mode !== uiMode) setMode(b.dataset.mode); };
+$("skinPick").onclick = (e) => { const b = e.target.closest("[data-skin]"); if (!b) return; save(LS_SKIN, b.dataset.skin); applyLook(); };
+$("bgFile").onchange = async (e) => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  try {
+    const url = URL.createObjectURL(f);
+    const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error("这张图片打不开，换一张试试")); i.src = url; });
+    const k = Math.min(1, 1800 / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement("canvas");
+    c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+    URL.revokeObjectURL(url);
+    let data = c.toDataURL("image/jpeg", .85);
+    if (data.length > 2400000) data = c.toDataURL("image/jpeg", .6);
+    try { localStorage.setItem(LS_BG, data); } catch (err) { throw new Error("图片太大，存不下，换一张小一点的"); }
+    applyLook();
+  } catch (err) { alert("设置背景失败：" + err.message); }
+};
+$("bgRemove").onclick = () => { try { localStorage.removeItem(LS_BG); } catch (e) {} applyLook(); };
+const saveBgOpts = () => { save(LS_BG_OPTS, { dim: +$("bgDim").value, blur: +$("bgBlur").value }); applyLook(); };
+$("bgDim").oninput = saveBgOpts; $("bgBlur").oninput = saveBgOpts;
 
 function agendaRow(r) {
   const k = esc(r._key);
@@ -618,7 +899,6 @@ function agendaRow(r) {
 
 function renderAgenda() {
   const box = $("agenda");
-  if (uiMode !== "simple") { box.innerHTML = ""; return; }
   const t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const dayKey = (i) => keyOf(new Date(t0.getFullYear(), t0.getMonth(), t0.getDate() + i));
   // 过去 7 天里还没完成的作业
@@ -637,29 +917,39 @@ function renderAgenda() {
     const wk = Math.floor((i + (today.getDay() + 6) % 7) / 7);   // 0 本周，1 下周
     const label = i === 0 ? "今天" : i === 1 ? "明天" : i === 2 ? "后天"
       : wk === 0 ? `周${WEEK[d.getDay()]}` : wk === 1 ? `下周${WEEK[d.getDay()]}` : `${d.getMonth() + 1}月${d.getDate()}日`;
-    const body = items.length ? `<div class="acard">${items.map(agendaRow).join("")}</div>`
-      : `<div class="aempty">今天没有安排，轻松一下 ☕</div>`;
+    const body = items.length ? `<div class="acard surface">${items.map(agendaRow).join("")}</div>`
+      : `<div class="aempty surface">今天没有安排，轻松一下 ☕</div>`;
     sections.push(`<div class="aday"><div class="aday-h"><b>${label}</b><span>${d.getMonth() + 1}月${d.getDate()}日${i > 2 ? "" : " 周" + WEEK[d.getDay()]}${pending.length ? ` · ${pending.length} 项` : ""}</span></div>${body}</div>`);
   }
   const h = new Date().getHours();
   const hi = h < 5 ? "夜深了" : h < 9 ? "早上好" : h < 12 ? "上午好" : h < 14 ? "中午好" : h < 18 ? "下午好" : "晚上好";
   const name = currentUser ? "，" + esc(currentUser.display_name) : "";
+  const todayHw = (byDay[dayKey(0)] || []).filter((r) => r.msg_type === "作业" && !r._done).length;
+  const say = overdue.length ? `有 ${overdue.length} 项作业已经过期了，快去看看！`
+    : todayHw ? `今天有 ${todayHw} 项作业要交，别忘啦～` : todayCount ? `今天有 ${todayCount} 件事，一件件来` : "今天没有要交的作业，喘口气吧～";
+  $("hero").innerHTML = `<div class="hero">
+      <div class="date">📅 ${today.getMonth() + 1}月${today.getDate()}日 周${WEEK[today.getDay()]}</div>
+      <h3>${hi}${name}</h3>
+      <div class="say">${say}</div>
+      <svg class="mascot" viewBox="0 0 120 120" aria-hidden="true"><use href="#mascotArt"/></svg>
+    </div>`;
+  const hwLeft = homework + overdue.length;
+  $("tiles").innerHTML = `
+    <button class="tile a" data-tab="homework" id="statHw">
+      <svg class="deco" viewBox="0 0 100 100"><path d="M18 52 l22 22 l44 -48" fill="none" stroke="#fff" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <b>作业</b><small>${overdue.length ? `${overdue.length} 项已过期` : "两周内要交"}</small>
+      <span class="big">${hwLeft}</span><span class="go">去完成 ▶</span>
+    </button>
+    <button class="tile b" data-tab="calendar">
+      <svg class="deco" viewBox="0 0 100 100"><rect x="12" y="20" width="76" height="68" rx="16" fill="none" stroke="#fff" stroke-width="10"/><path d="M12 42h76M34 10v20M66 10v20" stroke="#fff" stroke-width="10" stroke-linecap="round"/></svg>
+      <b>日历</b><small>今天 ${todayCount} 项 · 两周 ${upcoming} 项</small>
+      <span class="big">${today.getDate()}</span><span class="go">打开 ▶</span>
+    </button>`;
   box.innerHTML = `
-    <div class="hero">
-      <div class="date">${today.getMonth() + 1}月${today.getDate()}日 周${WEEK[today.getDay()]}${currentClass ? " · " + esc(currentClass.name) : ""}</div>
-      <h2>${hi}${name}</h2>
-      <div class="stats">
-        <div class="stat"><b>${todayCount}</b><span>今天待办</span></div>
-        <div class="stat"><b>${upcoming}</b><span>两周内待办</span></div>
-        <div class="stat link${homework || overdue.length ? " hot" : ""}" id="statHw" title="查看全部作业"><b>${homework + overdue.length}</b><span>作业没交${overdue.length ? ` · ${overdue.length} 项过期` : ""}</span></div>
-      </div>
-    </div>
-    ${overdue.length ? `<div class="aday"><div class="aday-h overdue"><b>已过期</b><span>还没标记完成的作业</span></div><div class="acard">${overdue.map(agendaRow).join("")}</div></div>` : ""}
+    ${overdue.length ? `<div class="aday"><div class="aday-h overdue"><b>已过期</b><span>还没标记完成的作业</span></div><div class="acard surface">${overdue.map(agendaRow).join("")}</div></div>` : ""}
     ${sections.join("")}
-    ${undated.length ? `<div class="aday"><div class="aday-h"><b>时间待定</b><span>请去群里核实</span></div><div class="acard">${undated.map(agendaRow).join("")}</div></div>` : ""}
-    <div class="afoot"><button class="small ghost" id="toNormal">查看完整月历 →</button></div>`;
-  $("toNormal").onclick = () => setMode("normal");
-  $("statHw").onclick = () => showView("homework");
+    ${undated.length ? `<div class="aday"><div class="aday-h"><b>时间待定</b><span>请去群里核实</span></div><div class="acard surface">${undated.map(agendaRow).join("")}</div></div>` : ""}
+    <div class="afoot">只显示今天起两周内的安排，更早或更晚的去「日历」里看</div>`;
 }
 function toggleRow(e) {
   if (e.target.closest("button, a, summary, details")) return;
@@ -716,23 +1006,23 @@ function renderHomework() {
   const undatedHw = hwWeek === 0 ? items.filter((r) => !r._p) : [];
   const title = hwWeek === 0 ? "本周作业" : hwWeek === 1 ? "下周作业" : hwWeek === -1 ? "上周作业" : `${mon.getMonth() + 1}月${mon.getDate()}日这周的作业`;
   const pct = week.length ? Math.round(done.length / week.length * 100) : 0;
-  const card = (list) => `<div class="acard">${list.map(hwRow).join("")}</div>`;
+  const card = (list) => `<div class="acard surface">${list.map(hwRow).join("")}</div>`;
   box.innerHTML = `
     <div class="hw-head">
       <h2>${title}</h2><span class="range">${mon.getMonth() + 1}月${mon.getDate()}日 – ${sun.getMonth() + 1}月${sun.getDate()}日</span>
       <span class="spacer"></span>
       <div class="navgrp"><button data-hw="-1" aria-label="上一周">‹</button><button data-hw="0">本周</button><button data-hw="1" aria-label="下一周">›</button></div>
     </div>
-    <div class="hw-prog">
+    <div class="hw-prog surface">
       <div class="row1"><span><b>${todo.length + overdue.length}</b>项没完成${overdue.length ? `（含 ${overdue.length} 项过期）` : ""}</span><span>${hwWeek === 0 ? "本周" : "这周"}已完成 ${done.length} / ${week.length}</span></div>
       <div class="bar"><i style="width:${pct}%"></i></div>
     </div>
     ${overdue.length ? `<div class="aday"><div class="aday-h overdue"><b>之前没交的</b><span>过期但还没标记完成</span></div>${card(overdue)}</div>` : ""}
     <div class="aday"><div class="aday-h"><b>待完成</b><span>按截止时间排序</span></div>
-      ${todo.length ? card(todo) : `<div class="aempty">${week.length ? "这周的作业都做完了 🎉" : "这周没有作业 🎉"}</div>`}</div>
+      ${todo.length ? card(todo) : `<div class="aempty surface">${week.length ? "这周的作业都做完了 🎉" : "这周没有作业 🎉"}</div>`}</div>
     ${undatedHw.length ? `<div class="aday"><div class="aday-h"><b>截止时间待定</b><span>请去群里核实</span></div>${card(undatedHw)}</div>` : ""}
     ${done.length ? `<div class="aday"><div class="aday-h"><b>已完成</b><span>${done.length} 项</span></div>${card(done)}</div>` : ""}
-    <div class="afoot" style="color:var(--sub);font-size:12px">勾选只记在这台设备上；作业由班委整理发布，有出入以群里为准。</div>`;
+    <div class="afoot">勾选只记在这台设备上；作业由班委整理发布，有出入以群里为准。</div>`;
 }
 $("hwView").addEventListener("click", (e) => {
   const b = e.target.closest("button[data-hw]"); if (!b) return;
@@ -748,7 +1038,7 @@ function renderSide() {
   $("undatedList").innerHTML = undated.length ? undated.map((r) => itemHtml(r, true)).join("") : `<div class="empty">暂无</div>`;
 }
 
-function renderAll() { indexItems(); renderGrid(); renderSide(); renderAgenda(); renderHomework(); syncJump(); }
+function renderAll() { indexItems(); renderGrid(); renderSide(); renderAgenda(); renderHomework(); renderRail(); syncJump(); }
 
 function showBanner(msg) { const b = $("banner"); b.textContent = msg; b.classList.toggle("show", !!msg); }
 
@@ -769,14 +1059,20 @@ function renderClassBar() {
   bar.classList.toggle("hidden", !currentClass);
   if (!currentClass) return;
   const multi = myClasses.length > 1;
-  $("className").textContent = multi ? "" : "🏫 " + currentClass.name;
+  $("className").textContent = multi ? "" : currentClass.name;
+  $("className").classList.toggle("hidden", multi);
+  $("cbBadge").textContent = [...currentClass.name][0] || "班";
   const sel = $("classSel");
   sel.classList.toggle("hidden", !multi);
-  sel.innerHTML = myClasses.map((c) => `<option value="${esc(c.id)}" ${c.id === currentClass.id ? "selected" : ""}>🏫 ${esc(c.name)}</option>`).join("");
+  sel.innerHTML = myClasses.map((c) => `<option value="${esc(c.id)}" ${c.id === currentClass.id ? "selected" : ""}>${esc(c.name)}</option>`).join("");
   const roleName = currentClass.is_teacher ? "老师" : currentClass.member_role === "monitor" ? "班委" : "学生";
   $("classRole").textContent = roleName;
   $("cAddBtn").classList.toggle("hidden", !can("can_edit"));
   $("cIngestBtn").classList.toggle("hidden", !can("can_ingest"));
+  // 快捷按钮一行最多 4 个：班委多了两个按钮时，收起不常用的
+  const extra = (can("can_edit") ? 1 : 0) + (can("can_ingest") ? 1 : 0);
+  $("qIcs").classList.toggle("hidden", extra >= 1);
+  $("qTools").classList.toggle("hidden", extra >= 2);
 }
 $("classSel").onchange = (e) => {
   currentClass = myClasses.find((c) => c.id === e.target.value) || null;
@@ -856,8 +1152,8 @@ $("cform").onsubmit = async (e) => {
       await CCAuth.rest("class_info", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify(rec) });
     }
     $("cmodal").classList.remove("open");
-    if (date) selectedKey = date;
     await loadClass();
+    if (date) $("jumpDate").onchange({ target: { value: date } });   // 发布后直接跳到那一天，确认已经上了日历
   } catch (err) { alert("保存失败：" + err.message); }
   finally { $("cSave").disabled = false; }
 };
@@ -1030,7 +1326,6 @@ $("jumpDate").onchange = (e) => {
   const v = e.target.value; if (!v) return;
   const d = new Date(v + "T00:00:00");
   viewYear = d.getFullYear(); viewMonth = d.getMonth(); selectedKey = v;
-  if (uiMode === "simple") setMode("normal");
   showView("calendar"); renderAll(); emit("dayselected", v);
 };
 function syncJump() { $("jumpDate").value = selectedKey; }
@@ -1063,7 +1358,8 @@ function agendaRange() {
 }
 
 function pluginItems() {
-  const [s, e] = uiMode === "simple" ? agendaRange() : gridRange();
+  const [g1, g2] = gridRange(), [a1, a2] = agendaRange();
+  const s = g1 < a1 ? g1 : a1, e = g2 > a2 ? g2 : a2;
   const out = [];
   for (const src of eventSources) {
     try {
@@ -1107,11 +1403,14 @@ function makeApi(meta) {
       return mountAppFrame(el, st.appUrl, meta.name, opts);
     },
     addTab({ id, title, render }) {
-      const el = document.createElement("section");
-      el.className = "view"; el.dataset.view = `p_${meta.id}_${id}`;
-      $("pluginViews").appendChild(el);
-      pluginTabs.push({ id: el.dataset.view, title, plugin: meta.id, el, render });
-      renderTabs();
+      const sec = document.createElement("section");
+      sec.className = "view"; sec.dataset.view = `p_${meta.id}_${id}`;
+      sec.innerHTML = `<header class="vhead"><button class="back" data-tab="tools" aria-label="返回工具">‹</button><h2>${esc(title)}</h2></header>`;
+      const el = document.createElement("div");
+      sec.appendChild(el);
+      $("pluginViews").appendChild(sec);
+      pluginTabs.push({ id: sec.dataset.view, title, icon: meta.icon || "🧩", plugin: meta.id, el: sec, render });
+      renderTools();
       try { render(el); } catch (e) { el.textContent = "插件界面出错：" + e.message; }
     },
     addEventSource(fn) { eventSources.push({ plugin: meta.id, name: meta.name, fn }); renderAll(); },
@@ -1264,42 +1563,100 @@ function renderUserChip() {
   $("logoutBtn").classList.toggle("hidden", !currentUser);
   $("menuLogin").classList.toggle("hidden", !!currentUser);
   $("menuDev").classList.toggle("hidden", !hasBackend());
+  const name = currentUser ? (currentUser.display_name || currentUser.account || "我") : "";
+  const initial = currentUser ? esc([...name][0]) : "?";
+  document.querySelectorAll(".mavatar").forEach((a) => (a.innerHTML = initial));
   if (!currentUser) {
     el.className = "guest"; el.textContent = "登录";
-    $("menuHead").innerHTML = `<b>未登录</b><span>登录后可以看到班级日历</span>`;
+    $("meCard").innerHTML = `<span class="av">?</span><div><b>还没登录</b><span>登录后能看到班级日历，「我的事项」不登录也能用</span></div>
+      <a class="btn ink sm" href="login.html?next=index.html" style="margin-left:auto">登录</a>`;
     return;
   }
   const role = CCAuth.ROLE_NAMES[currentUser.role] || currentUser.role;
-  const name = currentUser.display_name || currentUser.account || "我";
-  el.className = "ghost";
-  el.innerHTML = `<span class="av">${esc([...name][0])}</span><span class="who">${esc(name)}<small>${esc(role)}</small></span>`;
-  $("menuHead").innerHTML = `<b>${esc(name)}</b><span>${esc(role)}${currentUser.account ? " · " + esc(currentUser.account) : ""}</span>`;
+  el.className = "";
+  el.innerHTML = `<span class="av">${initial}</span><span class="who">${esc(name)}<small>${esc(role)}</small></span>`;
+  $("meCard").innerHTML = `<span class="av">${initial}</span><div><b>${esc(name)}</b><span>${esc(role)}${currentUser.account ? " · @" + esc(currentUser.account) : ""}</span></div>`;
 }
 $("logoutBtn").onclick = async () => { await CCAuth.signOut(); location.reload(); };
+$("userChip").onclick = () => { if (currentUser) showView("me"); else location.href = "login.html?next=index.html"; };
 
-// ===== 头像菜单 =====
-const closeMenu = () => $("menu").classList.add("hidden");
-$("userChip").onclick = (e) => { e.stopPropagation(); $("menu").classList.toggle("hidden"); };
-document.addEventListener("click", (e) => { if (!e.target.closest("#menu") || e.target.closest("button.mi, a.mi")) closeMenu(); });
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMenu(); });
+// ===== 导航 =====
+const ICONS = {
+  home: ['<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+         '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" fill="currentColor"/>'],
+  homework: ['<path d="M6 3h9l4 4v14H6z M14 3v5h5 M9 12h7 M9 16h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>',
+             '<path d="M6 3h8v6h6v12H6z" fill="currentColor"/><path d="M15.5 3.5 19.5 7.5H15.5z" fill="currentColor"/><path d="M9 13h7M9 17h5" stroke="var(--bg2)" stroke-width="2" stroke-linecap="round"/>'],
+  calendar: ['<rect x="3.5" y="5" width="17" height="15.5" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3.5 10h17M8 3v4M16 3v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+             '<rect x="3.5" y="5" width="17" height="15.5" rx="3" fill="currentColor"/><path d="M3.5 10h17" stroke="var(--bg2)" stroke-width="2"/><path d="M8 3v4M16 3v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'],
+  tools: ['<rect x="3.5" y="3.5" width="7" height="7" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="17" cy="17" r="3.6" fill="none" stroke="currentColor" stroke-width="2"/>',
+          '<rect x="3" y="3" width="8" height="8" rx="2.2" fill="currentColor"/><rect x="13" y="3" width="8" height="8" rx="2.2" fill="currentColor"/><rect x="3" y="13" width="8" height="8" rx="2.2" fill="currentColor"/><circle cx="17" cy="17" r="4.2" fill="currentColor"/>'],
+  me: ['<circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+       '<circle cx="12" cy="8" r="4.5" fill="currentColor"/><path d="M3.5 21c0-4.8 3.8-7.5 8.5-7.5s8.5 2.7 8.5 7.5z" fill="currentColor"/>'],
+  class: ['<path d="M2.5 9 12 4l9.5 5-9.5 5z M6.5 11.2V16c0 1.6 2.5 3 5.5 3s5.5-1.4 5.5-3v-4.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>', ""],
+};
+const icon = (k) => `<svg viewBox="0 0 24 24" class="o" aria-hidden="true">${ICONS[k][0]}</svg>` + (ICONS[k][1] ? `<svg viewBox="0 0 24 24" class="f" aria-hidden="true">${ICONS[k][1]}</svg>` : "");
+const NAV = [["home", "首页"], ["homework", "作业"], ["calendar", "日历"], ["tools", "工具"], ["me", "我的"]];
+let hwBadge = 0;
 
+function currentView() { return document.querySelector(".view.on[data-view]")?.dataset.view || "home"; }
 function renderTabs() {
-  const tabs = [{ id: "calendar", title: uiMode === "simple" ? "🗓 待办" : "📅 日历" }, { id: "homework", title: "📝 作业" },
-    ...pluginTabs, { id: "store", title: "🧩 插件商店" }];
-  const cur = document.querySelector(".view.on[data-view]")?.dataset.view || "calendar";
-  $("tabs").innerHTML = tabs.map((t) => `<button data-tab="${esc(t.id)}" class="${t.id === cur ? "on" : ""}">${esc(t.title)}</button>`).join("");
+  let cur = currentView();
+  if (cur.startsWith("p_")) cur = "tools";
+  $("tabs").innerHTML = NAV.map(([id, t]) => `<button class="nav${id === cur ? " on" : ""}" data-tab="${id}">${icon(id)}<span>${t}</span>${id === "homework" && hwBadge ? `<em class="badge">${hwBadge}</em>` : ""}</button>`).join("")
+    + `<a class="nav desk" href="class.html">${icon("class")}<span>班级</span></a>`;
 }
-$("tabs").onclick = (e) => { const b = e.target.closest("button[data-tab]"); if (b) showView(b.dataset.tab); };
+function renderTools() {
+  $("toolGrid").innerHTML = pluginTabs.map((t) => {
+    const label = String(t.title).replace(/^\p{Extended_Pictographic}️?\s*/u, "");
+    return `<button class="tool" data-tab="${esc(t.id)}"><span class="ti">${esc(t.icon)}</span>${esc(label)}</button>`;
+  }).join("") + `<button class="tool" data-tab="store"><span class="ti">🛍️</span>插件商店</button>`;
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-tab]"); if (!b) return;
+  e.preventDefault(); showView(b.dataset.tab);
+});
 function showView(id) {
-  document.querySelectorAll("[data-view]").forEach((v) => v.classList.toggle("on", v.dataset.view === id));
-  document.querySelector('main').style.display = id === "calendar" ? "flex" : "none";
+  let scrollStore = false;
+  if (id === "store") { id = "tools"; scrollStore = true; }
+  if (!document.querySelector(`.view[data-view="${CSS.escape(id)}"]`)) id = "home";
+  document.querySelectorAll(".view[data-view]").forEach((v) => v.classList.toggle("on", v.dataset.view === id));
   renderTabs();
-  if (id === "calendar" || id === "homework") renderAll();
+  if (["home", "calendar", "homework"].includes(id)) renderAll();
+  if (scrollStore) $("storeAnchor").scrollIntoView();
+  else window.scrollTo(0, 0);
 }
 
-document.documentElement.classList.toggle("simple", uiMode === "simple");
-document.querySelectorAll("#modeSwitch button").forEach((b) => b.classList.toggle("on", b.dataset.mode === uiMode));
-renderTabs();
+// ===== 右侧栏：小月历 + 这周作业 =====
+function renderRail() {
+  const y = today.getFullYear(), m = today.getMonth();
+  $("miniTitle").textContent = `${m + 1}月`;
+  const first = new Date(y, m, 1), start = new Date(y, m, 1 - (first.getDay() + 6) % 7);
+  let html = ["一", "二", "三", "四", "五", "六", "日"].map((w) => `<span class="wd">${w}</span>`).join("");
+  for (let i = 0; i < 35; i++) {
+    const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i), k = keyOf(d);
+    const has = (byDay[k] || []).some((r) => !r._done);
+    html += `<button data-day="${k}" class="${d.getMonth() !== m ? "o" : ""}${k === keyOf(today) ? " t" : ""}">${d.getDate()}${has ? "<i></i>" : ""}</button>`;
+  }
+  $("miniCal").innerHTML = html;
+  const mon = new Date(y, m, today.getDate() - (today.getDay() + 6) % 7), sun = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6);
+  const hw = allItems().filter((r) => r.msg_type === "作业" && r._p && !r._done && r._p.day <= keyOf(sun) && dayDiff(r._p.day) >= -30)
+    .sort((a, b) => (a._p.day + a._p.time).localeCompare(b._p.day + b._p.time));
+  hwBadge = hw.length;
+  $("miniHw").innerHTML = hw.length ? hw.slice(0, 6).map((r) => { const di = dueInfo(r);
+    return `<div class="wrow t-作业"><span class="n">${esc(r.subject || r.summary || "作业")}</span><span class="due-tag ${di.cls}">${esc(di.text)}</span></div>`; }).join("")
+    : `<div class="empty">这周没有要交的作业 🎉</div>`;
+  renderTabs();
+}
+$("miniCal").onclick = (e) => { const b = e.target.closest("button[data-day]"); if (!b) return; $("jumpDate").value = b.dataset.day; $("jumpDate").onchange({ target: { value: b.dataset.day } }); };
+
+// 元气风格：标题栏滚动后才出现毛玻璃
+window.addEventListener("scroll", () => document.querySelectorAll(".vhead").forEach((h) => h.classList.toggle("stuck", window.scrollY > 8)), { passive: true });
+
+$("qMine").onclick = () => openForm(null);
+$("qIcs").onclick = () => $("icsBtn").click();
+
+applyLook();
+renderTabs(); renderTools();
 (async () => {
   try { currentUser = await CCAuth.me(); } catch (e) { currentUser = null; }
   renderUserChip();
@@ -1309,5 +1666,7 @@ renderTabs();
 })();
 loadPlugins().then(() => { if (location.hash === "#store") { showView("store"); history.replaceState(null, "", location.pathname); } });
 </script>
+</body>
+</html>
 </body>
 </html>
