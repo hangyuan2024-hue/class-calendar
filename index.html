@@ -1765,12 +1765,13 @@ function pluginItems() {
   return out;
 }
 
-// 把插件的 app.html 嵌进一个容器，并按内容自动调整高度
-function mountAppFrame(el, url, title, opts = {}) {
+// 把插件的 app.html 嵌进一个容器，并按内容自动调整高度。
+// 用 srcdoc 直接写入页面内容，不用 blob: 地址——微信、QQ 内置浏览器会拦截 blob: 地址，导致一片空白。
+function mountAppFrame(el, html, title, opts = {}) {
   const wrap = document.createElement("div");
   wrap.className = "panel"; wrap.style.cssText = "padding:0;overflow:hidden";
   const frame = document.createElement("iframe");
-  frame.src = url; frame.title = title;
+  frame.srcdoc = html; frame.title = title;
   frame.setAttribute("allow", "geolocation; clipboard-read; clipboard-write");
   const minH = opts.minHeight || "75vh";
   frame.style.cssText = `width:100%;border:0;display:block;min-height:${minH}`;
@@ -1790,8 +1791,8 @@ function makeApi(meta) {
     storage: { get: (k, d) => load(ns(k), d), set: (k, v) => save(ns(k), v) },
     appUrl: st.appUrl || null,
     mountApp(el, opts) {
-      if (!st.appUrl) { el.textContent = "这个插件没有上传 app.html"; return null; }
-      return mountAppFrame(el, st.appUrl, meta.name, opts);
+      if (!st.appHtml) { el.textContent = "这个插件没有上传 app.html"; return null; }
+      return mountAppFrame(el, st.appHtml, meta.name, opts);
     },
     addTab({ id, title, render }) {
       const sec = document.createElement("section");
@@ -1821,6 +1822,7 @@ function makeApi(meta) {
   };
 }
 
+window.__pluginError = (id, e) => { console.error("插件出错", id, e); if (pluginState[id]) { pluginState[id].error = e.message || String(e); renderStore(); } };
 window.CalendarApp = {
   version: 2,
   register(def) {
@@ -1876,11 +1878,11 @@ async function fetchCode(meta, cache) {
 
 function runPlugin(meta, code, html) {
   const st = pluginState[meta.id];
-  if (html) st.appUrl = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+  if (html) { st.appHtml = html; try { st.appUrl = URL.createObjectURL(new Blob([html], { type: "text/html" })); } catch (e) {} }
   if (code) {
+    // 直接把代码写进 <script> 运行（同样避开 blob: 地址，微信、QQ 里也能用）
     const sc = document.createElement("script");
-    sc.src = URL.createObjectURL(new Blob([code + `\n//# sourceURL=plugin-${meta.id}.js`], { type: "text/javascript" }));
-    sc.onerror = () => { st.error = "脚本加载失败"; renderStore(); };
+    sc.textContent = `try {\n${code}\n} catch (e) { window.__pluginError && window.__pluginError(${JSON.stringify(meta.id)}, e); }\n//# sourceURL=plugin-${meta.id}.js`;
     document.body.appendChild(sc);
   } else if (html) {
     // 只有 app.html：自动生成一个标签页
@@ -1904,7 +1906,7 @@ async function loadPlugins() {
   }
   const on = enabledSet();
   for (const meta of registry) {
-    pluginState[meta.id] = { meta, loaded: false, error: "", appUrl: null };
+    pluginState[meta.id] = { meta, loaded: false, error: "", appUrl: null, appHtml: null };
     if (!on.has(meta.id)) continue;
     try {
       const r = offline ? cache[meta.id] : await fetchCode(meta, cache);
@@ -2363,8 +2365,8 @@ function cardBody(id, w, h) {
       <span class="spacer"></span><button class="btn ink sm" data-tab="plan">${pomo.mode === "focus" ? "查看" : "去专注"}</button></div></div>`;
   }
   const t = toolById(id); if (!t) return "";
-  const app = t.plugin && (pluginState[t.plugin] || {}).appUrl;
-  if (app && big && cols >= 2) return `<div class="surface wb wframe"><div class="wfh">${esc(t.icon)} ${esc(t.name)}<span class="spacer"></span><button class="small" data-tab="${esc(t.view)}">打开</button></div><iframe src="${app}" title="${esc(t.name)}" loading="lazy"></iframe></div>`;
+  const app = t.plugin && (pluginState[t.plugin] || {}).appHtml;
+  if (app && big && cols >= 2) return `<div class="surface wb wframe"><div class="wfh">${esc(t.icon)} ${esc(t.name)}<span class="spacer"></span><button class="small" data-tab="${esc(t.view)}">打开</button></div><iframe srcdoc="${esc(app)}" title="${esc(t.name)}"></iframe></div>`;
   return `<button class="surface wb launch" data-tab="${esc(t.view)}"><span class="li">${esc(t.icon)}</span><b>${esc(t.name)}</b>${(cols >= 2 || big) && t.desc ? `<small>${esc(t.desc)}</small>` : ""}</button>`;
 }
 let wEditing = false;
