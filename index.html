@@ -809,6 +809,20 @@
   .unsure .ux:first-of-type { border-top: 0; }
   .unsure .ux em { font-style: normal; color: #c27803; margin-right: 6px; font-size: 12px; }
   .feat-off { display: none !important; }
+  /* ===== 邮箱通知 ===== */
+  .mail-box .gx { display: grid; gap: 10px; }
+  .mail-box .mrow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .mail-box input[type=email], .mail-box input[inputmode=numeric] { font: inherit; font-size: 15px; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--muted-bg); color: var(--text); flex: 1; min-width: 0; }
+  .mail-box input[inputmode=numeric] { letter-spacing: 6px; font-weight: 800; max-width: 180px; }
+  .mail-box .mbound { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .mail-box .mbound b { font-size: 15px; word-break: break-all; }
+  .mail-box .mtag { font-size: 11px; font-weight: 800; padding: 1px 8px; border-radius: 999px; background: #22b573; color: #fff; }
+  .mail-box .mstat { font-size: 12px; color: var(--sub); }
+  .mail-box .mrecent { font-size: 12px; color: var(--sub); line-height: 1.8; }
+  .mail-box .mrecent .bad { color: #e5484d; }
+  .mail-box .mk .mkt { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; text-align: left; }
+  .mail-box .mk .mkt b { font-weight: 600; }
+  .mail-box .mk .mkt small { margin: 0; text-align: left; white-space: normal; }
   /* ===== 排行榜 ===== */
   .rk-seg { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--muted-bg); gap: 2px; }
   .rk-seg button { border: 0; background: none; font: inherit; font-size: 13px; font-weight: 700; color: var(--sub); padding: 5px 12px; border-radius: 999px; cursor: pointer; }
@@ -1284,6 +1298,9 @@
       </div>
     </div>
 
+    <div class="sec-h" data-feat="mail"><b>邮箱通知</b><span>重要的事发到邮箱，不怕漏看群消息</span></div>
+    <div class="group surface mail-box" id="mailBox" data-feat="mail"></div>
+
     <div class="sec-h"><b>班级与账号</b></div>
     <div class="group surface">
       <a class="gi" href="class.html"><span class="ic">🏫</span>班级管理<small>加入班级、审批同学</small></a>
@@ -1494,7 +1511,7 @@ const can = (perm) => !!(currentClass && currentClass[perm]);
 let FEAT = {};
 const feat = (k) => !FEAT[k] || FEAT[k].on !== false;
 const featWhy = (k) => (FEAT[k] && FEAT[k].why) || "";
-const FEAT_NAME = { ingest_cloud: "云端 AI 整理", ingest_local: "本地整理", local_ai: "本地 AI", ask: "AI 问答", wall: "班级墙", homework: "作业页", plan: "规划", growth: "成长与打卡", metaverse: "捞捞元宇宙", tools: "工具与插件", custom_bg: "自定义背景", mine: "记一件事", rank: "成长排行榜" };
+const FEAT_NAME = { ingest_cloud: "云端 AI 整理", ingest_local: "本地整理", local_ai: "本地 AI", ask: "AI 问答", wall: "班级墙", homework: "作业页", plan: "规划", growth: "成长与打卡", metaverse: "捞捞元宇宙", tools: "工具与插件", custom_bg: "自定义背景", mine: "记一件事", rank: "成长排行榜", mail: "邮箱通知" };
 const VIEW_FEAT = { homework: "homework", wall: "wall", plan: "plan", growth: "growth", ask: "ask", tools: "tools", rank: "rank" };
 const viewOn = (id) => (id.startsWith("p_") ? feat("tools") : !VIEW_FEAT[id] || feat(VIEW_FEAT[id]));
 const ingestPersonal = () => !can("can_ingest");      // 没有班级整理权限的人：整理结果只进自己的「我的事项」
@@ -3060,6 +3077,67 @@ $("rankBox").addEventListener("click", async (e) => {
   try { await CCAuth.rpc("rank_set_pref", { cid: currentClass.id, m: b.dataset.m }); rankCache = null; loadRank(); } catch (err) { alert("设置失败：" + err.message); }
 });
 
+// ===== 邮箱通知 =====
+let mailInfo = null, mailCooldown = 0;
+const MAIL_KINDS = [["new_items", "📣 班级发布新事项", "班委、老师发布作业和通知时"], ["due", "⏰ 作业截止前一晚提醒", "每天晚上 7 点后，明天要交还没勾完成的作业"], ["wall", "📌 班级墙通知", "老师、班委在班级墙发的通知"], ["report", "🚩 有人举报", "班级墙有新举报时（老师）"]];
+async function loadMail() {
+  const box = $("mailBox"); if (!box) return;
+  if (!currentUser) { box.innerHTML = `<div class="gx meta">登录后可以绑定邮箱接收通知。</div>`; return; }
+  try { mailInfo = await CCAuth.rpc("mail_my"); } catch (e) { mailInfo = null; box.innerHTML = `<div class="gx meta">邮箱通知还没装好（管理员需要在扣子终端运行一次 setupaccounts.py）</div>`; return; }
+  renderMail();
+}
+function renderMail(msg) {
+  const box = $("mailBox"), m = mailInfo; if (!m) return;
+  const status = msg ? `<div class="mstat" id="mailMsg">${esc(msg)}</div>` : `<div class="mstat" id="mailMsg"></div>`;
+  if (!m.configured) { box.innerHTML = `<div class="gx meta">管理员还没有开通邮件发送，开通后这里就能绑定邮箱。</div>`; return; }
+  if (!m.email) {
+    box.innerHTML = `<div class="gx">
+      <div class="meta">绑定一个常用邮箱（QQ 邮箱、163 都行），我们会发验证码确认是你的。</div>
+      <div class="mrow"><input type="email" id="mailAddr" placeholder="你的邮箱，如 123456@qq.com" value="${esc(m.pending || "")}"><button class="btn sm" id="mailSend" ${mailCooldown > Date.now() ? "disabled" : ""}>${mailCooldown > Date.now() ? "已发送" : "发送验证码"}</button></div>
+      ${m.pending ? `<div class="mrow"><input inputmode="numeric" maxlength="6" id="mailCode" placeholder="6 位验证码" autocomplete="one-time-code"><button class="btn ink sm" id="mailConfirm">确认绑定</button></div>
+        <div class="meta">验证码已发到 ${esc(m.pending)}，15 分钟内有效。没收到的话看看垃圾箱。</div>` : ""}
+      ${status}</div>`;
+    return;
+  }
+  const p = m.prefs || {};
+  box.innerHTML = `<div class="gx"><div class="mbound"><span>📧</span><b>${esc(m.email)}</b><span class="mtag">已绑定</span><span class="spacer"></span>
+      <button class="small" id="mailTest">发一封测试邮件</button><button class="small" id="mailUnbind">换邮箱</button></div></div>
+    ${MAIL_KINDS.filter(([k]) => k !== "report" || m.is_teacher).map(([k, t, d]) => `<label class="gi mk"><span class="mkt"><b>${t}</b><small>${d}</small></span><input type="checkbox" class="switch" data-mailk="${k}" ${p[k] !== false ? "checked" : ""}></label>`).join("")}
+    <div class="gx">${status}${m.recent && m.recent.length ? `<div class="mrecent"><b>最近的邮件</b><br>${m.recent.map((r) => `${esc(new Date(r.at).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }))} · ${esc(r.subject)} · ${r.status === "sent" ? "✓ 已发出" : r.status === "failed" ? `<span class="bad">✗ 没发出去${r.error ? "（" + esc(r.error) + "）" : ""}</span>` : "发送中…"}`).join("<br>")}</div>` : ""}</div>`;
+}
+$("mailBox").addEventListener("click", async (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  const say = (t) => { const el = $("mailMsg"); if (el) el.textContent = t; };
+  b.disabled = true;
+  try {
+    if (b.id === "mailSend") {
+      await CCAuth.rpc("mail_bind_start", { addr: $("mailAddr").value });
+      mailCooldown = Date.now() + 60000; setTimeout(() => renderMail(), 60500);
+      mailInfo = await CCAuth.rpc("mail_my"); renderMail("验证码已发送，去邮箱看看"); return;
+    }
+    if (b.id === "mailConfirm") { mailInfo = await CCAuth.rpc("mail_bind_confirm", { c: $("mailCode").value }); renderMail("绑定成功 🎉 以后重要的事会发到这里"); return; }
+    if (b.id === "mailTest") { mailInfo = await CCAuth.rpc("mail_test"); renderMail("测试邮件已交给发信服务，一两分钟内到"); setTimeout(() => loadMail(), 8000); return; }
+    if (b.id === "mailUnbind") { if (!confirm("解绑后不会再收到邮件，可以重新绑定别的邮箱。继续吗？")) { b.disabled = false; return; } mailInfo = await CCAuth.rpc("mail_unbind"); renderMail(); return; }
+  } catch (err) { say("没成功：" + err.message); }
+  b.disabled = false;
+});
+$("mailBox").addEventListener("change", async (e) => {
+  const c = e.target.closest("[data-mailk]"); if (!c) return;
+  try { mailInfo = await CCAuth.rpc("mail_set_prefs", { p: { [c.dataset.mailk]: c.checked } }); renderMail("已保存"); }
+  catch (err) { c.checked = !c.checked; alert("保存失败：" + err.message); }
+});
+// 邮件里的「一键退订」
+async function handleUnsub() {
+  const m = location.hash.match(/^#unsub=([0-9a-f]{32})$/); if (!m) return;
+  history.replaceState(null, "", location.pathname);
+  try { const ok = await CCAuth.rpc("mail_unsubscribe", { t: m[1] }); showBanner(ok ? "已退订全部邮件通知。想再收到的话，到「我的 → 邮箱通知」里打开。" : "退订链接无效或已过期"); }
+  catch (e) { showBanner("退订失败：" + e.message); }
+  setTimeout(() => showBanner(""), 8000);
+}
+// 截止提醒、失败重发：谁开着网页谁顺手推一下（数据库有定时任务时也会自己跑）
+function mailTick() { if (currentUser) CCAuth.rpc("mail_tick").catch(() => {}); }
+setInterval(mailTick, 10 * 60 * 1000);
+
 // ===== 感谢名单 =====
 let credits = [], creditEdit = null;
 async function loadCredits() {
@@ -3914,6 +3992,7 @@ renderTabs(); renderTools();
   renderClassBar();
   await loadFeatures();
   loadClass();
+  handleUnsub(); loadMail(); mailTick();
 })();
 loadPlugins().then(() => { if (location.hash === "#store") { showView("store"); history.replaceState(null, "", location.pathname); } });
 </script>
