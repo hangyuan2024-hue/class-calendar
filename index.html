@@ -295,6 +295,11 @@
   [data-skin=vivid] .bar { background: rgba(255,255,255,.35); }
   .bar i { display: block; height: 100%; background: var(--green); border-radius: 99px; transition: width .3s; }
   [data-skin=vivid] .bar i { background: #fff; }
+  [data-skin=vivid] .hw-prog { --hw-ring: #ffffff; }
+  [data-skin=vivid] .hw-prog .trk { stroke: rgba(255,255,255,.35); }
+  [data-skin=vivid] .hw-prog .rv { fill: #fff; }
+  .hw-prog .rv { font-size: 18px; font-weight: 800; fill: var(--text); }
+  .hw-prog .trk { stroke: color-mix(in srgb, var(--text) 10%, transparent); }
   .due-tag { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 99px; white-space: nowrap; background: var(--hover); color: var(--sub); }
   .due-tag.late, .due-tag.today { background: color-mix(in srgb, var(--red) 15%, transparent); color: var(--red); }
   .due-tag.soon { background: color-mix(in srgb, #f59e0b 18%, transparent); color: #c27803; }
@@ -487,6 +492,72 @@
   .reasons label { display: inline-flex !important; align-items: center; gap: 4px; margin: 0 !important; padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; font-size: 14px !important; color: var(--text) !important; cursor: pointer; }
   .reasons input { width: auto !important; margin: 0 !important; accent-color: var(--red); }
 
+  /* ================= 成长：进度环 · 趋势 · 打卡 ================= */
+  :root, [data-skin=vivid], [data-skin=clean] { --c1: #1e8cff; --c2: #e2620f; }
+  [data-skin=dark] { --c1: #2f95f5; --c2: #e36a1c; }
+  .rings { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 18px 12px 14px; text-align: center; }
+  .ring { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 13px; color: var(--sub); }
+  .ring svg { width: 96px; height: 96px; }
+  .ring .rv { font-size: 22px; font-weight: 800; fill: var(--text); font-variant-numeric: tabular-nums; }
+  .ring .trk { stroke: color-mix(in srgb, var(--text) 9%, transparent); }
+  .ring b { color: var(--text); font-size: 14px; }
+  .home-prog { margin: 14px 16px 0; padding: 4px 4px 0; }
+  .home-prog .rings { padding: 12px 8px 12px; }
+  .home-prog .ring svg { width: 74px; height: 74px; }
+  .home-prog .ring .rv { font-size: 20px; }
+  .trend { margin: 0 16px; padding: 16px 16px 8px; position: relative; }
+  .trend .lg { display: flex; gap: 16px; font-size: 13px; color: var(--sub); margin-bottom: 6px; flex-wrap: wrap; }
+  .trend .lg span { display: inline-flex; align-items: center; gap: 6px; }
+  .trend .lg i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+  .trend svg { width: 100%; height: auto; display: block; overflow: visible; }
+  .trend .grid-l { stroke: var(--line); stroke-width: 1; }
+  .trend .ax { fill: var(--sub); font-size: 11px; }
+  .trend .dl { font-size: 11.5px; font-weight: 700; fill: var(--text); }
+  .tip { position: absolute; pointer-events: none; background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 10px;
+    padding: 6px 10px; font-size: 12.5px; box-shadow: 0 8px 24px rgba(10,30,60,.16); white-space: nowrap; display: none; z-index: 3; }
+  .tip i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
+  .trend details { font-size: 12px; color: var(--sub); margin: 6px 0 6px; }
+  .trend table { border-collapse: collapse; margin-top: 6px; font-size: 12px; }
+  .trend td, .trend th { padding: 2px 8px; border-bottom: 1px solid var(--line); text-align: center; font-weight: 400; }
+  .habit { display: flex; gap: 12px; align-items: center; padding: 14px 16px; }
+  .habit + .habit { border-top: 1px solid var(--line); }
+  .habit .hi { width: 46px; height: 46px; border-radius: 15px; display: grid; place-items: center; font-size: 24px; background: var(--hover); flex-shrink: 0; }
+  .habit .hm { flex: 1; min-width: 0; }
+  .habit .hn { font-weight: 800; font-size: 15.5px; display: flex; align-items: center; gap: 8px; }
+  .habit .streak { font-size: 12px; font-weight: 700; color: var(--c2); }
+  .dots { display: flex; gap: 4px; margin-top: 7px; }
+  .dots i { width: 12px; height: 12px; border-radius: 4px; background: color-mix(in srgb, var(--text) 8%, transparent); }
+  .dots i.on { background: var(--c2); }
+  .dots i.today { box-shadow: 0 0 0 1.5px var(--text); }
+  .hchk { flex-shrink: 0; padding: 8px 16px; border-radius: 999px; font-weight: 800; font-size: 14px; border: 1.5px solid var(--c2); color: var(--c2); }
+  .hchk.on { background: var(--c2); color: #fff; }
+  .hdel { color: var(--muted-text); font-size: 18px; padding: 4px 6px; border-radius: 8px; }
+  .hdel:hover { color: var(--red); background: var(--hover); }
+  .hadd { padding: 14px 16px; border-top: 1px solid var(--line); }
+  .hadd .emo { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .hadd .emo button { width: 38px; height: 38px; border-radius: 12px; font-size: 20px; background: var(--hover); }
+  .hadd .emo button.on { box-shadow: 0 0 0 2px var(--accent); background: var(--surface); }
+  .hadd .row { display: flex; gap: 8px; }
+  .hadd input { flex: 1; min-width: 0; font: inherit; padding: 9px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--muted-bg); color: var(--text); }
+  .sugg { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .sugg button { font-size: 13px; padding: 4px 10px; border-radius: 999px; border: 1px dashed var(--line); color: var(--sub); }
+  .sugg button:hover { color: var(--text); border-style: solid; }
+  .gsel { margin-left: auto; font: inherit; font-size: 13px; padding: 5px 8px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--text); }
+
+  /* 完成鼓励 */
+  #cheer { position: fixed; left: 50%; bottom: 36px; transform: translate(-50%, 30px); opacity: 0; pointer-events: none; z-index: 60;
+    display: flex; align-items: center; gap: 12px; background: var(--card); color: var(--text); border: 1px solid var(--line);
+    border-radius: 22px; padding: 10px 18px 10px 12px; box-shadow: 0 18px 40px -12px rgba(10,40,90,.35); transition: transform .35s cubic-bezier(.2,1.4,.4,1), opacity .25s; max-width: 92vw; }
+  #cheer.show { transform: translate(-50%, 0); opacity: 1; }
+  #cheer .st { font-size: 38px; line-height: 1; width: 52px; height: 52px; display: grid; place-items: center; }
+  #cheer .st svg { width: 56px; height: 56px; }
+  #cheer b { display: block; font-size: 15px; }
+  #cheer span { color: var(--sub); font-size: 13px; }
+  [data-skin=vivid] #cheer b { font-family: var(--fd); font-weight: var(--fd-weight); font-size: 19px; letter-spacing: 1px; }
+  .confetti { position: fixed; z-index: 59; width: 8px; height: 12px; border-radius: 2px; pointer-events: none; animation: fall 1.1s ease-out forwards; }
+  @keyframes fall { 0% { transform: translate(0, 0) rotate(0); opacity: 1; } 100% { transform: translate(var(--dx), var(--dy)) rotate(var(--r)); opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { #cheer { transition: opacity .2s; transform: translate(-50%, 0); } .confetti { display: none; } }
+
   /* ================= 响应式 ================= */
   @media (max-width: 1240px) { .shell { grid-template-columns: 244px minmax(0, 640px); } .siderail { display: none; } }
   @media (max-width: 1000px) {
@@ -498,7 +569,15 @@
   }
   @media (max-width: 700px) {
     body { font-size: 15px; }
-    .composer, #wallList, .wfilter, .reports, .home-pins { margin-left: 12px; margin-right: 12px; }
+    .composer, #wallList, .wfilter, .reports, .home-pins, .home-prog, .trend { margin-left: 12px; margin-right: 12px; }
+    #cheer { bottom: calc(84px + env(safe-area-inset-bottom)); }
+    .habit { padding: 12px 12px; gap: 10px; }
+    .habit .hi { width: 40px; height: 40px; font-size: 21px; border-radius: 13px; }
+    .habit .hn { flex-wrap: wrap; gap: 0 8px; font-size: 15px; }
+    .dots { gap: 3px; } .dots i { width: 10px; height: 10px; border-radius: 3px; }
+    .hchk { padding: 7px 12px; font-size: 13px; }
+    .hdel { padding: 4px 2px; }
+    .ring svg { width: 84px; height: 84px; }
     #wallList { padding-left: 0; padding-right: 0; }
     .post { padding: 14px 14px 10px; }
     .shell { display: block; }
@@ -563,11 +642,12 @@
     <div id="hero"></div>
     <div id="homePins" class="home-pins surface hidden" data-tab="wall"></div>
     <div id="tiles" class="tiles"></div>
+    <div id="homeProg" class="home-prog surface hidden" data-tab="growth" style="cursor:pointer"></div>
     <div class="quick">
       <button class="qbtn hidden" id="cIngestBtn"><span class="qi">✨</span>AI 整理</button>
       <button class="qbtn hidden" id="cAddBtn"><span class="qi">📣</span>发布事项</button>
       <button class="qbtn" id="qMine"><span class="qi">✏️</span>记一件事</button>
-      <button class="qbtn" id="qIcs"><span class="qi">📲</span>导入手机</button>
+      <button class="qbtn" id="qIcs" data-tab="growth"><span class="qi">🔥</span>打卡成长</button>
       <button class="qbtn" id="qTools" data-tab="tools"><span class="qi">🧩</span>更多工具</button>
     </div>
     <section id="ingestPanel" class="surface hidden">
@@ -610,6 +690,24 @@
       <div id="wallList"></div>
       <div class="afoot">班级墙只有本班同学和老师能看到。发言请友善，不当内容可以举报，老师会处理。</div>
     </div>
+  </section>
+
+  <!-- 成长 -->
+  <section class="view" data-view="growth">
+    <header class="vhead"><button class="back" data-tab="home" aria-label="返回首页">‹</button><h2>成长</h2></header>
+    <div class="surface" style="margin:0 16px"><div class="rings" id="gRings"></div></div>
+    <div class="sec-h"><b>最近 14 天</b><span>每天完成了多少事、打了多少卡</span></div>
+    <div class="trend surface" id="gTrend"></div>
+    <div class="sec-h"><b>习惯打卡</b><span>小目标，每天勾一下</span></div>
+    <div class="group surface" style="margin:0 16px">
+      <div id="habitList"></div>
+      <div class="hadd">
+        <div class="emo" id="hEmo"></div>
+        <div class="row"><input id="hName" maxlength="16" placeholder="新习惯，比如：背 30 个单词"><button class="btn ink sm" id="hAdd">添加</button></div>
+        <div class="sugg" id="hSugg"></div>
+      </div>
+    </div>
+    <div class="afoot">打卡和完成记录只保存在这台设备上。</div>
   </section>
 
   <!-- 作业 -->
@@ -687,6 +785,16 @@
       </div>
     </div>
 
+    <div class="sec-h"><b>趣味功能</b><span>需要哪个开哪个</span></div>
+    <div class="group surface">
+      <label class="gi"><span class="ic">🎉</span>完成时的鼓励
+        <select class="gsel" id="optCheer"><option value="mascot">捞捞小人</option><option value="sticker">表情包</option><option value="text">只要文字</option><option value="off">关闭</option></select></label>
+      <label class="gi"><span class="ic">✨</span>撒花动画<input type="checkbox" class="switch" id="optConfetti"></label>
+      <label class="gi"><span class="ic">⭕</span>首页显示本周进度环<input type="checkbox" class="switch" id="optRings"></label>
+      <label class="gi"><span class="ic">🔥</span>习惯打卡<input type="checkbox" class="switch" id="optHabits"></label>
+      <button class="gi" data-tab="growth"><span class="ic">📈</span>查看成长页<small>进度环、趋势图、打卡</small></button>
+    </div>
+
     <div class="sec-h"><b>班级与账号</b></div>
     <div class="group surface">
       <a class="gi" href="class.html"><span class="ic">🏫</span>班级管理<small>加入班级、审批同学</small></a>
@@ -737,6 +845,8 @@
     </g>
   </defs>
 </svg>
+
+<div id="cheer" role="status" aria-live="polite"><span class="st" id="cheerSt"></span><div><b id="cheerT"></b><span id="cheerS"></span></div></div>
 
 <div id="rmodal" class="modal2">
   <form id="rform">
@@ -1129,9 +1239,12 @@ function renderHomework() {
       <span class="spacer"></span>
       <div class="navgrp"><button data-hw="-1" aria-label="上一周">‹</button><button data-hw="0">本周</button><button data-hw="1" aria-label="下一周">›</button></div>
     </div>
-    <div class="hw-prog surface">
-      <div class="row1"><span><b>${todo.length + overdue.length}</b>项没完成${overdue.length ? `（含 ${overdue.length} 项过期）` : ""}</span><span>${hwWeek === 0 ? "本周" : "这周"}已完成 ${done.length} / ${week.length}</span></div>
-      <div class="bar"><i style="width:${pct}%"></i></div>
+    <div class="hw-prog surface" style="display:flex;align-items:center;gap:16px">
+      ${ringSvg(done.length, week.length, 76, "var(--hw-ring, var(--green))", "hw")}
+      <div style="flex:1;min-width:0">
+        <div class="row1"><span><b>${todo.length + overdue.length}</b>项没完成${overdue.length ? `（含 ${overdue.length} 项过期）` : ""}</span></div>
+        <div style="font-size:13px;margin-top:2px">${hwWeek === 0 ? "本周" : "这周"}已完成 ${done.length} / ${week.length}${week.length && done.length === week.length ? "，全部搞定 🎉" : ""}</div>
+      </div>
     </div>
     ${overdue.length ? `<div class="aday"><div class="aday-h overdue"><b>之前没交的</b><span>过期但还没标记完成</span></div>${card(overdue)}</div>` : ""}
     <div class="aday"><div class="aday-h"><b>待完成</b><span>按截止时间排序</span></div>
@@ -1154,7 +1267,7 @@ function renderSide() {
   $("undatedList").innerHTML = undated.length ? undated.map((r) => itemHtml(r, true)).join("") : `<div class="empty">暂无</div>`;
 }
 
-function renderAll() { indexItems(); renderGrid(); renderSide(); renderAgenda(); renderHomework(); renderRail(); syncJump(); }
+function renderAll() { indexItems(); renderGrid(); renderSide(); renderAgenda(); renderHomework(); renderRail(); renderGrowth(); syncJump(); }
 
 function showBanner(msg) { const b = $("banner"); b.textContent = msg; b.classList.toggle("show", !!msg); }
 
@@ -1187,8 +1300,8 @@ function renderClassBar() {
   $("cIngestBtn").classList.toggle("hidden", !can("can_ingest"));
   // 快捷按钮一行最多 4 个：班委多了两个按钮时，收起不常用的
   const extra = (can("can_edit") ? 1 : 0) + (can("can_ingest") ? 1 : 0);
-  $("qIcs").classList.toggle("hidden", extra >= 1);
-  $("qTools").classList.toggle("hidden", extra >= 2);
+  $("qTools").classList.toggle("hidden", extra >= 1);
+  $("qIcs").classList.toggle("hidden", extra >= 2 || !funOpts().habits);
 }
 $("classSel").onchange = (e) => {
   currentClass = myClasses.find((c) => c.id === e.target.value) || null;
@@ -1313,7 +1426,12 @@ $("ingestGo").onclick = async () => {
 };
 
 // ===== 操作 =====
-function setMark(k, patch) { marks[k] = { ...(marks[k] || {}), ...patch }; save(LS_MARK, marks); renderAll(); }
+function setMark(k, patch) {
+  marks[k] = { ...(marks[k] || {}), ...patch }; save(LS_MARK, marks);
+  if ("done" in patch) logDone(k, patch.done);
+  renderAll();
+  if (patch.done) cheerFor(k);
+}
 
 document.addEventListener("click", (e) => {
   const cb = e.target.closest("button[data-cact]");
@@ -1336,7 +1454,7 @@ document.addEventListener("click", (e) => {
   } else {
     const i = mine.findIndex((x) => x.id === k);
     if (i < 0) return;
-    if (act === "done") { mine[i].done = !mine[i].done; save(LS_MINE, mine); renderAll(); }
+    if (act === "done") { mine[i].done = !mine[i].done; save(LS_MINE, mine); logDone(k, mine[i].done); renderAll(); if (mine[i].done) cheerFor(k); }
     if (act === "del" && confirm("确定删除这条事项吗？")) { mine.splice(i, 1); save(LS_MINE, mine); renderAll(); }
     if (act === "edit") openForm(mine[i]);
   }
@@ -1742,6 +1860,7 @@ function showView(id) {
   renderTabs();
   if (["home", "calendar", "homework"].includes(id)) renderAll();
   if (id === "wall") loadWall();
+  if (id === "growth") renderGrowth();
   if (scrollStore) $("storeAnchor").scrollIntoView();
   else window.scrollTo(0, 0);
 }
@@ -1773,7 +1892,207 @@ $("miniCal").onclick = (e) => { const b = e.target.closest("button[data-day]"); 
 window.addEventListener("scroll", () => document.querySelectorAll(".vhead").forEach((h) => h.classList.toggle("stuck", window.scrollY > 8)), { passive: true });
 
 $("qMine").onclick = () => openForm(null);
-$("qIcs").onclick = () => $("icsBtn").click();
+
+// ===== 成长：完成记录、习惯打卡、进度环、趋势图、完成鼓励（都只存在这台设备上） =====
+const LS_DONE_LOG = "done_log_v1", LS_HABITS = "habits_v1", LS_HABIT_LOG = "habit_log_v1", LS_FUN = "fun_opts_v1";
+const FUN_DEFAULT = { cheer: "mascot", confetti: true, rings: true, habits: true };
+const funOpts = () => ({ ...FUN_DEFAULT, ...load(LS_FUN, {}) });
+let doneLog = load(LS_DONE_LOG, {});
+let habits = load(LS_HABITS, []);
+let habitLog = load(LS_HABIT_LOG, {});
+const todayKey = () => keyOf(new Date());
+const shiftDay = (k, n) => { const d = new Date(k + "T00:00:00"); d.setDate(d.getDate() + n); return keyOf(d); };
+
+function logDone(k, on) {
+  if (on) doneLog[k] = todayKey(); else delete doneLog[k];
+  save(LS_DONE_LOG, doneLog);
+}
+
+function ringSvg(done, total, size, color, cls = "") {
+  const r = 40, c = 2 * Math.PI * r, f = total ? done / total : 0;
+  const pct = total ? Math.round(f * 100) + "%" : "–";
+  return `<svg viewBox="0 0 100 100" width="${size}" height="${size}" role="img" aria-label="完成 ${done} / ${total}">
+    <circle cx="50" cy="50" r="${r}" fill="none" class="trk" stroke-width="10"/>
+    ${f > 0 ? `<circle cx="50" cy="50" r="${r}" fill="none" stroke="${color}" stroke-width="10" stroke-linecap="round"
+      stroke-dasharray="${(c * f).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 50 50)"/>` : ""}
+    <text x="50" y="50" text-anchor="middle" dominant-baseline="central" class="rv">${pct}</text></svg>`;
+}
+
+function weekStats() {
+  const mon = shiftDay(todayKey(), -((today.getDay() + 6) % 7)), sun = shiftDay(mon, 6);
+  const items = allItems().filter((r) => !r._plugin && r._p && r._p.day >= mon && r._p.day <= sun);
+  const hw = items.filter((r) => r.msg_type === "作业");
+  const t = todayKey();
+  return { hwDone: hw.filter((r) => r._done).length, hwAll: hw.length, allDone: items.filter((r) => r._done).length, all: items.length,
+           hDone: habits.filter((h) => (habitLog[h.id] || {})[t]).length, hAll: habits.length };
+}
+function ringsHtml(size) {
+  const w = weekStats(), o = funOpts();
+  const cell = (d, a, color, name) => `<div class="ring">${ringSvg(d, a, size, color)}<div><b>${name}</b><br>${d} / ${a}</div></div>`;
+  return cell(w.hwDone, w.hwAll, "var(--red)", "本周作业") + cell(w.allDone, w.all, "var(--c1)", "本周事项")
+    + (o.habits ? cell(w.hDone, w.hAll, "var(--c2)", "今日打卡") : "");
+}
+
+function streakOf(h) {
+  const log = habitLog[h.id] || {};
+  let k = todayKey(), n = 0;
+  if (!log[k]) k = shiftDay(k, -1);
+  while (log[k]) { n++; k = shiftDay(k, -1); }
+  return n;
+}
+
+function trendHtml() {
+  const days = [...Array(14)].map((_, i) => shiftDay(todayKey(), i - 13));
+  const done = days.map((d) => Object.values(doneLog).filter((x) => x === d).length);
+  const chk = days.map((d) => habits.filter((h) => (habitLog[h.id] || {})[d]).length);
+  const showHabits = funOpts().habits;
+  const max = Math.max(4, ...done, ...(showHabits ? chk : []));
+  const top = Math.ceil(max / 2) * 2;
+  const W = 600, H = 200, L = 28, R = 46, T = 10, B = 26;
+  const x = (i) => L + (W - L - R) * i / 13, y = (v) => T + (H - T - B) * (1 - v / top);
+  const path = (arr) => arr.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(" ");
+  const grid = [0, top / 2, top].map((v) => `<line class="grid-l" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text class="ax" x="${L - 8}" y="${y(v) + 4}" text-anchor="end">${v}</text>`).join("");
+  const xl = days.map((d, i) => (i % 3 === 1 || i === 13) ? `<text class="ax" x="${x(i)}" y="${H - 6}" text-anchor="middle">${i === 13 ? "今天" : +d.slice(5, 7) + "/" + +d.slice(8)}</text>` : "").join("");
+  const series = [["完成事项", done, "var(--c1)"]].concat(showHabits ? [["打卡", chk, "var(--c2)"]] : []);
+  // 两条线的末端标签如果挨得太近，错开一点
+  const ends = series.map((s) => y(s[1][13]));
+  if (ends.length === 2 && Math.abs(ends[0] - ends[1]) < 14) { if (ends[0] <= ends[1]) ends[1] = ends[0] + 14; else ends[0] = ends[1] + 14; }
+  const lines = series.map(([n, arr, c], si) => `<path d="${path(arr)}" fill="none" stroke="${c}" stroke-width="2.25" stroke-linejoin="round" stroke-linecap="round"/>
+      <circle cx="${x(13)}" cy="${y(arr[13])}" r="4.5" fill="${c}" stroke="var(--card)" stroke-width="2"/>
+      <text class="dl" x="${x(13) + 9}" y="${ends[si] + 4}">${arr[13]}</text>`).join("");
+  const table = `<details><summary>看具体数字</summary><table><tr><th>日期</th>${days.map((d) => `<th>${+d.slice(5, 7)}/${+d.slice(8)}</th>`).join("")}</tr>
+    ${series.map(([n, arr]) => `<tr><td>${n}</td>${arr.map((v) => `<td>${v}</td>`).join("")}</tr>`).join("")}</table></details>`;
+  return `<div class="lg">${series.map(([n, , c]) => `<span><i style="background:${c}"></i>${n}</span>`).join("")}</div>
+    <svg viewBox="0 0 ${W} ${H}" id="trendSvg" role="img" aria-label="最近 14 天完成事项${showHabits ? "和打卡" : ""}的趋势">${grid}${xl}
+      <line id="trendX" x1="0" x2="0" y1="${T}" y2="${H - B}" stroke="var(--sub)" stroke-width="1" stroke-dasharray="3 3" style="display:none"/>${lines}
+      <rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}" fill="transparent" id="trendHit"/></svg>
+    <div class="tip" id="trendTip"></div>${table}
+    <script type="application/json" id="trendData">${JSON.stringify({ days, series: series.map(([n, a]) => [n, a]), L, R, W })}<\/script>`;
+}
+function bindTrend() {
+  const svg = $("trendSvg"); if (!svg) return;
+  const data = JSON.parse($("trendData").textContent), colors = ["var(--c1)", "var(--c2)"];
+  const move = (ev) => {
+    const pt = svg.getBoundingClientRect(), sx = data.W / pt.width;
+    const px = (ev.clientX - pt.left) * sx;
+    const i = Math.max(0, Math.min(13, Math.round((px - data.L) / ((data.W - data.L - data.R) / 13))));
+    const xx = data.L + (data.W - data.L - data.R) * i / 13;
+    const ln = $("trendX"); ln.setAttribute("x1", xx); ln.setAttribute("x2", xx); ln.style.display = "";
+    const d = data.days[i], tip = $("trendTip");
+    tip.innerHTML = `<b>${+d.slice(5, 7)}月${+d.slice(8)}日</b><br>` + data.series.map(([n, a], si) => `<i style="background:${colors[si]}"></i>${n} ${a[i]}`).join("<br>");
+    tip.style.display = "block";
+    const box = $("gTrend").getBoundingClientRect();
+    let left = pt.left - box.left + xx / sx + 12;
+    if (left + tip.offsetWidth > box.width - 8) left -= tip.offsetWidth + 24;
+    tip.style.left = left + "px"; tip.style.top = (pt.top - box.top + 24) + "px";
+  };
+  const hit = $("trendHit");
+  hit.addEventListener("pointermove", move); hit.addEventListener("pointerdown", move);
+  hit.addEventListener("pointerleave", () => { $("trendTip").style.display = "none"; $("trendX").style.display = "none"; });
+}
+
+const HABIT_EMO = ["📖", "🏃", "💧", "🧘", "✍️", "🎹", "😴", "🍎", "🗣️", "💪"];
+const HABIT_SUGG = [["📖", "阅读 30 分钟"], ["🗣️", "背 30 个单词"], ["🏃", "跑步 / 阳光跑"], ["😴", "12 点前睡觉"], ["💧", "喝够 8 杯水"]];
+let pickedEmo = HABIT_EMO[0];
+function renderHabits() {
+  const t = todayKey(), last = [...Array(14)].map((_, i) => shiftDay(t, i - 13));
+  $("habitList").innerHTML = habits.length ? habits.map((h) => {
+    const log = habitLog[h.id] || {}, st = streakOf(h), on = !!log[t];
+    return `<div class="habit"><span class="hi">${esc(h.icon)}</span>
+      <div class="hm"><div class="hn">${esc(h.name)}${st ? `<span class="streak">🔥 连续 ${st} 天</span>` : ""}</div>
+        <div class="dots" aria-label="最近 14 天打卡情况">${last.map((d) => `<i class="${log[d] ? "on" : ""}${d === t ? " today" : ""}" title="${d}${log[d] ? " 已打卡" : ""}"></i>`).join("")}</div></div>
+      <button class="hchk${on ? " on" : ""}" data-habit="${esc(h.id)}">${on ? "✓ 已打卡" : "打卡"}</button>
+      <button class="hdel" data-hdel="${esc(h.id)}" aria-label="删除这个习惯">×</button></div>`;
+  }).join("") : `<div class="aempty">还没有习惯。挑一个下面的建议，或者自己写一个。</div>`;
+  $("hEmo").innerHTML = HABIT_EMO.map((e) => `<button data-emo="${e}" class="${e === pickedEmo ? "on" : ""}">${e}</button>`).join("");
+  $("hSugg").innerHTML = HABIT_SUGG.filter(([, n]) => !habits.some((h) => h.name === n)).map(([e, n]) => `<button data-sugg="${esc(n)}" data-se="${e}">＋ ${esc(n)}</button>`).join("");
+}
+function addHabit(name, icon) {
+  name = name.trim(); if (!name) return;
+  habits.push({ id: "h" + Date.now(), name, icon: icon || pickedEmo }); save(LS_HABITS, habits);
+  $("hName").value = ""; renderGrowth();
+}
+$("hAdd").onclick = () => addHabit($("hName").value);
+$("hName").onkeydown = (e) => { if (e.key === "Enter") addHabit($("hName").value); };
+$("hEmo").onclick = (e) => { const b = e.target.closest("[data-emo]"); if (b) { pickedEmo = b.dataset.emo; renderHabits(); } };
+$("hSugg").onclick = (e) => { const b = e.target.closest("[data-sugg]"); if (b) addHabit(b.dataset.sugg, b.dataset.se); };
+$("habitList").onclick = (e) => {
+  const d = e.target.closest("[data-hdel]");
+  if (d) { const h = habits.find((x) => x.id === d.dataset.hdel); if (h && confirm(`删除「${h.name}」和它的打卡记录？`)) { habits = habits.filter((x) => x !== h); delete habitLog[h.id]; save(LS_HABITS, habits); save(LS_HABIT_LOG, habitLog); renderGrowth(); } return; }
+  const b = e.target.closest("[data-habit]"); if (!b) return;
+  const id = b.dataset.habit, t = todayKey(), log = (habitLog[id] ||= {});
+  if (log[t]) delete log[t]; else log[t] = true;
+  save(LS_HABIT_LOG, habitLog); renderGrowth();
+  if (log[t]) { const h = habits.find((x) => x.id === id); cheer("habit", { name: h.name, streak: streakOf(h) }); }
+};
+
+function renderGrowth() {
+  const o = funOpts();
+  $("homeProg").classList.toggle("hidden", !o.rings);
+  if (o.rings) $("homeProg").innerHTML = `<div class="rings">${ringsHtml(74)}</div>`;
+  $("qIcs").classList.toggle("hidden", !o.habits || (can("can_edit") && can("can_ingest")));
+  const v = document.querySelector('.view[data-view="growth"]');
+  if (!v || !v.classList.contains("on")) return;
+  $("gRings").innerHTML = ringsHtml(96);
+  $("gTrend").innerHTML = trendHtml(); bindTrend();
+  v.querySelectorAll(".sec-h")[1].style.display = o.habits ? "" : "none";
+  $("habitList").closest(".group").style.display = o.habits ? "" : "none";
+  renderHabits();
+}
+
+// 设置：趣味功能
+function syncFunUI() {
+  const o = funOpts();
+  $("optCheer").value = o.cheer; $("optConfetti").checked = o.confetti; $("optRings").checked = o.rings; $("optHabits").checked = o.habits;
+}
+const setFun = (patch) => { save(LS_FUN, { ...funOpts(), ...patch }); renderGrowth(); };
+$("optCheer").onchange = (e) => { setFun({ cheer: e.target.value }); if (e.target.value !== "off") cheer("preview"); };
+$("optConfetti").onchange = (e) => setFun({ confetti: e.target.checked });
+$("optRings").onchange = (e) => setFun({ rings: e.target.checked });
+$("optHabits").onchange = (e) => setFun({ habits: e.target.checked });
+syncFunUI();
+
+// 完成鼓励
+const CHEER_LINES = {
+  item: [["又搞定一件！", "保持这个节奏"], ["漂亮 ✨", "离清单清空又近了一步"], ["完成 +1", "给自己点个赞"], ["稳！", "今天的你很靠谱"]],
+  homework: [["作业搞定！", "比截止时间早，就是赢"], ["交作业达人", "又少了一件心事"], ["这题难不倒你", "继续冲"]],
+  allhw: [["本周作业全部完成！", "可以安心休息一下了 🎉"]],
+  preview: [["就像这样", "完成事项时会这样鼓励你"]],
+};
+const STICKERS = ["🎉", "👏", "💪", "🌟", "🥳", "😎", "🙌", "🍀"];
+let cheerTimer = 0;
+function cheerFor(k) {
+  const r = allItems().find((x) => x._key === k);
+  const w = weekStats();
+  if (r && r.msg_type === "作业" && w.hwAll && w.hwDone === w.hwAll) cheer("allhw");
+  else cheer(r && r.msg_type === "作业" ? "homework" : "item");
+}
+function cheer(kind, info) {
+  const o = funOpts(); if (o.cheer === "off") return;
+  let t, sub;
+  if (kind === "habit") {
+    const s = info.streak, m = { 3: "三天了，开了个好头", 7: "一整周！习惯正在养成", 14: "两周不间断，太强了", 21: "21 天，这已经是你的习惯了", 30: "坚持一个月，值得骄傲" }[s];
+    t = m ? `连续打卡 ${s} 天！` : `「${info.name}」打卡成功`; sub = m || (s > 1 ? `已经连续 ${s} 天了` : "明天也来哦");
+  } else { const pool = CHEER_LINES[kind] || CHEER_LINES.item; [t, sub] = pool[Math.floor(Math.random() * pool.length)]; }
+  $("cheerT").textContent = t; $("cheerS").textContent = sub;
+  const st = $("cheerSt");
+  st.style.display = o.cheer === "text" ? "none" : "";
+  st.innerHTML = o.cheer === "mascot" ? `<svg viewBox="0 0 120 120" aria-hidden="true"><use href="#mascotArt"/></svg>` : STICKERS[Math.floor(Math.random() * STICKERS.length)];
+  const el = $("cheer"); el.classList.remove("show"); void el.offsetWidth; el.classList.add("show");
+  clearTimeout(cheerTimer); cheerTimer = setTimeout(() => el.classList.remove("show"), kind === "allhw" ? 3600 : 2400);
+  const big = kind === "allhw" || (kind === "habit" && [7, 14, 21, 30].includes(info.streak));
+  if (o.confetti && (big || kind !== "preview") && !matchMedia("(prefers-reduced-motion: reduce)").matches) confetti(big ? 36 : 14);
+}
+function confetti(n) {
+  const box = $("cheer").getBoundingClientRect(), cx = box.left + box.width / 2, cy = box.top;
+  const cols = ["#ff8a3d", "#1e8cff", "#17c29a", "#ffd23f", "#ff6a8b", "#8c6bff"];
+  for (let i = 0; i < n; i++) {
+    const c = document.createElement("i"); c.className = "confetti";
+    const a = Math.PI * (1.1 + Math.random() * 0.8), v = 90 + Math.random() * 160;
+    c.style.cssText = `left:${cx}px;top:${cy}px;background:${cols[i % cols.length]};--dx:${Math.cos(a) * v}px;--dy:${Math.sin(a) * v + 60}px;--r:${Math.random() * 540 - 270}deg;animation-delay:${Math.random() * 80}ms`;
+    document.body.appendChild(c); setTimeout(() => c.remove(), 1300);
+  }
+}
 
 // ===== 班级墙 =====
 let wallPosts = [], wallReported = new Set(), wallFilter = "all", wallReports = [], wallLoadedFor = null;
