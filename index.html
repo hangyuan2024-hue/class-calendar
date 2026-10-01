@@ -205,10 +205,29 @@
   .afoot { text-align: center; margin-top: 26px; }
 
   /* 模式切换 */
-  html.simple main#mainCal, html.simple nav#tabs, html.simple footer.foot { display: none !important; }
+  html.simple main#mainCal, html.simple footer.foot { display: none !important; }
+  html.simple nav#tabs button:not([data-tab=calendar]):not([data-tab=homework]) { display: none; }
   html:not(.simple) #agenda { display: none; }
   html.simple .toolbar { max-width: 760px; padding-top: 18px; }
   html.simple #agenda { padding-top: 6px; }
+
+  /* ===== 作业页 ===== */
+  #hwView { max-width: 820px; margin: 0 auto; padding: 18px 20px 40px; }
+  .hw-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  .hw-head h2 { margin: 0; font-size: 24px; font-weight: 700; }
+  .hw-head .range { color: var(--sub); font-size: 13px; }
+  .hw-prog { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 16px; margin-bottom: 6px; }
+  .hw-prog .row1 { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; color: var(--sub); }
+  .hw-prog .row1 b { font-size: 22px; color: var(--text); font-variant-numeric: tabular-nums; margin-right: 4px; }
+  .bar { height: 8px; background: var(--hover); border-radius: 99px; overflow: hidden; margin-top: 10px; }
+  .bar i { display: block; height: 100%; background: var(--green); border-radius: 99px; transition: width .3s; }
+  .due-tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 99px; white-space: nowrap;
+    background: var(--hover); color: var(--sub); }
+  .due-tag.late, .due-tag.today { background: color-mix(in srgb, var(--red) 14%, var(--card)); color: var(--red); }
+  .due-tag.soon { background: color-mix(in srgb, #f59e0b 16%, var(--card)); color: #c27803; }
+  .hw-side { flex-shrink: 0; text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+  .hw-side small { color: var(--sub); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .stat.link { cursor: pointer; } .stat.link:hover { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--accent) 35%, transparent), var(--shadow); }
 
   /* ===== 插件与商店 ===== */
   .view { display: none; } .view.on { display: block; }
@@ -248,6 +267,8 @@
     #userChip { padding: 3px; }
     #userChip.guest { padding: 6px 12px; }
     #addBtn .lbl { display: none; }
+    #hwView { padding: 14px 12px 32px; }
+    .hw-head h2 { font-size: 21px; }
     #addBtn { padding: 5px 11px; }
     .seg button { padding: 4px 10px; }
     .toolbar { padding: 10px 12px 0; flex-wrap: wrap; }
@@ -358,6 +379,7 @@
 </main>
 <footer class="foot">班级事项由班委统一整理；「我的事项」和你的标记只保存在这台设备上。更多工具在右上角头像菜单里。</footer>
 </section>
+<section class="view" data-view="homework"><div id="hwView"></div></section>
 <div id="pluginViews"></div>
 
 <section class="view" data-view="store">
@@ -568,8 +590,9 @@ function setMode(m) {
   uiMode = m; save(LS_MODE, m);
   document.documentElement.classList.toggle("simple", m === "simple");
   document.querySelectorAll("#modeSwitch button").forEach((b) => b.classList.toggle("on", b.dataset.mode === m));
-  if (m === "simple" && document.querySelector(".view.on[data-view]")?.dataset.view !== "calendar") showView("calendar");
-  else renderAll();
+  const cur = document.querySelector(".view.on[data-view]")?.dataset.view;
+  if (m === "simple" && cur !== "calendar" && cur !== "homework") showView("calendar");
+  else { renderTabs(); renderAll(); }
 }
 $("modeSwitch").onclick = (e) => { const b = e.target.closest("button[data-mode]"); if (b && b.dataset.mode !== uiMode) setMode(b.dataset.mode); };
 
@@ -628,7 +651,7 @@ function renderAgenda() {
       <div class="stats">
         <div class="stat"><b>${todayCount}</b><span>今天待办</span></div>
         <div class="stat"><b>${upcoming}</b><span>两周内待办</span></div>
-        <div class="stat${homework || overdue.length ? " hot" : ""}"><b>${homework + overdue.length}</b><span>作业没交${overdue.length ? ` · ${overdue.length} 项过期` : ""}</span></div>
+        <div class="stat link${homework || overdue.length ? " hot" : ""}" id="statHw" title="查看全部作业"><b>${homework + overdue.length}</b><span>作业没交${overdue.length ? ` · ${overdue.length} 项过期` : ""}</span></div>
       </div>
     </div>
     ${overdue.length ? `<div class="aday"><div class="aday-h overdue"><b>已过期</b><span>还没标记完成的作业</span></div><div class="acard">${overdue.map(agendaRow).join("")}</div></div>` : ""}
@@ -636,14 +659,85 @@ function renderAgenda() {
     ${undated.length ? `<div class="aday"><div class="aday-h"><b>时间待定</b><span>请去群里核实</span></div><div class="acard">${undated.map(agendaRow).join("")}</div></div>` : ""}
     <div class="afoot"><button class="small ghost" id="toNormal">查看完整月历 →</button></div>`;
   $("toNormal").onclick = () => setMode("normal");
+  $("statHw").onclick = () => showView("homework");
 }
-$("agenda").addEventListener("click", (e) => {
+function toggleRow(e) {
   if (e.target.closest("button, a, summary, details")) return;
   const row = e.target.closest(".arow[data-row]");
   if (!row || !row.querySelector(".aextra")) return;
   const k = row.dataset.row;
   agendaOpen.has(k) ? agendaOpen.delete(k) : agendaOpen.add(k);
   row.classList.toggle("open");
+}
+$("agenda").addEventListener("click", toggleRow);
+$("hwView").addEventListener("click", toggleRow);
+
+// ===== 作业页：一眼看到这周要交的作业 =====
+let hwWeek = 0;   // 0 本周，1 下周，-1 上周
+const dayDiff = (k) => Math.round((new Date(k + "T00:00:00") - new Date(keyOf(today) + "T00:00:00")) / 86400000);
+
+function dueInfo(r) {
+  if (!r._p) return { cls: "", text: "时间待定" };
+  const n = dayDiff(r._p.day);
+  if (r._done) return { cls: "", text: "已完成" };
+  if (n < 0) return { cls: "late", text: `已过期 ${-n} 天` };
+  if (n === 0) return { cls: "today", text: "今天截止" };
+  if (n === 1) return { cls: "soon", text: "明天截止" };
+  return { cls: n <= 3 ? "soon" : "", text: `还剩 ${n} 天` };
+}
+
+function hwRow(r) {
+  const k = esc(r._key), di = dueInfo(r);
+  const d = r._p ? new Date(r._p.day + "T00:00:00") : null;
+  const when = d ? `周${WEEK[d.getDay()]} ${d.getMonth() + 1}/${d.getDate()}${r._p.time ? " " + r._p.time : ""}` : "";
+  const open = agendaOpen.has(r._key);
+  return `<div class="arow t-作业${r._done ? " done" : ""}${open ? " open" : ""}" data-row="${k}">
+    <button class="chk" data-act="done" data-k="${k}" title="${r._done ? "标记为未完成" : "标记为完成"}">${r._done ? "✓" : ""}</button>
+    <div class="abody">
+      <div class="atitle">${r.need_confirm ? "⚠ " : ""}${esc(r.subject || r.summary || "作业")}</div>
+      ${r.subject && r.summary ? `<div class="asub">${esc(r.summary)}</div>` : ""}
+      <div class="aextra">${detailHtml(r)}</div>
+    </div>
+    <div class="hw-side"><span class="due-tag ${di.cls}">${esc(di.text)}</span>${when ? `<small>${esc(when)}</small>` : ""}</div>
+  </div>`;
+}
+
+function renderHomework() {
+  const box = $("hwView");
+  if (!box || !box.closest(".view.on")) return;
+  const items = allItems().filter((r) => r.msg_type === "作业");
+  const mon = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (today.getDay() + 6) % 7 + hwWeek * 7);
+  const sun = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6);
+  const a = keyOf(mon), b = keyOf(sun);
+  const byDue = (x, y) => (x._p.day + (x._p.time || "99")).localeCompare(y._p.day + (y._p.time || "99"));
+  const week = items.filter((r) => r._p && r._p.day >= a && r._p.day <= b).sort(byDue);
+  const todo = week.filter((r) => !r._done), done = week.filter((r) => r._done);
+  const overdue = hwWeek === 0 ? items.filter((r) => r._p && !r._done && r._p.day < a && dayDiff(r._p.day) >= -30).sort(byDue) : [];
+  const undatedHw = hwWeek === 0 ? items.filter((r) => !r._p) : [];
+  const title = hwWeek === 0 ? "本周作业" : hwWeek === 1 ? "下周作业" : hwWeek === -1 ? "上周作业" : `${mon.getMonth() + 1}月${mon.getDate()}日这周的作业`;
+  const pct = week.length ? Math.round(done.length / week.length * 100) : 0;
+  const card = (list) => `<div class="acard">${list.map(hwRow).join("")}</div>`;
+  box.innerHTML = `
+    <div class="hw-head">
+      <h2>${title}</h2><span class="range">${mon.getMonth() + 1}月${mon.getDate()}日 – ${sun.getMonth() + 1}月${sun.getDate()}日</span>
+      <span class="spacer"></span>
+      <div class="navgrp"><button data-hw="-1" aria-label="上一周">‹</button><button data-hw="0">本周</button><button data-hw="1" aria-label="下一周">›</button></div>
+    </div>
+    <div class="hw-prog">
+      <div class="row1"><span><b>${todo.length + overdue.length}</b>项没完成${overdue.length ? `（含 ${overdue.length} 项过期）` : ""}</span><span>${hwWeek === 0 ? "本周" : "这周"}已完成 ${done.length} / ${week.length}</span></div>
+      <div class="bar"><i style="width:${pct}%"></i></div>
+    </div>
+    ${overdue.length ? `<div class="aday"><div class="aday-h overdue"><b>之前没交的</b><span>过期但还没标记完成</span></div>${card(overdue)}</div>` : ""}
+    <div class="aday"><div class="aday-h"><b>待完成</b><span>按截止时间排序</span></div>
+      ${todo.length ? card(todo) : `<div class="aempty">${week.length ? "这周的作业都做完了 🎉" : "这周没有作业 🎉"}</div>`}</div>
+    ${undatedHw.length ? `<div class="aday"><div class="aday-h"><b>截止时间待定</b><span>请去群里核实</span></div>${card(undatedHw)}</div>` : ""}
+    ${done.length ? `<div class="aday"><div class="aday-h"><b>已完成</b><span>${done.length} 项</span></div>${card(done)}</div>` : ""}
+    <div class="afoot" style="color:var(--sub);font-size:12px">勾选只记在这台设备上；作业由班委整理发布，有出入以群里为准。</div>`;
+}
+$("hwView").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-hw]"); if (!b) return;
+  hwWeek = b.dataset.hw === "0" ? 0 : hwWeek + Number(b.dataset.hw);
+  renderHomework();
 });
 
 function renderSide() {
@@ -654,7 +748,7 @@ function renderSide() {
   $("undatedList").innerHTML = undated.length ? undated.map((r) => itemHtml(r, true)).join("") : `<div class="empty">暂无</div>`;
 }
 
-function renderAll() { indexItems(); renderGrid(); renderSide(); renderAgenda(); syncJump(); }
+function renderAll() { indexItems(); renderGrid(); renderSide(); renderAgenda(); renderHomework(); syncJump(); }
 
 function showBanner(msg) { const b = $("banner"); b.textContent = msg; b.classList.toggle("show", !!msg); }
 
@@ -1189,7 +1283,8 @@ document.addEventListener("click", (e) => { if (!e.target.closest("#menu") || e.
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMenu(); });
 
 function renderTabs() {
-  const tabs = [{ id: "calendar", title: "📅 日历" }, ...pluginTabs, { id: "store", title: "🧩 插件商店" }];
+  const tabs = [{ id: "calendar", title: uiMode === "simple" ? "🗓 待办" : "📅 日历" }, { id: "homework", title: "📝 作业" },
+    ...pluginTabs, { id: "store", title: "🧩 插件商店" }];
   const cur = document.querySelector(".view.on[data-view]")?.dataset.view || "calendar";
   $("tabs").innerHTML = tabs.map((t) => `<button data-tab="${esc(t.id)}" class="${t.id === cur ? "on" : ""}">${esc(t.title)}</button>`).join("");
 }
@@ -1198,7 +1293,7 @@ function showView(id) {
   document.querySelectorAll("[data-view]").forEach((v) => v.classList.toggle("on", v.dataset.view === id));
   document.querySelector('main').style.display = id === "calendar" ? "flex" : "none";
   renderTabs();
-  if (id === "calendar") renderAll();
+  if (id === "calendar" || id === "homework") renderAll();
 }
 
 document.documentElement.classList.toggle("simple", uiMode === "simple");
