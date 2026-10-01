@@ -758,6 +758,55 @@
   .sizepick button { padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line); font-size: 13px; font-weight: 600; }
   .sizepick button.on { background: var(--ink); color: var(--ink-text); border-color: transparent; }
 
+  /* ================= 本地整理预览 ================= */
+  #ipResult { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+  .ip-sum { font-size: 13px; color: var(--sub); margin-bottom: 10px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .ip-sum b { color: var(--text); }
+  .pi { display: grid; grid-template-columns: auto 82px 1fr 136px 96px; gap: 6px; align-items: center; padding: 8px; border-radius: 12px; background: var(--muted-bg); margin-bottom: 6px; }
+  .pi.off { opacity: .45; }
+  .pi input, .pi select { font: inherit; font-size: 13px; padding: 5px 7px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); min-width: 0; width: 100%; }
+  .pi .pis { grid-column: 2 / -1; }
+  .pi .pim { grid-column: 2 / -1; font-size: 12px; color: var(--sub); display: flex; gap: 10px; flex-wrap: wrap; }
+  .pi .src { font-size: 11px; font-weight: 700; color: var(--accent); }
+  .pi .warn { margin: 0; }
+  .unsure { margin-top: 12px; padding: 10px 12px; border-radius: 12px; border: 1px dashed var(--line); }
+  .unsure h5 { margin: 0 0 6px; font-size: 14px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .unsure .ux { font-size: 13px; color: var(--sub); padding: 3px 0; border-top: 1px solid var(--line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .unsure .ux:first-of-type { border-top: 0; }
+  .unsure .ux em { font-style: normal; color: #c27803; margin-right: 6px; font-size: 12px; }
+  .ip-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; flex-wrap: wrap; align-items: center; }
+  @media (max-width: 700px) { .pi { grid-template-columns: auto 1fr 1fr; } .pi .pisub { grid-column: 2 / -1; } .pi .pis, .pi .pim { grid-column: 1 / -1; } }
+
+  /* ================= 本地 AI 设置 + 问答 ================= */
+  .lai-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 10px; }
+  .lai-row label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--sub); font-weight: 600; }
+  .lai-row input, .lai-row select { font: inherit; font-size: 14px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--muted-bg); color: var(--text); min-width: 0; }
+  .lai-help { margin-top: 10px; font-size: 13px; color: var(--sub); }
+  .lai-help ol { padding-left: 20px; line-height: 1.8; color: var(--text); }
+  .lai-help pre { margin: 4px 0; padding: 8px 10px; background: var(--muted-bg); border: 1px solid var(--line); border-radius: 8px; font-size: 12.5px; white-space: pre-wrap; word-break: break-all; user-select: all; }
+  #laiStatus.ok { color: var(--green); font-weight: 700; } #laiStatus.err { color: var(--red); }
+  .askbox { padding: 6px 16px 10px; display: flex; flex-direction: column; gap: 14px; min-height: 50vh; }
+  .msg { display: flex; gap: 10px; align-items: flex-start; max-width: 100%; }
+  .msg.me { flex-direction: row-reverse; }
+  .msg .who { width: 36px; height: 36px; flex-shrink: 0; }
+  .msg .who svg { width: 36px; height: 36px; }
+  .msg .bub { padding: 10px 14px; border-radius: 16px; font-size: 15px; line-height: 1.7; max-width: calc(100% - 50px); word-break: break-word; }
+  .msg.bot .bub { background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow); border-top-left-radius: 4px; }
+  .msg.me .bub { background: var(--accent); color: #fff; border-top-right-radius: 4px; white-space: pre-wrap; }
+  .msg .bub ul, .msg .bub ol { margin: 4px 0; padding-left: 20px; }
+  .msg .bub p { margin: 0 0 6px; } .msg .bub p:last-child { margin: 0; }
+  .msg .bub .cursor { display: inline-block; width: 7px; height: 15px; background: var(--accent); vertical-align: -2px; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .ask-hello { text-align: center; padding: 30px 10px 10px; color: var(--sub); }
+  .ask-hello svg { width: 96px; height: 96px; }
+  .ask-hello b { display: block; font-size: 20px; color: var(--text); margin: 8px 0 4px; }
+  .ask-chips { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 14px; }
+  .ask-chips button { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: 13.5px; }
+  .ask-chips button:hover { border-color: var(--accent); color: var(--accent); }
+  .askin { position: sticky; bottom: 12px; margin: 0 16px; padding: 10px; display: flex; gap: 8px; align-items: flex-end; z-index: 5; }
+  .askin textarea { flex: 1; font: inherit; font-size: 15px; border: 0; outline: none; resize: none; background: transparent; color: var(--text); padding: 6px; max-height: 160px; }
+  @media (max-width: 700px) { .desk-only { display: none !important; } }
+
   /* 完成鼓励 */
   #cheer { position: fixed; left: 50%; bottom: 36px; transform: translate(-50%, 30px); opacity: 0; pointer-events: none; z-index: 60;
     display: flex; align-items: center; gap: 12px; background: var(--card); color: var(--text); border: 1px solid var(--line);
@@ -886,15 +935,17 @@
     </div>
     </div>
     <section id="ingestPanel" class="surface hidden">
-      <div class="ip-head">✨ 粘贴群消息 <small>AI 会提取作业、会议、活动和通知，闲聊自动过滤</small></div>
-      <textarea id="ingestText" rows="6" placeholder="把班级群里的消息整段粘贴到这里"></textarea>
+      <div class="ip-head">✨ 整理群消息 <small>先在本地用规则整理，不花 token；拿不准的再交给 AI</small></div>
+      <textarea id="ingestText" rows="6" placeholder="把班级群里的消息整段粘贴到这里（QQ、微信复制的格式都行）"></textarea>
       <div class="ingest-row">
         <label>消息发布日期 <input type="date" id="ingestDate"></label>
         <span class="spacer"></span>
         <span id="ingestStatus"></span>
         <button id="ingestClose" class="small">收起</button>
-        <button id="ingestGo" class="btn ink sm">AI 整理并发布到班级</button>
+        <button id="ingestGo" class="small" title="整段交给云端 AI 直接发布（会消耗 token，闲聊会先在本地过滤掉）">全部交给云端 AI</button>
+        <button id="ingestLocal" class="btn ink sm">本地整理</button>
       </div>
+      <div id="ipResult" class="hidden"></div>
     </section>
     <div id="agenda"></div>
   </section>
@@ -925,6 +976,17 @@
       <div id="wallList"></div>
       <div class="afoot">班级墙只有本班同学和老师能看到。发言请友善，不当内容可以举报，老师会处理。</div>
     </div>
+  </section>
+
+  <!-- AI 问答（电脑 + 本地 AI） -->
+  <section class="view" data-view="ask">
+    <header class="vhead"><h2>问答</h2><span class="tag" id="askModel"></span><span class="spacer"></span><button class="small" id="askClear">清空对话</button></header>
+    <div id="askBox" class="askbox"></div>
+    <div class="askin surface">
+      <textarea id="askInput" rows="2" placeholder="问问捞捞：这周有哪些作业？明天要带什么？（Enter 发送，Shift+Enter 换行）"></textarea>
+      <button class="btn ink" id="askSend">发送</button><button class="btn hidden" id="askStop">停止</button>
+    </div>
+    <div class="afoot">回答由你电脑上的本地模型生成，不上传、不花 token。涉及班级安排的问题，会参考你日历里的事项；有出入以群里为准。</div>
   </section>
 
   <!-- 规划：四象限 + 番茄钟 -->
@@ -1051,6 +1113,32 @@
       <label class="gi"><span class="ic">🎯</span>四象限和番茄钟<input type="checkbox" class="switch" id="optPlan"></label>
       <button class="gi" data-tab="growth"><span class="ic">📈</span>查看成长页<small>进度环、趋势图、打卡</small></button>
       <button class="gi" data-tab="plan" id="meToPlan"><span class="ic">🗂️</span>打开规划页<small>四象限、番茄钟</small></button>
+    </div>
+
+    <div class="sec-h desk-only"><b>本地 AI</b><span>电脑上装了本地模型，整理消息和问答都不花 token</span></div>
+    <div class="group surface desk-only" id="laiBox">
+      <div class="gx">
+        <div class="lai-row">
+          <label>类型 <select id="laiKind"><option value="ollama">Ollama</option><option value="openai">LM Studio / 其他 OpenAI 兼容</option></select></label>
+          <label style="flex:1">地址 <input id="laiBase" spellcheck="false"></label>
+          <button class="btn sm" id="laiTest">检测连接</button>
+        </div>
+        <div class="lai-row" id="laiModelRow" style="display:none">
+          <label style="flex:1">模型 <select id="laiModel"></select></label>
+          <button class="btn sm hidden" id="laiOff">停用</button>
+        </div>
+        <div class="meta" id="laiStatus">还没连接。连接成功后会出现「问答」页。</div>
+        <details class="lai-help"><summary>怎么在电脑上装本地 AI（Ollama，大约 10 分钟）</summary>
+          <ol>
+            <li>到 <b>ollama.com</b> 下载安装 Ollama（Windows / Mac 都有）。</li>
+            <li>打开终端（Windows 按 Win 键搜「PowerShell」），下载一个中文好的小模型，电脑内存 8G 以上选 3b，更小的选 1.5b：
+              <pre>ollama pull qwen2.5:3b</pre></li>
+            <li>允许这个网站访问它（只需要设置一次），然后<b>重启 Ollama</b>：
+              <pre id="laiOriginCmd"></pre></li>
+            <li>回到这里点「检测连接」。浏览器如果弹出「允许访问本地网络设备」，选允许。</li>
+          </ol>
+        </details>
+      </div>
     </div>
 
     <div class="sec-h"><b>班级与账号</b></div>
@@ -1188,6 +1276,7 @@
 
 <script src="config.js"></script>
 <script src="auth.js"></script>
+<script src="parse.js"></script>
 <script>
 // ===== 配置：班级数据只读接口（匿名密钥只能读 class_info，不能改） =====
 const CFG = window.APP_CONFIG || {};
@@ -1340,7 +1429,7 @@ const agendaOpen = new Set();
 const LS_SKIN = "ui_skin_v1", LS_BG = "ui_bg_v1", LS_BG_OPTS = "ui_bg_opts_v1";
 const SKIN_COLOR = { vivid: "#cdeeff", clean: "#ffffff", dark: "#000000", cyber: "#07060f" };
 // 元宇宙里的叫法
-const CYBER_NAMES = { 首页: "主控台", 作业: "任务清单", 班级墙: "广播频道", 日历: "时间线", 规划: "作战室", 工具: "模组库", 我的: "身份档案", 成长: "成长数据", 班级: "班级节点", 班级日历: "捞捞元宇宙" };
+const CYBER_NAMES = { 首页: "主控台", 作业: "任务清单", 班级墙: "广播频道", 日历: "时间线", 规划: "作战室", 工具: "模组库", 我的: "身份档案", 问答: "AI 终端", 成长: "成长数据", 班级: "班级节点", 班级日历: "捞捞元宇宙" };
 const cyName = (t) => (document.documentElement.dataset.skin === "cyber" && CYBER_NAMES[t]) || t;
 function applyLook() {
   const root = document.documentElement;
@@ -1711,7 +1800,7 @@ $("ingestGo").onclick = async () => {
   if (!text) { st.textContent = "先粘贴群消息"; st.className = "err"; return; }
   $("ingestGo").disabled = true; st.className = ""; st.textContent = "已提交，AI 正在整理，大约需要半分钟到一分钟…";
   try {
-    const res = await ingestMessages(currentClass.id, text, $("ingestDate").value || keyOf(new Date()));
+    const res = await ingestMessages(currentClass.id, meaningfulText(text), $("ingestDate").value || keyOf(new Date()));
     await loadClass();
     const added = res.added || 0;
     st.textContent = added > 0 ? `整理完成，新增 ${added} 条事项 ✓` : "整理完成，没有发现需要记录的事项";
@@ -1719,6 +1808,225 @@ $("ingestGo").onclick = async () => {
   } catch (err) { st.textContent = "整理失败：" + err.message; st.className = "err"; }
   finally { $("ingestGo").disabled = false; }
 };
+
+// ===== 本地规则整理（不花 token） =====
+let parsed = null;   // { items:[{...,on,src}], unsure:[], chatter:[], dupes }
+function meaningfulText(text) {
+  // 交给云端 AI 之前，先在本地去掉闲聊和重复，少花 token
+  const seen = new Set();
+  return LaoParse.splitMessages(text).filter((m) => { const k = m.text.replace(/\s+/g, ""); if (seen.has(k) || LaoParse.isChatter(m.text)) return false; seen.add(k); return true; })
+    .map((m) => (m.sender ? m.sender + "：" : "") + m.text).join("\n");
+}
+function renderParsed() {
+  const box = $("ipResult");
+  if (!parsed) { box.classList.add("hidden"); return; }
+  box.classList.remove("hidden");
+  const on = parsed.items.filter((x) => x.on).length;
+  const tsel = (v) => ["作业", "会议", "活动", "通知"].map((t) => `<option ${t === v ? "selected" : ""}>${t}</option>`).join("");
+  box.innerHTML = `<div class="ip-sum"><span>整理出 <b>${parsed.items.length}</b> 条 · 过滤闲聊 ${parsed.chatter.length} 条${parsed.dupes ? ` · 去掉重复 ${parsed.dupes} 条` : ""}${parsed.unsure.length ? ` · <b style="color:#c27803">拿不准 ${parsed.unsure.length} 条</b>` : ""}</span><span class="spacer"></span><span>可以直接改，确认后再发布</span></div>
+    ${parsed.items.map((x, i) => { const [d, t] = (x.event_time || "").split(" ");
+      return `<div class="pi${x.on ? "" : " off"} t-${esc(x.msg_type)}" data-pi="${i}">
+        <input type="checkbox" data-pf="on" ${x.on ? "checked" : ""} aria-label="发布这条">
+        <select data-pf="msg_type">${tsel(x.msg_type)}</select>
+        <input data-pf="subject" value="${esc(x.subject)}" placeholder="科目 / 标题" class="pisub">
+        <input type="date" data-pf="date" value="${esc(d || "")}">
+        <input type="time" data-pf="time" value="${esc(t || "")}">
+        <input data-pf="summary" value="${esc(x.summary)}" class="pis" placeholder="内容">
+        <div class="pim">${x.src ? `<span class="src">${esc(x.src)}</span>` : ""}${x.location ? `<span>📍 ${esc(x.location)}</span>` : ""}${x.prepare ? `<span>🎒 ${esc(x.prepare)}</span>` : ""}${x.need_confirm ? `<span class="warn">⚠ 信息不完整，会提醒同学核实</span>` : ""}</div>
+      </div>`; }).join("") || `<div class="empty">规则没有整理出事项。</div>`}
+    ${parsed.unsure.length ? `<div class="unsure"><h5>🤔 拿不准的 ${parsed.unsure.length} 条
+        <span class="spacer"></span>
+        ${laiReady() ? `<button class="btn ink sm" id="ipLocalAI">交给本地 AI（不花 token）</button>` : ""}
+        <button class="btn sm" id="ipCloudAI">交给云端 AI</button><button class="small" id="ipDrop">不要了</button></h5>
+        ${parsed.unsure.map((u) => `<div class="ux" title="${esc(u.text)}"><em>${esc(u.why)}</em>${esc(u.text)}</div>`).join("")}</div>` : ""}
+    <div class="ip-actions"><button class="small" id="ipCancel">取消</button><button class="btn ink sm" id="ipPublish" ${on ? "" : "disabled"}>发布选中的 ${on} 条到班级</button></div>`;
+}
+$("ingestLocal").onclick = () => {
+  const text = $("ingestText").value.trim(), st = $("ingestStatus");
+  if (!text) { st.textContent = "先粘贴群消息"; st.className = "err"; return; }
+  st.className = ""; st.textContent = "";
+  const r = LaoParse.parse(text, $("ingestDate").value || keyOf(new Date()));
+  parsed = { ...r, items: r.items.map((x) => ({ ...x, on: true, src: "" })) };
+  renderParsed();
+};
+$("ipResult").addEventListener("input", (e) => {
+  const f = e.target.closest("[data-pf]"); if (!f) return;
+  const x = parsed.items[+f.closest("[data-pi]").dataset.pi], k = f.dataset.pf;
+  if (k === "on") { x.on = f.checked; renderParsed(); return; }
+  if (k === "date" || k === "time") {
+    const row = f.closest("[data-pi]"), d = row.querySelector('[data-pf="date"]').value, t = row.querySelector('[data-pf="time"]').value;
+    x.event_time = d ? d + (t ? " " + t : "") : ""; x.need_confirm = !d;
+  } else x[k] = f.value;
+  if (k === "msg_type") renderParsed();
+});
+$("ipResult").addEventListener("click", async (e) => {
+  const st = $("ingestStatus");
+  if (e.target.closest("#ipCancel")) { parsed = null; renderParsed(); return; }
+  if (e.target.closest("#ipDrop")) { parsed.unsure = []; renderParsed(); return; }
+  if (e.target.closest("#ipPublish")) {
+    const items = parsed.items.filter((x) => x.on).map(({ on, src, ...x }) => x);
+    const b = e.target.closest("#ipPublish"); b.disabled = true;
+    try {
+      const n = await CCAuth.rpc("publish_parsed_items", { cid: currentClass.id, items });
+      st.className = ""; st.textContent = `已发布 ${n} 条事项 ✓`;
+      const left = parsed.unsure.length; parsed = null; renderParsed();
+      if (!left) $("ingestText").value = "";
+      await loadClass();
+    } catch (err) { st.className = "err"; st.textContent = "发布失败：" + err.message; b.disabled = false; }
+    return;
+  }
+  if (e.target.closest("#ipCloudAI")) {
+    const text = parsed.unsure.map((u) => (u.sender ? u.sender + "：" : "") + u.text).join("\n");
+    const b = e.target.closest("#ipCloudAI"); b.disabled = true; st.className = ""; st.textContent = `把 ${parsed.unsure.length} 条交给云端 AI…`;
+    try {
+      const res = await ingestMessages(currentClass.id, text, $("ingestDate").value || keyOf(new Date()));
+      parsed.unsure = []; renderParsed(); await loadClass();
+      st.textContent = `云端 AI 新增 ${res.added || 0} 条事项 ✓（规则整理的还没发布，确认后点下面的按钮）`;
+    } catch (err) { st.className = "err"; st.textContent = "云端 AI 失败：" + err.message; b.disabled = false; }
+    return;
+  }
+  if (e.target.closest("#ipLocalAI")) {
+    const pub = $("ingestDate").value || keyOf(new Date());
+    const text = parsed.unsure.map((u) => (u.sender ? u.sender + "：" : "") + u.text).join("\n");
+    const b = e.target.closest("#ipLocalAI"); b.disabled = true; b.textContent = "本地 AI 整理中…";
+    try {
+      const out = await laiChat([{ role: "system", content: LaoParse.extractPrompt(pub) + (lai.kind === "ollama" ? '\n输出格式：{"items": [ ... ]}' : "") },
+                                 { role: "user", content: text }], { json: true });
+      const got = LaoParse.parseJsonItems(out, pub);
+      if (!got) throw new Error("本地模型没有按格式回答，换个大一点的模型试试");
+      parsed.items.push(...got.map((x) => ({ ...x, on: true, src: "本地 AI" })));
+      parsed.unsure = []; renderParsed();
+      st.className = ""; st.textContent = got.length ? `本地 AI 又整理出 ${got.length} 条，确认后一起发布` : "本地 AI 认为这些消息里没有需要记录的事项";
+    } catch (err) { st.className = "err"; st.textContent = "本地 AI 失败：" + err.message; b.disabled = false; b.textContent = "交给本地 AI（不花 token）"; }
+  }
+});
+
+// ===== 本地 AI（电脑上的 Ollama / LM Studio） =====
+const LS_LAI = "local_ai_v1";
+let lai = { kind: "ollama", base: "http://localhost:11434", model: "", ok: false, ...load(LS_LAI, {}) };
+const laiReady = () => !isMobile() && lai.ok && !!lai.model;
+const laiUrl = (p) => lai.base.replace(/\/+$/, "") + p;
+function saveLai() { save(LS_LAI, lai); renderTabs(); }
+async function laiModels() {
+  const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 6000);
+  try {
+    if (lai.kind === "ollama") { const r = await fetch(laiUrl("/api/tags"), { signal: ctl.signal }); if (!r.ok) throw new Error("HTTP " + r.status); return ((await r.json()).models || []).map((m) => m.name); }
+    const r = await fetch(laiUrl("/v1/models"), { signal: ctl.signal }); if (!r.ok) throw new Error("HTTP " + r.status); return ((await r.json()).data || []).map((m) => m.id);
+  } finally { clearTimeout(tm); }
+}
+// 调用本地模型；onToken 用来边生成边显示
+async function laiChat(messages, { json = false, onToken, signal } = {}) {
+  let full = "";
+  const ollama = lai.kind === "ollama";
+  const body = ollama
+    ? { model: lai.model, messages, stream: true, ...(json ? { format: "json" } : {}), options: { temperature: json ? 0.1 : 0.6 } }
+    : { model: lai.model, messages, stream: true, temperature: json ? 0.1 : 0.6 };
+  const r = await fetch(laiUrl(ollama ? "/api/chat" : "/v1/chat/completions"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal });
+  if (!r.ok) throw new Error("本地模型返回 " + r.status + "，检查模型名是否正确");
+  const reader = r.body.getReader(), dec = new TextDecoder(); let buf = "";
+  for (;;) {
+    const { value, done } = await reader.read(); if (done) break;
+    buf += dec.decode(value, { stream: true });
+    const lines = buf.split("\n"); buf = lines.pop();
+    for (let line of lines) {
+      line = line.trim(); if (!line) continue;
+      let piece = "";
+      try {
+        if (ollama) piece = (JSON.parse(line).message || {}).content || "";
+        else { if (!line.startsWith("data:")) continue; const d = line.slice(5).trim(); if (d === "[DONE]") continue; piece = ((JSON.parse(d).choices || [])[0]?.delta || {}).content || ""; }
+      } catch (e) { continue; }
+      if (piece) { full += piece; onToken && onToken(full); }
+    }
+  }
+  return full;
+}
+function syncLaiUI() {
+  $("laiKind").value = lai.kind; $("laiBase").value = lai.base;
+  const origin = location.origin.startsWith("http") ? location.origin : "https://hangyuan2024-hue.github.io";
+  $("laiOriginCmd").textContent = `Windows（PowerShell）：  setx OLLAMA_ORIGINS "${origin}"\nMac：  launchctl setenv OLLAMA_ORIGINS "${origin}"\nLinux：  在 ollama 服务里加环境变量 OLLAMA_ORIGINS=${origin}`;
+  $("laiOff").classList.toggle("hidden", !lai.ok);
+  if (lai.ok) { $("laiStatus").className = "meta ok"; $("laiStatus").textContent = `✓ 已连接：${lai.model}。「问答」页已打开，整理消息时也能用本地 AI。`; }
+}
+$("laiKind").onchange = () => { lai.kind = $("laiKind").value; $("laiBase").value = lai.base = lai.kind === "ollama" ? "http://localhost:11434" : "http://localhost:1234"; lai.ok = false; saveLai(); syncLaiUI(); };
+$("laiBase").onchange = () => { lai.base = $("laiBase").value.trim(); lai.ok = false; saveLai(); };
+$("laiTest").onclick = async () => {
+  const st = $("laiStatus"); st.className = "meta"; st.textContent = "正在连接…"; $("laiTest").disabled = true;
+  try {
+    const models = await laiModels();
+    if (!models.length) throw new Error(lai.kind === "ollama" ? "连上了，但还没有下载模型。先在终端运行 ollama pull qwen2.5:3b" : "连上了，但没有加载模型");
+    const pref = models.find((m) => m === lai.model) || models.find((m) => /qwen/i.test(m)) || models[0];
+    $("laiModel").innerHTML = models.map((m) => `<option ${m === pref ? "selected" : ""}>${esc(m)}</option>`).join("");
+    $("laiModelRow").style.display = "";
+    lai.model = pref; lai.ok = true; saveLai(); syncLaiUI();
+  } catch (err) {
+    lai.ok = false; saveLai(); st.className = "meta err";
+    st.textContent = (err.name === "AbortError" || err instanceof TypeError)
+      ? "连不上。确认 Ollama 正在运行，并且按下面第 3 步设置过 OLLAMA_ORIGINS 后重启了 Ollama。"
+      : "连接失败：" + err.message;
+  } finally { $("laiTest").disabled = false; }
+};
+$("laiModel").onchange = () => { lai.model = $("laiModel").value; saveLai(); syncLaiUI(); };
+$("laiOff").onclick = () => { lai.ok = false; saveLai(); $("laiModelRow").style.display = "none"; $("laiStatus").className = "meta"; $("laiStatus").textContent = "已停用本地 AI。"; syncLaiUI(); };
+syncLaiUI();
+
+// ===== AI 问答 =====
+let askHistory = [], askCtl = null;
+function askContext() {
+  const t = new Date(), lines = [];
+  const items = allItems().filter((r) => !r._plugin && (!r._p || (dayDiff(r._p.day) >= -14 && dayDiff(r._p.day) <= 45)))
+    .sort((a, b) => ((a._p ? a._p.day + a._p.time : "9") > (b._p ? b._p.day + b._p.time : "9") ? 1 : -1));
+  for (const r of items.slice(0, 120)) {
+    const when = r._p ? `${r._p.day}（周${WEEK[new Date(r._p.day + "T00:00:00").getDay()]}）${r._p.time ? " " + r._p.time : ""}` : "时间待定";
+    lines.push(`- [${r._mine ? "我的" : r.msg_type}] ${r.subject || ""}${r.summary ? "：" + r.summary : ""} | ${r.msg_type === "作业" ? "截止 " : ""}${when}${r.location ? " | 地点 " + r.location : ""}${r.prepare ? " | 需准备 " + r.prepare : ""}${r._done ? " | 已完成" : ""}${r.need_confirm ? " | 待核实" : ""}`);
+  }
+  const hab = habits.length ? "\n我的习惯打卡：" + habits.map((h) => `${h.name}（今天${(habitLog[h.id] || {})[todayKey()] ? "已打卡" : "未打卡"}，连续 ${streakOf(h)} 天）`).join("、") : "";
+  return `你是「捞捞」，班级群日历里的学习小助手，说话亲切、简洁，用中文回答。
+今天是 ${keyOf(t)}，星期${WEEK[t.getDay()]}，现在 ${pad(t.getHours())}:${pad(t.getMinutes())}。
+用户：${currentUser ? currentUser.display_name : "同学"}${currentClass ? "，班级：" + currentClass.name : ""}。
+下面是用户日历里的事项（只有这些是真实安排）：
+${lines.join("\n") || "（日历里暂时没有事项）"}${hab}
+回答要求：问到作业、考试、活动等安排时，只根据上面的事项回答，没有的就说日历里没有、建议去群里确认，不要编造；日期要说清是几号周几。其他学习问题可以正常回答。能用列表就用列表，别太长。`;
+}
+function mdLite(s) {
+  const lines = esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/`([^`]+)`/g, "<code>$1</code>").split("\n");
+  let html = "", list = null;
+  for (const l of lines) {
+    const ul = l.match(/^\s*[-*•]\s+(.*)/), ol = l.match(/^\s*\d+[.、)]\s+(.*)/);
+    if (ul || ol) { const tag = ul ? "ul" : "ol"; if (list !== tag) { if (list) html += `</${list}>`; html += `<${tag}>`; list = tag; } html += `<li>${(ul || ol)[1]}</li>`; continue; }
+    if (list) { html += `</${list}>`; list = null; }
+    if (l.trim()) html += `<p>${l}</p>`;
+  }
+  return html + (list ? `</${list}>` : "");
+}
+function renderAsk() {
+  $("askModel").textContent = lai.model || "";
+  const bot = `<span class="who"><svg viewBox="0 0 120 120"><use href="#mascotArt"/></svg></span>`;
+  $("askBox").innerHTML = askHistory.length ? askHistory.map((m) => m.role === "user"
+      ? `<div class="msg me"><span class="who av">${esc([...(currentUser ? currentUser.display_name : "我")][0])}</span><div class="bub">${esc(m.content)}</div></div>`
+      : `<div class="msg bot">${bot}<div class="bub">${mdLite(m.content)}${m.pending ? '<span class="cursor"></span>' : ""}</div></div>`).join("")
+    : `<div class="ask-hello"><svg viewBox="0 0 120 120"><use href="#mascotArt"/></svg><b>我是捞捞，有什么想问的？</b>我能看到你日历里的作业和安排，回答都在你电脑上生成。
+        <div class="ask-chips">${["这周有哪些作业还没交？", "明天要干什么？", "帮我排一下今晚的学习计划", "下周有什么活动？", "最近哪件事最急？"].map((q) => `<button data-q="${q}">${q}</button>`).join("")}</div></div>`;
+}
+async function askSend(q) {
+  q = (q || $("askInput").value).trim(); if (!q || askCtl) return;
+  if (!laiReady()) { alert("先在「我的 → 本地 AI」里连接本地模型"); return; }
+  $("askInput").value = "";
+  askHistory.push({ role: "user", content: q });
+  const ans = { role: "assistant", content: "", pending: true }; askHistory.push(ans); renderAsk();
+  askCtl = new AbortController(); $("askSend").classList.add("hidden"); $("askStop").classList.remove("hidden");
+  const msgs = [{ role: "system", content: askContext() }, ...askHistory.filter((m) => m !== ans).slice(-10).map(({ role, content }) => ({ role, content }))];
+  let raf = 0;
+  try {
+    await laiChat(msgs, { signal: askCtl.signal, onToken: (full) => { ans.content = full; cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { renderAsk(); window.scrollTo(0, document.body.scrollHeight); }); } });
+    if (!ans.content) ans.content = "（模型没有回答，换个问法试试）";
+  } catch (err) { if (err.name !== "AbortError") ans.content += (ans.content ? "\n\n" : "") + "出错了：" + (err instanceof TypeError ? "连不上本地模型，确认 Ollama 还在运行" : err.message); }
+  finally { ans.pending = false; askCtl = null; $("askSend").classList.remove("hidden"); $("askStop").classList.add("hidden"); renderAsk(); window.scrollTo(0, document.body.scrollHeight); }
+}
+$("askSend").onclick = () => askSend();
+$("askStop").onclick = () => askCtl && askCtl.abort();
+$("askClear").onclick = () => { if (askCtl) askCtl.abort(); askHistory = []; renderAsk(); };
+$("askInput").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); askSend(); } };
+$("askBox").onclick = (e) => { const b = e.target.closest("[data-q]"); if (b) askSend(b.dataset.q); };
 
 // ===== 操作 =====
 function setMark(k, patch) {
@@ -2126,12 +2434,14 @@ const ICONS = {
          '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v9a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4A2.5 2.5 0 0 1 3 14.5z" fill="currentColor"/><path d="M8 8.5h8M8 12h5" stroke="var(--bg2)" stroke-width="2" stroke-linecap="round"/>'],
   plan: ['<rect x="3.5" y="3.5" width="17" height="17" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3.5v17M3.5 12h17" stroke="currentColor" stroke-width="2"/>',
          '<rect x="3" y="3" width="8" height="8" rx="2" fill="currentColor"/><rect x="13" y="3" width="8" height="8" rx="2" fill="currentColor" opacity=".75"/><rect x="3" y="13" width="8" height="8" rx="2" fill="currentColor" opacity=".55"/><rect x="13" y="13" width="8" height="8" rx="2" fill="currentColor" opacity=".35"/>'],
+  ask: ['<path d="M12 3l1.8 4.6L18.5 9.5l-4.7 1.9L12 16l-1.8-4.6L5.5 9.5l4.7-1.9z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M18.5 15.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z" fill="currentColor"/>',
+         '<path d="M12 3l1.8 4.6L18.5 9.5l-4.7 1.9L12 16l-1.8-4.6L5.5 9.5l4.7-1.9z" fill="currentColor"/><path d="M18.5 15.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z" fill="currentColor"/>'],
   me: ['<circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
        '<circle cx="12" cy="8" r="4.5" fill="currentColor"/><path d="M3.5 21c0-4.8 3.8-7.5 8.5-7.5s8.5 2.7 8.5 7.5z" fill="currentColor"/>'],
   class: ['<path d="M2.5 9 12 4l9.5 5-9.5 5z M6.5 11.2V16c0 1.6 2.5 3 5.5 3s5.5-1.4 5.5-3v-4.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>', ""],
 };
 const icon = (k) => `<svg viewBox="0 0 24 24" class="o" aria-hidden="true">${ICONS[k][0]}</svg>` + (ICONS[k][1] ? `<svg viewBox="0 0 24 24" class="f" aria-hidden="true">${ICONS[k][1]}</svg>` : "");
-const NAV = [["home", "首页"], ["homework", "作业"], ["wall", "班级墙"], ["calendar", "日历"], ["plan", "规划"], ["tools", "工具"], ["me", "我的"]];
+const NAV = [["home", "首页"], ["homework", "作业"], ["wall", "班级墙"], ["calendar", "日历"], ["plan", "规划"], ["ask", "问答"], ["tools", "工具"], ["me", "我的"]];
 let hwBadge = 0;
 
 function currentView() { return document.querySelector(".view.on[data-view]")?.dataset.view || "home"; }
@@ -2139,7 +2449,7 @@ function renderTabs() {
   let cur = currentView();
   const pinned = railPins().some((t) => t.view === cur);
   if (cur.startsWith("p_") && !pinned) cur = "tools";
-  $("tabs").innerHTML = NAV.map(([id, t]) => `<button class="nav${id === cur ? " on" : ""}${id === "tools" || id === "plan" ? " desk" : ""}${id === "plan" && !funOpts().plan ? " hidden" : ""}" data-tab="${id}">${icon(id)}<span>${cyName(t)}</span>${id === "homework" && hwBadge ? `<em class="badge">${hwBadge}</em>` : ""}</button>`).join("")
+  $("tabs").innerHTML = NAV.map(([id, t]) => `<button class="nav${id === cur ? " on" : ""}${id === "tools" || id === "plan" || id === "ask" ? " desk" : ""}${(id === "plan" && !funOpts().plan) || (id === "ask" && !laiReady()) ? " hidden" : ""}" data-tab="${id}">${icon(id)}<span>${cyName(t)}</span>${id === "homework" && hwBadge ? `<em class="badge">${hwBadge}</em>` : ""}</button>`).join("")
     + railPins().map((t, i) => `<button class="nav pin${i ? " desk" : ""}${t.view === cur ? " on" : ""}" data-tab="${esc(t.view)}"><span class="emo">${esc(t.icon)}</span><span>${esc(t.name)}</span></button>`).join("")
     + `<a class="nav desk" href="class.html">${icon("class")}<span>${cyName("班级")}</span></a>`;
 }
@@ -2168,6 +2478,7 @@ function showView(id) {
   if (id === "wall") loadWall();
   if (id === "growth") renderGrowth();
   if (id === "plan") renderPlan();
+  if (id === "ask") renderAsk();
   if (scrollStore) $("storeAnchor").scrollIntoView();
   else window.scrollTo(0, 0);
 }
