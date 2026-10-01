@@ -775,6 +775,25 @@
   .unsure .ux:first-of-type { border-top: 0; }
   .unsure .ux em { font-style: normal; color: #c27803; margin-right: 6px; font-size: 12px; }
   .ip-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; flex-wrap: wrap; align-items: center; }
+  .pi .piloc { grid-column: 2 / -1; }
+  .pi .lrn { font-size: 11px; font-weight: 700; color: #7c3aed; }
+  .pi .pim .small { padding: 2px 8px; font-size: 12px; }
+  .unsure .ux .small, .ipchat .ux .small { padding: 1px 8px; font-size: 12px; margin-right: 8px; }
+  .ipchat { margin-top: 10px; font-size: 13px; color: var(--sub); }
+  .ipchat summary { cursor: pointer; padding: 4px 0; }
+  .ipchat .ux { padding: 4px 0; border-top: 1px solid var(--line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #ipLearn { font-size: 13px; color: var(--sub); margin: 8px 0 0; }
+  #ipLearn .ll-sum { line-height: 1.7; }
+  #ipLearn .ll-sum .small { margin-left: 6px; padding: 1px 10px; font-size: 12px; vertical-align: 1px; }
+  #ipLearn .ll-sum b { color: var(--text); }
+  #ipLearn .ll-warn { margin-top: 6px; color: #c27803; }
+  #ipLearn .ll-detail { margin-top: 8px; padding: 10px 12px; border-radius: 12px; background: var(--muted-bg); }
+  #ipLearn .ll-detail p { margin: 0 0 8px; }
+  #ipLearn .ll-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 6px; }
+  #ipLearn .ll-row > b { min-width: 84px; color: var(--text); }
+  #ipLearn .ll-chip { display: inline-flex; align-items: center; gap: 2px; padding: 2px 4px 2px 10px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); color: var(--text); }
+  #ipLearn .ll-chip button { border: 0; background: none; color: var(--sub); cursor: pointer; font-size: 14px; padding: 0 4px; }
+  #ipLearn .ll-none { color: var(--sub); }
   @media (max-width: 700px) { .pi { grid-template-columns: auto 1fr 1fr; } .pi .pisub { grid-column: 2 / -1; } .pi .pis, .pi .pim { grid-column: 1 / -1; } }
 
   /* ================= 本地 AI 设置 + 问答 ================= */
@@ -962,6 +981,7 @@
         <button id="ingestGo" class="small" title="整段交给云端 AI 直接发布（会消耗 token，闲聊会先在本地过滤掉）">全部交给云端 AI</button>
         <button id="ingestLocal" class="btn ink sm">本地整理</button>
       </div>
+      <div id="ipLearn"></div>
       <div id="ipResult" class="hidden"></div>
     </section>
     <div id="agenda"></div>
@@ -1822,7 +1842,7 @@ async function ingestMessages(classId, text, pubDate) {
   }
   throw new Error("等太久了，稍后点「刷新班级数据」看看是否已加入日历");
 }
-$("cIngestBtn").onclick = () => { $("ingestPanel").classList.toggle("hidden"); $("ingestDate").value = $("ingestDate").value || keyOf(new Date()); $("ingestText").focus(); };
+$("cIngestBtn").onclick = () => { $("ingestPanel").classList.toggle("hidden"); $("ingestDate").value = $("ingestDate").value || keyOf(new Date()); $("ingestText").focus(); if (!$("ingestPanel").classList.contains("hidden")) ensureLaoModel().catch(() => {}); };
 $("ingestClose").onclick = () => $("ingestPanel").classList.add("hidden");
 $("ingestGo").onclick = async () => {
   const text = $("ingestText").value.trim(), st = $("ingestStatus");
@@ -1838,13 +1858,81 @@ $("ingestGo").onclick = async () => {
   finally { $("ingestGo").disabled = false; }
 };
 
-// ===== 本地规则整理（不花 token） =====
-let parsed = null;   // { items:[{...,on,src}], unsure:[], chatter:[], dupes }
+// ===== 本地规则整理（不花 token），会从班委的修改里学习 =====
+let parsed = null;   // { items:[{...,on,src,_shown}], unsure:[], chatter:[], dupes }
 function meaningfulText(text) {
   // 交给云端 AI 之前，先在本地去掉闲聊和重复，少花 token
   const seen = new Set();
   return LaoParse.splitMessages(text).filter((m) => { const k = m.text.replace(/\s+/g, ""); if (seen.has(k) || LaoParse.isChatter(m.text)) return false; seen.add(k); return true; })
     .map((m) => (m.sender ? m.sender + "：" : "") + m.text).join("\n");
+}
+// ---- 学习：班委的修改存进数据库（同班班委共享），换设备也能接着用 ----
+const LAO_FB_LS = (cid) => "lao_fb_v1_" + cid;          // 还没传上去的学习记录（没网或没装数据库函数时先存本机）
+let laoModel = null, laoModelFor = "", laoRemoteOk = null, laoShowLearn = false;
+const laoPub = () => $("ingestDate").value || keyOf(new Date());
+const slimItem = (x) => ({ msg_type: x.msg_type, subject: x.subject || "", location: x.location || "", event_time: x.event_time || "" });
+function msgText(original) { const m = LaoParse.splitMessages(original || "")[0]; return m ? m.text : String(original || ""); }
+function laoLocal(cid, v) { const k = LAO_FB_LS(cid); if (v === undefined) return load(k, []); try { save(k, v); } catch (e) {} }
+async function ensureLaoModel(rebuild) {
+  if (!currentClass) return null;
+  if (laoModel && laoModelFor === currentClass.id && !rebuild) return laoModel;
+  const cid = currentClass.id, m = LaoParse.createModel();
+  // 1) 本班历史事项（以前 AI 整理或班委发布的）：学「这种说法是什么类型」
+  for (const r of classRecords.filter((r) => r.original && !/^（由/.test(r.original)).slice(-400)) m.learnExample(msgText(r.original), r.msg_type, "history");
+  // 2) 班委做过的修改，按先后重放一遍
+  let rows = [];
+  try { rows = (await CCAuth.rpc("parse_feedback_list", { cid })) || []; laoRemoteOk = true; } catch (e) { laoRemoteOk = false; }
+  let local = laoLocal(cid);
+  if (laoRemoteOk && local.length) {           // 以前存在本机的，补传上去
+    try { await CCAuth.rpc("parse_feedback_add", { cid, rows: local.slice(0, 60) }); rows = rows.concat(local.slice(0, 60)); local = local.slice(60); laoLocal(cid, local); } catch (e) {}
+  }
+  const forgets = [];
+  for (const r of rows.concat(local)) {
+    if (r.source === "forget") { forgets.push(...(r.items || [])); continue; }
+    try { m.learn({ text: r.text, pub: r.pub, before: LaoParse.parse(r.text, r.pub || keyOf(new Date())), items: r.items || [], chatter: !!r.chatter, source: r.source === "ai" ? "ai" : "user" }); } catch (e) {}
+  }
+  for (const f of forgets) m.forget(f.kind, f.key);
+  if (currentClass && currentClass.id === cid) { laoModel = m; laoModelFor = cid; }
+  renderLaoLearn();
+  return m;
+}
+async function laoSend(rows) {
+  if (!rows.length || !currentClass) return;
+  const cid = currentClass.id;
+  if (laoModel && laoModelFor === cid) for (const r of rows) {   // 马上在本机生效
+    if (r.source === "forget") { for (const f of r.items) laoModel.forget(f.kind, f.key); continue; }
+    laoModel.learn({ text: r.text, pub: r.pub, before: LaoParse.parse(r.text, r.pub), items: r.items, chatter: r.chatter, source: r.source });
+  }
+  renderLaoLearn();
+  try { await CCAuth.rpc("parse_feedback_add", { cid, rows }); laoRemoteOk = true; }
+  catch (e) { laoRemoteOk = false; laoLocal(cid, laoLocal(cid).concat(rows).slice(-500)); renderLaoLearn(); }
+}
+// 发布时：和整理出来时比，班委改过的（或者手动要求记下的、本地 AI 整理的）就学一下
+function laoFeedbackRows() {
+  const by = new Map();
+  for (const x of parsed.items) { if (!x.on || !x.src_text) continue; if (!by.has(x.src_text)) by.set(x.src_text, []); by.get(x.src_text).push(x); }
+  const rows = [];
+  for (const [text, xs] of by) {
+    const changed = xs.some((x) => x._forced || !x._shown || ["msg_type", "subject", "location", "event_time"].some((f) => (x[f] || "") !== (x._shown[f] || "")));
+    const ai = xs.every((x) => x.src === "本地 AI");
+    if (changed || ai) rows.push({ text, pub: xs[0].publish_date || laoPub(), chatter: false, source: ai && !changed ? "ai" : "user", items: xs.map(slimItem) });
+  }
+  return rows;
+}
+function renderLaoLearn() {
+  const el = $("ipLearn"); if (!el) return;
+  if (!laoModel || laoModelFor !== (currentClass && currentClass.id)) { el.innerHTML = ""; return; }
+  const s = laoModel.stats(), d = laoModel.dump();
+  const canClear = currentClass.is_teacher || (currentUser && currentUser.role === "admin");
+  el.innerHTML = `<div class="ll-sum"><span>🧠 捞捞从本班学到：<b>${s.fixes}</b> 次纠正 · <b>${s.places}</b> 个地名 · <b>${s.aliases}</b> 个课程叫法 · <b>${s.periods}</b> 个上课时间 · 记住 <b>${s.memory}</b> 条消息 · 参考历史事项 ${s.history} 条</span>
+      <button class="small" id="ipLearnMore">${laoShowLearn ? "收起" : "查看"}</button></div>
+    ${laoRemoteOk === false ? `<div class="ll-warn">学习记录暂时只存在这台设备。管理员在扣子终端运行一次 <code>python3 setupaccounts.py</code> 后，全班班委就能共享。</div>` : ""}
+    ${laoShowLearn ? `<div class="ll-detail">
+      <p>在下面的整理结果里改类型、地点、科目、时间，点「不是事项」或「这条要记」，发布时捞捞都会记下来，下次同样的情况直接整理对。学到的东西本班有整理权限的人共享。</p>
+      ${[["places", "地名", d.places.map((p) => [p, p])], ["aliases", "课程叫法", Object.entries(d.aliases).map(([a, n]) => [a, `${a} → ${n}`])], ["periods", "上课时间", Object.entries(d.periods).map(([k, v]) => [k, `第${k}节 → ${v}`])], ["notPlaces", "不算地点的词", d.notPlaces.map((p) => [p, p])]]
+        .map(([kind, name, list]) => `<div class="ll-row"><b>${name}</b>${list.length ? list.map(([k, label]) => `<span class="ll-chip">${esc(label)}<button data-forget="${kind}" data-key="${esc(k)}" title="忘掉这一条" aria-label="忘掉">×</button></span>`).join("") : `<span class="ll-none">还没有</span>`}</div>`).join("")}
+      <div class="ll-row">${canClear ? `<button class="small" id="ipLearnClear">清空本班全部学习记录</button>` : `<span class="ll-none">清空全部学习记录需要本班老师操作</span>`}</div>
+    </div>` : ""}`;
 }
 function renderParsed() {
   const box = $("ipResult");
@@ -1852,7 +1940,7 @@ function renderParsed() {
   box.classList.remove("hidden");
   const on = parsed.items.filter((x) => x.on).length;
   const tsel = (v) => ["作业", "会议", "活动", "通知"].map((t) => `<option ${t === v ? "selected" : ""}>${t}</option>`).join("");
-  box.innerHTML = `<div class="ip-sum"><span>整理出 <b>${parsed.items.length}</b> 条 · 过滤闲聊 ${parsed.chatter.length} 条${parsed.dupes ? ` · 去掉重复 ${parsed.dupes} 条` : ""}${parsed.unsure.length ? ` · <b style="color:#c27803">拿不准 ${parsed.unsure.length} 条</b>` : ""}</span><span class="spacer"></span><span>可以直接改，确认后再发布</span></div>
+  box.innerHTML = `<div class="ip-sum"><span>整理出 <b>${parsed.items.length}</b> 条 · 过滤闲聊 ${parsed.chatter.length} 条${parsed.dupes ? ` · 去掉重复 ${parsed.dupes} 条` : ""}${parsed.unsure.length ? ` · <b style="color:#c27803">拿不准 ${parsed.unsure.length} 条</b>` : ""}</span><span class="spacer"></span><span>哪里不对直接改，捞捞会记住</span></div>
     ${parsed.items.map((x, i) => { const [d, t] = (x.event_time || "").split(" ");
       return `<div class="pi${x.on ? "" : " off"} t-${esc(x.msg_type)}" data-pi="${i}">
         <input type="checkbox" data-pf="on" ${x.on ? "checked" : ""} aria-label="发布这条">
@@ -1861,21 +1949,28 @@ function renderParsed() {
         <input type="date" data-pf="date" value="${esc(d || "")}">
         <input type="time" data-pf="time" value="${esc(t || "")}">
         <input data-pf="summary" value="${esc(x.summary)}" class="pis" placeholder="内容">
-        <div class="pim">${x.src ? `<span class="src">${esc(x.src)}</span>` : ""}${x.location ? `<span>📍 ${esc(x.location)}</span>` : ""}${x.prepare ? `<span>🎒 ${esc(x.prepare)}</span>` : ""}${x.need_confirm ? `<span class="warn">⚠ 信息不完整，会提醒同学核实</span>` : ""}</div>
-      </div>`; }).join("") || `<div class="empty">规则没有整理出事项。</div>`}
+        <input data-pf="location" value="${esc(x.location || "")}" class="piloc" placeholder="📍 地点（没有就空着）">
+        <div class="pim">${x.src ? `<span class="src">${esc(x.src)}</span>` : ""}${x.via === "memory" ? `<span class="lrn">🧠 按上次的修改</span>` : x.via === "learned" ? `<span class="lrn">🧠 参考了本班以前的修改</span>` : ""}${x.prepare ? `<span>🎒 ${esc(x.prepare)}</span>` : ""}${x.need_confirm ? `<span class="warn">⚠ 信息不完整，会提醒同学核实</span>` : ""}
+          <span class="spacer"></span>${x.src_text ? `<button class="small" data-notitem="${i}" title="这条其实是闲聊，以后别再整理出来">🚫 不是事项</button>` : ""}</div>
+      </div>`; }).join("") || `<div class="empty">没有整理出事项。</div>`}
     ${parsed.unsure.length ? `<div class="unsure"><h5>🤔 拿不准的 ${parsed.unsure.length} 条
         <span class="spacer"></span>
         ${laiReady() ? `<button class="btn ink sm" id="ipLocalAI">交给本地 AI（不花 token）</button>` : ""}
         <button class="btn sm" id="ipCloudAI">交给云端 AI</button><button class="small" id="ipDrop">不要了</button></h5>
-        ${parsed.unsure.map((u) => `<div class="ux" title="${esc(u.text)}"><em>${esc(u.why)}</em>${esc(u.text)}</div>`).join("")}</div>` : ""}
+        ${parsed.unsure.map((u, i) => `<div class="ux" title="${esc(u.text)}"><button class="small" data-fillu="${i}" title="放到上面自己填，捞捞会学">我来填</button><em>${esc(u.why)}</em>${esc(u.text)}</div>`).join("")}</div>` : ""}
+    ${parsed.chatter.length ? `<details class="ipchat"><summary>被当成闲聊过滤掉的 ${parsed.chatter.length} 条（看看有没有漏掉的）</summary>
+        ${parsed.chatter.map((c, i) => `<div class="ux"><button class="small" data-keepc="${i}" title="这条是要记的事，捞捞会学">这条要记</button>${esc(c)}</div>`).join("")}</details>` : ""}
     <div class="ip-actions"><button class="small" id="ipCancel">取消</button><button class="btn ink sm" id="ipPublish" ${on ? "" : "disabled"}>发布选中的 ${on} 条到班级</button></div>`;
 }
-$("ingestLocal").onclick = () => {
+const withShown = (x, extra) => ({ ...x, on: true, src: "", ...extra, _shown: slimItem(x) });
+$("ingestLocal").onclick = async () => {
   const text = $("ingestText").value.trim(), st = $("ingestStatus");
   if (!text) { st.textContent = "先粘贴群消息"; st.className = "err"; return; }
   st.className = ""; st.textContent = "";
-  const r = LaoParse.parse(text, $("ingestDate").value || keyOf(new Date()));
-  parsed = { ...r, items: r.items.map((x) => ({ ...x, on: true, src: "" })) };
+  let model = null;
+  try { model = await ensureLaoModel(); } catch (e) {}
+  const r = LaoParse.parse(text, laoPub(), { model });
+  parsed = { ...r, items: r.items.map((x) => withShown(x)) };
   renderParsed();
 };
 $("ipResult").addEventListener("input", (e) => {
@@ -1885,19 +1980,60 @@ $("ipResult").addEventListener("input", (e) => {
   if (k === "date" || k === "time") {
     const row = f.closest("[data-pi]"), d = row.querySelector('[data-pf="date"]').value, t = row.querySelector('[data-pf="time"]').value;
     x.event_time = d ? d + (t ? " " + t : "") : ""; x.need_confirm = !d;
-  } else x[k] = f.value;
+  } else x[k] = f.value.trim();
   if (k === "msg_type") renderParsed();
+});
+$("ingestPanel").addEventListener("click", async (e) => {
+  const st = $("ingestStatus");
+  if (e.target.closest("#ipLearnMore")) { laoShowLearn = !laoShowLearn; renderLaoLearn(); return; }
+  const fg = e.target.closest("[data-forget]");
+  if (fg) { await laoSend([{ text: "（忘掉）" + fg.dataset.key, pub: laoPub(), chatter: false, source: "forget", items: [{ kind: fg.dataset.forget, key: fg.dataset.key }] }]); return; }
+  if (e.target.closest("#ipLearnClear")) {
+    if (!confirm("清空本班全部学习记录？捞捞会忘掉所有学到的地名、课程叫法和纠正。")) return;
+    try { await CCAuth.rpc("parse_feedback_clear", { cid: currentClass.id }); } catch (err) { if (laoRemoteOk) { alert("清空失败：" + err.message); return; } }
+    laoLocal(currentClass.id, []); await ensureLaoModel(true); return;
+  }
+  if (!parsed) return;
+  const ni = e.target.closest("[data-notitem]");
+  if (ni) {
+    const x = parsed.items[+ni.dataset.notitem];
+    parsed.items = parsed.items.filter((y) => y !== x);
+    // 同一条消息整理出的事项都删光了，才算「这条是闲聊」
+    if (!parsed.items.some((y) => y.src_text === x.src_text)) { parsed.chatter.push(x.src_text); laoSend([{ text: x.src_text, pub: x.publish_date || laoPub(), chatter: true, source: "user", items: [] }]); }
+    renderParsed(); return;
+  }
+  const kc = e.target.closest("[data-keepc]");
+  if (kc) {
+    const raw = parsed.chatter[+kc.dataset.keepc];
+    parsed.chatter = parsed.chatter.filter((c, i) => i !== +kc.dataset.keepc);
+    const r = LaoParse.parse(raw, laoPub(), { model: laoModel, force: true });
+    const got = r.items.length ? r.items : r.unsure.map((u) => u.guess).filter(Boolean);
+    parsed.items.push(...(got.length ? got : [{ msg_type: "通知", subject: raw.slice(0, 12), summary: raw.slice(0, 80), event_time: "", location: "", prepare: "", original: raw, publish_date: laoPub(), need_confirm: true, src_text: raw }])
+      .map((x) => withShown(x, { _forced: true, src_text: raw })));
+    renderParsed(); return;
+  }
+  const fu = e.target.closest("[data-fillu]");
+  if (fu) {
+    const u = parsed.unsure[+fu.dataset.fillu];
+    parsed.unsure = parsed.unsure.filter((y) => y !== u);
+    const g = u.guess || (LaoParse.parse(u.text, laoPub(), { model: laoModel, force: true }).items[0]) ||
+      { msg_type: "通知", subject: u.text.slice(0, 12), summary: u.text.slice(0, 80), event_time: "", location: "", prepare: "", original: u.text, publish_date: laoPub(), need_confirm: true };
+    parsed.items.push(withShown(g, { _forced: true, src_text: u.text }));
+    renderParsed(); return;
+  }
 });
 $("ipResult").addEventListener("click", async (e) => {
   const st = $("ingestStatus");
   if (e.target.closest("#ipCancel")) { parsed = null; renderParsed(); return; }
   if (e.target.closest("#ipDrop")) { parsed.unsure = []; renderParsed(); return; }
   if (e.target.closest("#ipPublish")) {
-    const items = parsed.items.filter((x) => x.on).map(({ on, src, ...x }) => x);
+    const items = parsed.items.filter((x) => x.on).map(({ on, src, _shown, _forced, src_text, via, confidence, ...x }) => x);
     const b = e.target.closest("#ipPublish"); b.disabled = true;
     try {
       const n = await CCAuth.rpc("publish_parsed_items", { cid: currentClass.id, items });
-      st.className = ""; st.textContent = `已发布 ${n} 条事项 ✓`;
+      const fb = laoFeedbackRows();
+      st.className = ""; st.textContent = `已发布 ${n} 条事项 ✓${fb.length ? ` · 捞捞记住了 ${fb.length} 处修改` : ""}`;
+      laoSend(fb);
       const left = parsed.unsure.length; parsed = null; renderParsed();
       if (!left) $("ingestText").value = "";
       await loadClass();
@@ -1908,14 +2044,15 @@ $("ipResult").addEventListener("click", async (e) => {
     const text = parsed.unsure.map((u) => (u.sender ? u.sender + "：" : "") + u.text).join("\n");
     const b = e.target.closest("#ipCloudAI"); b.disabled = true; st.className = ""; st.textContent = `把 ${parsed.unsure.length} 条交给云端 AI…`;
     try {
-      const res = await ingestMessages(currentClass.id, text, $("ingestDate").value || keyOf(new Date()));
+      const res = await ingestMessages(currentClass.id, text, laoPub());
       parsed.unsure = []; renderParsed(); await loadClass();
+      laoModel && ensureLaoModel(true);     // 云端 AI 的结果进了本班历史，重新学一下
       st.textContent = `云端 AI 新增 ${res.added || 0} 条事项 ✓（规则整理的还没发布，确认后点下面的按钮）`;
     } catch (err) { st.className = "err"; st.textContent = "云端 AI 失败：" + err.message; b.disabled = false; }
     return;
   }
   if (e.target.closest("#ipLocalAI")) {
-    const pub = $("ingestDate").value || keyOf(new Date());
+    const pub = laoPub();
     const text = parsed.unsure.map((u) => (u.sender ? u.sender + "：" : "") + u.text).join("\n");
     const b = e.target.closest("#ipLocalAI"); b.disabled = true; b.textContent = "本地 AI 整理中…";
     try {
@@ -1923,7 +2060,9 @@ $("ipResult").addEventListener("click", async (e) => {
                                  { role: "user", content: text }], { json: true });
       const got = LaoParse.parseJsonItems(out, pub);
       if (!got) throw new Error("本地模型没有按格式回答，换个大一点的模型试试");
-      parsed.items.push(...got.map((x) => ({ ...x, on: true, src: "本地 AI" })));
+      // 尽量把 AI 的每条结果对应回原消息，发布时当作例子学
+      const srcOf = (x) => { const o = (x.original || "").replace(/^[^：:]{1,10}[：:]/, "").trim(); const u = parsed.unsure.find((u) => o && (u.text.includes(o) || o.includes(u.text))); return u ? u.text : ""; };
+      parsed.items.push(...got.map((x) => { const s = srcOf(x); return { ...x, on: true, src: "本地 AI", src_text: s, _shown: slimItem(x) }; }));
       parsed.unsure = []; renderParsed();
       st.className = ""; st.textContent = got.length ? `本地 AI 又整理出 ${got.length} 条，确认后一起发布` : "本地 AI 认为这些消息里没有需要记录的事项";
     } catch (err) { st.className = "err"; st.textContent = "本地 AI 失败：" + err.message; b.disabled = false; b.textContent = "交给本地 AI（不花 token）"; }
