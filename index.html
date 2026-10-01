@@ -785,6 +785,23 @@
   .lai-help ol { padding-left: 20px; line-height: 1.8; color: var(--text); }
   .lai-help pre { margin: 4px 0; padding: 8px 10px; background: var(--muted-bg); border: 1px solid var(--line); border-radius: 8px; font-size: 12.5px; white-space: pre-wrap; word-break: break-all; user-select: all; }
   #laiStatus.ok { color: var(--green); font-weight: 700; } #laiStatus.err { color: var(--red); }
+  .lai-one-top { display: flex; align-items: center; gap: 14px; }
+  .lai-one-top svg { width: 54px; height: 54px; flex-shrink: 0; }
+  .lai-one-top div { flex: 1; min-width: 0; }
+  .lai-one-top b { display: block; font-size: 16px; }
+  .lai-one-top span { color: var(--sub); font-size: 13px; }
+  .lai-steps { margin: 14px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+  .lai-steps li { display: flex; gap: 10px; align-items: flex-start; }
+  .lai-steps li i { width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center; font-style: normal; font-size: 12px; font-weight: 800; background: var(--hover); color: var(--sub); }
+  .lai-steps li.done i { background: var(--green); color: #fff; }
+  .lai-steps li.now i { background: var(--accent); color: #fff; animation: pulse 1.2s ease-in-out infinite; }
+  .lai-steps li small { display: block; color: var(--sub); font-size: 12.5px; }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 25%, transparent); } }
+  .lai-cmd { display: flex; gap: 8px; align-items: flex-start; margin-top: 10px; }
+  .lai-cmd pre { flex: 1; margin: 0; padding: 8px 10px; background: var(--muted-bg); border: 1px solid var(--line); border-radius: 8px; font-size: 12.5px; white-space: pre-wrap; word-break: break-all; user-select: all; }
+  .lai-prog { margin-top: 12px; font-size: 13px; color: var(--sub); }
+  .lai-prog .bar { margin: 0 0 6px; }
+  .lai-prog .bar i { background: var(--accent); }
   .askbox { padding: 6px 16px 10px; display: flex; flex-direction: column; gap: 14px; min-height: 50vh; }
   .msg { display: flex; gap: 10px; align-items: flex-start; max-width: 100%; }
   .msg.me { flex-direction: row-reverse; }
@@ -1117,8 +1134,19 @@
 
     <div class="sec-h desk-only"><b>本地 AI</b><span>电脑上装了本地模型，整理消息和问答都不花 token</span></div>
     <div class="group surface desk-only" id="laiBox">
+      <div class="gx lai-one" id="laiOne">
+        <div class="lai-one-top">
+          <svg viewBox="0 0 120 120" aria-hidden="true"><use href="#mascotArt"/></svg>
+          <div><b>一键安装本地 AI</b><span id="laiOneDesc"></span></div>
+          <button class="btn ink" id="laiInstall">一键安装</button>
+        </div>
+        <ol class="lai-steps hidden" id="laiSteps"></ol>
+        <div class="lai-cmd hidden" id="laiCmdBox"><pre id="laiCmd"></pre><button class="small" id="laiCopy">复制</button></div>
+        <div class="lai-prog hidden" id="laiProg"><div class="bar"><i id="laiBar"></i></div><span id="laiProgText"></span></div>
+      </div>
       <div class="gx">
-        <div class="lai-row">
+        <details id="laiManual"><summary style="cursor:pointer;color:var(--sub);font-size:13px">已经装好了 / 手动设置</summary>
+        <div class="lai-row" style="margin-top:10px">
           <label>类型 <select id="laiKind"><option value="ollama">Ollama</option><option value="openai">LM Studio / 其他 OpenAI 兼容</option></select></label>
           <label style="flex:1">地址 <input id="laiBase" spellcheck="false"></label>
           <button class="btn sm" id="laiTest">检测连接</button>
@@ -1127,6 +1155,7 @@
           <label style="flex:1">模型 <select id="laiModel"></select></label>
           <button class="btn sm hidden" id="laiOff">停用</button>
         </div>
+        </details>
         <div class="meta" id="laiStatus">还没连接。连接成功后会出现「问答」页。</div>
         <details class="lai-help"><summary>怎么在电脑上装本地 AI（Ollama，大约 10 分钟）</summary>
           <ol>
@@ -1969,6 +1998,110 @@ $("laiModel").onchange = () => { lai.model = $("laiModel").value; saveLai(); syn
 $("laiOff").onclick = () => { lai.ok = false; saveLai(); $("laiModelRow").style.display = "none"; $("laiStatus").className = "meta"; $("laiStatus").textContent = "已停用本地 AI。"; syncLaiUI(); };
 syncLaiUI();
 
+// ===== 一键安装：生成安装脚本 → 自动等它装好 → 自动下载模型 → 自动连上 =====
+const osName = () => { const p = ((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || navigator.userAgent).toLowerCase();
+  return /win/.test(p) ? "win" : /mac/.test(p) ? "mac" : "linux"; };
+const recModel = () => ((navigator.deviceMemory || 8) >= 8 ? "qwen2.5:3b" : "qwen2.5:1.5b");
+const siteOrigin = () => (location.origin.startsWith("http") && !/localhost|127\.0\.0\.1/.test(location.origin) ? location.origin : "https://hangyuan2024-hue.github.io");
+function winInstaller(origin, model) {
+  // Windows 批处理：装 Ollama → 允许本网站访问 → 启动 → 下载模型。用 UTF-8（chcp 65001）显示中文
+  return [
+    "@echo off", "chcp 65001 >nul", "title 班级群日历 - 安装本地 AI",
+    "echo == 正在为「班级群日历」安装本地 AI（捞捞）==", "echo.",
+    'set "OL=%LOCALAPPDATA%\\Programs\\Ollama\\ollama.exe"',
+    'where ollama >nul 2>nul && set "OL=ollama"',
+    'if exist "%OL%" goto installed', 'if "%OL%"=="ollama" goto installed',
+    "echo [1/3] 下载并安装 Ollama（大约 1 分钟）...",
+    "winget install -e --id Ollama.Ollama --accept-source-agreements --accept-package-agreements >nul 2>nul",
+    'if exist "%LOCALAPPDATA%\\Programs\\Ollama\\ollama.exe" goto installed',
+    'powershell -NoProfile -Command "$ProgressPreference=\'SilentlyContinue\'; Invoke-WebRequest https://ollama.com/download/OllamaSetup.exe -OutFile $env:TEMP\\OllamaSetup.exe"',
+    '"%TEMP%\\OllamaSetup.exe" /VERYSILENT /NORESTART',
+    ":installed",
+    'if exist "%LOCALAPPDATA%\\Programs\\Ollama\\ollama.exe" set "OL=%LOCALAPPDATA%\\Programs\\Ollama\\ollama.exe"',
+    "echo [2/3] 允许网站访问本地 AI ...",
+    `setx OLLAMA_ORIGINS "${origin}" >nul`, `set "OLLAMA_ORIGINS=${origin}"`,
+    'taskkill /f /im "ollama app.exe" >nul 2>nul', "taskkill /f /im ollama.exe >nul 2>nul", "timeout /t 2 /nobreak >nul",
+    'start "" /min "%OL%" serve', "timeout /t 4 /nobreak >nul",
+    `echo [3/3] 下载中文模型 ${model}（第一次需要几分钟，看网速）...`,
+    `"%OL%" pull ${model}`,
+    "echo.", "echo 完成！回到网页，几秒后会自动连上。这个窗口可以关掉。", "pause",
+  ].join("\r\n") + "\r\n";
+}
+let laiPolling = 0;
+function setSteps(list) {
+  $("laiSteps").classList.remove("hidden");
+  $("laiSteps").innerHTML = list.map(([state, title, sub], i) => `<li class="${state}"><i>${state === "done" ? "✓" : i + 1}</i><div>${title}${sub ? `<small>${sub}</small>` : ""}</div></li>`).join("");
+}
+function showOneClick() {
+  const os = osName(), model = recModel();
+  $("laiOneDesc").textContent = lai.ok ? `已经装好并连上了（${lai.model}）` : `自动安装 Ollama、开放给本网站、下载中文模型 ${model}（约 ${model.includes("1.5b") ? "1" : "2"} GB），之后整理消息和问答都不花 token`;
+  $("laiInstall").textContent = lai.ok ? "重新检测" : os === "win" ? "一键安装（Windows）" : os === "mac" ? "一键安装（Mac）" : "一键安装（Linux）";
+}
+async function laiPull(model, onProgress) {
+  const r = await fetch(laiUrl("/api/pull"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model, stream: true }) });
+  if (!r.ok) throw new Error("下载模型失败：" + r.status);
+  const reader = r.body.getReader(), dec = new TextDecoder(); let buf = "";
+  for (;;) {
+    const { value, done } = await reader.read(); if (done) break;
+    buf += dec.decode(value, { stream: true }); const lines = buf.split("\n"); buf = lines.pop();
+    for (const line of lines) { if (!line.trim()) continue; let d; try { d = JSON.parse(line); } catch (e) { continue; }
+      if (d.error) throw new Error(d.error); onProgress(d); }
+  }
+}
+async function laiAutoFinish(model) {
+  // Ollama 已经能连上：没有模型就在网页里直接下载，然后自动连上
+  lai.kind = "ollama"; lai.base = "http://localhost:11434";
+  let models = await laiModels();
+  if (!models.length) {
+    setSteps([["done", "Ollama 已装好并能连上"], ["now", `正在下载中文模型 ${model}`, "可以先去用别的功能，下载好会自动连上"], ["", "完成"]]);
+    $("laiProg").classList.remove("hidden");
+    await laiPull(model, (d) => {
+      const pct = d.total ? Math.round((d.completed || 0) / d.total * 100) : null;
+      $("laiBar").style.width = (pct ?? 3) + "%";
+      $("laiProgText").textContent = pct != null ? `${pct}%（${((d.completed || 0) / 1e9).toFixed(2)} / ${(d.total / 1e9).toFixed(2)} GB）` : (d.status || "");
+    });
+    $("laiProg").classList.add("hidden");
+    models = await laiModels();
+  }
+  const pick = models.find((m) => m.startsWith(model)) || models.find((m) => /qwen/i.test(m)) || models[0];
+  lai.model = pick; lai.ok = true; saveLai(); syncLaiUI(); showOneClick();
+  $("laiModel").innerHTML = models.map((m) => `<option ${m === pick ? "selected" : ""}>${esc(m)}</option>`).join(""); $("laiModelRow").style.display = "";
+  setSteps([["done", "Ollama 已装好"], ["done", `模型 ${pick} 已就绪`], ["done", "已连上！左侧导航里出现了「问答」"]]);
+  $("laiCmdBox").classList.add("hidden");
+  cheer("lai");
+}
+function startPolling(model) {
+  clearInterval(laiPolling);
+  const t0 = Date.now();
+  laiPolling = setInterval(async () => {
+    if (Date.now() - t0 > 40 * 60000) { clearInterval(laiPolling); return; }
+    try { lai.kind = "ollama"; lai.base = "http://localhost:11434"; await laiModels(); clearInterval(laiPolling); await laiAutoFinish(model); }
+    catch (e) { /* 还没装好，继续等 */ }
+  }, 4000);
+}
+$("laiInstall").onclick = async () => {
+  const os = osName(), model = recModel(), origin = siteOrigin();
+  // 已经装好的电脑：直接连
+  try { lai.kind = "ollama"; lai.base = "http://localhost:11434"; await laiModels(); await laiAutoFinish(model); return; } catch (e) {}
+  if (os === "win") {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([winInstaller(origin, model)], { type: "application/octet-stream" }));
+    a.download = "捞捞本地AI安装.bat"; document.body.appendChild(a); a.click(); a.remove();
+    setSteps([["done", "安装程序已下载", "文件名：捞捞本地AI安装.bat（在浏览器的下载列表里）"],
+      ["now", "双击运行它", "如果弹出「Windows 已保护你的电脑」，点「更多信息 → 仍要运行」；浏览器提示文件可能有害时选「保留」"],
+      ["", "等它装完", "会自动安装 Ollama、下载模型，网页这边会自动检测，装好就连上"]]);
+  } else {
+    const url = (location.origin.startsWith("http") ? location.origin + location.pathname.replace(/[^/]*$/, "") : origin + "/class-calendar/") + "install-ai.sh";
+    $("laiCmd").textContent = `curl -fsSL ${url} | bash -s -- "${origin}" ${model}`;
+    $("laiCmdBox").classList.remove("hidden");
+    setSteps([["now", "复制下面这一行，粘贴到「终端」里回车", os === "mac" ? "打开方法：按 ⌘+空格，输入「终端」" : "Linux 安装 Ollama 需要输入电脑密码"],
+      ["", "等它装完", "网页这边会自动检测，装好就连上"]]);
+  }
+  startPolling(model);
+};
+$("laiCopy").onclick = async () => { try { await navigator.clipboard.writeText($("laiCmd").textContent); $("laiCopy").textContent = "已复制"; } catch (e) {} };
+showOneClick();
+
 // ===== AI 问答 =====
 let askHistory = [], askCtl = null;
 function askContext() {
@@ -2685,6 +2818,7 @@ const CHEER_LINES = {
   homework: [["作业搞定！", "比截止时间早，就是赢"], ["交作业达人", "又少了一件心事"], ["这题难不倒你", "继续冲"]],
   allhw: [["本周作业全部完成！", "可以安心休息一下了 🎉"]],
   preview: [["就像这样", "完成事项时会这样鼓励你"]],
+  lai: [["本地 AI 装好啦！", "去「问答」里和捞捞聊聊吧"]],
   pomo: [["专注完成一个番茄 🍅", "起来走走，休息 5 分钟"], ["又一个番茄到手 🍅", "喝口水，眼睛看看远处"]],
 };
 const STICKERS = ["🎉", "👏", "💪", "🌟", "🥳", "😎", "🙌", "🍀"];
