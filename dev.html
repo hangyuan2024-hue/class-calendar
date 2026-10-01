@@ -60,6 +60,11 @@
   #viewer .box { background:var(--card); border-radius:14px; width:min(900px, 100%); max-height:90vh; display:flex; flex-direction:column; padding:16px; gap:10px; }
   #viewer pre { margin:0; flex:1; overflow:auto; background:var(--muted); border:1px solid var(--line); border-radius:8px; padding:10px; font-size:12px; white-space:pre-wrap; word-break:break-all; }
   .hidden { display:none !important; }
+  table.feat td { vertical-align: middle; }
+  table.feat tr.off td:first-child b { color: var(--red); }
+  table.feat .fdesc { font-size: 12px; color: var(--sub); margin-top: 2px; }
+  table.feat input[type=text] { width: 100%; min-width: 160px; box-sizing: border-box; }
+  .pill { display:inline-block; font-size:11px; padding:1px 7px; border-radius:999px; background:var(--red); color:#fff; margin-left:6px; vertical-align:1px; }
   @media (max-width:640px) { .grid2 { grid-template-columns:1fr; } .row { flex-wrap:wrap; } .row .ops { width:100%; justify-content:flex-start; } }
 </style>
 </head>
@@ -133,6 +138,12 @@
   <section class="card hidden" id="pubCard" data-perms="unpublish set_default transfer">
     <h2>已发布</h2>
     <div id="pubList" class="empty">加载中…</div>
+  </section>
+
+  <section class="card hidden" id="featCard" data-roles="admin">
+    <h2>全站功能开关</h2>
+    <div class="desc">发现某个功能有问题，可以在这里一键暂停，全站立即生效（大家刷新页面即可）。也可以只对某种身份关闭。关闭时填写的原因会显示给用户。管理员自己不受影响，方便继续排查。老师还能在「班级管理」里再关掉自己班的功能。</div>
+    <div style="overflow-x:auto"><table class="feat"><thead><tr><th>功能</th><th style="text-align:center">全站</th><th style="text-align:center">学生</th><th style="text-align:center">老师</th><th style="text-align:center">测试员</th><th style="text-align:center">开发者</th><th>关闭原因（给用户看）</th></tr></thead><tbody id="featRows"></tbody></table></div>
   </section>
 
   <section class="card hidden" id="permsCard" data-roles="admin">
@@ -338,6 +349,31 @@ $("permRows").onchange = (e) => {
   }).then(() => loadPerms().catch(() => {}));
 };
 
+// ---------- 全站功能开关（仅管理员） ----------
+const FEAT_ROLES = ["student", "teacher", "tester", "developer"];
+let feats = [];
+async function loadFeats() {
+  feats = await rpc("admin_features");
+  $("featRows").innerHTML = feats.map((f) => `<tr data-key="${esc(f.key)}" class="${f.enabled ? "" : "off"}">
+    <td><b>${esc(f.name)}</b>${f.enabled ? "" : `<span class="pill">已暂停</span>`}<div class="fdesc">${esc(f.descr)}</div></td>
+    <td style="text-align:center"><input type="checkbox" data-f="enabled" ${f.enabled ? "checked" : ""} aria-label="全站开关"></td>
+    ${FEAT_ROLES.map((r) => `<td style="text-align:center"><input type="checkbox" data-f="${r}" ${f.roles[r] === false ? "" : "checked"} ${f.enabled ? "" : "disabled"} aria-label="${ROLE_NAMES[r]}"></td>`).join("")}
+    <td><input type="text" data-f="note" maxlength="100" value="${esc(f.note || "")}" placeholder="如：AI 维护中，预计今晚恢复"></td></tr>`).join("");
+}
+async function saveFeat(row) {
+  const roles = {}; for (const r of FEAT_ROLES) roles[r] = row.querySelector(`[data-f="${r}"]`).checked;
+  const en = row.querySelector('[data-f="enabled"]').checked, name = feats.find((f) => f.key === row.dataset.key).name;
+  await rpc("admin_set_feature", { k: row.dataset.key, en, rls: roles, nt: row.querySelector('[data-f="note"]').value });
+  toast(en ? `「${name}」已保存` : `已暂停「${name}」，全站立即生效`);
+  await loadFeats();
+}
+$("featRows").addEventListener("change", (e) => {
+  const row = e.target.closest("tr[data-key]"); if (!row) return;
+  const en = row.querySelector('[data-f="enabled"]');
+  if (e.target === en && !en.checked && !confirm(`确定对全站暂停「${feats.find((f) => f.key === row.dataset.key).name}」？`)) { en.checked = true; return; }
+  guard(e.target, () => saveFeat(row)).catch(() => loadFeats().catch(() => {}));
+});
+
 // ---------- 上传 ----------
 function fillForm(id) {
   const isNew = id === "__new";
@@ -464,6 +500,7 @@ $("logout").onclick = async () => { await CCAuth.signOut(); location.href = "log
   try { await refresh(); } catch (e) { toast(e.message, true); }
   if (can("manage_users")) loadUsers().catch((e) => toast(e.message, true));
   if (has("admin")) loadPerms().catch((e) => toast(e.message, true));
+  if (has("admin")) loadFeats().then(() => { if (location.hash === "#features") $("featCard").scrollIntoView(); }).catch((e) => toast("功能开关读取失败：" + e.message + "（需要在扣子终端运行 setupaccounts.py）", true));
 })();
 </script>
 </body>

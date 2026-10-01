@@ -40,6 +40,11 @@
   .item .meta { color:var(--sub); font-size:12px; }
   .perms { display:flex; gap:10px; flex-wrap:wrap; font-size:12px; color:var(--sub); }
   .perms label { display:flex; align-items:center; gap:3px; }
+  table.feat { width:100%; border-collapse:collapse; font-size:14px; }
+  table.feat th { text-align:left; font-size:12px; color:var(--sub); font-weight:600; padding:6px 8px; border-bottom:1px solid var(--line); }
+  table.feat td { padding:8px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  table.feat td:nth-child(2), table.feat td:nth-child(3), table.feat th:nth-child(2), table.feat th:nth-child(3) { text-align:center; width:64px; }
+  table.feat input[type=checkbox] { width:18px; height:18px; }
   .empty { color:var(--sub); padding:6px 0; }
   details.cls { border-top:1px solid var(--line); padding-top:10px; margin-top:10px; }
   details.cls > summary { cursor:pointer; list-style:none; display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-weight:600; font-size:15px; }
@@ -121,6 +126,7 @@ async function load() {
   mine = await rpc("my_classes");
   renderMine();
   if (me.role === "teacher" || me.role === "admin") await renderTeaching();
+  if (location.hash === "#features" && !load._scrolled) { load._scrolled = true; const h = document.querySelector("[id^=feat_]"); if (h) h.scrollIntoView(); }
   if (me.role === "admin") renderAdmin().catch((e) => toast(e.message, true));
 }
 
@@ -156,12 +162,14 @@ $("joinForm").onsubmit = (e) => {
 };
 
 // ---------- 老师视角 ----------
-const rosters = {};
+const rosters = {}, classFeats = {};
 async function renderTeaching() {
   const list = mine.filter((c) => c.is_teacher);
   const open = new Set([...document.querySelectorAll("details.cls[open]")].map((d) => d.dataset.id));
   if (!open.size && list.length === 1) open.add(list[0].id);
   for (const c of list) { try { rosters[c.id] = await rpc("class_roster", { cid: c.id }); } catch (e) { rosters[c.id] = []; } }
+  for (const c of list) { try { classFeats[c.id] = await rpc("class_features_get", { cid: c.id }); } catch (e) { classFeats[c.id] = null; } }
+  if (location.hash === "#features" && list.length) open.add(list[0].id);
   $("teachList").innerHTML = list.length ? list.map((c) => {
     const r = rosters[c.id] || [];
     const pend = r.filter((m) => m.status === "pending"), ok = r.filter((m) => m.status === "approved");
@@ -182,9 +190,32 @@ async function renderTeaching() {
             `<label><input type="checkbox" data-perm="${k}" ${m[k] ? "checked" : ""}> ${v}</label>`).join("")}</span>
           <button class="small danger" data-act="remove" data-name="${esc(m.name)}">移出</button></div>`).join("")
         : `<div class="empty">还没有成员。把班级码发到班群里吧。</div>`}
+      <h3 id="feat_${esc(c.id)}">功能开关 <span class="meta" style="font-weight:400">本班学生、班委能用哪些功能，改完对方刷新页面就生效。你自己不受影响。</span></h3>
+      ${featTable(c.id)}
     </details>`;
   }).join("") : `<div class="empty" style="margin-top:10px">还没有班级，先创建一个。</div>`;
 }
+
+function featTable(cid) {
+  const fs = classFeats[cid];
+  if (!fs) return `<div class="empty">功能开关还没装好，请管理员在扣子终端运行一次 setupaccounts.py</div>`;
+  return `<div style="overflow-x:auto"><table class="feat" data-cid="${esc(cid)}"><thead><tr><th>功能</th><th>学生</th><th>班委</th></tr></thead><tbody>
+    ${fs.map((f) => `<tr data-key="${esc(f.key)}"><td><b>${esc(f.name)}</b>${f.site_on ? "" : `<span class="badge wait">全站已暂停${f.site_note ? "：" + esc(f.site_note) : ""}</span>`}
+        <div class="meta">${esc(f.descr)}</div></td>
+      <td>${f.student_ok ? `<input type="checkbox" data-who="student" ${f.student ? "checked" : ""} aria-label="学生可用">${f.site_off_student ? `<div class="meta">管理员已对学生关闭</div>` : ""}` : `<span class="meta">—</span>`}</td>
+      <td><input type="checkbox" data-who="monitor" ${f.monitor ? "checked" : ""} aria-label="班委可用"></td></tr>`).join("")}
+  </tbody></table></div>`;
+}
+document.addEventListener("change", (e) => {
+  const c = e.target.closest("table.feat input[data-who]"); if (!c) return;
+  const row = c.closest("tr"), cid = c.closest("table").dataset.cid, f = (classFeats[cid] || []).find((x) => x.key === row.dataset.key);
+  const stu = row.querySelector('[data-who="student"]'), mon = row.querySelector('[data-who="monitor"]');
+  guard(c, async () => {
+    await rpc("class_set_feature", { cid, k: row.dataset.key, stu: stu ? stu.checked : null, mon: mon.checked });
+    if (f) { f.student = stu ? stu.checked : null; f.monitor = mon.checked; }
+    toast(`「${f ? f.name : row.dataset.key}」：学生${stu ? (stu.checked ? "可用" : "关闭") : "—"}，班委${mon.checked ? "可用" : "关闭"}`);
+  }).then((ok) => { if (!ok) { c.checked = !c.checked; } });
+});
 
 $("createForm").onsubmit = (e) => {
   e.preventDefault();

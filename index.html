@@ -808,6 +808,10 @@
   .unsure .ux { font-size: 13px; color: var(--sub); padding: 3px 0; border-top: 1px solid var(--line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .unsure .ux:first-of-type { border-top: 0; }
   .unsure .ux em { font-style: normal; color: #c27803; margin-right: 6px; font-size: 12px; }
+  .feat-off { display: none !important; }
+  .feat-notice { margin: 12px 16px 0; padding: 12px 16px; font-size: 13px; color: var(--sub); }
+  .feat-notice b { color: var(--text); }
+  .feat-notice li { margin: 2px 0; }
   .ip-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; flex-wrap: wrap; align-items: center; }
   .pi .piloc { grid-column: 2 / -1; }
   .pi .lrn { font-size: 11px; font-weight: 700; color: #7c3aed; }
@@ -966,7 +970,7 @@
     <svg viewBox="0 0 120 120" aria-hidden="true"><use href="#mascotArt"/></svg><span>班级日历</span>
   </div>
   <nav id="tabs" aria-label="主导航"></nav>
-  <button id="addBtn" title="添加只自己可见的事项"><span class="plus">＋</span><span class="lbl">记一件事</span></button>
+  <button id="addBtn" data-feat="mine" title="添加只自己可见的事项"><span class="plus">＋</span><span class="lbl">记一件事</span></button>
   <button id="userChip"></button>
 </aside>
 
@@ -1004,15 +1008,16 @@
     </div>
     </div>
     <section id="ingestPanel" class="surface hidden">
-      <div class="ip-head">✨ 整理群消息 <small>先在本地用规则整理，不花 token；拿不准的再交给 AI</small></div>
+      <div class="ip-head">✨ 整理群消息 <small id="ipHeadTip">先在本地用规则整理，不花 token；拿不准的再交给 AI</small></div>
+      <div id="ipFeatNote" class="meta hidden" style="margin:-4px 0 8px"></div>
       <textarea id="ingestText" rows="6" placeholder="把班级群里的消息整段粘贴到这里（QQ、微信复制的格式都行）"></textarea>
       <div class="ingest-row">
         <label>消息发布日期 <input type="date" id="ingestDate"></label>
         <span class="spacer"></span>
         <span id="ingestStatus"></span>
         <button id="ingestClose" class="small">收起</button>
-        <button id="ingestGo" class="small" title="整段交给云端 AI 直接发布（会消耗 token，闲聊会先在本地过滤掉）">全部交给云端 AI</button>
-        <button id="ingestLocal" class="btn ink sm">本地整理</button>
+        <button id="ingestGo" data-feat="ingest_cloud" class="small" title="整段交给云端 AI 直接发布（会消耗 token，闲聊会先在本地过滤掉）">全部交给云端 AI</button>
+        <button id="ingestLocal" data-feat="ingest_local" class="btn ink sm">本地整理</button>
       </div>
       <div id="ipLearn"></div>
       <div id="ipResult" class="hidden"></div>
@@ -1142,6 +1147,7 @@
   <section class="view" data-view="me">
     <header class="vhead"><h2>我的</h2></header>
     <div id="meCard" class="me-card surface"></div>
+    <div id="featNotice" class="feat-notice surface hidden"></div>
 
     <div class="sec-h"><b>外观</b><span>只对这台设备生效</span></div>
     <div class="group surface">
@@ -1150,10 +1156,10 @@
           <button class="skin" data-skin="vivid"><div class="pv vivid"><i></i><em></em></div>元气</button>
           <button class="skin" data-skin="clean"><div class="pv clean"><i></i><em></em></div>简约</button>
           <button class="skin" data-skin="dark"><div class="pv dark"><i></i><em></em></div>夜间</button>
-          <button class="skin" data-skin="cyber"><div class="pv cyber"><i></i><em></em></div>捞捞元宇宙</button>
+          <button class="skin" data-skin="cyber" data-feat="metaverse"><div class="pv cyber"><i></i><em></em></div>捞捞元宇宙</button>
         </div>
       </div>
-      <div class="gx">
+      <div class="gx" data-feat="custom_bg">
         <div class="bgrow">
           <div class="bgthumb" id="bgThumb">无</div>
           <div>
@@ -1178,15 +1184,15 @@
       <label class="gi"><span class="ic">🎉</span>完成时的鼓励
         <select class="gsel" id="optCheer"><option value="mascot">捞捞小人</option><option value="sticker">表情包</option><option value="text">只要文字</option><option value="off">关闭</option></select></label>
       <label class="gi"><span class="ic">✨</span>撒花动画<input type="checkbox" class="switch" id="optConfetti"></label>
-      <label class="gi"><span class="ic">⭕</span>首页显示本周进度环<input type="checkbox" class="switch" id="optRings"></label>
-      <label class="gi"><span class="ic">🔥</span>习惯打卡<input type="checkbox" class="switch" id="optHabits"></label>
-      <label class="gi"><span class="ic">🎯</span>四象限和番茄钟<input type="checkbox" class="switch" id="optPlan"></label>
-      <button class="gi" data-tab="growth"><span class="ic">📈</span>查看成长页<small>进度环、趋势图、打卡</small></button>
+      <label class="gi" data-feat="growth"><span class="ic">⭕</span>首页显示本周进度环<input type="checkbox" class="switch" id="optRings"></label>
+      <label class="gi" data-feat="growth"><span class="ic">🔥</span>习惯打卡<input type="checkbox" class="switch" id="optHabits"></label>
+      <label class="gi" data-feat="plan"><span class="ic">🎯</span>四象限和番茄钟<input type="checkbox" class="switch" id="optPlan"></label>
+      <button class="gi" data-tab="growth" data-feat="growth"><span class="ic">📈</span>查看成长页<small>进度环、趋势图、打卡</small></button>
       <button class="gi" data-tab="plan" id="meToPlan"><span class="ic">🗂️</span>打开规划页<small>四象限、番茄钟</small></button>
     </div>
 
-    <div class="sec-h desk-only"><b>本地 AI</b><span>电脑上装了本地模型，整理消息和问答都不花 token</span></div>
-    <div class="group surface desk-only" id="laiBox">
+    <div class="sec-h desk-only" data-feat="local_ai"><b>本地 AI</b><span>电脑上装了本地模型，整理消息和问答都不花 token</span></div>
+    <div class="group surface desk-only" id="laiBox" data-feat="local_ai">
       <div class="gx lai-one" id="laiOne">
         <div class="lai-one-top">
           <svg viewBox="0 0 120 120" aria-hidden="true"><use href="#mascotArt"/></svg>
@@ -1226,6 +1232,8 @@
     <div class="sec-h"><b>班级与账号</b></div>
     <div class="group surface">
       <a class="gi" href="class.html"><span class="ic">🏫</span>班级管理<small>加入班级、审批同学</small></a>
+      <a class="gi hidden" id="menuClassFeat" href="class.html#features"><span class="ic">🎛️</span>本班功能开关<small>决定学生、班委能用哪些功能</small></a>
+      <a class="gi hidden" id="menuSiteFeat" href="dev.html#features"><span class="ic">⚙️</span>全站功能开关<small>管理员：一键暂停有问题的功能</small></a>
       <button class="gi" data-tab="tools"><span class="ic">🧩</span>工具与插件<small>课程表、日记等</small></button>
       <a class="gi hidden" id="menuDev" href="dev.html"><span class="ic">🧩</span>插件后台</a>
       <a class="gi" id="menuLogin" href="login.html?next=index.html"><span class="ic">🔑</span>登录 / 注册</a>
@@ -1420,6 +1428,37 @@ let pendingClasses = [];  // 等待老师批准的
 let currentClass = null;
 const LS_CUR_CLASS = "current_class_v1";
 const can = (perm) => !!(currentClass && currentClass[perm]);
+// ===== 功能开关：管理员管全站、老师管本班；没读到时全部按开着处理 =====
+let FEAT = {};
+const feat = (k) => !FEAT[k] || FEAT[k].on !== false;
+const featWhy = (k) => (FEAT[k] && FEAT[k].why) || "";
+const FEAT_NAME = { ingest_cloud: "云端 AI 整理", ingest_local: "本地整理", local_ai: "本地 AI", ask: "AI 问答", wall: "班级墙", homework: "作业页", plan: "规划", growth: "成长与打卡", metaverse: "捞捞元宇宙", tools: "工具与插件", custom_bg: "自定义背景", mine: "记一件事" };
+const VIEW_FEAT = { homework: "homework", wall: "wall", plan: "plan", growth: "growth", ask: "ask", tools: "tools" };
+const viewOn = (id) => (id.startsWith("p_") ? feat("tools") : !VIEW_FEAT[id] || feat(VIEW_FEAT[id]));
+const ingestPersonal = () => !can("can_ingest");      // 没有班级整理权限的人：整理结果只进自己的「我的事项」
+// 普通学生要老师在本班打开「本地整理 · 学生」才有；班委要有「AI 整理」权限
+const ingestAllowed = () => !!currentClass && (ingestPersonal() ? currentClass.member_role === "student" && feat("ingest_local") : (feat("ingest_local") || feat("ingest_cloud")));
+async function loadFeatures() {
+  try { FEAT = (await CCAuth.rpc("feature_state", { cid: currentClass ? currentClass.id : null })) || {}; } catch (e) { FEAT = {}; }
+  applyFeatures();
+}
+function applyFeatures() {
+  document.querySelectorAll("[data-feat]").forEach((el) => el.classList.toggle("feat-off", !feat(el.dataset.feat)));
+  if (!feat("metaverse") && document.documentElement.dataset.skin === "cyber") { save(LS_SKIN, load(LS_SKIN_PREV, "vivid") === "cyber" ? "vivid" : load(LS_SKIN_PREV, "vivid")); }
+  applyLook();
+  // 被关掉的页面正开着：回首页
+  const cur = document.querySelector(".view.on");
+  if (cur && !viewOn(cur.dataset.view)) showView("home");
+  // 只列出被管理员或老师明确关掉的（本来就不适用、默认没开的不打扰）
+  const off = Object.keys(FEAT).filter((k) => FEAT[k] && ["site", "role", "class"].includes(FEAT[k].src) && FEAT[k].why);
+  $("featNotice").classList.toggle("hidden", !off.length);
+  $("featNotice").innerHTML = off.length ? `<b>⏸ 有些功能现在用不了</b><ul style="margin:6px 0 0;padding-left:18px">${off.map((k) => `<li>${esc(FEAT_NAME[k] || k)}：${esc(featWhy(k))}</li>`).join("")}</ul>` : "";
+  const isAdmin = !!(currentUser && currentUser.role === "admin");
+  $("menuSiteFeat").classList.toggle("hidden", !isAdmin);
+  $("menuClassFeat").classList.toggle("hidden", !(isAdmin || myClasses.some((c) => c.is_teacher)));
+  renderClassBar(); renderTools(); renderQuick();
+  try { renderAll(); } catch (e) {}
+}
 let byDay = {}, undated = [];
 const today = new Date();
 let viewYear = today.getFullYear(), viewMonth = today.getMonth();
@@ -1553,6 +1592,7 @@ function applyLook() {
   document.querySelectorAll(".vhead h2, .brand .bname").forEach((h) => { h.dataset.t ||= h.textContent; h.textContent = cyName(h.dataset.t); });
   if (typeof renderTabs === "function" && document.getElementById("tabs").childElementCount) renderTabs();
   let bg = null; try { bg = localStorage.getItem(LS_BG); } catch (e) {}
+  if (typeof feat === "function" && !feat("custom_bg")) bg = null;
   const o = load(LS_BG_OPTS, {});
   const dim = o.dim == null ? 40 : o.dim, blur = o.blur == null ? 6 : o.blur;
   root.classList.toggle("has-bg", !!bg);
@@ -1585,6 +1625,7 @@ function warp(lines, done, total) {
   warpTimers.push(setTimeout(finish, total + 450));
 }
 function enterMeta() {
+  if (!feat("metaverse")) { showBanner("捞捞元宇宙暂时关闭了：" + (featWhy("metaverse") || "")); setTimeout(() => showBanner(""), 3500); return; }
   const cur = load(LS_SKIN, "vivid"); if (cur !== "cyber") save(LS_SKIN_PREV, cur);
   const name = currentUser ? esc(currentUser.display_name) : "访客";
   warp([`&gt; 正在连接 <span class="pk">LAOLAO://META</span> …`, `&gt; 同步班级数据 ……… <span class="ok">OK</span>`, `&gt; 加载身份档案：${name} ……… <span class="ok">OK</span>`,
@@ -1665,7 +1706,7 @@ function renderAgenda() {
     : todayHw ? `今天有 ${todayHw} 项作业要交，别忘啦～` : todayCount ? `今天有 ${todayCount} 件事，一件件来` : "今天没有要交的作业，喘口气吧～";
   const meta = document.documentElement.dataset.skin === "cyber";
   $("hero").innerHTML = `<div class="hero">
-      <button class="metabtn" id="metaBtn">${meta ? "⏏ 退出元宇宙" : "🌐 进入捞捞元宇宙"}</button>
+      ${feat("metaverse") || meta ? `<button class="metabtn" id="metaBtn">${meta ? "⏏ 退出元宇宙" : "🌐 进入捞捞元宇宙"}</button>` : ""}
       <div class="date">📅 ${today.getMonth() + 1}月${today.getDate()}日 周${WEEK[today.getDay()]}</div>
       <h3>${meta ? (currentUser ? "欢迎接入" + name : "欢迎接入，访客") : hi + name}</h3>
       <div class="say">${say}</div>
@@ -1803,14 +1844,14 @@ function renderClassBar() {
   const roleName = currentClass.is_teacher ? "老师" : currentClass.member_role === "monitor" ? "班委" : "学生";
   $("classRole").textContent = roleName;
   $("cAddBtn").classList.toggle("hidden", !can("can_edit"));
-  $("cIngestBtn").classList.toggle("hidden", !can("can_ingest"));
+  $("cIngestBtn").classList.toggle("hidden", !ingestAllowed());
   renderQuick();
 }
 $("classSel").onchange = (e) => {
   currentClass = myClasses.find((c) => c.id === e.target.value) || null;
   save(LS_CUR_CLASS, currentClass && currentClass.id);
   $("ingestPanel").classList.add("hidden");
-  renderClassBar(); loadClass();
+  renderClassBar(); loadFeatures(); loadClass();
 };
 
 async function loadClass() {
@@ -1912,10 +1953,20 @@ async function ingestMessages(classId, text, pubDate) {
   }
   throw new Error("等太久了，稍后点「刷新班级数据」看看是否已加入日历");
 }
-$("cIngestBtn").onclick = () => { $("ingestPanel").classList.toggle("hidden"); $("ingestDate").value = $("ingestDate").value || keyOf(new Date()); $("ingestText").focus(); if (!$("ingestPanel").classList.contains("hidden")) ensureLaoModel().catch(() => {}); };
+function setupIngestPanel() {
+  const personal = ingestPersonal();
+  $("ipHeadTip").textContent = personal ? "整理到你自己的「我的事项」，只有你自己看得到，不花 token" : "先在本地用规则整理，不花 token；拿不准的再交给 AI";
+  $("ingestGo").classList.toggle("hidden", personal);
+  const notes = [];
+  if (!personal && !feat("ingest_cloud")) notes.push("云端 AI 整理已关闭：" + featWhy("ingest_cloud"));
+  if (!feat("ingest_local")) notes.push("本地整理已关闭：" + featWhy("ingest_local"));
+  $("ipFeatNote").textContent = notes.join("；"); $("ipFeatNote").classList.toggle("hidden", !notes.length);
+}
+$("cIngestBtn").onclick = () => { setupIngestPanel(); $("ingestPanel").classList.toggle("hidden"); $("ingestDate").value = $("ingestDate").value || keyOf(new Date()); $("ingestText").focus(); if (!$("ingestPanel").classList.contains("hidden")) ensureLaoModel().catch(() => {}); };
 $("ingestClose").onclick = () => $("ingestPanel").classList.add("hidden");
 $("ingestGo").onclick = async () => {
   const text = $("ingestText").value.trim(), st = $("ingestStatus");
+  if (!feat("ingest_cloud") || ingestPersonal()) { st.textContent = "云端 AI 整理已关闭：" + featWhy("ingest_cloud"); st.className = "err"; return; }
   if (!text) { st.textContent = "先粘贴群消息"; st.className = "err"; return; }
   $("ingestGo").disabled = true; st.className = ""; st.textContent = "已提交，AI 正在整理，大约需要半分钟到一分钟…";
   try {
@@ -2026,15 +2077,16 @@ function renderParsed() {
     ${parsed.unsure.length ? `<div class="unsure"><h5>🤔 拿不准的 ${parsed.unsure.length} 条
         <span class="spacer"></span>
         ${laiReady() ? `<button class="btn ink sm" id="ipLocalAI">交给本地 AI（不花 token）</button>` : ""}
-        <button class="btn sm" id="ipCloudAI">交给云端 AI</button><button class="small" id="ipDrop">不要了</button></h5>
+        ${!ingestPersonal() && feat("ingest_cloud") ? `<button class="btn sm" id="ipCloudAI">交给云端 AI</button>` : ""}<button class="small" id="ipDrop">不要了</button></h5>
         ${parsed.unsure.map((u, i) => `<div class="ux" title="${esc(u.text)}"><button class="small" data-fillu="${i}" title="放到上面自己填，捞捞会学">我来填</button><em>${esc(u.why)}</em>${esc(u.text)}</div>`).join("")}</div>` : ""}
     ${parsed.chatter.length ? `<details class="ipchat"><summary>被当成闲聊过滤掉的 ${parsed.chatter.length} 条（看看有没有漏掉的）</summary>
         ${parsed.chatter.map((c, i) => `<div class="ux"><button class="small" data-keepc="${i}" title="这条是要记的事，捞捞会学">这条要记</button>${esc(c)}</div>`).join("")}</details>` : ""}
-    <div class="ip-actions"><button class="small" id="ipCancel">取消</button><button class="btn ink sm" id="ipPublish" ${on ? "" : "disabled"}>发布选中的 ${on} 条到班级</button></div>`;
+    <div class="ip-actions"><button class="small" id="ipCancel">取消</button><button class="btn ink sm" id="ipPublish" ${on ? "" : "disabled"}>${ingestPersonal() ? `把选中的 ${on} 条加到我的事项` : `发布选中的 ${on} 条到班级`}</button></div>`;
 }
 const withShown = (x, extra) => ({ ...x, on: true, src: "", ...extra, _shown: slimItem(x) });
 $("ingestLocal").onclick = async () => {
   const text = $("ingestText").value.trim(), st = $("ingestStatus");
+  if (!feat("ingest_local")) { st.textContent = "本地整理已关闭：" + featWhy("ingest_local"); st.className = "err"; return; }
   if (!text) { st.textContent = "先粘贴群消息"; st.className = "err"; return; }
   st.className = ""; st.textContent = "";
   let model = null;
@@ -2096,6 +2148,16 @@ $("ipResult").addEventListener("click", async (e) => {
   const st = $("ingestStatus");
   if (e.target.closest("#ipCancel")) { parsed = null; renderParsed(); return; }
   if (e.target.closest("#ipDrop")) { parsed.unsure = []; renderParsed(); return; }
+  if (e.target.closest("#ipPublish") && ingestPersonal()) {
+    // 学生：只加到自己的「我的事项」（存在这台设备上）
+    const chosen = parsed.items.filter((x) => x.on);
+    chosen.forEach((x, i) => mine.push({ id: "p" + Date.now() + "_" + i, subject: x.subject || x.summary.slice(0, 20), event_time: x.event_time || keyOf(new Date()),
+      location: x.location || "", note: [x.msg_type, x.summary].filter(Boolean).join("：") }));
+    save(LS_MINE, mine);
+    st.className = ""; st.textContent = `已加到我的事项 ${chosen.length} 条 ✓（只有你自己看得到）`;
+    parsed = null; renderParsed(); $("ingestText").value = ""; renderAll();
+    return;
+  }
   if (e.target.closest("#ipPublish")) {
     const items = parsed.items.filter((x) => x.on).map(({ on, src, _shown, _forced, src_text, via, confidence, ...x }) => x);
     const b = e.target.closest("#ipPublish"); b.disabled = true;
@@ -2142,7 +2204,7 @@ $("ipResult").addEventListener("click", async (e) => {
 // ===== 本地 AI（电脑上的 Ollama / LM Studio） =====
 const LS_LAI = "local_ai_v1";
 let lai = { kind: "ollama", base: "http://localhost:11434", model: "", ok: false, ...load(LS_LAI, {}) };
-const laiReady = () => !isMobile() && lai.ok && !!lai.model;
+const laiReady = () => !isMobile() && lai.ok && !!lai.model && feat("local_ai");
 const laiUrl = (p) => lai.base.replace(/\/+$/, "") + p;
 function saveLai() { save(LS_LAI, lai); renderTabs(); }
 async function laiModels() {
@@ -2791,7 +2853,7 @@ function renderTabs() {
   let cur = currentView();
   const pinned = railPins().some((t) => t.view === cur);
   if (cur.startsWith("p_") && !pinned) cur = "tools";
-  $("tabs").innerHTML = NAV.map(([id, t]) => `<button class="nav${id === cur ? " on" : ""}${id === "tools" || id === "plan" || id === "ask" ? " desk" : ""}${(id === "plan" && !funOpts().plan) || (id === "ask" && !laiReady()) ? " hidden" : ""}" data-tab="${id}">${icon(id)}<span>${cyName(t)}</span>${id === "homework" && hwBadge ? `<em class="badge">${hwBadge}</em>` : ""}</button>`).join("")
+  $("tabs").innerHTML = NAV.map(([id, t]) => `<button class="nav${id === cur ? " on" : ""}${id === "tools" || id === "plan" || id === "ask" ? " desk" : ""}${(id === "plan" && !funOpts().plan) || (id === "ask" && (!laiReady() || !feat("ask"))) || !viewOn(id) ? " hidden" : ""}" data-tab="${id}">${icon(id)}<span>${cyName(t)}</span>${id === "homework" && hwBadge ? `<em class="badge">${hwBadge}</em>` : ""}</button>`).join("")
     + railPins().map((t, i) => `<button class="nav pin${i ? " desk" : ""}${t.view === cur ? " on" : ""}" data-tab="${esc(t.view)}"><span class="emo">${esc(t.icon)}</span><span>${esc(t.name)}</span></button>`).join("")
     + `<a class="nav desk" href="class.html">${icon("class")}<span>${cyName("班级")}</span></a>`;
 }
@@ -2814,6 +2876,7 @@ function showView(id) {
   let scrollStore = false;
   if (id === "store") { id = "tools"; scrollStore = true; }
   if (!document.querySelector(`.view[data-view="${CSS.escape(id)}"]`)) id = "home";
+  if (!viewOn(id)) { const k = id.startsWith("p_") ? "tools" : VIEW_FEAT[id]; showBanner(`「${FEAT_NAME[k] || id}」暂时用不了：${featWhy(k) || "已关闭"}`); setTimeout(() => showBanner(""), 3500); id = "home"; }
   document.querySelectorAll(".view[data-view]").forEach((v) => v.classList.toggle("on", v.dataset.view === id));
   renderTabs();
   if (["home", "calendar", "homework"].includes(id)) renderAll();
@@ -2940,7 +3003,7 @@ $("miniCal").onclick = (e) => { const b = e.target.closest("button[data-day]"); 
 // 元气风格：标题栏滚动后才出现毛玻璃
 window.addEventListener("scroll", () => document.querySelectorAll(".vhead").forEach((h) => h.classList.toggle("stuck", window.scrollY > 8)), { passive: true });
 
-$("qMine").onclick = () => openForm(null);
+$("qMine").onclick = () => { if (feat("mine")) openForm(null); };
 
 // ===== 成长：完成记录、习惯打卡、进度环、趋势图、完成鼓励（都只存在这台设备上） =====
 const LS_DONE_LOG = "done_log_v1", LS_HABITS = "habits_v1", LS_HABIT_LOG = "habit_log_v1", LS_FUN = "fun_opts_v1";
@@ -2948,12 +3011,13 @@ const FUN_DEFAULT = { cheer: "mascot", confetti: true, rings: true, habits: true
 // 首页快捷按钮一行最多 4 个，按顺序挑：班委/老师的两个 → 记一件事 → 四象限 → 打卡 → 更多工具
 function renderQuick() {
   const o = funOpts();
-  const want = [["cIngestBtn", can("can_ingest")], ["cAddBtn", can("can_edit")], ["qMine", true], ["qPlan", o.plan], ["qIcs", o.habits], ["qTools", true]];
+  const want = [["cIngestBtn", ingestAllowed()], ["cAddBtn", can("can_edit")], ["qMine", feat("mine")], ["qPlan", o.plan], ["qIcs", o.habits], ["qTools", feat("tools")]];
   let n = 0;
   for (const [id, on] of want) { const show = on && n < 4; if (show) n++; $(id).classList.toggle("hidden", !show); }
   $("meToPlan").classList.toggle("hidden", !o.plan);
 }
-const funOpts = () => ({ ...FUN_DEFAULT, ...load(LS_FUN, {}) });
+const funPrefs = () => ({ ...FUN_DEFAULT, ...load(LS_FUN, {}) });
+const funOpts = () => { const o = funPrefs(); if (!feat("plan")) o.plan = false; if (!feat("growth")) { o.habits = false; o.rings = false; } return o; };
 let doneLog = load(LS_DONE_LOG, {});
 let habits = load(LS_HABITS, []);
 let habitLog = load(LS_HABIT_LOG, {});
@@ -3102,7 +3166,7 @@ function syncFunUI() {
   const o = funOpts();
   $("optCheer").value = o.cheer; $("optConfetti").checked = o.confetti; $("optRings").checked = o.rings; $("optHabits").checked = o.habits; $("optPlan").checked = o.plan;
 }
-const setFun = (patch) => { save(LS_FUN, { ...funOpts(), ...patch }); renderGrowth(); };
+const setFun = (patch) => { save(LS_FUN, { ...funPrefs(), ...patch }); renderGrowth(); };
 $("optCheer").onchange = (e) => { setFun({ cheer: e.target.value }); if (e.target.value !== "off") cheer("preview"); };
 $("optConfetti").onchange = (e) => setFun({ confetti: e.target.checked });
 $("optRings").onchange = (e) => setFun({ rings: e.target.checked });
@@ -3162,9 +3226,9 @@ const LS_LAYOUT = "home_layout_v1";
 let homeStats = { hwLeft: 0, overdue: 0, todayCount: 0, upcoming: 0 };
 const W_DEFAULT = { home: [{ id: "w:pins", w: 4, h: 1 }, { id: "w:hw", w: 2, h: 1 }, { id: "w:cal", w: 2, h: 1 }, { id: "w:rings", w: 4, h: 1 }, { id: "w:quick", w: 4, h: 1 }], rail: [] };
 const WDEF = {
-  "w:hw": { name: "作业", icon: "📝", w: 2, h: 1 },
+  "w:hw": { name: "作业", icon: "📝", w: 2, h: 1, on: () => feat("homework") },
   "w:cal": { name: "日历", icon: "📅", w: 2, h: 1 },
-  "w:pins": { name: "置顶通知", icon: "📌", w: 4, h: 1 },
+  "w:pins": { name: "置顶通知", icon: "📌", w: 4, h: 1, on: () => feat("wall") },
   "w:rings": { name: "本周进度", icon: "⭕", w: 4, h: 1, on: () => funOpts().rings },
   "w:quick": { name: "快捷按钮", icon: "⚡", w: 4, h: 1, minW: 2, fixed: true },
   "w:habits": { name: "今日打卡", icon: "🔥", w: 2, h: 2, on: () => funOpts().habits },
@@ -3177,9 +3241,9 @@ function homeLayout() {
 const saveLayout = (L) => { save(LS_LAYOUT, L); renderTabs(); renderTools(); };
 // 工具：内置的「成长」「规划」+ 已启用插件的标签页
 function toolList() {
-  const o = funOpts(), out = [{ id: "t:growth", view: "growth", icon: "📈", name: "成长", desc: "进度环、趋势图和习惯打卡" }];
+  const o = funOpts(), out = feat("growth") ? [{ id: "t:growth", view: "growth", icon: "📈", name: "成长", desc: "进度环、趋势图和习惯打卡" }] : [];
   if (o.plan) out.push({ id: "t:plan", view: "plan", icon: "🎯", name: "规划", desc: "四象限和番茄钟" });
-  for (const t of pluginTabs) {
+  for (const t of feat("tools") ? pluginTabs : []) {
     const meta = (pluginState[t.plugin] || {}).meta || {};
     out.push({ id: "p:" + t.id, view: t.id, icon: t.icon, name: String(t.title).replace(/^\p{Extended_Pictographic}️?\s*/u, ""), desc: meta.description || "", plugin: t.plugin });
   }
@@ -3701,6 +3765,7 @@ renderTabs(); renderTools();
   renderUserChip();
   try { await loadMyClasses(); } catch (e) { showBanner("读取班级失败：" + e.message); }
   renderClassBar();
+  await loadFeatures();
   loadClass();
 })();
 loadPlugins().then(() => { if (location.hash === "#store") { showView("store"); history.replaceState(null, "", location.pathname); } });
