@@ -277,7 +277,41 @@
   [data-skin=vivid] #className { font-family: var(--fd); font-weight: var(--fd-weight); font-size: 26px; letter-spacing: 1.5px; }
   #classSel { font: inherit; font-size: 20px; font-weight: 800; border: none; background: transparent; color: var(--text); padding: 0; max-width: 100%; cursor: pointer; }
   [data-skin=vivid] #classSel { font-family: var(--fd); font-weight: var(--fd-weight); font-size: 24px; }
-  .cb-sub { display: flex; gap: 8px; align-items: center; margin-top: 2px; font-size: 13px; color: var(--sub); }
+  .cb-sub { display: flex; gap: 8px; align-items: center; margin-top: 2px; font-size: 13px; color: var(--sub); flex-wrap: wrap; }
+  .cb-line { display: flex; align-items: baseline; gap: 10px; min-width: 0; flex-wrap: wrap; }
+  .cb-line #className { min-width: 0; max-width: 100%; }
+  .cb-nick { font-size: 14px; font-weight: 800; color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); padding: 2px 10px; border-radius: 999px; white-space: nowrap; }
+  .cb-motto { font-style: italic; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cb-edit { border: 0; background: none; color: var(--sub); font: inherit; font-size: 13px; cursor: pointer; padding: 0; }
+  .cb-edit:hover { color: var(--accent); }
+  .linkish { border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; padding: 6px 0 0; }
+  .dlg { border: 0; border-radius: 20px; padding: 0; width: min(440px, calc(100vw - 32px)); background: var(--surface); color: var(--text); box-shadow: 0 30px 80px -20px rgba(0,0,0,.45); }
+  .dlg::backdrop { background: rgba(10, 20, 40, .45); backdrop-filter: blur(3px); }
+  .dlg form { padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+  .dlg h3 { margin: 0; font-size: 18px; }
+  .dlg label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--sub); }
+  .dlg input { font: inherit; font-size: 15px; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--line); background: var(--muted-bg); color: var(--text); min-width: 0; width: 100%; box-sizing: border-box; }
+  .dlg input:disabled { opacity: .6; }
+  .dlg small { font-size: 12px; }
+  .nd-row { display: flex; gap: 6px; align-items: center; }
+  .nd-preview { padding: 12px 14px; border-radius: 14px; background: var(--muted-bg); font-size: 14px; }
+  .nd-preview b { font-size: 18px; margin-right: 8px; }
+  .nd-actions { display: flex; gap: 8px; align-items: center; }
+  .credits-hero { margin: 0 16px; padding: 18px; display: flex; gap: 14px; align-items: center; }
+  .credits-hero svg { width: 72px; height: 72px; flex-shrink: 0; }
+  .credits-hero b { display: block; font-size: 18px; margin-bottom: 4px; }
+  .credits-hero span { color: var(--sub); font-size: 14px; }
+  .credit-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin: 14px 16px; }
+  .credit { padding: 16px; border-radius: 18px; background: var(--surface); box-shadow: var(--shadow-sm, 0 2px 10px rgba(0,0,0,.06)); display: flex; flex-direction: column; gap: 6px; position: relative; overflow: hidden; }
+  .credit::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 5px; background: linear-gradient(180deg, #ffb347, #ff5d6c); }
+  .credit .cn { font-size: 18px; font-weight: 800; }
+  .credit .cw { font-size: 14px; color: var(--sub); line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+  .credit .ca { display: flex; gap: 6px; margin-top: 4px; }
+  .credit input, .credit textarea, .credit-add input, .credit-add textarea { font: inherit; font-size: 14px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--muted-bg); color: var(--text); width: 100%; box-sizing: border-box; resize: vertical; }
+  .credit-add { margin: 0 16px 16px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .credit-row { display: flex; align-items: center; gap: 8px; }
+  [data-skin=cyber] .credit { background: rgba(10, 4, 24, .85); border: 1px solid rgba(0, 240, 255, .35); }
+  [data-skin=cyber] .credit::before { background: linear-gradient(180deg, #00f0ff, #ff2bd6); }
 
   .hero { position: relative; margin: 0 16px; padding: 22px 22px 20px; border-radius: var(--r-xl); overflow: hidden; background: var(--hero); color: var(--text); min-height: 150px; }
   [data-skin=vivid] .hero { color: #0b2a4a; box-shadow: var(--shadow); }
@@ -946,9 +980,8 @@
     <div id="classBar" class="hidden">
       <div class="cb-badge" id="cbBadge">班</div>
       <div class="cb-main">
-        <span id="className"></span>
-        <select id="classSel" class="hidden" aria-label="切换班级"></select>
-        <div class="cb-sub"><span id="classRole" class="tag"></span><a href="class.html">班级管理</a></div>
+        <div class="cb-line"><span id="className"></span><select id="classSel" class="hidden" aria-label="切换班级"></select><span id="classNick" class="cb-nick hidden"></span></div>
+        <div class="cb-sub"><span id="classRole" class="tag"></span><span id="classMotto" class="cb-motto hidden"></span><button id="cbNameBtn" class="cb-edit hidden" title="给班级起名字、写口号">✏️ 起名</button><a href="class.html">班级管理</a></div>
       </div>
     </div>
     <div id="notice" class="surface hidden"></div>
@@ -1199,6 +1232,11 @@
       <button class="gi danger hidden" id="logoutBtn"><span class="ic">⎋</span>退出登录</button>
     </div>
 
+    <div class="sec-h"><b>关于</b></div>
+    <div class="group surface">
+      <button class="gi" data-tab="credits"><span class="ic">💛</span>感谢名单<small>为本网站做出贡献的人</small></button>
+    </div>
+
     <div class="sec-h"><b>数据</b><span id="updated"></span></div>
     <div class="group surface">
       <button class="gi" id="refreshBtn"><span class="ic">↻</span>刷新班级数据</button>
@@ -1211,14 +1249,41 @@
     <div class="afoot">班级事项由班委统一整理。「我的事项」、完成标记和背景图只保存在这台设备上，不会上传。</div>
   </section>
 
+  <!-- 感谢名单 -->
+  <section class="view" data-view="credits">
+    <header class="vhead"><button class="back" data-tab="me" aria-label="返回">‹</button><h2>感谢名单</h2></header>
+    <div class="credits-hero surface">
+      <svg viewBox="0 0 120 120" aria-hidden="true"><use href="#mascotArt"/></svg>
+      <div><b>谢谢你们</b><span>每一个想法、每一次测试、每一行代码，都让班级群日历变得更好。</span></div>
+    </div>
+    <div id="creditList" class="credit-list"></div>
+    <form id="creditAdd" class="credit-add surface hidden">
+      <b>添加一位贡献者</b><span class="meta">只有管理员能看到这里</span>
+      <input id="crName" maxlength="30" placeholder="名字（如 杭远）" required>
+      <textarea id="crWhat" maxlength="200" rows="2" placeholder="做了什么贡献（如 想出了图表和完成奖励的点子）"></textarea>
+      <div class="credit-row"><span class="meta" id="crStatus"></span><span class="spacer"></span><button class="btn ink sm" type="submit">添加</button></div>
+    </form>
+  </section>
+
   <div id="pluginViews"></div>
 </main>
+
+<dialog id="nameDlg" class="dlg">
+  <form method="dialog" id="nameForm">
+    <h3>给班级起个名字</h3>
+    <label>正式名称<input id="ndName" maxlength="40" placeholder="如 计科2501"><small id="ndNameTip">只有老师可以改正式名称</small></label>
+    <label>班级昵称<span class="nd-row"><input id="ndNick" maxlength="20" placeholder="如 信息捞捞班（可以不填）"><button type="button" class="small" id="ndNickDice" title="随机来一个">🎲</button></span></label>
+    <label>班级口号<span class="nd-row"><input id="ndMotto" maxlength="40" placeholder="如 今日事今日毕（可以不填）"><button type="button" class="small" id="ndMottoDice" title="随机来一个">🎲</button></span></label>
+    <div class="nd-preview" id="ndPreview"></div>
+    <div class="nd-actions"><span class="meta" id="ndStatus"></span><span class="spacer"></span><button type="button" class="small" id="ndCancel">取消</button><button type="submit" class="btn ink sm" id="ndSave">保存</button></div>
+  </form>
+</dialog>
 
 <!-- ========== 右侧栏（宽屏） ========== -->
 <aside class="siderail">
   <div class="widget surface"><h4 id="miniTitle"></h4><div class="mini" id="miniCal"></div></div>
   <div class="widget surface"><h4>这周的作业<span class="spacer"></span><button class="small" data-tab="homework">全部</button></h4><div id="miniHw"></div></div>
-  <div class="rail-foot">信息捞捞队 · 班级群信息整理助手<br>群消息由 AI 整理，有出入以群里为准</div>
+  <div class="rail-foot">信息捞捞队 · 班级群信息整理助手<br>群消息由 AI 整理，有出入以群里为准<br><button class="linkish" data-tab="credits">💛 感谢名单</button></div>
 </aside>
 </div>
 
@@ -1478,7 +1543,7 @@ const agendaOpen = new Set();
 const LS_SKIN = "ui_skin_v1", LS_BG = "ui_bg_v1", LS_BG_OPTS = "ui_bg_opts_v1";
 const SKIN_COLOR = { vivid: "#cdeeff", clean: "#ffffff", dark: "#000000", cyber: "#07060f" };
 // 元宇宙里的叫法
-const CYBER_NAMES = { 首页: "主控台", 作业: "任务清单", 班级墙: "广播频道", 日历: "时间线", 规划: "作战室", 工具: "模组库", 我的: "身份档案", 问答: "AI 终端", 成长: "成长数据", 班级: "班级节点", 班级日历: "捞捞元宇宙" };
+const CYBER_NAMES = { 感谢名单: "荣誉殿堂", 首页: "主控台", 作业: "任务清单", 班级墙: "广播频道", 日历: "时间线", 规划: "作战室", 工具: "模组库", 我的: "身份档案", 问答: "AI 终端", 成长: "成长数据", 班级: "班级节点", 班级日历: "捞捞元宇宙" };
 const cyName = (t) => (document.documentElement.dataset.skin === "cyber" && CYBER_NAMES[t]) || t;
 function applyLook() {
   const root = document.documentElement;
@@ -1726,10 +1791,15 @@ function renderClassBar() {
   const multi = myClasses.length > 1;
   $("className").textContent = multi ? "" : currentClass.name;
   $("className").classList.toggle("hidden", multi);
-  $("cbBadge").textContent = [...currentClass.name][0] || "班";
+  $("cbBadge").textContent = [...(currentClass.nickname || currentClass.name)][0] || "班";
+  $("classNick").textContent = currentClass.nickname ? `「${currentClass.nickname}」` : "";
+  $("classNick").classList.toggle("hidden", !currentClass.nickname);
+  $("classMotto").textContent = currentClass.motto ? `“${currentClass.motto}”` : "";
+  $("classMotto").classList.toggle("hidden", !currentClass.motto);
+  $("cbNameBtn").classList.toggle("hidden", !canNameClass());
   const sel = $("classSel");
   sel.classList.toggle("hidden", !multi);
-  sel.innerHTML = myClasses.map((c) => `<option value="${esc(c.id)}" ${c.id === currentClass.id ? "selected" : ""}>${esc(c.name)}</option>`).join("");
+  sel.innerHTML = myClasses.map((c) => `<option value="${esc(c.id)}" ${c.id === currentClass.id ? "selected" : ""}>${esc(c.name)}${c.nickname ? "（" + esc(c.nickname) + "）" : ""}</option>`).join("");
   const roleName = currentClass.is_teacher ? "老师" : currentClass.member_role === "monitor" ? "班委" : "学生";
   $("classRole").textContent = roleName;
   $("cAddBtn").classList.toggle("hidden", !can("can_edit"));
@@ -2751,9 +2821,98 @@ function showView(id) {
   if (id === "growth") renderGrowth();
   if (id === "plan") renderPlan();
   if (id === "ask") renderAsk();
+  if (id === "credits") loadCredits();
   if (scrollStore) $("storeAnchor").scrollIntoView();
   else window.scrollTo(0, 0);
 }
+
+// ===== 给班级起名字 =====
+const isSiteAdmin = () => !!(currentUser && currentUser.role === "admin");
+const canNameClass = () => !!currentClass && (currentClass.is_teacher || isSiteAdmin() || !!currentClass.can_edit);
+const NICK_A = ["星河", "元气", "追光", "代码", "晨曦", "破晓", "极客", "向阳", "逐梦", "萤火", "满格", "满分", "不熬夜", "早八", "像素", "电波", "宇宙", "捞捞", "奔跑", "银河"];
+const NICK_B = ["小分队", "联盟", "研究所", "工作室", "战队", "俱乐部", "梦之队", "号", "补给站", "实验室", "特攻队", "大家庭"];
+const MOTTOS = ["今日事，今日毕", "早八不迟到，作业不拖延", "一起把日子过成想要的样子", "代码写得好，bug 跑不了", "不负韶华，不负自己", "每一个 ddl 都会被我们温柔地拿下",
+  "团结 · 认真 · 有趣", "向光而行，一起发光", "上课认真听，下课认真玩", "我们不是最好的，但我们是最团结的", "心有所向，日复一日", "群消息不漏，作业不丢"];
+const pick = (a) => a[Math.floor(Math.random() * a.length)];
+function ndPreview() {
+  const n = $("ndName").value.trim() || currentClass.name, k = $("ndNick").value.trim(), m = $("ndMotto").value.trim();
+  $("ndPreview").innerHTML = `<b>${esc(n)}</b>${k ? `<span class="cb-nick">「${esc(k)}」</span>` : ""}${m ? `<div class="meta" style="margin-top:6px;font-style:italic">“${esc(m)}”</div>` : ""}`;
+}
+$("cbNameBtn").onclick = () => {
+  if (!canNameClass()) return;
+  const mgr = currentClass.is_teacher || isSiteAdmin();
+  $("ndName").value = currentClass.name; $("ndName").disabled = !mgr; $("ndNameTip").classList.toggle("hidden", mgr);
+  $("ndNick").value = currentClass.nickname || ""; $("ndMotto").value = currentClass.motto || "";
+  $("ndStatus").textContent = ""; ndPreview();
+  $("nameDlg").showModal();
+};
+["ndName", "ndNick", "ndMotto"].forEach((id) => $(id).addEventListener("input", ndPreview));
+$("ndNickDice").onclick = () => { $("ndNick").value = pick(NICK_A) + pick(NICK_B); ndPreview(); };
+$("ndMottoDice").onclick = () => { $("ndMotto").value = pick(MOTTOS); ndPreview(); };
+$("ndCancel").onclick = () => $("nameDlg").close();
+$("nameForm").onsubmit = async (e) => {
+  e.preventDefault();
+  const b = $("ndSave"); b.disabled = true; $("ndStatus").textContent = "保存中…";
+  try {
+    const r = await CCAuth.rpc("set_class_identity", { cid: currentClass.id, cname: $("ndName").disabled ? "" : $("ndName").value, nick: $("ndNick").value, mot: $("ndMotto").value });
+    for (const c of myClasses) if (c.id === r.id) Object.assign(c, { name: r.name, nickname: r.nickname, motto: r.motto });
+    Object.assign(currentClass, { name: r.name, nickname: r.nickname, motto: r.motto });
+    renderClassBar(); $("nameDlg").close();
+  } catch (err) { $("ndStatus").textContent = "保存失败：" + err.message; }
+  finally { b.disabled = false; }
+};
+
+// ===== 感谢名单 =====
+let credits = [], creditEdit = null;
+async function loadCredits() {
+  try { credits = (await CCAuth.rpc("credit_list")) || []; } catch (e) { credits = null; }
+  renderCredits();
+}
+function renderCredits() {
+  const box = $("creditList"), admin = isSiteAdmin();
+  $("creditAdd").classList.toggle("hidden", !admin);
+  if (credits === null) { box.innerHTML = `<div class="empty">感谢名单暂时打不开（管理员需要在扣子终端运行一次 setupaccounts.py）</div>`; return; }
+  if (!credits.length) { box.innerHTML = `<div class="empty">名单还是空的${admin ? "，在下面添加第一位吧" : ""}</div>`; return; }
+  box.innerHTML = credits.map((c, i) => creditEdit === c.id ? `<div class="credit" data-cid="${c.id}">
+      <input data-cf="name" maxlength="30" value="${esc(c.name)}" aria-label="名字">
+      <textarea data-cf="contribution" maxlength="200" rows="3" aria-label="贡献">${esc(c.contribution)}</textarea>
+      <div class="ca"><button class="small" data-cact="up" ${i ? "" : "disabled"} title="往前排">↑</button><button class="small" data-cact="down" ${i < credits.length - 1 ? "" : "disabled"} title="往后排">↓</button>
+        <span class="spacer"></span><button class="small danger" data-cact="del">删除</button><button class="small" data-cact="cancel">取消</button><button class="btn ink sm" data-cact="save">保存</button></div>
+    </div>` : `<div class="credit" data-cid="${c.id}"><div class="cn">${esc(c.name)}</div>${c.contribution ? `<div class="cw">${esc(c.contribution)}</div>` : ""}
+      ${admin ? `<div class="ca"><span class="spacer"></span><button class="small" data-cact="edit">编辑</button></div>` : ""}</div>`).join("");
+}
+$("creditList").addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-cact]"); if (!b) return;
+  const card = b.closest("[data-cid]"), id = +card.dataset.cid, c = credits.find((x) => x.id === id), act = b.dataset.cact;
+  if (act === "edit") { creditEdit = id; renderCredits(); return; }
+  if (act === "cancel") { creditEdit = null; renderCredits(); return; }
+  b.disabled = true;
+  try {
+    if (act === "save") {
+      await CCAuth.rpc("credit_save", { cid: id, cname: card.querySelector('[data-cf="name"]').value, contrib: card.querySelector('[data-cf="contribution"]').value, csort: c.sort });
+      creditEdit = null;
+    } else if (act === "del") {
+      if (!confirm(`从感谢名单里删掉「${c.name}」？`)) { b.disabled = false; return; }
+      await CCAuth.rpc("credit_delete", { cid: id }); creditEdit = null;
+    } else if (act === "up" || act === "down") {
+      // 和相邻的一条交换位置，顺序号重新排成 10、20、30…
+      const i = credits.indexOf(c), j = act === "up" ? i - 1 : i + 1;
+      const order = credits.slice(); [order[i], order[j]] = [order[j], order[i]];
+      for (let k = 0; k < order.length; k++) if (order[k].sort !== (k + 1) * 10)
+        await CCAuth.rpc("credit_save", { cid: order[k].id, cname: order[k].name, contrib: order[k].contribution, csort: (k + 1) * 10 });
+      creditEdit = null;
+    }
+    await loadCredits();
+  } catch (err) { alert("保存失败：" + err.message); b.disabled = false; }
+});
+$("creditAdd").onsubmit = async (e) => {
+  e.preventDefault();
+  try {
+    await CCAuth.rpc("credit_save", { cid: null, cname: $("crName").value, contrib: $("crWhat").value, csort: null });
+    $("crName").value = ""; $("crWhat").value = ""; $("crStatus").textContent = "已添加 ✓";
+    await loadCredits();
+  } catch (err) { $("crStatus").textContent = "添加失败：" + err.message; }
+};
 
 // ===== 右侧栏：小月历 + 这周作业 =====
 function renderRail() {
