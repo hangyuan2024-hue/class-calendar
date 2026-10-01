@@ -421,6 +421,72 @@
   #modal .btns button, .modal2 .btns button { padding: 9px 18px; border-radius: 999px; font-weight: 700; border: 1px solid var(--line); }
   #modal .btns button.primary, .modal2 .btns button.primary { border-color: transparent; background: var(--ink); color: var(--ink-text); }
 
+  /* ================= 班级墙 ================= */
+  .composer { margin: 0 16px; padding: 14px 16px; display: flex; gap: 12px; }
+  .composer .av { width: 42px; height: 42px; font-size: 16px; }
+  .composer .cbody { flex: 1; min-width: 0; }
+  .composer input, .composer textarea { width: 100%; font: inherit; color: var(--text); background: transparent; border: 0; outline: none; resize: none; padding: 6px 0; }
+  .composer #wTitle { font-size: 18px; font-weight: 800; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+  .composer textarea { font-size: 16px; min-height: 52px; line-height: 1.6; }
+  .composer .ctools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; border-top: 1px solid var(--line); padding-top: 10px; margin-top: 4px; font-size: 13px; color: var(--sub); }
+  .composer .ctools label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+  .composer .ctools input[type=checkbox] { width: auto; accent-color: var(--accent); }
+  .ccount { font-variant-numeric: tabular-nums; }
+  .ccount.over { color: var(--red); font-weight: 700; }
+  .wfilter { display: flex; gap: 0; margin: 14px 16px 0; border-bottom: 1px solid var(--line); }
+  .wfilter button { flex: 1; padding: 12px 0; font-size: 15px; font-weight: 600; color: var(--sub); position: relative; }
+  .wfilter button:hover { background: var(--hover); }
+  .wfilter button.on { color: var(--text); font-weight: 800; }
+  .wfilter button.on::after { content: ""; position: absolute; left: 50%; bottom: -1px; width: 52px; margin-left: -26px; height: 4px; border-radius: 4px; background: var(--accent); }
+  #wallList { padding: 12px 16px 0; display: flex; flex-direction: column; gap: 12px; }
+  .post { padding: 16px 18px 12px; display: flex; gap: 12px; position: relative; }
+  .post .av { width: 44px; height: 44px; font-size: 17px; }
+  .post .av.r-teacher { background: linear-gradient(135deg, #ff9a4a, #ff5d6c); }
+  .post .av.r-monitor { background: linear-gradient(135deg, #5cc8ff, #1e8cff); }
+  .post .av.r-student { background: linear-gradient(135deg, #b3a4ff, #8c6bff); }
+  .post .av.r-admin { background: linear-gradient(135deg, #7de6c4, #17c29a); }
+  .post .pmain { flex: 1; min-width: 0; }
+  .post .phead { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 14px; }
+  .post .phead b { font-weight: 800; }
+  .post .phead .when { color: var(--sub); font-size: 13px; }
+  .rbadge { font-size: 11px; font-weight: 800; padding: 1px 7px; border-radius: 6px; color: #fff; }
+  .rbadge.teacher { background: #ff6a3d; } .rbadge.monitor { background: #1e8cff; } .rbadge.admin { background: #17c29a; }
+  .post .ptitle { font-size: 18px; font-weight: 800; margin: 6px 0 2px; line-height: 1.4; }
+  [data-skin=vivid] .post .ptitle { font-family: var(--fd); font-weight: var(--fd-weight); font-size: 21px; letter-spacing: .5px; }
+  .post .ptext { font-size: 15.5px; line-height: 1.7; white-space: pre-wrap; word-break: break-word; margin-top: 4px; }
+  .post .ptext.clamp { display: -webkit-box; -webkit-line-clamp: 7; -webkit-box-orient: vertical; overflow: hidden; }
+  .post .more-btn { color: var(--accent); font-size: 14px; font-weight: 600; margin-top: 2px; }
+  .post .pflags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
+  .pflag { font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: var(--hover); color: var(--sub); }
+  .pflag.pin { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+  .pflag.notice { background: color-mix(in srgb, #ff8a3d 18%, transparent); color: #e2620f; }
+  .pflag.hid { background: var(--danger-bg); color: var(--red); }
+  .post.notice { border: 1.5px solid color-mix(in srgb, #ff8a3d 55%, transparent); background: color-mix(in srgb, #ff8a3d 6%, var(--surface)); }
+  [data-skin=vivid] .post.notice { background: linear-gradient(160deg, #fff6ec, #ffffff 60%); }
+  [data-skin=dark] .post.notice { background: color-mix(in srgb, #ff8a3d 8%, #000); }
+  .post.hiddenpost { opacity: .6; }
+  .post .pops { display: flex; gap: 2px; margin: 8px 0 0 -8px; flex-wrap: wrap; }
+  .post .pops button { font-size: 13px; color: var(--sub); padding: 4px 8px; border-radius: 999px; }
+  .post .pops button:hover { background: var(--hover); color: var(--text); }
+  .post .pops button.warnb:hover { color: var(--red); background: var(--danger-bg); }
+  .post .pops button.done { color: var(--red); }
+  .folded { color: var(--sub); font-size: 14px; background: var(--hover); border-radius: 12px; padding: 10px 12px; margin-top: 6px; }
+  .folded button { color: var(--accent); font-weight: 600; margin-left: 4px; }
+  .reports { margin: 12px 16px 0; padding: 14px 16px; border: 1.5px solid color-mix(in srgb, var(--red) 40%, transparent); }
+  .reports h4 { margin: 0 0 8px; font-size: 16px; color: var(--red); }
+  .rep { padding: 10px 0; border-top: 1px solid var(--line); font-size: 14px; }
+  .rep:first-of-type { border-top: 0; }
+  .rep .ex { color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 2px 0 4px; }
+  .rep ul { margin: 4px 0 6px; padding-left: 18px; color: var(--text); font-size: 13px; }
+  .rep .acts { display: flex; gap: 8px; }
+  .home-pins { margin: 14px 16px 0; padding: 12px 16px; display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+  .home-pins .pi { font-size: 20px; }
+  .home-pins b { display: block; font-size: 14px; }
+  .home-pins span { color: var(--sub); font-size: 13px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .reasons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .reasons label { display: inline-flex !important; align-items: center; gap: 4px; margin: 0 !important; padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; font-size: 14px !important; color: var(--text) !important; cursor: pointer; }
+  .reasons input { width: auto !important; margin: 0 !important; accent-color: var(--red); }
+
   /* ================= 响应式 ================= */
   @media (max-width: 1240px) { .shell { grid-template-columns: 244px minmax(0, 640px); } .siderail { display: none; } }
   @media (max-width: 1000px) {
@@ -432,6 +498,9 @@
   }
   @media (max-width: 700px) {
     body { font-size: 15px; }
+    .composer, #wallList, .wfilter, .reports, .home-pins { margin-left: 12px; margin-right: 12px; }
+    #wallList { padding-left: 0; padding-right: 0; }
+    .post { padding: 14px 14px 10px; }
     .shell { display: block; }
     .col { border: 0; padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
     .rail { position: fixed; z-index: 30; left: 0; right: 0; bottom: 0; top: auto; height: auto; flex-direction: row; padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
@@ -492,6 +561,7 @@
     </div>
     <div id="notice" class="surface hidden"></div>
     <div id="hero"></div>
+    <div id="homePins" class="home-pins surface hidden" data-tab="wall"></div>
     <div id="tiles" class="tiles"></div>
     <div class="quick">
       <button class="qbtn hidden" id="cIngestBtn"><span class="qi">✨</span>AI 整理</button>
@@ -512,6 +582,34 @@
       </div>
     </section>
     <div id="agenda"></div>
+  </section>
+
+  <!-- 班级墙 -->
+  <section class="view" data-view="wall">
+    <header class="vhead"><button class="av mavatar" data-tab="me" aria-label="我的"></button><h2>班级墙</h2><span class="spacer"></span><button class="small" id="wRefresh">刷新</button></header>
+    <div id="wallNoClass" class="surface hidden" style="margin:0 16px;padding:16px"></div>
+    <div id="wallBox">
+      <div class="composer surface">
+        <span class="av" id="wAv">?</span>
+        <div class="cbody">
+          <input id="wTitle" class="hidden" maxlength="60" placeholder="文章标题">
+          <textarea id="wBody" rows="2" maxlength="5000" placeholder="想对全班说点什么？"></textarea>
+          <div class="ctools">
+            <button class="small" id="wArticle" type="button">写成文章</button>
+            <label id="wNoticeWrap" class="hidden"><input type="checkbox" id="wNotice"> 作为通知发布</label>
+            <span class="spacer"></span>
+            <span class="ccount" id="wCount"></span>
+            <button class="btn ink sm" id="wSend" type="button">发布</button>
+          </div>
+        </div>
+      </div>
+      <div id="wReports"></div>
+      <div class="wfilter" id="wFilter">
+        <button data-f="all" class="on">全部</button><button data-f="notice">通知</button><button data-f="mine">我发的</button>
+      </div>
+      <div id="wallList"></div>
+      <div class="afoot">班级墙只有本班同学和老师能看到。发言请友善，不当内容可以举报，老师会处理。</div>
+    </div>
   </section>
 
   <!-- 作业 -->
@@ -592,6 +690,7 @@
     <div class="sec-h"><b>班级与账号</b></div>
     <div class="group surface">
       <a class="gi" href="class.html"><span class="ic">🏫</span>班级管理<small>加入班级、审批同学</small></a>
+      <button class="gi" data-tab="tools"><span class="ic">🧩</span>工具与插件<small>课程表、日记等</small></button>
       <a class="gi hidden" id="menuDev" href="dev.html"><span class="ic">🧩</span>插件后台</a>
       <a class="gi" id="menuLogin" href="login.html?next=index.html"><span class="ic">🔑</span>登录 / 注册</a>
       <button class="gi danger hidden" id="logoutBtn"><span class="ic">⎋</span>退出登录</button>
@@ -638,6 +737,23 @@
     </g>
   </defs>
 </svg>
+
+<div id="rmodal" class="modal2">
+  <form id="rform">
+    <h3>举报这条内容</h3>
+    <div class="meta" id="rWhat"></div>
+    <div class="reasons">
+      <label><input type="radio" name="rr" value="不友善 / 人身攻击" checked> 不友善 / 人身攻击</label>
+      <label><input type="radio" name="rr" value="广告 / 刷屏"> 广告 / 刷屏</label>
+      <label><input type="radio" name="rr" value="信息不实"> 信息不实</label>
+      <label><input type="radio" name="rr" value="泄露他人隐私"> 泄露他人隐私</label>
+      <label><input type="radio" name="rr" value="其他"> 其他</label>
+    </div>
+    <label>补充说明（可不填） <textarea id="rNote" rows="2" maxlength="150"></textarea></label>
+    <div class="meta">举报只有老师能看到，作者不会知道是谁举报的。</div>
+    <div class="btns"><button type="button" id="rCancel">取消</button><button type="submit" class="primary" id="rSend">提交举报</button></div>
+  </form>
+</div>
 
 <div id="modal">
   <form id="form">
@@ -1109,6 +1225,7 @@ async function loadClass() {
     showBanner("班级数据加载失败" + (cacheOk ? "，当前显示的是上次缓存的数据" : "") + "：" + e.message);
   }
   renderAll();
+  loadWall();
 }
 
 // ===== 班委 / 老师：发布、修改、删除班级事项 =====
@@ -1590,19 +1707,21 @@ const ICONS = {
              '<rect x="3.5" y="5" width="17" height="15.5" rx="3" fill="currentColor"/><path d="M3.5 10h17" stroke="var(--bg2)" stroke-width="2"/><path d="M8 3v4M16 3v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'],
   tools: ['<rect x="3.5" y="3.5" width="7" height="7" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="17" cy="17" r="3.6" fill="none" stroke="currentColor" stroke-width="2"/>',
           '<rect x="3" y="3" width="8" height="8" rx="2.2" fill="currentColor"/><rect x="13" y="3" width="8" height="8" rx="2.2" fill="currentColor"/><rect x="3" y="13" width="8" height="8" rx="2.2" fill="currentColor"/><circle cx="17" cy="17" r="4.2" fill="currentColor"/>'],
+  wall: ['<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v9a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4A2.5 2.5 0 0 1 3 14.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M8 8.5h8M8 12h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+         '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v9a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4A2.5 2.5 0 0 1 3 14.5z" fill="currentColor"/><path d="M8 8.5h8M8 12h5" stroke="var(--bg2)" stroke-width="2" stroke-linecap="round"/>'],
   me: ['<circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
        '<circle cx="12" cy="8" r="4.5" fill="currentColor"/><path d="M3.5 21c0-4.8 3.8-7.5 8.5-7.5s8.5 2.7 8.5 7.5z" fill="currentColor"/>'],
   class: ['<path d="M2.5 9 12 4l9.5 5-9.5 5z M6.5 11.2V16c0 1.6 2.5 3 5.5 3s5.5-1.4 5.5-3v-4.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>', ""],
 };
 const icon = (k) => `<svg viewBox="0 0 24 24" class="o" aria-hidden="true">${ICONS[k][0]}</svg>` + (ICONS[k][1] ? `<svg viewBox="0 0 24 24" class="f" aria-hidden="true">${ICONS[k][1]}</svg>` : "");
-const NAV = [["home", "首页"], ["homework", "作业"], ["calendar", "日历"], ["tools", "工具"], ["me", "我的"]];
+const NAV = [["home", "首页"], ["homework", "作业"], ["wall", "班级墙"], ["calendar", "日历"], ["tools", "工具"], ["me", "我的"]];
 let hwBadge = 0;
 
 function currentView() { return document.querySelector(".view.on[data-view]")?.dataset.view || "home"; }
 function renderTabs() {
   let cur = currentView();
   if (cur.startsWith("p_")) cur = "tools";
-  $("tabs").innerHTML = NAV.map(([id, t]) => `<button class="nav${id === cur ? " on" : ""}" data-tab="${id}">${icon(id)}<span>${t}</span>${id === "homework" && hwBadge ? `<em class="badge">${hwBadge}</em>` : ""}</button>`).join("")
+  $("tabs").innerHTML = NAV.map(([id, t]) => `<button class="nav${id === cur ? " on" : ""}${id === "tools" ? " desk" : ""}" data-tab="${id}">${icon(id)}<span>${t}</span>${id === "homework" && hwBadge ? `<em class="badge">${hwBadge}</em>` : ""}</button>`).join("")
     + `<a class="nav desk" href="class.html">${icon("class")}<span>班级</span></a>`;
 }
 function renderTools() {
@@ -1622,6 +1741,7 @@ function showView(id) {
   document.querySelectorAll(".view[data-view]").forEach((v) => v.classList.toggle("on", v.dataset.view === id));
   renderTabs();
   if (["home", "calendar", "homework"].includes(id)) renderAll();
+  if (id === "wall") loadWall();
   if (scrollStore) $("storeAnchor").scrollIntoView();
   else window.scrollTo(0, 0);
 }
@@ -1654,6 +1774,175 @@ window.addEventListener("scroll", () => document.querySelectorAll(".vhead").forE
 
 $("qMine").onclick = () => openForm(null);
 $("qIcs").onclick = () => $("icsBtn").click();
+
+// ===== 班级墙 =====
+let wallPosts = [], wallReported = new Set(), wallFilter = "all", wallReports = [], wallLoadedFor = null;
+const wallUnfold = new Set(), wallExpand = new Set();
+const ROLE_LABEL = { teacher: "老师", monitor: "班委", admin: "管理员" };
+const myWallRole = () => !currentClass ? null : currentClass.is_teacher ? "teacher" : currentClass.member_role === "monitor" ? "monitor" : currentUser && currentUser.role === "admin" ? "admin" : "student";
+const canPin = () => ["teacher", "monitor", "admin"].includes(myWallRole());
+const canModerate = () => !!currentClass && (currentClass.is_teacher || (currentUser && currentUser.role === "admin"));
+
+function ago(t) {
+  const d = new Date(t), s = (Date.now() - d) / 1000;
+  if (s < 60) return "刚刚";
+  if (s < 3600) return `${Math.floor(s / 60)} 分钟前`;
+  if (s < 86400) return `${Math.floor(s / 3600)} 小时前`;
+  if (s < 86400 * 7) return `${Math.floor(s / 86400)} 天前`;
+  return `${d.getMonth() + 1}月${d.getDate()}日`;
+}
+
+async function loadWall() {
+  if (!currentUser || !currentClass) { wallPosts = []; renderWall(); return; }
+  const cid = currentClass.id;
+  try {
+    const [posts, mine] = await Promise.all([
+      CCAuth.rest(`wall_posts?select=id,class_id,author_id,author_name,author_role,title,body,is_notice,pinned_at,hidden,report_count,reviewed,created_at,edited_at&class_id=eq.${encodeURIComponent(cid)}&order=created_at.desc&limit=300`),
+      CCAuth.rpc("wall_my_reports", { cid }),
+    ]);
+    if (!currentClass || currentClass.id !== cid) return;
+    wallPosts = posts || []; wallReported = new Set((mine || []).map(String)); wallLoadedFor = cid;
+    wallReports = canModerate() ? (await CCAuth.rpc("wall_report_list", { cid })) || [] : [];
+  } catch (e) { showBanner("班级墙加载失败：" + e.message); }
+  renderWall();
+}
+
+function postHtml(p) {
+  const mine = currentUser && p.author_id === currentUser.id;
+  const role = p.author_role, label = ROLE_LABEL[role];
+  const folded = p.report_count >= 3 && !p.reviewed && !mine && !canModerate() && !wallUnfold.has(p.id);
+  const long = p.body.length > 280 || p.body.split("\n").length > 7;
+  const flags = [];
+  if (p.pinned_at) flags.push(`<span class="pflag pin">📌 置顶</span>`);
+  if (p.is_notice) flags.push(`<span class="pflag notice">📢 通知</span>`);
+  if (p.hidden) flags.push(`<span class="pflag hid">已被老师隐藏，只有你${canModerate() ? "们" : ""}能看到</span>`);
+  if (canModerate() && p.report_count > 0) flags.push(`<span class="pflag hid">${p.report_count} 人举报</span>`);
+  const ops = [];
+  if (canPin() && !p.hidden) ops.push(`<button data-w="pin" data-id="${p.id}">${p.pinned_at ? "取消置顶" : "📌 置顶"}</button>`);
+  if (mine) ops.push(`<button data-w="edit" data-id="${p.id}">编辑</button>`);
+  if (mine || canModerate()) ops.push(`<button data-w="del" data-id="${p.id}" class="warnb">删除</button>`);
+  if (canModerate()) ops.push(p.hidden ? `<button data-w="unhide" data-id="${p.id}">恢复显示</button>` : `<button data-w="hide" data-id="${p.id}" class="warnb">隐藏</button>`);
+  if (!mine && !canModerate()) ops.push(wallReported.has(String(p.id)) ? `<button class="done" disabled>已举报</button>` : `<button data-w="report" data-id="${p.id}" class="warnb">举报</button>`);
+  return `<article class="post surface${p.is_notice ? " notice" : ""}${p.hidden ? " hiddenpost" : ""}" id="post-${p.id}">
+    <span class="av r-${esc(role)}">${esc([...(p.author_name || "?")][0])}</span>
+    <div class="pmain">
+      <div class="phead"><b>${esc(p.author_name)}</b>${label ? `<span class="rbadge ${esc(role)}">${label}</span>` : ""}
+        <span class="when">· ${ago(p.created_at)}${p.edited_at ? "（已编辑）" : ""}</span></div>
+      ${flags.length ? `<div class="pflags" style="margin-top:6px">${flags.join("")}</div>` : ""}
+      ${folded ? `<div class="folded">这条内容被多位同学举报，正在等老师处理。<button data-w="unfold" data-id="${p.id}">仍要查看</button></div>` : `
+        ${p.title ? `<div class="ptitle">${esc(p.title)}</div>` : ""}
+        <div class="ptext${long && !wallExpand.has(p.id) ? " clamp" : ""}">${esc(p.body)}</div>
+        ${long && !wallExpand.has(p.id) ? `<button class="more-btn" data-w="expand" data-id="${p.id}">展开全文</button>` : ""}`}
+      <div class="pops">${ops.join("")}</div>
+    </div>
+  </article>`;
+}
+
+function renderWall() {
+  const has = !!(currentUser && currentClass);
+  $("wallBox").classList.toggle("hidden", !has);
+  $("wallNoClass").classList.toggle("hidden", has);
+  if (!has) {
+    $("wallNoClass").innerHTML = !currentUser ? `登录并加入班级后就能在班级墙发言。<a href="login.html?next=index.html">登录 / 注册</a>`
+      : `加入班级后就能在班级墙发言。<a href="class.html">输入班级码加入</a>`;
+    $("homePins").classList.add("hidden");
+    return;
+  }
+  const r = myWallRole();
+  $("wNoticeWrap").classList.toggle("hidden", !["teacher", "monitor", "admin"].includes(r));
+  $("wAv").textContent = [...(currentUser.display_name || "?")][0];
+  $("wAv").className = "av";
+  $("wBody").placeholder = r === "student" ? "想对全班说点什么？" : "发通知、发文章，或者随便聊聊";
+  let list = wallPosts.slice();
+  if (wallFilter === "notice") list = list.filter((p) => p.is_notice);
+  if (wallFilter === "mine") list = list.filter((p) => p.author_id === currentUser.id);
+  const pinned = list.filter((p) => p.pinned_at && !p.hidden).sort((a, b) => b.pinned_at.localeCompare(a.pinned_at));
+  const rest = list.filter((p) => !(p.pinned_at && !p.hidden));
+  $("wallList").innerHTML = (pinned.concat(rest)).map(postHtml).join("")
+    || `<div class="aempty surface">${wallFilter === "all" ? "还没有人发言，来发第一条吧 ✍️" : wallFilter === "notice" ? "还没有通知" : "你还没发过内容"}</div>`;
+  $("wFilter").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.f === wallFilter));
+  // 老师：举报处理
+  $("wReports").innerHTML = canModerate() && wallReports.length ? `<div class="reports surface"><h4>🚩 待处理的举报（${wallReports.length}）</h4>
+    ${wallReports.map((x) => `<div class="rep">
+      <b>${esc(x.author_name)}</b> 发的${x.title ? "「" + esc(x.title) + "」" : "内容"}${x.hidden ? "（已隐藏）" : ""}
+      <div class="ex">${esc(x.body)}</div>
+      <ul>${x.reports.map((y) => `<li>${esc(y.by || "同学")}：${esc(y.reason)}</li>`).join("")}</ul>
+      <div class="acts"><button class="small" data-w="goto" data-id="${x.id}">查看原文</button>
+        ${x.hidden ? "" : `<button class="small" data-w="hide" data-id="${x.id}" style="color:var(--red)">隐藏这条</button>`}
+        <button class="small" data-w="dismiss" data-id="${x.id}">没问题，保留</button></div></div>`).join("")}</div>` : "";
+  // 首页：最新置顶
+  const top = wallPosts.filter((p) => p.pinned_at && !p.hidden).sort((a, b) => b.pinned_at.localeCompare(a.pinned_at))[0];
+  $("homePins").classList.toggle("hidden", !top);
+  if (top) $("homePins").innerHTML = `<span class="pi">📌</span><div><b>${top.is_notice ? "置顶通知" : "班级墙置顶"} · ${esc(top.author_name)}</b><span>${esc(top.title || top.body)}</span></div>`;
+}
+
+function wallCount() {
+  const n = $("wBody").value.trim().length;
+  $("wCount").textContent = n ? `${n} / 5000` : "";
+  $("wCount").classList.toggle("over", n > 5000);
+}
+$("wBody").oninput = () => { wallCount(); $("wBody").style.height = "auto"; $("wBody").style.height = Math.min($("wBody").scrollHeight, 420) + "px"; };
+$("wArticle").onclick = () => {
+  const on = $("wTitle").classList.toggle("hidden");
+  $("wArticle").textContent = on ? "写成文章" : "不要标题";
+  if (!on) { $("wTitle").focus(); $("wBody").rows = 6; } else { $("wTitle").value = ""; $("wBody").rows = 2; }
+};
+$("wSend").onclick = async () => {
+  const body = $("wBody").value.trim();
+  if (!body) { $("wBody").focus(); return; }
+  $("wSend").disabled = true;
+  try {
+    await CCAuth.rpc("wall_post", { cid: currentClass.id, p_title: $("wTitle").value.trim(), p_body: body, p_notice: $("wNotice").checked });
+    $("wBody").value = ""; $("wTitle").value = ""; $("wNotice").checked = false; wallCount();
+    if (!$("wTitle").classList.contains("hidden")) $("wArticle").click();
+    wallFilter = "all"; await loadWall();
+  } catch (e) { alert("发布失败：" + e.message); }
+  finally { $("wSend").disabled = false; }
+};
+$("wFilter").onclick = (e) => { const b = e.target.closest("button[data-f]"); if (!b) return; wallFilter = b.dataset.f; renderWall(); };
+$("wRefresh").onclick = () => loadWall();
+
+let reportingId = null;
+$("rCancel").onclick = () => $("rmodal").classList.remove("open");
+$("rmodal").onclick = (e) => { if (e.target === $("rmodal")) $("rmodal").classList.remove("open"); };
+$("rform").onsubmit = async (e) => {
+  e.preventDefault();
+  const reason = document.querySelector("input[name=rr]:checked").value + ($("rNote").value.trim() ? "：" + $("rNote").value.trim() : "");
+  $("rSend").disabled = true;
+  try {
+    await CCAuth.rpc("wall_report", { pid: reportingId, p_reason: reason });
+    $("rmodal").classList.remove("open"); wallReported.add(String(reportingId)); renderWall();
+    alert("已提交举报，老师会尽快处理");
+  } catch (err) { alert("举报失败：" + err.message); }
+  finally { $("rSend").disabled = false; }
+};
+
+document.addEventListener("click", async (e) => {
+  const b = e.target.closest("button[data-w]"); if (!b) return;
+  const id = Number(b.dataset.id), act = b.dataset.w, p = wallPosts.find((x) => x.id === id);
+  try {
+    if (act === "unfold") { wallUnfold.add(id); renderWall(); return; }
+    if (act === "expand") { wallExpand.add(id); renderWall(); return; }
+    if (act === "goto") { wallFilter = "all"; wallUnfold.add(id); renderWall(); $("post-" + id)?.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
+    if (act === "report") {
+      reportingId = id; $("rNote").value = "";
+      $("rWhat").textContent = p ? `${p.author_name}：${(p.title || p.body).slice(0, 40)}` : "";
+      $("rmodal").classList.add("open"); return;
+    }
+    if (act === "edit") {
+      const t = p.title != null ? prompt("标题（留空就是普通消息）", p.title) : null;
+      const body = prompt("修改内容", p.body);
+      if (body === null) return;
+      await CCAuth.rpc("wall_edit", { pid: id, p_title: t === null ? (p.title || "") : t, p_body: body });
+    }
+    if (act === "del") { if (!confirm("删除这条内容？删除后不能恢复。")) return; await CCAuth.rpc("wall_delete", { pid: id }); }
+    if (act === "pin") await CCAuth.rpc("wall_pin", { pid: id, on_top: !(p && p.pinned_at) });
+    if (act === "hide") { if (!confirm("隐藏后全班都看不到这条，作者自己还能看到。确定吗？")) return; await CCAuth.rpc("wall_moderate", { pid: id, action: "hide" }); }
+    if (act === "unhide") await CCAuth.rpc("wall_moderate", { pid: id, action: "unhide" });
+    if (act === "dismiss") await CCAuth.rpc("wall_moderate", { pid: id, action: "dismiss" });
+    await loadWall();
+  } catch (err) { alert("操作失败：" + err.message); }
+});
 
 applyLook();
 renderTabs(); renderTools();
