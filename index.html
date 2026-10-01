@@ -1149,7 +1149,8 @@ function enabledSet() {
   return new Set(registry.filter((p) => p.default_on).map((p) => p.id));
 }
 
-const isStaff = () => !!(currentUser && CCAuth.STAFF.includes(currentUser.role));
+const isStaff = () => CCAuth.can(currentUser, "try_testing");
+const hasBackend = () => !!(currentUser && currentUser.perms && currentUser.perms.length);
 
 async function fetchRegistry() {
   const cols = "id,name,icon,description,version,author_name,default_on,published_at";
@@ -1232,7 +1233,7 @@ async function loadPlugins() {
 
 function renderStore() {
   const on = enabledSet();
-  const staffTip = isStaff() ? `<div class="desc" style="color:var(--sub);font-size:12px;margin-bottom:8px">你是${esc(CCAuth.ROLE_NAMES[currentUser.role])}，能看到「测试中」的版本。<a href="dev.html">进入插件后台 →</a></div>` : "";
+  const staffTip = isStaff() ? `<div class="desc" style="color:var(--sub);font-size:12px;margin-bottom:8px">你可以试用「测试中」的版本。<a href="dev.html">进入插件后台 →</a></div>` : "";
   $("storeList").innerHTML = staffTip + (registry.length ? registry.map((p) => {
     const st = pluginState[p.id] || {};
     const isOn = on.has(p.id);
@@ -1262,7 +1263,7 @@ function renderUserChip() {
   const el = $("userChip");
   $("logoutBtn").classList.toggle("hidden", !currentUser);
   $("menuLogin").classList.toggle("hidden", !!currentUser);
-  $("menuDev").classList.toggle("hidden", !isStaff());
+  $("menuDev").classList.toggle("hidden", !hasBackend());
   if (!currentUser) {
     el.className = "guest"; el.textContent = "登录";
     $("menuHead").innerHTML = `<b>未登录</b><span>登录后可以看到班级日历</span>`;

@@ -269,7 +269,7 @@ $("logout").onclick = async () => { await CCAuth.signOut(); location.href = "log
   const teacher = me.role === "teacher" || me.role === "admin";
   $("teachCard").classList.toggle("hidden", !teacher);
   $("adminCard").classList.toggle("hidden", me.role !== "admin");
-  $("devLink").classList.toggle("hidden", !CCAuth.STAFF.includes(me.role));
+  $("devLink").classList.toggle("hidden", !(me.perms && me.perms.length));
   if (me.role === "teacher") { $("joinCard").classList.add("hidden"); $("myCard").classList.add("hidden"); }
   try { await load(); } catch (e) { toast(e.message, true); }
 })();

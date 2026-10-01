@@ -75,13 +75,13 @@
 <main>
   <section class="card hidden" id="noRole">
     <h2>你目前没有后台权限</h2>
-    <div class="desc">后台只对开发者、测试员和管理员开放。需要的话请把你的账号发给管理员分配身份，分配后刷新本页即可。</div>
+    <div class="desc">需要的话请把你的账号发给管理员，让他给你分配身份或开通对应功能，开通后刷新本页即可。</div>
   </section>
 
   <!-- 开发者：上传 -->
-  <section class="card hidden" id="uploadCard" data-roles="developer admin">
+  <section class="card hidden" id="uploadCard" data-perms="upload">
     <h2>上传插件 / 发布新版本</h2>
-    <div class="desc">提交后进入「测试中」，开发者和测试员可以在插件商店里试用；管理员审核通过后才对所有同学上线。作者会自动填成你的账号姓名。</div>
+    <div class="desc">提交后进入「测试中」，开发者和测试员可以在插件商店里试用；审核通过后才对所有同学上线。作者会自动填成你的账号姓名。</div>
     <form id="upForm" novalidate>
       <div class="grid2">
         <label class="f">插件
@@ -111,33 +111,39 @@
   </section>
 
   <!-- 开发者：我的插件 -->
-  <section class="card hidden" id="mineCard" data-roles="developer admin">
+  <section class="card hidden" id="mineCard" data-perms="upload">
     <h2>我的插件</h2>
     <div id="mineList" class="empty">加载中…</div>
   </section>
 
   <!-- 测试：测试中的插件 -->
-  <section class="card hidden" id="testCard" data-roles="tester developer admin">
+  <section class="card hidden" id="testCard" data-perms="try_testing">
     <h2>测试中的插件</h2>
     <div class="desc">回到日历 → 🧩 插件商店，带「测试中」标记的就是这些，点「启用」即可试用。发现问题直接告诉作者。</div>
     <div id="testList" class="empty">加载中…</div>
   </section>
 
   <!-- 管理员：审核 -->
-  <section class="card hidden" id="reviewCard" data-roles="admin">
+  <section class="card hidden" id="reviewCard" data-perms="view_code publish reject">
     <h2>待审核</h2>
     <div class="desc">发布前请先「查看代码」。体检会标出外部网址、读取登录信息等需要留意的写法。</div>
     <div id="reviewList" class="empty">加载中…</div>
   </section>
 
-  <section class="card hidden" id="pubCard" data-roles="admin">
+  <section class="card hidden" id="pubCard" data-perms="unpublish set_default transfer">
     <h2>已发布</h2>
     <div id="pubList" class="empty">加载中…</div>
   </section>
 
-  <section class="card hidden" id="usersCard" data-roles="admin">
+  <section class="card hidden" id="permsCard" data-roles="admin">
+    <h2>身份权限</h2>
+    <div class="desc">勾选开发者、测试员在后台能用哪些功能，改完立即生效（对方刷新页面即可）。管理员始终拥有全部权限。为防止自己审自己，除管理员外不能发布自己写的插件。</div>
+    <div style="overflow-x:auto"><table><thead><tr><th>功能</th><th style="text-align:center">开发者</th><th style="text-align:center">测试员</th></tr></thead><tbody id="permRows"></tbody></table></div>
+  </section>
+
+  <section class="card hidden" id="usersCard" data-perms="manage_users">
     <h2>用户与身份</h2>
-    <div class="desc">新注册的账号都是「学生」。在这里给队员分配开发者、测试员身份。</div>
+    <div class="desc">新注册的账号都是「学生」。在这里给队员分配开发者、测试员身份。只有管理员能设置或修改管理员。</div>
     <input id="userFilter" placeholder="搜索账号或姓名" style="margin-bottom:8px; width:100%; max-width:260px">
     <div style="overflow-x:auto"><table><thead><tr><th>账号</th><th>姓名</th><th>身份</th><th>注册时间</th></tr></thead><tbody id="userRows"></tbody></table></div>
   </section>
@@ -263,9 +269,11 @@ function renderReview() {
         <div class="meta">${esc(d.plugin_id)} · 作者 ${esc(p.author_name || "未知")} · ${fmt(d.updated_at)}${p.published_at ? ` · 替换线上 v${esc(p.version)}` : " · 首次发布"}</div>
         <div class="meta">${esc(d.description)}</div></div>
       <div class="ops">
-        <button class="small" data-act="view" data-id="${esc(d.plugin_id)}">查看代码</button>
-        <button class="small primary" data-act="publish" data-id="${esc(d.plugin_id)}">发布</button>
-        <button class="small danger" data-act="reject" data-id="${esc(d.plugin_id)}">驳回</button>
+        ${can("view_code") ? `<button class="small" data-act="view" data-id="${esc(d.plugin_id)}">查看代码</button>` : ""}
+        ${can("publish") ? (p.author_id === me.id && me.role !== "admin"
+          ? `<button class="small" disabled title="不能发布自己写的插件">发布（需他人审核）</button>`
+          : `<button class="small primary" data-act="publish" data-id="${esc(d.plugin_id)}">发布</button>`) : ""}
+        ${can("reject") ? `<button class="small danger" data-act="reject" data-id="${esc(d.plugin_id)}">驳回</button>` : ""}
       </div></div>`;
   }).join("") : "没有待审核的插件。";
 
@@ -275,9 +283,9 @@ function renderReview() {
       <div class="info"><div class="name">${esc(p.name)} <span class="badge pub">v${esc(p.version)}</span></div>
         <div class="meta">${esc(p.id)} · 作者 ${esc(p.author_name || "未指定")} · 发布于 ${fmt(p.published_at)}</div></div>
       <div class="ops">
-        <label class="meta" style="display:flex;align-items:center;gap:4px"><input type="checkbox" data-act="default" data-id="${esc(p.id)}" ${p.default_on ? "checked" : ""}> 默认开启</label>
-        <button class="small" data-act="author" data-id="${esc(p.id)}">转交作者</button>
-        <button class="small danger" data-act="unpublish" data-id="${esc(p.id)}">下架</button>
+        ${can("set_default") ? `<label class="meta" style="display:flex;align-items:center;gap:4px"><input type="checkbox" data-act="default" data-id="${esc(p.id)}" ${p.default_on ? "checked" : ""}> 默认开启</label>` : ""}
+        ${can("transfer") ? `<button class="small" data-act="author" data-id="${esc(p.id)}">转交作者</button>` : ""}
+        ${can("unpublish") ? `<button class="small danger" data-act="unpublish" data-id="${esc(p.id)}">下架</button>` : ""}
       </div></div>`).join("") : "还没有已发布的插件。";
 }
 
@@ -290,8 +298,9 @@ function renderUsers() {
   const q = $("userFilter").value.trim().toLowerCase();
   const list = users.filter((u) => !q || u.account.includes(q) || u.display_name.toLowerCase().includes(q));
   $("userRows").innerHTML = list.map((u) => `<tr><td>${esc(u.account)}</td><td>${esc(u.display_name)}</td>
-    <td><select data-uid="${esc(u.id)}" ${u.id === me.id ? "disabled title=\"不能修改自己的身份\"" : ""}>
-      ${Object.entries(ROLE_NAMES).map(([k, v]) => `<option value="${k}" ${u.role === k ? "selected" : ""}>${v}</option>`).join("")}
+    <td><select data-uid="${esc(u.id)}" ${u.id === me.id ? "disabled title=\"不能修改自己的身份\"" : (u.role === "admin" && me.role !== "admin") ? "disabled title=\"只有管理员能修改管理员\"" : ""}>
+      ${Object.entries(ROLE_NAMES).filter(([k]) => k !== "admin" || me.role === "admin" || u.role === "admin")
+        .map(([k, v]) => `<option value="${k}" ${u.role === k ? "selected" : ""}>${v}</option>`).join("")}
     </select></td><td class="meta">${fmt(u.created_at)}</td></tr>`).join("") || `<tr><td colspan="4" class="empty">没有匹配的用户</td></tr>`;
 }
 $("userFilter").oninput = renderUsers;
@@ -299,20 +308,35 @@ $("userRows").onchange = (e) => {
   const s = e.target.closest("select[data-uid]"); if (!s) return;
   const u = users.find((x) => x.id === s.dataset.uid);
   guard(s, async () => {
-    const r = await rest(`profiles?id=eq.${encodeURIComponent(u.id)}`, {
-      method: "PATCH", headers: { Prefer: "return=representation" }, body: JSON.stringify({ role: s.value }) });
-    if (!r || !r.length) throw new Error("没有权限修改");
+    await rpc("set_user_role", { uid: u.id, new_role: s.value });
     u.role = s.value; toast(`${u.display_name} 已设为${ROLE_NAMES[u.role]}`);
   }).then(() => { if (u.role !== s.value) renderUsers(); });
 };
 
 async function refresh() { await loadData(); renderAll(); }
 function renderAll() {
-  if (has("developer", "admin")) renderMine();
-  if (has("tester", "developer", "admin")) renderTesting();
-  if (has("admin")) renderReview();
+  if (can("upload")) renderMine();
+  if (can("try_testing")) renderTesting();
+  renderReview();
 }
 const has = (...roles) => roles.includes(me.role);
+const can = (perm) => CCAuth.can(me, perm);
+
+// ---------- 身份权限（仅管理员） ----------
+let rolePerms = [];
+async function loadPerms() {
+  rolePerms = await rest("role_perms?select=role,perm");
+  const on = (r, p) => rolePerms.some((x) => x.role === r && x.perm === p);
+  $("permRows").innerHTML = Object.entries(CCAuth.STAFF_PERMS).map(([p, name]) => `<tr><td>${esc(name)}</td>
+    ${["developer", "tester"].map((r) => `<td style="text-align:center"><input type="checkbox" data-role="${r}" data-perm="${p}" ${on(r, p) ? "checked" : ""}></td>`).join("")}</tr>`).join("");
+}
+$("permRows").onchange = (e) => {
+  const c = e.target.closest("input[data-perm]"); if (!c) return;
+  guard(c, async () => {
+    await rpc("set_role_perm", { r: c.dataset.role, p: c.dataset.perm, enabled: c.checked });
+    toast(`${ROLE_NAMES[c.dataset.role]}：${c.checked ? "已开通" : "已关闭"}「${CCAuth.STAFF_PERMS[c.dataset.perm]}」`);
+  }).then(() => loadPerms().catch(() => {}));
+};
 
 // ---------- 上传 ----------
 function fillForm(id) {
@@ -431,13 +455,15 @@ $("logout").onclick = async () => { await CCAuth.signOut(); location.href = "log
   me = await CCAuth.me();
   if (!me) { toast("读取账号信息失败，请重新登录", true); await CCAuth.signOut(); setTimeout(() => (location.href = "login.html?next=dev.html"), 1200); return; }
   $("who").innerHTML = `${esc(me.display_name)}（${esc(me.account)}） <span class="badge">${esc(ROLE_NAMES[me.role] || me.role)}</span>`;
-  const staff = CCAuth.STAFF.includes(me.role);
+  const staff = (me.perms || []).length > 0;
   $("noRole").classList.toggle("hidden", staff);
   document.querySelectorAll("[data-roles]").forEach((el) => el.classList.toggle("hidden", !el.dataset.roles.split(" ").includes(me.role)));
+  document.querySelectorAll("[data-perms]").forEach((el) => el.classList.toggle("hidden", !el.dataset.perms.split(" ").some(can)));
   if (!staff) return;
   fillForm("__new");
   try { await refresh(); } catch (e) { toast(e.message, true); }
-  if (has("admin")) loadUsers().catch((e) => toast(e.message, true));
+  if (can("manage_users")) loadUsers().catch((e) => toast(e.message, true));
+  if (has("admin")) loadPerms().catch((e) => toast(e.message, true));
 })();
 </script>
 </body>
