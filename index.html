@@ -1813,7 +1813,7 @@ async function deleteClassItem(id) {
 async function ingestMessages(classId, text, pubDate) {
   const job = await CCAuth.rpc("ingest_class_messages", { cid: classId, msg: text, pub_date: pubDate });
   const t0 = Date.now();
-  while (Date.now() - t0 < 330000) {
+  while (Date.now() - t0 < 450000) {
     await new Promise((res) => setTimeout(res, 3000));
     const st = await CCAuth.rpc("ingest_job_status", { jid: job.job_id });
     if (st.status === "done") return st;
