@@ -135,8 +135,8 @@
         }
       },
       addEventSource: function (fn) { if (cfg.mode === "bg") { sources.push(fn); post({ cc: "source" }); } },
-      setTheme: function (vars) { if (cfg.mode === "bg") post({ cc: "theme", vars: JSON.parse(JSON.stringify(vars || {})) }); },
-      resetTheme: function () { if (cfg.mode === "bg") post({ cc: "resetTheme" }); },
+      setTheme: function (vars) { post({ cc: "theme", vars: JSON.parse(JSON.stringify(vars || {})) }); },
+      resetTheme: function () { post({ cc: "resetTheme" }); },
       on: function (evt, fn) { (listeners[evt] = listeners[evt] || []).push(fn); },
       refresh: function () { post({ cc: "refresh" }); },
       goToDate: function (v) { post({ cc: "goto", date: String(v) }); },

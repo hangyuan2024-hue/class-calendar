@@ -4,13 +4,13 @@
 <meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com http://localhost:* http://127.0.0.1:*; frame-src 'self'; media-src 'self' data: blob:; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'; manifest-src 'self'">
 <meta name="referrer" content="no-referrer">
-<script src="guard.js?v=20261001s"></script>
+<script src="guard.js?v=20261001t"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="班级日历">
 <meta name="theme-color" content="#cdeeff">
 <title>班级群日历</title>
-<script src="boot.js?v=20261001s"></script>
+<script src="boot.js?v=20261001t"></script>
 <link rel="preload" href="display.woff" as="font" type="font/woff" crossorigin>
 <style>
   /* 标题字体：站酷庆科黄油体（SIL OFL 开源字体，已裁成常用 3500 字，放在网站里，不依赖外网） */
@@ -216,7 +216,7 @@
   [data-skin=vivid] .nav.on { color: var(--accent); }
   .nav .badge { min-width: 18px; height: 18px; border-radius: 9px; background: var(--red); color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; padding: 0 5px; margin-left: -10px; margin-top: -16px; }
   #addBtn { margin-top: 14px; width: 88%; padding: 14px; font-size: 17px; font-weight: 700; border-radius: 999px; background: var(--ink); color: var(--ink-text); box-shadow: var(--shadow); }
-  [data-skin=vivid] #addBtn { background: linear-gradient(135deg, #2bb0ff, #1e8cff); color: #fff; }
+  [data-skin=vivid] #addBtn { background: var(--add-bg, linear-gradient(135deg, #2bb0ff, #1e8cff)); color: #fff; }
   #addBtn:hover { filter: brightness(1.08); }
   #addBtn .plus { display: none; }
   #userChip { margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 999px; text-align: left; width: 100%; }
@@ -531,6 +531,17 @@
   .pv.dark { background: #000; border: 1px solid #2f3336; }
   .pv.dark i { left: 8px; top: 12px; height: 10px; background: #e7e9ea; width: 50%; }
   .pv.dark em { left: 8px; right: 8px; top: 32px; height: 30px; border: 1px solid #2f3336; }
+  /* 配色 */
+  .pal-h { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  .pals { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; }
+  .pal { border: 2px solid var(--line); background: var(--card); color: var(--text); border-radius: var(--r-sm); padding: 8px 4px 6px; font-size: 12px; font-weight: 700; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+  .pal.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--selected); }
+  .pal .dot { width: 34px; height: 34px; border-radius: 50%; position: relative; box-shadow: inset 0 0 0 1px rgba(0,0,0,.06); }
+  .pal .dot::after { content: ""; position: absolute; right: -3px; bottom: -3px; width: 14px; height: 14px; border-radius: 50%; background: var(--s); border: 2px solid var(--card); }
+  .pal-custom { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .pal-in { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--sub); }
+  .pal-in input { width: 34px; height: 30px; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: none; cursor: pointer; }
+  #palBox.off .pals, #palBox.off .pal-custom { opacity: .45; pointer-events: none; }
   .bgrow { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
   .bgthumb { width: 96px; height: 64px; border-radius: 12px; background: var(--hover) center/cover no-repeat; border: 1px solid var(--line); display: grid; place-items: center; color: var(--sub); font-size: 12px; }
   .slider { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 13px; color: var(--sub); }
@@ -1241,6 +1252,17 @@
           <button class="skin" data-skin="cyber" data-feat="metaverse"><div class="pv cyber"><i></i><em></em></div>捞捞元宇宙</button>
         </div>
       </div>
+      <div class="gx" id="palBox">
+        <div class="pal-h"><b>配色</b><span class="meta" id="palNote">选一套喜欢的颜色，元气、简约、夜间风格都能用</span></div>
+        <div class="pals" id="palPick"></div>
+        <div class="pal-custom">
+          <span class="meta">自己调</span>
+          <label class="pal-in" title="主色">主色 <input type="color" id="palP"></label>
+          <label class="pal-in" title="点缀色">点缀色 <input type="color" id="palS"></label>
+          <button class="btn sm" id="palRandom">🎲 随机</button>
+          <button class="btn sm" id="palReset">恢复默认</button>
+        </div>
+      </div>
       <div class="gx" data-feat="custom_bg">
         <div class="bgrow">
           <div class="bgthumb" id="bgThumb">无</div>
@@ -1514,7 +1536,7 @@
 <script src="config.js"></script>
 <script src="auth.js"></script>
 <script src="parse.js"></script>
-<script src="app.js?v=20261001s"></script>
+<script src="app.js?v=20261001t"></script>
 </body>
 </html>
 </body>

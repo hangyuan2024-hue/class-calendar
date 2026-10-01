@@ -202,6 +202,7 @@ function applyLook() {
     root.style.setProperty("--bg-blur", blur + "px");
   } else root.style.removeProperty("--bg-img");
   document.querySelectorAll("#skinPick .skin").forEach((b) => b.classList.toggle("on", b.dataset.skin === root.dataset.skin));
+  if (typeof applyPalette === "function") applyPalette();
   $("bgThumb").style.backgroundImage = bg ? `url("${bg}")` : "";
   $("bgThumb").textContent = bg ? "" : "无";
   $("bgRemove").classList.toggle("hidden", !bg);
@@ -210,6 +211,55 @@ function applyLook() {
 }
 $("skinPick").onclick = (e) => { const b = e.target.closest("[data-skin]"); if (!b) return; if (b.dataset.skin === "cyber") enterMeta(); else setSkin(b.dataset.skin); };
 function setSkin(k) { save(LS_SKIN, k); applyLook(); try { renderAll(); } catch (e) {} }
+
+// ===== 配色（以前是「个性化主题」插件，现在合并进外观设置） =====
+const LS_PALETTE = "ui_palette_v1";
+const PALETTES = [
+  { id: "sky", name: "天空蓝", p: "#1ea0ff", s: "#ff7b2e" },
+  { id: "sakura", name: "樱花粉", p: "#ff5f8f", s: "#ffb03b" },
+  { id: "peach", name: "蜜桃", p: "#ff7a6b", s: "#ffc24b" },
+  { id: "lavender", name: "薰衣草", p: "#8c6bff", s: "#ff7bc0" },
+  { id: "grape", name: "葡萄紫", p: "#a03fd8", s: "#22c3a6" },
+  { id: "mint", name: "薄荷绿", p: "#17b890", s: "#ff8a3d" },
+  { id: "matcha", name: "抹茶", p: "#5f9e45", s: "#e0a526" },
+  { id: "ocean", name: "深海", p: "#0f8bb5", s: "#ff6a5c" },
+  { id: "navy", name: "海军蓝", p: "#2457d6", s: "#ffb020" },
+  { id: "galaxy", name: "星空", p: "#5b5bd6", s: "#ff5fa2" },
+  { id: "sunset", name: "落日", p: "#f25c54", s: "#f7b267" },
+  { id: "orange", name: "活力橙", p: "#ff8a1f", s: "#1ea0ff" },
+  { id: "lemon", name: "柠檬", p: "#e0b000", s: "#3c8dff" },
+  { id: "cocoa", name: "可可", p: "#a0703f", s: "#e8a33d" },
+  { id: "rose", name: "玫瑰", p: "#e0457b", s: "#8c6bff" },
+  { id: "graphite", name: "石墨", p: "#3d4b5c", s: "#ff7b2e" },
+];
+function currentPalette() { const v = load(LS_PALETTE, null); return v && /^#[0-9a-f]{6}$/i.test(v.p || "") ? v : null; }
+function applyPalette() {
+  const skin = document.documentElement.dataset.skin;
+  const pal = currentPalette();
+  const v = window.ccPalette ? window.ccPalette.apply(pal, skin) : null;
+  if (v && v.bg && skin === "vivid") document.querySelector('meta[name="theme-color"]').content = v.bg;
+  const cur = pal ? pal.id : "sky";
+  $("palPick").innerHTML = PALETTES.map((x) => `<button class="pal${x.id === cur ? " on" : ""}" data-pal="${x.id}" style="--s:${x.s}">
+      <span class="dot" style="background:linear-gradient(135deg, ${window.ccPalette ? window.ccPalette.mix(x.p, "#ffffff", 0.35) : x.p}, ${x.p})"></span>${esc(x.name)}</button>`).join("")
+    + (pal && pal.id === "custom" ? `<button class="pal on" data-pal="custom" style="--s:${pal.s}"><span class="dot" style="background:${pal.p}"></span>我的配色</button>` : "");
+  $("palP").value = pal ? pal.p : "#1ea0ff"; $("palS").value = pal ? pal.s : "#ff7b2e";
+  $("palBox").classList.toggle("off", skin === "cyber");
+  $("palNote").textContent = skin === "cyber" ? "捞捞元宇宙有自己的霓虹配色，回到其他风格后配色会恢复" : "选一套喜欢的颜色，元气、简约、夜间风格都能用";
+}
+function setPalette(p) {
+  if (!p || p.id === "sky") { try { localStorage.removeItem(LS_PALETTE); } catch (e) {} }
+  else save(LS_PALETTE, p);
+  applyPalette(); try { renderAll(); } catch (e) {}
+}
+$("palPick").onclick = (e) => { const b = e.target.closest("[data-pal]"); if (!b) return; const x = PALETTES.find((q) => q.id === b.dataset.pal); if (x) setPalette({ ...x }); };
+const palCustom = () => setPalette({ id: "custom", p: $("palP").value, s: $("palS").value });
+$("palP").oninput = palCustom; $("palS").oninput = palCustom;
+$("palRandom").onclick = () => {
+  const h = Math.floor(Math.random() * 360), h2 = (h + 150 + Math.floor(Math.random() * 60)) % 360;
+  const hsl = (hh, s, l) => { const a = s * Math.min(l, 1 - l), f = (n) => { const k = (n + hh / 30) % 12; return Math.round(255 * (l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)))).toString(16).padStart(2, "0"); }; return "#" + f(0) + f(8) + f(4); };
+  setPalette({ id: "custom", p: hsl(h, 0.72, 0.52), s: hsl(h2, 0.85, 0.6) });
+};
+$("palReset").onclick = () => setPalette(null);
 // 进入 / 离开捞捞元宇宙
 const LS_SKIN_PREV = "ui_skin_prev_v1";
 let warpTimers = [];
@@ -1582,14 +1632,14 @@ window.addEventListener("message", (e) => {
     case "source": if (f.mode === "bg") { f.hasSource = true; renderAll(); } break;
     case "items": if (f.mode === "bg") acceptItems(f, String(d.reqId), d.list); break;
     case "theme": {
-      if (f.mode !== "bg" || !d.vars || typeof d.vars !== "object") break;
+      if (f.mode === "app" || !d.vars || typeof d.vars !== "object") break;
       for (const [k, v] of Object.entries(d.vars)) {
         if (!THEME_VARS.includes(k) || !SAFE_CSS_VALUE.test(String(v))) continue;   // 只能改已知的颜色变量
         document.documentElement.style.setProperty("--" + k, String(v));
       }
       break;
     }
-    case "resetTheme": if (f.mode === "bg") for (const k of THEME_VARS) document.documentElement.style.removeProperty("--" + k); break;
+    case "resetTheme": if (f.mode !== "app") for (const k of THEME_VARS) document.documentElement.style.removeProperty("--" + k); break;
     case "refresh": for (const k in pluginItemsCache) delete pluginItemsCache[k]; renderAll(); break;
     case "goto": if (/^\d{4}-\d{2}-\d{2}$/.test(String(d.date))) { $("jumpDate").value = d.date; $("jumpDate").onchange({ target: { value: d.date } }); } break;
     case "mountApp":
@@ -1746,7 +1796,7 @@ function renderUserChip() {
 }
 // 退出时：班级相关的缓存一律清掉；在公共电脑上还可以把这台设备上的个人数据全部清除
 async function wipeLocalData(all) {
-  const keep = all ? [] : [LS_MINE, LS_MARK, LS_SKIN, LS_BG, LS_BG_OPTS, LS_SKIN_PREV, LS_LAI, LS_PLUGINS, LS_PLUGIN_CACHE, LS_LAYOUT, LS_DONE_LOG, LS_HABITS, LS_HABIT_LOG, LS_FUN, LS_QUAD, LS_QTODO, LS_POMO, LS_POMO_LOG];
+  const keep = all ? [] : [LS_MINE, LS_MARK, LS_SKIN, "ui_palette_v1", LS_BG, LS_BG_OPTS, LS_SKIN_PREV, LS_LAI, LS_PLUGINS, LS_PLUGIN_CACHE, LS_LAYOUT, LS_DONE_LOG, LS_HABITS, LS_HABIT_LOG, LS_FUN, LS_QUAD, LS_QTODO, LS_POMO, LS_POMO_LOG];
   for (let i = localStorage.length - 1; i >= 0; i--) {
     const k = localStorage.key(i);
     if (!k) continue;
