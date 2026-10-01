@@ -42,7 +42,7 @@
 
   // 人多的时候：读数据的请求遇到「服务器忙 / 网络抖动」会自动重试（等一小会儿、每人错开时间），
   // 写数据的请求不重试（避免重复提交）。每个请求最多等 20 秒。
-  const SAFE_RPC = /\/rpc\/(my_classes|my_perms|feature_state|mail_my|growth_board|wall_my_reports|wall_report_list|credit_list|class_roster|parse_feedback_list|ingest_job_status|class_features_get|admin_features|ics_my_feed)$/;
+  const SAFE_RPC = /\/rpc\/(app_bootstrap|my_classes|my_perms|feature_state|mail_my|growth_board|wall_my_reports|wall_report_list|credit_list|class_roster|parse_feedback_list|ingest_job_status|class_features_get|admin_features|ics_my_feed)$/;
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   async function call(url, opts, token) {
     const method = (opts.method || "GET").toUpperCase();
@@ -146,6 +146,8 @@
   }
 
   let meCache = null, meLoading = null;
+  // 打开网页时一次拿齐数据（app_bootstrap），顺便把用户信息存好，后面不用再单独请求
+  function primeMe(me, perms) { if (me) { meCache = { ...me, perms: perms || LEGACY_PERMS[me.role] || [] }; } }
   // 同一时间多处要用户信息时只请求一次
   function me() {
     if (meCache) return Promise.resolve(meCache);
@@ -167,5 +169,5 @@
   }
 
   const can = (user, perm) => !!(user && user.perms && user.perms.includes(perm));
-  window.CCAuth = { signIn, signUp, signOut, session, rest, rpc, me, esc, can, ROLE_NAMES, STAFF, STAFF_PERMS, PERM_NAMES, ACCOUNT_RE };
+  window.CCAuth = { primeMe, signIn, signUp, signOut, session, rest, rpc, me, esc, can, ROLE_NAMES, STAFF, STAFF_PERMS, PERM_NAMES, ACCOUNT_RE };
 })();

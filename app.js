@@ -37,7 +37,9 @@ const ingestPersonal = () => !can("can_ingest");      // 没有班级整理权�
 // 普通学生要老师在本班打开「本地整理 · 学生」才有；班委要有「AI 整理」权限
 const ingestAllowed = () => !!currentClass && (ingestPersonal() ? currentClass.member_role === "student" && feat("ingest_local") : (feat("ingest_local") || feat("ingest_cloud")));
 async function loadFeatures() {
-  try { FEAT = (await CCAuth.rpc("feature_state", { cid: currentClass ? currentClass.id : null })) || {}; } catch (e) { FEAT = {}; }
+  const cid = currentClass ? currentClass.id : null;
+  const pre = takeBoot("features", cid);
+  try { FEAT = pre || (await CCAuth.rpc("feature_state", { cid })) || {}; } catch (e) { FEAT = {}; }
   applyFeatures();
 }
 function applyFeatures() {
@@ -465,10 +467,27 @@ function showBanner(msg) { const b = $("banner"); b.textContent = msg; b.classLi
 
 function showNotice(html) { const n = $("notice"); n.innerHTML = html || ""; n.classList.toggle("hidden", !html); }
 
+// ===== 打开网页时一次拿齐数据 =====
+// 数据库网关全站共用「每秒 300 个请求」的上限，所以打开网页只发 1 个请求（app_bootstrap），
+// 拿到的数据各模块各用一次；之后刷新、切换班级再单独请求。数据库没装这个函数时自动退回老办法。
+let BOOT = null;
+const takeBoot = (k, cid) => { if (!BOOT || !(k in BOOT) || (cid !== undefined && BOOT.cid !== cid)) return undefined; const v = BOOT[k]; delete BOOT[k]; return v; };
+let bootReady = null;
+function bootstrap() {
+  return bootReady || (bootReady = (async () => {
+    try {
+      if (!(await CCAuth.session())) return null;
+      BOOT = await CCAuth.rpc("app_bootstrap", { cid: load(LS_CUR_CLASS, null) });
+      if (BOOT && BOOT.me) CCAuth.primeMe(BOOT.me, BOOT.perms);
+    } catch (e) { BOOT = null; }
+    return BOOT;
+  })());
+}
+
 async function loadMyClasses() {
   myClasses = []; pendingClasses = []; currentClass = null;
   if (!currentUser) return;
-  const all = await CCAuth.rpc("my_classes");
+  const all = takeBoot("classes") || await CCAuth.rpc("my_classes");
   myClasses = all.filter((c) => c.status === "approved");
   pendingClasses = all.filter((c) => c.status === "pending");
   const saved = load(LS_CUR_CLASS, null);
@@ -523,7 +542,7 @@ async function loadClass() {
   const cacheOk = cache && cache.classId === currentClass.id;
   if (cacheOk) { classRecords = cache.records || []; $("updated").textContent = `班级数据更新于 ${cache.at}`; renderAll(); }
   try {
-    classRecords = await CCAuth.rest(`class_info?select=${COLS}&class_id=eq.${encodeURIComponent(currentClass.id)}&order=id.asc&limit=2000`);
+    classRecords = takeBoot("items", currentClass.id) || await CCAuth.rest(`class_info?select=${COLS}&class_id=eq.${encodeURIComponent(currentClass.id)}&order=id.asc&limit=2000`);
     const at = new Date().toLocaleString("zh-CN", { hour12: false });
     save(LS_CACHE, { classId: currentClass.id, records: classRecords, at });
     $("updated").textContent = `班级数据更新于 ${at}`;
@@ -1671,7 +1690,9 @@ const hasBackend = () => !!(currentUser && currentUser.perms && currentUser.perm
 
 async function fetchRegistry() {
   const cols = "id,name,icon,description,version,author_name,default_on,published_at";
-  const rows = await CCAuth.rest(`plugins?select=${cols}&order=created_at.asc`);
+  // 普通同学用打开网页时一起拿到的列表；开发者、测试员要看到未发布的插件，单独请求
+  const pre = takeBoot("plugins");
+  const rows = (!isStaff() && pre) || await CCAuth.rest(`plugins?select=${cols}&order=created_at.asc`);
   const list = rows.filter((p) => p.published_at).map((p) => ({ ...p, key: p.id, ns: p.id, channel: "published" }));
   if (isStaff()) {
     // 测试中的版本单独列出、单独开启，不会悄悄替换掉已经开着的正式版
@@ -1874,7 +1895,7 @@ function showView(id) {
   document.querySelectorAll(".view[data-view]").forEach((v) => v.classList.toggle("on", v.dataset.view === id));
   renderTabs();
   if (["home", "calendar", "homework"].includes(id)) renderAll();
-  if (id === "wall") loadWall();
+  if (id === "wall") loadWall(true);
   if (id === "growth") renderGrowth();
   if (id === "plan") renderPlan();
   if (id === "ask") renderAsk();
@@ -1997,7 +2018,7 @@ const MAIL_KINDS = [["new_items", "📣 班级发布新事项", "班委、老师
 async function loadMail() {
   const box = $("mailBox"); if (!box) return;
   if (!currentUser) { box.innerHTML = `<div class="gx meta">登录后可以绑定邮箱接收通知。</div>`; return; }
-  try { mailInfo = await CCAuth.rpc("mail_my"); } catch (e) { mailInfo = null; box.innerHTML = `<div class="gx meta">邮箱通知还没装好（管理员需要在扣子终端运行一次 setupaccounts.py）</div>`; return; }
+  try { mailInfo = takeBoot("mail") || await CCAuth.rpc("mail_my"); } catch (e) { mailInfo = null; box.innerHTML = `<div class="gx meta">邮箱通知还没装好（管理员需要在扣子终端运行一次 setupaccounts.py）</div>`; return; }
   renderMail();
 }
 function renderMail(msg) {
@@ -2753,16 +2774,25 @@ function ago(t) {
   return `${d.getMonth() + 1}月${d.getDate()}日`;
 }
 
-async function loadWall() {
+let wallLoadedAt = 0;
+// soft：只是切到班级墙页面时，1 分钟内拿过就不再请求
+async function loadWall(soft) {
   if (!currentUser || !currentClass) { wallPosts = []; renderWall(); return; }
   const cid = currentClass.id;
+  if (soft && wallLoadedFor === cid && Date.now() - wallLoadedAt < 60000) { renderWall(); return; }
+  const pre = takeBoot("wall", cid);
+  if (pre && pre.cid === cid) {
+    wallPosts = pre.posts || []; wallReported = new Set((pre.mine || []).map(String)); wallLoadedFor = cid; wallLoadedAt = 0;   // 只有最新 60 条，进班级墙时再拿全
+    wallReports = canModerate() ? pre.reports || [] : [];
+    renderWall(); return;
+  }
   try {
     const [posts, mine] = await Promise.all([
       CCAuth.rest(`wall_posts?select=id,class_id,author_id,author_name,author_role,title,body,is_notice,pinned_at,hidden,report_count,reviewed,created_at,edited_at&class_id=eq.${encodeURIComponent(cid)}&order=created_at.desc&limit=300`),
       CCAuth.rpc("wall_my_reports", { cid }),
     ]);
     if (!currentClass || currentClass.id !== cid) return;
-    wallPosts = posts || []; wallReported = new Set((mine || []).map(String)); wallLoadedFor = cid;
+    wallPosts = posts || []; wallReported = new Set((mine || []).map(String)); wallLoadedFor = cid; wallLoadedAt = Date.now();
     wallReports = canModerate() ? (await CCAuth.rpc("wall_report_list", { cid })) || [] : [];
   } catch (e) { showBanner("班级墙加载失败：" + e.message); }
   renderWall();
@@ -2907,6 +2937,7 @@ document.addEventListener("click", async (e) => {
 applyLook();
 renderTabs(); renderTools();
 (async () => {
+  await bootstrap();
   try { currentUser = await CCAuth.me(); } catch (e) { currentUser = null; }
   renderUserChip();
   try { await loadMyClasses(); } catch (e) { showBanner("读取班级失败：" + e.message); }
@@ -2915,7 +2946,7 @@ renderTabs(); renderTools();
   loadClass();
   handleUnsub(); loadMail(); setTimeout(mailTick, 20000 + Math.random() * 100000);
 })();
-loadPlugins().then(() => { if (location.hash === "#store") { showView("store"); history.replaceState(null, "", location.pathname); } });
+bootstrap().then(() => loadPlugins()).then(() => { if (location.hash === "#store") { showView("store"); history.replaceState(null, "", location.pathname); } });
 
 // ===== 离线缓存：网页文件存在手机/电脑上，第二次打开几乎不用等，也给服务器减负 =====
 try {
