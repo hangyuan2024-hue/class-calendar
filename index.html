@@ -297,6 +297,32 @@
   .nd-preview { padding: 12px 14px; border-radius: 14px; background: var(--muted-bg); font-size: 14px; }
   .nd-preview b { font-size: 18px; margin-right: 8px; }
   .nd-actions { display: flex; gap: 8px; align-items: center; }
+  /* 加到手机日历 */
+  #calDlg { width: min(480px, calc(100vw - 24px)); max-height: calc(100dvh - 32px); }
+  #calDlg form { gap: 14px; }
+  .cal-x { position: absolute; right: 12px; top: 12px; border: 0; background: var(--muted-bg); color: var(--sub); width: 30px; height: 30px; border-radius: 50%; font-size: 16px; cursor: pointer; }
+  .cal-warn { padding: 12px 14px; border-radius: 14px; background: var(--note-bg); color: var(--text); font-size: 14px; line-height: 1.6; }
+  .cal-warn > b:first-child { display: block; margin-bottom: 2px; }
+  .cal-card { padding: 14px; border-radius: 16px; background: var(--muted-bg); display: flex; flex-direction: column; gap: 10px; }
+  .cal-card h4 { margin: 0; font-size: 15px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .cal-card h4 small { font-weight: 500; color: var(--sub); }
+  .cal-tag { font-size: 11px; font-weight: 700; color: #fff; background: var(--green); padding: 2px 8px; border-radius: 999px; }
+  .cal-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .cal-row .btn { flex: 1 1 auto; }
+  .cal-link { display: flex; gap: 6px; align-items: center; }
+  .cal-link button { white-space: nowrap; flex-shrink: 0; }
+  .cal-link input { font-size: 12px !important; padding: 7px 9px !important; font-family: ui-monospace, monospace; }
+  .cal-opts { display: flex; gap: 6px 14px; flex-wrap: wrap; font-size: 13px; color: var(--sub); }
+  .cal-opts label { flex-direction: row !important; align-items: center; gap: 5px !important; cursor: pointer; }
+  .cal-opts input { width: auto !important; }
+  .cal-note { font-size: 12px; color: var(--sub); line-height: 1.6; margin: 0; }
+  .cal-st { font-size: 13px; line-height: 1.6; min-height: 0; }
+  .cal-st:empty { display: none; }
+  .cal-st.ok { color: var(--green); } .cal-st.err { color: var(--red); }
+  .cal-steps { font-size: 13px; color: var(--sub); margin: 0; }
+  .cal-steps summary { cursor: pointer; color: var(--text); font-weight: 600; padding: 2px 0; }
+  .cal-steps ol { margin: 6px 0 4px; padding-left: 20px; line-height: 1.7; }
+  .cal-steps b { color: var(--text); }
   .credits-hero { margin: 0 16px; padding: 18px; display: flex; gap: 14px; align-items: center; }
   .credits-hero svg { width: 72px; height: 72px; flex-shrink: 0; }
   .credits-hero b { display: block; font-size: 18px; margin-bottom: 4px; }
@@ -1320,7 +1346,7 @@
     <div class="sec-h"><b>数据</b><span id="updated"></span></div>
     <div class="group surface">
       <button class="gi" id="refreshBtn"><span class="ic">↻</span>刷新班级数据</button>
-      <button class="gi" id="icsBtn"><span class="ic">📲</span>导出到手机日历<small>生成 .ics 文件</small></button>
+      <button class="gi" id="icsBtn"><span class="ic">📲</span>加到手机日历<small>iPhone、安卓、电脑都能用，可自动同步</small></button>
       <button class="gi" id="exportBtn"><span class="ic">⤓</span>备份我的数据</button>
       <button class="gi" id="importBtn"><span class="ic">⤒</span>恢复备份</button>
       <input type="file" id="importFile" accept=".json,application/json" hidden>
@@ -1363,6 +1389,29 @@
     <label>班级口号<span class="nd-row"><input id="ndMotto" maxlength="40" placeholder="如 今日事今日毕（可以不填）"><button type="button" class="small" id="ndMottoDice" title="随机来一个">🎲</button></span></label>
     <div class="nd-preview" id="ndPreview"></div>
     <div class="nd-actions"><span class="meta" id="ndStatus"></span><span class="spacer"></span><button type="button" class="small" id="ndCancel">取消</button><button type="submit" class="btn ink sm" id="ndSave">保存</button></div>
+  </form>
+</dialog>
+
+<dialog id="calDlg" class="dlg">
+  <form method="dialog" id="calForm">
+    <button type="button" class="cal-x" id="calClose" aria-label="关闭">✕</button>
+    <h3>加到手机日历</h3>
+    <div class="cal-warn hidden" id="calInApp"></div>
+    <div class="cal-card" id="calSub">
+      <h4>🔄 订阅班级日历 <span class="cal-tag">推荐</span><small>班委新加的事项会自动出现在手机日历里</small></h4>
+      <div id="calSubBody"></div>
+    </div>
+    <div class="cal-card" id="calOnce">
+      <h4>📥 一次性导入 <small>把现在的事项复制一份到日历，以后不会自动更新</small></h4>
+      <div class="cal-opts">
+        <label><input type="checkbox" id="calMine" checked>包含「我的事项」</label>
+        <label><input type="checkbox" id="calFuture" checked>只要今天及以后</label>
+        <label><input type="checkbox" id="calDone">包含已完成的</label>
+      </div>
+      <div class="cal-row"><button type="button" class="btn ink" id="calOnceBtn">导入</button></div>
+      <div class="cal-st" id="calOnceSt"></div>
+    </div>
+    <details class="cal-steps" id="calHelp"><summary>手动添加的方法 / 没反应怎么办</summary><div id="calHelpBody"></div></details>
   </form>
 </dialog>
 
@@ -1640,9 +1689,11 @@ function detailHtml(r) {
   const ops = r._mine
     ? `<button class="link" data-act="done" data-k="${k}">${r._done ? "取消完成" : "✓ 完成"}</button>
        <button class="link" data-act="edit" data-k="${k}">编辑</button>
-       <button class="link" data-act="del" data-k="${k}">删除</button>`
+       <button class="link" data-act="del" data-k="${k}">删除</button>${r._p ? `
+       <button class="link" data-act="ics" data-k="${k}">📅 加到日历</button>` : ""}`
     : `<button class="link" data-act="done" data-k="${k}">${r._done ? "取消完成" : "✓ 完成"}</button>
-       <button class="link" data-act="note" data-k="${k}">${r._note ? "改备注" : "加备注"}</button>
+       <button class="link" data-act="note" data-k="${k}">${r._note ? "改备注" : "加备注"}</button>${r._p ? `
+       <button class="link" data-act="ics" data-k="${k}">📅 加到日历</button>` : ""}
        <button class="link" data-act="hide" data-k="${k}">${r._hidden ? "取消隐藏" : "隐藏"}</button>
        ${can("can_edit") ? `<button class="link" data-cact="cedit" data-id="${esc(r.id)}">修改</button>` : ""}
        ${can("can_delete") ? `<button class="link" data-cact="cdel" data-id="${esc(r.id)}" style="color:var(--red)">删除</button>` : ""}`;
@@ -2530,6 +2581,7 @@ document.addEventListener("click", (e) => {
   const b = e.target.closest("button[data-act]");
   if (!b) return;
   const k = b.dataset.k, act = b.dataset.act;
+  if (act === "ics") { const it = allItems().find((x) => x._key === k); if (it) calImportOne(it); return; }
   if (k.startsWith("c")) {
     const mk = marks[k] || {};
     if (act === "done") setMark(k, { done: !mk.done });
@@ -2602,34 +2654,215 @@ $("importFile").onchange = async (e) => {
   e.target.value = "";
 };
 
-// ===== 导出到手机日历（.ics） =====
-function icsEscape(s) { return String(s || "").replace(/\\/g, "\\\\").replace(/[,;]/g, (c) => "\\" + c).replace(/\n/g, "\\n"); }
-$("icsBtn").onclick = () => {
-  const now = new Date();
-  const stamp = `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}T${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}00Z`;
-  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//class-calendar//CN", "CALSCALE:GREGORIAN"];
-  let n = 0;
-  for (const r of allItems()) {
-    if (!r._p || r._hidden || r._done || r._plugin) continue;
-    const d = r._p.day.replace(/-/g, "");
-    lines.push("BEGIN:VEVENT", `UID:${r._key}@class-calendar`, `DTSTAMP:${stamp}`);
-    if (r._p.time) {
-      const t = r._p.time.replace(":", "") + "00";
-      lines.push(`DTSTART:${d}T${t}`, `DURATION:PT1H`);
-      lines.push("BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:提醒", "TRIGGER:-PT1H", "END:VALARM");
-    } else {
-      const next = new Date(r._p.day + "T00:00:00"); next.setDate(next.getDate() + 1);
-      lines.push(`DTSTART;VALUE=DATE:${d}`, `DTEND;VALUE=DATE:${keyOf(next).replace(/-/g, "")}`);
+// ===== 加到手机日历 =====
+// 格式和数据库里的 ics_event 保持一致：UTF-8、CRLF、每行不超过 75 字节、时间换算成 UTC（换了时区的手机也不会差 8 小时）
+const ICS = (() => {
+  const enc = new TextEncoder();
+  const NL = "\r\n";
+  const esc = (s) => String(s ?? "").replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "")
+    .replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r\n|\r|\n/g, "\\n");
+  const fold = (line) => {
+    if (enc.encode(line).length <= 75) return line;
+    let out = "", cur = "", n = 0, lim = 75;
+    for (const ch of line) {
+      const b = enc.encode(ch).length;
+      if (n + b > lim) { out += cur + NL + " "; cur = ""; n = 0; lim = 74; }
+      cur += ch; n += b;
     }
-    const title = `${r.need_confirm ? "【需确认】" : ""}${r._mine ? "" : "[" + r.msg_type + "]"}${r.subject || r.summary || ""}`;
-    const desc = [r.summary, r.prepare ? "需准备：" + r.prepare : "", r._note ? "备注：" + r._note : "", r.original ? "原文：" + r.original : ""].filter(Boolean).join("\n");
-    lines.push(`SUMMARY:${icsEscape(title)}`, `DESCRIPTION:${icsEscape(desc)}`);
-    if (r.location) lines.push(`LOCATION:${icsEscape(r.location)}`);
-    lines.push("END:VEVENT"); n++;
+    return out + cur;
+  };
+  const fmt = (ms) => { const d = new Date(ms); return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`; };
+  // 北京时间 → 毫秒
+  const bj = (day, time) => { const [y, m, d] = day.split("-").map(Number); const [hh, mm] = (time || "00:00").split(":").map(Number); return Date.UTC(y, m - 1, d, hh - 8, mm); };
+  const ymd = (day, add) => { const [y, m, d] = day.split("-").map(Number); const t = new Date(Date.UTC(y, m - 1, d + (add || 0))); return `${t.getUTCFullYear()}${pad(t.getUTCMonth() + 1)}${pad(t.getUTCDate())}`; };
+
+  function event(r, stamp) {
+    const p = r._p || parseTime(r.event_time);
+    if (!p) return "";
+    const typ = r.msg_type || "通知";
+    const title = (r.need_confirm ? "【需确认】" : "") + `[${typ}] ` + (r.subject || r.summary || typ || "事项") + (typ === "作业" && p.time ? "（截止）" : "");
+    const descr = [
+      r.summary || "",
+      r.prepare ? "需准备：" + r.prepare : "",
+      r._note ? "备注：" + r._note : "",
+      r.original && r.original !== r.summary ? "原文：" + String(r.original).slice(0, 300) : "",
+      r.need_confirm ? "⚠ 信息不完整，以群里为准" : "",
+    ].filter(Boolean).join("\n");
+    const L = ["BEGIN:VEVENT", `UID:${r._mine ? "mine-" + r.id : "class-" + r.id}@class-calendar`, `DTSTAMP:${stamp}`];
+    if (p.time) {
+      const st = bj(p.day, p.time), midnight = bj(p.day, "00:00") + 86400000;
+      L.push(`DTSTART:${fmt(st)}`, `DTEND:${fmt(Math.min(st + 3600000, midnight))}`);
+    } else {
+      L.push(`DTSTART;VALUE=DATE:${ymd(p.day)}`, `DTEND;VALUE=DATE:${ymd(p.day, 1)}`, "TRANSP:TRANSPARENT");
+    }
+    L.push("SUMMARY:" + esc(title));
+    if (descr) L.push("DESCRIPTION:" + esc(descr));
+    if (r.location) L.push("LOCATION:" + esc(r.location));
+    L.push("CATEGORIES:" + esc(typ), "BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:" + esc(title),
+      p.time ? "TRIGGER:-PT1H" : "TRIGGER:-PT15H", "END:VALARM", "END:VEVENT");
+    return L.map(fold).join(NL) + NL;
   }
-  lines.push("END:VCALENDAR");
-  if (!n) { alert("没有可导出的事项"); return; }
-  download(`班级日历-${keyOf(now)}.ics`, lines.join("\r\n"), "text/calendar");
+  function build(items, name) {
+    const stamp = fmt(Date.now());
+    const head = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//xinxi-laolao//class-calendar//CN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
+      "X-WR-CALNAME:" + esc(name), "NAME:" + esc(name), "X-WR-TIMEZONE:Asia/Shanghai", "REFRESH-INTERVAL;VALUE=DURATION:PT1H", "X-PUBLISHED-TTL:PT1H"];
+    return head.map(fold).join(NL) + NL + items.map((r) => event(r, stamp)).join("") + "END:VCALENDAR" + NL;
+  }
+  return { build, esc, fold };
+})();
+
+// 在什么环境里打开的：微信、QQ 等 App 里的网页不能下载文件，也打不开日历
+function calEnv() {
+  const ua = navigator.userAgent || "";
+  const ios = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const android = /Android/i.test(ua);
+  const mac = !ios && /Macintosh|Mac OS X/i.test(ua);
+  let app = "";
+  if (/wxwork/i.test(ua)) app = "企业微信";
+  else if (/MicroMessenger/i.test(ua)) app = "微信";
+  else if (/\sQQ\/\d/i.test(ua)) app = "QQ";
+  else if (/DingTalk/i.test(ua)) app = "钉钉";
+  else if (/Lark|Feishu/i.test(ua)) app = "飞书";
+  else if (/Weibo/i.test(ua)) app = "微博";
+  else if (/AlipayClient/i.test(ua)) app = "支付宝";
+  else if (/aweme|BytedanceWebview|NewsArticle/i.test(ua)) app = "抖音";
+  else if (ios && !/Safari\//.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS/i.test(ua)) app = "这个 App";
+  return { ios, android, mac, desktop: !ios && !android, app };
+}
+
+const calUrl = (fn, q) => SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1/rpc/" + fn + "?" + new URLSearchParams({ ...q, apikey: SUPABASE_ANON_KEY }).toString();
+let calServer = null;   // 服务器能不能直接吐出日历文件（订阅和 iPhone 导入都靠它）
+async function calProbe() {
+  if (calServer !== null) return calServer;
+  try {
+    const r = await fetch(calUrl("ics_get", { id: "probe" }), { cache: "no-store" });
+    calServer = r.ok && (await r.text()).startsWith("BEGIN:VCALENDAR");
+  } catch (e) { calServer = false; }
+  return calServer;
+}
+
+async function calCopy(text, btn) {
+  let ok = false;
+  try { await navigator.clipboard.writeText(text); ok = true; } catch (e) {}
+  if (!ok) {   // 微信等内置浏览器没有剪贴板接口
+    const ta = document.createElement("textarea");
+    ta.value = text; ta.setAttribute("readonly", ""); ta.style.cssText = "position:fixed;top:0;left:0;opacity:0;";
+    ($("calDlg").open ? $("calDlg") : document.body).appendChild(ta);
+    ta.select(); ta.setSelectionRange(0, text.length);
+    try { ok = document.execCommand("copy"); } catch (e) {}
+    ta.remove();
+  }
+  if (btn) { const o = btn.textContent; btn.textContent = ok ? "已复制 ✓" : "复制不了，请长按链接手动复制"; setTimeout(() => (btn.textContent = o), 2200); }
+  return ok;
+}
+
+// 把一批事项交给手机日历：iPhone 用网址打开（Safari 才会弹「全部添加」），其他设备下载 .ics 文件
+async function calDeliver(items, st) {
+  const env = calEnv();
+  const say = (html, cls) => {
+    if (st) { st.className = "cal-st " + (cls || ""); st.innerHTML = html; }
+    else if (cls !== "ok") alert(html.replace(/<[^>]+>/g, ""));
+  };
+  if (!items.length) { say("没有可以导入的事项（没有日期的事项不能放进日历）", "err"); return; }
+  if (env.app) { say(`在${esc(env.app)}里没办法导入。请点右上角「···」→「在浏览器打开」${env.ios ? "（Safari）" : ""}，再点一次。`, "err"); return; }
+  const text = ICS.build(items, "班级群日历");
+  const fname = `班级日历-${keyOf(new Date())}.ics`;
+  let link = "";
+  if (await calProbe()) {
+    try { link = calUrl("ics_get", { id: await CCAuth.rpc("ics_put", { body: text }) }); } catch (e) { link = ""; }
+  }
+  if (env.ios && link) {
+    say(`正在打开日历…弹出事项列表后点 <b>「全部添加」</b>。没弹出来？<a href="${esc(link)}">点这里再试一次</a>`, "ok");
+    location.href = link;
+    return;
+  }
+  download(fname, text, "text/calendar");
+  const alt = link ? ` 没反应？<a href="${esc(link)}" target="_blank" rel="noopener">换一种方式打开</a>` : "";
+  if (env.ios) say(`已下载「${esc(fname)}」。点 Safari 地址栏的 <b>下载</b> 图标 → 点开这个文件 → <b>「全部添加」</b>。${alt}`, "info");
+  else if (env.android) say(`已下载 ${items.length} 个事项。在通知栏或「文件管理 → 下载」里点开它，选 <b>日历</b> 打开就能导入。${alt}`, "ok");
+  else say(`已下载 ${items.length} 个事项。双击文件即可导入（Outlook、苹果日历）；Google 日历在「设置 → 导入和导出」里导入。${alt}`, "ok");
+}
+function calImportOne(it) { calDeliver([it], null); }
+
+function calItems() {
+  const t0 = keyOf(new Date());
+  return allItems().filter((r) => r._p && !r._plugin && !r._hidden
+    && ($("calMine").checked || !r._mine) && ($("calDone").checked || !r._done) && (!$("calFuture").checked || r._p.day >= t0));
+}
+function calCount() {
+  const n = calItems().length;
+  $("calOnceBtn").textContent = n ? `导入 ${n} 个事项` : "没有可导入的事项";
+  $("calOnceBtn").disabled = !n;
+}
+
+function calHelp(env) {
+  const ios = `<p><b>📱 iPhone / iPad</b></p><ol>
+      <li>用 <b>Safari</b> 打开本网站，点「订阅到苹果日历」→「订阅」。</li>
+      <li>在微信、QQ 里打不开的话：点「复制」拿到订阅链接 → 打开手机 <b>设置</b> → <b>日历</b>（iOS 17 以上是 设置 → App → 日历）→ <b>账户 / 日历账户</b> → <b>添加账户</b> → <b>其他</b> → <b>添加已订阅的日历</b> → 粘贴链接 → 下一步 → 存储。</li>
+      <li>想收到提醒：在同一个地方点开这个订阅，关掉「<b>移除提醒</b>」。</li>
+      <li>一次性导入没弹出「全部添加」：确认是在 Safari 里点的，或者点 Safari 地址栏的下载图标打开下载的文件。</li></ol>`;
+  const android = `<p><b>🤖 安卓手机</b></p><ol>
+      <li>一次性导入：点「导入」，下载完成后点开文件，选「日历」。小米、华为、OPPO、vivo 自带的日历大多都能直接打开 .ics 文件；打不开的话到 日历 → 设置 里找「导入」。</li>
+      <li>自动更新：安卓自带日历一般不能填网址订阅。可以在应用商店装免费的 <b>ICSx⁵</b>，添加订阅 → 粘贴订阅链接，它会把班级日历同步进手机自带的日历。</li></ol>`;
+  const pc = `<p><b>💻 电脑</b></p><ol>
+      <li>Outlook：点「添加到 Outlook」，或在 Outlook 里 添加日历 → 从 Internet 订阅 → 粘贴链接。</li>
+      <li>Mac：点「订阅到苹果日历」，或在 日历 App 里 文件 → 新建日历订阅 → 粘贴链接。</li>
+      <li>Google 日历：其他日历旁边的 ＋ → 通过网址添加 → 粘贴链接。</li>
+      <li>Windows 自带的「日历」不支持订阅，用一次性导入即可。</li></ol>`;
+  const order = env.ios || env.mac ? [ios, android, pc] : env.android ? [android, ios, pc] : [pc, ios, android];
+  $("calHelpBody").innerHTML = order.join("");
+}
+
+async function calRenderSub() {
+  const box = $("calSubBody"), env = calEnv();
+  if (!currentUser) { box.innerHTML = `<p class="cal-note">登录并加入班级后就能订阅。<a href="login.html?next=index.html">去登录</a></p>`; return; }
+  box.innerHTML = `<p class="cal-note">正在准备你的专属订阅链接…</p>`;
+  if (!(await calProbe())) {
+    box.innerHTML = `<p class="cal-note">服务器暂时还不支持订阅，请先用下面的「一次性导入」。（管理员：运行 <code>setupaccounts.py --ics-test</code> 检查）</p>`;
+    return;
+  }
+  let feed;
+  try { feed = await CCAuth.rpc("ics_my_feed", { reset: false }); }
+  catch (e) { box.innerHTML = `<p class="cal-note">拿不到订阅链接：${esc(e.message)}</p>`; return; }
+  const https = calUrl("ics_feed", { t: feed.token });
+  const webcal = https.replace(/^https?:\/\//, "webcal://");
+  const outlook = "https://outlook.live.com/calendar/0/addfromweb?url=" + encodeURIComponent(https) + "&name=" + encodeURIComponent("班级日历");
+  let main = "";
+  if ((env.ios || env.mac) && !env.app) main = `<a class="btn ink" href="${esc(webcal)}" id="calWebcal">订阅到苹果日历</a>`;
+  else if (env.android || env.app) main = `<button type="button" class="btn ink" data-copy="1">复制订阅链接</button>`;
+  else main = `<a class="btn ink" href="${esc(outlook)}" target="_blank" rel="noopener">添加到 Outlook</a><a class="btn" href="${esc(webcal)}">用电脑日历打开</a>`;
+  box.innerHTML = `${feed.classes ? "" : `<p class="cal-note">⚠ 你还没有加入班级，订阅后暂时是空的，入班后会自动出现。</p>`}
+    <div class="cal-row">${main}</div>
+    <div class="cal-link"><input readonly id="calLinkIn" value="${esc(https)}" aria-label="订阅链接"><button type="button" class="small" data-copy="1">复制</button></div>
+    <p class="cal-note">${env.android ? "复制后按下面「手动添加的方法」粘贴到日历 App。" : env.app && env.ios ? "复制后按下面的方法在「设置 → 日历」里添加。" : ""}只包含班级事项，日历 App 会定时自动刷新。这个链接相当于你的身份，别发到群里；发出去了可以 <a href="#" id="calReset">重置链接</a>。</p>`;
+  $("calLinkIn").onfocus = (e) => e.target.select();
+  box.querySelectorAll("[data-copy]").forEach((b) => { b.onclick = () => calCopy(https, b); });
+  $("calReset").onclick = async (e) => {
+    e.preventDefault();
+    if (!confirm("重置后旧链接马上失效，已经订阅的设备需要重新订阅。继续吗？")) return;
+    try { await CCAuth.rpc("ics_my_feed", { reset: true }); } catch (err) { alert("重置失败：" + err.message); }
+    calRenderSub();
+  };
+}
+
+function calOpen() {
+  const env = calEnv();
+  $("calInApp").classList.toggle("hidden", !env.app);
+  if (env.app) {
+    $("calInApp").innerHTML = `<b>⚠ 你是在${esc(env.app)}里打开的</b>${esc(env.app)}里的网页不能下载文件，也打不开日历。请点右上角 <b>「···」</b> → <b>「在浏览器打开」</b>${env.ios ? "（选 Safari）" : ""}，再点一次「加到手机日历」。<br><button type="button" class="small" id="calCopyPage" style="margin-top:6px">复制本页网址</button>`;
+    $("calCopyPage").onclick = (e) => calCopy(location.href.split("#")[0], e.target);
+  }
+  if (calServer === false) calServer = null;   // 上次没连上，再试一次
+  $("calOnceSt").textContent = "";
+  calCount(); calHelp(env); calRenderSub();
+  $("calDlg").showModal();
+}
+$("icsBtn").onclick = calOpen;
+$("calClose").onclick = () => $("calDlg").close();
+["calMine", "calFuture", "calDone"].forEach((id) => { $(id).onchange = calCount; });
+$("calOnceBtn").onclick = async () => {
+  const b = $("calOnceBtn"); b.disabled = true;
+  try { await calDeliver(calItems(), $("calOnceSt")); } finally { b.disabled = false; }
 };
 
 // ===== 其他按钮 =====
