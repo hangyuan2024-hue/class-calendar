@@ -219,6 +219,52 @@ function burst() {
   }
 }
 
+// ---------- 忘记密码 ----------
+function showForgot(on) {
+  $("loginBox").classList.toggle("hidden", on); $("forgotBox").classList.toggle("hidden", !on);
+  if (on) { $("fgAcct").value = $("account").value.trim().toLowerCase(); $("fg1").classList.remove("hidden"); $("fg2").classList.add("hidden"); $("fgHelp").textContent = ""; $("fgMsg").textContent = ""; setTimeout(() => $("fgAcct").focus(), 50); }
+}
+$("forgotLink").onclick = (e) => { e.preventDefault(); showForgot(true); };
+$("fgBack").onclick = () => showForgot(false);
+async function fgSend() {
+  const acct = $("fgAcct").value.trim().toLowerCase();
+  $("fgMsg").textContent = ""; $("fgHelp").textContent = "";
+  if (!CCAuth.ACCOUNT_RE.test(acct)) { $("fgMsg").textContent = "请输入正确的账号"; return; }
+  $("fgSend").disabled = true;
+  try {
+    const r = await CCAuth.rpc("pw_reset_start", { acct });
+    if (r.ok) {
+      $("fg1").classList.add("hidden"); $("fg2").classList.remove("hidden");
+      $("fgHelp").innerHTML = `验证码已发到你绑定的邮箱 <b>${esc(r.email)}</b>，15 分钟内有效。`;
+      setTimeout(() => $("fgCode").focus(), 50);
+    } else {
+      $("fgHelp").innerHTML = r.why === "no_email"
+        ? "这个账号<b>没有绑定邮箱</b>，没法自己找回。<br>请联系班主任：老师在你的个人主页可以给你重置一个临时密码。"
+        : "网站还没开通邮件发送，暂时没法用邮箱找回。<br>请联系班主任给你重置临时密码。";
+    }
+  } catch (err) { $("fgMsg").textContent = err.message; }
+  finally { $("fgSend").disabled = false; }
+}
+$("fgSend").onclick = fgSend;
+$("fgAcct").addEventListener("keydown", (e) => { if (e.key === "Enter") fgSend(); });
+$("fgResend").onclick = (e) => { e.preventDefault(); $("fg2").classList.add("hidden"); $("fg1").classList.remove("hidden"); fgSend(); };
+$("fgDone").onclick = async () => {
+  const acct = $("fgAcct").value.trim().toLowerCase(), code = $("fgCode").value.trim(), pw = $("fgPw").value;
+  $("fgMsg").textContent = "";
+  if (!/^\d{6}$/.test(code)) { $("fgMsg").textContent = "验证码是 6 位数字"; return; }
+  if (pw.length < 8) { $("fgMsg").textContent = "新密码至少 8 位"; return; }
+  if (pw !== $("fgPw2").value) { $("fgMsg").textContent = "两次输入的新密码不一样"; return; }
+  $("fgDone").disabled = true;
+  try {
+    await CCAuth.rpc("pw_reset_finish", { acct, code, newpw: pw });
+    $("fgHelp").textContent = "✓ 新密码设置好了，正在登录…";
+    await CCAuth.signIn(acct, pw);
+    try { localStorage.setItem(LS_LAST, acct); } catch (e2) {}
+    await afterLogin(false);
+  } catch (err) { $("fgMsg").textContent = err.message; }
+  finally { $("fgDone").disabled = false; }
+};
+
 // ---------- 打开页面 ----------
 try { const last = localStorage.getItem(LS_LAST); if (last) { $("account").value = last; } } catch (e) {}
 setMode(new URLSearchParams(location.search).get("mode") === "signup" ? "signup" : "login");

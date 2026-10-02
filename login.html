@@ -75,7 +75,11 @@
   .hint.err { color: var(--red); } .hint.warn { color: #d97706; }
   .meter { display: flex; gap: 4px; margin: 7px 2px 0; } .meter i { flex: 1; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--text) 10%, transparent); transition: background .25s; }
   .meter.s1 i:nth-child(-n+1) { background: var(--red); } .meter.s2 i:nth-child(-n+2) { background: #f59e0b; } .meter.s3 i:nth-child(-n+3) { background: #84cc16; } .meter.s4 i { background: var(--green); }
-  .signup-only { display: none; } form.signup .signup-only { display: block; }
+  .signup-only { display: none; } form.signup .signup-only { display: block; } form.signup .login-only { display: none; }
+  .forgot-l { text-align: right; margin-top: 6px; font-size: 13px; } .forgot-l a, .hint a { color: var(--accent); text-decoration: none; font-weight: 700; }
+  .fg-help { margin-top: 12px; padding: 12px 14px; border-radius: 14px; background: color-mix(in srgb, var(--accent) 8%, transparent); font-size: 13.5px; line-height: 1.7; }
+  .fg-help:empty { display: none; }
+  .fg-more { margin-top: 12px; font-size: 13px; color: var(--sub); } .fg-more summary { cursor: pointer; font-weight: 700; } .fg-more p { line-height: 1.7; margin: 6px 0; }
   .picks { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .pick { position: relative; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 16px; background: var(--solid); cursor: pointer; transition: transform .15s, border-color .2s, box-shadow .2s; font-weight: 700; }
   .pick:hover { transform: translateY(-1px); }
@@ -255,6 +259,7 @@
           <label for="password">密码</label>
           <div class="inp"><span class="ic">🔒</span><input id="password" type="password" autocomplete="current-password" required placeholder="至少 8 位"><button type="button" class="eye" data-eye="password" aria-label="显示密码">👁</button></div>
           <div class="meter signup-only" id="meter"><i></i><i></i><i></i><i></i></div>
+          <div class="forgot-l login-only"><a href="#" id="forgotLink">忘记密码？</a></div>
           <div class="hint" id="pwHint"></div>
         </div>
         <div class="fld signup-only">
@@ -266,6 +271,31 @@
         <div id="msg" role="alert"></div>
       </form>
       <div class="foot" id="note"></div>
+    </div>
+    <div id="forgotBox" class="hidden">
+      <h2>找回密码 🔑</h2>
+      <div class="sub" id="fgSub">绑定过邮箱的账号，可以用邮箱验证码设置新密码</div>
+      <div id="fg1">
+        <div class="fld"><label for="fgAcct">账号</label>
+          <div class="inp"><span class="ic">👤</span><input id="fgAcct" autocapitalize="none" spellcheck="false" maxlength="20" placeholder="你的账号"></div></div>
+        <button class="go" type="button" id="fgSend"><span class="spin"></span>发送验证码到邮箱</button>
+      </div>
+      <div id="fg2" class="hidden">
+        <div class="fld"><label for="fgCode">验证码</label>
+          <div class="inp"><span class="ic">✉️</span><input id="fgCode" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="6 位数字"></div>
+          <div class="hint"><a href="#" id="fgResend">没收到？重新发送</a>（也看看垃圾邮件箱）</div></div>
+        <div class="fld"><label for="fgPw">新密码</label>
+          <div class="inp"><span class="ic">🔒</span><input id="fgPw" type="password" autocomplete="new-password" placeholder="至少 8 位"><button type="button" class="eye" data-eye="fgPw" aria-label="显示密码">👁</button></div></div>
+        <div class="fld"><label for="fgPw2">再输一遍</label>
+          <div class="inp"><span class="ic">🔁</span><input id="fgPw2" type="password" autocomplete="new-password"></div></div>
+        <button class="go" type="button" id="fgDone"><span class="spin"></span>设置新密码并登录</button>
+      </div>
+      <div class="fg-help" id="fgHelp"></div>
+      <div id="fgMsg" class="hint err" style="text-align:center;margin-top:10px"></div>
+      <button type="button" class="ghost" id="fgBack">← 返回登录</button>
+      <details class="fg-more"><summary>没绑定邮箱怎么办？</summary>
+        <p>请联系你的<b>班主任</b>：老师在你的个人主页（班级墙点你的名字）可以给你重置一个临时密码，用临时密码登录后会让你马上设置新密码。</p>
+        <p>老师账号忘记密码请联系网站管理员。找回之后，记得去「我的 → 邮箱通知」绑定邮箱，以后就能自己找回了。</p></details>
     </div>
     <div class="foot"><a href="index.html">不登录，先逛逛 →</a></div>
   </div>
@@ -280,7 +310,7 @@
 </div>
 
 <script src="config.js"></script>
-<script src="auth.js?v=20261003a"></script>
-<script src="login.js?v=20261003a"></script>
+<script src="auth.js?v=20261003b"></script>
+<script src="login.js?v=20261003b"></script>
 </body>
 </html>

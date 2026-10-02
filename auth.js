@@ -158,7 +158,10 @@
     const s = await session();
     if (!s || !s.user_id) return null;
     try {
-      const rows = await rest("profiles?select=id,account,display_name,role&id=eq." + encodeURIComponent(s.user_id));
+      const q = "&id=eq." + encodeURIComponent(s.user_id);
+      // 新字段（性别、签名、需要改密码）数据库升级后才有；还没升级时退回老字段
+      const rows = await rest("profiles?select=id,account,display_name,role,gender,bio,must_change_pw" + q)
+        .catch(() => rest("profiles?select=id,account,display_name,role" + q));
       meCache = rows && rows[0] ? rows[0] : null;
     } catch { meCache = null; }
     if (meCache) {

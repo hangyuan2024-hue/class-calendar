@@ -1231,6 +1231,53 @@
     .mquests { grid-template-columns: 1fr; } .mbadges { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .mid-warp { width: 100%; }
   }
+  /* 首页大数字后面带单位，别被看成别的意思 */
+  .tile .big em { font-style: normal; font-size: 14px; font-weight: 700; margin-left: 6px; opacity: .85; letter-spacing: 0; text-shadow: none; font-family: -apple-system, "PingFang SC", sans-serif; }
+  /* 我的：资料卡 */
+  .me-card { flex-wrap: wrap; }
+  .me-main { flex: 1; min-width: 160px; }
+  .me-bio { margin: 6px 0 0; font-size: 13.5px; color: var(--text); } .me-bio.empty { color: var(--sub); font-style: italic; }
+  .me-ops { display: flex; gap: 8px; flex-wrap: wrap; }
+  .gico { font-style: normal; font-size: 15px; font-weight: 900; vertical-align: 2px; } .gico.m { color: #2457d6; } .gico.f { color: #ff5f8f; }
+  .gpick3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .gpick3 label { position: relative; }
+  .gpick3 input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+  .gpick3 span { display: block; text-align: center; padding: 10px 4px; border: 1.5px solid var(--line); border-radius: 12px; font-weight: 700; }
+  .gpick3 input:checked + span { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  .dlg label input:not([type=radio]):not([type=checkbox]) { width: 100%; margin-top: 4px; font: inherit; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--text); }
+  .sec-row .sx { display: flex; flex-direction: column; flex: 1; min-width: 0; } .sec-row .sx small { margin: 2px 0 0; text-align: left; white-space: normal; }
+  .ok-tag { color: var(--green); font-weight: 900; }
+  /* 个人主页 */
+  .up-hero { margin: 0 16px; padding: 0 20px 18px; text-align: center; position: relative; overflow: hidden; }
+  .up-cover { height: 96px; margin: 0 -20px; background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 70%, #fff), var(--accent)); }
+  .up-hero.f .up-cover { background: linear-gradient(135deg, #ffc2d4, #ff5f8f); } .up-hero.m .up-cover { background: linear-gradient(135deg, #b9cbff, #2457d6); }
+  .up-av { width: 84px; height: 84px; font-size: 34px; margin: -42px auto 8px; border: 4px solid var(--card); display: grid; place-items: center; }
+  .up-name { font-size: 22px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap; }
+  .up-bio { margin: 8px auto 0; max-width: 420px; color: var(--text); font-size: 14.5px; line-height: 1.6; }
+  .up-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 16px 0 4px; }
+  .up-stats span { font-size: 12px; color: var(--sub); } .up-stats b { display: block; font-size: 22px; color: var(--text); font-variant-numeric: tabular-nums; }
+  .up-ops { display: flex; gap: 8px; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
+  .up-posts { display: grid; gap: 8px; margin: 0 16px; }
+  .up-post { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 12px 14px; text-align: left; font: inherit; color: var(--text); cursor: pointer; border: 0; width: 100%; }
+  .up-post span { font-size: 14px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; } .up-post small { color: var(--sub); font-size: 12px; }
+  .ulink { cursor: pointer; } .ulink:hover { text-decoration: underline; text-underline-offset: 3px; }
+  /* 班级墙评论 */
+  .pcomm { margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 8px; }
+  .cbtn { border: 0; background: none; color: var(--sub); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; padding: 4px 8px; border-radius: 8px; margin-left: -8px; }
+  .cbtn:hover { background: var(--hover); color: var(--text); }
+  .clist { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; background: var(--muted-bg); border-radius: 12px; padding: 10px; }
+  .cmore { align-self: flex-start; border: 0; background: none; color: var(--accent); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; padding: 0; }
+  .cm { display: flex; gap: 8px; }
+  .cav { width: 28px; height: 28px; font-size: 13px; flex-shrink: 0; cursor: pointer; }
+  .cbody2 { flex: 1; min-width: 0; } .cline { font-size: 13px; display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+  .ctext { font-size: 14px; margin-top: 2px; white-space: pre-wrap; word-break: break-word; }
+  .cfoot { display: flex; gap: 10px; align-items: center; font-size: 12px; color: var(--sub); margin-top: 2px; }
+  .cfoot button { border: 0; background: none; font: inherit; color: var(--sub); cursor: pointer; padding: 0; } .cfoot button:hover { color: var(--text); } .cfoot button.warnb:hover { color: var(--red); }
+  .cin { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+  .cin input { flex: 1; min-width: 160px; font: inherit; font-size: 14px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--text); }
+  .cin input:focus { outline: none; border-color: var(--accent); }
+  .creply { flex-basis: 100%; font-size: 12px; color: var(--sub); } .creply button { border: 0; background: none; color: var(--sub); cursor: pointer; font-size: 14px; }
+  @media (max-width: 700px) { .up-hero, .up-posts { margin-left: 12px; margin-right: 12px; } .up-stats b { font-size: 18px; } .me-ops { width: 100%; } .me-ops .btn { flex: 1; } }
 </style>
 </head>
 <body>
@@ -1364,6 +1411,12 @@
   <section class="view" data-view="meta">
     <header class="vhead"><button class="back" data-tab="home" aria-label="返回首页">‹</button><h2>元宇宙空间</h2></header>
     <div id="metaBox"></div>
+  </section>
+
+  <!-- 个人主页 -->
+  <section class="view" data-view="user">
+    <header class="vhead"><button class="back" data-tab="wall" aria-label="返回">‹</button><h2 id="userTitle">主页</h2></header>
+    <div id="userBox"></div>
   </section>
 
   <!-- 成长 -->
@@ -1533,6 +1586,9 @@
     <div class="sec-h" data-feat="mail"><b>邮箱通知</b><span>重要的事发到邮箱，不怕漏看群消息</span></div>
     <div class="group surface mail-box" id="mailBox" data-feat="mail"></div>
 
+    <div class="sec-h"><b>账号安全</b><span>忘记密码时怎么找回</span></div>
+    <div class="group surface" id="secBox"></div>
+
     <div class="sec-h"><b>班级与账号</b></div>
     <div class="group surface">
       <a class="gi" href="class.html"><span class="ic">🏫</span>班级管理<small>加入班级、审批同学</small></a>
@@ -1608,6 +1664,35 @@
     </div>
     <label class="check"><input type="checkbox" id="gPal" checked> 顺便换成对应的配色<span id="gPalName" hidden></span></label>
     <div class="nd-actions"><span class="spacer"></span><button type="button" class="small" data-g="skip">暂时不选</button></div>
+  </form>
+</dialog>
+
+<dialog id="profDlg" class="dlg">
+  <form id="profForm">
+    <h3>编辑资料</h3>
+    <div class="meta">姓名：<b id="pfName"></b>（姓名要改的话请找老师）</div>
+    <label>性别</label>
+    <div class="gpick3">
+      <label><input type="radio" name="pg" value="m"><span>👦 男生</span></label>
+      <label><input type="radio" name="pg" value="f"><span>👧 女生</span></label>
+      <label><input type="radio" name="pg" value="x"><span>🤫 保密</span></label>
+    </div>
+    <label class="check"><input type="checkbox" id="pfPal" checked> 改了性别顺便换成对应的配色</label>
+    <label>个性签名 <span class="meta" id="pfCount" style="float:right">0/60</span>
+      <input id="pfBio" maxlength="60" placeholder="比如：今日事今日毕 ✨"></label>
+    <div class="nd-actions"><span class="meta" id="pfStatus"></span><span class="spacer"></span><button type="button" class="small" id="pfCancel">取消</button><button type="submit" class="btn ink sm" id="pfSave">保存</button></div>
+  </form>
+</dialog>
+
+<dialog id="pwDlg" class="dlg">
+  <form id="pwForm" autocomplete="on">
+    <h3 id="pwTitle">修改密码</h3>
+    <div class="meta" id="pwTip"></div>
+    <input type="text" name="username" autocomplete="username" hidden>
+    <label id="pwOldWrap">原密码 <input type="password" id="pwOld" autocomplete="current-password"></label>
+    <label>新密码 <input type="password" id="pwNew" autocomplete="new-password" placeholder="至少 8 位"></label>
+    <label>再输一遍 <input type="password" id="pwNew2" autocomplete="new-password"></label>
+    <div class="nd-actions"><span class="meta" id="pwStatus" style="color:var(--red)"></span><span class="spacer"></span><button type="button" class="small" id="pwCancel">取消</button><button type="submit" class="btn ink sm" id="pwSave">保存</button></div>
   </form>
 </dialog>
 
@@ -1749,10 +1834,10 @@
 </div>
 
 <script src="config.js"></script>
-<script src="auth.js?v=20261003a"></script>
+<script src="auth.js?v=20261003b"></script>
 <script src="parse.js"></script>
 <script src="courses.js?v=20261002h"></script>
-<script src="app.js?v=20261003a"></script>
+<script src="app.js?v=20261003b"></script>
 </body>
 </html>
 </body>

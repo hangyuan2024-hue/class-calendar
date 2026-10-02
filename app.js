@@ -2067,7 +2067,9 @@ function renderUserChip() {
   const role = CCAuth.ROLE_NAMES[currentUser.role] || currentUser.role;
   el.className = "";
   el.innerHTML = `<span class="av">${initial}</span><span class="who">${esc(name)}<small>${esc(role)}</small></span>`;
-  $("meCard").innerHTML = `<span class="av">${initial}</span><div><b>${esc(name)}</b><span>${esc(role)}${currentUser.account ? " · @" + esc(currentUser.account) : ""}</span></div>`;
+  $("meCard").innerHTML = meCardHtml();
+  const g = myGender();
+  document.querySelectorAll(".mavatar, #userChip .av").forEach((a) => (a.style.background = avGrad(g)));
 }
 // 退出时：班级相关的缓存一律清掉；在公共电脑上还可以把这台设备上的个人数据全部清除
 async function wipeLocalData(all) {
@@ -2154,6 +2156,7 @@ function showView(id) {
   if (id === "growth") renderGrowth();
   if (id === "plan") renderPlan();
   if (id === "meta") renderMeta();
+  if (id === "me") loadSecurity();
   if (id === "ask") renderAsk();
   if (id === "credits") loadCredits();
   if (id === "rank") loadRank();
@@ -2700,7 +2703,7 @@ function cardBody(id, w, h) {
       ${n ? "" : `<svg class="deco" viewBox="0 0 100 100"><path d="M18 52 l22 22 l44 -48" fill="none" stroke="#fff" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/></svg>`}
       <b>作业</b><small>${S.overdue ? `${S.overdue} 项已过期` : "两周内要交"}</small>
       ${n ? `<div class="wlist">${list.slice(0, n).map((r) => { const di = dueInfo(r); return `<div class="wrow2"><span>${esc(r.subject || r.summary || "作业")}</span><span class="due-tag ${di.cls}">${esc(di.text)}</span></div>`; }).join("") || `<div class="wrow2"><span>没有要交的作业 🎉</span></div>`}</div>` : ""}
-      ${n && big ? "" : `<span class="big">${S.hwLeft}</span>`}<span class="go">去完成 ▶</span></button>`;
+      ${n && big ? "" : `<span class="big">${S.hwLeft}<em>项没交</em></span>`}<span class="go">去完成 ▶</span></button>`;
   }
   if (id === "w:cal") {
     if (big && cols >= 2) return `<div class="tile b wb" data-tab="calendar" style="cursor:pointer"><b>${today.getMonth() + 1}月</b>${miniCalHtml()}</div>`;
@@ -2708,9 +2711,9 @@ function cardBody(id, w, h) {
     const n = big ? h * 3 - 1 : wide ? 2 : 0;
     return `<button class="tile b wb${n ? " has-list" : ""}" data-tab="calendar">
       ${n ? "" : `<svg class="deco" viewBox="0 0 100 100"><rect x="12" y="20" width="76" height="68" rx="16" fill="none" stroke="#fff" stroke-width="10"/><path d="M12 42h76M34 10v20M66 10v20" stroke="#fff" stroke-width="10" stroke-linecap="round"/></svg>`}
-      <b>日历</b><small>今天 ${S.todayCount} 项 · 两周 ${S.upcoming} 项</small>
+      <b>日历</b><small>${today.getMonth() + 1}月${today.getDate()}日 周${WEEK[today.getDay()]} · 两周 ${S.upcoming} 项</small>
       ${n ? `<div class="wlist">${items.slice(0, n).map((r) => `<div class="wrow2"><span>${esc(r.subject || r.summary || "")}</span><span>${esc(r._p.time || "全天")}</span></div>`).join("") || `<div class="wrow2"><span>今天没有安排 ☕</span></div>`}</div>` : ""}
-      ${n && big ? "" : `<span class="big">${today.getDate()}</span>`}<span class="go">打开 ▶</span></button>`;
+      ${n && big ? "" : `<span class="big">${S.todayCount}<em>今天待办</em></span>`}<span class="go">打开 ▶</span></button>`;
   }
   if (id === "w:rings") {
     const html = ringsHtml(big ? 96 : 70);
@@ -3220,7 +3223,7 @@ async function loadWall(soft) {
   if (pre && pre.cid === cid) {
     wallPosts = pre.posts || []; wallReported = new Set((pre.mine || []).map(String)); wallLoadedFor = cid; wallLoadedAt = 0;   // 只有最新 60 条，进班级墙时再拿全
     wallReports = canModerate() ? pre.reports || [] : [];
-    renderWall(); return;
+    renderWall(); loadComments(cid); return;
   }
   try {
     const [posts, mine] = await Promise.all([
@@ -3230,6 +3233,7 @@ async function loadWall(soft) {
     if (!currentClass || currentClass.id !== cid) return;
     wallPosts = posts || []; wallReported = new Set((mine || []).map(String)); wallLoadedFor = cid; wallLoadedAt = Date.now();
     wallReports = canModerate() ? (await CCAuth.rpc("wall_report_list", { cid })) || [] : [];
+    loadComments(cid);
   } catch (e) { showBanner("班级墙加载失败：" + e.message); }
   renderWall();
 }
@@ -3251,9 +3255,9 @@ function postHtml(p) {
   if (canModerate()) ops.push(p.hidden ? `<button data-w="unhide" data-id="${p.id}">恢复显示</button>` : `<button data-w="hide" data-id="${p.id}" class="warnb">隐藏</button>`);
   if (!mine && !canModerate()) ops.push(wallReported.has(String(p.id)) ? `<button class="done" disabled>已举报</button>` : `<button data-w="report" data-id="${p.id}" class="warnb">举报</button>`);
   return `<article class="post surface${p.is_notice ? " notice" : ""}${p.hidden ? " hiddenpost" : ""}" id="post-${p.id}">
-    <span class="av r-${esc(role)}">${esc([...(p.author_name || "?")][0])}</span>
+    <span class="av r-${esc(role)}"${p.author_id ? ` data-user="${esc(p.author_id)}" style="cursor:pointer"` : ""}>${esc([...(p.author_name || "?")][0])}</span>
     <div class="pmain">
-      <div class="phead"><b>${esc(p.author_name)}</b>${label ? `<span class="rbadge ${esc(role)}">${label}</span>` : ""}
+      <div class="phead"><b${p.author_id ? ` data-user="${esc(p.author_id)}" class="ulink"` : ""}>${esc(p.author_name)}</b>${label ? `<span class="rbadge ${esc(role)}">${label}</span>` : ""}
         <span class="when">· ${ago(p.created_at)}${p.edited_at ? "（已编辑）" : ""}</span></div>
       ${flags.length ? `<div class="pflags" style="margin-top:6px">${flags.join("")}</div>` : ""}
       ${folded ? `<div class="folded">这条内容被多位同学举报，正在等老师处理。<button data-w="unfold" data-id="${p.id}">仍要查看</button></div>` : `
@@ -3261,6 +3265,7 @@ function postHtml(p) {
         <div class="ptext${long && !wallExpand.has(p.id) ? " clamp" : ""}">${esc(p.body)}</div>
         ${long && !wallExpand.has(p.id) ? `<button class="more-btn" data-w="expand" data-id="${p.id}">展开全文</button>` : ""}`}
       <div class="pops">${ops.join("")}</div>
+      ${folded ? "" : commentsHtml(p)}
     </div>
   </article>`;
 }
@@ -3413,7 +3418,7 @@ const META_WIKI = [
 ];
 let metaWikiOpen = 0, metaCourses = 0;
 function metaAvatar() {
-  const g = load(LS_PROFILE, {}).gender;
+  const g = myGender();
   return g === "f" ? "👩‍🚀" : g === "m" ? "🧑‍🚀" : "🤖";
 }
 function metaCardMini(s) {
@@ -3454,6 +3459,203 @@ document.addEventListener("click", (e) => {
 });
 document.addEventListener("toggle", (e) => { const d = e.target; if (d.matches && d.matches("details.mw") && d.open) metaWikiOpen = +d.dataset.mw; }, true);
 
+// ===== 个人资料、个人主页、账号安全（性别和签名存在服务器上，换设备、重新登录都不会再问） =====
+const GENDER_TXT = { m: "男生", f: "女生", x: "保密" };
+const myGender = () => { const g = currentUser && currentUser.gender; return g === "m" || g === "f" ? g : (load(LS_PROFILE, {}).gender || ""); };
+const avGrad = (g) => (g === "f" ? "linear-gradient(135deg,#ff8fb0,#ff5f8f)" : g === "m" ? "linear-gradient(135deg,#6f9bff,#2457d6)" : "");
+function meCardHtml() {
+  const u = currentUser, name = u.display_name || u.account || "我", g = myGender();
+  const role = CCAuth.ROLE_NAMES[u.role] || u.role;
+  return `<span class="av" style="${avGrad(g) ? "background:" + avGrad(g) : ""}">${esc([...name][0])}</span>
+    <div class="me-main"><b>${esc(name)}${g === "m" ? ' <i class="gico m">♂</i>' : g === "f" ? ' <i class="gico f">♀</i>' : ""}</b>
+      <span>${esc(role)}${u.account ? " · @" + esc(u.account) : ""}</span>
+      <p class="me-bio${u.bio ? "" : " empty"}">${u.bio ? esc(u.bio) : "还没有个性签名，写一句介绍自己吧"}</p></div>
+    <div class="me-ops"><button class="btn sm" id="profEdit">✏️ 编辑资料</button><button class="btn ink sm" id="myPage">我的主页 ›</button></div>`;
+}
+document.addEventListener("click", (e) => {
+  if (e.target.closest("#profEdit")) openProfile();
+  if (e.target.closest("#myPage") && currentUser) openUser(currentUser.id);
+  const u = e.target.closest("[data-user]");
+  if (u && currentUser) { e.preventDefault(); openUser(u.dataset.user); }
+});
+function openProfile() {
+  if (!currentUser) return;
+  const g = currentUser.gender || myGender() || "";
+  document.querySelectorAll("#profForm input[name=pg]").forEach((r) => (r.checked = r.value === (g || "x")));
+  $("pfBio").value = currentUser.bio || ""; $("pfCount").textContent = `${$("pfBio").value.length}/60`;
+  $("pfName").textContent = currentUser.display_name; $("pfStatus").textContent = "";
+  $("profDlg").showModal();
+}
+$("pfBio").oninput = () => { $("pfCount").textContent = `${$("pfBio").value.length}/60`; };
+$("pfCancel").onclick = () => $("profDlg").close();
+$("profForm").onsubmit = async (e) => {
+  e.preventDefault();
+  const g = (document.querySelector("#profForm input[name=pg]:checked") || {}).value || "x", bio = $("pfBio").value.trim();
+  const oldG = myGender();
+  $("pfSave").disabled = true; $("pfStatus").textContent = "保存中…";
+  try {
+    const r = await CCAuth.rpc("profile_update", { p_gender: g, p_bio: bio });
+    currentUser.gender = r.gender; currentUser.bio = r.bio;
+    save(LS_PROFILE, { ...load(LS_PROFILE, {}), gender: r.gender === "x" ? "" : r.gender });
+    if ((g === "m" || g === "f") && g !== oldG && $("pfPal").checked) { save(LS_PALETTE, GENDER_PAL[g]); applyLook(); }
+    renderUserChip(); renderAll(); $("profDlg").close();
+  } catch (err) { $("pfStatus").textContent = "保存失败：" + err.message; }
+  finally { $("pfSave").disabled = false; }
+};
+
+// ---- 个人主页 ----
+let userPageId = null;
+async function openUser(uid) {
+  userPageId = uid;
+  showView("user");
+  $("userBox").innerHTML = `<div class="aempty surface">加载中…</div>`;
+  try {
+    const d = await CCAuth.rpc("user_page", { uid, cid: currentClass ? currentClass.id : null });
+    if (userPageId !== uid) return;
+    renderUser(d);
+  } catch (err) { $("userBox").innerHTML = `<div class="aempty surface">打不开这个主页：${esc(err.message)}</div>`; }
+}
+function renderUser(d) {
+  const g = d.gender, role = d.class_role === "teacher" ? "老师" : d.class_role === "monitor" ? "班委" : d.class_role === "student" ? "同学" : CCAuth.ROLE_NAMES[d.role] || "";
+  const joined = new Date(d.joined), days = Math.max(1, Math.round((Date.now() - joined) / 86400000));
+  $("userTitle").textContent = d.me ? "我的主页" : d.name + " 的主页";
+  $("userBox").innerHTML = `
+    <div class="up-hero surface${g === "f" ? " f" : g === "m" ? " m" : ""}">
+      <div class="up-cover"></div>
+      <span class="av up-av" style="${avGrad(g) ? "background:" + avGrad(g) : ""}">${esc([...(d.name || "?")][0])}</span>
+      <div class="up-name">${esc(d.name)}${g === "m" ? ' <i class="gico m">♂</i>' : g === "f" ? ' <i class="gico f">♀</i>' : ""}${role ? `<span class="rbadge ${esc(d.class_role || "")}">${esc(role)}</span>` : ""}</div>
+      ${d.account ? `<div class="meta">@${esc(d.account)}</div>` : ""}
+      <p class="up-bio">${d.bio ? esc(d.bio) : d.me ? "还没有个性签名～" : "这个人很神秘，什么都没写"}</p>
+      <div class="up-stats">
+        <span><b>${d.post_count}</b>班级墙发言</span>
+        <span><b>${d.week_points == null ? "—" : d.week_points}</b>本周成长值</span>
+        <span><b>${d.total_points == null ? "—" : d.total_points}</b>累计成长值</span>
+        <span><b>${days}</b>加入天数</span>
+      </div>
+      <div class="up-ops">${d.me ? `<button class="btn ink sm" id="profEdit">✏️ 编辑资料</button>` : ""}
+        ${d.can_reset ? `<button class="btn sm" data-reset="${esc(d.id)}" data-name="${esc(d.name)}">🔑 重置他的密码</button>` : ""}</div>
+    </div>
+    <div class="sec-h"><b>${d.me ? "我" : "TA"}在班级墙</b><span>${currentClass ? esc(currentClass.name) : "加入班级后显示"}</span></div>
+    ${d.posts.length ? `<div class="up-posts">${d.posts.map((p) => `<button class="up-post surface" data-goto-post="${p.id}">
+        ${p.is_notice ? `<span class="pflag notice">📢 通知</span>` : ""}${p.title ? `<b>${esc(p.title)}</b>` : ""}<span>${esc(p.body)}</span><small>${ago(p.created_at)}</small></button>`).join("")}</div>`
+      : `<div class="aempty surface">${d.me ? "你" : "TA"}还没在班级墙发过言</div>`}`;
+}
+document.addEventListener("click", async (e) => {
+  const gp = e.target.closest("[data-goto-post]");
+  if (gp) { const id = +gp.dataset.gotoPost; showView("wall"); wallFilter = "all"; wallUnfold.add(id); renderWall(); setTimeout(() => $("post-" + id)?.scrollIntoView({ behavior: "smooth", block: "center" }), 300); return; }
+  const rs = e.target.closest("[data-reset]");
+  if (rs) {
+    if (!confirm(`给「${rs.dataset.name}」重置密码？\n\n会生成一个临时密码，TA 用临时密码登录后必须马上改成自己的新密码。原来的密码立刻失效。`)) return;
+    try {
+      const r = await CCAuth.rpc("pw_reset_by_staff", { uid: rs.dataset.reset });
+      prompt(`已重置。把账号和临时密码告诉 ${r.name}（可以复制）：`, `账号 ${r.account}　临时密码 ${r.temp}`);
+    } catch (err) { alert("重置失败：" + err.message); }
+  }
+});
+
+// ---- 账号安全：改密码、找回方式 ----
+let acctSec = null;
+async function loadSecurity() {
+  if (!currentUser) { $("secBox").innerHTML = ""; return; }
+  try { acctSec = await CCAuth.rpc("account_security"); } catch (e) { acctSec = null; }
+  renderSecurity();
+}
+function renderSecurity() {
+  const s = acctSec;
+  $("secBox").innerHTML = `
+    <button class="gi" id="pwChangeBtn"><span class="ic">🔑</span>修改密码</button>
+    <div class="gi sec-row"><span class="ic">📮</span><span class="sx"><span class="sxt">找回密码用的邮箱</span>
+      <small>${s && s.email ? `已绑定 ${esc(s.email)}，忘记密码可以在登录页自己找回` : s && !s.smtp ? "管理员还没开通邮件发送；忘记密码时请找老师重置" : "还没绑定。绑定后忘记密码可以自己用邮箱找回"}</small></span>
+      ${s && s.email ? '<span class="ok-tag">✓</span>' : s && s.smtp ? `<button class="btn sm" id="secBind">去绑定</button>` : ""}</div>
+    <div class="gi sec-row"><span class="ic">🧑‍🏫</span><span class="sx"><span class="sxt">没绑邮箱也别担心</span><small>班主任可以在你的个人主页给你重置一个临时密码</small></span></div>`;
+}
+document.addEventListener("click", (e) => {
+  if (e.target.closest("#pwChangeBtn")) openPw(false);
+  if (e.target.closest("#secBind")) { $("mailBox").scrollIntoView({ behavior: "smooth", block: "center" }); const i = $("mailBox").querySelector("input[type=email], input"); if (i) setTimeout(() => i.focus(), 400); }
+});
+function openPw(forced) {
+  $("pwDlg").dataset.forced = forced ? "1" : "";
+  $("pwTitle").textContent = forced ? "请设置一个新密码" : "修改密码";
+  $("pwTip").textContent = forced ? "你刚才用的是老师给的临时密码，为了账号安全，请马上改成只有你知道的新密码。" : "改完以后，这台设备不用重新登录。";
+  $("pwOldWrap").classList.toggle("hidden", !!forced);
+  $("pwCancel").classList.toggle("hidden", !!forced);
+  ["pwOld", "pwNew", "pwNew2"].forEach((id) => ($(id).value = "")); $("pwStatus").textContent = "";
+  $("pwDlg").showModal();
+}
+$("pwDlg").addEventListener("cancel", (e) => { if ($("pwDlg").dataset.forced) e.preventDefault(); });
+$("pwCancel").onclick = () => $("pwDlg").close();
+$("pwForm").onsubmit = async (e) => {
+  e.preventDefault();
+  const n1 = $("pwNew").value, n2 = $("pwNew2").value;
+  if (n1.length < 8) { $("pwStatus").textContent = "新密码至少 8 位"; return; }
+  if (n1 !== n2) { $("pwStatus").textContent = "两次输入的新密码不一样"; return; }
+  $("pwSave").disabled = true; $("pwStatus").textContent = "保存中…";
+  try {
+    await CCAuth.rpc("pw_change", { oldpw: $("pwOld").value, newpw: n1 });
+    if (currentUser) currentUser.must_change_pw = false;
+    $("pwDlg").close(); showBanner("密码已修改 ✓"); setTimeout(() => showBanner(""), 3000);
+  } catch (err) { $("pwStatus").textContent = err.message; }
+  finally { $("pwSave").disabled = false; }
+};
+
+// ===== 班级墙评论 =====
+let wallComments = {}, wallCmtOpen = new Set(), wallReply = {}, wallDraft = {};
+async function loadComments(cid) {
+  try {
+    const list = await CCAuth.rpc("wall_comments_get", { cid });
+    if (!currentClass || currentClass.id !== cid) return;
+    wallComments = {};
+    for (const c of list || []) (wallComments[c.post_id] ||= []).push(c);
+    renderWall();
+  } catch (e) { /* 数据库还没升级时没有评论功能，安静跳过 */ }
+}
+function commentHtml(c, p) {
+  const mine = currentUser && c.author_id === currentUser.id;
+  const canDel = mine || (currentUser && p.author_id === currentUser.id) || canModerate();
+  const label = ROLE_LABEL[c.author_role];
+  return `<div class="cm"><span class="av cav r-${esc(c.author_role)}"${c.author_id ? ` data-user="${esc(c.author_id)}"` : ""}>${esc([...(c.author_name || "?")][0])}</span>
+    <div class="cbody2"><div class="cline"><b${c.author_id ? ` data-user="${esc(c.author_id)}" class="ulink"` : ""}>${esc(c.author_name)}</b>${label ? `<span class="rbadge ${esc(c.author_role)}">${label}</span>` : ""}${c.reply_name ? ` <span class="meta">回复</span> <b>${esc(c.reply_name)}</b>` : ""}</div>
+      <div class="ctext">${esc(c.body)}</div>
+      <div class="cfoot"><span>${ago(c.created_at)}</span>${mine ? "" : `<button data-c="reply" data-id="${p.id}" data-name="${esc(c.author_name)}">回复</button>`}${canDel ? `<button data-c="del" data-cid="${c.id}" data-id="${p.id}" class="warnb">删除</button>` : ""}</div></div></div>`;
+}
+function commentsHtml(p) {
+  if (p.hidden && !canModerate()) return "";
+  const cs = wallComments[p.id] || [], open = wallCmtOpen.has(p.id);
+  const shown = open ? cs : cs.slice(-2), rp = wallReply[p.id];
+  return `<div class="pcomm">
+    <div class="cbar"><button data-c="toggle" data-id="${p.id}" class="cbtn">💬 ${cs.length ? cs.length + " 条评论" : "评论"}</button></div>
+    ${shown.length ? `<div class="clist">${!open && cs.length > 2 ? `<button class="cmore" data-c="toggle" data-id="${p.id}">查看全部 ${cs.length} 条评论</button>` : ""}${shown.map((c) => commentHtml(c, p)).join("")}</div>` : ""}
+    ${open ? `<div class="cin">${rp ? `<span class="creply">回复 ${esc(rp)} <button data-c="unreply" data-id="${p.id}" aria-label="取消回复">×</button></span>` : ""}
+      <input data-cin="${p.id}" maxlength="500" placeholder="${rp ? "回复 " + esc(rp) + "…" : "说点什么…（回车发送）"}" value="${esc(wallDraft[p.id] || "")}">
+      <button class="btn ink sm" data-c="send" data-id="${p.id}">发送</button></div>` : ""}
+  </div>`;
+}
+async function sendComment(pid) {
+  const inp = document.querySelector(`[data-cin="${pid}"]`); if (!inp) return;
+  const body = inp.value.trim(); if (!body) return inp.focus();
+  inp.disabled = true;
+  try {
+    const c = await CCAuth.rpc("wall_comment_add", { pid, p_body: body, p_reply: wallReply[pid] || null });
+    (wallComments[pid] ||= []).push(c); delete wallDraft[pid]; delete wallReply[pid];
+    renderWall(); document.querySelector(`[data-cin="${pid}"]`)?.focus();
+  } catch (err) { alert("评论失败：" + err.message); inp.disabled = false; }
+}
+document.addEventListener("click", async (e) => {
+  const b = e.target.closest("button[data-c]"); if (!b) return;
+  const pid = Number(b.dataset.id), act = b.dataset.c;
+  if (act === "toggle") { wallCmtOpen.has(pid) && !b.classList.contains("cmore") && (wallComments[pid] || []).length ? wallCmtOpen.delete(pid) : wallCmtOpen.add(pid); renderWall(); if (wallCmtOpen.has(pid)) document.querySelector(`[data-cin="${pid}"]`)?.focus(); }
+  if (act === "reply") { wallCmtOpen.add(pid); wallReply[pid] = b.dataset.name; renderWall(); document.querySelector(`[data-cin="${pid}"]`)?.focus(); }
+  if (act === "unreply") { delete wallReply[pid]; renderWall(); }
+  if (act === "send") sendComment(pid);
+  if (act === "del") {
+    if (!confirm("删除这条评论？")) return;
+    try { await CCAuth.rpc("wall_comment_delete", { cmid: Number(b.dataset.cid) }); wallComments[pid] = (wallComments[pid] || []).filter((c) => c.id !== Number(b.dataset.cid)); renderWall(); }
+    catch (err) { alert("删除失败：" + err.message); }
+  }
+});
+document.addEventListener("input", (e) => { const i = e.target.closest("[data-cin]"); if (i) wallDraft[i.dataset.cin] = i.value; });
+document.addEventListener("keydown", (e) => { const i = e.target.closest("[data-cin]"); if (i && e.key === "Enter" && !e.isComposing) { e.preventDefault(); sendComment(Number(i.dataset.cin)); } });
+
 // ===== 新注册：把引导里选的皮肤、配色、习惯用上；老用户第一次来问一下性别 =====
 const LS_PROFILE = "profile_v1";
 const GENDER_PAL = { f: { id: "sakura", name: "樱花粉", p: "#ff5f8f", s: "#ffb03b" }, m: { id: "navy", name: "海军蓝", p: "#2457d6", s: "#ffb020" } };
@@ -3471,19 +3673,26 @@ function applyOnboard() {
   setTimeout(() => cheer("welcome", { g: p.gender }), 600);
 }
 function askGender() {
-  if (!currentUser || load(LS_PROFILE, {}).gender || load("gender_asked_v1", false)) return;
-  const d = $("gDlg"); if (!d || typeof d.showModal !== "function") return;
+  if (!currentUser) return;
+  const sg = currentUser.gender;   // 服务器上的：null 表示从没回答过；m/f/x 表示答过了（x 是保密）
+  if (sg === "m" || sg === "f") { const p = load(LS_PROFILE, {}); if (p.gender !== sg) save(LS_PROFILE, { ...p, gender: sg }); return; }
+  if (sg === "x") return;
+  if (sg === undefined && (load(LS_PROFILE, {}).gender || load("gender_asked_v1", false))) return;   // 数据库还没升级时，按本机记录
+  if (currentUser.must_change_pw) return;
+  const d = $("gDlg"); if (!d || typeof d.showModal !== "function" || d.open) return;
   d.showModal();
 }
-$("gDlg").addEventListener("click", (e) => {
+$("gDlg").addEventListener("click", async (e) => {
   const b = e.target.closest("button[data-g]"); if (!b) return;
   save("gender_asked_v1", true);
   const g = b.dataset.g;
+  $("gDlg").close();
+  try { const r = await CCAuth.rpc("profile_update", { p_gender: g === "skip" ? "x" : g, p_bio: null }); currentUser.gender = r.gender; } catch (err) {}
   if (g === "f" || g === "m") {
     save(LS_PROFILE, { ...load(LS_PROFILE, {}), gender: g });
-    if ($("gPal").checked) { save(LS_PALETTE, GENDER_PAL[g]); if (load(LS_SKIN, "vivid") === "cyber") save(LS_SKIN, "vivid"); applyLook(); renderAll(); }
+    if ($("gPal").checked) { save(LS_PALETTE, GENDER_PAL[g]); if (load(LS_SKIN, "vivid") === "cyber") save(LS_SKIN, "vivid"); applyLook(); }
   }
-  $("gDlg").close();
+  renderUserChip(); renderAll();
 });
 $("gDlg").addEventListener("change", (e) => { if (e.target.name === "gq") { const g = e.target.value; $("gPalName").textContent = GENDER_PAL[g].name; } });
 
@@ -3558,6 +3767,7 @@ renderTabs(); renderTools();
   const ob = load("onboard_apply_v1", null);
   if (ob && currentUser && ob.uid === currentUser.id && ob.sync === "local") localStorage.setItem(LS_SYNC_MODE, '"local"');
   Sync.start(currentUser && currentUser.id).finally(() => { renderSyncUI(); applyOnboard(); askGender(); });
+  if (currentUser && currentUser.must_change_pw) openPw(true);
   try { await loadMyClasses(); } catch (e) { showBanner("读取班级失败：" + e.message); }
   renderClassBar();
   await loadFeatures();
