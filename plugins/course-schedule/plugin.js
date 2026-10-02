@@ -4,7 +4,7 @@ CalendarApp.register({
   id: "course-schedule",
   init(api) {
     const { esc, keyOf } = api.util;
-    const MAX_WEEK = 16;
+    const MAX_WEEK = 20;
     const DEFAULT_WEEK1 = "2026-09-14"; // 与 app.html 里 semesterStartDate() 一致
     const PERIODS = {
       winter: ["08:00-08:50", "09:00-09:50", "10:10-11:00", "11:10-12:00", "14:00-14:50",
@@ -41,8 +41,11 @@ CalendarApp.register({
       // 用户没手动切换过时，按 app.html 的 defaultTimeMode()：5~10 月夏秋季，其余冬春季
       const saved = localStorage.getItem("personal_course_schedule_time_mode_v1");
       const m = new Date().getMonth() + 1;
-      const mode = saved === "summer" || saved === "winter" ? saved : (m >= 5 && m <= 10 ? "summer" : "winter");
-      const times = PERIODS[mode];
+      // 「拍照导入」认出的上课时间（截图时间）
+      const custom = read("personal_course_schedule_custom_times_v1", null);
+      const customOk = Array.isArray(custom) && custom.length >= 4 && custom.every((t) => /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(t));
+      const mode = saved === "summer" || saved === "winter" || (saved === "custom" && customOk) ? saved : (m >= 5 && m <= 10 ? "summer" : "winter");
+      const times = mode === "custom" ? custom : PERIODS[mode];
       const w1 = new Date(first + "T00:00:00");
       const out = [];
       for (let d = new Date(startKey + "T00:00:00"); keyOf(d) <= endKey; d.setDate(d.getDate() + 1)) {
@@ -80,6 +83,8 @@ CalendarApp.register({
           api.storage.set("week1", v); tip(); api.refresh();
         };
         q(".csSync").onchange = (e) => { api.storage.set("sync", e.target.checked); api.refresh(); };
+        // 「拍照导入」或另一台设备改了第 1 周：输入框跟着变
+        window.addEventListener("storage", (e) => { if (e.key === "plg_course-schedule_week1") { q(".csW1").value = api.storage.get("week1", DEFAULT_WEEK1); tip(); } });
         api.mountApp(el, { minHeight: "70vh" });
       },
     });

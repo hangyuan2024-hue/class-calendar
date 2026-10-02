@@ -461,6 +461,7 @@ button {
   backdrop-filter: blur(2px);
 }
 
+.mode-btn.hidden { display: none; }
 .modal-overlay.hidden {
   display: none;
 }
@@ -678,6 +679,7 @@ button {
         <div class="time-mode-switch" id="time-mode-switch" role="group" aria-label="时间模式">
           <button type="button" class="mode-btn" data-mode="winter">冬春季</button>
           <button type="button" class="mode-btn" data-mode="summer">夏秋季</button>
+          <button type="button" class="mode-btn hidden" data-mode="custom" id="mode-custom" title="从课表截图里认出的上课时间">截图时间</button>
         </div>
         <div class="week-nav" role="group" aria-label="当前周">
           <button type="button" class="week-btn" id="week-prev" title="上一周">−</button>
@@ -776,7 +778,10 @@ var TIME_MODE_KEY = "personal_course_schedule_time_mode_v1";
 var WEEK_KEY = "personal_course_schedule_current_week_v1";
 /* 用户是否主动切换过周次的标记：只有为 "1" 时才使用 WEEK_KEY 中的当前查看周 */
 var WEEK_USER_SET_KEY = "personal_course_schedule_week_user_set_v1";
-var MAX_WEEK = 16;
+/* 班级群日历接入：周次最多 20 周；「截图时间」和第 1 周的日期由主页面的「拍照导入」写进来 */
+var MAX_WEEK = 20;
+var CUSTOM_TIMES_KEY = "personal_course_schedule_custom_times_v1";
+var WEEK1_KEY = "plg_course-schedule_week1";
 
 /* ===== 时间模式 ===== */
 var TIME_MODES = {
@@ -797,6 +802,19 @@ var TIME_MODES = {
     ]
   }
 };
+
+function loadCustomTimes() {
+  try {
+    var arr = JSON.parse(localStorage.getItem(CUSTOM_TIMES_KEY) || "null");
+    if (Array.isArray(arr) && arr.length >= 4 && arr.length <= 16 &&
+        arr.every(function (t) { return /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(t); })) return arr;
+  } catch (e) {}
+  return null;
+}
+(function () {
+  var ct = loadCustomTimes();
+  if (ct) TIME_MODES.custom = { label: "截图时间", periods: ct };
+})();
 
 var DAY_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
 var PALETTE_COUNT = 10;
@@ -851,7 +869,7 @@ function saveSemester(text) {
 function loadTimeMode() {
   try {
     var v = localStorage.getItem(TIME_MODE_KEY);
-    return v === "winter" || v === "summer" ? v : null;
+    return v === "winter" || v === "summer" || (v === "custom" && TIME_MODES.custom) ? v : null;
   } catch (e) {
     return null;
   }
@@ -912,6 +930,12 @@ function timeRangeText(s, e) {
  * 不以 new Date() 所在周作为第1周，也绝不读取 localStorage 中的当前查看周。
  */
 function semesterStartDate() {
+  /* 在「同步到日历」里改过第 1 周的日期就用改过的 */
+  try {
+    var v = JSON.parse(localStorage.getItem(WEEK1_KEY) || "null");
+    var m = typeof v === "string" && v.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+  } catch (e) {}
   return new Date(2026, 8, 14);
 }
 
@@ -1224,8 +1248,6 @@ function handleSubmit(e) {
   var note = courseNote.value.trim();
 
   if (!name) return showError("请填写课程名称");
-  if (!teacher) return showError("请填写教师");
-  if (!location) return showError("请填写上课地点");
   if (isNaN(day) || day < 0 || day > 6) return showError("请选择星期");
   if (isNaN(start) || isNaN(end)) return showError("请选择开始和结束节次");
   if (start > end) return showError("开始节次不能大于结束节次");
@@ -1239,7 +1261,7 @@ function handleSubmit(e) {
     if (+wk > maxWeek) maxWeek = +wk;
   }
   if (maxWeek > MAX_WEEK) {
-    return showError("上课周次超出范围：本课程表仅支持第1~16周");
+    return showError("上课周次超出范围：本课程表仅支持第1~" + MAX_WEEK + "周");
   }
 
   var course = {
@@ -1483,6 +1505,28 @@ function init() {
   updateModeButtons();
   updateWeekLabel();
   render();
+
+  /* 主页面导入了课表、或在别处改了设置：重新读一遍 */
+  window.addEventListener("storage", function (e) {
+    var k = e && e.key;
+    if (k !== COURSES_KEY && k !== TIME_MODE_KEY && k !== CUSTOM_TIMES_KEY && k !== WEEK1_KEY) return;
+    var ct = loadCustomTimes();
+    if (ct) TIME_MODES.custom = { label: "截图时间", periods: ct }; else delete TIME_MODES.custom;
+    state.courses = loadCourses();
+    state.timeMode = loadTimeMode() || defaultTimeMode();
+    if (localStorage.getItem(WEEK_USER_SET_KEY) !== "1") state.currentWeek = loadWeek();
+    showCustomMode();
+    fillPeriodSelects(1, 1);
+    updateModeButtons();
+    updateWeekLabel();
+    render();
+  });
+  showCustomMode();
+}
+
+function showCustomMode() {
+  var b = document.getElementById("mode-custom");
+  if (b) b.classList.toggle("hidden", !TIME_MODES.custom);
 }
 
 init();
