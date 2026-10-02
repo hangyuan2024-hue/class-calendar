@@ -1424,6 +1424,10 @@
   #ingestPanel.moved { margin-top: 0; margin-bottom: 14px; }
   #calIngest, #calPub { white-space: nowrap; } #monthLabel { white-space: nowrap; }
   @media (max-width: 700px) { #calIngest, #calPub { display: none !important; } }
+  #appSec.hidden + #appBox { display: none; } #appBox:empty { display: none; }
+  #appBox a.gi { text-decoration: none; color: inherit; } #appBox .sx { display: flex; flex-direction: column; flex: 1; min-width: 0; } #appBox .sx small { margin: 2px 0 0; text-align: left; white-space: normal; }
+  /* 在 App 里：不要浏览器式的长按菜单和选中高亮 */
+  html.in-app .qbtn, html.in-app .nav, html.in-app .chk, html.in-app .btn { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 </style>
 </head>
 <body>
@@ -1749,6 +1753,9 @@
       </div>
     </div>
 
+    <div class="sec-h hidden" id="appSec"><b>安卓 App</b><span>到点提醒、拍照导入课表</span></div>
+    <div class="group surface" id="appBox"></div>
+
     <div class="sec-h" data-feat="mail"><b>邮箱通知</b><span>重要的事发到邮箱，不怕漏看群消息</span></div>
     <div class="group surface mail-box" id="mailBox" data-feat="mail"></div>
 
@@ -2009,7 +2016,7 @@
 <script src="auth.js?v=20261003b"></script>
 <script src="parse.js"></script>
 <script src="courses.js?v=20261002h"></script>
-<script src="app.js?v=20261003e"></script>
+<script src="app.js?v=20261003f"></script>
 </body>
 </html>
 </body>

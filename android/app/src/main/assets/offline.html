@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>没有网络</title>
+<style>
+  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; font-family: -apple-system, "PingFang SC", sans-serif;
+    background: radial-gradient(120% 80% at 0% 0%, #cdeeff, #f3fbff 60%); color: #0e2240; text-align: center; padding: 24px; box-sizing: border-box; }
+  .m { font-size: 72px; animation: b 3s ease-in-out infinite; } @keyframes b { 50% { transform: translateY(-8px); } }
+  h1 { font-size: 22px; margin: 12px 0 6px; } p { color: #687d97; line-height: 1.7; margin: 0 0 22px; }
+  button { border: 0; border-radius: 16px; padding: 13px 34px; font-size: 16px; font-weight: 800; color: #fff; background: linear-gradient(135deg, #4fc2ff, #1e8cff); box-shadow: 0 12px 24px -12px #1e8cff; }
+</style></head>
+<body><div>
+  <div class="m">📡</div>
+  <h1>连不上网络</h1>
+  <p>第一次打开 App 需要联网。<br>检查一下 Wi-Fi 或流量，再点下面重试。</p>
+  <button onclick="window.AndroidBridge ? AndroidBridge.retry() : location.reload()">重新加载</button>
+</div></body></html>

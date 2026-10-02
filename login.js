@@ -265,6 +265,17 @@ $("fgDone").onclick = async () => {
   finally { $("fgDone").disabled = false; }
 };
 
+// ---------- 安卓 App ----------
+window.ccAppBack = () => { if (!$("forgotBox").classList.contains("hidden")) { showForgot(false); return true; } return false; };
+if (!window.AndroidBridge && !/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+  const ctl = new AbortController(); setTimeout(() => ctl.abort(), 8000);
+  fetch("download/app-version.json?t=" + Date.now(), { cache: "no-store", signal: ctl.signal }).then((r) => (r.ok ? r.json() : null)).then((v) => {
+    if (!v) return;
+    const a = document.createElement("a"); a.href = v.url; a.textContent = "📱 下载安卓 App"; a.setAttribute("download", "");
+    const foot = document.querySelector(".card > .foot:last-child"); if (foot) { foot.append("　·　", a); }
+  }).catch(() => {});
+}
+
 // ---------- 打开页面 ----------
 try { const last = localStorage.getItem(LS_LAST); if (last) { $("account").value = last; } } catch (e) {}
 setMode(new URLSearchParams(location.search).get("mode") === "signup" ? "signup" : "login");

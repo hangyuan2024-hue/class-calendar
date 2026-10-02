@@ -429,6 +429,7 @@ function applyLook() {
   } else root.style.removeProperty("--bg-img");
   document.querySelectorAll("#skinPick .skin").forEach((b) => b.classList.toggle("on", b.dataset.skin === root.dataset.skin));
   if (typeof applyPalette === "function") applyPalette();
+  if (typeof appBars === "function") appBars();
   $("bgThumb").style.backgroundImage = bg ? `url("${bg}")` : "";
   $("bgThumb").textContent = bg ? "" : "无";
   $("bgRemove").classList.toggle("hidden", !bg);
@@ -693,7 +694,7 @@ function renderSide() {
   $("undatedList").innerHTML = undated.length ? undated.map((r) => itemHtml(r, true)).join("") : `<div class="empty">暂无</div>`;
 }
 
-function renderAll() { pluginBroadcastClass(); indexItems(); renderGrid(); renderSide(); renderAgenda(); renderHomework(); renderRail(); renderGrowth(); renderPlan(); renderMeta(); renderWidgets(); syncJump(); }
+function renderAll() { pluginBroadcastClass(); indexItems(); renderGrid(); renderSide(); renderAgenda(); renderHomework(); renderRail(); renderGrowth(); renderPlan(); renderMeta(); renderWidgets(); syncJump(); appSchedule(); }
 
 function showBanner(msg) { const b = $("banner"); b.textContent = msg; b.classList.toggle("show", !!msg); }
 
@@ -1442,6 +1443,7 @@ $("modal").onclick = (e) => { if (e.target === $("modal")) $("modal").classList.
 
 // ===== 备份 / 恢复 =====
 function download(name, text, type) {
+  if (inApp()) { appTok((t) => AndroidBridge.saveFile(t, name, type, b64(text))); return; }
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([text], { type }));
   a.download = name;
@@ -1588,6 +1590,7 @@ async function calDeliver(items, st) {
     location.href = link;
     return;
   }
+  if (inApp()) { appTok((t) => AndroidBridge.openFile(t, fname, "text/calendar", b64(text))); say(`正在打开…在弹出的列表里选 <b>日历</b>，就能把 ${items.length} 个事项导入手机日历。`, "ok"); return; }
   download(fname, text, "text/calendar");
   const alt = link ? ` 没反应？<a href="${esc(link)}" target="_blank" rel="noopener">换一种方式打开</a>` : "";
   if (env.ios) say(`已下载「${esc(fname)}」。点 Safari 地址栏的 <b>下载</b> 图标 → 点开这个文件 → <b>「全部添加」</b>。${alt}`, "info");
@@ -3686,6 +3689,7 @@ async function handleHash() {
     const c = h.get("c"); if (c && myClasses.some((x) => x.id === c) && (!currentClass || currentClass.id !== c)) { currentClass = myClasses.find((x) => x.id === c); save(LS_CUR_CLASS, c); renderClassBar(); loadClass(); }
     history.replaceState(null, "", location.pathname); openUser(h.get("u"), c);
   } else if (location.hash === "#intro") { history.replaceState(null, "", location.pathname); showView("intro"); }
+  else if (location.hash.startsWith("#cal=")) { const k = location.hash.slice(5); history.replaceState(null, "", location.pathname); if (/^\d{4}-\d{2}-\d{2}$/.test(k)) $("jumpDate").onchange({ target: { value: k } }); }
   else if (location.hash === "#people") { history.replaceState(null, "", location.pathname); showView("people"); }
 }
 window.addEventListener("hashchange", handleHash);
@@ -3917,6 +3921,119 @@ document.addEventListener("click", async (e) => {
 document.addEventListener("input", (e) => { const i = e.target.closest("[data-cin]"); if (i) wallDraft[i.dataset.cin] = i.value; });
 document.addEventListener("keydown", (e) => { const i = e.target.closest("[data-cin]"); if (i && e.key === "Enter" && !e.isComposing) { e.preventDefault(); sendComment(Number(i.dataset.cin)); } });
 
+// ===== 安卓 App：在 App 里打开时，多了提醒、返回键、存文件、状态栏变色；在浏览器里打开时，显示「下载安卓 App」 =====
+const inApp = () => !!window.AndroidBridge;
+const LS_APPREM = "app_remind_v1";
+const appRem = () => ({ on: false, before: 30, evening: true, morning: false, ...load(LS_APPREM, {}) });
+function appTok(cb) {   // App 把口令交给主页面后才能调用（插件拿不到口令）
+  if (!inApp()) return;
+  if (window.__ccTok) return cb(window.__ccTok);
+  window.addEventListener("cc-app-ready", () => cb(window.__ccTok), { once: true });
+}
+const b64 = (text) => { const u = new TextEncoder().encode(text); let s = ""; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
+function appBars() { if (!inApp()) return; const c = document.querySelector('meta[name="theme-color"]').content; appTok((t) => AndroidBridge.setBars(t, c)); }
+// 返回键：关弹窗 → 回首页 → 交给 App（再按一次退出）
+window.ccAppBack = () => {
+  if ($("fabMenu").classList.contains("open")) { fabToggle(false); return true; }
+  const dlg = [...document.querySelectorAll("dialog[open]")].pop();
+  if (dlg) { if (dlg.id === "pwDlg" && dlg.dataset.forced) return true; dlg.close(); return true; }
+  const m = document.querySelector("#modal.open, .modal2.open"); if (m) { m.classList.remove("open"); return true; }
+  if ($("warp").classList.contains("on")) return true;
+  const cv = currentView();
+  if (cv !== "home") { showView(cv === "rank" ? "growth" : cv === "credits" || cv === "intro" ? "me" : cv.startsWith("p_") ? "tools" : "home"); return true; }
+  return false;
+};
+// 提醒：今天往后 7 天，有时间的事提前 N 分钟提醒；每天晚上 8 点汇总明天的事
+function appReminderList() {
+  const o = appRem(); if (!o.on) return [];
+  const out = [], now = Date.now(), t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  for (let i = 0; i < 8; i++) {
+    const d = new Date(t0); d.setDate(t0.getDate() + i); const k = keyOf(d);
+    const list = (byDay[k] || []).filter((r) => !r._done && !r._plugin);
+    for (const r of list) {
+      if (!r._p || !r._p.time) continue;
+      const at = new Date(k + "T" + r._p.time + ":00").getTime() - o.before * 60000;
+      const hw = r.msg_type === "作业";
+      if (at > now) out.push({ id: "t_" + r._key + "_" + k, at, go: "cal=" + k,
+        title: hw ? `⏰ ${o.before} 分钟后截止：${r.subject || r.summary || "作业"}` : `⏰ ${o.before} 分钟后：${r.subject || r.summary || ""}`,
+        body: `${r._p.time}${hw ? " 截止" : " 开始"}${r.location ? " · 📍" + r.location : ""}${r.summary && r.subject ? "\n" + r.summary : ""}` });
+    }
+    if (!list.length) continue;
+    const names = list.slice(0, 5).map((r) => (r.msg_type === "作业" ? "📝" : "•") + (r.subject || r.summary || "")).join("\n") + (list.length > 5 ? `\n…还有 ${list.length - 5} 件` : "");
+    const hwN = list.filter((r) => r.msg_type === "作业").length;
+    if (o.evening && i >= 1) {
+      const at = new Date(d); at.setDate(d.getDate() - 1); at.setHours(20, 0, 0, 0);
+      if (at.getTime() > now) out.push({ id: "e_" + k, at: at.getTime(), go: "cal=" + k, title: `明天有 ${list.length} 件事${hwN ? `（${hwN} 项作业）` : ""}`, body: names });
+    }
+    if (o.morning) {
+      const at = new Date(d); at.setHours(7, 30, 0, 0);
+      if (at.getTime() > now) out.push({ id: "m_" + k, at: at.getTime(), go: "cal=" + k, title: `今天有 ${list.length} 件事${hwN ? `（${hwN} 项作业）` : ""}`, body: names });
+    }
+  }
+  return out.sort((a, b) => a.at - b.at).slice(0, 60);
+}
+let appRemTimer = 0, appRemLast = "";
+function appSchedule() {
+  if (!inApp()) return;
+  clearTimeout(appRemTimer);
+  appRemTimer = setTimeout(() => {
+    const json = JSON.stringify(appReminderList());
+    if (json === appRemLast) return;
+    appRemLast = json;
+    appTok((t) => AndroidBridge.setReminders(t, json));
+  }, 1200);
+}
+// 新版本检查（App 里每天看一次）；浏览器里决定要不要显示「下载安卓 App」
+let appLatest = null;
+async function appCheckVersion(force) {
+  try {
+    const ctl = new AbortController(); setTimeout(() => ctl.abort(), 8000);
+    const r = await fetch("download/app-version.json?t=" + Date.now(), { cache: "no-store", signal: ctl.signal });
+    appLatest = r.ok ? await r.json() : null;
+  } catch (e) { appLatest = null; }
+  renderAppBox();
+  if (inApp() && appLatest && appLatest.versionCode > AndroidBridge.versionCode()) {
+    const k = "app_update_seen_" + appLatest.versionCode;
+    if (force || !load(k, false)) { save(k, true); showNotice(`📱 App 有新版本 ${esc(appLatest.versionName)}，<a href="#" id="appUpd">点这里下载更新</a>（下载完点开安装，数据不会丢）`); }
+  } else if (force && inApp()) { AndroidBridge.toast("已经是最新版本了 ✓"); }
+}
+document.addEventListener("click", (e) => {
+  if (e.target.closest("#appUpd, #appUpd2")) { e.preventDefault(); const url = new URL((appLatest && appLatest.url) || "download/class-calendar.apk", location.href).href; appTok((t) => AndroidBridge.openExternal(t, url)); }
+});
+window.ccAppNotify = (ok) => {
+  if (!ok) { const o = appRem(); o.on = false; save(LS_APPREM, o); alert("没有拿到通知权限，提醒没法弹出来。可以在手机「设置 → 应用 → 班级群日历 → 通知」里打开。"); renderAppBox(); return; }
+  appTok((t) => AndroidBridge.testNotify(t)); appRemLast = ""; appSchedule(); renderAppBox();
+};
+function renderAppBox() {
+  const box = $("appBox"); if (!box) return;
+  const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  $("appSec").classList.toggle("hidden", !inApp() && (ios || !appLatest));
+  if (inApp()) {
+    const o = appRem(), cur = AndroidBridge.version();
+    box.innerHTML = `
+      <label class="gi"><span class="ic">🔔</span><span class="sx"><span class="sxt">到点提醒</span><small>作业截止、班会活动开始前，手机弹通知</small></span><input type="checkbox" class="switch" id="arOn" ${o.on ? "checked" : ""}></label>
+      <div class="${o.on ? "" : "hidden"}">
+        <label class="gi"><span class="ic">⏱️</span>提前多久提醒<select class="gsel" id="arBefore">${[10, 30, 60, 120].map((m) => `<option value="${m}" ${o.before === m ? "selected" : ""}>${m < 60 ? m + " 分钟" : m / 60 + " 小时"}</option>`).join("")}</select></label>
+        <label class="gi"><span class="ic">🌙</span>每晚 8 点提醒明天的事<input type="checkbox" class="switch" id="arEve" ${o.evening ? "checked" : ""}></label>
+        <label class="gi"><span class="ic">🌅</span>早上 7:30 提醒今天的事<input type="checkbox" class="switch" id="arMorn" ${o.morning ? "checked" : ""}></label>
+      </div>
+      <button class="gi" id="appCheck"><span class="ic">⬆️</span>检查更新<small>当前版本 ${esc(cur)}${appLatest && appLatest.versionCode > AndroidBridge.versionCode() ? ` · <b style="color:var(--red)">有新版本 ${esc(appLatest.versionName)}</b>` : ""}</small></button>`;
+  } else if (appLatest) {
+    box.innerHTML = `<a class="gi" href="${esc(appLatest.url)}" download><span class="ic">📱</span><span class="sx"><span class="sxt">下载安卓 App</span><small>版本 ${esc(appLatest.versionName)} · ${(appLatest.size / 1048576).toFixed(1)} MB · 作业到点提醒、拍照导入课表更方便</small></span><span class="btn ink sm">下载</span></a>`;
+  }
+}
+document.addEventListener("change", (e) => {
+  const id = e.target.id; if (!["arOn", "arBefore", "arEve", "arMorn"].includes(id)) return;
+  const o = appRem();
+  if (id === "arOn") { o.on = e.target.checked; save(LS_APPREM, o); if (o.on) { appTok((t) => AndroidBridge.askNotify(t)); } else { appRemLast = ""; appSchedule(); } renderAppBox(); return; }
+  if (id === "arBefore") o.before = +e.target.value;
+  if (id === "arEve") o.evening = e.target.checked;
+  if (id === "arMorn") o.morning = e.target.checked;
+  save(LS_APPREM, o); appSchedule();
+});
+document.addEventListener("click", (e) => { if (e.target.closest("#appCheck")) appCheckVersion(true); });
+if (inApp()) document.documentElement.classList.add("in-app");
+
 // ===== 新注册：把引导里选的皮肤、配色、习惯用上；老用户第一次来问一下性别 =====
 const LS_PROFILE = "profile_v1";
 const GENDER_PAL = { f: { id: "sakura", name: "樱花粉", p: "#ff5f8f", s: "#ffb03b" }, m: { id: "navy", name: "海军蓝", p: "#2457d6", s: "#ffb020" } };
@@ -4034,6 +4151,7 @@ renderTabs(); renderTools();
   await loadFeatures();
   loadClass();
   handleHash();
+  appCheckVersion(false);
   handleUnsub(); loadMail(); setTimeout(mailTick, 20000 + Math.random() * 100000);
 })();
 bootstrap().then(() => loadPlugins()).then(() => ck().boot().catch(() => {})).then(() => { if (location.hash === "#store") { showView("store"); history.replaceState(null, "", location.pathname); } });
