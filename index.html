@@ -1247,22 +1247,10 @@
   .dlg label input:not([type=radio]):not([type=checkbox]) { width: 100%; margin-top: 4px; font: inherit; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--text); }
   .sec-row .sx { display: flex; flex-direction: column; flex: 1; min-width: 0; } .sec-row .sx small { margin: 2px 0 0; text-align: left; white-space: normal; }
   .ok-tag { color: var(--green); font-weight: 900; }
-  /* 个人主页 */
-  .up-hero { margin: 0 16px; padding: 0 20px 18px; text-align: center; position: relative; overflow: hidden; }
-  .up-cover { height: 96px; margin: 0 -20px; background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 70%, #fff), var(--accent)); }
-  .up-hero.f .up-cover { background: linear-gradient(135deg, #ffc2d4, #ff5f8f); } .up-hero.m .up-cover { background: linear-gradient(135deg, #b9cbff, #2457d6); }
-  .up-av { width: 84px; height: 84px; font-size: 34px; margin: -42px auto 8px; border: 4px solid var(--card); display: grid; place-items: center; }
-  .up-name { font-size: 22px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap; }
-  .up-bio { margin: 8px auto 0; max-width: 420px; color: var(--text); font-size: 14.5px; line-height: 1.6; }
-  .up-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 16px 0 4px; }
-  .up-stats span { font-size: 12px; color: var(--sub); } .up-stats b { display: block; font-size: 22px; color: var(--text); font-variant-numeric: tabular-nums; }
-  .up-ops { display: flex; gap: 8px; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
-  .up-posts { display: grid; gap: 8px; margin: 0 16px; }
-  .up-post { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 12px 14px; text-align: left; font: inherit; color: var(--text); cursor: pointer; border: 0; width: 100%; }
-  .up-post span { font-size: 14px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; } .up-post small { color: var(--sub); font-size: 12px; }
   .ulink { cursor: pointer; } .ulink:hover { text-decoration: underline; text-underline-offset: 3px; }
   /* 班级墙评论 */
-  .pcomm { margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 8px; }
+  .pcomm { margin-top: 6px; }
+  .post .pops button.cbtn { font-weight: 700; } .post .pops button.cbtn.on { color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
   .cbtn { border: 0; background: none; color: var(--sub); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; padding: 4px 8px; border-radius: 8px; margin-left: -8px; }
   .cbtn:hover { background: var(--hover); color: var(--text); }
   .clist { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; background: var(--muted-bg); border-radius: 12px; padding: 10px; }
@@ -1277,7 +1265,123 @@
   .cin input { flex: 1; min-width: 160px; font: inherit; font-size: 14px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--text); }
   .cin input:focus { outline: none; border-color: var(--accent); }
   .creply { flex-basis: 100%; font-size: 12px; color: var(--sub); } .creply button { border: 0; background: none; color: var(--sub); cursor: pointer; font-size: 14px; }
-  @media (max-width: 700px) { .up-hero, .up-posts { margin-left: 12px; margin-right: 12px; } .up-stats b { font-size: 18px; } .me-ops { width: 100%; } .me-ops .btn { flex: 1; } }
+  @media (max-width: 700px) { .me-ops { width: 100%; } .me-ops .btn { flex: 1; } }
+  /* ===== 个人主页 ===== */
+  .up-hero { margin: 0 16px; padding: 0 0 18px; position: relative; overflow: hidden; }
+  .up-cover { height: 150px; position: relative; overflow: hidden; }
+  .up-shine { position: absolute; inset: 0; background: radial-gradient(circle at 18% 120%, rgba(255,255,255,.45), transparent 45%), radial-gradient(circle at 88% -10%, rgba(255,255,255,.35), transparent 40%);
+    background-size: 100% 100%; }
+  .up-shine::after { content: ""; position: absolute; inset: 0; opacity: .18; background-image: radial-gradient(#fff 1px, transparent 1.4px); background-size: 18px 18px; }
+  .up-cv { position: absolute; right: 12px; top: 12px; border: 0; border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer;
+    color: #fff; background: rgba(0,0,0,.22); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+  .up-cv:hover { background: rgba(0,0,0,.34); }
+  .up-head { display: flex; align-items: flex-end; gap: 16px; padding: 0 22px; margin-top: -44px; position: relative; flex-wrap: wrap; }
+  .up-av { width: 96px; height: 96px; font-size: 40px; border: 5px solid var(--card); box-shadow: 0 10px 24px -8px rgba(0,0,0,.3); display: grid; place-items: center; flex-shrink: 0; }
+  .up-id { flex: 1; min-width: 180px; padding-bottom: 4px; }
+  .up-name { font-size: 26px; font-weight: 800; display: flex; align-items: center; gap: 6px; line-height: 1.2; }
+  [data-skin=vivid] .up-name { font-family: var(--fd); font-weight: var(--fd-weight); font-size: 30px; letter-spacing: 1px; }
+  .up-sub { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin-top: 6px; color: var(--sub); font-size: 13px; }
+  .up-chip { display: inline-block; font-size: 11.5px; font-weight: 800; padding: 2px 9px; border-radius: 999px; background: var(--muted-bg); color: var(--sub); }
+  .up-chip.r-teacher { background: #fff1e8; color: #e8590c; } .up-chip.r-monitor { background: #e8f2ff; color: #1e6fd9; } .up-chip.r-student { background: #eaf8f1; color: #138a5b; }
+  [data-skin=dark] .up-chip.r-teacher, [data-skin=cyber] .up-chip.r-teacher { background: rgba(255,106,61,.16); color: #ff9a6b; }
+  [data-skin=dark] .up-chip.r-monitor, [data-skin=cyber] .up-chip.r-monitor { background: rgba(30,140,255,.16); color: #6fb2ff; }
+  [data-skin=dark] .up-chip.r-student, [data-skin=cyber] .up-chip.r-student { background: rgba(23,194,154,.16); color: #4fd8b0; }
+  .up-ops { display: flex; gap: 8px; padding-bottom: 6px; }
+  .up-bio { margin: 16px 22px 0; padding: 12px 16px; border-radius: 14px; background: var(--muted-bg); font-size: 15px; line-height: 1.6; position: relative; color: var(--text); }
+  .up-bio::before { content: "“"; position: absolute; left: 8px; top: -6px; font-size: 34px; color: var(--accent); opacity: .5; font-family: Georgia, serif; }
+  .up-bio { padding-left: 26px; } .up-bio.empty { color: var(--sub); font-style: italic; }
+  .up-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 12px 16px 0; }
+  .up-stat { background: var(--card); border: 1px solid var(--line); border-radius: var(--r, 18px); padding: 14px 10px 12px; text-align: center; box-shadow: var(--shadow); }
+  .up-stat .ic { display: block; font-size: 20px; margin-bottom: 2px; } .up-stat b { display: block; font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.2; }
+  .up-stat small { color: var(--sub); font-size: 12px; }
+  .up-card { margin: 0 16px; padding: 16px; overflow-x: auto; }
+  .heat { display: inline-flex; flex-direction: column; gap: 6px; min-width: 100%; }
+  .heat-m { display: grid; grid-template-columns: repeat(16, minmax(11px, 1fr)); gap: 4px; font-size: 10.5px; color: var(--sub); height: 14px; } .heat-m span { white-space: nowrap; }
+  .heat-g { display: grid; grid-template-rows: repeat(7, auto); grid-auto-flow: column; grid-auto-columns: minmax(11px, 1fr); gap: 4px; }
+  .heat-g i { display: block; aspect-ratio: 1; max-height: 30px; border-radius: 4px; background: var(--muted-bg); }
+  .heat-l i { display: block; border-radius: 3px; background: var(--muted-bg); }
+  #userBox .aempty, #peopleBox .aempty { margin-left: 16px; margin-right: 16px; }
+  .heat i.h-1 { background: transparent; } .heat i.h1 { background: color-mix(in srgb, var(--green) 30%, var(--muted-bg)); } .heat i.h2 { background: color-mix(in srgb, var(--green) 55%, var(--muted-bg)); }
+  .heat i.h3 { background: color-mix(in srgb, var(--green) 78%, var(--muted-bg)); } .heat i.h4 { background: var(--green); }
+  .heat-l { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--sub); justify-content: flex-end; } .heat-l i { width: 11px; height: 11px; border-radius: 3px; }
+  .up-posts { display: grid; gap: 10px; margin: 0 16px; }
+  .up-post { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 14px 16px; text-align: left; font: inherit; color: var(--text); cursor: pointer; border: 0; width: 100%; transition: transform .15s, box-shadow .15s; }
+  .up-post:hover { transform: translateY(-2px); } .upp-top { display: flex; gap: 6px; align-items: center; } .upp-top:empty { display: none; }
+  .upp-body { font-size: 14.5px; line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; } .up-post small { color: var(--sub); font-size: 12px; }
+  .up-skel { margin: 0 16px; padding-bottom: 24px; overflow: hidden; } .sk { background: linear-gradient(90deg, var(--muted-bg), color-mix(in srgb, var(--muted-bg) 40%, transparent), var(--muted-bg)) !important; background-size: 200% 100% !important; animation: sk 1.2s linear infinite; }
+  .up-skel .up-av { margin: -44px 0 0 22px; border-radius: 50%; } .sk-line { height: 14px; border-radius: 7px; margin: 14px 22px 0; width: 40%; background: var(--muted-bg); } .sk-line.s { width: 70%; }
+  @keyframes sk { to { background-position: -200% 0; } }
+  .covers { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .covers button { height: 44px; border-radius: 12px; border: 2px solid transparent; cursor: pointer; position: relative; font: inherit; }
+  .covers button span { position: absolute; left: 6px; bottom: 3px; font-size: 11px; font-weight: 800; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.35); }
+  .covers button.on { border-color: var(--text); box-shadow: 0 0 0 2px var(--card) inset; }
+  /* ===== 班级成员 ===== */
+  .vsearch { font: inherit; font-size: 14px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--text); width: 140px; }
+  .vsearch:focus { outline: none; border-color: var(--accent); width: 180px; } .vsearch { transition: width .2s; }
+  .pgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin: 0 16px; }
+  .pc { position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 0 10px 14px; border: 0; font: inherit; color: var(--text); cursor: pointer; text-align: center; transition: transform .18s, box-shadow .18s; }
+  .pc:hover { transform: translateY(-3px); box-shadow: 0 14px 30px -14px rgba(10,40,90,.35); }
+  .pc-cv { align-self: stretch; height: 52px; margin: 0 -10px; }
+  .pc-av { width: 60px; height: 60px; font-size: 24px; margin-top: -30px; border: 4px solid var(--card); display: grid; place-items: center; }
+  .pc b { font-size: 15px; display: flex; align-items: center; gap: 3px; margin-top: 2px; }
+  .pc small { color: var(--sub); font-size: 12px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.9em; }
+  /* ===== 功能介绍 ===== */
+  .in-hero { margin: 0 16px; padding: 22px; display: flex; gap: 18px; align-items: center; background: var(--hero, var(--card)); }
+  .in-hero h3 { margin: 0 0 6px; font-size: 22px; } [data-skin=vivid] .in-hero h3 { font-family: var(--fd); font-weight: var(--fd-weight); font-size: 28px; letter-spacing: 1px; }
+  .in-hero p { margin: 0; color: var(--text); opacity: .85; line-height: 1.7; } .in-hero small { display: block; margin-top: 8px; color: var(--sub); }
+  .in-mascot { width: 92px; height: 92px; flex-shrink: 0; animation: bob 4s ease-in-out infinite; }
+  @keyframes bob { 50% { transform: translateY(-6px); } }
+  .in-toc { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 16px; }
+  .in-toc a { text-decoration: none; color: var(--text); font-size: 13.5px; font-weight: 700; padding: 7px 12px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); transition: background .15s; }
+  .in-toc a:hover { background: var(--hover); }
+  .in-list { display: grid; gap: 12px; margin: 0 16px; }
+  .in-sec { padding: 18px 20px; scroll-margin-top: 80px; animation: inUp .45s cubic-bezier(.2,.8,.3,1) both; animation-delay: calc(var(--i) * 40ms); }
+  @keyframes inUp { from { opacity: 0; transform: translateY(10px); } }
+  .in-h { display: flex; gap: 12px; align-items: center; margin-bottom: 8px; }
+  .in-ic { width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; font-size: 24px; background: color-mix(in srgb, var(--accent) 12%, transparent); flex-shrink: 0; }
+  .in-h h4 { margin: 0; font-size: 17px; } .in-h span { color: var(--sub); font-size: 13px; }
+  .md { font-size: 14.5px; line-height: 1.8; color: var(--text); } .md p { margin: 4px 0; } .md ul, .md ol { margin: 4px 0; padding-left: 22px; } .md li { margin: 2px 0; }
+  .md b { color: var(--text); font-weight: 800; } .md code { background: var(--muted-bg); padding: 1px 6px; border-radius: 6px; font-size: 13px; }
+  .in-eds { margin: 0 16px; padding: 14px 16px; }
+  .ed-add { display: flex; gap: 8px; margin-bottom: 10px; } .ed-add input { flex: 1; min-width: 0; font: inherit; padding: 8px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--text); }
+  .ed-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px dashed var(--line); flex-wrap: wrap; } .ed-row:first-child { border-top: 0; }
+  .av.sm { width: 28px; height: 28px; font-size: 13px; }
+  .in-editbar { position: sticky; top: 60px; z-index: 5; margin: 0 16px 12px; padding: 12px 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .in-ed { margin: 0 16px 12px; padding: 12px; }
+  .in-ed-top { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .in-ed input, .in-ed textarea { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--text); min-width: 0; }
+  .in-ed-top input[data-f=title] { flex: 1; font-weight: 700; } .in-ed-top input[data-f=tag] { flex: 1.3; } .in-ic-in { width: 52px; text-align: center; font-size: 18px !important; }
+  .in-mv { display: flex; gap: 2px; } .in-mv button { border: 0; background: var(--muted-bg); color: var(--text); width: 30px; height: 32px; border-radius: 8px; cursor: pointer; } .in-mv button:disabled { opacity: .3; }
+  .in-mv button.warnb:hover { background: var(--danger-bg); color: var(--red); }
+  .in-ed-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; } .in-ed-2 textarea { resize: vertical; line-height: 1.6; }
+  .in-prev { border: 1px dashed var(--line); border-radius: 10px; padding: 8px 12px; max-height: 260px; overflow: auto; }
+  .in-addsec { display: block; margin: 0 16px; width: calc(100% - 32px); padding: 14px; border: 2px dashed var(--line); border-radius: 16px; background: transparent; color: var(--sub); font: inherit; font-weight: 700; cursor: pointer; }
+  .in-addsec:hover { border-color: var(--accent); color: var(--accent); }
+  .in-hist { margin: 0 16px 12px; padding: 10px 14px; }
+  @media (max-width: 700px) {
+    .up-hero, .up-stats, .up-card, .up-posts, .up-skel, .pgrid, .in-hero, .in-toc, .in-list, .in-eds, .in-editbar, .in-ed, .in-hist { margin-left: 12px; margin-right: 12px; }
+    .in-addsec { margin: 0 12px; width: calc(100% - 24px); }
+    .up-cover { height: 120px; } .up-head { padding: 0 16px; gap: 12px; } .up-av { width: 84px; height: 84px; font-size: 34px; } .up-bio { margin: 14px 16px 0; }
+    .up-ops { width: 100%; } .up-ops .btn { flex: 1; }
+    .up-stats { grid-template-columns: repeat(2, 1fr); } .pgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .in-ed-2 { grid-template-columns: 1fr; } .in-hero { flex-direction: column; text-align: center; } .in-mascot { width: 72px; height: 72px; }
+    .vsearch { width: 110px; } .vsearch:focus { width: 140px; }
+  }
+  /* ===== 全站细节打磨 ===== */
+  html { -webkit-tap-highlight-color: transparent; scroll-behavior: smooth; }
+  ::selection { background: color-mix(in srgb, var(--accent) 28%, transparent); }
+  * { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--sub) 35%, transparent) transparent; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; } ::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--sub) 30%, transparent); border-radius: 10px; border: 3px solid transparent; background-clip: padding-box; }
+  :focus-visible { outline: 2.5px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 2px; border-radius: 8px; }
+  .view.on { animation: viewIn .28s cubic-bezier(.2,.8,.3,1); }
+  @keyframes viewIn { from { opacity: 0; transform: translateY(6px); } }
+  .btn, button.small, .qbtn, .tool, .pc, .up-post, .in-toc a, .ptab, .chk { transition: transform .12s ease, background-color .15s, box-shadow .15s, color .15s; }
+  .btn:active, button.small:active, .qbtn:active, .ptab:active, .pc:active, .up-post:active { transform: scale(.97); }
+  .surface { transition: box-shadow .2s; }
+  .sec-h { flex-wrap: wrap; row-gap: 2px; }
+  img, svg { -webkit-user-drag: none; }
+  @media (prefers-reduced-motion: reduce) { .view.on, .in-sec { animation: none; } html { scroll-behavior: auto; } }
+  @media (max-width: 700px) { .col { padding-bottom: calc(120px + env(safe-area-inset-bottom)); } .sec-h { margin: 22px 14px 8px; } .sec-h b { font-size: 17px; } }
 </style>
 </head>
 <body>
@@ -1305,7 +1409,7 @@
       <div class="cb-badge" id="cbBadge">班</div>
       <div class="cb-main">
         <div class="cb-line"><span id="className"></span><select id="classSel" class="hidden" aria-label="切换班级"></select><span id="classNick" class="cb-nick hidden"></span></div>
-        <div class="cb-sub"><span id="classRole" class="tag"></span><span id="classMotto" class="cb-motto hidden"></span><button id="cbNameBtn" class="cb-edit hidden" title="给班级起名字、写口号">✏️ 起名</button><a href="class.html">班级管理</a></div>
+        <div class="cb-sub"><span id="classRole" class="tag"></span><span id="classMotto" class="cb-motto hidden"></span><button id="cbNameBtn" class="cb-edit hidden" title="给班级起名字、写口号">✏️ 起名</button><button class="cb-edit" data-tab="people">👥 成员</button><a href="class.html">班级管理</a></div>
       </div>
     </div>
     <div id="notice" class="surface hidden"></div>
@@ -1347,7 +1451,7 @@
 
   <!-- 班级墙 -->
   <section class="view" data-view="wall">
-    <header class="vhead"><button class="av mavatar" data-tab="me" aria-label="我的"></button><h2>班级墙</h2><span class="spacer"></span><button class="small" id="wRefresh">刷新</button></header>
+    <header class="vhead"><button class="av mavatar" data-tab="me" aria-label="我的"></button><h2>班级墙</h2><span class="spacer"></span><button class="small" data-tab="people">👥 成员</button><button class="small" id="wRefresh">刷新</button></header>
     <div id="wallNoClass" class="surface hidden" style="margin:0 16px;padding:16px"></div>
     <div id="wallBox">
       <div class="composer surface">
@@ -1411,6 +1515,19 @@
   <section class="view" data-view="meta">
     <header class="vhead"><button class="back" data-tab="home" aria-label="返回首页">‹</button><h2>元宇宙空间</h2></header>
     <div id="metaBox"></div>
+  </section>
+
+  <!-- 班级成员 -->
+  <section class="view" data-view="people">
+    <header class="vhead"><button class="back" data-tab="home" aria-label="返回">‹</button><h2>班级成员</h2><span class="tag" id="peopleTitle"></span><span class="spacer"></span>
+      <input id="peopleQ" class="vsearch" placeholder="🔍 找人" maxlength="20"></header>
+    <div id="peopleBox"></div>
+  </section>
+
+  <!-- 功能介绍 -->
+  <section class="view" data-view="intro">
+    <header class="vhead"><button class="back" data-tab="me" aria-label="返回">‹</button><h2>功能介绍</h2><span class="spacer"></span><button class="btn sm hidden" id="introEditBtn">✏️ 编辑</button></header>
+    <div id="introBox"></div>
   </section>
 
   <!-- 个人主页 -->
@@ -1591,6 +1708,7 @@
 
     <div class="sec-h"><b>班级与账号</b></div>
     <div class="group surface">
+      <button class="gi" data-tab="people"><span class="ic">👥</span>班级成员<small>点头像进入 TA 的主页</small></button>
       <a class="gi" href="class.html"><span class="ic">🏫</span>班级管理<small>加入班级、审批同学</small></a>
       <a class="gi hidden" id="menuClassFeat" href="class.html#features"><span class="ic">🎛️</span>本班功能开关<small>决定学生、班委能用哪些功能</small></a>
       <a class="gi hidden" id="menuSiteFeat" href="dev.html#features"><span class="ic">⚙️</span>全站功能开关<small>管理员：一键暂停有问题的功能</small></a>
@@ -1602,6 +1720,7 @@
 
     <div class="sec-h"><b>关于</b></div>
     <div class="group surface">
+      <button class="gi" data-tab="intro"><span class="ic">📖</span>功能介绍<small>每个功能怎么用</small></button>
       <button class="gi" data-tab="credits"><span class="ic">💛</span>感谢名单<small>为本网站做出贡献的人</small></button>
     </div>
 
@@ -1678,6 +1797,8 @@
       <label><input type="radio" name="pg" value="x"><span>🤫 保密</span></label>
     </div>
     <label class="check"><input type="checkbox" id="pfPal" checked> 改了性别顺便换成对应的配色</label>
+    <label>主页封面</label>
+    <div class="covers" id="pfCovers"></div>
     <label>个性签名 <span class="meta" id="pfCount" style="float:right">0/60</span>
       <input id="pfBio" maxlength="60" placeholder="比如：今日事今日毕 ✨"></label>
     <div class="nd-actions"><span class="meta" id="pfStatus"></span><span class="spacer"></span><button type="button" class="small" id="pfCancel">取消</button><button type="submit" class="btn ink sm" id="pfSave">保存</button></div>
@@ -1723,7 +1844,7 @@
 <aside class="siderail">
   <div class="widget surface"><h4 id="miniTitle"></h4><div class="mini" id="miniCal"></div></div>
   <div class="widget surface"><h4>这周的作业<span class="spacer"></span><button class="small" data-tab="homework">全部</button></h4><div id="miniHw"></div></div>
-  <div class="rail-foot">信息捞捞队 · 班级群信息整理助手<br>群消息由 AI 整理，有出入以群里为准<br><button class="linkish" data-tab="credits">💛 感谢名单</button></div>
+  <div class="rail-foot">信息捞捞队 · 班级群信息整理助手<br>群消息由 AI 整理，有出入以群里为准<br><button class="linkish" data-tab="intro">📖 功能介绍</button> · <button class="linkish" data-tab="credits">💛 感谢名单</button></div>
 </aside>
 </div>
 
@@ -1837,7 +1958,7 @@
 <script src="auth.js?v=20261003b"></script>
 <script src="parse.js"></script>
 <script src="courses.js?v=20261002h"></script>
-<script src="app.js?v=20261003b"></script>
+<script src="app.js?v=20261003c"></script>
 </body>
 </html>
 </body>

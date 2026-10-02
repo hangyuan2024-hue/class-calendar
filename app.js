@@ -2069,7 +2069,7 @@ function renderUserChip() {
   el.innerHTML = `<span class="av">${initial}</span><span class="who">${esc(name)}<small>${esc(role)}</small></span>`;
   $("meCard").innerHTML = meCardHtml();
   const g = myGender();
-  document.querySelectorAll(".mavatar, #userChip .av").forEach((a) => (a.style.background = avGrad(g)));
+  document.querySelectorAll(".mavatar, #userChip .av").forEach((a) => { a.style.background = avGrad(g); a.style.color = avGrad(g) ? "#fff" : ""; });
 }
 // 退出时：班级相关的缓存一律清掉；在公共电脑上还可以把这台设备上的个人数据全部清除
 async function wipeLocalData(all) {
@@ -2157,6 +2157,8 @@ function showView(id) {
   if (id === "plan") renderPlan();
   if (id === "meta") renderMeta();
   if (id === "me") loadSecurity();
+  if (id === "people") loadPeople();
+  if (id === "intro") loadIntro();
   if (id === "ask") renderAsk();
   if (id === "credits") loadCredits();
   if (id === "rank") loadRank();
@@ -2954,7 +2956,7 @@ function renderPlan() {
     ? `<div class="pi-h"><b>${m.icon} ${esc(m.name)} · 编辑简介</b></div>
        <textarea id="piText" rows="7" maxlength="3000" placeholder="把你准备好的简介粘贴到这里">${esc(own || m.intro)}</textarea>
        <div class="pi-ops"><button class="small" data-pi="reset">恢复默认简介</button><span class="spacer"></span><button class="small" data-pi="cancel">取消</button><button class="btn ink sm" data-pi="save">保存</button></div>`
-    : `<details class="pi-d"${planNotes["introOpen:" + cur] === false ? "" : " open"}><summary><b>${m.icon} ${esc(m.name)}</b><span>${esc(m.tag)}</span><em>这是什么？怎么用</em></summary>
+    : `<details class="pi-d"${planNotes["introOpen:" + cur] === false || (isMobile() && planNotes["introOpen:" + cur] !== true) ? "" : " open"}><summary><b>${m.icon} ${esc(m.name)}</b><span>${esc(m.tag)}</span><em>这是什么？怎么用</em></summary>
        <div class="pi-body">${esc(own || m.intro).replace(/\n/g, "<br>")}</div>
        <div class="pi-ops"><span class="meta">${own ? "这是你自己写的简介" : ""}</span><span class="spacer"></span><button class="small" data-pi="edit">✏️ ${own ? "修改简介" : "换成我的简介"}</button></div></details>`;
   const items = planItems();
@@ -3047,7 +3049,8 @@ $("planIntro").addEventListener("click", (e) => {
   if (act === "save") { const t = $("piText").value.trim(); const m = PLAN_METHODS.find((x) => x.id === cur); if (t && t !== m.intro) planNotes["intro:" + cur] = t; else delete planNotes["intro:" + cur]; savePlan(); planIntroEdit = false; }
   renderPlan();
 });
-$("planIntro").addEventListener("toggle", (e) => { if (e.target.matches("details.pi-d")) { const cur = planCur(); if (e.target.open) delete planNotes["introOpen:" + cur]; else planNotes["introOpen:" + cur] = false; savePlan(); } }, true);
+// 只记用户自己点开 / 收起（带 open 属性渲染时浏览器也会触发 toggle，不能算）
+$("planIntro").addEventListener("click", (e) => { const sm = e.target.closest("details.pi-d > summary"); if (!sm) return; const d = sm.parentElement; setTimeout(() => { planNotes["introOpen:" + planCur()] = d.open; savePlan(); }, 0); });
 
 function moveQuad(k, q) { quadMap[k] = q; save(LS_QUAD, quadMap); renderPlan(); }
 function delMine(k, ask) {
@@ -3253,6 +3256,7 @@ function postHtml(p) {
   if (mine) ops.push(`<button data-w="edit" data-id="${p.id}">编辑</button>`);
   if (mine || canModerate()) ops.push(`<button data-w="del" data-id="${p.id}" class="warnb">删除</button>`);
   if (canModerate()) ops.push(p.hidden ? `<button data-w="unhide" data-id="${p.id}">恢复显示</button>` : `<button data-w="hide" data-id="${p.id}" class="warnb">隐藏</button>`);
+  if (!(p.hidden && !canModerate())) { const n = (wallComments[p.id] || []).length; ops.unshift(`<button data-c="toggle" data-id="${p.id}" class="cbtn${wallCmtOpen.has(p.id) ? " on" : ""}">💬 ${n ? n + " 条评论" : "评论"}</button>`); }
   if (!mine && !canModerate()) ops.push(wallReported.has(String(p.id)) ? `<button class="done" disabled>已举报</button>` : `<button data-w="report" data-id="${p.id}" class="warnb">举报</button>`);
   return `<article class="post surface${p.is_notice ? " notice" : ""}${p.hidden ? " hiddenpost" : ""}" id="post-${p.id}">
     <span class="av r-${esc(role)}"${p.author_id ? ` data-user="${esc(p.author_id)}" style="cursor:pointer"` : ""}>${esc([...(p.author_name || "?")][0])}</span>
@@ -3466,7 +3470,7 @@ const avGrad = (g) => (g === "f" ? "linear-gradient(135deg,#ff8fb0,#ff5f8f)" : g
 function meCardHtml() {
   const u = currentUser, name = u.display_name || u.account || "我", g = myGender();
   const role = CCAuth.ROLE_NAMES[u.role] || u.role;
-  return `<span class="av" style="${avGrad(g) ? "background:" + avGrad(g) : ""}">${esc([...name][0])}</span>
+  return `<span class="av" style="${avGrad(g) ? "background:" + avGrad(g) + ";color:#fff" : ""}">${esc([...name][0])}</span>
     <div class="me-main"><b>${esc(name)}${g === "m" ? ' <i class="gico m">♂</i>' : g === "f" ? ' <i class="gico f">♀</i>' : ""}</b>
       <span>${esc(role)}${u.account ? " · @" + esc(u.account) : ""}</span>
       <p class="me-bio${u.bio ? "" : " empty"}">${u.bio ? esc(u.bio) : "还没有个性签名，写一句介绍自己吧"}</p></div>
@@ -3484,8 +3488,16 @@ function openProfile() {
   document.querySelectorAll("#profForm input[name=pg]").forEach((r) => (r.checked = r.value === (g || "x")));
   $("pfBio").value = currentUser.bio || ""; $("pfCount").textContent = `${$("pfBio").value.length}/60`;
   $("pfName").textContent = currentUser.display_name; $("pfStatus").textContent = "";
+  pfCover = currentUser.cover || ""; renderCoverPick();
   $("profDlg").showModal();
 }
+let pfCover = "";
+function renderCoverPick() {
+  const g = (document.querySelector("#profForm input[name=pg]:checked") || {}).value;
+  $("pfCovers").innerHTML = Object.entries(COVERS).map(([k, [n, bg]]) => `<button type="button" data-cover="${k}" class="${(pfCover || (g === "f" ? "sakura" : g === "m" ? "sky" : "ocean")) === k ? "on" : ""}" style="background:${bg}" title="${n}"><span>${n}</span></button>`).join("");
+}
+$("pfCovers").onclick = (e) => { const b = e.target.closest("[data-cover]"); if (b) { pfCover = b.dataset.cover; renderCoverPick(); } };
+$("profForm").addEventListener("change", (e) => { if (e.target.name === "pg") renderCoverPick(); });
 $("pfBio").oninput = () => { $("pfCount").textContent = `${$("pfBio").value.length}/60`; };
 $("pfCancel").onclick = () => $("profDlg").close();
 $("profForm").onsubmit = async (e) => {
@@ -3494,8 +3506,9 @@ $("profForm").onsubmit = async (e) => {
   const oldG = myGender();
   $("pfSave").disabled = true; $("pfStatus").textContent = "保存中…";
   try {
-    const r = await CCAuth.rpc("profile_update", { p_gender: g, p_bio: bio });
-    currentUser.gender = r.gender; currentUser.bio = r.bio;
+    const r = await CCAuth.rpc("profile_update", { p_gender: g, p_bio: bio, ...(pfCover ? { p_cover: pfCover } : {}) });
+    currentUser.gender = r.gender; currentUser.bio = r.bio; currentUser.cover = r.cover;
+    if (currentView() === "user" && userPageId === currentUser.id) openUser(currentUser.id);
     save(LS_PROFILE, { ...load(LS_PROFILE, {}), gender: r.gender === "x" ? "" : r.gender });
     if ((g === "m" || g === "f") && g !== oldG && $("pfPal").checked) { save(LS_PALETTE, GENDER_PAL[g]); applyLook(); }
     renderUserChip(); renderAll(); $("profDlg").close();
@@ -3504,42 +3517,111 @@ $("profForm").onsubmit = async (e) => {
 };
 
 // ---- 个人主页 ----
+const COVERS = { sky: ["天空", "linear-gradient(135deg,#7cc8ff 0%,#3a8dff 55%,#6a5cff 100%)"], sakura: ["樱花", "linear-gradient(135deg,#ffd1dc 0%,#ff8fb0 50%,#ff5f8f 100%)"],
+  ocean: ["深海", "linear-gradient(135deg,#5ee7df 0%,#2a9fd6 50%,#1d4fb8 100%)"], sunset: ["落日", "linear-gradient(135deg,#ffd27a 0%,#ff8a5c 50%,#e8487a 100%)"],
+  forest: ["森林", "linear-gradient(135deg,#c6f1a8 0%,#4fc58a 50%,#1f8a6e 100%)"], galaxy: ["星空", "linear-gradient(135deg,#a18cff 0%,#5b4bd6 50%,#1d1660 100%)"],
+  peach: ["蜜桃", "linear-gradient(135deg,#ffe3c2 0%,#ffb199 50%,#ff7a8a 100%)"], mono: ["素白", "linear-gradient(135deg,#f3f5f9 0%,#d9dee8 100%)"] };
+const coverOf = (c, g) => (COVERS[c] || COVERS[g === "f" ? "sakura" : g === "m" ? "sky" : "ocean"])[1];
 let userPageId = null;
-async function openUser(uid) {
+async function openUser(uid, cid) {
   userPageId = uid;
   showView("user");
-  $("userBox").innerHTML = `<div class="aempty surface">加载中…</div>`;
+  $("userBox").innerHTML = `<div class="up-skel surface"><div class="up-cover sk"></div><span class="av up-av sk"></span><div class="sk-line"></div><div class="sk-line s"></div></div>`;
   try {
-    const d = await CCAuth.rpc("user_page", { uid, cid: currentClass ? currentClass.id : null });
+    const d = await CCAuth.rpc("user_page", { uid, cid: cid || (currentClass ? currentClass.id : null) });
     if (userPageId !== uid) return;
     renderUser(d);
   } catch (err) { $("userBox").innerHTML = `<div class="aempty surface">打不开这个主页：${esc(err.message)}</div>`; }
 }
+function heatHtml(days) {
+  const t = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const end = new Date(t); end.setDate(t.getDate() + (6 - (t.getDay() + 6) % 7));   // 本周日
+  const cols = 16, start = new Date(end); start.setDate(end.getDate() - cols * 7 + 1);
+  const max = Math.max(1, ...Object.values(days || {}));
+  let cells = "", months = "", lastM = -1;
+  for (let c = 0; c < cols; c++) {
+    const colStart = new Date(start); colStart.setDate(start.getDate() + c * 7);
+    months += `<span>${colStart.getMonth() !== lastM ? colStart.getMonth() + 1 + "月" : ""}</span>`; lastM = colStart.getMonth();
+    for (let r = 0; r < 7; r++) {
+      const d = new Date(colStart); d.setDate(colStart.getDate() + r);
+      const k = keyOf(d), v = (days || {})[k] || 0, fut = d > t;
+      const lv = fut ? -1 : v === 0 ? 0 : Math.min(4, Math.ceil(v / max * 4));
+      cells += `<i class="h${lv}" title="${k}${fut ? "" : " · " + (v ? v + " 成长值" : "没有记录")}"></i>`;
+    }
+  }
+  return `<div class="heat"><div class="heat-m">${months}</div><div class="heat-g">${cells}</div>
+    <div class="heat-l"><span>少</span><i class="h0"></i><i class="h1"></i><i class="h2"></i><i class="h3"></i><i class="h4"></i><span>多</span></div></div>`;
+}
 function renderUser(d) {
   const g = d.gender, role = d.class_role === "teacher" ? "老师" : d.class_role === "monitor" ? "班委" : d.class_role === "student" ? "同学" : CCAuth.ROLE_NAMES[d.role] || "";
   const joined = new Date(d.joined), days = Math.max(1, Math.round((Date.now() - joined) / 86400000));
-  $("userTitle").textContent = d.me ? "我的主页" : d.name + " 的主页";
+  const isT = d.class_role === "teacher";
+  $("userTitle").textContent = d.me ? "我的主页" : d.name;
+  const stat = (v, l, ic) => `<div class="up-stat"><span class="ic">${ic}</span><b>${v == null ? "—" : v}</b><small>${l}</small></div>`;
   $("userBox").innerHTML = `
-    <div class="up-hero surface${g === "f" ? " f" : g === "m" ? " m" : ""}">
-      <div class="up-cover"></div>
-      <span class="av up-av" style="${avGrad(g) ? "background:" + avGrad(g) : ""}">${esc([...(d.name || "?")][0])}</span>
-      <div class="up-name">${esc(d.name)}${g === "m" ? ' <i class="gico m">♂</i>' : g === "f" ? ' <i class="gico f">♀</i>' : ""}${role ? `<span class="rbadge ${esc(d.class_role || "")}">${esc(role)}</span>` : ""}</div>
-      ${d.account ? `<div class="meta">@${esc(d.account)}</div>` : ""}
-      <p class="up-bio">${d.bio ? esc(d.bio) : d.me ? "还没有个性签名～" : "这个人很神秘，什么都没写"}</p>
-      <div class="up-stats">
-        <span><b>${d.post_count}</b>班级墙发言</span>
-        <span><b>${d.week_points == null ? "—" : d.week_points}</b>本周成长值</span>
-        <span><b>${d.total_points == null ? "—" : d.total_points}</b>累计成长值</span>
-        <span><b>${days}</b>加入天数</span>
+    <div class="up-hero surface">
+      <div class="up-cover" style="background:${coverOf(d.cover, g)}"><div class="up-shine"></div>
+        ${d.me ? `<button class="up-cv" id="profEdit2" title="换封面、改资料">🎨 装扮主页</button>` : ""}</div>
+      <div class="up-head">
+        <span class="av up-av" style="${avGrad(g) ? "background:" + avGrad(g) + ";color:#fff" : ""}">${esc([...(d.name || "?")][0])}</span>
+        <div class="up-id">
+          <div class="up-name">${esc(d.name)}${g === "m" ? '<i class="gico m" title="男生">♂</i>' : g === "f" ? '<i class="gico f" title="女生">♀</i>' : ""}</div>
+          <div class="up-sub">${role ? `<span class="up-chip r-${esc(d.class_role || "")}">${esc(role)}</span>` : ""}${d.class_name ? `<span>🏫 ${esc(d.class_name)}</span>` : ""}${d.account ? `<span>@${esc(d.account)}</span>` : ""}<span>加入 ${days} 天</span></div>
+        </div>
+        <div class="up-ops">${d.me ? `<button class="btn sm" id="profEdit">✏️ 编辑资料</button>` : ""}
+          ${d.can_reset ? `<button class="btn sm" data-reset="${esc(d.id)}" data-name="${esc(d.name)}">🔑 重置密码</button>` : ""}</div>
       </div>
-      <div class="up-ops">${d.me ? `<button class="btn ink sm" id="profEdit">✏️ 编辑资料</button>` : ""}
-        ${d.can_reset ? `<button class="btn sm" data-reset="${esc(d.id)}" data-name="${esc(d.name)}">🔑 重置他的密码</button>` : ""}</div>
+      <blockquote class="up-bio${d.bio ? "" : " empty"}">${d.bio ? esc(d.bio) : d.me ? "写一句个性签名，让同学更了解你 ✍️" : "这个人很低调，还没有写签名"}</blockquote>
     </div>
-    <div class="sec-h"><b>${d.me ? "我" : "TA"}在班级墙</b><span>${currentClass ? esc(currentClass.name) : "加入班级后显示"}</span></div>
+    ${isT ? "" : `<div class="up-stats">
+      ${stat(d.week_points, "本周成长值", "⚡")}${stat(d.total_points, "累计成长值", "🏆")}${stat(d.show_points ? d.streak : null, "连续活跃天", "🔥")}${stat(d.post_count + d.comment_count, "发言和评论", "💬")}
+    </div>`}
+    ${!isT && d.show_points ? `<div class="sec-h"><b>成长足迹</b><span>最近 16 周 · 完成 ${d.done || 0} 件事 · 打卡 ${d.habits || 0} 次 · 专注 ${d.pomos || 0} 个番茄</span></div>
+      <div class="surface up-card">${heatHtml(d.days)}</div>`
+      : !isT && !d.show_points ? `<div class="aempty surface">TA 在排行榜里设置了不公开，成长记录只有自己和老师能看到 🔒</div>` : ""}
+    <div class="sec-h"><b>${d.me ? "我" : isT ? "老师" : "TA"}的班级墙</b><span>${d.post_count} 条发言</span></div>
     ${d.posts.length ? `<div class="up-posts">${d.posts.map((p) => `<button class="up-post surface" data-goto-post="${p.id}">
-        ${p.is_notice ? `<span class="pflag notice">📢 通知</span>` : ""}${p.title ? `<b>${esc(p.title)}</b>` : ""}<span>${esc(p.body)}</span><small>${ago(p.created_at)}</small></button>`).join("")}</div>`
-      : `<div class="aempty surface">${d.me ? "你" : "TA"}还没在班级墙发过言</div>`}`;
+        <div class="upp-top">${p.is_notice ? `<span class="pflag notice">📢 通知</span>` : ""}${p.title ? `<b>${esc(p.title)}</b>` : ""}</div>
+        <span class="upp-body">${esc(p.body)}</span>
+        <small>${ago(p.created_at)}${p.comments ? ` · 💬 ${p.comments}` : ""}</small></button>`).join("")}</div>`
+      : `<div class="aempty surface">${d.me ? "你还没在班级墙发过言，去打个招呼吧 👋" : "还没有发过言"}</div>`}`;
 }
+document.addEventListener("click", (e) => { if (e.target.closest("#profEdit2")) openProfile(); });
+
+// ---- 班级成员（同学录） ----
+async function loadPeople() {
+  if (!currentUser || !currentClass) { $("peopleBox").innerHTML = `<div class="aempty surface">加入班级后就能看到班级成员。<a href="class.html">输入班级码加入</a></div>`; return; }
+  $("peopleTitle").textContent = currentClass.nickname || currentClass.name;
+  $("peopleBox").innerHTML = `<div class="aempty surface">加载中…</div>`;
+  try {
+    const r = await CCAuth.rpc("class_people", { cid: currentClass.id });
+    const list = r.people || [], q = ($("peopleQ").value || "").trim();
+    const show = q ? list.filter((p) => (p.name + (p.bio || "")).includes(q)) : list;
+    const card = (p) => `<button class="pc surface" data-user="${esc(p.id)}">
+        <span class="pc-cv" style="background:${coverOf(p.cover, p.gender)}"></span>
+        <span class="av pc-av" style="${avGrad(p.gender) ? "background:" + avGrad(p.gender) + ";color:#fff" : ""}">${esc([...(p.name || "?")][0])}</span>
+        <b>${esc(p.name)}${p.gender === "m" ? '<i class="gico m">♂</i>' : p.gender === "f" ? '<i class="gico f">♀</i>' : ""}</b>
+        <span class="up-chip r-${esc(p.role)}">${p.role === "teacher" ? "老师" : p.role === "monitor" ? "班委" : "同学"}</span>
+        <small>${p.bio ? esc(p.bio) : "　"}</small></button>`;
+    const groups = [["老师", show.filter((p) => p.role === "teacher")], ["班委", show.filter((p) => p.role === "monitor")], ["同学", show.filter((p) => p.role === "student")]];
+    $("peopleBox").innerHTML = groups.filter(([, l]) => l.length).map(([n, l]) => `<div class="sec-h"><b>${n}</b><span>${l.length} 人</span></div><div class="pgrid">${l.map(card).join("")}</div>`).join("")
+      + (show.length ? "" : `<div class="aempty surface">没有找到「${esc(q)}」</div>`)
+      + (r.full ? "" : `<div class="afoot">只显示了老师、班委和你自己。完整名单需要老师在「班级管理」里给你开「看成员名单」权限。</div>`);
+  } catch (err) { $("peopleBox").innerHTML = `<div class="aempty surface">加载失败：${esc(err.message)}</div>`; }
+}
+let peopleT = 0;
+$("peopleQ").oninput = () => { clearTimeout(peopleT); peopleT = setTimeout(loadPeople, 250); };
+
+// ---- 网址直达：#u=某人（班级管理里点名字跳过来）、#intro ----
+async function handleHash() {
+  const h = new URLSearchParams(location.hash.slice(1));
+  if (h.get("u") && currentUser) {
+    const c = h.get("c"); if (c && myClasses.some((x) => x.id === c) && (!currentClass || currentClass.id !== c)) { currentClass = myClasses.find((x) => x.id === c); save(LS_CUR_CLASS, c); renderClassBar(); loadClass(); }
+    history.replaceState(null, "", location.pathname); openUser(h.get("u"), c);
+  } else if (location.hash === "#intro") { history.replaceState(null, "", location.pathname); showView("intro"); }
+  else if (location.hash === "#people") { history.replaceState(null, "", location.pathname); showView("people"); }
+}
+window.addEventListener("hashchange", handleHash);
 document.addEventListener("click", async (e) => {
   const gp = e.target.closest("[data-goto-post]");
   if (gp) { const id = +gp.dataset.gotoPost; showView("wall"); wallFilter = "all"; wallUnfold.add(id); renderWall(); setTimeout(() => $("post-" + id)?.scrollIntoView({ behavior: "smooth", block: "center" }), 300); return; }
@@ -3550,6 +3632,118 @@ document.addEventListener("click", async (e) => {
       const r = await CCAuth.rpc("pw_reset_by_staff", { uid: rs.dataset.reset });
       prompt(`已重置。把账号和临时密码告诉 ${r.name}（可以复制）：`, `账号 ${r.account}　临时密码 ${r.temp}`);
     } catch (err) { alert("重置失败：" + err.message); }
+  }
+});
+
+// ===== 功能介绍：所有人能看；管理员指定的人可以编写 =====
+const INTRO_DEFAULT = [
+  { id: "start", icon: "👋", title: "这是什么网站", tag: "一分钟了解", body: "班级群消息太多、太乱？**班级群日历**把群里的作业、通知、活动整理成一本日历，谁都能一眼看清「什么时候、要做什么」。\n- 班委把群消息粘贴进来，AI 自动整理成事项\n- 同学打开就能看到本周作业、今天的安排\n- 换手机、换浏览器，登录同一个账号数据都在" },
+  { id: "home", icon: "🏠", title: "首页", tag: "今天要做什么", body: "首页按「今天、明天、这周」列出接下来两周的安排，过期没交的作业会单独提醒。\n- 点左边的圆圈就是完成，会有鼓励动画\n- 「隐藏已完成」可以让列表更清爽，「清理」能一键删掉自己已完成的事\n- 「自定义首页」可以拖动卡片、调大小，放上课程表、番茄钟、排行榜" },
+  { id: "hw", icon: "📝", title: "作业", tag: "按截止时间排好", body: "一周的作业按截止时间排序，显示「还剩几天」，没交的过期作业也会列出来。可以切换上一周、下一周。" },
+  { id: "cal", icon: "📅", title: "日历与「记一件事」", tag: "班级事项 + 自己的事", body: "日历里能看到整个月的安排，点某一天在右边看详情，**双击日期**可以直接在那天加事项。\n- 「记一件事」用来记自己的事，只有你看得到\n- 可以不填日期，当作待办\n- 能一键加到手机日历，班委新发的事项会自动同步过去" },
+  { id: "wall", icon: "💬", title: "班级墙", tag: "全班的留言板", body: "全班同学和老师都能发言、评论、回复。老师和班委可以发通知、置顶。\n- 点名字或头像能进入对方的个人主页\n- 遇到不友善的内容可以举报，只有老师能看到是谁举报的" },
+  { id: "plan", icon: "🎯", title: "规划 · 时间管理", tag: "四象限、PDCA、SMART…", body: "规划页里有五种时间管理方法，每种都有简介，不会用就展开看看：\n1. 四象限法：按重要和紧急分成四类\n2. PDCA 循环：计划、执行、检查、改进\n3. SMART 目标：把目标定清楚\n4. 六件事法：每天只排最重要的 6 件\n5. 番茄工作法：专注 25 分钟、休息 5 分钟" },
+  { id: "growth", icon: "🔥", title: "成长与排行榜", tag: "坚持看得见", body: "完成作业、习惯打卡、专注番茄钟都会攒成长值，班级排行榜按周、月、总榜排名。不想上榜可以设为匿名或不参加。" },
+  { id: "course", icon: "📚", title: "课程表", tag: "拍照导入", body: "在「工具」里打开课程表，拍一张课表照片就能自动识别，还会越用越准。每天晚上可以发邮件提醒明天的课。" },
+  { id: "meta", icon: "🌐", title: "捞捞元宇宙", tag: "另一种风格", body: "首页右上角「进入捞捞元宇宙」可以换成霓虹科幻风格。元宇宙空间里有你的等级、每日任务、成就徽章，还有元宇宙小百科。" },
+  { id: "me", icon: "👤", title: "我的 · 个人主页", tag: "资料、外观、数据", body: "- 编辑资料：性别、个性签名、主页封面\n- 外观：元气、简约、夜间、元宇宙四种风格，十几种配色，还能换背景图\n- 数据：选择云端同步还是只存在这台设备\n- 账号安全：修改密码；绑定邮箱后忘记密码可以自己找回" },
+  { id: "faq", icon: "❓", title: "常见问题", tag: "", body: "**忘记密码怎么办？** 绑定过邮箱的，在登录页点「忘记密码」；没绑的请找班主任，在你的个人主页重置。\n**换了手机数据还在吗？** 登录同一个账号就在（「我的 → 保存位置」选云端同步）。\n**事项和群里说的不一样？** 以群里为准，可以在事项上加备注，或者告诉班委修改。" },
+];
+let intro = null, introEdit = null, introBase = null;
+function introMd(s) {
+  return mdLite(s || "");
+}
+async function loadIntro() {
+  try { intro = await CCAuth.rpc("intro_get"); } catch (e) { intro = { sections: [], can_edit: false, error: e.message }; }
+  renderIntro();
+}
+function introSections() { return intro && intro.sections && intro.sections.length ? intro.sections : INTRO_DEFAULT; }
+function renderIntro() {
+  const box = $("introBox"); if (!box) return;
+  if (!intro) { box.innerHTML = `<div class="aempty surface">加载中…</div>`; return; }
+  if (introEdit) return renderIntroEdit();
+  const secs = introSections();
+  $("introEditBtn").classList.toggle("hidden", !intro.can_edit);
+  box.innerHTML = `
+    <div class="in-hero surface">
+      <svg class="in-mascot" viewBox="0 0 120 120" aria-hidden="true"><use href="#mascotArt"/></svg>
+      <div><h3>班级群日历 · 功能介绍</h3><p>把班级群里的消息变成一本清清楚楚的日历。下面是每个功能怎么用，点目录可以直接跳过去。</p>
+        ${intro.updated_at ? `<small>最后由 ${esc(intro.updated_name || "管理员")} 更新于 ${new Date(intro.updated_at).toLocaleDateString("zh-CN")}</small>` : ""}</div>
+    </div>
+    <nav class="in-toc">${secs.map((x) => `<a href="#" data-in="${esc(x.id)}">${esc(x.icon || "•")} ${esc(x.title)}</a>`).join("")}</nav>
+    <div class="in-list">${secs.map((x, i) => `<section class="in-sec surface" id="in_${esc(x.id)}" style="--i:${i}">
+        <div class="in-h"><span class="in-ic">${esc(x.icon || "📌")}</span><div><h4>${esc(x.title)}</h4>${x.tag ? `<span>${esc(x.tag)}</span>` : ""}</div></div>
+        <div class="in-body md">${introMd(x.body)}</div></section>`).join("")}</div>
+    ${intro.is_admin ? `<div class="sec-h"><b>谁可以编写这一页</b><span>管理员可以指定任何人</span></div><div class="surface in-eds" id="introEds">加载中…</div>` : ""}`;
+  if (intro.is_admin) loadEditors();
+}
+$("introBox").addEventListener("click", (e) => {
+  const a = e.target.closest("[data-in]"); if (!a) return;
+  e.preventDefault(); $("in_" + a.dataset.in)?.scrollIntoView({ behavior: "smooth", block: "start" });
+});
+async function loadEditors() {
+  try {
+    const list = await CCAuth.rpc("intro_editors_list");
+    $("introEds").innerHTML = `<div class="ed-add"><input id="edAcct" placeholder="输入对方的账号，比如学号" maxlength="40" autocapitalize="none"><button class="btn ink sm" id="edAdd">允许编写</button></div>
+      <div class="ed-list">${list.length ? list.map((x) => `<div class="ed-row"><span class="av sm">${esc([...x.name][0])}</span><b data-user="${esc(x.id)}" class="ulink">${esc(x.name)}</b><span class="meta">@${esc(x.account)} · ${esc(CCAuth.ROLE_NAMES[x.role] || x.role)}</span><span class="spacer"></span><button class="small" data-edrm="${esc(x.account)}">取消权限</button></div>`).join("")
+        : `<div class="meta">现在只有管理员能编写。在上面输入账号，就能让 TA 也来编写。</div>`}</div>`;
+  } catch (e) { $("introEds").textContent = "加载失败：" + e.message; }
+}
+document.addEventListener("click", async (e) => {
+  if (e.target.closest("#edAdd")) {
+    const a = $("edAcct").value.trim(); if (!a) return $("edAcct").focus();
+    try { const r = await CCAuth.rpc("intro_editor_set", { acct: a, on_: true }); showBanner(`已允许 ${r.name} 编写功能介绍`); setTimeout(() => showBanner(""), 2500); loadEditors(); }
+    catch (err) { alert(err.message); }
+  }
+  const rm = e.target.closest("[data-edrm]");
+  if (rm && confirm(`取消 @${rm.dataset.edrm} 的编写权限？`)) { try { await CCAuth.rpc("intro_editor_set", { acct: rm.dataset.edrm, on_: false }); loadEditors(); } catch (err) { alert(err.message); } }
+});
+$("introEditBtn").onclick = () => { introEdit = JSON.parse(JSON.stringify(introSections())); introBase = intro.updated_at || null; renderIntroEdit(); };
+function renderIntroEdit() {
+  $("introEditBtn").classList.add("hidden");
+  $("introBox").innerHTML = `
+    <div class="in-editbar surface"><b>✏️ 正在编辑功能介绍</b><span class="meta">支持 **加粗**、以「- 」开头的列表、以「1. 」开头的编号</span><span class="spacer"></span>
+      <button class="small" id="inHist">历史版本</button><button class="small" id="inCancel">取消</button><button class="btn ink sm" id="inSave">保存发布</button></div>
+    <div id="inHistBox"></div>
+    ${introEdit.map((x, i) => `<div class="in-ed surface" data-i="${i}">
+      <div class="in-ed-top"><input class="in-ic-in" data-f="icon" value="${esc(x.icon || "")}" maxlength="4" aria-label="图标">
+        <input data-f="title" value="${esc(x.title)}" maxlength="40" placeholder="小节标题">
+        <input data-f="tag" value="${esc(x.tag || "")}" maxlength="30" placeholder="一句话说明（可不填）">
+        <span class="in-mv"><button data-mv="-1" ${i ? "" : "disabled"} aria-label="上移">↑</button><button data-mv="1" ${i < introEdit.length - 1 ? "" : "disabled"} aria-label="下移">↓</button><button data-rm aria-label="删除" class="warnb">✕</button></span></div>
+      <div class="in-ed-2"><textarea data-f="body" rows="6" maxlength="4000" placeholder="内容">${esc(x.body || "")}</textarea>
+        <div class="in-prev md">${introMd(x.body)}</div></div>
+    </div>`).join("")}
+    <button class="in-addsec" id="inAdd">＋ 添加一个小节</button>`;
+}
+$("introBox").addEventListener("input", (e) => {
+  const ed = e.target.closest(".in-ed"); if (!ed || !introEdit) return;
+  const i = +ed.dataset.i, f = e.target.dataset.f; if (!f) return;
+  introEdit[i][f] = e.target.value;
+  if (f === "body") ed.querySelector(".in-prev").innerHTML = introMd(e.target.value);
+});
+$("introBox").addEventListener("click", async (e) => {
+  if (!introEdit) return;
+  const ed = e.target.closest(".in-ed"), b = e.target.closest("button"); if (!b) return;
+  if (ed && b.dataset.mv) { const i = +ed.dataset.i, j = i + +b.dataset.mv; [introEdit[i], introEdit[j]] = [introEdit[j], introEdit[i]]; renderIntroEdit(); return; }
+  if (ed && b.hasAttribute("data-rm")) { if (confirm(`删除小节「${introEdit[+ed.dataset.i].title || ""}」？`)) { introEdit.splice(+ed.dataset.i, 1); renderIntroEdit(); } return; }
+  if (b.id === "inAdd") { introEdit.push({ id: "s" + Date.now().toString(36), icon: "✨", title: "", tag: "", body: "" }); renderIntroEdit(); document.querySelector(`.in-ed[data-i="${introEdit.length - 1}"] [data-f=title]`)?.focus(); return; }
+  if (b.id === "inCancel") { if (confirm("放弃这次的修改？")) { introEdit = null; renderIntro(); } return; }
+  if (b.id === "inSave") {
+    b.disabled = true;
+    try { await CCAuth.rpc("intro_save", { p_sections: introEdit, base: introBase }); introEdit = null; await loadIntro(); showBanner("功能介绍已更新 ✓"); setTimeout(() => showBanner(""), 2500); }
+    catch (err) { alert("保存失败：" + err.message); b.disabled = false; }
+    return;
+  }
+  if (b.id === "inHist") {
+    try {
+      const h = await CCAuth.rpc("intro_history_list");
+      $("inHistBox").innerHTML = `<div class="surface in-hist">${h.length ? h.map((x) => `<div class="ed-row"><span>${new Date(x.saved_at).toLocaleString("zh-CN", { hour12: false })}</span><span class="meta">${esc(x.saved_name || "")} · ${x.n} 个小节</span><span class="spacer"></span><button class="small" data-hload="${x.id}">载入这个版本</button></div>`).join("") : `<div class="meta">还没有历史版本，每次保存都会留一份。</div>`}</div>`;
+    } catch (err) { alert(err.message); }
+    return;
+  }
+  if (b.dataset.hload) {
+    try { const s = await CCAuth.rpc("intro_history_get", { hid: +b.dataset.hload }); if (s && confirm("把编辑区换成这个历史版本？（还需要点「保存发布」才会生效）")) { introEdit = s; renderIntroEdit(); } }
+    catch (err) { alert(err.message); }
   }
 });
 
@@ -3622,8 +3816,8 @@ function commentsHtml(p) {
   if (p.hidden && !canModerate()) return "";
   const cs = wallComments[p.id] || [], open = wallCmtOpen.has(p.id);
   const shown = open ? cs : cs.slice(-2), rp = wallReply[p.id];
+  if (!shown.length && !open) return "";
   return `<div class="pcomm">
-    <div class="cbar"><button data-c="toggle" data-id="${p.id}" class="cbtn">💬 ${cs.length ? cs.length + " 条评论" : "评论"}</button></div>
     ${shown.length ? `<div class="clist">${!open && cs.length > 2 ? `<button class="cmore" data-c="toggle" data-id="${p.id}">查看全部 ${cs.length} 条评论</button>` : ""}${shown.map((c) => commentHtml(c, p)).join("")}</div>` : ""}
     ${open ? `<div class="cin">${rp ? `<span class="creply">回复 ${esc(rp)} <button data-c="unreply" data-id="${p.id}" aria-label="取消回复">×</button></span>` : ""}
       <input data-cin="${p.id}" maxlength="500" placeholder="${rp ? "回复 " + esc(rp) + "…" : "说点什么…（回车发送）"}" value="${esc(wallDraft[p.id] || "")}">
@@ -3772,6 +3966,7 @@ renderTabs(); renderTools();
   renderClassBar();
   await loadFeatures();
   loadClass();
+  handleHash();
   handleUnsub(); loadMail(); setTimeout(mailTick, 20000 + Math.random() * 100000);
 })();
 bootstrap().then(() => loadPlugins()).then(() => ck().boot().catch(() => {})).then(() => { if (location.hash === "#store") { showView("store"); history.replaceState(null, "", location.pathname); } });

@@ -74,7 +74,7 @@ async function renderTeaching() {
           <button class="small primary" data-act="approve" data-cid="${esc(c.id)}" data-uid="${esc(m.user_id)}">批准</button>
           <button class="small danger" data-act="reject" data-cid="${esc(c.id)}" data-uid="${esc(m.user_id)}">拒绝</button></div>`).join("") : ""}
       <h3>成员</h3>
-      ${ok.length ? ok.map((m) => `<div class="item" data-cid="${esc(c.id)}" data-uid="${esc(m.user_id)}"><div class="grow">${esc(m.name)} <span class="meta">${esc(m.account)}</span></div>
+      ${ok.length ? ok.map((m) => `<div class="item" data-cid="${esc(c.id)}" data-uid="${esc(m.user_id)}"><div class="grow"><a class="ulink" href="index.html#u=${esc(m.user_id)}&c=${esc(c.id)}" title="打开 TA 的个人主页">${esc(m.name)}</a> <span class="meta">${esc(m.account)}</span></div>
           <select data-act="role"><option value="student" ${m.member_role === "student" ? "selected" : ""}>学生</option>
             <option value="monitor" ${m.member_role === "monitor" ? "selected" : ""}>班委</option></select>
           <span class="perms ${m.member_role === "monitor" ? "" : "hidden"}">${Object.entries(PERM_NAMES).map(([k, v]) =>
