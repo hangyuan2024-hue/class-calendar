@@ -1055,6 +1055,60 @@
     #modal, .modal2 { align-items: flex-end; }
     #modal form, .modal2 form { width: 100%; border-radius: 24px 24px 0 0; padding-bottom: calc(22px + env(safe-area-inset-bottom)); }
   }
+  /* ===== 课程表：今日课程卡片、课程表工具条、拍照导入 ===== */
+  .wcourse { cursor: pointer; }
+  .wcourse h5 { white-space: nowrap; }
+  .wcourse h5 small { font-size: 12px; font-weight: 600; color: var(--sub); font-family: inherit; letter-spacing: 0; }
+  .wcourse .crow { display: grid; grid-template-columns: 42px minmax(0, 1fr); column-gap: 8px; padding: 4px 0; border-top: 1px dashed var(--line); font-size: 13px; line-height: 1.35; }
+  .wcourse .crow:first-of-type { border-top: 0; }
+  .wcourse .ct { color: var(--sub); font-variant-numeric: tabular-nums; grid-row: span 2; }
+  .wcourse .cn { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wcourse .cl { color: var(--sub); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wcourse .cl:empty { display: none; }
+  .wcourse .crow.past { opacity: .45; }
+  .wcourse .crow.now .cn { color: var(--accent); }
+  .wcourse .crow.now .ct::after { content: "上课中"; display: block; color: var(--accent); font-size: 11px; }
+  .wcourse .crow.more { display: block; color: var(--sub); }
+  .wcourse .empty { font-size: 13px; color: var(--sub); line-height: 1.7; }
+  .cbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 16px 12px; padding: 10px 14px; border-radius: 16px; }
+  .cbar-t { font-size: 13px; color: var(--sub); }
+  .cbar-ck { font-size: 13px; color: var(--sub); display: inline-flex; gap: 6px; align-items: center; }
+  .cdlg { width: min(860px, calc(100vw - 24px)); }
+  .cdlg form { max-height: calc(100vh - 60px); overflow: auto; }
+  .cdrop { border: 2px dashed var(--line); border-radius: 16px; padding: 22px; text-align: center; cursor: pointer; background: var(--muted-bg); }
+  .cdrop.over, .cdrop:focus { border-color: var(--accent); outline: none; }
+  .cdrop-in b { display: block; font-size: 16px; } .cdrop-in small { color: var(--sub); }
+  .cdrop img { max-width: 100%; max-height: 300px; border-radius: 10px; }
+  .ctips { margin: 0; padding-left: 18px; font-size: 13px; color: var(--sub); line-height: 1.7; }
+  .crev-h { display: flex; align-items: center; gap: 8px; }
+  .crev { display: flex; flex-direction: column; gap: 6px; max-height: 46vh; overflow: auto; padding-right: 2px; }
+  .crev-r { display: grid; grid-template-columns: 24px minmax(120px, 1.6fr) 70px 118px minmax(90px, 1fr) minmax(80px, 1fr) minmax(60px, .7fr) 30px; gap: 6px; align-items: center;
+    padding: 6px 8px; border-radius: 12px; background: var(--muted-bg); }
+  .crev-r.off { opacity: .45; }
+  .crev-r input:not([type]), .crev-r select { font: inherit; font-size: 13px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--text); min-width: 0; width: 100%; box-sizing: border-box; }
+  .crev-r select { padding: 5px 4px; }
+  .crev-r .cper { display: flex; align-items: center; gap: 2px; font-size: 12px; color: var(--sub); white-space: nowrap; }
+  .crev-r .cper select { width: auto; }
+  .crev-r input.warn { border-color: #f5b301; background: color-mix(in srgb, #f5b301 12%, var(--surface)); }
+  .crev-r .cdel { border: 0; background: none; cursor: pointer; font-size: 15px; opacity: .6; }
+  .crev-r .cdel:hover { opacity: 1; }
+  .cchk { flex-direction: row !important; }
+  .cset { gap: 8px; }
+  .crow2 { display: flex !important; flex-direction: row !important; flex-wrap: wrap; align-items: center; gap: 8px 14px !important; color: var(--text) !important; font-size: 14px !important; }
+  .crow2 input[type=date] { width: auto; }
+  .crow2 input[type=checkbox], .crow2 input[type=radio] { width: auto; accent-color: var(--accent); }
+  .crow2 small { color: var(--sub); flex-basis: 100%; }
+  .crow2.hidden { display: none !important; }
+  .crow2 label { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; color: var(--text); font-size: 14px; }
+  @media (max-width: 700px) {
+    .crev-r { grid-template-columns: 24px 1fr 1fr 30px; }
+    .crev-r .cname { grid-column: 2 / 4; }
+    .crev-r .cdel { grid-column: 4; grid-row: 1; }
+    .crev-r select[data-f=day] { grid-column: 2; } .crev-r .cper { grid-column: 3; }
+    .crev-r .cweeks { grid-column: 2 / 4; }
+    .crev-r input[data-f=location] { grid-column: 2; } .crev-r input[data-f=teacher] { grid-column: 3; }
+    .cbar { margin: 0 12px 10px; }
+  }
 </style>
 </head>
 <body>
@@ -1541,7 +1595,8 @@
 <script src="config.js"></script>
 <script src="auth.js"></script>
 <script src="parse.js"></script>
-<script src="app.js?v=20261002b"></script>
+<script src="courses.js?v=20261002c"></script>
+<script src="app.js?v=20261002c"></script>
 </body>
 </html>
 </body>

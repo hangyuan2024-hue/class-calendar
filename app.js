@@ -1059,7 +1059,8 @@ function askContext() {
     const when = r._p ? `${r._p.day}（周${WEEK[new Date(r._p.day + "T00:00:00").getDay()]}）${r._p.time ? " " + r._p.time : ""}` : "时间待定";
     lines.push(`- [${r._mine ? "我的" : r.msg_type}] ${r.subject || ""}${r.summary ? "：" + r.summary : ""} | ${r.msg_type === "作业" ? "截止 " : ""}${when}${r.location ? " | 地点 " + r.location : ""}${r.prepare ? " | 需准备 " + r.prepare : ""}${r._done ? " | 已完成" : ""}${r.need_confirm ? " | 待核实" : ""}`);
   }
-  const hab = habits.length ? "\n我的习惯打卡：" + habits.map((h) => `${h.name}（今天${(habitLog[h.id] || {})[todayKey()] ? "已打卡" : "未打卡"}，连续 ${streakOf(h)} 天）`).join("、") : "";
+  const crs = CourseKit.askLines();
+  const hab = crs + (habits.length ? "\n我的习惯打卡：" + habits.map((h) => `${h.name}（今天${(habitLog[h.id] || {})[todayKey()] ? "已打卡" : "未打卡"}，连续 ${streakOf(h)} 天）`).join("、") : "");
   return `你是「捞捞」，班级群日历里的学习小助手，说话亲切、简洁，用中文回答。
 今天是 ${keyOf(t)}，星期${WEEK[t.getDay()]}，现在 ${pad(t.getHours())}:${pad(t.getMinutes())}。
 用户：${currentUser ? currentUser.display_name : "同学"}${currentClass ? "，班级：" + currentClass.name : ""}。
@@ -1521,7 +1522,7 @@ const LEGACY_KEYS = {
 };
 async function migratePluginData(meta) {
   const flag = "pfs_migrated_v1:" + meta.ns;
-  if (localStorage.getItem(flag) || meta.channel !== "published") return;
+  if (localStorage.getItem(flag) || (meta.channel !== "published" && meta.channel !== "builtin")) return;
   const pre1 = `plg_${meta.id}_`, pre2 = `personal_${meta.id.replace(/-/g, "_")}_`, extra = LEGACY_KEYS[meta.id];
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
@@ -1614,6 +1615,7 @@ function addPluginTab(f, id, title) {
   const el = document.createElement("div"); el.className = "plugin-body";
   sec.appendChild(el);
   $("pluginViews").appendChild(sec);
+  if (f.meta.id === CourseKit.NS && f.meta.channel === "builtin") CourseKit.decorateTab(sec);
   pluginTabs.push({ id: viewId, title: cleanStr(title, 40), icon: f.meta.icon || "🧩", plugin: f.key, el: sec });
   renderTools();
   if (f.appOnly) openSandbox(f.key, "app", el);
@@ -1639,6 +1641,7 @@ window.addEventListener("message", (e) => {
       for (const [t, o] of frames) if (o !== f && o.meta.ns === f.meta.ns) o.post({ cc: "store", key: k, value: v });
       // 插件页面里改了数据（比如课程表加了课），日历上的插件事项跟着刷新
       if (f.mode !== "bg") { delete pluginItemsCache[f.key]; clearTimeout(pluginRefreshTimer); pluginRefreshTimer = setTimeout(renderAll, 300); }
+      if (f.meta.ns === CourseKit.NS) CourseKit.read().then(() => { CourseKit.changed(); CourseKit.renderBar(); }).catch(() => {});   // 课程表改了：同步到服务器（邮件提醒、手机日历）
       break;
     }
     case "clear": PFS.clear(f.meta.ns); break;
@@ -1741,19 +1744,21 @@ async function loadPlugins() {
     currentUser = await CCAuth.me();
     renderUserChip();
     registry = await fetchRegistry();
+    registry = await CourseKit.injectBuiltin(registry);
   } catch (e) {
     offline = true;
     // 没网时只用最近 7 天内确认过仍在上架的缓存
     const fresh = Date.now() - PLUGIN_CACHE_DAYS * 86400000;
     registry = Object.values(cache).filter((c) => c && c.meta && (c.checkedAt || 0) > fresh).map((c) => ({ ...c.meta, key: c.meta.id, ns: c.meta.id, channel: "published" }));
     showBanner("插件商店连接失败" + (registry.length ? "，正在使用本机缓存的插件" : "") + "：" + e.message);
+    registry = await CourseKit.injectBuiltin(registry);
   }
   const on = enabledSet();
   for (const meta of registry) {
     pluginState[meta.key] = { meta, loaded: false, error: "" };
-    if (!on.has(meta.key)) continue;
+    if (!on.has(meta.key) && meta.channel !== "builtin") continue;
     try {
-      const r = offline ? cache[meta.id] : await fetchCode(meta, cache);
+      const r = meta.channel === "builtin" ? await CourseKit.loadBuiltin() : offline ? cache[meta.id] : await fetchCode(meta, cache);
       await runPlugin(meta, r.code, r.app_html);
     } catch (e) { pluginState[meta.key].error = e.message; }
   }
@@ -1780,7 +1785,7 @@ function renderStore() {
         <div class="desc">${esc(p.description || "")}</div>
         <div class="by">作者：${esc(p.author_name || "未知")}</div>
         ${st.error ? `<div class="err">出错：${esc(st.error)}</div>` : ""}</div>
-      <button class="${isOn ? "" : "primary"} small" data-plugin="${esc(p.key)}">${isOn ? "关闭" : "启用"}</button>
+      ${p.channel === "builtin" ? `<span class="tag">内置</span>` : `<button class="${isOn ? "" : "primary"} small" data-plugin="${esc(p.key)}">${isOn ? "关闭" : "启用"}</button>`}
     </div>`;
   }).join("") : `<div class="empty">暂时没有插件</div>`);
 }
@@ -2014,7 +2019,7 @@ $("rankBox").addEventListener("click", async (e) => {
 
 // ===== 邮箱通知 =====
 let mailInfo = null, mailCooldown = 0;
-const MAIL_KINDS = [["new_items", "📣 班级发布新事项", "班委、老师发布作业和通知时"], ["due", "⏰ 作业截止前一晚提醒", "每天晚上 7 点后，明天要交还没勾完成的作业"], ["wall", "📌 班级墙通知", "老师、班委在班级墙发的通知"], ["report", "🚩 有人举报", "班级墙有新举报时（老师）"]];
+const MAIL_KINDS = [["new_items", "📣 班级发布新事项", "班委、老师发布作业和通知时"], ["due", "⏰ 作业截止前一晚提醒", "每天晚上 7 点后，明天要交还没勾完成的作业"], ["wall", "📌 班级墙通知", "老师、班委在班级墙发的通知"], ["report", "🚩 有人举报", "班级墙有新举报时（老师）"], ["course", "📚 明天的课", "每天晚上 7 点后，把明天的课发给你（课程表里要先导入或填好课）"]];
 async function loadMail() {
   const box = $("mailBox"); if (!box) return;
   if (!currentUser) { box.innerHTML = `<div class="gx meta">登录后可以绑定邮箱接收通知。</div>`; return; }
@@ -2023,6 +2028,7 @@ async function loadMail() {
 }
 function renderMail(msg) {
   const box = $("mailBox"), m = mailInfo; if (!m) return;
+  CourseKit.renderBar();
   const status = msg ? `<div class="mstat" id="mailMsg">${esc(msg)}</div>` : `<div class="mstat" id="mailMsg"></div>`;
   if (!m.configured) { box.innerHTML = `<div class="gx meta">管理员还没有开通邮件发送，开通后这里就能绑定邮箱。</div>`; return; }
   if (!m.email) {
@@ -2037,7 +2043,7 @@ function renderMail(msg) {
   const p = m.prefs || {};
   box.innerHTML = `<div class="gx"><div class="mbound"><span>📧</span><b>${esc(m.email)}</b><span class="mtag">已绑定</span><span class="spacer"></span>
       <button class="small" id="mailTest">发一封测试邮件</button><button class="small" id="mailUnbind">换邮箱</button></div></div>
-    ${MAIL_KINDS.filter(([k]) => k !== "report" || m.is_teacher).map(([k, t, d]) => `<label class="gi mk"><span class="mkt"><b>${t}</b><small>${d}</small></span><input type="checkbox" class="switch" data-mailk="${k}" ${p[k] !== false ? "checked" : ""}></label>`).join("")}
+    ${MAIL_KINDS.filter(([k]) => (k !== "report" || m.is_teacher) && (k !== "course" || CourseKit.on())).map(([k, t, d]) => `<label class="gi mk"><span class="mkt"><b>${t}</b><small>${d}</small></span><input type="checkbox" class="switch" data-mailk="${k}" ${p[k] !== false && (k !== "course" || p[k]) ? "checked" : ""}></label>`).join("")}
     <div class="gx">${status}${m.recent && m.recent.length ? `<div class="mrecent"><b>最近的邮件</b><br>${m.recent.map((r) => `${esc(new Date(r.at).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }))} · ${esc(r.subject)} · ${r.status === "sent" ? "✓ 已发出" : r.status === "failed" ? `<span class="bad">✗ 没发出去${r.error ? "（" + esc(r.error) + "）" : ""}</span>` : "发送中…"}`).join("<br>")}</div>` : ""}</div>`;
 }
 $("mailBox").addEventListener("click", async (e) => {
@@ -2388,6 +2394,7 @@ const WDEF = {
   "w:habits": { name: "今日打卡", icon: "🔥", w: 2, h: 2, on: () => funOpts().habits },
   "w:pomo": { name: "番茄钟", icon: "🍅", w: 2, h: 1, on: () => funOpts().plan },
   "w:rank": { name: "排行榜", icon: "🏆", w: 2, h: 1, on: () => feat("rank") && !!currentClass },
+  "w:course": { name: "今日课程", icon: "📚", w: 2, h: 1, on: () => CourseKit.on() },
 };
 function homeLayout() {
   const L = load(LS_LAYOUT, null);
@@ -2458,6 +2465,7 @@ function cardBody(id, w, h) {
     return `<div class="home-pins surface wb" id="homePins" data-tab="wall"><span class="pi">📌</span><div><b>${top.is_notice ? "置顶通知" : "班级墙置顶"} · ${esc(top.author_name)}</b><span>${esc(top.title ? top.title + "：" + top.body : top.body)}</span></div></div>`;
   }
   if (id === "w:quick") return `<div class="wb" data-slot="quick"></div>`;
+  if (id === "w:course") return CourseKit.card(h);
   if (id === "w:habits") {
     const t = todayKey();
     return `<div class="surface wb wsimple"><h5>🔥 今日打卡<span class="spacer"></span><button class="small" data-tab="growth">全部</button></h5>
@@ -2946,7 +2954,7 @@ renderTabs(); renderTools();
   loadClass();
   handleUnsub(); loadMail(); setTimeout(mailTick, 20000 + Math.random() * 100000);
 })();
-bootstrap().then(() => loadPlugins()).then(() => { if (location.hash === "#store") { showView("store"); history.replaceState(null, "", location.pathname); } });
+bootstrap().then(() => loadPlugins()).then(() => CourseKit.boot().catch(() => {})).then(() => { if (location.hash === "#store") { showView("store"); history.replaceState(null, "", location.pathname); } });
 
 // ===== 离线缓存：网页文件存在手机/电脑上，第二次打开几乎不用等，也给服务器减负 =====
 try {
