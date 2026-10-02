@@ -865,7 +865,19 @@ function setupIngestPanel() {
   if (!feat("ingest_local")) notes.push("本地整理已关闭：" + featWhy("ingest_local"));
   $("ipFeatNote").textContent = notes.join("；"); $("ipFeatNote").classList.toggle("hidden", !notes.length);
 }
-$("cIngestBtn").onclick = () => { setupIngestPanel(); $("ingestPanel").classList.toggle("hidden"); $("ingestDate").value = $("ingestDate").value || keyOf(new Date()); $("ingestText").focus(); if (!$("ingestPanel").classList.contains("hidden")) ensureLaoModel().catch(() => {}); };
+function openIngest(toggle) {
+  const p = $("ingestPanel"), v = document.querySelector(".view.on[data-view]");
+  if (v && !v.contains(p)) {   // 在别的页面（比如日历）点 AI 整理：面板搬到当前页面顶上
+    if (v.dataset.view === "home") { $("agenda").before(p); p.classList.remove("moved"); }
+    else { (v.querySelector(".legend") || v.querySelector(".vhead")).after(p); p.classList.add("moved"); }
+    p.classList.remove("hidden");
+  } else if (toggle) p.classList.toggle("hidden"); else p.classList.remove("hidden");
+  setupIngestPanel(); $("ingestDate").value = $("ingestDate").value || keyOf(new Date());
+  if (!p.classList.contains("hidden")) { $("ingestText").focus(); p.scrollIntoView({ behavior: "smooth", block: "nearest" }); ensureLaoModel().catch(() => {}); }
+}
+$("calIngest").onclick = () => openIngest(false);
+$("calPub").onclick = () => openClassForm(null);
+$("cIngestBtn").onclick = () => openIngest(true);
 $("ingestClose").onclick = () => $("ingestPanel").classList.add("hidden");
 $("ingestGo").onclick = async () => {
   const text = $("ingestText").value.trim(), st = $("ingestStatus");
@@ -1670,7 +1682,38 @@ $("calOnceBtn").onclick = async () => {
 $("prevBtn").onclick = () => { if (--viewMonth < 0) { viewMonth = 11; viewYear--; } renderAll(); };
 $("nextBtn").onclick = () => { if (++viewMonth > 11) { viewMonth = 0; viewYear++; } renderAll(); };
 $("todayBtn").onclick = () => { viewYear = today.getFullYear(); viewMonth = today.getMonth(); selectedKey = keyOf(today); renderAll(); };
-$("addBtn").onclick = () => openForm(null);
+// 电脑：直接「记一件事」；手机：右下角「＋」弹出常用操作（AI 整理、发布、打卡、专注……哪个页面都能用）
+function fabItems() {
+  const o = funOpts(), list = [];
+  if (feat("mine")) list.push(["mine", "✏️", "记一件事"]);
+  if (ingestAllowed()) list.push(["ingest", "✨", "AI 整理群消息"]);
+  if (can("can_edit")) list.push(["pub", "📣", "发布班级事项"]);
+  if (o.habits) list.push(["habit", "🔥", "今日打卡"]);
+  if (o.plan) list.push(["pomo", "🍅", "开始专注"]);
+  return list;
+}
+function fabToggle(open) {
+  const m = $("fabMenu"), on = open ?? !m.classList.contains("open");
+  if (on) m.innerHTML = fabItems().slice().reverse().map(([k, ic, t]) => `<button data-fab="${k}" role="menuitem"><span>${ic}</span>${t}</button>`).join("");
+  m.classList.toggle("open", on); $("fabVeil").classList.toggle("open", on); document.documentElement.classList.toggle("fab-open", on);
+  m.setAttribute("aria-hidden", on ? "false" : "true");
+}
+$("addBtn").onclick = () => {
+  const items = fabItems();
+  if (!isMobile() || items.length <= 1) { fabToggle(false); return openForm(null); }
+  fabToggle();
+};
+$("fabVeil").onclick = () => fabToggle(false);
+$("fabMenu").onclick = (e) => {
+  const b = e.target.closest("[data-fab]"); if (!b) return;
+  fabToggle(false);
+  const k = b.dataset.fab;
+  if (k === "mine") openForm(null);
+  if (k === "ingest") openIngest(false);
+  if (k === "pub") openClassForm(null);
+  if (k === "habit") showView("growth");
+  if (k === "pomo") $("qPomo").click();
+};
 $("refreshBtn").onclick = async () => { try { await loadMyClasses(); } catch (e) {} renderClassBar(); loadClass(); };
 $("showHidden").onchange = renderAll;
 window.addEventListener("resize", renderGrid);
@@ -2423,14 +2466,22 @@ $("qMine").onclick = () => { if (feat("mine")) openForm(null); };
 // ===== 成长：完成记录、习惯打卡、进度环、趋势图、完成鼓励（都只存在这台设备上） =====
 const LS_DONE_LOG = "done_log_v1", LS_HABITS = "habits_v1", LS_HABIT_LOG = "habit_log_v1", LS_FUN = "fun_opts_v1";
 const FUN_DEFAULT = { cheer: "mascot", confetti: true, rings: true, habits: true, plan: true, hideDone: false };
-// 首页快捷按钮一行最多 4 个，按顺序挑：班委/老师的两个 → 记一件事 → 四象限 → 打卡 → 更多工具
+// 首页快捷按钮：能用的全放上，一行放不下就左右滑（电脑上滚轮也能横着滑）
+const courseTool = () => { try { return toolList().find((t) => t.plugin && /课程表/.test(t.name)); } catch (e) { return null; } };
 function renderQuick() {
   const o = funOpts();
-  const want = [["cIngestBtn", ingestAllowed()], ["cAddBtn", can("can_edit")], ["qMine", feat("mine")], ["qPlan", o.plan], ["qIcs", o.habits], ["qTools", feat("tools")]];
-  let n = 0;
-  for (const [id, on] of want) { const show = on && n < 4; if (show) n++; $(id).classList.toggle("hidden", !show); }
+  const want = [["cIngestBtn", ingestAllowed()], ["cAddBtn", can("can_edit")], ["qMine", feat("mine")], ["qPlan", o.plan], ["qIcs", o.habits], ["qPomo", o.plan],
+    ["qCourse", !!courseTool()], ["qPeople", !!(currentUser && currentClass)], ["qStore", feat("tools")], ["qCal", true], ["qTools", feat("tools")], ["qIntro", true]];
+  for (const [id, on] of want) $(id).classList.toggle("hidden", !on);
   $("meToPlan").classList.toggle("hidden", !o.plan);
+  const q = $("quickPart"); requestAnimationFrame(() => q.classList.toggle("fits", q.scrollWidth <= q.clientWidth + 2));
+  $("calIngest").classList.toggle("hidden", !ingestAllowed()); $("calPub").classList.toggle("hidden", !can("can_edit"));
 }
+$("quickPart").addEventListener("wheel", (e) => { const q = e.currentTarget; if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && q.scrollWidth > q.clientWidth) { e.preventDefault(); q.scrollLeft += e.deltaY; } }, { passive: false });
+window.addEventListener("resize", () => { const q = $("quickPart"); q.classList.toggle("fits", q.scrollWidth <= q.clientWidth + 2); });
+$("qPomo").onclick = () => { showView("plan"); setTimeout(() => $("pomoSec").scrollIntoView({ behavior: "smooth", block: "start" }), 120); };
+$("qCourse").onclick = () => { const t = courseTool(); if (t) showView(t.view); };
+$("qCal").onclick = () => calOpen();
 const funPrefs = () => ({ ...FUN_DEFAULT, ...load(LS_FUN, {}) });
 const funOpts = () => { const o = funPrefs(); if (!feat("plan")) o.plan = false; if (!feat("growth")) { o.habits = false; o.rings = false; } return o; };
 let doneLog = load(LS_DONE_LOG, {});
