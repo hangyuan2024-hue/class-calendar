@@ -203,7 +203,92 @@ const CourseKit = (() => {
   }
 
   // ---------- 拍照导入 ----------
-  let dlg = null, rows = [], ocrResult = null;
+  let dlg = null, rows = [], ocrResult = null, removed = [];
+
+  // ---------- 越用越准：记住大家核对时改了什么 ----------
+  // 每次导入保存时，把「识别出来的 → 改成的」交给服务器；下次识别后自动套用。
+  // 只有自己改过的，或者至少 2 个人都这样改过的才会自动套用（防止一个人乱改影响所有人）。
+  const LEARN_FIELDS = ["name", "location", "teacher"];
+  let learned = null;
+  const isCJK = (ch) => /[\u4e00-\u9fff]/.test(ch || "");
+  const isSoft = (ch) => isCJK(ch) || /[ⅠⅡⅢⅣⅤⅥ()（）·]/.test(ch || "");
+  function lev(a, b, cap) {
+    if (Math.abs(a.length - b.length) > cap) return cap + 1;
+    let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+    for (let i = 1; i <= a.length; i++) {
+      const cur = [i]; let best = i;
+      for (let j = 1; j <= b.length; j++) { cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); best = Math.min(best, cur[j]); }
+      if (best > cap) return cap + 1;
+      prev = cur;
+    }
+    return prev[b.length];
+  }
+  // a 和 b 只差一个「汉字 / 罗马数字 / 括号」（OCR 常见的认错、漏字），字母数字不同的不算（A400 和 B400 是不同教室）
+  function nearOCR(a, b) {
+    if (!a || !b || a === b || a.length < 2) return false;
+    if (a.length === b.length) {
+      const d = []; for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) d.push(i);
+      return d.length === 1 && isSoft(a[d[0]]) && isSoft(b[d[0]]);
+    }
+    const [s1, l1] = a.length < b.length ? [a, b] : [b, a];
+    if (l1.length - s1.length !== 1) return false;
+    for (let i = 0; i < l1.length; i++) if (l1.slice(0, i) + l1.slice(i + 1) === s1) return isSoft(l1[i]);
+    return false;
+  }
+  async function loadLearned() {
+    if (!currentUser) return null;
+    try {
+      const rowsL = (await CCAuth.rpc("course_learn_get")) || [];
+      const L = { fixes: new Map(), vocab: { name: new Map(), location: new Map(), teacher: new Map() }, junk: new Set(), maxweek: 0 };
+      for (const [f, w, r, n, mine] of rowsL) {
+        const score = n + (mine ? 100 : 0);
+        if (LEARN_FIELDS.includes(f)) { const k = f + "|" + w, old = L.fixes.get(k); if (!old || old.score < score) L.fixes.set(k, { right: r, score }); }
+        else if (f.startsWith("vocab_")) { const m = L.vocab[f.slice(6)]; if (m) m.set(r, Math.max(m.get(r) || 0, score)); }
+        else if (f === "junk") L.junk.add(w);
+        else if (f === "maxweek" && (mine || n >= 2)) L.maxweek = Math.max(L.maxweek, +r || 0);
+      }
+      return (learned = L);
+    } catch (e) { return null; }
+  }
+  function learnApply(list) {
+    if (!learned) return 0;
+    let n = 0;
+    for (const r of list) {
+      r.learned = {};
+      for (const f of LEARN_FIELDS) {
+        const v = r[f]; if (!v) continue;
+        const fx = learned.fixes.get(f + "|" + v);
+        if (fx && fx.right !== v) { r[f] = fx.right; r.learned[f] = v; n++; continue; }
+        const voc = learned.vocab[f];
+        if (voc.has(v)) continue;
+        const cands = [...voc.entries()].filter(([c]) => nearOCR(v, c)).sort((a, b) => b[1] - a[1]);
+        if (cands.length === 1 || (cands.length > 1 && cands[0][1] >= cands[1][1] + 100)) { r[f] = cands[0][0]; r.learned[f] = v; n++; }
+      }
+      if (learned.junk.has(r.name)) { r.on = false; r.learned.junk = true; n++; }
+    }
+    return n;
+  }
+  function learnSubmit(final) {
+    if (!currentUser) return;
+    const items = [], add = (f, w, r) => { if (items.length < 300) items.push({ f, w: String(w || "").slice(0, 80), r: String(r || "").slice(0, 80) }); };
+    for (const r of final) {
+      const o = r.orig;
+      if (o) {
+        for (const f of LEARN_FIELDS) {
+          const was = r.learned && r.learned[f] ? r.learned[f] : o[f];   // 自动改过又被改回去的：记的是原始识别结果
+          if (was && r[f] && was !== r[f] && lev(was, r[f], 3) <= Math.max(1, Math.floor(Math.max(was.length, r[f].length) / 3))) add(f, was, r[f]);
+        }
+        if (o.day !== r.day || o.start !== r.start || o.end !== r.end) add("pos", `${o.day}:${o.start}-${o.end}`, `${r.day}:${r.start}-${r.end}`);
+        if (o.weeks && o.weeksFound && weeksText(parseWeeks(o.weeks)) !== weeksText(parseWeeks(r.weeks))) add("weeks", o.weeks, r.weeks);
+        if (!r.on && o.name) add("junk", o.name, "");
+      }
+      if (r.on) for (const f of LEARN_FIELDS) if (r[f]) add("vocab_" + f, "", r[f]);
+    }
+    for (const r of removed) if (r.orig && r.orig.name) add("junk", r.orig.name, "");
+    const mw = Math.max(0, ...final.filter((r) => r.on).flatMap((r) => [...parseWeeks(r.weeks)]));
+    if (mw) add("maxweek", "", String(mw));
+    if (items.length) CCAuth.rpc("course_learn_submit", { items }).catch(() => {});
+  }
   function ensureDialog() {
     if (dlg) return dlg;
     dlg = document.createElement("dialog");
@@ -217,7 +302,7 @@ const CourseKit = (() => {
           <div class="cdrop-in"><b>选一张课表截图</b><small>教务系统网页、课表 App 截图都行，也可以拍电脑屏幕；电脑上可以直接粘贴（Ctrl+V）或拖进来</small></div>
           <img id="crsPrev" alt="" hidden>
         </div>
-        <ul class="ctips"><li>截全：要看得到「星期一…星期日」和左边的节次</li><li>App 截图通常只显示「本周」的课，周次可能要自己核对</li><li>图片只用来识别，识别完不保存</li></ul>
+        <ul class="ctips"><li>截全：要看得到「星期一…星期日」和左边的节次</li><li>App 截图通常只显示「本周」的课，周次可能要自己核对</li><li>图片只用来识别，识别完不保存</li><li>你核对时改的地方会被记住，越用越准</li></ul>
         <div class="cal-row"><button type="button" class="btn ink" id="crsGo" disabled>开始识别</button><span class="cal-st" id="crsSt"></span></div>
       </div>
       <div id="crsStep2" hidden>
@@ -230,6 +315,7 @@ const CourseKit = (() => {
           <div class="crow2 hidden" id="crsModeRow"><label><input type="radio" name="cMode" value="replace" checked> 替换现有的 <b id="crsOld"></b> 门课</label><label><input type="radio" name="cMode" value="merge"> 加到现有课程里（相同的不重复）</label></div>
           <label class="crow2" id="crsMailRow"><span><input type="checkbox" id="crsMail" checked> 每晚 7 点后把明天的课发到邮箱</span><small id="crsMailTxt"></small></label>
           <label class="crow2"><span><input type="checkbox" id="crsIcs" checked> 订阅的手机日历里也显示课程</span></label>
+          <label class="crow2"><span><input type="checkbox" id="crsShare"> 把这张截图和核对好的结果交给管理员，帮忙改进识别</span><small>只有管理员能看到，用来让识别更准；不勾就不会上传</small></label>
         </div>
         <div class="cal-row"><button type="button" class="btn ink" id="crsSave">保存到课程表</button><span class="cal-st" id="crsSt2"></span></div>
       </div>
@@ -247,7 +333,7 @@ const CourseKit = (() => {
     q("#crsGo").onclick = runOcr;
     q("#crsRe").onclick = () => { q("#crsStep2").hidden = true; q("#crsStep1").hidden = false; };
     q("#crsAdd").onclick = () => { collect(); rows.push({ on: true, name: "", day: 0, start: 1, end: 2, weeks: "1-16", location: "", teacher: "", fresh: true }); renderRows(); };
-    q("#crsRev").addEventListener("click", (e) => { const b = e.target.closest("[data-del]"); if (b) { collect(); rows.splice(+b.dataset.del, 1); renderRows(); } });
+    q("#crsRev").addEventListener("click", (e) => { const b = e.target.closest("[data-del]"); if (b) { collect(); removed.push(...rows.splice(+b.dataset.del, 1)); renderRows(); } });
     q("#crsRev").addEventListener("change", (e) => { if (e.target.matches("[data-f=start]")) { collect(); const r = rows[+e.target.closest("[data-i]").dataset.i]; if (r.end < r.start) r.end = r.start; renderRows(); } });
     q("#crsSave").onclick = doSave;
     return dlg;
@@ -305,6 +391,7 @@ const CourseKit = (() => {
       }
       if (!r || r.status !== "done" || !r.result) throw new Error((r && r.status === "failed" && r.message) || "识别超时了，请稍后再试");
       ocrResult = r.result;
+      await loadLearned();
       clearInterval(tick);
       showReview();
       st.textContent = "";
@@ -316,12 +403,16 @@ const CourseKit = (() => {
     const q = (s) => dlg.querySelector(s), res = ocrResult || {};
     rows = (res.courses || []).map((c) => ({ on: true, name: c.name, day: c.day, start: c.start, end: c.end, weeks: c.weeks || "", location: c.location || "", teacher: c.teacher || "",
       weeksFound: !!c.weeks_found, conf: c.conf, note: c.note || "" }));
+    for (const r of rows) r.orig = { ...r };
+    removed = [];
+    const nLearn = learnApply(rows);
     const anyWeeks = rows.some((r) => r.weeksFound);
-    const guessMax = Math.max(16, ...rows.flatMap((r) => [...parseWeeks(r.weeks)]));
+    const guessMax = Math.max(learned && learned.maxweek >= 8 && learned.maxweek <= MAX_WEEK ? learned.maxweek : 16, ...rows.flatMap((r) => [...parseWeeks(r.weeks)]));
     for (const r of rows) if (!r.weeks) { r.weeks = `1-${guessMax}`; r.weeksGuess = true; }
     const warn = [...(res.warnings || [])];
     if (!rows.length) warn.unshift("没认出课程。可以换一张更清楚、更完整的截图，或点「＋ 加一门」手动添加。");
-    else warn.unshift(`认出 ${rows.length} 门课，请逐门核对（标黄的是不太确定的地方），可以直接改。`);
+    else warn.unshift(`认出 ${rows.length} 门课，请逐门核对（标黄的是不太确定的地方），可以直接改。你改的地方会被记住，下次识别更准。`);
+    if (nLearn) warn.splice(1, 0, `🧠 按以前的核对结果自动改了 ${nLearn} 处（标绿的，鼠标放上去能看到原来认出的字）。`);
     if (!anyWeeks && rows.length) warn.push(`周次先按「1-${guessMax}」填了（标黄），请改成实际的周次。`);
     else if (rows.some((r) => r.weeksGuess)) warn.push("标黄的周次没认出来，先按整个学期填了，请核对。");
     q("#crsWarn").innerHTML = warn.map(esc).join("<br>"); q("#crsWarn").className = "cal-st";
@@ -344,6 +435,8 @@ const CourseKit = (() => {
     q("#crsStep1").hidden = true; q("#crsStep2").hidden = false;
   }
 
+  const lc = (r, f) => (r.learned && r.learned[f] ? " learned" : "");
+  const lt = (r, f) => (r.learned && r.learned[f] ? ` title="自动改的，原来认出的是「${esc(r.learned[f])}」"` : "");
   function renderRows() {
     const q = (s) => dlg.querySelector(s);
     const nper = Math.max(12, ...rows.map((r) => r.end || 0));
@@ -353,12 +446,12 @@ const CourseKit = (() => {
       const unsure = r.conf != null && r.conf < 0.9;
       return `<div class="crev-r${r.on ? "" : " off"}" data-i="${i}">
         <label class="cchk"><input type="checkbox" data-f="on" ${r.on ? "checked" : ""}></label>
-        <input class="cname${unsure ? " warn" : ""}" data-f="name" value="${esc(r.name)}" placeholder="课程名" maxlength="60">
+        <input class="cname${lc(r, "name") || (unsure ? " warn" : "")}" data-f="name" value="${esc(r.name)}" placeholder="课程名" maxlength="60"${lt(r, "name")}>
         <select data-f="day">${DAYS.map((d, k) => `<option value="${k}"${+r.day === k ? " selected" : ""}>${d}</option>`).join("")}</select>
         <span class="cper">第<select data-f="start">${per(r.start)}</select>-<select data-f="end">${per(r.end)}</select>节</span>
         <input class="cweeks${r.weeksGuess ? " warn" : ""}" data-f="weeks" value="${esc(r.weeks)}" placeholder="周次 如 1-16、1-15单" maxlength="40" title="周次：1-16、1-15单、2-16双、1-3,5-8">
-        <input data-f="location" value="${esc(r.location)}" placeholder="地点" maxlength="60">
-        <input data-f="teacher" value="${esc(r.teacher)}" placeholder="老师" maxlength="40">
+        <input class="${lc(r, "location")}" data-f="location" value="${esc(r.location)}" placeholder="地点" maxlength="60"${lt(r, "location")}>
+        <input class="${lc(r, "teacher")}" data-f="teacher" value="${esc(r.teacher)}" placeholder="老师" maxlength="40"${lt(r, "teacher")}>
         <button type="button" class="cdel" data-del="${i}" aria-label="删除这门课">🗑</button>
       </div>`;
     }).join("") || `<div class="empty">没有课程</div>`;
@@ -405,6 +498,11 @@ const CourseKit = (() => {
     q("#crsSave").disabled = true; st.className = "cal-st"; st.textContent = "保存中…";
     try {
       await write(kv);
+      learnSubmit(rows);
+      if (currentUser && q("#crsShare").checked && pickedB64) {
+        const final = rows.filter((r) => r.on).map(({ name, day, start, end, weeks, location, teacher }) => ({ name, day, start, end, weeks, location, teacher }));
+        CCAuth.rpc("course_ocr_sample_add", { img: pickedB64, ocr: ocrResult ? { courses: ocrResult.courses, times: ocrResult.times, periods: ocrResult.periods } : null, final }).catch(() => {});
+      }
       ensureCard();
       let extra = "";
       if (currentUser) {
@@ -462,6 +560,6 @@ const CourseKit = (() => {
     sync().catch(() => {});
   }
 
-  return { NS, on, read, write, sync, changed, coursesOn, card, askLines, injectBuiltin, loadBuiltin, decorateTab, renderBar, openImport, boot, parseWeeks, weeksText,
+  return { _nearOCR: (a, b) => nearOCR(a, b), NS, on, read, write, sync, changed, coursesOn, card, askLines, injectBuiltin, loadBuiltin, decorateTab, renderBar, openImport, boot, parseWeeks, weeksText,
     get data() { return data; } };
 })();
