@@ -1,0 +1,62 @@
+# 自动打包安卓 App：改了 android/ 里的文件、或者在 Actions 页面手动点「Run workflow」时运行。
+# 打好的安装包放到网站的 download/ 目录，网站上「下载安卓 App」就是它。
+name: 安卓 App
+
+on:
+  push:
+    branches: [main, master]
+    paths: ["android/**", ".github/workflows/android.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-app
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: 打包
+        env:
+          APP_VERSION_CODE: ${{ github.run_number }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+        run: |
+          if [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "::warning::没有设置 KEYSTORE_PASSWORD，这次用临时签名打包。临时签名的版本以后不能直接覆盖升级，请按说明在仓库 Settings → Secrets 里加上 KEYSTORE_PASSWORD。"
+          fi
+          gradle -p android assembleRelease --no-daemon --stacktrace
+
+      - name: 放到网站上
+        run: |
+          mkdir -p download
+          cp android/app/build/outputs/apk/release/app-release.apk download/class-calendar.apk
+          SIGNED=$([ -n "${{ secrets.KEYSTORE_PASSWORD }}" ] && echo true || echo false)
+          cat > download/app-version.json <<JSON
+          {"versionCode": ${{ github.run_number }}, "versionName": "1.0.${{ github.run_number }}", "url": "download/class-calendar.apk", "size": $(stat -c %s download/class-calendar.apk), "signed": $SIGNED, "at": "$(date -u +%FT%TZ)"}
+          JSON
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add download
+          git commit -m "安卓 App 1.0.${{ github.run_number }}" || exit 0
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: class-calendar-1.0.${{ github.run_number }}
+          path: download/class-calendar.apk
