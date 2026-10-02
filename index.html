@@ -1428,6 +1428,147 @@
   #appBox a.gi { text-decoration: none; color: inherit; } #appBox .sx { display: flex; flex-direction: column; flex: 1; min-width: 0; } #appBox .sx small { margin: 2px 0 0; text-align: left; white-space: normal; }
   /* 在 App 里：不要浏览器式的长按菜单和选中高亮 */
   html.in-app .qbtn, html.in-app .nav, html.in-app .chk, html.in-app .btn { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  /* ===================== 手机 / 安卓 App 专用排版（窄屏重新设计） ===================== */
+  .view.on.sub { animation: subIn .32s cubic-bezier(.2,.8,.25,1); }
+  .view.on.back { animation: backIn .28s cubic-bezier(.2,.8,.25,1); }
+  @keyframes subIn { from { opacity: .4; transform: translateX(28px); } }
+  @keyframes backIn { from { opacity: .4; transform: translateX(-20px); } }
+  #ptr { position: fixed; z-index: 80; left: 50%; top: -52px; transform: translate(-50%, 0); width: 44px; height: 44px; border-radius: 50%; background: var(--card);
+    box-shadow: 0 8px 22px -8px rgba(10,40,90,.45); display: grid; place-items: center; opacity: 0; transition: opacity .15s; pointer-events: none; }
+  #ptr.on { opacity: 1; } #ptr svg { width: 34px; height: 34px; } #ptr.ready { box-shadow: 0 0 0 3px var(--accent), 0 8px 22px -8px rgba(10,40,90,.45); }
+  #ptr span { position: absolute; top: 50px; white-space: nowrap; font-size: 12px; font-weight: 700; color: var(--sub); background: var(--card); padding: 2px 10px; border-radius: 999px; box-shadow: 0 4px 10px -6px rgba(0,0,0,.3); }
+  #ptr.spin svg { animation: ptrSpin .9s linear infinite; } @keyframes ptrSpin { to { transform: rotate(360deg); } }
+  #ptr:not(.on) { transition: opacity .15s, transform .25s; }
+  .cdots { display: flex; justify-content: center; gap: 3px; flex-wrap: wrap; padding: 0 2px; min-height: 6px; }
+  .cdots i { width: 6px; height: 6px; border-radius: 50%; background: var(--c, var(--gray)); }
+  .cdots i.done { opacity: .35; }
+  .cmore { font-size: 9.5px; color: var(--sub); text-align: center; line-height: 1.2; margin-top: 1px; font-weight: 700; }
+  .grid.slide-l { animation: slideL .25s ease-out; } .grid.slide-r { animation: slideR .25s ease-out; }
+  @keyframes slideL { from { opacity: .3; transform: translateX(40px); } } @keyframes slideR { from { opacity: .3; transform: translateX(-40px); } }
+  @media (hover: none) { .cell:hover, .qbtn:hover, .gi:hover, .arow:hover, .tool:hover, .nav:hover { background: inherit; } }
+
+  @media (max-width: 700px) {
+    body { font-size: 15px; -webkit-text-size-adjust: 100%; }
+    /* 顶部标题栏：毛玻璃、更紧凑 */
+    .vhead { padding: 8px 14px; min-height: 54px; gap: 10px; }
+    .vhead h2 { font-size: 24px; }
+    /* 底部导航：Material 3 风格，选中项图标后面有一个胶囊 */
+    .rail { padding: 4px 4px calc(4px + env(safe-area-inset-bottom)); box-shadow: 0 -8px 24px -18px rgba(10,40,90,.35); }
+    .nav { padding: 4px 2px 2px; gap: 3px; font-size: 11.5px; font-weight: 600; min-width: 56px; color: var(--sub); }
+    .nav svg { width: 22px; height: 22px; padding: 3px 16px; box-sizing: content-box; border-radius: 999px; transition: background .2s; }
+    .nav.on { color: var(--text); font-weight: 800; }
+    .nav.on svg { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+    .nav .badge { margin: -2px 0 0 26px; }
+    #addBtn { width: 56px; height: 56px; right: 16px; bottom: calc(78px + env(safe-area-inset-bottom)); border-radius: 18px; box-shadow: 0 12px 24px -10px color-mix(in srgb, var(--accent) 70%, #000); }
+    html.fab-open #addBtn { border-radius: 50%; }
+    .fabmenu { bottom: calc(146px + env(safe-area-inset-bottom)); }
+    /* 首页：班级信息一行，问候卡更紧凑 */
+    #classBar { padding: 2px 14px 10px; gap: 10px; }
+    .cb-badge { width: 42px; height: 42px; font-size: 18px; }
+    #className, .cb-line { font-size: 19px; }
+    .cb-sub { gap: 6px 10px; font-size: 12.5px; flex-wrap: wrap; }
+    .hero { margin: 0 12px; padding: 16px 16px 16px; min-height: 0; border-radius: 22px; }
+    .hero h3 { font-size: 26px; margin: 8px 0 4px; max-width: 66%; }
+    .hero .say { font-size: 13px; max-width: 64%; line-height: 1.5; }
+    .hero .date { font-size: 12px; padding: 2px 9px; }
+    .mascot { width: 92px !important; height: 92px !important; right: 8px; bottom: 6px; }
+    .metabtn { top: 12px; right: 12px; font-size: 11px; padding: 4px 10px; }
+    /* 首页卡片：两张一排时内容重新排，不会挤在一起 */
+    .widgets { margin: 12px 12px 0; gap: 10px; grid-auto-rows: 112px; grid-auto-flow: row; }
+    .wcard.fillrow { grid-column: span 2 !important; }
+    .tile { min-height: 0; height: 100%; padding: 13px 13px 12px; border-radius: 22px; display: flex; flex-direction: column; }
+    .tile b { font-size: 21px; letter-spacing: 1px; }
+    .tile small { font-size: 11.5px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+    .tile .big { font-size: 36px; display: flex; align-items: baseline; gap: 2px; }
+    .tile .big em { font-size: 12px; margin-left: 4px; white-space: nowrap; }
+    .tile .go { top: 12px; right: 12px; bottom: auto; width: 30px; height: 30px; padding: 0; font-size: 0; display: grid; place-items: center; border-radius: 50%; }
+    .tile .go::after { content: "›"; font-size: 22px; line-height: 1; margin-top: -2px; }
+    .tile .deco { width: 84px; height: 84px; right: -14px; top: auto; bottom: -14px; opacity: .22; }
+    .wsimple { padding: 12px 14px; border-radius: 22px; }
+    .wsimple h5 { font-size: 15px; }
+    [data-skin=vivid] .wsimple h5 { font-size: 18px; }
+    .home-prog .rings { gap: 4px; } .ring svg { width: 64px !important; height: 64px !important; }
+    .ring b { font-size: 13px; } .ring small { font-size: 11px; }
+    /* 快捷按钮：图标小一点，一屏能看到 4 个半，提示还能往右滑 */
+    .quick .qbtn { flex: 0 0 74px; font-size: 12px; gap: 6px; }
+    .qbtn .qi { width: 52px; height: 44px; font-size: 20px; border-radius: 16px; }
+    /* 时间线 */
+    .aday-h { margin: 18px 16px 8px; }
+    .acard { margin: 0 12px; border-radius: 20px; overflow: hidden; }
+    .arow { padding: 13px 14px; gap: 11px; }
+    .arow:active { background: var(--hover); }
+    .atitle { font-size: 15.5px; } .asub { font-size: 12.5px; }
+    .ops, .aextra .ops { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 8px -4px 0; gap: 6px; padding-bottom: 2px; }
+    .ops::-webkit-scrollbar { display: none; }
+    .ops .link, .ops button { flex-shrink: 0; padding: 6px 12px; border-radius: 999px; background: var(--muted-bg); font-size: 13px; font-weight: 700; white-space: nowrap; }
+    /* 日历：月视图只放日期和彩色圆点，下面是那一天的清单 */
+    .legend { margin: 0 16px 8px; gap: 10px; font-size: 11.5px; flex-wrap: wrap; }
+    #calendar { margin: 0 12px; border-radius: 22px; padding: 4px 4px 8px; }
+    .week-head div { font-size: 11.5px; padding: 8px 0 4px; }
+    .grid .cell { min-height: 0; height: 52px; padding: 5px 0 0; border-top: 0; border-radius: 14px; }
+    .grid .cell .daynum { margin-bottom: 3px; font-size: 14px; }
+    .grid .cell .daynum span { min-width: 28px; height: 28px; }
+    .grid .cell.selected { background: transparent; }
+    .grid .cell.selected .daynum span { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); font-weight: 800; }
+    .grid .cell.today .daynum span { background: var(--today); color: #fff; }
+    .grid .cell.today.selected .daynum span { box-shadow: 0 0 0 3px color-mix(in srgb, var(--today) 30%, transparent); }
+    .grid .cell.other { opacity: .45; }
+    .grid .cell:active { background: var(--hover); }
+    #side { margin: 12px 0 0; padding: 0; background: none !important; border: 0 !important; box-shadow: none !important; -webkit-backdrop-filter: none; backdrop-filter: none; }
+    #side h2 { margin: 6px 16px 10px; font-size: 18px; }
+    #side h3 { margin: 18px 16px 8px; }
+    #side .empty { margin: 0 12px; padding: 22px 16px; border-radius: 20px; background: var(--card); text-align: center; color: var(--sub); }
+    #side .empty small { display: block; margin-top: 4px; }
+    #side .acard { margin: 0 12px; }
+    /* 作业页 */
+    .hw-head { padding: 4px 16px 0; flex-wrap: wrap; row-gap: 8px; }
+    .hw-head h2 { font-size: 24px; }
+    .hw-prog { margin: 12px 12px 0 !important; border-radius: 22px; }
+    /* 规划：四象限改成上下排，一格一行，字不再被挤断 */
+    .quads { grid-template-columns: 1fr !important; gap: 10px; }
+    .quad { min-height: 0; padding: 12px 14px; border-radius: 20px; border-top: 0; border-left: 5px solid var(--q); }
+    .quad h4 { font-size: 16px; } [data-skin=vivid] .quad h4 { font-size: 18px; }
+    .qit .qt { white-space: normal; }
+    .ptabs { margin-left: 12px; margin-right: 12px; }
+    /* 我的 */
+    .group { margin-left: 12px !important; margin-right: 12px !important; border-radius: 20px; }
+    .gi { min-height: 52px; }
+    .me-card { margin: 0 12px; border-radius: 22px; padding: 18px 16px; }
+    /* 班级墙 */
+    .composer { border-radius: 22px; }
+    .post { border-radius: 22px; }
+    .wfilter { position: sticky; top: 54px; z-index: 4; background: color-mix(in srgb, var(--bg2) 88%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); margin: 0 0 8px !important; padding: 0 12px; }
+    /* 弹窗从底部弹出，像原生的底部面板 */
+    .dlg { width: 100%; max-width: 100%; margin: auto 0 0; border-radius: 26px 26px 0 0; padding-bottom: env(safe-area-inset-bottom); }
+    .dlg[open] { animation: sheetUp .28s cubic-bezier(.2,.8,.25,1); }
+    @keyframes sheetUp { from { transform: translateY(40%); opacity: .5; } }
+    #modal form::before, .modal2 form::before, .dlg form::before { content: ""; display: block; width: 40px; height: 5px; border-radius: 3px; background: var(--line); margin: -6px auto 10px; }
+  }
+  /* 🌱 每日鼓励（情绪包） */
+  a.qbtn.qext { text-decoration: none; color: inherit; cursor: pointer; }
+  #qPeopleDaily .qi { background: linear-gradient(180deg, #ff6b6b, #c92a2a); box-shadow: 0 8px 16px -10px rgba(201,42,42,.8); }
+  .daily-enc { padding: 0; overflow: hidden; position: relative; display: flex; height: 100%; }
+  .de-img { width: 108px; flex-shrink: 0; position: relative; display: grid; place-items: center; }
+  .de-img span { font-size: 46px; filter: drop-shadow(0 6px 10px rgba(0,0,0,.18)); animation: deBob 4s ease-in-out infinite; }
+  @keyframes deBob { 50% { transform: translateY(-4px) rotate(-4deg); } }
+  .de-img::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent 55%, var(--card) 100%); }
+  .de-body { padding: 12px 16px 12px 10px; display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; justify-content: center; }
+  .de-label { font-size: 12px; font-weight: 700; color: var(--sub); display: flex; align-items: center; gap: 6px; }
+  .de-next { margin-left: auto; width: 28px; height: 28px; border-radius: 50%; border: 0; background: var(--muted-bg); color: var(--sub); font-size: 15px; cursor: pointer; transition: transform .3s; }
+  .de-next:active { transform: rotate(180deg); }
+  .de-zh { font-size: 16px; font-weight: 700; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  [data-skin=vivid] .de-zh { font-family: var(--fd); font-weight: var(--fd-weight); font-size: 18px; letter-spacing: .5px; }
+  .de-en { font-size: 12px; color: var(--sub); font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .de-mood { display: flex; align-items: center; gap: 4px; margin-top: 6px; flex-wrap: wrap; }
+  .de-q { font-size: 12.5px; color: var(--sub); margin-right: 4px; font-weight: 600; }
+  .de-mood button[data-mood] { border: 0; background: var(--muted-bg); width: 34px; height: 34px; border-radius: 50%; font-size: 18px; cursor: pointer; transition: transform .15s; }
+  .de-mood button[data-mood]:active { transform: scale(1.25); }
+  .de-reply { font-size: 13px; line-height: 1.5; flex: 1; min-width: 0; }
+  .de-redo { border: 0; background: none; color: var(--accent); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+  [data-skin=cyber] .de-img::after { background: linear-gradient(90deg, transparent 55%, rgba(16,13,36,.95) 100%); }
+  [data-skin=cyber] .de-zh { color: #00f0ff; text-shadow: 0 0 8px rgba(0,240,255,.3); }
+  @media (max-width: 700px) { .de-img { width: 84px; } .de-img span { font-size: 38px; } .de-zh { font-size: 15px; } [data-skin=vivid] .de-zh { font-size: 16px; } .de-body { padding: 10px 12px 10px 6px; } }
+  @media (prefers-reduced-motion: reduce) { .de-img span { animation: none; } }
 </style>
 </head>
 <body>
@@ -1481,6 +1622,7 @@
       <button class="qbtn" id="qCal"><span class="qi">📲</span>加到日历</button>
       <button class="qbtn" id="qTools" data-tab="tools"><span class="qi">🧩</span>全部工具</button>
       <button class="qbtn" id="qIntro" data-tab="intro"><span class="qi">📖</span>功能介绍</button>
+      <a class="qbtn qext" id="qPeopleDaily" href="https://www.people.com.cn/" target="_blank" rel="noopener noreferrer"><span class="qi">📰</span>人民日报</a>
     </div>
     </div>
     <section id="ingestPanel" class="surface hidden">
@@ -2016,7 +2158,7 @@
 <script src="auth.js?v=20261003b"></script>
 <script src="parse.js"></script>
 <script src="courses.js?v=20261002h"></script>
-<script src="app.js?v=20261003f"></script>
+<script src="app.js?v=20261003g"></script>
 </body>
 </html>
 </body>

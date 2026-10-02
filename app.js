@@ -31,7 +31,7 @@ const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; 
 // list：数组，按 id 一条条同步；map：对象，按键同步；map2：两层对象（习惯 → 日期）；one：整体同步
 const SYNC_KINDS = { personal_events_v1: "list", personal_marks_v1: "map", done_log_v1: "map", habits_v1: "list", habit_log_v1: "map2",
   quad_v1: "map", quad_todos_v1: "list", pomo_log_v1: "map", fun_opts_v1: "one", home_layout_v1: "one", ui_skin_v1: "one",
-  ui_palette_v1: "one", plugins_enabled_v1: "one", plan_notes_v1: "map", profile_v1: "one" };
+  ui_palette_v1: "one", plugins_enabled_v1: "one", plan_notes_v1: "map", profile_v1: "one", mood_log_v1: "map" };
 const LS_SYNC = "sync_meta_v1", LS_SYNC_OUT = "sync_outbox_v1", LS_SYNC_MODE = "sync_mode_v1";
 const Sync = (() => {
   const SEP = "\u0001";
@@ -324,6 +324,7 @@ function chipText(r, compact) {
   return `${r.need_confirm ? "⚠" : ""}${r._p && r._p.time ? r._p.time + " " : ""}${prefix}${title}`;
 }
 
+const phoneCal = () => window.innerWidth <= 700;
 function renderGrid() {
   $("monthLabel").textContent = `${viewYear}年${viewMonth + 1}月`;
   const first = new Date(viewYear, viewMonth, 1);
@@ -340,6 +341,17 @@ function renderGrid() {
     cell.className = "cell" + (d.getMonth() !== viewMonth ? " other" : "") +
       (k === keyOf(today) ? " today" : "") + (k === selectedKey ? " selected" : "");
     let html = `<div class="daynum"><span>${d.getDate()}</span></div>`;
+    if (phoneCal()) {   // 手机：格子太窄放不下字，用彩色小圆点表示有几件事，点日期在下面看详情
+      const pend = items.filter((r) => !r._done);
+      html += `<div class="cdots">${items.slice(0, 4).map((r) => `<i class="t-${esc(r.msg_type)}${r._done ? " done" : ""}"${r._color ? ` style="--c:${esc(r._color)}"` : ""}></i>`).join("")}</div>`
+        + (items.length > 4 ? `<div class="cmore">+${items.length - 4}</div>` : "");
+      cell.dataset.n = pend.length;
+      cell.innerHTML = html;
+      cell.onclick = () => { selectedKey = k; renderGrid(); renderSide(); emit("dayselected", k); };
+      cell.ondblclick = () => { selectedKey = k; if (feat("mine")) openForm(null); };
+      grid.appendChild(cell);
+      continue;
+    }
     items.slice(0, maxChips).forEach((r) => {
       const style = r._color ? ` style="--c:${esc(r._color)}"` : "";
       html += `<div class="chip t-${esc(r.msg_type)}${r._done ? " done" : ""}"${style} title="${esc(chipText(r))}">${esc(chipText(r, compact))}</div>`;
@@ -613,6 +625,7 @@ function toggleRow(e) {
 }
 $("agenda").addEventListener("click", toggleRow);
 $("hwView").addEventListener("click", toggleRow);
+$("side").addEventListener("click", toggleRow);
 
 // ===== 作业页：一眼看到这周要交的作业 =====
 let hwWeek = 0;   // 0 本周，1 下周，-1 上周
@@ -690,8 +703,12 @@ function renderSide() {
   $("sideHide").checked = !!funOpts().hideDone;
   $("sideTitle").textContent = `${d.getMonth() + 1}月${d.getDate()}日 周${WEEK[d.getDay()]}`;
   const items = byDay[selectedKey] || [];
-  $("dayList").innerHTML = items.length ? items.map((r) => itemHtml(r, false)).join("") : `<div class="empty">这天没有安排${feat("mine") ? "<br><small>点「记一件事」或双击日期就能加在这天</small>" : ""}</div>`;
-  $("undatedList").innerHTML = undated.length ? undated.map((r) => itemHtml(r, true)).join("") : `<div class="empty">暂无</div>`;
+  const phone = phoneCal();
+  $("side").classList.toggle("phone", phone);
+  $("sideTitle").textContent += items.length ? ` · ${items.filter((r) => !r._done).length} 项` : "";
+  $("dayList").innerHTML = items.length ? (phone ? `<div class="acard surface">${items.map(agendaRow).join("")}</div>` : items.map((r) => itemHtml(r, false)).join(""))
+    : `<div class="empty">这天没有安排${feat("mine") ? `<br><small>${phone ? "点右下角「＋」记一件事，会记在这天" : "点「记一件事」或双击日期就能加在这天"}</small>` : ""}</div>`;
+  $("undatedList").innerHTML = undated.length ? (phone ? `<div class="acard surface">${undated.map(agendaRow).join("")}</div>` : undated.map((r) => itemHtml(r, true)).join("")) : `<div class="empty">暂无</div>`;
 }
 
 function renderAll() { pluginBroadcastClass(); indexItems(); renderGrid(); renderSide(); renderAgenda(); renderHomework(); renderRail(); renderGrowth(); renderPlan(); renderMeta(); renderWidgets(); syncJump(); appSchedule(); }
@@ -2195,7 +2212,12 @@ function showView(id) {
   if (id === "store") { id = "tools"; scrollStore = true; }
   if (!document.querySelector(`.view[data-view="${CSS.escape(id)}"]`)) id = "home";
   if (!viewOn(id)) { const k = id.startsWith("p_") ? "tools" : VIEW_FEAT[id]; showBanner(`「${FEAT_NAME[k] || id}」暂时用不了：${featWhy(k) || "已关闭"}`); setTimeout(() => showBanner(""), 3500); id = "home"; }
-  document.querySelectorAll(".view[data-view]").forEach((v) => v.classList.toggle("on", v.dataset.view === id));
+  const prev = currentView();
+  document.querySelectorAll(".view[data-view]").forEach((v) => { v.classList.toggle("on", v.dataset.view === id); v.classList.remove("sub", "back"); });
+  // 手机上：进入二级页面从右边滑进来，返回时从左边滑回来，像原生 App
+  const TABS = ["home", "homework", "wall", "calendar", "me", "tools", "plan", "ask"];
+  const cur = document.querySelector(`.view[data-view="${CSS.escape(id)}"]`);
+  if (cur && prev !== id) cur.classList.add(!TABS.includes(id) ? "sub" : !TABS.includes(prev) ? "back" : "tab");
   renderTabs();
   if (["home", "calendar", "homework"].includes(id)) renderAll();
   if (id === "wall") loadWall(true);
@@ -2701,7 +2723,7 @@ document.addEventListener("click", (e) => { if (e.target.closest("#metaBtn")) { 
 // ===== 首页卡片 · 工具摆放（只存在这台设备上） =====
 const LS_LAYOUT = "home_layout_v1";
 let homeStats = { hwLeft: 0, overdue: 0, todayCount: 0, upcoming: 0 };
-const W_DEFAULT = { home: [{ id: "w:pins", w: 4, h: 1 }, { id: "w:hw", w: 2, h: 1 }, { id: "w:cal", w: 2, h: 1 }, { id: "w:plan", w: 4, h: 2 }, { id: "w:rings", w: 4, h: 1 }, { id: "w:quick", w: 4, h: 1 }], rail: [], planCard: true };
+const W_DEFAULT = { home: [{ id: "w:pins", w: 4, h: 1 }, { id: "w:hw", w: 2, h: 1 }, { id: "w:cal", w: 2, h: 1 }, { id: "w:encourage", w: 4, h: 1 }, { id: "w:plan", w: 4, h: 2 }, { id: "w:rings", w: 4, h: 1 }, { id: "w:quick", w: 4, h: 1 }], rail: [], planCard: true, encCard: true };
 const WDEF = {
   "w:hw": { name: "作业", icon: "📝", w: 2, h: 1, on: () => feat("homework") },
   "w:cal": { name: "日历", icon: "📅", w: 2, h: 1 },
@@ -2709,6 +2731,7 @@ const WDEF = {
   "w:rings": { name: "本周进度", icon: "⭕", w: 4, h: 1, on: () => funOpts().rings },
   "w:quick": { name: "快捷按钮", icon: "⚡", w: 4, h: 1, minW: 2, fixed: true },
   "w:habits": { name: "今日打卡", icon: "🔥", w: 2, h: 2, on: () => funOpts().habits },
+  "w:encourage": { name: "每日鼓励", icon: "🌱", w: 4, h: 1 },
   "w:plan": { name: "规划 · 四象限", icon: "🎯", w: 4, h: 2, on: () => funOpts().plan },
   "w:pomo": { name: "番茄钟", icon: "🍅", w: 2, h: 1, on: () => funOpts().plan },
   "w:rank": { name: "排行榜", icon: "🏆", w: 2, h: 1, on: () => feat("rank") && !!currentClass },
@@ -2723,7 +2746,13 @@ function homeLayout() {
     if (!L.home.some((x) => x.id === "w:plan")) { const i = L.home.findIndex((x) => x.id === "w:cal" || x.id === "w:hw"); L.home.splice(i < 0 ? 0 : Math.max(...["w:cal", "w:hw"].map((k) => L.home.findIndex((x) => x.id === k))) + 1, 0, { id: "w:plan", w: 4, h: 2 }); }
     save(LS_LAYOUT, L);
   }
-  return L && Array.isArray(L.home) ? { home: L.home, rail: L.rail || [], planCard: true } : JSON.parse(JSON.stringify(W_DEFAULT));
+  // 队员做的「每日鼓励」卡片：老用户也补上一次，放在作业、日历卡片后面；删掉了就不再加
+  if (L && Array.isArray(L.home) && !L.encCard) {
+    L.encCard = true;
+    if (!L.home.some((x) => x.id === "w:encourage")) { const at = Math.max(...["w:cal", "w:hw"].map((k) => L.home.findIndex((x) => x.id === k))); L.home.splice(at + 1, 0, { id: "w:encourage", w: 4, h: 1 }); }
+    save(LS_LAYOUT, L);
+  }
+  return L && Array.isArray(L.home) ? { home: L.home, rail: L.rail || [], planCard: true, encCard: true } : JSON.parse(JSON.stringify(W_DEFAULT));
 }
 const saveLayout = (L) => { save(LS_LAYOUT, L); renderTabs(); renderTools(); };
 // 工具：内置的「成长」「规划」+ 已启用插件的标签页
@@ -2808,6 +2837,7 @@ function cardBody(id, w, h) {
         + (me && me.rank > n ? `<div class="wr-row meta">我：第 ${me.rank} 名<b>${me.points}</b></div>` : "")
         : `<div class="empty">这周还没人上榜，完成一项作业就能上榜！</div>`}</div>`;
   }
+  if (id === "w:encourage") return encCard(h);
   if (id === "w:plan") {
     const items = planItems().filter((r) => !r._done), cur = PLAN_METHODS.find((m) => m.id === planCur());
     const by = QUADS.map(([n, name, act]) => ({ n, name, act, list: items.filter((r) => r.q === n).sort((a, b) => (a._p ? a._p.day : "9") > (b._p ? b._p.day : "9") ? 1 : -1) }));
@@ -2847,6 +2877,18 @@ function renderWidgets() {
   box.querySelectorAll("[data-papp]").forEach((el) => openSandbox(el.dataset.papp, "app", el, { minHeight: "100px" }));
   // 没有置顶时，平时不占位置；编辑时显示占位
   const pin = box.querySelector('[data-wid="w:pins"]'); if (pin && pin.querySelector("[data-empty]") && !wEditing) pin.classList.add("hidden");
+  // 手机两列：半宽卡片落单（右边空着）时拉成整行，不留空洞
+  if (isMobile() && !wEditing) {
+    const vis = [...box.querySelectorAll(".wcard:not(.hidden)")];
+    let col = 0;
+    vis.forEach((el, i) => {
+      const half = /\bw[12]\b/.test(el.className);
+      if (!half) { col = 0; return; }
+      const next = vis[i + 1], nextHalf = next && /\bw[12]\b/.test(next.className);
+      if (col === 0 && !nextHalf) { el.classList.add("fillrow"); return; }
+      col = col === 0 ? 1 : 0;
+    });
+  }
   if (wEditing) {
     const missing = Object.keys(WDEF).filter((id) => cardAvailable(id) && !L.home.some((c) => c.id === id)).map((id) => [id, WDEF[id]])
       .concat(toolList().filter((t) => !L.home.some((c) => c.id === t.id)).map((t) => [t.id, t]));
@@ -2862,7 +2904,7 @@ function setEditing(on) {
 }
 $("wEdit").onclick = () => setEditing(true);
 $("wDone").onclick = () => setEditing(false);
-$("wReset").onclick = () => { if (confirm("首页卡片恢复成默认的样子？")) { const L = homeLayout(); save(LS_LAYOUT, { home: JSON.parse(JSON.stringify(W_DEFAULT.home)), rail: L.rail, planCard: true }); renderWidgets(); renderTools(); } };
+$("wReset").onclick = () => { if (confirm("首页卡片恢复成默认的样子？")) { const L = homeLayout(); save(LS_LAYOUT, { home: JSON.parse(JSON.stringify(W_DEFAULT.home)), rail: L.rail, planCard: true, encCard: true }); renderWidgets(); renderTools(); } };
 $("wAddList").onclick = (e) => {
   const b = e.target.closest("[data-wadd]"); if (!b) return;
   const L = homeLayout(), d = cardInfo(b.dataset.wadd) || {};
@@ -4034,6 +4076,135 @@ document.addEventListener("change", (e) => {
 document.addEventListener("click", (e) => { if (e.target.closest("#appCheck")) appCheckVersion(true); });
 if (inApp()) document.documentElement.classList.add("in-app");
 
+// ===== 手机手感：左右滑动翻月、下拉刷新、震动反馈、旋转屏幕重排 =====
+const buzz = (ms = 12) => { try { if (isMobile() && navigator.vibrate) navigator.vibrate(ms); } catch (e) {} };
+document.addEventListener("click", (e) => { const b = e.target.closest(".chk, .hchk, [data-whabit], .qbtn, .nav, #addBtn, .fabmenu button"); if (b) buzz(b.classList.contains("chk") || b.classList.contains("hchk") ? 18 : 8); }, true);
+(() => {
+  let sx = 0, sy = 0, st = 0;
+  const cal = $("calendar");
+  cal.addEventListener("touchstart", (e) => { const t = e.touches[0]; sx = t.clientX; sy = t.clientY; st = Date.now(); }, { passive: true });
+  cal.addEventListener("touchend", (e) => {
+    const t = e.changedTouches[0], dx = t.clientX - sx, dy = t.clientY - sy;
+    if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx) * .7 || Date.now() - st > 600) return;
+    const g = $("grid"); g.classList.remove("slide-l", "slide-r"); void g.offsetWidth;
+    if (dx < 0) $("nextBtn").click(); else $("prevBtn").click();
+    g.classList.add(dx < 0 ? "slide-l" : "slide-r"); buzz(8);
+  }, { passive: true });
+})();
+// 下拉刷新：页面在最顶上时往下拉，松手重新拿班级数据、班级墙和云端同步
+(() => {
+  const ind = document.createElement("div"); ind.id = "ptr"; ind.innerHTML = `<svg viewBox="0 0 120 120" aria-hidden="true"><use href="#mascotArt"/></svg><span>下拉刷新</span>`;
+  document.body.appendChild(ind);
+  let y0 = null, dy = 0, busy = false;
+  const can = (e) => isMobile() && window.scrollY <= 0 && !busy && !document.querySelector("dialog[open], #modal.open, .modal2.open, .fabmenu.open") && !e.target.closest("textarea, input, .quick, .ptabs, #calendar, iframe");
+  document.addEventListener("touchstart", (e) => { y0 = can(e) ? e.touches[0].clientY : null; dy = 0; }, { passive: true });
+  document.addEventListener("touchmove", (e) => {
+    if (y0 == null) return;
+    dy = e.touches[0].clientY - y0;
+    if (dy <= 0 || window.scrollY > 0) { ind.style.transform = ""; ind.classList.remove("on", "ready"); return; }
+    const d = Math.min(110, dy * .5);
+    ind.classList.add("on"); ind.classList.toggle("ready", d >= 64);
+    ind.style.transform = `translate(-50%, ${d}px) rotate(${d * 3}deg)`;
+    ind.querySelector("span").textContent = d >= 64 ? "松手刷新" : "下拉刷新";
+  }, { passive: true });
+  document.addEventListener("touchend", async () => {
+    if (y0 == null) return; y0 = null;
+    if (!ind.classList.contains("ready")) { ind.style.transform = ""; ind.classList.remove("on"); return; }
+    busy = true; buzz(15);
+    ind.classList.add("spin"); ind.style.transform = "translate(-50%, 70px)"; ind.querySelector("span").textContent = "正在刷新…";
+    try {
+      const jobs = [Sync.pull()];
+      if (currentUser) { jobs.push(loadMyClasses().then(() => { renderClassBar(); return loadClass(); })); }
+      await Promise.race([Promise.all(jobs), new Promise((r) => setTimeout(r, 8000))]);
+      if (currentView() === "wall") await loadWall();
+      ind.querySelector("span").textContent = "已刷新 ✓";
+    } catch (e) { ind.querySelector("span").textContent = "刷新失败"; }
+    setTimeout(() => { ind.classList.remove("on", "ready", "spin"); ind.style.transform = ""; busy = false; }, 600);
+  });
+})();
+let rsT = 0, lastPhone = phoneCal();
+window.addEventListener("resize", () => { clearTimeout(rsT); rsT = setTimeout(() => { if (phoneCal() !== lastPhone) { lastPhone = phoneCal(); renderGrid(); renderSide(); } }, 150); });
+
+// ===== 🌱 每日鼓励（情绪包，队员设计）：每天一句暖心话 + 今天心情怎么样 =====
+// 根据当天情况挑句子：有过期作业就打气、深夜劝早睡、周末放松；点「换一句」看下一句；选了心情会回一句贴心话。
+// 心情记录跟着账号云端同步（mood_log_v1）。
+const LS_MOOD = "mood_log_v1";
+let moodLog = load(LS_MOOD, {});
+const ENC = {
+  go: [
+    ["今天的努力，是明天的底气。", "Today's effort is tomorrow's confidence.", "💪", "#667eea,#764ba2"],
+    ["每一步都算数，继续往前走。", "Every step counts, keep going.", "🚶", "#4facfe,#00f2fe"],
+    ["坚持一下，再坚持一下。", "Hold on, just a little longer.", "🔥", "#ffecd2,#fcb69f"],
+    ["你的坚持，终将美好。", "Your persistence will pay off beautifully.", "🦋", "#ff9a9e,#fad0c4"],
+    ["先完成，再完美。", "Done is better than perfect.", "✅", "#43e97b,#38f9d7"],
+    ["一次只做一件事，做完就是胜利。", "One thing at a time — finishing is winning.", "🎯", "#f6d365,#fda085"],
+    ["作业不会自己消失，但你可以让它消失。", "Homework won't vanish by itself — but you can make it.", "📝", "#a18cd1,#fbc2eb"],
+    ["世界很大，你的可能性更大。", "The world is big, your possibilities are bigger.", "🌍", "#89f7fe,#66a6ff"],
+  ],
+  warm: [
+    ["你比想象中更强大。", "You are stronger than you think.", "🌟", "#f093fb,#f5576c"],
+    ["别急，花会开的。", "Be patient, the flowers will bloom.", "🌸", "#43e97b,#38f9d7"],
+    ["你已经做得很好了。", "You're already doing great.", "✨", "#fa709a,#fee140"],
+    ["慢慢来，比较快。", "Slow and steady wins the race.", "🐢", "#a18cd1,#fbc2eb"],
+    ["光而不耀，静而不止。", "Bright but calm, quiet but unstoppable.", "☀️", "#a1c4fd,#c2e9fb"],
+    ["允许一切发生，然后继续走。", "Let things happen, then keep walking.", "🍃", "#d4fc79,#96e6a1"],
+    ["你已经走了很远了，别忘了为自己鼓掌。", "You've come so far — applaud yourself.", "👏", "#84fab0,#8fd3f4"],
+    ["日子还长，值得期待的还有很多。", "There's still so much to look forward to.", "🌈", "#fbc2eb,#a6c1ee"],
+    ["今天也是值得被期待的一天。", "Today is another day worth looking forward to.", "🌅", "#fdcbf1,#e6dee9"],
+    ["偶尔停下来，也是在往前走。", "Pausing is also part of moving forward.", "☕", "#e0c3fc,#8ec5fc"],
+  ],
+  rest: [
+    ["累了就休息，但别忘了重新出发。", "Rest if tired, but don't forget to start again.", "🛏️", "#f6d365,#fda085"],
+    ["周末快乐！给自己充充电吧。", "Happy weekend — time to recharge.", "🔋", "#84fab0,#8fd3f4"],
+    ["出去走走，晒晒太阳。", "Go outside and catch some sunshine.", "🌤️", "#ffecd2,#fcb69f"],
+  ],
+  night: [
+    ["夜深了，明天的事交给明天的你。", "It's late — leave tomorrow's work to tomorrow's you.", "🌙", "#30cfd0,#330867"],
+    ["早点睡，睡饱了脑子才转得快。", "Sleep well — a rested brain works faster.", "😴", "#4b6cb7,#182848"],
+  ],
+};
+const MOODS = [["great", "😄", "超开心"], ["good", "🙂", "还不错"], ["meh", "😐", "一般般"], ["tired", "😮‍💨", "有点累"], ["down", "😢", "不开心"]];
+const MOOD_REPLY = {
+  great: ["开心的日子要记住！把好心情分一点给同桌吧 🎉", "今天状态满分，冲鸭！"],
+  good: ["平平稳稳就是好日子 🙂", "保持住，今天也会顺顺利利。"],
+  meh: ["一般般也没关系，做完一件小事就会好一点。", "听首喜欢的歌，再开始下一件事吧 🎧"],
+  tired: ["累了就歇一会儿，喝口水、伸个懒腰 ☕", "今天早点睡，明天又是满血的你。"],
+  down: ["抱抱你。难过的时候不用硬撑，找信任的朋友或老师聊聊 🤍", "今天不开心也没关系，明天会好一点的。需要的话，随时可以找人说说。"],
+};
+let encShift = 0;
+function encPool() {
+  const h = new Date().getHours(), wd = new Date().getDay();
+  if (h >= 23 || h < 5) return ENC.night;
+  if (homeStats.overdue > 0 || homeStats.hwLeft >= 3) return ENC.go;
+  if (wd === 0 || wd === 6) return ENC.rest.concat(ENC.warm);
+  return ENC.warm.concat(ENC.go);
+}
+function encPick() {
+  const pool = encPool(), k = todayKey() + (currentUser ? currentUser.id : "");
+  let hash = 0; for (let i = 0; i < k.length; i++) hash = (hash * 31 + k.charCodeAt(i)) | 0;
+  return pool[(Math.abs(hash) + encShift) % pool.length];
+}
+function encCard(h) {
+  const [zh, en, emo, g] = encPick(), m = moodLog[todayKey()];
+  const reply = m && MOOD_REPLY[m] ? MOOD_REPLY[m][Math.abs(todayKey().length + encShift) % MOOD_REPLY[m].length] : "";
+  return `<div class="surface wb daily-enc${h >= 2 ? " tall" : ""}">
+    <div class="de-img" style="background:linear-gradient(135deg,${g})"><span>${emo}</span></div>
+    <div class="de-body">
+      <div class="de-label">🌱 每日一句<button class="de-next" data-enc="next" title="换一句" aria-label="换一句">↻</button></div>
+      <div class="de-zh">${esc(zh)}</div><div class="de-en">${esc(en)}</div>
+      ${h >= 2 ? `<div class="de-mood">${m ? `<span class="de-reply">${MOODS.find((x) => x[0] === m)[1]} ${esc(reply)}</span><button class="de-redo" data-enc="redo">改</button>`
+        : `<span class="de-q">今天心情怎么样？</span>${MOODS.map(([k, e, n]) => `<button data-mood="${k}" title="${n}" aria-label="${n}">${e}</button>`).join("")}`}</div>` : ""}
+    </div></div>`;
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-enc], [data-mood]"); if (!b || !b.closest(".daily-enc")) return;
+  e.stopPropagation();
+  if (b.dataset.enc === "next") { encShift++; }
+  if (b.dataset.enc === "redo") { delete moodLog[todayKey()]; save(LS_MOOD, moodLog); }
+  if (b.dataset.mood) { moodLog[todayKey()] = b.dataset.mood; save(LS_MOOD, moodLog); buzz(10); }
+  renderWidgets();
+}, true);
+
 // ===== 新注册：把引导里选的皮肤、配色、习惯用上；老用户第一次来问一下性别 =====
 const LS_PROFILE = "profile_v1";
 const GENDER_PAL = { f: { id: "sakura", name: "樱花粉", p: "#ff5f8f", s: "#ffb03b" }, m: { id: "navy", name: "海军蓝", p: "#2457d6", s: "#ffb020" } };
@@ -4093,7 +4264,7 @@ document.addEventListener("visibilitychange", () => {
 
 // ===== 云端同步：别的设备改了 → 刷新这里；「我的 → 数据」里的开关和状态 =====
 function reloadLocal() {
-  mine = load(LS_MINE, []); marks = load(LS_MARK, {}); doneLog = load(LS_DONE_LOG, {}); habits = load(LS_HABITS, []); habitLog = load(LS_HABIT_LOG, {});
+  mine = load(LS_MINE, []); marks = load(LS_MARK, {}); doneLog = load(LS_DONE_LOG, {}); habits = load(LS_HABITS, []); habitLog = load(LS_HABIT_LOG, {}); moodLog = load(LS_MOOD, {});
   quadMap = load(LS_QUAD, {}); qTodos = load(LS_QTODO, []); pomoLog = load(LS_POMO_LOG, {}); planNotes = load(LS_PLAN_NOTES, {});
   migrateQTodos();
   applyLook(); syncFunUI(); renderTools(); renderAll();
