@@ -1368,7 +1368,7 @@
     .vsearch { width: 110px; } .vsearch:focus { width: 140px; }
   }
   /* ===== 全站细节打磨 ===== */
-  html { -webkit-tap-highlight-color: transparent; scroll-behavior: smooth; }
+  html { -webkit-tap-highlight-color: transparent; }
   ::selection { background: color-mix(in srgb, var(--accent) 28%, transparent); }
   * { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--sub) 35%, transparent) transparent; }
   ::-webkit-scrollbar { width: 10px; height: 10px; } ::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--sub) 30%, transparent); border-radius: 10px; border: 3px solid transparent; background-clip: padding-box; }
@@ -1380,8 +1380,22 @@
   .surface { transition: box-shadow .2s; }
   .sec-h { flex-wrap: wrap; row-gap: 2px; }
   img, svg { -webkit-user-drag: none; }
-  @media (prefers-reduced-motion: reduce) { .view.on, .in-sec { animation: none; } html { scroll-behavior: auto; } }
+  @media (prefers-reduced-motion: reduce) { .view.on, .in-sec { animation: none; } }
   @media (max-width: 700px) { .col { padding-bottom: calc(120px + env(safe-area-inset-bottom)); } .sec-h { margin: 22px 14px 8px; } .sec-h b { font-size: 17px; } }
+  /* 首页「规划」卡片 */
+  .wplan h5 .small { margin-left: 0; }
+  .wsimple h5 .meta { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; font-size: 12px; letter-spacing: 0; color: var(--sub); }
+  .wq-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 8px; }
+  .wq { min-width: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 3px; text-align: left; padding: 8px 10px; border-radius: 12px; border: 0; cursor: pointer; font: inherit; color: var(--text);
+    background: color-mix(in srgb, var(--q) 9%, var(--card)); box-shadow: inset 3px 0 0 var(--q); }
+  .wq.q1, .wq-pill.q1 { --q: #ef4b3f; } .wq.q2, .wq-pill.q2 { --q: #1e8cff; } .wq.q3, .wq-pill.q3 { --q: #e8a10c; } .wq.q4, .wq-pill.q4 { --q: #8b9cb2; }
+  .wq-h { display: flex; align-items: center; gap: 6px; font-size: 12.5px; } .wq-h b { color: var(--q); } .wq-h em { margin-left: auto; font-style: normal; font-weight: 800; font-size: 13px; }
+  .wq-it { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .wq-it.none { color: var(--sub); font-size: 12px; }
+  .wplan1 { cursor: pointer; text-align: left; font: inherit; color: var(--text); border: 0; width: 100%; } .wplan1 .go2 { font-size: 13px; color: var(--accent); font-weight: 700; font-family: inherit; }
+  .wq-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: auto; }
+  .wq-pill { display: flex; flex-direction: column; align-items: center; padding: 6px 2px; border-radius: 10px; background: color-mix(in srgb, var(--q) 10%, var(--card)); font-size: 11px; color: var(--sub); white-space: nowrap; overflow: hidden; }
+  .wq-pill b { font-size: 18px; color: var(--q); line-height: 1.1; }
+  [data-skin=cyber] .wq, [data-skin=cyber] .wq-pill { border-radius: 4px; background: rgba(255,255,255,.04); }
 </style>
 </head>
 <body>
@@ -1958,7 +1972,7 @@
 <script src="auth.js?v=20261003b"></script>
 <script src="parse.js"></script>
 <script src="courses.js?v=20261002h"></script>
-<script src="app.js?v=20261003c"></script>
+<script src="app.js?v=20261003d"></script>
 </body>
 </html>
 </body>

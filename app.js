@@ -2647,7 +2647,7 @@ document.addEventListener("click", (e) => { if (e.target.closest("#metaBtn")) { 
 // ===== 首页卡片 · 工具摆放（只存在这台设备上） =====
 const LS_LAYOUT = "home_layout_v1";
 let homeStats = { hwLeft: 0, overdue: 0, todayCount: 0, upcoming: 0 };
-const W_DEFAULT = { home: [{ id: "w:pins", w: 4, h: 1 }, { id: "w:hw", w: 2, h: 1 }, { id: "w:cal", w: 2, h: 1 }, { id: "w:rings", w: 4, h: 1 }, { id: "w:quick", w: 4, h: 1 }], rail: [] };
+const W_DEFAULT = { home: [{ id: "w:pins", w: 4, h: 1 }, { id: "w:hw", w: 2, h: 1 }, { id: "w:cal", w: 2, h: 1 }, { id: "w:plan", w: 4, h: 2 }, { id: "w:rings", w: 4, h: 1 }, { id: "w:quick", w: 4, h: 1 }], rail: [], planCard: true };
 const WDEF = {
   "w:hw": { name: "作业", icon: "📝", w: 2, h: 1, on: () => feat("homework") },
   "w:cal": { name: "日历", icon: "📅", w: 2, h: 1 },
@@ -2655,6 +2655,7 @@ const WDEF = {
   "w:rings": { name: "本周进度", icon: "⭕", w: 4, h: 1, on: () => funOpts().rings },
   "w:quick": { name: "快捷按钮", icon: "⚡", w: 4, h: 1, minW: 2, fixed: true },
   "w:habits": { name: "今日打卡", icon: "🔥", w: 2, h: 2, on: () => funOpts().habits },
+  "w:plan": { name: "规划 · 四象限", icon: "🎯", w: 4, h: 2, on: () => funOpts().plan },
   "w:pomo": { name: "番茄钟", icon: "🍅", w: 2, h: 1, on: () => funOpts().plan },
   "w:rank": { name: "排行榜", icon: "🏆", w: 2, h: 1, on: () => feat("rank") && !!currentClass },
   "w:course": { name: "今日课程", icon: "📚", w: 2, h: 1, on: () => ck().on() },
@@ -2662,7 +2663,13 @@ const WDEF = {
 };
 function homeLayout() {
   const L = load(LS_LAYOUT, null);
-  return L && Array.isArray(L.home) ? { home: L.home, rail: L.rail || [] } : JSON.parse(JSON.stringify(W_DEFAULT));
+  // 以前自定义过首页的人：补上一次「规划」卡片（手机上规划不在底部栏，放首页才好找）；之后删掉了就不再加
+  if (L && Array.isArray(L.home) && !L.planCard) {
+    L.planCard = true;
+    if (!L.home.some((x) => x.id === "w:plan")) { const i = L.home.findIndex((x) => x.id === "w:cal" || x.id === "w:hw"); L.home.splice(i < 0 ? 0 : Math.max(...["w:cal", "w:hw"].map((k) => L.home.findIndex((x) => x.id === k))) + 1, 0, { id: "w:plan", w: 4, h: 2 }); }
+    save(LS_LAYOUT, L);
+  }
+  return L && Array.isArray(L.home) ? { home: L.home, rail: L.rail || [], planCard: true } : JSON.parse(JSON.stringify(W_DEFAULT));
 }
 const saveLayout = (L) => { save(LS_LAYOUT, L); renderTabs(); renderTools(); };
 // 工具：内置的「成长」「规划」+ 已启用插件的标签页
@@ -2747,6 +2754,15 @@ function cardBody(id, w, h) {
         + (me && me.rank > n ? `<div class="wr-row meta">我：第 ${me.rank} 名<b>${me.points}</b></div>` : "")
         : `<div class="empty">这周还没人上榜，完成一项作业就能上榜！</div>`}</div>`;
   }
+  if (id === "w:plan") {
+    const items = planItems().filter((r) => !r._done), cur = PLAN_METHODS.find((m) => m.id === planCur());
+    const by = QUADS.map(([n, name, act]) => ({ n, name, act, list: items.filter((r) => r.q === n).sort((a, b) => (a._p ? a._p.day : "9") > (b._p ? b._p.day : "9") ? 1 : -1) }));
+    if (!big) return `<button class="surface wb wsimple wplan1" data-tab="plan"><h5>🎯 规划<span class="meta" style="font-weight:600">${esc(cur.name)}</span><span class="spacer"></span><span class="go2">打开 ›</span></h5>
+      <div class="wq-row">${by.map((q) => `<span class="wq-pill q${q.n}"><b>${q.list.length}</b>${q.name}</span>`).join("")}</div></button>`;
+    return `<div class="surface wb wsimple wplan"><h5>🎯 规划<span class="meta" style="font-weight:600">四象限 · ${items.length} 件待办</span><span class="spacer"></span><button class="small" data-tab="plan">${cur.id === "quad" ? "打开" : esc(cur.name)} ›</button></h5>
+      <div class="wq-grid">${by.map((q) => `<button class="wq q${q.n}" data-tab="plan"><span class="wq-h"><b>${q.name}</b><em>${q.list.length || ""}</em></span>
+        ${q.list.slice(0, 2).map((r) => `<span class="wq-it">${esc(r.subject || r.summary || "")}</span>`).join("") || `<span class="wq-it none">${q.n === 1 ? "没有急事 👍" : "空"}</span>`}</button>`).join("")}</div></div>`;
+  }
   if (id === "w:pomo") {
     return `<div class="surface wb wsimple"><h5>🍅 番茄钟</h5><div class="wpomo"><div><b id="wgPomoTime">--:--</b><div class="meta" id="wgPomoMode"></div></div>
       <span class="spacer"></span><button class="btn ink sm" data-tab="plan">${pomo.mode === "focus" ? "查看" : "去专注"}</button></div></div>`;
@@ -2792,7 +2808,7 @@ function setEditing(on) {
 }
 $("wEdit").onclick = () => setEditing(true);
 $("wDone").onclick = () => setEditing(false);
-$("wReset").onclick = () => { if (confirm("首页卡片恢复成默认的样子？")) { const L = homeLayout(); save(LS_LAYOUT, { home: W_DEFAULT.home, rail: L.rail }); renderWidgets(); renderTools(); } };
+$("wReset").onclick = () => { if (confirm("首页卡片恢复成默认的样子？")) { const L = homeLayout(); save(LS_LAYOUT, { home: JSON.parse(JSON.stringify(W_DEFAULT.home)), rail: L.rail, planCard: true }); renderWidgets(); renderTools(); } };
 $("wAddList").onclick = (e) => {
   const b = e.target.closest("[data-wadd]"); if (!b) return;
   const L = homeLayout(), d = cardInfo(b.dataset.wadd) || {};
