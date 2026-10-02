@@ -291,35 +291,19 @@ const CourseKit = (() => {
     if (!currentUser) { st.textContent = "请先登录"; st.className = "cal-st err"; return; }
     if (!pickedB64) return;
     go.disabled = true; st.className = "cal-st"; st.textContent = "上传中…";
-    const t0 = Date.now();
-    const tick = setInterval(() => { const sec = Math.round((Date.now() - t0) / 1000); st.textContent = `识别中… ${sec} 秒（一般 3~8 秒）`; }, 500);
+    const t0 = Date.now(); let pct = 0;
+    const tick = setInterval(() => { const sec = Math.round((Date.now() - t0) / 1000); st.textContent = `识别中… ${pct ? pct + "%，" : ""}${sec} 秒（一般 5~15 秒）`; }, 500);
     try {
-      let r = null, jid = null;
-      // 先领一张一次性票据，把图片直接发给识别服务，当场拿回结果
-      let t = null;
-      try { t = await CCAuth.rpc("course_ocr_ticket"); }
-      catch (e) { if (!/course_ocr_ticket|function|404|找不到/i.test(e.message)) throw e; }   // 数据库还没更新：走旧的方式
-      if (t && t.url && t.ticket) {
-        jid = t.job_id;
-        const ac = new AbortController(), to = setTimeout(() => ac.abort(), 100000);
-        try {
-          const resp = await fetch(t.url, { method: "POST", headers: { "Content-Type": "text/plain;charset=UTF-8" }, signal: ac.signal, credentials: "omit",
-            body: JSON.stringify({ job_id: t.job_id, ticket: t.ticket, image: pickedB64, sb_key: (window.APP_CONFIG || {}).SUPABASE_ANON_KEY || "" }) });
-          const j = await resp.json().catch(() => null);
-          if (j && j.ok && j.result) r = { status: "done", result: j.result };
-          else if (j && j.error) r = { status: "failed", message: j.error };
-        } catch (e) { /* 网络断了：下面去数据库查结果 */ }
-        finally { clearTimeout(to); }
-      } else {
-        jid = (await CCAuth.rpc("course_ocr_start", { img: pickedB64 })).job_id;
+      const { job_id } = await CCAuth.rpc("course_ocr_start", { img: pickedB64 });
+      // 识别分几步在服务器上做，每问一次进度，服务器就接着做下一步
+      let r = null;
+      while (Date.now() - t0 < 160000) {
+        await new Promise((res) => setTimeout(res, 1000));
+        try { r = await CCAuth.rpc("course_ocr_status", { jid: job_id }); } catch (e) { r = null; }
+        if (r && r.progress) pct = r.progress;
+        if (r && r.status !== "running") break;
       }
-      // 没直接拿到结果：到数据库查（识别服务写回的结果）
-      while (!r || r.status === "running") {
-        if (Date.now() - t0 > 160000) break;
-        await new Promise((res) => setTimeout(res, (Date.now() - t0) < 10000 ? 1000 : 2000));
-        r = await CCAuth.rpc("course_ocr_status", { jid });
-      }
-      if (!r || r.status !== "done" || !r.result) throw new Error((r && r.message) || "识别超时了，请稍后再试");
+      if (!r || r.status !== "done" || !r.result) throw new Error((r && r.status === "failed" && r.message) || "识别超时了，请稍后再试");
       ocrResult = r.result;
       clearInterval(tick);
       showReview();
