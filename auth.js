@@ -42,7 +42,7 @@
 
   // 人多的时候：读数据的请求遇到「服务器忙 / 网络抖动」会自动重试（等一小会儿、每人错开时间），
   // 写数据的请求不重试（避免重复提交）。每个请求最多等 20 秒。
-  const SAFE_RPC = /\/rpc\/(app_bootstrap|my_classes|my_perms|feature_state|mail_my|growth_board|wall_my_reports|wall_report_list|credit_list|class_roster|parse_feedback_list|ingest_job_status|class_features_get|admin_features|ics_my_feed)$/;
+  const SAFE_RPC = /\/rpc\/(app_bootstrap|my_classes|my_perms|feature_state|mail_my|growth_board|wall_my_reports|wall_report_list|credit_list|class_roster|parse_feedback_list|ingest_job_status|class_features_get|admin_features|ics_my_feed|udata_pull|udata_push)$/;
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   async function call(url, opts, token) {
     const method = (opts.method || "GET").toUpperCase();
@@ -113,14 +113,14 @@
     return keep(j);
   }
 
-  async function signUp(account, password, name, role) {
+  async function signUp(account, password, name, role, gender) {
     account = normAccount(account);
     name = String(name || "").trim();
     if (!ACCOUNT_RE.test(account)) throw new Error("账号只能用 3~20 位小写字母、数字或下划线");
     if (!name) throw new Error("请填写姓名（会显示为插件作者）");
     if (String(password).length < 8) throw new Error("密码至少 8 位");
     const j = await call(BASE + "/auth/v1/signup",
-      { method: "POST", body: JSON.stringify({ email: account + "@" + DOMAIN, password, data: { name, role: role === "teacher" ? "teacher" : "student" } }) });
+      { method: "POST", body: JSON.stringify({ email: account + "@" + DOMAIN, password, data: { name, role: role === "teacher" ? "teacher" : "student", gender: gender === "m" || gender === "f" ? gender : "" } }) });
     meCache = null;
     if (j && j.access_token) return keep(j);
     // 部分配置下注册不直接返回登录状态，再登录一次

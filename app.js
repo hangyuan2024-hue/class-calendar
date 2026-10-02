@@ -21,12 +21,223 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const WEEK = ["日", "一", "二", "三", "四", "五", "六"];
 
-// ===== 本地存储（只在这台设备上） =====
+// ===== 本地存储（登录后自动同步到云端，见下面的 Sync） =====
 const LS_MINE = "personal_events_v1";
 const LS_MARK = "personal_marks_v1";
 const LS_CACHE = "class_cache_v1";
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
-const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+// ===== 云端同步：登录后，我的事项、完成标记、打卡、规划、外观设置自动存到云端，换浏览器 / 换手机都能看到 =====
+// 每条数据单独同步，带修改时间；两边都改了同一条，以后改的为准。可以在「我的 → 数据」里改成「只存在这台设备」。
+// list：数组，按 id 一条条同步；map：对象，按键同步；map2：两层对象（习惯 → 日期）；one：整体同步
+const SYNC_KINDS = { personal_events_v1: "list", personal_marks_v1: "map", done_log_v1: "map", habits_v1: "list", habit_log_v1: "map2",
+  quad_v1: "map", quad_todos_v1: "list", pomo_log_v1: "map", fun_opts_v1: "one", home_layout_v1: "one", ui_skin_v1: "one",
+  ui_palette_v1: "one", plugins_enabled_v1: "one", plan_notes_v1: "map", profile_v1: "one" };
+const LS_SYNC = "sync_meta_v1", LS_SYNC_OUT = "sync_outbox_v1", LS_SYNC_MODE = "sync_mode_v1";
+const Sync = (() => {
+  const SEP = "\u0001";
+  let meta = null, out = null, dirty = new Set(), dirtyTimer = 0, flushTimer = 0, busy = false, lastPull = 0, pullTimer = 0;
+  let state = "idle", lastOk = 0, lastErr = "", applying = false;
+  const listeners = [];
+  const raw = (k) => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } };
+  const put = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+  const M = () => meta || (meta = { owner: null, rev: 0, h: {}, t: {}, ...(raw(LS_SYNC) || {}) });
+  const O = () => out || (out = raw(LS_SYNC_OUT) || {});
+  const saveMeta = () => put(LS_SYNC, meta);
+  const saveOut = () => put(LS_SYNC_OUT, out);
+  const hash = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + s.length.toString(36); };
+  const mode = () => (localStorage.getItem(LS_SYNC_MODE) === '"local"' ? "local" : "cloud");
+  let uid = null;
+  const active = () => !!uid && mode() === "cloud";
+  const emit = () => listeners.forEach((f) => { try { f(); } catch (e) {} });
+  const setState = (s, err) => { state = s; if (s === "ok") { lastOk = Date.now(); lastErr = ""; } if (err) lastErr = err; emit(); };
+
+  // 把一类数据拆成一条条记录 {rid: 值}
+  function explode(k, v) {
+    const kind = SYNC_KINDS[k], o = {};
+    if (kind === "one") { if (v != null) o._ = v; return o; }
+    if (kind === "list") { for (const x of Array.isArray(v) ? v : []) if (x && x.id != null && !x.local) o[String(x.id)] = x; return o; }
+    if (!v || typeof v !== "object") return o;
+    if (kind === "map2") { for (const a in v) if (v[a] && typeof v[a] === "object") for (const b in v[a]) o[a + SEP + b] = v[a][b]; return o; }
+    for (const a in v) o[a] = v[a];
+    return o;
+  }
+  // 再拼回去；cur 是本机现在的值，用来保留顺序和「只存本机」的事项
+  function implode(k, recs, cur) {
+    const kind = SYNC_KINDS[k];
+    if (kind === "one") return "_" in recs ? recs._ : null;
+    if (kind === "list") {
+      const arr = Array.isArray(cur) ? cur : [], seen = new Set(), res = [];
+      for (const x of arr) {
+        if (x && x.local) { res.push(x); continue; }
+        const id = x && x.id != null ? String(x.id) : null;
+        if (id != null && id in recs && !seen.has(id)) { res.push(recs[id]); seen.add(id); }
+      }
+      Object.keys(recs).filter((id) => !seen.has(id)).sort().forEach((id) => res.push(recs[id]));
+      return res;
+    }
+    const res = {};
+    if (kind === "map2") { for (const r in recs) { const [a, b] = r.split(SEP); (res[a] ||= {})[b] = recs[r]; } return res; }
+    for (const r in recs) res[r] = recs[r];
+    return res;
+  }
+
+  // 本机改了某类数据：找出变化的记录放进待上传
+  function note(k) {
+    if (applying || !SYNC_KINDS[k]) return;
+    dirty.add(k);
+    clearTimeout(dirtyTimer); dirtyTimer = setTimeout(scan, 300);
+  }
+  function scan() {
+    const m = M(), o = O(), now = Date.now();
+    if (mode() === "local") { dirty.clear(); return; }
+    if (!uid) return;   // 还没登录好：先记着，登录后一起传
+    let n = 0;
+    for (const k of dirty) {
+      const recs = explode(k, raw(k)), h = (m.h[k] ||= {}), t = (m.t[k] ||= {});
+      for (const r in recs) {
+        const hv = hash(JSON.stringify(recs[r]));
+        if (h[r] !== hv) { h[r] = hv; t[r] = Math.max(now, (t[r] || 0) + 1); o[k + SEP + r] = { ns: k, k: r, v: recs[r], t: t[r] }; n++; }
+      }
+      for (const r in h) if (!(r in recs)) { delete h[r]; t[r] = Math.max(now, (t[r] || 0) + 1); o[k + SEP + r] = { ns: k, k: r, v: null, t: t[r] }; n++; }
+    }
+    dirty.clear();
+    saveMeta(); saveOut();
+    if (n) { setState("pending"); clearTimeout(flushTimer); flushTimer = setTimeout(flush, 800); }
+  }
+
+  async function flush() {
+    if (!active()) return;
+    if (busy) { clearTimeout(flushTimer); flushTimer = setTimeout(flush, 1500); return; }
+    const o = O(), keys = Object.keys(o);
+    if (!keys.length) { if (state === "pending") setState("ok"); return; }
+    if (navigator.onLine === false) { setState("offline"); return; }
+    busy = true; setState("syncing");
+    try {
+      for (let i = 0; i < keys.length; i += 300) {
+        const part = keys.slice(i, i + 300), batch = part.map((x) => o[x]).filter(Boolean);
+        await CCAuth.rpc("udata_push", { p: batch });
+        part.forEach((x, j) => { if (o[x] === batch[j]) delete o[x]; });
+        saveOut();
+      }
+      busy = false; setState("ok");
+    } catch (e) {
+      busy = false; setState("error", e.message);
+      clearTimeout(flushTimer); flushTimer = setTimeout(flush, 30000);
+    }
+  }
+
+  // 拉云端的新修改，比本机新的就用云端的
+  async function pull() {
+    if (!active() || busy) return false;
+    if (navigator.onLine === false) { setState("offline"); return false; }
+    busy = true; setState("syncing");
+    let changed = new Set();
+    try {
+      const m = M();
+      for (let guard = 0; guard < 50; guard++) {
+        const r = await CCAuth.rpc("udata_pull", { since: m.rev || 0 });
+        const byNs = {};
+        for (const row of r.rows || []) { if (SYNC_KINDS[row.ns]) (byNs[row.ns] ||= []).push(row); }
+        for (const k in byNs) {
+          const cur = raw(k), recs = explode(k, cur), h = (m.h[k] ||= {}), t = (m.t[k] ||= {});
+          let touched = false;
+          for (const row of byNs[k]) {
+            if ((t[row.k] || 0) >= row.t) continue;
+            t[row.k] = row.t; touched = true;
+            if (row.v == null) { delete recs[row.k]; delete h[row.k]; }
+            else { recs[row.k] = row.v; h[row.k] = hash(JSON.stringify(row.v)); }
+            const ok = O()[k + SEP + row.k]; if (ok && ok.t <= row.t) delete out[k + SEP + row.k];
+          }
+          if (touched) { applying = true; put(k, implode(k, recs, cur)); applying = false; changed.add(k); }
+        }
+        m.rev = r.rev || m.rev;
+        if (!r.more) break;
+      }
+      saveMeta(); saveOut();
+      lastPull = Date.now(); busy = false; setState(Object.keys(O()).length ? "pending" : "ok");
+    } catch (e) { busy = false; applying = false; setState("error", e.message); }
+    if (changed.size) emitChanged(changed);
+    if (Object.keys(O()).length) flush();
+    return changed.size > 0;
+  }
+  const changeCbs = [];
+  function emitChanged(set) { changeCbs.forEach((f) => { try { f(set); } catch (e) { console.warn(e); } }); }
+
+  // 第一次在这台设备上开启同步：先拉云端全部，再把云端没有的本机数据传上去（云端已有的以云端为准）
+  async function firstMerge() {
+    const m = M();
+    m.rev = 0; m.h = {}; m.t = {};
+    const cloud = {};
+    for (let guard = 0; guard < 50; guard++) {
+      const r = await CCAuth.rpc("udata_pull", { since: m.rev });
+      for (const row of r.rows || []) if (SYNC_KINDS[row.ns]) (cloud[row.ns] ||= {})[row.k] = row;
+      m.rev = r.rev || m.rev;
+      if (!r.more) break;
+    }
+    const o = O(), now = Date.now(), changed = new Set();
+    for (const k in SYNC_KINDS) {
+      const cur = raw(k), local = explode(k, cur), c = cloud[k] || {}, recs = {}, h = (m.h[k] = {}), t = (m.t[k] = {});
+      for (const r in c) { t[r] = c[r].t; if (c[r].v != null) { recs[r] = c[r].v; h[r] = hash(JSON.stringify(c[r].v)); } }
+      for (const r in local) if (!(r in c)) { recs[r] = local[r]; h[r] = hash(JSON.stringify(local[r])); t[r] = now; o[k + SEP + r] = { ns: k, k: r, v: local[r], t: now }; }
+      const next = implode(k, recs, cur);
+      if (JSON.stringify(next) !== JSON.stringify(cur ?? null) && !(next == null && cur == null)) { applying = true; put(k, next); applying = false; changed.add(k); }
+    }
+    m.owner = uid; m.mode = "cloud";
+    saveMeta(); saveOut();
+    if (changed.size) emitChanged(changed);
+    await flush();
+  }
+
+  // 换了账号：上一个人的数据如果在云端有备份，本机直接清掉；没开云端同步的，先收起来，等那个人回来再放回去
+  function switchOwner() {
+    const m = M();
+    if (m.owner && m.owner !== uid) {
+      const stash = { owner: m.owner, data: {} };
+      if (m.mode !== "cloud") for (const k in SYNC_KINDS) { const v = localStorage.getItem(k); if (v != null) stash.data[k] = v; }
+      const back = raw("sync_stash_v1");
+      for (const k in SYNC_KINDS) localStorage.removeItem(k);
+      if (back && back.owner === uid) for (const k in back.data) localStorage.setItem(k, back.data[k]);
+      if (Object.keys(stash.data).length) put("sync_stash_v1", stash); else if (back && back.owner === uid) localStorage.removeItem("sync_stash_v1");
+      meta = { owner: null, rev: 0, h: {}, t: {} }; out = {}; saveMeta(); saveOut();
+      emitChanged(new Set(Object.keys(SYNC_KINDS)));
+    }
+  }
+
+  async function start(userId) {
+    uid = userId || null;
+    if (!uid) { setState("off"); return; }
+    switchOwner();
+    if (!active()) { setState("off"); return; }
+    try {
+      if (M().owner !== uid || M().mode !== "cloud") await firstMerge();
+      else { await pull(); }
+    } catch (e) { setState("error", e.message); }
+    if (dirty.size) scan();
+    // 回到这个页面、联网、每隔一分钟：看看别的设备有没有改
+    if (!pullTimer) {
+      pullTimer = setInterval(() => { if (!document.hidden) pull(); }, 60000);
+      document.addEventListener("visibilitychange", () => { if (!document.hidden && Date.now() - lastPull > 15000) pull(); else if (document.hidden) flush(); });
+      window.addEventListener("online", () => { flush(); pull(); });
+      window.addEventListener("pagehide", () => { scan(); flush(); });
+    }
+  }
+
+  async function setMode(v, wipeCloud) {
+    localStorage.setItem(LS_SYNC_MODE, JSON.stringify(v));
+    const m = M();
+    if (v === "local") {
+      m.mode = "local"; saveMeta(); out = {}; saveOut();
+      if (wipeCloud && uid) await CCAuth.rpc("udata_wipe");
+      setState("off");
+    } else if (uid) { m.mode = "x"; saveMeta(); await start(uid); }
+  }
+  // 退出登录前把还没传上去的传完
+  async function finish() { clearTimeout(dirtyTimer); scan(); await flush(); }
+
+  return { note, start, pull, flush, finish, setMode, mode, active, onChange: (f) => changeCbs.push(f), onState: (f) => listeners.push(f),
+    status: () => ({ state, lastOk, lastErr, pending: Object.keys(O()).length }), _explode: explode, _implode: implode };
+})();
+const save = (k, v) => { localStorage.setItem(k, JSON.stringify(v)); Sync.note(k); };
 let mine = load(LS_MINE, []);      // 我的事项
 let marks = load(LS_MARK, {});     // 对班级事项的标记：{ "c11": {done, hidden, note} }
 
@@ -41,7 +252,7 @@ let FEAT = {};
 const feat = (k) => !FEAT[k] || FEAT[k].on !== false;
 const featWhy = (k) => (FEAT[k] && FEAT[k].why) || "";
 const FEAT_NAME = { ingest_cloud: "云端 AI 整理", ingest_local: "本地整理", local_ai: "本地 AI", ask: "AI 问答", wall: "班级墙", homework: "作业页", plan: "规划", growth: "成长与打卡", metaverse: "捞捞元宇宙", tools: "工具与插件", custom_bg: "自定义背景", mine: "记一件事", rank: "成长排行榜", mail: "邮箱通知" };
-const VIEW_FEAT = { homework: "homework", wall: "wall", plan: "plan", growth: "growth", ask: "ask", tools: "tools", rank: "rank" };
+const VIEW_FEAT = { homework: "homework", wall: "wall", plan: "plan", growth: "growth", ask: "ask", tools: "tools", rank: "rank", meta: "metaverse" };
 const viewOn = (id) => (id.startsWith("p_") ? feat("tools") : !VIEW_FEAT[id] || feat(VIEW_FEAT[id]));
 const ingestPersonal = () => !can("can_ingest");      // 没有班级整理权限的人：整理结果只进自己的「我的事项」
 // 普通学生要老师在本班打开「本地整理 · 学生」才有；班委要有「AI 整理」权限
@@ -70,7 +281,7 @@ function applyFeatures() {
   try { renderAll(); } catch (e) {}
 }
 let byDay = {}, undated = [];
-const today = new Date();
+let today = new Date();   // 网页开着过了零点会自动换成新的一天（见 dayTick）
 let viewYear = today.getFullYear(), viewMonth = today.getMonth();
 let selectedKey = keyOf(today);
 
@@ -93,7 +304,9 @@ function allItems() {
 
 function indexItems() {
   byDay = {}; undated = [];
+  const hide = typeof funOpts === "function" && funOpts().hideDone;
   for (const r of allItems()) {
+    if (hide && r._done) continue;
     if (!r._p) { undated.push(r); continue; }
     (byDay[r._p.day] ||= []).push(r);
   }
@@ -134,6 +347,7 @@ function renderGrid() {
     if (items.length > maxChips) html += `<div class="more">还有 ${items.length - maxChips} 项</div>`;
     cell.innerHTML = html;
     cell.onclick = () => { selectedKey = k; renderGrid(); renderSide(); emit("dayselected", k); };
+    cell.ondblclick = () => { selectedKey = k; if (feat("mine")) openForm(null); };
     grid.appendChild(cell);
   }
 }
@@ -155,7 +369,7 @@ function itemHtml(r, showDate) {
   const title = r.subject || r.summary || r.msg_type;
   return `<div class="item b-${esc(r.msg_type)}${r._done ? " done" : ""}">
     <div class="ihead"><span class="atype">${r._mine ? "我的" : esc(r.msg_type)}</span><span class="iwhen">${esc(when)}</span>
-      <span class="spacer"></span><span class="iscope">${r._mine ? "仅自己可见" : "班级"}</span></div>
+      <span class="spacer"></span><span class="iscope">${r._mine ? (r.local ? "🔒 仅本机" : "仅自己可见") : "班级"}</span></div>
     <div class="title">${esc(title)}</div>
     ${r.subject && r.summary ? `<div class="sum">${esc(r.summary)}</div>` : ""}
     ${detailHtml(r)}
@@ -194,7 +408,7 @@ const agendaOpen = new Set();
 const LS_SKIN = "ui_skin_v1", LS_BG = "ui_bg_v1", LS_BG_OPTS = "ui_bg_opts_v1";
 const SKIN_COLOR = { vivid: "#cdeeff", clean: "#ffffff", dark: "#000000", cyber: "#07060f" };
 // 元宇宙里的叫法
-const CYBER_NAMES = { 排行榜: "战力榜", 感谢名单: "荣誉殿堂", 首页: "主控台", 作业: "任务清单", 班级墙: "广播频道", 日历: "时间线", 规划: "作战室", 工具: "模组库", 我的: "身份档案", 问答: "AI 终端", 成长: "成长数据", 班级: "班级节点", 班级日历: "捞捞元宇宙" };
+const CYBER_NAMES = { 排行榜: "战力榜", 感谢名单: "荣誉殿堂", 首页: "主控台", 作业: "任务清单", 班级墙: "广播频道", 日历: "时间线", 规划: "作战室", 工具: "模组库", 元宇宙空间: "元宇宙空间", 我的: "身份档案", 问答: "AI 终端", 成长: "成长数据", 班级: "班级节点", 班级日历: "捞捞元宇宙" };
 const cyName = (t) => (document.documentElement.dataset.skin === "cyber" && CYBER_NAMES[t]) || t;
 function applyLook() {
   const root = document.documentElement;
@@ -259,7 +473,7 @@ function applyPalette() {
   $("palNote").textContent = skin === "cyber" ? "捞捞元宇宙有自己的霓虹配色，回到其他风格后配色会恢复" : "选一套喜欢的颜色，元气、简约、夜间风格都能用";
 }
 function setPalette(p) {
-  if (!p || p.id === "sky") { try { localStorage.removeItem(LS_PALETTE); } catch (e) {} }
+  if (!p || p.id === "sky") { try { localStorage.removeItem(LS_PALETTE); } catch (e) {} Sync.note(LS_PALETTE); }
   else save(LS_PALETTE, p);
   applyPalette(); try { renderAll(); } catch (e) {}
 }
@@ -333,6 +547,7 @@ function agendaRow(r) {
       ${r._plugin ? "" : `<div class="aextra">${detailHtml(r)}</div>`}
     </div>
     <span class="atime${due && !r._done ? " due" : ""}">${esc(time)}</span>
+    ${r._done && !r._plugin ? `<button class="adel" data-act="${r._mine ? "del" : "hide"}" data-k="${k}" title="${r._mine ? "删除" : "隐藏"}" aria-label="${r._mine ? "删除" : "隐藏"}">${r._mine ? "🗑" : "⊘"}</button>` : ""}
   </div>`;
 }
 
@@ -372,13 +587,19 @@ function renderAgenda() {
       <div class="date">📅 ${today.getMonth() + 1}月${today.getDate()}日 周${WEEK[today.getDay()]}</div>
       <h3>${meta ? (currentUser ? "欢迎接入" + name : "欢迎接入，访客") : hi + name}</h3>
       <div class="say">${say}</div>
+      ${meta && feat("metaverse") ? `<button class="hero-id" data-tab="meta">${metaCardMini(metaStats())}</button>` : ""}
       <svg class="mascot" viewBox="0 0 120 120" aria-hidden="true"><use href="#mascotArt"/></svg>
     </div>`;
   homeStats = { hwLeft: homework + overdue.length, overdue: overdue.length, todayCount, upcoming };
-  box.innerHTML = `
+  const undatedMine = undated.filter((r) => r._mine), undatedCls = undated.filter((r) => !r._mine);
+  const doneCount = allItems().filter((r) => r._done && !r._plugin).length, doneMine = mine.filter((r) => r.done).length, hideDone = funOpts().hideDone;
+  const tools = doneCount ? `<div class="atools"><label class="hd-sw"><input type="checkbox" data-hidedone ${hideDone ? "checked" : ""}> 隐藏已完成（${doneCount}）</label>
+    ${doneMine ? `<button class="small" data-cleardone>🗑 清理我已完成的 ${doneMine} 项</button>` : ""}</div>` : "";
+  box.innerHTML = `${tools}
     ${overdue.length ? `<div class="aday"><div class="aday-h overdue"><b>已过期</b><span>还没标记完成的作业</span></div><div class="acard surface">${overdue.map(agendaRow).join("")}</div></div>` : ""}
     ${sections.join("")}
-    ${undated.length ? `<div class="aday"><div class="aday-h"><b>时间待定</b><span>请去群里核实</span></div><div class="acard surface">${undated.map(agendaRow).join("")}</div></div>` : ""}
+    ${undatedMine.length ? `<div class="aday"><div class="aday-h"><b>待办</b><span>没定日期的事 · ${undatedMine.filter((r) => !r._done).length} 项</span></div><div class="acard surface">${undatedMine.map(agendaRow).join("")}</div></div>` : ""}
+    ${undatedCls.length ? `<div class="aday"><div class="aday-h"><b>时间待定</b><span>请去群里核实</span></div><div class="acard surface">${undatedCls.map(agendaRow).join("")}</div></div>` : ""}
     <div class="afoot">只显示今天起两周内的安排，更早或更晚的去「日历」里看</div>`;
 }
 function toggleRow(e) {
@@ -455,7 +676,7 @@ function renderHomework() {
       ${todo.length ? card(todo) : `<div class="aempty surface">${week.length ? "这周的作业都做完了 🎉" : "这周没有作业 🎉"}</div>`}</div>
     ${undatedHw.length ? `<div class="aday"><div class="aday-h"><b>截止时间待定</b><span>请去群里核实</span></div>${card(undatedHw)}</div>` : ""}
     ${done.length ? `<div class="aday"><div class="aday-h"><b>已完成</b><span>${done.length} 项</span></div>${card(done)}</div>` : ""}
-    <div class="afoot">勾选只记在这台设备上；作业由班委整理发布，有出入以群里为准。</div>`;
+    <div class="afoot">${Sync.active() ? "完成勾选会同步到你的账号；" : "勾选只记在这台设备上；"}作业由班委整理发布，有出入以群里为准。</div>`;
 }
 $("hwView").addEventListener("click", (e) => {
   const b = e.target.closest("button[data-hw]"); if (!b) return;
@@ -465,13 +686,14 @@ $("hwView").addEventListener("click", (e) => {
 
 function renderSide() {
   const d = new Date(selectedKey + "T00:00:00");
+  $("sideHide").checked = !!funOpts().hideDone;
   $("sideTitle").textContent = `${d.getMonth() + 1}月${d.getDate()}日 周${WEEK[d.getDay()]}`;
   const items = byDay[selectedKey] || [];
-  $("dayList").innerHTML = items.length ? items.map((r) => itemHtml(r, false)).join("") : `<div class="empty">这天没有安排</div>`;
+  $("dayList").innerHTML = items.length ? items.map((r) => itemHtml(r, false)).join("") : `<div class="empty">这天没有安排${feat("mine") ? "<br><small>点「记一件事」或双击日期就能加在这天</small>" : ""}</div>`;
   $("undatedList").innerHTML = undated.length ? undated.map((r) => itemHtml(r, true)).join("") : `<div class="empty">暂无</div>`;
 }
 
-function renderAll() { pluginBroadcastClass(); indexItems(); renderGrid(); renderSide(); renderAgenda(); renderHomework(); renderRail(); renderGrowth(); renderPlan(); renderWidgets(); syncJump(); }
+function renderAll() { pluginBroadcastClass(); indexItems(); renderGrid(); renderSide(); renderAgenda(); renderHomework(); renderRail(); renderGrowth(); renderPlan(); renderMeta(); renderWidgets(); syncJump(); }
 
 function showBanner(msg) { const b = $("banner"); b.textContent = msg; b.classList.toggle("show", !!msg); }
 
@@ -533,6 +755,7 @@ $("classSel").onchange = (e) => {
   renderClassBar(); loadFeatures(); loadClass();
 };
 
+let classLoadedAt = 0;
 async function loadClass() {
   if (!currentUser) {
     classRecords = []; renderAll();
@@ -555,6 +778,7 @@ async function loadClass() {
     classRecords = takeBoot("items", currentClass.id) || await CCAuth.rest(`class_info?select=${COLS}&class_id=eq.${encodeURIComponent(currentClass.id)}&order=id.asc&limit=2000`);
     const at = new Date().toLocaleString("zh-CN", { hour12: false });
     save(LS_CACHE, { classId: currentClass.id, records: classRecords, at });
+    classLoadedAt = Date.now();
     $("updated").textContent = `班级数据更新于 ${at}`;
     showBanner("");
   } catch (e) {
@@ -1153,20 +1377,33 @@ document.addEventListener("click", (e) => {
     const i = mine.findIndex((x) => x.id === k);
     if (i < 0) return;
     if (act === "done") { mine[i].done = !mine[i].done; save(LS_MINE, mine); logDone(k, mine[i].done); renderAll(); if (mine[i].done) cheerFor(k); }
-    if (act === "del" && confirm("确定删除这条事项吗？")) { mine.splice(i, 1); save(LS_MINE, mine); renderAll(); }
+    if (act === "del" && confirm(`删除「${mine[i].subject || "这条事项"}」？`)) { delete quadMap[k]; mine.splice(i, 1); save(LS_MINE, mine); save(LS_QUAD, quadMap); renderAll(); }
     if (act === "edit") openForm(mine[i]);
   }
 });
 
+document.addEventListener("change", (e) => {
+  if (!e.target.matches("[data-hidedone], #sideHide") || e.target.closest("#planBody")) return;
+  setFun({ hideDone: e.target.checked }); renderAll();
+});
+document.addEventListener("click", (e) => {
+  if (!e.target.closest("[data-cleardone]")) return;
+  const n = mine.filter((r) => r.done).length;
+  if (!n || !confirm(`删除你已完成的 ${n} 条「我的事项」？班级事项不受影响。`)) return;
+  mine.filter((r) => r.done).forEach((r) => delete quadMap[r.id]);
+  mine = mine.filter((r) => !r.done); save(LS_MINE, mine); save(LS_QUAD, quadMap); renderAll();
+});
 function openForm(r) {
   $("formTitle").textContent = r ? "编辑我的事项" : "添加我的事项";
   const p = r ? parseTime(r.event_time) : null;
   $("fId").value = r ? r.id : "";
   $("fTitle").value = r ? r.subject : "";
-  $("fDate").value = p ? p.day : selectedKey;
+  $("fDate").value = p ? p.day : r ? "" : (currentView() === "calendar" ? selectedKey : keyOf(new Date()));
+  $("fQuad").value = r && quadMap[r.id] ? String(quadMap[r.id]) : "";
   $("fTime").value = p ? p.time : "";
   $("fLoc").value = r ? (r.location || "") : "";
   $("fNote").value = r ? (r.note || "") : "";
+  $("fLocal").checked = !!(r && r.local);
   $("modal").classList.add("open");
   setTimeout(() => $("fTitle").focus(), 50);
 }
@@ -1175,15 +1412,17 @@ $("form").onsubmit = (e) => {
   const rec = {
     id: $("fId").value || "p" + Date.now(),
     subject: $("fTitle").value.trim(),
-    event_time: $("fDate").value + ($("fTime").value ? " " + $("fTime").value : ""),
+    event_time: $("fDate").value ? $("fDate").value + ($("fTime").value ? " " + $("fTime").value : "") : "",
     location: $("fLoc").value.trim(),
     note: $("fNote").value.trim(),
+    local: $("fLocal").checked && Sync.active() ? true : undefined,
   };
   const i = mine.findIndex((x) => x.id === rec.id);
   if (i >= 0) mine[i] = { ...mine[i], ...rec }; else mine.push(rec);
-  save(LS_MINE, mine);
+  if ($("fQuad").value) quadMap[rec.id] = +$("fQuad").value; else delete quadMap[rec.id];
+  save(LS_MINE, mine); save(LS_QUAD, quadMap);
   $("modal").classList.remove("open");
-  selectedKey = rec.event_time.slice(0, 10);
+  if (rec.event_time) selectedKey = rec.event_time.slice(0, 10);
   renderAll();
 };
 $("cancelBtn").onclick = () => $("modal").classList.remove("open");
@@ -1427,11 +1666,11 @@ $("calOnceBtn").onclick = async () => {
 };
 
 // ===== 其他按钮 =====
-$("prevBtn").onclick = () => { if (--viewMonth < 0) { viewMonth = 11; viewYear--; } renderGrid(); };
-$("nextBtn").onclick = () => { if (++viewMonth > 11) { viewMonth = 0; viewYear++; } renderGrid(); };
+// 翻月要整体重算：插件（课程表等）的事项是按日期范围要的，只重画格子会漏掉新月份的
+$("prevBtn").onclick = () => { if (--viewMonth < 0) { viewMonth = 11; viewYear--; } renderAll(); };
+$("nextBtn").onclick = () => { if (++viewMonth > 11) { viewMonth = 0; viewYear++; } renderAll(); };
 $("todayBtn").onclick = () => { viewYear = today.getFullYear(); viewMonth = today.getMonth(); selectedKey = keyOf(today); renderAll(); };
 $("addBtn").onclick = () => openForm(null);
-$("addDayBtn").onclick = () => openForm(null);
 $("refreshBtn").onclick = async () => { try { await loadMyClasses(); } catch (e) {} renderClassBar(); loadClass(); };
 $("showHidden").onchange = renderAll;
 window.addEventListener("resize", renderGrid);
@@ -1832,7 +2071,7 @@ function renderUserChip() {
 }
 // 退出时：班级相关的缓存一律清掉；在公共电脑上还可以把这台设备上的个人数据全部清除
 async function wipeLocalData(all) {
-  const keep = all ? [] : [LS_MINE, LS_MARK, LS_SKIN, "ui_palette_v1", LS_BG, LS_BG_OPTS, LS_SKIN_PREV, LS_LAI, LS_PLUGINS, LS_PLUGIN_CACHE, LS_LAYOUT, LS_DONE_LOG, LS_HABITS, LS_HABIT_LOG, LS_FUN, LS_QUAD, LS_QTODO, LS_POMO, LS_POMO_LOG];
+  const keep = all ? [] : [LS_SYNC, LS_SYNC_OUT, LS_SYNC_MODE, "sync_stash_v1", "plan_notes_v1", "profile_v1", LS_MINE, LS_MARK, LS_SKIN, "ui_palette_v1", LS_BG, LS_BG_OPTS, LS_SKIN_PREV, LS_LAI, LS_PLUGINS, LS_PLUGIN_CACHE, LS_LAYOUT, LS_DONE_LOG, LS_HABITS, LS_HABIT_LOG, LS_FUN, LS_QUAD, LS_QTODO, LS_POMO, LS_POMO_LOG];
   for (let i = localStorage.length - 1; i >= 0; i--) {
     const k = localStorage.key(i);
     if (!k) continue;
@@ -1848,6 +2087,7 @@ async function wipeLocalData(all) {
 }
 $("logoutBtn").onclick = async () => {
   const all = confirm("退出登录。\n\n要不要同时清除这台设备上的个人数据（我的事项、打卡、日记等）？\n在公共电脑、别人的手机上请点「确定」；自己的设备点「取消」。");
+  try { await Sync.finish(); } catch (e) {}
   await CCAuth.signOut();
   await wipeLocalData(all);
   location.reload();
@@ -1913,6 +2153,7 @@ function showView(id) {
   if (id === "wall") loadWall(true);
   if (id === "growth") renderGrowth();
   if (id === "plan") renderPlan();
+  if (id === "meta") renderMeta();
   if (id === "ask") renderAsk();
   if (id === "credits") loadCredits();
   if (id === "rank") loadRank();
@@ -2176,7 +2417,7 @@ $("qMine").onclick = () => { if (feat("mine")) openForm(null); };
 
 // ===== 成长：完成记录、习惯打卡、进度环、趋势图、完成鼓励（都只存在这台设备上） =====
 const LS_DONE_LOG = "done_log_v1", LS_HABITS = "habits_v1", LS_HABIT_LOG = "habit_log_v1", LS_FUN = "fun_opts_v1";
-const FUN_DEFAULT = { cheer: "mascot", confetti: true, rings: true, habits: true, plan: true };
+const FUN_DEFAULT = { cheer: "mascot", confetti: true, rings: true, habits: true, plan: true, hideDone: false };
 // 首页快捷按钮一行最多 4 个，按顺序挑：班委/老师的两个 → 记一件事 → 四象限 → 打卡 → 更多工具
 function renderQuick() {
   const o = funOpts();
@@ -2350,6 +2591,7 @@ const CHEER_LINES = {
   homework: [["作业搞定！", "比截止时间早，就是赢"], ["交作业达人", "又少了一件心事"], ["这题难不倒你", "继续冲"]],
   allhw: [["本周作业全部完成！", "可以安心休息一下了 🎉"]],
   preview: [["就像这样", "完成事项时会这样鼓励你"]],
+  welcome: [["欢迎来到班级群日历！", "你选的皮肤和习惯都已经准备好了"]],
   lai: [["本地 AI 装好啦！", "去「问答」里和捞捞聊聊吧"]],
   pomo: [["专注完成一个番茄 🍅", "起来走走，休息 5 分钟"], ["又一个番茄到手 🍅", "喝口水，眼睛看看远处"]],
 };
@@ -2367,25 +2609,31 @@ function cheer(kind, info) {
   if (kind === "habit") {
     const s = info.streak, m = { 3: "三天了，开了个好头", 7: "一整周！习惯正在养成", 14: "两周不间断，太强了", 21: "21 天，这已经是你的习惯了", 30: "坚持一个月，值得骄傲" }[s];
     t = m ? `连续打卡 ${s} 天！` : `「${info.name}」打卡成功`; sub = m || (s > 1 ? `已经连续 ${s} 天了` : "明天也来哦");
-  } else { const pool = CHEER_LINES[kind] || CHEER_LINES.item; [t, sub] = pool[Math.floor(Math.random() * pool.length)]; }
-  if (document.documentElement.dataset.skin === "cyber" && kind !== "preview") { t = "▶ " + t; sub = sub + " // +10 EXP"; }
+  } else if (kind === "welcome") { t = info && info.g === "f" ? "欢迎来到你的小宇宙 🌸" : "欢迎加入，准备出发 🚀"; sub = "你选的皮肤和习惯都已经准备好了"; }
+  else { const pool = CHEER_LINES[kind] || CHEER_LINES.item; [t, sub] = pool[Math.floor(Math.random() * pool.length)]; }
+  const xp = { item: 10, homework: 15, allhw: 50, habit: 5, pomo: 15 }[kind] || 0;
+  const cy = document.documentElement.dataset.skin === "cyber";
+  if (cy && kind !== "preview") t = "▶ " + t;
   $("cheerT").textContent = t; $("cheerS").textContent = sub;
+  $("cheerX").textContent = xp && feat("metaverse") ? (cy ? `+${xp} EXP` : `元宇宙经验 +${xp}`) : "";
   const st = $("cheerSt");
   st.style.display = o.cheer === "text" ? "none" : "";
   st.innerHTML = o.cheer === "mascot" ? `<svg viewBox="0 0 120 120" aria-hidden="true"><use href="#mascotArt"/></svg>` : STICKERS[Math.floor(Math.random() * STICKERS.length)];
-  const el = $("cheer"); el.classList.remove("show"); void el.offsetWidth; el.classList.add("show");
-  clearTimeout(cheerTimer); cheerTimer = setTimeout(() => el.classList.remove("show"), kind === "allhw" ? 3600 : 2400);
-  const big = kind === "allhw" || (kind === "habit" && [7, 14, 21, 30].includes(info.streak));
-  if (o.confetti && (big || kind !== "preview") && !matchMedia("(prefers-reduced-motion: reduce)").matches) confetti(big ? 36 : 14);
+  const el = $("cheer"), veil = $("cheerVeil");
+  el.classList.remove("show", "out"); void el.offsetWidth; el.classList.add("show"); veil.classList.add("show");
+  clearTimeout(cheerTimer); cheerTimer = setTimeout(() => { el.classList.add("out"); veil.classList.remove("show"); cheerTimer = setTimeout(() => el.classList.remove("show", "out"), 320); }, kind === "allhw" ? 3800 : 2600);
+  const big = kind === "allhw" || kind === "welcome" || (kind === "habit" && [7, 14, 21, 30].includes(info.streak));
+  if (o.confetti && (big || kind !== "preview") && !matchMedia("(prefers-reduced-motion: reduce)").matches) confetti(big ? 70 : 34);
 }
 function confetti(n) {
-  const box = $("cheer").getBoundingClientRect(), cx = box.left + box.width / 2, cy = box.top;
-  const cols = ["#ff8a3d", "#1e8cff", "#17c29a", "#ffd23f", "#ff6a8b", "#8c6bff"];
+  // 从屏幕中间向四周炸开，再往下飘
+  const cx = innerWidth / 2, cy = innerHeight / 2, R = Math.min(innerWidth, innerHeight);
+  const cols = document.documentElement.dataset.skin === "cyber" ? ["#00f0ff", "#ff2bd6", "#39ffa5", "#ffe600", "#b46bff"] : ["#ff8a3d", "#1e8cff", "#17c29a", "#ffd23f", "#ff6a8b", "#8c6bff"];
   for (let i = 0; i < n; i++) {
     const c = document.createElement("i"); c.className = "confetti";
-    const a = Math.PI * (1.1 + Math.random() * 0.8), v = 90 + Math.random() * 160;
-    c.style.cssText = `left:${cx}px;top:${cy}px;background:${cols[i % cols.length]};--dx:${Math.cos(a) * v}px;--dy:${Math.sin(a) * v + 60}px;--r:${Math.random() * 540 - 270}deg;animation-delay:${Math.random() * 80}ms`;
-    document.body.appendChild(c); setTimeout(() => c.remove(), 1300);
+    const a = Math.random() * Math.PI * 2, v = R * (0.22 + Math.random() * 0.33);
+    c.style.cssText = `left:${cx}px;top:${cy}px;background:${cols[i % cols.length]};--dx:${Math.cos(a) * v}px;--dy:${Math.sin(a) * v + R * 0.18}px;--r:${Math.random() * 720 - 360}deg;animation-delay:${Math.random() * 120}ms;${i % 3 ? "" : "border-radius:50%;width:8px;height:8px;"}`;
+    document.body.appendChild(c); setTimeout(() => c.remove(), 1800);
   }
 }
 
@@ -2405,6 +2653,7 @@ const WDEF = {
   "w:pomo": { name: "番茄钟", icon: "🍅", w: 2, h: 1, on: () => funOpts().plan },
   "w:rank": { name: "排行榜", icon: "🏆", w: 2, h: 1, on: () => feat("rank") && !!currentClass },
   "w:course": { name: "今日课程", icon: "📚", w: 2, h: 1, on: () => ck().on() },
+  "w:meta": { name: "元宇宙身份", icon: "🪐", w: 2, h: 1, on: () => feat("metaverse") },
 };
 function homeLayout() {
   const L = load(LS_LAYOUT, null);
@@ -2414,8 +2663,9 @@ const saveLayout = (L) => { save(LS_LAYOUT, L); renderTabs(); renderTools(); };
 // 工具：内置的「成长」「规划」+ 已启用插件的标签页
 function toolList() {
   const o = funOpts(), out = feat("growth") ? [{ id: "t:growth", view: "growth", icon: "📈", name: "成长", desc: "进度环、趋势图和习惯打卡" }] : [];
-  if (o.plan) out.push({ id: "t:plan", view: "plan", icon: "🎯", name: "规划", desc: "四象限和番茄钟" });
+  if (o.plan) out.push({ id: "t:plan", view: "plan", icon: "🎯", name: "规划", desc: "四象限、PDCA、SMART、番茄钟" });
   if (feat("rank") && currentClass) out.push({ id: "t:rank", view: "rank", icon: "🏆", name: "排行榜", desc: "班级成长排行榜" });
+  if (feat("metaverse")) out.push({ id: "t:meta", view: "meta", icon: "🪐", name: "元宇宙空间", desc: "等级、任务、徽章和元宇宙小百科" });
   for (const t of feat("tools") ? pluginTabs : []) {
     const meta = (pluginState[t.plugin] || {}).meta || {};
     out.push({ id: "p:" + t.id, view: t.id, icon: t.icon, name: String(t.title).replace(/^\p{Extended_Pictographic}️?\s*/u, ""), desc: meta.description || "", plugin: t.plugin });
@@ -2475,6 +2725,7 @@ function cardBody(id, w, h) {
     return `<div class="home-pins surface wb" id="homePins" data-tab="wall"><span class="pi">📌</span><div><b>${top.is_notice ? "置顶通知" : "班级墙置顶"} · ${esc(top.author_name)}</b><span>${esc(top.title ? top.title + "：" + top.body : top.body)}</span></div></div>`;
   }
   if (id === "w:quick") return `<div class="wb" data-slot="quick"></div>`;
+  if (id === "w:meta") return `<button class="surface wb wmeta" data-tab="meta">${metaCardMini(metaStats())}</button>`;
   if (id === "w:course") return ck().card(h);
   if (id === "w:habits") {
     const t = todayKey();
@@ -2627,16 +2878,48 @@ $("placeForm").onsubmit = (e) => {
   saveLayout(L); $("placeSheet").classList.remove("open");
 };
 
-// ===== 规划：四象限 =====
-const LS_QUAD = "quad_v1", LS_QTODO = "quad_todos_v1";
+// ===== 规划 · 时间管理：四象限 / PDCA / SMART / 六件事 / 番茄工作法 =====
+// 四象限里直接加的待办就是「我的事项」（没填日期的），和「记一件事」是同一份数据，不再分两处。
+const LS_QUAD = "quad_v1", LS_QTODO = "quad_todos_v1", LS_PLAN_NOTES = "plan_notes_v1";
 let quadMap = load(LS_QUAD, {});      // 事项 key -> 1..4（自己调整过的）
-let qTodos = load(LS_QTODO, []);      // 直接加在象限里的小待办 {id, text, q, done}
+let qTodos = load(LS_QTODO, []);      // 旧版：直接加在象限里的小待办，打开时搬进「我的事项」
+let planNotes = load(LS_PLAN_NOTES, {});   // cur（当前方法）、intro:方法（自己的简介）、pdca:id、smart:id、ivy:日期
+const savePlan = () => save(LS_PLAN_NOTES, planNotes);
+function migrateQTodos() {
+  if (!Array.isArray(qTodos) || !qTodos.length) return;
+  for (const t of qTodos) {
+    if (!t || !t.id || mine.some((x) => x.id === t.id)) continue;
+    mine.push({ id: t.id, subject: t.text || "", event_time: "", location: "", note: "", done: !!t.done });
+    if (t.q) quadMap[t.id] = t.q;
+  }
+  qTodos = [];
+  save(LS_MINE, mine); save(LS_QUAD, quadMap); save(LS_QTODO, qTodos);
+}
+migrateQTodos();
+
 const QUADS = [
   [1, "重要且紧急", "马上做", "两天内截止的作业、会议，先把它们解决"],
   [2, "重要不紧急", "计划做", "复习、长期作业、习惯——最值得投入时间的地方"],
   [3, "紧急不重要", "尽快处理", "填表、报名这类小事，花几分钟打发掉"],
   [4, "不重要不紧急", "少做", "有空再说，别让它占用整块时间"],
 ];
+const PLAN_METHODS = [
+  { id: "quad", icon: "🎯", name: "四象限法", tag: "分清轻重缓急",
+    intro: "四象限法（艾森豪威尔矩阵）按「重要」和「紧急」两个维度，把事情分成四类：\n① 重要且紧急——马上做；② 重要不紧急——排进计划，这是最值得投入的地方；③ 紧急不重要——尽快处理或请人帮忙；④ 不重要不紧急——少做或不做。\n用法：先把要做的事都写下来，再一件件放进格子里。每天先清空第①格，然后把大块时间留给第②格。" },
+  { id: "pdca", icon: "🔄", name: "PDCA 循环", tag: "计划 → 执行 → 检查 → 改进",
+    intro: "PDCA 循环（戴明环）把一件事分成四步，一轮一轮地做得更好：\nP 计划（Plan）：定目标、想方法；D 执行（Do）：按计划去做；C 检查（Check）：对照目标看效果，找出问题；A 改进（Act）：好的方法保留下来，没解决的问题放进下一轮的计划。\n适合：备考、学一门技能、准备比赛这类需要反复改进的事。" },
+  { id: "smart", icon: "🏹", name: "SMART 目标", tag: "把目标定清楚",
+    intro: "SMART 原则帮你把模糊的愿望变成能落地的目标，一个好目标要满足五点：\nS 具体（Specific）：说清楚要做成什么；M 可衡量（Measurable）：用数字判断完成没有；A 可实现（Achievable）：努力一下够得着；R 相关（Relevant）：和你真正想要的东西有关；T 有时限（Time-bound）：有明确的截止日期。\n例子：把「我要学好英语」改成「11 月 30 日前每天背 30 个四级单词，周末自测正确率达到 80%」。" },
+  { id: "ivy", icon: "📋", name: "六件事法", tag: "每天只排最重要的 6 件",
+    intro: "六件事法（艾维·李效率法）：\n1. 每天睡前写下明天最重要的 6 件事；2. 按重要程度排好顺序；3. 第二天从第 1 件开始做，做完一件再做下一件；4. 没做完的移到第二天的清单里。\n它的好处是逼自己做取舍、一次只专注一件事，不会被一长串待办吓到。" },
+  { id: "pomo", icon: "🍅", name: "番茄工作法", tag: "专注 25 分钟，休息 5 分钟",
+    intro: "番茄工作法：选一件事，定 25 分钟（一个「番茄」）全神贯注地做，中途不看手机；时间到了休息 5 分钟；每完成 4 个番茄，休息 15~30 分钟。\n小技巧：把大任务拆成几个番茄能做完的小块；被打断就记下来，等番茄结束再处理。下面的番茄钟可以直接用。" },
+];
+const planCur = () => (PLAN_METHODS.some((m) => m.id === planNotes.cur) ? planNotes.cur : "quad");
+const planIntro = (id) => (typeof planNotes["intro:" + id] === "string" && planNotes["intro:" + id].trim() ? planNotes["intro:" + id] : null);
+let planIntroEdit = false;
+const pid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
 function autoQuad(r) {
   const n = r._p ? dayDiff(r._p.day) : 99;
   const urgent = n <= 2;
@@ -2644,65 +2927,200 @@ function autoQuad(r) {
   return important ? (urgent ? 1 : 2) : (urgent ? 3 : 4);
 }
 function planItems() {
-  const items = allItems().filter((r) => !r._plugin && (!r._p || (dayDiff(r._p.day) >= -14 && dayDiff(r._p.day) <= 14)))
-    .filter((r) => !r._done || doneLog[r._key] === todayKey());
-  const todos = qTodos.filter((t) => !t.done || doneLog[t.id] === todayKey())
-    .map((t) => ({ _key: t.id, _todo: true, subject: t.text, _done: t.done, q: t.q }));
-  return items.map((r) => ({ ...r, q: quadMap[r._key] || autoQuad(r) })).concat(todos);
+  const hide = funOpts().hideDone;
+  return allItems().filter((r) => !r._plugin && (!r._p || (dayDiff(r._p.day) >= -14 && dayDiff(r._p.day) <= 14)))
+    .filter((r) => !r._done || (!hide && doneLog[r._key] === todayKey()))
+    .map((r) => ({ ...r, q: quadMap[r._key] || autoQuad(r) }));
 }
 function qItemHtml(r) {
   const k = esc(r._key);
   const due = r._p ? (dayDiff(r._p.day) < 0 ? "已过期" : dayDiff(r._p.day) === 0 ? "今天" : dayDiff(r._p.day) === 1 ? "明天" : `${+r._p.day.slice(5, 7)}/${+r._p.day.slice(8)}`) : "";
   return `<div class="qit t-${esc(r.msg_type || "个人")}${r._done ? " done" : ""}" draggable="true" data-qk="${k}">
-    <button class="chk" ${r._todo ? `data-qdone="${k}"` : `data-act="done" data-k="${k}"`} title="${r._done ? "标记为未完成" : "标记为完成"}">${r._done ? "✓" : ""}</button>
+    <button class="chk" data-act="done" data-k="${k}" title="${r._done ? "标记为未完成" : "标记为完成"}">${r._done ? "✓" : ""}</button>
     <span class="qt">${esc(r.subject || r.summary || r.msg_type)}${due ? `<small>${due}</small>` : ""}</span>
-    <select class="qmv" data-qmv="${k}" aria-label="移到其他象限" title="移到其他象限"><option value="">⇄</option>${QUADS.filter(([n]) => n !== r.q).map(([n, t]) => `<option value="${n}">移到「${t}」</option>`).join("")}${r._todo ? `<option value="del">删除这条</option>` : ""}</select>
+    <select class="qmv" data-qmv="${k}" aria-label="移动或删除" title="移动或删除"><option value="">⇄</option>${QUADS.filter(([n]) => n !== r.q).map(([n, t]) => `<option value="${n}">移到「${t}」</option>`).join("")}${r._mine ? `<option value="edit">编辑…</option><option value="del">删除这条</option>` : `<option value="hide">隐藏这条</option>`}</select>
   </div>`;
 }
 function renderPlan() {
   const v = document.querySelector('.view[data-view="plan"]');
   if (!v || !v.classList.contains("on")) return;
+  const cur = planCur(), m = PLAN_METHODS.find((x) => x.id === cur);
+  $("planTabs").innerHTML = PLAN_METHODS.map((x) => `<button class="ptab${x.id === cur ? " on" : ""}" data-pm="${x.id}"><span>${x.icon}</span>${esc(x.name)}</button>`).join("");
+  const own = planIntro(cur);
+  $("planIntro").innerHTML = planIntroEdit
+    ? `<div class="pi-h"><b>${m.icon} ${esc(m.name)} · 编辑简介</b></div>
+       <textarea id="piText" rows="7" maxlength="3000" placeholder="把你准备好的简介粘贴到这里">${esc(own || m.intro)}</textarea>
+       <div class="pi-ops"><button class="small" data-pi="reset">恢复默认简介</button><span class="spacer"></span><button class="small" data-pi="cancel">取消</button><button class="btn ink sm" data-pi="save">保存</button></div>`
+    : `<details class="pi-d"${planNotes["introOpen:" + cur] === false ? "" : " open"}><summary><b>${m.icon} ${esc(m.name)}</b><span>${esc(m.tag)}</span><em>这是什么？怎么用</em></summary>
+       <div class="pi-body">${esc(own || m.intro).replace(/\n/g, "<br>")}</div>
+       <div class="pi-ops"><span class="meta">${own ? "这是你自己写的简介" : ""}</span><span class="spacer"></span><button class="small" data-pi="edit">✏️ ${own ? "修改简介" : "换成我的简介"}</button></div></details>`;
   const items = planItems();
-  $("quads").innerHTML = QUADS.map(([n, name, act, desc]) => {
-    const list = items.filter((r) => r.q === n).sort((a, b) => (a._done - b._done) || ((a._p ? a._p.day : "9") > (b._p ? b._p.day : "9") ? 1 : -1));
-    const left = list.filter((r) => !r._done).length;
-    return `<div class="quad q${n} surface" data-q="${n}">
-      <h4>${name}<em>${act}</em><small>${left ? left + " 项" : ""}</small></h4>
-      <div class="qd">${desc}</div>
-      <div class="qitems">${list.map(qItemHtml).join("") || `<div class="qempty">${n === 1 ? "没有火烧眉毛的事 👍" : "空的"}</div>`}</div>
-      <div class="qadd"><input data-qadd="${n}" maxlength="40" placeholder="＋ 加一条，回车保存"></div>
-    </div>`;
-  }).join("");
+  const hide = funOpts().hideDone;
+  $("planBody").innerHTML = cur === "quad" ? `
+      <div class="quad-tip">已经按截止时间和类型帮你自动分好了，觉得不对就用 ⇄ 换个格子（电脑上可以直接拖）。在格子里加的待办会出现在「我的事项」里。
+        <label class="hd-sw"><input type="checkbox" data-hidedone ${hide ? "checked" : ""}> 隐藏已完成</label></div>
+      <div class="quads">${QUADS.map(([n, name, act, desc]) => {
+        const list = items.filter((r) => r.q === n).sort((a, b) => (a._done - b._done) || ((a._p ? a._p.day : "9") > (b._p ? b._p.day : "9") ? 1 : -1));
+        const left = list.filter((r) => !r._done).length;
+        return `<div class="quad q${n} surface" data-q="${n}">
+          <h4>${name}<em>${act}</em><small>${left ? left + " 项" : ""}</small></h4>
+          <div class="qd">${desc}</div>
+          <div class="qitems">${list.map(qItemHtml).join("") || `<div class="qempty">${n === 1 ? "没有火烧眉毛的事 👍" : "空的"}</div>`}</div>
+          <div class="qadd"><input data-qadd="${n}" maxlength="60" placeholder="＋ 加一条，回车保存"></div>
+        </div>`;
+      }).join("")}</div>`
+    : cur === "pdca" ? pdcaHtml() : cur === "smart" ? smartHtml() : cur === "ivy" ? ivyHtml() : `<div class="pm-pomo-tip surface">👇 番茄钟就在下面，选一件事，点「开始专注」。</div>`;
+  $("pomoSec").classList.toggle("pm-focus", cur === "pomo");
   renderPomoTasks(items);
 }
-function moveQuad(k, q) {
-  if (k.startsWith("q")) { const t = qTodos.find((x) => x.id === k); if (t) t.q = q; save(LS_QTODO, qTodos); }
-  else { quadMap[k] = q; save(LS_QUAD, quadMap); }
-  renderPlan();
+// ---- PDCA ----
+const PD = [["p", "P", "计划", "目标是什么？打算怎么做？"], ["d", "D", "执行", "实际做了什么？记录过程"], ["c", "C", "检查", "效果怎么样？和目标差多少？问题在哪？"], ["a", "A", "改进", "哪些做法保留？哪些问题放进下一轮？"]];
+const planList = (pre) => Object.keys(planNotes).filter((k) => k.startsWith(pre) && planNotes[k]).map((k) => ({ key: k, ...planNotes[k] })).sort((a, b) => (b.at || 0) - (a.at || 0));
+function pdcaHtml() {
+  const list = planList("pdca:");
+  return `<div class="pm-add surface"><input id="pdcaNew" maxlength="60" placeholder="新开一个 PDCA，比如：期中数学提高 15 分"><button class="btn ink sm" data-pd-add>开始</button></div>
+    ${list.length ? list.map((x) => `<div class="pdca surface" data-pk="${esc(x.key)}">
+      <div class="pdca-h"><b>${esc(x.title)}</b>${x.round > 1 ? `<span class="tag">第 ${x.round} 轮</span>` : ""}<span class="spacer"></span><button class="small" data-pd-del>删除</button></div>
+      <div class="pdca-steps">${PD.map(([f, L, name, ph], i) => `<label class="pds${(x.stage || 0) === i ? " cur" : ""}${(x.stage || 0) > i ? " ok" : ""}"><span class="pdl"><i>${L}</i>${name}</span>
+        <textarea data-pd-f="${f}" rows="3" maxlength="800" placeholder="${ph}">${esc(x[f] || "")}</textarea></label>`).join("")}</div>
+      <div class="pdca-f"><span class="meta">现在在：<b>${PD[x.stage || 0][2]}</b></span><span class="spacer"></span>
+        ${(x.stage || 0) < 3 ? `<button class="btn ink sm" data-pd-next>进入「${PD[(x.stage || 0) + 1][2]}」→</button>` : `<button class="btn ink sm" data-pd-round>完成这一轮，开始下一轮 🔄</button>`}</div>
+    </div>`).join("") : `<div class="aempty surface">还没有 PDCA。写一个想改进的目标，点「开始」。</div>`}`;
 }
-$("quads").addEventListener("change", (e) => {
-  const sel = e.target.closest("[data-qmv]"); if (!sel || !sel.value) return;
-  const k = sel.dataset.qmv;
-  if (sel.value === "del") { qTodos = qTodos.filter((t) => t.id !== k); save(LS_QTODO, qTodos); renderPlan(); return; }
-  moveQuad(k, +sel.value);
+// ---- SMART ----
+const SM = [["s", "S", "具体", "要做成什么样？越具体越好"], ["m", "M", "可衡量", "用什么数字判断完成了？"], ["a", "A", "可实现", "需要什么条件？每天做多少？"], ["r", "R", "相关", "为什么这件事对你重要？"]];
+function smartHtml() {
+  const list = planList("smart:");
+  return `<div class="pm-add surface"><input id="smartNew" maxlength="60" placeholder="写下一个想实现的目标，比如：学好英语"><button class="btn ink sm" data-sm-add>添加</button></div>
+    ${list.length ? list.map((x) => {
+      const n = SM.filter(([f]) => (x[f] || "").trim()).length + (x.t ? 1 : 0);
+      return `<div class="smart surface${x.done ? " done" : ""}" data-sk="${esc(x.key)}">
+        <div class="pdca-h"><button class="chk" data-sm-done title="${x.done ? "标记为未完成" : "目标达成"}">${x.done ? "✓" : ""}</button><b>${esc(x.title)}</b>
+          <span class="smeter" title="目标清晰度"><i style="width:${n * 20}%"></i></span><small>${n}/5</small><span class="spacer"></span><button class="small" data-sm-del>删除</button></div>
+        <div class="smart-g">${SM.map(([f, L, name, ph]) => `<label class="sms"><span class="pdl"><i>${L}</i>${name}</span><input data-sm-f="${f}" maxlength="200" placeholder="${ph}" value="${esc(x[f] || "")}"></label>`).join("")}
+          <label class="sms"><span class="pdl"><i>T</i>有时限</span><span class="smt"><input type="date" data-sm-f="t" value="${esc(x.t || "")}">
+          ${x.t ? `<button class="small" data-sm-cal>${mine.some((y) => y.id === "g" + x.key.slice(6)) ? "已在日历 ✓" : "📅 放进日历"}</button>` : ""}</span></label></div>
+        ${n < 5 ? `<div class="meta">还差：${[...SM.filter(([f]) => !(x[f] || "").trim()).map(([, , nm]) => nm), ...(x.t ? [] : ["截止日期"])].join("、")}</div>` : `<div class="meta" style="color:var(--green)">✓ 这是一个清楚的 SMART 目标，加油！</div>`}
+      </div>`;
+    }).join("") : `<div class="aempty surface">还没有目标。先随便写一个，再按 S、M、A、R、T 五点把它改清楚。</div>`}`;
+}
+// ---- 六件事 ----
+let ivyDay = 0;   // 0 今天，1 明天
+function ivyHtml() {
+  const day = shiftDay(todayKey(), ivyDay), list = (planNotes["ivy:" + day] || []).slice(0, 6);
+  while (list.length < 6) list.push({ text: "", done: false });
+  const done = list.filter((x) => x.text && x.done).length, all = list.filter((x) => x.text).length;
+  const firstOpen = list.findIndex((x) => x.text && !x.done);
+  return `<div class="ivy surface">
+    <div class="pdca-h"><div class="navgrp"><button data-ivy-day="0" class="${ivyDay === 0 ? "on" : ""}">今天</button><button data-ivy-day="1" class="${ivyDay === 1 ? "on" : ""}">明天</button></div>
+      <span class="meta">${all ? `完成 ${done}/${all}` : ivyDay ? "睡前写下明天最重要的 6 件事" : "写下今天最重要的 6 件事，按重要程度排序"}</span><span class="spacer"></span>
+      ${ivyDay === 0 && all > done ? `<button class="small" data-ivy-move>没做完的移到明天</button>` : ""}</div>
+    ${list.map((x, i) => `<div class="ivr${x.done ? " done" : ""}${i === firstOpen && ivyDay === 0 ? " now" : ""}"><span class="ivn">${i + 1}</span>
+      <input data-ivy="${i}" maxlength="60" value="${esc(x.text)}" placeholder="${i === 0 ? "最重要的一件" : "第 " + (i + 1) + " 件"}">
+      ${x.text ? `<button class="chk" data-ivy-done="${i}">${x.done ? "✓" : ""}</button>` : ""}
+      <span class="ivmv"><button data-ivy-up="${i}" ${i ? "" : "disabled"} aria-label="上移">↑</button><button data-ivy-dn="${i}" ${i < 5 ? "" : "disabled"} aria-label="下移">↓</button></span></div>`).join("")}
+    ${firstOpen >= 0 && ivyDay === 0 ? `<div class="meta" style="margin-top:8px">👉 现在只做第 ${firstOpen + 1} 件：<b>${esc(list[firstOpen].text)}</b></div>` : ""}
+  </div>`;
+}
+function ivySet(fn) {
+  const day = shiftDay(todayKey(), ivyDay), list = (planNotes["ivy:" + day] || []).slice(0, 6);
+  while (list.length < 6) list.push({ text: "", done: false });
+  fn(list);
+  planNotes["ivy:" + day] = list.some((x) => x.text) ? list : null;
+  if (!planNotes["ivy:" + day]) delete planNotes["ivy:" + day];
+  savePlan();
+}
+function planGet(key) { return planNotes[key] ? { ...planNotes[key] } : null; }
+function planPut(key, v) { if (v) planNotes[key] = v; else delete planNotes[key]; savePlan(); }
+
+$("planTabs").onclick = (e) => { const b = e.target.closest("[data-pm]"); if (!b) return; planNotes.cur = b.dataset.pm; planIntroEdit = false; savePlan(); renderPlan(); };
+$("planIntro").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-pi]"); if (!b) return;
+  e.preventDefault();
+  const cur = planCur(), act = b.dataset.pi;
+  if (act === "edit") planIntroEdit = true;
+  if (act === "cancel") planIntroEdit = false;
+  if (act === "reset") { delete planNotes["intro:" + cur]; savePlan(); planIntroEdit = false; }
+  if (act === "save") { const t = $("piText").value.trim(); const m = PLAN_METHODS.find((x) => x.id === cur); if (t && t !== m.intro) planNotes["intro:" + cur] = t; else delete planNotes["intro:" + cur]; savePlan(); planIntroEdit = false; }
+  renderPlan();
 });
-$("quads").addEventListener("keydown", (e) => {
-  const inp = e.target.closest("[data-qadd]"); if (!inp || e.key !== "Enter") return;
-  const text = inp.value.trim(); if (!text) return;
-  qTodos.push({ id: "q" + Date.now(), text, q: +inp.dataset.qadd, done: false }); save(LS_QTODO, qTodos);
-  renderPlan(); document.querySelector(`[data-qadd="${inp.dataset.qadd}"]`)?.focus();
+$("planIntro").addEventListener("toggle", (e) => { if (e.target.matches("details.pi-d")) { const cur = planCur(); if (e.target.open) delete planNotes["introOpen:" + cur]; else planNotes["introOpen:" + cur] = false; savePlan(); } }, true);
+
+function moveQuad(k, q) { quadMap[k] = q; save(LS_QUAD, quadMap); renderPlan(); }
+function delMine(k, ask) {
+  const i = mine.findIndex((x) => x.id === k); if (i < 0) return false;
+  if (ask && !confirm(`删除「${mine[i].subject}」？`)) return false;
+  mine.splice(i, 1); delete quadMap[k]; save(LS_MINE, mine); save(LS_QUAD, quadMap); renderAll(); return true;
+}
+$("planBody").addEventListener("change", (e) => {
+  const t = e.target;
+  if (t.matches("[data-hidedone]")) { setFun({ hideDone: t.checked }); renderAll(); return; }
+  const sel = t.closest("[data-qmv]");
+  if (sel && sel.value) {
+    const k = sel.dataset.qmv;
+    if (sel.value === "del") { if (!delMine(k, true)) sel.value = ""; return; }
+    if (sel.value === "edit") { sel.value = ""; const r = mine.find((x) => x.id === k); if (r) openForm(r); return; }
+    if (sel.value === "hide") { setMark(k, { hidden: true }); return; }
+    moveQuad(k, +sel.value); return;
+  }
+  const pk = t.closest("[data-pk]"), sk = t.closest("[data-sk]");
+  if (pk && t.dataset.pdF) { const x = planGet(pk.dataset.pk); if (x) { x[t.dataset.pdF] = t.value.trim(); planPut(pk.dataset.pk, x); } return; }
+  if (sk && t.dataset.smF) { const x = planGet(sk.dataset.sk); if (x) { x[t.dataset.smF] = t.value.trim(); planPut(sk.dataset.sk, x); renderPlan(); } return; }
+  if (t.dataset.ivy != null) { const i = +t.dataset.ivy; ivySet((l) => { l[i] = { ...l[i], text: t.value.trim() }; if (!l[i].text) l[i].done = false; }); renderPlan(); }
 });
-$("quads").addEventListener("click", (e) => {
-  const b = e.target.closest("[data-qdone]"); if (!b) return;
-  const t = qTodos.find((x) => x.id === b.dataset.qdone); if (!t) return;
-  t.done = !t.done; save(LS_QTODO, qTodos); logDone(t.id, t.done); renderPlan(); renderGrowth();
-  if (t.done) cheer("item");
+$("planBody").addEventListener("keydown", (e) => {
+  const t = e.target;
+  if (e.key !== "Enter" || e.isComposing) return;
+  if (t.dataset.qadd) {
+    const text = t.value.trim(); if (!text) return;
+    const id = "p" + Date.now();
+    mine.push({ id, subject: text, event_time: "", location: "", note: "", done: false }); quadMap[id] = +t.dataset.qadd;
+    save(LS_MINE, mine); save(LS_QUAD, quadMap);
+    const q = t.dataset.qadd; renderAll(); document.querySelector(`[data-qadd="${q}"]`)?.focus(); return;
+  }
+  if (t.id === "pdcaNew") { e.preventDefault(); $("planBody").querySelector("[data-pd-add]").click(); return; }
+  if (t.id === "smartNew") { e.preventDefault(); $("planBody").querySelector("[data-sm-add]").click(); return; }
+  if (t.dataset.ivy != null) { e.preventDefault(); t.blur(); const nx = document.querySelector(`[data-ivy="${+t.dataset.ivy + 1}"]`); if (nx) nx.focus(); }
+});
+$("planBody").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  const pk = b.closest("[data-pk]"), sk = b.closest("[data-sk]");
+  if (b.hasAttribute("data-pd-add")) { const v = $("pdcaNew").value.trim(); if (!v) return $("pdcaNew").focus(); planPut("pdca:" + pid(), { title: v, stage: 0, round: 1, at: Date.now() }); renderPlan(); return; }
+  if (b.hasAttribute("data-pd-del") && pk) { if (confirm("删除这个 PDCA？")) { planPut(pk.dataset.pk, null); renderPlan(); } return; }
+  if (b.hasAttribute("data-pd-next") && pk) { const x = planGet(pk.dataset.pk); x.stage = Math.min(3, (x.stage || 0) + 1); planPut(pk.dataset.pk, x); renderPlan(); cheer("item"); return; }
+  if (b.hasAttribute("data-pd-round") && pk) {
+    const x = planGet(pk.dataset.pk);
+    planPut(pk.dataset.pk, { title: x.title, stage: 0, round: (x.round || 1) + 1, at: Date.now(), p: x.a ? "上一轮的改进：" + x.a : "" });
+    renderPlan(); cheer("item"); return;
+  }
+  if (b.hasAttribute("data-sm-add")) { const v = $("smartNew").value.trim(); if (!v) return $("smartNew").focus(); planPut("smart:" + pid(), { title: v, at: Date.now() }); renderPlan(); return; }
+  if (b.hasAttribute("data-sm-del") && sk) { if (confirm("删除这个目标？")) { planPut(sk.dataset.sk, null); renderPlan(); } return; }
+  if (b.hasAttribute("data-sm-done") && sk) { const x = planGet(sk.dataset.sk); x.done = !x.done; planPut(sk.dataset.sk, x); renderPlan(); if (x.done) cheer("item"); return; }
+  if (b.hasAttribute("data-sm-cal") && sk) {
+    const x = planGet(sk.dataset.sk), id = "g" + sk.dataset.sk.slice(6), i = mine.findIndex((y) => y.id === id);
+    const rec = { id, subject: "🎯 " + x.title, event_time: x.t, location: "", note: [x.s, x.m && "衡量：" + x.m].filter(Boolean).join("\n"), done: false };
+    if (i >= 0) mine[i] = { ...mine[i], ...rec, done: mine[i].done }; else mine.push(rec);
+    save(LS_MINE, mine); renderAll(); return;
+  }
+  if (b.dataset.ivyDay != null) { ivyDay = +b.dataset.ivyDay; renderPlan(); return; }
+  if (b.dataset.ivyDone != null) { const i = +b.dataset.ivyDone; let on = false; ivySet((l) => { l[i].done = on = !l[i].done; }); renderPlan(); if (on) cheer("item"); return; }
+  if (b.dataset.ivyUp != null || b.dataset.ivyDn != null) {
+    const i = +(b.dataset.ivyUp ?? b.dataset.ivyDn), j = b.dataset.ivyUp != null ? i - 1 : i + 1;
+    if (j < 0 || j > 5) return; ivySet((l) => { [l[i], l[j]] = [l[j], l[i]]; }); renderPlan(); return;
+  }
+  if (b.hasAttribute("data-ivy-move")) {
+    const today = planNotes["ivy:" + todayKey()] || [], left = today.filter((x) => x.text && !x.done);
+    const tk = "ivy:" + shiftDay(todayKey(), 1), tm = (planNotes[tk] || []).filter((x) => x.text);
+    const merged = [...left.map((x) => ({ text: x.text, done: false })), ...tm].slice(0, 6);
+    planNotes[tk] = merged; planNotes["ivy:" + todayKey()] = today.filter((x) => !x.text || x.done);
+    savePlan(); ivyDay = 1; renderPlan(); return;
+  }
 });
 let dragK = null;
-$("quads").addEventListener("dragstart", (e) => { const it = e.target.closest("[data-qk]"); if (it) { dragK = it.dataset.qk; e.dataTransfer.effectAllowed = "move"; } });
-$("quads").addEventListener("dragover", (e) => { const q = e.target.closest(".quad"); if (q && dragK) { e.preventDefault(); document.querySelectorAll(".quad.drop").forEach((x) => x !== q && x.classList.remove("drop")); q.classList.add("drop"); } });
-$("quads").addEventListener("dragleave", (e) => { const q = e.target.closest(".quad"); if (q && !q.contains(e.relatedTarget)) q.classList.remove("drop"); });
-$("quads").addEventListener("drop", (e) => { const q = e.target.closest(".quad"); if (q && dragK) { e.preventDefault(); moveQuad(dragK, +q.dataset.q); } dragK = null; });
+$("planBody").addEventListener("dragstart", (e) => { const it = e.target.closest("[data-qk]"); if (it) { dragK = it.dataset.qk; e.dataTransfer.effectAllowed = "move"; } });
+$("planBody").addEventListener("dragover", (e) => { const q = e.target.closest(".quad"); if (q && dragK) { e.preventDefault(); document.querySelectorAll(".quad.drop").forEach((x) => x !== q && x.classList.remove("drop")); q.classList.add("drop"); } });
+$("planBody").addEventListener("dragleave", (e) => { const q = e.target.closest(".quad"); if (q && !q.contains(e.relatedTarget)) q.classList.remove("drop"); });
+$("planBody").addEventListener("drop", (e) => { const q = e.target.closest(".quad"); if (q && dragK) { e.preventDefault(); moveQuad(dragK, +q.dataset.q); } dragK = null; });
 
 // ===== 规划：番茄钟 =====
 const LS_POMO = "pomo_state_v1", LS_POMO_LOG = "pomo_log_v1";
@@ -2952,12 +3370,194 @@ document.addEventListener("click", async (e) => {
   } catch (err) { alert("操作失败：" + err.message); }
 });
 
+// ===== 捞捞元宇宙空间：身份卡、等级经验、今日任务、成就徽章、元宇宙小百科 =====
+// 经验全部由你自己的记录算出来（完成事项、打卡、番茄钟、目标），不需要额外存储，会随云端同步一起跟着账号走。
+const META_TITLES = [[1, "新手旅人"], [2, "见习探索者"], [3, "时间猎手"], [5, "自律骑士"], [8, "星际学霸"], [12, "银河指挥官"], [18, "元宇宙传奇"]];
+function metaStats() {
+  const t = todayKey();
+  const doneAll = Object.keys(doneLog).length, doneToday = Object.values(doneLog).filter((d) => d === t).length;
+  let checks = 0, checksToday = 0, bestStreak = 0;
+  for (const h of habits) { const log = habitLog[h.id] || {}; checks += Object.keys(log).length; if (log[t]) checksToday++; bestStreak = Math.max(bestStreak, streakOf(h)); }
+  const pomos = Object.values(pomoLog).reduce((a, b) => a + (+b || 0), 0), pomosToday = pomoLog[t] || 0;
+  const goals = Object.keys(planNotes).filter((k) => k.startsWith("smart:") && planNotes[k]);
+  const goalsDone = goals.filter((k) => planNotes[k].done).length;
+  const pdcaRounds = Object.keys(planNotes).filter((k) => k.startsWith("pdca:") && planNotes[k]).reduce((a, k) => a + ((planNotes[k].round || 1) - 1) + (planNotes[k].stage === 3 ? 1 : 0), 0);
+  const ivyDone = Object.keys(planNotes).filter((k) => k.startsWith("ivy:") && Array.isArray(planNotes[k])).reduce((a, k) => a + planNotes[k].filter((x) => x && x.text && x.done).length, 0);
+  const exp = doneAll * 10 + checks * 5 + pomos * 15 + goalsDone * 30 + pdcaRounds * 20 + ivyDone * 5;
+  const level = Math.floor(Math.sqrt(exp / 40)) + 1, lo = 40 * (level - 1) ** 2, hi = 40 * level ** 2;
+  const title = META_TITLES.filter(([l]) => level >= l).pop()[1];
+  return { doneAll, doneToday, checks, checksToday, bestStreak, pomos, pomosToday, goals: goals.length, goalsDone, pdcaRounds, ivyDone, exp, level, lo, hi, title };
+}
+const META_BADGES = [
+  ["🛸", "初次接入", "进入过一次捞捞元宇宙", () => !!load("meta_visited_v1", false)],
+  ["✅", "第一步", "完成 1 件事", (s) => s.doneAll >= 1],
+  ["🔟", "十全十美", "累计完成 10 件事", (s) => s.doneAll >= 10],
+  ["💯", "百事通", "累计完成 100 件事", (s) => s.doneAll >= 100],
+  ["🔥", "小火苗", "任意习惯连续打卡 3 天", (s) => s.bestStreak >= 3],
+  ["🌟", "一周不断", "任意习惯连续打卡 7 天", (s) => s.bestStreak >= 7],
+  ["🍅", "番茄新手", "完成 1 个番茄钟", (s) => s.pomos >= 1],
+  ["⏱️", "专注大师", "累计 25 个番茄钟", (s) => s.pomos >= 25],
+  ["🏹", "神射手", "达成 1 个 SMART 目标", (s) => s.goalsDone >= 1],
+  ["🔄", "螺旋上升", "完成一轮 PDCA", (s) => s.pdcaRounds >= 1],
+  ["☁️", "云端旅人", "开启云端同步", () => Sync.active()],
+  ["📚", "课表达人", "导入了课程表", () => metaCourses > 0],
+];
+const META_WIKI = [
+  ["🌐", "什么是元宇宙", "元宇宙（Metaverse）指和现实世界平行、又互相连通的虚拟空间。人们可以用虚拟形象在里面学习、社交、工作和创作。这个词最早出自 1992 年的科幻小说《雪崩》。"],
+  ["🥽", "虚拟现实 VR", "VR 用头戴设备把你的视野完全换成电脑生成的世界，转头、走动时画面跟着变，让人有「身临其境」的感觉。常用于游戏、模拟驾驶、虚拟实验室。"],
+  ["📱", "增强现实 AR", "AR 把虚拟内容叠加到真实画面上，比如用手机扫课本出现立体模型、导航箭头直接画在路面上。它不替换现实，而是给现实「加一层」。"],
+  ["🏙️", "数字孪生", "给真实的工厂、城市甚至校园在电脑里做一个一模一样的「双胞胎」，实时同步数据。改方案前先在虚拟世界里试，省钱又安全。"],
+  ["🧑‍🚀", "虚拟形象与数字人", "虚拟形象是你在元宇宙里的「化身」；数字人是能说话、有表情的虚拟人物，已经被用在新闻播报、客服和虚拟主播里。"],
+  ["🎓", "元宇宙里的学习", "在虚拟空间里可以走进细胞内部、站在古罗马街头、做危险的化学实验。沉浸式学习让抽象知识变得看得见、摸得着。"],
+  ["🛡️", "安全小贴士", "在任何虚拟世界里都要保护好个人信息：不随便透露真实姓名、学校和住址，遇到让你不舒服的人或内容及时离开并告诉老师家长。"],
+];
+let metaWikiOpen = 0, metaCourses = 0;
+function metaAvatar() {
+  const g = load(LS_PROFILE, {}).gender;
+  return g === "f" ? "👩‍🚀" : g === "m" ? "🧑‍🚀" : "🤖";
+}
+function metaCardMini(s) {
+  const pct = Math.round((s.exp - s.lo) / (s.hi - s.lo) * 100);
+  return `<span class="mav">${metaAvatar()}</span><div class="mmid"><b>LV.${s.level} ${esc(s.title)}</b><div class="mbar"><i style="width:${pct}%"></i></div><small>${s.exp - s.lo}/${s.hi - s.lo} EXP · 共 ${s.exp}</small></div>`;
+}
+function renderMeta() {
+  const v = document.querySelector('.view[data-view="meta"]');
+  if (!v || !v.classList.contains("on")) return;
+  save("meta_visited_v1", true);
+  if (ck().on()) ck().read().then((d) => { const n = d && d.courses ? d.courses.length : 0; if (n !== metaCourses) { metaCourses = n; renderMeta(); } }).catch(() => {});
+  const s = metaStats(), cy = document.documentElement.dataset.skin === "cyber";
+  const name = currentUser ? currentUser.display_name : "访客";
+  const quests = [["完成 1 件事", s.doneToday, 1, 10], ["打卡 1 个习惯", s.checksToday, 1, 5], ["专注 1 个番茄", s.pomosToday, 1, 15]];
+  const qDone = quests.filter(([, n, need]) => n >= need).length;
+  const got = META_BADGES.filter(([, , , f]) => { try { return f(s); } catch (e) { return false; } });
+  $("metaBox").innerHTML = `
+    <div class="mid surface">
+      <div class="mid-av">${metaAvatar()}<span class="lv">LV.${s.level}</span></div>
+      <div class="mid-main">
+        <div class="mid-name">${esc(name)}<span class="tag">${esc(s.title)}</span></div>
+        <div class="mbar big"><i style="width:${Math.round((s.exp - s.lo) / (s.hi - s.lo) * 100)}%"></i></div>
+        <div class="meta">距离 LV.${s.level + 1} 还差 <b>${s.hi - s.exp}</b> EXP · 累计 ${s.exp} EXP</div>
+        <div class="mid-stats"><span><b>${s.doneAll}</b>完成</span><span><b>${s.checks}</b>打卡</span><span><b>${s.pomos}</b>番茄</span><span><b>${got.length}</b>徽章</span></div>
+      </div>
+      <button class="btn ${cy ? "" : "ink"} sm mid-warp" id="metaWarp">${cy ? "⏏ 回到现实" : "🌐 进入元宇宙模式"}</button>
+    </div>
+    <div class="sec-h"><b>今日任务</b><span>${qDone === 3 ? "全部完成，明天见 🎉" : `完成 ${qDone}/3，做完拿经验`}</span></div>
+    <div class="mquests">${quests.map(([n, have, need, xp]) => `<div class="mq surface${have >= need ? " ok" : ""}"><span class="mq-i">${have >= need ? "✓" : "◇"}</span><div><b>${n}</b><small>${Math.min(have, need)}/${need} · +${xp} EXP</small></div></div>`).join("")}</div>
+    <div class="sec-h"><b>成就徽章</b><span>已解锁 ${got.length}/${META_BADGES.length}</span></div>
+    <div class="mbadges">${META_BADGES.map((b) => { const on = got.includes(b); return `<div class="mb${on ? " on" : ""}" title="${esc(b[2])}"><span>${on ? b[0] : "🔒"}</span><b>${esc(b[1])}</b><small>${esc(b[2])}</small></div>`; }).join("")}</div>
+    <div class="sec-h"><b>元宇宙小百科</b><span>点开看看</span></div>
+    <div class="mwiki">${META_WIKI.map(([i, t, d], k) => `<details class="mw surface"${k === metaWikiOpen ? " open" : ""} data-mw="${k}"><summary><span>${i}</span>${esc(t)}</summary><p>${esc(d)}</p></details>`).join("")}</div>
+    <div class="afoot">经验和徽章由你的完成记录、打卡、番茄钟、目标自动计算${Sync.active() ? "，跟着账号同步" : ""}。</div>`;
+}
+document.addEventListener("click", (e) => {
+  if (e.target.closest("#metaWarp")) { document.documentElement.dataset.skin === "cyber" ? exitMeta() : enterMeta(); setTimeout(renderMeta, 1900); }
+});
+document.addEventListener("toggle", (e) => { const d = e.target; if (d.matches && d.matches("details.mw") && d.open) metaWikiOpen = +d.dataset.mw; }, true);
+
+// ===== 新注册：把引导里选的皮肤、配色、习惯用上；老用户第一次来问一下性别 =====
+const LS_PROFILE = "profile_v1";
+const GENDER_PAL = { f: { id: "sakura", name: "樱花粉", p: "#ff5f8f", s: "#ffb03b" }, m: { id: "navy", name: "海军蓝", p: "#2457d6", s: "#ffb020" } };
+function applyOnboard() {
+  const p = load("onboard_apply_v1", null);
+  if (!p || !currentUser || p.uid !== currentUser.id) return;
+  localStorage.removeItem("onboard_apply_v1");
+  save(LS_PROFILE, { ...load(LS_PROFILE, {}), gender: p.gender === "f" ? "f" : "m" });
+  if (p.palette && /^#[0-9a-f]{6}$/i.test(p.palette.p || "")) save(LS_PALETTE, p.palette);
+  if (p.skin === "cyber") save(LS_SKIN_PREV, "vivid");
+  if (SKIN_COLOR[p.skin]) save(LS_SKIN, p.skin);
+  for (const h of p.habits || []) if (h && h.name && !habits.some((x) => x.name === h.name)) habits.push({ id: "h" + Date.now() + Math.floor(Math.random() * 1000), name: String(h.name).slice(0, 16), icon: String(h.icon || "⭐").slice(0, 4) });
+  save(LS_HABITS, habits);
+  applyLook(); renderTools(); renderAll();
+  setTimeout(() => cheer("welcome", { g: p.gender }), 600);
+}
+function askGender() {
+  if (!currentUser || load(LS_PROFILE, {}).gender || load("gender_asked_v1", false)) return;
+  const d = $("gDlg"); if (!d || typeof d.showModal !== "function") return;
+  d.showModal();
+}
+$("gDlg").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-g]"); if (!b) return;
+  save("gender_asked_v1", true);
+  const g = b.dataset.g;
+  if (g === "f" || g === "m") {
+    save(LS_PROFILE, { ...load(LS_PROFILE, {}), gender: g });
+    if ($("gPal").checked) { save(LS_PALETTE, GENDER_PAL[g]); if (load(LS_SKIN, "vivid") === "cyber") save(LS_SKIN, "vivid"); applyLook(); renderAll(); }
+  }
+  $("gDlg").close();
+});
+$("gDlg").addEventListener("change", (e) => { if (e.target.name === "gq") { const g = e.target.value; $("gPalName").textContent = GENDER_PAL[g].name; } });
+
+// ===== 保持新鲜：过了零点换日期；切回这个页面时，班级数据超过 3 分钟就重新拿一次 =====
+function dayTick() {
+  const now = new Date();
+  if (keyOf(now) === keyOf(today)) return false;
+  const wasToday = selectedKey === keyOf(today);
+  today = now;
+  if (wasToday) { selectedKey = keyOf(today); viewYear = today.getFullYear(); viewMonth = today.getMonth(); }
+  renderAll(); return true;
+}
+setInterval(dayTick, 60000);
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) return;
+  dayTick();
+  if (currentUser && currentClass && Date.now() - classLoadedAt > 180000) loadClass();
+  else renderAll();
+});
+
+// ===== 云端同步：别的设备改了 → 刷新这里；「我的 → 数据」里的开关和状态 =====
+function reloadLocal() {
+  mine = load(LS_MINE, []); marks = load(LS_MARK, {}); doneLog = load(LS_DONE_LOG, {}); habits = load(LS_HABITS, []); habitLog = load(LS_HABIT_LOG, {});
+  quadMap = load(LS_QUAD, {}); qTodos = load(LS_QTODO, []); pomoLog = load(LS_POMO_LOG, {}); planNotes = load(LS_PLAN_NOTES, {});
+  migrateQTodos();
+  applyLook(); syncFunUI(); renderTools(); renderAll();
+}
+Sync.onChange(reloadLocal);
+function agoText(t) { const s = Math.round((Date.now() - t) / 1000); return s < 10 ? "刚刚" : s < 60 ? s + " 秒前" : s < 3600 ? Math.floor(s / 60) + " 分钟前" : new Date(t).toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" }); }
+function renderSyncUI() {
+  const st = Sync.status(), m = Sync.mode(), on = !!currentUser;
+  $("syncMode").value = m; $("syncMode").disabled = !on;
+  $("syncNow").classList.toggle("hidden", !on || m !== "cloud");
+  const txt = !on ? "登录后可以同步到云端，换浏览器、换手机都能看到"
+    : m === "local" ? "只保存在这台设备上，换浏览器就看不到了"
+    : st.state === "syncing" ? "正在同步…"
+    : st.state === "pending" ? `有 ${st.pending} 处修改等待上传…`
+    : st.state === "offline" ? "没联网，联网后自动同步"
+    : st.state === "error" ? "同步失败：" + st.lastErr + "（稍后自动重试）"
+    : st.lastOk ? "已同步 · " + agoText(st.lastOk) : "已开启，换浏览器登录同一账号也能看到";
+  $("syncSt").textContent = txt;
+  $("syncDot").className = "sdot " + (!on || m === "local" ? "off" : st.state === "error" ? "err" : st.state === "syncing" || st.state === "pending" ? "busy" : "ok");
+  document.querySelectorAll("[data-sync-note]").forEach((el) => { el.textContent = on && m === "cloud" ? el.dataset.syncNote : el.dataset.localNote; });
+  $("fLocalWrap").classList.toggle("hidden", !(on && m === "cloud"));
+}
+Sync.onState(renderSyncUI);
+setInterval(() => { if (!document.hidden && currentView() === "me") renderSyncUI(); }, 15000);
+$("syncMode").onchange = async (e) => {
+  const v = e.target.value;
+  if (v === "local") {
+    const wipe = confirm("以后只保存在这台设备上。\n\n要不要把云端已有的副本也删掉？\n点「确定」删除云端副本；点「取消」保留（以后再开同步时还能找回）。");
+    try { await Sync.setMode("local", wipe); } catch (err) { alert("操作失败：" + err.message); }
+  } else {
+    try { await Sync.setMode("cloud"); } catch (err) { alert("开启同步失败：" + err.message); }
+  }
+  renderSyncUI();
+};
+$("syncNow").onclick = async () => { $("syncNow").disabled = true; await Sync.flush(); await Sync.pull(); $("syncNow").disabled = false; renderSyncUI(); };
+// 别的标签页改了（同一个浏览器开了两个窗口）：马上跟着更新
+window.addEventListener("storage", (e) => {
+  if (!e.key || !(e.key in SYNC_KINDS)) return;
+  clearTimeout(window.__stTimer); window.__stTimer = setTimeout(reloadLocal, 120);
+});
+renderSyncUI();
+
 applyLook();
 renderTabs(); renderTools();
 (async () => {
   await bootstrap();
   try { currentUser = await CCAuth.me(); } catch (e) { currentUser = null; }
   renderUserChip();
+  const ob = load("onboard_apply_v1", null);
+  if (ob && currentUser && ob.uid === currentUser.id && ob.sync === "local") localStorage.setItem(LS_SYNC_MODE, '"local"');
+  Sync.start(currentUser && currentUser.id).finally(() => { renderSyncUI(); applyOnboard(); askGender(); });
   try { await loadMyClasses(); } catch (e) { showBanner("读取班级失败：" + e.message); }
   renderClassBar();
   await loadFeatures();
