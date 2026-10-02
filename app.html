@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#bfe6ff">
+<title>班级群日历 安卓 App</title>
+<meta name="description" content="把班级群里的作业、通知、班会自动整理进日历，快到时间在通知栏提醒你。免费下载安卓 App。">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preload" href="display-lite.woff" as="font" type="font/woff" crossorigin>
+<link rel="stylesheet" href="landing.css?v=1">
+<style>
+#sky .orb { position: absolute; left: 0; top: 0; border-radius: 50%; opacity: 0; will-change: transform, opacity; }
+#sky .sun { width: 120px; height: 120px; margin: -60px; background: radial-gradient(circle, #fff7d1 0 34%, #ffd23f 35% 46%, rgba(255, 196, 63, .28) 47%, transparent 70%); }
+#sky .moon { width: 64px; height: 64px; margin: -32px; box-shadow: inset -16px 9px 0 0 #fff3c4; filter: drop-shadow(0 0 16px rgba(255, 243, 196, .55)); }
+/* ============ 开场：群消息 → 日历 ============ */
+.hero { position: relative; height: 420vh; }
+.stick { position: sticky; top: 0; height: 100vh; height: 100svh; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 24px;
+  max-width: 1160px; margin: 0 auto; padding: 72px var(--gut) 24px; }
+.copy { position: relative; z-index: 2; }
+.lines { position: relative; height: 2.5em; font-family: var(--d); font-size: clamp(30px, 5.4vw, 70px); line-height: 1.18; margin: 0 0 22px; }
+.line { position: absolute; inset: 0 auto auto 0; margin: 0; white-space: nowrap; }
+.line .c { display: inline-block; opacity: 0; transform: translateY(.5em) rotate(6deg) scale(.8); filter: blur(6px);
+  transition: opacity .45s, transform .6s cubic-bezier(.2, .9, .3, 1.35), filter .45s; transition-delay: calc(var(--i) * 22ms); }
+.line.on .c { opacity: 1; transform: none; filter: none; }
+.line.out .c { opacity: 0; transform: translateY(-.45em) scale(.96); filter: blur(4px); transition-duration: .3s; transition-delay: calc(var(--i) * 8ms); }
+.line mark { background: none; color: inherit; position: relative; }
+.line mark::after { content: ""; position: absolute; left: -.06em; right: -.06em; bottom: .06em; height: .34em; background: var(--star); z-index: -1; border-radius: .1em;
+  transform: scaleX(0); transform-origin: left; transition: transform .6s cubic-bezier(.6, 0, .2, 1) .45s; }
+.line.on mark::after { transform: scaleX(1); }
+.lede { max-width: 30em; font-size: 17px; color: var(--fg2); margin: 0 0 26px; }
+.cta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.meta { margin: 14px 0 0; font-size: 13px; color: var(--fg2); }
+
+.stage { position: relative; height: 100%; display: grid; place-items: center; }
+.stage { --pw: min(310px, calc((100svh - 140px) * .47)); }
+.phone { position: relative; width: var(--pw, 300px); aspect-ratio: 9 / 19.2; border-radius: calc(var(--pw) * .16);
+  background: #0f1a33; padding: calc(var(--pw) * .035);
+  box-shadow: 0 0 0 1.5px #3a4a6b inset, 0 40px 80px -30px rgba(14, 34, 64, .55), 0 18px 30px -18px rgba(14, 34, 64, .4); }
+.phone::before { content: ""; position: absolute; top: calc(var(--pw) * .055); left: 50%; width: 28%; height: calc(var(--pw) * .075); transform: translateX(-50%); background: #0f1a33; border-radius: 99px; z-index: 9; }
+.screen { position: relative; height: 100%; border-radius: calc(var(--pw) * .13); overflow: hidden; background: #ededed; container-type: inline-size; isolation: isolate; }
+.sbar { position: absolute; top: 0; left: 0; right: 0; height: 11cqw; display: flex; align-items: center; justify-content: space-between; padding: 1cqw 9cqw 0; font: 600 4cqw/1 var(--s); color: #111; z-index: 5; }
+.sbar i { font-style: normal; letter-spacing: .1em; }
+
+/* 群聊层 */
+.chat { position: absolute; inset: 0; display: flex; flex-direction: column; background: #ededed; transform-origin: 50% 40%; will-change: opacity, transform; }
+.chat header { padding: 12cqw 4cqw 3cqw; display: flex; align-items: center; gap: 2cqw; font: 600 4.3cqw/1.2 var(--s); color: #111; background: #ededed; border-bottom: 1px solid #dcdcdc; position: relative; z-index: 2; }
+.chat header span { flex: 1; text-align: center; }
+.chat header b { font-weight: 400; color: #777; }
+.vp { position: relative; flex: 1; overflow: hidden; }
+.msgs { position: absolute; left: 0; right: 0; top: 0; padding: 3cqw 3.5cqw; will-change: transform; }
+.m { display: flex; gap: 2.4cqw; margin-bottom: 3.4cqw; align-items: flex-start; opacity: 0; transform: scale(.7) translateY(4cqw); transform-origin: 0 50%;
+  transition: opacity .35s, transform .45s cubic-bezier(.2, .9, .3, 1.3), filter .4s, max-height .6s cubic-bezier(.6, 0, .2, 1), margin .6s cubic-bezier(.6, 0, .2, 1); }
+.m.gone { max-height: 0 !important; margin-bottom: 0; opacity: 0 !important; transform: scale(.85) !important; }
+.m.in { opacity: 1; transform: none; }
+.m .av { flex: none; width: 9cqw; height: 9cqw; border-radius: 2cqw; display: grid; place-items: center; font: 600 4cqw/1 var(--s); color: #fff; background: var(--a, #7aa2d6); }
+.m .nm { font-size: 2.9cqw; color: #8a8a8a; line-height: 1.3; margin-bottom: .6cqw; }
+.m .bb { position: relative; display: inline-block; background: #fff; color: #111; font-size: 3.7cqw; line-height: 1.45; padding: 2cqw 3cqw; border-radius: 1.8cqw; max-width: 64cqw; transition: background .4s, box-shadow .4s, transform .4s; }
+.m .bb.pic { width: 26cqw; height: 18cqw; background: linear-gradient(135deg, #b6d8f2, #e8d6f5); }
+.m .bb.stk { background: none; font-size: 11cqw; padding: 0; line-height: 1; }
+.msgs.sift .m:not(.hit) { opacity: .22; filter: blur(.5px) grayscale(1); }
+.msgs.sift .m.hit .bb { background: #ffe45c; box-shadow: 0 0 0 1.2cqw rgba(255, 228, 92, .45), 0 3cqw 6cqw -2cqw rgba(0, 0, 0, .25); transform: scale(1.04); }
+.chat footer { height: 13cqw; background: #f7f7f7; border-top: 1px solid #dcdcdc; display: flex; align-items: center; gap: 2cqw; padding: 0 3cqw 2cqw; }
+.chat footer i { flex: 1; height: 8cqw; background: #fff; border-radius: 1.5cqw; }
+.chat footer s { width: 7cqw; height: 7cqw; border: .6cqw solid #666; border-radius: 50%; }
+
+/* 日历层（和 App 里一样的样子） */
+.cal { position: absolute; inset: 0; background: linear-gradient(180deg, #cdeeff, #f3fbff 60%); padding: 13cqw 4cqw 0; opacity: 0; font-family: var(--s); color: var(--ink); }
+.cal .mh { display: flex; align-items: center; gap: 2.4cqw; margin-bottom: 2.4cqw; }
+.cal .mh .me { width: 8cqw; height: 8cqw; border-radius: 50%; background: linear-gradient(135deg, #6aa8ff, #2d6bff); color: #fff; font: 600 3.6cqw/8cqw var(--s); text-align: center; }
+.cal .mh b { font: 400 6.4cqw/1 var(--d); }
+.cal .lg { display: flex; gap: 2.6cqw; font-size: 2.7cqw; color: #687d97; margin-bottom: 2cqw; }
+.cal .lg i { display: inline-block; width: 1.8cqw; height: 1.8cqw; border-radius: 50%; margin-right: .8cqw; vertical-align: .1em; }
+.cal .grid { background: #fff; border-radius: 4cqw; padding: 1.5cqw 1cqw 2cqw; display: grid; grid-template-columns: repeat(7, 1fr); box-shadow: 0 2cqw 6cqw -3cqw rgba(14, 34, 64, .25); }
+.cal .wk { text-align: center; font-size: 2.7cqw; color: #687d97; padding: 1cqw 0; font-weight: 600; }
+.cd { height: 12cqw; text-align: center; font-size: 3.1cqw; font-weight: 600; position: relative; border-top: 1px solid #eef3f8; }
+.cd i { font-style: normal; display: inline-grid; place-items: center; width: 5.4cqw; height: 5.4cqw; border-radius: 50%; margin-top: .6cqw; }
+.cd.o { color: #b8c4d4; }
+.cd.t i { background: #ffa726; color: #fff; }
+.chip { position: absolute; left: .3cqw; right: .3cqw; top: 6.2cqw; height: 3.2cqw; border-radius: .8cqw; font: 700 2.1cqw/3.2cqw var(--s); white-space: nowrap; overflow: hidden; text-overflow: clip; opacity: 0; }
+.chip.land { opacity: 1; animation: land .5s cubic-bezier(.2, 1.5, .4, 1); }
+@keyframes land { 0% { transform: scale(1.5); } 100% { transform: none; } }
+.cd.hot i { animation: ring .8s ease-out; }
+@keyframes ring { 0% { box-shadow: 0 0 0 0 rgba(255, 138, 61, .6); } 100% { box-shadow: 0 0 0 4cqw rgba(255, 138, 61, 0); } }
+.k-a { background: #e6ebf2; color: #55657d; } .k-b { background: #ffe6d6; color: #e8590c; } .k-c { background: #dfe8ff; color: #2d5bd6; }
+.agenda { margin-top: 3.4cqw; }
+.agenda h4 { margin: 0 0 1.6cqw; font: 700 3.6cqw/1.3 var(--s); }
+.ag { display: flex; align-items: center; gap: 2.4cqw; background: #fff; border-radius: 2.8cqw; padding: 2.3cqw 3cqw; margin-bottom: 1.8cqw; font-size: 3.3cqw; opacity: 0; transform: translateY(3cqw);
+  transition: opacity .4s, transform .5s cubic-bezier(.2, .9, .3, 1.2); }
+.ag.in { opacity: 1; transform: none; }
+.ag:nth-child(3) { transition-delay: .08s; } .ag:nth-child(4) { transition-delay: .16s; }
+.ag em { font-style: normal; font-size: 2.6cqw; padding: .4cqw 1.4cqw; border-radius: 1cqw; font-weight: 700; }
+.ag b { flex: 1; font-weight: 600; }
+.ag small { color: #687d97; font-size: 2.8cqw; }
+
+/* 飞行中的消息 */
+.fly { position: absolute; z-index: 6; display: none; pointer-events: none; }
+.fly .fb, .fly .fc { position: absolute; inset: 0; border-radius: 1.6cqw; overflow: hidden; white-space: nowrap; }
+.fly .fb { background: #ffe45c; color: #111; font-size: 3.4cqw; line-height: 1.5; padding: 1.4cqw 2.4cqw; box-shadow: 0 3cqw 6cqw -2cqw rgba(0, 0, 0, .3); }
+.fly .fc { font: 700 2.2cqw/1 var(--s); display: grid; place-items: center; opacity: 0; }
+
+/* 通知横幅 */
+.noti { position: absolute; z-index: 8; left: 3cqw; right: 3cqw; top: 11cqw; padding: 3cqw 3.4cqw; border-radius: 5cqw; background: rgba(255, 255, 255, .92); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 4cqw 10cqw -4cqw rgba(14, 34, 64, .45); display: grid; grid-template-columns: 8cqw 1fr; gap: .4cqw 2.6cqw; color: var(--ink); transform: translateY(-140%); will-change: transform; }
+.noti img { width: 8cqw; height: 8cqw; grid-row: span 3; }
+.noti small { font-size: 2.7cqw; color: #687d97; display: flex; justify-content: space-between; }
+.noti b { font-size: 3.4cqw; line-height: 1.3; }
+.noti span { font-size: 3cqw; line-height: 1.35; color: #3c4d68; }
+
+/* 未读数 */
+.count { position: absolute; z-index: 3; top: calc(50% - var(--pw) * 1.067 + 46px); left: calc(50% - var(--pw) * .5 - 30px);
+  background: #fa5151; color: #fff; font: 700 15px/1 var(--s); padding: 8px 12px; border-radius: 99px; box-shadow: 0 8px 20px -6px rgba(250, 81, 81, .7); transform-origin: 100% 100%; transition: opacity .3s, transform .3s; }
+.count b { font-variant-numeric: tabular-nums; }
+.count.bump { animation: bump .3s; }
+@keyframes bump { 40% { transform: scale(1.18); } }
+
+/* 捞捞 */
+.lao { position: absolute; z-index: 4; width: calc(var(--pw) * .62); right: calc(50% - var(--pw) * .5 - var(--pw) * .44); top: 16%; overflow: visible; will-change: transform; transform: translateY(150%); }
+.lao .eyes { transform-box: fill-box; transform-origin: center; animation: blink 4.2s infinite; }
+@keyframes blink { 0%, 92%, 100% { transform: none; } 95% { transform: scaleY(.1); } }
+.lao .arm { transform-box: view-box; transform-origin: 53px 40px; }
+.lao .hand2 { transform-box: view-box; transform-origin: 11px 40px; animation: wave 2.4s ease-in-out infinite; }
+@keyframes wave { 0%, 60%, 100% { transform: none; } 70% { transform: rotate(-18deg); } 80% { transform: rotate(6deg); } 90% { transform: rotate(-12deg); } }
+.lao.cheer .body { animation: hop .7s cubic-bezier(.3, .7, .4, 1.6); }
+.lao .spark { opacity: 0; transform-box: fill-box; transform-origin: center; }
+.lao.cheer .spark { animation: spark .9s ease-out; }
+@keyframes hop { 40% { transform: translateY(-14px) rotate(-4deg); } }
+@keyframes spark { 0% { opacity: 0; transform: scale(.2) rotate(0); } 40% { opacity: 1; transform: scale(1.3) rotate(40deg); } 100% { opacity: 0; transform: scale(.8) rotate(90deg); } }
+
+.hint { position: absolute; left: 50%; bottom: max(14px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: grid; justify-items: center; gap: 4px; font-size: 13px; color: var(--fg2); z-index: 3; }
+.hint i { width: 22px; height: 34px; border: 2px solid currentColor; border-radius: 12px; position: relative; }
+.hint i::after { content: ""; position: absolute; left: 50%; top: 6px; width: 4px; height: 7px; margin-left: -2px; border-radius: 2px; background: currentColor; animation: wheel 1.6s ease-in-out infinite; }
+@keyframes wheel { 0% { opacity: 0; transform: translateY(-3px); } 30% { opacity: 1; } 100% { opacity: 0; transform: translateY(10px); } }
+
+/* ============ 装进手机 ============ */
+.sec { max-width: 1160px; margin: 0 auto; padding: 120px var(--gut); }
+.sec > h2, .day > h2 { font-family: var(--d); font-weight: 400; font-size: clamp(32px, 4.6vw, 56px); line-height: 1.2; margin: 0 0 14px; }
+.sec > .sub, .day > .sub { font-size: 17px; color: var(--fg2); max-width: 32em; margin: 0 0 56px; }
+.droid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 56px; align-items: center; }
+.perks { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 30px 28px; }
+.perks li { display: grid; grid-template-columns: 44px 1fr; gap: 2px 14px; }
+.perks svg { grid-row: span 2; width: 44px; height: 44px; padding: 10px; border-radius: 14px; background: #fff; color: var(--blue); box-shadow: 0 6px 16px -10px rgba(14, 34, 64, .35); }
+.perks b { font-size: 17px; }
+.perks span { font-size: 14.5px; color: var(--fg2); line-height: 1.6; }
+
+.skinbox { display: grid; justify-items: center; gap: 20px; }
+.mini { --pw: 260px; }
+.mini .screen { view-transition-name: mini; background: var(--k-bg2); color: var(--k-text); font-family: var(--s); }
+.mini .ms { position: absolute; inset: 0; padding: 12cqw 4.4cqw 0; background: linear-gradient(180deg, var(--k-bg), var(--k-bg2) 70%); transition: background .5s; }
+.mini .sbar { color: var(--k-text); }
+.mini .hd { display: flex; align-items: center; gap: 2.6cqw; margin-bottom: 4cqw; }
+.mini .hd i { width: 9cqw; height: 9cqw; border-radius: 50%; background: var(--k-accent); }
+.mini .hd b { font: 400 6.4cqw/1 var(--d); }
+.mini .hello { border-radius: 5cqw; padding: 4.6cqw; background: var(--k-hero); color: var(--k-hero-t); position: relative; overflow: hidden; margin-bottom: 3cqw; min-height: 30cqw; }
+.mini .hello small { font-size: 2.8cqw; opacity: .8; }
+.mini .hello strong { display: block; font: 400 6.6cqw/1.25 var(--d); margin: 1.2cqw 0; }
+.mini .hello span { font-size: 3cqw; opacity: .85; display: block; max-width: 58%; line-height: 1.5; }
+.mini .hello svg { position: absolute; right: 2cqw; bottom: 0; width: 30cqw; }
+.mini .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 3cqw; margin-bottom: 3cqw; }
+.mini .tile { border-radius: 4.6cqw; padding: 3.6cqw; min-height: 26cqw; color: #fff; display: grid; align-content: space-between; }
+.mini .tile b { font: 400 5.4cqw/1 var(--d); }
+.mini .tile strong { font: 400 9cqw/1 var(--d); }
+.mini .tile small { font-size: 2.6cqw; font-weight: 600; opacity: .9; }
+.mini .t1 { background: var(--k-t1); } .mini .t2 { background: var(--k-t2); }
+.mini .quad { background: var(--k-card); border-radius: 4.6cqw; padding: 3.6cqw; display: grid; grid-template-columns: 1fr 1fr; gap: 2cqw; border: 1px solid var(--k-line); }
+.mini .quad div { border-radius: 2.4cqw; padding: 2cqw 2.4cqw; font-size: 2.7cqw; line-height: 1.5; border-left: 1cqw solid var(--q); background: color-mix(in srgb, var(--q) 12%, var(--k-card)); }
+.mini .quad div b { color: var(--q); display: block; font-size: 2.6cqw; }
+.mini .tabbar { position: absolute; left: 0; right: 0; bottom: 0; height: 14cqw; background: var(--k-card); border-top: 1px solid var(--k-line); display: flex; justify-content: space-around; align-items: center; }
+.mini .tabbar i { width: 5.6cqw; height: 5.6cqw; border-radius: 1.6cqw; background: var(--k-sub); opacity: .4; }
+.mini .tabbar i:first-child { background: var(--k-accent); opacity: 1; }
+.skins { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.skins button { border: 0; background: #fff; padding: 8px 14px 8px 8px; border-radius: 99px; display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600;
+  box-shadow: 0 4px 12px -8px rgba(14, 34, 64, .4); transition: transform .2s, box-shadow .2s; color: var(--ink); }
+.skins button i { width: 22px; height: 22px; border-radius: 50%; background: var(--sw); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .7); }
+.skins button[aria-pressed=true] { box-shadow: 0 0 0 2.5px var(--ink); }
+.skins button:hover { transform: translateY(-2px); }
+.mini[data-k=sky] { --k-bg: #cdeeff; --k-bg2: #f3fbff; --k-text: #0e2240; --k-sub: #687d97; --k-card: #fff; --k-line: #e3edf6; --k-accent: #1ea0ff; --k-hero: linear-gradient(135deg, #8fd0ff, #b8c6ff); --k-hero-t: #0e2240; --k-t1: linear-gradient(140deg, #ffb340, #ff8a1f); --k-t2: linear-gradient(140deg, #7d9cff, #3f6bff); }
+.mini[data-k=sakura] { --k-bg: #ffe1ea; --k-bg2: #fff6f8; --k-text: #4a2333; --k-sub: #9a6b7d; --k-card: #fff; --k-line: #f6dde5; --k-accent: #ff6b9a; --k-hero: linear-gradient(135deg, #ffb6cb, #ffd9c9); --k-hero-t: #4a2333; --k-t1: linear-gradient(140deg, #ff8fb0, #ff5c8a); --k-t2: linear-gradient(140deg, #c79bff, #9a6bff); }
+.mini[data-k=night] { --k-bg: #000; --k-bg2: #000; --k-text: #e7e9ea; --k-sub: #71767b; --k-card: #16181c; --k-line: #2f3336; --k-accent: #1d9bf0; --k-hero: linear-gradient(135deg, #1c2333, #10131a); --k-hero-t: #e7e9ea; --k-t1: linear-gradient(140deg, #3a2a10, #5c3b0a); --k-t2: linear-gradient(140deg, #13284d, #1d3f7a); }
+.mini[data-k=cyber] { --k-bg: #07060f; --k-bg2: #07060f; --k-text: #e9f6ff; --k-sub: #8d93bf; --k-card: #100d24; --k-line: rgba(0, 240, 255, .25); --k-accent: #00f0ff; --k-hero: linear-gradient(135deg, #2a0b4a, #0b2a4a); --k-hero-t: #e9f6ff; --k-t1: linear-gradient(140deg, #ff2bd6, #8a1cff); --k-t2: linear-gradient(140deg, #00c2ff, #2b5cff); }
+::view-transition-old(mini) { animation: none; }
+::view-transition-new(mini) { animation: reveal .7s cubic-bezier(.6, 0, .2, 1); }
+@keyframes reveal { from { clip-path: circle(0 at var(--rx, 50%) var(--ry, 100%)); } to { clip-path: circle(150% at var(--rx, 50%) var(--ry, 100%)); } }
+
+/* ============ 一天 ============ */
+.day { max-width: 1160px; margin: 0 auto; padding: 120px var(--gut) 60px; }
+.hours { list-style: none; margin: 0; padding: 0; position: relative; }
+.hours::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 2px; background: linear-gradient(var(--fg2), transparent); opacity: .25; }
+.hr { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1fr); gap: 40px 64px; align-items: center; padding: 70px 0 70px 34px; position: relative; }
+.hr::before { content: ""; position: absolute; left: -6px; top: 84px; width: 14px; height: 14px; border-radius: 50%; background: var(--sky-bot); border: 3px solid var(--fg); }
+.hr time { display: block; font-family: var(--d); font-size: clamp(54px, 8vw, 104px); line-height: 1; letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+.hr h3 { font-family: var(--d); font-weight: 400; font-size: clamp(24px, 2.8vw, 34px); line-height: 1.3; margin: 18px 0 10px; }
+.hr p { margin: 0; color: var(--fg2); max-width: 26em; }
+.ui { background: var(--card); color: var(--ink); border-radius: 26px; padding: 22px; box-shadow: 0 30px 60px -36px rgba(14, 34, 64, .55); position: relative; }
+.ui .tag { font-size: 12px; color: var(--sub); display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
+.ui .tag img { width: 18px; height: 18px; }
+.tiny { font-size: 12px; color: var(--sub); }
+
+/* 07:30 鼓励 */
+.enc { border-radius: 20px; padding: 22px 20px; color: #fff; background: linear-gradient(135deg, var(--g1, #a1c4fd), var(--g2, #c2e9fb)); transition: background .6s; min-height: 132px; position: relative; overflow: hidden; }
+.enc .em { position: absolute; right: 14px; top: 8px; font-size: 54px; opacity: .9; transform: rotate(8deg); }
+.enc q { display: block; font: 400 25px/1.35 var(--d); quotes: none; max-width: 80%; text-shadow: 0 1px 8px rgba(0, 0, 0, .12); min-height: 2.7em; }
+.enc q .c { display: inline-block; animation: popc .45s cubic-bezier(.2, .9, .3, 1.4) both; animation-delay: calc(var(--i) * 28ms); }
+@keyframes popc { from { opacity: 0; transform: translateY(8px) scale(.6); } }
+.enc small { display: block; margin-top: 6px; font-size: 13px; opacity: .9; }
+.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+.chipbtn { border: 1px solid var(--line); background: #fff; border-radius: 99px; padding: 6px 12px; font-size: 14px; transition: transform .2s cubic-bezier(.3, .7, .4, 1.6), background .2s, border-color .2s; }
+.chipbtn:hover { transform: translateY(-2px); }
+.chipbtn[aria-pressed=true] { background: #fff4d6; border-color: #ffd23f; }
+.reply { min-height: 1.6em; margin: 10px 2px 0; font-size: 14.5px; color: #3c4d68; }
+.reply.show { animation: popc .4s both; }
+
+/* 08:00 课表 */
+.cls { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.cls li { display: grid; grid-template-columns: 70px 1fr auto; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; background: #f4f8fc; }
+.cls time { font-size: 13px; color: var(--sub); line-height: 1.35; font-variant-numeric: tabular-nums; }
+.cls b { font-size: 16px; } .cls small { display: block; font-size: 12.5px; color: var(--sub); font-weight: 400; }
+.cls li.now { background: linear-gradient(90deg, #e3f2ff, #f4f8fc); box-shadow: inset 4px 0 0 var(--blue); }
+.cls .bar { grid-column: 1 / -1; height: 5px; background: #d9e8f6; border-radius: 9px; overflow: hidden; margin-top: 2px; }
+.cls .bar i { display: block; height: 100%; width: 0; background: var(--blue); border-radius: inherit; transition: width 2.2s cubic-bezier(.3, .6, .2, 1) .3s; }
+.seen .cls .bar i { width: 38%; }
+.cls .live { font-size: 12px; font-weight: 700; color: var(--blue); display: flex; align-items: center; gap: 5px; }
+.cls .live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: pulse 1.4s infinite; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(30, 140, 255, .5); } 100% { box-shadow: 0 0 0 9px rgba(30, 140, 255, 0); } }
+
+/* 12:10 班级墙 */
+.post { display: grid; grid-template-columns: 40px 1fr; gap: 4px 12px; }
+.post .av { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-weight: 700; background: linear-gradient(135deg, #ff9a6b, #ff6b8a); grid-row: span 2; }
+.post .who b { font-size: 15px; } .post .who small { margin-left: 6px; font-size: 12px; color: var(--sub); }
+.post .who em { font-style: normal; font-size: 11px; background: #fff0e6; color: #e8590c; padding: 1px 6px; border-radius: 6px; margin-left: 6px; font-weight: 700; }
+.post p { margin: 2px 0 0; font-size: 15.5px; color: var(--ink); }
+.acts { grid-column: 2; display: flex; gap: 16px; margin-top: 8px; }
+.like { border: 0; background: none; padding: 4px 0; display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--sub); position: relative; }
+.like svg { width: 22px; height: 22px; transition: transform .3s cubic-bezier(.3, .7, .4, 1.8); }
+.like[aria-pressed=true] { color: #ff4d7a; }
+.like[aria-pressed=true] svg { transform: scale(1.2); }
+.like[aria-pressed=true] svg path { fill: #ff4d7a; stroke: #ff4d7a; }
+.burst { position: absolute; left: 11px; top: 14px; width: 0; height: 0; pointer-events: none; }
+.burst i { position: absolute; width: 7px; height: 7px; border-radius: 50%; background: var(--c); animation: fly .7s cubic-bezier(.1, .8, .3, 1) forwards; }
+@keyframes fly { from { transform: translate(-50%, -50%) scale(1); opacity: 1; } to { transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y))) scale(0); opacity: 0; } }
+.cmts { grid-column: 2; margin-top: 10px; background: #f4f8fc; border-radius: 14px; padding: 10px 12px; display: grid; gap: 6px; font-size: 14px; }
+.cmts div { animation: popc .4s both; }
+.cmts b { color: #2d5bd6; font-weight: 600; }
+.cmtf { grid-column: 2; display: flex; gap: 8px; margin-top: 10px; }
+.cmtf input { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 99px; padding: 8px 14px; font: inherit; font-size: 14px; background: #fff; color: var(--ink); }
+.cmtf button { border: 0; background: var(--ink); color: #fff; border-radius: 99px; padding: 0 16px; font-size: 14px; font-weight: 600; }
+
+/* 15:30 时间管理 */
+.tm { display: grid; grid-template-columns: 1fr 150px; gap: 18px; align-items: center; }
+.q4 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.q4 > div { border-radius: 12px; padding: 8px 10px; background: color-mix(in srgb, var(--q) 10%, #fff); border-left: 4px solid var(--q); min-height: 74px; }
+.q4 h5 { margin: 0 0 4px; font-size: 12.5px; color: var(--q); }
+.q4 label { display: flex; align-items: center; gap: 6px; font-size: 13.5px; cursor: pointer; line-height: 1.5; }
+.q4 input { appearance: none; -webkit-appearance: none; width: 15px; height: 15px; border: 2px solid var(--q); border-radius: 5px; flex: none; display: grid; place-items: center; margin: 0; transition: background .2s; }
+.q4 input:checked { background: var(--q); }
+.q4 input:checked::after { content: ""; width: 6px; height: 3px; border: solid #fff; border-width: 0 0 2px 2px; transform: rotate(-45deg) translate(1px, -1px); }
+.q4 input:checked + span { text-decoration: line-through; color: var(--sub); }
+.pomo { display: grid; justify-items: center; gap: 8px; }
+.pomo svg { width: 138px; height: 138px; transform: rotate(-90deg); }
+.pomo .trk { stroke: #ffe1d6; } .pomo .arc { stroke: #ff6a3d; stroke-linecap: round; transition: stroke-dashoffset .25s linear; }
+.pomo .tw { position: relative; }
+.pomo .tw div { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; }
+.pomo .tw strong { font: 400 30px/1 var(--d); font-variant-numeric: tabular-nums; display: block; }
+.pomo .tw small { font-size: 11px; color: var(--sub); }
+.pomo button { border: 0; background: #ff6a3d; color: #fff; border-radius: 99px; padding: 7px 16px; font-size: 14px; font-weight: 700; }
+.pomo.done .tw strong { color: #1f9d55; }
+
+/* 21:30 锁屏 */
+.lock { border-radius: 30px; padding: 26px 18px 22px; min-height: 360px; color: #fff; text-align: center; overflow: hidden;
+  background: radial-gradient(120% 80% at 80% 0%, #4b5bd6 0%, transparent 60%), radial-gradient(90% 70% at 0% 100%, #c2418f 0%, transparent 60%), #1a1f4d; }
+.lock .clk { font: 400 72px/1 var(--d); letter-spacing: .02em; }
+.lock .dt { font-size: 14px; opacity: .85; margin: 6px 0 22px; }
+.nt { text-align: left; display: grid; grid-template-columns: 34px 1fr; gap: 0 10px; padding: 12px 14px; border-radius: 18px; background: rgba(255, 255, 255, .18); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); margin-top: 8px;
+  opacity: 0; transform: translateY(-24px) scale(.94); transition: opacity .4s, transform .6s cubic-bezier(.2, .9, .3, 1.25); }
+.seen .nt { opacity: 1; transform: none; }
+.seen .nt:nth-of-type(2) { transition-delay: .5s; } .seen .nt:nth-of-type(3) { transition-delay: 1s; }
+.nt img { width: 34px; height: 34px; border-radius: 9px; grid-row: span 2; background: #fff; }
+.nt small { display: flex; justify-content: space-between; font-size: 11.5px; opacity: .8; }
+.nt b { font-size: 14px; font-weight: 600; line-height: 1.45; }
+
+/* 23:00 成长足迹 */
+.heat { display: grid; grid-template-rows: repeat(7, 1fr); grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; margin: 4px 0 14px; }
+.heat i { aspect-ratio: 1; border-radius: 4px; background: #edf2f8; transform: scale(.3); opacity: 0; transition: transform .45s cubic-bezier(.2, 1.4, .4, 1), opacity .3s, background .3s; }
+.seen .heat i { transform: none; opacity: 1; transition-delay: calc(var(--i) * 9ms); }
+.heat i.h1 { background: #c6e6ff; } .heat i.h2 { background: #85c8ff; } .heat i.h3 { background: #3fa4ff; } .heat i.h4 { background: #1667e8; }
+.streak { display: flex; align-items: center; gap: 16px; }
+.streak strong { font: 400 46px/1 var(--d); color: var(--today); font-variant-numeric: tabular-nums; }
+.streak span { font-size: 14px; color: var(--sub); line-height: 1.5; }
+
+/* ============ 下载区（夜里） ============ */
+.get-sec { position: relative; max-width: 1160px; margin: 0 auto; padding: 110px var(--gut) 40px; text-align: center; }
+.get-sec h2 { font-family: var(--d); font-weight: 400; font-size: clamp(40px, 7vw, 92px); line-height: 1.12; margin: 0 0 18px; }
+.get-sec .sub { margin: 0 auto 34px; max-width: 30em; color: var(--fg2); font-size: 17px; }
+.sleepy { width: 150px; margin: 0 auto 18px; position: relative; }
+.sleepy .z { position: absolute; font: 400 22px/1 var(--d); color: var(--star); right: -6px; top: -10px; animation: zz 2.6s ease-in-out infinite; opacity: 0; }
+.sleepy .z:nth-child(2) { animation-delay: .9s; right: -24px; font-size: 16px; } .sleepy .z:nth-child(3) { animation-delay: 1.8s; right: 10px; font-size: 13px; }
+@keyframes zz { 0% { opacity: 0; transform: translate(0, 10px) scale(.6); } 30% { opacity: 1; } 100% { opacity: 0; transform: translate(18px, -30px) scale(1.1); } }
+.sleepy svg .body { animation: breathe 3.4s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 100%; }
+@keyframes breathe { 50% { transform: scaleY(1.035) scaleX(.985); } }
+.panel { display: inline-grid; gap: 18px; justify-items: center; }
+.panel .meta { margin: 0; }
+.panel .row2 { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; justify-content: center; }
+.ios { display: none; max-width: 26em; margin: 0 auto; font-size: 15px; color: var(--fg2); }
+.is-ios .ios { display: block; }
+.after { font-size: 14px; color: var(--fg2); min-height: 1.5em; }
+
+.faq { max-width: 760px; margin: 90px auto 0; text-align: left; }
+.faq h3 { font-family: var(--d); font-weight: 400; font-size: 30px; margin: 0 0 16px; text-align: center; }
+.faq details { border-top: 1px solid color-mix(in srgb, var(--fg) 14%, transparent); }
+.faq details:last-child { border-bottom: 1px solid color-mix(in srgb, var(--fg) 14%, transparent); }
+.faq summary { list-style: none; cursor: pointer; padding: 18px 40px 18px 4px; font-weight: 600; font-size: 16.5px; position: relative; }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after { content: ""; position: absolute; right: 10px; top: 50%; width: 10px; height: 10px; border: solid currentColor; border-width: 0 2px 2px 0; transform: translateY(-70%) rotate(45deg); transition: transform .3s; }
+.faq details[open] summary::after { transform: translateY(-30%) rotate(-135deg); }
+.faq details p { margin: 0 4px 18px; color: var(--fg2); font-size: 15px; }
+.faq details[open] p { animation: popc .35s both; }
+
+/* ============ 手机 ============ */
+@media (max-width: 860px) {
+  .hero { height: 380vh; }
+  .stick { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); align-items: start; gap: 6px; padding-top: 62px; padding-bottom: 46px; }
+  .lines { font-size: clamp(27px, 7.6vw, 40px); margin-bottom: 8px; }
+  .lede { font-size: 14.5px; margin-bottom: 12px; line-height: 1.6; }
+  .cta { gap: 4px 6px; }
+  .get { min-height: 48px; font-size: 16px; padding: 0 20px 0 16px; border-radius: 16px; }
+  .ghost { min-height: 48px; padding: 0 12px; font-size: 15px; }
+  .meta { margin-top: 6px; font-size: 12px; }
+  .stage { --pw: min(250px, calc((100svh - 330px) * .47)); }
+  .lao { top: 56%; width: calc(var(--pw) * .5); right: calc(50% - var(--pw) * .5 - var(--pw) * .3); }
+  .count { font-size: 13px; padding: 6px 10px; left: calc(50% - var(--pw) * .5 - 20px); }
+  .hint { display: none; }
+  .droid { grid-template-columns: 1fr; gap: 40px; }
+  .hr { grid-template-columns: 1fr; gap: 26px; padding: 50px 0 50px 26px; }
+  .hr::before { top: 64px; }
+  .sec { padding: 90px var(--gut); }
+  .tm { grid-template-columns: 1fr; }
+}
+@media (max-width: 520px) {
+  .perks { grid-template-columns: 1fr; gap: 22px; }
+  .lede { display: none; }
+  .stage { --pw: min(250px, calc((100svh - 250px) * .47)); }
+  .mini { --pw: 236px; }
+  .ui { padding: 16px; border-radius: 22px; }
+  .enc q { font-size: 21px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero { height: auto; } .stick { position: relative; height: auto; min-height: 100svh; }
+}
+</style>
+</head>
+<body data-root="">
+<div id="sky" aria-hidden="true"><div class="stars"></div></div>
+
+<header class="top" id="top">
+  <a class="brand" href="index.html"><img src="favicon.svg" alt="">班级群日历</a>
+  <nav><a href="#more">安卓特色</a><a href="#day">一天怎么用</a><a href="#faq">常见问题</a><a class="pill" href="#get">下载</a></nav>
+</header>
+
+<main>
+<section class="hero" id="hero">
+  <div class="stick">
+    <div class="copy">
+      <h1 class="sr">班级群日历安卓 App：把群消息里的作业和通知整理成日历，到点提醒你</h1>
+      <div class="lines" aria-hidden="true">
+        <p class="line on" data-s="0">群消息 99+，<br>要紧的又被<mark>刷走了</mark></p>
+        <p class="line" data-s="1">别翻了，<br>捞捞替你<mark>捞出来</mark></p>
+        <p class="line" data-s="2">放进日历，<br>到点就<mark>提醒你</mark></p>
+      </div>
+      <p class="lede">班级群日历的安卓 App。群里的作业、通知、班会，一键整理进日历；快到时间，手机通知栏会提醒你。</p>
+      <div class="cta">
+        <a class="get" data-get href="download/class-calendar.apk" download>
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="arrow"><path d="M12 4v11"/><path d="m7 10 5 5 5-5"/></g><path d="M5 20h14"/></svg>
+          <span class="lbl" data-lbl>下载安卓 App</span>
+        </a>
+        <a class="ghost" href="#more">先看看</a>
+      </div>
+      <p class="meta" data-meta>免费，安卓 7.0 及以上都能装</p>
+    </div>
+
+    <div class="stage">
+      <div class="phone" id="heroPhone">
+        <div class="screen" id="scr">
+          <div class="sbar"><span>12:30</span><i>▮▮▮</i></div>
+          <div class="chat" id="chat">
+            <header><span>‹</span><span>计科2601班 <b>(52)</b></span><span>···</span></header>
+            <div class="vp" id="vp"><div class="msgs" id="msgs"></div></div>
+            <footer><s></s><i></i><s></s></footer>
+          </div>
+          <div class="cal" id="cal" aria-hidden="true">
+            <div class="mh"><span class="me">我</span><b id="calM">10月</b></div>
+            <div class="lg"><span><i style="background:#ff7b2e"></i>作业</span><span><i style="background:#2d5bd6"></i>会议</span><span><i style="background:#8a99ad"></i>通知</span></div>
+            <div class="grid" id="calG"></div>
+            <div class="agenda" id="agenda">
+              <h4>今天和接下来</h4>
+              <div class="ag"><em class="k-a">通知</em><b>国庆离校登记</b><small>今天 22:00</small></div>
+              <div class="ag"><em class="k-c">会议</em><b>班会 · B302</b><small>明天 15:00</small></div>
+              <div class="ag"><em class="k-b">作业</em><b>高数 习题 3.2</b><small id="agB">周五 23:59</small></div>
+            </div>
+          </div>
+          <div id="flyers"></div>
+          <div class="noti" id="noti">
+            <img src="favicon.svg" alt="">
+            <small><span>班级群日历</span><span>现在</span></small>
+            <b>国庆离校登记 今晚 22:00 截止</b>
+            <span>还没填哦，点这里两分钟就能弄完。</span>
+          </div>
+        </div>
+      </div>
+      <div class="count" id="count" aria-hidden="true">未读 <b id="countN">12</b></div>
+      <svg class="lao" id="lao" viewBox="-4 -40 110 104" aria-hidden="true">
+        <g class="arm"><path d="M52 40 q8 -2 12 -10" fill="none" stroke="#0e2240" stroke-width="3.2" stroke-linecap="round"/>
+          <path d="M63 32 L86 -16" stroke="#b07a3c" stroke-width="3.4" stroke-linecap="round"/>
+          <ellipse cx="91" cy="-24" rx="13" ry="8" transform="rotate(-25 91 -24)" fill="rgba(255,255,255,.55)" stroke="#0e2240" stroke-width="2.6"/>
+          <path d="M80 -24 q11 18 22 -6 M84 -30 q6 16 15 -3 M86 -18 l12 -9 M83 -22 l16 -11" fill="none" stroke="#0e2240" stroke-width="1.2" opacity=".6"/></g>
+        <g class="body">
+          <path class="hand2" d="M12 40 q-8 -1 -11 -9" fill="none" stroke="#0e2240" stroke-width="3.2" stroke-linecap="round"/>
+          <rect x="11" y="17" width="42" height="38" rx="12" fill="#fff" stroke="#0e2240" stroke-width="3.2"/>
+          <path d="M11 30 V29 a12 12 0 0 1 12 -12 h18 a12 12 0 0 1 12 12 v1 z" fill="#ff8a3d" stroke="#0e2240" stroke-width="3.2" stroke-linejoin="round"/>
+          <rect x="20" y="10" width="5.5" height="12" rx="2.75" fill="#0e2240"/><rect x="38.5" y="10" width="5.5" height="12" rx="2.75" fill="#0e2240"/>
+          <g class="eyes"><ellipse cx="24.5" cy="39.5" rx="3.4" ry="4.2" fill="#0e2240"/><ellipse cx="39.5" cy="39.5" rx="3.4" ry="4.2" fill="#0e2240"/>
+            <circle cx="25.7" cy="37.8" r="1.3" fill="#fff"/><circle cx="40.7" cy="37.8" r="1.3" fill="#fff"/></g>
+          <ellipse cx="18.5" cy="46" rx="3.2" ry="2" fill="#ff9db5"/><ellipse cx="45.5" cy="46" rx="3.2" ry="2" fill="#ff9db5"/>
+          <path d="M28.5 46 q3.5 3.6 7 0" fill="none" stroke="#0e2240" stroke-width="2.6" stroke-linecap="round"/>
+        </g>
+        <path class="spark" d="M4 -6 l2 4.5 4.5 2 -4.5 2 -2 4.5 -2 -4.5 -4.5 -2 4.5 -2z" fill="#ffd23f"/>
+        <path class="spark" d="M60 4 l1.5 3.4 3.4 1.5 -3.4 1.5 -1.5 3.4 -1.5 -3.4 -3.4 -1.5 3.4 -1.5z" fill="#ffd23f"/>
+      </svg>
+    </div>
+    <div class="hint" id="hint"><i></i>往下滑，看捞捞怎么捞</div>
+  </div>
+</section>
+
+<section class="sec" id="more">
+  <h2>装进手机，比网页多了这些</h2>
+  <p class="sub">账号和网页版是同一个，登录后数据自动同步。网页能做的它都能做，下面这些是 App 才有的。</p>
+  <div class="droid">
+    <ul class="perks">
+      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><b>到点就提醒</b><span>作业截止、班会开始前，通知栏准时弹出来，不用一直开着网页。</span></li>
+      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg><b>重启手机也不丢</b><span>手机关机再开，设好的提醒会自己恢复。</span></li>
+      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5-7 7 7 7"/></svg><b>返回键顺手</b><span>按返回先关弹窗、再回上一页，不会一下子退出去。</span></li>
+      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/><path d="M12 11v6"/><path d="m9 14 3 3 3-3"/></svg><b>文件直接存手机</b><span>导出的日历、备份文件，存到手机里，也能直接分享到微信。</span></li>
+      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h.01"/><path d="M8.5 16.4a5 5 0 0 1 7 0"/><path d="M5 12.9a10 10 0 0 1 14 0"/><path d="m2 2 20 20"/></svg><b>没网也能看</b><span>地铁上、教室信号差，打开过的内容照样能看。</span></li>
+      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M8 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/></svg><b>有新版自己告诉你</b><span>出新版本时首页会提示，点一下就更新，数据不会丢。</span></li>
+    </ul>
+    <div class="skinbox">
+      <div class="phone mini" id="mini" data-k="sky">
+        <div class="screen"><div class="ms">
+          <div class="sbar"><span>08:00</span><i>▮▮▮</i></div>
+          <div class="hd"><i></i><b>首页</b></div>
+          <div class="hello"><small>10月2日 周五</small><strong>早上好，小明</strong><span>今天有 2 项作业，先做最急的那件。</span>
+            <svg viewBox="8 6 52 52" aria-hidden="true"><rect x="11" y="17" width="42" height="38" rx="12" fill="#fff" stroke="#0e2240" stroke-width="3.2"/><path d="M11 30 V29 a12 12 0 0 1 12 -12 h18 a12 12 0 0 1 12 12 v1 z" fill="#ff8a3d" stroke="#0e2240" stroke-width="3.2"/><rect x="20" y="10" width="5.5" height="12" rx="2.75" fill="#0e2240"/><rect x="38.5" y="10" width="5.5" height="12" rx="2.75" fill="#0e2240"/><ellipse cx="24.5" cy="39.5" rx="3.4" ry="4.2" fill="#0e2240"/><ellipse cx="39.5" cy="39.5" rx="3.4" ry="4.2" fill="#0e2240"/><path d="M28.5 46 q3.5 3.6 7 0" fill="none" stroke="#0e2240" stroke-width="2.6" stroke-linecap="round"/></svg></div>
+          <div class="tiles"><div class="tile t1"><b>作业</b><strong>2</strong><small>项没交</small></div><div class="tile t2"><b>日历</b><strong>5</strong><small>今天待办</small></div></div>
+          <div class="quad"><div style="--q:#f04438"><b>重要且紧急</b>高数作业</div><div style="--q:#1e8cff"><b>重要不紧急</b>四级单词</div><div style="--q:#f5a524"><b>紧急不重要</b>交医保材料</div><div style="--q:#8a99ad"><b>不重要不紧急</b>整理相册</div></div>
+          <div class="tabbar"><i></i><i></i><i></i><i></i><i></i></div>
+        </div></div>
+      </div>
+      <div class="skins" role="group" aria-label="换个皮肤看看">
+        <button type="button" data-k="sky" aria-pressed="true" style="--sw:linear-gradient(135deg,#8fd0ff,#1ea0ff)"><i></i>天空</button>
+        <button type="button" data-k="sakura" aria-pressed="false" style="--sw:linear-gradient(135deg,#ffc2d4,#ff6b9a)"><i></i>樱花</button>
+        <button type="button" data-k="night" aria-pressed="false" style="--sw:linear-gradient(135deg,#333,#000)"><i></i>暗夜</button>
+        <button type="button" data-k="cyber" aria-pressed="false" style="--sw:linear-gradient(135deg,#ff2bd6,#00f0ff)"><i></i>赛博</button>
+      </div>
+      <p class="tiny" style="margin:0;color:var(--fg2)">点一下换皮肤，App 里还有更多配色，也能用自己的照片当背景。</p>
+    </div>
+  </div>
+</section>
+
+<section class="day" id="day">
+  <h2>陪你过完一天</h2>
+  <p class="sub">从早上醒来到晚上睡前，下面每一块都是 App 里真实的样子，可以点点看。</p>
+  <ol class="hours">
+    <li class="hr">
+      <div><time>07:30</time><h3>睁眼先收到一句鼓励</h3><p>首页的每日鼓励每天换一句。心情怎么样点一下，它会换个方式陪你。</p></div>
+      <div class="ui">
+        <div class="tag"><img src="favicon.svg" alt="">每日鼓励</div>
+        <div class="enc" id="enc"><span class="em" id="encE">🌅</span><q id="encQ">今天也是值得被期待的一天。</q><small id="encEn">Today is another day worth looking forward to.</small></div>
+        <div class="row"><button class="chipbtn" type="button" id="encNext">换一句</button><span class="tiny">今天心情怎么样？</span></div>
+        <div class="row" id="moods"></div>
+        <p class="reply" id="moodR" aria-live="polite"></p>
+      </div>
+    </li>
+    <li class="hr">
+      <div><time>08:00</time><h3>今天上什么课，一眼就知道</h3><p>拍一张课表照片就能导入。首页列出今天的课，正在上的那节会亮起来。</p></div>
+      <div class="ui" data-seen>
+        <div class="tag"><img src="favicon.svg" alt="">今天的课</div>
+        <ol class="cls">
+          <li class="now"><time>08:00<br>09:40</time><b>高等数学<small>主楼 A204 · 张老师</small></b><span class="live">正在上</span><span class="bar"><i></i></span></li>
+          <li><time>10:00<br>11:40</time><b>C 语言程序设计<small>实验楼 305</small></b><span class="tiny">还有 2 小时</span></li>
+          <li><time>14:00<br>15:40</time><b>大学英语<small>文科楼 112</small></b><span class="tiny">下午</span></li>
+        </ol>
+      </div>
+    </li>
+    <li class="hr">
+      <div><time>12:10</time><h3>班级墙，比群聊安静</h3><p>老师和班委的通知发在这里，不会被刷走。每条都能评论、点赞，有问题就在下面问。</p></div>
+      <div class="ui">
+        <div class="tag"><img src="favicon.svg" alt="">班级墙</div>
+        <div class="post">
+          <span class="av">王</span>
+          <div class="who"><b>王老师</b><em>老师</em><small>12:06</small></div>
+          <p>下周三下午体测，记得穿运动鞋，带上校园卡。</p>
+          <div class="acts"><button class="like" type="button" id="like" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7-4.4-9.2-9A5 5 0 0 1 12 6a5 5 0 0 1 9.2 5C19 15.6 12 20 12 20z"/></svg><span id="likeN">23</span><span class="burst" id="burst"></span></button><span class="tiny" style="align-self:center">2 条评论</span></div>
+          <div class="cmts" id="cmts"><div><b>小红：</b>几点集合呀？</div><div><b>王老师：</b>两点，体育馆门口。</div></div>
+          <form class="cmtf" id="cmtf"><input id="cmtI" maxlength="40" placeholder="试着写一条评论" aria-label="写评论"><button type="submit">发送</button></form>
+        </div>
+      </div>
+    </li>
+    <li class="hr">
+      <div><time>15:30</time><h3>事情一多，先分个轻重</h3><p>四象限、番茄钟、PDCA、每天六件事，几种时间管理方法都备好了，每种都附了说明。</p></div>
+      <div class="ui">
+        <div class="tag"><img src="favicon.svg" alt="">时间管理</div>
+        <div class="tm">
+          <div class="q4">
+            <div style="--q:#f04438"><h5>重要且紧急</h5><label><input type="checkbox"><span>高数作业</span></label><label><input type="checkbox"><span>交实验报告</span></label></div>
+            <div style="--q:#1e8cff"><h5>重要不紧急</h5><label><input type="checkbox"><span>背四级单词</span></label></div>
+            <div style="--q:#f5a524"><h5>紧急不重要</h5><label><input type="checkbox"><span>交医保材料</span></label></div>
+            <div style="--q:#8a99ad"><h5>不重要不紧急</h5><label><input type="checkbox"><span>整理相册</span></label></div>
+          </div>
+          <div class="pomo" id="pomo">
+            <div class="tw"><svg viewBox="0 0 120 120" aria-hidden="true"><circle class="trk" cx="60" cy="60" r="52" fill="none" stroke-width="10"/><circle class="arc" id="pomoArc" cx="60" cy="60" r="52" fill="none" stroke-width="10" stroke-dasharray="326.7" stroke-dashoffset="0"/></svg>
+              <div><span><strong id="pomoT">25:00</strong><small id="pomoS">一个番茄</small></span></div></div>
+            <button type="button" id="pomoB">开始专注</button>
+          </div>
+        </div>
+      </div>
+    </li>
+    <li class="hr">
+      <div><time>21:30</time><h3>快截止了，它会喊你</h3><p>手机锁着屏也能收到。提前多久提醒，你自己定。</p></div>
+      <div class="ui lock" data-seen>
+        <div class="clk">21:30</div>
+        <div class="dt" id="lockD">10月2日 星期五</div>
+        <div class="nt"><img src="favicon.svg" alt=""><small><span>班级群日历</span><span>现在</span></small><b>国庆离校登记 22:00 截止，还没填哦</b></div>
+        <div class="nt"><img src="favicon.svg" alt=""><small><span>班级群日历</span><span>刚刚</span></small><b>明天 15:00 班会，地点 B302</b></div>
+        <div class="nt"><img src="favicon.svg" alt=""><small><span>班级群日历</span><span>刚刚</span></small><b>高数习题 3.2 还有 2 天截止</b></div>
+      </div>
+    </li>
+    <li class="hr">
+      <div><time>23:00</time><h3>每天一点点，都被记下来</h3><p>做完的作业、坚持的打卡、每天的心情，攒成你的成长足迹。连续的每一天都算数。</p></div>
+      <div class="ui" data-seen>
+        <div class="tag"><img src="favicon.svg" alt="">成长足迹</div>
+        <div class="heat" id="heat"></div>
+        <div class="streak"><strong id="streak">0</strong><span>天连续打卡<br>这学期完成了 46 项作业</span></div>
+      </div>
+    </li>
+  </ol>
+</section>
+
+<section class="get-sec" id="get">
+  <div class="sleepy" aria-hidden="true"><span class="z">Z</span><span class="z">z</span><span class="z">z</span>
+    <svg viewBox="4 4 56 56"><g class="body"><rect x="11" y="17" width="42" height="38" rx="12" fill="#fff" stroke="#0e2240" stroke-width="3.2"/><path d="M11 30 V29 a12 12 0 0 1 12 -12 h18 a12 12 0 0 1 12 12 v1 z" fill="#ff8a3d" stroke="#0e2240" stroke-width="3.2" stroke-linejoin="round"/><rect x="20" y="10" width="5.5" height="12" rx="2.75" fill="#0e2240"/><rect x="38.5" y="10" width="5.5" height="12" rx="2.75" fill="#0e2240"/><path d="M20.5 40 q4 3 8 0 M35.5 40 q4 3 8 0" fill="none" stroke="#0e2240" stroke-width="2.6" stroke-linecap="round"/><ellipse cx="18.5" cy="46" rx="3.2" ry="2" fill="#ff9db5"/><ellipse cx="45.5" cy="46" rx="3.2" ry="2" fill="#ff9db5"/><ellipse cx="32" cy="47.5" rx="2.2" ry="1.8" fill="#0e2240"/></g></svg>
+  </div>
+  <h2>明天的事，<br>交给捞捞记着</h2>
+  <p class="sub">今晚装上，明天早上就能收到第一句鼓励。</p>
+  <div class="panel">
+    <a class="get" data-get href="download/class-calendar.apk" download>
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="arrow"><path d="M12 4v11"/><path d="m7 10 5 5 5-5"/></g><path d="M5 20h14"/></svg>
+      <span class="lbl" data-lbl>下载安卓 App</span>
+    </a>
+    <p class="meta" data-meta>免费，安卓 7.0 及以上都能装</p>
+    <p class="after" data-after aria-live="polite"></p>
+    <p class="ios">苹果手机暂时没有 App。用 Safari 打开<a href="index.html">网页版</a>，点底部的分享按钮，选「添加到主屏幕」，用起来和 App 差不多。</p>
+    <div class="qr" data-qr hidden><img src="download/qr.svg" alt="下载页二维码"><div><b>用手机扫一扫</b><span>手机相机或浏览器扫码<br>打开下载页直接安装</span></div></div>
+  </div>
+
+  <div class="faq" id="faq">
+    <h3>常见问题</h3>
+    <details><summary>安装时提示「未知来源」或「风险应用」怎么办？</summary><p>这是因为 App 不是从应用商店下的，安卓都会这样提醒。按提示点「设置」，允许浏览器（或文件管理）安装应用，再回来点安装就行。华为、小米手机如果开着「纯净模式」，选「继续安装」或「仍然安装」。</p></details>
+    <details><summary>在微信里点下载没反应？</summary><p>微信不让直接下载安装包。点右上角「···」，选「在浏览器打开」，再点下载。QQ 里也一样。</p></details>
+    <details><summary>苹果手机能用吗？</summary><p>暂时没有苹果版 App。用 Safari 打开网页版，点分享，选「添加到主屏幕」，桌面上就会有图标，打开和 App 一样全屏。</p></details>
+    <details><summary>装了 App，网页版还能用吗？数据通不通？</summary><p>能用，是同一个账号。在「我的」里把保存位置选成云端，手机和电脑上的数据会自动同步。</p></details>
+    <details><summary>它会要哪些权限？</summary><p>只要联网、发通知、开机后恢复提醒、振动这几个。不读通讯录，不要定位，不要麦克风。</p></details>
+    <details><summary>怎么更新到新版？</summary><p>有新版本时，App 首页会提示，点一下下载安装就会直接覆盖，原来的数据都在。也可以在「我的」→「安卓 App」里点「检查更新」。</p></details>
+    <details><summary>想在电脑上先试试？</summary><p>在电脑上装一个 MuMu 模拟器，把下载好的安装包拖进模拟器窗口就会自动安装。</p></details>
+  </div>
+</section>
+</main>
+
+<footer class="foot">捞捞队做的。<a href="index.html">打开网页版</a>，或者看看<a href="index.html#intro">功能介绍</a>。</footer>
+
+<div id="wx" role="dialog" aria-label="请在浏览器打开">
+  <svg viewBox="0 0 120 120" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M20 110 C 40 60, 70 40, 104 16"/><path d="M84 14 L106 14 L100 36"/></svg>
+  <p>微信里不能直接下载<br>点右上角 <b>···</b><br>选 <b>在浏览器打开</b></p>
+  <small>点任意位置关闭</small>
+</div>
+
+<script src="get.js?v=1"></script>
+<script src="intro.js?v=1"></script>
+</body>
+</html>

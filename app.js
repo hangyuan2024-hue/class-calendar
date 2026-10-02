@@ -4061,7 +4061,7 @@ function renderAppBox() {
       </div>
       <button class="gi" id="appCheck"><span class="ic">⬆️</span>检查更新<small>当前版本 ${esc(cur)}${appLatest && appLatest.versionCode > AndroidBridge.versionCode() ? ` · <b style="color:var(--red)">有新版本 ${esc(appLatest.versionName)}</b>` : ""}</small></button>`;
   } else if (appLatest) {
-    box.innerHTML = `<a class="gi" href="${esc(appLatest.url)}" download><span class="ic">📱</span><span class="sx"><span class="sxt">下载安卓 App</span><small>版本 ${esc(appLatest.versionName)} · ${(appLatest.size / 1048576).toFixed(1)} MB · 作业到点提醒、拍照导入课表更方便</small></span><span class="btn ink sm">下载</span></a>`;
+    box.innerHTML = `<a class="gi" href="app.html"><span class="ic">📱</span><span class="sx"><span class="sxt">下载安卓 App</span><small>版本 ${esc(appLatest.versionName)} · ${(appLatest.size / 1048576).toFixed(1)} MB · 作业到点提醒、拍照导入课表更方便</small></span><span class="btn ink sm">下载</span></a>`;
   }
 }
 document.addEventListener("change", (e) => {
