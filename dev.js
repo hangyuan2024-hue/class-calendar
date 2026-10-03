@@ -359,25 +359,53 @@ async function draftSha(r) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode((r.code || "") + "\u0001" + (r.app_html || "")));
   return [...new Uint8Array(buf)].map((x) => x.toString(16).padStart(2, "0")).join("");
 }
+// 大文件一次全贴到页面上，浏览器会卡死：只显示前 20 万字，完整文件可以下载下来看
+const VIEW_MAX = 200000;
+const nextFrame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 async function openViewer(id) {
   const d = draftOf(id);
-  const r = (await rest(`plugin_drafts?select=code,app_html&plugin_id=eq.${encodeURIComponent(id)}`))[0] || {};
-  viewing = r;
-  reviewed[id] = await draftSha(r);   // 记下审核时看到的代码指纹，发布时服务器会比对
+  // 先把窗口打开，告诉对方正在读，别让人以为卡住了
+  viewing = null; viewingId = id;
   $("vTitle").textContent = `${d ? d.name + " v" + d.version : id}`;
-  $("vScan").innerHTML = scanHtml(scan(r.code, r.app_html, id)).replace(/class="(\w)"/g, (m, lv) =>
-    `style="color:var(--${lv === "e" ? "red" : lv === "w" ? "orange" : "green"})"`);
+  $("vScan").textContent = ""; $("vMore").hidden = true; $("vPublish").hidden = true;
+  $("vTabCode").disabled = $("vTabHtml").disabled = true;
+  $("vBody").textContent = "正在读取代码…（文件大的话要等一会儿）";
+  $("viewer").classList.add("open");
+  let r;
+  try { r = (await rest(`plugin_drafts?select=code,app_html&plugin_id=eq.${encodeURIComponent(id)}`))[0] || {}; }
+  catch (e) { $("vBody").textContent = "读取失败：" + e.message; return; }
+  if (viewingId !== id) return;   // 读的时候已经关掉或换了别的插件
+  viewing = r;
   $("vTabCode").disabled = r.code == null; $("vTabHtml").disabled = r.app_html == null;
   showCode(r.code != null ? "code" : "html");
+  $("vScan").textContent = "正在体检…";
+  await nextFrame();   // 先让代码显示出来，再做体检和算指纹
+  reviewed[id] = await draftSha(r);   // 记下审核时看到的代码指纹，发布时服务器会比对
+  $("vScan").innerHTML = scanHtml(scan(r.code, r.app_html, id)).replace(/class="(\w)"/g, (m, lv) =>
+    `style="color:var(--${lv === "e" ? "red" : lv === "w" ? "orange" : "green"})"`);
   const canPub = !!document.querySelector(`#reviewList button[data-act=publish][data-id="${CSS.escape(id)}"]`);
   $("vPublish").hidden = !canPub; $("vPublish").dataset.id = id;
-  $("viewer").classList.add("open");
 }
+let viewingId = null, viewingWhich = "code";
 function showCode(which) {
+  if (!viewing) return;
+  viewingWhich = which;
   const txt = which === "code" ? viewing.code : viewing.app_html;
-  $("vBody").textContent = txt == null ? "（没有这个文件）" : txt;
+  const big = txt != null && txt.length > VIEW_MAX;
+  $("vBody").textContent = txt == null ? "（没有这个文件）" : big ? txt.slice(0, VIEW_MAX) + "\n\n……（后面还有，下载完整文件查看）" : txt;
+  $("vMore").hidden = !big;
+  if (big) $("vMoreText").textContent = `这个文件很大（约 ${(txt.length / 10000).toFixed(0)} 万字），为了不卡，这里只显示前 20 万字。`;
   $("vTabCode").classList.toggle("primary", which === "code"); $("vTabHtml").classList.toggle("primary", which === "html");
 }
+$("vDown").onclick = () => {
+  if (!viewing) return;
+  const txt = viewingWhich === "code" ? viewing.code : viewing.app_html;
+  if (txt == null) return;
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([txt], { type: viewingWhich === "code" ? "text/javascript" : "text/html" }));
+  a.download = `${viewingId}-${viewingWhich === "code" ? "plugin.js" : "app.html"}`;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+};
 $("vTabCode").onclick = () => showCode("code");
 $("vPublish").onclick = () => guard($("vPublish"), async () => {
   const id = $("vPublish").dataset.id, d = draftOf(id);
@@ -386,8 +414,9 @@ $("vPublish").onclick = () => guard($("vPublish"), async () => {
   $("viewer").classList.remove("open"); toast("已发布"); await refresh();
 });
 $("vTabHtml").onclick = () => showCode("html");
-$("vClose").onclick = () => $("viewer").classList.remove("open");
-$("viewer").onclick = (e) => { if (e.target.id === "viewer") $("viewer").classList.remove("open"); };
+const closeViewer = () => { $("viewer").classList.remove("open"); viewingId = null; $("vBody").textContent = ""; };
+$("vClose").onclick = closeViewer;
+$("viewer").onclick = (e) => { if (e.target.id === "viewer") closeViewer(); };
 
 // ---------- 启动 ----------
 $("logout").onclick = async () => { await CCAuth.signOut(); location.href = "login.html"; };
