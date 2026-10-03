@@ -9,7 +9,8 @@
     localStorage.setItem(KEY, "1");
     if (localStorage.getItem(KEY) !== "1") return;
     if (used || location.search || location.hash) return;
-    if (/ClassCalendarApp/.test(navigator.userAgent)) return;
+    // 微信、QQ 等 App 里的浏览器和各种爬虫不跳：一打开就自动跳到带下载按钮的页面，容易被微信判成可疑网页
+    if (/ClassCalendarApp|MicroMessenger|\sQQ\/|WeiBo|DingTalk|AlipayClient|bot|spider|crawl|Headless/i.test(navigator.userAgent)) return;
     if (navigator.standalone || (window.matchMedia && matchMedia("(display-mode: standalone)").matches)) return;
     if (window.top !== window.self) return;
     document.documentElement.style.visibility = "hidden";
