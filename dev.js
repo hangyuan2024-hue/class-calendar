@@ -50,6 +50,8 @@ async function loadData() {
   const cols = "id,author_id,author_name,name,icon,description,version,default_on,published_at,created_at";
   plugins = await rest(`plugins?select=${cols}&order=created_at.asc`);
   drafts = await rest("plugin_drafts?select=plugin_id,name,icon,description,version,status,review_note,updated_at&order=updated_at.desc");
+  // 更新说明（数据库还没加这一列时就跳过）
+  try { const notes = await rest("plugin_drafts?select=plugin_id,changelog"); for (const n of notes) { const d = draftOf(n.plugin_id); if (d) d.changelog = n.changelog || ""; } } catch (e) {}
 }
 const draftOf = (id) => drafts.find((d) => d.plugin_id === id);
 const pluginOf = (id) => plugins.find((p) => p.id === id);
@@ -72,6 +74,7 @@ function renderMine() {
     return `<div class="row"><div class="icon">${esc(show.icon || "🧩")}</div>
       <div class="info"><div class="name">${esc(show.name || p.id)} <span class="meta">${esc(p.id)}</span></div>
         <div class="meta">${statusBadges(p)}</div>
+        ${d && d.changelog ? `<div class="note" style="white-space:pre-wrap">v${esc(d.version)} 更新说明：${esc(d.changelog)}</div>` : ""}
         ${d && d.status === "rejected" && d.review_note ? `<div class="note">驳回意见：${esc(d.review_note)}</div>` : ""}</div>
       <div class="ops">
         <button class="small primary" data-act="update" data-id="${esc(p.id)}">上传新版本</button>
@@ -215,7 +218,8 @@ function fillForm(id) {
   const isNew = id === "__new";
   $("idWrap").classList.toggle("hidden", !isNew);
   $("upCode").value = ""; $("upHtml").value = ""; $("checks").innerHTML = "";
-  if (isNew) { $("upId").value = ""; $("upName").value = ""; $("upIcon").value = "🧩"; $("upVersion").value = "1.0.0"; $("upDesc").value = ""; return; }
+  $("upNotes").value = "";
+  if (isNew) { $("upId").value = ""; $("upName").value = ""; $("upIcon").value = "🧩"; $("upVersion").value = "1.0.0"; $("upDesc").value = ""; $("upNotes").value = "第一个版本"; return; }
   const p = pluginOf(id), d = draftOf(id), src = d || p;
   $("upName").value = src.name || ""; $("upIcon").value = src.icon || "🧩"; $("upDesc").value = src.description || "";
   const base = [d && d.version, p && p.version].filter(Boolean).sort(cmpVer).pop();
@@ -254,11 +258,18 @@ $("upForm").onsubmit = (e) => {
     if (checks.some((c) => c[0] === "e")) throw new Error("文件没通过检查，请按上面的红色提示修改");
 
     if (isNew) await rest("plugins", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ id }) });
-    await rest("plugin_drafts?on_conflict=plugin_id", {
-      method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
-      body: JSON.stringify({ plugin_id: id, name, icon, description, version, code, app_html: html }),
+    const notes = $("upNotes").value.trim().slice(0, 1000);
+    const draft = { plugin_id: id, name, icon, description, version, code, app_html: html };
+    const send = (body) => rest("plugin_drafts?on_conflict=plugin_id", {
+      method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(body),
     });
-    toast("已提交，进入测试中");
+    let noteSaved = true;
+    try { await send({ ...draft, changelog: notes }); }
+    catch (err) {
+      if (!/changelog/i.test(err.message)) throw err;
+      await send(draft); noteSaved = false;   // 数据库还没装「更新日志」：先只提交插件
+    }
+    toast(noteSaved ? "已提交，进入测试中" : "已提交，进入测试中（数据库还没装更新日志，这次的说明没保存）");
     await refresh();
     $("upTarget").value = id; fillForm(id);
     $("checks").innerHTML = `<div style="color:var(--sub)">刚才提交的 v${esc(version)} 体检结果：</div>` + scanHtml(checks);

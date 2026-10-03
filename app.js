@@ -2003,12 +2003,26 @@ function enabledSet() {
 const isStaff = () => CCAuth.can(currentUser, "try_testing");
 const hasBackend = () => !!(currentUser && currentUser.perms && currentUser.perms.length);
 
+// ---------- 工具列表 ----------
+// 打开网页时：只用顺带拿到的列表（app_bootstrap 里就有）或上次存下的，不为工具多发请求；
+// 装过的工具代码存在这台设备上，直接从本机运行；只有第一次添加、或点「更新」时才下载。
+// 打开「工具」页时才去后台看看有没有新工具、有没有更新。
+const LS_PLUGIN_REG = "plugin_registry_v1";
+let regFetchedAt = 0, regLoading = null, regError = "", regShownAt = 0;
+const clogCache = {};        // 插件 id → 更新日志
+const openClogs = new Set();  // 展开着的「更新日志」
+const verNewer = (a, b) => {
+  const x = String(a || "0").split(".").map((n) => parseInt(n, 10) || 0), y = String(b || "0").split(".").map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); }
+  return false;
+};
+const idle = () => new Promise((r) => (window.requestIdleCallback ? requestIdleCallback(() => r(), { timeout: 1500 }) : setTimeout(r, 300)));
+const pubList = (rows) => (rows || []).filter((p) => p.published_at).map((p) => ({ ...p, key: p.id, ns: p.id, channel: "published" }));
+
 async function fetchRegistry() {
   const cols = "id,name,icon,description,version,author_name,default_on,published_at";
-  // 普通同学用打开网页时一起拿到的列表；开发者、测试员要看到未发布的插件，单独请求
-  const pre = takeBoot("plugins");
-  const rows = (!isStaff() && pre) || await CCAuth.rest(`plugins?select=${cols}&order=created_at.asc`);
-  const list = rows.filter((p) => p.published_at).map((p) => ({ ...p, key: p.id, ns: p.id, channel: "published" }));
+  const rows = await CCAuth.rest(`plugins?select=${cols}&order=created_at.asc`);
+  const list = pubList(rows);
   if (isStaff()) {
     // 测试中的版本单独列出、单独开启，不会悄悄替换掉已经开着的正式版
     const drafts = await CCAuth.rest("plugin_drafts?select=plugin_id,name,icon,description,version,status&status=eq.testing");
@@ -2021,13 +2035,13 @@ async function fetchRegistry() {
   return list;
 }
 
+// 下载一个工具的代码（正式版存到本机，以后直接用）
 async function fetchCode(meta, cache) {
   if (meta.channel === "published") {
-    const c = cache[meta.id];
-    if (c && c.version === meta.version) { c.checkedAt = Date.now(); return c; }
     const r = (await CCAuth.rest(`plugins?select=code,app_html,version&id=eq.${encodeURIComponent(meta.id)}`))[0];
-    if (!r) throw new Error("插件内容读取失败");
-    cache[meta.id] = { version: meta.version, code: r.code, app_html: r.app_html, meta: { ...meta }, checkedAt: Date.now() };
+    if (!r) throw new Error("工具内容读取失败");
+    cache[meta.id] = { version: r.version || meta.version, code: r.code, app_html: r.app_html, meta: { ...meta, version: r.version || meta.version }, checkedAt: Date.now() };
+    try { save(LS_PLUGIN_CACHE, cache); } catch (e) { console.warn("本机空间不足，工具代码没存下", e); }
     return cache[meta.id];
   }
   const r = (await CCAuth.rest(`plugin_drafts?select=code,app_html&plugin_id=eq.${encodeURIComponent(meta.id)}`))[0];
@@ -2047,69 +2061,156 @@ async function runPlugin(meta, code, html) {
     addPluginTab({ key: meta.key, meta, appOnly: true }, "main", `${meta.icon || "🧩"} ${meta.name}`);
     st.loaded = true;
   }
+  st.running = true;
 }
 
 async function loadPlugins() {
   const cache = load(LS_PLUGIN_CACHE, {});
-  let offline = false;
-  try {
-    currentUser = await CCAuth.me();
-    renderUserChip();
-    registry = await fetchRegistry();
-    registry = await ck().injectBuiltin(registry);
-  } catch (e) {
-    offline = true;
-    // 没网时只用最近 7 天内确认过仍在上架的缓存
-    const fresh = Date.now() - PLUGIN_CACHE_DAYS * 86400000;
-    registry = Object.values(cache).filter((c) => c && c.meta && (c.checkedAt || 0) > fresh).map((c) => ({ ...c.meta, key: c.meta.id, ns: c.meta.id, channel: "published" }));
-    showBanner("插件商店连接失败" + (registry.length ? "，正在使用本机缓存的插件" : "") + "：" + e.message);
-    registry = await ck().injectBuiltin(registry);
+  try { currentUser = await CCAuth.me(); renderUserChip(); } catch (e) {}
+  const pre = takeBoot("plugins");
+  let list;
+  if (pre) { list = pubList(pre); save(LS_PLUGIN_REG, { at: Date.now(), list }); }
+  else {
+    const saved = load(LS_PLUGIN_REG, null);
+    list = (saved && saved.list) || Object.values(cache).filter((c) => c && c.meta).map((c) => ({ ...c.meta, key: c.meta.id, ns: c.meta.id, channel: "published" }));
   }
+  registry = await ck().injectBuiltin(list);
+  for (const meta of registry) pluginState[meta.key] = pluginState[meta.key] || { meta, loaded: false, error: "" };
+  renderStore();
+  await idle();   // 先让页面画好，再启动工具
   const on = enabledSet();
+  // 开发者、测试员开着测试版时，才需要联网拿测试版列表
+  if (isStaff() && [...on].some((k) => k.endsWith("@test"))) await refreshRegistry(true);
   for (const meta of registry) {
-    pluginState[meta.key] = { meta, loaded: false, error: "" };
     if (!on.has(meta.key) && meta.channel !== "builtin") continue;
+    const st = pluginState[meta.key]; if (st.running) continue;
     try {
-      const r = meta.channel === "builtin" ? await ck().loadBuiltin() : offline ? cache[meta.id] : await fetchCode(meta, cache);
+      let r;
+      if (meta.channel === "builtin") r = await ck().loadBuiltin();
+      else if (meta.channel === "published") r = cache[meta.id] || await fetchCode(meta, cache);   // 本机有就直接用，第一次才下载
+      else r = await fetchCode(meta, cache);
       await runPlugin(meta, r.code, r.app_html);
-    } catch (e) { pluginState[meta.key].error = e.message; }
-  }
-  if (!offline) {
-    // 清理已下架插件的缓存
-    const live = new Set(registry.filter((p) => p.channel === "published").map((p) => p.id));
-    for (const id of Object.keys(cache)) if (!live.has(id)) delete cache[id];
-    try { save(LS_PLUGIN_CACHE, cache); } catch (e) { console.warn("插件缓存空间不足", e); }
+    } catch (e) { st.error = e.message; }
   }
   renderStore();
 }
 
+// 打开「工具」页时：去后台看看有没有新工具、装过的有没有更新（5 分钟内看过就不再看）
+function refreshRegistry(force) {
+  if (regLoading) return regLoading;
+  if (!force && Date.now() - regFetchedAt < 300000) return Promise.resolve();
+  regLoading = (async () => {
+    regError = ""; renderStore();
+    try {
+      const list = await fetchRegistry();
+      registry = await ck().injectBuiltin(list);
+      for (const meta of registry) { const st = pluginState[meta.key]; if (st) st.meta = meta; else pluginState[meta.key] = { meta, loaded: false, error: "" }; }
+      regFetchedAt = regShownAt = Date.now();
+      save(LS_PLUGIN_REG, { at: regShownAt, list: list.filter((p) => p.channel === "published") });
+      // 已经下架的工具：删掉本机存的代码
+      const cache = load(LS_PLUGIN_CACHE, {}), live = new Set(list.filter((p) => p.channel === "published").map((p) => p.id));
+      let changed = false;
+      for (const id of Object.keys(cache)) if (!live.has(id)) { delete cache[id]; changed = true; }
+      if (changed) save(LS_PLUGIN_CACHE, cache);
+      // 有更新的，顺便把这次的更新说明拿来
+      const on = enabledSet();
+      registry.filter((p) => p.channel === "published" && on.has(p.key) && cache[p.id] && verNewer(p.version, cache[p.id].version)).forEach((p) => loadClog(p.id));
+    } catch (e) { regError = e.message || "网络连接失败"; }
+    finally { regLoading = null; renderStore(); }
+  })();
+  return regLoading;
+}
+
+async function loadClog(id) {
+  if (clogCache[id]) return clogCache[id];
+  try { const r = await CCAuth.rpc("plugin_changelog", { pid: id }); clogCache[id] = Array.isArray(r) ? r : []; }
+  catch (e) { clogCache[id] = { error: true }; }
+  renderStore();
+  return clogCache[id];
+}
+const fmtDay = (t) => { const d = new Date(t); return isNaN(d) ? "" : `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`; };
+function clogHtml(id, onlyNewerThan) {
+  const c = clogCache[id];
+  if (!c) return `<div class="clog-empty">正在读取…</div>`;
+  if (c.error) return `<div class="clog-empty">暂时看不到更新日志</div>`;
+  const list = onlyNewerThan ? c.filter((x) => verNewer(x.version, onlyNewerThan)) : c;
+  if (!list.length) return `<div class="clog-empty">${onlyNewerThan ? "作者没写这次更新了什么" : "还没有更新日志"}</div>`;
+  return list.map((x) => `<div class="clog-row"><b>v${esc(x.version || "")}</b><span>${esc(fmtDay(x.at))}</span><p>${esc(x.notes || "（作者没写说明）")}</p></div>`).join("");
+}
+
 function renderStore() {
-  const on = enabledSet();
-  const staffTip = isStaff() ? `<div class="desc" style="color:var(--sub);font-size:12px;margin-bottom:8px">你可以试用「测试中」的版本。<a href="dev.html">进入插件后台 →</a></div>` : "";
-  $("storeList").innerHTML = staffTip + (registry.length ? registry.map((p) => {
+  const box = $("storeList"); if (!box) return;
+  const on = enabledSet(), cache = load(LS_PLUGIN_CACHE, {});
+  const staffTip = isStaff() ? `<div class="desc" style="color:var(--sub);font-size:12px;margin:8px 0">你可以试用「测试中」的版本。<a href="dev.html">进入插件后台 →</a></div>` : "";
+  const t = regShownAt ? new Date(regShownAt) : null;
+  const status = regLoading ? `<div class="store-status">正在看看有没有新工具和更新…</div>`
+    : regError ? `<div class="store-status err">连不上服务器，下面是上次看到的列表。<button class="small" data-reg-retry>重试</button></div>`
+    : t ? `<div class="store-status">${t.getHours()}:${String(t.getMinutes()).padStart(2, "0")} 检查过 · <button class="linkish" data-reg-retry>再检查一次</button></div>` : "";
+  const items = registry.map((p) => {
     const st = pluginState[p.key] || {};
-    const isOn = on.has(p.key);
-    const testing = p.channel === "testing";
+    const isOn = on.has(p.key), testing = p.channel === "testing", builtin = p.channel === "builtin";
+    const local = p.channel === "published" ? cache[p.id] : null;
+    const upd = isOn && local && verNewer(p.version, local.version);
+    const ver = local && isOn ? local.version : p.version;
+    let btn;
+    if (builtin) btn = `<span class="tag">内置</span>`;
+    else if (st.busy) btn = `<button class="small" disabled>${esc(st.busy)}</button>`;
+    else if (upd) btn = `<div class="store-btns"><button class="primary small" data-plugin-upd="${esc(p.key)}">更新</button><button class="small" data-plugin="${esc(p.key)}">移除</button></div>`;
+    else btn = `<button class="${isOn ? "" : "primary"} small" data-plugin="${esc(p.key)}">${isOn ? "移除" : "添加"}</button>`;
     return `<div class="store-item">
       <div class="icon">${esc(p.icon || "🧩")}</div>
-      <div class="info"><div class="name">${esc(p.name)} <span class="tag">v${esc(p.version || "1")}</span>
+      <div class="info"><div class="name">${esc(p.name)} <span class="tag">v${esc(ver || "1")}</span>
+          ${isOn && !builtin && !testing ? `<span class="tag ok">已添加</span>` : ""}
           ${testing ? `<span class="tag" style="color:#ff9500;border-color:#ff9500">测试中${p.liveVersion ? "（线上 v" + esc(p.liveVersion) + "）" : "（未上线）"}</span>` : ""}</div>
         <div class="desc">${esc(p.description || "")}</div>
         <div class="by">作者：${esc(p.author_name || "未知")}</div>
+        ${upd ? `<div class="upd"><b>有新版本 v${esc(p.version)}</b>（你现在是 v${esc(local.version)}）${clogHtml(p.id, local.version)}</div>` : ""}
+        ${p.channel === "published" ? `<details class="clog" data-clog="${esc(p.id)}"${openClogs.has(p.id) ? " open" : ""}><summary>更新日志</summary>${openClogs.has(p.id) ? clogHtml(p.id) : ""}</details>` : ""}
         ${st.error ? `<div class="err">出错：${esc(st.error)}</div>` : ""}</div>
-      ${p.channel === "builtin" ? `<span class="tag">内置</span>` : `<button class="${isOn ? "" : "primary"} small" data-plugin="${esc(p.key)}">${isOn ? "关闭" : "启用"}</button>`}
+      ${btn}
     </div>`;
-  }).join("") : `<div class="empty">暂时没有插件</div>`);
+  }).join("");
+  box.innerHTML = status + staffTip + (items || `<div class="empty">${regLoading ? "正在读取…" : "暂时没有可以添加的工具"}</div>`);
 }
+$("storeList").addEventListener("toggle", (e) => {
+  const d = e.target.closest && e.target.closest("details[data-clog]"); if (!d) return;
+  const id = d.dataset.clog;
+  if (d.open) { openClogs.add(id); if (!clogCache[id]) { d.insertAdjacentHTML("beforeend", clogHtml(id)); loadClog(id); } else if (!d.querySelector(".clog-row, .clog-empty")) d.insertAdjacentHTML("beforeend", clogHtml(id)); }
+  else openClogs.delete(id);
+}, true);
 
-$("storeList").onclick = (e) => {
+$("storeList").onclick = async (e) => {
+  if (e.target.closest("[data-reg-retry]")) { refreshRegistry(true); return; }
+  const ub = e.target.closest("button[data-plugin-upd]");
+  if (ub) {   // 更新：下载新版存到本机，刷新一下页面换上
+    const meta = registry.find((p) => p.key === ub.dataset.pluginUpd); if (!meta) return;
+    const st = pluginState[meta.key]; st.busy = "下载中…"; renderStore();
+    try { await fetchCode(meta, load(LS_PLUGIN_CACHE, {})); location.hash = "store"; location.reload(); }
+    catch (err) { st.busy = ""; st.error = "更新失败：" + err.message; renderStore(); }
+    return;
+  }
   const b = e.target.closest("button[data-plugin]"); if (!b) return;
   const on = enabledSet(); const id = b.dataset.plugin;
-  const meta = registry.find((p) => p.key === id);
-  if (!on.has(id) && meta && meta.channel === "testing" && !confirm(`「${meta.name}」v${meta.version} 还在测试中，没有经过审核。\n它在隔离环境里运行，拿不到你的登录信息，但可能有 bug。确定开启吗？`)) return;
-  on.has(id) ? on.delete(id) : on.add(id);
-  save(LS_PLUGINS, [...on]);
-  location.hash = "store"; location.reload();
+  const meta = registry.find((p) => p.key === id); if (!meta) return;
+  if (on.has(id)) {   // 移除：关掉，删掉本机存的代码（工具里存的数据留着，以后再添加还在）
+    if (!confirm(`移除「${meta.name}」？\n它保存的数据会留在这台设备上，以后再添加还能看到。`)) return;
+    on.delete(id); save(LS_PLUGINS, [...on]);
+    if (meta.channel === "published") { const cache = load(LS_PLUGIN_CACHE, {}); delete cache[meta.id]; save(LS_PLUGIN_CACHE, cache); }
+    location.hash = "store"; location.reload();
+    return;
+  }
+  if (meta.channel === "testing" && !confirm(`「${meta.name}」v${meta.version} 还在测试中，没有经过审核。\n它在隔离环境里运行，拿不到你的登录信息，但可能有 bug。确定开启吗？`)) return;
+  // 添加：现在才下载，下载完马上能用，不用刷新页面
+  const st = pluginState[meta.key] || (pluginState[meta.key] = { meta, loaded: false, error: "" });
+  st.busy = "下载中…"; st.error = ""; renderStore();
+  try {
+    const r = await fetchCode(meta, load(LS_PLUGIN_CACHE, {}));
+    on.add(id); save(LS_PLUGINS, [...on]);
+    st.busy = "";
+    if (!st.running) await runPlugin(meta, r.code, r.app_html);
+    renderTools();
+  } catch (err) { st.busy = ""; st.error = "下载失败：" + err.message; }
+  renderStore();
 };
 
 // ===== 登录状态 =====
@@ -2203,7 +2304,7 @@ function renderTools() {
     return `<div class="tool"><button class="tool" style="padding:0" data-tab="${esc(t.view)}"><span class="ti">${esc(t.icon)}</span>${esc(t.name)}</button>
       ${where ? `<span class="tbadge">${where}</span>` : ""}
       <button class="tplace" data-place="${esc(t.id)}" aria-label="设置「${esc(t.name)}」放在哪里" title="放在哪里">⋯</button></div>`;
-  }).join("") + `<button class="tool" data-tab="store"><span class="ti">🛍️</span>插件商店</button>`;
+  }).join("") + `<button class="tool" data-tab="store"><span class="ti">＋</span>添加工具</button>`;
   renderTabs(); renderWidgets();
 }
 document.addEventListener("click", (e) => {
@@ -2214,6 +2315,7 @@ document.addEventListener("click", (e) => {
 function showView(id) {
   let scrollStore = false;
   if (id === "store") { id = "tools"; scrollStore = true; }
+  if (id === "tools") refreshRegistry();
   if (!document.querySelector(`.view[data-view="${CSS.escape(id)}"]`)) id = "home";
   if (!viewOn(id)) { const k = id.startsWith("p_") ? "tools" : VIEW_FEAT[id]; showBanner(`「${FEAT_NAME[k] || id}」暂时用不了：${featWhy(k) || "已关闭"}`); setTimeout(() => showBanner(""), 3500); id = "home"; }
   const prev = currentView();

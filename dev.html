@@ -106,7 +106,10 @@
         <label class="f">名称 <input id="upName" maxlength="30" placeholder="如 学习日志"></label>
         <label class="f">图标（一个 emoji） <input id="upIcon" maxlength="8" value="🧩"></label>
         <label class="f">版本号 <input id="upVersion" placeholder="1.0.0" maxlength="20"></label>
-        <label class="f">一句话介绍 <input id="upDesc" maxlength="200" placeholder="显示在插件商店里"></label>
+        <label class="f">一句话介绍 <input id="upDesc" maxlength="200" placeholder="显示在「工具 → 添加工具」里"></label>
+        <label class="f" style="grid-column:1/-1">这次更新了什么（同学们在「更新日志」里能看到）
+          <textarea id="upNotes" maxlength="1000" rows="3" style="width:100%;font:inherit;padding:8px 10px;border:1px solid var(--line, #ddd);border-radius:10px;resize:vertical" placeholder="比如：修复了周末不显示的问题；新增了导出功能"></textarea>
+        </label>
         <label class="f">plugin.js（用接口写的插件，可选）
           <input type="file" id="upCode" accept=".js,text/javascript">
         </label>
@@ -178,6 +181,6 @@
 
 <script src="config.js"></script>
 <script src="auth.js"></script>
-<script src="dev.js?v=20261002b"></script>
+<script src="dev.js?v=20261004a"></script>
 </body>
 </html>

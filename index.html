@@ -507,6 +507,17 @@
   .store-item .name { font-weight: 700; }
   .store-item .desc, .store-item .by { color: var(--sub); font-size: 12.5px; margin-top: 2px; }
   .store-item .err { color: var(--red); font-size: 12px; margin-top: 2px; }
+  .store-item .tag.ok { color: var(--green); border-color: color-mix(in srgb, var(--green) 50%, transparent); }
+  .store-btns { display: flex; flex-direction: column; gap: 6px; }
+  .store-status { font-size: 12.5px; color: var(--sub); padding: 10px 0 2px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .store-status.err { color: var(--red); }
+  .store-status .linkish { padding: 0; font-size: 12.5px; }
+  .store-item .upd { margin-top: 8px; padding: 8px 10px; border-radius: 12px; background: color-mix(in srgb, var(--accent) 9%, transparent); font-size: 12.5px; }
+  .store-item .clog { margin-top: 6px; font-size: 12.5px; }
+  .store-item .clog summary { cursor: pointer; color: var(--accent); font-weight: 600; width: max-content; }
+  .clog-row { margin-top: 6px; } .clog-row b { margin-right: 6px; } .clog-row span { color: var(--sub); font-size: 12px; }
+  .clog-row p { margin: 2px 0 0; white-space: pre-wrap; line-height: 1.55; }
+  .clog-empty { color: var(--sub); margin-top: 6px; }
   .panel { margin: 10px 16px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); box-shadow: var(--shadow); padding: 16px; }
   .panel h2 { margin: 0 0 12px; font-size: 18px; }
   .panel input, .panel select, .panel textarea { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); }
@@ -1622,7 +1633,7 @@
       <button class="qbtn" id="qPomo"><span class="qi">🍅</span>番茄专注</button>
       <button class="qbtn hidden" id="qCourse"><span class="qi">📚</span>课程表</button>
       <button class="qbtn hidden" id="qPeople" data-tab="people"><span class="qi">👥</span>班级成员</button>
-      <button class="qbtn" id="qStore" data-tab="store"><span class="qi">🛍️</span>插件商店</button>
+      <button class="qbtn" id="qStore" data-tab="store"><span class="qi">🧰</span>添加工具</button>
       <button class="qbtn" id="qCal"><span class="qi">📲</span>加到日历</button>
       <button class="qbtn" id="qTools" data-tab="tools"><span class="qi">🧩</span>全部工具</button>
       <button class="qbtn" id="qIntro" data-tab="intro"><span class="qi">📖</span>功能介绍</button>
@@ -1788,11 +1799,11 @@
 
   <!-- 工具 -->
   <section class="view" data-view="tools">
-    <header class="vhead"><button class="av mavatar" data-tab="me" aria-label="我的"></button><h2>工具</h2><span class="spacer"></span><button class="btn ink sm" data-tab="store">🛍️ 插件商店</button></header>
-    <div class="sec-h" style="margin-top:6px"><b>已启用</b><span>在插件商店里打开的功能会出现在这里</span></div>
+    <header class="vhead"><button class="av mavatar" data-tab="me" aria-label="我的"></button><h2>工具</h2><span class="spacer"></span><button class="btn ink sm" data-tab="store">＋ 添加工具</button></header>
+    <div class="sec-h" style="margin-top:6px"><b>我的工具</b><span>添加过的工具都在这里，点「⋯」可以放到首页或侧栏</span></div>
     <div id="toolGrid" class="tool-grid"></div>
-    <div class="sec-h" id="storeAnchor"><b>插件商店</b><span>设置只保存在这台设备上，切换后自动刷新</span></div>
-    <div id="storeWrap" class="surface"><div id="storeList">加载中…</div></div>
+    <div class="sec-h" id="storeAnchor"><b>添加工具</b><span>用到时才下载到这台设备上，以后打开直接用，不用每次加载</span></div>
+    <div id="storeWrap" class="surface"><div id="storeList"><div class="store-status">正在读取…</div></div></div>
   </section>
 
   <!-- 我的 -->
@@ -2162,7 +2173,7 @@
 <script src="auth.js?v=20261003b"></script>
 <script src="parse.js"></script>
 <script src="courses.js?v=20261002h"></script>
-<script src="app.js?v=20261004d"></script>
+<script src="app.js?v=20261004e"></script>
 </body>
 </html>
 </body>
