@@ -2152,10 +2152,14 @@ async function wipeLocalData(all) {
 }
 $("logoutBtn").onclick = async () => {
   const all = confirm("退出登录。\n\n要不要同时清除这台设备上的个人数据（我的事项、打卡、日记等）？\n在公共电脑、别人的手机上请点「确定」；自己的设备点「取消」。");
-  try { await Sync.finish(); } catch (e) {}
-  await CCAuth.signOut();
-  await wipeLocalData(all);
-  location.reload();
+  const btn = $("logoutBtn"); btn.disabled = true; btn.textContent = "正在退出…";
+  // 每一步最多等几秒：网络卡住也不会停在这里，一定能退出并回到登录页
+  const cap = (p, ms) => Promise.race([Promise.resolve().then(() => p).catch(() => {}), new Promise((r) => setTimeout(r, ms))]);
+  await cap(Sync.finish(), 3000);
+  await cap(CCAuth.signOut(), 4000);
+  try { localStorage.removeItem("cc_session_v1"); } catch (e) {}
+  await cap(wipeLocalData(all), 3000);
+  location.replace(inApp() ? "login.html?next=index.html" : "app.html");
 };
 $("userChip").onclick = () => { if (currentUser) showView("me"); else location.href = "login.html?next=index.html"; };
 

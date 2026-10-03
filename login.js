@@ -121,9 +121,7 @@ document.querySelectorAll("[data-eye]").forEach((b) => b.onclick = () => {
 
 async function afterLogin(isNew) {
   const me = await CCAuth.me();
-  let dest = "index.html";
-  if (me && me.role === "teacher") dest = "class.html";
-  else if (me && ["admin", "developer", "tester"].includes(me.role)) dest = "dev.html";
+  const dest = "index.html";   // 不管什么身份，登录后都先到主页面（插件后台、班级管理在「我的」里进）
   if (isNew) return onboard(me);
   location.href = safeNext || dest;
 }
@@ -181,7 +179,7 @@ async function onboard(me) {
   const s = await CCAuth.session();
   const g = (document.querySelector("input[name=gender]:checked") || {}).value || "m";
   const cfg = OB[g];
-  ob = { step: 0, g, cfg, me, dest: safeNext || (me && me.role === "teacher" ? "class.html" : me && ["admin", "developer", "tester"].includes(me.role) ? "dev.html" : "index.html"), uid: s && s.user_id, name: (me && me.display_name) || $("name").value.trim() || "同学",
+  ob = { step: 0, g, cfg, me, dest: safeNext || "index.html", uid: s && s.user_id, name: (me && me.display_name) || $("name").value.trim() || "同学",
     teacher: !!(me && me.role === "teacher"), skin: cfg.skin, pal: cfg.pal, habits: new Set([cfg.habits[0][1], cfg.habits[1][1]]), sync: "cloud" };
   setGender(g);
   $("ob").classList.remove("hidden");
