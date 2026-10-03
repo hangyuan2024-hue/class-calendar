@@ -4,6 +4,6 @@
   // 没登录、从这里点去网页版（「打开网页版」「不登录，先逛逛」等）：记下来，网页版就不会再把你送回这里
   document.addEventListener("click", function (e) {
     var a = e.target.closest && e.target.closest('a[href^="index.html"]');
-    if (a) try { localStorage.setItem("cc_guest_v1", "1"); } catch (e2) {}
+    if (a) try { sessionStorage.setItem("cc_guest_v1", "1"); } catch (e2) {}
   }, true);
 })();
