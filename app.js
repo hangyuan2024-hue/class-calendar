@@ -1754,7 +1754,24 @@ function syncJump() { $("jumpDate").value = selectedKey; }
 // 安全：插件一律在「隔离间」sandbox.html 里运行（sandbox 不带 allow-same-origin），
 //      拿不到登录信息、读不到主页面的存储、调不了数据库；和主页面只通过 postMessage 交换数据，主页面逐项检查。
 const LS_PLUGINS = "plugins_enabled_v1";
-const LS_PLUGIN_CACHE = "plugin_cache_v1";   // 已发布插件的代码缓存，没网时也能用（最多 7 天）
+const LS_PLUGIN_CACHE = "plugin_cache_v1";   // 已下载工具的清单（版本号等）；代码本身放在 IndexedDB 里，多大都能存
+// 工具代码存在这台设备的 IndexedDB 里（容量比 localStorage 大得多，工具文件不限大小）；没有 IndexedDB 时退回 localStorage
+const PCODE = (() => {
+  let dbp = null;
+  const open = () => dbp || (dbp = new Promise((res) => {
+    try {
+      const r = indexedDB.open("cc_plugin_code", 1);
+      r.onupgradeneeded = () => r.result.createObjectStore("code");
+      r.onsuccess = () => res(r.result); r.onerror = () => res(null); r.onblocked = () => res(null);
+    } catch (e) { res(null); }
+  }));
+  const req = (db, mode, fn) => new Promise((res) => { try { const q = fn(db.transaction("code", mode).objectStore("code")); q.onsuccess = () => res(q.result); q.onerror = () => res(undefined); } catch (e) { res(undefined); } });
+  return {
+    async get(id) { const db = await open(); if (!db) { try { return JSON.parse(localStorage.getItem("pcode:" + id)); } catch (e) { return null; } } return (await req(db, "readonly", (s) => s.get(id))) || null; },
+    async put(id, v) { const db = await open(); if (!db) { try { localStorage.setItem("pcode:" + id, JSON.stringify(v)); return true; } catch (e) { return false; } } return (await req(db, "readwrite", (s) => s.put(v, id))) !== undefined; },
+    async del(id) { const db = await open(); if (!db) { localStorage.removeItem("pcode:" + id); return; } await req(db, "readwrite", (s) => s.delete(id)); },
+  };
+})();
 const PLUGIN_CACHE_DAYS = 7;
 const pluginState = {};          // key -> { meta, loaded, error, code, html }
 const pluginTabs = [];           // { id, title, icon, plugin, el }
@@ -2040,9 +2057,12 @@ async function fetchCode(meta, cache) {
   if (meta.channel === "published") {
     const r = (await CCAuth.rest(`plugins?select=code,app_html,version&id=eq.${encodeURIComponent(meta.id)}`))[0];
     if (!r) throw new Error("工具内容读取失败");
-    cache[meta.id] = { version: r.version || meta.version, code: r.code, app_html: r.app_html, meta: { ...meta, version: r.version || meta.version }, checkedAt: Date.now() };
-    try { save(LS_PLUGIN_CACHE, cache); } catch (e) { console.warn("本机空间不足，工具代码没存下", e); }
-    return cache[meta.id];
+    const v = r.version || meta.version, body = { code: r.code, app_html: r.app_html, version: v };
+    if (await PCODE.put(meta.id, body)) {
+      cache[meta.id] = { version: v, meta: { ...meta, version: v }, checkedAt: Date.now() };
+      try { save(LS_PLUGIN_CACHE, cache); } catch (e) {}
+    } else console.warn("本机空间不足，工具代码没存下，下次打开会重新下载");
+    return body;
   }
   const r = (await CCAuth.rest(`plugin_drafts?select=code,app_html&plugin_id=eq.${encodeURIComponent(meta.id)}`))[0];
   if (!r) throw new Error("测试版读取失败");
@@ -2066,6 +2086,12 @@ async function runPlugin(meta, code, html) {
 
 async function loadPlugins() {
   const cache = load(LS_PLUGIN_CACHE, {});
+  // 以前代码直接存在 localStorage 清单里：搬到 IndexedDB，清单只留版本号
+  let moved = false;
+  for (const [id, c] of Object.entries(cache)) {
+    if (c && (c.code != null || c.app_html != null)) { await PCODE.put(id, { code: c.code, app_html: c.app_html, version: c.version }); delete c.code; delete c.app_html; moved = true; }
+  }
+  if (moved) try { save(LS_PLUGIN_CACHE, cache); } catch (e) {}
   try { currentUser = await CCAuth.me(); renderUserChip(); } catch (e) {}
   const pre = takeBoot("plugins");
   let list;
@@ -2087,7 +2113,7 @@ async function loadPlugins() {
     try {
       let r;
       if (meta.channel === "builtin") r = await ck().loadBuiltin();
-      else if (meta.channel === "published") r = cache[meta.id] || await fetchCode(meta, cache);   // 本机有就直接用，第一次才下载
+      else if (meta.channel === "published") r = (cache[meta.id] && await PCODE.get(meta.id)) || await fetchCode(meta, cache);   // 本机有就直接用，第一次才下载
       else r = await fetchCode(meta, cache);
       await runPlugin(meta, r.code, r.app_html);
     } catch (e) { st.error = e.message; }
@@ -2110,7 +2136,7 @@ function refreshRegistry(force) {
       // 已经下架的工具：删掉本机存的代码
       const cache = load(LS_PLUGIN_CACHE, {}), live = new Set(list.filter((p) => p.channel === "published").map((p) => p.id));
       let changed = false;
-      for (const id of Object.keys(cache)) if (!live.has(id)) { delete cache[id]; changed = true; }
+      for (const id of Object.keys(cache)) if (!live.has(id)) { delete cache[id]; PCODE.del(id); changed = true; }
       if (changed) save(LS_PLUGIN_CACHE, cache);
       // 有更新的，顺便把这次的更新说明拿来
       const on = enabledSet();
@@ -2195,7 +2221,7 @@ $("storeList").onclick = async (e) => {
   if (on.has(id)) {   // 移除：关掉，删掉本机存的代码（工具里存的数据留着，以后再添加还在）
     if (!confirm(`移除「${meta.name}」？\n它保存的数据会留在这台设备上，以后再添加还能看到。`)) return;
     on.delete(id); save(LS_PLUGINS, [...on]);
-    if (meta.channel === "published") { const cache = load(LS_PLUGIN_CACHE, {}); delete cache[meta.id]; save(LS_PLUGIN_CACHE, cache); }
+    if (meta.channel === "published") { const cache = load(LS_PLUGIN_CACHE, {}); delete cache[meta.id]; save(LS_PLUGIN_CACHE, cache); await PCODE.del(meta.id); }
     location.hash = "store"; location.reload();
     return;
   }
@@ -2248,7 +2274,7 @@ async function wipeLocalData(all) {
   try { sessionStorage.clear(); } catch (e) {}
   if (all) {
     await PFS.wipeAll();
-    for (const n of ["cc_plugin_fs", "personal_diary_db"]) { try { indexedDB.deleteDatabase(n); } catch (e) {} }
+    for (const n of ["cc_plugin_fs", "personal_diary_db", "cc_plugin_code"]) { try { indexedDB.deleteDatabase(n); } catch (e) {} }
   }
 }
 $("logoutBtn").onclick = async () => {

@@ -38,8 +38,9 @@ function scan(code, html, id) {
   const keys = [...all.matchAll(/localStorage\.(?:setItem|getItem)\(\s*["'`]([^"'`]+)["'`]/g)].map((m) => m[1])
     .filter((k) => !/^(personal_|plg_)/.test(k));
   if (keys.length) out.push(["w", "本地存储键没有用 personal_ 前缀：" + [...new Set(keys)].slice(0, 5).join("、")]);
-  if (code != null && code.length > 1048576) out.push(["e", "plugin.js 超过 1MB"]);
-  if (html != null && html.length > 3 * 1048576) out.push(["e", "app.html 超过 3MB"]);
+  // 文件大小不限；比较大时提醒一下：同学们第一次添加要多等一会儿（之后存在本机，不再下载）
+  const mb = ((code || "").length + (html || "").length) / 1048576;
+  if (mb > 3) out.push(["w", `文件一共约 ${mb.toFixed(1)} MB，比较大：同学们第一次添加时要多等一会儿（之后存在本机，不用再下载）`]);
   if (!out.some((x) => x[0] !== "o")) out.push(["o", "没有发现问题"]);
   return out;
 }
