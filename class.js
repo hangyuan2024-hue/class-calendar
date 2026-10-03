@@ -151,7 +151,7 @@ document.addEventListener("click", (e) => {
   const b = e.target.closest("button[data-act]"); if (!b) return;
   const act = b.dataset.act;
   if (act === "copy") {
-    const text = `请用班级群日历加入「${b.dataset.name}」：打开 ${location.origin}${location.pathname.replace(/[^/]*$/, "")}login.html 注册（选“学生”，填真实姓名），然后在「我的班级」输入班级码 ${b.dataset.code} 申请加入。`;
+    const text = `请用捞捞课程表加入「${b.dataset.name}」：打开 ${location.origin}${location.pathname.replace(/[^/]*$/, "")}login.html 注册（选“学生”，填真实姓名），然后在「我的班级」输入班级码 ${b.dataset.code} 申请加入。`;
     navigator.clipboard.writeText(text).then(() => toast("已复制，发到班群即可"), () => prompt("复制下面这段发到班群：", text));
     return;
   }

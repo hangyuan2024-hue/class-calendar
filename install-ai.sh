@@ -1,10 +1,10 @@
 #!/bin/bash
-# 班级群日历 · 一键安装本地 AI（Mac / Linux）
+# 捞捞课程表 · 一键安装本地 AI（Mac / Linux）
 # 用法：curl -fsSL <网站>/install-ai.sh | bash -s -- <网站地址> <模型名>
 set -e
 ORIGIN="${1:-https://hangyuan2024-hue.github.io}"
 MODEL="${2:-qwen2.5:3b}"
-echo "== 正在为「班级群日历」安装本地 AI（捞捞）=="
+echo "== 正在为「捞捞课程表」安装本地 AI（捞捞）=="
 
 if [ "$(uname)" = "Darwin" ]; then
   if [ ! -d /Applications/Ollama.app ]; then

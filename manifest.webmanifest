@@ -1,6 +1,6 @@
 {
-  "name": "班级群日历",
-  "short_name": "捞捞日历",
+  "name": "捞捞课程表",
+  "short_name": "捞捞课程表",
   "description": "信息捞捞队 · 班级群信息整理助手",
   "start_url": "./index.html",
   "scope": "./",

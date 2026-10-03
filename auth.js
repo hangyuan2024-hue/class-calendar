@@ -1,4 +1,4 @@
-// 班级群日历 · 登录与数据接口（index.html / login.html / dev.html 共用）
+// 捞捞课程表 · 登录与数据接口（index.html / login.html / dev.html 共用）
 // 账号在后台对应一个内部邮箱：<账号>@<AUTH_EMAIL_DOMAIN>，用户不需要真实邮箱。
 (function () {
   const CFG = window.APP_CONFIG || {};

@@ -40,7 +40,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 班级群日历 App：一个全屏的网页容器，外加网页做不到的几件事——
+ * 捞捞课程表 App：一个全屏的网页容器，外加网页做不到的几件事——
  * 拍照导入课程表、保存/打开文件（备份、导入手机日历）、到点提醒、返回键、状态栏跟着皮肤变色。
  */
 public class MainActivity extends Activity {
@@ -253,12 +253,12 @@ public class MainActivity extends Activity {
                     ContentValues cv = new ContentValues();
                     cv.put(MediaStore.Downloads.DISPLAY_NAME, name);
                     cv.put(MediaStore.Downloads.MIME_TYPE, mime);
-                    cv.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/班级群日历");
+                    cv.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/捞捞课程表");
                     Uri u = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
                     if (u == null) throw new Exception("insert failed");
                     try (OutputStream os = getContentResolver().openOutputStream(u)) { os.write(bytes); }
-                    toast("已保存到「下载/班级群日历/" + name + "」");
-                    return "Download/班级群日历/" + name;
+                    toast("已保存到「下载/捞捞课程表/" + name + "」");
+                    return "Download/捞捞课程表/" + name;
                 } else {
                     File dir = new File(getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "");
                     dir.mkdirs();

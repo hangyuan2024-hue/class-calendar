@@ -29,7 +29,7 @@
   var isolated = false;
   try { isolated = window.origin === "null" && window.parent !== window; } catch (e) { isolated = false; }
   if (isolated) { try { void window.localStorage.length; isolated = false; } catch (e) { /* 读不到本站存储：确实是隔离的 */ } }
-  if (!isolated) { document.body.textContent = "这个页面只能由班级群日历在隔离模式下打开。"; return; }
+  if (!isolated) { document.body.textContent = "这个页面只能由捞捞课程表在隔离模式下打开。"; return; }
   var started = false;
   // 只接受父页面发来的第一条 init 消息
   window.addEventListener("message", function onInit(e) {

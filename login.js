@@ -39,7 +39,7 @@ function setMode(m) {
   document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", b.dataset.mode === m));
   $("goText").textContent = m === "signup" ? "注册并开始" : "登录";
   $("cardTitle").textContent = m === "signup" ? "创建你的账号 ✨" : "欢迎回来 👋";
-  $("cardSub").textContent = m === "signup" ? "一分钟搞定，账号不需要邮箱和手机号" : "登录后查看你的班级日历";
+  $("cardSub").textContent = m === "signup" ? "一分钟搞定，账号不需要邮箱和手机号" : "登录后查看你的捞捞课程表";
   $("password").autocomplete = m === "signup" ? "new-password" : "current-password";
   $("note").textContent = m === "signup" ? "开发者、测试员身份由管理员在后台分配。" : "";
   $("msg").textContent = "";
