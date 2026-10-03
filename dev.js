@@ -229,6 +229,44 @@ function fillForm(id) {
 $("upTarget").onchange = (e) => fillForm(e.target.value);
 $("upReset").onclick = () => { $("upTarget").value = "__new"; fillForm("__new"); };
 
+// ---------- 大文件分块上传：服务器网关不收太大的单次请求，切成 20 万字一块，一块块传，最后在数据库里拼起来 ----------
+const CHUNK = 200 * 1024, CHUNK_AT = 400 * 1024;
+function splitText(text) {
+  const out = [];
+  for (let i = 0; i < text.length;) {
+    let j = Math.min(text.length, i + CHUNK);
+    const c = text.charCodeAt(j - 1);
+    if (j < text.length && c >= 0xd800 && c <= 0xdbff) j--;   // 别把一个 emoji 切成两半
+    out.push(text.slice(i, j)); i = j;
+  }
+  return out.length ? out : [""];
+}
+async function chunkedSubmit({ id, name, icon, description, version, notes, code, html }) {
+  const parts = { code: code == null ? null : splitText(code), app_html: html == null ? null : splitText(html) };
+  const all = (parts.code || []).length + (parts.app_html || []).length;
+  let done = 0;
+  const btn = $("upBtn"), label = btn.textContent;
+  try {
+    for (const field of ["code", "app_html"]) {
+      if (!parts[field]) continue;
+      for (let i = 0; i < parts[field].length; i++) {
+        for (let t = 0; ; t++) {   // 网络抖一下就重试，最多 3 次
+          try { await rpc("plugin_chunk_put", { p_pid: id, p_field: field, p_seq: i, p_data: parts[field][i] }); break; }
+          catch (e) {
+            if (/Could not find the function|PGRST202/i.test(e.message)) throw new Error("后台还没装「分块上传」：请在扣子编程终端运行 python3 setup_miniapp.py 后再提交");
+            if (t >= 2 || /权限/.test(e.message)) throw e;
+            await new Promise((r) => setTimeout(r, 1000 * (t + 1)));
+          }
+        }
+        done++; btn.textContent = `上传中 ${Math.round((done / all) * 100)}%`;
+      }
+    }
+    btn.textContent = "正在保存…";
+    await rpc("plugin_draft_submit", { p_pid: id, p_name: name, p_icon: icon, p_description: description, p_version: version, p_changelog: notes,
+      p_code_parts: parts.code ? parts.code.length : null, p_html_parts: parts.app_html ? parts.app_html.length : null });
+  } finally { btn.textContent = label; }
+}
+
 async function readFile(inp) { const f = inp.files[0]; return f ? await f.text() : null; }
 async function previousFiles(id) {
   const tryGet = async (path) => { try { const r = await rest(path); return r && r[0]; } catch { return null; } };
@@ -265,10 +303,14 @@ $("upForm").onsubmit = (e) => {
       method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(body),
     });
     let noteSaved = true;
-    try { await send({ ...draft, changelog: notes }); }
-    catch (err) {
-      if (!/changelog/i.test(err.message)) throw err;
-      await send(draft); noteSaved = false;   // 数据库还没装「更新日志」：先只提交插件
+    if ((code || "").length + (html || "").length > CHUNK_AT) {
+      await chunkedSubmit({ id, name, icon, description, version, notes, code, html });   // 文件大：分块上传
+    } else {
+      try { await send({ ...draft, changelog: notes }); }
+      catch (err) {
+        if (!/changelog/i.test(err.message)) throw err;
+        await send(draft); noteSaved = false;   // 数据库还没装「更新日志」：先只提交插件
+      }
     }
     toast(noteSaved ? "已提交，进入测试中" : "已提交，进入测试中（数据库还没装更新日志，这次的说明没保存）");
     await refresh();
