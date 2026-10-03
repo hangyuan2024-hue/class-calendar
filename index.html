@@ -5,7 +5,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com http://localhost:* http://127.0.0.1:*; frame-src 'self'; media-src 'self' data: blob:; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; manifest-src 'self'">
 <meta name="referrer" content="no-referrer">
 <script src="guard.js?v=20261002b"></script>
-<script src="first.js?v=20261003a"></script>
+<script src="first.js?v=20261004a"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="班级日历">
@@ -576,6 +576,8 @@
   .wrow:first-of-type { border-top: 0; }
   .wrow .n { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .rail-foot { color: var(--sub); font-size: 12px; padding: 0 8px; line-height: 1.7; }
+  .vhead .appdl { margin-left: auto; flex: none; text-decoration: none; color: inherit; }
+  a.linkish { text-decoration: none; }
 
   /* ================= 弹窗 ================= */
   #modal, .modal2 { position: fixed; inset: 0; background: rgba(8, 20, 40, .42); display: none; align-items: center; justify-content: center; z-index: 50;
@@ -1592,7 +1594,7 @@
 
   <!-- 首页 -->
   <section class="view on" data-view="home">
-    <header class="vhead"><button class="av mavatar" data-tab="me" aria-label="我的"></button><h2>首页</h2></header>
+    <header class="vhead"><button class="av mavatar" data-tab="me" aria-label="我的"></button><h2>首页</h2><a class="btn sm appdl hidden" id="appDl" href="app.html" title="下载安卓 App：作业到点提醒、拍照导入课表">📱 下载 App</a></header>
     <div id="classBar" class="hidden">
       <div class="cb-badge" id="cbBadge">班</div>
       <div class="cb-main">
@@ -2043,7 +2045,7 @@
 <aside class="siderail">
   <div class="widget surface"><h4 id="miniTitle"></h4><div class="mini" id="miniCal"></div></div>
   <div class="widget surface"><h4>这周的作业<span class="spacer"></span><button class="small" data-tab="homework">全部</button></h4><div id="miniHw"></div></div>
-  <div class="rail-foot">信息捞捞队 · 班级群信息整理助手<br>群消息由 AI 整理，有出入以群里为准<br><button class="linkish" data-tab="intro">📖 功能介绍</button> · <button class="linkish" data-tab="credits">💛 感谢名单</button></div>
+  <div class="rail-foot">信息捞捞队 · 班级群信息整理助手<br>群消息由 AI 整理，有出入以群里为准<br><button class="linkish" data-tab="intro">📖 功能介绍</button> · <button class="linkish" data-tab="credits">💛 感谢名单</button><span class="appdl-l hidden"> · <a class="linkish" href="app.html">📱 下载 App</a></span></div>
 </aside>
 </div>
 
@@ -2159,7 +2161,7 @@
 <script src="auth.js?v=20261003b"></script>
 <script src="parse.js"></script>
 <script src="courses.js?v=20261002h"></script>
-<script src="app.js?v=20261004a"></script>
+<script src="app.js?v=20261004b"></script>
 </body>
 </html>
 </body>

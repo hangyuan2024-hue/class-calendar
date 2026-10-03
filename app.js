@@ -4046,6 +4046,9 @@ window.ccAppNotify = (ok) => {
   if (!ok) { const o = appRem(); o.on = false; save(LS_APPREM, o); alert("没有拿到通知权限，提醒没法弹出来。可以在手机「设置 → 应用 → 班级群日历 → 通知」里打开。"); renderAppBox(); return; }
   appTok((t) => AndroidBridge.testNotify(t)); appRemLast = ""; appSchedule(); renderAppBox();
 };
+// 首页右上角和侧栏的「下载 App」：安卓 App 里、苹果手机上不显示
+{ const noDl = inApp() || /iPhone|iPad|iPod/i.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+  document.querySelectorAll("#appDl, .appdl-l").forEach((el) => el.classList.toggle("hidden", noDl)); }
 function renderAppBox() {
   const box = $("appBox"); if (!box) return;
   const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent);

@@ -271,7 +271,7 @@ if (!window.AndroidBridge && !/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
   const ctl = new AbortController(); setTimeout(() => ctl.abort(), 8000);
   fetch("download/app-version.json?t=" + Date.now(), { cache: "no-store", signal: ctl.signal }).then((r) => (r.ok ? r.json() : null)).then((v) => {
     if (!v) return;
-    const a = document.createElement("a"); a.href = "app.html"; a.textContent = "📱 下载安卓 App";
+    const a = document.createElement("a"); a.href = $("get") ? "#get" : "app.html"; a.textContent = "📱 下载安卓 App"; // 介绍页里直接滚到下载
     const foot = document.querySelector(".card > .foot:last-child"); if (foot) { foot.append("　·　", a); }
   }).catch(() => {});
 }

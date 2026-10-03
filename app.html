@@ -2,11 +2,13 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com http://localhost:* http://127.0.0.1:*; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="referrer" content="no-referrer">
+<script src="guard.js?v=20261002b"></script>
+<script src="entry.js?v=2"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#bfe6ff">
-<title>班级群日历 安卓 App</title>
+<title>班级群日历 · 登录</title>
 <meta name="description" content="把班级群里的作业、通知、班会自动整理进日历，快到时间在通知栏提醒你。免费下载安卓 App。">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -350,6 +352,189 @@
   .hero { height: auto; } .stick { position: relative; height: auto; min-height: 100svh; }
 }
 </style>
+<style>
+/* ===== 登录（来自 login.html，限定在登录区块里） ===== */
+@font-face { font-family: "ZCOOL QingKe HuangYou"; src: url("display.woff") format("woff"); font-display: swap; }
+.lgtop, #ob {
+    --bg1: #cdeeff; --bg2: #f3fbff; --card: rgba(255,255,255,.9); --solid: #fff; --line: #dfe9f3; --text: #0e2240; --sub: #687d97;
+    --accent: #1e8cff; --accent2: #ff7b2e; --red: #ef4b3f; --green: #17b26a;
+    --fd: "Lao", "ZCOOL QingKe HuangYou", "PingFang SC", "Microsoft YaHei", sans-serif;
+    --glow: rgba(30,140,255,.28);
+  }
+html[data-g=f] .lgtop, html[data-g=f] #ob { --bg1: #ffe1ec; --bg2: #fff6f9; --accent: #ff5f8f; --accent2: #ffb03b; --glow: rgba(255,95,143,.28); }
+html[data-g=m] .lgtop, html[data-g=m] #ob { --bg1: #d6e2ff; --bg2: #f4f7ff; --accent: #2457d6; --accent2: #ffb020; --glow: rgba(36,87,214,.28); }
+.lgtop { position: relative; min-height: 100vh; min-height: 100dvh; color: var(--text); font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; font-size: 15px;
+    background: radial-gradient(120% 80% at 0% 0%, var(--bg1), var(--bg2) 60%); transition: background .5s; display: flex; }
+:where(.lgtop, #ob) button, :where(.lgtop, #ob) input { font: inherit; color: inherit; }
+:where(.lgtop, #ob) .hidden { display: none !important; }
+:where(.lgtop, #ob) .stage { flex: 1.1; position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: center; padding: 48px 56px; }
+:where(.lgtop, #ob) .stage .logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 17px; position: absolute; top: 28px; left: 32px; }
+:where(.lgtop, #ob) .stage .logo svg { width: 36px; height: 36px; }
+:where(.lgtop, #ob) .stage h1 { font-family: var(--fd); font-weight: 400; font-size: clamp(34px, 4.4vw, 56px); line-height: 1.15; margin: 0 0 14px; letter-spacing: 1px; }
+:where(.lgtop, #ob) .stage h1 em { font-style: normal; color: var(--accent); }
+:where(.lgtop, #ob) .stage p.lead { color: var(--sub); font-size: 16px; line-height: 1.7; margin: 0 0 26px; max-width: 460px; }
+:where(.lgtop, #ob) .feats { display: grid; grid-template-columns: repeat(2, minmax(0, 220px)); gap: 10px; }
+:where(.lgtop, #ob) .feat { display: flex; gap: 10px; align-items: center; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 10px 12px; font-size: 13.5px; font-weight: 600;
+    box-shadow: 0 10px 30px -18px var(--glow); }
+:where(.lgtop, #ob) .feat i { font-style: normal; font-size: 20px; width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; background: color-mix(in srgb, var(--accent) 12%, transparent); flex-shrink: 0; }
+:where(.lgtop, #ob) .hero-mascot { position: absolute; right: 6%; bottom: 7%; width: min(30vw, 260px); animation: bob 4s ease-in-out infinite; filter: drop-shadow(0 20px 30px var(--glow)); }
+@keyframes bob { 50% { transform: translateY(-12px) rotate(-2deg); } }
+:where(.lgtop, #ob) .floaty { position: absolute; font-size: 22px; opacity: .55; animation: drift 9s linear infinite; pointer-events: none; }
+@keyframes drift { from { transform: translateY(20px) rotate(0); opacity: 0; } 15% { opacity: .6; } to { transform: translateY(-110vh) rotate(260deg); opacity: 0; } }
+:where(.lgtop, #ob) .side { flex: 1; display: flex; align-items: center; justify-content: center; padding: 32px 20px; }
+:where(.lgtop, #ob) .card { width: 100%; max-width: 420px; background: var(--card); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); border: 1px solid var(--line); border-radius: 28px;
+    padding: 30px 28px 24px; box-shadow: 0 30px 80px -30px var(--glow), 0 2px 6px rgba(0,0,0,.04); }
+:where(.lgtop, #ob) .card h2 { margin: 0 0 4px; font-size: 22px; }
+:where(.lgtop, #ob) .card .sub { color: var(--sub); font-size: 13.5px; margin-bottom: 18px; }
+:where(.lgtop, #ob) .tabs { position: relative; display: grid; grid-template-columns: 1fr 1fr; background: color-mix(in srgb, var(--text) 6%, transparent); border-radius: 14px; padding: 4px; margin-bottom: 18px; }
+:where(.lgtop, #ob) .tabs button { position: relative; z-index: 1; border: 0; background: none; padding: 9px; border-radius: 10px; color: var(--sub); font-weight: 700; cursor: pointer; transition: color .2s; }
+:where(.lgtop, #ob) .tabs button.on { color: var(--text); }
+:where(.lgtop, #ob) .tabs .ind { position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc(50% - 4px); background: var(--solid); border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,.08); transition: transform .3s cubic-bezier(.3,1.3,.5,1); }
+:where(.lgtop, #ob) .tabs.signup .ind { transform: translateX(100%); }
+:where(.lgtop, #ob) .fld { margin-bottom: 12px; }
+:where(.lgtop, #ob) .fld > label { display: block; font-size: 13px; font-weight: 700; color: var(--sub); margin: 0 0 6px 2px; }
+:where(.lgtop, #ob) .inp { position: relative; display: flex; align-items: center; }
+:where(.lgtop, #ob) .inp .ic { position: absolute; left: 13px; font-size: 16px; opacity: .6; pointer-events: none; }
+:where(.lgtop, #ob) .inp input { width: 100%; padding: 12px 42px 12px 40px; border: 1.5px solid var(--line); border-radius: 14px; background: var(--solid); outline: none; transition: border-color .2s, box-shadow .2s; }
+:where(.lgtop, #ob) .inp input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent); }
+:where(.lgtop, #ob) .inp input.bad { border-color: var(--red); }
+:where(.lgtop, #ob) .inp input.good { border-color: color-mix(in srgb, var(--green) 70%, var(--line)); }
+:where(.lgtop, #ob) .inp .eye { position: absolute; right: 6px; border: 0; background: none; width: 34px; height: 34px; border-radius: 10px; cursor: pointer; opacity: .65; font-size: 16px; }
+:where(.lgtop, #ob) .inp .eye:hover { opacity: 1; background: color-mix(in srgb, var(--text) 6%, transparent); }
+:where(.lgtop, #ob) .inp .ok { position: absolute; right: 12px; color: var(--green); font-weight: 900; }
+:where(.lgtop, #ob) .hint { font-size: 12px; color: var(--sub); margin: 5px 2px 0; min-height: 0; }
+:where(.lgtop, #ob) .hint.err { color: var(--red); }
+:where(.lgtop, #ob) .hint.warn { color: #d97706; }
+:where(.lgtop, #ob) .meter { display: flex; gap: 4px; margin: 7px 2px 0; }
+:where(.lgtop, #ob) .meter i { flex: 1; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--text) 10%, transparent); transition: background .25s; }
+:where(.lgtop, #ob) .meter.s1 i:nth-child(-n+1) { background: var(--red); }
+:where(.lgtop, #ob) .meter.s2 i:nth-child(-n+2) { background: #f59e0b; }
+:where(.lgtop, #ob) .meter.s3 i:nth-child(-n+3) { background: #84cc16; }
+:where(.lgtop, #ob) .meter.s4 i { background: var(--green); }
+:where(.lgtop, #ob) .signup-only { display: none; }
+:where(.lgtop, #ob) form.signup .signup-only { display: block; }
+:where(.lgtop, #ob) form.signup .login-only { display: none; }
+:where(.lgtop, #ob) .forgot-l { text-align: right; margin-top: 6px; font-size: 13px; }
+:where(.lgtop, #ob) .forgot-l a, :where(.lgtop, #ob) .hint a { color: var(--accent); text-decoration: none; font-weight: 700; }
+:where(.lgtop, #ob) .fg-help { margin-top: 12px; padding: 12px 14px; border-radius: 14px; background: color-mix(in srgb, var(--accent) 8%, transparent); font-size: 13.5px; line-height: 1.7; }
+:where(.lgtop, #ob) .fg-help:empty { display: none; }
+:where(.lgtop, #ob) .fg-more { margin-top: 12px; font-size: 13px; color: var(--sub); }
+:where(.lgtop, #ob) .fg-more summary { cursor: pointer; font-weight: 700; }
+:where(.lgtop, #ob) .fg-more p { line-height: 1.7; margin: 6px 0; }
+:where(.lgtop, #ob) .picks { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+:where(.lgtop, #ob) .pick { position: relative; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 16px; background: var(--solid); cursor: pointer; transition: transform .15s, border-color .2s, box-shadow .2s; font-weight: 700; }
+:where(.lgtop, #ob) .pick:hover { transform: translateY(-1px); }
+:where(.lgtop, #ob) .pick input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; z-index: 1; }
+:where(.lgtop, #ob) .pick:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 14%, transparent); }
+:where(.lgtop, #ob) .pick:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+:where(.lgtop, #ob) .pick small { display: block; font-weight: 500; color: var(--sub); font-size: 11.5px; }
+:where(.lgtop, #ob) .pick .em { font-size: 22px; }
+:where(.lgtop, #ob) .gpick .pick { flex-direction: column; text-align: center; padding: 12px 8px 10px; gap: 4px; }
+:where(.lgtop, #ob) .gpick .pick svg { width: 64px; height: 64px; }
+:where(.lgtop, #ob) .gpick .pick.f:has(input:checked) { border-color: #ff5f8f; box-shadow: 0 0 0 4px rgba(255,95,143,.16); }
+:where(.lgtop, #ob) .gpick .pick.m:has(input:checked) { border-color: #2457d6; box-shadow: 0 0 0 4px rgba(36,87,214,.16); }
+:where(.lgtop, #ob) button.go { width: 100%; margin-top: 16px; padding: 13px; border: 0; border-radius: 16px; color: #fff; font-weight: 800; font-size: 16px; cursor: pointer;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 75%, #fff), var(--accent)); box-shadow: 0 12px 24px -12px var(--accent); transition: transform .15s, filter .2s; }
+:where(.lgtop, #ob) button.go:hover { filter: brightness(1.05); }
+:where(.lgtop, #ob) button.go:active { transform: scale(.98); }
+:where(.lgtop, #ob) button.go:disabled { opacity: .7; cursor: wait; }
+:where(.lgtop, #ob) button.go .spin { display: none; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.5); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -3px; margin-right: 6px; }
+:where(.lgtop, #ob) button.go:disabled .spin { display: inline-block; }
+@keyframes spin { to { transform: rotate(360deg); } }
+:where(.lgtop, #ob) button.ghost { width: 100%; margin-top: 10px; padding: 11px; border: 1.5px solid var(--line); border-radius: 16px; background: var(--solid); cursor: pointer; font-weight: 700; }
+#msg { min-height: 20px; margin-top: 10px; font-size: 13px; color: var(--red); text-align: center; }
+:where(.lgtop, #ob) .foot { margin-top: 14px; text-align: center; font-size: 13px; color: var(--sub); }
+:where(.lgtop, #ob) .foot a { color: var(--accent); text-decoration: none; font-weight: 700; }
+:where(.lgtop, #ob) .already { text-align: center; }
+:where(.lgtop, #ob) .already .av { width: 72px; height: 72px; margin: 4px auto 10px; border-radius: 24px; display: grid; place-items: center; font-size: 30px; font-weight: 800; color: #fff; background: linear-gradient(135deg, var(--accent2), var(--accent)); }
+#ob { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 16px; background: radial-gradient(120% 80% at 0% 0%, var(--bg1), var(--bg2) 60%); }
+:where(.lgtop, #ob) .ob-card { width: 100%; max-width: 560px; background: var(--card); border: 1px solid var(--line); border-radius: 30px; padding: 26px 26px 20px; box-shadow: 0 30px 80px -30px var(--glow); position: relative; overflow: hidden; }
+:where(.lgtop, #ob) .ob-dots { display: flex; gap: 6px; justify-content: center; margin-bottom: 16px; }
+:where(.lgtop, #ob) .ob-dots i { width: 8px; height: 8px; border-radius: 4px; background: color-mix(in srgb, var(--text) 14%, transparent); transition: width .3s, background .3s; }
+:where(.lgtop, #ob) .ob-dots i.on { width: 22px; background: var(--accent); }
+:where(.lgtop, #ob) .ob-step.anim { animation: obIn .4s cubic-bezier(.3,1.2,.5,1); }
+@keyframes obIn { from { opacity: 0; transform: translateX(24px); } }
+:where(.lgtop, #ob) .ob-step h3 { font-family: var(--fd); font-weight: 400; font-size: 30px; margin: 4px 0 8px; text-align: center; letter-spacing: 1px; }
+:where(.lgtop, #ob) .ob-step .lead { text-align: center; color: var(--sub); margin: 0 0 16px; line-height: 1.65; }
+:where(.lgtop, #ob) .ob-art { display: grid; place-items: center; margin: 10px auto 14px; position: relative; height: 170px; width: 200px; }
+:where(.lgtop, #ob) .ob-art svg.m { width: 120px; height: 120px; animation: bob 3.6s ease-in-out infinite; }
+:where(.lgtop, #ob) .ob-art .orb { position: absolute; left: calc(50% - 12px); top: calc(50% - 14px); font-size: 22px; animation: orbit 9s linear infinite; }
+@keyframes orbit { from { transform: rotate(0) translateX(84px) rotate(0); } to { transform: rotate(360deg) translateX(84px) rotate(-360deg); } }
+:where(.lgtop, #ob) .ob-skip { display: block; margin: 12px auto 0; border: 0; background: none; color: var(--sub); font-size: 13px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+:where(.lgtop, #ob) .ob-nav { display: flex; gap: 10px; margin-top: 18px; }
+:where(.lgtop, #ob) .ob-nav button { flex: 1; margin-top: 0; }
+:where(.lgtop, #ob) .skinrow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+:where(.lgtop, #ob) .skinrow button { border: 1.5px solid var(--line); background: var(--solid); border-radius: 14px; padding: 8px 4px 6px; cursor: pointer; font-size: 12.5px; font-weight: 700; position: relative; }
+:where(.lgtop, #ob) .skinrow button.on { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); }
+:where(.lgtop, #ob) .skinrow .pv { height: 34px; border-radius: 9px; margin-bottom: 5px; }
+:where(.lgtop, #ob) .skinrow .rec { position: absolute; top: -8px; right: -4px; font-size: 10px; background: var(--accent2); color: #fff; padding: 1px 6px; border-radius: 999px; }
+:where(.lgtop, #ob) .pals { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+:where(.lgtop, #ob) .pals button { border: 1.5px solid var(--line); background: var(--solid); border-radius: 14px; padding: 8px 4px; cursor: pointer; font-size: 12px; font-weight: 700; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+:where(.lgtop, #ob) .pals button.on { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); }
+:where(.lgtop, #ob) .pals .dot { width: 30px; height: 30px; border-radius: 50%; box-shadow: inset 0 0 0 3px rgba(255,255,255,.6); }
+:where(.lgtop, #ob) .preview { margin: 14px 0 0; border-radius: 18px; padding: 12px; border: 1px solid var(--line); display: flex; gap: 10px; align-items: center; transition: background .3s; }
+:where(.lgtop, #ob) .preview .pvh { flex: 1; border-radius: 12px; padding: 10px 12px; color: #fff; font-weight: 800; }
+:where(.lgtop, #ob) .preview .pvb { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 22px; font-weight: 400; }
+:where(.lgtop, #ob) .chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+:where(.lgtop, #ob) .chips button { border: 1.5px solid var(--line); background: var(--solid); border-radius: 999px; padding: 8px 14px; cursor: pointer; font-weight: 700; font-size: 14px; }
+:where(.lgtop, #ob) .chips button.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--solid)); color: var(--accent); }
+:where(.lgtop, #ob) .opts { display: grid; gap: 10px; }
+:where(.lgtop, #ob) .opt { display: flex; gap: 12px; align-items: center; padding: 14px; border: 1.5px solid var(--line); border-radius: 18px; background: var(--solid); cursor: pointer; text-align: left; }
+:where(.lgtop, #ob) .opt.on { border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 14%, transparent); }
+:where(.lgtop, #ob) .opt .em { font-size: 28px; }
+:where(.lgtop, #ob) .opt b { display: block; }
+:where(.lgtop, #ob) .opt small { color: var(--sub); }
+.confetti { position: fixed; width: 9px; height: 13px; border-radius: 2px; z-index: 60; pointer-events: none; animation: fall 1.6s cubic-bezier(.15,.7,.4,1) forwards; }
+@keyframes fall { to { transform: translate(var(--dx), var(--dy)) rotate(var(--r)); opacity: 0; } }
+@media (max-width: 900px) {
+.lgtop { flex-direction: column; }
+:where(.lgtop, #ob) .stage { flex: none; padding: 64px 22px 8px; }
+:where(.lgtop, #ob) .stage .logo { top: 18px; left: 20px; }
+:where(.lgtop, #ob) .stage h1 { font-size: 32px; margin-bottom: 6px; }
+:where(.lgtop, #ob) .stage p.lead { font-size: 14px; margin-bottom: 0; }
+:where(.lgtop, #ob) .feats, :where(.lgtop, #ob) .floaty { display: none; }
+:where(.lgtop, #ob) .hero-mascot { width: 92px; right: 18px; bottom: auto; top: 46px; }
+:where(.lgtop, #ob) .side { padding: 14px 12px 28px; align-items: flex-start; }
+:where(.lgtop, #ob) .card { padding: 22px 18px 18px; border-radius: 24px; }
+:where(.lgtop, #ob) .ob-card { padding: 20px 16px 16px; }
+:where(.lgtop, #ob) .ob-step h3 { font-size: 26px; }
+:where(.lgtop, #ob) .pals { grid-template-columns: repeat(4, 1fr); }
+:where(.lgtop, #ob) .skinrow button { font-size: 11.5px; }
+}
+@media (prefers-reduced-motion: reduce) {
+:where(.lgtop, #ob) .hero-mascot, :where(.lgtop, #ob) .floaty, :where(.lgtop, #ob) .ob-art svg.m, :where(.lgtop, #ob) .ob-art .orb, :where(.lgtop, #ob) .ob-step { animation: none !important; }
+:where(.lgtop, #ob) .tabs .ind { transition: none; }
+}
+
+/* —— 介绍页里的登录区块 —— */
+.lgtop { background: radial-gradient(110% 70% at 0% 0%, var(--bg1), transparent 70%); line-height: normal; font-size: 15px; }
+#ob { font: 15px/normal -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; color: var(--text); }
+#ob.hidden, .lgtop .hidden { display: none !important; }
+html.authed .lgtop { display: none; }
+/* 介绍页同名样式在这里不生效 */
+.lgtop .stage { height: auto; place-items: normal; padding-top: 88px; }
+.lgtop .hint, #ob .hint { position: static; left: auto; bottom: auto; transform: none; display: block; justify-items: normal; gap: 0; z-index: auto; }
+.lgtop .ghost, #ob .ghost { display: block; min-height: 0; text-decoration: none; }
+.lgtop .foot { padding: 0; }
+#ob .m { display: block; opacity: 1; transform: none; margin: 0; transition: none; gap: 0; }
+.lgtop .pick.m { opacity: 1; transform: none; margin-bottom: 0; }   /* 「男生」选项的类名 m 跟介绍页撞了 */
+.lgtop .pick.m:hover { transform: translateY(-1px); }
+.lgtop .side { padding-top: 76px; }   /* 别被顶栏挡住 */
+/* 往下看介绍 */
+.lg-more { position: absolute; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: grid; justify-items: center; gap: 6px;
+  font-size: 13px; color: var(--sub); text-decoration: none; white-space: nowrap; }
+.lg-more i { width: 22px; height: 34px; border: 2px solid currentColor; border-radius: 12px; position: relative; }
+.lg-more i::after { content: ""; position: absolute; left: 50%; top: 6px; width: 4px; height: 7px; margin-left: -2px; border-radius: 2px; background: currentColor; animation: wheel 1.6s ease-in-out infinite; }
+.lg-more:hover { color: var(--text); }
+@media (max-width: 900px) {
+  .lgtop { min-height: 0; padding-bottom: 8px; }
+  .lgtop .stage { padding-top: 70px; }
+  .lgtop .side { padding-top: 14px; }
+  .lgtop .hero-mascot { top: 62px; }
+  .lg-more { position: static; transform: none; margin: 4px auto 18px; }
+  .lg-more i { display: none; }
+}
+</style>
 </head>
 <body data-root="">
 <div id="sky" aria-hidden="true"><div class="stars"></div></div>
@@ -358,6 +543,151 @@
   <a class="brand" href="index.html"><img src="favicon.svg" alt="">班级群日历</a>
   <nav><a href="#more">安卓特色</a><a href="#day">一天怎么用</a><a href="#faq">常见问题</a><a class="pill" href="#get">下载</a></nav>
 </header>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <g id="mascotArt">
+      <ellipse cx="60" cy="112" rx="30" ry="5" fill="rgba(10,50,90,.15)"/>
+      <g><path d="M96 74 q16 -4 18 -22" fill="none" stroke="#0e2240" stroke-width="5" stroke-linecap="round"/><circle cx="114" cy="50" r="6" fill="#fff" stroke="#0e2240" stroke-width="4"/></g>
+      <path d="M24 78 q-12 6 -12 18" fill="none" stroke="#0e2240" stroke-width="5" stroke-linecap="round"/>
+      <rect x="22" y="28" width="76" height="78" rx="24" fill="#fff" stroke="#0e2240" stroke-width="5"/>
+      <path d="M22 54 V52 a24 24 0 0 1 24 -24 h28 a24 24 0 0 1 24 24 v2 z" style="fill:var(--accent2)" stroke="#0e2240" stroke-width="5" stroke-linejoin="round"/>
+      <rect x="40" y="16" width="9" height="22" rx="4.5" fill="#0e2240"/><rect x="71" y="16" width="9" height="22" rx="4.5" fill="#0e2240"/>
+      <ellipse cx="46" cy="74" rx="6" ry="7.5" fill="#0e2240"/><ellipse cx="74" cy="74" rx="6" ry="7.5" fill="#0e2240"/>
+      <circle cx="48" cy="71" r="2.2" fill="#fff"/><circle cx="76" cy="71" r="2.2" fill="#fff"/>
+      <ellipse cx="36" cy="86" rx="6" ry="3.5" fill="#ff9db5" opacity=".8"/><ellipse cx="84" cy="86" rx="6" ry="3.5" fill="#ff9db5" opacity=".8"/>
+      <path d="M54 88 q6 6 12 0" fill="none" stroke="#0e2240" stroke-width="4" stroke-linecap="round"/>
+      <path d="M104 18 l3 7 7 3 -7 3 -3 7 -3 -7 -7 -3 7 -3z" fill="#ffd23f"/>
+    </g>
+    <!-- 女生头像：双马尾 + 蝴蝶结 -->
+    <g id="avF">
+      <circle cx="40" cy="40" r="38" fill="#ffe3ec"/>
+      <circle cx="16" cy="40" r="10" fill="#4a2c2a"/><circle cx="64" cy="40" r="10" fill="#4a2c2a"/>
+      <circle cx="40" cy="44" r="20" fill="#ffd9c2"/>
+      <path d="M20 42 q0 -22 20 -22 q20 0 20 22 q-6 -10 -20 -10 q-14 0 -20 10z" fill="#4a2c2a"/>
+      <circle cx="33" cy="46" r="2.4" fill="#3a2a2a"/><circle cx="47" cy="46" r="2.4" fill="#3a2a2a"/>
+      <ellipse cx="29" cy="52" rx="3.5" ry="2" fill="#ff9db5" opacity=".8"/><ellipse cx="51" cy="52" rx="3.5" ry="2" fill="#ff9db5" opacity=".8"/>
+      <path d="M36 54 q4 4 8 0" fill="none" stroke="#c0546b" stroke-width="2" stroke-linecap="round"/>
+      <path d="M48 20 l8 -6 v12z M48 20 l-8 -6 v12z" fill="#ff5f8f"/><circle cx="48" cy="20" r="2.5" fill="#ff8fb0"/>
+    </g>
+    <!-- 男生头像：短发 + 小星星 -->
+    <g id="avM">
+      <circle cx="40" cy="40" r="38" fill="#dce6ff"/>
+      <circle cx="40" cy="45" r="20" fill="#ffd9c2"/>
+      <path d="M19 42 q-1 -22 21 -23 q22 1 21 22 q-4 -8 -10 -10 l-3 5 l-4 -6 q-10 2 -25 12z" fill="#2b2f45"/>
+      <circle cx="33" cy="47" r="2.4" fill="#2b2f45"/><circle cx="47" cy="47" r="2.4" fill="#2b2f45"/>
+      <path d="M35 55 q5 4 10 0" fill="none" stroke="#a0525a" stroke-width="2" stroke-linecap="round"/>
+      <path d="M62 14 l2 5 5 2 -5 2 -2 5 -2 -5 -5 -2 5 -2z" fill="#ffb020"/>
+    </g>
+  </defs>
+</svg>
+
+<!-- ===== 登录（没登录的人一进来先看到这里） ===== -->
+<section class="lgtop" id="login">
+<div class="stage">
+  <h1 id="stageTitle">群消息太多？<br><em>捞捞</em>帮你理清楚</h1>
+  <p class="lead" id="stageLead">作业、通知、活动自动整理成日历，换手机、换浏览器登录同一个账号，你的待办都在。</p>
+  <div class="feats">
+    <div class="feat"><i>📝</i>作业截止一眼看清</div>
+    <div class="feat"><i>📚</i>拍照导入课程表</div>
+    <div class="feat"><i>☁️</i>多设备云端同步</div>
+    <div class="feat"><i>🌐</i>捞捞元宇宙</div>
+  </div>
+  <svg class="hero-mascot" viewBox="0 0 120 120" aria-hidden="true"><use href="#mascotArt"/></svg>
+  <div id="floaties"></div>
+</div>
+<div class="side">
+  <div class="card">
+    <div id="already" class="already hidden">
+      <div class="av" id="alreadyAv">?</div>
+      <h2 id="alreadyHi">欢迎回来</h2>
+      <div class="sub" id="alreadyName"></div>
+      <button class="go" type="button" id="continueBtn"><span class="spin"></span>继续</button>
+      <button type="button" class="ghost" id="switchBtn">换个账号登录</button>
+    </div>
+    <div id="loginBox">
+      <h2 id="cardTitle">欢迎回来 👋</h2>
+      <div class="sub" id="cardSub">登录后查看你的班级日历</div>
+      <div class="tabs" id="tabs" role="tablist">
+        <span class="ind"></span>
+        <button type="button" data-mode="login" class="on" role="tab">登录</button>
+        <button type="button" data-mode="signup" role="tab">注册新账号</button>
+      </div>
+      <form id="form" autocomplete="on" novalidate>
+        <div class="fld">
+          <label for="account">账号</label>
+          <div class="inp"><span class="ic">👤</span><input id="account" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="20" placeholder="学号或自己起的账号" required><span class="ok hidden" id="accOk">✓</span></div>
+          <div class="hint" id="accHint"></div>
+        </div>
+        <div class="signup-only">
+          <div class="fld">
+            <label>我是</label>
+            <div class="picks gpick">
+              <label class="pick m"><input type="radio" name="gender" value="m"><svg viewBox="0 0 80 80" aria-hidden="true"><use href="#avM"/></svg>男生<small>默认 海军蓝 主题</small></label>
+              <label class="pick f"><input type="radio" name="gender" value="f"><svg viewBox="0 0 80 80" aria-hidden="true"><use href="#avF"/></svg>女生<small>默认 樱花粉 主题</small></label>
+            </div>
+            <div class="hint" id="gHint">选一下，会给你准备不一样的欢迎引导和默认皮肤（以后随时能换）</div>
+          </div>
+          <div class="fld">
+            <label>身份</label>
+            <div class="picks">
+              <label class="pick"><input type="radio" name="role" value="student" checked><span class="em">🎒</span><span>学生<small>输入班级码入班</small></span></label>
+              <label class="pick"><input type="radio" name="role" value="teacher"><span class="em">👩‍🏫</span><span>老师<small>创建班级、任命班委</small></span></label>
+            </div>
+          </div>
+          <div class="fld">
+            <label for="name">姓名</label>
+            <div class="inp"><span class="ic">🪪</span><input id="name" maxlength="30" autocomplete="name" placeholder="请填真实姓名，老师审批入班时要看"></div>
+          </div>
+        </div>
+        <div class="fld">
+          <label for="password">密码</label>
+          <div class="inp"><span class="ic">🔒</span><input id="password" type="password" autocomplete="current-password" required placeholder="至少 8 位"><button type="button" class="eye" data-eye="password" aria-label="显示密码">👁</button></div>
+          <div class="meter signup-only" id="meter"><i></i><i></i><i></i><i></i></div>
+          <div class="forgot-l login-only"><a href="#" id="forgotLink">忘记密码？</a></div>
+          <div class="hint" id="pwHint"></div>
+        </div>
+        <div class="fld signup-only">
+          <label for="password2">确认密码</label>
+          <div class="inp"><span class="ic">🔁</span><input id="password2" type="password" autocomplete="new-password" placeholder="再输一遍"><button type="button" class="eye" data-eye="password2" aria-label="显示密码">👁</button></div>
+          <div class="hint" id="pw2Hint"></div>
+        </div>
+        <button class="go" id="go" type="submit"><span class="spin"></span><span id="goText">登录</span></button>
+        <div id="msg" role="alert"></div>
+      </form>
+      <div class="foot" id="note"></div>
+    </div>
+    <div id="forgotBox" class="hidden">
+      <h2>找回密码 🔑</h2>
+      <div class="sub" id="fgSub">绑定过邮箱的账号，可以用邮箱验证码设置新密码</div>
+      <div id="fg1">
+        <div class="fld"><label for="fgAcct">账号</label>
+          <div class="inp"><span class="ic">👤</span><input id="fgAcct" autocapitalize="none" spellcheck="false" maxlength="20" placeholder="你的账号"></div></div>
+        <button class="go" type="button" id="fgSend"><span class="spin"></span>发送验证码到邮箱</button>
+      </div>
+      <div id="fg2" class="hidden">
+        <div class="fld"><label for="fgCode">验证码</label>
+          <div class="inp"><span class="ic">✉️</span><input id="fgCode" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="6 位数字"></div>
+          <div class="hint"><a href="#" id="fgResend">没收到？重新发送</a>（也看看垃圾邮件箱）</div></div>
+        <div class="fld"><label for="fgPw">新密码</label>
+          <div class="inp"><span class="ic">🔒</span><input id="fgPw" type="password" autocomplete="new-password" placeholder="至少 8 位"><button type="button" class="eye" data-eye="fgPw" aria-label="显示密码">👁</button></div></div>
+        <div class="fld"><label for="fgPw2">再输一遍</label>
+          <div class="inp"><span class="ic">🔁</span><input id="fgPw2" type="password" autocomplete="new-password"></div></div>
+        <button class="go" type="button" id="fgDone"><span class="spin"></span>设置新密码并登录</button>
+      </div>
+      <div class="fg-help" id="fgHelp"></div>
+      <div id="fgMsg" class="hint err" style="text-align:center;margin-top:10px"></div>
+      <button type="button" class="ghost" id="fgBack">← 返回登录</button>
+      <details class="fg-more"><summary>没绑定邮箱怎么办？</summary>
+        <p>请联系你的<b>班主任</b>：老师在你的个人主页（班级墙点你的名字）可以给你重置一个临时密码，用临时密码登录后会让你马上设置新密码。</p>
+        <p>老师账号忘记密码请联系网站管理员。找回之后，记得去「我的 → 邮箱通知」绑定邮箱，以后就能自己找回了。</p></details>
+    </div>
+    <div class="foot"><a href="#hero">📖 功能介绍</a>　·　<a href="index.html?guest=1">不登录，先逛逛 →</a></div>
+  </div>
+</div>
+<a class="lg-more" href="#hero"><i></i>往下滑，看看捞捞能帮你做什么</a>
+</section>
+
 
 <main>
 <section class="hero" id="hero">
@@ -585,6 +915,17 @@
   <small>点任意位置关闭</small>
 </div>
 
+<!-- 注册成功后的引导（男生、女生各一套） -->
+<div id="ob" class="hidden" role="dialog" aria-modal="true" aria-label="新手引导">
+  <div class="ob-card">
+    <div class="ob-dots" id="obDots"></div>
+    <div id="obBody"></div>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script src="auth.js?v=20261003b"></script>
+<script src="login.js?v=20261004b"></script>
 <script src="get.js?v=2"></script>
 <script src="intro.js?v=1"></script>
 </body>
