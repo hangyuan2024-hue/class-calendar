@@ -4312,6 +4312,13 @@ renderSyncUI();
 
 applyLook();
 renderTabs(); renderTools();
+// 已登录：先用上次存下的班级数据马上画出来，不用等网络；联网拿到新数据后会自动换掉
+try {
+  if (localStorage.getItem("cc_session_v1")) {
+    const c0 = load(LS_CACHE, null);
+    if (c0 && c0.classId && c0.classId === load(LS_CUR_CLASS, null) && Array.isArray(c0.records)) { classRecords = c0.records; renderAll(); if (c0.at) $("updated").textContent = `班级数据更新于 ${c0.at}`; }
+  }
+} catch (e) {}
 (async () => {
   await bootstrap();
   try { currentUser = await CCAuth.me(); } catch (e) { currentUser = null; }

@@ -5,7 +5,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com http://localhost:* http://127.0.0.1:*; frame-src 'self'; media-src 'self' data: blob:; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; manifest-src 'self'">
 <meta name="referrer" content="no-referrer">
 <script src="guard.js?v=20261002b"></script>
-<script src="first.js?v=20261004b"></script>
+<script src="first.js?v=20261004c"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="班级日历">
@@ -17,10 +17,11 @@
 <link rel="manifest" href="manifest.webmanifest">
 <title>班级群日历</title>
 <script src="boot.js?v=20261002b"></script>
-<link rel="preload" href="display.woff" as="font" type="font/woff" crossorigin>
+<link rel="preconnect" href="https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com" crossorigin>
+<link rel="preload" href="fonts/fd-00.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="fonts.css?v=1">
 <style>
   /* 标题字体：站酷庆科黄油体（SIL OFL 开源字体，已裁成常用 3500 字，放在网站里，不依赖外网） */
-  @font-face { font-family: "ZCOOL QingKe HuangYou"; src: url("display.woff") format("woff"); font-display: swap; }
   /* ================= 风格变量 ================= */
   :root, [data-skin=vivid] {
     --bg: #cdeeff; --bg2: #f3fbff; --card: #ffffff; --line: #e3edf6; --text: #0e2240; --sub: #687d97;
@@ -2161,7 +2162,7 @@
 <script src="auth.js?v=20261003b"></script>
 <script src="parse.js"></script>
 <script src="courses.js?v=20261002h"></script>
-<script src="app.js?v=20261004b"></script>
+<script src="app.js?v=20261004c"></script>
 </body>
 </html>
 </body>

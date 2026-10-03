@@ -1,11 +1,11 @@
 /* 班级群日历 · App 介绍页和下载页共用 */
-@font-face { font-family: "Lao"; src: url("display-lite.woff") format("woff"); font-display: swap; }
+/* 标题字体在 fonts.css 里（切成小块按需下载） */
 :root {
   --sky-top: #bfe6ff; --sky-bot: #f3fbff;
   --ink: #0e2240; --sub: #5d7290; --fg: #0e2240; --fg2: #5d7290;
   --sun: #ff8a3d; --today: #ff7b2e; --blush: #ff9db5; --star: #ffd23f; --chat: #95ec69; --blue: #1e8cff;
   --card: #ffffff; --line: #e3edf6;
-  --d: "Lao", "ZCOOL QingKe HuangYou", "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+  --d: "ZCOOL QingKe HuangYou", "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
   --s: -apple-system, BlinkMacSystemFont, "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
   --gut: max(16px, env(safe-area-inset-left));
 }

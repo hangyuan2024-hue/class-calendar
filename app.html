@@ -5,15 +5,17 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com http://localhost:* http://127.0.0.1:*; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="referrer" content="no-referrer">
 <script src="guard.js?v=20261002b"></script>
-<script src="entry.js?v=3"></script>
+<script src="entry.js?v=4"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#bfe6ff">
 <title>班级群日历 · 登录</title>
 <meta name="description" content="把班级群里的作业、通知、班会自动整理进日历，快到时间在通知栏提醒你。免费下载安卓 App。">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="preload" href="display-lite.woff" as="font" type="font/woff" crossorigin>
-<link rel="stylesheet" href="landing.css?v=1">
+<link rel="preconnect" href="https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com" crossorigin>
+<link rel="preload" href="fonts/fd-00.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="fonts.css?v=1">
+<link rel="stylesheet" href="landing.css?v=2">
 <style>
 #sky .orb { position: absolute; left: 0; top: 0; border-radius: 50%; opacity: 0; will-change: transform, opacity; }
 #sky .sun { width: 120px; height: 120px; margin: -60px; background: radial-gradient(circle, #fff7d1 0 34%, #ffd23f 35% 46%, rgba(255, 196, 63, .28) 47%, transparent 70%); }
@@ -354,11 +356,10 @@
 </style>
 <style>
 /* ===== 登录（来自 login.html，限定在登录区块里） ===== */
-@font-face { font-family: "ZCOOL QingKe HuangYou"; src: url("display.woff") format("woff"); font-display: swap; }
 .lgtop, #ob {
     --bg1: #cdeeff; --bg2: #f3fbff; --card: rgba(255,255,255,.9); --solid: #fff; --line: #dfe9f3; --text: #0e2240; --sub: #687d97;
     --accent: #1e8cff; --accent2: #ff7b2e; --red: #ef4b3f; --green: #17b26a;
-    --fd: "Lao", "ZCOOL QingKe HuangYou", "PingFang SC", "Microsoft YaHei", sans-serif;
+    --fd: "ZCOOL QingKe HuangYou", "PingFang SC", "Microsoft YaHei", sans-serif;
     --glow: rgba(30,140,255,.28);
   }
 html[data-g=f] .lgtop, html[data-g=f] #ob { --bg1: #ffe1ec; --bg2: #fff6f9; --accent: #ff5f8f; --accent2: #ffb03b; --glow: rgba(255,95,143,.28); }
@@ -925,7 +926,7 @@ html.authed .lgtop { display: none; }
 
 <script src="config.js"></script>
 <script src="auth.js?v=20261003b"></script>
-<script src="login.js?v=20261004b"></script>
+<script src="login.js?v=20261004c"></script>
 <script src="get.js?v=2"></script>
 <script src="intro.js?v=1"></script>
 </body>
