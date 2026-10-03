@@ -59,10 +59,41 @@ function checkAccount() {
   if (mode !== "signup") { hint.textContent = ""; hint.className = "hint"; return ok; }
   if (!v) { hint.textContent = "3~20 位小写字母、数字或下划线，比如学号"; hint.className = "hint"; }
   else if (!ok) { hint.textContent = v.length < 3 ? "至少 3 位" : v.length > 20 ? "最多 20 位" : "只能用字母、数字和下划线"; hint.className = "hint err"; }
-  else if (/[A-Z]/.test($("account").value)) { hint.textContent = "可以用，大写字母会自动变成小写"; hint.className = "hint warn"; }
-  else { hint.textContent = "这个账号可以用"; hint.className = "hint"; }
+  else accCheck(v);   // 格式没问题：再去后台查一下有没有被注册
   return ok;
 }
+// ---------- 账号是不是已经被注册了（输入停下 0.4 秒后查一次） ----------
+const accState = {};   // 账号 → "free" | "taken" | "unknown"
+let accTimer = 0;
+function accShow(v) {
+  if (mode !== "signup" || $("account").value.trim().toLowerCase() !== v) return;
+  const hint = $("accHint"), inp = $("account"), st = accState[v], upper = /[A-Z]/.test($("account").value);
+  inp.classList.toggle("bad", st === "taken"); inp.classList.toggle("good", st === "free");
+  $("accOk").classList.toggle("hidden", st !== "free");
+  if (st === "taken") { hint.innerHTML = '这个账号已经被注册了。换一个，或者是你自己的？<a href="#" data-to-login>去登录 →</a>'; hint.className = "hint err"; }
+  else if (st === "free") { hint.textContent = upper ? "这个账号可以用（大写字母会自动变成小写）" : "这个账号可以用"; hint.className = "hint"; }
+  else if (st === "unknown") { hint.textContent = upper ? "格式没问题，大写字母会自动变成小写" : "格式没问题"; hint.className = upper ? "hint warn" : "hint"; }
+  else { hint.textContent = "正在检查有没有被注册…"; hint.className = "hint"; }
+}
+function accCheck(v) {
+  $("accOk").classList.add("hidden"); $("account").classList.remove("good");
+  accShow(v);
+  if (accState[v]) return;
+  clearTimeout(accTimer);
+  accTimer = setTimeout(async () => {
+    try { accState[v] = (await CCAuth.rpc("account_available", { acct: v })) === false ? "taken" : "free"; }
+    catch (e) { accState[v] = "unknown"; }   // 后台还没装这个检查：只看格式，注册时后台还会再拦
+    accShow(v);
+  }, 400);
+}
+$("accHint").addEventListener("click", (e) => {
+  if (!e.target.closest("[data-to-login]")) return;
+  e.preventDefault(); setMode("login"); setTimeout(() => $("password").focus(), 50);
+});
+// 选老师 / 学生：姓名框的提示跟着变
+document.querySelectorAll("input[name=role]").forEach((r) => r.addEventListener("change", () => {
+  $("name").placeholder = r.value === "teacher" ? "请填真实姓名，学生能看到" : "请填真实姓名，老师审批入班时要看";
+}));
 function pwScore(p) { let s = 0; if (p.length >= 8) s++; if (p.length >= 12) s++; if (/[a-z]/i.test(p) && /\d/.test(p)) s++; if (/[^a-z0-9]/i.test(p) || /[a-z]/.test(p) && /[A-Z]/.test(p)) s++; return p ? Math.max(1, s) : 0; }
 function checkPw() {
   const p = $("password").value, p2 = $("password2").value;
@@ -104,6 +135,7 @@ form.onsubmit = async (e) => {
   const gender = (document.querySelector("input[name=gender]:checked") || {}).value || "";
   if (mode === "signup") {
     if (!checkAccount()) { $("msg").textContent = "账号格式不对"; $("account").focus(); return; }
+    if (accState[account.trim().toLowerCase()] === "taken") { $("msg").textContent = "这个账号已经被注册了，换一个，或者切到「登录」"; $("account").focus(); return; }
     if (!gender) { $("msg").textContent = "请选择男生还是女生"; $("gHint").className = "hint err"; return; }
     if (!$("name").value.trim()) { $("msg").textContent = "请填写姓名"; $("name").focus(); return; }
     if (password.length < 8) { $("msg").textContent = "密码至少 8 位"; $("password").focus(); return; }
