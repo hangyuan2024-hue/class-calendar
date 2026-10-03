@@ -1072,6 +1072,8 @@
     .nav { position: relative; }
     #addBtn { position: fixed; right: 18px; bottom: calc(76px + env(safe-area-inset-bottom)); width: 58px; height: 58px; margin: 0; z-index: 31; }
     .mavatar { display: grid; width: 34px; height: 34px; font-size: 14px; }
+    .vhead > .mavatar { order: 99; margin-left: auto; flex: none; }   /* 手机上头像放在右上角 */
+    .vhead > h2 { flex: 1; min-width: 0; }
     .vhead { padding: 10px 14px; min-height: 52px; }
     .hero h3 { font-size: 28px; max-width: 62%; }
     .mascot { width: 116px; height: 116px; right: 6px; }
