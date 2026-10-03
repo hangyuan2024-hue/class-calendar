@@ -23,6 +23,8 @@
   });
   const label = (t, sub) => $$("[data-lbl]").forEach((el) => { el.innerHTML = ""; el.append(t); if (sub) { const s = document.createElement("small"); s.textContent = sub; el.append(s); } });
 
+  try { localStorage.setItem("intro_seen_v1", "1"); } catch (e) {} // 看过介绍页，下次打开网站直接进网页版
+  if (plat.ios || plat.app) $$("[data-web]").forEach((a) => { a.href = "#more"; a.textContent = "先看看"; }); // 主按钮已经是网页版了
   if (plat.ios) label("苹果手机用网页版");
   else if (plat.app) label("你已经装好了，回到 App");
   setHref();
