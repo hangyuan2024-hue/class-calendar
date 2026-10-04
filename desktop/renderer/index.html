@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'none'">
+<title>捞捞课程表</title>
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="base.css">
+<link rel="stylesheet" href="views.css">
+</head>
+<body>
+<div id="app" class="booting">
+  <header class="titlebar">
+    <div class="tb-brand"><img src="logo.png" alt=""><span>捞捞课程表</span></div>
+    <button class="tb-search" id="tbSearch" title="搜索、跳转、执行命令"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span>搜索事项、跳转页面…</span><kbd>Ctrl K</kbd></button>
+    <div class="tb-right"><span class="sync" id="syncDot" title="同步状态"></span></div>
+  </header>
+
+  <!-- 登录 -->
+  <section id="login" class="login hidden">
+    <div class="lg-art">
+      <div class="lg-brand"><img src="logo.png" alt=""><b>捞捞课程表</b><span>电脑版</span></div>
+      <h1>课、作业、通知<br>一眼看清</h1>
+      <ul>
+        <li><i>📅</i><div><b>课程表周视图</b><span>整周的课铺满屏幕，现在上到哪节一目了然</span></div></li>
+        <li><i>✅</i><div><b>作业、事项一张表</b><span>筛选、搜索、批量勾完成，键盘就能操作</span></div></li>
+        <li><i>🔔</i><div><b>右下角准时提醒</b><span>上课前、截止前弹通知，关掉窗口也不会漏</span></div></li>
+        <li><i>🤖</i><div><b>离线 AI 小助手</b><span>问「明天几点上课」「这周要交什么」</span></div></li>
+      </ul>
+    </div>
+    <form class="lg-form" id="loginForm" autocomplete="on">
+      <h2>登录</h2>
+      <p class="muted">用网站或手机上的同一个账号，数据自动同步</p>
+      <label>账号<input id="lgAcct" name="username" autocomplete="username" placeholder="你的账号" required></label>
+      <label>密码<input id="lgPw" name="password" type="password" autocomplete="current-password" placeholder="密码" required></label>
+      <div class="lg-err" id="lgErr"></div>
+      <button class="btn primary big" id="lgBtn" type="submit">登录</button>
+      <p class="lg-reg">还没有账号？<a href="#" data-ext="https://www.laolaokechengbiao.cn/">去网站注册</a></p>
+    </form>
+  </section>
+
+  <!-- 主界面 -->
+  <aside class="side hidden" id="side">
+    <nav id="nav"></nav>
+    <div class="side-foot">
+      <button class="nav-item" data-view="settings" id="navSettings"></button>
+      <button class="me-card" id="meCard" title="切换班级"><span class="av" id="meAv"></span><span class="me-t"><b id="meName"></b><small id="meClass"></small></span></button>
+    </div>
+  </aside>
+  <main class="main hidden" id="main"></main>
+</div>
+
+<div id="overlay"></div>
+<div id="toasts"></div>
+
+<script src="../core/model.js"></script>
+<script src="../core/dateparse.js"></script>
+<script src="util.js"></script>
+<script src="v-today.js"></script>
+<script src="v-week.js"></script>
+<script src="v-tasks.js"></script>
+<script src="v-month.js"></script>
+<script src="v-wall.js"></script>
+<script src="v-focus.js"></script>
+<script src="v-ai.js"></script>
+<script src="v-settings.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

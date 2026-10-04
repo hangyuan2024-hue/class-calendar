@@ -1,0 +1,37 @@
+{
+  "name": "laolao-kechengbiao-desktop",
+  "productName": "捞捞课程表",
+  "version": "1.0.0",
+  "description": "捞捞课程表 Windows 电脑版：课程表、作业、提醒、离线 AI 助手",
+  "main": "main.js",
+  "author": "捞捞课程表",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "test": "node test/core.test.js",
+    "dist": "electron-builder --win nsis --x64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.laolao.kechengbiao",
+    "productName": "捞捞课程表",
+    "copyright": "捞捞课程表",
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": ["main.js", "preload.js", "core/**", "renderer/**", "build/icon.png", "package.json"],
+    "extraResources": [{ "from": "llama", "to": "llama", "filter": ["**/*"] }],
+    "win": { "target": "nsis", "icon": "build/icon.png", "artifactName": "LaolaoKechengbiao-Setup.${ext}" },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "捞捞课程表",
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}

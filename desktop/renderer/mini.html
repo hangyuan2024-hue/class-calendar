@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'none'">
+<title>今天 · 捞捞课程表</title>
+<link rel="stylesheet" href="base.css">
+<link rel="stylesheet" href="small.css">
+</head>
+<body class="mini">
+<div class="m-card">
+  <header class="m-h"><div><b id="date"></b><small id="sub"></small></div><span class="grow"></span>
+    <button id="open" title="打开主窗口"><svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></button>
+    <button id="close" title="关闭小窗"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></header>
+  <div class="m-body">
+    <div id="pomo"></div>
+    <div id="next"></div>
+    <div class="m-s">今天的课</div><div id="courses"></div>
+    <div class="m-s">要做的事</div><div id="todo"></div>
+  </div>
+</div>
+<script src="../core/model.js"></script>
+<script src="mini.js"></script>
+</body>
+</html>

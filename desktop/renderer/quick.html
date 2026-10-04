@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'none'">
+<title>快速记一件事</title>
+<link rel="stylesheet" href="base.css">
+<link rel="stylesheet" href="small.css">
+</head>
+<body class="quick">
+<div class="q-card">
+  <div class="q-row"><img src="logo.png" alt=""><input id="q" placeholder="记一件事：明天下午3点交实验报告 @B302" spellcheck="false" autofocus></div>
+  <div class="q-prev" id="prev"><span class="muted">写上日子、时间、@地点，会自动认出来</span></div>
+  <div class="q-foot"><span><kbd>Enter</kbd> 记下</span><span><kbd>Esc</kbd> 关闭</span><span class="grow"></span><span id="msg"></span></div>
+</div>
+<script src="../core/model.js"></script>
+<script src="../core/dateparse.js"></script>
+<script src="quick.js"></script>
+</body>
+</html>
