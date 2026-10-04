@@ -7,6 +7,10 @@
   "author": "捞捞课程表",
   "license": "UNLICENSED",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hangyuan2024-hue/class-calendar.git"
+  },
   "scripts": {
     "start": "electron .",
     "test": "node test/core.test.js",
@@ -20,10 +24,32 @@
     "appId": "com.laolao.kechengbiao",
     "productName": "捞捞课程表",
     "copyright": "捞捞课程表",
-    "directories": { "output": "dist", "buildResources": "build" },
-    "files": ["main.js", "preload.js", "core/**", "renderer/**", "build/icon.png", "package.json"],
-    "extraResources": [{ "from": "llama", "to": "llama", "filter": ["**/*"] }],
-    "win": { "target": "nsis", "icon": "build/icon.png", "artifactName": "LaolaoKechengbiao-Setup.${ext}" },
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "core/**",
+      "renderer/**",
+      "build/icon.png",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "llama",
+        "to": "llama",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.png",
+      "artifactName": "LaolaoKechengbiao-Setup.${ext}"
+    },
     "nsis": {
       "oneClick": false,
       "perMachine": false,
@@ -32,6 +58,13 @@
       "createStartMenuShortcut": true,
       "shortcutName": "捞捞课程表",
       "deleteAppDataOnUninstall": false
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "hangyuan2024-hue",
+        "repo": "class-calendar"
+      }
+    ]
   }
 }
