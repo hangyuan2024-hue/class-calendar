@@ -352,7 +352,11 @@
 .is-windows .alldl::before { content: ""; }
 
 /* ============ 下载区：手机 + 电脑 ============ */
-.dlgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 380px)); gap: 20px; justify-content: center; text-align: left; }
+.dlgrid { display: grid; grid-template-columns: repeat(3, minmax(0, 340px)); gap: 20px; justify-content: center; text-align: left; }
+.get.soon { background: color-mix(in srgb, var(--fg) 14%, transparent); color: var(--fg); box-shadow: none; cursor: default; pointer-events: none; }
+.get.soon::before { display: none; }
+.mpc .dlh b::after { content: "敬请期待"; margin-left: 8px; font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 99px; background: color-mix(in srgb, var(--fg) 16%, transparent); vertical-align: 2px; }
+@media (max-width: 1100px) and (min-width: 861px) { .dlgrid { grid-template-columns: repeat(2, minmax(0, 360px)); } .mpc { grid-column: 1 / -1; justify-self: center; width: min(100%, 360px); } }
 .dlcard { display: grid; gap: 14px; justify-items: start; align-content: start; padding: 24px; border-radius: 24px; background: color-mix(in srgb, var(--fg) 7%, transparent); border: 1px solid color-mix(in srgb, var(--fg) 14%, transparent); }
 .dlcard .meta { margin: 0; }
 .dlcard .after { margin: 0; min-height: 0; }
@@ -1000,6 +1004,14 @@ html.authed .lgtop { display: none; }
       <p class="meta" data-meta="getExe">免费，Windows 10 / 11（64 位）</p>
       <p class="after" data-after aria-live="polite"></p>
     </div>
+    <div class="dlcard mpc" aria-disabled="true">
+      <div class="dlh"><span class="dli">💬</span><div><b>微信小程序</b><small>微信里点开就用，不用安装</small></div></div>
+      <span class="get soon" role="note">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        <span class="lbl">敬请期待<small>正在做，上线后在这里扫码</small></span>
+      </span>
+      <p class="meta">和 App、电脑版用同一个账号，数据也会同步</p>
+    </div>
   </div>
   <p class="dlweb">苹果手机、苹果电脑暂时没有 App，直接用<a href="index.html">网页版</a>就行。iPhone 用 Safari 打开，点分享 →「添加到主屏幕」，用起来和 App 差不多。</p>
 
@@ -1007,6 +1019,7 @@ html.authed .lgtop { display: none; }
     <h3>常见问题</h3>
     <details><summary>安装时提示「未知来源」或「风险应用」怎么办？</summary><p>这是因为 App 不是从应用商店下的，安卓都会这样提醒。按提示点「设置」，允许浏览器（或文件管理）安装应用，再回来点安装就行。华为、小米手机如果开着「纯净模式」，选「继续安装」或「仍然安装」。</p></details>
     <details><summary>在微信里点下载没反应？</summary><p>微信不让直接下载安装包。点右上角「···」，选「在浏览器打开」，再点下载。QQ 里也一样。</p></details>
+    <details><summary>有微信小程序吗？</summary><p>正在做，敬请期待。上线后会在这个页面放小程序码，微信扫一扫就能用，账号和数据跟 App、电脑版通用。</p></details>
     <details><summary>苹果手机能用吗？</summary><p>暂时没有苹果版 App。用 Safari 打开网页版，点分享，选「添加到主屏幕」，桌面上就会有图标，打开和 App 一样全屏。</p></details>
     <details><summary>手机 App、电脑版、网页版，数据通不通？</summary><p>通。三个用的是同一个账号，登录后课表、作业、你记的事、完成记录都会自动同步，在哪边改了另外两边都能看到。</p></details>
     <details><summary>它会要哪些权限？</summary><p>只要联网、发通知、开机后恢复提醒、振动这几个。不读通讯录，不要定位，不要麦克风。</p></details>
