@@ -220,7 +220,7 @@ const apiGet = (p) => window.cc.call("api:get", p);
 const cleanErr = (e) => String((e && e.message) || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, "");
 const notFound = (e) => e && (e.status === 404 || /Could not find the function|PGRST202/.test(e.message || ""));
 const kvSet = (ns, k, v) => call("kv:set", ns, k, v);
-const LIST_NS = new Set(["personal_events_v1", "habits_v1", "countdown_v1"]), ONE_NS = new Set(["profile_v1", "fun_opts_v1", "plugins_enabled_v1"]);
+const LIST_NS = new Set(["personal_events_v1", "habits_v1", "countdown_v1"]), ONE_NS = new Set(["profile_v1", "fun_opts_v1", "plugins_enabled_v1", "island_v1", "farm_v1"]);
 const KV = (ns) => { const v = App.S && App.S.kv ? App.S.kv[ns] : undefined; if (v !== undefined && v !== null) return v; return LIST_NS.has(ns) ? [] : ONE_NS.has(ns) ? null : {}; };
 const todayKey = () => M.dayKey(App.now());
 const shiftDay = (k, n) => M.dayKey(M.addDays(M.fromKey(k), n));

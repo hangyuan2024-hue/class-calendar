@@ -6,6 +6,7 @@ App.views.settings = {
     el.innerHTML = `<div class="vhead"><div><h1>设置</h1><div class="sub">改完马上生效</div></div></div><div class="vbody"><div class="st-wrap" id="stWrap"></div></div>`;
     el.addEventListener("change", (e) => { const t = e.target.closest("[data-set]"); if (!t) return; const v = t.type === "number" ? Math.max(+t.min || 0, Math.min(+t.max || 999, +t.value || 0)) : t.dataset.num ? +t.value : t.value; this.set({ [t.dataset.set]: v }); });
     el.addEventListener("click", async (e) => {
+      if (e.target.closest("#stIsland")) { DIsland.save({ on: DIsland.opts().on === false }); return; }
       const sw = e.target.closest(".switch[data-set]"); if (sw) { this.set({ [sw.dataset.set]: !sw.classList.contains("on") }); return; }
       const th = e.target.closest("[data-theme]"); if (th) { this.set({ theme: th.dataset.theme }); return; }
       const ac = e.target.closest("[data-acc]"); if (ac) { this.set({ accent: ac.dataset.acc }); return; }
@@ -47,6 +48,9 @@ App.views.settings = {
         ${row("倒数日提醒", "提前 7 天、3 天、1 天和当天各提醒一次", sw("countdownRemind"))}
         ${row("专注时勿扰", "番茄钟专注时不弹事项提醒，结束后一起告诉你", sw("focusQuiet"))}
         ${row("上课时勿扰", "正在上课时只弹上课提醒，别的下课后一起说", sw("classQuiet"))}
+      </section>
+      <section class="card st-card"><h3>捞捞助手 <small>窗口角落里的捞捞：举着小屏幕显示最急的事，到点冒泡泡提醒，点它能问问题（Ctrl+J）</small></h3>
+        ${row("显示捞捞", "按时间轻重把待办智能排序；规则答不上来的问题交给内置 AI", `<button class="switch${DIsland.opts().on !== false ? " on" : ""}" id="stIsland"></button>`)}
       </section>
       <section class="card st-card"><h3>电脑版小助手</h3>
         ${row("复制群消息时识别作业通知", "在微信、QQ 里复制了作业、考试通知，右下角提示一键整理进日历（只在这台电脑上识别，不上传）", sw("clipWatch"))}

@@ -13,7 +13,7 @@ const KINDS = {
   personal_events_v1: "list", personal_marks_v1: "map", done_log_v1: "map", pomo_log_v1: "map",
   habits_v1: "list", habit_log_v1: "map2", quad_v1: "map", plan_notes_v1: "map", mood_log_v1: "map",
   profile_v1: "one", fun_opts_v1: "one", plugins_enabled_v1: "one",
-  countdown_v1: "list", focus_min_v1: "map",          // 电脑版新加：倒数日、每天专注了多少分钟
+  countdown_v1: "list", focus_min_v1: "map", island_v1: "one", farm_v1: "one",          // 电脑版新加：倒数日、每天专注了多少分钟
 };
 const SYNC_NS = Object.keys(KINDS);
 const SEP = "\u0001";

@@ -33,6 +33,7 @@ function navCounts() {
     if (c && c.n) { el.textContent = c.n > 99 ? "99+" : c.n; el.classList.toggle("hot", !!c.hot); }
   }
   drawBadge();
+  if (typeof DIsland !== "undefined") DIsland.render(true);
 }
 // 任务栏图标上的数字角标（主进程只认图片，这里画好再传过去）
 let badgeLast = null;
@@ -202,13 +203,13 @@ document.addEventListener("dragover", (e) => { if (!e.target.closest("[data-drop
 document.addEventListener("drop", (e) => { if (!e.target.closest("[data-drop]")) e.preventDefault(); });
 
 // ---------- 主进程推过来的事件 ----------
-window.cc.on("state", (s) => { const was = App.S && App.S.loggedIn; App.S = s; render(); if (!was && s.loggedIn && App.view === "today") App.go("today"); });
+window.cc.on("state", (s) => { const was = App.S && App.S.loggedIn; App.S = s; render(); if (!was && s.loggedIn && App.view === "today") App.go("today"); if (!was && s.loggedIn) setTimeout(() => DIsland.hello(), 1500); });
 window.cc.on("nav", (v) => { if (!App.S || !App.S.loggedIn) return; if (typeof v === "string") App.go(v); else if (v && v.view) App.go(v.view, v); });
-window.cc.on("pomo", (p) => { App.pomo = p; App.views.focus.pomo && App.views.focus.pomo(p); App.views.today.pomo && App.views.today.pomo(p); });
+window.cc.on("pomo", (p) => { App.pomo = p; if (typeof DIsland !== "undefined" && DIsland.state !== "open") DIsland.render(); App.views.focus.pomo && App.views.focus.pomo(p); App.views.today.pomo && App.views.today.pomo(p); });
 window.cc.on("pomo-done", () => cheer("pomo"));
 window.cc.on("badge", (n) => { App.badgeN = n; drawBadge(n); });
 window.cc.on("ai-state", (a) => { if (App.S) App.S.ai = a; App.views.ai.aiState && App.views.ai.aiState(a); });
-window.cc.on("ai-token", (t) => App.views.ai.token && App.views.ai.token(t));
+window.cc.on("ai-token", (t) => { if (typeof DIsland !== "undefined" && DIsland.token(t)) return; App.views.ai.token && App.views.ai.token(t); });
 
 // 每分钟刷新一次和时间有关的地方（现在上到哪节课、倒计时）
 let lastDay = M.dayKey(new Date());
@@ -226,5 +227,5 @@ setInterval(() => {
   App.S = await window.cc.call("state");
   App.pomo = await window.cc.call("pomo:state");
   render();
-  if (App.S.loggedIn) { App.go("today"); setTimeout(() => App.autoWallpaper(), 8000); }
+  if (App.S.loggedIn) { App.go("today"); setTimeout(() => App.autoWallpaper(), 8000); setTimeout(() => DIsland.hello(), 1500); }
 })();
