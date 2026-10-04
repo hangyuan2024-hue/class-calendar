@@ -599,17 +599,39 @@ function leftLabel(ms) {
   if (m < 24 * 60) { const h = Math.floor(m / 60), r = m % 60; return `${h} 小时${r ? ` ${r} 分` : ""}后`; }
   return `${Math.round(m / 1440)} 天后`;
 }
+// 今天（或明天）还没上的下一节课
+function heroNextCourse(ctx) {
+  const now = ctx.now, nowMin = now.getHours() * 60 + now.getMinutes(), t = keyOf(now);
+  const c = ctx.courses.filter((x) => hm2min(x.t0) != null && hm2min(x.t0) > nowMin).sort((x, y) => hm2min(x.t0) - hm2min(y.t0))[0];
+  if (c) return { c, day: t };
+  const tm = shiftDay(t, 1), c2 = islandCourses(tm).filter((x) => hm2min(x.t0) != null).sort((x, y) => hm2min(x.t0) - hm2min(y.t0))[0];
+  return c2 ? { c: c2, day: tm } : null;
+}
 function heroNextHtml(ctx) {
   const list = IslandCore.rank(ctx.items, ctx.courses, ctx.now).filter((x) => x.level !== "past");
-  const top = list[0];
-  if (!top) return `<div class="hx"><span class="hx-ic">☕</span><span class="hx-t"><b>手头没有要赶的事</b><small>来一个番茄专注一下？</small></span><button class="hx-go" data-nx="pomo">🍅 开始</button></div>`;
+  const top = list[0], h = ctx.now.getHours(), night = h >= 23 || h < 5;
+  if (!top) {
+    // 没有要赶的事：告诉你下一节课；深夜就劝睡觉
+    const nc = heroNextCourse(ctx);
+    if (nc) {
+      const at = atOf(nc.day, nc.c.t0), isTm = nc.day !== keyOf(ctx.now);
+      const early = night || (isTm && h >= 21);
+      return `<div class="hx${early ? " sleep" : ""}">
+        <span class="hx-k">${early ? "早点睡" : "下一节"}</span>
+        <span class="hx-t"><b>${esc(nc.c.name)}</b><small>${isTm ? "明天 " : ""}${esc(nc.c.t0)}${nc.c.location ? " · 📍 " + esc(nc.c.location) : ""}</small></span>
+        <span class="hx-cd" data-at="${at}">${leftLabel(at - Date.now())}</span></div>`;
+    }
+    if (night) return `<div class="hx sleep"><span class="hx-k">早点睡</span><span class="hx-t"><b>明天没有要赶的事</b><small>睡饱了脑子才转得快</small></span></div>`;
+    return `<div class="hx"><span class="hx-k">空闲</span><span class="hx-t"><b>手头没有要赶的事</b><small>来一个番茄专注一下？</small></span><button class="hx-go" data-nx="pomo">🍅 开始</button></div>`;
+  }
   const isCourse = top.kind === "course", live = top.level === "now";
   const c = isCourse ? (ctx.courses.find((x) => "course:" + x.name + x.t0 === top.key) || {}) : null;
   const at = isCourse ? atOf(top.day, live ? c.t1 || top.time : top.time) : atOf(top.day, top.time);
-  const label = isCourse ? (live ? "正在上" : "下一节") : top.level === "late" ? "过期了" : top.exam ? "考试" : top.type === "作业" ? "先做这个" : "接下来";
   const hot = top.level === "late" || top.level === "urgent" || live;
+  const sleep = night && !hot && !(top.mins != null && top.mins < 6 * 60);   // 深夜里不急的事：先劝睡觉
+  const label = sleep ? "早点睡" : isCourse ? (live ? "正在上" : "下一节") : top.level === "late" ? "过期了" : top.exam ? "考试" : top.type === "作业" ? "先做这个" : "接下来";
   const when = at ? `<span class="hx-cd" data-at="${at}" data-end="${live ? 1 : 0}">${live ? "还有 " + leftLabel(at - Date.now()).replace("后", "下课") : leftLabel(at - Date.now())}</span>` : `<span class="hx-cd">${esc(top.reason)}</span>`;
-  return `<div class="hx${hot ? " hot" : ""}">
+  return `<div class="hx${hot ? " hot" : sleep ? " sleep" : ""}">
     <span class="hx-k">${label}</span>
     <span class="hx-t"><b>${esc(top.title)}</b><small>${esc([top.time || (top.day ? IslandCore.dayName(top.day, ctx.now) : ""), top.location ? "📍 " + top.location : ""].filter(Boolean).join(" · "))}</small></span>
     ${when}
@@ -632,9 +654,10 @@ function heroLineHtml(ctx) {
     return `<button class="tl-c${past ? " past" : ""}${on ? " on" : ""}" style="left:${pct(s)}%;width:${(pct(e) - pct(s)).toFixed(2)}%" data-nxgo="${go}" title="${esc(c.t0 + "–" + (c.t1 || "") + " " + c.name + (c.location ? " · " + c.location : ""))}"><span>${esc(c.name)}</span></button>`; }).join("");
   const dots = items.map((x) => `<button class="tl-d${x.type === "作业" ? " hw" : ""}" style="left:${pct(hm2min(x.time))}%" data-nxgo="${x.type === "作业" ? "homework" : "calendar"}" title="${esc(x.time + " " + x.title)}"></button>`).join("");
   const ticks = [a, ...[12 * 60, 18 * 60].filter((m) => m > a + 90 && m < z - 90), z].map((m) => `<i style="left:${pct(m)}%">${m / 60}:00</i>`).join("");
+  const loose = ctx.items.filter((x) => x.day === day && !x.done && hm2min(x.time) == null).length;
   const empty = !courses.length && !items.length;
   return `<div class="tl${tomorrow ? " tmr" : ""}" data-a="${a}" data-z="${z}">
-    <div class="tl-h"><b>${tomorrow ? "明天" : "今天"}</b><span>${empty ? (tomorrow ? "明天没有课，也没有定了时间的事" : "没有课，也没有定了时间的事") : [courses.length ? courses.length + " 节课" : "", items.length ? items.length + " 件定了时间的事" : ""].filter(Boolean).join(" · ")}</span></div>
+    <div class="tl-h"><b>${tomorrow ? "明天" : "今天"}</b><span>${empty && !loose ? "没有课，也没有要做的事" : [courses.length ? courses.length + " 节课" : "", items.length ? items.length + " 件有时间点的事" : "", loose ? loose + " 件全天的事" : ""].filter(Boolean).join(" · ")}</span></div>
     <div class="tl-track">${segs}${dots}${tomorrow || nowMin < a ? "" : `<em class="tl-now" style="left:${pct(nowMin)}%"></em>`}</div>
     <div class="tl-ticks">${ticks}</div>
   </div>`;
@@ -719,7 +742,7 @@ function renderAgenda() {
       <div class="date">${today.getMonth() + 1}月${today.getDate()}日 周${WEEK[today.getDay()]}${wk ? ` · 第 ${wk} 周` : ""}</div>
       <h3>${hi + name}</h3>
       <div class="say">${say}</div>
-      <svg class="mascot" viewBox="0 0 120 120" aria-hidden="true"><use href="#mascotArt"/></svg>
+      <button class="mascot hx-lao" type="button" aria-label="和捞捞聊聊" title="点我问问捞捞"><svg viewBox="0 0 120 120" aria-hidden="true"><use href="#mascotArt"/></svg></button>
       ${ctx ? heroNextHtml(ctx) + heroLineHtml(ctx) : ""}
     </div>`;
     heroTickStart();

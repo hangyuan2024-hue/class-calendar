@@ -78,7 +78,10 @@ function renderIsland(force) {
   const ctx = islandCtx(), ranked = IslandCore.rank(ctx.items, ctx.courses, ctx.now);
   const pills = islandPills(ctx, ranked);
   const urgent = ranked.filter((x) => x.level === "late" || x.level === "urgent").length, late = ranked.some((x) => x.level === "late");
-  const p = pills.length ? pills[islandRot % pills.length] : { ic: "✨", text: "点我聊聊", sub: "捞捞在这儿" };
+  // 小屏幕（黑板）平时收起来，只有正在上课、快上课、快截止、过期、番茄钟进行中才亮出来
+  const loud = pills.filter((x) => x.k === "pomo" || x.level === "now" || x.level === "urgent" || x.level === "late");
+  el.classList.toggle("quiet", !loud.length);
+  const p = loud.length ? loud[islandRot % loud.length] : pills.length ? pills[islandRot % pills.length] : { ic: "✨", text: "点我聊聊", sub: "捞捞在这儿" };
   const scr = $("laoScr");
   const key = p.text + "|" + p.sub;
   if (scr.dataset.key !== key) {
@@ -117,10 +120,10 @@ function laoSay(text, opts = {}) {
   b.innerHTML = `<span>${esc(text)}</span><button class="lao-x" data-laox aria-label="关掉">×</button>`;
   b.dataset.q = opts.q || "";
   b.classList.remove("show"); void b.offsetWidth; b.classList.add("show");
-  $("laoBot").classList.add("talk");
+  $("laoBot").classList.add("talk"); $("lao").classList.add("talking");
   clearTimeout(laoBubT); laoBubT = setTimeout(laoHush, opts.ms || 7000);
 }
-function laoHush() { const b = $("laoBub"); if (b) b.classList.remove("show"); $("laoBot") && $("laoBot").classList.remove("talk"); }
+function laoHush() { const b = $("laoBub"); if (b) b.classList.remove("show"); $("laoBot") && $("laoBot").classList.remove("talk"); $("lao") && $("lao").classList.remove("talking"); }
 // 同一件事只提醒一次
 function laoOnce(key) {
   const said = load(LS_LAO_SAID, {}), t = todayKey();
@@ -152,7 +155,7 @@ function laoTuck(on) {
 }
 document.addEventListener("scroll", (e) => {   // 页面里任何地方在滚动都算（有的页面是里面一块在滚）
   if (islandState === "open" || ($("laoBub") && $("laoBub").classList.contains("show")) || (e.target.closest && e.target.closest("#lao"))) return;
-  laoTuck(true); clearTimeout(laoTuckT); laoTuckT = setTimeout(() => laoTuck(false), 1200);
+  laoTuck(true); clearTimeout(laoTuckT); laoTuckT = setTimeout(() => laoTuck(false), 2500);
 }, { passive: true, capture: true });
 
 // ---------- 按住拖动：左右贴边，上下随便放 ----------
@@ -262,9 +265,23 @@ function islandHello() {
   islandGreeted = true;
   if (!islandOpts().greet || !currentUser) { laoWatch(); return; }
   try { if (sessionStorage.getItem("island_hi")) { laoWatch(); return; } sessionStorage.setItem("island_hi", "1"); } catch (e) {}
+  if ($("lao").classList.contains("away")) { laoWatch(); return; }   // 首页问候卡已经写了，不再重复冒泡
   laoSay(IslandCore.greet(islandCtx()), { ms: 8000, q: "最急的是什么" });
   setTimeout(laoWatch, 9000);
 }
+// 首页问候卡里本来就有捞捞：卡片在屏幕上时，右下角那个先躲起来（点卡片里的捞捞一样能聊天）
+(() => {
+  const hero = $("hero"); if (!hero || !("IntersectionObserver" in window)) return;
+  new IntersectionObserver(([en]) => {
+    const on = en.isIntersecting && document.documentElement.dataset.skin === "fresh" && !!hero.querySelector(".hero.fx");
+    $("lao").classList.toggle("away", on);
+  }, { threshold: 0.35 }).observe(hero);
+})();
+document.addEventListener("click", (e) => {
+  if (!e.target.closest(".hx-lao")) return;
+  if (islandOpts().on === false) { showView("me"); return; }
+  islandOpen(true);
+});
 renderIsland();
 try { renderAgenda(); } catch (e) {}   // 首页的「接下来」卡片也用这里的数据，加载好后画一次
 setTimeout(islandHello, 2200);

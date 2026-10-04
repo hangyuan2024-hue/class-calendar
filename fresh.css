@@ -74,7 +74,7 @@
 [data-skin=fresh] .hero .date { font-family: var(--fd); }
 [data-skin=fresh] .hero h3 { font-weight: 900; font-size: 32px; letter-spacing: .5px; margin: 10px 0 4px; }
 [data-skin=fresh] .hero .say { max-width: 62%; }
-[data-skin=fresh] .hero .mascot { top: 34px; bottom: auto; right: 12px; width: 112px; height: 112px; }
+[data-skin=fresh] .hero .mascot { top: 50px; bottom: auto; right: 14px; width: 104px; height: 104px; }
 [data-skin=fresh] .hero .metabtn { top: 14px; right: 14px; }
 .hero .mascot ~ .hx { margin-top: 18px; }
 
@@ -192,7 +192,7 @@
   [data-skin=fresh] .vhead h2 { font-size: 22px; }
   [data-skin=fresh] .hero { padding: 16px 14px 12px; }
   [data-skin=fresh] .hero h3 { font-size: 26px; }
-  [data-skin=fresh] .hero .mascot { top: 30px; width: 92px; height: 92px; right: 8px; }
+  [data-skin=fresh] .hero .mascot { top: 48px; width: 86px; height: 86px; right: 10px; }
   .hx-t b { font-size: 14px; }
   [data-skin=fresh] .widgets { margin-left: 12px; margin-right: 12px; gap: 10px; }
   [data-skin=fresh] .tile .big { font-size: 40px; }
@@ -230,3 +230,22 @@
 /* 元宇宙入口：在清爽外观里收敛成一个小标签 */
 [data-skin=fresh] .hero .metabtn { background: var(--card); color: var(--text); border: 1px solid var(--border); box-shadow: none; font-weight: 700; }
 @media (max-width: 700px) { [data-skin=fresh] .rail { background: color-mix(in srgb, var(--card) 96%, transparent); -webkit-backdrop-filter: blur(20px) saturate(160%); backdrop-filter: blur(20px) saturate(160%); } }
+
+/* 右下角的捞捞：平时安安静静只露个头，有正事才举小黑板；首页问候卡在屏幕上时先躲起来 */
+#lao.quiet .lao-scr { opacity: 0; transform: scale(.4); pointer-events: none; position: absolute; }
+#lao .lao-dock { transition: transform .35s cubic-bezier(.3, 1.3, .5, 1), opacity .25s; }
+#lao.away:not(.open):not(.talking) .lao-dock { opacity: 0; transform: translateY(24px) scale(.6); pointer-events: none; }
+/* 问候卡里的捞捞可以点 */
+.hero .hx-lao { border: 0; padding: 0; background: none; cursor: pointer; pointer-events: auto; z-index: 1; -webkit-tap-highlight-color: transparent; }
+.hero .hx-lao svg { width: 100%; height: 100%; display: block; transition: transform .2s; }
+.hero .hx-lao:hover svg { transform: rotate(-6deg) scale(1.04); }
+.hero .hx-lao:active svg { transform: scale(.94); }
+.hero .hx-lao::after { content: "问我"; position: absolute; left: -6px; top: 6px; font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 999px; background: #fff; color: var(--accent); box-shadow: 0 4px 10px -6px rgba(11, 42, 74, .5); }
+.hx.sleep .hx-k { background: #5b5bd6; }
+.hx.sleep .hx-cd { color: #5b5bd6; }
+[data-skin=fresh][data-mode=dark] .hx.sleep .hx-cd { color: #a9a9ff; }
+
+/* 今日课程卡：一节课一行（时间 · 课名 · 教室），不再被截掉半行 */
+[data-skin=fresh] .wcourse .crow { grid-template-columns: 44px minmax(0, 1fr) auto; align-items: baseline; padding: 5px 0; }
+[data-skin=fresh] .wcourse .ct { grid-row: auto; font-family: var(--num); font-weight: 600; }
+[data-skin=fresh] .wcourse .cl { max-width: 7em; text-align: right; }
