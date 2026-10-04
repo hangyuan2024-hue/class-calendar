@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- 插件运行的「隔离间」：网页用 sandbox 方式加载本页（没有 allow-same-origin），插件代码在这里运行，
+     拿不到登录信息、读不到主页面的存储、也调不了数据库接口。和主页面只能通过 postMessage 交换数据。 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; img-src data: blob: https:; media-src data: blob: https:; font-src data:; connect-src https:; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>插件</title>
+<style>
+  html, body { margin: 0; }
+  body { font: 15px/1.6 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; color: var(--text, #0e2240); background: transparent; padding: 0 2px; }
+  .panel { background: var(--card, #fff); border: 1px solid var(--line, #e3edf6); border-radius: 16px; padding: 14px 16px; margin: 0 0 12px; }
+  h2 { font-size: 18px; margin: 0 0 10px; }
+  button { font: inherit; font-size: 14px; border: 1px solid var(--line, #e3edf6); background: var(--card, #fff); color: var(--text, #0e2240); border-radius: 999px; padding: 6px 14px; cursor: pointer; }
+  button.primary { background: var(--accent, #1ea0ff); color: #fff; border-color: transparent; }
+  input, select, textarea { font: inherit; font-size: 14px; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--line, #e3edf6); background: var(--muted-bg, #f5f9fd); color: var(--text, #0e2240); }
+  label.check { display: inline-flex; align-items: center; gap: 6px; }
+  a { color: var(--accent, #1ea0ff); }
+</style>
+</head>
+<body>
+<script>
+(function () {
+  "use strict";
+  // 安全闸：本页必须在「隔离」状态下运行（来源是 null、读不到本站存储）。
+  // 否则别的网站可以把本页嵌进去、发代码过来，在我们的网址下运行，偷走登录信息。
+  var isolated = false;
+  try { isolated = window.origin === "null" && window.parent !== window; } catch (e) { isolated = false; }
+  if (isolated) { try { void window.localStorage.length; isolated = false; } catch (e) { /* 读不到本站存储：确实是隔离的 */ } }
+  if (!isolated) { document.body.textContent = "这个页面只能由捞捞课程表在隔离模式下打开。"; return; }
+  var started = false;
+  // 只接受父页面发来的第一条 init 消息
+  window.addEventListener("message", function onInit(e) {
+    if (started || e.source !== window.parent || !e.data || e.data.cc !== "init") return;
+    started = true;
+    window.removeEventListener("message", onInit);
+    boot(e.data);
+  });
+  try { window.parent.postMessage({ cc: "ready" }, "*"); } catch (e) {}
+
+  function boot(cfg) {
+    var token = cfg.token, P = cfg.plugin || {}, store = cfg.store || {};
+    var post = function (msg) { msg.token = token; try { window.parent.postMessage(msg, "*"); } catch (err) {} };
+
+    // ---------- 存储：替换 localStorage，数据由父页面按插件分开保存 ----------
+    var has = function (k) { return Object.prototype.hasOwnProperty.call(store, k); };
+    var storage = {
+      getItem: function (k) { k = String(k); return has(k) ? store[k] : null; },
+      setItem: function (k, v) { k = String(k); v = String(v); store[k] = v; post({ cc: "set", key: k, value: v }); },
+      removeItem: function (k) { k = String(k); if (has(k)) { delete store[k]; post({ cc: "del", key: k }); } },
+      clear: function () { store = {}; post({ cc: "clear" }); },
+      key: function (i) { return Object.keys(store)[i] || null; },
+      get length() { return Object.keys(store).length; }
+    };
+    var session = {}, sessionStore = {
+      getItem: function (k) { return Object.prototype.hasOwnProperty.call(session, k) ? session[k] : null; },
+      setItem: function (k, v) { session[String(k)] = String(v); }, removeItem: function (k) { delete session[k]; },
+      clear: function () { session = {}; }, key: function (i) { return Object.keys(session)[i] || null; },
+      get length() { return Object.keys(session).length; }
+    };
+    function installShims() {
+      try { Object.defineProperty(window, "localStorage", { value: storage, configurable: true }); } catch (err) {}
+      try { Object.defineProperty(window, "sessionStorage", { value: sessionStore, configurable: true }); } catch (err) {}
+      try { Object.defineProperty(window, "indexedDB", { value: undefined, configurable: true }); } catch (err) {}   // 没有 IndexedDB，插件会改用 localStorage
+    }
+    installShims();
+
+    // ---------- 父页面后续的消息 ----------
+    var listeners = {}, sources = [], classItems = cfg.items || [], selected = cfg.date || "";
+    function onParentMsg(e) {
+      if (e.source !== window.parent || !e.data) return;
+      var d = e.data;
+      if (d.cc === "store") {
+        var k = String(d.key), old = has(k) ? store[k] : null;
+        if (d.value == null) delete store[k]; else store[k] = String(d.value);
+        // 别处（主页面导入、另一个标签页）改了数据：像浏览器一样发 storage 事件，页面可以跟着刷新
+        try { window.dispatchEvent(new StorageEvent("storage", { key: k, oldValue: old, newValue: d.value == null ? null : String(d.value) })); } catch (err) {}
+      }
+      else if (d.cc === "class") classItems = d.items || [];
+      else if (d.cc === "event") {
+        if (d.evt === "dayselected") selected = d.arg;
+        (listeners[d.evt] || []).forEach(function (fn) { try { fn(d.arg); } catch (err) { console.error(err); } });
+      } else if (d.cc === "items-req") {
+        var out = [];
+        sources.forEach(function (fn) { try { out = out.concat(fn(d.start, d.end) || []); } catch (err) { console.error(err); } });
+        post({ cc: "items", reqId: d.reqId, list: JSON.parse(JSON.stringify(out.slice(0, 3000))) });
+      }
+    }
+    window.addEventListener("message", onParentMsg);
+
+    // ---------- 高度自适应 ----------
+    var lastH = 0;
+    function report() {
+      var h = Math.ceil(Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0));
+      if (Math.abs(h - lastH) > 2) { lastH = h; post({ cc: "h", h: h }); }
+    }
+    function watchHeight() {
+      try { new ResizeObserver(report).observe(document.documentElement); } catch (err) { setInterval(report, 800); }
+      window.addEventListener("load", report); setTimeout(report, 50);
+    }
+
+    window.onerror = function (msg) { post({ cc: "error", msg: String(msg).slice(0, 200) }); };
+
+    var pad = function (n) { return String(n).padStart(2, "0"); };
+    var util = {
+      esc: function (s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); },
+      keyOf: function (d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); },
+      parseTime: function (t) { var m = String(t || "").trim().match(/^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2}))?/); return m ? { day: m[1], time: m[2] || "" } : null; },
+      pad: pad
+    };
+
+    // ---------- 只有 app.html：直接把页面写进来 ----------
+    if (cfg.mode === "app") {
+      var html = String(cfg.html || "");
+      document.open();
+      document.write(html);
+      document.close();
+      // document.open() 会清掉 window 上的事件监听：重新接上父页面的消息（数据被别处改了要能收到）
+      window.addEventListener("message", onParentMsg);
+      installShims();
+      watchHeight();
+      return;
+    }
+
+    // ---------- plugin.js：提供和以前一样的 api ----------
+    var root = document.createElement("div"); document.body.appendChild(root);
+    var ns = function (k) { return "plg_" + P.id + "_" + k; };
+    var api = {
+      id: P.id,
+      meta: { name: P.name, icon: P.icon, version: P.version, channel: P.channel },
+      storage: {
+        get: function (k, d) { var v = storage.getItem(ns(k)); if (v == null) return d; try { var x = JSON.parse(v); return x == null ? d : x; } catch (err) { return d; } },
+        set: function (k, v) { storage.setItem(ns(k), JSON.stringify(v)); }
+      },
+      appUrl: null,
+      mountApp: function (el, opts) { if (cfg.mode === "tab") post({ cc: "mountApp", minHeight: String((opts && opts.minHeight) || "") }); return null; },
+      addTab: function (t) {
+        if (cfg.mode === "bg") post({ cc: "tab", id: String(t.id), title: String(t.title || "") });
+        else if (cfg.mode === "tab" && String(t.id) === cfg.tabId) {
+          try { t.render(root); } catch (err) { root.textContent = "插件界面出错：" + err.message; }
+        }
+      },
+      addEventSource: function (fn) { if (cfg.mode === "bg") { sources.push(fn); post({ cc: "source" }); } },
+      setTheme: function (vars) { post({ cc: "theme", vars: JSON.parse(JSON.stringify(vars || {})) }); },
+      resetTheme: function () { post({ cc: "resetTheme" }); },
+      on: function (evt, fn) { (listeners[evt] = listeners[evt] || []).push(fn); },
+      refresh: function () { post({ cc: "refresh" }); },
+      goToDate: function (v) { post({ cc: "goto", date: String(v) }); },
+      getClassItems: function () { return JSON.parse(JSON.stringify(classItems)); },
+      getSelectedDate: function () { return selected; },
+      util: util
+    };
+    window.CalendarApp = {
+      version: 3,
+      register: function (def) {
+        if (!def || def.id !== P.id) { console.warn("插件 ID 不对，已忽略：", def && def.id); return; }
+        try { def.init(api); } catch (err) { post({ cc: "error", msg: String(err && err.message || err).slice(0, 200) }); }
+      }
+    };
+    // 主题变量：和主页面一致
+    var theme = cfg.theme || {};
+    Object.keys(theme).forEach(function (k) { document.documentElement.style.setProperty("--" + k, theme[k]); });
+    if (cfg.mode === "tab") watchHeight();
+    try { (0, eval)(String(cfg.code || "") + "\n//# sourceURL=plugin-" + P.id + ".js"); }
+    catch (err) { post({ cc: "error", msg: String(err && err.message || err).slice(0, 200) }); }
+    post({ cc: "loaded" });
+  }
+})();
+</script>
+</body>
+</html>

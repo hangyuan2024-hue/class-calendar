@@ -8,6 +8,7 @@ App.views.settings = {
     el.addEventListener("click", async (e) => {
       const sw = e.target.closest(".switch[data-set]"); if (sw) { this.set({ [sw.dataset.set]: !sw.classList.contains("on") }); return; }
       const th = e.target.closest("[data-theme]"); if (th) { this.set({ theme: th.dataset.theme }); return; }
+      const ac = e.target.closest("[data-acc]"); if (ac) { this.set({ accent: ac.dataset.acc }); return; }
       const a = e.target.closest("[data-a]"); if (!a) return;
       const act = a.dataset.a;
       if (act === "logout") { if (await confirmBox("退出登录？", "这台电脑上的数据会清掉，下次登录会重新同步。还没上传的改动会先上传。", "退出登录", true)) await call("logout"); }
@@ -16,6 +17,11 @@ App.views.settings = {
       if (act === "ai") { call("ai:prepare"); App.go("ai"); }
       if (act === "mini") call("mini:toggle");
       if (act === "hkReset") this.set({ hotkey: "CommandOrControl+Alt+Space" });
+      if (act === "brief") call("brief:open");
+      if (act === "report") App.go("report");
+      if (act === "bkopen") call("backup:open");
+      if (act === "wp") App.views.week.wallpaper();
+      if (act === "wpoff") call("wallpaper:restore").then(() => toast("已换回原来的壁纸"));
     });
     el.addEventListener("change", (e) => { if (e.target.id === "stClass" && e.target.value !== App.S.cid) call("class:switch", e.target.value).then(() => toast("已切换班级")); });
   },
@@ -32,15 +38,27 @@ App.views.settings = {
     el.innerHTML = `
       <section class="card st-card"><h3>账号</h3>
         <div class="st-me"><span class="av lg">${esc((me.display_name || me.account || "我").slice(-1))}</span><div><b>${esc(me.display_name || "")}</b><small>账号 ${esc(me.account || "")}${me.role === "teacher" ? " · 老师" : ""}</small></div><span class="grow"></span><button class="btn danger" data-a="logout">退出登录</button></div>
-        ${row("当前班级", cls.length > 1 ? "有多个班级时可以在这里切换" : "", cls.length ? `<select class="input st-sel" id="stClass">${cls.map((c) => `<option value="${esc(c.id)}"${c.id === S.cid ? " selected" : ""}>${esc(c.name)}</option>`).join("")}</select>` : `<a data-ext="https://www.laolaokechengbiao.cn/app.html">去网站加入班级</a>`)}
+        ${row("当前班级", cls.length > 1 ? "有多个班级时可以在这里切换" : "", cls.length ? `<select class="input st-sel" id="stClass">${cls.map((c) => `<option value="${esc(c.id)}"${c.id === S.cid ? " selected" : ""}>${esc(c.name)}</option>`).join("")}</select>` : `<button class="btn" data-go-cl>加入班级</button>`)}
       </section>
       <section class="card st-card"><h3>提醒 <small>在屏幕右下角弹出，窗口关了也会提醒</small></h3>
         ${row("事项开始 / 截止前", "有具体时间的事项", sel("remindBefore", [0, 5, 10, 15, 30, 60, 120], "分钟"))}
         ${row("上课前", "按课程表提醒下一节课", sel("courseRemind", [0, 5, 10, 15, 20, 30], "分钟"))}
         ${row("每晚 8 点提醒明天的安排", "明天的课、要做的事、快到期的作业", sw("eveningDigest"))}
+        ${row("倒数日提醒", "提前 7 天、3 天、1 天和当天各提醒一次", sw("countdownRemind"))}
+        ${row("专注时勿扰", "番茄钟专注时不弹事项提醒，结束后一起告诉你", sw("focusQuiet"))}
+        ${row("上课时勿扰", "正在上课时只弹上课提醒，别的下课后一起说", sw("classQuiet"))}
+      </section>
+      <section class="card st-card"><h3>电脑版小助手</h3>
+        ${row("复制群消息时识别作业通知", "在微信、QQ 里复制了作业、考试通知，右下角提示一键整理进日历（只在这台电脑上识别，不上传）", sw("clipWatch"))}
+        ${row("每天早上的今日简报", "每天第一次打开电脑时，右下角弹出今天的课、要交的作业和倒数日", sw("morningBrief") + `<button class="btn ghost sm" data-a="brief">现在看看</button>`)}
+        ${row("任务栏图标显示数字", "图标右下角显示今天还剩几件事没做", sw("taskbarBadge"))}
+        ${row("每周学习报告", "周日晚上 7 点提醒你看这周的报告", sw("weeklyReport") + `<button class="btn ghost sm" data-a="report">打开</button>`)}
+        ${row("每天自动备份", "备份到「文档 / 捞捞课程表备份」，留最近 14 份", sw("autoBackup") + `<button class="btn ghost sm" data-a="bkopen">打开文件夹</button>`)}
+        ${row("课程表壁纸", "把这周的课表和作业设成桌面壁纸，每周一自动换新", `<button class="btn" data-a="wp">${icon("image")}设成壁纸</button><button class="btn ghost sm" data-a="wpoff">换回原来的</button>`)}
       </section>
       <section class="card st-card"><h3>外观</h3>
-        ${row("主题", "", `<div class="seg">${[["system", "跟随系统"], ["light", "浅色"], ["dark", "深色"]].map(([k, n]) => `<button data-theme="${k}" class="${st.theme === k ? "on" : ""}">${n}</button>`).join("")}</div>`)}
+        ${row("主题", "", `<div class="seg">${[["system", "跟随系统"], ["light", "浅色"], ["dark", "深色"], ["meta", "元宇宙"]].map(([k, n]) => `<button data-theme="${k}" class="${st.theme === k ? "on" : ""}">${n}</button>`).join("")}</div>`)}
+        ${row("主色", "按钮、选中的颜色", `<div class="st-acc">${ACCENTS.map(([k, n, c]) => `<button data-acc="${k}" class="${(st.accent || "blue") === k ? "on" : ""}" style="--a:${c}" title="${n}"></button>`).join("")}</div>`)}
       </section>
       <section class="card st-card"><h3>窗口和启动</h3>
         ${row("关闭窗口时缩到右下角托盘", "继续提醒、继续专注计时；右键托盘图标可以退出", sw("closeToTray"))}
@@ -60,7 +78,7 @@ App.views.settings = {
         ${row("导出到日历", "生成 .ics 文件，可以导入 Outlook、Windows 日历、手机日历", `<button class="btn" data-a="ics">${icon("export")}导出</button>`)}
       </section>
       <section class="card st-card"><h3>快捷键</h3>
-        <div class="st-keys">${[["Ctrl K", "搜索 / 命令面板"], ["Ctrl N", "记一件事"], ["Ctrl 1 – 7", "切换页面"], ["Ctrl ,", "设置"], ["F5", "同步"], [hk, "快速记事（全局）"], ["↑ ↓ 空格 Enter Del", "在事项表里操作"], ["← → T", "课程表 / 月历翻页、回到今天"]].map(([k, d]) => `<div><kbd>${esc(k)}</kbd><span>${d}</span></div>`).join("")}</div>
+        <div class="st-keys">${[["Ctrl K", "搜索 / 命令面板"], ["Ctrl N", "记一件事"], ["Ctrl 1 – 9", "切换页面"], ["Ctrl V", "在课程表页粘贴课表截图"], ["Ctrl ,", "设置"], ["F5", "同步"], [hk, "快速记事（全局）"], ["↑ ↓ 空格 Enter Del", "在事项表里操作"], ["← → T", "课程表 / 月历翻页、回到今天"]].map(([k, d]) => `<div><kbd>${esc(k)}</kbd><span>${d}</span></div>`).join("")}</div>
       </section>
       <p class="st-ver muted">捞捞课程表 电脑版 ${esc(S.version || "")} · <a data-ext="https://www.laolaokechengbiao.cn/">网站</a></p>`;
     // 录快捷键：点一下输入框，然后按组合键
@@ -79,3 +97,6 @@ App.views.settings = {
     };
   },
 };
+
+const ACCENTS = [["blue", "海军蓝", "#3d6ff2"], ["sakura", "樱花粉", "#ff5f8f"], ["green", "薄荷绿", "#17a673"], ["orange", "活力橙", "#f08c00"], ["purple", "星空紫", "#8b5cf6"], ["teal", "湖水青", "#0ea5b7"], ["red", "中国红", "#e5484d"]];
+document.addEventListener("click", (e) => { if (e.target.closest("[data-go-cl]")) App.go("classes"); });

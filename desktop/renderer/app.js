@@ -1,33 +1,64 @@
 // 捞捞课程表 电脑版 · 界面外壳：登录、侧边栏、页面切换、命令面板、快捷键
 "use strict";
-const ORDER = ["today", "week", "tasks", "month", "wall", "focus", "ai"];
+// 侧边栏：按用途分组；Ctrl+1…9 依次对应前 9 个
+const NAV = [
+  ["学习", ["today", "week", "homework", "tasks", "month"]],
+  ["班级", ["wall", "people", "rank", "classes"]],
+  ["成长", ["plan", "focus", "growth", "countdown", "meta"]],
+  ["工具", ["ai", "ingest", "tools", "report"]],
+];
+const ORDER = NAV.flatMap((g) => g[1]);
+// 被老师或管理员关掉的功能（和网页版同一套开关）
+const VIEW_FEAT = { homework: ["homework"], wall: ["wall"], plan: ["plan"], growth: ["growth"], ai: ["ask"], tools: ["tools"], rank: ["rank"], meta: ["metaverse"], ingest: ["ingest_local", "ingest_cloud"] };
+const viewOn = (id) => !VIEW_FEAT[id] || VIEW_FEAT[id].some((k) => App.feat(k));
 const mounted = {}, dirty = {};
 
 function buildNav() {
-  $("#nav").innerHTML = ORDER.map((id, i) => {
-    const v = App.views[id];
-    return (id === "wall" ? '<div class="nav-sep"></div>' : "") + `<button class="nav-item" data-view="${id}" title="${v.title}（Ctrl+${i + 1}）">${icon(v.icon || id)}<span>${v.title}</span><span class="cnt hidden"></span></button>`;
-  }).join("");
+  let i = 0;
+  $("#nav").innerHTML = NAV.map(([g, ids]) => `<div class="nav-g">${g}</div>` + ids.map((id) => {
+    const v = App.views[id]; i++;
+    return `<button class="nav-item" data-view="${id}" title="${v.title}${i <= 9 ? "（Ctrl+" + i + "）" : ""}">${icon(v.icon || id)}<span>${v.title}</span><span class="cnt hidden"></span></button>`;
+  }).join("")).join("");
+  $("#navMe").innerHTML = `${icon("me")}<span>我的</span>`;
   $("#navSettings").innerHTML = `${icon("settings")}<span>设置</span><span class="kb">Ctrl ,</span>`;
   $$(".nav-item").forEach((b) => (b.onclick = () => App.go(b.dataset.view)));
 }
 function navCounts() {
   for (const id of ORDER) {
-    const v = App.views[id], el = $(`.nav-item[data-view="${id}"] .cnt`);
-    const c = v.count ? v.count() : null;
+    const v = App.views[id], btn = $(`.nav-item[data-view="${id}"]`), el = btn && $(".cnt", btn);
     if (!el) continue;
+    btn.classList.toggle("hidden", !viewOn(id) || !!(v.navOn && !v.navOn()));
+    const c = v.count ? v.count() : null;
     el.classList.toggle("hidden", !c || !c.n);
     if (c && c.n) { el.textContent = c.n > 99 ? "99+" : c.n; el.classList.toggle("hot", !!c.hot); }
   }
+  drawBadge();
+}
+// 任务栏图标上的数字角标（主进程只认图片，这里画好再传过去）
+let badgeLast = null;
+function drawBadge(n) {
+  if (n === undefined) n = App.badgeN;
+  if (n == null || n === badgeLast) return;
+  badgeLast = n;
+  if (!n) { window.cc.call("badge", null, 0).catch(() => {}); return; }
+  const c = document.createElement("canvas"); c.width = c.height = 32;
+  const g = c.getContext("2d");
+  g.fillStyle = "#e5484d"; g.beginPath(); g.arc(16, 16, 15, 0, Math.PI * 2); g.fill();
+  g.fillStyle = "#fff"; g.font = `bold ${n > 9 ? 17 : 21}px "Segoe UI", sans-serif`; g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillText(n > 99 ? "99" : String(n), 16, 17);
+  window.cc.call("badge", c.toDataURL("image/png"), n).catch(() => {});
 }
 
 App.go = function (id, arg) {
+  if (id === "new") { editItem(null); return; }
   if (!App.views[id]) id = "today";
+  if (!viewOn(id)) { toast(`「${App.views[id].title}」暂时用不了：${App.featWhy((VIEW_FEAT[id] || [])[0])}`, { bad: true }); id = "today"; }
   closeOverlay();
   const v = App.views[id];
   if (!mounted[id]) { const el = h(`<section class="view" data-v="${id}"></section>`); $("#main").append(el); v.el = el; v.mount(el); mounted[id] = true; dirty[id] = true; }
   $$(".view").forEach((el) => el.classList.toggle("hidden", el.dataset.v !== id));
   $$(".nav-item").forEach((b) => b.classList.toggle("on", b.dataset.view === id));
+  document.documentElement.dataset.view = id;
   App.view = id;
   if (dirty[id]) { dirty[id] = false; v.update(); }
   if (v.show) v.show(arg || {});
@@ -43,6 +74,9 @@ function render() {
   $("#main").classList.toggle("hidden", login);
   if (login) { setTimeout(() => !$("#lgAcct").value && $("#lgAcct").focus(), 50); return; }
   const me = S.me || {};
+  document.documentElement.dataset.theme = S.settings.theme === "meta" ? "meta" : "";
+  document.documentElement.dataset.accent = S.settings.accent || "blue";
+  if (!Plugins.started) setTimeout(() => Plugins.start().catch(() => {}), 1500);
   $("#meName").textContent = me.display_name || me.account || "我";
   $("#meAv").textContent = (me.display_name || me.account || "我").slice(-1);
   $("#meClass").textContent = App.className() || "还没加入班级";
@@ -50,7 +84,8 @@ function render() {
   const dot = $("#syncDot");
   dot.className = "sync" + (st.syncing ? " busy" : !st.online ? " off" : st.error ? " err" : "");
   dot.title = st.syncing ? "正在同步…" : !st.online ? "没联网：改动先存在本机，联网后自动同步" : st.error ? "同步出错：" + st.error : `已同步${S.lastRefresh ? "（" + new Date(S.lastRefresh).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }) + "）" : ""}${S.pending ? `，还有 ${S.pending} 条改动等待上传` : ""}`;
-  for (const id of ORDER.concat("settings")) dirty[id] = true;
+  for (const id of ORDER.concat("settings", "me")) dirty[id] = true;
+  if (me.must_change_pw && !App._pwAsked) { App._pwAsked = true; setTimeout(() => App.views.me.changePw(true), 400); }
   if (!mounted[App.view]) App.go(App.view);
   else { dirty[App.view] = false; App.views[App.view].update(); }
   navCounts();
@@ -76,7 +111,8 @@ $("#meCard").onclick = (e) => {
   menu(r.left, r.top - 8 - (cls.length + 3) * 34, [
     ...cls.map((c) => ({ label: (c.id === App.S.cid ? "✓ " : "　") + c.name + (c.is_teacher ? "（老师）" : ""), fn: () => c.id !== App.S.cid && call("class:switch", c.id).then(() => toast("已切换到 " + c.name)) })),
     cls.length ? "-" : null,
-    { label: "加入或创建班级（网站）", icon: "ext", fn: () => window.cc.call("open:external", "https://www.laolaokechengbiao.cn/app.html") },
+    { label: "加入或管理班级", icon: "week", fn: () => App.go("classes") },
+    { label: "我的主页", icon: "me", fn: () => App.go("people", { uid: App.S.me && App.S.me.id }) },
     { label: "设置", icon: "settings", fn: () => App.go("settings") },
   ]);
 };
@@ -84,7 +120,7 @@ $("#meCard").onclick = (e) => {
 // ---------- 命令面板 Ctrl+K ----------
 function commands() {
   const c = ORDER.map((id, i) => ({ g: "跳转", i: "→", t: "打开「" + App.views[id].title + "」", k: "Ctrl " + (i + 1), fn: () => App.go(id) }));
-  c.push({ g: "跳转", i: "⚙", t: "打开设置", k: "Ctrl ,", fn: () => App.go("settings") });
+  c.push({ g: "跳转", i: "⚙", t: "打开设置", k: "Ctrl ,", fn: () => App.go("settings") }, { g: "跳转", i: "👤", t: "打开「我的」", fn: () => App.go("me") });
   c.push(
     { g: "操作", i: "＋", t: "记一件事", k: "Ctrl N", fn: () => editItem(null) },
     { g: "操作", i: "⟳", t: "立即同步", k: "F5", fn: () => call("refresh").then(() => toast("已同步")) },
@@ -93,6 +129,13 @@ function commands() {
     { g: "操作", i: "⇪", t: "导出到日历（.ics）", fn: () => App.views.settings.exportIcs() },
     { g: "操作", i: "◐", t: "切换深色 / 浅色", fn: () => call("settings", { theme: matchMedia("(prefers-color-scheme: dark)").matches ? "light" : "dark" }) },
     { g: "操作", i: "✦", t: "问 AI 助手", fn: () => App.go("ai") },
+    { g: "操作", i: "✨", t: "整理群消息（粘贴剪贴板）", fn: () => App.go("ingest", { paste: true }) },
+    { g: "操作", i: "⏳", t: "添加倒数日", fn: () => App.go("countdown", { add: true }) },
+    { g: "操作", i: "🖼", t: "把课程表设成桌面壁纸", fn: () => App.views.week.wallpaper() },
+    { g: "操作", i: "🖨", t: "导出本周课表和作业（PDF）", fn: () => App.views.week.exportPdf() },
+    { g: "操作", i: "💾", t: "立即备份到「文档」", fn: () => call("backup:now").then((f) => toast("已备份：" + f.split(/[\\/]/).pop())) },
+    { g: "操作", i: "☀", t: "打开今日简报", fn: () => call("brief:open") },
+    { g: "操作", i: "📊", t: "本周学习报告", fn: () => App.go("report") },
   );
   return c;
 }
@@ -136,6 +179,7 @@ function palette(initial) {
   inp.value = initial || ""; draw(); inp.focus();
 }
 $("#tbSearch").onclick = () => App.S.loggedIn && palette();
+$("#navMe").onclick = () => App.go("me");
 App.palette = palette;
 
 // ---------- 快捷键 ----------
@@ -146,7 +190,7 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") { if ($(".menu")) { $$(".menu").forEach((m) => m.remove()); return; } if (overlayOpen()) { closeOverlay(); e.preventDefault(); return; } }
   if (ctrl && (e.key === "k" || e.key === "K")) { e.preventDefault(); overlayOpen() ? closeOverlay() : palette(); return; }
   if (overlayOpen()) return;
-  if (ctrl && /^[1-7]$/.test(e.key)) { e.preventDefault(); App.go(ORDER[+e.key - 1]); return; }
+  if (ctrl && /^[1-9]$/.test(e.key)) { e.preventDefault(); App.go(ORDER[+e.key - 1]); return; }
   if (ctrl && e.key === ",") { e.preventDefault(); App.go("settings"); return; }
   if (ctrl && (e.key === "n" || e.key === "N")) { e.preventDefault(); editItem(null); return; }
   if (e.key === "F5" || (ctrl && (e.key === "r" || e.key === "R"))) { e.preventDefault(); call("refresh").then(() => toast("已同步")); return; }
@@ -161,6 +205,8 @@ document.addEventListener("drop", (e) => { if (!e.target.closest("[data-drop]"))
 window.cc.on("state", (s) => { const was = App.S && App.S.loggedIn; App.S = s; render(); if (!was && s.loggedIn && App.view === "today") App.go("today"); });
 window.cc.on("nav", (v) => { if (!App.S || !App.S.loggedIn) return; if (typeof v === "string") App.go(v); else if (v && v.view) App.go(v.view, v); });
 window.cc.on("pomo", (p) => { App.pomo = p; App.views.focus.pomo && App.views.focus.pomo(p); App.views.today.pomo && App.views.today.pomo(p); });
+window.cc.on("pomo-done", () => cheer("pomo"));
+window.cc.on("badge", (n) => { App.badgeN = n; drawBadge(n); });
 window.cc.on("ai-state", (a) => { if (App.S) App.S.ai = a; App.views.ai.aiState && App.views.ai.aiState(a); });
 window.cc.on("ai-token", (t) => App.views.ai.token && App.views.ai.token(t));
 
@@ -170,7 +216,7 @@ setInterval(() => {
   if (!App.S || !App.S.loggedIn) return;
   const v = App.views[App.view];
   const today = M.dayKey(new Date());
-  if (today !== lastDay) { lastDay = today; App._itemsOf = null; render(); return; }
+  if (today !== lastDay) { lastDay = today; App._itemsOf = null; render(); App.autoWallpaper(); return; }
   if (v && v.tick) v.tick();
   navCounts();
 }, 30000);
@@ -180,5 +226,5 @@ setInterval(() => {
   App.S = await window.cc.call("state");
   App.pomo = await window.cc.call("pomo:state");
   render();
-  if (App.S.loggedIn) App.go("today");
+  if (App.S.loggedIn) { App.go("today"); setTimeout(() => App.autoWallpaper(), 8000); }
 })();

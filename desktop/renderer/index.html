@@ -2,11 +2,12 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'none'; frame-src 'self'; media-src 'self' data: blob:">
 <title>捞捞课程表</title>
 <link rel="stylesheet" href="fonts.css">
 <link rel="stylesheet" href="base.css">
 <link rel="stylesheet" href="views.css">
+<link rel="stylesheet" href="views2.css">
 </head>
 <body>
 <div id="app" class="booting">
@@ -43,6 +44,7 @@
   <aside class="side hidden" id="side">
     <nav id="nav"></nav>
     <div class="side-foot">
+      <button class="nav-item" data-view="me" id="navMe"></button>
       <button class="nav-item" data-view="settings" id="navSettings"></button>
       <button class="me-card" id="meCard" title="切换班级"><span class="av" id="meAv"></span><span class="me-t"><b id="meName"></b><small id="meClass"></small></span></button>
     </div>
@@ -55,6 +57,7 @@
 
 <script src="../core/model.js"></script>
 <script src="../core/dateparse.js"></script>
+<script src="../core/parse.js"></script>
 <script src="util.js"></script>
 <script src="v-today.js"></script>
 <script src="v-week.js"></script>
@@ -64,6 +67,20 @@
 <script src="v-focus.js"></script>
 <script src="v-ai.js"></script>
 <script src="v-settings.js"></script>
+<script src="v-homework.js"></script>
+<script src="v-plan.js"></script>
+<script src="v-growth.js"></script>
+<script src="v-rank.js"></script>
+<script src="v-meta.js"></script>
+<script src="v-people.js"></script>
+<script src="v-classes.js"></script>
+<script src="v-ingest.js"></script>
+<script src="v-tools.js"></script>
+<script src="v-me.js"></script>
+<script src="v-countdown.js"></script>
+<script src="v-report.js"></script>
+<script src="classitem.js"></script>
+<script src="coursed.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

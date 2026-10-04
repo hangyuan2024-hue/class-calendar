@@ -40,7 +40,24 @@ function due(snap, now, sent) {
       }
     }
   }
+  // 倒数日：提前 7 天、3 天、1 天和当天早上 8 点以后提醒一次
+  if (st.countdownRemind !== false && nowMin >= 8 * 60 && nowMin < 22 * 60) {
+    for (const c of ((snap.kv || {}).countdown_v1 || [])) {
+      if (!c || !c.date || !c.title) continue;
+      const n = M.dayDiff(c.date, now);
+      if (![7, 3, 1, 0].includes(n)) continue;
+      const id = `countdown:${c.id}:${today}`;
+      if (sent.has(id)) continue;
+      out.push({ id, kind: "countdown", title: n ? `距离「${c.title}」还有 ${n} 天` : `今天就是「${c.title}」`, body: n ? `${c.date}，提前准备起来` : "加油！" });
+    }
+  }
   return out;
 }
 
-module.exports = { due };
+// 现在是不是在上课（上课时可以只弹上课提醒）
+function inClass(snap, now) {
+  const nm = now.getHours() * 60 + now.getMinutes();
+  return M.coursesOn(snap.courses, now).some((c) => { const a = M.toMin(c.tStart), b = M.toMin(c.tEnd); return a != null && b != null && nm >= a && nm < b; });
+}
+
+module.exports = { due, inClass };

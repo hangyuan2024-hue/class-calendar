@@ -7,9 +7,11 @@ App.views.month = {
       <div class="vhead"><div><h1 id="moTitle"></h1><div class="sub">拖动「我的」事项可以改日期 · 双击某天新建</div></div><span class="grow"></span>
         <div class="mo-legend">${M.TYPES.map((t) => `<span><i style="background:${tc(t)}"></i>${t}</span>`).join("")}</div>
         <label class="row" style="gap:6px;font-size:13px;color:var(--text2)"><button class="switch on" id="moDone"></button>显示已完成</label>
+        <input type="date" class="input mo-jump" id="moJump" title="跳到某一天">
         <div class="row"><button class="btn iconbtn" id="moPrev" title="上个月（←）">${icon("left")}</button><button class="btn" id="moNow" title="回到今天（T）">今天</button><button class="btn iconbtn" id="moNext" title="下个月（→）">${icon("right")}</button></div></div>
       <div class="mo-body"><div class="mo-cal"><div class="mo-wd">${"一二三四五六日".split("").map((d) => `<span>周${d}</span>`).join("")}</div><div class="mo-grid" id="moGrid"></div></div><aside class="mo-side" id="moSide"></aside></div>`;
     $("#moPrev", el).onclick = () => this.shift(-1);
+    $("#moJump", el).onchange = (e) => { if (e.target.value) this.show({ day: e.target.value }); };
     $("#moNext", el).onclick = () => this.shift(1);
     $("#moNow", el).onclick = () => { this.ym = null; this.day = M.dayKey(App.now()); this.update(); };
     $("#moDone", el).onclick = (e) => { this.showDone = !this.showDone; e.currentTarget.classList.toggle("on", this.showDone); this.update(); };
@@ -40,8 +42,10 @@ App.views.month = {
       const c = e.target.closest(".chk[data-k]"); if (c) { const x = App.find(c.dataset.k); if (x) toggleDone(x.key, !x.done); return; }
       const r = e.target.closest(".ms-it[data-k]"); if (r) App.go("tasks", { key: r.dataset.k });
       if (e.target.closest("#msNew")) editItem(null, { day: this.day });
+      if (e.target.closest("#msPub")) editClassItem(null, { day: this.day });
     });
   },
+  show(arg) { if (arg && arg.day) { const d = M.fromKey(arg.day); this.ym = [d.getFullYear(), d.getMonth()]; this.day = arg.day; this.update(); } },
   shift(n) { const [y, m] = this.base(); const d = new Date(y, m + n, 1); this.ym = [d.getFullYear(), d.getMonth()]; this.update(); },
   base() { if (this.ym) return this.ym; const n = App.now(); return [n.getFullYear(), n.getMonth()]; },
   update() {
@@ -52,6 +56,9 @@ App.views.month = {
     const weeks = Math.ceil((M.weekday0(first) + new Date(y, m + 1, 0).getDate()) / 7);
     const items = App.items().filter((x) => !x.hidden && x.day && (this.showDone || !x.done));
     const by = {}; for (const x of M.sortItems(items)) (by[x.day] ||= []).push(x);
+    // 工具（插件）往日历里加的事项，只显示
+    const plug = {}; for (const x of Plugins.items(M.dayKey(start), M.dayKey(M.addDays(start, weeks * 7 - 1)))) (plug[x.day] ||= []).push(x);
+    this.plug = plug;
     const g = $("#moGrid", el); g.style.gridTemplateRows = `repeat(${weeks}, 1fr)`;
     let html = "";
     for (let i = 0; i < weeks * 7; i++) {
@@ -59,7 +66,7 @@ App.views.month = {
       const wk = i % 7 === 0 ? M.weekOf(App.S.courses.meta, d) : null;
       html += `<div class="mo-d${d.getMonth() !== m ? " out" : ""}${k === tk ? " today" : ""}${k === this.day ? " sel" : ""}${i % 7 >= 5 ? " we" : ""}" data-day="${k}">
         <div class="mo-n"><b>${d.getDate() === 1 ? d.getMonth() + 1 + "月" : ""}${d.getDate()}</b>${wk ? `<small class="wkno">第${wk}周</small>` : ""}${cs ? `<small class="cs">${cs} 节课</small>` : ""}</div>
-        <div class="mo-chs">${its.slice(0, 4).map((x) => `<div class="mo-ch${x.done ? " done" : ""}${x.mine ? " mine" : ""}" data-k="${esc(x.key)}" draggable="true" style="--c:${tc(x.type)}" title="${esc(x.type + "：" + x.title + (x.time ? "　" + x.time : "") + (x.mine ? "\n可以拖到别的日子" : ""))}">${x.time ? `<i>${x.time}</i>` : ""}${esc(x.title)}</div>`).join("")}${its.length > 4 ? `<div class="mo-more">还有 ${its.length - 4} 件</div>` : ""}</div></div>`;
+        <div class="mo-chs">${(plug[k] || []).slice(0, 2).map((x) => `<div class="mo-ch plug" style="--c:${x.color || "var(--muted)"}" title="${esc(x.plugin + "：" + x.title + (x.time ? "　" + x.time : ""))}">${x.time ? `<i>${x.time}</i>` : ""}${esc(x.title)}</div>`).join("")}${its.slice(0, 4).map((x) => `<div class="mo-ch${x.done ? " done" : ""}${x.mine ? " mine" : ""}" data-k="${esc(x.key)}" draggable="true" style="--c:${tc(x.type)}" title="${esc(x.type + "：" + x.title + (x.time ? "　" + x.time : "") + (x.mine ? "\n可以拖到别的日子" : ""))}">${x.time ? `<i>${x.time}</i>` : ""}${esc(x.title)}</div>`).join("")}${its.length > 4 ? `<div class="mo-more">还有 ${its.length - 4} 件</div>` : ""}</div></div>`;
     }
     g.innerHTML = html;
     this.side();
@@ -73,7 +80,9 @@ App.views.month = {
       ${cs.length ? cs.map((c) => `<div class="ms-c" style="--c:${c.color}"><span class="mono">${c.tStart}</span><b>${esc(c.name)}</b><small>${esc(c.location || "")}</small></div>`).join("") : `<div class="muted ms-e">没课</div>`}
       <div class="ms-s">事项 <small>${its.length}</small></div>
       ${its.length ? its.map((x) => `<div class="ms-it${x.done ? " done" : ""}" data-k="${esc(x.key)}"><button class="chk${x.done ? " on" : ""}" data-k="${esc(x.key)}"></button><div><b>${esc(x.title)}</b><small>${x.type}${x.time ? " · " + x.time : ""}${x.location ? " · " + esc(x.location) : ""}</small></div></div>`).join("") : `<div class="muted ms-e">没有事项</div>`}
-      <button class="btn" id="msNew" style="margin-top:12px;width:100%">${icon("plus")}在这天记一件事</button>`;
+      ${(this.plug && this.plug[k] || []).length ? `<div class="ms-s">工具 <small>${this.plug[k].length}</small></div>${this.plug[k].map((x) => `<div class="ms-c" style="--c:${x.color || "var(--muted)"}"><span class="mono">${x.time || "全天"}</span><b>${esc(x.title)}</b><small>${esc(x.plugin)}</small></div>`).join("")}` : ""}
+      <button class="btn" id="msNew" style="margin-top:12px;width:100%">${icon("plus")}在这天记一件事</button>
+      ${App.canAddItem() ? `<button class="btn" id="msPub" style="margin-top:8px;width:100%">📣 在这天发布班级事项</button>` : ""}`;
   },
   keys(e, typing) {
     if (typing) return;

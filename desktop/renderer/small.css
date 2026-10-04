@@ -46,3 +46,20 @@ body.quick, body.mini { background: transparent; overflow: hidden; }
 .m-pomo b { margin-left: auto; font-size: 16px; }
 .pm-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--bad); animation: pulse 1.2s infinite; flex: none; }
 .late { color: var(--bad) !important; font-weight: 600; }
+
+/* 今日简报、小窗里的倒数日 */
+.brief .b-h { display: flex; align-items: center; gap: 4px; padding: 14px 10px 10px 16px; -webkit-app-region: drag; border-bottom: 1px solid var(--line); background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 16%, transparent), transparent); }
+.brief .b-h div { display: flex; flex-direction: column; line-height: 1.3; }
+.brief .b-h b { font-size: 17px; }
+.brief .b-h small { color: var(--muted); font-size: 12px; }
+.brief .b-h .grow { flex: 1; }
+.brief .b-h button { -webkit-app-region: no-drag; width: 26px; height: 26px; border: 0; border-radius: 7px; background: none; color: var(--muted); display: grid; place-items: center; padding: 0; }
+.brief .b-h svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.b-f { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--line); }
+.b-f .btn { flex: 1; }
+.b-cd { margin: 6px 0; padding: 8px 12px; border-radius: 10px; background: color-mix(in srgb, var(--c) 13%, transparent); border-left: 4px solid var(--c); font-size: 13px; }
+.b-cd b { color: var(--c); font-size: 17px; margin: 0 2px; }
+.b-hb { display: flex; flex-wrap: wrap; gap: 6px; }
+.b-hb span { font-size: 12px; padding: 2px 8px; border-radius: 10px; background: var(--bg2); }
+.m-s.late { color: var(--bad); }
+.m-s small { font-weight: 400; }

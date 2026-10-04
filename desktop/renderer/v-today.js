@@ -14,14 +14,24 @@ App.views.today = {
           <div class="card td-courses"><div class="card-h">今天的课<span class="grow"></span><small id="tdWeekNo"></small><button class="btn ghost sm" data-go="week">整周 →</button></div><div id="tdCourses"></div></div>
           <div class="card td-todo"><div class="card-h">要做的事<span class="grow"></span><button class="btn ghost sm" data-go="tasks">全部 →</button></div><div id="tdTodo" class="todo-list"></div></div>
           <div class="td-side">
+            <div class="card td-enc" id="tdEnc"></div>
+            <div class="td-cd" id="tdCd"></div>
             <div class="stats" id="tdStats"></div>
+            <div class="card td-hb hidden" id="tdHb"></div>
             <div class="card td-pomo" id="tdPomo"></div>
             <div class="card"><div class="card-h">这一周<span class="grow"></span><button class="btn ghost sm" data-go="month">月历 →</button></div><div id="tdWeek" class="wk-strip"></div></div>
             <div class="card"><div class="card-h">班级墙<span class="grow"></span><button class="btn ghost sm" data-go="wall">更多 →</button></div><div id="tdWall"></div></div>
           </div>
         </div>
       </div>`;
-    el.onclick = (e) => { const g = e.target.closest("[data-go]"); if (g) App.go(g.dataset.go); };
+    el.onclick = async (e) => {
+      const g = e.target.closest("[data-go]"); if (g) return App.go(g.dataset.go);
+      if (e.target.closest("[data-enc-next]")) { this.shift = (this.shift || 0) + 1; return this.enc(); }
+      const md = e.target.closest("[data-mood]"); if (md) { const t = todayKey(), cur = (KV("mood_log_v1") || {})[t]; kvSet("mood_log_v1", t, cur === md.dataset.mood ? null : md.dataset.mood); return; }
+      if (e.target.closest("[data-mood-redo]")) { kvSet("mood_log_v1", todayKey(), null); return; }
+      const hb = e.target.closest("[data-hb]"); if (hb) { const on = await call("habit", hb.dataset.hb); if (on) cheer("habit"); return; }
+      const cd = e.target.closest("[data-cd]"); if (cd) App.go("countdown");
+    };
     $("#tdNew", el).onclick = () => editItem(null);
     $("#tdMini", el).onclick = () => call("mini:toggle");
     const q = $("#tdQuick", el), pv = $("#tdParse", el);
@@ -49,7 +59,7 @@ App.views.today = {
     $("#tdSub", el).textContent = [`${now.getMonth() + 1}月${now.getDate()}日 星期${M.WEEK[now.getDay()]}`, wk ? `第 ${wk} 周` : "", App.className()].filter(Boolean).join(" · ");
     $("#tdWeekNo", el).textContent = wk ? `第 ${wk} 周` : "";
     this.tick();
-    this.todo(); this.stats(); this.week(); this.wall(); this.pomo(App.pomo);
+    this.todo(); this.stats(); this.week(); this.wall(); this.pomo(App.pomo); this.enc(); this.cd(); this.habits();
   },
   tick() { this.courses(); },
   courses() {
@@ -92,7 +102,7 @@ App.views.today = {
     const doneWeek = Object.values(log).filter((d) => d >= mk && d <= t).length;
     const days = new Set(Object.values(log).concat(Object.keys(pomo).filter((k) => pomo[k] > 0)));
     let streak = 0; for (let d = days.has(t) ? now : M.addDays(now, -1); days.has(M.dayKey(d)); d = M.addDays(d, -1)) streak++;
-    $("#tdStats", this.el).innerHTML = [["今天完成", doneToday, "件"], ["本周完成", doneWeek, "件"], ["今日专注", pomo[t] || 0, "分钟"], ["连续学习", streak, "天"]]
+    $("#tdStats", this.el).innerHTML = [["今天完成", doneToday, "件"], ["本周完成", doneWeek, "件"], ["今日专注", (S.focusMin || {})[t] || (pomo[t] || 0) * 25, "分钟"], ["连续学习", streak, "天"]]
       .map(([a, b, c]) => `<div class="stat"><span>${a}</span><b>${b}<small>${c}</small></b></div>`).join("");
   },
   week() {
@@ -115,5 +125,40 @@ App.views.today = {
     } else el.innerHTML = `<div class="pm-mini"><span>🍅</span><div><b>专注一会儿</b><span>${App.S.settings.pomoFocus} 分钟，到点提醒你休息</span></div><button class="btn sm primary" id="tdPomoGo">开始</button></div>`;
     const b = $("#tdPomoGo", el); if (b) b.onclick = (e) => { e.stopPropagation(); call("pomo:start", App.S.settings.pomoFocus, ""); };
   },
+  // 每日一句 + 今天心情怎么样（和网页版同一套句子，心情记录跟着账号同步）
+  enc() {
+    const el = $("#tdEnc", this.el), now = App.now(), h = now.getHours(), wd = now.getDay(), t = todayKey();
+    const late = App.items().filter((x) => !x.hidden && overdue(x, now) && x.type === "作业").length;
+    const pool = h >= 23 || h < 5 ? ENC.night : late ? ENC.go : wd === 0 || wd === 6 ? ENC.rest.concat(ENC.warm) : ENC.warm.concat(ENC.go);
+    const k = t + ((App.S.me || {}).id || ""); let hash = 0; for (let i = 0; i < k.length; i++) hash = (hash * 31 + k.charCodeAt(i)) | 0;
+    const [zh, en, emo, g] = pool[(Math.abs(hash) + (this.shift || 0)) % pool.length], m = (KV("mood_log_v1") || {})[t];
+    const reply = m && MOOD_REPLY[m] ? MOOD_REPLY[m][Math.abs(hash) % MOOD_REPLY[m].length] : "";
+    el.innerHTML = `<div class="enc-i" style="background:linear-gradient(135deg,${g})">${emo}</div><div class="enc-b"><div class="enc-l">🌱 每日一句<button class="btn ghost sm" data-enc-next title="换一句">↻</button></div><div class="enc-zh">${esc(zh)}</div><div class="enc-en">${esc(en)}</div>
+      <div class="enc-m">${m ? `<span>${MOODS.find((x) => x[0] === m)[1]} ${esc(reply)}</span><a data-mood-redo>改</a>` : `<span class="muted">今天心情怎么样？</span>${MOODS.map(([k2, e, n]) => `<button data-mood="${k2}" title="${n}">${e}</button>`).join("")}`}</div></div>`;
+  },
+  cd() {
+    const list = countdowns().filter((c) => c.n >= 0), top = list.find((c) => c.pinned) || list[0];
+    $("#tdCd", this.el).innerHTML = top ? `<div class="card cd-mini" data-cd style="--c:${top.color || "#3d6ff2"}"><span>${esc(top.emoji || "📅")}</span><div>距离 <b>${esc(top.title)}</b><small>${esc(dateCN(top.date))}</small></div><b class="cd-mn">${top.n === 0 ? "今天" : top.n + "<small>天</small>"}</b></div>` : "";
+  },
+  habits() {
+    const el = $("#tdHb", this.el), hs = KV("habits_v1"), log = KV("habit_log_v1") || {}, t = todayKey();
+    el.classList.toggle("hidden", !hs.length || App.fun().habits === false);
+    if (!hs.length) return;
+    const left = hs.filter((x) => !(log[x.id] || {})[t]).length;
+    el.innerHTML = `<div class="card-h">今日打卡<span class="grow"></span><small>${left ? `还有 ${left} 个` : "全部完成 🔥"}</small><button class="btn ghost sm" data-go="growth">全部 →</button></div>
+      <div class="td-hbs">${hs.map((x) => { const on = !!(log[x.id] || {})[t], st = habitStreak(x.id); return `<button class="td-hbi${on ? " on" : ""}" data-hb="${esc(x.id)}" title="${on ? "已打卡，点一下取消" : "打卡"}"><span>${esc(x.icon || "✅")}</span><b>${esc(x.name)}</b>${st ? `<small>🔥${st}</small>` : ""}</button>`; }).join("")}</div>`;
+  },
   keys(e, typing) { if (!typing && e.key === "/") { $("#tdQuick", this.el).focus(); return true; } },
+};
+
+const ENC = {
+  go: [["今天的努力，是明天的底气。", "Today's effort is tomorrow's confidence.", "💪", "#667eea,#764ba2"], ["每一步都算数，继续往前走。", "Every step counts, keep going.", "🚶", "#4facfe,#00f2fe"], ["坚持一下，再坚持一下。", "Hold on, just a little longer.", "🔥", "#ffecd2,#fcb69f"], ["你的坚持，终将美好。", "Your persistence will pay off beautifully.", "🦋", "#ff9a9e,#fad0c4"], ["先完成，再完美。", "Done is better than perfect.", "✅", "#43e97b,#38f9d7"], ["一次只做一件事，做完就是胜利。", "One thing at a time — finishing is winning.", "🎯", "#f6d365,#fda085"], ["作业不会自己消失，但你可以让它消失。", "Homework won't vanish by itself — but you can make it.", "📝", "#a18cd1,#fbc2eb"], ["世界很大，你的可能性更大。", "The world is big, your possibilities are bigger.", "🌍", "#89f7fe,#66a6ff"]],
+  warm: [["你比想象中更强大。", "You are stronger than you think.", "🌟", "#f093fb,#f5576c"], ["别急，花会开的。", "Be patient, the flowers will bloom.", "🌸", "#43e97b,#38f9d7"], ["你已经做得很好了。", "You're already doing great.", "✨", "#fa709a,#fee140"], ["慢慢来，比较快。", "Slow and steady wins the race.", "🐢", "#a18cd1,#fbc2eb"], ["光而不耀，静而不止。", "Bright but calm, quiet but unstoppable.", "☀️", "#a1c4fd,#c2e9fb"], ["允许一切发生，然后继续走。", "Let things happen, then keep walking.", "🍃", "#d4fc79,#96e6a1"], ["你已经走了很远了，别忘了为自己鼓掌。", "You've come so far — applaud yourself.", "👏", "#84fab0,#8fd3f4"], ["日子还长，值得期待的还有很多。", "There's still so much to look forward to.", "🌈", "#fbc2eb,#a6c1ee"], ["今天也是值得被期待的一天。", "Today is another day worth looking forward to.", "🌅", "#fdcbf1,#e6dee9"], ["偶尔停下来，也是在往前走。", "Pausing is also part of moving forward.", "☕", "#e0c3fc,#8ec5fc"]],
+  rest: [["累了就休息，但别忘了重新出发。", "Rest if tired, but don't forget to start again.", "🛏️", "#f6d365,#fda085"], ["周末快乐！给自己充充电吧。", "Happy weekend — time to recharge.", "🔋", "#84fab0,#8fd3f4"], ["出去走走，晒晒太阳。", "Go outside and catch some sunshine.", "🌤️", "#ffecd2,#fcb69f"]],
+  night: [["夜深了，明天的事交给明天的你。", "It's late — leave tomorrow's work to tomorrow's you.", "🌙", "#30cfd0,#330867"], ["早点睡，睡饱了脑子才转得快。", "Sleep well — a rested brain works faster.", "😴", "#4b6cb7,#182848"]],
+};
+const MOOD_REPLY = {
+  great: ["开心的日子要记住！把好心情分一点给同桌吧 🎉", "今天状态满分，冲鸭！"], good: ["平平稳稳就是好日子 🙂", "保持住，今天也会顺顺利利。"],
+  meh: ["一般般也没关系，做完一件小事就会好一点。", "听首喜欢的歌，再开始下一件事吧 🎧"], tired: ["累了就歇一会儿，喝口水、伸个懒腰 ☕", "今天早点睡，明天又是满血的你。"],
+  down: ["抱抱你。难过的时候不用硬撑，找信任的朋友或老师聊聊 🤍", "今天不开心也没关系，明天会好一点的。需要的话，随时可以找人说说。"],
 };

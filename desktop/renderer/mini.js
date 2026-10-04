@@ -17,6 +17,8 @@ function render() {
   const left = (m) => (m < 60 ? `${m} 分钟` : `${Math.floor(m / 60)} 小时 ${m % 60} 分`);
   $("next").innerHTML = cur ? `<div class="m-next" style="--c:${cur.color}"><small>正在上 · 还剩 ${left(M.toMin(cur.tEnd) - nm)}</small><b>${esc(cur.name)}</b><span>${esc(cur.location || "")}</span></div>`
     : nx ? `<div class="m-next" style="--c:${nx.color}"><small>${left(M.toMin(nx.tStart) - nm)}后上课</small><b>${esc(nx.name)}</b><span>${nx.tStart} ${esc(nx.location || "")}</span></div>` : "";
+  const cd = ((S.kv || {}).countdown_v1 || []).filter((c) => c && c.date && M.dayDiff(c.date, now) >= 0).sort((a, b) => a.date.localeCompare(b.date))[0];
+  $("cd").innerHTML = cd ? `<div class="b-cd" style="--c:${cd.color || "#3d6ff2"}">${esc(cd.emoji || "📅")} 距离「${esc(cd.title)}」<b>${M.dayDiff(cd.date, now) || "就是今天"}</b>${M.dayDiff(cd.date, now) ? " 天" : ""}</div>` : "";
   $("courses").innerHTML = cs.length ? cs.map((c) => `<div class="m-c${M.toMin(c.tEnd) <= nm ? " past" : ""}${c === cur ? " cur" : ""}" style="--c:${c.color}"><span class="mono">${c.tStart}</span><b>${esc(c.name)}</b><small>${esc(c.location || "")}</small></div>`).join("") : '<div class="m-e">今天没课 🎈</div>';
   const items = M.sortItems(M.allItems(S).filter((x) => !x.hidden && x.day && (x.day === tk || (!x.done && x.day < tk && M.dayDiff(x.day, now) >= -7))));
   $("todo").innerHTML = items.length ? items.map((x) => `<div class="m-t${x.done ? " done" : ""}"><button class="chk${x.done ? " on" : ""}" data-k="${esc(x.key)}"></button><i style="background:${tc(x.type)}"></i><span>${esc(x.title)}</span><small class="${!x.done && x.day < tk ? "late" : ""}">${x.day < tk ? M.relDay(x.day, now) : x.time || ""}</small></div>`).join("") : '<div class="m-e">今天没有要做的事 🎉</div>';

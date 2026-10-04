@@ -16,6 +16,7 @@ App.views.tasks = {
   mount(el) {
     el.innerHTML = `
       <div class="vhead"><div><h1>事项</h1><div class="sub">班级发的作业、通知，加上你自己记的事</div></div><span class="grow"></span>
+        <button class="btn hidden" id="tkPub">📣 发布班级事项</button>
         <button class="btn primary" id="tkNew">${icon("plus")}记一件事<kbd style="background:none;border-color:rgba(255,255,255,.4);color:#fff">Ctrl N</kbd></button></div>
       <div class="tk-body">
         <aside class="tk-filters" id="tkFilters"></aside>
@@ -29,6 +30,7 @@ App.views.tasks = {
         <aside class="tk-detail" id="tkDetail"></aside>
       </div>`;
     $("#tkNew", el).onclick = () => editItem(null);
+    $("#tkPub", el).onclick = () => editClassItem(null);
     $("#tkQ", el).oninput = (e) => { this.q = e.target.value.trim(); this.table(); };
     $("#tkQ", el).onkeydown = (e) => { if (e.key === "Escape") { e.target.value = ""; this.q = ""; this.table(); $("#tkTable", el).focus(); e.stopPropagation(); } if (e.key === "ArrowDown") { $("#tkTable", el).focus(); this.move(1, false); e.preventDefault(); } };
     $("#tkSort", el).onclick = (e) => { const b = e.target.closest("button"); if (!b) return; this.sort = b.dataset.s; $$("#tkSort button", el).forEach((x) => x.classList.toggle("on", x === b)); this.table(); };
@@ -71,6 +73,7 @@ App.views.tasks = {
   },
   update() {
     const el = this.el, n = App.now(), items = App.items();
+    $("#tkPub", el).classList.toggle("hidden", !App.canAddItem());
     $("#tkFilters", el).innerHTML = `<div class="tf-h">清单</div>` + FILTERS.map(([id, name, ic, f]) => { const c = items.filter((x) => f(x, n)).length; return `<button class="tf${this.filter === id ? " on" : ""}" data-f="${id}"><span>${ic}</span>${name}<small class="${id === "late" && c ? "hot" : ""}">${c || ""}</small></button>`; }).join("")
       + `<div class="tf-h">类型</div><div class="tf-types">${M.TYPES.map((t) => `<button class="tf-t${this.types.has(t) ? " on" : ""}" data-t="${t}" style="--c:${tc(t)}">${t}</button>`).join("")}</div>`
       + `<div class="tf-tip"><b>键盘操作</b><span><kbd>↑</kbd><kbd>↓</kbd> 选择　<kbd>Shift</kbd> 连选</span><span><kbd>空格</kbd> 完成　<kbd>Enter</kbd> 编辑</span><span><kbd>Del</kbd> 删除/隐藏　<kbd>Ctrl A</kbd> 全选</span></div>`;
@@ -94,7 +97,7 @@ App.views.tasks = {
       html += `<div class="tr${this.sel.has(x.key) ? " sel" : ""}${x.key === this.cur ? " cur" : ""}${x.done ? " done" : ""}" data-k="${esc(x.key)}">
         <span><button class="chk${x.done ? " on" : ""}" data-k="${esc(x.key)}" tabindex="-1"></button></span><span>${tagHtml(x.type)}</span>
         <span class="tt"><b>${esc(x.title)}</b>${x.note ? `<i title="${esc(x.note)}">📝</i>` : ""}${x.summary ? `<small>${esc(x.summary)}</small>` : ""}</span>
-        <span class="tw${late ? " late" : ""}${x.day === tk ? " tdy" : ""}">${esc(whenText(x, now))}</span><span class="tl2">${esc(x.location)}</span><span class="ts">${x.mine ? "我的" : "班级"}</span></div>`;
+        <span class="tw${late ? " late" : ""}${x.day === tk ? " tdy" : ""}">${esc(whenText(x, now))}</span><span class="tl2">${esc(x.location)}</span><span class="ts">${x.mine ? "我的" : App.group(x.gid) ? "👥 " + esc(App.group(x.gid).name) : "班级"}${attachList(x.key).length ? " 📎" : ""}</span></div>`;
     }
     if (!list.length) html += `<div class="empty"><b>${this.q ? "🔍" : "🎉"}</b>${this.q ? "没有找到「" + esc(this.q) + "」" : "这里没有事项"}</div>`;
     $("#tkTable", el).innerHTML = html;
@@ -144,7 +147,10 @@ App.views.tasks = {
     if (!x) { box.innerHTML = `<div class="empty" style="margin-top:80px"><b>👈</b>点左边的一件事，在这里看详情、写备注</div>`; return; }
     const late = overdue(x, now);
     box.innerHTML = `
-      <div class="dt-top">${tagHtml(x.type)}${x.done ? '<span class="tag" style="--c:var(--ok)">已完成</span>' : late ? '<span class="tag" style="--c:var(--bad)">过期了</span>' : ""}${x.confirm ? '<span class="tag" style="--c:var(--warn)">需要回执</span>' : ""}<span class="grow"></span>${x.mine ? `<button class="btn ghost iconbtn sm" data-d="edit" title="编辑（Enter）">${icon("edit")}</button>` : ""}</div>
+      <div class="dt-top">${tagHtml(x.type)}${App.group(x.gid) ? `<span class="tag" style="--c:var(--ok)">👥 ${esc(App.group(x.gid).name)}</span>` : ""}${x.done ? '<span class="tag" style="--c:var(--ok)">已完成</span>' : late ? '<span class="tag" style="--c:var(--bad)">过期了</span>' : ""}${x.confirm ? '<span class="tag" style="--c:var(--warn)">待核实</span>' : ""}<span class="grow"></span>
+        ${x.mine ? `<button class="btn ghost iconbtn sm" data-d="edit" title="编辑（Enter）">${icon("edit")}</button>` : App.canEditIn(x.gid) ? `<button class="btn ghost iconbtn sm" data-d="cedit" title="修改这条班级事项">${icon("edit")}</button>` : ""}
+        ${!x.mine && App.S.groupsOk && x.updated ? `<button class="btn ghost iconbtn sm" data-d="hist" title="修改记录">${icon("history")}</button>` : ""}
+        ${App.canDelItem(x) ? `<button class="btn ghost iconbtn sm danger" data-d="cdel" title="从班级里删除">${icon("trash")}</button>` : ""}</div>
       <h2 class="dt-title selectable">${esc(x.title)}</h2>
       <div class="dt-rows">
         <div>${icon("clock")}<span class="${late ? "late" : ""}">${x.day ? dateCN(x.day) + (x.time ? " " + x.time : "") + `　<small>${esc(M.relDay(x.day, now))}</small>` : "没定日子"}</span></div>
@@ -154,6 +160,8 @@ App.views.tasks = {
       ${x.summary ? `<div class="dt-sec"><div class="dt-l">内容</div><div class="selectable dt-txt">${esc(x.summary)}</div></div>` : ""}
       ${x.prepare ? `<div class="dt-sec"><div class="dt-l">要准备</div><div class="selectable dt-txt">${esc(x.prepare)}</div></div>` : ""}
       ${x.original ? `<details class="dt-sec"><summary class="dt-l">原始消息</summary><div class="selectable dt-txt dt-orig">${esc(x.original)}</div></details>` : ""}
+      ${!x.mine && x.editor && x.updated ? `<div class="dt-by muted">✏️ ${esc(x.editor)} · ${esc(whenStr(x.updated))}更新</div>` : ""}
+      <div class="dt-sec"><div class="dt-l">附件 <small class="muted">只在这台电脑上</small></div>${attachHtml(x.key)}</div>
       <div class="dt-sec"><div class="dt-l">我的备注 <small class="muted" id="dtSaved"></small></div><textarea class="input" rows="4" maxlength="2000" placeholder="写点什么，自动保存，手机和网页上也能看到">${esc(x.note)}</textarea></div>
       <div class="dt-act">
         <button class="btn ${x.done ? "" : "primary"}" data-d="done">${x.done ? "标记为没完成" : "✓ 完成"}<kbd>空格</kbd></button>
@@ -178,6 +186,9 @@ App.views.tasks = {
     const a = b.dataset.d;
     if (a === "done") toggleDone(x.key, !x.done);
     if (a === "edit") editItem(x);
+    if (a === "cedit") editClassItem(x);
+    if (a === "cdel") deleteClassItem(x);
+    if (a === "hist") showItemHistory(x);
     if (a === "focus") App.go("focus", { task: x.title });
     if (a === "del") deleteMine(x.key);
     if (a === "hide") hideItem(x.key, !x.hidden);

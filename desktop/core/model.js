@@ -22,7 +22,8 @@
       const key = "c" + r.id, mk = marks[key] || {}, p = parseTime(r.event_time);
       return { key, id: r.id, mine: false, type: TYPES.includes(r.msg_type) ? r.msg_type : (r.msg_type || "通知"), title: r.subject || r.summary || r.msg_type || "（无标题）",
         summary: r.subject ? r.summary || "" : "", day: p ? p.day : "", time: p ? p.time : "", location: r.location || "", prepare: r.prepare || "",
-        original: r.original || "", publish: r.publish_date || "", confirm: !!r.need_confirm, done: !!mk.done, hidden: !!mk.hidden, note: mk.note || "" };
+        original: r.original || "", publish: r.publish_date || "", confirm: !!r.need_confirm, done: !!mk.done, hidden: !!mk.hidden, note: mk.note || "",
+        gid: r.group_id || null, by: r.created_by || null, editor: r.editor || "", updated: r.updated_at || "", raw: r };
     });
     const own = (s.mine || []).filter((r) => r && r.id).map((r) => {
       const p = parseTime(r.event_time);
@@ -71,7 +72,29 @@
   }
   const PALETTE = ["#4f8cff", "#ff7a59", "#22b07d", "#a259ff", "#ffb020", "#14b8c4", "#ef5da8", "#6b7cff", "#e8590c", "#2f9e44"];
   function colorFor(name) { let h = 0; for (const ch of String(name || "")) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return PALETTE[h % PALETTE.length]; }
+  // 周次写法：1-16、1-15单、2-16双、1-3,5-8（空的 = 1-16 周），和网页课程表的规则一样
+  function parseWeeks(str) {
+    const set = new Set(), s = typeof str === "string" ? str.trim() : "";
+    if (!s) { for (let z = 1; z <= 16; z++) set.add(z); return set; }
+    const pm = s.match(/^(\d+)\s*[-–—~至]\s*(\d+)\s*[（(]?\s*(单|双)\s*[）)]?\s*周?$/);
+    if (pm) { for (let i = +pm[1]; i <= +pm[2] && i <= 30; i++) if ((pm[3] === "单") === (i % 2 === 1)) set.add(i); return set; }
+    for (const part of s.replace(/周/g, "").split(/[,，、;；\s]+/)) {
+      const r = part.match(/^(\d+)\s*[-–—~至]\s*(\d+)$/);
+      if (r) { let [x, y] = [+r[1], +r[2]]; if (x > y) [x, y] = [y, x]; for (let k = x; k <= y && k <= 30; k++) set.add(k); }
+      else if (/^\d+$/.test(part) && +part >= 1 && +part <= 30) set.add(+part);
+    }
+    return set;
+  }
+  function weeksText(ws) {
+    const a = [...ws].filter((x) => x >= 1 && x <= 30).sort((x, y) => x - y);
+    if (!a.length) return "";
+    if (a.length >= 3 && a.every((x, i) => i === 0 || x - a[i - 1] === 2)) return `${a[0]}-${a[a.length - 1]}${a[0] % 2 ? "单" : "双"}`;
+    const runs = []; let st = a[0];
+    for (let i = 1; i <= a.length; i++) if (a[i] !== a[i - 1] + 1) { runs.push(st === a[i - 1] ? `${st}` : `${st}-${a[i - 1]}`); st = a[i]; }
+    return runs.join(",");
+  }
+  const mondayKey = (k) => { const d = fromKey(k); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return dayKey(d); };
   const toMin = (hhmm) => { const m = /^(\d{2}):(\d{2})$/.exec(hhmm || ""); return m ? +m[1] * 60 + +m[2] : null; };
 
-  return { pad, dayKey, fromKey, addDays, WEEK, TYPES, parseTime, allItems, sortItems, dayDiff, relDay, periodTimes, weekOf, weekday0, coursesOn, colorFor, toMin, DEFAULT_TIMES };
+  return { pad, dayKey, fromKey, addDays, WEEK, TYPES, parseTime, allItems, sortItems, dayDiff, relDay, periodTimes, weekOf, weekday0, coursesOn, colorFor, toMin, DEFAULT_TIMES, parseWeeks, weeksText, mondayKey };
 });

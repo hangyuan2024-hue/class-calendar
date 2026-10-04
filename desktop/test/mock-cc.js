@@ -7,7 +7,7 @@
   const LOGGED = !location.hash.includes("login");
   const S = {
     loggedIn: LOGGED, version: "1.0.12",
-    me: { id: "u1", display_name: "杭远", account: "hangyuan", role: "student" }, perms: [],
+    me: { id: "u1", display_name: "小明", account: "hangyuan", role: "student" }, perms: [],
     classes: [{ id: "c-1", name: "计科2601班", status: "approved", is_teacher: false }, { id: "c-2", name: "ACM 兴趣小组", status: "approved", is_teacher: false }], cid: "c-1",
     items: [
       { id: 101, msg_type: "作业", subject: "数据结构 实验三：二叉树遍历", summary: "完成前序、中序、后序遍历的递归和非递归实现，提交实验报告", event_time: day(1, "23:59"), location: "学习通", prepare: "实验报告模板", original: "【数据结构】各位同学，实验三截止时间是明晚23:59，请在学习通提交代码和报告。", publish_date: day(-2), need_confirm: false },
@@ -65,7 +65,7 @@
     mark: (k, p) => { S.marks[k] = { ...(S.marks[k] || {}), ...p }; push(); },
     move: (id, d) => { const it = S.mine.find((x) => x.id === id); const t = (String(it.event_time).match(/\d{2}:\d{2}/) || [""])[0]; it.event_time = d + (t ? " " + t : ""); push(); return true; },
     "class:switch": (c) => { S.cid = c; push(); },
-    "wall:post": (t, b, n) => { S.wall.posts.unshift({ id: Date.now(), author_name: "杭远", author_role: "student", title: t, body: b, is_notice: n, created_at: new Date().toISOString() }); push(); },
+    "wall:post": (t, b, n) => { S.wall.posts.unshift({ id: Date.now(), author_name: "小明", author_role: "student", title: t, body: b, is_notice: n, created_at: new Date().toISOString() }); push(); },
     settings: (p) => { Object.assign(S.settings, p); push(); return S.settings; },
     "quick:parse": (t) => window.CCParse.parse(t, new Date()),
     "quick:add": (t) => { const p = window.CCParse.parse(t, new Date()); if (!p.subject) throw new Error("写一下要做什么"); return H["mine:upsert"]({ subject: p.subject, event_time: p.date ? p.date + (p.time ? " " + p.time : "") : "", location: p.location }); },
@@ -76,7 +76,7 @@
     "ai:prepare": () => { S.ai = { ...S.ai, status: "downloading", got: 412 * 1048576, total: 1117 * 1048576 }; emit("ai-state", S.ai); return S.ai; },
     "ai:cancel": () => { S.ai = { ...S.ai, status: "idle" }; emit("ai-state", S.ai); },
     "ai:chat": (id, hist) => new Promise((res) => {
-      const text = "明天（周三）你有 2 节课：\n- **10:00–11:40 线性代数** @教2-305（孙老师）\n- **14:00–15:40 高等数学** @教2-101（陈老师）\n\n另外别忘了 **数据结构实验三** 明晚 23:59 截止，还没完成哦。";
+      const text = "明天（周四）你有 3 节课：\n- **08:00–09:40 大学物理** @理科楼 201（赵老师）\n- **10:00–11:40 数据结构** @实验楼 B302（王老师）\n- **14:00–15:40 体育** @体育馆\n\n另外别忘了 **数据结构实验三** 明晚 23:59 截止，还没完成哦。记得带运动鞋 👟";
       let i = 0; const t = setInterval(() => { i += 6; emit("ai-token", { id, text: text.slice(0, i) }); if (i >= text.length) { clearInterval(t); res(text); } }, 30);
     }),
     "ai:stop": () => {}, "export:ics": () => 9,
