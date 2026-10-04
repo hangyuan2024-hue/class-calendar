@@ -86,7 +86,10 @@ class Store extends EventEmitter {
     this.busy = (async () => {
       this.status.syncing = true; this.emit("status", this.status);
       try {
-        const b = await this.api.rpc("app_bootstrap", { cid: this.data.cid }, { retry: true });
+        // 新版（按班级分组过滤事项和班级墙）；服务器还没更新时退回老版
+        let b;
+        try { b = await this.api.rpc("app_bootstrap2", { cid: this.data.cid }, { retry: true }); }
+        catch (e) { if (e.status !== 404) throw e; b = await this.api.rpc("app_bootstrap", { cid: this.data.cid }, { retry: true }); }
         if (!b) throw Object.assign(new Error("登录已过期，请重新登录"), { status: 401 });
         const d = this.data;
         d.me = b.me; d.perms = b.perms || []; d.classes = b.classes || []; d.cid = b.cid || null;

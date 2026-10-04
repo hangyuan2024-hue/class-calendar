@@ -247,6 +247,27 @@ let pendingClasses = [];  // 等待老师批准的
 let currentClass = null;
 const LS_CUR_CLASS = "current_class_v1";
 const can = (perm) => !!(currentClass && currentClass[perm]);
+// ===== 班级分组 + 大家一起维护（服务器装了 setup_miniapp.py 新版后才有；没装时 GROUPS_OK = false，一切照旧）=====
+let GROUPS_OK = false, classGroups = [], classOpts = {};
+const isClassStaff = () => !!currentClass && (currentClass.is_teacher || currentClass.member_role === "monitor" || (currentUser && currentUser.role === "admin"));
+const groupOf = (gid) => gid ? classGroups.find((g) => String(g.id) === String(gid)) : null;
+// 能不能在「全班」（gid 为空）或某个组里添加、修改事项（服务器还会再检查一遍）
+function canEditIn(gid) {
+  if (!currentClass) return false;
+  if (currentClass.is_teacher || can("can_edit")) return true;
+  if (!GROUPS_OK) return false;
+  const g = groupOf(gid);
+  if (gid && g && g.lead) return true;
+  return !!classOpts.members_can_edit && (!gid || !!(g && g.mine));
+}
+function canDelItem(r) {
+  if (!currentClass) return false;
+  if (currentClass.is_teacher || can("can_delete")) return true;
+  if (!GROUPS_OK) return false;
+  const g = groupOf(r.group_id);
+  return !!(g && g.lead) || (!!r.created_by && !!currentUser && r.created_by === currentUser.id);
+}
+const canAddItem = () => canEditIn(null) || classGroups.some((g) => canEditIn(g.id));
 // ===== 功能开关：管理员管全站、老师管本班；没读到时全部按开着处理 =====
 let FEAT = {};
 const feat = (k) => !FEAT[k] || FEAT[k].on !== false;
@@ -381,7 +402,7 @@ function itemHtml(r, showDate) {
   const title = r.subject || r.summary || r.msg_type;
   return `<div class="item b-${esc(r.msg_type)}${r._done ? " done" : ""}">
     <div class="ihead"><span class="atype">${r._mine ? "我的" : esc(r.msg_type)}</span><span class="iwhen">${esc(when)}</span>
-      <span class="spacer"></span><span class="iscope">${r._mine ? (r.local ? "🔒 仅本机" : "仅自己可见") : "班级"}</span></div>
+      <span class="spacer"></span><span class="iscope">${r._mine ? (r.local ? "🔒 仅本机" : "仅自己可见") : groupOf(r.group_id) ? "👥 " + esc(groupOf(r.group_id).name) : "班级"}</span></div>
     <div class="title">${esc(title)}</div>
     ${r.subject && r.summary ? `<div class="sum">${esc(r.summary)}</div>` : ""}
     ${detailHtml(r)}
@@ -403,13 +424,23 @@ function detailHtml(r) {
        <button class="link" data-act="note" data-k="${k}">${r._note ? "改备注" : "加备注"}</button>${r._p ? `
        <button class="link" data-act="ics" data-k="${k}">📅 加到日历</button>` : ""}
        <button class="link" data-act="hide" data-k="${k}">${r._hidden ? "取消隐藏" : "隐藏"}</button>
-       ${can("can_edit") ? `<button class="link" data-cact="cedit" data-id="${esc(r.id)}">修改</button>` : ""}
-       ${can("can_delete") ? `<button class="link" data-cact="cdel" data-id="${esc(r.id)}" style="color:var(--red)">删除</button>` : ""}`;
+       ${canEditIn(r.group_id) ? `<button class="link" data-cact="cedit" data-id="${esc(r.id)}">修改</button>` : ""}
+       ${canDelItem(r) ? `<button class="link" data-cact="cdel" data-id="${esc(r.id)}" style="color:var(--red)">删除</button>` : ""}
+       ${GROUPS_OK && r.updated_at ? `<button class="link" data-cact="chist" data-id="${esc(r.id)}">修改记录</button>` : ""}`;
   return `${meta.length ? `<div class="meta">${meta.join("　")}</div>` : ""}
     ${r.need_confirm ? `<div class="warn">⚠ 信息不完整，建议去群里核实</div>` : ""}
     ${r._note ? `<div class="note">📝 ${esc(r._note)}</div>` : ""}
     ${r.original ? `<details><summary>原文</summary>${esc(r.original)}</details>` : ""}
+    ${!r._mine && r.editor && r.updated_at ? `<div class="meta editby">✏️ ${esc(r.editor)} · ${esc(whenStr(r.updated_at))}更新</div>` : ""}
     <div class="ops">${ops}</div>`;
+}
+
+function whenStr(t) {
+  const d = new Date(t); if (isNaN(d)) return "";
+  const p = (x) => String(x).padStart(2, "0"), today = new Date();
+  const hm = `${p(d.getHours())}:${p(d.getMinutes())}`;
+  if (d.toDateString() === today.toDateString()) return "今天 " + hm;
+  return `${d.getMonth() + 1}月${d.getDate()}日 ${hm}`;
 }
 
 // ===== 首页时间线：今天 + 接下来两周 =====
@@ -727,7 +758,8 @@ function bootstrap() {
   return bootReady || (bootReady = (async () => {
     try {
       if (!(await CCAuth.session())) return null;
-      BOOT = await CCAuth.rpc("app_bootstrap", { cid: load(LS_CUR_CLASS, null) });
+      try { BOOT = await CCAuth.rpc("app_bootstrap2", { cid: load(LS_CUR_CLASS, null) }); }
+      catch (e) { if (e.status === 401) throw e; BOOT = await CCAuth.rpc("app_bootstrap", { cid: load(LS_CUR_CLASS, null) }); }
       if (BOOT && BOOT.me) CCAuth.primeMe(BOOT.me, BOOT.perms);
     } catch (e) { BOOT = null; }
     return BOOT;
@@ -762,13 +794,14 @@ function renderClassBar() {
   sel.innerHTML = myClasses.map((c) => `<option value="${esc(c.id)}" ${c.id === currentClass.id ? "selected" : ""}>${esc(c.name)}${c.nickname ? "（" + esc(c.nickname) + "）" : ""}</option>`).join("");
   const roleName = currentClass.is_teacher ? "老师" : currentClass.member_role === "monitor" ? "班委" : "学生";
   $("classRole").textContent = roleName;
-  $("cAddBtn").classList.toggle("hidden", !can("can_edit"));
+  $("cAddBtn").classList.toggle("hidden", !canAddItem());
   $("cIngestBtn").classList.toggle("hidden", !ingestAllowed());
   renderQuick();
 }
 $("classSel").onchange = (e) => {
   currentClass = myClasses.find((c) => c.id === e.target.value) || null;
   save(LS_CUR_CLASS, currentClass && currentClass.id);
+  classGroups = []; classOpts = {}; wallChan = "";
   $("ingestPanel").classList.add("hidden");
   renderClassBar(); loadFeatures(); loadClass();
 };
@@ -793,7 +826,22 @@ async function loadClass() {
   const cacheOk = cache && cache.classId === currentClass.id;
   if (cacheOk) { classRecords = cache.records || []; $("updated").textContent = `班级数据更新于 ${cache.at}`; renderAll(); }
   try {
-    classRecords = takeBoot("items", currentClass.id) || await CCAuth.rest(`class_info?select=${COLS}&class_id=eq.${encodeURIComponent(currentClass.id)}&order=id.asc&limit=2000`);
+    const cid = currentClass.id, bootV2 = BOOT && BOOT.v === 2 && BOOT.cid === cid;
+    let items = takeBoot("items", cid);
+    if (bootV2) { GROUPS_OK = true; classGroups = takeBoot("groups", cid) || []; classOpts = takeBoot("class_opts", cid) || {}; }
+    if (!items) {
+      try {
+        const x = await CCAuth.rpc("class_ctx", { cid });
+        items = x.items; classGroups = x.groups || []; classOpts = x.class_opts || {}; GROUPS_OK = true;
+      } catch (e) {
+        if (e.status === 401) throw e;
+        GROUPS_OK = false; classGroups = []; classOpts = {};
+        items = await CCAuth.rest(`class_info?select=${COLS}&class_id=eq.${encodeURIComponent(cid)}&order=id.asc&limit=2000`);
+      }
+    }
+    if (!currentClass || currentClass.id !== cid) return;
+    classRecords = items || [];
+    renderClassBar();
     const at = new Date().toLocaleString("zh-CN", { hour12: false });
     save(LS_CACHE, { classId: currentClass.id, records: classRecords, at });
     classLoadedAt = Date.now();
@@ -820,6 +868,15 @@ function openClassForm(r) {
   $("cLoc").value = r ? (r.location || "") : "";
   $("cPrep").value = r ? (r.prepare || "") : "";
   $("cConfirm").checked = r ? !!r.need_confirm : false;
+  // 发给谁：全班 / 某个组（只列出我有权限的）
+  const gs = GROUPS_OK ? classGroups.filter((g) => canEditIn(g.id)) : [];
+  const cur = r ? r.group_id || "" : "";
+  const opts = (canEditIn(null) || cur === "" && r ? [`<option value="">全班</option>`] : [])
+    .concat(gs.map((g) => `<option value="${g.id}">👥 ${esc(g.name)}（${g.members.length} 人）</option>`));
+  $("cGroup").innerHTML = opts.join("");
+  $("cGroup").value = String(cur);
+  if ($("cGroup").selectedIndex < 0) $("cGroup").selectedIndex = 0;
+  $("cGroupRow").classList.toggle("hidden", !gs.length);
   $("cmodal").classList.add("open");
 }
 $("cAddBtn").onclick = () => openClassForm(null);
@@ -837,7 +894,11 @@ $("cform").onsubmit = async (e) => {
   if (!rec.subject) { alert("请填写科目或标题"); return; }
   $("cSave").disabled = true;
   try {
-    if (id) {
+    if (GROUPS_OK) {
+      rec.group_id = $("cGroup").value ? +$("cGroup").value : null;
+      if (!id) { rec.publish_date = keyOf(new Date()); rec.original = "（由" + (currentUser.display_name || "同学") + "手动发布）"; }
+      await CCAuth.rpc("class_item_save", { cid: currentClass.id, iid: id ? +id : null, rec });
+    } else if (id) {
       const r = await CCAuth.rest(`class_info?id=eq.${encodeURIComponent(id)}`, { method: "PATCH", headers: { Prefer: "return=representation" }, body: JSON.stringify(rec) });
       if (!r || !r.length) throw new Error("没有修改权限");
     } else {
@@ -854,12 +915,34 @@ $("cform").onsubmit = async (e) => {
 };
 async function deleteClassItem(id) {
   const r = classRecords.find((x) => String(x.id) === String(id));
-  if (!confirm(`删除「${r ? (r.subject || r.summary) : "这条事项"}」？全班都会看不到它。`)) return;
+  const g = r && groupOf(r.group_id);
+  if (!confirm(`删除「${r ? (r.subject || r.summary) : "这条事项"}」？${g ? "「" + g.name + "」组里的同学" : "全班"}都会看不到它。`)) return;
   try {
-    await CCAuth.rest(`class_info?id=eq.${encodeURIComponent(id)}`, { method: "DELETE" });
+    if (GROUPS_OK) await CCAuth.rpc("class_item_delete", { iid: +id });
+    else await CCAuth.rest(`class_info?id=eq.${encodeURIComponent(id)}`, { method: "DELETE" });
     await loadClass();
   } catch (err) { alert("删除失败：" + err.message); }
 }
+
+// 一条事项的修改记录：谁、什么时候、改成了什么
+const HIST_ACT = { create: "添加", update: "修改", delete: "删除" };
+async function showItemHistory(id) {
+  const r = classRecords.find((x) => String(x.id) === String(id));
+  $("hTitle").textContent = "修改记录 · " + (r ? r.subject || r.summary || "" : "");
+  $("hList").innerHTML = `<div class="meta">加载中…</div>`;
+  $("hmodal").classList.add("open");
+  try {
+    const list = await CCAuth.rpc("class_item_history", { iid: +id });
+    $("hList").innerHTML = list.length ? list.map((h) => {
+      const s = h.snap || {}, g = groupOf(s.group_id);
+      const bits = [s.event_time && "🕒 " + s.event_time, s.location && "📍 " + s.location, s.prepare && "🎒 " + s.prepare, g && "👥 " + g.name].filter(Boolean);
+      return `<div class="hrow"><div><b>${esc(h.who)}</b> ${HIST_ACT[h.action] || h.action} <span class="meta">${esc(whenStr(h.at))}</span></div>
+        <div class="hsnap">${esc(s.subject || "")}${s.summary ? " · " + esc(s.summary) : ""}${bits.length ? `<div class="meta">${bits.map(esc).join("　")}</div>` : ""}</div></div>`;
+    }).join("") : `<div class="meta">还没有记录（这条是功能上线前添加的）。</div>`;
+  } catch (e) { $("hList").innerHTML = `<div class="meta">加载失败：${esc(e.message)}</div>`; }
+}
+$("hClose").onclick = () => $("hmodal").classList.remove("open");
+$("hmodal").onclick = (e) => { if (e.target === $("hmodal")) $("hmodal").classList.remove("open"); };
 
 // ===== 班委 / 老师：粘贴群消息让 AI 整理 =====
 async function ingestMessages(classId, text, pubDate) {
@@ -1389,6 +1472,7 @@ document.addEventListener("click", (e) => {
   if (cb) {
     if (cb.dataset.cact === "cedit") openClassForm(classRecords.find((x) => String(x.id) === cb.dataset.id));
     if (cb.dataset.cact === "cdel") deleteClassItem(cb.dataset.id);
+    if (cb.dataset.cact === "chist") showItemHistory(cb.dataset.id);
     return;
   }
   const b = e.target.closest("button[data-act]");
@@ -1707,7 +1791,7 @@ function fabItems() {
   const o = funOpts(), list = [];
   if (feat("mine")) list.push(["mine", "✏️", "记一件事"]);
   if (ingestAllowed()) list.push(["ingest", "✨", "AI 整理群消息"]);
-  if (can("can_edit")) list.push(["pub", "📣", "发布班级事项"]);
+  if (canAddItem()) list.push(["pub", "📣", "发布班级事项"]);
   if (o.habits) list.push(["habit", "🔥", "今日打卡"]);
   if (o.plan) list.push(["pomo", "🍅", "开始专注"]);
   return list;
@@ -2627,12 +2711,12 @@ const FUN_DEFAULT = { cheer: "mascot", confetti: true, rings: true, habits: true
 const courseTool = () => { try { return toolList().find((t) => t.plugin && /课程表/.test(t.name)); } catch (e) { return null; } };
 function renderQuick() {
   const o = funOpts();
-  const want = [["cIngestBtn", ingestAllowed()], ["cAddBtn", can("can_edit")], ["qMine", feat("mine")], ["qPlan", o.plan], ["qIcs", o.habits], ["qPomo", o.plan],
+  const want = [["cIngestBtn", ingestAllowed()], ["cAddBtn", canAddItem()], ["qMine", feat("mine")], ["qPlan", o.plan], ["qIcs", o.habits], ["qPomo", o.plan],
     ["qCourse", !!courseTool()], ["qPeople", !!(currentUser && currentClass)], ["qStore", feat("tools")], ["qCal", true], ["qTools", feat("tools")], ["qIntro", true]];
   for (const [id, on] of want) $(id).classList.toggle("hidden", !on);
   $("meToPlan").classList.toggle("hidden", !o.plan);
   const q = $("quickPart"); requestAnimationFrame(() => q.classList.toggle("fits", q.scrollWidth <= q.clientWidth + 2));
-  $("calIngest").classList.toggle("hidden", !ingestAllowed()); $("calPub").classList.toggle("hidden", !can("can_edit"));
+  $("calIngest").classList.toggle("hidden", !ingestAllowed()); $("calPub").classList.toggle("hidden", !canAddItem());
 }
 $("quickPart").addEventListener("wheel", (e) => { const q = e.currentTarget; if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && q.scrollWidth > q.clientWidth) { e.preventDefault(); q.scrollLeft += e.deltaY; } }, { passive: false });
 window.addEventListener("resize", () => { const q = $("quickPart"); q.classList.toggle("fits", q.scrollWidth <= q.clientWidth + 2); });
@@ -3444,7 +3528,7 @@ $("pLen").onclick = (e) => { const b = e.target.closest("[data-len]"); if (!b ||
 pomoTick();   // 页面刷新后接着计时
 
 // ===== 班级墙 =====
-let wallPosts = [], wallReported = new Set(), wallFilter = "all", wallReports = [], wallLoadedFor = null;
+let wallPosts = [], wallReported = new Set(), wallFilter = "all", wallReports = [], wallLoadedFor = null, wallChan = "";   // wallChan：""=全部频道，"class"=全班，数字=某个组
 const wallUnfold = new Set(), wallExpand = new Set();
 const ROLE_LABEL = { teacher: "老师", monitor: "班委", admin: "管理员" };
 const myWallRole = () => !currentClass ? null : currentClass.is_teacher ? "teacher" : currentClass.member_role === "monitor" ? "monitor" : currentUser && currentUser.role === "admin" ? "admin" : "student";
@@ -3474,7 +3558,7 @@ async function loadWall(soft) {
   }
   try {
     const [posts, mine] = await Promise.all([
-      CCAuth.rest(`wall_posts?select=id,class_id,author_id,author_name,author_role,title,body,is_notice,pinned_at,hidden,report_count,reviewed,created_at,edited_at&class_id=eq.${encodeURIComponent(cid)}&order=created_at.desc&limit=300`),
+      CCAuth.rest(`wall_posts?select=id,class_id,${GROUPS_OK ? "group_id," : ""}author_id,author_name,author_role,title,body,is_notice,pinned_at,hidden,report_count,reviewed,created_at,edited_at&class_id=eq.${encodeURIComponent(cid)}&order=created_at.desc&limit=300`),
       CCAuth.rpc("wall_my_reports", { cid }),
     ]);
     if (!currentClass || currentClass.id !== cid) return;
@@ -3492,6 +3576,7 @@ function postHtml(p) {
   const long = p.body.length > 280 || p.body.split("\n").length > 7;
   const flags = [];
   if (p.pinned_at) flags.push(`<span class="pflag pin">📌 置顶</span>`);
+  if (p.group_id) { const g = groupOf(p.group_id); flags.push(`<span class="pflag grp">👥 ${esc(g ? g.name : "分组")}</span>`); }
   if (p.is_notice) flags.push(`<span class="pflag notice">📢 通知</span>`);
   if (p.hidden) flags.push(`<span class="pflag hid">已被老师隐藏，只有你${canModerate() ? "们" : ""}能看到</span>`);
   if (canModerate() && p.report_count > 0) flags.push(`<span class="pflag hid">${p.report_count} 人举报</span>`);
@@ -3529,11 +3614,25 @@ function renderWall() {
     return;
   }
   const r = myWallRole();
-  $("wNoticeWrap").classList.toggle("hidden", !["teacher", "monitor", "admin"].includes(r));
+  // 频道：全班 + 我能看到的组（同学：自己加入的组；老师、班委：所有组）
+  const chans = GROUPS_OK ? classGroups.filter((g) => g.mine || isClassStaff()) : [];
+  if (wallChan && wallChan !== "class" && !chans.some((g) => String(g.id) === wallChan)) wallChan = "";
+  $("wChan").classList.toggle("hidden", !chans.length);
+  $("wChan").innerHTML = chans.length ? [["", "全部"], ["class", "📣 全班"]].concat(chans.map((g) => [String(g.id), "👥 " + g.name]))
+    .map(([v, t]) => `<button data-ch="${esc(v)}" class="${v === wallChan ? "on" : ""}">${esc(t)}${v && v !== "class" ? `<small>${wallPosts.filter((p) => String(p.group_id) === v).length || ""}</small>` : ""}</button>`).join("") : "";
+  const to = $("wTo"), toWas = to.value;
+  const toGroups = chans.filter((g) => g.mine || isClassStaff());
+  to.classList.toggle("hidden", !toGroups.length);
+  to.innerHTML = `<option value="">发给全班</option>` + toGroups.map((g) => `<option value="${g.id}">只发给「${esc(g.name)}」</option>`).join("");
+  to.value = wallChan && wallChan !== "class" ? wallChan : toWas; if (to.selectedIndex < 0) to.value = "";
+  const tg = groupOf(to.value);
+  $("wNoticeWrap").classList.toggle("hidden", !(["teacher", "monitor", "admin"].includes(r) || (tg && tg.lead)));
   $("wAv").textContent = [...(currentUser.display_name || "?")][0];
   $("wAv").className = "av";
   $("wBody").placeholder = r === "student" ? "想对全班说点什么？" : "发通知、发文章，或者随便聊聊";
   let list = wallPosts.slice();
+  if (wallChan === "class") list = list.filter((p) => !p.group_id);
+  else if (wallChan) list = list.filter((p) => String(p.group_id) === wallChan);
   if (wallFilter === "notice") list = list.filter((p) => p.is_notice);
   if (wallFilter === "mine") list = list.filter((p) => p.author_id === currentUser.id);
   const pinned = list.filter((p) => p.pinned_at && !p.hidden).sort((a, b) => b.pinned_at.localeCompare(a.pinned_at));
@@ -3571,13 +3670,17 @@ $("wSend").onclick = async () => {
   if (!body) { $("wBody").focus(); return; }
   $("wSend").disabled = true;
   try {
-    await CCAuth.rpc("wall_post", { cid: currentClass.id, p_title: $("wTitle").value.trim(), p_body: body, p_notice: $("wNotice").checked });
+    const gid = GROUPS_OK && $("wTo").value ? +$("wTo").value : null;
+    if (gid) await CCAuth.rpc("wall_post_group", { cid: currentClass.id, gid, p_title: $("wTitle").value.trim(), p_body: body, p_notice: $("wNotice").checked });
+    else await CCAuth.rpc("wall_post", { cid: currentClass.id, p_title: $("wTitle").value.trim(), p_body: body, p_notice: $("wNotice").checked });
     $("wBody").value = ""; $("wTitle").value = ""; $("wNotice").checked = false; wallCount();
     if (!$("wTitle").classList.contains("hidden")) $("wArticle").click();
     wallFilter = "all"; await loadWall();
   } catch (e) { alert("发布失败：" + e.message); }
   finally { $("wSend").disabled = false; }
 };
+$("wChan").onclick = (e) => { const b = e.target.closest("button[data-ch]"); if (!b) return; wallChan = b.dataset.ch; renderWall(); };
+$("wTo").onchange = () => renderWall();
 $("wFilter").onclick = (e) => { const b = e.target.closest("button[data-f]"); if (!b) return; wallFilter = b.dataset.f; renderWall(); };
 $("wRefresh").onclick = () => loadWall();
 

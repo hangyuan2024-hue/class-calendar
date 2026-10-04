@@ -145,9 +145,38 @@ function renderUsers() {
     <td><select data-uid="${esc(u.id)}" ${u.id === me.id ? "disabled title=\"不能修改自己的身份\"" : (u.role === "admin" && me.role !== "admin") ? "disabled title=\"只有管理员能修改管理员\"" : ""}>
       ${Object.entries(ROLE_NAMES).filter(([k]) => k !== "admin" || me.role === "admin" || u.role === "admin")
         .map(([k, v]) => `<option value="${k}" ${u.role === k ? "selected" : ""}>${v}</option>`).join("")}
-    </select></td><td class="meta">${fmt(u.created_at)}</td></tr>`).join("") || `<tr><td colspan="4" class="empty">没有匹配的用户</td></tr>`;
+    </select></td><td class="meta">${fmt(u.created_at)}</td>
+    ${me.role === "admin" ? `<td class="uops">${u.id === me.id || u.role === "admin" ? `<span class="meta">—</span>` : `
+      <button class="small" data-uact="pw" data-uid="${esc(u.id)}">改密码</button>
+      <button class="small danger" data-uact="del" data-uid="${esc(u.id)}">删除账号</button>`}</td>` : ""}</tr>`).join("")
+    || `<tr><td colspan="${me.role === "admin" ? 5 : 4}" class="empty">没有匹配的用户</td></tr>`;
+  $("uOpsHead").classList.toggle("hidden", me.role !== "admin");
 }
 $("userFilter").oninput = renderUsers;
+// 管理员：给别人设新密码、删除账号
+$("userRows").onclick = (e) => {
+  const b = e.target.closest("button[data-uact]"); if (!b) return;
+  const u = users.find((x) => x.id === b.dataset.uid); if (!u) return;
+  if (b.dataset.uact === "pw") {
+    const pw = prompt(`给 ${u.display_name}（${u.account}）设一个新密码（至少 8 位）：`); if (pw === null) return;
+    if (pw.length < 8) { toast("密码至少 8 位", true); return; }
+    if (prompt("再输入一次确认：") !== pw) { toast("两次输入的不一样，没有修改", true); return; }
+    guard(b, async () => {
+      await rpc("admin_set_password", { uid: u.id, newpw: pw });
+      toast(`已改好。请把新密码告诉 ${u.display_name}，TA 在其他设备上需要重新登录`);
+    });
+  }
+  if (b.dataset.uact === "del") {
+    const typed = prompt(`删除 ${u.display_name}（${u.account}）的账号？\n\n删除后 TA 的个人数据、加入的班级、分组都会清除，不能恢复。\n确认请输入对方的账号：${u.account}`);
+    if (typed === null) return;
+    if (typed.trim() !== u.account) { toast("输入的账号不对，没有删除", true); return; }
+    guard(b, async () => {
+      await rpc("admin_delete_user", { uid: u.id });
+      users = users.filter((x) => x.id !== u.id); renderUsers();
+      toast(`已删除 ${u.display_name} 的账号`);
+    });
+  }
+};
 $("userRows").onchange = (e) => {
   const s = e.target.closest("select[data-uid]"); if (!s) return;
   const u = users.find((x) => x.id === s.dataset.uid);

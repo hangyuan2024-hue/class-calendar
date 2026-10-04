@@ -652,6 +652,17 @@
   .post .more-btn { color: var(--accent); font-size: 14px; font-weight: 600; margin-top: 2px; }
   .post .pflags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
   .pflag { font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: var(--hover); color: var(--sub); }
+  .pflag.grp { background: color-mix(in srgb, #34c759 16%, transparent); color: #1f9a45; }
+  .wchan { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 16px 0; }
+  .wchan button { padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line); font-size: 13px; font-weight: 600; color: var(--sub); background: var(--card); }
+  .wchan button.on { background: var(--ink); color: var(--ink-text); border-color: transparent; }
+  .wchan button small { margin-left: 4px; opacity: .7; font-size: 11px; }
+  #wTo { font: inherit; font-size: 12px; padding: 4px 8px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--text); max-width: 46vw; }
+  .item .editby, .detail .editby { font-size: 11px; margin-top: 4px; opacity: .85; }
+  .modal2 .hbox { background: var(--card); color: var(--text); border-radius: 22px; padding: 22px; width: min(480px, 92vw); max-height: 80vh; overflow: auto; box-shadow: 0 30px 70px rgba(8,20,40,.3); border: 1px solid var(--border); }
+  .hrow { border-top: 1px solid var(--line); padding: 10px 0; font-size: 14px; }
+  .hrow:first-child { border-top: none; }
+  .hrow .hsnap { color: var(--sub); font-size: 13px; margin-top: 3px; }
   .pflag.pin { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
   .pflag.notice { background: color-mix(in srgb, #ff8a3d 18%, transparent); color: #e2620f; }
   .pflag.hid { background: var(--danger-bg); color: var(--red); }
@@ -1681,6 +1692,7 @@
           <textarea id="wBody" rows="2" maxlength="5000" placeholder="想对全班说点什么？"></textarea>
           <div class="ctools">
             <button class="small" id="wArticle" type="button">写成文章</button>
+            <select id="wTo" class="hidden" aria-label="发给谁"></select>
             <label id="wNoticeWrap" class="hidden"><input type="checkbox" id="wNotice"> 作为通知发布</label>
             <span class="spacer"></span>
             <span class="ccount" id="wCount"></span>
@@ -1689,6 +1701,7 @@
         </div>
       </div>
       <div id="wReports"></div>
+      <div class="wchan hidden" id="wChan"></div>
       <div class="wfilter" id="wFilter">
         <button data-f="all" class="on">全部</button><button data-f="notice">通知</button><button data-f="mine">我发的</button>
       </div>
@@ -2172,6 +2185,7 @@
       <div><label>地点 <input id="cLoc" maxlength="60"></label></div>
       <div><label>需准备 <input id="cPrep" maxlength="100"></label></div>
     </div>
+    <label id="cGroupRow" class="hidden">发给 <select id="cGroup"></select></label>
     <label class="check"><input type="checkbox" id="cConfirm"> 信息还不确定（提醒同学去群里核实）</label>
     <div class="btns">
       <button type="button" id="cCancel">取消</button>
@@ -2180,11 +2194,19 @@
   </form>
 </div>
 
+<div id="hmodal" class="modal2">
+  <div class="hbox">
+    <h3 id="hTitle">修改记录</h3>
+    <div id="hList"></div>
+    <div class="btns"><button type="button" id="hClose">关闭</button></div>
+  </div>
+</div>
+
 <script src="config.js"></script>
-<script src="auth.js?v=20261004k"></script>
+<script src="auth.js?v=20261004m"></script>
 <script src="parse.js"></script>
 <script src="courses.js?v=20261002h"></script>
-<script src="app.js?v=20261004i"></script>
+<script src="app.js?v=20261004p"></script>
 </body>
 </html>
 </body>

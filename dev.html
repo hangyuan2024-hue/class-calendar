@@ -75,6 +75,7 @@
   table.feat input[type=text] { width: 100%; min-width: 160px; box-sizing: border-box; }
   .pill { display:inline-block; font-size:11px; padding:1px 7px; border-radius:999px; background:var(--red); color:#fff; margin-left:6px; vertical-align:1px; }
   @media (max-width:640px) { .grid2 { grid-template-columns:1fr; } .row { flex-wrap:wrap; } .row .ops { width:100%; justify-content:flex-start; } }
+  td.uops { white-space:nowrap; } td.uops button + button { margin-left:4px; }
 </style>
 </head>
 <body>
@@ -166,9 +167,9 @@
 
   <section class="card hidden" id="usersCard" data-perms="manage_users">
     <h2>用户与身份</h2>
-    <div class="desc">新注册的账号都是「学生」。在这里给队员分配开发者、测试员身份。只有管理员能设置或修改管理员。</div>
+    <div class="desc">新注册的账号都是「学生」。在这里给队员分配开发者、测试员身份。只有管理员能设置或修改管理员；管理员还可以给忘记密码的同学设新密码、删除不用的账号。</div>
     <input id="userFilter" placeholder="搜索账号或姓名" style="margin-bottom:8px; width:100%; max-width:260px">
-    <div style="overflow-x:auto"><table><thead><tr><th>账号</th><th>姓名</th><th>身份</th><th>注册时间</th></tr></thead><tbody id="userRows"></tbody></table></div>
+    <div style="overflow-x:auto"><table><thead><tr><th>账号</th><th>姓名</th><th>身份</th><th>注册时间</th><th id="uOpsHead" class="hidden">账号操作</th></tr></thead><tbody id="userRows"></tbody></table></div>
   </section>
 </main>
 
@@ -182,7 +183,7 @@
 <div id="toast"></div>
 
 <script src="config.js"></script>
-<script src="auth.js?v=20261004k"></script>
-<script src="dev.js?v=20261004k"></script>
+<script src="auth.js?v=20261004m"></script>
+<script src="dev.js?v=20261004m"></script>
 </body>
 </html>
