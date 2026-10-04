@@ -1,0 +1,10 @@
+# 捞捞课程表：欢迎搜索引擎收录介绍页、网页版和下载页
+User-agent: *
+Allow: /
+Disallow: /dev.html
+Disallow: /sandbox.html
+Disallow: /plugins/
+Disallow: /desktop/
+Disallow: /android/
+
+Sitemap: https://www.laolaokechengbiao.cn/sitemap.xml
