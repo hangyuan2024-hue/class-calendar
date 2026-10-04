@@ -9,7 +9,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#bfe6ff">
 <title>捞捞课程表 · 登录</title>
-<meta name="description" content="把班级群里的作业、通知、班会自动整理进日历，快到时间在通知栏提醒你。免费下载安卓 App。">
+<meta name="description" content="把班级群里的作业、通知、班会自动整理进日历，快到时间提醒你。免费下载安卓 App 和 Windows 电脑版。">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com" crossorigin>
@@ -322,6 +322,55 @@
 .faq details p { margin: 0 4px 18px; color: var(--fg2); font-size: 15px; }
 .faq details[open] p { animation: popc .35s both; }
 
+
+/* ============ 电脑版 ============ */
+.pcwrap { display: grid; grid-template-columns: minmax(0, 2.1fr) minmax(220px, 1fr); gap: 28px; align-items: center; }
+.pcwin { position: relative; border-radius: 14px; overflow: hidden; background: #f4f7fb; box-shadow: 0 40px 80px -36px rgba(14, 34, 64, .55), 0 0 0 1px rgba(14, 34, 64, .1); transform: perspective(1600px) rotateY(-4deg) rotateX(2deg); transition: transform .6s cubic-bezier(.2, .8, .2, 1); }
+.pcwin:hover { transform: none; }
+.pcwin img { display: block; width: 100%; height: auto; transition: opacity .25s; }
+.pcwin img.fade { opacity: 0; }
+.pcbar { position: absolute; top: 0; right: 0; height: 5.5%; width: 10.8%; display: flex; z-index: 1; }
+.pcbar i { flex: 1; position: relative; }
+.pcbar i::after { content: ""; position: absolute; left: 50%; top: 50%; width: 10px; height: 1.5px; background: #6b7a90; transform: translate(-50%, -50%); }
+.pcbar i:nth-child(2)::after { height: 8px; width: 8px; background: none; border: 1.5px solid #6b7a90; }
+.pcbar i:nth-child(3)::after { width: 11px; height: 1.5px; transform: translate(-50%, -50%) rotate(45deg); box-shadow: 0 0 0 0 #6b7a90; }
+.pcbar i:nth-child(3)::before { content: ""; position: absolute; left: 50%; top: 50%; width: 11px; height: 1.5px; background: #6b7a90; transform: translate(-50%, -50%) rotate(-45deg); }
+.pcwin.dark .pcbar i::after, .pcwin.dark .pcbar i::before { background: #c9d2e3; } .pcwin.dark .pcbar i:nth-child(2)::after { background: none; border-color: #c9d2e3; }
+.pctabs { display: grid; gap: 10px; }
+.pctabs button { text-align: left; border: 0; background: rgba(255, 255, 255, .55); border-radius: 16px; padding: 14px 16px; display: grid; gap: 2px; cursor: pointer; color: var(--fg); font: inherit; transition: background .2s, transform .2s, box-shadow .2s; }
+.pctabs button b { font-size: 16px; }
+.pctabs button span { font-size: 13.5px; color: var(--fg2); line-height: 1.5; }
+.pctabs button:hover { transform: translateX(3px); }
+.pctabs button[aria-selected=true] { background: #fff; box-shadow: 0 0 0 2.5px var(--ink), 0 14px 30px -18px rgba(14, 34, 64, .45); }
+.pcperks { margin-top: 64px; grid-template-columns: repeat(3, 1fr); }
+.pcget { margin-top: 48px; display: grid; justify-items: start; gap: 4px; }
+.pcget .meta a, .dlweb a, .alldl { color: inherit; }
+.alldl { font-weight: 600; }
+.is-windows .alldl::before { content: ""; }
+
+/* ============ 下载区：手机 + 电脑 ============ */
+.dlgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 380px)); gap: 20px; justify-content: center; text-align: left; }
+.dlcard { display: grid; gap: 14px; justify-items: start; align-content: start; padding: 24px; border-radius: 24px; background: color-mix(in srgb, var(--fg) 7%, transparent); border: 1px solid color-mix(in srgb, var(--fg) 14%, transparent); }
+.dlcard .meta { margin: 0; }
+.dlcard .after { margin: 0; min-height: 0; }
+.dlcard .qr { margin: 0; }
+.dlh { display: flex; gap: 12px; align-items: center; }
+.dli { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; font-size: 24px; background: color-mix(in srgb, var(--fg) 10%, transparent); }
+.dlh b { display: block; font-size: 18px; }
+.dlh small { color: var(--fg2); font-size: 13px; }
+.is-windows .pcc, .is-android .droidc { order: -1; border-color: color-mix(in srgb, var(--fg) 40%, transparent); }
+.is-windows .pcc .dlh b::after, .is-android .droidc .dlh b::after { content: "你正在用"; margin-left: 8px; font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 99px; background: #ffd23f; color: #0e2240; vertical-align: 2px; }
+.dlweb { max-width: 34em; margin: 26px auto 0; font-size: 14.5px; color: var(--fg2); }
+@media (max-width: 860px) {
+  .pcwrap { grid-template-columns: 1fr; }
+  .pcwin { transform: none; }
+  .pcbar { display: none; }
+  .pctabs { grid-template-columns: repeat(2, 1fr); }
+  .pcperks { grid-template-columns: 1fr 1fr; margin-top: 44px; }
+  .dlgrid { grid-template-columns: 1fr; }
+}
+@media (max-width: 520px) { .pcperks { grid-template-columns: 1fr; } .pctabs button span { display: none; } }
+
 /* ============ 手机 ============ */
 @media (max-width: 860px) {
   .hero { height: 380vh; }
@@ -542,7 +591,7 @@ html.authed .lgtop { display: none; }
 
 <header class="top" id="top">
   <a class="brand" href="index.html"><img src="favicon.svg" alt="">捞捞课程表</a>
-  <nav><a href="#more">安卓特色</a><a href="#day">一天怎么用</a><a href="#faq">常见问题</a><a class="pill" href="#get">下载</a></nav>
+  <nav><a href="#more">手机版</a><a href="#pc">电脑版</a><a href="#day">一天怎么用</a><a href="#faq">常见问题</a><a class="pill" href="#get">下载</a></nav>
 </header>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -694,21 +743,21 @@ html.authed .lgtop { display: none; }
 <section class="hero" id="hero">
   <div class="stick">
     <div class="copy">
-      <h1 class="sr">捞捞课程表安卓 App：把群消息里的作业和通知整理成日历，到点提醒你</h1>
+      <h1 class="sr">捞捞课程表：把群消息里的作业和通知整理成日历，到点提醒你。有安卓 App 和 Windows 电脑版</h1>
       <div class="lines" aria-hidden="true">
         <p class="line on" data-s="0">群消息 99+，<br>要紧的又被<mark>刷走了</mark></p>
         <p class="line" data-s="1">别翻了，<br>捞捞替你<mark>捞出来</mark></p>
         <p class="line" data-s="2">放进日历，<br>到点就<mark>提醒你</mark></p>
       </div>
-      <p class="lede">捞捞课程表的安卓 App。群里的作业、通知、班会，一键整理进日历；快到时间，手机通知栏会提醒你。</p>
+      <p class="lede">群里的作业、通知、班会，一键整理进日历；快到时间，手机和电脑都会提醒你。安卓 App、Windows 电脑版、网页版，同一个账号，数据自动同步。</p>
       <div class="cta">
-        <a class="get" data-get href="download/class-calendar.apk" download>
+        <a class="get" id="heroGet" data-get="auto" href="#get">
           <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="arrow"><path d="M12 4v11"/><path d="m7 10 5 5 5-5"/></g><path d="M5 20h14"/></svg>
-          <span class="lbl" data-lbl>下载安卓 App</span>
+          <span class="lbl" data-lbl>下载</span>
         </a>
         <a class="ghost" data-web href="index.html">打开网页版</a>
       </div>
-      <p class="meta" data-meta>免费，安卓 7.0 及以上都能装</p>
+      <p class="meta"><span data-meta="heroGet">免费下载</span>　<a class="alldl" href="#get">全部下载方式 →</a></p>
     </div>
 
     <div class="stage">
@@ -799,6 +848,39 @@ html.authed .lgtop { display: none; }
   </div>
 </section>
 
+<section class="sec pc" id="pc">
+  <h2>在电脑上，铺开了用</h2>
+  <p class="sub">Windows 电脑版不是把网页塞进窗口，而是照着大屏幕重新排的版：整周的课、一学期的作业，一眼看全。账号和手机通用，在哪改都会同步。</p>
+  <div class="pcwrap">
+    <div class="pcwin" id="pcWin">
+      <div class="pcbar" aria-hidden="true"><i></i><i></i><i></i></div>
+      <img id="pcShot" src="download/pc/today.webp" width="1600" height="1000" loading="lazy" decoding="async" alt="捞捞课程表电脑版：今日总览">
+    </div>
+    <div class="pctabs" role="tablist" aria-label="看看电脑版的几个页面">
+      <button type="button" role="tab" aria-selected="true" data-shot="today" data-alt="今日总览"><b>今日</b><span>今天的课、要做的事、专注和统计，一页看完</span></button>
+      <button type="button" role="tab" aria-selected="false" data-shot="week" data-alt="整周课程表"><b>课程表</b><span>整周铺满屏幕，红线标出现在上到哪节</span></button>
+      <button type="button" role="tab" aria-selected="false" data-shot="month" data-alt="月历"><b>月历</b><span>自己记的事直接拖到别的日子</span></button>
+      <button type="button" role="tab" aria-selected="false" data-shot="ai" data-alt="离线 AI 助手（深色模式）"><b>AI 助手</b><span>问「明天几点上课」，不联网也能答</span></button>
+    </div>
+  </div>
+  <ul class="perks pcperks">
+    <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><b>右下角准时提醒</b><span>上课前、截止前弹通知。关掉窗口它缩到托盘，照样提醒。</span></li>
+    <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg><b>一个快捷键记一件事</b><span>在任何软件里按 Ctrl+Alt+空格，写「明天下午3点交报告」，日期时间自动认出来。</span></li>
+    <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><path d="m3.5 6 1.5 1.5L7.5 5M3.5 12l1.5 1.5 2.5-2.5M3.5 18l1.5 1.5 2.5-2.5"/></svg><b>作业一张表</b><span>筛选、搜索、批量勾完成，键盘上下键加空格就能操作。</span></li>
+    <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5"/><rect x="12" y="11" width="7" height="7" rx="1.5"/></svg><b>桌面小窗</b><span>今天的课和待办浮在桌面一角，写作业时瞄一眼就知道下节课。</span></li>
+    <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/></svg><b>离线 AI 小助手</b><span>在你电脑上运行，知道你的课表和作业，聊天内容不上传。</span></li>
+    <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9.5 2.5h5"/></svg><b>专注计时</b><span>番茄钟在后台跑，到点提醒休息，每天专注多久都记着。</span></li>
+  </ul>
+  <div class="pcget" data-dl>
+    <a class="get" data-get="exe" href="https://github.com/hangyuan2024-hue/class-calendar/releases/latest/download/LaolaoKechengbiao-Setup.exe">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="arrow"><path d="M12 4v11"/><path d="m7 10 5 5 5-5"/></g><path d="M5 20h14"/></svg>
+      <span class="lbl" data-lbl>下载 Windows 电脑版</span>
+    </a>
+    <p class="meta">免费，Windows 10 / 11（64 位）。苹果电脑暂时没有，可以直接用<a href="index.html">网页版</a>。</p>
+    <p class="after" data-after aria-live="polite"></p>
+  </div>
+</section>
+
 <section class="day" id="day">
   <h2>陪你过完一天</h2>
   <p class="sub">从早上醒来到晚上睡前，下面每一块都是 App 里真实的样子，可以点点看。</p>
@@ -883,27 +965,41 @@ html.authed .lgtop { display: none; }
     <svg viewBox="4 4 56 56"><g class="body"><rect x="11" y="17" width="42" height="38" rx="12" fill="#fff" stroke="#0e2240" stroke-width="3.2"/><path d="M11 30 V29 a12 12 0 0 1 12 -12 h18 a12 12 0 0 1 12 12 v1 z" fill="#ff8a3d" stroke="#0e2240" stroke-width="3.2" stroke-linejoin="round"/><rect x="20" y="10" width="5.5" height="12" rx="2.75" fill="#0e2240"/><rect x="38.5" y="10" width="5.5" height="12" rx="2.75" fill="#0e2240"/><path d="M20.5 40 q4 3 8 0 M35.5 40 q4 3 8 0" fill="none" stroke="#0e2240" stroke-width="2.6" stroke-linecap="round"/><ellipse cx="18.5" cy="46" rx="3.2" ry="2" fill="#ff9db5"/><ellipse cx="45.5" cy="46" rx="3.2" ry="2" fill="#ff9db5"/><ellipse cx="32" cy="47.5" rx="2.2" ry="1.8" fill="#0e2240"/></g></svg>
   </div>
   <h2>明天的事，<br>交给捞捞记着</h2>
-  <p class="sub">今晚装上，明天早上就能收到第一句鼓励。</p>
-  <div class="panel">
-    <a class="get" data-get href="download/class-calendar.apk" download>
-      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="arrow"><path d="M12 4v11"/><path d="m7 10 5 5 5-5"/></g><path d="M5 20h14"/></svg>
-      <span class="lbl" data-lbl>下载安卓 App</span>
-    </a>
-    <p class="meta" data-meta>免费，安卓 7.0 及以上都能装</p>
-    <p class="after" data-after aria-live="polite"></p>
-    <p class="ios">苹果手机暂时没有 App。用 Safari 打开<a href="index.html">网页版</a>，点底部的分享按钮，选「添加到主屏幕」，用起来和 App 差不多。</p>
-    <div class="qr" data-qr hidden><img src="download/qr.svg" alt="下载页二维码"><div><b>用手机扫一扫</b><span>手机相机或浏览器扫码<br>打开下载页直接安装</span></div></div>
+  <p class="sub">手机、电脑都装上，用同一个账号登录，在哪记的都会同步过来。</p>
+  <div class="dlgrid">
+    <div class="dlcard droidc" data-dl>
+      <div class="dlh"><span class="dli">📱</span><div><b>安卓手机</b><small>华为、小米、OPPO、vivo、荣耀都能装</small></div></div>
+      <a class="get" id="getApk" data-get="apk" href="download/class-calendar.apk" download>
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="arrow"><path d="M12 4v11"/><path d="m7 10 5 5 5-5"/></g><path d="M5 20h14"/></svg>
+        <span class="lbl" data-lbl>下载安卓 App</span>
+      </a>
+      <p class="meta" data-meta="getApk">免费，安卓 7.0 及以上都能装</p>
+      <div class="qr" data-qr hidden><img src="download/qr.svg" alt="下载页二维码"><div><b>用手机扫一扫</b><span>手机相机或浏览器扫码<br>打开下载页直接安装</span></div></div>
+      <p class="after" data-after aria-live="polite"></p>
+    </div>
+    <div class="dlcard pcc" data-dl>
+      <div class="dlh"><span class="dli">💻</span><div><b>Windows 电脑</b><small>大屏排版、右下角提醒、离线 AI 助手</small></div></div>
+      <a class="get" id="getExe" data-get="exe" href="https://github.com/hangyuan2024-hue/class-calendar/releases/latest/download/LaolaoKechengbiao-Setup.exe">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="arrow"><path d="M12 4v11"/><path d="m7 10 5 5 5-5"/></g><path d="M5 20h14"/></svg>
+        <span class="lbl" data-lbl>下载 Windows 电脑版</span>
+      </a>
+      <p class="meta" data-meta="getExe">免费，Windows 10 / 11（64 位）</p>
+      <p class="after" data-after aria-live="polite"></p>
+    </div>
   </div>
+  <p class="dlweb">苹果手机、苹果电脑暂时没有 App，直接用<a href="index.html">网页版</a>就行。iPhone 用 Safari 打开，点分享 →「添加到主屏幕」，用起来和 App 差不多。</p>
 
   <div class="faq" id="faq">
     <h3>常见问题</h3>
     <details><summary>安装时提示「未知来源」或「风险应用」怎么办？</summary><p>这是因为 App 不是从应用商店下的，安卓都会这样提醒。按提示点「设置」，允许浏览器（或文件管理）安装应用，再回来点安装就行。华为、小米手机如果开着「纯净模式」，选「继续安装」或「仍然安装」。</p></details>
     <details><summary>在微信里点下载没反应？</summary><p>微信不让直接下载安装包。点右上角「···」，选「在浏览器打开」，再点下载。QQ 里也一样。</p></details>
     <details><summary>苹果手机能用吗？</summary><p>暂时没有苹果版 App。用 Safari 打开网页版，点分享，选「添加到主屏幕」，桌面上就会有图标，打开和 App 一样全屏。</p></details>
-    <details><summary>装了 App，网页版还能用吗？数据通不通？</summary><p>能用，是同一个账号。在「我的」里把保存位置选成云端，手机和电脑上的数据会自动同步。</p></details>
+    <details><summary>手机 App、电脑版、网页版，数据通不通？</summary><p>通。三个用的是同一个账号，登录后课表、作业、你记的事、完成记录都会自动同步，在哪边改了另外两边都能看到。</p></details>
     <details><summary>它会要哪些权限？</summary><p>只要联网、发通知、开机后恢复提醒、振动这几个。不读通讯录，不要定位，不要麦克风。</p></details>
     <details><summary>怎么更新到新版？</summary><p>有新版本时，App 首页会提示，点一下下载安装就会直接覆盖，原来的数据都在。也可以在「我的」→「安卓 App」里点「检查更新」。</p></details>
-    <details><summary>想在电脑上先试试？</summary><p>在电脑上装一个 MuMu 模拟器，把下载好的安装包拖进模拟器窗口就会自动安装。</p></details>
+    <details><summary>电脑版安装时提示「Windows 已保护你的电脑」？</summary><p>因为电脑版还没有买数字签名证书，Windows 对新软件都会这样提醒。点「更多信息」，再点「仍要运行」就能装。</p></details>
+    <details><summary>电脑版的 AI 助手要联网吗？要钱吗？</summary><p>不要钱，也不用联网。第一次打开 AI 助手时会下载一次模型（约 1GB，国内服务器），之后就在你电脑上运行，聊天内容不会上传。普通笔记本就能跑。</p></details>
+    <details><summary>苹果电脑能用吗？</summary><p>电脑版暂时只有 Windows。苹果电脑直接用浏览器打开<a href="index.html">网页版</a>，功能和账号都是一样的。</p></details>
   </div>
 </section>
 </main>
@@ -927,7 +1023,7 @@ html.authed .lgtop { display: none; }
 <script src="config.js"></script>
 <script src="auth.js?v=20261003b"></script>
 <script src="login.js?v=20261004f"></script>
-<script src="get.js?v=2"></script>
-<script src="intro.js?v=1"></script>
+<script src="get.js?v=3"></script>
+<script src="intro.js?v=2"></script>
 </body>
 </html>

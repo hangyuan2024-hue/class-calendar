@@ -381,3 +381,28 @@
     else mini.dataset.k = k;
   }));
 })();
+
+// 电脑版：点右边的页面名，换左边的截图
+(() => {
+  const win = document.getElementById("pcWin"), img = document.getElementById("pcShot");
+  if (!win || !img) return;
+  const tabs = Array.from(document.querySelectorAll(".pctabs [data-shot]"));
+  const show = (b) => {
+    tabs.forEach((x) => x.setAttribute("aria-selected", String(x === b)));
+    const src = "download/pc/" + b.dataset.shot + ".webp";
+    if (img.getAttribute("src") === src) return;
+    img.classList.add("fade");
+    const pre = new Image();
+    pre.onload = pre.onerror = () => { img.src = src; img.alt = "捞捞课程表电脑版：" + b.dataset.alt; win.classList.toggle("dark", b.dataset.shot === "ai"); img.classList.remove("fade"); };
+    pre.src = src;
+  };
+  tabs.forEach((b) => b.addEventListener("click", () => show(b)));
+  // 自动轮播，鼠标放上去或点过就停
+  let auto = setInterval(() => { const i = tabs.findIndex((x) => x.getAttribute("aria-selected") === "true"); show(tabs[(i + 1) % tabs.length]); }, 4500);
+  const stop = () => { clearInterval(auto); auto = 0; };
+  win.addEventListener("mouseenter", stop); tabs.forEach((b) => b.addEventListener("click", stop));
+  if ("IntersectionObserver" in window) {
+    const io = new IntersectionObserver((es) => { if (!es[0].isIntersecting && auto) { clearInterval(auto); auto = -1; } else if (es[0].isIntersecting && auto === -1) auto = setInterval(() => { const i = tabs.findIndex((x) => x.getAttribute("aria-selected") === "true"); show(tabs[(i + 1) % tabs.length]); }, 4500); });
+    io.observe(win);
+  }
+})();

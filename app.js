@@ -4178,13 +4178,14 @@ window.ccAppNotify = (ok) => {
   if (!ok) { const o = appRem(); o.on = false; save(LS_APPREM, o); alert("没有拿到通知权限，提醒没法弹出来。可以在手机「设置 → 应用 → 捞捞课程表 → 通知」里打开。"); renderAppBox(); return; }
   appTok((t) => AndroidBridge.testNotify(t)); appRemLast = ""; appSchedule(); renderAppBox();
 };
-// 首页右上角和侧栏的「下载 App」：安卓 App 里、苹果手机上不显示
+// 首页右上角和侧栏的「下载」（手机 App + 电脑版）：安卓 App 里、苹果手机上不显示
 { const noDl = inApp() || /iPhone|iPad|iPod/i.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
   document.querySelectorAll("#appDl, .appdl-l").forEach((el) => el.classList.toggle("hidden", noDl)); }
 function renderAppBox() {
   const box = $("appBox"); if (!box) return;
   const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-  $("appSec").classList.toggle("hidden", !inApp() && (ios || !appLatest));
+  $("appSec").classList.toggle("hidden", !inApp() && ios);
+  if (inApp()) { $("appSecT").textContent = "安卓 App"; $("appSecS").textContent = "到点提醒、检查更新"; }
   if (inApp()) {
     const o = appRem(), cur = AndroidBridge.version();
     box.innerHTML = `
@@ -4195,8 +4196,9 @@ function renderAppBox() {
         <label class="gi"><span class="ic">🌅</span>早上 7:30 提醒今天的事<input type="checkbox" class="switch" id="arMorn" ${o.morning ? "checked" : ""}></label>
       </div>
       <button class="gi" id="appCheck"><span class="ic">⬆️</span>检查更新<small>当前版本 ${esc(cur)}${appLatest && appLatest.versionCode > AndroidBridge.versionCode() ? ` · <b style="color:var(--red)">有新版本 ${esc(appLatest.versionName)}</b>` : ""}</small></button>`;
-  } else if (appLatest) {
-    box.innerHTML = `<a class="gi" href="app.html"><span class="ic">📱</span><span class="sx"><span class="sxt">下载安卓 App</span><small>版本 ${esc(appLatest.versionName)} · ${(appLatest.size / 1048576).toFixed(1)} MB · 作业到点提醒、拍照导入课表更方便</small></span><span class="btn ink sm">下载</span></a>`;
+  } else {
+    box.innerHTML = `<a class="gi" href="app.html#get"><span class="ic">📱</span><span class="sx"><span class="sxt">安卓 App</span><small>${appLatest ? `版本 ${esc(appLatest.versionName)} · ${(appLatest.size / 1048576).toFixed(1)} MB · ` : ""}作业到点提醒、拍照导入课表更方便</small></span><span class="btn ink sm">下载</span></a>
+      <a class="gi" href="https://github.com/hangyuan2024-hue/class-calendar/releases/latest/download/LaolaoKechengbiao-Setup.exe"><span class="ic">💻</span><span class="sx"><span class="sxt">Windows 电脑版</span><small>整周课表铺满屏幕、右下角提醒、离线 AI 助手 · 约 100 MB</small></span><span class="btn ink sm">下载</span></a>`;
   }
 }
 document.addEventListener("change", (e) => {
