@@ -3,7 +3,7 @@
 // - 第一次打开、还没缓存时：照常联网
 // - 脚本、样式、字体：文件名带版本号，先用缓存秒开，后台再悄悄更新
 // - 装好时：把首页、登录页里引用的脚本和样式（带版本号的真实地址）提前存好
-const CACHE = "cc-static-v19";
+const CACHE = "cc-static-v20";
 const PAGES = ["./", "index.html", "app.html", "login.html"];
 const EXTRA = ["fonts.css?v=1", "fonts/fd-00.woff2", "fonts/bricolage.woff", "favicon.svg", "favicon-32.png", "apple-touch-icon.png", "manifest.webmanifest"];
 

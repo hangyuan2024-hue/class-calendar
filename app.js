@@ -2810,6 +2810,8 @@ function renderRail() {
     html += `<button data-day="${k}" class="${d.getMonth() !== m ? "o" : ""}${k === keyOf(today) ? " t" : ""}">${d.getDate()}${has ? "<i></i>" : ""}</button>`;
   }
   $("miniCal").innerHTML = html;
+  if (document.documentElement.dataset.skin === "fresh") renderRailBig(y, m);
+  else { $("miniCal").classList.remove("big"); $("railDay") && $("railDay").classList.add("hidden"); }
   const mon = new Date(y, m, today.getDate() - (today.getDay() + 6) % 7), sun = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6);
   const hw = allItems().filter((r) => r.msg_type === "作业" && r._p && !r._done && r._p.day <= keyOf(sun) && dayDiff(r._p.day) >= -30)
     .sort((a, b) => (a._p.day + a._p.time).localeCompare(b._p.day + b._p.time));
@@ -2819,7 +2821,42 @@ function renderRail() {
     : `<div class="empty">这周没有要交的作业 🎉</div>`;
   renderTabs();
 }
-$("miniCal").onclick = (e) => { const b = e.target.closest("button[data-day]"); if (!b) return; $("jumpDate").value = b.dataset.day; $("jumpDate").onchange({ target: { value: b.dataset.day } }); };
+// 清爽外观的右栏：大月历（格子里直接写事情）+ 点哪天就在下面列出那天的课和事，不用跳页面
+let railSel = "";
+const RAIL_TYPE = (r) => r.msg_type === "作业" ? "hw" : /考试|测验/.test((r.subject || "") + (r.summary || "") + r.msg_type) ? "ex" : r._mine ? "me" : "nt";
+function renderRailBig(y, m) {
+  const cal = $("miniCal"); cal.classList.add("big");
+  const tk = keyOf(today); if (!railSel) railSel = tk;
+  const first = new Date(y, m, 1), start = new Date(y, m, 1 - (first.getDay() + 6) % 7);
+  const weeks = Math.ceil(((first.getDay() + 6) % 7 + new Date(y, m + 1, 0).getDate()) / 7);
+  let html = ["一", "二", "三", "四", "五", "六", "日"].map((w) => `<span class="wd">${w}</span>`).join("");
+  for (let i = 0; i < weeks * 7; i++) {
+    const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i), k = keyOf(d);
+    const list = (byDay[k] || []).filter((r) => !r._done && !r._plugin);
+    const chips = list.slice(0, 2).map((r) => `<em class="rc-${RAIL_TYPE(r)}">${esc(r.subject || r.summary || r.msg_type)}</em>`).join("");
+    html += `<button data-day="${k}" class="${d.getMonth() !== m ? "o" : ""}${k === tk ? " t" : ""}${k === railSel ? " sel" : ""}${k < tk ? " past" : ""}" aria-label="${d.getMonth() + 1}月${d.getDate()}日${list.length ? "，" + list.length + " 件事" : ""}">
+      <b>${d.getDate()}</b>${chips}${list.length > 2 ? `<small>+${list.length - 2}</small>` : ""}</button>`;
+  }
+  cal.innerHTML = html;
+  // 选中那天的详情
+  const box = $("railDay"); if (!box) return;
+  box.classList.remove("hidden");
+  const d = new Date(railSel + "T00:00:00"), diff = dayDiff(railSel);
+  const name = diff === 0 ? "今天" : diff === 1 ? "明天" : diff === -1 ? "昨天" : `${d.getMonth() + 1}月${d.getDate()}日`;
+  const courses = typeof islandCourses === "function" ? islandCourses(railSel) : [];
+  const items = (byDay[railSel] || []).filter((r) => !r._plugin).slice().sort((a, b) => ((a._p && a._p.time) || "99").localeCompare((b._p && b._p.time) || "99"));
+  const rows = [
+    ...courses.map((c) => `<div class="rd-row rd-c"><span class="rd-t">${esc(c.t0 || "")}</span><span class="rd-n"><b>${esc(c.name)}</b>${c.location ? `<small>${esc(c.location)}</small>` : ""}</span><span class="rd-k">课</span></div>`),
+    ...items.map((r) => `<div class="rd-row rc-${RAIL_TYPE(r)}${r._done ? " done" : ""}"><span class="rd-t">${esc((r._p && r._p.time) || "全天")}</span><span class="rd-n"><b>${esc(r.subject || r.summary || r.msg_type)}</b>${r.location ? `<small>${esc(r.location)}</small>` : r.subject && r.summary ? `<small>${esc(r.summary)}</small>` : ""}</span>
+      ${r._plugin ? "" : `<button class="rd-chk" data-act="done" data-k="${esc(r._key)}" aria-label="${r._done ? "取消完成" : "标记完成"}">${r._done ? "✓" : ""}</button>`}</div>`),
+  ];
+  box.innerHTML = `<div class="rd-h"><b>${name}</b><span>周${WEEK[d.getDay()]}${courses.length ? ` · ${courses.length} 节课` : ""}${items.length ? ` · ${items.length} 件事` : ""}</span><button class="small" data-railopen="${railSel}">在日历里看</button></div>
+    ${rows.length ? rows.join("") : `<div class="rd-empty">这天没有课，也没有事</div>`}`;
+}
+document.addEventListener("click", (e) => { const b = e.target.closest("[data-railopen]"); if (!b) return; $("jumpDate").value = b.dataset.railopen; $("jumpDate").onchange({ target: { value: b.dataset.railopen } }); });
+$("miniCal").onclick = (e) => { const b = e.target.closest("button[data-day]"); if (!b) return;
+  if ($("miniCal").classList.contains("big")) { railSel = b.dataset.day; renderRailBig(today.getFullYear(), today.getMonth()); return; }
+  $("jumpDate").value = b.dataset.day; $("jumpDate").onchange({ target: { value: b.dataset.day } }); };
 
 // 元气风格：标题栏滚动后才出现毛玻璃
 window.addEventListener("scroll", () => document.querySelectorAll(".vhead").forEach((h) => h.classList.toggle("stuck", window.scrollY > 8)), { passive: true });
