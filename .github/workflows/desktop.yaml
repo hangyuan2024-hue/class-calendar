@@ -32,12 +32,25 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           New-Item -ItemType Directory -Force llama-dl | Out-Null
-          $ok = $false
-          foreach ($p in @("*bin-win-cpu-x64.zip", "*bin-win-avx2-x64.zip")) {
-            gh release download --repo ggml-org/llama.cpp --pattern $p --dir llama-dl --clobber
-            if ((Get-ChildItem llama-dl -Filter *.zip).Count -gt 0) { $ok = $true; break }
+          # llama.cpp 每个版本的文件名会变，这里按名字挑：Windows、x64、CPU 版优先；最新版里没有就往前找
+          $tags = gh release list --repo ggml-org/llama.cpp --limit 15 --json tagName --jq '.[].tagName'
+          $pick = $null
+          foreach ($t in $tags) {
+            $names = @(gh release view $t --repo ggml-org/llama.cpp --json assets --jq '.assets[].name')
+            $win = @($names | Where-Object { $_ -match 'win' -and $_ -match 'x64' -and $_ -match '\.zip$' -and $_ -notmatch 'cudart|cuda|hip|sycl|arm64|opencl|kompute' })
+            foreach ($pref in @('cpu', 'avx2', 'avx', 'vulkan')) {
+              $m = $win | Where-Object { $_ -match $pref } | Select-Object -First 1
+              if ($m) { $pick = $m; break }
+            }
+            if (-not $pick -and $win.Count -gt 0) { $pick = $win[0] }
+            if ($pick) {
+              Write-Host "使用 $t 里的 $pick"
+              gh release download $t --repo ggml-org/llama.cpp --pattern $pick --dir llama-dl --clobber
+              break
+            }
+            Write-Host "$t 里没有合适的 Windows 包，文件有：$($names -join ', ')"
           }
-          if (-not $ok) { throw "没找到 llama.cpp 的 Windows 版本" }
+          if (-not $pick -or (Get-ChildItem llama-dl -Filter *.zip).Count -eq 0) { throw "没找到 llama.cpp 的 Windows 版本" }
           Expand-Archive (Get-ChildItem llama-dl -Filter *.zip | Select-Object -First 1).FullName -DestinationPath llama-x -Force
           $exe = Get-ChildItem llama-x -Recurse -Filter llama-server.exe | Select-Object -First 1
           if (-not $exe) { throw "压缩包里没有 llama-server.exe" }
