@@ -587,31 +587,71 @@ $("bgRemove").onclick = () => { try { localStorage.removeItem(LS_BG); } catch (e
 const saveBgOpts = () => { save(LS_BG_OPTS, { dim: +$("bgDim").value, blur: +$("bgBlur").value }); applyLook(); };
 $("bgDim").oninput = saveBgOpts; $("bgBlur").oninput = saveBgOpts;
 
-// 「接下来」：用捞捞助手同一套智能排序（island-core.js）挑出现在最该关注的一件
-function nextCardHtml() {
-  if (typeof IslandCore === "undefined") return "";
-  let ctx; try { ctx = islandCtx(); } catch (e) { return ""; }
+// 首页问候卡里的两样「活」的东西（清爽外观）：
+// 1) 接下来：用捞捞助手同一套智能排序（island-core.js）挑出最该关注的一件，倒计时每 30 秒自己走
+// 2) 时间轴：今天的课（色块）+ 有具体时间的事（小橙点）+ 现在（竖线）；晚上 9 点后今天没事了就自动看明天
+const hm2min = (t) => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ""); return m ? +m[1] * 60 + +m[2] : null; };
+const atOf = (day, t) => { const m = hm2min(t); if (m == null || !day) return 0; const d = new Date(day + "T00:00:00"); d.setMinutes(m); return d.getTime(); };
+function leftLabel(ms) {
+  if (ms <= 0) return "就是现在";
+  const m = Math.ceil(ms / 60000);
+  if (m < 60) return `${m} 分钟后`;
+  if (m < 24 * 60) { const h = Math.floor(m / 60), r = m % 60; return `${h} 小时${r ? ` ${r} 分` : ""}后`; }
+  return `${Math.round(m / 1440)} 天后`;
+}
+function heroNextHtml(ctx) {
   const list = IslandCore.rank(ctx.items, ctx.courses, ctx.now).filter((x) => x.level !== "past");
   const top = list[0];
-  if (!top) {
-    const tm = shiftDay(todayKey(), 1), c = islandCourses(tm);
-    return `<div class="nx calm"><div class="nx-k"><i></i>接下来</div>
-      <div class="nx-what"><div class="nx-time">☕</div><b>手头没有要赶的事</b><span>${c.length ? `明天 ${c.length} 节课，第一节 ${esc(c[0].t0 || "")} ${esc(c[0].name)}` : "可以专注一个番茄，或者早点休息"}</span></div>
-      <div class="nx-side"><button class="nx-done" data-nx="pomo">🍅 专注 25 分钟</button></div></div>`;
-  }
+  if (!top) return `<div class="hx"><span class="hx-ic">☕</span><span class="hx-t"><b>手头没有要赶的事</b><small>来一个番茄专注一下？</small></span><button class="hx-go" data-nx="pomo">🍅 开始</button></div>`;
   const isCourse = top.kind === "course", live = top.level === "now";
-  const big = isCourse ? (live ? (top.when.split("–")[1] || "") : top.time) : (top.time || (top.day ? IslandCore.dayName(top.day, ctx.now) : "待定"));
-  const bigSmall = isCourse ? (live ? "下课" : "上课") : top.time ? (top.day === todayKey() ? "今天" : IslandCore.dayName(top.day, ctx.now)) : top.type === "作业" ? "截止" : "";
-  const label = isCourse ? (live ? "正在上课" : "下一节课") : top.level === "late" ? "过期还没交" : top.exam ? "考试" : top.type === "作业" ? "最该先做的作业" : "接下来";
-  const sub = [isCourse ? "" : top.type, top.location ? "📍 " + top.location : ""].filter(Boolean).join("　");
-  const then = list.slice(1, 4);
-  return `<div class="nx${top.level === "normal" && !isCourse ? " calm" : ""}" data-key="${esc(top.key)}">
-    <div class="nx-k${live || top.level === "urgent" ? " live" : ""}"><i></i>${label}</div>
-    <div class="nx-what"><div class="nx-time">${esc(big)}${bigSmall ? `<small>${esc(bigSmall)}</small>` : ""}</div><b>${esc(top.title)}</b>${sub ? `<span>${esc(sub)}</span>` : ""}</div>
-    <div class="nx-side"><span class="nx-left${top.level === "late" || top.level === "urgent" ? " hot" : ""}">${esc(top.reason)}</span>
-      ${isCourse ? "" : `<button class="nx-done" data-act="done" data-k="${esc(top.key)}">完成 ✓</button>`}</div>
-    ${then.length ? `<div class="nx-then"><span>之后</span>${then.map((x) => `<button data-nxgo="${x.kind === "course" ? "course" : x.type === "作业" ? "homework" : "calendar"}">${esc(x.title)}</button>`).join("")}</div>` : ""}
+  const c = isCourse ? (ctx.courses.find((x) => "course:" + x.name + x.t0 === top.key) || {}) : null;
+  const at = isCourse ? atOf(top.day, live ? c.t1 || top.time : top.time) : atOf(top.day, top.time);
+  const label = isCourse ? (live ? "正在上" : "下一节") : top.level === "late" ? "过期了" : top.exam ? "考试" : top.type === "作业" ? "先做这个" : "接下来";
+  const hot = top.level === "late" || top.level === "urgent" || live;
+  const when = at ? `<span class="hx-cd" data-at="${at}" data-end="${live ? 1 : 0}">${live ? "还有 " + leftLabel(at - Date.now()).replace("后", "下课") : leftLabel(at - Date.now())}</span>` : `<span class="hx-cd">${esc(top.reason)}</span>`;
+  return `<div class="hx${hot ? " hot" : ""}">
+    <span class="hx-k">${label}</span>
+    <span class="hx-t"><b>${esc(top.title)}</b><small>${esc([top.time || (top.day ? IslandCore.dayName(top.day, ctx.now) : ""), top.location ? "📍 " + top.location : ""].filter(Boolean).join(" · "))}</small></span>
+    ${when}
+    ${isCourse ? "" : `<button class="hx-done" data-act="done" data-k="${esc(top.key)}" title="标记完成" aria-label="标记完成">✓</button>`}
   </div>`;
+}
+function heroLineHtml(ctx) {
+  const now = ctx.now, t = keyOf(now), nowMin = now.getHours() * 60 + now.getMinutes();
+  const itemsOn = (k) => ctx.items.filter((x) => x.day === k && !x.done && hm2min(x.time) != null);
+  const lastToday = Math.max(-1, ...ctx.courses.map((c) => hm2min(c.t1 || c.t0) || 0), ...itemsOn(t).map((x) => hm2min(x.time)));
+  const tomorrow = nowMin >= 21 * 60 && lastToday <= nowMin;
+  const day = tomorrow ? shiftDay(t, 1) : t;
+  const courses = (tomorrow ? islandCourses(day) : ctx.courses).filter((c) => hm2min(c.t0) != null);
+  const items = itemsOn(day);
+  const pts = [...courses.flatMap((c) => [hm2min(c.t0), hm2min(c.t1 || c.t0)]), ...items.map((x) => hm2min(x.time))];
+  const a = Math.min(8 * 60, ...pts.map((m) => Math.floor(m / 60) * 60)), z = Math.max(22 * 60, ...pts.map((m) => Math.ceil(m / 60) * 60));
+  const pct = (m) => ((Math.max(a, Math.min(z, m)) - a) / (z - a) * 100).toFixed(2);
+  const go = courseTool() ? "course" : "calendar";
+  const segs = courses.map((c) => { const s = hm2min(c.t0), e = hm2min(c.t1 || "") ?? s + 45, past = !tomorrow && e <= nowMin, on = !tomorrow && s <= nowMin && nowMin < e;
+    return `<button class="tl-c${past ? " past" : ""}${on ? " on" : ""}" style="left:${pct(s)}%;width:${(pct(e) - pct(s)).toFixed(2)}%" data-nxgo="${go}" title="${esc(c.t0 + "–" + (c.t1 || "") + " " + c.name + (c.location ? " · " + c.location : ""))}"><span>${esc(c.name)}</span></button>`; }).join("");
+  const dots = items.map((x) => `<button class="tl-d${x.type === "作业" ? " hw" : ""}" style="left:${pct(hm2min(x.time))}%" data-nxgo="${x.type === "作业" ? "homework" : "calendar"}" title="${esc(x.time + " " + x.title)}"></button>`).join("");
+  const ticks = [a, ...[12 * 60, 18 * 60].filter((m) => m > a + 90 && m < z - 90), z].map((m) => `<i style="left:${pct(m)}%">${m / 60}:00</i>`).join("");
+  const empty = !courses.length && !items.length;
+  return `<div class="tl${tomorrow ? " tmr" : ""}" data-a="${a}" data-z="${z}">
+    <div class="tl-h"><b>${tomorrow ? "明天" : "今天"}</b><span>${empty ? (tomorrow ? "明天没有课，也没有定了时间的事" : "没有课，也没有定了时间的事") : [courses.length ? courses.length + " 节课" : "", items.length ? items.length + " 件定了时间的事" : ""].filter(Boolean).join(" · ")}</span></div>
+    <div class="tl-track">${segs}${dots}${tomorrow || nowMin < a ? "" : `<em class="tl-now" style="left:${pct(nowMin)}%"></em>`}</div>
+    <div class="tl-ticks">${ticks}</div>
+  </div>`;
+}
+// 每 30 秒：挪「现在」竖线、更新倒计时；倒计时走到 0 就整块重画（换下一件）
+let heroTick = 0;
+function heroTickStart() {
+  clearInterval(heroTick);
+  heroTick = setInterval(() => {
+    if (document.hidden || !document.querySelector(".hero.fx")) return;
+    const now = Date.now(), d = new Date(now), m = d.getHours() * 60 + d.getMinutes();
+    const tl = document.querySelector(".hero.fx .tl"), nw = tl && tl.querySelector(".tl-now");
+    if (!nw && tl && !tl.classList.contains("tmr") && m >= +tl.dataset.a) { renderAgenda(); return; }
+    if (nw) { const a = +tl.dataset.a, z = +tl.dataset.z; nw.style.left = ((Math.max(a, Math.min(z, m)) - a) / (z - a) * 100).toFixed(2) + "%"; }
+    const cd = document.querySelector(".hero.fx .hx-cd[data-at]");
+    if (cd) { const left = +cd.dataset.at - now; if (left <= 0) { renderAgenda(); return; } cd.textContent = cd.dataset.end === "1" ? "还有 " + leftLabel(left).replace("后", "下课") : leftLabel(left); }
+  }, 30000);
 }
 document.addEventListener("click", (e) => {
   const b = e.target.closest("[data-nx], [data-nxgo]"); if (!b) return;
@@ -671,11 +711,18 @@ function renderAgenda() {
     : todayHw ? `今天有 ${todayHw} 项作业要交，别忘啦～` : todayCount ? `今天有 ${todayCount} 件事，一件件来` : "今天没有要交的作业，喘口气吧～";
   const meta = document.documentElement.dataset.skin === "cyber";
   if (document.documentElement.dataset.skin === "fresh") {
-    // 清爽外观：大号问候 +「接下来」卡片（最该先做的那一件，按时间轻重排出来）
-    $("hero").innerHTML = `<div class="hd">
+    // 清爽外观：原来的天空问候卡 + 一行「接下来」（实时倒计时）+ 今天的时间轴
+    let ctx = null; try { ctx = typeof IslandCore !== "undefined" ? islandCtx() : null; } catch (e) {}
+    const wk = ctx && ctx.weekOf ? ctx.weekOf(keyOf(today)) : 0;
+    $("hero").innerHTML = `<div class="hero fx">
       ${feat("metaverse") ? `<button class="metabtn" id="metaBtn">🌐 捞捞元宇宙</button>` : ""}
-      <div class="hd-date"><b>${today.getMonth() + 1}/${today.getDate()}</b>周${WEEK[today.getDay()]}${ck().data && ck().data.week1 ? (() => { const w = Math.floor((new Date(keyOf(today) + "T00:00:00") - new Date(ck().data.week1 + "T00:00:00")) / 6048e5) + 1; return w >= 1 && w <= 30 ? ` · 第 ${w} 周` : ""; })() : ""}</div>
-      <h1>${hi + name}</h1><div class="say">${say}</div></div>${nextCardHtml()}`;
+      <div class="date">${today.getMonth() + 1}月${today.getDate()}日 周${WEEK[today.getDay()]}${wk ? ` · 第 ${wk} 周` : ""}</div>
+      <h3>${hi + name}</h3>
+      <div class="say">${say}</div>
+      <svg class="mascot" viewBox="0 0 120 120" aria-hidden="true"><use href="#mascotArt"/></svg>
+      ${ctx ? heroNextHtml(ctx) + heroLineHtml(ctx) : ""}
+    </div>`;
+    heroTickStart();
   } else
   $("hero").innerHTML = `<div class="hero">
       ${feat("metaverse") || meta ? `<button class="metabtn" id="metaBtn">${meta ? "⏏ 退出元宇宙" : "🌐 进入捞捞元宇宙"}</button>` : ""}
