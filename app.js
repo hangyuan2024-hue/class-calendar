@@ -31,7 +31,7 @@ const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; 
 // list：数组，按 id 一条条同步；map：对象，按键同步；map2：两层对象（习惯 → 日期）；one：整体同步
 const SYNC_KINDS = { personal_events_v1: "list", personal_marks_v1: "map", done_log_v1: "map", habits_v1: "list", habit_log_v1: "map2",
   quad_v1: "map", quad_todos_v1: "list", pomo_log_v1: "map", fun_opts_v1: "one", home_layout_v1: "one", ui_skin_v1: "one",
-  ui_palette_v1: "one", plugins_enabled_v1: "one", plan_notes_v1: "map", profile_v1: "one", mood_log_v1: "map", farm_v1: "one" };
+  ui_palette_v1: "one", plugins_enabled_v1: "one", plan_notes_v1: "map", profile_v1: "one", mood_log_v1: "map", farm_v1: "one", island_v1: "one" };
 const LS_SYNC = "sync_meta_v1", LS_SYNC_OUT = "sync_outbox_v1", LS_SYNC_MODE = "sync_mode_v1";
 const Sync = (() => {
   const SEP = "\u0001";
@@ -742,7 +742,7 @@ function renderSide() {
   $("undatedList").innerHTML = undated.length ? (phone ? `<div class="acard surface">${undated.map(agendaRow).join("")}</div>` : undated.map((r) => itemHtml(r, true)).join("")) : `<div class="empty">暂无</div>`;
 }
 
-function renderAll() { pluginBroadcastClass(); indexItems(); renderGrid(); renderSide(); renderAgenda(); renderHomework(); renderRail(); renderGrowth(); renderFarm(); renderPlan(); renderMeta(); renderWidgets(); syncJump(); appSchedule(); }
+function renderAll() { pluginBroadcastClass(); indexItems(); renderGrid(); renderSide(); renderAgenda(); renderHomework(); renderRail(); renderGrowth(); renderFarm(); renderPlan(); renderMeta(); renderWidgets(); syncJump(); appSchedule(); if (typeof renderIsland === "function") renderIsland(true); }
 
 function showBanner(msg) { const b = $("banner"); b.textContent = msg; b.classList.toggle("show", !!msg); }
 
@@ -2347,7 +2347,7 @@ function renderUserChip() {
 }
 // 退出时：班级相关的缓存一律清掉；在公共电脑上还可以把这台设备上的个人数据全部清除
 async function wipeLocalData(all) {
-  const keep = all ? [] : [LS_SYNC, LS_SYNC_OUT, LS_SYNC_MODE, "sync_stash_v1", "plan_notes_v1", "profile_v1", LS_MINE, LS_MARK, LS_SKIN, "ui_palette_v1", LS_BG, LS_BG_OPTS, LS_SKIN_PREV, LS_LAI, LS_PLUGINS, LS_PLUGIN_CACHE, LS_LAYOUT, LS_DONE_LOG, LS_HABITS, LS_HABIT_LOG, LS_FUN, LS_QUAD, LS_QTODO, LS_POMO, LS_POMO_LOG, "farm_v1"];
+  const keep = all ? [] : [LS_SYNC, LS_SYNC_OUT, LS_SYNC_MODE, "sync_stash_v1", "plan_notes_v1", "profile_v1", LS_MINE, LS_MARK, LS_SKIN, "ui_palette_v1", LS_BG, LS_BG_OPTS, LS_SKIN_PREV, LS_LAI, LS_PLUGINS, LS_PLUGIN_CACHE, LS_LAYOUT, LS_DONE_LOG, LS_HABITS, LS_HABIT_LOG, LS_FUN, LS_QUAD, LS_QTODO, LS_POMO, LS_POMO_LOG, "farm_v1", "island_v1"];
   for (let i = localStorage.length - 1; i >= 0; i--) {
     const k = localStorage.key(i);
     if (!k) continue;

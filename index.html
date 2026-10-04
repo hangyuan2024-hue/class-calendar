@@ -1686,6 +1686,119 @@
   .fev b { font-size: 11px; } .fev small { font-size: 10px; color: var(--sub); }
   .fev-a { font-style: normal; color: var(--sub); }
   @media (max-width: 700px) { .fp-stats b { font-size: 16px; } }
+
+  /* ===== 捞捞助手：吉祥物举着小屏幕待在角落，到点冒泡泡提醒（island.js） ===== */
+  #lao { --lao-b: 24px; --lao-y: 0px; --lao-dx: 0px; position: fixed; z-index: 65; bottom: calc(var(--lao-b) - var(--lao-y)); pointer-events: none; }
+  #lao.hidden { display: none; }
+  #lao[data-side=r] { right: 16px; } #lao[data-side=l] { left: 16px; }
+  #lao > * { pointer-events: auto; }
+  .lao-dock { display: flex; align-items: flex-end; gap: 0; transform: translateX(var(--lao-dx)); transition: transform .35s cubic-bezier(.3, 1.3, .5, 1); }
+  #lao[data-side=r] .lao-dock { flex-direction: row; }
+  #lao[data-side=l] .lao-dock { flex-direction: row-reverse; }
+  #lao.drag .lao-dock { transition: none; cursor: grabbing; }
+  .lao-bot { position: relative; flex: none; width: 66px; height: 66px; padding: 0; border: 0; background: none; cursor: pointer; touch-action: none; animation: laoBob 3.2s ease-in-out infinite; filter: drop-shadow(0 8px 12px rgba(20, 60, 120, .22)); }
+  .lao-bot svg { width: 100%; height: 100%; display: block; }
+  #lao[data-side=r] .lao-bot svg { transform: scaleX(-1); }   /* 挥手的那只手朝着屏幕 */
+  .lao-bot.talk { animation: laoTalk .5s ease-in-out 3; }
+  .lao-bot.alert::after { content: ""; position: absolute; inset: 8px 6px 0; border-radius: 22px; box-shadow: 0 0 0 3px rgba(255, 61, 113, .55); animation: laoPulse 1.8s infinite; }
+  @keyframes laoBob { 50% { transform: translateY(-4px); } }
+  @keyframes laoTalk { 30% { transform: rotate(-6deg) translateY(-3px); } 70% { transform: rotate(5deg); } }
+  @keyframes laoPulse { 50% { opacity: .2; } }
+  .lao-n { position: absolute; top: 4px; min-width: 20px; height: 20px; border-radius: 10px; padding: 0 6px; background: #ff3d71; color: #fff; font-size: 12px; font-style: normal; font-weight: 800; display: grid; place-items: center; box-shadow: 0 0 0 2px var(--card, #fff); }
+  #lao[data-side=r] .lao-n { right: 2px; } #lao[data-side=l] .lao-n { left: 2px; }
+  .lao-n.hidden { display: none; }
+  /* 小屏幕：深色屏幕 + 亮字，像捞捞手里拿着的掌机 */
+  .lao-scr { position: relative; display: flex; flex-direction: column; justify-content: center; gap: 1px; width: 150px; min-height: 48px; margin-bottom: 14px; padding: 6px 10px; border-radius: 14px; cursor: pointer; text-align: left; touch-action: none;
+    color: #8ff3ff; font: inherit; background: repeating-linear-gradient(0deg, rgba(255, 255, 255, .035) 0 1px, transparent 1px 3px), radial-gradient(120% 90% at 30% 20%, #1b2a4a, #0b1222 70%);
+    border: 3px solid #1d2438; box-shadow: 0 0 0 1.5px rgba(120, 200, 255, .35), 0 10px 22px -10px rgba(10, 30, 70, .6), inset 0 0 14px rgba(60, 200, 255, .18); transition: opacity .25s, transform .3s; transform-origin: right bottom; }
+  #lao[data-side=r] .lao-scr { margin-right: -8px; } #lao[data-side=l] .lao-scr { margin-left: -8px; transform-origin: left bottom; }
+  .lao-scr::after { content: ""; position: absolute; top: 4px; right: 6px; width: 5px; height: 5px; border-radius: 50%; background: #39ffa5; box-shadow: 0 0 6px #39ffa5; }
+  .lao-scr.lv-late::after, .lao-scr.lv-urgent::after { background: #ff5d7d; box-shadow: 0 0 6px #ff5d7d; animation: laoPulse 1.2s infinite; }
+  .lao-line { display: flex; align-items: center; gap: 5px; min-width: 0; animation: laoScr .4s ease; }
+  .lao-line i { font-style: normal; font-size: 13px; }
+  .lao-line b { font-size: 13.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 0 8px rgba(60, 220, 255, .5); }
+  .lao-scr small { font-size: 11.5px; color: #9fb4d8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; animation: laoScr .4s ease; }
+  .lao-scr.lv-late small, .lao-scr.lv-urgent small { color: #ffab8a; }
+  .lao-scr.lv-now small { color: #5ff7c8; }
+  @keyframes laoScr { from { opacity: 0; transform: translateY(5px); } }
+  #lao.noscr .lao-scr { display: none; }
+  /* 往下滑页面时缩到边上 */
+  #lao.tuck .lao-scr { opacity: 0; transform: scale(.4); pointer-events: none; }
+  #lao[data-side=r].tuck .lao-dock { transform: translateX(calc(var(--lao-dx) + 38px)); }
+  #lao[data-side=l].tuck .lao-dock { transform: translateX(calc(var(--lao-dx) - 38px)); }
+  #lao.open .lao-scr { opacity: 0; pointer-events: none; }
+  /* 对话泡泡 */
+  .lao-bub { position: absolute; bottom: 74px; width: max-content; max-width: min(280px, calc(100vw - 40px)); padding: 10px 30px 10px 14px; border-radius: 18px; background: var(--card, #fff); color: var(--text); font-size: 14px; line-height: 1.55; cursor: pointer;
+    box-shadow: 0 14px 34px -12px rgba(20, 60, 120, .45), 0 0 0 1px var(--line); opacity: 0; transform: translateY(8px) scale(.9); pointer-events: none; transition: opacity .2s, transform .25s cubic-bezier(.3, 1.4, .5, 1); }
+  #lao[data-side=r] .lao-bub { right: 4px; border-bottom-right-radius: 6px; transform-origin: right bottom; }
+  #lao[data-side=l] .lao-bub { left: 4px; border-bottom-left-radius: 6px; transform-origin: left bottom; }
+  .lao-bub.show { opacity: 1; transform: none; pointer-events: auto; }
+  .lao-bub::after { content: ""; position: absolute; bottom: -7px; width: 14px; height: 14px; background: inherit; transform: rotate(45deg); box-shadow: 3px 3px 4px -2px rgba(20, 60, 120, .15); }
+  #lao[data-side=r] .lao-bub::after { right: 26px; } #lao[data-side=l] .lao-bub::after { left: 26px; }
+  .lao-x { position: absolute; top: 5px; right: 6px; width: 22px; height: 22px; border-radius: 50%; border: 0; background: none; color: var(--sub); font-size: 16px; cursor: pointer; }
+  /* 对话框：和网站一样的卡片样式 */
+  #isPanel { display: none; position: absolute; bottom: 82px; width: min(400px, calc(100vw - 24px)); max-height: min(70vh, 620px); flex-direction: column; border-radius: 24px; overflow: hidden; background: var(--card, #fff); color: var(--text);
+    box-shadow: 0 30px 70px -24px rgba(10, 40, 90, .5), 0 0 0 1px var(--line); animation: laoOpen .28s cubic-bezier(.3, 1.3, .5, 1); }
+  #lao[data-side=r] #isPanel { right: 0; transform-origin: right bottom; } #lao[data-side=l] #isPanel { left: 0; transform-origin: left bottom; }
+  #lao.open #isPanel { display: flex; }
+  @keyframes laoOpen { from { opacity: 0; transform: scale(.6) translateY(20px); } }
+  .is-head { display: flex; align-items: center; gap: 12px; padding: 14px 12px 12px 16px; background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 16%, var(--card)), var(--card) 70%); border-bottom: 1px solid var(--line); }
+  .is-face { flex: none; width: 46px; height: 46px; }
+  .is-face svg { width: 100%; height: 100%; }
+  .is-who { flex: 1; min-width: 0; }
+  .is-who b { display: block; font-size: 17px; }
+  .is-who small { color: var(--sub); font-size: 12.5px; }
+  .is-hb { width: 32px; height: 32px; border-radius: 50%; border: 0; background: var(--hover); color: var(--text); font-size: 15px; cursor: pointer; display: grid; place-items: center; }
+  #isBody { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  .is-sec { padding: 12px 16px 4px; display: flex; align-items: baseline; gap: 8px; }
+  .is-sec b { font-size: 14px; } .is-sec small { color: var(--sub); font-size: 12px; }
+  #isTodo { padding: 0 8px; }
+  .isr { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 14px; }
+  .isr:hover { background: var(--hover); }
+  .isr .chk { width: 22px; height: 22px; }
+  .isr-ic { width: 22px; text-align: center; flex: none; }
+  .isr-m { flex: 1; min-width: 0; display: flex; flex-direction: column; text-align: left; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; padding: 0; }
+  .isr-m b { font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .isr-m small { font-size: 12px; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .isr-r { flex: none; font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--muted-bg); color: var(--sub); white-space: nowrap; }
+  .isr.lv-late .isr-r { background: var(--danger-bg); color: var(--red); }
+  .isr.lv-urgent .isr-r { background: color-mix(in srgb, var(--today) 16%, var(--card)); color: var(--today); }
+  .isr.lv-now .isr-r, .isr.lv-soon .isr-r { background: var(--selected); color: var(--accent); }
+  .is-more { display: block; margin: 2px auto 4px; border: 0; background: none; color: var(--accent); font: inherit; font-size: 13px; cursor: pointer; }
+  .is-empty { padding: 8px 10px; color: var(--sub); }
+  #isChat { padding: 8px 16px 10px; display: flex; flex-direction: column; gap: 8px; }
+  .ism { align-self: flex-start; max-width: 92%; padding: 9px 13px; border-radius: 6px 18px 18px 18px; background: var(--muted-bg); line-height: 1.6; font-size: 14.5px; }
+  .ism.me { align-self: flex-end; border-radius: 18px 6px 18px 18px; background: var(--accent); color: #fff; }
+  .ism ul { margin: 6px 0 0; padding-left: 18px; } .ism p { margin: 0 0 4px; }
+  .ism-list { margin: 6px -8px 0; }
+  .ism .small { margin-top: 8px; }
+  .is-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .is-chips button { border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); background: var(--card); color: var(--accent); border-radius: 999px; padding: 4px 11px; font: inherit; font-size: 13px; cursor: pointer; }
+  .is-chips button:hover { background: var(--selected); }
+  .is-dots { display: inline-flex; gap: 4px; padding: 4px 2px; }
+  .is-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--sub); animation: isDot 1s infinite; }
+  .is-dots i:nth-child(2) { animation-delay: .15s; } .is-dots i:nth-child(3) { animation-delay: .3s; }
+  @keyframes isDot { 50% { transform: translateY(-4px); opacity: .4; } }
+  #isForm { display: flex; gap: 8px; padding: 10px 12px 12px; border-top: 1px solid var(--line); }
+  #isQ { flex: 1; min-width: 0; font: inherit; font-size: 15px; padding: 10px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--muted-bg); color: var(--text); outline: none; }
+  #isQ:focus { border-color: var(--accent); }
+  #isSend { flex: none; border: 0; border-radius: 999px; padding: 0 16px; background: var(--ink); color: var(--ink-text); font: inherit; font-weight: 800; cursor: pointer; }
+  #isSet { padding: 6px 16px 12px; border-bottom: 1px solid var(--line); font-size: 14px; }
+  #isSet .meta { margin: 6px 0 4px; }
+  .is-opt { display: flex; align-items: center; gap: 8px; padding: 4px 0; cursor: pointer; }
+  .is-set-f { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  @media (prefers-reduced-motion: reduce) { .lao-bot, .lao-bot.talk, #isPanel, .lao-line { animation: none; } }
+  @media (max-width: 700px) {
+    #lao { --lao-b: calc(84px + env(safe-area-inset-bottom)); }
+    #lao[data-side=r] { right: 10px; } #lao[data-side=l] { left: 10px; }
+    .lao-bot { width: 58px; height: 58px; }
+    .lao-scr { width: 132px; min-height: 44px; margin-bottom: 10px; }
+    .lao-bub { bottom: 66px; }
+    /* 手机上对话框从底下弹上来，占满宽度 */
+    #isPanel { position: fixed; left: 8px !important; right: 8px !important; bottom: calc(8px + env(safe-area-inset-bottom)); width: auto; max-height: 78vh; border-radius: 26px; transform-origin: 50% 100%; }
+    #lao.open::before { content: ""; position: fixed; inset: 0; background: rgba(10, 20, 40, .3); }
+    #lao.open .lao-dock, #lao.open .lao-bub { opacity: 0; pointer-events: none; }
+  }
 </style>
 </head>
 <body>
@@ -1997,6 +2110,7 @@
       <label class="gi" data-feat="growth"><span class="ic">⭕</span>首页显示本周进度环<input type="checkbox" class="switch" id="optRings"></label>
       <label class="gi" data-feat="growth"><span class="ic">🔥</span>习惯打卡<input type="checkbox" class="switch" id="optHabits"></label>
       <label class="gi" data-feat="plan"><span class="ic">🎯</span>规划（时间管理法、番茄钟）<input type="checkbox" class="switch" id="optPlan"></label>
+      <label class="gi"><span class="ic">🤖</span>捞捞助手（角落里的捞捞：到点提醒、问它问题）<input type="checkbox" class="switch" id="optIsland"></label>
       <label class="gi" data-feat="growth"><span class="ic">🐣</span>云宠农场（完成任务攒养料喂云宠）<input type="checkbox" class="switch" id="optFarm"></label>
       <button class="gi" data-tab="growth" data-feat="growth"><span class="ic">📈</span>查看成长页<small>进度环、趋势图、打卡</small></button>
       <button class="gi" data-tab="plan" id="meToPlan"><span class="ic">🗂️</span>打开规划页<small>四象限、PDCA、SMART、六件事、番茄钟</small></button>
@@ -2319,12 +2433,36 @@
   </div>
 </div>
 
+
+<!-- 捞捞助手：吉祥物 + 小屏幕 + 对话泡泡（island.js） -->
+<div id="lao" class="hidden" data-side="r">
+  <div id="laoBub" class="lao-bub" role="status" aria-live="polite"></div>
+  <div id="isPanel" role="dialog" aria-label="捞捞助手">
+    <div class="is-head"><span class="is-face"><svg viewBox="0 0 120 120" aria-hidden="true"><use href="#mascotArt"/></svg></span>
+      <div class="is-who"><b>捞捞</b><small id="isSub"></small></div>
+      <button type="button" class="is-hb" id="isGear" title="设置" aria-label="设置">⚙</button>
+      <button type="button" class="is-hb" id="isClose" title="收起" aria-label="收起">✕</button></div>
+    <div id="isBody">
+      <div id="isSet" class="hidden"><div id="isSetBody"></div></div>
+      <div class="is-sec"><b>先做哪件？</b><small id="isTodoN"></small></div>
+      <div id="isTodo"></div>
+      <div id="isChat" aria-live="polite"></div>
+    </div>
+    <form id="isForm" autocomplete="off"><input id="isQ" maxlength="80" placeholder="问捞捞：明天有什么课？" enterkeyhint="send"><button id="isSend">发送</button></form>
+  </div>
+  <div class="lao-dock">
+    <button type="button" id="laoScr" class="lao-scr" title="点开捞捞助手；按住可以拖动"></button>
+    <button type="button" id="laoBot" class="lao-bot" title="捞捞助手：点我聊聊，按住可以拖动" aria-label="捞捞助手"><svg viewBox="0 0 120 120" aria-hidden="true"><use href="#mascotArt"/></svg><em id="laoN" class="lao-n hidden"></em></button>
+  </div>
+</div>
 <script src="config.js"></script>
 <script src="auth.js?v=20261004m"></script>
 <script src="parse.js"></script>
 <script src="courses.js?v=20261002h"></script>
 <script src="farm.js?v=20261004a"></script>
 <script src="app.js?v=20261004q"></script>
+<script src="island-core.js?v=20261004a"></script>
+<script src="island.js?v=20261004b"></script>
 </body>
 </html>
 </body>
