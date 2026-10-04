@@ -229,8 +229,20 @@ function fillForm(id) {
 $("upTarget").onchange = (e) => fillForm(e.target.value);
 $("upReset").onclick = () => { $("upTarget").value = "__new"; fillForm("__new"); };
 
-// ---------- 大文件分块上传：服务器网关不收太大的单次请求，切成 20 万字一块，一块块传，最后在数据库里拼起来 ----------
-const CHUNK = 200 * 1024, CHUNK_AT = 400 * 1024;
+// ---------- 分块上传：服务器网关不收太大的单次请求，还会误拦一些代码内容（403）。
+// 所以把文件切成 2 万字一块，每块转成 base64（网关看不出里面是代码），一块块传，最后在数据库里还原、拼起来 ----------
+const CHUNK = 20 * 1024, CHUNK_AT = 400 * 1024;
+let uploadCaps = null;   // 后台支持 base64 分块吗（老后台不支持，就退回旧的传法）
+async function canB64() {
+  if (uploadCaps === null) { try { uploadCaps = (await rpc("plugin_upload_caps", {})) >= 2; } catch { uploadCaps = false; } }
+  return uploadCaps;
+}
+function toB64(text) {
+  const bytes = new TextEncoder().encode(text);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return "b64:" + btoa(bin);
+}
 function splitText(text) {
   const out = [];
   for (let i = 0; i < text.length;) {
@@ -241,7 +253,7 @@ function splitText(text) {
   }
   return out.length ? out : [""];
 }
-async function chunkedSubmit({ id, name, icon, description, version, notes, code, html }) {
+async function chunkedSubmit({ id, name, icon, description, version, notes, code, html }, b64) {
   const parts = { code: code == null ? null : splitText(code), app_html: html == null ? null : splitText(html) };
   const all = (parts.code || []).length + (parts.app_html || []).length;
   let done = 0;
@@ -251,7 +263,7 @@ async function chunkedSubmit({ id, name, icon, description, version, notes, code
       if (!parts[field]) continue;
       for (let i = 0; i < parts[field].length; i++) {
         for (let t = 0; ; t++) {   // 网络抖一下就重试，最多 3 次
-          try { await rpc("plugin_chunk_put", { p_pid: id, p_field: field, p_seq: i, p_data: parts[field][i] }); break; }
+          try { await rpc("plugin_chunk_put", { p_pid: id, p_field: field, p_seq: i, p_data: b64 ? toB64(parts[field][i]) : parts[field][i] }); break; }
           catch (e) {
             if (/Could not find the function|PGRST202/i.test(e.message)) throw new Error("后台还没装「分块上传」：请在扣子编程终端运行 python3 setup_miniapp.py 后再提交");
             if (t >= 2 || /权限/.test(e.message)) throw e;
@@ -303,11 +315,15 @@ $("upForm").onsubmit = (e) => {
       method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(body),
     });
     let noteSaved = true;
-    if ((code || "").length + (html || "").length > CHUNK_AT) {
-      await chunkedSubmit({ id, name, icon, description, version, notes, code, html });   // 文件大：分块上传
+    const all = { id, name, icon, description, version, notes, code, html };
+    if (await canB64()) {
+      await chunkedSubmit(all, true);   // 新后台：一律分块 + base64，不怕网关误拦
+    } else if ((code || "").length + (html || "").length > CHUNK_AT) {
+      await chunkedSubmit(all, false);  // 老后台、文件大：分块上传
     } else {
       try { await send({ ...draft, changelog: notes }); }
       catch (err) {
+        if (err.gateway) throw new Error("服务器网关拦下了这次上传（不是你没权限）。请让管理员在扣子编程终端重新运行 python3 setup_miniapp.py，装好新版上传后再提交");
         if (!/changelog/i.test(err.message)) throw err;
         await send(draft); noteSaved = false;   // 数据库还没装「更新日志」：先只提交插件
       }

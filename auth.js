@@ -71,6 +71,11 @@
       try { body = text ? JSON.parse(text) : null; } catch { body = { message: text }; }
       if (!res.ok) {
         if ([429, 502, 503, 504].includes(res.status)) throw new Error("现在用的人太多了，请过一会儿再试");
+        // 数据库（PostgREST）的错误都带 code；403 却没有 code，说明是网关（大小限制 / 安全规则）在门口就拦下了，根本没到数据库
+        const fromDb = body && typeof body === "object" && (body.code != null || body.msg != null || body.error != null);
+        if (res.status === 403 && !fromDb) {
+          const err = new Error("服务器网关拦下了这次请求（403），可能是内容太大或触发了安全规则"); err.status = 403; err.gateway = true; throw err;
+        }
         const err = new Error(humanError(body || {}, res.status)); err.status = res.status; throw err;
       }
       return body;
