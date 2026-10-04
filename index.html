@@ -1606,6 +1606,86 @@
   [data-skin=cyber] .de-zh { color: #00f0ff; text-shadow: 0 0 8px rgba(0,240,255,.3); }
   @media (max-width: 700px) { .de-img { width: 84px; } .de-img span { font-size: 38px; } .de-zh { font-size: 15px; } [data-skin=vivid] .de-zh { font-size: 16px; } .de-body { padding: 10px 12px 10px 6px; } }
   @media (prefers-reduced-motion: reduce) { .de-img span { animation: none; } }
+
+  /* ===== 云宠农场（队友的「云养殖」并进网站） ===== */
+  .farm-entry { margin-top: 10px; }
+  .farm-entry .fm-fig { flex-shrink: 0; }
+  .fm-fig { display: block; }
+  .fm-fig svg { display: block; width: 100%; height: auto; }
+  .fm-txt { display: flex; flex-direction: column; min-width: 0; text-align: left; }
+  .fm-txt b { font-size: 16px; } .fm-txt b em { font-style: normal; font-size: 12px; color: var(--accent); margin-left: 4px; }
+  .fm-txt small { color: var(--sub); font-size: 13px; }
+  .wfarm { display: flex; align-items: center; gap: 10px; padding: 10px 14px; width: 100%; height: 100%; border: 0; font: inherit; color: var(--text); cursor: pointer; text-align: left; }
+  .wfarm.big { flex-direction: column; justify-content: center; text-align: center; }
+  .wfarm.big .fm-txt { text-align: center; align-items: center; }
+  .wfarm .go2 { margin-left: auto; font-size: 13px; color: var(--sub); white-space: nowrap; }
+  .wfarm.big .go2 { margin: 0; }
+  .farm-wrap { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 16px; margin: 0 16px; align-items: start; }
+  .farm-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .farm-pet { position: relative; overflow: hidden; padding: 16px 18px 18px; text-align: center; }
+  .farm-pet::before { content: ""; position: absolute; inset: 0 0 auto; height: 160px; background: radial-gradient(360px 140px at 50% -20px, color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%); pointer-events: none; }
+  .fp-top { position: relative; display: flex; align-items: center; gap: 8px; }
+  .fp-name { font-size: 20px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fp-lv { font-size: 13px; font-weight: 800; color: #fff; background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 60%, #000)); border-radius: 999px; padding: 4px 12px; }
+  .fp-say { position: relative; display: inline-block; margin-top: 8px; font-size: 13px; color: var(--sub); background: var(--muted-bg); border-radius: 12px; padding: 5px 12px; }
+  .fp-fig { position: relative; display: block; width: min(64vw, 230px); margin: 4px auto 0; padding: 0; border: 0; background: none; cursor: pointer; }
+  .fp-fig svg { display: block; width: 100%; height: auto; filter: drop-shadow(0 12px 18px rgba(40, 80, 120, .16)); }
+  .fp-fig.bounce { animation: fpbounce .55s ease; }
+  @keyframes fpbounce { 0% { transform: scale(1); } 30% { transform: scale(1.14) translateY(-6px) rotate(-4deg); } 60% { transform: scale(.97); } 100% { transform: scale(1); } }
+  @media (prefers-reduced-motion: reduce) { .fp-fig.bounce { animation: none; } }
+  .fp-stage { font-size: 13px; color: var(--sub); }
+  .fp-stage b { color: var(--text); }
+  .fp-stage i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--line); margin-left: 3px; vertical-align: middle; }
+  .fp-stage i.on { background: var(--accent); }
+  .fp-exp { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+  .fp-exp span { flex: 1; height: 12px; border-radius: 999px; background: var(--muted-bg); border: 1px solid var(--line); overflow: hidden; }
+  .fp-exp span i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent), var(--green)); transition: width .4s ease; }
+  .fp-exp small { font-size: 12px; color: var(--sub); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .fp-next { font-size: 12px; color: var(--sub); margin-top: 6px; }
+  .fp-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 14px; }
+  .fp-stats div { background: var(--muted-bg); border-radius: 12px; padding: 8px 4px; }
+  .fp-stats b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+  .fp-stats small { font-size: 12px; color: var(--sub); }
+  .fp-act { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; justify-content: center; }
+  .fp-act .btn { flex: 1 1 auto; white-space: nowrap; }
+  .fp-act .btn small { font-size: 11px; opacity: .75; margin-left: 2px; }
+  .farm-week { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; padding: 12px; }
+  .fw-it { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; background: var(--muted-bg); border-radius: 12px; padding: 8px 10px; border: 0; font: inherit; color: var(--text); text-align: left; }
+  .fw-it span { font-size: 16px; } .fw-it small { font-size: 12px; color: var(--sub); } .fw-it b { font-size: 15px; font-variant-numeric: tabular-nums; }
+  .fw-rank { cursor: pointer; background: color-mix(in srgb, var(--accent) 12%, var(--muted-bg)); }
+  .farm-todo { padding: 4px 0; }
+  .ft-row { display: flex; align-items: center; gap: 12px; padding: 10px 16px; }
+  .ft-row + .ft-row { border-top: 1px solid var(--line); }
+  .ft-row .chk { --c: var(--green); }
+  .ft-m { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .ft-m b { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ft-m small { font-size: 12px; color: var(--sub); display: flex; gap: 6px; align-items: center; }
+  .ft-tag { background: var(--muted-bg); border-radius: 6px; padding: 0 6px; }
+  .ft-gain { font-weight: 800; color: var(--green); font-size: 14px; white-space: nowrap; }
+  .ft-empty { padding: 16px; color: var(--sub); font-size: 14px; }
+  .fh-bars { display: flex; align-items: flex-end; gap: 8px; height: 130px; padding: 14px 16px 10px; }
+  .fh-b { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 3px; min-width: 0; }
+  .fh-b i { display: block; width: 100%; max-width: 30px; min-height: 3px; border-radius: 8px 8px 3px 3px; background: color-mix(in srgb, var(--green) 55%, var(--muted-bg)); }
+  .fh-b.today i { background: var(--green); }
+  .fh-b b { font-size: 12px; order: -1; font-variant-numeric: tabular-nums; }
+  .fh-b small { font-size: 11px; color: var(--sub); white-space: nowrap; }
+  .farm-rules { padding: 4px 16px 14px; font-size: 13px; color: var(--sub); }
+  .farm-rules summary { cursor: pointer; padding: 10px 0; color: var(--text); font-weight: 700; }
+  .farm-rules ul { margin: 0; padding-left: 20px; line-height: 1.8; }
+  .farm-toast { position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom)); transform: translate(-50%, 10px); background: var(--ink); color: var(--ink-text); border-radius: 999px; padding: 9px 18px; font-size: 14px; font-weight: 700; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 60; white-space: nowrap; }
+  .farm-toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .fpk-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .fpk { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 8px 4px; border: 2px solid var(--line); border-radius: 14px; background: var(--card); color: var(--text); font: inherit; cursor: pointer; }
+  .fpk span { width: 74px; } .fpk span svg { display: block; width: 100%; height: auto; }
+  .fpk b { font-size: 13px; } .fpk small { font-size: 11px; color: var(--sub); }
+  .fpk.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--card)); }
+  .fev-row { display: flex; align-items: center; gap: 2px; overflow-x: auto; padding-bottom: 4px; }
+  .fev { flex: 0 0 auto; width: 60px; display: flex; flex-direction: column; align-items: center; opacity: .4; }
+  .fev.on { opacity: 1; }
+  .fev span { width: 54px; } .fev span svg { display: block; width: 100%; height: auto; }
+  .fev b { font-size: 11px; } .fev small { font-size: 10px; color: var(--sub); }
+  .fev-a { font-style: normal; color: var(--sub); }
+  @media (max-width: 700px) { .fp-stats b { font-size: 16px; } }
 </style>
 </head>
 <body>
@@ -1652,6 +1732,7 @@
       <button class="qbtn" id="qMine"><span class="qi">✏️</span>记一件事</button>
       <button class="qbtn" id="qPlan" data-tab="plan"><span class="qi">🎯</span>时间管理</button>
       <button class="qbtn" id="qIcs" data-tab="growth"><span class="qi">🔥</span>打卡成长</button>
+      <button class="qbtn" id="qFarm" data-tab="farm"><span class="qi">🐣</span>云宠农场</button>
       <button class="qbtn" id="qPomo"><span class="qi">🍅</span>番茄专注</button>
       <button class="qbtn hidden" id="qCourse"><span class="qi">📚</span>课程表</button>
       <button class="qbtn hidden" id="qPeople" data-tab="people"><span class="qi">👥</span>班级成员</button>
@@ -1773,6 +1854,7 @@
   <section class="view" data-view="growth">
     <header class="vhead"><button class="back" data-tab="home" aria-label="返回首页">‹</button><h2>成长</h2></header>
     <div class="surface" style="margin:0 16px"><div class="rings" id="gRings"></div></div>
+    <button class="rank-entry surface farm-entry hidden" data-tab="farm" id="farmEntry" aria-label="云宠农场"></button>
     <button class="rank-entry surface" data-tab="rank" data-feat="rank" id="rankEntry"><span class="re-i">🏆</span><span><b>班级成长排行榜</b><small id="rankEntrySub">完成作业、打卡、番茄钟都能攒成长值</small></span><span class="re-go">›</span></button>
     <div class="sec-h"><b>最近 14 天</b><span>每天完成了多少事、打了多少卡</span></div>
     <div class="trend surface" id="gTrend"></div>
@@ -1786,6 +1868,29 @@
       </div>
     </div>
     <div class="afoot" data-sync-note="打卡和完成记录已同步到你的账号，换设备登录也能看到。" data-local-note="打卡和完成记录只保存在这台设备上。"></div>
+  </section>
+
+  <!-- 云宠农场：完成任务攒养料，喂云宠长大（队友设计的「云养殖」并进网站） -->
+  <section class="view" data-view="farm">
+    <header class="vhead"><button class="back" data-tab="growth" aria-label="返回成长">‹</button><h2>云宠农场</h2><span class="spacer"></span><button class="small" data-tab="rank" data-feat="rank">🏆 排行榜</button></header>
+    <div class="farm-wrap">
+      <div class="farm-col">
+        <div class="surface farm-pet" id="farmPet"></div>
+        <div class="surface"><div class="farm-week" id="farmWeek"></div></div>
+      </div>
+      <div class="farm-col">
+        <div class="surface farm-todo"><div class="sec-h" style="margin:12px 16px 4px"><b>现在就能攒养料</b><span>在这里勾完成，和作业页、日历是同一份记录</span></div><div id="farmTodo"></div></div>
+        <div class="surface"><div class="sec-h" style="margin:12px 16px 0"><b>最近 7 天的养料</b></div><div id="farmHist"></div>
+          <details class="farm-rules"><summary>养料怎么来？</summary><ul>
+            <li>完成一项作业 <b>+10</b>，其它事项 <b>+5</b>（作业页、日历、这里打勾都算，只算一次）</li>
+            <li>习惯打卡 <b>+3</b>（每天最多 5 次），专注一个番茄钟 <b>+2</b>（每天最多 12 个）</li>
+            <li>一天完成 3 件事以上再 <b>+5</b>；连续 3 天以上都有完成、打卡或专注，每天再 <b>+3</b></li>
+            <li>喂一次花 10 养料，云宠经验 +20；Lv.2、4、7、10 会进化成新样子</li>
+            <li>云宠和养料跟着账号走，换手机、换电脑登录还是这一只</li></ul></details></div>
+      </div>
+    </div>
+    <div class="afoot">云宠形象由队友设计 · 原「云养殖」工具</div>
+    <div class="farm-toast" id="farmToast" role="status" aria-live="polite"></div>
   </section>
 
   <!-- 作业 -->
@@ -1892,6 +1997,7 @@
       <label class="gi" data-feat="growth"><span class="ic">⭕</span>首页显示本周进度环<input type="checkbox" class="switch" id="optRings"></label>
       <label class="gi" data-feat="growth"><span class="ic">🔥</span>习惯打卡<input type="checkbox" class="switch" id="optHabits"></label>
       <label class="gi" data-feat="plan"><span class="ic">🎯</span>规划（时间管理法、番茄钟）<input type="checkbox" class="switch" id="optPlan"></label>
+      <label class="gi" data-feat="growth"><span class="ic">🐣</span>云宠农场（完成任务攒养料喂云宠）<input type="checkbox" class="switch" id="optFarm"></label>
       <button class="gi" data-tab="growth" data-feat="growth"><span class="ic">📈</span>查看成长页<small>进度环、趋势图、打卡</small></button>
       <button class="gi" data-tab="plan" id="meToPlan"><span class="ic">🗂️</span>打开规划页<small>四象限、PDCA、SMART、六件事、番茄钟</small></button>
     </div>
@@ -2020,6 +2126,17 @@
     </div>
     <label class="check"><input type="checkbox" id="gPal" checked> 顺便换成对应的配色<span id="gPalName" hidden></span></label>
     <div class="nd-actions"><span class="spacer"></span><button type="button" class="small" data-g="skip">暂时不选</button></div>
+  </form>
+</dialog>
+
+<dialog id="farmDlg" class="dlg">
+  <form method="dialog">
+    <h3>🔄 换一只云宠</h3>
+    <div class="meta">等级和经验跟着走，随时可以换回来。</div>
+    <div class="fpk-grid" id="farmPets"></div>
+    <div class="meta" style="margin-top:4px">进化路线：Lv.2 幼崽 → Lv.4 成长期（穿上小围裙）→ Lv.7 完全体（拿着道具）→ Lv.10 传说形态（光环、云翼、星尘）</div>
+    <div class="fev-row" id="farmEvo"></div>
+    <div class="nd-actions"><span class="spacer"></span><button type="button" class="btn ink sm" id="farmDlgClose">好了</button></div>
   </form>
 </dialog>
 
@@ -2206,7 +2323,8 @@
 <script src="auth.js?v=20261004m"></script>
 <script src="parse.js"></script>
 <script src="courses.js?v=20261002h"></script>
-<script src="app.js?v=20261004p"></script>
+<script src="farm.js?v=20261004a"></script>
+<script src="app.js?v=20261004q"></script>
 </body>
 </html>
 </body>

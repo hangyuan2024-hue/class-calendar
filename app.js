@@ -31,7 +31,7 @@ const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; 
 // list：数组，按 id 一条条同步；map：对象，按键同步；map2：两层对象（习惯 → 日期）；one：整体同步
 const SYNC_KINDS = { personal_events_v1: "list", personal_marks_v1: "map", done_log_v1: "map", habits_v1: "list", habit_log_v1: "map2",
   quad_v1: "map", quad_todos_v1: "list", pomo_log_v1: "map", fun_opts_v1: "one", home_layout_v1: "one", ui_skin_v1: "one",
-  ui_palette_v1: "one", plugins_enabled_v1: "one", plan_notes_v1: "map", profile_v1: "one", mood_log_v1: "map" };
+  ui_palette_v1: "one", plugins_enabled_v1: "one", plan_notes_v1: "map", profile_v1: "one", mood_log_v1: "map", farm_v1: "one" };
 const LS_SYNC = "sync_meta_v1", LS_SYNC_OUT = "sync_outbox_v1", LS_SYNC_MODE = "sync_mode_v1";
 const Sync = (() => {
   const SEP = "\u0001";
@@ -273,7 +273,7 @@ let FEAT = {};
 const feat = (k) => !FEAT[k] || FEAT[k].on !== false;
 const featWhy = (k) => (FEAT[k] && FEAT[k].why) || "";
 const FEAT_NAME = { ingest_cloud: "云端 AI 整理", ingest_local: "本地整理", local_ai: "本地 AI", ask: "AI 问答", wall: "班级墙", homework: "作业页", plan: "规划", growth: "成长与打卡", metaverse: "捞捞元宇宙", tools: "工具与插件", custom_bg: "自定义背景", mine: "记一件事", rank: "成长排行榜", mail: "邮箱通知" };
-const VIEW_FEAT = { homework: "homework", wall: "wall", plan: "plan", growth: "growth", ask: "ask", tools: "tools", rank: "rank", meta: "metaverse" };
+const VIEW_FEAT = { homework: "homework", wall: "wall", plan: "plan", growth: "growth", ask: "ask", tools: "tools", rank: "rank", meta: "metaverse", farm: "growth" };
 const viewOn = (id) => (id.startsWith("p_") ? feat("tools") : !VIEW_FEAT[id] || feat(VIEW_FEAT[id]));
 const ingestPersonal = () => !can("can_ingest");      // 没有班级整理权限的人：整理结果只进自己的「我的事项」
 // 普通学生要老师在本班打开「本地整理 · 学生」才有；班委要有「AI 整理」权限
@@ -742,7 +742,7 @@ function renderSide() {
   $("undatedList").innerHTML = undated.length ? (phone ? `<div class="acard surface">${undated.map(agendaRow).join("")}</div>` : undated.map((r) => itemHtml(r, true)).join("")) : `<div class="empty">暂无</div>`;
 }
 
-function renderAll() { pluginBroadcastClass(); indexItems(); renderGrid(); renderSide(); renderAgenda(); renderHomework(); renderRail(); renderGrowth(); renderPlan(); renderMeta(); renderWidgets(); syncJump(); appSchedule(); }
+function renderAll() { pluginBroadcastClass(); indexItems(); renderGrid(); renderSide(); renderAgenda(); renderHomework(); renderRail(); renderGrowth(); renderFarm(); renderPlan(); renderMeta(); renderWidgets(); syncJump(); appSchedule(); }
 
 function showBanner(msg) { const b = $("banner"); b.textContent = msg; b.classList.toggle("show", !!msg); }
 
@@ -2347,7 +2347,7 @@ function renderUserChip() {
 }
 // 退出时：班级相关的缓存一律清掉；在公共电脑上还可以把这台设备上的个人数据全部清除
 async function wipeLocalData(all) {
-  const keep = all ? [] : [LS_SYNC, LS_SYNC_OUT, LS_SYNC_MODE, "sync_stash_v1", "plan_notes_v1", "profile_v1", LS_MINE, LS_MARK, LS_SKIN, "ui_palette_v1", LS_BG, LS_BG_OPTS, LS_SKIN_PREV, LS_LAI, LS_PLUGINS, LS_PLUGIN_CACHE, LS_LAYOUT, LS_DONE_LOG, LS_HABITS, LS_HABIT_LOG, LS_FUN, LS_QUAD, LS_QTODO, LS_POMO, LS_POMO_LOG];
+  const keep = all ? [] : [LS_SYNC, LS_SYNC_OUT, LS_SYNC_MODE, "sync_stash_v1", "plan_notes_v1", "profile_v1", LS_MINE, LS_MARK, LS_SKIN, "ui_palette_v1", LS_BG, LS_BG_OPTS, LS_SKIN_PREV, LS_LAI, LS_PLUGINS, LS_PLUGIN_CACHE, LS_LAYOUT, LS_DONE_LOG, LS_HABITS, LS_HABIT_LOG, LS_FUN, LS_QUAD, LS_QTODO, LS_POMO, LS_POMO_LOG, "farm_v1"];
   for (let i = localStorage.length - 1; i >= 0; i--) {
     const k = localStorage.key(i);
     if (!k) continue;
@@ -2438,6 +2438,7 @@ function showView(id) {
   if (["home", "calendar", "homework"].includes(id)) renderAll();
   if (id === "wall") loadWall(true);
   if (id === "growth") renderGrowth();
+  if (id === "farm") renderFarm();
   if (id === "plan") renderPlan();
   if (id === "meta") renderMeta();
   if (id === "me") loadSecurity();
@@ -2706,12 +2707,12 @@ $("qMine").onclick = () => { if (feat("mine")) openForm(null); };
 
 // ===== 成长：完成记录、习惯打卡、进度环、趋势图、完成鼓励（都只存在这台设备上） =====
 const LS_DONE_LOG = "done_log_v1", LS_HABITS = "habits_v1", LS_HABIT_LOG = "habit_log_v1", LS_FUN = "fun_opts_v1";
-const FUN_DEFAULT = { cheer: "mascot", confetti: true, rings: true, habits: true, plan: true, hideDone: false };
+const FUN_DEFAULT = { cheer: "mascot", confetti: true, rings: true, habits: true, plan: true, hideDone: false, farm: true };
 // 首页快捷按钮：能用的全放上，一行放不下就左右滑（电脑上滚轮也能横着滑）
 const courseTool = () => { try { return toolList().find((t) => t.plugin && /课程表/.test(t.name)); } catch (e) { return null; } };
 function renderQuick() {
   const o = funOpts();
-  const want = [["cIngestBtn", ingestAllowed()], ["cAddBtn", canAddItem()], ["qMine", feat("mine")], ["qPlan", o.plan], ["qIcs", o.habits], ["qPomo", o.plan],
+  const want = [["cIngestBtn", ingestAllowed()], ["cAddBtn", canAddItem()], ["qMine", feat("mine")], ["qPlan", o.plan], ["qIcs", o.habits], ["qFarm", farmOn()], ["qPomo", o.plan],
     ["qCourse", !!courseTool()], ["qPeople", !!(currentUser && currentClass)], ["qStore", feat("tools")], ["qCal", true], ["qTools", feat("tools")], ["qIntro", true]];
   for (const [id, on] of want) $(id).classList.toggle("hidden", !on);
   $("meToPlan").classList.toggle("hidden", !o.plan);
@@ -2859,7 +2860,7 @@ function toggleHabit(id) {
 
 function renderGrowth() {
   const o = funOpts();
-  renderQuick();
+  renderQuick(); renderFarmEntry();
   const v = document.querySelector('.view[data-view="growth"]');
   if (!v || !v.classList.contains("on")) return;
   $("gRings").innerHTML = ringsHtml(96);
@@ -2872,6 +2873,7 @@ function renderGrowth() {
 // 设置：趣味功能
 function syncFunUI() {
   const o = funOpts();
+  $("optFarm").checked = o.farm !== false;
   $("optCheer").value = o.cheer; $("optConfetti").checked = o.confetti; $("optRings").checked = o.rings; $("optHabits").checked = o.habits; $("optPlan").checked = o.plan;
 }
 const setFun = (patch) => { save(LS_FUN, { ...funPrefs(), ...patch }); renderGrowth(); };
@@ -2880,6 +2882,7 @@ $("optConfetti").onchange = (e) => setFun({ confetti: e.target.checked });
 $("optRings").onchange = (e) => setFun({ rings: e.target.checked });
 $("optHabits").onchange = (e) => setFun({ habits: e.target.checked });
 $("optPlan").onchange = (e) => { setFun({ plan: e.target.checked }); renderTabs(); };
+$("optFarm").onchange = (e) => { setFun({ farm: e.target.checked }); renderTools(); };
 syncFunUI();
 
 // 完成鼓励
@@ -2897,8 +2900,8 @@ let cheerTimer = 0;
 function cheerFor(k) {
   const r = allItems().find((x) => x._key === k);
   const w = weekStats();
-  if (r && r.msg_type === "作业" && w.hwAll && w.hwDone === w.hwAll) cheer("allhw");
-  else cheer(r && r.msg_type === "作业" ? "homework" : "item");
+  if (r && r.msg_type === "作业" && w.hwAll && w.hwDone === w.hwAll) cheer("allhw", { food: true });
+  else cheer(r && r.msg_type === "作业" ? "homework" : "item", { food: true });
 }
 function cheer(kind, info) {
   const o = funOpts(); if (o.cheer === "off") return;
@@ -2912,7 +2915,8 @@ function cheer(kind, info) {
   const cy = document.documentElement.dataset.skin === "cyber";
   if (cy && kind !== "preview") t = "▶ " + t;
   $("cheerT").textContent = t; $("cheerS").textContent = sub;
-  $("cheerX").textContent = xp && feat("metaverse") ? (cy ? `+${xp} EXP` : `元宇宙经验 +${xp}`) : "";
+  const food = farmOn() && (kind === "habit" || kind === "pomo" || (info && info.food)) ? { item: 5, homework: 10, allhw: 10, habit: 3, pomo: 2 }[kind] || 0 : 0;   // 云宠农场的养料（和成长值同一套规则）
+  $("cheerX").textContent = [xp && feat("metaverse") ? (cy ? `+${xp} EXP` : `元宇宙经验 +${xp}`) : "", food ? `🐣 养料 +${food}` : ""].filter(Boolean).join(" · ");
   const st = $("cheerSt");
   st.style.display = o.cheer === "text" ? "none" : "";
   st.innerHTML = o.cheer === "mascot" ? `<svg viewBox="0 0 120 120" aria-hidden="true"><use href="#mascotArt"/></svg>` : STICKERS[Math.floor(Math.random() * STICKERS.length)];
@@ -2939,7 +2943,7 @@ document.addEventListener("click", (e) => { if (e.target.closest("#metaBtn")) { 
 // ===== 首页卡片 · 工具摆放（只存在这台设备上） =====
 const LS_LAYOUT = "home_layout_v1";
 let homeStats = { hwLeft: 0, overdue: 0, todayCount: 0, upcoming: 0 };
-const W_DEFAULT = { home: [{ id: "w:pins", w: 4, h: 1 }, { id: "w:hw", w: 2, h: 1 }, { id: "w:cal", w: 2, h: 1 }, { id: "w:encourage", w: 4, h: 1 }, { id: "w:plan", w: 4, h: 2 }, { id: "w:rings", w: 4, h: 1 }, { id: "w:quick", w: 4, h: 1 }], rail: [], planCard: true, encCard: true };
+const W_DEFAULT = { home: [{ id: "w:pins", w: 4, h: 1 }, { id: "w:hw", w: 2, h: 1 }, { id: "w:cal", w: 2, h: 1 }, { id: "w:encourage", w: 4, h: 1 }, { id: "w:plan", w: 4, h: 2 }, { id: "w:rings", w: 4, h: 1 }, { id: "w:farm", w: 2, h: 1 }, { id: "w:quick", w: 4, h: 1 }], rail: [], planCard: true, encCard: true, farmCard: true };
 const WDEF = {
   "w:hw": { name: "作业", icon: "📝", w: 2, h: 1, on: () => feat("homework") },
   "w:cal": { name: "日历", icon: "📅", w: 2, h: 1 },
@@ -2953,6 +2957,7 @@ const WDEF = {
   "w:rank": { name: "排行榜", icon: "🏆", w: 2, h: 1, on: () => feat("rank") && !!currentClass },
   "w:course": { name: "今日课程", icon: "📚", w: 2, h: 1, on: () => ck().on() },
   "w:meta": { name: "元宇宙身份", icon: "🪐", w: 2, h: 1, on: () => feat("metaverse") },
+  "w:farm": { name: "云宠农场", icon: "🐣", w: 2, h: 1, on: () => farmOn() },
 };
 function homeLayout() {
   const L = load(LS_LAYOUT, null);
@@ -2968,7 +2973,13 @@ function homeLayout() {
     if (!L.home.some((x) => x.id === "w:encourage")) { const at = Math.max(...["w:cal", "w:hw"].map((k) => L.home.findIndex((x) => x.id === k))); L.home.splice(at + 1, 0, { id: "w:encourage", w: 4, h: 1 }); }
     save(LS_LAYOUT, L);
   }
-  return L && Array.isArray(L.home) ? { home: L.home, rail: L.rail || [], planCard: true, encCard: true } : JSON.parse(JSON.stringify(W_DEFAULT));
+  // 云宠农场并进网站后：老用户也在首页补上一次云宠卡片（放在进度环后面）；删掉了就不再加
+  if (L && Array.isArray(L.home) && !L.farmCard) {
+    L.farmCard = true;
+    if (!L.home.some((x) => x.id === "w:farm")) { const i = L.home.findIndex((x) => x.id === "w:rings"); L.home.splice(i < 0 ? L.home.length : i + 1, 0, { id: "w:farm", w: 2, h: 1 }); }
+    save(LS_LAYOUT, L);
+  }
+  return L && Array.isArray(L.home) ? { home: L.home, rail: L.rail || [], planCard: true, encCard: true, farmCard: true } : JSON.parse(JSON.stringify(W_DEFAULT));
 }
 const saveLayout = (L) => { save(LS_LAYOUT, L); renderTabs(); renderTools(); };
 // 工具：内置的「成长」「规划」+ 已启用插件的标签页
@@ -2976,6 +2987,7 @@ function toolList() {
   const o = funOpts(), out = feat("growth") ? [{ id: "t:growth", view: "growth", icon: "📈", name: "成长", desc: "进度环、趋势图和习惯打卡" }] : [];
   if (o.plan) out.push({ id: "t:plan", view: "plan", icon: "🎯", name: "规划", desc: "四象限、PDCA、SMART、番茄钟" });
   if (feat("rank") && currentClass) out.push({ id: "t:rank", view: "rank", icon: "🏆", name: "排行榜", desc: "班级成长排行榜" });
+  if (farmOn()) out.push({ id: "t:farm", view: "farm", icon: "🐣", name: "云宠农场", desc: "完成任务攒养料，喂云宠长大" });
   if (feat("metaverse")) out.push({ id: "t:meta", view: "meta", icon: "🪐", name: "元宇宙空间", desc: "等级、任务、徽章和元宇宙小百科" });
   for (const t of feat("tools") ? pluginTabs : []) {
     const meta = (pluginState[t.plugin] || {}).meta || {};
@@ -3054,6 +3066,7 @@ function cardBody(id, w, h) {
         : `<div class="empty">这周还没人上榜，完成一项作业就能上榜！</div>`}</div>`;
   }
   if (id === "w:encourage") return encCard(h);
+  if (id === "w:farm") return farmCard(h);
   if (id === "w:plan") {
     const items = planItems().filter((r) => !r._done), cur = PLAN_METHODS.find((m) => m.id === planCur());
     const by = QUADS.map(([n, name, act]) => ({ n, name, act, list: items.filter((r) => r.q === n).sort((a, b) => (a._p ? a._p.day : "9") > (b._p ? b._p.day : "9") ? 1 : -1) }));
@@ -4506,7 +4519,7 @@ document.addEventListener("visibilitychange", () => {
 function reloadLocal() {
   mine = load(LS_MINE, []); marks = load(LS_MARK, {}); doneLog = load(LS_DONE_LOG, {}); habits = load(LS_HABITS, []); habitLog = load(LS_HABIT_LOG, {}); moodLog = load(LS_MOOD, {});
   quadMap = load(LS_QUAD, {}); qTodos = load(LS_QTODO, []); pomoLog = load(LS_POMO_LOG, {}); planNotes = load(LS_PLAN_NOTES, {});
-  migrateQTodos();
+  migrateQTodos(); farmReload();
   applyLook(); syncFunUI(); renderTools(); renderAll();
 }
 Sync.onChange(reloadLocal);
