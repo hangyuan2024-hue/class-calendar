@@ -286,7 +286,7 @@ async function loadFeatures() {
 }
 function applyFeatures() {
   document.querySelectorAll("[data-feat]").forEach((el) => el.classList.toggle("feat-off", !feat(el.dataset.feat)));
-  if (!feat("metaverse") && document.documentElement.dataset.skin === "cyber") { save(LS_SKIN, load(LS_SKIN_PREV, "vivid") === "cyber" ? "vivid" : load(LS_SKIN_PREV, "vivid")); }
+  if (!feat("metaverse") && document.documentElement.dataset.skin === "cyber") { save(LS_SKIN, load(LS_SKIN_PREV, "fresh") === "cyber" ? "fresh" : load(LS_SKIN_PREV, "fresh")); }
   applyLook();
   // 被关掉的页面正开着：回首页
   const cur = document.querySelector(".view.on");
@@ -449,15 +449,20 @@ const agendaOpen = new Set();
 
 // ===== 外观：风格 + 自定义背景（只存在这台设备上） =====
 const LS_SKIN = "ui_skin_v1", LS_BG = "ui_bg_v1", LS_BG_OPTS = "ui_bg_opts_v1";
-const SKIN_COLOR = { vivid: "#cdeeff", clean: "#ffffff", dark: "#000000", cyber: "#07060f" };
+const SKIN_COLOR = { fresh: "#cdeeff", vivid: "#cdeeff", clean: "#ffffff", dark: "#000000", cyber: "#07060f" };
+const darkMQ = window.matchMedia ? matchMedia("(prefers-color-scheme: dark)") : null;
+// 「跟随系统」：系统切到深色时，清爽外观也跟着变深
+if (darkMQ) (darkMQ.addEventListener ? darkMQ.addEventListener("change", () => { if (load(LS_SKIN, "fresh") === "auto") applyLook(); }) : 0);
 // 元宇宙里的叫法
 const CYBER_NAMES = { 排行榜: "战力榜", 感谢名单: "荣誉殿堂", 首页: "主控台", 作业: "任务清单", 班级墙: "广播频道", 日历: "时间线", 规划: "作战室", 工具: "模组库", 元宇宙空间: "元宇宙空间", 我的: "身份档案", 问答: "AI 终端", 成长: "成长数据", 班级: "班级节点", 捞捞课程表: "捞捞元宇宙" };
 const cyName = (t) => (document.documentElement.dataset.skin === "cyber" && CYBER_NAMES[t]) || t;
 function applyLook() {
   const root = document.documentElement;
-  const skin = load(LS_SKIN, "vivid");
-  root.dataset.skin = SKIN_COLOR[skin] ? skin : "vivid";
-  document.querySelector('meta[name="theme-color"]').content = SKIN_COLOR[root.dataset.skin];
+  const want = load(LS_SKIN, "fresh"), skin = want === "auto" ? "fresh" : want;
+  root.dataset.skin = SKIN_COLOR[skin] ? skin : "fresh";
+  const dark = want === "auto" && darkMQ && darkMQ.matches;
+  if (dark) root.dataset.mode = "dark"; else delete root.dataset.mode;
+  document.querySelector('meta[name="theme-color"]').content = dark ? "#0d1424" : SKIN_COLOR[root.dataset.skin];
   document.querySelectorAll(".vhead h2, .brand .bname").forEach((h) => { h.dataset.t ||= h.textContent; h.textContent = cyName(h.dataset.t); });
   if (typeof renderTabs === "function" && document.getElementById("tabs").childElementCount) renderTabs();
   let bg = null; try { bg = localStorage.getItem(LS_BG); } catch (e) {}
@@ -470,7 +475,7 @@ function applyLook() {
     root.style.setProperty("--bg-dim", dim / 100);
     root.style.setProperty("--bg-blur", blur + "px");
   } else root.style.removeProperty("--bg-img");
-  document.querySelectorAll("#skinPick .skin").forEach((b) => b.classList.toggle("on", b.dataset.skin === root.dataset.skin));
+  document.querySelectorAll("#skinPick .skin").forEach((b) => b.classList.toggle("on", b.dataset.skin === (want === "auto" ? "auto" : root.dataset.skin)));
   if (typeof applyPalette === "function") applyPalette();
   if (typeof appBars === "function") appBars();
   $("bgThumb").style.backgroundImage = bg ? `url("${bg}")` : "";
@@ -481,6 +486,14 @@ function applyLook() {
 }
 $("skinPick").onclick = (e) => { const b = e.target.closest("[data-skin]"); if (!b) return; if (b.dataset.skin === "cyber") enterMeta(); else setSkin(b.dataset.skin); };
 function setSkin(k) { save(LS_SKIN, k); applyLook(); try { renderAll(); } catch (e) {} }
+// 网站改版：以前用默认「元气」外观的同学，换成新的「清爽」外观一次（想换回去随时可以）
+setTimeout(() => { try {
+  if (localStorage.getItem("ui_redesign_v1")) return;
+  localStorage.setItem("ui_redesign_v1", "1");
+  if (load(LS_SKIN, null) !== "vivid") return;
+  save(LS_SKIN, "fresh"); applyLook();
+  setTimeout(() => { showBanner("网站换上了新外观「清爽」。想要原来的样子，可以在「我的 → 外观」换回「元气」"); setTimeout(() => showBanner(""), 9000); }, 1500);
+} catch (e) {} }, 0);
 
 // ===== 配色（以前是「个性化主题」插件，现在合并进外观设置） =====
 const LS_PALETTE = "ui_palette_v1";
@@ -506,8 +519,8 @@ function currentPalette() { const v = load(LS_PALETTE, null); return v && /^#[0-
 function applyPalette() {
   const skin = document.documentElement.dataset.skin;
   const pal = currentPalette();
-  const v = window.ccPalette ? window.ccPalette.apply(pal, skin) : null;
-  if (v && v.bg && skin === "vivid") document.querySelector('meta[name="theme-color"]').content = v.bg;
+  const v = window.ccPalette ? window.ccPalette.apply(pal, document.documentElement.dataset.mode === "dark" ? "fresh-dark" : skin) : null;
+  if (v && v.bg && (skin === "vivid" || skin === "fresh") && document.documentElement.dataset.mode !== "dark") document.querySelector('meta[name="theme-color"]').content = v.bg;
   const cur = pal ? pal.id : "sky";
   $("palPick").innerHTML = PALETTES.map((x) => `<button class="pal${x.id === cur ? " on" : ""}" data-pal="${x.id}" style="--s:${x.s}">
       <span class="dot" style="background:linear-gradient(135deg, ${window.ccPalette ? window.ccPalette.mix(x.p, "#ffffff", 0.35) : x.p}, ${x.p})"></span>${esc(x.name)}</button>`).join("")
@@ -546,13 +559,13 @@ function warp(lines, done, total) {
 }
 function enterMeta() {
   if (!feat("metaverse")) { showBanner("捞捞元宇宙暂时关闭了：" + (featWhy("metaverse") || "")); setTimeout(() => showBanner(""), 3500); return; }
-  const cur = load(LS_SKIN, "vivid"); if (cur !== "cyber") save(LS_SKIN_PREV, cur);
+  const cur = load(LS_SKIN, "fresh"); if (cur !== "cyber") save(LS_SKIN_PREV, cur);
   const name = currentUser ? esc(currentUser.display_name) : "访客";
   warp([`&gt; 正在连接 <span class="pk">LAOLAO://META</span> …`, `&gt; 同步班级数据 ……… <span class="ok">OK</span>`, `&gt; 加载身份档案：${name} ……… <span class="ok">OK</span>`,
         `<div class="big">捞捞元宇宙</div>`, `<span class="ok">欢迎接入，${name}</span>`], () => setSkin("cyber"), 1500);
 }
 function exitMeta() {
-  warp([`&gt; 断开连接 …`, `<span class="ok">已回到现实世界</span>`], () => setSkin(load(LS_SKIN_PREV, "vivid") === "cyber" ? "vivid" : load(LS_SKIN_PREV, "vivid")), 500);
+  warp([`&gt; 断开连接 …`, `<span class="ok">已回到现实世界</span>`], () => setSkin(load(LS_SKIN_PREV, "fresh") === "cyber" ? "fresh" : load(LS_SKIN_PREV, "fresh")), 500);
 }
 $("bgFile").onchange = async (e) => {
   const f = e.target.files[0]; e.target.value = ""; if (!f) return;
@@ -574,6 +587,37 @@ $("bgRemove").onclick = () => { try { localStorage.removeItem(LS_BG); } catch (e
 const saveBgOpts = () => { save(LS_BG_OPTS, { dim: +$("bgDim").value, blur: +$("bgBlur").value }); applyLook(); };
 $("bgDim").oninput = saveBgOpts; $("bgBlur").oninput = saveBgOpts;
 
+// 「接下来」：用捞捞助手同一套智能排序（island-core.js）挑出现在最该关注的一件
+function nextCardHtml() {
+  if (typeof IslandCore === "undefined") return "";
+  let ctx; try { ctx = islandCtx(); } catch (e) { return ""; }
+  const list = IslandCore.rank(ctx.items, ctx.courses, ctx.now).filter((x) => x.level !== "past");
+  const top = list[0];
+  if (!top) {
+    const tm = shiftDay(todayKey(), 1), c = islandCourses(tm);
+    return `<div class="nx calm"><div class="nx-k"><i></i>接下来</div>
+      <div class="nx-what"><div class="nx-time">☕</div><b>手头没有要赶的事</b><span>${c.length ? `明天 ${c.length} 节课，第一节 ${esc(c[0].t0 || "")} ${esc(c[0].name)}` : "可以专注一个番茄，或者早点休息"}</span></div>
+      <div class="nx-side"><button class="nx-done" data-nx="pomo">🍅 专注 25 分钟</button></div></div>`;
+  }
+  const isCourse = top.kind === "course", live = top.level === "now";
+  const big = isCourse ? (live ? (top.when.split("–")[1] || "") : top.time) : (top.time || (top.day ? IslandCore.dayName(top.day, ctx.now) : "待定"));
+  const bigSmall = isCourse ? (live ? "下课" : "上课") : top.time ? (top.day === todayKey() ? "今天" : IslandCore.dayName(top.day, ctx.now)) : top.type === "作业" ? "截止" : "";
+  const label = isCourse ? (live ? "正在上课" : "下一节课") : top.level === "late" ? "过期还没交" : top.exam ? "考试" : top.type === "作业" ? "最该先做的作业" : "接下来";
+  const sub = [isCourse ? "" : top.type, top.location ? "📍 " + top.location : ""].filter(Boolean).join("　");
+  const then = list.slice(1, 4);
+  return `<div class="nx${top.level === "normal" && !isCourse ? " calm" : ""}" data-key="${esc(top.key)}">
+    <div class="nx-k${live || top.level === "urgent" ? " live" : ""}"><i></i>${label}</div>
+    <div class="nx-what"><div class="nx-time">${esc(big)}${bigSmall ? `<small>${esc(bigSmall)}</small>` : ""}</div><b>${esc(top.title)}</b>${sub ? `<span>${esc(sub)}</span>` : ""}</div>
+    <div class="nx-side"><span class="nx-left${top.level === "late" || top.level === "urgent" ? " hot" : ""}">${esc(top.reason)}</span>
+      ${isCourse ? "" : `<button class="nx-done" data-act="done" data-k="${esc(top.key)}">完成 ✓</button>`}</div>
+    ${then.length ? `<div class="nx-then"><span>之后</span>${then.map((x) => `<button data-nxgo="${x.kind === "course" ? "course" : x.type === "作业" ? "homework" : "calendar"}">${esc(x.title)}</button>`).join("")}</div>` : ""}
+  </div>`;
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-nx], [data-nxgo]"); if (!b) return;
+  if (b.dataset.nx === "pomo") { $("qPomo").click(); return; }
+  const g = b.dataset.nxgo; if (g === "course") { const t = courseTool(); showView(t ? t.view : "calendar"); } else if (g) showView(g);
+});
 function agendaRow(r) {
   const k = esc(r._key);
   const style = r._plugin && r._color ? ` style="--c:${esc(r._color)}"` : "";
@@ -626,6 +670,13 @@ function renderAgenda() {
   const say = overdue.length ? `有 ${overdue.length} 项作业已经过期了，快去看看！`
     : todayHw ? `今天有 ${todayHw} 项作业要交，别忘啦～` : todayCount ? `今天有 ${todayCount} 件事，一件件来` : "今天没有要交的作业，喘口气吧～";
   const meta = document.documentElement.dataset.skin === "cyber";
+  if (document.documentElement.dataset.skin === "fresh") {
+    // 清爽外观：大号问候 +「接下来」卡片（最该先做的那一件，按时间轻重排出来）
+    $("hero").innerHTML = `<div class="hd">
+      ${feat("metaverse") ? `<button class="metabtn" id="metaBtn">🌐 捞捞元宇宙</button>` : ""}
+      <div class="hd-date"><b>${today.getMonth() + 1}/${today.getDate()}</b>周${WEEK[today.getDay()]}${ck().data && ck().data.week1 ? (() => { const w = Math.floor((new Date(keyOf(today) + "T00:00:00") - new Date(ck().data.week1 + "T00:00:00")) / 6048e5) + 1; return w >= 1 && w <= 30 ? ` · 第 ${w} 周` : ""; })() : ""}</div>
+      <h1>${hi + name}</h1><div class="say">${say}</div></div>${nextCardHtml()}`;
+  } else
   $("hero").innerHTML = `<div class="hero">
       ${feat("metaverse") || meta ? `<button class="metabtn" id="metaBtn">${meta ? "⏏ 退出元宇宙" : "🌐 进入捞捞元宇宙"}</button>` : ""}
       <div class="date">📅 ${today.getMonth() + 1}月${today.getDate()}日 周${WEEK[today.getDay()]}</div>
@@ -4467,7 +4518,7 @@ function applyOnboard() {
   localStorage.removeItem("onboard_apply_v1");
   save(LS_PROFILE, { ...load(LS_PROFILE, {}), gender: p.gender === "f" ? "f" : "m" });
   if (p.palette && /^#[0-9a-f]{6}$/i.test(p.palette.p || "")) save(LS_PALETTE, p.palette);
-  if (p.skin === "cyber") save(LS_SKIN_PREV, "vivid");
+  if (p.skin === "cyber") save(LS_SKIN_PREV, "fresh");
   if (SKIN_COLOR[p.skin]) save(LS_SKIN, p.skin);
   for (const h of p.habits || []) if (h && h.name && !habits.some((x) => x.name === h.name)) habits.push({ id: "h" + Date.now() + Math.floor(Math.random() * 1000), name: String(h.name).slice(0, 16), icon: String(h.icon || "⭐").slice(0, 4) });
   save(LS_HABITS, habits);
@@ -4492,7 +4543,7 @@ $("gDlg").addEventListener("click", async (e) => {
   try { const r = await CCAuth.rpc("profile_update", { p_gender: g === "skip" ? "x" : g, p_bio: null }); currentUser.gender = r.gender; } catch (err) {}
   if (g === "f" || g === "m") {
     save(LS_PROFILE, { ...load(LS_PROFILE, {}), gender: g });
-    if ($("gPal").checked) { save(LS_PALETTE, GENDER_PAL[g]); if (load(LS_SKIN, "vivid") === "cyber") save(LS_SKIN, "vivid"); applyLook(); }
+    if ($("gPal").checked) { save(LS_PALETTE, GENDER_PAL[g]); if (load(LS_SKIN, "fresh") === "cyber") save(LS_SKIN, "fresh"); applyLook(); }
   }
   renderUserChip(); renderAll();
 });

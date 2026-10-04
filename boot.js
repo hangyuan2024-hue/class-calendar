@@ -18,13 +18,16 @@
   function rgba(h, a) { var c = hex2rgb(h); return "rgba(" + c[0] + "," + c[1] + "," + c[2] + "," + a + ")"; }
   function derive(p, s, skin) {
     var P = readable(p), S = s || "#ff7b2e", v = {};
-    v.accent = P; v.blue = P; v.today = skin === "vivid" ? S : P; v["m-top"] = S;
-    if (skin === "dark") {
+    var fresh = skin === "fresh" || skin === "fresh-dark";
+    v.accent = P; v.blue = P; v.today = (skin === "vivid" || fresh) ? S : P; v["m-top"] = S;
+    if (fresh) v.hl = "linear-gradient(135deg, " + mix(p, "#ffffff", 0.15) + ", " + P + ")";
+    if (skin === "fresh") v["hl-shadow"] = "0 10px 22px -12px " + rgba(P, 0.6);
+    if (skin === "dark" || skin === "fresh-dark") {
       v.selected = mix(P, "#000000", 0.82); v.hover = mix(P, "#000000", 0.9);
     } else {
       v.selected = mix(p, "#ffffff", 0.86); v.hover = mix(p, "#ffffff", 0.93);
     }
-    if (skin === "vivid") {
+    if (skin === "vivid" || skin === "fresh") {
       v.bg = mix(p, "#ffffff", 0.78); v.bg2 = mix(p, "#ffffff", 0.95); v.line = mix(p, "#ffffff", 0.9); v["muted-bg"] = mix(p, "#ffffff", 0.96);
       v.hero = "linear-gradient(165deg, " + mix(p, "#ffffff", 0.2) + " 0%, " + mix(p, "#ffffff", 0.5) + " 58%, " + mix(p, "#ffffff", 0.8) + " 100%)";
       v["tile-a"] = "linear-gradient(140deg, " + mix(S, "#ffffff", 0.3) + " 0%, " + S + " 100%)";
@@ -48,10 +51,13 @@
   window.ccPalette = { derive: derive, apply: apply, mix: mix, readable: readable };
 
   try {
-    var s = JSON.parse(localStorage.getItem("ui_skin_v1") || '"vivid"');
-    if (["vivid", "clean", "dark", "cyber"].indexOf(s) < 0) s = "vivid";
+    var s = JSON.parse(localStorage.getItem("ui_skin_v1") || '"fresh"');
+    if (["fresh", "auto", "vivid", "clean", "dark", "cyber"].indexOf(s) < 0) s = "fresh";
+    var dark = s === "auto" && window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches;
+    if (s === "auto") s = "fresh";
     document.documentElement.dataset.skin = s;
-    apply(JSON.parse(localStorage.getItem("ui_palette_v1") || "null"), s);
+    if (dark) document.documentElement.dataset.mode = "dark";
+    apply(JSON.parse(localStorage.getItem("ui_palette_v1") || "null"), dark ? "fresh-dark" : s);
     var bg = localStorage.getItem("ui_bg_v1");
     if (bg) {
       var o = JSON.parse(localStorage.getItem("ui_bg_opts_v1") || "{}");

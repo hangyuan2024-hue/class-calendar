@@ -266,4 +266,5 @@ function islandHello() {
   setTimeout(laoWatch, 9000);
 }
 renderIsland();
+try { renderAgenda(); } catch (e) {}   // 首页的「接下来」卡片也用这里的数据，加载好后画一次
 setTimeout(islandHello, 2200);

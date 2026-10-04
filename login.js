@@ -162,18 +162,18 @@ const PALS = {
 const OB = {
   f: {
     hi: (n) => `嗨，${n}～`, lead: "欢迎来到你的班级小宇宙 🌸<br>接下来花 30 秒，把这里布置成你喜欢的样子。",
-    orbs: ["🌸", "💗", "🎀", "✨"], pals: ["sakura", "peach", "lavender", "rose", "sky", "mint", "galaxy", "lemon"], pal: "sakura", skin: "vivid", rec: "vivid",
+    orbs: ["🌸", "💗", "🎀", "✨"], pals: ["sakura", "peach", "lavender", "rose", "sky", "mint", "galaxy", "lemon"], pal: "sakura", skin: "fresh", rec: "fresh",
     habits: [["📖", "阅读 20 分钟"], ["🔤", "背 30 个单词"], ["🌙", "11 点前睡觉"], ["💧", "喝 8 杯水"], ["🧘", "拉伸 10 分钟"], ["📝", "写日记"]],
     done: "布置好啦！", doneLead: "你的小宇宙已经准备好了，去看看吧 💫",
   },
   m: {
     hi: (n) => `${n}，欢迎加入！`, lead: "新学期任务已载入 🚀<br>先花 30 秒完成初始设置，解锁你的主控台。",
-    orbs: ["⭐", "🚀", "🪐", "⚡"], pals: ["navy", "ocean", "sky", "galaxy", "graphite", "orange", "mint", "matcha"], pal: "navy", skin: "vivid", rec: "cyber",
+    orbs: ["⭐", "🚀", "🪐", "⚡"], pals: ["navy", "ocean", "sky", "galaxy", "graphite", "orange", "mint", "matcha"], pal: "navy", skin: "fresh", rec: "cyber",
     habits: [["🏃", "运动 30 分钟"], ["🔤", "背 30 个单词"], ["🧮", "刷 5 道题"], ["📖", "阅读 20 分钟"], ["🌙", "11 点前睡觉"], ["💧", "喝 8 杯水"]],
     done: "初始化完成！", doneLead: "装备已就绪，开始这个学期的第一个任务吧 ⚡",
   },
 };
-const SKINS = [["vivid", "元气", "linear-gradient(135deg,#cdeeff,#ffffff)"], ["clean", "简约", "linear-gradient(135deg,#ffffff,#eef1f5)"], ["dark", "夜间", "linear-gradient(135deg,#111,#2a2a2e)"], ["cyber", "元宇宙", "linear-gradient(135deg,#7a1cff,#00e5ff)"]];
+const SKINS = [["fresh", "清爽", "linear-gradient(135deg,#cdeeff 55%,#1e8cff 55%)"], ["vivid", "元气", "linear-gradient(135deg,#cdeeff,#ffffff)"], ["clean", "简约", "linear-gradient(135deg,#ffffff,#eef1f5)"], ["dark", "夜间", "linear-gradient(135deg,#111,#2a2a2e)"], ["cyber", "元宇宙", "linear-gradient(135deg,#7a1cff,#00e5ff)"]];
 let ob = null;
 async function onboard(me) {
   const s = await CCAuth.session();
