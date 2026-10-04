@@ -1,0 +1,73 @@
+# 自动打包 Windows 电脑版：改了 desktop/ 里的文件、或者在 Actions 页面手动点「Run workflow」时运行。
+# 打好的安装包发布到仓库的 Releases（太大了，不能放进网站目录），
+# 下载地址固定是 https://github.com/<仓库>/releases/latest/download/LaolaoKechengbiao-Setup.exe
+name: 电脑版
+
+on:
+  push:
+    branches: [main, master]
+    paths: ["desktop/**", ".github/workflows/desktop.yml", "config.js"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-app
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: 下载 llama.cpp（在电脑上运行 AI 模型的程序）
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force llama-dl | Out-Null
+          $ok = $false
+          foreach ($p in @("*bin-win-cpu-x64.zip", "*bin-win-avx2-x64.zip")) {
+            gh release download --repo ggml-org/llama.cpp --pattern $p --dir llama-dl --clobber
+            if ((Get-ChildItem llama-dl -Filter *.zip).Count -gt 0) { $ok = $true; break }
+          }
+          if (-not $ok) { throw "没找到 llama.cpp 的 Windows 版本" }
+          Expand-Archive (Get-ChildItem llama-dl -Filter *.zip | Select-Object -First 1).FullName -DestinationPath llama-x -Force
+          $exe = Get-ChildItem llama-x -Recurse -Filter llama-server.exe | Select-Object -First 1
+          if (-not $exe) { throw "压缩包里没有 llama-server.exe" }
+          New-Item -ItemType Directory -Force desktop\llama | Out-Null
+          Copy-Item (Join-Path $exe.DirectoryName '*') desktop\llama -Recurse -Force
+          Get-ChildItem desktop\llama | Select-Object Name, Length
+
+      - name: 放进网站的服务器地址和标题字体
+        shell: pwsh
+        run: |
+          Copy-Item config.js desktop\core\site-config.js -Force
+          Copy-Item fonts.css desktop\renderer\fonts.css -Force
+          Copy-Item fonts desktop\renderer\fonts -Recurse -Force
+
+      - name: 打包安装程序
+        working-directory: desktop
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          npm version "1.0.${{ github.run_number }}" --no-git-tag-version --allow-same-version
+          npm install --no-audit --no-fund
+          npx electron-builder --win nsis --x64 --publish never
+          Get-ChildItem dist
+
+      - name: 发布到 Releases
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = "1.0.${{ github.run_number }}"
+          $notes = "捞捞课程表 Windows 电脑版 $v`n`n- 今日总览、整周课程表、事项表、月历拖动改日期、班级墙、专注计时`n- 右下角准时提醒；Ctrl+Alt+空格 在任何地方快速记一件事；桌面小窗`n- 内置离线 AI 助手：第一次使用时下载模型（约 1GB），之后不联网也能用`n`n安装时如果 Windows 提示「已保护你的电脑」，点「更多信息 → 仍要运行」。"
+          gh release create "desktop-v$v" "desktop/dist/LaolaoKechengbiao-Setup.exe" --title "捞捞课程表 电脑版 $v" --notes $notes --latest
