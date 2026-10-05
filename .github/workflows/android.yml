@@ -1,5 +1,4 @@
-# 自动打包安卓 App：改了 android/ 里的文件、或者在 Actions 页面手动点「Run workflow」时运行。
-# 打好的安装包放到网站的 download/ 目录，网站上「下载安卓 App」就是它。
+# 自动打包安卓正式版。稳定版必须沿用原签名，否则无法覆盖安装旧版本。
 name: 安卓 App
 
 on:
@@ -30,33 +29,40 @@ jobs:
         with:
           gradle-version: "8.9"
 
-      - name: 打包
+      - name: 检查正式签名
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          test -f android/release.jks || { echo "::error::缺少 android/release.jks，不能生成可覆盖旧版的正式 APK。"; exit 1; }
+          test -n "$KEYSTORE_PASSWORD" || { echo "::error::缺少 KEYSTORE_PASSWORD。请在 Settings → Secrets and variables → Actions 中配置。"; exit 1; }
+
+      - name: 打包稳定版
         env:
           APP_VERSION_CODE: ${{ github.run_number }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
-        run: |
-          if [ -z "$KEYSTORE_PASSWORD" ]; then
-            echo "::warning::没有设置 KEYSTORE_PASSWORD，这次用临时签名打包。临时签名的版本以后不能直接覆盖升级，请按说明在仓库 Settings → Secrets 里加上 KEYSTORE_PASSWORD。"
-          fi
-          gradle -p android assembleRelease --no-daemon --stacktrace
+          SITE_URL: https://www.laolaokechengbiao.cn/
+        run: gradle -p android assembleStableRelease --no-daemon --stacktrace
 
-      - name: 放到网站上
+      - name: 放到网站下载目录
+        env:
+          RUN_NUMBER: ${{ github.run_number }}
         run: |
+          set -e
+          SRC="android/app/build/outputs/apk/stable/release/app-stable-release.apk"
+          test -f "$SRC" || { echo "::error::没有找到稳定版 APK：$SRC"; find android/app/build/outputs/apk -maxdepth 5 -type f -print || true; exit 1; }
           mkdir -p download
-          cp android/app/build/outputs/apk/release/app-release.apk download/class-calendar.apk
-          SIGNED=$([ -n "${{ secrets.KEYSTORE_PASSWORD }}" ] && echo true || echo false)
+          cp "$SRC" download/class-calendar.apk
           cat > download/app-version.json <<JSON
-          {"versionCode": ${{ github.run_number }}, "versionName": "1.0.${{ github.run_number }}", "url": "download/class-calendar.apk", "size": $(stat -c %s download/class-calendar.apk), "signed": $SIGNED, "at": "$(date -u +%FT%TZ)"}
+          {"versionCode": ${RUN_NUMBER}, "versionName": "2.0.${RUN_NUMBER}", "url": "download/class-calendar.apk", "size": $(stat -c %s download/class-calendar.apk), "signed": true, "at": "$(date -u +%FT%TZ)"}
           JSON
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add download
-          git commit -m "安卓 App 1.0.${{ github.run_number }}" || exit 0
+          git commit -m "安卓 App 2.0.${RUN_NUMBER}" || exit 0
           git pull --rebase origin "${GITHUB_REF_NAME}"
           git push origin "HEAD:${GITHUB_REF_NAME}"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: class-calendar-1.0.${{ github.run_number }}
+          name: class-calendar-2.0.${{ github.run_number }}
           path: download/class-calendar.apk
