@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/widget_root" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="18dp" android:background="@drawable/widget_surface">
+    <TextView android:id="@+id/widget_date" android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="#718095" android:textSize="11sp" />
+    <TextView android:id="@+id/widget_courses" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:layout_weight="1" android:textColor="#15243C" android:textSize="17sp" android:textStyle="bold" android:maxLines="3" />
+    <TextView android:id="@+id/widget_tasks" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:textColor="#5264E8" android:textSize="12sp" android:maxLines="1" android:ellipsize="end" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp">
+        <TextView android:id="@+id/widget_course_btn" android:layout_width="0dp" android:layout_weight="1" android:layout_height="38dp" android:text="查看课表" android:gravity="center" android:textColor="#5264E8" android:background="@drawable/widget_button" />
+        <TextView android:id="@+id/widget_add_btn" android:layout_width="0dp" android:layout_weight="1" android:layout_height="38dp" android:layout_marginLeft="8dp" android:text="＋ 记一件事" android:gravity="center" android:textColor="#5264E8" android:background="@drawable/widget_button" />
+    </LinearLayout>
+</LinearLayout>

@@ -1,0 +1,23 @@
+{
+  "built_at_utc": "2026-10-05T17:26:20.928643+00:00",
+  "baseline_commit": "34aa5eb",
+  "package": "com.laolao.classcalendar.preview",
+  "versionName": "3.0.7-preview",
+  "versionCode": 7,
+  "minSdk": 24,
+  "targetSdk": 34,
+  "apk_bytes": 4347885,
+  "sha256": "e9ec0133a090742a4cc62c1d0233ed09fd95ec4b66ebf57f2e5f4000ef416a49",
+  "signature": {
+    "v2_verified": true,
+    "v3_verified": true,
+    "certificate": "Independent preview certificate; stable build requires existing user certificate"
+  },
+  "webview_type_reference_in_dex": false,
+  "custom_tabs_type_reference_in_dex": false,
+  "embedded_active_web_payload": false,
+  "build_method": "aapt2 + javac17 + D8 + zipalign + apksigner / SDK34",
+  "gradle_actions_run": "Not run with original stable signing secret in this workspace",
+  "authenticated_cloud_tests": "Not run",
+  "physical_Huawei_tests": "Not available"
+}

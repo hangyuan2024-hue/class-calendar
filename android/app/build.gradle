@@ -1,7 +1,7 @@
 plugins { id "com.android.application" }
 
-// 版本号由 GitHub Actions 传进来；本地构建用 4。
-def vc = (System.getenv("APP_VERSION_CODE") ?: "4").toInteger()
+// 版本号由 GitHub Actions 传进来；本地构建用 7。
+def vc = (System.getenv("APP_VERSION_CODE") ?: "7").toInteger()
 def ksFile = file("../release.jks")
 def ksPass = System.getenv("KEYSTORE_PASSWORD")
 
@@ -13,8 +13,8 @@ android {
         minSdk 24
         targetSdk 34
         versionCode(vc)
-        versionName("2.0." + vc)
-        // 直接使用正式域名，避免 github.io -> 自定义域名重定向被 WebView 当成外链拦截。
+        versionName("3.0." + vc)
+        // 保留正式站点地址用于分享校园链接；页面由 Android 原生视图呈现。
         buildConfigField("String", "SITE_URL", "\"" + (System.getenv("SITE_URL") ?: "https://www.laolaokechengbiao.cn/") + "\"")
     }
     signingConfigs {
