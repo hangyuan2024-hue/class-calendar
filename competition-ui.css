@@ -903,3 +903,343 @@ html[data-competition-ui="generic"] textarea { border-radius: 11px; }
 @media (prefers-contrast: more) {
   html[data-competition-ui] { --cc-line: rgba(20,40,65,.22); }
 }
+
+/* ============================================================================
+   V2 · 实机校准版（依据 1366px Windows 浏览器实拍调整）
+   目标：从“旧页面换皮”推进到清晰的 AI Campus Agent 三栏工作台。
+   ============================================================================ */
+html[data-competition-ui="main"][data-competition-layout-v2] {
+  --cc-canvas: #eef5fb;
+  --cc-card-solid: #ffffff;
+  --cc-card: rgba(255,255,255,.94);
+  --cc-line: rgba(22,50,82,.085);
+  --cc-shadow-sm: 0 8px 26px rgba(25,58,94,.055);
+}
+html[data-competition-ui="main"][data-competition-layout-v2] body {
+  background:
+    radial-gradient(900px 520px at 18% -10%, rgba(56,153,255,.16), transparent 66%),
+    radial-gradient(700px 500px at 100% 12%, rgba(97,213,255,.11), transparent 68%),
+    var(--cc-canvas) !important;
+}
+
+/* 1366px 笔记本：左栏更紧凑、中间真正成为主角、右栏留给 Agent */
+@media (min-width: 1180px) {
+  html[data-competition-ui="main"][data-competition-layout-v2] .shell {
+    width: min(1430px, calc(100% - 20px)) !important;
+    padding: 10px !important;
+    grid-template-columns: 184px minmax(620px, 1fr) 340px !important;
+    column-gap: 14px !important;
+  }
+  html[data-competition-ui="main"][data-competition-layout-v2] .rail {
+    top: 10px !important;
+    height: calc(100vh - 20px) !important;
+    padding: 12px 9px !important;
+    border-radius: 24px !important;
+  }
+  html[data-competition-ui="main"][data-competition-layout-v2] .siderail {
+    display: flex !important;
+    width: auto !important;
+    gap: 12px !important;
+    padding-top: 0 !important;
+  }
+  html[data-competition-ui="main"][data-competition-layout-v2] .col {
+    min-width: 0;
+    border-radius: 24px !important;
+  }
+}
+
+/* 左栏更像成熟产品，而不是“大按钮菜单” */
+html[data-competition-ui="main"][data-competition-layout-v2] .brand {
+  min-height: 58px !important;
+  padding: 6px 9px 14px !important;
+  font-size: 16px !important;
+}
+html[data-competition-ui="main"][data-competition-layout-v2] .brand svg { width: 34px !important; height: 34px !important; }
+html[data-competition-ui="main"][data-competition-layout-v2] .brand::after {
+  margin: 35px 0 0 44px !important;
+  font-size: 8px !important;
+  letter-spacing: 1.1px !important;
+}
+html[data-competition-ui="main"][data-competition-layout-v2] .nav {
+  min-height: 42px !important;
+  padding: 8px 10px !important;
+  border-radius: 12px !important;
+  font-size: 13.5px !important;
+}
+html[data-competition-ui="main"][data-competition-layout-v2] .nav svg { width: 20px !important; height: 20px !important; }
+html[data-competition-ui="main"][data-competition-layout-v2] #addBtn {
+  min-height: 44px !important;
+  border-radius: 13px !important;
+}
+
+/* 顶部：从单独“首页”变成 Today / AI dashboard */
+html[data-competition-ui="main"][data-competition-layout-v2] .view[data-view="home"] > .vhead {
+  min-height: 70px !important;
+  padding: 12px 18px !important;
+  border-bottom-color: rgba(25,50,80,.06) !important;
+}
+html[data-competition-ui="main"][data-competition-layout-v2] .cc-hide-title { display: none !important; }
+html[data-competition-ui="main"][data-competition-layout-v2] .cc-head-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+html[data-competition-ui="main"][data-competition-layout-v2] .cc-head-copy b {
+  color: var(--cc-ink);
+  font-size: 22px;
+  line-height: 1.1;
+  font-weight: 900;
+  letter-spacing: -.55px;
+}
+html[data-competition-ui="main"][data-competition-layout-v2] .cc-head-copy small {
+  color: var(--cc-muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+/* 班级条：弱化，避免抢掉 Today Hero 的主视觉 */
+html[data-competition-ui="main"][data-competition-layout-v2] #classBar {
+  margin: 10px 16px 0 !important;
+  padding: 9px 11px !important;
+  border-radius: 15px !important;
+  background: rgba(255,255,255,.72) !important;
+  box-shadow: none !important;
+}
+html[data-competition-ui="main"][data-competition-layout-v2] .cb-badge { width: 36px !important; height: 36px !important; }
+
+/* Hero：实拍版过于“整块亮蓝”，V2 改成高级浅层次，橙色只负责临近提醒 */
+html[data-competition-ui="main"][data-competition-layout-v2] #hero .hero,
+html[data-competition-ui="main"][data-competition-layout-v2] .view[data-view="home"] .hero {
+  min-height: 188px !important;
+  margin: 10px 16px 0 !important;
+  padding: 20px 20px 16px !important;
+  border: 1px solid rgba(52,125,202,.12) !important;
+  background:
+    radial-gradient(circle at 92% 6%, rgba(255,255,255,.95), transparent 24%),
+    radial-gradient(circle at 76% 100%, rgba(75,177,255,.20), transparent 36%),
+    linear-gradient(135deg, #f7fbff 0%, #eaf5ff 48%, #dcefff 100%) !important;
+  box-shadow: 0 18px 46px -28px rgba(24,95,170,.32) !important;
+}
+html[data-competition-ui="main"][data-competition-layout-v2] .hero::before { opacity: .22 !important; }
+html[data-competition-ui="main"][data-competition-layout-v2] .hero::after {
+  content: "✦ AI 已接入你的日程" !important;
+  color: #2367a4 !important;
+  background: rgba(255,255,255,.72) !important;
+  border-color: rgba(65,132,196,.12) !important;
+}
+html[data-competition-ui="main"][data-competition-layout-v2] .hero h3 {
+  color: #102f4e !important;
+  font-size: clamp(27px, 3.2vw, 34px) !important;
+}
+html[data-competition-ui="main"][data-competition-layout-v2] .hero .date,
+html[data-competition-ui="main"][data-competition-layout-v2] .hero .say { color: #5c7187 !important; }
+html[data-competition-ui="main"][data-competition-layout-v2] .hx {
+  background: rgba(255,255,255,.84) !important;
+  border-color: rgba(39,97,150,.09) !important;
+}
+
+/* 首页组件：去掉刺眼的橙/蓝大色块，统一白卡 + 语义色 */
+html[data-competition-ui="main"][data-competition-layout-v2] .widgets {
+  margin: 12px 16px 0 !important;
+  gap: 10px !important;
+}
+html[data-competition-ui="main"][data-competition-layout-v2] .tile.a,
+html[data-competition-ui="main"][data-competition-layout-v2] .tile.b {
+  color: var(--cc-ink) !important;
+  background: #fff !important;
+  border: 1px solid var(--cc-line) !important;
+  box-shadow: var(--cc-shadow-sm) !important;
+}
+html[data-competition-ui="main"][data-competition-layout-v2] .tile.a { border-top: 3px solid #ff8a4c !important; }
+html[data-competition-ui="main"][data-competition-layout-v2] .tile.b { border-top: 3px solid #2b8cff !important; }
+html[data-competition-ui="main"][data-competition-layout-v2] .tile.a *,
+html[data-competition-ui="main"][data-competition-layout-v2] .tile.b * { text-shadow: none !important; }
+html[data-competition-ui="main"][data-competition-layout-v2] .tile.a b,
+html[data-competition-ui="main"][data-competition-layout-v2] .tile.b b,
+html[data-competition-ui="main"][data-competition-layout-v2] .tile.a .big,
+html[data-competition-ui="main"][data-competition-layout-v2] .tile.b .big { color: var(--cc-ink) !important; }
+html[data-competition-ui="main"][data-competition-layout-v2] .tile.a small,
+html[data-competition-ui="main"][data-competition-layout-v2] .tile.b small { color: var(--cc-muted) !important; }
+
+/* 中央普通卡片更干净，减少“大圆角大阴影”造成的玩具感 */
+html[data-competition-ui="main"][data-competition-layout-v2] .surface,
+html[data-competition-ui="main"][data-competition-layout-v2] .group,
+html[data-competition-ui="main"][data-competition-layout-v2] .wcard .wb.surface {
+  border-radius: 18px !important;
+  box-shadow: 0 6px 20px rgba(23,58,95,.045) !important;
+}
+html[data-competition-ui="main"][data-competition-layout-v2] .sec-h { margin-left: 16px !important; margin-right: 16px !important; }
+
+/* 右栏：真正把 AI Agent 提到第一位 */
+html[data-competition-ui="main"][data-competition-layout-v2] .siderail {
+  flex-direction: column;
+  min-width: 0;
+}
+html[data-competition-ui="main"][data-competition-layout-v2] .cc-agent-card {
+  padding: 16px !important;
+  border: 1px solid rgba(43,125,214,.12) !important;
+  background:
+    radial-gradient(circle at 100% 0, rgba(55,157,255,.13), transparent 38%),
+    linear-gradient(160deg, rgba(255,255,255,.98), rgba(244,250,255,.96)) !important;
+  box-shadow: 0 18px 45px -28px rgba(35,109,184,.35) !important;
+}
+html[data-competition-ui="main"][data-competition-layout-v2] .cc-agent-top {
+  display: grid;
+  grid-template-columns: 34px minmax(0,1fr) auto;
+  gap: 9px;
+  align-items: center;
+}
+html[data-competition-ui="main"][data-competition-layout-v2] .cc-agent-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: linear-gradient(135deg, #2d90ff, #6d73ff);
+  box-shadow: 0 9px 18px -10px rgba(43,120,240,.8);
+}
+html[data-competition-ui="main"][data-competition-layout-v2] .cc-agent-top b {
+  display: block;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: -.2px;
+}
+html[data-competition-ui="main"][data-competition-layout-v2] .cc-agent-top small {
+  display: block;
+  margin-top: 2px;
+  color: var(--cc-muted);
+  font-size: 10.5px;
+  line-height: 1.35;
+}
+html[data-competition-ui="main"][data-competition-layout-v2] .cc-agent-beta {
+  align-self: start;
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: #2b77c6;
+  background: #e8f3ff;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .8px;
+}
+html[data-competition-ui="main"][data-competition-layout-v2] .cc-agent-pulse {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 13px;
+  color: #51708f;
+  font-size: 11px;
+  font-weight: 650;
+}
+html[data-competition-ui="main"][data-competition-layout-v2] .cc-agent-pulse i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #19b87a;
+  box-shadow: 0 0 0 5px rgba(25,184,122,.10);
+}
+html[data-competition-ui="main"][data-competition-layout-v2] .cc-agent-copy {
+  margin: 12px 0 13px;
+  color: #425d78;
+  font-size: 12px;
+  line-height: 1.65;
+}
+html[data-competition-ui="main"][data-competition-layout-v2] .cc-agent-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+html[data-competition-ui="main"][data-competition-layout-v2] .cc-agent-actions button {
+  min-width: 0;
+  padding: 8px 5px;
+  border: 1px solid rgba(38,113,191,.10);
+  border-radius: 10px !important;
+  background: #f5f9fe;
+  color: #315f8d;
+  font-size: 10.5px;
+  font-weight: 750;
+  cursor: pointer;
+}
+html[data-competition-ui="main"][data-competition-layout-v2] .cc-agent-actions button:hover { background: #eaf4ff; color: #166ec8; }
+html[data-competition-ui="main"][data-competition-layout-v2] .cc-agent-ask {
+  width: 100%;
+  min-height: 40px;
+  margin-top: 10px;
+  padding: 0 8px 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(33,104,180,.11);
+  border-radius: 12px !important;
+  color: #70839a;
+  background: #fff;
+  font-size: 11.5px;
+  text-align: left;
+}
+html[data-competition-ui="main"][data-competition-layout-v2] .cc-agent-ask span { flex: 1; }
+html[data-competition-ui="main"][data-competition-layout-v2] .cc-agent-ask b {
+  width: 27px;
+  height: 27px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  color: #fff;
+  background: var(--cc-brand);
+}
+
+/* 原右栏日历仍保留，但降级成辅助信息，不再抢主角 */
+html[data-competition-ui="main"][data-competition-layout-v2] .siderail > .widget.surface {
+  padding: 14px !important;
+  border-radius: 18px !important;
+  background: rgba(255,255,255,.90) !important;
+}
+html[data-competition-ui="main"][data-competition-layout-v2] .siderail > .widget h4 {
+  margin: 0 0 10px !important;
+  font-size: 13px !important;
+  font-weight: 850 !important;
+}
+html[data-competition-ui="main"][data-competition-layout-v2] .cc-calendar-card .mini { font-size: 11px !important; }
+html[data-competition-ui="main"][data-competition-layout-v2] .rail-foot {
+  padding: 4px 4px 10px !important;
+  color: #8a99aa !important;
+  font-size: 10px !important;
+  line-height: 1.65 !important;
+}
+
+/* 浮动捞捞仍存在，但在桌面降低视觉权重，避免和右栏 Agent 重复抢焦点 */
+@media (min-width: 1180px) {
+  html[data-competition-ui="main"][data-competition-layout-v2] .cc-agent-island:not(.open) { opacity: .82; transform: scale(.88); transform-origin: right bottom; }
+}
+
+/* 1180 以下沿用原双栏/单栏逻辑；平板不强塞右侧栏 */
+@media (max-width: 1179px) {
+  html[data-competition-ui="main"][data-competition-layout-v2] .siderail { display: none !important; }
+}
+
+/* 手机：首页更像原生 App，不保留桌面的大容器边框 */
+@media (max-width: 700px) {
+  html[data-competition-ui="main"][data-competition-layout-v2] body { background: #f5f8fc !important; }
+  html[data-competition-ui="main"][data-competition-layout-v2] .col {
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+  html[data-competition-ui="main"][data-competition-layout-v2] .view[data-view="home"] > .vhead {
+    min-height: 60px !important;
+    padding: 9px 14px !important;
+    border-bottom: 0 !important;
+    background: rgba(245,248,252,.86) !important;
+  }
+  html[data-competition-ui="main"][data-competition-layout-v2] .cc-head-copy b { font-size: 20px; }
+  html[data-competition-ui="main"][data-competition-layout-v2] #classBar { margin: 6px 12px 0 !important; }
+  html[data-competition-ui="main"][data-competition-layout-v2] #hero .hero,
+  html[data-competition-ui="main"][data-competition-layout-v2] .view[data-view="home"] .hero {
+    margin: 9px 12px 0 !important;
+    min-height: 180px !important;
+    border-radius: 22px !important;
+    padding: 18px 16px 14px !important;
+  }
+  html[data-competition-ui="main"][data-competition-layout-v2] .hero::after { top: 12px; right: 12px; font-size: 9px; }
+  html[data-competition-ui="main"][data-competition-layout-v2] .hero h3 { font-size: 26px !important; }
+  html[data-competition-ui="main"][data-competition-layout-v2] .widgets { margin: 10px 12px 0 !important; }
+}

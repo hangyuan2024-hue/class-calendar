@@ -1,6 +1,6 @@
 // 离线缓存（Service Worker）：只缓存网页自己的文件，不缓存任何数据接口的内容
 // Competition UI 版：v21。加入 competition-ui.css，并强制建立新静态缓存。
-const CACHE = "cc-static-v21";
+const CACHE = "cc-static-v22";
 const PAGES = ["./", "index.html", "app.html", "login.html"];
 const EXTRA = [
   "fonts.css?v=1",
@@ -10,7 +10,8 @@ const EXTRA = [
   "favicon-32.png",
   "apple-touch-icon.png",
   "manifest.webmanifest",
-  "competition-ui.css?v=20261005-final"
+  "competition-ui.css?v=20261005-v2",
+  "competition-layout.js?v=20261005-v2"
 ];
 
 async function precache() {
