@@ -486,15 +486,6 @@ function applyLook() {
 }
 $("skinPick").onclick = (e) => { const b = e.target.closest("[data-skin]"); if (!b) return; if (b.dataset.skin === "cyber") enterMeta(); else setSkin(b.dataset.skin); };
 function setSkin(k) { save(LS_SKIN, k); applyLook(); try { renderAll(); } catch (e) {} }
-// 网站改版：以前用默认「元气」外观的同学，换成新的「清爽」外观一次（想换回去随时可以）
-setTimeout(() => { try {
-  if (localStorage.getItem("ui_redesign_v1")) return;
-  localStorage.setItem("ui_redesign_v1", "1");
-  if (load(LS_SKIN, null) !== "vivid") return;
-  save(LS_SKIN, "fresh"); applyLook();
-  setTimeout(() => { showBanner("网站换上了新外观「清爽」。想要原来的样子，可以在「我的 → 外观」换回「元气」"); setTimeout(() => showBanner(""), 9000); }, 1500);
-} catch (e) {} }, 0);
-
 // ===== 配色（以前是「个性化主题」插件，现在合并进外观设置） =====
 const LS_PALETTE = "ui_palette_v1";
 const PALETTES = [
@@ -3968,6 +3959,7 @@ function renderMeta() {
       </div>
       <button class="btn ${cy ? "" : "ink"} sm mid-warp" id="metaWarp">${cy ? "⏏ 回到现实" : "🌐 进入元宇宙模式"}</button>
     </div>
+    <div id="metaLab"></div>
     <div class="sec-h"><b>今日任务</b><span>${qDone === 3 ? "全部完成，明天见 🎉" : `完成 ${qDone}/3，做完拿经验`}</span></div>
     <div class="mquests">${quests.map(([n, have, need, xp]) => `<div class="mq surface${have >= need ? " ok" : ""}"><span class="mq-i">${have >= need ? "✓" : "◇"}</span><div><b>${n}</b><small>${Math.min(have, need)}/${need} · +${xp} EXP</small></div></div>`).join("")}</div>
     <div class="sec-h"><b>成就徽章</b><span>已解锁 ${got.length}/${META_BADGES.length}</span></div>
@@ -3975,6 +3967,7 @@ function renderMeta() {
     <div class="sec-h"><b>元宇宙小百科</b><span>点开看看</span></div>
     <div class="mwiki">${META_WIKI.map(([i, t, d], k) => `<details class="mw surface"${k === metaWikiOpen ? " open" : ""} data-mw="${k}"><summary><span>${i}</span>${esc(t)}</summary><p>${esc(d)}</p></details>`).join("")}</div>
     <div class="afoot">经验和徽章由你的完成记录、打卡、番茄钟、目标自动计算${Sync.active() ? "，跟着账号同步" : ""}。</div>`;
+  if (window.MetaLab) window.MetaLab.mount($("metaLab"));
 }
 document.addEventListener("click", (e) => {
   if (e.target.closest("#metaWarp")) { document.documentElement.dataset.skin === "cyber" ? exitMeta() : enterMeta(); setTimeout(renderMeta, 1900); }

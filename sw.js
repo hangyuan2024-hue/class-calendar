@@ -1,6 +1,6 @@
 // 离线缓存（Service Worker）：只缓存网页自己的文件，不缓存任何数据接口的内容
-// Competition UI 版：v21。加入 competition-ui.css，并强制建立新静态缓存。
-const CACHE = "cc-static-v24-studio";
+// 原生与元宇宙第三版：v25，更新界面资源缓存。
+const CACHE = "cc-static-v25-native";
 const PAGES = ["./", "index.html", "app.html", "login.html"];
 const EXTRA = [
   "campus-ui.css?v=20261005-campus1",
@@ -12,7 +12,7 @@ const EXTRA = [
   "apple-touch-icon.png",
   "manifest.webmanifest",
   "studio-v2.css?v=20261005-studio2",
-  "workspace-v2.css?v=20261005-studio2",
+  "workspace-v2.css?v=20261005-studio2", "workspace-v3.js?v=20261005-native3", "metaverse-v3.css?v=20261005-native3", "metaverse-v3.js?v=20261005-native3",
   "auxiliary-v2.css?v=20261005-studio2",
   "embedded-auth-v2.css?v=20261005-studio2",
   "landing-v2.js?v=20261005-studio2"

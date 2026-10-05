@@ -1,7 +1,7 @@
 plugins { id "com.android.application" }
 
-// 版本号由 GitHub Actions 传进来（每次构建自动 +1）；本地构建用 1
-def vc = (System.getenv("APP_VERSION_CODE") ?: "1").toInteger()
+// 版本号由 GitHub Actions 传进来（每次构建自动 +1）；本地构建用 4
+def vc = (System.getenv("APP_VERSION_CODE") ?: "4").toInteger()
 def ksFile = file("../release.jks")
 def ksPass = System.getenv("KEYSTORE_PASSWORD")
 
@@ -13,7 +13,7 @@ android {
         minSdk 24
         targetSdk 34
         versionCode(vc)
-        versionName("1.0." + vc)
+        versionName("2.0." + vc)
         buildConfigField("String", "SITE_URL", "\"" + (System.getenv("SITE_URL") ?: "https://hangyuan2024-hue.github.io/class-calendar/") + "\"")
     }
     signingConfigs {
@@ -33,6 +33,11 @@ android {
         }
     }
     buildFeatures { buildConfig true }
+    flavorDimensions "edition"
+    productFlavors {
+        stable { dimension "edition" }
+        preview { dimension "edition"; applicationIdSuffix ".preview"; versionNameSuffix "-preview" }
+    }
     // 不上架应用商店，打包时不因为商店规则（比如 targetSdk 年限）报错中断
     lint {
         checkReleaseBuilds false
@@ -41,5 +46,13 @@ android {
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+tasks.matching { it.name == "preStableReleaseBuild" }.configureEach {
+    doFirst {
+        if (!ksFile.exists() || !ksPass) {
+            throw new GradleException("正式更新需要原来的 android/release.jks 和 KEYSTORE_PASSWORD；体验请构建 assemblePreviewDebug。")
+        }
     }
 }

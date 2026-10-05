@@ -5,5 +5,5 @@ import android.content.Context;
 import android.content.Intent;
 
 public class BootReceiver extends BroadcastReceiver {
-    @Override public void onReceive(Context c, Intent it) { Reminders.restore(c); }
+    @Override public void onReceive(Context c, Intent it) { Reminders.restore(c); FocusReceiver.restore(c); }
 }

@@ -14,7 +14,7 @@ import java.io.FileNotFoundException;
 
 /** 把 App 缓存目录 cache/shared 里的文件临时借给别的应用（相机写照片、日历读 .ics）。只开放这一个目录。 */
 public class FilesProvider extends ContentProvider {
-    static final String AUTH = "com.laolao.classcalendar.files";
+    static final String AUTH = BuildConfig.APPLICATION_ID + ".files";
     private static File root;
 
     static Uri uriFor(File f) { return Uri.parse("content://" + AUTH + "/" + Uri.encode(f.getName())); }

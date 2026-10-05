@@ -14,7 +14,7 @@
     </queries>
 
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -41,6 +41,9 @@
             </intent-filter>
         </activity>
 
+        <activity android:name=".CloudActivity" android:exported="false" android:configChanges="orientation|screenSize|keyboardHidden|uiMode" android:windowSoftInputMode="adjustResize" />
+
+        <receiver android:name=".FocusReceiver" android:exported="false" />
         <receiver android:name=".ReminderReceiver" android:exported="false" />
         <receiver android:name=".BootReceiver" android:exported="false">
             <intent-filter>
@@ -51,7 +54,7 @@
 
         <provider
             android:name=".FilesProvider"
-            android:authorities="com.laolao.classcalendar.files"
+            android:authorities="${applicationId}.files"
             android:exported="false"
             android:grantUriPermissions="true" />
     </application>

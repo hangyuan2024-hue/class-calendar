@@ -1,0 +1,188 @@
+{
+  "checked_at_utc": "2026-10-05T11:18:34.933635+00:00",
+  "repository_baseline": "1835292",
+  "apk": {
+    "filename": "捞捞校园-原生安卓-体验版.apk",
+    "package": "com.laolao.classcalendar.preview",
+    "versionName": "2.0.4-preview",
+    "versionCode": 4,
+    "minSdk": 24,
+    "targetSdk": 34,
+    "bytes": 214507,
+    "sha256": "a8d968fa377ed9951158521fe06e23a671b3bba53c954d3d7bb8f2084cf48a9c",
+    "signature_v2": "PASS",
+    "signature_v3": "PASS",
+    "type": "coexisting preview; separate signing identity"
+  },
+  "web": {
+    "checks": [
+      {
+        "skin": "fresh",
+        "width": 320,
+        "layout": "PASS",
+        "shortcuts": "PASS",
+        "sidebar": "mobile bottom navigation retained"
+      },
+      {
+        "skin": "fresh",
+        "width": 390,
+        "layout": "PASS",
+        "shortcuts": "PASS",
+        "sidebar": "mobile bottom navigation retained"
+      },
+      {
+        "skin": "fresh",
+        "width": 768,
+        "layout": "PASS",
+        "shortcuts": "PASS",
+        "sidebar": "PASS"
+      },
+      {
+        "skin": "fresh",
+        "width": 1440,
+        "layout": "PASS",
+        "shortcuts": "PASS",
+        "sidebar": "PASS"
+      },
+      {
+        "skin": "vivid",
+        "width": 320,
+        "layout": "PASS",
+        "shortcuts": "PASS",
+        "sidebar": "mobile bottom navigation retained"
+      },
+      {
+        "skin": "vivid",
+        "width": 390,
+        "layout": "PASS",
+        "shortcuts": "PASS",
+        "sidebar": "mobile bottom navigation retained"
+      },
+      {
+        "skin": "vivid",
+        "width": 768,
+        "layout": "PASS",
+        "shortcuts": "PASS",
+        "sidebar": "PASS"
+      },
+      {
+        "skin": "vivid",
+        "width": 1440,
+        "layout": "PASS",
+        "shortcuts": "PASS",
+        "sidebar": "PASS"
+      },
+      {
+        "skin": "cyber",
+        "width": 320,
+        "layout": "PASS",
+        "shortcuts": "PASS",
+        "sidebar": "mobile bottom navigation retained"
+      },
+      {
+        "skin": "cyber",
+        "width": 320,
+        "lab_interactions": "PASS"
+      },
+      {
+        "skin": "cyber",
+        "width": 390,
+        "layout": "PASS",
+        "shortcuts": "PASS",
+        "sidebar": "mobile bottom navigation retained"
+      },
+      {
+        "skin": "cyber",
+        "width": 390,
+        "lab_interactions": "PASS"
+      },
+      {
+        "skin": "cyber",
+        "width": 768,
+        "layout": "PASS",
+        "shortcuts": "PASS",
+        "sidebar": "PASS"
+      },
+      {
+        "skin": "cyber",
+        "width": 768,
+        "lab_interactions": "PASS"
+      },
+      {
+        "skin": "cyber",
+        "width": 1440,
+        "layout": "PASS",
+        "shortcuts": "PASS",
+        "sidebar": "PASS"
+      },
+      {
+        "skin": "cyber",
+        "width": 1440,
+        "lab_interactions": "PASS"
+      }
+    ],
+    "errors": []
+  },
+  "web_final": {
+    "viewport_widths": [
+      320,
+      390,
+      768,
+      1440
+    ],
+    "cyber_layout": "PASS",
+    "ten_tool_count": "PASS",
+    "invalid_backup_rejection": "PASS",
+    "desktop_sticky_header_does_not_overlap_sidebar_control": "PASS",
+    "page_errors": []
+  },
+  "native_core": {
+    "device": "Android28 AOSP x86_64 emulator with software rendering",
+    "package": "com.laolao.classcalendar.preview",
+    "checks": [
+      "actual preview APK installed and default view native",
+      "task created with real native form",
+      "task survives process restart",
+      "native task completion stored",
+      "running focus deadline survives process restart",
+      "native focus pause and reset",
+      "native warm-paper theme switch",
+      "320dp viewport renders native navigation",
+      "no AndroidRuntime fatal exception"
+    ],
+    "cloud_auth": "not tested",
+    "Huawei_hardware": "not available"
+  },
+  "native_additional": {
+    "device": "Android 9 / API 28 AOSP x86_64 emulator, software GPU",
+    "package": "com.laolao.classcalendar.preview",
+    "checks": [
+      "tenth native tool: actual statistics screen opens",
+      "native memory card saved with real question and answer",
+      "native card reviewed and due date advanced"
+    ],
+    "Huawei_hardware": "not available"
+  },
+  "native_final_screenshots": {
+    "screenshots": "clean preview APK, native controls",
+    "checks": [
+      "default native home",
+      "native tool grid",
+      "native focus",
+      "light theme",
+      "320dp viewport",
+      "no AndroidRuntime fatal exception"
+    ]
+  },
+  "logic_checks": [
+    "12 internal/external URL boundaries",
+    "strict leap/year/date/time validations",
+    "native backup: valid record + 7 invalid record cases"
+  ],
+  "not_verified": [
+    "Huawei hardware",
+    "HarmonyOS NEXT (APK is unsupported)",
+    "real cloud account login and synchronization"
+  ],
+  "publication": "local delivery only; not pushed or deployed"
+}
