@@ -4,626 +4,29 @@
 <meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com http://localhost:* http://127.0.0.1:*; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="referrer" content="no-referrer">
-<script src="guard.js?v=20261002b"></script>
+<script src="guard.js?v=20261005-campus1"></script>
 <script src="entry.js?v=4"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#bfe6ff">
-<title>捞捞课程表 - 安卓 App、Windows 电脑版免费下载</title>
+<meta name="theme-color" content="#f6f5f1">
+<title>捞捞课程表 · 让校园生活有自己的节奏</title>
 <meta name="description" content="捞捞课程表：把班级群里的作业、通知、班会自动整理进日历，快到时间提醒你。有课程表、作业清单、班级墙、番茄钟和 AI 问答。免费，支持安卓 App、Windows 电脑版和网页版。">
 <meta name="keywords" content="捞捞课程表,课程表,班级群,作业提醒,大学生课程表,课表App,班级通知,日程管理,番茄钟,学习计划">
 <link rel="canonical" href="https://www.laolaokechengbiao.cn/app.html">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="捞捞课程表">
-<meta property="og:title" content="捞捞课程表 - 安卓 App、Windows 电脑版免费下载">
+<meta property="og:title" content="捞捞课程表 · 让校园生活有自己的节奏">
 <meta property="og:description" content="捞捞课程表：把班级群里的作业、通知、班会自动整理进日历，快到时间提醒你。有课程表、作业清单、班级墙、番茄钟和 AI 问答。免费，支持安卓 App、Windows 电脑版和网页版。">
 <meta property="og:url" content="https://www.laolaokechengbiao.cn/app.html">
 <meta property="og:image" content="https://www.laolaokechengbiao.cn/icon-512.png">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com" crossorigin>
-<link rel="stylesheet" href="fonts.css?v=1">
-<link rel="stylesheet" href="landing.css?v=2">
-<style>
-#sky .orb { position: absolute; left: 0; top: 0; border-radius: 50%; opacity: 0; will-change: transform, opacity; }
-#sky .sun { width: 120px; height: 120px; margin: -60px; background: radial-gradient(circle, #fff7d1 0 34%, #ffd23f 35% 46%, rgba(255, 196, 63, .28) 47%, transparent 70%); }
-#sky .moon { width: 64px; height: 64px; margin: -32px; box-shadow: inset -16px 9px 0 0 #fff3c4; filter: drop-shadow(0 0 16px rgba(255, 243, 196, .55)); }
-/* ============ 开场：群消息 → 日历 ============ */
-.hero { position: relative; height: 420vh; }
-.stick { position: sticky; top: 0; height: 100vh; height: 100svh; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 24px;
-  max-width: 1160px; margin: 0 auto; padding: 72px var(--gut) 24px; }
-.copy { position: relative; z-index: 2; }
-.lines { position: relative; height: 2.5em; font-family: var(--d); font-size: clamp(30px, 5.4vw, 70px); line-height: 1.18; margin: 0 0 22px; }
-.line { position: absolute; inset: 0 auto auto 0; margin: 0; white-space: nowrap; }
-.line .c { display: inline-block; opacity: 0; transform: translateY(.5em) rotate(6deg) scale(.8); filter: blur(6px);
-  transition: opacity .45s, transform .6s cubic-bezier(.2, .9, .3, 1.35), filter .45s; transition-delay: calc(var(--i) * 22ms); }
-.line.on .c { opacity: 1; transform: none; filter: none; }
-.line.out .c { opacity: 0; transform: translateY(-.45em) scale(.96); filter: blur(4px); transition-duration: .3s; transition-delay: calc(var(--i) * 8ms); }
-.line mark { background: none; color: inherit; position: relative; }
-.line mark::after { content: ""; position: absolute; left: -.06em; right: -.06em; bottom: .06em; height: .34em; background: var(--star); z-index: -1; border-radius: .1em;
-  transform: scaleX(0); transform-origin: left; transition: transform .6s cubic-bezier(.6, 0, .2, 1) .45s; }
-.line.on mark::after { transform: scaleX(1); }
-.lede { max-width: 30em; font-size: 17px; color: var(--fg2); margin: 0 0 26px; }
-.cta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
-.meta { margin: 14px 0 0; font-size: 13px; color: var(--fg2); }
-
-.stage { position: relative; height: 100%; display: grid; place-items: center; }
-.stage { --pw: min(310px, calc((100svh - 140px) * .47)); }
-.phone { position: relative; width: var(--pw, 300px); aspect-ratio: 9 / 19.2; border-radius: calc(var(--pw) * .16);
-  background: #0f1a33; padding: calc(var(--pw) * .035);
-  box-shadow: 0 0 0 1.5px #3a4a6b inset, 0 40px 80px -30px rgba(14, 34, 64, .55), 0 18px 30px -18px rgba(14, 34, 64, .4); }
-.phone::before { content: ""; position: absolute; top: calc(var(--pw) * .055); left: 50%; width: 28%; height: calc(var(--pw) * .075); transform: translateX(-50%); background: #0f1a33; border-radius: 99px; z-index: 9; }
-.screen { position: relative; height: 100%; border-radius: calc(var(--pw) * .13); overflow: hidden; background: #ededed; container-type: inline-size; isolation: isolate; }
-.sbar { position: absolute; top: 0; left: 0; right: 0; height: 11cqw; display: flex; align-items: center; justify-content: space-between; padding: 1cqw 9cqw 0; font: 600 4cqw/1 var(--s); color: #111; z-index: 5; }
-.sbar i { font-style: normal; letter-spacing: .1em; }
-
-/* 群聊层 */
-.chat { position: absolute; inset: 0; display: flex; flex-direction: column; background: #ededed; transform-origin: 50% 40%; will-change: opacity, transform; }
-.chat header { padding: 12cqw 4cqw 3cqw; display: flex; align-items: center; gap: 2cqw; font: 600 4.3cqw/1.2 var(--s); color: #111; background: #ededed; border-bottom: 1px solid #dcdcdc; position: relative; z-index: 2; }
-.chat header span { flex: 1; text-align: center; }
-.chat header b { font-weight: 400; color: #777; }
-.vp { position: relative; flex: 1; overflow: hidden; }
-.msgs { position: absolute; left: 0; right: 0; top: 0; padding: 3cqw 3.5cqw; will-change: transform; }
-.m { display: flex; gap: 2.4cqw; margin-bottom: 3.4cqw; align-items: flex-start; opacity: 0; transform: scale(.7) translateY(4cqw); transform-origin: 0 50%;
-  transition: opacity .35s, transform .45s cubic-bezier(.2, .9, .3, 1.3), filter .4s, max-height .6s cubic-bezier(.6, 0, .2, 1), margin .6s cubic-bezier(.6, 0, .2, 1); }
-.m.gone { max-height: 0 !important; margin-bottom: 0; opacity: 0 !important; transform: scale(.85) !important; }
-.m.in { opacity: 1; transform: none; }
-.m .av { flex: none; width: 9cqw; height: 9cqw; border-radius: 2cqw; display: grid; place-items: center; font: 600 4cqw/1 var(--s); color: #fff; background: var(--a, #7aa2d6); }
-.m .nm { font-size: 2.9cqw; color: #8a8a8a; line-height: 1.3; margin-bottom: .6cqw; }
-.m .bb { position: relative; display: inline-block; background: #fff; color: #111; font-size: 3.7cqw; line-height: 1.45; padding: 2cqw 3cqw; border-radius: 1.8cqw; max-width: 64cqw; transition: background .4s, box-shadow .4s, transform .4s; }
-.m .bb.pic { width: 26cqw; height: 18cqw; background: linear-gradient(135deg, #b6d8f2, #e8d6f5); }
-.m .bb.stk { background: none; font-size: 11cqw; padding: 0; line-height: 1; }
-.msgs.sift .m:not(.hit) { opacity: .22; filter: blur(.5px) grayscale(1); }
-.msgs.sift .m.hit .bb { background: #ffe45c; box-shadow: 0 0 0 1.2cqw rgba(255, 228, 92, .45), 0 3cqw 6cqw -2cqw rgba(0, 0, 0, .25); transform: scale(1.04); }
-.chat footer { height: 13cqw; background: #f7f7f7; border-top: 1px solid #dcdcdc; display: flex; align-items: center; gap: 2cqw; padding: 0 3cqw 2cqw; }
-.chat footer i { flex: 1; height: 8cqw; background: #fff; border-radius: 1.5cqw; }
-.chat footer s { width: 7cqw; height: 7cqw; border: .6cqw solid #666; border-radius: 50%; }
-
-/* 日历层（和 App 里一样的样子） */
-.cal { position: absolute; inset: 0; background: linear-gradient(180deg, #cdeeff, #f3fbff 60%); padding: 13cqw 4cqw 0; opacity: 0; font-family: var(--s); color: var(--ink); }
-.cal .mh { display: flex; align-items: center; gap: 2.4cqw; margin-bottom: 2.4cqw; }
-.cal .mh .me { width: 8cqw; height: 8cqw; border-radius: 50%; background: linear-gradient(135deg, #6aa8ff, #2d6bff); color: #fff; font: 600 3.6cqw/8cqw var(--s); text-align: center; }
-.cal .mh b { font: 400 6.4cqw/1 var(--d); }
-.cal .lg { display: flex; gap: 2.6cqw; font-size: 2.7cqw; color: #687d97; margin-bottom: 2cqw; }
-.cal .lg i { display: inline-block; width: 1.8cqw; height: 1.8cqw; border-radius: 50%; margin-right: .8cqw; vertical-align: .1em; }
-.cal .grid { background: #fff; border-radius: 4cqw; padding: 1.5cqw 1cqw 2cqw; display: grid; grid-template-columns: repeat(7, 1fr); box-shadow: 0 2cqw 6cqw -3cqw rgba(14, 34, 64, .25); }
-.cal .wk { text-align: center; font-size: 2.7cqw; color: #687d97; padding: 1cqw 0; font-weight: 600; }
-.cd { height: 12cqw; text-align: center; font-size: 3.1cqw; font-weight: 600; position: relative; border-top: 1px solid #eef3f8; }
-.cd i { font-style: normal; display: inline-grid; place-items: center; width: 5.4cqw; height: 5.4cqw; border-radius: 50%; margin-top: .6cqw; }
-.cd.o { color: #b8c4d4; }
-.cd.t i { background: #ffa726; color: #fff; }
-.chip { position: absolute; left: .3cqw; right: .3cqw; top: 6.2cqw; height: 3.2cqw; border-radius: .8cqw; font: 700 2.1cqw/3.2cqw var(--s); white-space: nowrap; overflow: hidden; text-overflow: clip; opacity: 0; }
-.chip.land { opacity: 1; animation: land .5s cubic-bezier(.2, 1.5, .4, 1); }
-@keyframes land { 0% { transform: scale(1.5); } 100% { transform: none; } }
-.cd.hot i { animation: ring .8s ease-out; }
-@keyframes ring { 0% { box-shadow: 0 0 0 0 rgba(255, 138, 61, .6); } 100% { box-shadow: 0 0 0 4cqw rgba(255, 138, 61, 0); } }
-.k-a { background: #e6ebf2; color: #55657d; } .k-b { background: #ffe6d6; color: #e8590c; } .k-c { background: #dfe8ff; color: #2d5bd6; }
-.agenda { margin-top: 3.4cqw; }
-.agenda h4 { margin: 0 0 1.6cqw; font: 700 3.6cqw/1.3 var(--s); }
-.ag { display: flex; align-items: center; gap: 2.4cqw; background: #fff; border-radius: 2.8cqw; padding: 2.3cqw 3cqw; margin-bottom: 1.8cqw; font-size: 3.3cqw; opacity: 0; transform: translateY(3cqw);
-  transition: opacity .4s, transform .5s cubic-bezier(.2, .9, .3, 1.2); }
-.ag.in { opacity: 1; transform: none; }
-.ag:nth-child(3) { transition-delay: .08s; } .ag:nth-child(4) { transition-delay: .16s; }
-.ag em { font-style: normal; font-size: 2.6cqw; padding: .4cqw 1.4cqw; border-radius: 1cqw; font-weight: 700; }
-.ag b { flex: 1; font-weight: 600; }
-.ag small { color: #687d97; font-size: 2.8cqw; }
-
-/* 飞行中的消息 */
-.fly { position: absolute; z-index: 6; display: none; pointer-events: none; }
-.fly .fb, .fly .fc { position: absolute; inset: 0; border-radius: 1.6cqw; overflow: hidden; white-space: nowrap; }
-.fly .fb { background: #ffe45c; color: #111; font-size: 3.4cqw; line-height: 1.5; padding: 1.4cqw 2.4cqw; box-shadow: 0 3cqw 6cqw -2cqw rgba(0, 0, 0, .3); }
-.fly .fc { font: 700 2.2cqw/1 var(--s); display: grid; place-items: center; opacity: 0; }
-
-/* 通知横幅 */
-.noti { position: absolute; z-index: 8; left: 3cqw; right: 3cqw; top: 11cqw; padding: 3cqw 3.4cqw; border-radius: 5cqw; background: rgba(255, 255, 255, .92); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-  box-shadow: 0 4cqw 10cqw -4cqw rgba(14, 34, 64, .45); display: grid; grid-template-columns: 8cqw 1fr; gap: .4cqw 2.6cqw; color: var(--ink); transform: translateY(-140%); will-change: transform; }
-.noti img { width: 8cqw; height: 8cqw; grid-row: span 3; }
-.noti small { font-size: 2.7cqw; color: #687d97; display: flex; justify-content: space-between; }
-.noti b { font-size: 3.4cqw; line-height: 1.3; }
-.noti span { font-size: 3cqw; line-height: 1.35; color: #3c4d68; }
-
-/* 未读数 */
-.count { position: absolute; z-index: 3; top: calc(50% - var(--pw) * 1.067 + 46px); left: calc(50% - var(--pw) * .5 - 30px);
-  background: #fa5151; color: #fff; font: 700 15px/1 var(--s); padding: 8px 12px; border-radius: 99px; box-shadow: 0 8px 20px -6px rgba(250, 81, 81, .7); transform-origin: 100% 100%; transition: opacity .3s, transform .3s; }
-.count b { font-variant-numeric: tabular-nums; }
-.count.bump { animation: bump .3s; }
-@keyframes bump { 40% { transform: scale(1.18); } }
-
-/* 捞捞 */
-.lao { position: absolute; z-index: 4; width: calc(var(--pw) * .62); right: calc(50% - var(--pw) * .5 - var(--pw) * .44); top: 16%; overflow: visible; will-change: transform; transform: translateY(150%); }
-.lao .eyes { transform-box: fill-box; transform-origin: center; animation: blink 4.2s infinite; }
-@keyframes blink { 0%, 92%, 100% { transform: none; } 95% { transform: scaleY(.1); } }
-.lao .arm { transform-box: view-box; transform-origin: 53px 40px; }
-.lao .hand2 { transform-box: view-box; transform-origin: 11px 40px; animation: wave 2.4s ease-in-out infinite; }
-@keyframes wave { 0%, 60%, 100% { transform: none; } 70% { transform: rotate(-18deg); } 80% { transform: rotate(6deg); } 90% { transform: rotate(-12deg); } }
-.lao.cheer .body { animation: hop .7s cubic-bezier(.3, .7, .4, 1.6); }
-.lao .spark { opacity: 0; transform-box: fill-box; transform-origin: center; }
-.lao.cheer .spark { animation: spark .9s ease-out; }
-@keyframes hop { 40% { transform: translateY(-14px) rotate(-4deg); } }
-@keyframes spark { 0% { opacity: 0; transform: scale(.2) rotate(0); } 40% { opacity: 1; transform: scale(1.3) rotate(40deg); } 100% { opacity: 0; transform: scale(.8) rotate(90deg); } }
-
-.hint { position: absolute; left: 50%; bottom: max(14px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: grid; justify-items: center; gap: 4px; font-size: 13px; color: var(--fg2); z-index: 3; }
-.hint i { width: 22px; height: 34px; border: 2px solid currentColor; border-radius: 12px; position: relative; }
-.hint i::after { content: ""; position: absolute; left: 50%; top: 6px; width: 4px; height: 7px; margin-left: -2px; border-radius: 2px; background: currentColor; animation: wheel 1.6s ease-in-out infinite; }
-@keyframes wheel { 0% { opacity: 0; transform: translateY(-3px); } 30% { opacity: 1; } 100% { opacity: 0; transform: translateY(10px); } }
-
-/* ============ 装进手机 ============ */
-.sec { max-width: 1160px; margin: 0 auto; padding: 120px var(--gut); }
-.sec > h2, .day > h2 { font-family: var(--d); font-weight: 400; font-size: clamp(32px, 4.6vw, 56px); line-height: 1.2; margin: 0 0 14px; }
-.sec > .sub, .day > .sub { font-size: 17px; color: var(--fg2); max-width: 32em; margin: 0 0 56px; }
-.droid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 56px; align-items: center; }
-.perks { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 30px 28px; }
-.perks li { display: grid; grid-template-columns: 44px 1fr; gap: 2px 14px; }
-.perks svg { grid-row: span 2; width: 44px; height: 44px; padding: 10px; border-radius: 14px; background: #fff; color: var(--blue); box-shadow: 0 6px 16px -10px rgba(14, 34, 64, .35); }
-.perks b { font-size: 17px; }
-.perks span { font-size: 14.5px; color: var(--fg2); line-height: 1.6; }
-
-.skinbox { display: grid; justify-items: center; gap: 20px; }
-.mini { --pw: 260px; }
-.mini .screen { view-transition-name: mini; background: var(--k-bg2); color: var(--k-text); font-family: var(--s); }
-.mini .ms { position: absolute; inset: 0; padding: 12cqw 4.4cqw 0; background: linear-gradient(180deg, var(--k-bg), var(--k-bg2) 70%); transition: background .5s; }
-.mini .sbar { color: var(--k-text); }
-.mini .hd { display: flex; align-items: center; gap: 2.6cqw; margin-bottom: 4cqw; }
-.mini .hd i { width: 9cqw; height: 9cqw; border-radius: 50%; background: var(--k-accent); }
-.mini .hd b { font: 400 6.4cqw/1 var(--d); }
-.mini .hello { border-radius: 5cqw; padding: 4.6cqw; background: var(--k-hero); color: var(--k-hero-t); position: relative; overflow: hidden; margin-bottom: 3cqw; min-height: 30cqw; }
-.mini .hello small { font-size: 2.8cqw; opacity: .8; }
-.mini .hello strong { display: block; font: 400 6.6cqw/1.25 var(--d); margin: 1.2cqw 0; }
-.mini .hello span { font-size: 3cqw; opacity: .85; display: block; max-width: 58%; line-height: 1.5; }
-.mini .hello svg { position: absolute; right: 2cqw; bottom: 0; width: 30cqw; }
-.mini .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 3cqw; margin-bottom: 3cqw; }
-.mini .tile { border-radius: 4.6cqw; padding: 3.6cqw; min-height: 26cqw; color: #fff; display: grid; align-content: space-between; }
-.mini .tile b { font: 400 5.4cqw/1 var(--d); }
-.mini .tile strong { font: 400 9cqw/1 var(--d); }
-.mini .tile small { font-size: 2.6cqw; font-weight: 600; opacity: .9; }
-.mini .t1 { background: var(--k-t1); } .mini .t2 { background: var(--k-t2); }
-.mini .quad { background: var(--k-card); border-radius: 4.6cqw; padding: 3.6cqw; display: grid; grid-template-columns: 1fr 1fr; gap: 2cqw; border: 1px solid var(--k-line); }
-.mini .quad div { border-radius: 2.4cqw; padding: 2cqw 2.4cqw; font-size: 2.7cqw; line-height: 1.5; border-left: 1cqw solid var(--q); background: color-mix(in srgb, var(--q) 12%, var(--k-card)); }
-.mini .quad div b { color: var(--q); display: block; font-size: 2.6cqw; }
-.mini .tabbar { position: absolute; left: 0; right: 0; bottom: 0; height: 14cqw; background: var(--k-card); border-top: 1px solid var(--k-line); display: flex; justify-content: space-around; align-items: center; }
-.mini .tabbar i { width: 5.6cqw; height: 5.6cqw; border-radius: 1.6cqw; background: var(--k-sub); opacity: .4; }
-.mini .tabbar i:first-child { background: var(--k-accent); opacity: 1; }
-.skins { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
-.skins button { border: 0; background: #fff; padding: 8px 14px 8px 8px; border-radius: 99px; display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600;
-  box-shadow: 0 4px 12px -8px rgba(14, 34, 64, .4); transition: transform .2s, box-shadow .2s; color: var(--ink); }
-.skins button i { width: 22px; height: 22px; border-radius: 50%; background: var(--sw); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .7); }
-.skins button[aria-pressed=true] { box-shadow: 0 0 0 2.5px var(--ink); }
-.skins button:hover { transform: translateY(-2px); }
-.mini[data-k=sky] { --k-bg: #cdeeff; --k-bg2: #f3fbff; --k-text: #0e2240; --k-sub: #687d97; --k-card: #fff; --k-line: #e3edf6; --k-accent: #1ea0ff; --k-hero: linear-gradient(135deg, #8fd0ff, #b8c6ff); --k-hero-t: #0e2240; --k-t1: linear-gradient(140deg, #ffb340, #ff8a1f); --k-t2: linear-gradient(140deg, #7d9cff, #3f6bff); }
-.mini[data-k=sakura] { --k-bg: #ffe1ea; --k-bg2: #fff6f8; --k-text: #4a2333; --k-sub: #9a6b7d; --k-card: #fff; --k-line: #f6dde5; --k-accent: #ff6b9a; --k-hero: linear-gradient(135deg, #ffb6cb, #ffd9c9); --k-hero-t: #4a2333; --k-t1: linear-gradient(140deg, #ff8fb0, #ff5c8a); --k-t2: linear-gradient(140deg, #c79bff, #9a6bff); }
-.mini[data-k=night] { --k-bg: #000; --k-bg2: #000; --k-text: #e7e9ea; --k-sub: #71767b; --k-card: #16181c; --k-line: #2f3336; --k-accent: #1d9bf0; --k-hero: linear-gradient(135deg, #1c2333, #10131a); --k-hero-t: #e7e9ea; --k-t1: linear-gradient(140deg, #3a2a10, #5c3b0a); --k-t2: linear-gradient(140deg, #13284d, #1d3f7a); }
-.mini[data-k=cyber] { --k-bg: #07060f; --k-bg2: #07060f; --k-text: #e9f6ff; --k-sub: #8d93bf; --k-card: #100d24; --k-line: rgba(0, 240, 255, .25); --k-accent: #00f0ff; --k-hero: linear-gradient(135deg, #2a0b4a, #0b2a4a); --k-hero-t: #e9f6ff; --k-t1: linear-gradient(140deg, #ff2bd6, #8a1cff); --k-t2: linear-gradient(140deg, #00c2ff, #2b5cff); }
-::view-transition-old(mini) { animation: none; }
-::view-transition-new(mini) { animation: reveal .7s cubic-bezier(.6, 0, .2, 1); }
-@keyframes reveal { from { clip-path: circle(0 at var(--rx, 50%) var(--ry, 100%)); } to { clip-path: circle(150% at var(--rx, 50%) var(--ry, 100%)); } }
-
-/* ============ 一天 ============ */
-.day { max-width: 1160px; margin: 0 auto; padding: 120px var(--gut) 60px; }
-.hours { list-style: none; margin: 0; padding: 0; position: relative; }
-.hours::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 2px; background: linear-gradient(var(--fg2), transparent); opacity: .25; }
-.hr { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1fr); gap: 40px 64px; align-items: center; padding: 70px 0 70px 34px; position: relative; }
-.hr::before { content: ""; position: absolute; left: -6px; top: 84px; width: 14px; height: 14px; border-radius: 50%; background: var(--sky-bot); border: 3px solid var(--fg); }
-.hr time { display: block; font-family: var(--d); font-size: clamp(54px, 8vw, 104px); line-height: 1; letter-spacing: .02em; font-variant-numeric: tabular-nums; }
-.hr h3 { font-family: var(--d); font-weight: 400; font-size: clamp(24px, 2.8vw, 34px); line-height: 1.3; margin: 18px 0 10px; }
-.hr p { margin: 0; color: var(--fg2); max-width: 26em; }
-.ui { background: var(--card); color: var(--ink); border-radius: 26px; padding: 22px; box-shadow: 0 30px 60px -36px rgba(14, 34, 64, .55); position: relative; }
-.ui .tag { font-size: 12px; color: var(--sub); display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
-.ui .tag img { width: 18px; height: 18px; }
-.tiny { font-size: 12px; color: var(--sub); }
-
-/* 07:30 鼓励 */
-.enc { border-radius: 20px; padding: 22px 20px; color: #fff; background: linear-gradient(135deg, var(--g1, #a1c4fd), var(--g2, #c2e9fb)); transition: background .6s; min-height: 132px; position: relative; overflow: hidden; }
-.enc .em { position: absolute; right: 14px; top: 8px; font-size: 54px; opacity: .9; transform: rotate(8deg); }
-.enc q { display: block; font: 400 25px/1.35 var(--d); quotes: none; max-width: 80%; text-shadow: 0 1px 8px rgba(0, 0, 0, .12); min-height: 2.7em; }
-.enc q .c { display: inline-block; animation: popc .45s cubic-bezier(.2, .9, .3, 1.4) both; animation-delay: calc(var(--i) * 28ms); }
-@keyframes popc { from { opacity: 0; transform: translateY(8px) scale(.6); } }
-.enc small { display: block; margin-top: 6px; font-size: 13px; opacity: .9; }
-.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
-.chipbtn { border: 1px solid var(--line); background: #fff; border-radius: 99px; padding: 6px 12px; font-size: 14px; transition: transform .2s cubic-bezier(.3, .7, .4, 1.6), background .2s, border-color .2s; }
-.chipbtn:hover { transform: translateY(-2px); }
-.chipbtn[aria-pressed=true] { background: #fff4d6; border-color: #ffd23f; }
-.reply { min-height: 1.6em; margin: 10px 2px 0; font-size: 14.5px; color: #3c4d68; }
-.reply.show { animation: popc .4s both; }
-
-/* 08:00 课表 */
-.cls { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-.cls li { display: grid; grid-template-columns: 70px 1fr auto; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; background: #f4f8fc; }
-.cls time { font-size: 13px; color: var(--sub); line-height: 1.35; font-variant-numeric: tabular-nums; }
-.cls b { font-size: 16px; } .cls small { display: block; font-size: 12.5px; color: var(--sub); font-weight: 400; }
-.cls li.now { background: linear-gradient(90deg, #e3f2ff, #f4f8fc); box-shadow: inset 4px 0 0 var(--blue); }
-.cls .bar { grid-column: 1 / -1; height: 5px; background: #d9e8f6; border-radius: 9px; overflow: hidden; margin-top: 2px; }
-.cls .bar i { display: block; height: 100%; width: 0; background: var(--blue); border-radius: inherit; transition: width 2.2s cubic-bezier(.3, .6, .2, 1) .3s; }
-.seen .cls .bar i { width: 38%; }
-.cls .live { font-size: 12px; font-weight: 700; color: var(--blue); display: flex; align-items: center; gap: 5px; }
-.cls .live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: pulse 1.4s infinite; }
-@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(30, 140, 255, .5); } 100% { box-shadow: 0 0 0 9px rgba(30, 140, 255, 0); } }
-
-/* 12:10 班级墙 */
-.post { display: grid; grid-template-columns: 40px 1fr; gap: 4px 12px; }
-.post .av { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-weight: 700; background: linear-gradient(135deg, #ff9a6b, #ff6b8a); grid-row: span 2; }
-.post .who b { font-size: 15px; } .post .who small { margin-left: 6px; font-size: 12px; color: var(--sub); }
-.post .who em { font-style: normal; font-size: 11px; background: #fff0e6; color: #e8590c; padding: 1px 6px; border-radius: 6px; margin-left: 6px; font-weight: 700; }
-.post p { margin: 2px 0 0; font-size: 15.5px; color: var(--ink); }
-.acts { grid-column: 2; display: flex; gap: 16px; margin-top: 8px; }
-.like { border: 0; background: none; padding: 4px 0; display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--sub); position: relative; }
-.like svg { width: 22px; height: 22px; transition: transform .3s cubic-bezier(.3, .7, .4, 1.8); }
-.like[aria-pressed=true] { color: #ff4d7a; }
-.like[aria-pressed=true] svg { transform: scale(1.2); }
-.like[aria-pressed=true] svg path { fill: #ff4d7a; stroke: #ff4d7a; }
-.burst { position: absolute; left: 11px; top: 14px; width: 0; height: 0; pointer-events: none; }
-.burst i { position: absolute; width: 7px; height: 7px; border-radius: 50%; background: var(--c); animation: fly .7s cubic-bezier(.1, .8, .3, 1) forwards; }
-@keyframes fly { from { transform: translate(-50%, -50%) scale(1); opacity: 1; } to { transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y))) scale(0); opacity: 0; } }
-.cmts { grid-column: 2; margin-top: 10px; background: #f4f8fc; border-radius: 14px; padding: 10px 12px; display: grid; gap: 6px; font-size: 14px; }
-.cmts div { animation: popc .4s both; }
-.cmts b { color: #2d5bd6; font-weight: 600; }
-.cmtf { grid-column: 2; display: flex; gap: 8px; margin-top: 10px; }
-.cmtf input { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 99px; padding: 8px 14px; font: inherit; font-size: 14px; background: #fff; color: var(--ink); }
-.cmtf button { border: 0; background: var(--ink); color: #fff; border-radius: 99px; padding: 0 16px; font-size: 14px; font-weight: 600; }
-
-/* 15:30 时间管理 */
-.tm { display: grid; grid-template-columns: 1fr 150px; gap: 18px; align-items: center; }
-.q4 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.q4 > div { border-radius: 12px; padding: 8px 10px; background: color-mix(in srgb, var(--q) 10%, #fff); border-left: 4px solid var(--q); min-height: 74px; }
-.q4 h5 { margin: 0 0 4px; font-size: 12.5px; color: var(--q); }
-.q4 label { display: flex; align-items: center; gap: 6px; font-size: 13.5px; cursor: pointer; line-height: 1.5; }
-.q4 input { appearance: none; -webkit-appearance: none; width: 15px; height: 15px; border: 2px solid var(--q); border-radius: 5px; flex: none; display: grid; place-items: center; margin: 0; transition: background .2s; }
-.q4 input:checked { background: var(--q); }
-.q4 input:checked::after { content: ""; width: 6px; height: 3px; border: solid #fff; border-width: 0 0 2px 2px; transform: rotate(-45deg) translate(1px, -1px); }
-.q4 input:checked + span { text-decoration: line-through; color: var(--sub); }
-.pomo { display: grid; justify-items: center; gap: 8px; }
-.pomo svg { width: 138px; height: 138px; transform: rotate(-90deg); }
-.pomo .trk { stroke: #ffe1d6; } .pomo .arc { stroke: #ff6a3d; stroke-linecap: round; transition: stroke-dashoffset .25s linear; }
-.pomo .tw { position: relative; }
-.pomo .tw div { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; }
-.pomo .tw strong { font: 400 30px/1 var(--d); font-variant-numeric: tabular-nums; display: block; }
-.pomo .tw small { font-size: 11px; color: var(--sub); }
-.pomo button { border: 0; background: #ff6a3d; color: #fff; border-radius: 99px; padding: 7px 16px; font-size: 14px; font-weight: 700; }
-.pomo.done .tw strong { color: #1f9d55; }
-
-/* 21:30 锁屏 */
-.lock { border-radius: 30px; padding: 26px 18px 22px; min-height: 360px; color: #fff; text-align: center; overflow: hidden;
-  background: radial-gradient(120% 80% at 80% 0%, #4b5bd6 0%, transparent 60%), radial-gradient(90% 70% at 0% 100%, #c2418f 0%, transparent 60%), #1a1f4d; }
-.lock .clk { font: 400 72px/1 var(--d); letter-spacing: .02em; }
-.lock .dt { font-size: 14px; opacity: .85; margin: 6px 0 22px; }
-.nt { text-align: left; display: grid; grid-template-columns: 34px 1fr; gap: 0 10px; padding: 12px 14px; border-radius: 18px; background: rgba(255, 255, 255, .18); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); margin-top: 8px;
-  opacity: 0; transform: translateY(-24px) scale(.94); transition: opacity .4s, transform .6s cubic-bezier(.2, .9, .3, 1.25); }
-.seen .nt { opacity: 1; transform: none; }
-.seen .nt:nth-of-type(2) { transition-delay: .5s; } .seen .nt:nth-of-type(3) { transition-delay: 1s; }
-.nt img { width: 34px; height: 34px; border-radius: 9px; grid-row: span 2; background: #fff; }
-.nt small { display: flex; justify-content: space-between; font-size: 11.5px; opacity: .8; }
-.nt b { font-size: 14px; font-weight: 600; line-height: 1.45; }
-
-/* 23:00 成长足迹 */
-.heat { display: grid; grid-template-rows: repeat(7, 1fr); grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; margin: 4px 0 14px; }
-.heat i { aspect-ratio: 1; border-radius: 4px; background: #edf2f8; transform: scale(.3); opacity: 0; transition: transform .45s cubic-bezier(.2, 1.4, .4, 1), opacity .3s, background .3s; }
-.seen .heat i { transform: none; opacity: 1; transition-delay: calc(var(--i) * 9ms); }
-.heat i.h1 { background: #c6e6ff; } .heat i.h2 { background: #85c8ff; } .heat i.h3 { background: #3fa4ff; } .heat i.h4 { background: #1667e8; }
-.streak { display: flex; align-items: center; gap: 16px; }
-.streak strong { font: 400 46px/1 var(--d); color: var(--today); font-variant-numeric: tabular-nums; }
-.streak span { font-size: 14px; color: var(--sub); line-height: 1.5; }
-
-/* ============ 下载区（夜里） ============ */
-.get-sec { position: relative; max-width: 1160px; margin: 0 auto; padding: 110px var(--gut) 40px; text-align: center; }
-.get-sec h2 { font-family: var(--d); font-weight: 400; font-size: clamp(40px, 7vw, 92px); line-height: 1.12; margin: 0 0 18px; }
-.get-sec .sub { margin: 0 auto 34px; max-width: 30em; color: var(--fg2); font-size: 17px; }
-.sleepy { width: 150px; margin: 0 auto 18px; position: relative; }
-.sleepy .z { position: absolute; font: 400 22px/1 var(--d); color: var(--star); right: -6px; top: -10px; animation: zz 2.6s ease-in-out infinite; opacity: 0; }
-.sleepy .z:nth-child(2) { animation-delay: .9s; right: -24px; font-size: 16px; } .sleepy .z:nth-child(3) { animation-delay: 1.8s; right: 10px; font-size: 13px; }
-@keyframes zz { 0% { opacity: 0; transform: translate(0, 10px) scale(.6); } 30% { opacity: 1; } 100% { opacity: 0; transform: translate(18px, -30px) scale(1.1); } }
-.sleepy svg .body { animation: breathe 3.4s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 100%; }
-@keyframes breathe { 50% { transform: scaleY(1.035) scaleX(.985); } }
-.panel { display: inline-grid; gap: 18px; justify-items: center; }
-.panel .meta { margin: 0; }
-.panel .row2 { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; justify-content: center; }
-.ios { display: none; max-width: 26em; margin: 0 auto; font-size: 15px; color: var(--fg2); }
-.is-ios .ios { display: block; }
-.after { font-size: 14px; color: var(--fg2); min-height: 1.5em; }
-
-.faq { max-width: 760px; margin: 90px auto 0; text-align: left; }
-.faq h3 { font-family: var(--d); font-weight: 400; font-size: 30px; margin: 0 0 16px; text-align: center; }
-.faq details { border-top: 1px solid color-mix(in srgb, var(--fg) 14%, transparent); }
-.faq details:last-child { border-bottom: 1px solid color-mix(in srgb, var(--fg) 14%, transparent); }
-.faq summary { list-style: none; cursor: pointer; padding: 18px 40px 18px 4px; font-weight: 600; font-size: 16.5px; position: relative; }
-.faq summary::-webkit-details-marker { display: none; }
-.faq summary::after { content: ""; position: absolute; right: 10px; top: 50%; width: 10px; height: 10px; border: solid currentColor; border-width: 0 2px 2px 0; transform: translateY(-70%) rotate(45deg); transition: transform .3s; }
-.faq details[open] summary::after { transform: translateY(-30%) rotate(-135deg); }
-.faq details p { margin: 0 4px 18px; color: var(--fg2); font-size: 15px; }
-.faq details[open] p { animation: popc .35s both; }
+<link rel="stylesheet" href="embedded-auth-v2.css?v=20261005-studio2">
 
 
-/* ============ 电脑版 ============ */
-.pcwrap { display: grid; grid-template-columns: minmax(0, 2.1fr) minmax(220px, 1fr); gap: 28px; align-items: center; }
-.pcwin { position: relative; border-radius: 14px; overflow: hidden; background: #f4f7fb; box-shadow: 0 40px 80px -36px rgba(14, 34, 64, .55), 0 0 0 1px rgba(14, 34, 64, .1); transform: perspective(1600px) rotateY(-4deg) rotateX(2deg); transition: transform .6s cubic-bezier(.2, .8, .2, 1); }
-.pcwin:hover { transform: none; }
-.pcwin img { display: block; width: 100%; height: auto; transition: opacity .25s; }
-.pcwin img.fade { opacity: 0; }
-.pcbar { position: absolute; top: 0; right: 0; height: 5.5%; width: 10.8%; display: flex; z-index: 1; }
-.pcbar i { flex: 1; position: relative; }
-.pcbar i::after { content: ""; position: absolute; left: 50%; top: 50%; width: 10px; height: 1.5px; background: #6b7a90; transform: translate(-50%, -50%); }
-.pcbar i:nth-child(2)::after { height: 8px; width: 8px; background: none; border: 1.5px solid #6b7a90; }
-.pcbar i:nth-child(3)::after { width: 11px; height: 1.5px; transform: translate(-50%, -50%) rotate(45deg); box-shadow: 0 0 0 0 #6b7a90; }
-.pcbar i:nth-child(3)::before { content: ""; position: absolute; left: 50%; top: 50%; width: 11px; height: 1.5px; background: #6b7a90; transform: translate(-50%, -50%) rotate(-45deg); }
-.pcwin.dark .pcbar i::after, .pcwin.dark .pcbar i::before { background: #c9d2e3; } .pcwin.dark .pcbar i:nth-child(2)::after { background: none; border-color: #c9d2e3; }
-.pctabs { display: grid; gap: 10px; }
-.pctabs button { text-align: left; border: 0; background: rgba(255, 255, 255, .55); border-radius: 16px; padding: 14px 16px; display: grid; gap: 2px; cursor: pointer; color: var(--fg); font: inherit; transition: background .2s, transform .2s, box-shadow .2s; }
-.pctabs button b { font-size: 16px; }
-.pctabs button span { font-size: 13.5px; color: var(--fg2); line-height: 1.5; }
-.pctabs button:hover { transform: translateX(3px); }
-.pctabs button[aria-selected=true] { background: #fff; box-shadow: 0 0 0 2.5px var(--ink), 0 14px 30px -18px rgba(14, 34, 64, .45); }
-.pcperks { margin-top: 64px; grid-template-columns: repeat(3, 1fr); }
-.pcget { margin-top: 48px; display: grid; justify-items: start; gap: 4px; }
-.pcget .meta a, .dlweb a, .alldl { color: inherit; }
-.appget-row { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
-.appget-row .qr { margin: 0; }
-.is-ios .appget { display: none; }
-.alldl { font-weight: 600; }
-.is-windows .alldl::before { content: ""; }
-
-/* ============ 下载区：手机 + 电脑 ============ */
-.dlgrid { display: grid; grid-template-columns: repeat(3, minmax(0, 340px)); gap: 20px; justify-content: center; text-align: left; }
-.get.soon { background: color-mix(in srgb, var(--fg) 14%, transparent); color: var(--fg); box-shadow: none; cursor: default; pointer-events: none; }
-.get.soon::before { display: none; }
-.mpc .dlh b::after { content: "敬请期待"; margin-left: 8px; font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 99px; background: color-mix(in srgb, var(--fg) 16%, transparent); vertical-align: 2px; }
-@media (max-width: 1100px) and (min-width: 861px) { .dlgrid { grid-template-columns: repeat(2, minmax(0, 360px)); } .mpc { grid-column: 1 / -1; justify-self: center; width: min(100%, 360px); } }
-.dlcard { display: grid; gap: 14px; justify-items: start; align-content: start; padding: 24px; border-radius: 24px; background: color-mix(in srgb, var(--fg) 7%, transparent); border: 1px solid color-mix(in srgb, var(--fg) 14%, transparent); }
-.dlcard .meta { margin: 0; }
-.dlcard .after { margin: 0; min-height: 0; }
-.dlcard .qr { margin: 0; }
-.dlh { display: flex; gap: 12px; align-items: center; }
-.dli { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; font-size: 24px; background: color-mix(in srgb, var(--fg) 10%, transparent); }
-.dlh b { display: block; font-size: 18px; }
-.dlh small { color: var(--fg2); font-size: 13px; }
-.is-windows .pcc, .is-android .droidc { order: -1; border-color: color-mix(in srgb, var(--fg) 40%, transparent); }
-.is-windows .pcc .dlh b::after, .is-android .droidc .dlh b::after { content: "你正在用"; margin-left: 8px; font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 99px; background: #ffd23f; color: #0e2240; vertical-align: 2px; }
-.dlweb { max-width: 34em; margin: 26px auto 0; font-size: 14.5px; color: var(--fg2); }
-@media (max-width: 860px) {
-  .pcwrap { grid-template-columns: 1fr; }
-  .pcwin { transform: none; }
-  .pcbar { display: none; }
-  .pctabs { grid-template-columns: repeat(2, 1fr); }
-  .pcperks { grid-template-columns: 1fr 1fr; margin-top: 44px; }
-  .dlgrid { grid-template-columns: 1fr; }
-}
-@media (max-width: 520px) { .pcperks { grid-template-columns: 1fr; } .pctabs button span { display: none; } }
-
-/* ============ 手机 ============ */
-@media (max-width: 860px) {
-  .hero { height: 380vh; }
-  .stick { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); align-items: start; gap: 6px; padding-top: 62px; padding-bottom: 46px; }
-  .lines { font-size: clamp(27px, 7.6vw, 40px); margin-bottom: 8px; }
-  .lede { font-size: 14.5px; margin-bottom: 12px; line-height: 1.6; }
-  .cta { gap: 4px 6px; }
-  .get { min-height: 48px; font-size: 16px; padding: 0 20px 0 16px; border-radius: 16px; }
-  .ghost { min-height: 48px; padding: 0 12px; font-size: 15px; }
-  .meta { margin-top: 6px; font-size: 12px; }
-  .stage { --pw: min(250px, calc((100svh - 330px) * .47)); }
-  .lao { top: 56%; width: calc(var(--pw) * .5); right: calc(50% - var(--pw) * .5 - var(--pw) * .3); }
-  .count { font-size: 13px; padding: 6px 10px; left: calc(50% - var(--pw) * .5 - 20px); }
-  .hint { display: none; }
-  .droid { grid-template-columns: 1fr; gap: 40px; }
-  .hr { grid-template-columns: 1fr; gap: 26px; padding: 50px 0 50px 26px; }
-  .hr::before { top: 64px; }
-  .sec { padding: 90px var(--gut); }
-  .tm { grid-template-columns: 1fr; }
-}
-@media (max-width: 520px) {
-  .perks { grid-template-columns: 1fr; gap: 22px; }
-  .lede { display: none; }
-  .stage { --pw: min(250px, calc((100svh - 250px) * .47)); }
-  .mini { --pw: 236px; }
-  .ui { padding: 16px; border-radius: 22px; }
-  .enc q { font-size: 21px; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .hero { height: auto; } .stick { position: relative; height: auto; min-height: 100svh; }
-}
-</style>
-<style>
-/* ===== 登录（来自 login.html，限定在登录区块里） ===== */
-.lgtop, #ob {
-    --bg1: #cdeeff; --bg2: #f3fbff; --card: #fff; --solid: #fff; --line: #dfe9f3; --text: #0e2240; --sub: #687d97;
-    --accent: #1e8cff; --accent2: #ff7b2e; --red: #ef4b3f; --green: #17b26a;
-    --fd: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
-    --glow: rgba(30,140,255,.28);
-  }
-html[data-g=f] .lgtop, html[data-g=f] #ob { --bg1: #ffe1ec; --bg2: #fff6f9; --accent: #ff5f8f; --accent2: #ffb03b; --glow: rgba(255,95,143,.28); }
-html[data-g=m] .lgtop, html[data-g=m] #ob { --bg1: #d6e2ff; --bg2: #f4f7ff; --accent: #2457d6; --accent2: #ffb020; --glow: rgba(36,87,214,.28); }
-.lgtop { position: relative; min-height: 100vh; min-height: 100dvh; color: var(--text); font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; font-size: 15px;
-    background: radial-gradient(120% 80% at 0% 0%, var(--bg1), var(--bg2) 60%); transition: background .5s; display: flex; }
-:where(.lgtop, #ob) button, :where(.lgtop, #ob) input { font: inherit; color: inherit; }
-:where(.lgtop, #ob) .hidden { display: none !important; }
-:where(.lgtop, #ob) .stage { flex: 1.1; position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: center; padding: 48px 56px; }
-:where(.lgtop, #ob) .stage .logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 17px; position: absolute; top: 28px; left: 32px; }
-:where(.lgtop, #ob) .stage .logo svg { width: 36px; height: 36px; }
-:where(.lgtop, #ob) .stage h1 { font-family: var(--fd); font-weight: 400; font-size: clamp(34px, 4.4vw, 56px); line-height: 1.15; margin: 0 0 14px; letter-spacing: 1px; }
-:where(.lgtop, #ob) .stage h1 em { font-style: normal; color: var(--accent); }
-:where(.lgtop, #ob) .stage p.lead { color: var(--sub); font-size: 16px; line-height: 1.7; margin: 0 0 26px; max-width: 460px; }
-:where(.lgtop, #ob) .feats { display: grid; grid-template-columns: repeat(2, minmax(0, 220px)); gap: 10px; }
-:where(.lgtop, #ob) .feat { display: flex; gap: 10px; align-items: center; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 10px 12px; font-size: 13.5px; font-weight: 600;
-    box-shadow: 0 10px 30px -18px var(--glow); }
-:where(.lgtop, #ob) .feat i { font-style: normal; font-size: 20px; width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; background: color-mix(in srgb, var(--accent) 12%, transparent); flex-shrink: 0; }
-:where(.lgtop, #ob) .hero-mascot { position: absolute; right: 6%; bottom: 7%; width: min(30vw, 260px); animation: bob 4s ease-in-out infinite; filter: drop-shadow(0 20px 30px var(--glow)); }
-@keyframes bob { 50% { transform: translateY(-12px) rotate(-2deg); } }
-:where(.lgtop, #ob) .floaty { position: absolute; font-size: 22px; opacity: .55; animation: drift 9s linear infinite; pointer-events: none; }
-@keyframes drift { from { transform: translateY(20px) rotate(0); opacity: 0; } 15% { opacity: .6; } to { transform: translateY(-110vh) rotate(260deg); opacity: 0; } }
-:where(.lgtop, #ob) .side { flex: 1; display: flex; align-items: center; justify-content: center; padding: 32px 20px; }
-:where(.lgtop, #ob) .card { width: 100%; max-width: 420px; background: var(--card); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); border: 1px solid var(--line); border-radius: 28px;
-    padding: 30px 28px 24px; box-shadow: 0 30px 80px -30px var(--glow), 0 2px 6px rgba(0,0,0,.04); }
-:where(.lgtop, #ob) .card h2 { margin: 0 0 4px; font-size: 22px; }
-:where(.lgtop, #ob) .card .sub { color: var(--sub); font-size: 13.5px; margin-bottom: 18px; }
-:where(.lgtop, #ob) .tabs { position: relative; display: grid; grid-template-columns: 1fr 1fr; background: color-mix(in srgb, var(--text) 6%, transparent); border-radius: 14px; padding: 4px; margin-bottom: 18px; }
-:where(.lgtop, #ob) .tabs button { position: relative; z-index: 1; border: 0; background: none; padding: 9px; border-radius: 10px; color: var(--sub); font-weight: 700; cursor: pointer; transition: color .2s; }
-:where(.lgtop, #ob) .tabs button.on { color: var(--text); }
-:where(.lgtop, #ob) .tabs .ind { position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc(50% - 4px); background: var(--solid); border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,.08); transition: transform .3s cubic-bezier(.3,1.3,.5,1); }
-:where(.lgtop, #ob) .tabs.signup .ind { transform: translateX(100%); }
-:where(.lgtop, #ob) .fld { margin-bottom: 12px; }
-:where(.lgtop, #ob) .fld > label { display: block; font-size: 13px; font-weight: 700; color: var(--sub); margin: 0 0 6px 2px; }
-:where(.lgtop, #ob) .inp { position: relative; display: flex; align-items: center; }
-:where(.lgtop, #ob) .inp .ic { position: absolute; left: 13px; font-size: 16px; opacity: .6; pointer-events: none; }
-:where(.lgtop, #ob) .inp input { width: 100%; padding: 12px 42px 12px 40px; border: 1.5px solid var(--line); border-radius: 14px; background: var(--solid); outline: none; transition: border-color .2s, box-shadow .2s; }
-:where(.lgtop, #ob) .inp input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent); }
-:where(.lgtop, #ob) .inp input.bad { border-color: var(--red); }
-:where(.lgtop, #ob) .inp input.good { border-color: color-mix(in srgb, var(--green) 70%, var(--line)); }
-:where(.lgtop, #ob) .inp .eye { position: absolute; right: 6px; border: 0; background: none; width: 34px; height: 34px; border-radius: 10px; cursor: pointer; opacity: .65; font-size: 16px; }
-:where(.lgtop, #ob) .inp .eye:hover { opacity: 1; background: color-mix(in srgb, var(--text) 6%, transparent); }
-:where(.lgtop, #ob) .inp .ok { position: absolute; right: 12px; color: var(--green); font-weight: 900; }
-:where(.lgtop, #ob) .hint { font-size: 12px; color: var(--sub); margin: 5px 2px 0; min-height: 0; }
-:where(.lgtop, #ob) .hint.err { color: var(--red); }
-:where(.lgtop, #ob) .hint.warn { color: #d97706; }
-:where(.lgtop, #ob) .meter { display: flex; gap: 4px; margin: 7px 2px 0; }
-:where(.lgtop, #ob) .meter i { flex: 1; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--text) 10%, transparent); transition: background .25s; }
-:where(.lgtop, #ob) .meter.s1 i:nth-child(-n+1) { background: var(--red); }
-:where(.lgtop, #ob) .meter.s2 i:nth-child(-n+2) { background: #f59e0b; }
-:where(.lgtop, #ob) .meter.s3 i:nth-child(-n+3) { background: #84cc16; }
-:where(.lgtop, #ob) .meter.s4 i { background: var(--green); }
-:where(.lgtop, #ob) .signup-only { display: none; }
-:where(.lgtop, #ob) form.signup .signup-only { display: block; }
-:where(.lgtop, #ob) form.signup .login-only { display: none; }
-:where(.lgtop, #ob) .forgot-l { text-align: right; margin-top: 6px; font-size: 13px; }
-:where(.lgtop, #ob) .forgot-l a, :where(.lgtop, #ob) .hint a { color: var(--accent); text-decoration: none; font-weight: 700; }
-:where(.lgtop, #ob) .fg-help { margin-top: 12px; padding: 12px 14px; border-radius: 14px; background: color-mix(in srgb, var(--accent) 8%, transparent); font-size: 13.5px; line-height: 1.7; }
-:where(.lgtop, #ob) .fg-help:empty { display: none; }
-:where(.lgtop, #ob) .fg-more { margin-top: 12px; font-size: 13px; color: var(--sub); }
-:where(.lgtop, #ob) .fg-more summary { cursor: pointer; font-weight: 700; }
-:where(.lgtop, #ob) .fg-more p { line-height: 1.7; margin: 6px 0; }
-:where(.lgtop, #ob) .picks { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-:where(.lgtop, #ob) .pick { position: relative; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 16px; background: var(--solid); cursor: pointer; transition: transform .15s, border-color .2s, box-shadow .2s; font-weight: 700; }
-:where(.lgtop, #ob) .pick:hover { transform: translateY(-1px); }
-:where(.lgtop, #ob) .pick input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; z-index: 1; }
-:where(.lgtop, #ob) .pick:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 14%, transparent); }
-:where(.lgtop, #ob) .pick:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
-:where(.lgtop, #ob) .pick small { display: block; font-weight: 500; color: var(--sub); font-size: 11.5px; }
-:where(.lgtop, #ob) .pick .em { font-size: 22px; }
-:where(.lgtop, #ob) .gpick .pick { flex-direction: column; text-align: center; padding: 12px 8px 10px; gap: 4px; }
-:where(.lgtop, #ob) .gpick .pick svg { width: 64px; height: 64px; }
-:where(.lgtop, #ob) .gpick .pick.f:has(input:checked) { border-color: #ff5f8f; box-shadow: 0 0 0 4px rgba(255,95,143,.16); }
-:where(.lgtop, #ob) .gpick .pick.m:has(input:checked) { border-color: #2457d6; box-shadow: 0 0 0 4px rgba(36,87,214,.16); }
-:where(.lgtop, #ob) button.go { width: 100%; margin-top: 16px; padding: 13px; border: 0; border-radius: 16px; color: #fff; font-weight: 800; font-size: 16px; cursor: pointer;
-    background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 75%, #fff), var(--accent)); box-shadow: 0 12px 24px -12px var(--accent); transition: transform .15s, filter .2s; }
-:where(.lgtop, #ob) button.go:hover { filter: brightness(1.05); }
-:where(.lgtop, #ob) button.go:active { transform: scale(.98); }
-:where(.lgtop, #ob) button.go:disabled { opacity: .7; cursor: wait; }
-:where(.lgtop, #ob) button.go .spin { display: none; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.5); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -3px; margin-right: 6px; }
-:where(.lgtop, #ob) button.go:disabled .spin { display: inline-block; }
-@keyframes spin { to { transform: rotate(360deg); } }
-:where(.lgtop, #ob) button.ghost { width: 100%; margin-top: 10px; padding: 11px; border: 1.5px solid var(--line); border-radius: 16px; background: var(--solid); cursor: pointer; font-weight: 700; }
-#msg { min-height: 20px; margin-top: 10px; font-size: 13px; color: var(--red); text-align: center; }
-:where(.lgtop, #ob) .foot { margin-top: 14px; text-align: center; font-size: 13px; color: var(--sub); }
-:where(.lgtop, #ob) .foot a { color: var(--accent); text-decoration: none; font-weight: 700; }
-:where(.lgtop, #ob) .already { text-align: center; }
-:where(.lgtop, #ob) .already .av { width: 72px; height: 72px; margin: 4px auto 10px; border-radius: 24px; display: grid; place-items: center; font-size: 30px; font-weight: 800; color: #fff; background: linear-gradient(135deg, var(--accent2), var(--accent)); }
-#ob { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 16px; background: radial-gradient(120% 80% at 0% 0%, var(--bg1), var(--bg2) 60%); }
-:where(.lgtop, #ob) .ob-card { width: 100%; max-width: 560px; background: var(--card); border: 1px solid var(--line); border-radius: 30px; padding: 26px 26px 20px; box-shadow: 0 30px 80px -30px var(--glow); position: relative; overflow: hidden; }
-:where(.lgtop, #ob) .ob-dots { display: flex; gap: 6px; justify-content: center; margin-bottom: 16px; }
-:where(.lgtop, #ob) .ob-dots i { width: 8px; height: 8px; border-radius: 4px; background: color-mix(in srgb, var(--text) 14%, transparent); transition: width .3s, background .3s; }
-:where(.lgtop, #ob) .ob-dots i.on { width: 22px; background: var(--accent); }
-:where(.lgtop, #ob) .ob-step.anim { animation: obIn .4s cubic-bezier(.3,1.2,.5,1); }
-@keyframes obIn { from { opacity: 0; transform: translateX(24px); } }
-:where(.lgtop, #ob) .ob-step h3 { font-family: var(--fd); font-weight: 400; font-size: 30px; margin: 4px 0 8px; text-align: center; letter-spacing: 1px; }
-:where(.lgtop, #ob) .ob-step .lead { text-align: center; color: var(--sub); margin: 0 0 16px; line-height: 1.65; }
-:where(.lgtop, #ob) .ob-art { display: grid; place-items: center; margin: 10px auto 14px; position: relative; height: 170px; width: 200px; }
-:where(.lgtop, #ob) .ob-art svg.m { width: 120px; height: 120px; animation: bob 3.6s ease-in-out infinite; }
-:where(.lgtop, #ob) .ob-art .orb { position: absolute; left: calc(50% - 12px); top: calc(50% - 14px); font-size: 22px; animation: orbit 9s linear infinite; }
-@keyframes orbit { from { transform: rotate(0) translateX(84px) rotate(0); } to { transform: rotate(360deg) translateX(84px) rotate(-360deg); } }
-:where(.lgtop, #ob) .ob-skip { display: block; margin: 12px auto 0; border: 0; background: none; color: var(--sub); font-size: 13px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
-:where(.lgtop, #ob) .ob-nav { display: flex; gap: 10px; margin-top: 18px; }
-:where(.lgtop, #ob) .ob-nav button { flex: 1; margin-top: 0; }
-:where(.lgtop, #ob) .skinrow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
-:where(.lgtop, #ob) .skinrow button { border: 1.5px solid var(--line); background: var(--solid); border-radius: 14px; padding: 8px 4px 6px; cursor: pointer; font-size: 12.5px; font-weight: 700; position: relative; }
-:where(.lgtop, #ob) .skinrow button.on { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); }
-:where(.lgtop, #ob) .skinrow .pv { height: 34px; border-radius: 9px; margin-bottom: 5px; }
-:where(.lgtop, #ob) .skinrow .rec { position: absolute; top: -8px; right: -4px; font-size: 10px; background: var(--accent2); color: #fff; padding: 1px 6px; border-radius: 999px; }
-:where(.lgtop, #ob) .pals { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-:where(.lgtop, #ob) .pals button { border: 1.5px solid var(--line); background: var(--solid); border-radius: 14px; padding: 8px 4px; cursor: pointer; font-size: 12px; font-weight: 700; display: flex; flex-direction: column; align-items: center; gap: 5px; }
-:where(.lgtop, #ob) .pals button.on { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); }
-:where(.lgtop, #ob) .pals .dot { width: 30px; height: 30px; border-radius: 50%; box-shadow: inset 0 0 0 3px rgba(255,255,255,.6); }
-:where(.lgtop, #ob) .preview { margin: 14px 0 0; border-radius: 18px; padding: 12px; border: 1px solid var(--line); display: flex; gap: 10px; align-items: center; transition: background .3s; }
-:where(.lgtop, #ob) .preview .pvh { flex: 1; border-radius: 12px; padding: 10px 12px; color: #fff; font-weight: 800; }
-:where(.lgtop, #ob) .preview .pvb { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 22px; font-weight: 400; }
-:where(.lgtop, #ob) .chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-:where(.lgtop, #ob) .chips button { border: 1.5px solid var(--line); background: var(--solid); border-radius: 999px; padding: 8px 14px; cursor: pointer; font-weight: 700; font-size: 14px; }
-:where(.lgtop, #ob) .chips button.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--solid)); color: var(--accent); }
-:where(.lgtop, #ob) .opts { display: grid; gap: 10px; }
-:where(.lgtop, #ob) .opt { display: flex; gap: 12px; align-items: center; padding: 14px; border: 1.5px solid var(--line); border-radius: 18px; background: var(--solid); cursor: pointer; text-align: left; }
-:where(.lgtop, #ob) .opt.on { border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 14%, transparent); }
-:where(.lgtop, #ob) .opt .em { font-size: 28px; }
-:where(.lgtop, #ob) .opt b { display: block; }
-:where(.lgtop, #ob) .opt small { color: var(--sub); }
-.confetti { position: fixed; width: 9px; height: 13px; border-radius: 2px; z-index: 60; pointer-events: none; animation: fall 1.6s cubic-bezier(.15,.7,.4,1) forwards; }
-@keyframes fall { to { transform: translate(var(--dx), var(--dy)) rotate(var(--r)); opacity: 0; } }
-@media (max-width: 900px) {
-.lgtop { flex-direction: column; }
-:where(.lgtop, #ob) .stage { flex: none; padding: 64px 22px 8px; }
-:where(.lgtop, #ob) .stage .logo { top: 18px; left: 20px; }
-:where(.lgtop, #ob) .stage h1 { font-size: 32px; margin-bottom: 6px; }
-:where(.lgtop, #ob) .stage p.lead { font-size: 14px; margin-bottom: 0; }
-:where(.lgtop, #ob) .feats, :where(.lgtop, #ob) .floaty { display: none; }
-:where(.lgtop, #ob) .hero-mascot { width: 92px; right: 18px; bottom: auto; top: 46px; }
-:where(.lgtop, #ob) .side { padding: 14px 12px 28px; align-items: flex-start; }
-:where(.lgtop, #ob) .card { padding: 22px 18px 18px; border-radius: 24px; }
-:where(.lgtop, #ob) .ob-card { padding: 20px 16px 16px; }
-:where(.lgtop, #ob) .ob-step h3 { font-size: 26px; }
-:where(.lgtop, #ob) .pals { grid-template-columns: repeat(4, 1fr); }
-:where(.lgtop, #ob) .skinrow button { font-size: 11.5px; }
-}
-@media (prefers-reduced-motion: reduce) {
-:where(.lgtop, #ob) .hero-mascot, :where(.lgtop, #ob) .floaty, :where(.lgtop, #ob) .ob-art svg.m, :where(.lgtop, #ob) .ob-art .orb, :where(.lgtop, #ob) .ob-step { animation: none !important; }
-:where(.lgtop, #ob) .tabs .ind { transition: none; }
-}
-
-/* —— 介绍页里的登录区块 —— */
-.lgtop { background: radial-gradient(110% 70% at 0% 0%, var(--bg1), transparent 70%); line-height: normal; font-size: 15px; }
-#ob { font: 15px/normal -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; color: var(--text); }
-#ob.hidden, .lgtop .hidden { display: none !important; }
-html.authed .lgtop { display: none; }
-/* 介绍页同名样式在这里不生效 */
-.lgtop .stage { height: auto; place-items: normal; padding-top: 88px; }
-.lgtop .hint, #ob .hint { position: static; left: auto; bottom: auto; transform: none; display: block; justify-items: normal; gap: 0; z-index: auto; }
-.lgtop .ghost, #ob .ghost { display: block; min-height: 0; text-decoration: none; }
-.lgtop .foot { padding: 0; }
-#ob .m { display: block; opacity: 1; transform: none; margin: 0; transition: none; gap: 0; }
-.lgtop .pick.m { opacity: 1; transform: none; margin-bottom: 0; }   /* 「男生」选项的类名 m 跟介绍页撞了 */
-.lgtop .pick.m:hover { transform: translateY(-1px); }
-.lgtop .side { padding-top: 76px; }   /* 别被顶栏挡住 */
-/* 往下看介绍 */
-.lg-more { position: absolute; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: grid; justify-items: center; gap: 6px;
-  font-size: 13px; color: var(--sub); text-decoration: none; white-space: nowrap; }
-.lg-more i { width: 22px; height: 34px; border: 2px solid currentColor; border-radius: 12px; position: relative; }
-.lg-more i::after { content: ""; position: absolute; left: 50%; top: 6px; width: 4px; height: 7px; margin-left: -2px; border-radius: 2px; background: currentColor; animation: wheel 1.6s ease-in-out infinite; }
-.lg-more:hover { color: var(--text); }
-@media (max-width: 900px) {
-  .lgtop { min-height: 0; padding-bottom: 8px; }
-  .lgtop .stage { padding-top: 70px; }
-  .lgtop .side { padding-top: 14px; }
-  .lgtop .hero-mascot { top: 62px; }
-  .lg-more { position: static; transform: none; margin: 4px auto 18px; }
-  .lg-more i { display: none; }
-}
-
-/* ===== 清爽版：和 App 统一的白卡片 + 大字标题 ===== */
-@font-face { font-family: "Bricolage"; src: url("fonts/bricolage.woff") format("woff"); font-weight: 200 800; font-display: swap; }
-:root { --d: -apple-system, BlinkMacSystemFont, "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;  }
-.lines, .sec > h2, .day > h2, .hr h3, .get-sec h2, .faq h3, .cal .mh b { font-weight: 900 !important; letter-spacing: -.02em; }
-.hr time { font-family: "Bricolage", var(--s); font-weight: 800; letter-spacing: -.03em; }
-:where(.lgtop, #ob) .stage h1, :where(.lgtop, #ob) .ob-step h3 { font-weight: 900; letter-spacing: -.5px; }
-:where(.lgtop, #ob) .feat { border-color: transparent; box-shadow: 0 1px 2px rgba(20,26,46,.04), 0 8px 24px -16px var(--glow); }
-:where(.lgtop, #ob) .card { border-color: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: 0 1px 2px rgba(20,26,46,.04), 0 24px 60px -30px var(--glow); }
-:where(.lgtop, #ob) .card h2 { font-size: 26px; font-weight: 900; letter-spacing: -.3px; }
-:where(.lgtop, #ob) .tabs button.on { color: #fff; }
-:where(.lgtop, #ob) .tabs .ind { background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 75%, #fff), var(--accent)); box-shadow: 0 6px 14px -8px var(--accent); }
-:where(.lgtop, #ob) .inp input { background: color-mix(in srgb, var(--accent) 4%, #fff); border-color: transparent; }
-:where(.lgtop, #ob) .inp input:focus { background: #fff; }
-:where(.lgtop, #ob) button.go { border-radius: 999px; }
-:where(.lgtop, #ob) button.ghost { border-radius: 999px; }
-</style>
+<link rel="stylesheet" href="studio-v2.css?v=20261005-studio2">
 </head>
-<body data-root="">
-<div id="sky" aria-hidden="true"><div class="stars"></div></div>
-
-<header class="top" id="top">
-  <a class="brand" href="index.html"><img src="favicon.svg" alt="">捞捞课程表</a>
-  <nav><a href="#more">手机版</a><a href="#pc">电脑版</a><a href="#day">一天怎么用</a><a href="#faq">常见问题</a><a class="pill" href="#get">下载</a></nav>
-</header>
-
+<body class="studio-public" data-root="">
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
     <g id="mascotArt">
@@ -662,21 +65,100 @@ html.authed .lgtop { display: none; }
   </defs>
 </svg>
 
-<!-- ===== 登录（没登录的人一进来先看到这里） ===== -->
-<section class="lgtop" id="login">
-<div class="stage">
-  <h1 id="stageTitle">群消息太多？<br><em>捞捞</em>帮你理清楚</h1>
-  <p class="lead" id="stageLead">作业、通知、活动自动整理成日历，换手机、换浏览器登录同一个账号，你的待办都在。</p>
-  <div class="feats">
-    <div class="feat"><i>📝</i>作业截止一眼看清</div>
-    <div class="feat"><i>📚</i>拍照导入课程表</div>
-    <div class="feat"><i>☁️</i>多设备云端同步</div>
-    <div class="feat"><i>🌐</i>捞捞元宇宙</div>
+
+<a class="s-skip" href="#main">跳到主要内容</a>
+<header class="s-header">
+  <a class="s-brand" href="app.html" aria-label="捞捞课程表首页"><span class="s-brand-icon"><img src="favicon.svg" alt=""></span><span>捞捞<span class="s-brand-sub">校园学习伙伴</span></span></a>
+  <nav class="s-nav" aria-label="网站导航"><a href="#features">功能亮点</a><a href="#how">怎么使用</a><a href="#get">多端下载</a><a href="#faq">常见问题</a></nav>
+  <div class="s-header-actions"><a class="s-login-link" href="#login" data-login-focus>登录</a><a class="s-button s-button-small" href="index.html?guest=1">进入工作台 <span aria-hidden="true">↗</span></a></div>
+</header>
+<main id="main">
+<section class="s-hero" aria-labelledby="hero-title">
+  <div class="s-hero-copy">
+    <div class="s-eyebrow"><span class="s-dot"></span> LAOLAO CAMPUS <span class="s-eyebrow-line"></span> 把日子，过得有条理</div>
+    <h1 id="hero-title">校园的每一天，<br>都有<span class="s-underline">自己的节奏<svg viewBox="0 0 420 16" preserveAspectRatio="none" aria-hidden="true"><path d="M4 11 Q180 -2 415 8" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round"/></svg></span>。</h1>
+    <p class="s-hero-lead">课表、作业、班级消息，还有你的小目标。<br>让重要的事井井有条，把更多时间留给热爱。</p>
+    <div class="s-hero-actions"><a class="s-button" href="index.html?guest=1">开始我的校园日常 <span aria-hidden="true">↗</span></a><a class="s-text-link" href="#features">认识一下捞捞 <span aria-hidden="true">↓</span></a></div>
+    <div class="s-hero-notes"><span><svg aria-hidden="true" viewBox="0 0 16 16"><path d="m3 8 3 3 7-7"/></svg>免登录也能先体验</span><span><svg aria-hidden="true" viewBox="0 0 16 16"><path d="m3 8 3 3 7-7"/></svg>手机和电脑都能用</span></div>
+    <div class="s-hero-bottom"><span class="s-mini-avatar"><svg viewBox="0 0 120 120" aria-hidden="true"><use href="#mascotArt"/></svg></span><p>嗨，我是捞捞。<br><b>今天，也陪你认真生活。</b></p><svg class="s-hand-arrow" viewBox="0 0 80 48" aria-hidden="true"><path d="M4 9 Q40 3 51 35 Q58 47 73 29 M58 28l16 0-4 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
   </div>
-  <svg class="hero-mascot" viewBox="0 0 120 120" aria-hidden="true"><use href="#mascotArt"/></svg>
-  <div id="floaties"></div>
-</div>
-<div class="side">
+  <div class="s-hero-visual">
+    <span class="s-spark" aria-hidden="true">✷</span>
+    <div class="s-preview-label"><span></span> 看看你的学习空间 <small>功能界面示意</small></div>
+    <div class="s-product" id="landing-demo">
+      <aside class="s-product-rail" aria-hidden="true"><img src="favicon.svg" alt=""><span class="on">⌂</span><span>▦</span><span>✓</span><span>◷</span><i></i><span>◉</span></aside>
+      <div class="s-product-main">
+        <div class="s-product-top"><span>我的学习空间</span><span class="s-product-avatar">L</span></div>
+        <div class="s-product-greeting"><div><small>新的一天，慢慢来</small><h2>今天也要好好生活 <span aria-hidden="true">☀</span></h2></div><span class="s-product-status">示例预览</span></div>
+        <div class="s-demo-tabs" id="demo-tabs" role="tablist" aria-label="功能示例">
+          <button id="demo-tab-week" role="tab" aria-selected="true" aria-controls="demo-week" tabindex="0" data-demo="week">一周课表</button>
+          <button id="demo-tab-tasks" role="tab" aria-selected="false" aria-controls="demo-tasks" tabindex="-1" data-demo="tasks">我的待办</button>
+          <button id="demo-tab-focus" role="tab" aria-selected="false" aria-controls="demo-focus" tabindex="-1" data-demo="focus">专注时光</button>
+        </div>
+        <div class="s-demo-panel" id="demo-week" role="tabpanel" aria-labelledby="demo-tab-week">
+          <div class="s-week-label"><b>让每一节课，都心中有数</b><span>周视图</span></div>
+          <div class="s-week">
+            <div class="s-week-day"><b>周一<small>MON</small></b><div class="s-class mint"><small>08:30</small><strong>高等数学</strong><span>A302</span></div><div class="s-class lilac short"><small>14:00</small><strong>大学英语</strong></div></div>
+            <div class="s-week-day"><b>周二<small>TUE</small></b><div class="s-class peach late"><small>10:00</small><strong>程序设计</strong><span>实验楼 201</span></div></div>
+            <div class="s-week-day"><b>周三<small>WED</small></b><div class="s-class lilac"><small>08:30</small><strong>大学英语</strong><span>B105</span></div><div class="s-class mint short"><small>14:00</small><strong>线性代数</strong></div></div>
+            <div class="s-week-day"><b>周四<small>THU</small></b><div class="s-class mint late"><small>10:00</small><strong>高等数学</strong><span>A302</span></div></div>
+            <div class="s-week-day"><b>周五<small>FRI</small></b><div class="s-class peach"><small>08:30</small><strong>体育</strong><span>东操场</span></div><div class="s-class lilac short"><small>14:00</small><strong>程序设计</strong></div></div>
+          </div>
+        </div>
+        <div class="s-demo-panel" id="demo-tasks" role="tabpanel" aria-labelledby="demo-tab-tasks" hidden>
+          <div class="s-week-label"><b>完成一件，就轻松一点</b><span id="demo-task-progress" aria-live="polite">0 / 3 已完成</span></div>
+          <div class="s-demo-task-list"><button class="s-demo-task" data-demo-task aria-pressed="false"><i aria-hidden="true"></i><span><b>完成高数第三章习题</b><small>学习 · 今天 22:00</small></span><em>今天</em></button><button class="s-demo-task" data-demo-task aria-pressed="false"><i aria-hidden="true"></i><span><b>准备社团活动的分享</b><small>校园 · 明天 14:00</small></span><em>明天</em></button><button class="s-demo-task" data-demo-task aria-pressed="false"><i aria-hidden="true"></i><span><b>去图书馆读一会儿书</b><small>生活 · 给自己留点时间</small></span><em>本周</em></button></div>
+        </div>
+        <div class="s-demo-panel s-demo-focus" id="demo-focus" role="tabpanel" aria-labelledby="demo-tab-focus" hidden>
+          <div class="s-focus-caption">此刻，只做一件事</div><div class="s-focus-clock" id="demo-pomo-clock" role="timer" aria-label="专注示例剩余时间">25:00</div><div class="s-focus-actions"><button id="demo-pomo-toggle" aria-pressed="false">开始专注</button><button id="demo-pomo-reset" aria-label="重置专注示例">↺ 重置</button></div><p>体验用计时器，记录不会保存到账号</p>
+        </div>
+        <div class="s-product-foot"><span><i></i> 点击上方标签，体验不同功能</span><a href="index.html?guest=1">打开真实工作台 ↗</a></div>
+      </div>
+    </div>
+    <div class="s-note-card"><span class="s-note-mark" aria-hidden="true">✦</span><div><small>给生活一点留白</small><b>有计划，也有小惊喜。</b></div><span class="s-note-check" aria-hidden="true">✓</span></div>
+    <div class="s-visual-caption"><span>LESS CHAOS.</span><b>MORE CAMPUS LIFE.</b></div>
+  </div>
+</section>
+<div class="s-platform-strip"><span>你的校园日常，随时接得上</span><div><span>◉ 网页版</span><span>▯ 安卓 App</span><span>▣ Windows 电脑版</span></div><a href="#get">选择适合你的方式 <span aria-hidden="true">↗</span></a></div>
+
+<section class="s-section s-features" id="features" aria-labelledby="features-title">
+  <div class="s-section-head"><div><span class="s-kicker">01 / EVERYDAY ESSENTIALS</span><h2 id="features-title">重要的事，<br>都在一个<span>地方。</span></h2></div><p>从早八到晚自习，从课堂到自己的小世界。<br>少一点来回寻找，多一点从容安排。</p></div>
+  <div class="s-feature-grid">
+    <article class="s-feature s-feature-schedule"><div class="s-feature-top"><span class="s-feature-icon">▦</span><span>01</span></div><h3>下一节课，<br>一眼就找到。</h3><p>课程、时间、教室集中查看。支持课表导入，把整个学期安排得明明白白。</p><div class="s-feature-mini"><div class="s-mini-row"><span>08:30</span><b>高等数学<small>A302 · 课程示例</small></b><i>上课</i></div><div class="s-mini-row muted"><span>10:20</span><b>大学英语<small>B105 · 课程示例</small></b></div></div></article>
+    <article class="s-feature s-feature-todo"><div class="s-feature-top"><span class="s-feature-icon">✓</span><span>02</span></div><h3>每一个截止，<br>都有着落。</h3><p>作业、活动和个人事项整理成日程。完成后轻轻勾选，心里也轻一点。</p><div class="s-paper-task"><span>TO DO, THEN LET GO.</span><div><i>✓</i><b>给今天的任务画上句号</b></div><div class="muted"><i></i><b>为明天留一点准备</b></div></div></article>
+    <article class="s-feature s-feature-focus"><div class="s-feature-top"><span class="s-feature-icon">◷</span><span>03</span></div><h3>小小的专注，<br>也值得认真。</h3><p>四象限规划、番茄钟、习惯打卡。找到适合自己的方法，慢慢走也会到达。</p><div class="s-mini-focus"><span class="s-mini-focus-ring"><b>25<small>MINUTES</small></b></span><div><b>一点点，变更好。</b><span>专注功能示意</span></div></div></article>
+  </div>
+  <div class="s-tool-row"><div><span class="s-tool-star" aria-hidden="true">✷</span><p>校园生活，还有很多种打开方式。<br><b>班级墙、AI 问答、工具插件、云宠农场……</b></p></div><a class="s-text-link" href="index.html?guest=1">去发现更多工具 <span aria-hidden="true">↗</span></a></div>
+</section>
+
+<section class="s-story" id="more" aria-labelledby="story-title">
+ <div class="s-story-copy"><span class="s-kicker">02 / MAKE ROOM FOR WHAT MATTERS</span><h2 id="story-title">群消息再多，<br>要紧的事<span>不漏掉。</span></h2><p>把群里的作业、通知和活动整理进日历。<br>信息有了位置，你也有了更多自己的时间。</p><a class="s-button s-button-ink" href="index.html?guest=1">体验日程整理 <span aria-hidden="true">↗</span></a><small>整理结果需要核对，以老师与班级通知为准。</small></div>
+ <div class="s-story-visual" aria-label="群消息整理功能示意"><div class="s-message-stack"><div class="s-message s-message-soft"><span>同学</span><p>晚上有人一起去图书馆吗？</p></div><div class="s-message"><span class="s-msg-avatar">学</span><div><b>学习委员 <small>14:20</small></b><p>高数第三章习题，周五 22:00 前提交。</p></div></div><div class="s-message s-message-soft"><span>同学</span><p>收到，谢谢！</p></div></div><div class="s-story-arrow" aria-hidden="true">↓</div><div class="s-organized"><span class="s-organized-icon">✓</span><div><small>整理后的事项 · 示例</small><b>高数第三章习题</b><span>周五 22:00 截止 <i>作业</i></span></div><span class="s-organized-star" aria-hidden="true">✦</span></div></div>
+</section>
+
+<section class="s-section s-how" id="how" aria-labelledby="how-title"><div class="s-section-head"><div><span class="s-kicker">03 / A SIMPLE START</span><h2 id="how-title">三步，进入<span>你的节奏。</span></h2></div><a class="s-text-link" href="#login" data-login-focus>创建我的账号 <span aria-hidden="true">↗</span></a></div><ol class="s-steps"><li><span>01</span><h3>先认识你的工作台</h3><p>无需登录，也可以体验个人事项、规划和工具，找到适合你的用法。</p></li><li><span>02</span><h3>装下课表和班级</h3><p>注册后导入课表，使用班级码加入班级，把大家的重要安排放在一起。</p></li><li><span>03</span><h3>每天，轻松打开</h3><p>查看下一节课，完成手头的事。手机和电脑登录同一账号，接着用。</p></li></ol></section>
+
+<section class="s-download" id="get" aria-labelledby="download-title">
+ <div class="s-download-head"><div><span class="s-kicker">04 / ALWAYS WITH YOU</span><h2 id="download-title">换个屏幕，<br>也接得上你的日常。</h2></div><p>在教室，在图书馆，在回宿舍的路上。<br>选择你常用的设备，让捞捞跟着你。</p></div>
+ <div class="s-download-grid">
+  <article class="s-download-card"><span class="s-device-icon" aria-hidden="true">▯</span><span class="s-device-tag">ANDROID</span><h3>口袋里的校园伙伴</h3><p>随手查看课程与事项，接收时间提醒。</p><a class="s-button get" id="getApk" data-get="apk" href="download/class-calendar.apk" download><span data-lbl>下载安卓 App</span><span aria-hidden="true">↓</span></a><small class="meta" data-meta="getApk">安卓 7.0 及以上</small><div class="s-qr qr" data-qr hidden><img src="download/qr.svg" alt="安卓客户端下载页面二维码"><span>用手机扫码<br>打开下载页</span></div><p class="after" data-after aria-live="polite"></p></article>
+  <article class="s-download-card"><span class="s-device-icon desktop" aria-hidden="true">▣</span><span class="s-device-tag">WINDOWS</span><h3>桌面上的学习空间</h3><p>大屏整理安排，配合桌面提醒与 AI 助手。</p><a class="s-button get" id="getExe" data-get="exe" href="https://github.com/hangyuan2024-hue/class-calendar/releases/latest/download/LaolaoKechengbiao-Setup.exe"><span data-lbl>下载 Windows 电脑版</span><span aria-hidden="true">↓</span></a><small class="meta" data-meta="getExe">Windows 10 / 11 · 64 位</small><p class="after" data-after aria-live="polite"></p></article>
+  <article class="s-download-card s-web-card"><span class="s-device-icon" aria-hidden="true">◎</span><span class="s-device-tag">WEB</span><h3>打开浏览器，就在</h3><p>苹果手机、Mac 或其他设备，都可以使用网页版。</p><a class="s-button s-button-outline" href="index.html?guest=1">打开网页版 <span aria-hidden="true">↗</span></a><small>iPhone 可通过 Safari 添加到主屏幕</small><span class="s-coming"><i></i> 微信小程序正在开发，敬请期待</span></article>
+ </div>
+</section>
+
+<section class="s-section s-faq" id="faq" aria-labelledby="faq-title"><div><span class="s-kicker">A FEW THINGS TO KNOW</span><h2 id="faq-title">你可能还想<span>知道。</span></h2><p>开始之前的小问题，<br>我们也替你想到了。</p></div><div class="s-faq-list">
+ <details><summary>不登录，可以先体验吗？<span aria-hidden="true">+</span></summary><p>可以。点击「进入工作台」，就可以体验个人事项、规划和工具。登录后可以使用账号同步、加入班级等功能。</p></details>
+ <details><summary>手机和电脑上的数据互通吗？<span aria-hidden="true">+</span></summary><p>使用同一个账号登录，并开启云同步后，课表、个人事项和完成记录等会在设备之间同步。离线或只保存在本机的记录，需要联网同步或自行备份。</p></details>
+ <details><summary>苹果手机和 Mac 也可以使用吗？<span aria-hidden="true">+</span></summary><p>可以使用网页版。iPhone 用 Safari 打开后，点击分享，再选择「添加到主屏幕」。目前独立桌面软件支持 Windows，安卓手机有 App。</p></details>
+ <details><summary>安卓安装包在微信里无法下载怎么办？<span aria-hidden="true">+</span></summary><p>点击微信右上角「···」，选择「在浏览器打开」，然后下载安卓安装包。安装时如提示未知来源，请按照系统提示选择是否允许安装。</p></details>
+ <details><summary>课程和通知的整理结果需要核对吗？<span aria-hidden="true">+</span></summary><p>需要。日程整理用于帮助你提取重要信息，时间、教室和作业要求仍应以老师发布的内容为准，确认后再保存。</p></details>
+ <details><summary>微信小程序已经上线了吗？<span aria-hidden="true">+</span></summary><p>当前项目页面显示小程序正在开发。上线后会在下载页提供明确的入口，目前可以先使用网页版或安卓 App。</p></details>
+ </div></section>
+
+<section class="lgtop s-login-section" id="login" aria-labelledby="stageTitle">
+ <div class="stage"><span class="s-kicker">READY WHEN YOU ARE.</span><h2 id="stageTitle">让今天，<br>成为一个好开始。</h2><p class="lead" id="stageLead">登录你的账号，把课表、作业和自己的小目标放在一起。慢慢来，每一步都算数。</p><div class="s-login-benefits"><span>✓ 同一账号，多端使用</span><span>✓ 记录个人事项与成长</span><span>✓ 通过班级码加入班级</span></div><svg class="s-login-mascot" viewBox="0 0 120 120" aria-hidden="true"><use href="#mascotArt"/></svg><div id="floaties" aria-hidden="true"></div></div>
+ <div class="side">
   <div class="card">
     <div id="already" class="already hidden">
       <div class="av" id="alreadyAv">?</div>
@@ -696,7 +178,7 @@ html.authed .lgtop { display: none; }
       <form id="form" autocomplete="on" novalidate>
         <div class="fld">
           <label for="account">账号</label>
-          <div class="inp"><span class="ic">👤</span><input id="account" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="20" placeholder="学号或自己起的账号" required><span class="ok hidden" id="accOk">✓</span></div>
+          <div class="inp"><span class="ic">👤</span><input id="account" aria-describedby="accHint" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="20" placeholder="学号或自己起的账号" required><span class="ok hidden" id="accOk">✓</span></div>
           <div class="hint" id="accHint"></div>
         </div>
         <div class="signup-only">
@@ -722,14 +204,14 @@ html.authed .lgtop { display: none; }
         </div>
         <div class="fld">
           <label for="password">密码</label>
-          <div class="inp"><span class="ic">🔒</span><input id="password" type="password" autocomplete="current-password" required placeholder="至少 8 位"><button type="button" class="eye" data-eye="password" aria-label="显示密码">👁</button></div>
+          <div class="inp"><span class="ic">🔒</span><input id="password" aria-describedby="pwHint" type="password" autocomplete="current-password" required placeholder="至少 8 位"><button type="button" class="eye" data-eye="password" aria-label="显示密码">👁</button></div>
           <div class="meter signup-only" id="meter"><i></i><i></i><i></i><i></i></div>
           <div class="forgot-l login-only"><a href="#" id="forgotLink">忘记密码？</a></div>
           <div class="hint" id="pwHint"></div>
         </div>
         <div class="fld signup-only">
           <label for="password2">确认密码</label>
-          <div class="inp"><span class="ic">🔁</span><input id="password2" type="password" autocomplete="new-password" placeholder="再输一遍"><button type="button" class="eye" data-eye="password2" aria-label="显示密码">👁</button></div>
+          <div class="inp"><span class="ic">🔁</span><input id="password2" aria-describedby="pw2Hint" type="password" autocomplete="new-password" placeholder="再输一遍"><button type="button" class="eye" data-eye="password2" aria-label="显示密码">👁</button></div>
           <div class="hint" id="pw2Hint"></div>
         </div>
         <button class="go" id="go" type="submit"><span class="spin"></span><span id="goText">登录</span></button>
@@ -756,313 +238,25 @@ html.authed .lgtop { display: none; }
         <button class="go" type="button" id="fgDone"><span class="spin"></span>设置新密码并登录</button>
       </div>
       <div class="fg-help" id="fgHelp"></div>
-      <div id="fgMsg" class="hint err" style="text-align:center;margin-top:10px"></div>
+      <div id="fgMsg" role="alert" class="hint err" style="text-align:center;margin-top:10px"></div>
       <button type="button" class="ghost" id="fgBack">← 返回登录</button>
       <details class="fg-more"><summary>没绑定邮箱怎么办？</summary>
         <p>请联系你的<b>班主任</b>：老师在你的个人主页（班级墙点你的名字）可以给你重置一个临时密码，用临时密码登录后会让你马上设置新密码。</p>
         <p>老师账号忘记密码请联系网站管理员。找回之后，记得去「我的 → 邮箱通知」绑定邮箱，以后就能自己找回了。</p></details>
     </div>
-    <div class="foot"><a href="#hero">📖 功能介绍</a>　·　<a href="index.html?guest=1">不登录，先逛逛 →</a></div>
+    <div class="foot"><a href="#features">了解功能</a>　·　<a href="index.html?guest=1">不登录，先逛逛 →</a></div>
   </div>
 </div>
-<a class="lg-more" href="#hero"><i></i>往下滑，看看捞捞能帮你做什么</a>
-</section>
-
-
-<main>
-<section class="hero" id="hero">
-  <div class="stick">
-    <div class="copy">
-      <h1 class="sr">捞捞课程表：把群消息里的作业和通知整理成日历，到点提醒你。有安卓 App 和 Windows 电脑版</h1>
-      <div class="lines" aria-hidden="true">
-        <p class="line on" data-s="0">群消息 99+，<br>要紧的又被<mark>刷走了</mark></p>
-        <p class="line" data-s="1">别翻了，<br>捞捞替你<mark>捞出来</mark></p>
-        <p class="line" data-s="2">放进日历，<br>到点就<mark>提醒你</mark></p>
-      </div>
-      <p class="lede">群里的作业、通知、班会，一键整理进日历；快到时间，手机和电脑都会提醒你。安卓 App、Windows 电脑版、网页版，同一个账号，数据自动同步。</p>
-      <div class="cta">
-        <a class="get" id="heroGet" data-get="auto" href="#get">
-          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="arrow"><path d="M12 4v11"/><path d="m7 10 5 5 5-5"/></g><path d="M5 20h14"/></svg>
-          <span class="lbl" data-lbl>下载</span>
-        </a>
-        <a class="ghost" data-web href="index.html">打开网页版</a>
-      </div>
-      <p class="meta"><span data-meta="heroGet">免费下载</span>　<a class="alldl" href="#get">全部下载方式 →</a></p>
-    </div>
-
-    <div class="stage">
-      <div class="phone" id="heroPhone">
-        <div class="screen" id="scr">
-          <div class="sbar"><span>12:30</span><i>▮▮▮</i></div>
-          <div class="chat" id="chat">
-            <header><span>‹</span><span>计科2601班 <b>(52)</b></span><span>···</span></header>
-            <div class="vp" id="vp"><div class="msgs" id="msgs"></div></div>
-            <footer><s></s><i></i><s></s></footer>
-          </div>
-          <div class="cal" id="cal" aria-hidden="true">
-            <div class="mh"><span class="me">我</span><b id="calM">10月</b></div>
-            <div class="lg"><span><i style="background:#ff7b2e"></i>作业</span><span><i style="background:#2d5bd6"></i>会议</span><span><i style="background:#8a99ad"></i>通知</span></div>
-            <div class="grid" id="calG"></div>
-            <div class="agenda" id="agenda">
-              <h4>今天和接下来</h4>
-              <div class="ag"><em class="k-a">通知</em><b>国庆离校登记</b><small>今天 22:00</small></div>
-              <div class="ag"><em class="k-c">会议</em><b>班会 · B302</b><small>明天 15:00</small></div>
-              <div class="ag"><em class="k-b">作业</em><b>高数 习题 3.2</b><small id="agB">周五 23:59</small></div>
-            </div>
-          </div>
-          <div id="flyers"></div>
-          <div class="noti" id="noti">
-            <img src="favicon.svg" alt="">
-            <small><span>捞捞课程表</span><span>现在</span></small>
-            <b>国庆离校登记 今晚 22:00 截止</b>
-            <span>还没填哦，点这里两分钟就能弄完。</span>
-          </div>
-        </div>
-      </div>
-      <div class="count" id="count" aria-hidden="true">未读 <b id="countN">12</b></div>
-      <svg class="lao" id="lao" viewBox="-4 -40 110 104" aria-hidden="true">
-        <g class="arm"><path d="M52 40 q8 -2 12 -10" fill="none" stroke="#0e2240" stroke-width="3.2" stroke-linecap="round"/>
-          <path d="M63 32 L86 -16" stroke="#b07a3c" stroke-width="3.4" stroke-linecap="round"/>
-          <ellipse cx="91" cy="-24" rx="13" ry="8" transform="rotate(-25 91 -24)" fill="rgba(255,255,255,.55)" stroke="#0e2240" stroke-width="2.6"/>
-          <path d="M80 -24 q11 18 22 -6 M84 -30 q6 16 15 -3 M86 -18 l12 -9 M83 -22 l16 -11" fill="none" stroke="#0e2240" stroke-width="1.2" opacity=".6"/></g>
-        <g class="body">
-          <path class="hand2" d="M12 40 q-8 -1 -11 -9" fill="none" stroke="#0e2240" stroke-width="3.2" stroke-linecap="round"/>
-          <rect x="11" y="17" width="42" height="38" rx="12" fill="#fff" stroke="#0e2240" stroke-width="3.2"/>
-          <path d="M11 30 V29 a12 12 0 0 1 12 -12 h18 a12 12 0 0 1 12 12 v1 z" fill="#ff8a3d" stroke="#0e2240" stroke-width="3.2" stroke-linejoin="round"/>
-          <rect x="20" y="10" width="5.5" height="12" rx="2.75" fill="#0e2240"/><rect x="38.5" y="10" width="5.5" height="12" rx="2.75" fill="#0e2240"/>
-          <g class="eyes"><ellipse cx="24.5" cy="39.5" rx="3.4" ry="4.2" fill="#0e2240"/><ellipse cx="39.5" cy="39.5" rx="3.4" ry="4.2" fill="#0e2240"/>
-            <circle cx="25.7" cy="37.8" r="1.3" fill="#fff"/><circle cx="40.7" cy="37.8" r="1.3" fill="#fff"/></g>
-          <ellipse cx="18.5" cy="46" rx="3.2" ry="2" fill="#ff9db5"/><ellipse cx="45.5" cy="46" rx="3.2" ry="2" fill="#ff9db5"/>
-          <path d="M28.5 46 q3.5 3.6 7 0" fill="none" stroke="#0e2240" stroke-width="2.6" stroke-linecap="round"/>
-        </g>
-        <path class="spark" d="M4 -6 l2 4.5 4.5 2 -4.5 2 -2 4.5 -2 -4.5 -4.5 -2 4.5 -2z" fill="#ffd23f"/>
-        <path class="spark" d="M60 4 l1.5 3.4 3.4 1.5 -3.4 1.5 -1.5 3.4 -1.5 -3.4 -3.4 -1.5 3.4 -1.5z" fill="#ffd23f"/>
-      </svg>
-    </div>
-    <div class="hint" id="hint"><i></i>往下滑，看捞捞怎么捞</div>
-  </div>
-</section>
-
-<section class="sec" id="more">
-  <h2>装进手机，比网页多了这些</h2>
-  <p class="sub">账号和网页版是同一个，登录后数据自动同步。网页能做的它都能做，下面这些是 App 才有的。</p>
-  <div class="droid">
-    <ul class="perks">
-      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><b>到点就提醒</b><span>作业截止、班会开始前，通知栏准时弹出来，不用一直开着网页。</span></li>
-      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg><b>重启手机也不丢</b><span>手机关机再开，设好的提醒会自己恢复。</span></li>
-      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5-7 7 7 7"/></svg><b>返回键顺手</b><span>按返回先关弹窗、再回上一页，不会一下子退出去。</span></li>
-      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/><path d="M12 11v6"/><path d="m9 14 3 3 3-3"/></svg><b>文件直接存手机</b><span>导出的日历、备份文件，存到手机里，也能直接分享到微信。</span></li>
-      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h.01"/><path d="M8.5 16.4a5 5 0 0 1 7 0"/><path d="M5 12.9a10 10 0 0 1 14 0"/><path d="m2 2 20 20"/></svg><b>没网也能看</b><span>地铁上、教室信号差，打开过的内容照样能看。</span></li>
-      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M8 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/></svg><b>有新版自己告诉你</b><span>出新版本时首页会提示，点一下就更新，数据不会丢。</span></li>
-    </ul>
-    <div class="skinbox">
-      <div class="phone mini" id="mini" data-k="sky">
-        <div class="screen"><div class="ms">
-          <div class="sbar"><span>08:00</span><i>▮▮▮</i></div>
-          <div class="hd"><i></i><b>首页</b></div>
-          <div class="hello"><small>10月2日 周五</small><strong>早上好，小明</strong><span>今天有 2 项作业，先做最急的那件。</span>
-            <svg viewBox="8 6 52 52" aria-hidden="true"><rect x="11" y="17" width="42" height="38" rx="12" fill="#fff" stroke="#0e2240" stroke-width="3.2"/><path d="M11 30 V29 a12 12 0 0 1 12 -12 h18 a12 12 0 0 1 12 12 v1 z" fill="#ff8a3d" stroke="#0e2240" stroke-width="3.2"/><rect x="20" y="10" width="5.5" height="12" rx="2.75" fill="#0e2240"/><rect x="38.5" y="10" width="5.5" height="12" rx="2.75" fill="#0e2240"/><ellipse cx="24.5" cy="39.5" rx="3.4" ry="4.2" fill="#0e2240"/><ellipse cx="39.5" cy="39.5" rx="3.4" ry="4.2" fill="#0e2240"/><path d="M28.5 46 q3.5 3.6 7 0" fill="none" stroke="#0e2240" stroke-width="2.6" stroke-linecap="round"/></svg></div>
-          <div class="tiles"><div class="tile t1"><b>作业</b><strong>2</strong><small>项没交</small></div><div class="tile t2"><b>日历</b><strong>5</strong><small>今天待办</small></div></div>
-          <div class="quad"><div style="--q:#f04438"><b>重要且紧急</b>高数作业</div><div style="--q:#1e8cff"><b>重要不紧急</b>四级单词</div><div style="--q:#f5a524"><b>紧急不重要</b>交医保材料</div><div style="--q:#8a99ad"><b>不重要不紧急</b>整理相册</div></div>
-          <div class="tabbar"><i></i><i></i><i></i><i></i><i></i></div>
-        </div></div>
-      </div>
-      <div class="skins" role="group" aria-label="换个皮肤看看">
-        <button type="button" data-k="sky" aria-pressed="true" style="--sw:linear-gradient(135deg,#8fd0ff,#1ea0ff)"><i></i>天空</button>
-        <button type="button" data-k="sakura" aria-pressed="false" style="--sw:linear-gradient(135deg,#ffc2d4,#ff6b9a)"><i></i>樱花</button>
-        <button type="button" data-k="night" aria-pressed="false" style="--sw:linear-gradient(135deg,#333,#000)"><i></i>暗夜</button>
-        <button type="button" data-k="cyber" aria-pressed="false" style="--sw:linear-gradient(135deg,#ff2bd6,#00f0ff)"><i></i>赛博</button>
-      </div>
-      <p class="tiny" style="margin:0;color:var(--fg2)">点一下换皮肤，App 里还有更多配色，也能用自己的照片当背景。</p>
-    </div>
-  </div>
-  <div class="pcget appget" data-dl>
-    <div class="appget-row">
-      <a class="get" id="moreApk" data-get="apk" href="download/class-calendar.apk" download>
-        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="arrow"><path d="M12 4v11"/><path d="m7 10 5 5 5-5"/></g><path d="M5 20h14"/></svg>
-        <span class="lbl" data-lbl>下载安卓 App</span>
-      </a>
-      <div class="qr" data-qr hidden><img src="download/qr.svg" alt="下载页二维码" loading="lazy"><div><b>在电脑上看？</b><span>用手机扫一扫<br>打开下载页直接安装</span></div></div>
-    </div>
-    <p class="meta" data-meta="moreApk">免费，安卓 7.0 及以上都能装</p>
-    <p class="after" data-after aria-live="polite"></p>
-  </div>
-</section>
-
-<section class="sec pc" id="pc">
-  <h2>在电脑上，铺开了用</h2>
-  <p class="sub">Windows 电脑版不是把网页塞进窗口，而是照着大屏幕重新排的版：整周的课、一学期的作业，一眼看全。账号和手机通用，在哪改都会同步。</p>
-  <div class="pcwrap">
-    <div class="pcwin" id="pcWin">
-      <div class="pcbar" aria-hidden="true"><i></i><i></i><i></i></div>
-      <img id="pcShot" src="download/pc/today.webp" width="1600" height="1000" loading="lazy" decoding="async" alt="捞捞课程表电脑版：今日总览">
-    </div>
-    <div class="pctabs" role="tablist" aria-label="看看电脑版的几个页面">
-      <button type="button" role="tab" aria-selected="true" data-shot="today" data-alt="今日总览"><b>今日</b><span>今天的课、要做的事、专注和统计，一页看完</span></button>
-      <button type="button" role="tab" aria-selected="false" data-shot="week" data-alt="整周课程表"><b>课程表</b><span>整周铺满屏幕，红线标出现在上到哪节</span></button>
-      <button type="button" role="tab" aria-selected="false" data-shot="month" data-alt="月历"><b>月历</b><span>自己记的事直接拖到别的日子</span></button>
-      <button type="button" role="tab" aria-selected="false" data-shot="ai" data-alt="离线 AI 助手（深色模式）"><b>AI 助手</b><span>问「明天几点上课」，不联网也能答</span></button>
-    </div>
-  </div>
-  <ul class="perks pcperks">
-    <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><b>右下角准时提醒</b><span>上课前、截止前弹通知。关掉窗口它缩到托盘，照样提醒。</span></li>
-    <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg><b>一个快捷键记一件事</b><span>在任何软件里按 Ctrl+Alt+空格，写「明天下午3点交报告」，日期时间自动认出来。</span></li>
-    <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><path d="m3.5 6 1.5 1.5L7.5 5M3.5 12l1.5 1.5 2.5-2.5M3.5 18l1.5 1.5 2.5-2.5"/></svg><b>作业一张表</b><span>筛选、搜索、批量勾完成，键盘上下键加空格就能操作。</span></li>
-    <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5"/><rect x="12" y="11" width="7" height="7" rx="1.5"/></svg><b>桌面小窗</b><span>今天的课和待办浮在桌面一角，写作业时瞄一眼就知道下节课。</span></li>
-    <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/></svg><b>离线 AI 小助手</b><span>在你电脑上运行，知道你的课表和作业，聊天内容不上传。</span></li>
-    <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9.5 2.5h5"/></svg><b>专注计时</b><span>番茄钟在后台跑，到点提醒休息，每天专注多久都记着。</span></li>
-  </ul>
-  <div class="pcget" data-dl>
-    <a class="get" data-get="exe" href="https://github.com/hangyuan2024-hue/class-calendar/releases/latest/download/LaolaoKechengbiao-Setup.exe">
-      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="arrow"><path d="M12 4v11"/><path d="m7 10 5 5 5-5"/></g><path d="M5 20h14"/></svg>
-      <span class="lbl" data-lbl>下载 Windows 电脑版</span>
-    </a>
-    <p class="meta">免费，Windows 10 / 11（64 位）。苹果电脑暂时没有，可以直接用<a href="index.html">网页版</a>。</p>
-    <p class="after" data-after aria-live="polite"></p>
-  </div>
-</section>
-
-<section class="day" id="day">
-  <h2>陪你过完一天</h2>
-  <p class="sub">从早上醒来到晚上睡前，下面每一块都是 App 里真实的样子，可以点点看。</p>
-  <ol class="hours">
-    <li class="hr">
-      <div><time>07:30</time><h3>睁眼先收到一句鼓励</h3><p>首页的每日鼓励每天换一句。心情怎么样点一下，它会换个方式陪你。</p></div>
-      <div class="ui">
-        <div class="tag"><img src="favicon.svg" alt="">每日鼓励</div>
-        <div class="enc" id="enc"><span class="em" id="encE">🌅</span><q id="encQ">今天也是值得被期待的一天。</q><small id="encEn">Today is another day worth looking forward to.</small></div>
-        <div class="row"><button class="chipbtn" type="button" id="encNext">换一句</button><span class="tiny">今天心情怎么样？</span></div>
-        <div class="row" id="moods"></div>
-        <p class="reply" id="moodR" aria-live="polite"></p>
-      </div>
-    </li>
-    <li class="hr">
-      <div><time>08:00</time><h3>今天上什么课，一眼就知道</h3><p>拍一张课表照片就能导入。首页列出今天的课，正在上的那节会亮起来。</p></div>
-      <div class="ui" data-seen>
-        <div class="tag"><img src="favicon.svg" alt="">今天的课</div>
-        <ol class="cls">
-          <li class="now"><time>08:00<br>09:40</time><b>高等数学<small>主楼 A204 · 张老师</small></b><span class="live">正在上</span><span class="bar"><i></i></span></li>
-          <li><time>10:00<br>11:40</time><b>C 语言程序设计<small>实验楼 305</small></b><span class="tiny">还有 2 小时</span></li>
-          <li><time>14:00<br>15:40</time><b>大学英语<small>文科楼 112</small></b><span class="tiny">下午</span></li>
-        </ol>
-      </div>
-    </li>
-    <li class="hr">
-      <div><time>12:10</time><h3>班级墙，比群聊安静</h3><p>老师和班委的通知发在这里，不会被刷走。每条都能评论、点赞，有问题就在下面问。</p></div>
-      <div class="ui">
-        <div class="tag"><img src="favicon.svg" alt="">班级墙</div>
-        <div class="post">
-          <span class="av">王</span>
-          <div class="who"><b>王老师</b><em>老师</em><small>12:06</small></div>
-          <p>下周三下午体测，记得穿运动鞋，带上校园卡。</p>
-          <div class="acts"><button class="like" type="button" id="like" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7-4.4-9.2-9A5 5 0 0 1 12 6a5 5 0 0 1 9.2 5C19 15.6 12 20 12 20z"/></svg><span id="likeN">23</span><span class="burst" id="burst"></span></button><span class="tiny" style="align-self:center">2 条评论</span></div>
-          <div class="cmts" id="cmts"><div><b>小红：</b>几点集合呀？</div><div><b>王老师：</b>两点，体育馆门口。</div></div>
-          <form class="cmtf" id="cmtf"><input id="cmtI" maxlength="40" placeholder="试着写一条评论" aria-label="写评论"><button type="submit">发送</button></form>
-        </div>
-      </div>
-    </li>
-    <li class="hr">
-      <div><time>15:30</time><h3>事情一多，先分个轻重</h3><p>四象限、番茄钟、PDCA、每天六件事，几种时间管理方法都备好了，每种都附了说明。</p></div>
-      <div class="ui">
-        <div class="tag"><img src="favicon.svg" alt="">时间管理</div>
-        <div class="tm">
-          <div class="q4">
-            <div style="--q:#f04438"><h5>重要且紧急</h5><label><input type="checkbox"><span>高数作业</span></label><label><input type="checkbox"><span>交实验报告</span></label></div>
-            <div style="--q:#1e8cff"><h5>重要不紧急</h5><label><input type="checkbox"><span>背四级单词</span></label></div>
-            <div style="--q:#f5a524"><h5>紧急不重要</h5><label><input type="checkbox"><span>交医保材料</span></label></div>
-            <div style="--q:#8a99ad"><h5>不重要不紧急</h5><label><input type="checkbox"><span>整理相册</span></label></div>
-          </div>
-          <div class="pomo" id="pomo">
-            <div class="tw"><svg viewBox="0 0 120 120" aria-hidden="true"><circle class="trk" cx="60" cy="60" r="52" fill="none" stroke-width="10"/><circle class="arc" id="pomoArc" cx="60" cy="60" r="52" fill="none" stroke-width="10" stroke-dasharray="326.7" stroke-dashoffset="0"/></svg>
-              <div><span><strong id="pomoT">25:00</strong><small id="pomoS">一个番茄</small></span></div></div>
-            <button type="button" id="pomoB">开始专注</button>
-          </div>
-        </div>
-      </div>
-    </li>
-    <li class="hr">
-      <div><time>21:30</time><h3>快截止了，它会喊你</h3><p>手机锁着屏也能收到。提前多久提醒，你自己定。</p></div>
-      <div class="ui lock" data-seen>
-        <div class="clk">21:30</div>
-        <div class="dt" id="lockD">10月2日 星期五</div>
-        <div class="nt"><img src="favicon.svg" alt=""><small><span>捞捞课程表</span><span>现在</span></small><b>国庆离校登记 22:00 截止，还没填哦</b></div>
-        <div class="nt"><img src="favicon.svg" alt=""><small><span>捞捞课程表</span><span>刚刚</span></small><b>明天 15:00 班会，地点 B302</b></div>
-        <div class="nt"><img src="favicon.svg" alt=""><small><span>捞捞课程表</span><span>刚刚</span></small><b>高数习题 3.2 还有 2 天截止</b></div>
-      </div>
-    </li>
-    <li class="hr">
-      <div><time>23:00</time><h3>每天一点点，都被记下来</h3><p>做完的作业、坚持的打卡、每天的心情，攒成你的成长足迹。连续的每一天都算数。</p></div>
-      <div class="ui" data-seen>
-        <div class="tag"><img src="favicon.svg" alt="">成长足迹</div>
-        <div class="heat" id="heat"></div>
-        <div class="streak"><strong id="streak">0</strong><span>天连续打卡<br>这学期完成了 46 项作业</span></div>
-      </div>
-    </li>
-  </ol>
-</section>
-
-<section class="get-sec" id="get">
-  <div class="sleepy" aria-hidden="true"><span class="z">Z</span><span class="z">z</span><span class="z">z</span>
-    <svg viewBox="4 4 56 56"><g class="body"><rect x="11" y="17" width="42" height="38" rx="12" fill="#fff" stroke="#0e2240" stroke-width="3.2"/><path d="M11 30 V29 a12 12 0 0 1 12 -12 h18 a12 12 0 0 1 12 12 v1 z" fill="#ff8a3d" stroke="#0e2240" stroke-width="3.2" stroke-linejoin="round"/><rect x="20" y="10" width="5.5" height="12" rx="2.75" fill="#0e2240"/><rect x="38.5" y="10" width="5.5" height="12" rx="2.75" fill="#0e2240"/><path d="M20.5 40 q4 3 8 0 M35.5 40 q4 3 8 0" fill="none" stroke="#0e2240" stroke-width="2.6" stroke-linecap="round"/><ellipse cx="18.5" cy="46" rx="3.2" ry="2" fill="#ff9db5"/><ellipse cx="45.5" cy="46" rx="3.2" ry="2" fill="#ff9db5"/><ellipse cx="32" cy="47.5" rx="2.2" ry="1.8" fill="#0e2240"/></g></svg>
-  </div>
-  <h2>明天的事，<br>交给捞捞记着</h2>
-  <p class="sub">手机、电脑都装上，用同一个账号登录，在哪记的都会同步过来。</p>
-  <div class="dlgrid">
-    <div class="dlcard droidc" data-dl>
-      <div class="dlh"><span class="dli">📱</span><div><b>安卓手机</b><small>华为、小米、OPPO、vivo、荣耀都能装</small></div></div>
-      <a class="get" id="getApk" data-get="apk" href="download/class-calendar.apk" download>
-        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="arrow"><path d="M12 4v11"/><path d="m7 10 5 5 5-5"/></g><path d="M5 20h14"/></svg>
-        <span class="lbl" data-lbl>下载安卓 App</span>
-      </a>
-      <p class="meta" data-meta="getApk">免费，安卓 7.0 及以上都能装</p>
-      <div class="qr" data-qr hidden><img src="download/qr.svg" alt="下载页二维码"><div><b>用手机扫一扫</b><span>手机相机或浏览器扫码<br>打开下载页直接安装</span></div></div>
-      <p class="after" data-after aria-live="polite"></p>
-    </div>
-    <div class="dlcard pcc" data-dl>
-      <div class="dlh"><span class="dli">💻</span><div><b>Windows 电脑</b><small>大屏排版、右下角提醒、离线 AI 助手</small></div></div>
-      <a class="get" id="getExe" data-get="exe" href="https://github.com/hangyuan2024-hue/class-calendar/releases/latest/download/LaolaoKechengbiao-Setup.exe">
-        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="arrow"><path d="M12 4v11"/><path d="m7 10 5 5 5-5"/></g><path d="M5 20h14"/></svg>
-        <span class="lbl" data-lbl>下载 Windows 电脑版</span>
-      </a>
-      <p class="meta" data-meta="getExe">免费，Windows 10 / 11（64 位）</p>
-      <p class="after" data-after aria-live="polite"></p>
-    </div>
-    <div class="dlcard mpc" aria-disabled="true">
-      <div class="dlh"><span class="dli">💬</span><div><b>微信小程序</b><small>微信里点开就用，不用安装</small></div></div>
-      <span class="get soon" role="note">
-        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-        <span class="lbl">敬请期待<small>正在做，上线后在这里扫码</small></span>
-      </span>
-      <p class="meta">和 App、电脑版用同一个账号，数据也会同步</p>
-    </div>
-  </div>
-  <p class="dlweb">苹果手机、苹果电脑暂时没有 App，直接用<a href="index.html">网页版</a>就行。iPhone 用 Safari 打开，点分享 →「添加到主屏幕」，用起来和 App 差不多。</p>
-
-  <div class="faq" id="faq">
-    <h3>常见问题</h3>
-    <details><summary>安装时提示「未知来源」或「风险应用」怎么办？</summary><p>这是因为 App 不是从应用商店下的，安卓都会这样提醒。按提示点「设置」，允许浏览器（或文件管理）安装应用，再回来点安装就行。华为、小米手机如果开着「纯净模式」，选「继续安装」或「仍然安装」。</p></details>
-    <details><summary>在微信里点下载没反应？</summary><p>微信不让直接下载安装包。点右上角「···」，选「在浏览器打开」，再点下载。QQ 里也一样。</p></details>
-    <details><summary>有微信小程序吗？</summary><p>正在做，敬请期待。上线后会在这个页面放小程序码，微信扫一扫就能用，账号和数据跟 App、电脑版通用。</p></details>
-    <details><summary>苹果手机能用吗？</summary><p>暂时没有苹果版 App。用 Safari 打开网页版，点分享，选「添加到主屏幕」，桌面上就会有图标，打开和 App 一样全屏。</p></details>
-    <details><summary>手机 App、电脑版、网页版，数据通不通？</summary><p>通。三个用的是同一个账号，登录后课表、作业、你记的事、完成记录都会自动同步，在哪边改了另外两边都能看到。</p></details>
-    <details><summary>它会要哪些权限？</summary><p>只要联网、发通知、开机后恢复提醒、振动这几个。不读通讯录，不要定位，不要麦克风。</p></details>
-    <details><summary>怎么更新到新版？</summary><p>有新版本时，App 首页会提示，点一下下载安装就会直接覆盖，原来的数据都在。也可以在「我的」→「安卓 App」里点「检查更新」。</p></details>
-    <details><summary>电脑版安装时提示「Windows 已保护你的电脑」？</summary><p>因为电脑版还没有买数字签名证书，Windows 对新软件都会这样提醒。点「更多信息」，再点「仍要运行」就能装。</p></details>
-    <details><summary>电脑版的 AI 助手要联网吗？要钱吗？</summary><p>不要钱，也不用联网。第一次打开 AI 助手时会下载一次模型（约 1GB，国内服务器），之后就在你电脑上运行，聊天内容不会上传。普通笔记本就能跑。</p></details>
-    <details><summary>苹果电脑能用吗？</summary><p>电脑版暂时只有 Windows。苹果电脑直接用浏览器打开<a href="index.html">网页版</a>，功能和账号都是一样的。</p></details>
-  </div>
 </section>
 </main>
-
-<footer class="foot">捞捞队做的。<a href="index.html">打开网页版</a>，或者看看<a href="index.html#intro">功能介绍</a>。</footer>
-
-<div id="wx" role="dialog" aria-label="请在浏览器打开">
+<footer class="s-footer"><a class="s-brand" href="app.html"><span class="s-brand-icon"><img src="favicon.svg" alt=""></span><span>捞捞<span class="s-brand-sub">认真生活，也自在生长。</span></span></a><p>LAOLAO CAMPUS · 你的校园学习伙伴</p><div><a href="index.html?guest=1">工作台 ↗</a><a href="download/">下载客户端</a><a href="#login" data-login-focus>账号登录</a></div></footer>
+<div id="wx" role="dialog" aria-modal="true" aria-label="请在浏览器打开"><button class="s-wx-close" type="button">关闭提示 ×</button>
   <svg viewBox="0 0 120 120" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M20 110 C 40 60, 70 40, 104 16"/><path d="M84 14 L106 14 L100 36"/></svg>
   <p>微信里不能直接下载<br>点右上角 <b>···</b><br>选 <b>在浏览器打开</b></p>
   <small>点任意位置关闭</small>
 </div>
 
-<!-- 注册成功后的引导（男生、女生各一套） -->
+
 <div id="ob" class="hidden" role="dialog" aria-modal="true" aria-label="新手引导">
   <div class="ob-card">
     <div class="ob-dots" id="obDots"></div>
@@ -1070,10 +264,11 @@ html.authed .lgtop { display: none; }
   </div>
 </div>
 
+
 <script src="config.js"></script>
 <script src="auth.js?v=20261004m"></script>
-<script src="login.js?v=20261004h"></script>
+<script src="login.js?v=20261005-studio2"></script>
 <script src="get.js?v=3"></script>
-<script src="intro.js?v=2"></script>
+<script src="landing-v2.js?v=20261005-studio2"></script>
 </body>
 </html>

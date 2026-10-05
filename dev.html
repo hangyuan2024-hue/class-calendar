@@ -5,7 +5,7 @@
 <meta name="robots" content="noindex">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com http://localhost:* http://127.0.0.1:*; frame-src 'self'; media-src 'self' data: blob:; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; manifest-src 'self'">
 <meta name="referrer" content="no-referrer">
-<script src="guard.js?v=20261002b"></script>
+<script src="guard.js?v=20261005-campus1"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
@@ -77,17 +77,25 @@
   @media (max-width:640px) { .grid2 { grid-template-columns:1fr; } .row { flex-wrap:wrap; } .row .ops { width:100%; justify-content:flex-start; } }
   td.uops { white-space:nowrap; } td.uops button + button { margin-left:4px; }
 </style>
+<link rel="stylesheet" href="campus-ui.css?v=20261005-campus1">
+<link rel="stylesheet" href="auxiliary-v2.css?v=20261005-studio2">
 </head>
-<body>
+<body class="campus-admin studio-admin studio-dev">
+<a class="campus-skip" href="#adminMain">跳到主要内容</a>
 <header>
-  <h1>🧩 插件后台</h1>
+  <a class="admin-brand" href="index.html"><span class="studio-brand-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="5" width="16" height="16" rx="4"/><path d="M8 3v4M16 3v4M4 11h16M9 15l2 2 4-4"/></svg></span>捞捞课程表</a>
+  <span class="admin-header-label">插件后台</span>
   <span class="spacer"></span>
   <span class="who" id="who">加载中…</span>
   <a class="btn" href="index.html">返回日历</a>
   <button id="logout">退出</button>
 </header>
 
-<main>
+<main id="adminMain">
+  <div class="admin-intro">
+    <div><span class="admin-eyebrow">CAMPUS / CREATOR STUDIO</span><h1>让好工具，<br><em>来到每一位同学身边。</em></h1><p>在这里管理插件版本、测试反馈与发布，让校园工作台不断成长。</p></div>
+    <ol class="admin-workflow" aria-label="插件发布流程"><li><span>01</span><b>提交版本</b><small>准备你的插件文件</small></li><li><span>02</span><b>进入测试</b><small>开发者与测试员试用</small></li><li><span>03</span><b>审核发布</b><small>通过后向同学开放</small></li></ol>
+  </div>
   <section class="card hidden" id="noRole">
     <h2>你目前没有后台权限</h2>
     <div class="desc">需要的话请把你的账号发给管理员，让他给你分配身份或开通对应功能，开通后刷新本页即可。</div>
@@ -95,7 +103,8 @@
 
   <!-- 开发者：上传 -->
   <section class="card hidden" id="uploadCard" data-perms="upload">
-    <h2>上传插件 / 发布新版本</h2>
+    <div class="section-eyebrow">CREATE / NEXT VERSION</div>
+    <h2>上传插件，发布新版本</h2>
     <div class="desc">提交后进入「测试中」，开发者和测试员可以在插件商店里试用；审核通过后才对所有同学上线。作者会自动填成你的账号姓名。</div>
     <form id="upForm" novalidate>
       <div class="grid2">
@@ -168,12 +177,12 @@
   <section class="card hidden" id="usersCard" data-perms="manage_users">
     <h2>用户与身份</h2>
     <div class="desc">新注册的账号都是「学生」。在这里给队员分配开发者、测试员身份。只有管理员能设置或修改管理员；管理员还可以给忘记密码的同学设新密码、删除不用的账号。</div>
-    <input id="userFilter" placeholder="搜索账号或姓名" style="margin-bottom:8px; width:100%; max-width:260px">
+    <input id="userFilter" aria-label="搜索账号或姓名" placeholder="搜索账号或姓名" style="margin-bottom:8px; width:100%; max-width:260px">
     <div style="overflow-x:auto"><table><thead><tr><th>账号</th><th>姓名</th><th>身份</th><th>注册时间</th><th id="uOpsHead" class="hidden">账号操作</th></tr></thead><tbody id="userRows"></tbody></table></div>
   </section>
 </main>
 
-<div id="viewer"><div class="box">
+<div id="viewer" role="dialog" aria-modal="true" aria-labelledby="vTitle"><div class="box">
   <div style="display:flex; align-items:center; gap:8px"><strong id="vTitle"></strong><span class="spacer"></span>
     <button id="vTabCode" class="small">plugin.js</button><button id="vTabHtml" class="small">app.html</button><button id="vPublish" class="small primary" hidden>✓ 审核通过，发布</button><button id="vClose" class="small">关闭</button></div>
   <div id="vScan" style="font-size:13px"></div>

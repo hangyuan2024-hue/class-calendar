@@ -6,37 +6,4 @@
     return;
   }
 
-  // AI Agent Competition Edition UI
-  // 只挂载视觉层，不改业务逻辑、数据结构、DOM id 或事件。
-  var path = (location.pathname || "/").toLowerCase();
-  var page = "generic";
-  if (path === "/" || /\/index\.html$/.test(path)) page = "main";
-  else if (/\/app\.html$/.test(path)) page = "landing";
-  else if (/\/login\.html$/.test(path)) page = "auth";
-  else if (/\/class\.html$/.test(path)) page = "class";
-  document.documentElement.setAttribute("data-competition-ui", page);
-
-  function mountCompetitionUI() {
-    var old = document.getElementById("competition-ui-css");
-    if (old) old.remove();
-    var link = document.createElement("link");
-    link.id = "competition-ui-css";
-    link.rel = "stylesheet";
-    link.href = "competition-ui.css?v=20261005-v2";
-    document.head.appendChild(link); // 放到现有样式最后，确保只做视觉覆盖
-
-    if (page === "main" && !document.getElementById("competition-layout-js")) {
-      var script = document.createElement("script");
-      script.id = "competition-layout-js";
-      script.src = "competition-layout.js?v=20261005-v2";
-      script.defer = true;
-      document.head.appendChild(script);
-    }
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", mountCompetitionUI, { once: true });
-  } else {
-    mountCompetitionUI();
-  }
 })();

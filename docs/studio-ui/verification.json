@@ -1,0 +1,584 @@
+{
+  "date": "2026-10-05",
+  "browser": "Chromium / Playwright",
+  "scope": "Local browser UI with external network requests intercepted; production cloud authentication, email, synchronization and administrator writes are not tested.",
+  "primary_ui": {
+    "passed": 63,
+    "widths": [
+      320,
+      360,
+      390,
+      768,
+      1024,
+      1440
+    ],
+    "checks": [
+      {
+        "label": "app.html @ 320: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "index.html?guest=1 @ 320: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "login.html @ 320: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "download/index.html @ 320: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "class.html @ 320: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "dev.html @ 320: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "Landing interactive demo and keyboard @ 320",
+        "status": "PASS"
+      },
+      {
+        "label": "app.html: signup, login validation, password visibility, forgot password UI @ 320",
+        "status": "PASS"
+      },
+      {
+        "label": "login.html: signup, login validation, password visibility, forgot password UI @ 320",
+        "status": "PASS"
+      },
+      {
+        "label": "Visitor create, local persistence, visible navigation @ 320",
+        "status": "PASS"
+      },
+      {
+        "label": "app.html @ 360: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "index.html?guest=1 @ 360: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "login.html @ 360: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "download/index.html @ 360: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "class.html @ 360: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "dev.html @ 360: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "Landing interactive demo and keyboard @ 360",
+        "status": "PASS"
+      },
+      {
+        "label": "app.html: signup, login validation, password visibility, forgot password UI @ 360",
+        "status": "PASS"
+      },
+      {
+        "label": "login.html: signup, login validation, password visibility, forgot password UI @ 360",
+        "status": "PASS"
+      },
+      {
+        "label": "Visitor create, local persistence, visible navigation @ 360",
+        "status": "PASS"
+      },
+      {
+        "label": "app.html @ 390: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "index.html?guest=1 @ 390: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "login.html @ 390: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "download/index.html @ 390: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "class.html @ 390: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "dev.html @ 390: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "Landing interactive demo and keyboard @ 390",
+        "status": "PASS"
+      },
+      {
+        "label": "app.html: signup, login validation, password visibility, forgot password UI @ 390",
+        "status": "PASS"
+      },
+      {
+        "label": "login.html: signup, login validation, password visibility, forgot password UI @ 390",
+        "status": "PASS"
+      },
+      {
+        "label": "Visitor create, local persistence, visible navigation @ 390",
+        "status": "PASS"
+      },
+      {
+        "label": "app.html @ 768: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "index.html?guest=1 @ 768: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "login.html @ 768: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "download/index.html @ 768: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "class.html @ 768: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "dev.html @ 768: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "Landing interactive demo and keyboard @ 768",
+        "status": "PASS"
+      },
+      {
+        "label": "app.html: signup, login validation, password visibility, forgot password UI @ 768",
+        "status": "PASS"
+      },
+      {
+        "label": "login.html: signup, login validation, password visibility, forgot password UI @ 768",
+        "status": "PASS"
+      },
+      {
+        "label": "Visitor create, local persistence, visible navigation @ 768",
+        "status": "PASS"
+      },
+      {
+        "label": "app.html @ 1024: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "index.html?guest=1 @ 1024: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "login.html @ 1024: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "download/index.html @ 1024: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "class.html @ 1024: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "dev.html @ 1024: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "Landing interactive demo and keyboard @ 1024",
+        "status": "PASS"
+      },
+      {
+        "label": "app.html: signup, login validation, password visibility, forgot password UI @ 1024",
+        "status": "PASS"
+      },
+      {
+        "label": "login.html: signup, login validation, password visibility, forgot password UI @ 1024",
+        "status": "PASS"
+      },
+      {
+        "label": "Visitor create, local persistence, visible navigation @ 1024",
+        "status": "PASS"
+      },
+      {
+        "label": "app.html @ 1440: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "index.html?guest=1 @ 1440: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "login.html @ 1440: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "download/index.html @ 1440: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "class.html @ 1440: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "dev.html @ 1440: responsive layout",
+        "status": "PASS"
+      },
+      {
+        "label": "Landing interactive demo and keyboard @ 1440",
+        "status": "PASS"
+      },
+      {
+        "label": "app.html: signup, login validation, password visibility, forgot password UI @ 1440",
+        "status": "PASS"
+      },
+      {
+        "label": "login.html: signup, login validation, password visibility, forgot password UI @ 1440",
+        "status": "PASS"
+      },
+      {
+        "label": "Visitor create, local persistence, visible navigation @ 1440",
+        "status": "PASS"
+      },
+      {
+        "label": "Fresh theme follows system dark and light",
+        "status": "PASS"
+      },
+      {
+        "label": "Reduced motion landing and workspace remain usable",
+        "status": "PASS"
+      },
+      {
+        "label": "No missing local pages or assets",
+        "status": "PASS"
+      }
+    ]
+  },
+  "normal_browser_errors": {
+    "scope": "Uncaught browser errors under normal browser contexts. External requests blocked. No service-worker blocker injected into sandbox frames.",
+    "checks": [
+      {
+        "route": "app.html",
+        "colorScheme": "light",
+        "status": "PASS"
+      },
+      {
+        "route": "index.html?guest=1",
+        "colorScheme": "light",
+        "status": "PASS"
+      },
+      {
+        "route": "login.html",
+        "colorScheme": "light",
+        "status": "PASS"
+      },
+      {
+        "route": "download/index.html",
+        "colorScheme": "light",
+        "status": "PASS"
+      },
+      {
+        "route": "class.html",
+        "colorScheme": "light",
+        "status": "PASS"
+      },
+      {
+        "route": "dev.html",
+        "colorScheme": "light",
+        "status": "PASS"
+      },
+      {
+        "route": "app.html",
+        "colorScheme": "dark",
+        "status": "PASS"
+      },
+      {
+        "route": "index.html?guest=1",
+        "colorScheme": "dark",
+        "status": "PASS"
+      },
+      {
+        "route": "login.html",
+        "colorScheme": "dark",
+        "status": "PASS"
+      },
+      {
+        "route": "download/index.html",
+        "colorScheme": "dark",
+        "status": "PASS"
+      },
+      {
+        "route": "class.html",
+        "colorScheme": "dark",
+        "status": "PASS"
+      },
+      {
+        "route": "dev.html",
+        "colorScheme": "dark",
+        "status": "PASS"
+      }
+    ],
+    "errors": [],
+    "missing": []
+  },
+  "plugins": {
+    "checks": [
+      {
+        "label": "course 320 light no page overflow",
+        "status": "PASS"
+      },
+      {
+        "label": "course 320 light course form fits",
+        "status": "PASS"
+      },
+      {
+        "label": "course 320 light form cancels",
+        "status": "PASS"
+      },
+      {
+        "label": "course 320 light week navigation",
+        "status": "PASS"
+      },
+      {
+        "label": "diary 320 light no page overflow",
+        "status": "PASS"
+      },
+      {
+        "label": "diary 320 light calendar fits",
+        "status": "PASS"
+      },
+      {
+        "label": "diary 320 light mood selects",
+        "status": "PASS"
+      },
+      {
+        "label": "diary 320 light weather dialog opens",
+        "status": "PASS"
+      },
+      {
+        "label": "course 390 light no page overflow",
+        "status": "PASS"
+      },
+      {
+        "label": "course 390 light course form fits",
+        "status": "PASS"
+      },
+      {
+        "label": "course 390 light form cancels",
+        "status": "PASS"
+      },
+      {
+        "label": "course 390 light week navigation",
+        "status": "PASS"
+      },
+      {
+        "label": "diary 390 light no page overflow",
+        "status": "PASS"
+      },
+      {
+        "label": "diary 390 light calendar fits",
+        "status": "PASS"
+      },
+      {
+        "label": "diary 390 light mood selects",
+        "status": "PASS"
+      },
+      {
+        "label": "diary 390 light weather dialog opens",
+        "status": "PASS"
+      },
+      {
+        "label": "course 1440 light no page overflow",
+        "status": "PASS"
+      },
+      {
+        "label": "course 1440 light course form fits",
+        "status": "PASS"
+      },
+      {
+        "label": "course 1440 light form cancels",
+        "status": "PASS"
+      },
+      {
+        "label": "course 1440 light week navigation",
+        "status": "PASS"
+      },
+      {
+        "label": "diary 1440 light no page overflow",
+        "status": "PASS"
+      },
+      {
+        "label": "diary 1440 light calendar fits",
+        "status": "PASS"
+      },
+      {
+        "label": "diary 1440 light mood selects",
+        "status": "PASS"
+      },
+      {
+        "label": "diary 1440 light weather dialog opens",
+        "status": "PASS"
+      },
+      {
+        "label": "course 320 dark no page overflow",
+        "status": "PASS"
+      },
+      {
+        "label": "course 320 dark course form fits",
+        "status": "PASS"
+      },
+      {
+        "label": "course 320 dark form cancels",
+        "status": "PASS"
+      },
+      {
+        "label": "course 320 dark week navigation",
+        "status": "PASS"
+      },
+      {
+        "label": "diary 320 dark no page overflow",
+        "status": "PASS"
+      },
+      {
+        "label": "diary 320 dark calendar fits",
+        "status": "PASS"
+      },
+      {
+        "label": "diary 320 dark mood selects",
+        "status": "PASS"
+      },
+      {
+        "label": "diary 320 dark weather dialog opens",
+        "status": "PASS"
+      },
+      {
+        "label": "course 390 dark no page overflow",
+        "status": "PASS"
+      },
+      {
+        "label": "course 390 dark course form fits",
+        "status": "PASS"
+      },
+      {
+        "label": "course 390 dark form cancels",
+        "status": "PASS"
+      },
+      {
+        "label": "course 390 dark week navigation",
+        "status": "PASS"
+      },
+      {
+        "label": "diary 390 dark no page overflow",
+        "status": "PASS"
+      },
+      {
+        "label": "diary 390 dark calendar fits",
+        "status": "PASS"
+      },
+      {
+        "label": "diary 390 dark mood selects",
+        "status": "PASS"
+      },
+      {
+        "label": "diary 390 dark weather dialog opens",
+        "status": "PASS"
+      },
+      {
+        "label": "course 1440 dark no page overflow",
+        "status": "PASS"
+      },
+      {
+        "label": "course 1440 dark course form fits",
+        "status": "PASS"
+      },
+      {
+        "label": "course 1440 dark form cancels",
+        "status": "PASS"
+      },
+      {
+        "label": "course 1440 dark week navigation",
+        "status": "PASS"
+      },
+      {
+        "label": "diary 1440 dark no page overflow",
+        "status": "PASS"
+      },
+      {
+        "label": "diary 1440 dark calendar fits",
+        "status": "PASS"
+      },
+      {
+        "label": "diary 1440 dark mood selects",
+        "status": "PASS"
+      },
+      {
+        "label": "diary 1440 dark weather dialog opens",
+        "status": "PASS"
+      },
+      {
+        "label": "course original opaque sandbox boots",
+        "status": "PASS"
+      },
+      {
+        "label": "course sandbox excludes same origin",
+        "status": "PASS"
+      },
+      {
+        "label": "diary original opaque sandbox boots",
+        "status": "PASS"
+      },
+      {
+        "label": "diary sandbox excludes same origin",
+        "status": "PASS"
+      },
+      {
+        "label": "plugin zero uncaught browser errors",
+        "status": "PASS"
+      }
+    ],
+    "errors": []
+  },
+  "admin_layout_fixtures": {
+    "passed": 14,
+    "widths": [
+      320,
+      360,
+      390,
+      620,
+      768,
+      1024,
+      1440
+    ],
+    "routes": [
+      "class.html",
+      "dev.html"
+    ],
+    "scope": "Existing page scripts and layouts with CCAuth mocked locally. No production request or mutation; role layout, upload form visibility and preview user table verified.",
+    "uncaught_errors": 0
+  },
+  "focus_header": {
+    "desktop_action": "opens plan view and scrolls actual timer",
+    "narrow_layout": "action hidden at320px"
+  },
+  "static_checks": {
+    "html_pages": 8,
+    "duplicate_ids": 0,
+    "missing_local_assets": 0,
+    "javascript_syntax": "PASS",
+    "git_diff_whitespace": "PASS"
+  },
+  "harness_note": "The initial aggregate error assertion was invalid because the test injected Playwright serviceWorkers:block and unguarded localStorage into opaque sandbox frames. Its63 other successful assertions are recorded above. The error assertion was replaced by12 normal-browser checks with0errors; the production sandbox was not changed."
+}

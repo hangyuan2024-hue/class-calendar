@@ -5,7 +5,7 @@
 <meta name="robots" content="noindex">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com http://localhost:* http://127.0.0.1:*; frame-src 'self'; media-src 'self' data: blob:; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; manifest-src 'self'">
 <meta name="referrer" content="no-referrer">
-<script src="guard.js?v=20261002b"></script>
+<script src="guard.js?v=20261005-campus1"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
@@ -79,10 +79,14 @@
   .chips select { font-size:12px; padding:3px 6px; }
   label.mce { display:flex; gap:6px; align-items:center; margin-top:10px; flex-wrap:wrap; }
 </style>
+<link rel="stylesheet" href="campus-ui.css?v=20261005-campus1">
+<link rel="stylesheet" href="auxiliary-v2.css?v=20261005-studio2">
 </head>
-<body>
+<body class="campus-admin studio-admin studio-class">
+<a class="campus-skip" href="#adminMain">跳到主要内容</a>
 <header>
-  <h1>🏫 我的班级</h1>
+  <a class="admin-brand" href="index.html"><span class="studio-brand-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="5" width="16" height="16" rx="4"/><path d="M8 3v4M16 3v4M4 11h16M9 15l2 2 4-4"/></svg></span>捞捞课程表</a>
+  <span class="admin-header-label">班级空间</span>
   <span class="spacer"></span>
   <span class="who" id="who">加载中…</span>
   <a class="btn" href="index.html">返回日历</a>
@@ -90,19 +94,25 @@
   <button id="logout">退出</button>
 </header>
 
-<main>
+<main id="adminMain">
+  <div class="admin-intro">
+    <div><span class="admin-eyebrow">CAMPUS / CLASSROOM</span><h1>班级里的事，<br><em>一起安排得更好。</em></h1><p>加入你的班级，让课程、通知和协作都有清晰的位置。</p></div>
+    <div class="admin-intro-art classroom-art" aria-hidden="true"><span class="art-orbit"></span><span class="art-book"><svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 16c9-4 17-3 24 2 7-5 15-6 24-2v34c-9-4-17-3-24 2-7-5-15-6-24-2V16Z"/><path d="M32 18v34M15 26h10M15 33h10M39 26h10M39 33h10"/></svg></span><span class="art-star">✦</span><span class="art-pill">在一起 · 向前走</span></div>
+  </div>
   <!-- 学生：加入班级 -->
   <section class="card" id="joinCard">
-    <h2>加入班级</h2>
+    <div class="section-eyebrow">01 / GET CONNECTED</div>
+    <h2>加入你的班级 <span aria-hidden="true">↗</span></h2>
     <div class="desc">输入老师给的 6 位班级码，提交后等老师批准即可看到捞捞课程表。</div>
     <form class="row" id="joinForm">
-      <input id="joinCode" maxlength="6" placeholder="班级码，如 K7M2QX" autocapitalize="characters" spellcheck="false" style="width:180px; text-transform:uppercase">
+      <input id="joinCode" aria-label="六位班级码" maxlength="6" placeholder="班级码，如 K7M2QX" autocapitalize="characters" spellcheck="false" style="width:180px; text-transform:uppercase">
       <button class="primary" id="joinBtn" type="submit">申请加入</button>
     </form>
   </section>
 
   <section class="card" id="myCard">
-    <h2>我加入的班级</h2>
+    <div class="section-eyebrow">02 / MY CLASSROOMS</div>
+    <h2>我的班级</h2>
     <div id="myList" class="empty">加载中…</div>
   </section>
 
@@ -111,7 +121,7 @@
     <h2>我管理的班级</h2>
     <div class="desc">把班级码发到班群，同学申请后在这里批准；可以把同学设为班委，并单独开关每项权限；还可以在班里再分组（比如不同的课、不同的小组），给每个组设组长。</div>
     <form class="row" id="createForm">
-      <input id="newName" maxlength="40" placeholder="新班级名称，如 计科2501" style="flex:1; min-width:180px">
+      <input id="newName" aria-label="新班级名称" maxlength="40" placeholder="新班级名称，如 计科2501" style="flex:1; min-width:180px">
       <button class="primary" id="createBtn" type="submit">创建班级</button>
     </form>
     <div id="teachList"></div>

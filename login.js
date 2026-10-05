@@ -16,14 +16,14 @@ const STAGE = {
 };
 function setGender(g) {
   document.documentElement.dataset.g = g || "";
-  const st = STAGE[g || ""];
+  const st = document.body.classList.contains("studio-public") ? { t: "让今天，<br>成为一个好开始。", l: "登录你的账号，把课表、作业和自己的小目标放在一起。慢慢来，每一步都算数。", fl: [] } : document.body.classList.contains("campus-public") ? { t: "校园生活有点忙，<br><em>每一天，都有方向。</em>", l: "把课表、作业和班级通知放在一起。从第一节课到每一个小目标，捞捞陪你从容安排校园生活。", fl: [] } : STAGE[g || ""];
   $("stageTitle").innerHTML = st.t; $("stageLead").textContent = st.l;
-  document.querySelector('meta[name="theme-color"]').content = g === "f" ? "#ffe1ec" : g === "m" ? "#d6e2ff" : "#cdeeff";
+  document.querySelector('meta[name="theme-color"]').content = document.body.classList.contains("studio-public") ? "#f6f5f1" : g === "f" ? "#ffe1ec" : g === "m" ? "#d6e2ff" : "#cdeeff";
   floaties(st.fl);
 }
 function floaties(list) {
   const box = $("floaties"); box.innerHTML = "";
-  if (reduce) return;
+  if (reduce || !list.length) return;
   for (let i = 0; i < 10; i++) {
     const s = document.createElement("span"); s.className = "floaty"; s.textContent = list[i % list.length];
     s.style.cssText = `left:${5 + Math.random() * 85}%;bottom:-40px;animation-delay:${-Math.random() * 9}s;animation-duration:${8 + Math.random() * 6}s;font-size:${16 + Math.random() * 14}px`;
@@ -36,7 +36,7 @@ function setMode(m) {
   mode = m;
   form.classList.toggle("signup", m === "signup");
   $("tabs").classList.toggle("signup", m === "signup");
-  document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", b.dataset.mode === m));
+  document.querySelectorAll("#tabs button").forEach((b) => { const on = b.dataset.mode === m; b.classList.toggle("on", on); b.setAttribute("aria-selected", String(on)); b.tabIndex = on ? 0 : -1; });
   $("goText").textContent = m === "signup" ? "注册并开始" : "登录";
   $("cardTitle").textContent = m === "signup" ? "创建你的账号 ✨" : "欢迎回来 👋";
   $("cardSub").textContent = m === "signup" ? "一分钟搞定，账号不需要邮箱和手机号" : "登录后查看你的捞捞课程表";
@@ -48,6 +48,16 @@ function setMode(m) {
   checkAccount(); checkPw();
 }
 $("tabs").onclick = (e) => { const b = e.target.closest("button[data-mode]"); if (b) setMode(b.dataset.mode); };
+$("tabs").addEventListener("keydown", (e) => {
+  if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+  const buttons = [...$("tabs").querySelectorAll("button[data-mode]")];
+  const i = buttons.indexOf(document.activeElement);
+  if (i < 0) return;
+  e.preventDefault();
+  const n = e.key === "Home" ? 0 : e.key === "End" ? buttons.length - 1 : (i + (e.key === "ArrowRight" ? 1 : -1) + buttons.length) % buttons.length;
+  setMode(buttons[n].dataset.mode); buttons[n].focus();
+});
+
 document.querySelectorAll("input[name=gender]").forEach((r) => r.addEventListener("change", () => { setGender(r.value); $("gHint").className = "hint"; $("gHint").textContent = r.value === "f" ? "已选女生：会用樱花粉主题，准备一套专属欢迎引导 🌸" : "已选男生：会用海军蓝主题，准备一套专属欢迎引导 🚀"; }));
 
 // ---------- 输入时就提示 ----------
@@ -309,7 +319,7 @@ if (!window.AndroidBridge && !/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
 // ---------- 打开页面 ----------
 try { const last = localStorage.getItem(LS_LAST); if (last) { $("account").value = last; } } catch (e) {}
 setMode(new URLSearchParams(location.search).get("mode") === "signup" ? "signup" : "login");
-setTimeout(() => ($("account").value ? $("password") : $("account")).focus(), 60);
+if (!document.body.classList.contains("studio-public")) setTimeout(() => ($("account").value ? $("password") : $("account")).focus(), 60);
 (async () => {
   const s = await CCAuth.session();
   if (!s) return;

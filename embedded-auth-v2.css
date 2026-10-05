@@ -1,0 +1,197 @@
+
+/* ===== 登录（来自 login.html，限定在登录区块里） ===== */
+.lgtop, #ob {
+    --bg1: #cdeeff; --bg2: #f3fbff; --card: #fff; --solid: #fff; --line: #dfe9f3; --text: #0e2240; --sub: #687d97;
+    --accent: #1e8cff; --accent2: #ff7b2e; --red: #ef4b3f; --green: #17b26a;
+    --fd: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    --glow: rgba(30,140,255,.28);
+  }
+html[data-g=f] .lgtop, html[data-g=f] #ob { --bg1: #ffe1ec; --bg2: #fff6f9; --accent: #ff5f8f; --accent2: #ffb03b; --glow: rgba(255,95,143,.28); }
+html[data-g=m] .lgtop, html[data-g=m] #ob { --bg1: #d6e2ff; --bg2: #f4f7ff; --accent: #2457d6; --accent2: #ffb020; --glow: rgba(36,87,214,.28); }
+.lgtop { position: relative; min-height: 100vh; min-height: 100dvh; color: var(--text); font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; font-size: 15px;
+    background: radial-gradient(120% 80% at 0% 0%, var(--bg1), var(--bg2) 60%); transition: background .5s; display: flex; }
+:where(.lgtop, #ob) button, :where(.lgtop, #ob) input { font: inherit; color: inherit; }
+:where(.lgtop, #ob) .hidden { display: none !important; }
+:where(.lgtop, #ob) .stage { flex: 1.1; position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: center; padding: 48px 56px; }
+:where(.lgtop, #ob) .stage .logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 17px; position: absolute; top: 28px; left: 32px; }
+:where(.lgtop, #ob) .stage .logo svg { width: 36px; height: 36px; }
+:where(.lgtop, #ob) .stage h1 { font-family: var(--fd); font-weight: 400; font-size: clamp(34px, 4.4vw, 56px); line-height: 1.15; margin: 0 0 14px; letter-spacing: 1px; }
+:where(.lgtop, #ob) .stage h1 em { font-style: normal; color: var(--accent); }
+:where(.lgtop, #ob) .stage p.lead { color: var(--sub); font-size: 16px; line-height: 1.7; margin: 0 0 26px; max-width: 460px; }
+:where(.lgtop, #ob) .feats { display: grid; grid-template-columns: repeat(2, minmax(0, 220px)); gap: 10px; }
+:where(.lgtop, #ob) .feat { display: flex; gap: 10px; align-items: center; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 10px 12px; font-size: 13.5px; font-weight: 600;
+    box-shadow: 0 10px 30px -18px var(--glow); }
+:where(.lgtop, #ob) .feat i { font-style: normal; font-size: 20px; width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; background: color-mix(in srgb, var(--accent) 12%, transparent); flex-shrink: 0; }
+:where(.lgtop, #ob) .hero-mascot { position: absolute; right: 6%; bottom: 7%; width: min(30vw, 260px); animation: bob 4s ease-in-out infinite; filter: drop-shadow(0 20px 30px var(--glow)); }
+@keyframes bob { 50% { transform: translateY(-12px) rotate(-2deg); } }
+:where(.lgtop, #ob) .floaty { position: absolute; font-size: 22px; opacity: .55; animation: drift 9s linear infinite; pointer-events: none; }
+@keyframes drift { from { transform: translateY(20px) rotate(0); opacity: 0; } 15% { opacity: .6; } to { transform: translateY(-110vh) rotate(260deg); opacity: 0; } }
+:where(.lgtop, #ob) .side { flex: 1; display: flex; align-items: center; justify-content: center; padding: 32px 20px; }
+:where(.lgtop, #ob) .card { width: 100%; max-width: 420px; background: var(--card); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); border: 1px solid var(--line); border-radius: 28px;
+    padding: 30px 28px 24px; box-shadow: 0 30px 80px -30px var(--glow), 0 2px 6px rgba(0,0,0,.04); }
+:where(.lgtop, #ob) .card h2 { margin: 0 0 4px; font-size: 22px; }
+:where(.lgtop, #ob) .card .sub { color: var(--sub); font-size: 13.5px; margin-bottom: 18px; }
+:where(.lgtop, #ob) .tabs { position: relative; display: grid; grid-template-columns: 1fr 1fr; background: color-mix(in srgb, var(--text) 6%, transparent); border-radius: 14px; padding: 4px; margin-bottom: 18px; }
+:where(.lgtop, #ob) .tabs button { position: relative; z-index: 1; border: 0; background: none; padding: 9px; border-radius: 10px; color: var(--sub); font-weight: 700; cursor: pointer; transition: color .2s; }
+:where(.lgtop, #ob) .tabs button.on { color: var(--text); }
+:where(.lgtop, #ob) .tabs .ind { position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc(50% - 4px); background: var(--solid); border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,.08); transition: transform .3s cubic-bezier(.3,1.3,.5,1); }
+:where(.lgtop, #ob) .tabs.signup .ind { transform: translateX(100%); }
+:where(.lgtop, #ob) .fld { margin-bottom: 12px; }
+:where(.lgtop, #ob) .fld > label { display: block; font-size: 13px; font-weight: 700; color: var(--sub); margin: 0 0 6px 2px; }
+:where(.lgtop, #ob) .inp { position: relative; display: flex; align-items: center; }
+:where(.lgtop, #ob) .inp .ic { position: absolute; left: 13px; font-size: 16px; opacity: .6; pointer-events: none; }
+:where(.lgtop, #ob) .inp input { width: 100%; padding: 12px 42px 12px 40px; border: 1.5px solid var(--line); border-radius: 14px; background: var(--solid); outline: none; transition: border-color .2s, box-shadow .2s; }
+:where(.lgtop, #ob) .inp input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent); }
+:where(.lgtop, #ob) .inp input.bad { border-color: var(--red); }
+:where(.lgtop, #ob) .inp input.good { border-color: color-mix(in srgb, var(--green) 70%, var(--line)); }
+:where(.lgtop, #ob) .inp .eye { position: absolute; right: 6px; border: 0; background: none; width: 34px; height: 34px; border-radius: 10px; cursor: pointer; opacity: .65; font-size: 16px; }
+:where(.lgtop, #ob) .inp .eye:hover { opacity: 1; background: color-mix(in srgb, var(--text) 6%, transparent); }
+:where(.lgtop, #ob) .inp .ok { position: absolute; right: 12px; color: var(--green); font-weight: 900; }
+:where(.lgtop, #ob) .hint { font-size: 12px; color: var(--sub); margin: 5px 2px 0; min-height: 0; }
+:where(.lgtop, #ob) .hint.err { color: var(--red); }
+:where(.lgtop, #ob) .hint.warn { color: #d97706; }
+:where(.lgtop, #ob) .meter { display: flex; gap: 4px; margin: 7px 2px 0; }
+:where(.lgtop, #ob) .meter i { flex: 1; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--text) 10%, transparent); transition: background .25s; }
+:where(.lgtop, #ob) .meter.s1 i:nth-child(-n+1) { background: var(--red); }
+:where(.lgtop, #ob) .meter.s2 i:nth-child(-n+2) { background: #f59e0b; }
+:where(.lgtop, #ob) .meter.s3 i:nth-child(-n+3) { background: #84cc16; }
+:where(.lgtop, #ob) .meter.s4 i { background: var(--green); }
+:where(.lgtop, #ob) .signup-only { display: none; }
+:where(.lgtop, #ob) form.signup .signup-only { display: block; }
+:where(.lgtop, #ob) form.signup .login-only { display: none; }
+:where(.lgtop, #ob) .forgot-l { text-align: right; margin-top: 6px; font-size: 13px; }
+:where(.lgtop, #ob) .forgot-l a, :where(.lgtop, #ob) .hint a { color: var(--accent); text-decoration: none; font-weight: 700; }
+:where(.lgtop, #ob) .fg-help { margin-top: 12px; padding: 12px 14px; border-radius: 14px; background: color-mix(in srgb, var(--accent) 8%, transparent); font-size: 13.5px; line-height: 1.7; }
+:where(.lgtop, #ob) .fg-help:empty { display: none; }
+:where(.lgtop, #ob) .fg-more { margin-top: 12px; font-size: 13px; color: var(--sub); }
+:where(.lgtop, #ob) .fg-more summary { cursor: pointer; font-weight: 700; }
+:where(.lgtop, #ob) .fg-more p { line-height: 1.7; margin: 6px 0; }
+:where(.lgtop, #ob) .picks { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+:where(.lgtop, #ob) .pick { position: relative; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 16px; background: var(--solid); cursor: pointer; transition: transform .15s, border-color .2s, box-shadow .2s; font-weight: 700; }
+:where(.lgtop, #ob) .pick:hover { transform: translateY(-1px); }
+:where(.lgtop, #ob) .pick input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; z-index: 1; }
+:where(.lgtop, #ob) .pick:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 14%, transparent); }
+:where(.lgtop, #ob) .pick:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+:where(.lgtop, #ob) .pick small { display: block; font-weight: 500; color: var(--sub); font-size: 11.5px; }
+:where(.lgtop, #ob) .pick .em { font-size: 22px; }
+:where(.lgtop, #ob) .gpick .pick { flex-direction: column; text-align: center; padding: 12px 8px 10px; gap: 4px; }
+:where(.lgtop, #ob) .gpick .pick svg { width: 64px; height: 64px; }
+:where(.lgtop, #ob) .gpick .pick.f:has(input:checked) { border-color: #ff5f8f; box-shadow: 0 0 0 4px rgba(255,95,143,.16); }
+:where(.lgtop, #ob) .gpick .pick.m:has(input:checked) { border-color: #2457d6; box-shadow: 0 0 0 4px rgba(36,87,214,.16); }
+:where(.lgtop, #ob) button.go { width: 100%; margin-top: 16px; padding: 13px; border: 0; border-radius: 16px; color: #fff; font-weight: 800; font-size: 16px; cursor: pointer;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 75%, #fff), var(--accent)); box-shadow: 0 12px 24px -12px var(--accent); transition: transform .15s, filter .2s; }
+:where(.lgtop, #ob) button.go:hover { filter: brightness(1.05); }
+:where(.lgtop, #ob) button.go:active { transform: scale(.98); }
+:where(.lgtop, #ob) button.go:disabled { opacity: .7; cursor: wait; }
+:where(.lgtop, #ob) button.go .spin { display: none; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.5); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -3px; margin-right: 6px; }
+:where(.lgtop, #ob) button.go:disabled .spin { display: inline-block; }
+@keyframes spin { to { transform: rotate(360deg); } }
+:where(.lgtop, #ob) button.ghost { width: 100%; margin-top: 10px; padding: 11px; border: 1.5px solid var(--line); border-radius: 16px; background: var(--solid); cursor: pointer; font-weight: 700; }
+#msg { min-height: 20px; margin-top: 10px; font-size: 13px; color: var(--red); text-align: center; }
+:where(.lgtop, #ob) .foot { margin-top: 14px; text-align: center; font-size: 13px; color: var(--sub); }
+:where(.lgtop, #ob) .foot a { color: var(--accent); text-decoration: none; font-weight: 700; }
+:where(.lgtop, #ob) .already { text-align: center; }
+:where(.lgtop, #ob) .already .av { width: 72px; height: 72px; margin: 4px auto 10px; border-radius: 24px; display: grid; place-items: center; font-size: 30px; font-weight: 800; color: #fff; background: linear-gradient(135deg, var(--accent2), var(--accent)); }
+#ob { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 16px; background: radial-gradient(120% 80% at 0% 0%, var(--bg1), var(--bg2) 60%); }
+:where(.lgtop, #ob) .ob-card { width: 100%; max-width: 560px; background: var(--card); border: 1px solid var(--line); border-radius: 30px; padding: 26px 26px 20px; box-shadow: 0 30px 80px -30px var(--glow); position: relative; overflow: hidden; }
+:where(.lgtop, #ob) .ob-dots { display: flex; gap: 6px; justify-content: center; margin-bottom: 16px; }
+:where(.lgtop, #ob) .ob-dots i { width: 8px; height: 8px; border-radius: 4px; background: color-mix(in srgb, var(--text) 14%, transparent); transition: width .3s, background .3s; }
+:where(.lgtop, #ob) .ob-dots i.on { width: 22px; background: var(--accent); }
+:where(.lgtop, #ob) .ob-step.anim { animation: obIn .4s cubic-bezier(.3,1.2,.5,1); }
+@keyframes obIn { from { opacity: 0; transform: translateX(24px); } }
+:where(.lgtop, #ob) .ob-step h3 { font-family: var(--fd); font-weight: 400; font-size: 30px; margin: 4px 0 8px; text-align: center; letter-spacing: 1px; }
+:where(.lgtop, #ob) .ob-step .lead { text-align: center; color: var(--sub); margin: 0 0 16px; line-height: 1.65; }
+:where(.lgtop, #ob) .ob-art { display: grid; place-items: center; margin: 10px auto 14px; position: relative; height: 170px; width: 200px; }
+:where(.lgtop, #ob) .ob-art svg.m { width: 120px; height: 120px; animation: bob 3.6s ease-in-out infinite; }
+:where(.lgtop, #ob) .ob-art .orb { position: absolute; left: calc(50% - 12px); top: calc(50% - 14px); font-size: 22px; animation: orbit 9s linear infinite; }
+@keyframes orbit { from { transform: rotate(0) translateX(84px) rotate(0); } to { transform: rotate(360deg) translateX(84px) rotate(-360deg); } }
+:where(.lgtop, #ob) .ob-skip { display: block; margin: 12px auto 0; border: 0; background: none; color: var(--sub); font-size: 13px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+:where(.lgtop, #ob) .ob-nav { display: flex; gap: 10px; margin-top: 18px; }
+:where(.lgtop, #ob) .ob-nav button { flex: 1; margin-top: 0; }
+:where(.lgtop, #ob) .skinrow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+:where(.lgtop, #ob) .skinrow button { border: 1.5px solid var(--line); background: var(--solid); border-radius: 14px; padding: 8px 4px 6px; cursor: pointer; font-size: 12.5px; font-weight: 700; position: relative; }
+:where(.lgtop, #ob) .skinrow button.on { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); }
+:where(.lgtop, #ob) .skinrow .pv { height: 34px; border-radius: 9px; margin-bottom: 5px; }
+:where(.lgtop, #ob) .skinrow .rec { position: absolute; top: -8px; right: -4px; font-size: 10px; background: var(--accent2); color: #fff; padding: 1px 6px; border-radius: 999px; }
+:where(.lgtop, #ob) .pals { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+:where(.lgtop, #ob) .pals button { border: 1.5px solid var(--line); background: var(--solid); border-radius: 14px; padding: 8px 4px; cursor: pointer; font-size: 12px; font-weight: 700; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+:where(.lgtop, #ob) .pals button.on { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); }
+:where(.lgtop, #ob) .pals .dot { width: 30px; height: 30px; border-radius: 50%; box-shadow: inset 0 0 0 3px rgba(255,255,255,.6); }
+:where(.lgtop, #ob) .preview { margin: 14px 0 0; border-radius: 18px; padding: 12px; border: 1px solid var(--line); display: flex; gap: 10px; align-items: center; transition: background .3s; }
+:where(.lgtop, #ob) .preview .pvh { flex: 1; border-radius: 12px; padding: 10px 12px; color: #fff; font-weight: 800; }
+:where(.lgtop, #ob) .preview .pvb { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 22px; font-weight: 400; }
+:where(.lgtop, #ob) .chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+:where(.lgtop, #ob) .chips button { border: 1.5px solid var(--line); background: var(--solid); border-radius: 999px; padding: 8px 14px; cursor: pointer; font-weight: 700; font-size: 14px; }
+:where(.lgtop, #ob) .chips button.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--solid)); color: var(--accent); }
+:where(.lgtop, #ob) .opts { display: grid; gap: 10px; }
+:where(.lgtop, #ob) .opt { display: flex; gap: 12px; align-items: center; padding: 14px; border: 1.5px solid var(--line); border-radius: 18px; background: var(--solid); cursor: pointer; text-align: left; }
+:where(.lgtop, #ob) .opt.on { border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 14%, transparent); }
+:where(.lgtop, #ob) .opt .em { font-size: 28px; }
+:where(.lgtop, #ob) .opt b { display: block; }
+:where(.lgtop, #ob) .opt small { color: var(--sub); }
+.confetti { position: fixed; width: 9px; height: 13px; border-radius: 2px; z-index: 60; pointer-events: none; animation: fall 1.6s cubic-bezier(.15,.7,.4,1) forwards; }
+@keyframes fall { to { transform: translate(var(--dx), var(--dy)) rotate(var(--r)); opacity: 0; } }
+@media (max-width: 900px) {
+.lgtop { flex-direction: column; }
+:where(.lgtop, #ob) .stage { flex: none; padding: 64px 22px 8px; }
+:where(.lgtop, #ob) .stage .logo { top: 18px; left: 20px; }
+:where(.lgtop, #ob) .stage h1 { font-size: 32px; margin-bottom: 6px; }
+:where(.lgtop, #ob) .stage p.lead { font-size: 14px; margin-bottom: 0; }
+:where(.lgtop, #ob) .feats, :where(.lgtop, #ob) .floaty { display: none; }
+:where(.lgtop, #ob) .hero-mascot { width: 92px; right: 18px; bottom: auto; top: 46px; }
+:where(.lgtop, #ob) .side { padding: 14px 12px 28px; align-items: flex-start; }
+:where(.lgtop, #ob) .card { padding: 22px 18px 18px; border-radius: 24px; }
+:where(.lgtop, #ob) .ob-card { padding: 20px 16px 16px; }
+:where(.lgtop, #ob) .ob-step h3 { font-size: 26px; }
+:where(.lgtop, #ob) .pals { grid-template-columns: repeat(4, 1fr); }
+:where(.lgtop, #ob) .skinrow button { font-size: 11.5px; }
+}
+@media (prefers-reduced-motion: reduce) {
+:where(.lgtop, #ob) .hero-mascot, :where(.lgtop, #ob) .floaty, :where(.lgtop, #ob) .ob-art svg.m, :where(.lgtop, #ob) .ob-art .orb, :where(.lgtop, #ob) .ob-step { animation: none !important; }
+:where(.lgtop, #ob) .tabs .ind { transition: none; }
+}
+
+/* —— 介绍页里的登录区块 —— */
+.lgtop { background: radial-gradient(110% 70% at 0% 0%, var(--bg1), transparent 70%); line-height: normal; font-size: 15px; }
+#ob { font: 15px/normal -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; color: var(--text); }
+#ob.hidden, .lgtop .hidden { display: none !important; }
+
+/* 介绍页同名样式在这里不生效 */
+.lgtop .stage { height: auto; place-items: normal; padding-top: 88px; }
+.lgtop .hint, #ob .hint { position: static; left: auto; bottom: auto; transform: none; display: block; justify-items: normal; gap: 0; z-index: auto; }
+.lgtop .ghost, #ob .ghost { display: block; min-height: 0; text-decoration: none; }
+.lgtop .foot { padding: 0; }
+#ob .m { display: block; opacity: 1; transform: none; margin: 0; transition: none; gap: 0; }
+.lgtop .pick.m { opacity: 1; transform: none; margin-bottom: 0; }   /* 「男生」选项的类名 m 跟介绍页撞了 */
+.lgtop .pick.m:hover { transform: translateY(-1px); }
+.lgtop .side { padding-top: 76px; }   /* 别被顶栏挡住 */
+/* 往下看介绍 */
+.lg-more { position: absolute; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: grid; justify-items: center; gap: 6px;
+  font-size: 13px; color: var(--sub); text-decoration: none; white-space: nowrap; }
+.lg-more i { width: 22px; height: 34px; border: 2px solid currentColor; border-radius: 12px; position: relative; }
+.lg-more i::after { content: ""; position: absolute; left: 50%; top: 6px; width: 4px; height: 7px; margin-left: -2px; border-radius: 2px; background: currentColor; animation: wheel 1.6s ease-in-out infinite; }
+.lg-more:hover { color: var(--text); }
+@media (max-width: 900px) {
+  .lgtop { min-height: 0; padding-bottom: 8px; }
+  .lgtop .stage { padding-top: 70px; }
+  .lgtop .side { padding-top: 14px; }
+  .lgtop .hero-mascot { top: 62px; }
+  .lg-more { position: static; transform: none; margin: 4px auto 18px; }
+  .lg-more i { display: none; }
+}
+
+/* ===== 清爽版：和 App 统一的白卡片 + 大字标题 ===== */
+@font-face { font-family: "Bricolage"; src: url("fonts/bricolage.woff") format("woff"); font-weight: 200 800; font-display: swap; }
+:root { --d: -apple-system, BlinkMacSystemFont, "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;  }
+.lines, .sec > h2, .day > h2, .hr h3, .get-sec h2, .faq h3, .cal .mh b { font-weight: 900 !important; letter-spacing: -.02em; }
+.hr time { font-family: "Bricolage", var(--s); font-weight: 800; letter-spacing: -.03em; }
+:where(.lgtop, #ob) .stage h1, :where(.lgtop, #ob) .ob-step h3 { font-weight: 900; letter-spacing: -.5px; }
+:where(.lgtop, #ob) .feat { border-color: transparent; box-shadow: 0 1px 2px rgba(20,26,46,.04), 0 8px 24px -16px var(--glow); }
+:where(.lgtop, #ob) .card { border-color: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: 0 1px 2px rgba(20,26,46,.04), 0 24px 60px -30px var(--glow); }
+:where(.lgtop, #ob) .card h2 { font-size: 26px; font-weight: 900; letter-spacing: -.3px; }
+:where(.lgtop, #ob) .tabs button.on { color: #fff; }
+:where(.lgtop, #ob) .tabs .ind { background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 75%, #fff), var(--accent)); box-shadow: 0 6px 14px -8px var(--accent); }
+:where(.lgtop, #ob) .inp input { background: color-mix(in srgb, var(--accent) 4%, #fff); border-color: transparent; }
+:where(.lgtop, #ob) .inp input:focus { background: #fff; }
+:where(.lgtop, #ob) button.go { border-radius: 999px; }
+:where(.lgtop, #ob) button.ghost { border-radius: 999px; }

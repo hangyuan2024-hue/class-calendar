@@ -5,7 +5,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#bfe6ff">
+<meta name="theme-color" content="#f6f5f1">
 <title>下载 捞捞课程表</title>
 <meta name="description" content="下载捞捞课程表：安卓 App（安卓 7.0 及以上）和 Windows 电脑版，免费。班级群的作业、通知自动整理进日历，到点提醒。">
 <link rel="canonical" href="https://www.laolaokechengbiao.cn/download/">
@@ -14,127 +14,72 @@
 <link rel="preload" href="../fonts/fd-00.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="../fonts.css?v=1">
 <link rel="stylesheet" href="../landing.css?v=2">
-<style>
-.cloud { position: absolute; background: #fff; border-radius: 999px; opacity: .75; filter: blur(.5px); }
-.cloud::before, .cloud::after { content: ""; position: absolute; background: inherit; border-radius: 50%; }
-.cloud::before { width: 46%; height: 160%; left: 16%; bottom: 20%; }
-.cloud::after { width: 34%; height: 130%; left: 50%; bottom: 25%; }
-.c1 { width: 190px; height: 44px; top: 16%; left: -220px; animation: drift 70s linear infinite; }
-.c2 { width: 130px; height: 32px; top: 58%; left: -160px; animation: drift 95s linear -40s infinite; opacity: .55; }
-.c3 { width: 240px; height: 54px; top: 82%; left: -260px; animation: drift 120s linear -80s infinite; opacity: .5; }
-@keyframes drift { to { transform: translateX(calc(100vw + 300px)); } }
-
-.wrap { min-height: 100svh; max-width: 560px; margin: 0 auto; padding: 84px var(--gut) 30px; display: flex; flex-direction: column; align-items: center; text-align: center; }
-.icon { position: relative; width: 132px; height: 132px; margin: 10px 0 26px; }
-.icon img { position: relative; z-index: 2; width: 100%; height: 100%; filter: drop-shadow(0 18px 24px rgba(30, 140, 255, .35)); animation: float 4s ease-in-out infinite; }
-.icon::before, .icon::after { content: ""; position: absolute; inset: 6px; border-radius: 34px; border: 2px solid rgba(30, 140, 255, .45); animation: ripple 3s cubic-bezier(.2, .6, .3, 1) infinite; }
-.icon::after { animation-delay: 1.5s; }
-@keyframes float { 50% { transform: translateY(-10px) rotate(-2deg); } }
-@keyframes ripple { 0% { transform: scale(.9); opacity: .9; } 100% { transform: scale(1.7); opacity: 0; } }
-.icon .st { position: absolute; z-index: 3; width: 18px; height: 18px; color: var(--star); animation: tw 2.4s ease-in-out infinite; }
-.icon .st:nth-of-type(1) { right: -18px; top: 6px; } .icon .st:nth-of-type(2) { left: -22px; top: 54px; width: 12px; height: 12px; animation-delay: .8s; } .icon .st:nth-of-type(3) { right: -8px; bottom: -6px; width: 10px; height: 10px; animation-delay: 1.6s; }
-@keyframes tw { 0%, 100% { transform: scale(.4) rotate(0); opacity: .3; } 50% { transform: scale(1) rotate(45deg); opacity: 1; } }
-.hop img { animation: hop .8s cubic-bezier(.3, .7, .4, 1.5), float 4s ease-in-out .8s infinite; }
-@keyframes hop { 30% { transform: translateY(-26px) scale(1.06, .94); } 55% { transform: translateY(0) scale(.94, 1.06); } }
-
-h1 { font-family: var(--d); font-weight: 400; font-size: clamp(40px, 11vw, 60px); line-height: 1.1; margin: 0; }
-.tagline { font-size: 17px; color: var(--fg2); margin: 10px 0 6px; }
-.facts { display: flex; justify-content: center; gap: 22px; margin: 14px 0 26px; padding: 0; list-style: none; }
-.facts li { display: grid; font-size: 12.5px; color: var(--fg2); line-height: 1.4; }
-.facts b { font-size: 17px; color: var(--fg); font-variant-numeric: tabular-nums; }
-.get { min-height: 62px; font-size: 19px; padding: 0 34px 0 28px; border-radius: 22px; }
-.after { min-height: 1.6em; margin: 14px 0 0; font-size: 14.5px; color: var(--fg2); }
-
-.box { width: 100%; text-align: left; margin-top: 30px; background: rgba(255, 255, 255, .72); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-radius: 26px; padding: 22px; box-shadow: 0 24px 50px -34px rgba(14, 34, 64, .5); }
-.box h2 { font-family: var(--d); font-weight: 400; font-size: 24px; margin: 0 0 14px; }
-.steps { list-style: none; margin: 0; padding: 0; counter-reset: s; display: grid; gap: 16px; }
-.steps li { counter-increment: s; display: grid; grid-template-columns: 34px 1fr; gap: 2px 12px; }
-.steps li::before { content: counter(s); grid-row: span 2; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--ink); color: #fff; font: 400 18px/1 var(--d); }
-.steps b { font-size: 16px; }
-.steps span { font-size: 14px; color: var(--sub); line-height: 1.6; }
-.mock { grid-column: 2; margin-top: 8px; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; background: #fff; border: 1px solid var(--line); font-size: 14px; }
-.mock span { flex: 1; color: var(--ink); }
-.tg { width: 42px; height: 24px; border-radius: 99px; background: #c8d3e0; position: relative; animation: tgbg 3.2s ease-in-out infinite; flex: none; }
-.tg::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .25); animation: tgk 3.2s ease-in-out infinite; }
-@keyframes tgbg { 0%, 35% { background: #c8d3e0; } 50%, 90% { background: #1e8cff; } 100% { background: #c8d3e0; } }
-@keyframes tgk { 0%, 35% { transform: none; } 50%, 90% { transform: translateX(18px); } 100% { transform: none; } }
-
-.alt { display: none; }
-.is-desktop .alt-desk, .is-ios .alt-ios, .is-app .alt-app { display: block; }
-.is-desktop .alt-droid, .is-ios .alt-droid, .is-app .alt-droid { display: none; }
-.alt-desk .qr { margin: 0 auto 14px; }
-.alt p { font-size: 14.5px; color: var(--sub); margin: 0; }
-.more { margin-top: 28px; font-weight: 600; text-decoration: none; padding: 10px 18px; border-radius: 99px; background: rgba(255, 255, 255, .6); }
-.more:hover { background: #fff; }
-.fine { margin-top: 18px; font-size: 12.5px; color: var(--fg2); }
-.fine a { color: inherit; }
-</style>
+<link rel="stylesheet" href="../campus-ui.css?v=20261005-campus1">
+<link rel="stylesheet" href="../auxiliary-v2.css?v=20261005-studio2">
 </head>
-<body data-root="../" data-autowx="1">
-<div id="sky" aria-hidden="true"><div class="cloud c1"></div><div class="cloud c2"></div><div class="cloud c3"></div></div>
-<header class="top solid">
-  <a class="brand" href="../index.html"><img src="../favicon.svg" alt="">捞捞课程表</a>
-  <nav><a class="pill" href="../app.html">了解 App</a></nav>
+<body class="campus-public studio-download" data-root="../" data-autowx="1">
+<a class="campus-skip" href="#get">跳到下载选项</a>
+<header class="download-top">
+  <a class="download-brand" href="../index.html"><span class="studio-brand-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="5" width="16" height="16" rx="4"/><path d="M8 3v4M16 3v4M4 11h16M9 15l2 2 4-4"/></svg></span>捞捞课程表</a>
+  <nav aria-label="页面导航"><a href="../app.html">了解 App</a><a class="download-web-link" href="../index.html">打开网页版 <span aria-hidden="true">↗</span></a></nav>
 </header>
-
-<main class="wrap">
-  <div class="icon" id="icon">
-    <img src="../favicon.svg" alt="捞捞课程表图标">
-    <svg class="st" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 0l1.2 3.8L10 5 6.2 6.2 5 10 3.8 6.2 0 5l3.8-1.2z" fill="currentColor"/></svg>
-    <svg class="st" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 0l1.2 3.8L10 5 6.2 6.2 5 10 3.8 6.2 0 5l3.8-1.2z" fill="currentColor"/></svg>
-    <svg class="st" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 0l1.2 3.8L10 5 6.2 6.2 5 10 3.8 6.2 0 5l3.8-1.2z" fill="currentColor"/></svg>
-  </div>
-  <h1>捞捞课程表</h1>
-  <p class="tagline">群里的作业和通知，替你整理好、到点提醒</p>
-  <ul class="facts">
-    <li><b data-ver>1.0</b>版本</li>
-    <li><b data-size>约 4 MB</b>大小</li>
-    <li><b data-date>最近</b>更新</li>
-  </ul>
-  <a class="get" data-get href="class-calendar.apk" download>
-    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="arrow"><path d="M12 4v11"/><path d="m7 10 5 5 5-5"/></g><path d="M5 20h14"/></svg>
-    <span class="lbl" data-lbl>下载安卓 App</span>
-  </a>
-  <p class="after" data-after aria-live="polite"></p>
-
-  <section class="box alt-droid">
-    <h2>三步装好</h2>
-    <ol class="steps">
-      <li><b>点上面的下载</b><span>下载完，点通知栏里的 class-calendar.apk。</span></li>
-      <li><b>允许安装</b><span>手机提示「未知来源」时点「设置」，把允许安装打开，再返回点安装。华为、小米选「继续安装」。</span>
-        <div class="mock" aria-hidden="true"><span>允许来自此来源的应用</span><i class="tg"></i></div></li>
-      <li><b>打开，用原来的账号登录</b><span>网页上的数据会自动同步过来。</span></li>
-    </ol>
-  </section>
-  <section class="box alt alt-desk">
-    <h2>Windows 电脑版</h2>
-    <p>专门为电脑重新设计的界面：整周课程表铺满屏幕、作业事项一张表、月历拖动改日期，右下角准时提醒，还有<b>离线 AI 助手</b>（第一次用时下载一次模型，约 1GB）。</p>
-    <p style="margin:14px 0 8px"><a class="more" style="display:inline-block;margin:0;background:#1e8cff;color:#fff" href="https://github.com/hangyuan2024-hue/class-calendar/releases/latest/download/LaolaoKechengbiao-Setup.exe">下载 Windows 电脑版（约 100MB）</a></p>
-    <p style="font-size:13px;opacity:.75">安装时如果提示「Windows 已保护你的电脑」，点「更多信息 → 仍要运行」。</p>
-  </section>
-  <section class="box alt alt-desk">
-    <h2>想在电脑上装安卓版？</h2>
-    <div class="qr"><img src="qr.svg" alt="下载页二维码"><div><b>用手机扫一扫</b><span>手机相机或浏览器扫码<br>就能直接下载安装</span></div></div>
-    <p>想在电脑上先试，可以装个 MuMu 模拟器，把下载好的安装包拖进去。</p>
-  </section>
-  <section class="box alt alt-ios">
-    <h2>苹果手机这样用</h2>
-    <p>暂时没有苹果版 App。用 Safari 打开网页版，点底部的分享按钮，选「添加到主屏幕」，桌面上就有图标了，打开也是全屏的。</p>
-  </section>
-  <section class="box alt alt-app">
-    <h2>你已经装好了</h2>
-    <p>检查新版本：在 App 里打开「我的」→「安卓 App」→「检查更新」。</p>
+<main class="download-shell">
+  <section class="download-hero" data-dl>
+    <div class="download-hero-copy">
+      <span class="download-eyebrow">YOUR CAMPUS. EVERYWHERE.</span>
+      <h1>换个屏幕，<br><em>校园生活依然有序。</em></h1>
+      <p class="download-lead">在手机上及时查看，在电脑上从容安排。<br>用同一个账号，继续你的课程、作业和校园计划。</p>
+      <a class="get download-recommended" id="recommendedDownload" data-get="auto" href="class-calendar.apk" download><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="arrow"><path d="M12 4v11M7 10l5 5 5-5"/></g><path d="M5 20h14"/></svg><span data-lbl>选择适合你的版本</span></a>
+      <p class="download-meta" data-meta="recommendedDownload"></p>
+      <p class="after" data-after aria-live="polite"></p>
+    </div>
+    <div class="download-art" aria-hidden="true">
+      <div class="download-art-grid"></div><span class="download-art-note">为每一种日常，准备好。</span>
+      <div class="download-device desktop"><div class="device-dots"><i></i><i></i><i></i></div><div class="device-window"><span class="device-rail"></span><div><b>我的一周</b><div class="device-calendar"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div></div></div>
+      <div class="download-device mobile"><span class="device-notch"></span><b>今天，安排好了。</b><div class="device-task mint"></div><div class="device-task lavender"></div><div class="device-task peach"></div><span class="device-mobile-nav"></span></div>
+      <div class="download-app-icon" id="icon"><img src="../favicon.svg" alt=""></div><span class="download-art-star">✦</span><span class="download-art-sync">↔ <small>一个账号，多端同步</small></span>
+      <span class="download-art-caption">界面功能示意</span>
+    </div>
   </section>
 
-  <a class="more" href="../app.html">看看它能做什么</a>
-  <p class="fine">免费，不收集通讯录和位置。<a href="../index.html">打开网页版</a></p>
+  <section class="download-platforms" id="get" aria-labelledby="platformHeading">
+    <div class="download-section-heading"><div><span class="download-eyebrow">CHOOSE YOUR PLATFORM</span><h2 id="platformHeading">找到适合你的那一版</h2></div><p>下载前，先确认你的设备。</p></div>
+    <div class="platform-grid">
+      <article class="platform-card android" data-dl>
+        <div class="platform-card-top"><span class="platform-symbol" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M9 11h14v13a2 2 0 0 1-2 2H11a2 2 0 0 1-2-2V11Zm0 0a7 7 0 0 1 14 0M11 4 9 1M21 4l2-3M5 13v9M27 13v9M12 26v4M20 26v4"/><circle cx="13" cy="8" r=".7" fill="currentColor"/><circle cx="19" cy="8" r=".7" fill="currentColor"/></svg></span><span class="platform-tag">随身安排</span></div>
+        <h3>安卓 App</h3><p>课堂前、回宿舍的路上，<br>随时看见接下来要做的事。</p>
+        <ul class="platform-spec"><li>Android 7.0 及以上</li><li><span data-ver>版本读取中</span> · <span data-size>大小读取中</span></li><li>更新于 <span data-date>读取中</span></li></ul>
+        <a class="get platform-download" data-get="apk" href="class-calendar.apk" download><span data-lbl>下载安卓 App</span><span aria-hidden="true">↓</span></a>
+        <p class="after" data-after aria-live="polite"></p>
+      </article>
+      <article class="platform-card windows" data-dl>
+        <div class="platform-card-top"><span class="platform-symbol" aria-hidden="true"><svg viewBox="0 0 32 32" fill="currentColor"><path d="M3 6l11-1.5v11H3V6Zm13-1.8L29 2v13.5H16V4.2ZM3 17.5h11v11L3 27v-9.5Zm13 0h13V31l-13-2.2V17.5Z"/></svg></span><span class="platform-tag">专注工作</span></div>
+        <h3>Windows 电脑版</h3><p>把整周课表舒展开，<br>在更大的屏幕上梳理计划。</p>
+        <ul class="platform-spec"><li>Windows 10 / 11 · 64 位</li><li>安装包约 100 MB</li><li>账号与手机版通用</li></ul>
+        <a class="get platform-download" data-get="exe" href="https://github.com/hangyuan2024-hue/class-calendar/releases/latest/download/LaolaoKechengbiao-Setup.exe"><span data-lbl>下载 Windows 电脑版</span><span aria-hidden="true">↓</span></a>
+        <p class="after" data-after aria-live="polite"></p>
+      </article>
+      <article class="platform-card browser">
+        <div class="platform-card-top"><span class="platform-symbol" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="16" cy="16" r="12"/><ellipse cx="16" cy="16" rx="5" ry="12"/><path d="M4 16h24M6 9h20M6 23h20"/></svg></span><span class="platform-tag">即开即用</span></div>
+        <h3>网页版</h3><p>打开浏览器就能开始，<br>让你的安排跟着你走。</p>
+        <ul class="platform-spec"><li>手机与电脑浏览器</li><li>无需下载安装</li><li>iPhone、iPad、Mac 也能用</li></ul>
+        <a class="platform-download web" href="../index.html"><span>打开网页版</span><span aria-hidden="true">↗</span></a>
+      </article>
+    </div>
+  </section>
+
+  <section class="download-help" aria-labelledby="installHeading">
+    <div class="download-install"><span class="download-eyebrow">A LITTLE HELP TO GET STARTED</span><h2 id="installHeading">第一次安装？跟着这三步。</h2>
+      <ol class="install-steps"><li><span>01</span><div><b>下载对应的安装包</b><p>安卓手机下载 APK，Windows 电脑下载 EXE。微信内打开时，请先使用右上角菜单切换到浏览器。</p></div></li><li><span>02</span><div><b>按设备提示完成安装</b><p>安卓如提示「未知来源」，请在设置中允许当前浏览器安装，再返回继续。Windows 双击安装包，按提示完成安装。</p></div></li><li><span>03</span><div><b>用你原来的账号登录</b><p>不用重新注册。登录同一个账号，继续查看你的课程与待办。</p></div></li></ol>
+    </div>
+    <aside class="download-tips"><div class="download-tip"><span aria-hidden="true">↗</span><h3>苹果设备，也可以随时打开。</h3><p>暂时没有 iOS 安装包。在 Safari 打开网页版，点「分享 → 添加到主屏幕」，下次从桌面直接进入。</p><a href="../index.html">去网页版看看 <span aria-hidden="true">↗</span></a></div>
+      <div class="download-qr" data-qr hidden><img src="qr.svg" alt="下载页二维码"><div><b>手机扫一扫</b><p>用手机相机或浏览器扫码，<br>在手机上打开这个下载页。</p></div></div>
+      <details class="download-faq"><summary>Windows 安装时提示保护信息？</summary><p>请先确认安装包来自本页链接。如果决定继续安装，可点击「更多信息 → 仍要运行」。</p></details>
+    </aside>
+  </section>
 </main>
-
-<div id="wx" role="dialog" aria-label="请在浏览器打开">
-  <svg viewBox="0 0 120 120" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M20 110 C 40 60, 70 40, 104 16"/><path d="M84 14 L106 14 L100 36"/></svg>
-  <p>微信里不能直接下载<br>点右上角 <b>···</b><br>选 <b>在浏览器打开</b></p>
-  <small>点任意位置关闭</small>
-</div>
+<footer class="download-footer"><a class="download-brand" href="../index.html">捞捞课程表</a><p>把校园日常，安排成你喜欢的样子。</p><a href="../app.html">了解更多 <span aria-hidden="true">↗</span></a></footer>
+<div id="wx" role="dialog" aria-label="请在浏览器打开"><svg viewBox="0 0 120 120" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M20 110 C 40 60, 70 40, 104 16M84 14 L106 14 L100 36"/></svg><p>微信里不能直接下载<br>点右上角 <b>···</b><br>选 <b>在浏览器打开</b></p><small>点任意位置关闭</small></div>
 <script src="../get.js?v=1"></script>
 <script src="dl.js?v=1"></script>
 </body>

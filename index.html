@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com http://localhost:* http://127.0.0.1:*; frame-src 'self'; media-src 'self' data: blob:; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; manifest-src 'self'">
 <meta name="referrer" content="no-referrer">
-<script src="guard.js?v=20261002b"></script>
+<script src="guard.js?v=20261005-campus1"></script>
 <script src="first.js?v=20261004c"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="捞捞课程表">
-<meta name="theme-color" content="#cdeeff">
+<meta name="theme-color" content="#f6f5f1">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
 <link rel="icon" href="favicon-16.png" sizes="16x16" type="image/png">
@@ -1801,8 +1801,11 @@
   }
 </style>
 <link rel="stylesheet" href="fresh.css?v=20261005c">
+<link rel="stylesheet" href="campus-ui.css?v=20261005-campus1">
+<link rel="stylesheet" href="workspace-v2.css?v=20261005-studio2">
 </head>
-<body>
+<body class="campus-workspace">
+<a class="campus-skip" href="#campus-main">跳到主要内容</a>
 <div id="bgLayer"></div>
 <div class="shell">
 
@@ -1811,18 +1814,24 @@
   <div class="brand">
     <svg viewBox="0 0 120 120" aria-hidden="true"><use href="#mascotArt"/></svg><span>捞捞课程表</span>
   </div>
+  <div class="studio-rail-caption"><span>我的校园</span><span>WORKSPACE</span></div>
   <nav id="tabs" aria-label="主导航"></nav>
   <button id="addBtn" data-feat="mine" title="添加只自己可见的事项"><span class="plus">＋</span><span class="lbl">记一件事</span></button>
+  <button class="studio-rail-note" data-tab="intro"><span class="studio-note-icon" aria-hidden="true">↗</span><b>把校园日常，安排从容。</b><small>认识你的学习伙伴</small></button>
   <button id="userChip"></button>
 </aside>
 
 <!-- ========== 中间内容 ========== -->
-<main class="col">
+<main class="col" id="campus-main">
   <div id="banner"></div>
 
   <!-- 首页 -->
   <section class="view on" data-view="home">
-    <header class="vhead"><button class="av mavatar" data-tab="me" aria-label="我的"></button><h2>首页</h2><a class="btn sm appdl hidden" id="appDl" href="app.html#get" title="下载安卓 App 和 Windows 电脑版">⬇️ 下载</a></header>
+    <header class="vhead studio-home-heading">
+      <button class="av mavatar" data-tab="me" aria-label="我的"></button>
+      <div class="studio-page-title"><span class="studio-eyebrow">MY CAMPUS · 每一天都值得认真</span><h2>学习工作台<span class="studio-title-dot" aria-hidden="true">.</span></h2></div>
+      <div class="studio-top-actions"><button class="studio-icon-btn" data-tab="calendar" aria-label="打开日历" title="打开日历"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="6" width="16" height="15" rx="3"/><path d="M8 3v6m8-6v6M4 12h16"/></svg></button><button class="btn sm studio-plan-btn" data-nx="pomo">开始专注 <span aria-hidden="true">↗</span></button><a class="btn sm appdl hidden" id="appDl" href="app.html#get" title="下载安卓 App 和 Windows 电脑版">下载</a></div>
+    </header>
     <div id="classBar" class="hidden">
       <div class="cb-badge" id="cbBadge">班</div>
       <div class="cb-main">
@@ -1831,14 +1840,20 @@
       </div>
     </div>
     <div id="notice" class="surface hidden"></div>
-    <div id="hero"></div>
+    <div class="studio-focus-grid">
+      <div class="studio-welcome-wrap"><div id="hero"></div></div>
+      <section class="studio-agenda-panel" aria-labelledby="studio-agenda-title">
+        <div class="studio-panel-heading"><div><span class="studio-eyebrow">UP NEXT</span><h3 id="studio-agenda-title">接下来的安排</h3></div><button class="studio-text-btn" data-tab="calendar">日历 <span aria-hidden="true">↗</span></button></div>
+        <div id="agenda"></div>
+      </section>
+    </div>
     <div id="wEditBar" class="wedit-bar hidden">
       <div class="wedit-top"><b>自定义首页</b><span>拖动排序，拖右下角调大小，点 × 移走</span><span class="spacer"></span>
         <button class="small" id="wReset">恢复默认</button><button class="btn ink sm" id="wDone">完成</button></div>
       <div class="wadd" id="wAddList"></div>
     </div>
+    <div class="studio-space-heading"><div><span class="studio-eyebrow">MADE FOR YOUR DAY</span><h3>我的学习空间</h3></div><div class="wedit-entry"><button class="small" id="wEdit"><span aria-hidden="true">⊞</span> 自定义首页</button></div></div>
     <div id="widgets" class="widgets"></div>
-    <div class="wedit-entry"><button class="small" id="wEdit">✏️ 自定义首页</button></div>
     <div id="wParts" hidden>
     <div class="quick" id="quickPart">
       <button class="qbtn hidden" id="cIngestBtn"><span class="qi">✨</span>AI 整理</button>
@@ -1872,7 +1887,7 @@
       <div id="ipLearn"></div>
       <div id="ipResult" class="hidden"></div>
     </section>
-    <div id="agenda"></div>
+
   </section>
 
   <!-- 班级墙 -->
@@ -2328,7 +2343,8 @@
 </dialog>
 
 <!-- ========== 右侧栏（宽屏） ========== -->
-<aside class="siderail">
+<aside class="siderail" aria-label="日历与学习提醒">
+  <div class="studio-side-heading"><span class="studio-eyebrow">AT A GLANCE</span><h3>校园速览</h3></div>
   <div class="widget surface"><h4 id="miniTitle"></h4><div class="mini" id="miniCal"></div><div id="railDay" class="hidden"></div></div>
   <div class="widget surface"><h4>这周的作业<span class="spacer"></span><button class="small" data-tab="homework">全部</button></h4><div id="miniHw"></div></div>
   <div class="rail-foot">信息捞捞队 · 班级群信息整理助手<br>群消息由 AI 整理，有出入以群里为准<br><button class="linkish" data-tab="intro">📖 功能介绍</button> · <button class="linkish" data-tab="credits">💛 感谢名单</button><span class="appdl-l hidden"> · <a class="linkish" href="app.html#get">⬇️ 下载</a></span></div>

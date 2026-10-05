@@ -5,7 +5,7 @@
 <meta name="robots" content="noindex">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com http://localhost:* http://127.0.0.1:*; frame-src 'self'; media-src 'self' data: blob:; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; manifest-src 'self'">
 <meta name="referrer" content="no-referrer">
-<script src="guard.js?v=20261002b"></script>
+<script src="guard.js?v=20261005-campus1"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#cdeeff">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
@@ -174,8 +174,11 @@
   .ob-step h3 { font-weight: 900; letter-spacing: -.3px; }
   @media (prefers-color-scheme: dark) { .inp input { background: #1c2333; } }
 </style>
+<link rel="stylesheet" href="campus-ui.css?v=20261005-campus1">
+<link rel="stylesheet" href="auxiliary-v2.css?v=20261005-studio2">
 </head>
-<body>
+<body class="campus-auth studio-auth">
+<a class="campus-skip" href="#account">跳到登录表单</a>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
     <g id="mascotArt">
@@ -215,21 +218,33 @@
 </svg>
 
 <section class="stage" aria-hidden="false">
-  <div class="logo"><svg viewBox="0 0 120 120" aria-hidden="true"><use href="#mascotArt"/></svg>捞捞课程表</div>
+  <a class="logo" href="index.html"><span class="studio-brand-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="5" width="16" height="16" rx="4"/><path d="M8 3v4M16 3v4M4 11h16M9 15l2 2 4-4"/></svg></span>捞捞课程表<span class="brand-divider"></span><small>校园生活工作台</small></a>
+  <div class="auth-eyebrow">WELCOME TO YOUR CAMPUS</div>
   <h1 id="stageTitle">群消息太多？<br><em>捞捞</em>帮你理清楚</h1>
   <p class="lead" id="stageLead">作业、通知、活动自动整理成日历，换手机、换浏览器登录同一个账号，你的待办都在。</p>
   <div class="feats">
-    <div class="feat"><i>📝</i>作业截止一眼看清</div>
-    <div class="feat"><i>📚</i>拍照导入课程表</div>
-    <div class="feat"><i>☁️</i>多设备云端同步</div>
-    <div class="feat"><i>🌐</i>捞捞元宇宙</div>
+    <div class="feat"><i aria-hidden="true">↗</i>课程与待办，在一起</div>
+    <div class="feat"><i aria-hidden="true">✓</i>手机和电脑，同步安排</div>
   </div>
-  <svg class="hero-mascot" viewBox="0 0 120 120" aria-hidden="true"><use href="#mascotArt"/></svg>
+  <div class="auth-planner" aria-label="课程与待办功能示意">
+    <div class="planner-top"><span><i aria-hidden="true"></i> 一个有序的学期</span><small>功能示意</small></div>
+    <div class="planner-body">
+      <div class="planner-date"><span>YOUR DAY</span><strong>每件事，<br>都有位置。</strong><div class="planner-dots" aria-hidden="true"><i></i><i></i><i></i></div></div>
+      <div class="planner-agenda">
+        <div class="planner-event mint"><span class="event-icon" aria-hidden="true">▤</span><div><b>把课程安排好</b><small>课表导入 · 一周尽收眼底</small></div><span aria-hidden="true">↗</span></div>
+        <div class="planner-event lavender"><span class="event-icon" aria-hidden="true">✓</span><div><b>给每个目标留点时间</b><small>作业待办 · 安心完成</small></div><span aria-hidden="true">↗</span></div>
+        <div class="planner-event peach"><span class="event-icon" aria-hidden="true">◎</span><div><b>和你的班级一起向前</b><small>班级通知 · 及时掌握</small></div><span aria-hidden="true">↗</span></div>
+      </div>
+    </div>
+    <div class="planner-bottom"><span>COURSES / TASKS / CAMPUS</span><svg viewBox="0 0 120 120" aria-hidden="true"><use href="#mascotArt"/></svg></div>
+  </div>
+  <p class="auth-bottom">从今天的一节课，到整个学期的小目标。</p>
   <div id="floaties"></div>
 </section>
 
 <main class="side">
   <div class="card">
+    <div class="form-eyebrow">你的校园，从这里继续 <span aria-hidden="true">↗</span></div>
     <div id="already" class="already hidden">
       <div class="av" id="alreadyAv">?</div>
       <h2 id="alreadyHi">欢迎回来</h2>
@@ -248,7 +263,7 @@
       <form id="form" autocomplete="on" novalidate>
         <div class="fld">
           <label for="account">账号</label>
-          <div class="inp"><span class="ic">👤</span><input id="account" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="20" placeholder="学号或自己起的账号" required><span class="ok hidden" id="accOk">✓</span></div>
+          <div class="inp"><span class="ic" aria-hidden="true">👤</span><input id="account" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="20" placeholder="学号或自己起的账号" required><span class="ok hidden" id="accOk">✓</span></div>
           <div class="hint" id="accHint"></div>
         </div>
         <div class="signup-only">
@@ -269,23 +284,23 @@
           </div>
           <div class="fld">
             <label for="name">姓名</label>
-            <div class="inp"><span class="ic">🪪</span><input id="name" maxlength="30" autocomplete="name" placeholder="请填真实姓名，老师审批入班时要看"></div>
+            <div class="inp"><span class="ic" aria-hidden="true">🪪</span><input id="name" maxlength="30" autocomplete="name" placeholder="请填真实姓名，老师审批入班时要看"></div>
           </div>
         </div>
         <div class="fld">
           <label for="password">密码</label>
-          <div class="inp"><span class="ic">🔒</span><input id="password" type="password" autocomplete="current-password" required placeholder="至少 8 位"><button type="button" class="eye" data-eye="password" aria-label="显示密码">👁</button></div>
+          <div class="inp"><span class="ic" aria-hidden="true">🔒</span><input id="password" type="password" autocomplete="current-password" required placeholder="至少 8 位"><button type="button" class="eye" data-eye="password" aria-label="显示密码">👁</button></div>
           <div class="meter signup-only" id="meter"><i></i><i></i><i></i><i></i></div>
           <div class="forgot-l login-only"><a href="#" id="forgotLink">忘记密码？</a></div>
           <div class="hint" id="pwHint"></div>
         </div>
         <div class="fld signup-only">
           <label for="password2">确认密码</label>
-          <div class="inp"><span class="ic">🔁</span><input id="password2" type="password" autocomplete="new-password" placeholder="再输一遍"><button type="button" class="eye" data-eye="password2" aria-label="显示密码">👁</button></div>
+          <div class="inp"><span class="ic" aria-hidden="true">🔁</span><input id="password2" type="password" autocomplete="new-password" placeholder="再输一遍"><button type="button" class="eye" data-eye="password2" aria-label="显示密码">👁</button></div>
           <div class="hint" id="pw2Hint"></div>
         </div>
         <button class="go" id="go" type="submit"><span class="spin"></span><span id="goText">登录</span></button>
-        <div id="msg" role="alert"></div>
+        <div id="msg" role="alert" aria-live="polite"></div>
       </form>
       <div class="foot" id="note"></div>
     </div>
@@ -294,17 +309,17 @@
       <div class="sub" id="fgSub">绑定过邮箱的账号，可以用邮箱验证码设置新密码</div>
       <div id="fg1">
         <div class="fld"><label for="fgAcct">账号</label>
-          <div class="inp"><span class="ic">👤</span><input id="fgAcct" autocapitalize="none" spellcheck="false" maxlength="20" placeholder="你的账号"></div></div>
+          <div class="inp"><span class="ic" aria-hidden="true">👤</span><input id="fgAcct" autocapitalize="none" spellcheck="false" maxlength="20" placeholder="你的账号"></div></div>
         <button class="go" type="button" id="fgSend"><span class="spin"></span>发送验证码到邮箱</button>
       </div>
       <div id="fg2" class="hidden">
         <div class="fld"><label for="fgCode">验证码</label>
-          <div class="inp"><span class="ic">✉️</span><input id="fgCode" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="6 位数字"></div>
+          <div class="inp"><span class="ic" aria-hidden="true">✉️</span><input id="fgCode" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="6 位数字"></div>
           <div class="hint"><a href="#" id="fgResend">没收到？重新发送</a>（也看看垃圾邮件箱）</div></div>
         <div class="fld"><label for="fgPw">新密码</label>
-          <div class="inp"><span class="ic">🔒</span><input id="fgPw" type="password" autocomplete="new-password" placeholder="至少 8 位"><button type="button" class="eye" data-eye="fgPw" aria-label="显示密码">👁</button></div></div>
+          <div class="inp"><span class="ic" aria-hidden="true">🔒</span><input id="fgPw" type="password" autocomplete="new-password" placeholder="至少 8 位"><button type="button" class="eye" data-eye="fgPw" aria-label="显示密码">👁</button></div></div>
         <div class="fld"><label for="fgPw2">再输一遍</label>
-          <div class="inp"><span class="ic">🔁</span><input id="fgPw2" type="password" autocomplete="new-password"></div></div>
+          <div class="inp"><span class="ic" aria-hidden="true">🔁</span><input id="fgPw2" type="password" autocomplete="new-password"></div></div>
         <button class="go" type="button" id="fgDone"><span class="spin"></span>设置新密码并登录</button>
       </div>
       <div class="fg-help" id="fgHelp"></div>
@@ -314,7 +329,7 @@
         <p>请联系你的<b>班主任</b>：老师在你的个人主页（班级墙点你的名字）可以给你重置一个临时密码，用临时密码登录后会让你马上设置新密码。</p>
         <p>老师账号忘记密码请联系网站管理员。找回之后，记得去「我的 → 邮箱通知」绑定邮箱，以后就能自己找回了。</p></details>
     </div>
-    <div class="foot"><a href="index.html#intro">📖 功能介绍</a>　·　<a href="index.html?guest=1">不登录，先逛逛 →</a></div>
+    <div class="foot"><a href="index.html#intro">功能介绍</a>　·　<a href="index.html?guest=1">先体验一下 →</a></div>
   </div>
 </main>
 
@@ -328,6 +343,6 @@
 
 <script src="config.js"></script>
 <script src="auth.js?v=20261004m"></script>
-<script src="login.js?v=20261004h"></script>
+<script src="login.js?v=20261005-studio2"></script>
 </body>
 </html>
