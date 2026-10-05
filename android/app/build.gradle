@@ -1,6 +1,6 @@
 plugins { id "com.android.application" }
 
-// 版本号由 GitHub Actions 传进来（每次构建自动 +1）；本地构建用 4
+// 版本号由 GitHub Actions 传进来；本地构建用 4。
 def vc = (System.getenv("APP_VERSION_CODE") ?: "4").toInteger()
 def ksFile = file("../release.jks")
 def ksPass = System.getenv("KEYSTORE_PASSWORD")
@@ -14,7 +14,8 @@ android {
         targetSdk 34
         versionCode(vc)
         versionName("2.0." + vc)
-        buildConfigField("String", "SITE_URL", "\"" + (System.getenv("SITE_URL") ?: "https://hangyuan2024-hue.github.io/class-calendar/") + "\"")
+        // 直接使用正式域名，避免 github.io -> 自定义域名重定向被 WebView 当成外链拦截。
+        buildConfigField("String", "SITE_URL", "\"" + (System.getenv("SITE_URL") ?: "https://www.laolaokechengbiao.cn/") + "\"")
     }
     signingConfigs {
         release {
@@ -38,7 +39,6 @@ android {
         stable { dimension "edition" }
         preview { dimension "edition"; applicationIdSuffix ".preview"; versionNameSuffix "-preview" }
     }
-    // 不上架应用商店，打包时不因为商店规则（比如 targetSdk 年限）报错中断
     lint {
         checkReleaseBuilds false
         abortOnError false
@@ -52,7 +52,7 @@ android {
 tasks.matching { it.name == "preStableReleaseBuild" }.configureEach {
     doFirst {
         if (!ksFile.exists() || !ksPass) {
-            throw new GradleException("正式更新需要原来的 android/release.jks 和 KEYSTORE_PASSWORD；体验请构建 assemblePreviewDebug。")
+            throw new GradleException("正式更新需要 android/release.jks 和 KEYSTORE_PASSWORD；体验版请构建 assemblePreviewDebug。")
         }
     }
 }
