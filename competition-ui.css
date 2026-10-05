@@ -1,0 +1,905 @@
+/* ============================================================================
+   捞捞课程表 · AI Agent Competition Edition UI
+   2026-10-05
+   目标：不改业务逻辑，只重构视觉、布局与交互反馈。
+   ============================================================================ */
+
+:root {
+  --cc-brand: #1677ff;
+  --cc-brand-2: #5aa7ff;
+  --cc-brand-soft: #eaf3ff;
+  --cc-ink: #102033;
+  --cc-muted: #68778c;
+  --cc-bg: #f4f7fb;
+  --cc-card: rgba(255,255,255,.88);
+  --cc-card-solid: #fff;
+  --cc-card-2: #f8fafc;
+  --cc-line: rgba(21,45,73,.09);
+  --cc-line-strong: rgba(21,45,73,.15);
+  --cc-warn: #ff7a45;
+  --cc-success: #14a876;
+  --cc-danger: #ef5350;
+  --cc-purple: #7668f2;
+  --cc-r-sm: 12px;
+  --cc-r: 16px;
+  --cc-r-lg: 24px;
+  --cc-r-xl: 30px;
+  --cc-shadow-sm: 0 6px 20px rgba(30,55,88,.06);
+  --cc-shadow: 0 18px 55px rgba(30,55,88,.09);
+  --cc-shadow-hover: 0 24px 70px rgba(30,55,88,.14);
+  --cc-ease: cubic-bezier(.2,.8,.2,1);
+  --cc-font: -apple-system, BlinkMacSystemFont, "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei", sans-serif;
+}
+
+/* ---------- 全站基础 ---------- */
+html[data-competition-ui] {
+  color-scheme: light;
+  background: var(--cc-bg);
+}
+html[data-competition-ui] *,
+html[data-competition-ui] *::before,
+html[data-competition-ui] *::after { box-sizing: border-box; }
+html[data-competition-ui] body {
+  font-family: var(--cc-font);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+html[data-competition-ui] button,
+html[data-competition-ui] input,
+html[data-competition-ui] select,
+html[data-competition-ui] textarea { font-family: inherit; }
+html[data-competition-ui] :focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--cc-brand) 28%, transparent) !important;
+  outline-offset: 2px !important;
+}
+html[data-competition-ui] ::selection {
+  background: color-mix(in srgb, var(--cc-brand) 20%, transparent);
+}
+
+/* ============================================================================
+   主应用 index.html
+   ============================================================================ */
+html[data-competition-ui="main"] {
+  --cc-brand: var(--accent, #1677ff);
+  --cc-ink: var(--text, #102033);
+  --cc-muted: var(--sub, #68778c);
+  --cc-card-solid: var(--card, #fff);
+  --cc-card: color-mix(in srgb, var(--card, #fff) 92%, transparent);
+  --cc-card-2: var(--muted-bg, #f8fafc);
+  --cc-line: color-mix(in srgb, var(--text, #102033) 8%, transparent);
+  --cc-line-strong: color-mix(in srgb, var(--text, #102033) 14%, transparent);
+}
+html[data-competition-ui="main"] body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 9% 0%, color-mix(in srgb, var(--accent, #1677ff) 13%, transparent), transparent 34rem),
+    radial-gradient(circle at 94% 14%, color-mix(in srgb, #67d5ff 10%, transparent), transparent 30rem),
+    linear-gradient(180deg, color-mix(in srgb, var(--bg, #f4f7fb) 86%, #fff), var(--bg2, #f8fafc)) !important;
+}
+html[data-competition-ui="main"] #bgLayer { opacity: .32; }
+
+/* 三栏 AI 工作台 */
+html[data-competition-ui="main"] .shell {
+  width: min(1480px, 100%);
+  min-height: 100vh;
+  margin: 0 auto !important;
+  padding: 16px 18px 18px !important;
+  grid-template-columns: 232px minmax(560px, 690px) minmax(330px, 430px) !important;
+  column-gap: 20px !important;
+  align-items: start;
+}
+html[data-competition-ui="main"] .rail {
+  top: 16px !important;
+  height: calc(100vh - 32px) !important;
+  padding: 14px 12px !important;
+  border: 1px solid var(--cc-line) !important;
+  border-radius: var(--cc-r-xl) !important;
+  background: color-mix(in srgb, var(--cc-card-solid) 84%, transparent) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  backdrop-filter: blur(24px) saturate(1.2);
+  box-shadow: var(--cc-shadow-sm) !important;
+}
+html[data-competition-ui="main"] .brand {
+  min-height: 62px;
+  padding: 7px 10px 16px !important;
+  gap: 10px !important;
+  color: var(--cc-ink) !important;
+  font-family: var(--cc-font) !important;
+  font-size: 17px !important;
+  font-weight: 850 !important;
+  letter-spacing: -.2px !important;
+}
+html[data-competition-ui="main"] .brand::after {
+  content: "AI CAMPUS AGENT";
+  position: absolute;
+  margin: 38px 0 0 48px;
+  color: var(--cc-brand);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1.45px;
+  opacity: .82;
+}
+html[data-competition-ui="main"] .brand svg { width: 38px !important; height: 38px !important; }
+html[data-competition-ui="main"] #tabs { gap: 3px !important; }
+html[data-competition-ui="main"] .nav {
+  min-height: 46px;
+  gap: 12px !important;
+  padding: 10px 12px !important;
+  border-radius: 14px !important;
+  color: var(--cc-muted) !important;
+  font-size: 14px !important;
+  font-weight: 650 !important;
+  transition: background .16s var(--cc-ease), color .16s var(--cc-ease), transform .16s var(--cc-ease) !important;
+}
+html[data-competition-ui="main"] .nav:hover {
+  color: var(--cc-ink) !important;
+  background: color-mix(in srgb, var(--cc-brand) 6%, var(--cc-card-solid)) !important;
+  transform: translateX(2px);
+}
+html[data-competition-ui="main"] .nav.on {
+  color: var(--cc-brand) !important;
+  background: color-mix(in srgb, var(--cc-brand) 10%, var(--cc-card-solid)) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cc-brand) 10%, transparent) !important;
+  font-weight: 800 !important;
+}
+html[data-competition-ui="main"] .nav.on svg { filter: drop-shadow(0 3px 6px color-mix(in srgb, var(--cc-brand) 20%, transparent)); }
+html[data-competition-ui="main"] #addBtn {
+  width: 100% !important;
+  min-height: 48px;
+  margin: 16px 0 6px !important;
+  border: 0 !important;
+  border-radius: 15px !important;
+  color: #fff !important;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--cc-brand) 78%, #6fb5ff), var(--cc-brand)) !important;
+  box-shadow: 0 12px 26px -14px color-mix(in srgb, var(--cc-brand) 65%, transparent) !important;
+  font-weight: 800 !important;
+}
+html[data-competition-ui="main"] #addBtn:hover { transform: translateY(-1px); }
+html[data-competition-ui="main"] #userChip {
+  margin-top: auto !important;
+  min-height: 48px;
+  border-radius: 15px !important;
+  border: 1px solid transparent !important;
+}
+html[data-competition-ui="main"] #userChip:hover { border-color: var(--cc-line) !important; background: var(--cc-card-2) !important; }
+
+/* 中间主列 */
+html[data-competition-ui="main"] .col {
+  min-height: calc(100vh - 32px);
+  border: 1px solid var(--cc-line) !important;
+  border-radius: var(--cc-r-xl) !important;
+  overflow: clip;
+  background: color-mix(in srgb, var(--cc-card-solid) 76%, transparent) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(1.08);
+  backdrop-filter: blur(18px) saturate(1.08);
+  box-shadow: var(--cc-shadow-sm) !important;
+}
+html[data-competition-ui="main"] .vhead {
+  min-height: 66px !important;
+  padding: 15px 20px !important;
+  border-bottom: 1px solid var(--cc-line);
+  background: color-mix(in srgb, var(--cc-card-solid) 82%, transparent) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(1.15);
+  backdrop-filter: blur(22px) saturate(1.15);
+}
+html[data-competition-ui="main"] .vhead h2 {
+  color: var(--cc-ink) !important;
+  font-family: var(--cc-font) !important;
+  font-size: 21px !important;
+  font-weight: 850 !important;
+  letter-spacing: -.35px !important;
+}
+html[data-competition-ui="main"] .vhead .tag,
+html[data-competition-ui="main"] .tag {
+  border-radius: 999px !important;
+  border: 1px solid var(--cc-line) !important;
+  background: var(--cc-card-2) !important;
+}
+
+/* 卡片系统 */
+html[data-competition-ui="main"] .surface,
+html[data-competition-ui="main"] .group,
+html[data-competition-ui="main"] .stat,
+html[data-competition-ui="main"] .wcard .wb.surface {
+  border: 1px solid var(--cc-line) !important;
+  border-radius: var(--cc-r-lg) !important;
+  background: var(--cc-card) !important;
+  box-shadow: var(--cc-shadow-sm) !important;
+}
+html[data-competition-ui="main"] .surface,
+html[data-competition-ui="main"] .wcard,
+html[data-competition-ui="main"] .qbtn,
+html[data-competition-ui="main"] .gi {
+  transition: transform .18s var(--cc-ease), box-shadow .18s var(--cc-ease), border-color .18s var(--cc-ease), background .18s var(--cc-ease) !important;
+}
+html[data-competition-ui="main"] .wcard:hover .wb.surface,
+html[data-competition-ui="main"] .surface:hover:not(.askin):not(#calendar):not(#side) {
+  border-color: color-mix(in srgb, var(--cc-brand) 16%, var(--cc-line)) !important;
+}
+html[data-competition-ui="main"] .btn,
+html[data-competition-ui="main"] button.small,
+html[data-competition-ui="main"] .small {
+  border-radius: 11px !important;
+}
+html[data-competition-ui="main"] .btn.ink {
+  border-color: transparent !important;
+  color: #fff !important;
+  background: var(--cc-brand) !important;
+  box-shadow: 0 10px 22px -14px color-mix(in srgb, var(--cc-brand) 70%, transparent) !important;
+}
+
+/* 首页班级条 */
+html[data-competition-ui="main"] #classBar {
+  margin: 14px 18px 0 !important;
+  padding: 11px 12px !important;
+  border: 1px solid var(--cc-line);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--cc-card-solid) 82%, transparent);
+}
+html[data-competition-ui="main"] .cb-badge {
+  border-radius: 13px !important;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--cc-brand) 78%, #89c6ff), var(--cc-brand)) !important;
+  box-shadow: none !important;
+}
+html[data-competition-ui="main"] #notice { margin: 12px 18px 0 !important; }
+
+/* Hero：核心“今天”仪表盘 */
+html[data-competition-ui="main"] #hero { margin-top: 0; }
+html[data-competition-ui="main"] #hero .hero,
+html[data-competition-ui="main"] .hero {
+  margin: 14px 18px 0 !important;
+  min-height: 210px !important;
+  padding: 22px 22px 18px !important;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--cc-brand) 14%, transparent) !important;
+  border-radius: 28px !important;
+  background:
+    radial-gradient(circle at 86% 22%, rgba(255,255,255,.56), transparent 21%),
+    linear-gradient(145deg, color-mix(in srgb, var(--cc-brand) 84%, #7dc9ff), color-mix(in srgb, var(--cc-brand) 35%, #dff5ff) 68%, #eef9ff) !important;
+  box-shadow: 0 24px 60px -28px color-mix(in srgb, var(--cc-brand) 48%, transparent) !important;
+}
+html[data-competition-ui="main"] .hero::after {
+  content: "AI 正在理解你的今天";
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  padding: 6px 10px;
+  border: 1px solid rgba(255,255,255,.42);
+  border-radius: 999px;
+  background: rgba(255,255,255,.28);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  color: #12365e;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .1px;
+}
+html[data-competition-ui="main"] .hero h3 {
+  max-width: 68%;
+  margin: 9px 0 5px !important;
+  color: #0d3158 !important;
+  font-family: var(--cc-font) !important;
+  font-size: clamp(28px, 4vw, 34px) !important;
+  font-weight: 900 !important;
+  letter-spacing: -1px !important;
+}
+html[data-competition-ui="main"] .hero .date,
+html[data-competition-ui="main"] .hero .say { color: #315574 !important; }
+html[data-competition-ui="main"] .hero .say { max-width: 66% !important; font-size: 14px !important; line-height: 1.65; }
+html[data-competition-ui="main"] .hero .mascot { filter: drop-shadow(0 16px 26px rgba(27,96,160,.2)); }
+html[data-competition-ui="main"] .hx {
+  border: 1px solid rgba(255,255,255,.42) !important;
+  background: rgba(255,255,255,.68) !important;
+  box-shadow: 0 8px 24px -16px rgba(20,70,120,.3) !important;
+}
+html[data-competition-ui="main"] .tl-track { background: rgba(255,255,255,.46) !important; }
+
+/* 首页组件 */
+html[data-competition-ui="main"] .widgets {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  grid-auto-rows: 132px !important;
+  gap: 12px !important;
+  margin: 14px 18px 0 !important;
+}
+html[data-competition-ui="main"] .wcard { border-radius: var(--cc-r-lg) !important; }
+html[data-competition-ui="main"] .wcard .wb { overflow: hidden; }
+html[data-competition-ui="main"] .wsimple { padding: 15px 16px !important; }
+html[data-competition-ui="main"] .wsimple h5 {
+  margin-bottom: 9px !important;
+  color: var(--cc-ink) !important;
+  font-family: var(--cc-font) !important;
+  font-size: 14px !important;
+  font-weight: 820 !important;
+}
+html[data-competition-ui="main"] .wlist .wrow2,
+html[data-competition-ui="main"] .qit {
+  border: 1px solid var(--cc-line);
+  background: color-mix(in srgb, var(--cc-card-2) 82%, transparent) !important;
+}
+html[data-competition-ui="main"] .wedit-entry { margin: 14px 18px 0 !important; opacity: .72; }
+
+/* 快捷动作：产品化而非“按钮墙” */
+html[data-competition-ui="main"] .quick {
+  gap: 9px !important;
+}
+html[data-competition-ui="main"] .qbtn {
+  border: 1px solid var(--cc-line) !important;
+  border-radius: 16px !important;
+  background: var(--cc-card-solid) !important;
+  box-shadow: none !important;
+  color: var(--cc-ink) !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+}
+html[data-competition-ui="main"] .qbtn:hover {
+  border-color: color-mix(in srgb, var(--cc-brand) 24%, var(--cc-line)) !important;
+  background: color-mix(in srgb, var(--cc-brand) 5%, var(--cc-card-solid)) !important;
+  transform: translateY(-2px);
+}
+html[data-competition-ui="main"] .qbtn .qi {
+  border-radius: 12px !important;
+  background: var(--cc-card-2) !important;
+}
+
+/* 内容页统一 */
+html[data-competition-ui="main"] .sec-h { margin: 27px 20px 10px !important; }
+html[data-competition-ui="main"] .sec-h b {
+  color: var(--cc-ink);
+  font-family: var(--cc-font) !important;
+  font-size: 16px !important;
+  font-weight: 850 !important;
+}
+html[data-competition-ui="main"] .sec-h span { color: var(--cc-muted); font-size: 12px; }
+html[data-competition-ui="main"] .gi {
+  min-height: 52px;
+  border-radius: 13px;
+}
+html[data-competition-ui="main"] .gi:hover { background: color-mix(in srgb, var(--cc-brand) 5%, var(--cc-card-solid)) !important; }
+html[data-competition-ui="main"] .composer,
+html[data-competition-ui="main"] #wallList,
+html[data-competition-ui="main"] .reports,
+html[data-competition-ui="main"] .trend,
+html[data-competition-ui="main"] .home-prog,
+html[data-competition-ui="main"] .home-pins { margin-left: 18px !important; margin-right: 18px !important; }
+
+/* AI 问答 = Agent 工作区 */
+html[data-competition-ui="main"] .view[data-view="ask"] .vhead h2::after {
+  content: "AGENT";
+  display: inline-flex;
+  margin-left: 9px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: var(--cc-brand);
+  background: color-mix(in srgb, var(--cc-brand) 10%, transparent);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 1.1px;
+  vertical-align: 3px;
+}
+html[data-competition-ui="main"] .askbox {
+  min-height: calc(100vh - 180px) !important;
+  padding: 20px 18px 120px !important;
+  gap: 16px !important;
+  background:
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--cc-brand) 6%, transparent), transparent 24rem);
+}
+html[data-competition-ui="main"] .ask-hello {
+  max-width: 460px;
+  margin: 44px auto 0;
+  padding: 20px !important;
+}
+html[data-competition-ui="main"] .ask-hello svg { width: 82px !important; height: 82px !important; }
+html[data-competition-ui="main"] .ask-hello b { font-size: 23px !important; font-weight: 850 !important; }
+html[data-competition-ui="main"] .ask-chips button {
+  border-color: var(--cc-line) !important;
+  background: var(--cc-card-solid) !important;
+  box-shadow: var(--cc-shadow-sm);
+}
+html[data-competition-ui="main"] .msg .bub {
+  border-radius: 18px !important;
+  line-height: 1.72 !important;
+}
+html[data-competition-ui="main"] .msg.bot .bub {
+  border: 1px solid var(--cc-line) !important;
+  border-top-left-radius: 6px !important;
+  background: var(--cc-card-solid) !important;
+  box-shadow: var(--cc-shadow-sm) !important;
+}
+html[data-competition-ui="main"] .msg.me .bub {
+  border-top-right-radius: 6px !important;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--cc-brand) 86%, #6fb5ff), var(--cc-brand)) !important;
+}
+html[data-competition-ui="main"] .askin {
+  bottom: 14px !important;
+  margin: 0 18px !important;
+  padding: 9px 9px 9px 13px !important;
+  border: 1px solid color-mix(in srgb, var(--cc-brand) 16%, var(--cc-line)) !important;
+  border-radius: 20px !important;
+  background: color-mix(in srgb, var(--cc-card-solid) 94%, transparent) !important;
+  box-shadow: 0 18px 44px rgba(31,63,101,.14) !important;
+}
+html[data-competition-ui="main"] .askin textarea { min-height: 44px; }
+html[data-competition-ui="main"] #askSend { min-width: 74px; min-height: 42px; border-radius: 13px !important; }
+
+/* 日历 */
+html[data-competition-ui="main"] .legend { padding: 12px 20px 4px !important; }
+html[data-competition-ui="main"] #mainCal { gap: 12px !important; padding: 12px 18px 18px !important; }
+html[data-competition-ui="main"] #calendar,
+html[data-competition-ui="main"] #side { border-radius: 22px !important; }
+html[data-competition-ui="main"] #calendar .cell {
+  border-color: var(--cc-line) !important;
+  transition: background .15s, transform .15s;
+}
+html[data-competition-ui="main"] #calendar .cell:hover { background: color-mix(in srgb, var(--cc-brand) 4%, transparent) !important; }
+html[data-competition-ui="main"] .chip { border-radius: 7px !important; }
+html[data-competition-ui="main"] .navgrp { padding: 3px !important; border: 1px solid var(--cc-line); border-radius: 12px; background: var(--cc-card-2); }
+html[data-competition-ui="main"] .navgrp button { border-radius: 9px !important; }
+
+/* 班级墙 */
+html[data-competition-ui="main"] .composer { padding: 15px !important; border-radius: 22px !important; }
+html[data-competition-ui="main"] .composer textarea,
+html[data-competition-ui="main"] .composer input { background: transparent !important; }
+html[data-competition-ui="main"] .post {
+  margin-bottom: 12px;
+  border: 1px solid var(--cc-line) !important;
+  border-radius: 20px !important;
+  background: var(--cc-card-solid) !important;
+  box-shadow: var(--cc-shadow-sm) !important;
+}
+html[data-competition-ui="main"] .wfilter {
+  padding: 4px !important;
+  border: 1px solid var(--cc-line);
+  border-radius: 14px;
+  background: var(--cc-card-2);
+}
+html[data-competition-ui="main"] .wfilter button { border-radius: 10px !important; }
+
+/* 规划 / 成长 / 农场 */
+html[data-competition-ui="main"] .quads { gap: 12px !important; margin-left: 18px !important; margin-right: 18px !important; }
+html[data-competition-ui="main"] .quad { border-radius: 20px !important; border-top-width: 3px !important; }
+html[data-competition-ui="main"] .pomo { margin-left: 18px !important; margin-right: 18px !important; border-radius: 24px !important; }
+html[data-competition-ui="main"] .rank-entry,
+html[data-competition-ui="main"] .rk-class,
+html[data-competition-ui="main"] .rk-list { margin-left: 18px !important; margin-right: 18px !important; }
+html[data-competition-ui="main"] .farm-wrap { gap: 14px !important; padding-left: 18px !important; padding-right: 18px !important; }
+
+/* 对话框 */
+html[data-competition-ui="main"] dialog,
+html[data-competition-ui="main"] #modal form,
+html[data-competition-ui="main"] .modal2 form {
+  border: 1px solid var(--cc-line) !important;
+  border-radius: 26px !important;
+  background: var(--cc-card-solid) !important;
+  box-shadow: 0 34px 100px rgba(16,35,58,.24) !important;
+}
+html[data-competition-ui="main"] dialog::backdrop { background: rgba(13,27,44,.36); -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px); }
+
+/* 浮动捞捞 AI */
+html[data-competition-ui="main"] #lao { filter: none !important; }
+html[data-competition-ui="main"] .lao-dock {
+  filter: drop-shadow(0 14px 22px rgba(22,119,255,.18));
+}
+html[data-competition-ui="main"] .lao-scr {
+  border: 1px solid color-mix(in srgb, var(--cc-brand) 14%, transparent) !important;
+  border-radius: 17px !important;
+  background: color-mix(in srgb, var(--cc-card-solid) 92%, transparent) !important;
+  box-shadow: var(--cc-shadow-sm) !important;
+}
+html[data-competition-ui="main"] #isPanel {
+  width: min(420px, calc(100vw - 24px)) !important;
+  border: 1px solid color-mix(in srgb, var(--cc-brand) 15%, var(--cc-line)) !important;
+  border-radius: 26px !important;
+  box-shadow: 0 32px 90px -24px rgba(15,49,90,.42) !important;
+}
+html[data-competition-ui="main"] .is-head {
+  padding: 15px 14px 13px 17px !important;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--cc-brand) 12%, var(--cc-card-solid)), var(--cc-card-solid) 66%) !important;
+}
+html[data-competition-ui="main"] .is-who b::after {
+  content: " · AI Agent";
+  color: var(--cc-brand);
+  font-size: 11px;
+  font-weight: 800;
+}
+html[data-competition-ui="main"] #isQ { border-radius: 14px !important; }
+html[data-competition-ui="main"] #isSend { border-radius: 13px !important; background: var(--cc-brand) !important; color: #fff !important; }
+
+/* 右侧栏：把它视觉化为 AI Context Rail */
+html[data-competition-ui="main"] .siderail {
+  top: 16px !important;
+  height: calc(100vh - 32px) !important;
+  padding: 0 !important;
+  border: 1px solid var(--cc-line) !important;
+  border-radius: var(--cc-r-xl) !important;
+  overflow: auto;
+  background: color-mix(in srgb, var(--cc-card-solid) 82%, transparent) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(1.15);
+  backdrop-filter: blur(22px) saturate(1.15);
+  box-shadow: var(--cc-shadow-sm) !important;
+  scrollbar-width: none;
+}
+html[data-competition-ui="main"] .siderail::-webkit-scrollbar { display: none; }
+html[data-competition-ui="main"] .siderail::before {
+  content: "✦  今日智能摘要";
+  display: block;
+  padding: 18px 18px 12px;
+  color: var(--cc-ink);
+  font-size: 14px;
+  font-weight: 850;
+  letter-spacing: -.1px;
+}
+html[data-competition-ui="main"] .siderail > * { margin-left: 12px !important; margin-right: 12px !important; }
+
+/* 深色：依赖原主题变量，同时优化阴影 */
+html[data-competition-ui="main"][data-skin="dark"],
+html[data-competition-ui="main"][data-mode="dark"] {
+  --cc-shadow-sm: 0 10px 30px rgba(0,0,0,.18);
+  --cc-shadow: 0 22px 60px rgba(0,0,0,.24);
+}
+html[data-competition-ui="main"][data-skin="dark"] body,
+html[data-competition-ui="main"][data-mode="dark"] body {
+  background: radial-gradient(circle at 12% 0%, rgba(29,155,240,.12), transparent 34rem), #0b101a !important;
+}
+html[data-competition-ui="main"][data-skin="dark"] .hero,
+html[data-competition-ui="main"][data-mode="dark"] .hero {
+  background: linear-gradient(145deg, #183e68, #142d4c 64%, #102439) !important;
+  border-color: rgba(91,173,255,.18) !important;
+}
+html[data-competition-ui="main"][data-skin="dark"] .hero h3,
+html[data-competition-ui="main"][data-mode="dark"] .hero h3 { color: #eff6ff !important; }
+html[data-competition-ui="main"][data-skin="dark"] .hero .date,
+html[data-competition-ui="main"][data-skin="dark"] .hero .say,
+html[data-competition-ui="main"][data-mode="dark"] .hero .date,
+html[data-competition-ui="main"][data-mode="dark"] .hero .say { color: #b8cbe2 !important; }
+html[data-competition-ui="main"][data-skin="dark"] .hero::after,
+html[data-competition-ui="main"][data-mode="dark"] .hero::after { color: #dceeff; background: rgba(8,24,42,.32); }
+
+/* 平板 */
+@media (max-width: 1240px) {
+  html[data-competition-ui="main"] .shell {
+    grid-template-columns: 218px minmax(0, 720px) !important;
+    max-width: 1030px;
+  }
+  html[data-competition-ui="main"] .siderail { display: none !important; }
+}
+@media (max-width: 1000px) {
+  html[data-competition-ui="main"] .shell { grid-template-columns: 76px minmax(0, 720px) !important; gap: 14px !important; }
+  html[data-competition-ui="main"] .rail { padding-left: 8px !important; padding-right: 8px !important; }
+  html[data-competition-ui="main"] .brand::after { display: none; }
+}
+
+/* 手机：真正 App 化 */
+@media (max-width: 700px) {
+  html[data-competition-ui="main"] body {
+    background: var(--bg2, #f7f9fc) !important;
+  }
+  html[data-competition-ui="main"] .shell {
+    display: block !important;
+    width: 100%;
+    min-height: 100vh;
+    padding: 0 !important;
+  }
+  html[data-competition-ui="main"] .col {
+    min-height: 100vh;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    padding-bottom: calc(104px + env(safe-area-inset-bottom)) !important;
+  }
+  html[data-competition-ui="main"] .vhead {
+    min-height: 58px !important;
+    padding: max(10px, env(safe-area-inset-top)) 14px 10px !important;
+    border-bottom: 0 !important;
+    background: color-mix(in srgb, var(--bg2, #fff) 90%, transparent) !important;
+  }
+  html[data-competition-ui="main"] .vhead h2 { font-size: 20px !important; }
+  html[data-competition-ui="main"] .rail {
+    left: 10px !important;
+    right: 10px !important;
+    bottom: calc(8px + env(safe-area-inset-bottom)) !important;
+    top: auto !important;
+    height: 68px !important;
+    padding: 6px 8px !important;
+    border: 1px solid var(--cc-line) !important;
+    border-radius: 22px !important;
+    background: color-mix(in srgb, var(--cc-card-solid) 90%, transparent) !important;
+    box-shadow: 0 18px 50px rgba(31,55,86,.16) !important;
+    -webkit-backdrop-filter: blur(20px) saturate(1.2);
+    backdrop-filter: blur(20px) saturate(1.2);
+  }
+  html[data-competition-ui="main"] #tabs { height: 100%; align-items: stretch; }
+  html[data-competition-ui="main"] .nav {
+    min-height: 54px;
+    padding: 6px 7px !important;
+    gap: 2px !important;
+    border-radius: 14px !important;
+    font-size: 10px !important;
+  }
+  html[data-competition-ui="main"] .nav:hover { transform: none; }
+  html[data-competition-ui="main"] .nav.on {
+    background: color-mix(in srgb, var(--cc-brand) 10%, transparent) !important;
+  }
+  html[data-competition-ui="main"] #addBtn {
+    right: 16px !important;
+    bottom: calc(88px + env(safe-area-inset-bottom)) !important;
+    width: 54px !important;
+    height: 54px !important;
+    min-height: 54px;
+    border-radius: 18px !important;
+    box-shadow: 0 16px 32px -12px color-mix(in srgb, var(--cc-brand) 62%, transparent) !important;
+  }
+  html[data-competition-ui="main"] #classBar { margin: 8px 12px 0 !important; }
+  html[data-competition-ui="main"] #hero .hero,
+  html[data-competition-ui="main"] .hero {
+    margin: 10px 12px 0 !important;
+    min-height: 225px !important;
+    padding: 18px 16px 15px !important;
+    border-radius: 24px !important;
+  }
+  html[data-competition-ui="main"] .hero::after {
+    top: 13px;
+    right: 12px;
+    padding: 5px 8px;
+    font-size: 9px;
+  }
+  html[data-competition-ui="main"] .hero h3 { max-width: 62%; font-size: 28px !important; }
+  html[data-competition-ui="main"] .hero .say { max-width: 60% !important; font-size: 12.5px !important; }
+  html[data-competition-ui="main"] .widgets {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-auto-rows: 122px !important;
+    gap: 10px !important;
+    margin: 12px 12px 0 !important;
+  }
+  html[data-competition-ui="main"] .wcard { border-radius: 20px !important; }
+  html[data-competition-ui="main"] .surface,
+  html[data-competition-ui="main"] .group,
+  html[data-competition-ui="main"] .stat { border-radius: 20px !important; box-shadow: none !important; }
+  html[data-competition-ui="main"] .composer,
+  html[data-competition-ui="main"] #wallList,
+  html[data-competition-ui="main"] .reports,
+  html[data-competition-ui="main"] .trend,
+  html[data-competition-ui="main"] .home-prog,
+  html[data-competition-ui="main"] .home-pins { margin-left: 12px !important; margin-right: 12px !important; }
+  html[data-competition-ui="main"] .sec-h { margin-left: 14px !important; margin-right: 14px !important; }
+  html[data-competition-ui="main"] .quads,
+  html[data-competition-ui="main"] .pomo,
+  html[data-competition-ui="main"] .rank-entry,
+  html[data-competition-ui="main"] .rk-class,
+  html[data-competition-ui="main"] .rk-list { margin-left: 12px !important; margin-right: 12px !important; }
+  html[data-competition-ui="main"] .askbox { padding: 14px 12px 118px !important; }
+  html[data-competition-ui="main"] .askin {
+    position: fixed !important;
+    left: 10px;
+    right: 10px;
+    bottom: calc(84px + env(safe-area-inset-bottom)) !important;
+    margin: 0 !important;
+    border-radius: 18px !important;
+  }
+  html[data-competition-ui="main"] #isPanel {
+    left: 8px !important;
+    right: 8px !important;
+    bottom: calc(84px + env(safe-area-inset-bottom)) !important;
+    max-height: 72vh !important;
+    border-radius: 24px !important;
+  }
+}
+
+/* ============================================================================
+   下载 / 产品介绍 app.html
+   ============================================================================ */
+html[data-competition-ui="landing"] {
+  --cc-brand: #1677ff;
+  --cc-ink: #10233f;
+  --cc-muted: #60738d;
+}
+html[data-competition-ui="landing"] body {
+  color: var(--cc-ink) !important;
+  background: #f6f9fd !important;
+}
+html[data-competition-ui="landing"] #sky {
+  background:
+    radial-gradient(circle at 18% 4%, rgba(92,174,255,.20), transparent 28rem),
+    radial-gradient(circle at 84% 20%, rgba(113,219,255,.15), transparent 30rem),
+    linear-gradient(180deg, #edf7ff, #f8fbff 56%, #f5f7fb) !important;
+}
+html[data-competition-ui="landing"] .top {
+  top: 10px !important;
+  left: 50% !important;
+  right: auto !important;
+  width: min(1120px, calc(100% - 24px));
+  transform: translateX(-50%);
+  padding: 9px 10px 9px 14px !important;
+  border: 1px solid rgba(20,54,88,.08);
+  border-radius: 18px;
+  background: rgba(255,255,255,.72) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  backdrop-filter: blur(20px) saturate(1.2);
+  box-shadow: 0 10px 36px rgba(28,67,110,.08);
+}
+html[data-competition-ui="landing"] .top.solid { background: rgba(255,255,255,.88) !important; }
+html[data-competition-ui="landing"] .brand { font-family: var(--cc-font) !important; font-weight: 850 !important; }
+html[data-competition-ui="landing"] .top nav a.pill {
+  border-radius: 12px !important;
+  background: var(--cc-brand) !important;
+  box-shadow: 0 10px 22px -14px rgba(22,119,255,.7);
+}
+html[data-competition-ui="landing"] .stick {
+  max-width: 1180px !important;
+  gap: 48px !important;
+  padding-top: 94px !important;
+}
+html[data-competition-ui="landing"] .lines {
+  font-family: var(--cc-font) !important;
+  font-size: clamp(38px, 5.4vw, 72px) !important;
+  font-weight: 900 !important;
+  letter-spacing: -2px;
+}
+html[data-competition-ui="landing"] .lede { max-width: 34em !important; color: var(--cc-muted) !important; font-size: 17px !important; }
+html[data-competition-ui="landing"] .get {
+  min-height: 56px !important;
+  border-radius: 15px !important;
+  background: var(--cc-brand) !important;
+  box-shadow: 0 16px 34px -18px rgba(22,119,255,.72) !important;
+}
+html[data-competition-ui="landing"] .ghost { border: 1px solid rgba(20,54,88,.10); border-radius: 15px !important; background: rgba(255,255,255,.54); }
+html[data-competition-ui="landing"] .phone {
+  border-radius: calc(var(--pw) * .13) !important;
+  background: #111a2b !important;
+  box-shadow: 0 38px 90px -30px rgba(22,68,120,.34), 0 0 0 1px rgba(0,0,0,.18) !important;
+}
+html[data-competition-ui="landing"] .screen { border-radius: calc(var(--pw) * .105) !important; }
+html[data-competition-ui="landing"] .qr { border: 1px solid rgba(20,54,88,.08); border-radius: 18px !important; box-shadow: var(--cc-shadow-sm) !important; }
+html[data-competition-ui="landing"] .foot { color: var(--cc-muted) !important; }
+@media (max-width: 700px) {
+  html[data-competition-ui="landing"] .top { top: 6px !important; width: calc(100% - 16px); }
+  html[data-competition-ui="landing"] .stick { gap: 18px !important; padding-top: 82px !important; }
+  html[data-competition-ui="landing"] .lines { font-size: clamp(32px, 10vw, 46px) !important; }
+}
+
+/* ============================================================================
+   登录 / 注册 login.html
+   ============================================================================ */
+html[data-competition-ui="auth"] {
+  --cc-brand: var(--accent, #1677ff);
+  --cc-ink: var(--text, #102033);
+  --cc-muted: var(--sub, #68778c);
+}
+html[data-competition-ui="auth"] body {
+  background:
+    radial-gradient(circle at 9% 0%, color-mix(in srgb, var(--cc-brand) 18%, transparent), transparent 32rem),
+    radial-gradient(circle at 94% 88%, rgba(103,213,255,.11), transparent 30rem),
+    var(--bg2, #f5f8fc) !important;
+}
+html[data-competition-ui="auth"] .stage { padding: 56px 64px !important; }
+html[data-competition-ui="auth"] .stage .logo {
+  top: 28px !important;
+  left: 36px !important;
+  font-size: 16px !important;
+}
+html[data-competition-ui="auth"] .stage .logo::after {
+  content: "AI CAMPUS AGENT";
+  margin-left: 6px;
+  color: var(--cc-brand);
+  font-size: 9px;
+  letter-spacing: 1.2px;
+}
+html[data-competition-ui="auth"] .stage h1 {
+  max-width: 660px;
+  font-family: var(--cc-font) !important;
+  font-size: clamp(38px, 4.6vw, 62px) !important;
+  font-weight: 900 !important;
+  letter-spacing: -2px !important;
+}
+html[data-competition-ui="auth"] .stage p.lead { max-width: 520px !important; color: var(--cc-muted) !important; }
+html[data-competition-ui="auth"] .feat {
+  border-color: color-mix(in srgb, var(--cc-ink) 8%, transparent) !important;
+  border-radius: 16px !important;
+  background: color-mix(in srgb, var(--card) 84%, transparent) !important;
+  box-shadow: var(--cc-shadow-sm) !important;
+}
+html[data-competition-ui="auth"] .side { padding: 32px 42px 32px 10px !important; }
+html[data-competition-ui="auth"] .card {
+  max-width: 440px !important;
+  padding: 32px 30px 26px !important;
+  border-color: color-mix(in srgb, var(--cc-ink) 8%, transparent) !important;
+  border-radius: 26px !important;
+  background: color-mix(in srgb, var(--card) 92%, transparent) !important;
+  box-shadow: 0 30px 90px -30px color-mix(in srgb, var(--cc-brand) 32%, rgba(20,40,70,.15)) !important;
+}
+html[data-competition-ui="auth"] .card h2 { font-size: 24px !important; font-weight: 850; letter-spacing: -.5px; }
+html[data-competition-ui="auth"] .tabs { border-radius: 13px !important; }
+html[data-competition-ui="auth"] .inp input { min-height: 46px; border-radius: 13px !important; }
+html[data-competition-ui="auth"] button.go {
+  min-height: 48px;
+  border-radius: 13px !important;
+  background: var(--cc-brand) !important;
+  box-shadow: 0 14px 28px -16px color-mix(in srgb, var(--cc-brand) 70%, transparent) !important;
+}
+html[data-competition-ui="auth"] button.ghost { border-radius: 13px !important; }
+html[data-competition-ui="auth"] .ob-card { border-radius: 26px !important; border-color: color-mix(in srgb, var(--cc-ink) 8%, transparent) !important; }
+@media (max-width: 820px) {
+  html[data-competition-ui="auth"] .stage { padding: 86px 22px 24px !important; }
+  html[data-competition-ui="auth"] .stage h1 { font-size: 38px !important; letter-spacing: -1.2px !important; }
+  html[data-competition-ui="auth"] .side { padding: 16px 14px 28px !important; }
+  html[data-competition-ui="auth"] .card { max-width: 560px !important; }
+}
+
+/* ============================================================================
+   班级管理 class.html
+   ============================================================================ */
+html[data-competition-ui="class"] {
+  --cc-brand: var(--accent, #1677ff);
+  --cc-ink: var(--text, #102033);
+  --cc-muted: var(--sub, #68778c);
+  --cc-card-solid: var(--card, #fff);
+}
+html[data-competition-ui="class"] body {
+  background:
+    radial-gradient(circle at 14% 0%, color-mix(in srgb, var(--cc-brand) 12%, transparent), transparent 28rem),
+    var(--bg, #f5f7fb) !important;
+}
+html[data-competition-ui="class"] body > header {
+  top: 10px !important;
+  width: min(960px, calc(100% - 24px));
+  margin: 10px auto 0;
+  padding: 11px 12px 11px 16px !important;
+  border: 1px solid var(--cc-line) !important;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--cc-card-solid) 88%, transparent) !important;
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  box-shadow: var(--cc-shadow-sm);
+}
+html[data-competition-ui="class"] body > header h1 { font-size: 17px !important; font-weight: 850; }
+html[data-competition-ui="class"] body > main { max-width: 960px !important; padding: 24px 12px 44px !important; }
+html[data-competition-ui="class"] section.card {
+  margin-bottom: 14px !important;
+  padding: 18px !important;
+  border-color: var(--cc-line) !important;
+  border-radius: 20px !important;
+  background: color-mix(in srgb, var(--cc-card-solid) 94%, transparent) !important;
+  box-shadow: var(--cc-shadow-sm) !important;
+}
+html[data-competition-ui="class"] section.card h2 { font-size: 17px !important; font-weight: 850; }
+html[data-competition-ui="class"] button,
+html[data-competition-ui="class"] .btn,
+html[data-competition-ui="class"] input,
+html[data-competition-ui="class"] select { border-radius: 11px !important; }
+html[data-competition-ui="class"] button.primary {
+  border-color: transparent !important;
+  background: var(--cc-brand) !important;
+  box-shadow: 0 10px 22px -14px color-mix(in srgb, var(--cc-brand) 65%, transparent);
+}
+html[data-competition-ui="class"] .codebox,
+html[data-competition-ui="class"] .grp { border-radius: 14px !important; }
+html[data-competition-ui="class"] .item { padding: 12px 0 !important; }
+
+/* ============================================================================
+   其它后台 / 工具页：保守增强
+   ============================================================================ */
+html[data-competition-ui="generic"] body {
+  background: #f5f8fc !important;
+  color: #102033;
+}
+html[data-competition-ui="generic"] button,
+html[data-competition-ui="generic"] input,
+html[data-competition-ui="generic"] select,
+html[data-competition-ui="generic"] textarea { border-radius: 11px; }
+
+/* ---------- 性能 / 无障碍 ---------- */
+@media (prefers-reduced-motion: reduce) {
+  html[data-competition-ui] *,
+  html[data-competition-ui] *::before,
+  html[data-competition-ui] *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+@media (prefers-contrast: more) {
+  html[data-competition-ui] { --cc-line: rgba(20,40,65,.22); }
+}
