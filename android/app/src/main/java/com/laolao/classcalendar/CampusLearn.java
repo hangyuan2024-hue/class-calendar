@@ -412,7 +412,7 @@ final class CampusLearn {
     CampusUi u = a.ui;
     String subject = a.store.string("native_wrong_subject", "全部"),
         mode = a.store.string("native_wrong_mode", "全部");
-    u.title(a.content, "错题记录本", "拍照归档、写清原因、按间隔复习。");
+    u.title(a.content, "错题记录本", "按学科收进书架，让每一道错题有归处。");
     u.actionRow(
         a.content,
         new String[] {"＋ 记录错题", "拍照录入"},
@@ -444,6 +444,7 @@ final class CampusLearn {
                     a.build();
                   })
         });
+    if (subject.equals("全部") && mode.equals("全部")) CampusBookshelf.render(a);
     int n = 0;
     for (JSONObject x : CampusJson.rows(a.store.list("native_wrong"))) {
       if (!subject.equals("全部") && !subject.equals(x.optString("subject"))) continue;
@@ -719,8 +720,10 @@ final class CampusLearn {
   static int habitToday(CampusStore s) {
     int n = 0;
     JSONObject log = s.object("habit_log_v1");
-    for (String id : CampusJson.keys(log))
+    for (JSONObject habit : CampusJson.rows(s.list("habits_v1"))) {
+      String id = habit.optString("id");
       if (log.optJSONObject(id) != null && log.optJSONObject(id).optBoolean(DateMath.today())) n++;
+    }
     return n;
   }
 
@@ -749,7 +752,34 @@ final class CampusLearn {
 
   static void growth(CampusActivity a) {
     CampusUi u = a.ui;
-    u.title(a.content, "让成长，有迹可循。", "今天已经打卡 " + habitToday(a.store) + " 项习惯。");
+    u.title(a.content, "成长，就在每一天。", "把小小的坚持，积累成看得见的进步。");
+    int total = a.store.list("habits_v1").length(), checked = habitToday(a.store);
+    LinearLayout overview = u.card(a.content), line = u.row(), copy = u.column();
+    overview.setBackground(u.shape(u.soft, 22, 0));
+    copy.addView(u.pill("今天的坚持"));
+    u.gap(copy, 12);
+    copy.addView(u.text(checked + " / " + total, 30, u.ink, true));
+    u.gap(copy, 7);
+    copy.addView(
+        u.text(
+            total == 0 ? "从第一个小习惯开始" : checked == total ? "今天的习惯都完成了" : "项习惯已完成打卡",
+            12,
+            u.muted,
+            false));
+    line.addView(copy, new LinearLayout.LayoutParams(0, -2, 1));
+    if (a.getResources().getConfiguration().fontScale <= 1.25f) {
+      FrameLayout ring = new FrameLayout(a);
+      ring.addView(
+          new CampusVisual.FocusRing(
+              a, total == 0 ? 1 : Math.max(0, total - checked), Math.max(1, total)),
+          new FrameLayout.LayoutParams(-1, -1));
+      TextView percent =
+          u.text((total == 0 ? 0 : Math.round(checked * 100f / total)) + "%", 20, u.accent, true);
+      percent.setGravity(Gravity.CENTER);
+      ring.addView(percent, new FrameLayout.LayoutParams(-1, -1));
+      line.addView(ring, new LinearLayout.LayoutParams(u.dp(104), u.dp(104)));
+    }
+    overview.addView(line);
     u.actionRow(
         a.content,
         new String[] {"＋ 新建习惯", "班级成长榜"},

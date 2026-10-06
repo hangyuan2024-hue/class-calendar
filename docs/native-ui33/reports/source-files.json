@@ -1,0 +1,72 @@
+[
+  {
+    "path": ".github/workflows/android.yml",
+    "sha256": "4d656dcb2f63d423293ae68b4765d01fdb4606592b9de4432de59db6e9bb0188",
+    "bytes": 2579
+  },
+  {
+    "path": "android/app/build.gradle",
+    "sha256": "27b5e1b707c05fac0677e592cf367c88f9bea17a2ff8d011502300511db69618",
+    "bytes": 1914
+  },
+  {
+    "path": "android/app/src/main/java/com/laolao/classcalendar/CampusActivity.java",
+    "sha256": "1983b9e35aea136af8a1e2a170845521a10a8eb09b9e24e8df3cef4d4f199f23",
+    "bytes": 33570
+  },
+  {
+    "path": "android/app/src/main/java/com/laolao/classcalendar/CampusBookshelf.java",
+    "sha256": "7fec180d4a8e5ff9ea243ee524428b0a7058f0a8150f51977720dc2981931e29",
+    "bytes": 5060
+  },
+  {
+    "path": "android/app/src/main/java/com/laolao/classcalendar/CampusDashboard.java",
+    "sha256": "8e101b556a4351556c7665975b16e7079a6d9c541a06dc10be0917ec6d4b360e",
+    "bytes": 13862
+  },
+  {
+    "path": "android/app/src/main/java/com/laolao/classcalendar/CampusHome.java",
+    "sha256": "94659ba5b15631447bc5c781ca68d50c20793141cda6fd9bf4292291fdd550a3",
+    "bytes": 12130
+  },
+  {
+    "path": "android/app/src/main/java/com/laolao/classcalendar/CampusLearn.java",
+    "sha256": "0e3985a1508a64a24ae15fe07d102dbb86906f5f5bf06830f79b2bd9af2c6447",
+    "bytes": 59846
+  },
+  {
+    "path": "android/app/src/main/java/com/laolao/classcalendar/CampusManage.java",
+    "sha256": "423fd632ca58cdd6e0c567a6183f7cbd7ef5aa5f19a6f47cefbb37ed2c507fdd",
+    "bytes": 62598
+  },
+  {
+    "path": "android/app/src/main/java/com/laolao/classcalendar/CampusSchool.java",
+    "sha256": "10d1bcd8b7f28beecbb71a53199a5ca7aa7fca56f5e4281b2767315c75fb5726",
+    "bytes": 44848
+  },
+  {
+    "path": "android/app/src/main/java/com/laolao/classcalendar/CampusSkins.java",
+    "sha256": "a4c066aab30685c66f773f757f8ee3c1cdbf8541df8dad983fe689ea30ad755a",
+    "bytes": 8485
+  },
+  {
+    "path": "android/app/src/main/java/com/laolao/classcalendar/CampusTheme.java",
+    "sha256": "92e50a74b66f1e5560dfe59c5a88da526af62f275fbf81598debdc5bb1d2b675",
+    "bytes": 5908
+  },
+  {
+    "path": "android/app/src/main/java/com/laolao/classcalendar/CampusToolbox.java",
+    "sha256": "96a42bdcd09c3d4ceaa134855ad40e24626bd3428bf89fd83b8cc9ab302ed88f",
+    "bytes": 10770
+  },
+  {
+    "path": "android/app/src/main/java/com/laolao/classcalendar/CampusUi.java",
+    "sha256": "f796163d29c2b736e9741743cb98e6ba7dd8c260dd6df33759ff93f03bc33685",
+    "bytes": 36450
+  },
+  {
+    "path": "android/app/src/main/res/values/native_dialog_palettes.xml",
+    "sha256": "218a538c4c86dff1faa16942e5501a6bae6d1fc48f2e24d2a6024388e59fb33d",
+    "bytes": 9764
+  }
+]

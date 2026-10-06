@@ -1,0 +1,21 @@
+{
+  "version": "3.3.11-preview",
+  "package": "com.laolao.classcalendar.preview",
+  "source_commit": "bfc8d627e67df9c19252cd3fb8bef6fa76c356f8",
+  "compile_sdk": 34,
+  "min_sdk": 24,
+  "target_sdk": 34,
+  "java": 17,
+  "build_steps": [
+    "aapt2 resource compile and link",
+    "javac all native sources",
+    "d8 desugaring and DEX",
+    "zipalign 4",
+    "APK v2/v3 signature verification"
+  ],
+  "result": "passed",
+  "apk_sha256": "9534e20f63447aac2408a382fb50059d7b39e0aa86b4ba3d951873c216e1d41f",
+  "apk_bytes": 4376557,
+  "preview_update_preserved_saved_records": "storage XML unchanged before and after pm install -r",
+  "formal_signed_build": "uses existing GitHub Actions; not generated locally"
+}

@@ -8,6 +8,29 @@ import org.json.*;
 
 /** Native palette gallery; tapping a preview applies the complete palette immediately. */
 final class CampusSkins {
+  static void swatches(CampusActivity a, LinearLayout parent) {
+    CampusUi u = a.ui;
+    HorizontalScrollView scroll = new HorizontalScrollView(a);
+    scroll.setHorizontalScrollBarEnabled(false);
+    LinearLayout row = u.row();
+    for (CampusTheme.Preset preset : CampusTheme.PRESETS) {
+      FrameLayout target = new FrameLayout(a);
+      boolean chosen = preset.id.equals(u.theme.preset.id);
+      u.touch(target, Color.TRANSPARENT, 12, 0);
+      TextView colour =
+          u.text(chosen ? "✓" : "", 14, CampusUi.readableAccent(Color.WHITE, preset.primary), true);
+      colour.setGravity(Gravity.CENTER);
+      colour.setBackground(u.shape(preset.primary, 16, chosen ? u.ink : 0));
+      target.addView(colour, new FrameLayout.LayoutParams(u.dp(30), u.dp(30), Gravity.CENTER));
+      target.setContentDescription("快速应用" + preset.name + "皮肤" + (chosen ? "，已选中" : ""));
+      target.setOnClickListener(v -> apply(a, preset));
+      row.addView(target, new LinearLayout.LayoutParams(u.dp(48), u.dp(48)));
+    }
+    scroll.addView(row);
+    parent.addView(scroll);
+    u.gap(parent, 12);
+  }
+
   static void apply(CampusActivity a, CampusTheme.Preset p) {
     try {
       a.store.batch(
@@ -25,7 +48,7 @@ final class CampusSkins {
 
   static void render(CampusActivity a) {
     CampusUi u = a.ui;
-    u.title(a.content, "给校园，换一种心情。", "八套完整配色，点选即可应用。设置按账号保留。");
+    u.title(a.content, "你的校园，你的颜色。", "十套完整配色 · 点选即用 · 随账号保留");
     LinearLayout current = u.card(a.content);
     current.setPadding(u.dp(16), u.dp(15), u.dp(16), u.dp(15));
     LinearLayout heading = u.row();
@@ -85,6 +108,11 @@ final class CampusSkins {
         lp.bottomMargin = u.dp(12);
         if (j > start) lp.leftMargin = u.dp(12);
         row.addView(tile, lp);
+      }
+      while (row.getChildCount() < columns) {
+        LinearLayout.LayoutParams space = new LinearLayout.LayoutParams(0, 1, 1);
+        space.leftMargin = u.dp(12);
+        row.addView(new View(a), space);
       }
       a.content.addView(row);
     }

@@ -39,6 +39,32 @@ final class CampusTheme {
 
   static final Preset[] PRESETS = {
     new Preset(
+        "mint",
+        "薄荷雾",
+        "雾白绿意 · 轻松有序",
+        false,
+        "#F5F7F4",
+        "#FFFFFF",
+        "#202C27",
+        "#617168",
+        "#356752",
+        "#20362D",
+        "#355C48",
+        "#B5E1C7"),
+    new Preset(
+        "moon",
+        "月光白",
+        "纸感留白 · 安静专注",
+        false,
+        "#F7F6F3",
+        "#FFFFFF",
+        "#292D34",
+        "#6B6D73",
+        "#4B586C",
+        "#292F3B",
+        "#4C5668",
+        "#BBCBEB"),
+    new Preset(
         "sky",
         "晴空蓝",
         "清透蓝调 · 安心日常",

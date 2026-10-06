@@ -4,7 +4,6 @@ import android.app.*;
 import android.content.*;
 import android.content.pm.PackageManager;
 import android.graphics.*;
-import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.*;
 import android.view.*;
@@ -196,6 +195,7 @@ public class CampusActivity extends Activity {
   }
 
   void build() {
+    boolean changedPage = !renderedPage.equals(page);
     int restoreY = renderedPage.equals(page) && scroll != null ? scroll.getScrollY() : 0;
     renderedPage = page;
     buildGeneration++;
@@ -222,15 +222,15 @@ public class CampusActivity extends Activity {
     root.setBackgroundColor(ui.bg);
     setContentView(root);
     LinearLayout head = ui.row();
-    head.setPadding(ui.dp(12), ui.dp(5), ui.dp(12), ui.dp(5));
+    head.setPadding(ui.dp(12), ui.dp(3), ui.dp(12), ui.dp(3));
     head.setBackgroundColor(ui.bg);
-    head.setMinimumHeight(ui.dp(58));
-    boolean detail = !Arrays.asList("home", "calendar", "class", "tools", "me").contains(page);
+    head.setMinimumHeight(ui.dp(54));
+    boolean detail = !Arrays.asList("home", "calendar", "growth", "tools", "me").contains(page);
     FrameLayout mark = ui.badge(detail ? "back" : "home");
     ui.touch(mark, detail ? Color.TRANSPARENT : ui.soft, 24, 0);
     mark.removeAllViews();
     mark.addView(
-        new CampusUi.Icon(this, detail ? "back" : "home", detail ? ui.ink : ui.accent),
+        new CampusUi.Icon(this, detail ? "back" : "brand", detail ? ui.ink : ui.accent),
         new FrameLayout.LayoutParams(ui.dp(23), ui.dp(23), Gravity.CENTER));
     mark.setContentDescription(detail ? "返回上一页" : "返回今日工作台");
     mark.setOnClickListener(
@@ -240,12 +240,11 @@ public class CampusActivity extends Activity {
         });
     head.addView(mark, new LinearLayout.LayoutParams(ui.dp(48), ui.dp(48)));
     LinearLayout brand = ui.column();
-    TextView name =
-        ui.text("捞捞校园", getResources().getConfiguration().fontScale > 1.3f ? 14 : 16, ui.ink, true);
+    TextView name = ui.text("捞捞校园", 14, ui.ink, true);
     name.setSingleLine(true);
     brand.addView(name);
     ui.gap(brand, 4);
-    TextView subtitle = ui.text(detail ? pageSection(page) : "让校园更顺手", 10, ui.muted, false);
+    TextView subtitle = ui.text(detail ? pageSection(page) : "校园学习空间", 9, ui.muted, false);
     subtitle.setSingleLine(true);
     subtitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
     brand.addView(subtitle);
@@ -287,7 +286,7 @@ public class CampusActivity extends Activity {
     scroll.setVerticalScrollBarEnabled(false);
     content = ui.column();
     int gutter = getResources().getConfiguration().screenWidthDp <= 340 ? 16 : 20;
-    content.setPadding(ui.dp(gutter), ui.dp(12), ui.dp(gutter), ui.dp(24));
+    content.setPadding(ui.dp(gutter), ui.dp(10), ui.dp(gutter), ui.dp(24));
     FrameLayout canvas = new FrameLayout(this);
     int width = Math.min(getResources().getDisplayMetrics().widthPixels, ui.dp(760));
     canvas.addView(
@@ -306,20 +305,20 @@ public class CampusActivity extends Activity {
     else if (CampusManage.handles(page)) CampusManage.render(this, page);
     else ui.empty(content, "暂未找到页面", "请返回学习空间。");
     FrameLayout footer = new FrameLayout(this);
-    footer.setPadding(ui.dp(14), ui.dp(6), ui.dp(14), ui.dp(8));
-    footer.setBackgroundColor(ui.bg);
+    footer.setPadding(ui.dp(12), ui.dp(8), ui.dp(12), ui.dp(6));
+    footer.setBackgroundColor(ui.surface);
     LinearLayout nav = ui.row();
     nav.setPadding(ui.dp(4), ui.dp(4), ui.dp(4), ui.dp(4));
-    nav.setBackground(ui.shape(ui.surface, 24, ui.border));
-    String[] ids = {"home", "calendar", "class", "tools", "me"},
-        names = {"今日", "日历", "班级", "工具", "我的"};
+    nav.setBackground(ui.shape(ui.surface, 0, 0));
+    String[] ids = {"home", "calendar", "growth", "tools", "me"},
+        names = {"今日", "日程", "成长", "工具", "我的"};
     String active =
         page.equals("home")
             ? "home"
             : page.equals("calendar")
                 ? "calendar"
-                : Arrays.asList("class", "homework", "wall", "people", "groups").contains(page)
-                    ? "class"
+                : Arrays.asList("growth", "rank", "meta", "farm", "report").contains(page)
+                    ? "growth"
                     : Arrays.asList(
                                 "me",
                                 "login",
@@ -340,11 +339,11 @@ public class CampusActivity extends Activity {
       cell.setGravity(Gravity.CENTER);
       cell.setPadding(0, ui.dp(3), 0, ui.dp(3));
       cell.setMinimumHeight(ui.dp(54));
-      ui.touch(cell, ui.surface, 13, 0);
+      ui.touch(cell, on ? ui.soft : ui.surface, 15, 0);
       cell.setContentDescription(names[j]);
       cell.setSelected(on);
       FrameLayout icon = new FrameLayout(this);
-      icon.setBackground(ui.shape(on ? ui.soft : Color.TRANSPARENT, 12, 0));
+      icon.setBackgroundColor(Color.TRANSPARENT);
       icon.addView(
           new CampusUi.Icon(this, id, on ? ui.accent : ui.muted),
           new FrameLayout.LayoutParams(ui.dp(22), ui.dp(22), Gravity.CENTER));
@@ -363,6 +362,14 @@ public class CampusActivity extends Activity {
             -2,
             Gravity.CENTER));
     root.addView(footer);
+    float animationScale =
+        android.provider.Settings.Global.getFloat(
+            getContentResolver(), android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f);
+    if (changedPage && animationScale > 0) {
+      content.setTranslationY(ui.dp(8));
+      content.setAlpha(0);
+      content.animate().translationY(0).alpha(1).setDuration(180).start();
+    }
     int generation = buildGeneration;
     if (restoreY > 0)
       scroll.post(
@@ -388,189 +395,7 @@ public class CampusActivity extends Activity {
   }
 
   void home() {
-    Calendar now = Calendar.getInstance();
-    String greeting =
-        now.get(Calendar.HOUR_OF_DAY) < 12
-            ? "上午好"
-            : now.get(Calendar.HOUR_OF_DAY) < 18 ? "下午好" : "晚上好";
-    String firstName = api.logged() ? me.optString("display_name", "同学") : "同学";
-    ui.title(
-        content,
-        greeting + "，" + firstName,
-        (now.get(Calendar.MONTH) + 1)
-            + "月"
-            + now.get(Calendar.DAY_OF_MONTH)
-            + "日 · "
-            + new java.text.SimpleDateFormat("EEEE", Locale.CHINA).format(now.getTime())
-            + (currentClass.optString("name").isEmpty()
-                ? " · 今天也值得认真"
-                : " · " + currentClass.optString("nickname", currentClass.optString("name"))));
-    String photo = store.string("native_home_photo", "");
-    if (!photo.isEmpty()) CampusPhone.image(this, content, photo);
-    if (CampusHome.render(this)) return;
-    List<JSONObject> courses = CampusCourses.onDay(store, DateMath.today());
-    List<JSONObject> all = items();
-    long pending = all.stream().filter(x -> !done(x) && !CampusSchool.hidden(this, x)).count();
-    String time =
-        String.format(
-            Locale.ROOT, "%02d:%02d", now.get(Calendar.HOUR_OF_DAY), now.get(Calendar.MINUTE));
-    JSONObject nextCourse = null;
-    for (JSONObject course : courses)
-      if (course.optString("t1").compareTo(time) >= 0) {
-        nextCourse = course;
-        break;
-      }
-    LinearLayout hero = ui.card(content);
-    GradientDrawable gradient =
-        new GradientDrawable(
-            GradientDrawable.Orientation.TL_BR, new int[] {ui.theme.heroStart, ui.theme.heroEnd});
-    gradient.setCornerRadius(ui.dp(26));
-    hero.setBackground(gradient);
-    hero.setElevation(0);
-    hero.setPadding(ui.dp(20), ui.dp(19), ui.dp(20), ui.dp(17));
-    LinearLayout top = ui.row();
-    LinearLayout story = ui.column();
-    TextView badge =
-        ui.text(
-            nextCourse == null
-                ? "今日安排"
-                : nextCourse.optString("t0").compareTo(time) <= 0 ? "正在上课" : "今天的下一站",
-            11,
-            ui.theme.heroMuted,
-            true);
-    story.addView(badge);
-    ui.gap(story, 12);
-    TextView headline =
-        ui.text(
-            nextCourse == null
-                ? courses.isEmpty() ? "今天，\n从容一点。" : "课程已结束，\n留一点时间给自己。"
-                : nextCourse.optString("name"),
-            24,
-            ui.theme.heroInk,
-            true);
-    headline.setMaxLines(2);
-    headline.setEllipsize(android.text.TextUtils.TruncateAt.END);
-    story.addView(headline);
-    top.addView(story, new LinearLayout.LayoutParams(0, -2, 1));
-    if (getResources().getConfiguration().fontScale <= 1.25f
-        && getResources().getConfiguration().screenWidthDp > 340)
-      top.addView(
-          new CampusVisual.TodayArt(this), new LinearLayout.LayoutParams(ui.dp(83), ui.dp(94)));
-    hero.addView(top);
-    ui.gap(hero, 9);
-    hero.addView(
-        ui.text(
-            nextCourse == null
-                ? "记下一件事，给今天一点方向。"
-                : nextCourse.optString("t0")
-                    + "–"
-                    + nextCourse.optString("t1")
-                    + " · "
-                    + nextCourse.optString("location", "教室待定"),
-            12,
-            ui.theme.heroMuted,
-            false));
-    ui.gap(hero, 18);
-    boolean stacked = getResources().getConfiguration().fontScale > 1.25f;
-    LinearLayout actions = stacked ? ui.column() : ui.row();
-    TextView add = ui.button("＋ 记一件事", () -> CampusSchool.personalForm(this, null), true);
-    ui.touch(add, ui.theme.heroInk, 16, 0);
-    add.setTextColor(ui.theme.heroStart);
-    actions.addView(add, new LinearLayout.LayoutParams(stacked ? -1 : 0, -2, stacked ? 0 : 1));
-    TextView schedule = ui.button("查看课表 ›", () -> open("courses"), false);
-    ui.touch(schedule, CampusUi.blend(ui.theme.heroInk, ui.theme.heroEnd, .08f), 16, 0);
-    schedule.setTextColor(ui.theme.heroInk);
-    LinearLayout.LayoutParams sp =
-        new LinearLayout.LayoutParams(stacked ? -1 : 0, -2, stacked ? 0 : 1);
-    if (stacked) sp.topMargin = ui.dp(8);
-    else sp.leftMargin = ui.dp(9);
-    actions.addView(schedule, sp);
-    hero.addView(actions);
-    ui.gap(hero, 18);
-    View line = new View(this);
-    line.setBackgroundColor(CampusUi.blend(ui.theme.heroInk, ui.theme.heroEnd, .16f));
-    hero.addView(line, new LinearLayout.LayoutParams(-1, ui.dp(1)));
-    ui.gap(hero, 13);
-    LinearLayout stats = ui.row();
-    homeMetric(stats, String.valueOf(courses.size()), "今天课程", "courses");
-    homeMetric(stats, String.valueOf(pending), "待完成事项", "calendar");
-    homeMetric(stats, String.valueOf(CampusLearn.habitToday(store)), "今日打卡", "growth");
-    hero.addView(stats);
-    ui.sectionLink(content, "校园常用", "全部工具", () -> open("tools"));
-    JSONArray pins = store.list("native_home_tools");
-    if (pins.length() == 0)
-      pins = new JSONArray(Arrays.asList("homework", "wall", "plan", "phone"));
-    List<String[]> shortcuts = new ArrayList<>();
-    for (int i = 0; i < pins.length(); i++)
-      shortcuts.add(new String[] {pins.optString(i), CampusManage.homeName(pins.optString(i))});
-    ui.dock(content, shortcuts.toArray(new String[0][]));
-    ui.sectionLink(content, "接下来的安排", "打开日历", () -> open("calendar"));
-    List<JSONObject> next = new ArrayList<>();
-    for (JSONObject x : all) if (!done(x) && !CampusSchool.hidden(this, x)) next.add(x);
-    next.sort(Comparator.comparing(x -> x.optString("event_time", "9999")));
-    if (next.isEmpty()) ui.empty(content, "今天还有自由的空间", "班级与个人待办都会出现在这里，随时记下新安排。");
-    else
-      for (JSONObject x : next.subList(0, Math.min(3, next.size())))
-        CampusSchool.item(this, content, x);
-    ui.section(content, "给自己一点成长时间");
-    JSONObject world = CampusWorld.stats(store);
-    int focus = Math.max(1, Math.min(180, store.object("native_pomo_config").optInt("focus", 25)));
-    ui.featurePair(
-        content,
-        new String[][] {
-          {"pomo", "专注计时", focus + " 分钟", "给一件事完整的注意力"},
-          {"meta", "学习星系", "Lv." + world.optInt("level"), world.optLong("exp") + " XP · 看见每次进步"}
-        });
-    ui.toolRows(
-        content,
-        new String[][] {
-          {"growth", "打卡成长", "让坚持留下可见的轨迹"},
-          {"farm", "云宠农场", "今天的进步，明天的养料"},
-          {"wrongbook", "错题记录本", "拍照归档，按时复习"},
-          {"ledger", "校园记账", "把每一笔花销记清楚"}
-        });
-    if (!api.logged()) {
-      LinearLayout invite = ui.card(content);
-      invite.setOrientation(LinearLayout.HORIZONTAL);
-      invite.setGravity(Gravity.CENTER_VERTICAL);
-      invite.addView(ui.badge("class"), new LinearLayout.LayoutParams(ui.dp(36), ui.dp(36)));
-      LinearLayout copy = ui.column();
-      copy.addView(ui.text("连接你的班级", 14, ui.ink, true));
-      ui.gap(copy, 5);
-      copy.addView(ui.text("登录后读取作业、事项与交流", 12, ui.muted, false));
-      LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, -2, 1);
-      cp.setMargins(ui.dp(12), 0, ui.dp(8), 0);
-      invite.addView(copy, cp);
-      invite.addView(ui.button("登录", () -> open("login"), false));
-    } else {
-      ui.sectionLink(
-          content,
-          loading
-              ? "正在连接校园云端"
-              : cloudError.isEmpty()
-                  ? "校园云端 · " + (store.pending() > 0 ? "有待同步记录" : "本地记录可用")
-                  : "离线记录已保留",
-          "刷新",
-          this::refreshCloud);
-      if (!cloudError.isEmpty()) content.addView(ui.text(cloudError, 12, ui.muted, false));
-    }
-  }
-
-  private void homeMetric(LinearLayout parent, String value, String label, String route) {
-    LinearLayout cell = ui.column();
-    cell.setGravity(Gravity.CENTER);
-    cell.setMinimumHeight(ui.dp(48));
-    ui.touch(cell, Color.TRANSPARENT, 12, 0);
-    TextView count = ui.text(value, 22, ui.theme.heroInk, true);
-    count.setGravity(Gravity.CENTER);
-    cell.addView(count);
-    ui.gap(cell, 5);
-    TextView note = ui.text(label, 11, ui.theme.heroMuted, false);
-    note.setGravity(Gravity.CENTER);
-    cell.addView(note);
-    cell.setContentDescription(label + "，" + value);
-    cell.setOnClickListener(v -> open(route));
-    parent.addView(cell, new LinearLayout.LayoutParams(0, -2, 1));
+    CampusDashboard.render(this);
   }
 
   void tools() {
@@ -578,8 +403,9 @@ public class CampusActivity extends Activity {
   }
 
   void profile() {
-    ui.title(content, "我的校园空间", "学习与生活，都可以有自己的节奏。");
+    ui.title(content, "我的校园", "学习留下足迹，生活保留热爱。");
     LinearLayout identity = ui.card(content);
+    identity.setBackground(ui.shape(ui.soft, 24, 0));
     LinearLayout line = ui.row();
     String name = api.logged() ? me.optString("display_name", "同学") : "同学";
     TextView avatar =
@@ -589,7 +415,7 @@ public class CampusActivity extends Activity {
             ui.accent,
             true);
     avatar.setGravity(Gravity.CENTER);
-    avatar.setBackground(ui.shape(ui.soft, 20, 0));
+    avatar.setBackground(ui.shape(ui.surface, 28, 0));
     line.addView(avatar, new LinearLayout.LayoutParams(ui.dp(56), ui.dp(56)));
     LinearLayout copy = ui.column();
     copy.addView(ui.text(name, 19, ui.ink, true));
@@ -625,7 +451,8 @@ public class CampusActivity extends Activity {
     ui.section(content, "把校园调成喜欢的样子");
     ui.toolRows(
         content,
-        new String[][] {{"appearance", "外观与首页", "当前 · " + ui.theme.preset.name + "  /  八套完整皮肤"}});
+        new String[][] {{"appearance", "外观与首页", "当前 · " + ui.theme.preset.name + "  /  十套完整皮肤"}});
+    CampusSkins.swatches(this, content);
     ui.section(content, "账号与班级");
     ui.toolRows(
         content,

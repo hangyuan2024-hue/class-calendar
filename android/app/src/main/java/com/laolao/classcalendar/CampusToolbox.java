@@ -64,17 +64,17 @@ final class CampusToolbox {
 
   static void render(CampusActivity a) {
     CampusUi u = a.ui;
-    u.title(a.content, "工具箱", "学习和生活，都有顺手的工具。");
+    u.title(a.content, "随手用，好好学。", "你的校园工具箱 · 学习、规划与生活");
     LinearLayout search = u.row();
     search.setPadding(u.dp(15), 0, u.dp(9), 0);
-    search.setBackground(u.shape(u.surface, 18, 0));
+    search.setBackground(u.shape(u.surface, 15, u.border));
     search.addView(
         new CampusUi.Icon(a, "search", u.muted), new LinearLayout.LayoutParams(u.dp(21), u.dp(21)));
     EditText input = new EditText(a);
     input.setTextSize(15);
     input.setTextColor(u.ink);
     input.setHintTextColor(u.muted);
-    input.setHint("搜索工具，例如：课表、记账、录音");
+    input.setHint("找工具：课表、错题、记账…");
     input.setSingleLine(true);
     input.setText(a.toolQuery);
     input.setSelection(input.length());
@@ -109,7 +109,7 @@ final class CampusToolbox {
           for (int i = 0; i < buttons.size(); i++) {
             TextView b = buttons.get(i);
             boolean on = b.getText().toString().equals(active[0]);
-            u.touch(b, on ? u.accent : u.surface, 18, 0);
+            u.touch(b, on ? u.accent : android.graphics.Color.TRANSPARENT, 12, 0);
             b.setTextColor(on ? u.onAccent() : u.muted);
             b.setSelected(on);
           }
@@ -120,14 +120,14 @@ final class CampusToolbox {
             for (int i = 0; i < Math.min(3, recent.length()); i++)
               for (String[] item : ITEMS) if (item[0].equals(recent.optString(i))) last.add(item);
             if (!last.isEmpty()) {
-              u.section(results, "继续使用");
+              u.section(results, "最近使用");
               LinearLayout shortcuts = u.row();
               shortcuts.setGravity(Gravity.TOP);
               for (String[] item : last) {
                 LinearLayout shortcut = u.column();
                 shortcut.setGravity(Gravity.CENTER);
                 shortcut.setPadding(u.dp(10), u.dp(13), u.dp(10), u.dp(13));
-                u.touch(shortcut, u.surface, 18, 0);
+                u.touch(shortcut, u.surface, 16, u.border);
                 shortcut.addView(
                     u.badge(item[0]), new LinearLayout.LayoutParams(u.dp(34), u.dp(34)));
                 u.gap(shortcut, 8);

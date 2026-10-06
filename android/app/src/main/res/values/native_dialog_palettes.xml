@@ -135,4 +135,36 @@
         <item name="android:windowMinWidthMajor">0dp</item>
         <item name="android:windowMinWidthMinor">0dp</item>
     </style>
+    <style name="CampusDialogMint" parent="@android:style/Theme.Material.Light.Dialog.Alert">
+        <item name="android:colorAccent">#356752</item>
+        <item name="android:colorPrimary">#20362D</item>
+        <item name="android:windowBackground">#FFFFFF</item>
+        <item name="android:textColorPrimary">#202C27</item>
+        <item name="android:textColorSecondary">#617168</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+    <style name="CampusDialogMintNight" parent="@android:style/Theme.Material.Dialog.Alert">
+        <item name="android:colorAccent">#B5E1C7</item>
+        <item name="android:colorPrimary">#20362D</item>
+        <item name="android:windowBackground">#142739</item>
+        <item name="android:textColorPrimary">#EDF5FC</item>
+        <item name="android:textColorSecondary">#AFBECE</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+    <style name="CampusDialogMoon" parent="@android:style/Theme.Material.Light.Dialog.Alert">
+        <item name="android:colorAccent">#4B586C</item>
+        <item name="android:colorPrimary">#292F3B</item>
+        <item name="android:windowBackground">#FFFFFF</item>
+        <item name="android:textColorPrimary">#292D34</item>
+        <item name="android:textColorSecondary">#6B6D73</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+    <style name="CampusDialogMoonNight" parent="@android:style/Theme.Material.Dialog.Alert">
+        <item name="android:colorAccent">#BBCBEB</item>
+        <item name="android:colorPrimary">#292F3B</item>
+        <item name="android:windowBackground">#142739</item>
+        <item name="android:textColorPrimary">#EDF5FC</item>
+        <item name="android:textColorSecondary">#AFBECE</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
 </resources>

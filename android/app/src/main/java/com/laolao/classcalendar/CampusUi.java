@@ -24,7 +24,7 @@ final class CampusUi {
     theme =
         CampusTheme.resolve(
             a.store.string("ui_skin_v1", "fresh"),
-            saved.optString("id", "sky"),
+            saved.optString("id", "mint"),
             saved.optString("p", null),
             (a.getResources().getConfiguration().uiMode & 48) == 32,
             a.page.equals("meta"));
@@ -160,7 +160,7 @@ final class CampusUi {
     t.setTextSize(size);
     t.setTextColor(c);
     t.setIncludeFontPadding(false);
-    t.setLineSpacing(dp(size >= 20 ? 4 : 3), 1);
+    t.setLineSpacing(dp(size >= 20 ? 3 : 2), 1);
     t.setBreakStrategy(android.text.Layout.BREAK_STRATEGY_SIMPLE);
     t.setTypeface(Typeface.create("sans-serif", bold ? Typeface.BOLD : Typeface.NORMAL));
     return t;
@@ -169,9 +169,9 @@ final class CampusUi {
   TextView button(String s, Runnable r, boolean primary) {
     TextView t = text(s, 14, primary ? onAccent() : ink, true);
     t.setGravity(Gravity.CENTER);
-    t.setPadding(dp(16), dp(13), dp(16), dp(13));
+    t.setPadding(dp(16), dp(12), dp(16), dp(12));
     t.setMinHeight(dp(48));
-    touch(t, primary ? accent : surface, 16, primary ? 0 : border);
+    touch(t, primary ? accent : soft, 14, 0);
     t.setOnClickListener(v -> r.run());
     return t;
   }
@@ -179,21 +179,20 @@ final class CampusUi {
   LinearLayout card(LinearLayout parent) {
     LinearLayout l = column();
     l.setPadding(dp(18), dp(18), dp(18), dp(18));
-    l.setBackground(shape(surface, 22, 0));
-    if (!dark) l.setElevation(dp(1));
+    l.setBackground(shape(surface, 20, blend(ink, surface, .055f)));
     LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2);
-    p.bottomMargin = dp(14);
+    p.bottomMargin = dp(12);
     parent.addView(l, p);
     return l;
   }
 
   void title(LinearLayout parent, String title, String note) {
-    parent.addView(text(title, 24, ink, true));
+    parent.addView(text(title, 27, ink, true));
     if (note != null && !note.isEmpty()) {
       gap(parent, 7);
       parent.addView(text(note, 13, muted, false));
     }
-    gap(parent, 18);
+    gap(parent, 20);
   }
 
   void section(LinearLayout parent, String name) {
@@ -205,7 +204,7 @@ final class CampusUi {
 
   void empty(LinearLayout parent, String title, String note) {
     LinearLayout p = card(parent);
-    p.setBackground(shape(soft, 20, 0));
+    p.setBackground(shape(blend(accent, bg, dark ? .10f : .035f), 18, border));
     p.setElevation(0);
     p.addView(text(title, 15, ink, true));
     gap(p, 8);
@@ -215,7 +214,7 @@ final class CampusUi {
   TextView pill(String s) {
     TextView t = text(s, 11, readableAccent(accent, soft), true);
     t.setPadding(dp(9), dp(6), dp(9), dp(6));
-    t.setBackground(shape(soft, 9, 0));
+    t.setBackground(shape(soft, 7, 0));
     t.setLayoutParams(new LinearLayout.LayoutParams(-2, -2));
     return t;
   }
@@ -264,9 +263,10 @@ final class CampusUi {
       for (int j = i; j < Math.min(i + n, tiles.length); j++) {
         String[] x = tiles[j];
         LinearLayout cell = column();
-        cell.setPadding(dp(15), dp(15), dp(15), dp(15));
-        touch(cell, surface, 20, 0);
-        cell.setMinimumHeight(dp(112));
+        cell.setPadding(dp(16), dp(16), dp(16), dp(16));
+        int tint = tone(x[0]);
+        touch(cell, blend(tint, surface, dark ? .10f : .045f), 20, blend(tint, surface, .09f));
+        cell.setMinimumHeight(dp(126));
         LinearLayout top = row();
         top.addView(badge(x[0]), new LinearLayout.LayoutParams(dp(32), dp(32)));
         TextView arrow = text("›", 19, muted, false);
@@ -274,9 +274,9 @@ final class CampusUi {
         top.addView(arrow, new LinearLayout.LayoutParams(0, -2, 1));
         cell.addView(top);
         gap(cell, 11);
-        cell.addView(text(x[1], 14, ink, true));
+        cell.addView(text(x[1], 15, ink, true));
         gap(cell, 6);
-        TextView description = text(x[2], 12, muted, false);
+        TextView description = text(x[2], 11, muted, false);
         cell.addView(description);
         cell.setContentDescription(x[1] + "，" + x[2]);
         cell.setOnClickListener(v -> a.open(x[0]));
@@ -285,7 +285,11 @@ final class CampusUi {
         if (j % n + 1 < n) p.rightMargin = dp(10);
         r.addView(cell, p);
       }
-      while (r.getChildCount() < n) r.addView(new View(a), new LinearLayout.LayoutParams(0, 1, 1));
+      while (r.getChildCount() < n) {
+        LinearLayout.LayoutParams space = new LinearLayout.LayoutParams(0, 1, 1);
+        if (r.getChildCount() + 1 < n) space.rightMargin = dp(10);
+        r.addView(new View(a), space);
+      }
       parent.addView(r);
     }
   }
@@ -293,15 +297,16 @@ final class CampusUi {
   FrameLayout badge(String route) {
     FrameLayout box = new FrameLayout(a);
     int colour = tone(route);
-    box.setBackground(shape(blend(colour, surface, dark ? .16f : .075f), 11, 0));
+    box.setBackground(shape(blend(colour, surface, dark ? .18f : .08f), 12, 0));
     FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(dp(23), dp(23), Gravity.CENTER);
     box.addView(new Icon(a, route, colour), p);
     return box;
   }
 
   void dock(LinearLayout parent, String[][] items) {
-    LinearLayout panel = card(parent);
-    panel.setPadding(dp(8), dp(10), dp(8), dp(10));
+    LinearLayout panel = column();
+    parent.addView(panel, new LinearLayout.LayoutParams(-1, -2));
+    panel.setPadding(0, dp(2), 0, dp(8));
     int columns =
         a.getResources().getConfiguration().fontScale > 1.25f
             ? 2
@@ -316,10 +321,10 @@ final class CampusUi {
         cell.setGravity(Gravity.CENTER);
         cell.setPadding(dp(4), dp(8), dp(4), dp(8));
         cell.setMinimumHeight(dp(72));
-        touch(cell, surface, 16, 0);
-        cell.addView(badge(item[0]), new LinearLayout.LayoutParams(dp(35), dp(35)));
+        touch(cell, Color.TRANSPARENT, 14, 0);
+        cell.addView(badge(item[0]), new LinearLayout.LayoutParams(dp(42), dp(42)));
         gap(cell, 9);
-        TextView name = text(item[1], 11, ink, true);
+        TextView name = text(item[1], 12, ink, true);
         name.setGravity(Gravity.CENTER);
         cell.addView(name);
         cell.setContentDescription(item[1]);
@@ -338,9 +343,9 @@ final class CampusUi {
       String[] item = items[i];
       boolean space = item[0].equals("meta");
       LinearLayout tile = column();
-      tile.setPadding(dp(17), dp(17), dp(17), dp(17));
+      tile.setPadding(dp(16), dp(15), dp(16), dp(15));
       int colour = space ? theme.heroStart : soft;
-      touch(tile, colour, 22, 0);
+      touch(tile, colour, 20, 0);
       LinearLayout top = row();
       top.addView(
           text(item[1], 12, space ? theme.heroMuted : muted, false),
@@ -349,8 +354,8 @@ final class CampusUi {
           new Icon(a, item[0], space ? theme.heroInk : accent),
           new LinearLayout.LayoutParams(dp(20), dp(20)));
       tile.addView(top);
-      gap(tile, 17);
-      tile.addView(text(item[2], 25, space ? theme.heroInk : ink, true));
+      gap(tile, 12);
+      tile.addView(text(item[2], 26, space ? theme.heroInk : ink, true));
       gap(tile, 7);
       tile.addView(text(item[3], 11, space ? theme.heroMuted : muted, false));
       tile.setContentDescription(item[1] + "，" + item[2] + "，" + item[3]);
@@ -403,7 +408,7 @@ final class CampusUi {
       group.addView(line, lp);
       if (index + 1 < items.length) {
         View divider = new View(a);
-        divider.setBackgroundColor(border);
+        divider.setBackgroundColor(blend(ink, surface, .07f));
         LinearLayout.LayoutParams dividerSpace = new LinearLayout.LayoutParams(-1, dp(1));
         dividerSpace.leftMargin = dp(62);
         dividerSpace.rightMargin = dp(12);
@@ -713,6 +718,12 @@ final class CampusUi {
       if (type.equals("back")) {
         canvas.drawLine(15, 5, 8, 12, p);
         canvas.drawLine(8, 12, 15, 19, p);
+      } else if (type.equals("brand")) {
+        canvas.drawRoundRect(4, 4, 20, 20, 5, 5, p);
+        canvas.drawLine(8, 9, 8, 16, p);
+        canvas.drawLine(8, 16, 13, 16, p);
+        canvas.drawCircle(16, 8, 2, p);
+        canvas.drawLine(15, 14, 17, 12, p);
       } else if (type.equals("search")) {
         canvas.drawCircle(10, 10, 6, p);
         canvas.drawLine(15, 15, 21, 21, p);

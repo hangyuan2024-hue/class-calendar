@@ -707,6 +707,7 @@ final class CampusManage {
   }
 
   static String homeName(String id) {
+    if (id.equals("class")) return "我的班级";
     for (String[] x : HOME) if (x[0].equals(id)) return x[1];
     return id;
   }

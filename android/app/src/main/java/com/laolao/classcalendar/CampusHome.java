@@ -94,8 +94,14 @@ final class CampusHome {
     JSONObject config = a.store.object("home_layout_v1");
     if (config.optJSONArray("home") == null) return false;
     CampusUi u = a.ui;
-    if (!a.api.logged()) a.content.addView(u.button("登录账号，连接班级", () -> a.open("login"), true));
-    else a.content.addView(u.button(a.loading ? "正在刷新…" : "刷新校园数据", a::refreshCloud, false));
+    u.sectionLink(
+        a.content,
+        "按你的习惯排列",
+        a.api.logged() ? "刷新" : "登录",
+        () -> {
+          if (a.api.logged()) a.refreshCloud();
+          else a.open("login");
+        });
     LinearLayout row = null;
     for (JSONObject widget : CampusJson.rows(config.opt("home"))) {
       String id = widget.optString("id");
@@ -123,6 +129,9 @@ final class CampusHome {
       if (row.getChildCount() > 0) p.leftMargin = u.dp(10);
       row.addView(cell, p);
       LinearLayout card = u.card(cell);
+      card.setBackground(
+          u.shape(
+              CampusUi.blend(u.tone(route(id)), u.surface, u.dark ? .10f : .035f), 20, u.border));
       card.setMinimumHeight(u.dp(110 * Math.max(1, Math.min(3, widget.optInt("h", 1)))));
       card.addView(u.text(name(id), 15, u.ink, true));
       u.gap(card, 10);

@@ -1,0 +1,16 @@
+{
+  "package": "com.laolao.classcalendar.preview",
+  "version": "3.3.11-preview",
+  "checks": [
+    "Disposable emulator",
+    "System night palette opens native ledger",
+    "Night-mode native date picker opens",
+    "Night form cancels without changing learning records"
+  ],
+  "screenshots": [
+    "night-date-picker.png"
+  ],
+  "device": "Android 9 / API 28 AOSP emulator",
+  "result": "passed",
+  "passed": 4
+}

@@ -1,0 +1,66 @@
+{
+  "scope": "Main body text on preset canvas and surface. This is not a full accessibility audit.",
+  "passed": 10,
+  "palettes": [
+    {
+      "id": "mint",
+      "name": "薄荷雾",
+      "text_on_background": 13.43,
+      "text_on_surface": 14.47
+    },
+    {
+      "id": "moon",
+      "name": "月光白",
+      "text_on_background": 12.79,
+      "text_on_surface": 13.82
+    },
+    {
+      "id": "sky",
+      "name": "晴空蓝",
+      "text_on_background": 12.67,
+      "text_on_surface": 13.71
+    },
+    {
+      "id": "forest",
+      "name": "森野绿",
+      "text_on_background": 11.01,
+      "text_on_surface": 12.06
+    },
+    {
+      "id": "sakura",
+      "name": "樱花粉",
+      "text_on_background": 11.32,
+      "text_on_surface": 12.09
+    },
+    {
+      "id": "apricot",
+      "name": "暖杏橙",
+      "text_on_background": 11.17,
+      "text_on_surface": 11.91
+    },
+    {
+      "id": "lavender",
+      "name": "鸢尾紫",
+      "text_on_background": 12.08,
+      "text_on_surface": 13.07
+    },
+    {
+      "id": "ocean",
+      "name": "海盐青",
+      "text_on_background": 10.77,
+      "text_on_surface": 11.64
+    },
+    {
+      "id": "cyber",
+      "name": "深海赛博",
+      "text_on_background": 17.19,
+      "text_on_surface": 14.41
+    },
+    {
+      "id": "graphite",
+      "name": "曜石黑",
+      "text_on_background": 16.06,
+      "text_on_surface": 13.51
+    }
+  ]
+}

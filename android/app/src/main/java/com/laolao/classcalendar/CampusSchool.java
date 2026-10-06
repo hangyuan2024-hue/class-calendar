@@ -75,7 +75,7 @@ final class CampusSchool {
     c.setTime(DateMath.parse(first));
     int start = (c.get(Calendar.DAY_OF_WEEK) + 5) % 7,
         days = c.getActualMaximum(Calendar.DAY_OF_MONTH);
-    u.title(a.content, parts[0] + "年 " + parts[1] + "月", "课程、班级安排与个人事项，汇入同一张日历。");
+    u.title(a.content, "校园日程", parts[0] + "年 " + parts[1] + "月 · 课程和待办，都在这里。");
     u.actionRow(
         a.content,
         new String[] {"‹ 上个月", "今天", "下个月 ›"},
@@ -88,6 +88,7 @@ final class CampusSchool {
           () -> month(a, 1)
         });
     LinearLayout block = u.card(a.content);
+    block.setPadding(u.dp(12), u.dp(12), u.dp(12), u.dp(12));
     LinearLayout labels = u.row();
     for (String d : new String[] {"一", "二", "三", "四", "五", "六", "日"}) {
       TextView t = u.text(d, 11, u.muted, false);
@@ -110,18 +111,18 @@ final class CampusSchool {
         }
         String d = DateMath.date(parts[0], parts[1], n);
         boolean picked = d.equals(selected), today = d.equals(DateMath.today());
+        boolean occupied =
+            counts.getOrDefault(d, 0) > 0 || !CampusCourses.onDay(a.store, d).isEmpty();
         TextView t =
             u.text(
-                String.valueOf(n)
-                    + (counts.getOrDefault(d, 0) > 0 || !CampusCourses.onDay(a.store, d).isEmpty()
-                        ? "\n•"
-                        : ""),
-                13,
+                String.valueOf(n) + "\n" + (occupied ? "•" : " "),
+                14,
                 picked ? u.onAccent() : today ? u.accent : u.ink,
                 picked || today);
         t.setGravity(Gravity.CENTER);
-        u.touch(t, picked ? u.accent : u.surface, 11, 0);
-        t.setContentDescription(d + "，" + counts.getOrDefault(d, 0) + "项安排");
+        u.touch(t, picked ? u.accent : u.surface, 16, 0);
+        t.setContentDescription(
+            d + "，" + (counts.getOrDefault(d, 0) + CampusCourses.onDay(a.store, d).size()) + "项安排");
         t.setOnClickListener(
             v -> {
               a.selectedDay = d;
@@ -135,18 +136,25 @@ final class CampusSchool {
         a.content,
         new String[] {"＋ 个人事项", "日历导出 / 订阅"},
         new Runnable[] {() -> personalForm(a, null), () -> calendarOptions(a)});
-    u.section(a.content, selected + " 的安排");
+    int[] chosen = DateMath.parts(selected);
+    u.section(
+        a.content,
+        (selected.equals(DateMath.today()) ? "今天" : chosen[1] + "月" + chosen[2] + "日") + "的安排");
     for (JSONObject x : CampusCourses.onDay(a.store, selected)) {
       LinearLayout card = u.card(a.content);
-      card.addView(u.pill("课程"));
-      u.gap(card, 9);
-      card.addView(u.text(x.optString("name"), 18, u.ink, true));
-      card.addView(
-          u.text(
-              x.optString("t0") + "–" + x.optString("t1") + "  ·  " + x.optString("location"),
-              13,
-              u.muted,
-              false));
+      LinearLayout course = u.row(), time = u.column(), info = u.column();
+      time.addView(u.text(x.optString("t0"), 15, u.accent, true));
+      u.gap(time, 5);
+      time.addView(u.text(x.optString("t1"), 11, u.muted, false));
+      course.addView(time, new LinearLayout.LayoutParams(u.dp(57), -2));
+      info.addView(u.text(x.optString("name"), 16, u.ink, true));
+      u.gap(info, 6);
+      info.addView(u.text("课程 · " + x.optString("location", "教室待定"), 11, u.muted, false));
+      LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, -2, 1);
+      cp.leftMargin = u.dp(12);
+      course.addView(info, cp);
+      course.addView(u.text("›", 22, u.muted, false));
+      card.addView(course);
       card.setOnClickListener(v -> CampusCourses.detail(a, x));
     }
     boolean any = false;
@@ -222,8 +230,8 @@ final class CampusSchool {
             false);
     top.addView(state);
     box.addView(top);
-    u.gap(box, 10);
-    TextView title = u.text(x.optString("subject", "未命名事项"), 18, u.ink, true);
+    u.gap(box, 8);
+    TextView title = u.text(x.optString("subject", "未命名事项"), 16, u.ink, true);
     if (a.done(x))
       title.setPaintFlags(title.getPaintFlags() | android.graphics.Paint.STRIKE_THRU_TEXT_FLAG);
     box.addView(title);
