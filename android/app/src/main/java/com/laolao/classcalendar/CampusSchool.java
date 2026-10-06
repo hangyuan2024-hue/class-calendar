@@ -117,7 +117,7 @@ final class CampusSchool {
                         ? "\n•"
                         : ""),
                 13,
-                picked ? (a.dark ? u.bg : 0xffffffff) : today ? u.accent : u.ink,
+                picked ? u.onAccent() : today ? u.accent : u.ink,
                 picked || today);
         t.setGravity(Gravity.CENTER);
         u.touch(t, picked ? u.accent : u.surface, 11, 0);

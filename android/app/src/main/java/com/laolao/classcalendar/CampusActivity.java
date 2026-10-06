@@ -23,11 +23,13 @@ public class CampusActivity extends Activity {
   ScrollView scroll;
   JSONObject me = new JSONObject(), currentClass = new JSONObject();
   String page = "home", selectedDay = DateMath.today();
+  String toolQuery = "", toolCategory = "全部";
   final ExecutorService worker = Executors.newSingleThreadExecutor();
   final Handler handler = new Handler(Looper.getMainLooper());
   final Deque<String> history = new ArrayDeque<>();
   boolean dark, loading, unlocked;
   int buildGeneration;
+  private String renderedPage = "";
   String cloudError = "";
   private String pendingExport;
   private long backAt;
@@ -55,6 +57,8 @@ public class CampusActivity extends Activity {
       if (saved != null) {
         page = saved.getString("page", "home");
         selectedDay = saved.getString("day", DateMath.today());
+        toolQuery = saved.getString("toolQuery", "");
+        toolCategory = saved.getString("toolCategory", "全部");
       }
       build();
       routeIntent(getIntent());
@@ -77,6 +81,8 @@ public class CampusActivity extends Activity {
     super.onSaveInstanceState(out);
     out.putString("page", page);
     out.putString("day", selectedDay);
+    out.putString("toolQuery", toolQuery);
+    out.putString("toolCategory", toolCategory);
   }
 
   @Override
@@ -179,6 +185,7 @@ public class CampusActivity extends Activity {
   void open(String route) {
     if (!page.equals(route)) history.push(page);
     page = route;
+    CampusToolbox.remember(this, route);
     build();
   }
 
@@ -189,6 +196,8 @@ public class CampusActivity extends Activity {
   }
 
   void build() {
+    int restoreY = renderedPage.equals(page) && scroll != null ? scroll.getScrollY() : 0;
+    renderedPage = page;
     buildGeneration++;
     String skin = store.string("ui_skin_v1", "fresh");
     dark =
@@ -199,8 +208,9 @@ public class CampusActivity extends Activity {
       getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
     else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
     ui = new CampusUi(this, dark);
+    dark = ui.dark;
     getWindow().setStatusBarColor(ui.bg);
-    getWindow().setNavigationBarColor(ui.surface);
+    getWindow().setNavigationBarColor(ui.bg);
     getWindow()
         .getDecorView()
         .setSystemUiVisibility(
@@ -212,37 +222,77 @@ public class CampusActivity extends Activity {
     root.setBackgroundColor(ui.bg);
     setContentView(root);
     LinearLayout head = ui.row();
-    head.setPadding(ui.dp(19), ui.dp(11), ui.dp(19), ui.dp(10));
-    if (!Arrays.asList("home", "calendar", "class", "tools", "me").contains(page)) {
-      TextView back = ui.button("‹", () -> onBackPressed(), false);
-      back.setTextSize(28);
-      head.addView(back, new LinearLayout.LayoutParams(ui.dp(43), ui.dp(45)));
-    }
+    head.setPadding(ui.dp(12), ui.dp(5), ui.dp(12), ui.dp(5));
+    head.setBackgroundColor(ui.bg);
+    head.setMinimumHeight(ui.dp(58));
+    boolean detail = !Arrays.asList("home", "calendar", "class", "tools", "me").contains(page);
+    FrameLayout mark = ui.badge(detail ? "back" : "home");
+    ui.touch(mark, detail ? Color.TRANSPARENT : ui.soft, 24, 0);
+    mark.removeAllViews();
+    mark.addView(
+        new CampusUi.Icon(this, detail ? "back" : "home", detail ? ui.ink : ui.accent),
+        new FrameLayout.LayoutParams(ui.dp(23), ui.dp(23), Gravity.CENTER));
+    mark.setContentDescription(detail ? "返回上一页" : "返回今日工作台");
+    mark.setOnClickListener(
+        v -> {
+          if (detail) onBackPressed();
+          else tab("home");
+        });
+    head.addView(mark, new LinearLayout.LayoutParams(ui.dp(48), ui.dp(48)));
     LinearLayout brand = ui.column();
-    brand.addView(ui.text("捞捞校园", 20, ui.ink, true));
-    brand.addView(ui.text(api.logged() ? "校园生活，在这里汇合" : "学习 · 日常 · 成长", 10, ui.muted, false));
+    TextView name =
+        ui.text("捞捞校园", getResources().getConfiguration().fontScale > 1.3f ? 14 : 16, ui.ink, true);
+    name.setSingleLine(true);
+    brand.addView(name);
+    ui.gap(brand, 4);
+    TextView subtitle = ui.text(detail ? pageSection(page) : "让校园更顺手", 10, ui.muted, false);
+    subtitle.setSingleLine(true);
+    subtitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
+    brand.addView(subtitle);
     LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, 1);
     p.leftMargin = ui.dp(9);
     head.addView(brand, p);
+    if (page.equals("home")) {
+      FrameLayout find = ui.badge("search");
+      ui.touch(find, Color.TRANSPARENT, 14, 0);
+      find.setContentDescription("搜索校园记录");
+      find.setOnClickListener(v -> open("search"));
+      LinearLayout.LayoutParams fp = new LinearLayout.LayoutParams(ui.dp(48), ui.dp(48));
+      fp.rightMargin = ui.dp(2);
+      head.addView(find, fp);
+    }
+    FrameLayout palette = ui.badge("appearance");
+    ui.touch(palette, Color.TRANSPARENT, 24, 0);
+    palette.setContentDescription("切换校园皮肤");
+    palette.setOnClickListener(v -> open("appearance"));
+    head.addView(palette, new LinearLayout.LayoutParams(ui.dp(48), ui.dp(48)));
+    String displayName = api.logged() ? me.optString("display_name", "我") : "我";
     TextView identity =
         ui.text(
-            api.logged()
-                ? me.optString("display_name", "我")
-                    .substring(0, Math.min(1, me.optString("display_name", "我").length()))
-                : "我",
-            14,
-            ui.accent,
+            displayName.isEmpty()
+                ? "我"
+                : displayName.substring(0, displayName.offsetByCodePoints(0, 1)),
+            15,
+            CampusUi.readableAccent(ui.accent, ui.soft),
             true);
     identity.setGravity(Gravity.CENTER);
-    ui.touch(identity, ui.soft, 14, 0);
+    identity.setContentDescription(api.logged() ? "打开我的校园空间" : "登录或注册账号");
+    ui.touch(identity, ui.soft, 24, 0);
     identity.setOnClickListener(v -> open(api.logged() ? "me" : "login"));
-    head.addView(identity, new LinearLayout.LayoutParams(ui.dp(42), ui.dp(42)));
+    head.addView(identity, new LinearLayout.LayoutParams(ui.dp(48), ui.dp(48)));
     root.addView(head);
     scroll = new ScrollView(this);
     scroll.setClipToPadding(false);
+    scroll.setFillViewport(true);
+    scroll.setVerticalScrollBarEnabled(false);
     content = ui.column();
-    content.setPadding(ui.dp(19), ui.dp(13), ui.dp(19), ui.dp(22));
-    scroll.addView(content);
+    int gutter = getResources().getConfiguration().screenWidthDp <= 340 ? 16 : 20;
+    content.setPadding(ui.dp(gutter), ui.dp(12), ui.dp(gutter), ui.dp(24));
+    FrameLayout canvas = new FrameLayout(this);
+    int width = Math.min(getResources().getDisplayMetrics().widthPixels, ui.dp(760));
+    canvas.addView(
+        content, new FrameLayout.LayoutParams(width, -2, Gravity.TOP | Gravity.CENTER_HORIZONTAL));
+    scroll.addView(canvas);
     root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
     if (page.equals("home")) home();
     else if (page.equals("tools")) tools();
@@ -255,9 +305,12 @@ public class CampusActivity extends Activity {
     else if (CampusPhone.handles(page)) CampusPhone.render(this, page);
     else if (CampusManage.handles(page)) CampusManage.render(this, page);
     else ui.empty(content, "暂未找到页面", "请返回学习空间。");
+    FrameLayout footer = new FrameLayout(this);
+    footer.setPadding(ui.dp(14), ui.dp(6), ui.dp(14), ui.dp(8));
+    footer.setBackgroundColor(ui.bg);
     LinearLayout nav = ui.row();
-    nav.setPadding(ui.dp(8), ui.dp(7), ui.dp(8), ui.dp(9));
-    nav.setBackgroundColor(ui.surface);
+    nav.setPadding(ui.dp(4), ui.dp(4), ui.dp(4), ui.dp(4));
+    nav.setBackground(ui.shape(ui.surface, 24, ui.border));
     String[] ids = {"home", "calendar", "class", "tools", "me"},
         names = {"今日", "日历", "班级", "工具", "我的"};
     String active =
@@ -267,7 +320,17 @@ public class CampusActivity extends Activity {
                 ? "calendar"
                 : Arrays.asList("class", "homework", "wall", "people", "groups").contains(page)
                     ? "class"
-                    : page.equals("me") || page.equals("login") || page.equals("register")
+                    : Arrays.asList(
+                                "me",
+                                "login",
+                                "register",
+                                "appearance",
+                                "backup",
+                                "about",
+                                "security",
+                                "mail",
+                                "admin")
+                            .contains(page)
                         ? "me"
                         : "tools";
     for (int j = 0; j < 5; j++) {
@@ -275,20 +338,53 @@ public class CampusActivity extends Activity {
       boolean on = id.equals(active);
       LinearLayout cell = ui.column();
       cell.setGravity(Gravity.CENTER);
-      ui.touch(cell, on ? ui.soft : ui.surface, 13, 0);
+      cell.setPadding(0, ui.dp(3), 0, ui.dp(3));
+      cell.setMinimumHeight(ui.dp(54));
+      ui.touch(cell, ui.surface, 13, 0);
       cell.setContentDescription(names[j]);
-      cell.addView(
+      cell.setSelected(on);
+      FrameLayout icon = new FrameLayout(this);
+      icon.setBackground(ui.shape(on ? ui.soft : Color.TRANSPARENT, 12, 0));
+      icon.addView(
           new CampusUi.Icon(this, id, on ? ui.accent : ui.muted),
-          new LinearLayout.LayoutParams(ui.dp(23), ui.dp(23)));
+          new FrameLayout.LayoutParams(ui.dp(22), ui.dp(22), Gravity.CENTER));
+      cell.addView(icon, new LinearLayout.LayoutParams(ui.dp(44), ui.dp(28)));
       ui.gap(cell, 4);
-      cell.addView(ui.text(names[j], 10, on ? ui.accent : ui.muted, on));
+      TextView label = ui.text(names[j], 11, on ? ui.accent : ui.muted, on);
+      label.setGravity(Gravity.CENTER);
+      cell.addView(label);
       cell.setOnClickListener(v -> tab(id));
-      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, ui.dp(58), 1);
-      lp.leftMargin = ui.dp(2);
-      lp.rightMargin = ui.dp(2);
-      nav.addView(cell, lp);
+      nav.addView(cell, new LinearLayout.LayoutParams(0, -2, 1));
     }
-    root.addView(nav);
+    footer.addView(
+        nav,
+        new FrameLayout.LayoutParams(
+            Math.min(getResources().getDisplayMetrics().widthPixels - ui.dp(28), ui.dp(560)),
+            -2,
+            Gravity.CENTER));
+    root.addView(footer);
+    int generation = buildGeneration;
+    if (restoreY > 0)
+      scroll.post(
+          () -> {
+            if (generation == buildGeneration) scroll.scrollTo(0, restoreY);
+          });
+  }
+
+  private String pageLabel(String route) {
+    for (String[] item : CampusToolbox.ITEMS) if (item[0].equals(route)) return item[1];
+    if (route.equals("homework")) return "我的作业";
+    if (route.equals("wall")) return "班级墙";
+    return "我的校园空间";
+  }
+
+  private String pageSection(String route) {
+    if (route.equals("meta")) return "学习与成长";
+    for (String[] item : CampusToolbox.ITEMS)
+      if (item[0].equals(route)) return item[3].equals("手机") ? "手机专属" : item[3] + "工具";
+    if (Arrays.asList("homework", "wall", "people", "groups", "login", "register").contains(route))
+      return "账号与班级";
+    return "个性与设置";
   }
 
   void home() {
@@ -297,184 +393,241 @@ public class CampusActivity extends Activity {
         now.get(Calendar.HOUR_OF_DAY) < 12
             ? "上午好"
             : now.get(Calendar.HOUR_OF_DAY) < 18 ? "下午好" : "晚上好";
+    String firstName = api.logged() ? me.optString("display_name", "同学") : "同学";
     ui.title(
         content,
-        greeting + (api.logged() ? "，" + me.optString("display_name", "同学") : "，同学"),
-        DateMath.today()
-            + " · "
+        greeting + "，" + firstName,
+        (now.get(Calendar.MONTH) + 1)
+            + "月"
+            + now.get(Calendar.DAY_OF_MONTH)
+            + "日 · "
+            + new java.text.SimpleDateFormat("EEEE", Locale.CHINA).format(now.getTime())
             + (currentClass.optString("name").isEmpty()
-                ? "你的校园生活空间"
-                : currentClass.optString("nickname", currentClass.optString("name"))));
+                ? " · 今天也值得认真"
+                : " · " + currentClass.optString("nickname", currentClass.optString("name"))));
     String photo = store.string("native_home_photo", "");
     if (!photo.isEmpty()) CampusPhone.image(this, content, photo);
     if (CampusHome.render(this)) return;
-    LinearLayout hero = ui.card(content);
-    GradientDrawable grad =
-        new GradientDrawable(
-            GradientDrawable.Orientation.TL_BR,
-            dark ? new int[] {0xff203d60, 0xff184749} : new int[] {0xffe8ecff, 0xffe4f2f1});
-    grad.setCornerRadius(ui.dp(23));
-    hero.setBackground(grad);
-    hero.addView(ui.pill("今日航线"));
-    ui.gap(hero, 14);
     List<JSONObject> courses = CampusCourses.onDay(store, DateMath.today());
     List<JSONObject> all = items();
-    long tasks = all.stream().filter(x -> !done(x) && "作业".equals(x.optString("msg_type"))).count();
-    hero.addView(
+    long pending = all.stream().filter(x -> !done(x) && !CampusSchool.hidden(this, x)).count();
+    String time =
+        String.format(
+            Locale.ROOT, "%02d:%02d", now.get(Calendar.HOUR_OF_DAY), now.get(Calendar.MINUTE));
+    JSONObject nextCourse = null;
+    for (JSONObject course : courses)
+      if (course.optString("t1").compareTo(time) >= 0) {
+        nextCourse = course;
+        break;
+      }
+    LinearLayout hero = ui.card(content);
+    GradientDrawable gradient =
+        new GradientDrawable(
+            GradientDrawable.Orientation.TL_BR, new int[] {ui.theme.heroStart, ui.theme.heroEnd});
+    gradient.setCornerRadius(ui.dp(26));
+    hero.setBackground(gradient);
+    hero.setElevation(0);
+    hero.setPadding(ui.dp(20), ui.dp(19), ui.dp(20), ui.dp(17));
+    LinearLayout top = ui.row();
+    LinearLayout story = ui.column();
+    TextView badge =
         ui.text(
-            courses.isEmpty() ? "把今天，安排得刚刚好。" : courses.get(0).optString("name"),
+            nextCourse == null
+                ? "今日安排"
+                : nextCourse.optString("t0").compareTo(time) <= 0 ? "正在上课" : "今天的下一站",
+            11,
+            ui.theme.heroMuted,
+            true);
+    story.addView(badge);
+    ui.gap(story, 12);
+    TextView headline =
+        ui.text(
+            nextCourse == null
+                ? courses.isEmpty() ? "今天，\n从容一点。" : "课程已结束，\n留一点时间给自己。"
+                : nextCourse.optString("name"),
             24,
-            ui.ink,
-            true));
-    ui.gap(hero, 10);
+            ui.theme.heroInk,
+            true);
+    headline.setMaxLines(2);
+    headline.setEllipsize(android.text.TextUtils.TruncateAt.END);
+    story.addView(headline);
+    top.addView(story, new LinearLayout.LayoutParams(0, -2, 1));
+    if (getResources().getConfiguration().fontScale <= 1.25f
+        && getResources().getConfiguration().screenWidthDp > 340)
+      top.addView(
+          new CampusVisual.TodayArt(this), new LinearLayout.LayoutParams(ui.dp(83), ui.dp(94)));
+    hero.addView(top);
+    ui.gap(hero, 9);
     hero.addView(
         ui.text(
-            courses.isEmpty()
-                ? "记录一件事，从一个小目标开始。"
-                : courses.get(0).optString("t0")
+            nextCourse == null
+                ? "记下一件事，给今天一点方向。"
+                : nextCourse.optString("t0")
                     + "–"
-                    + courses.get(0).optString("t1")
-                    + "  ·  "
-                    + courses.get(0).optString("location", "教室待定"),
-            13,
-            ui.muted,
+                    + nextCourse.optString("t1")
+                    + " · "
+                    + nextCourse.optString("location", "教室待定"),
+            12,
+            ui.theme.heroMuted,
             false));
-    ui.gap(hero, 20);
-    ui.actionRow(
-        hero,
-        new String[] {"＋ 记一件事", "查看课表"},
-        new Runnable[] {() -> CampusSchool.personalForm(this, null), () -> open("courses")});
-    LinearLayout metrics = ui.row();
-    metric(metrics, String.valueOf(courses.size()), "今天课程");
-    metric(metrics, String.valueOf(tasks), "待完成作业");
-    metric(metrics, String.valueOf(CampusLearn.habitToday(store)), "今日打卡");
-    content.addView(metrics);
-    ui.gap(content, 20);
-    if (!api.logged()) {
-      LinearLayout c = ui.card(content);
-      c.addView(ui.text("连接你的班级", 16, ui.ink, true));
-      ui.gap(c, 7);
-      c.addView(ui.text("登录原来的账号，即可读取班级事项、作业和交流记录。", 12, ui.muted, false));
-      ui.gap(c, 13);
-      c.addView(ui.button("登录 / 注册", () -> open("login"), true));
-    } else {
-      LinearLayout row = ui.row();
-      row.addView(
-          ui.pill(
-              loading
-                  ? "正在连接校园云端"
-                  : cloudError.isEmpty()
-                      ? "已登录 · " + (store.pending() > 0 ? "有待同步记录" : "本地记录可用")
-                      : "离线记录已保留"));
-      TextView refresh = ui.button("刷新", this::refreshCloud, false);
-      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
-      lp.leftMargin = ui.dp(10);
-      row.addView(refresh, lp);
-      content.addView(row);
-      ui.gap(content, 16);
-      if (!cloudError.isEmpty()) content.addView(ui.text(cloudError, 12, ui.muted, false));
-    }
-    ui.section(content, "校园常用");
+    ui.gap(hero, 18);
+    boolean stacked = getResources().getConfiguration().fontScale > 1.25f;
+    LinearLayout actions = stacked ? ui.column() : ui.row();
+    TextView add = ui.button("＋ 记一件事", () -> CampusSchool.personalForm(this, null), true);
+    ui.touch(add, ui.theme.heroInk, 16, 0);
+    add.setTextColor(ui.theme.heroStart);
+    actions.addView(add, new LinearLayout.LayoutParams(stacked ? -1 : 0, -2, stacked ? 0 : 1));
+    TextView schedule = ui.button("查看课表 ›", () -> open("courses"), false);
+    ui.touch(schedule, CampusUi.blend(ui.theme.heroInk, ui.theme.heroEnd, .08f), 16, 0);
+    schedule.setTextColor(ui.theme.heroInk);
+    LinearLayout.LayoutParams sp =
+        new LinearLayout.LayoutParams(stacked ? -1 : 0, -2, stacked ? 0 : 1);
+    if (stacked) sp.topMargin = ui.dp(8);
+    else sp.leftMargin = ui.dp(9);
+    actions.addView(schedule, sp);
+    hero.addView(actions);
+    ui.gap(hero, 18);
+    View line = new View(this);
+    line.setBackgroundColor(CampusUi.blend(ui.theme.heroInk, ui.theme.heroEnd, .16f));
+    hero.addView(line, new LinearLayout.LayoutParams(-1, ui.dp(1)));
+    ui.gap(hero, 13);
+    LinearLayout stats = ui.row();
+    homeMetric(stats, String.valueOf(courses.size()), "今天课程", "courses");
+    homeMetric(stats, String.valueOf(pending), "待完成事项", "calendar");
+    homeMetric(stats, String.valueOf(CampusLearn.habitToday(store)), "今日打卡", "growth");
+    hero.addView(stats);
+    ui.sectionLink(content, "校园常用", "全部工具", () -> open("tools"));
     JSONArray pins = store.list("native_home_tools");
     if (pins.length() == 0)
       pins = new JSONArray(Arrays.asList("homework", "wall", "plan", "phone"));
-    List<String[]> tiles = new ArrayList<>();
+    List<String[]> shortcuts = new ArrayList<>();
     for (int i = 0; i < pins.length(); i++)
-      tiles.add(new String[] {pins.optString(i), CampusManage.homeName(pins.optString(i)), "点击打开"});
-    ui.tileGrid(content, tiles.toArray(new String[0][]));
-    ui.section(content, "接下来的安排");
+      shortcuts.add(new String[] {pins.optString(i), CampusManage.homeName(pins.optString(i))});
+    ui.dock(content, shortcuts.toArray(new String[0][]));
+    ui.sectionLink(content, "接下来的安排", "打开日历", () -> open("calendar"));
     List<JSONObject> next = new ArrayList<>();
-    for (JSONObject x : all) if (!done(x)) next.add(x);
+    for (JSONObject x : all) if (!done(x) && !CampusSchool.hidden(this, x)) next.add(x);
     next.sort(Comparator.comparing(x -> x.optString("event_time", "9999")));
-    if (next.isEmpty()) ui.empty(content, "没有待办，留一点空间给自己", "班级与个人事项都会显示在这里。");
+    if (next.isEmpty()) ui.empty(content, "今天还有自由的空间", "班级与个人待办都会出现在这里，随时记下新安排。");
     else
       for (JSONObject x : next.subList(0, Math.min(3, next.size())))
         CampusSchool.item(this, content, x);
-    ui.section(content, "学习与生活");
-    ui.tileGrid(
+    ui.section(content, "给自己一点成长时间");
+    JSONObject world = CampusWorld.stats(store);
+    int focus = Math.max(1, Math.min(180, store.object("native_pomo_config").optInt("focus", 25)));
+    ui.featurePair(
         content,
         new String[][] {
-          {"growth", "打卡成长", "习惯、热力图与统计"},
-          {"farm", "云宠农场", "用真实进度喂养云宠"},
-          {"wrongbook", "错题记录本", "拍照归档，定期复习"},
-          {"ledger", "校园记账", "分类收支与月预算"}
+          {"pomo", "专注计时", focus + " 分钟", "给一件事完整的注意力"},
+          {"meta", "学习星系", "Lv." + world.optInt("level"), world.optLong("exp") + " XP · 看见每次进步"}
         });
+    ui.toolRows(
+        content,
+        new String[][] {
+          {"growth", "打卡成长", "让坚持留下可见的轨迹"},
+          {"farm", "云宠农场", "今天的进步，明天的养料"},
+          {"wrongbook", "错题记录本", "拍照归档，按时复习"},
+          {"ledger", "校园记账", "把每一笔花销记清楚"}
+        });
+    if (!api.logged()) {
+      LinearLayout invite = ui.card(content);
+      invite.setOrientation(LinearLayout.HORIZONTAL);
+      invite.setGravity(Gravity.CENTER_VERTICAL);
+      invite.addView(ui.badge("class"), new LinearLayout.LayoutParams(ui.dp(36), ui.dp(36)));
+      LinearLayout copy = ui.column();
+      copy.addView(ui.text("连接你的班级", 14, ui.ink, true));
+      ui.gap(copy, 5);
+      copy.addView(ui.text("登录后读取作业、事项与交流", 12, ui.muted, false));
+      LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, -2, 1);
+      cp.setMargins(ui.dp(12), 0, ui.dp(8), 0);
+      invite.addView(copy, cp);
+      invite.addView(ui.button("登录", () -> open("login"), false));
+    } else {
+      ui.sectionLink(
+          content,
+          loading
+              ? "正在连接校园云端"
+              : cloudError.isEmpty()
+                  ? "校园云端 · " + (store.pending() > 0 ? "有待同步记录" : "本地记录可用")
+                  : "离线记录已保留",
+          "刷新",
+          this::refreshCloud);
+      if (!cloudError.isEmpty()) content.addView(ui.text(cloudError, 12, ui.muted, false));
+    }
   }
 
-  private void metric(LinearLayout parent, String value, String name) {
-    LinearLayout l = ui.column();
-    l.setPadding(ui.dp(13), ui.dp(17), ui.dp(10), ui.dp(17));
-    l.setBackground(ui.shape(ui.surface, 16, ui.border));
-    l.addView(ui.text(value, 27, ui.accent, true));
-    ui.gap(l, 5);
-    l.addView(ui.text(name, 11, ui.muted, false));
-    LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, 1);
-    if (parent.getChildCount() > 0) p.leftMargin = ui.dp(8);
-    parent.addView(l, p);
+  private void homeMetric(LinearLayout parent, String value, String label, String route) {
+    LinearLayout cell = ui.column();
+    cell.setGravity(Gravity.CENTER);
+    cell.setMinimumHeight(ui.dp(48));
+    ui.touch(cell, Color.TRANSPARENT, 12, 0);
+    TextView count = ui.text(value, 22, ui.theme.heroInk, true);
+    count.setGravity(Gravity.CENTER);
+    cell.addView(count);
+    ui.gap(cell, 5);
+    TextView note = ui.text(label, 11, ui.theme.heroMuted, false);
+    note.setGravity(Gravity.CENTER);
+    cell.addView(note);
+    cell.setContentDescription(label + "，" + value);
+    cell.setOnClickListener(v -> open(route));
+    parent.addView(cell, new LinearLayout.LayoutParams(0, -2, 1));
   }
 
   void tools() {
-    ui.title(content, "你的校园工具箱", "学习、规划与生活，都在一个地方。");
-    ui.section(content, "学习安排");
-    ui.tileGrid(
-        content,
-        new String[][] {
-          {"courses", "完整课程表", "周次、单双周与冲突检查"},
-          {"countdown", "考试倒计时", "重要考试与复习目标"},
-          {"wrongbook", "错题记录本", "科目归档与复习记录"},
-          {"plan", "规划方法", "四象限、PDCA、SMART"},
-          {"pomo", "番茄专注", "专注与休息周期"},
-          {"ask", "捞捞助手", "查询课程与整理班群消息"}
-        });
-    ui.section(content, "生活与成长");
-    ui.tileGrid(
-        content,
-        new String[][] {
-          {"diary", "图文日记", "心情、照片与历史"},
-          {"ledger", "校园花销记账", "预算、分类与统计"},
-          {"growth", "打卡成长", "连续打卡与学习轨迹"},
-          {"farm", "云宠农场", "喂养、升级与换云宠"},
-          {"meta", "捞捞元宇宙", "徽章与十个学习模组"},
-          {"phone", "手机助手", "桌面、语音、录音与隐私"}
-        });
-    ui.section(content, "更多校园插件");
-    ui.tileGrid(
-        content,
-        new String[][] {
-          {"time-master", "时间管理大师", "每日、每周三只青蛙"},
-          {"words", "单词搭子", "七本词书、背词与测试"},
-          {"oracle", "神谕阁", "答案之书与牌卡灵感"},
-          {"draw", "随机抽签器", "公平抽取、排序与分组"}
-        });
-    ui.section(content, "扩展与资料");
-    ui.tileGrid(
-        content,
-        new String[][] {
-          {"plugins", "插件商店", "查看、启用与管理插件"},
-          {"intro", "功能介绍", "网站功能说明与历史"},
-          {"credits", "贡献名单", "校园共建者"},
-          {"search", "全局搜索", "事项、课程与学习记录"}
-        });
+    CampusToolbox.render(this);
   }
 
   void profile() {
-    ui.title(
+    ui.title(content, "我的校园空间", "学习与生活，都可以有自己的节奏。");
+    LinearLayout identity = ui.card(content);
+    LinearLayout line = ui.row();
+    String name = api.logged() ? me.optString("display_name", "同学") : "同学";
+    TextView avatar =
+        ui.text(
+            name.isEmpty() ? "我" : name.substring(0, name.offsetByCodePoints(0, 1)),
+            22,
+            ui.accent,
+            true);
+    avatar.setGravity(Gravity.CENTER);
+    avatar.setBackground(ui.shape(ui.soft, 20, 0));
+    line.addView(avatar, new LinearLayout.LayoutParams(ui.dp(56), ui.dp(56)));
+    LinearLayout copy = ui.column();
+    copy.addView(ui.text(name, 19, ui.ink, true));
+    ui.gap(copy, 6);
+    copy.addView(
+        ui.text(
+            api.logged()
+                ? roleName(me.optString("role")) + " · " + me.optString("account")
+                : "本机空间 · 尚未登录",
+            12,
+            ui.muted,
+            false));
+    LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, -2, 1);
+    cp.leftMargin = ui.dp(14);
+    line.addView(copy, cp);
+    identity.addView(line);
+    ui.gap(identity, 16);
+    identity.addView(
+        ui.text(
+            api.logged() ? me.optString("bio", "记录、交流、成长。") : "日记和学习记录保存在本机。登录后，可以连接你的班级。",
+            13,
+            ui.muted,
+            false));
+    ui.gap(identity, 16);
+    identity.addView(
+        ui.button(
+            api.logged() ? "编辑个人主页" : "登录 / 注册",
+            () -> {
+              if (api.logged()) CampusSocial.editProfile(this);
+              else open("login");
+            },
+            true));
+    ui.section(content, "把校园调成喜欢的样子");
+    ui.toolRows(
         content,
-        "我的校园空间",
-        api.logged()
-            ? me.optString("account", "") + " · " + roleName(me.optString("role"))
-            : "本地工具可以直接使用，登录后连接班级。");
-    if (!api.logged()) content.addView(ui.button("登录 / 注册", () -> open("login"), true));
-    else {
-      LinearLayout card = ui.card(content);
-      card.addView(ui.text(me.optString("display_name", "同学"), 23, ui.ink, true));
-      ui.gap(card, 8);
-      card.addView(ui.text(me.optString("bio", "记录、交流、成长。"), 13, ui.muted, false));
-      ui.gap(card, 15);
-      card.addView(ui.button("编辑个人主页", () -> CampusSocial.editProfile(this), false));
-    }
+        new String[][] {{"appearance", "外观与首页", "当前 · " + ui.theme.preset.name + "  /  八套完整皮肤"}});
     ui.section(content, "账号与班级");
-    ui.tileGrid(
+    ui.toolRows(
         content,
         new String[][] {
           {"class", "班级管理", "加入、分组与老师管理"},
@@ -482,13 +635,12 @@ public class CampusActivity extends Activity {
           {"mail", "邮箱通知", "绑定、偏好与测试邮件"},
           {"security", "账号安全", "修改密码与安全信息"}
         });
-    ui.section(content, "数据与外观");
-    ui.tileGrid(
+    ui.section(content, "数据与设备");
+    ui.toolRows(
         content,
         new String[][] {
           {"backup", "数据与同步", "云端衔接、导入与备份"},
-          {"appearance", "外观与首页", "皮肤、背景与模块排序"},
-          {"phone", "设备能力", "权限和手机专属工具"},
+          {"phone", "设备能力", "权限和十项手机专属工具"},
           {"about", "关于捞捞", "版本、协议与功能介绍"}
         });
     if (staff()) {

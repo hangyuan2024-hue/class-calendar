@@ -417,9 +417,23 @@ final class CampusPlanner {
     if (!timer.optString("title").isEmpty())
       c.addView(u.text(timer.optString("title"), 16, u.ink, true));
     u.gap(c, 15);
-    TextView clock = u.text(duration(left), 52, u.ink, true);
+    long duration = timer.optLong("duration", cfg.optInt("focus", 25) * 60000L);
+    CampusVisual.FocusRing ring = new CampusVisual.FocusRing(a, left, duration);
+    FrameLayout timerFace = new FrameLayout(a);
+    timerFace.addView(ring, new FrameLayout.LayoutParams(-1, -1));
+    LinearLayout face = u.column();
+    face.setGravity(android.view.Gravity.CENTER);
+    TextView clock = u.text(duration(left), 46, u.ink, true);
+    clock.setTypeface(
+        android.graphics.Typeface.create("sans-serif-light", android.graphics.Typeface.NORMAL));
     clock.setGravity(android.view.Gravity.CENTER);
-    c.addView(clock);
+    face.addView(clock);
+    u.gap(face, 10);
+    TextView length = u.text("本轮 " + Math.max(1, duration / 60000) + " 分钟", 12, u.muted, false);
+    length.setGravity(android.view.Gravity.CENTER);
+    face.addView(length);
+    timerFace.addView(face, new FrameLayout.LayoutParams(-1, -2, android.view.Gravity.CENTER));
+    c.addView(timerFace, new LinearLayout.LayoutParams(-1, u.dp(222)));
     u.gap(c, 10);
     TextView state =
         u.text(timer.optBoolean("running") ? "正在计时 · 关闭页面也会保留" : "准备好以后，轻轻开始。", 12, u.muted, false);
@@ -512,8 +526,9 @@ final class CampusPlanner {
                 a.build();
                 return;
               }
-              clock.setText(
-                  duration(Math.max(0, t.optLong("deadline") - System.currentTimeMillis())));
+              long remaining = Math.max(0, t.optLong("deadline") - System.currentTimeMillis());
+              clock.setText(duration(remaining));
+              ring.update(remaining, t.optLong("duration", duration));
               a.handler.postDelayed(this, 1000);
             }
           };

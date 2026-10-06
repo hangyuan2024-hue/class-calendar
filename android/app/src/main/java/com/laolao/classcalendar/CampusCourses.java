@@ -274,15 +274,29 @@ final class CampusCourses {
             a.build();
           }
         });
-    a.content.addView(
-        new Grid(a, w),
-        new LinearLayout.LayoutParams(
-            -1, u.dp(meta(a.store).optJSONArray("times").length() * 58 + 42)));
-    u.gap(a.content, 15);
     u.actionRow(
         a.content,
         new String[] {"＋ 添加课程", "学期设置"},
         new Runnable[] {() -> form(a, null), () -> settings(a)});
+    if (a.store.list(COURSES).length() > 0) {
+      a.content.addView(u.text("左右滑动查看一周 · 点课程查看详情", 12, u.muted, false));
+      u.gap(a.content, 12);
+      HorizontalScrollView weekGrid = new HorizontalScrollView(a);
+      weekGrid.setHorizontalScrollBarEnabled(false);
+      float font = Math.max(1, a.getResources().getConfiguration().fontScale);
+      int gridWidth =
+          Math.max(
+              u.dp(48 + 7 * 82 * font),
+              Math.min(a.getResources().getDisplayMetrics().widthPixels, u.dp(760)) - u.dp(40));
+      int gridHeight = u.dp((meta(a.store).optJSONArray("times").length() * 68 + 54) * font);
+      weekGrid.addView(
+          new Grid(a, w), new HorizontalScrollView.LayoutParams(gridWidth, gridHeight));
+      a.content.addView(weekGrid);
+      u.gap(a.content, 18);
+      int day = (Calendar.getInstance().get(Calendar.DAY_OF_WEEK) + 5) % 7;
+      if (w == week(a.store, DateMath.today()))
+        weekGrid.post(() -> weekGrid.scrollTo(u.dp(Math.max(0, day - 1) * 82 * font), 0));
+    } else u.empty(a.content, "把这一学期，带在身边", "先添加一门课程，或拍摄已有课表进行识别。课程表会显示周次、时间与教室。");
     u.actionRow(
         a.content, new String[] {"拍照识别课表", "同步到网站"}, new Runnable[] {() -> ocr(a), () -> sync(a)});
     u.actionRow(
@@ -896,23 +910,63 @@ final class CampusCourses {
       setContentDescription("第" + w + "周课程网格；下方课程清单可编辑");
     }
 
+    @Override
+    protected void onMeasure(int widthSpec, int heightSpec) {
+      // HorizontalScrollView deliberately gives its child an unbounded width.
+      // A plain View otherwise measures to zero, even with an explicit layout width.
+      android.view.ViewGroup.LayoutParams layout = getLayoutParams();
+      int width = layout != null && layout.width > 0 ? layout.width : a.ui.dp(622);
+      int height = layout != null && layout.height > 0 ? layout.height : a.ui.dp(734);
+      setMeasuredDimension(resolveSize(width, widthSpec), resolveSize(height, heightSpec));
+    }
+
     protected void onDraw(Canvas c) {
       super.onDraw(c);
       CampusUi u = a.ui;
       float density = getResources().getDisplayMetrics().density,
-          header = 34 * density,
-          margin = 25 * density,
+          font = getResources().getDisplayMetrics().scaledDensity,
+          header = 54 * font,
+          margin = 48 * density,
           col = (getWidth() - margin) / 7,
           row = (getHeight() - header) / meta(a.store).optJSONArray("times").length();
+      String first = DateMath.plus(monday(meta(a.store).optString("week1")), (week - 1) * 7);
       p.setColor(u.surface);
-      c.drawRoundRect(0, 0, getWidth(), getHeight(), u.dp(15), u.dp(15), p);
-      p.setTextSize(10 * density);
-      p.setColor(u.muted);
-      for (int d = 0; d < 7; d++)
-        c.drawText("一二三四五六日".substring(d, d + 1), margin + col * (d + .4f), 22 * density, p);
+      p.setStyle(Paint.Style.FILL);
+      c.drawRoundRect(0, 0, getWidth(), getHeight(), u.dp(16), u.dp(16), p);
+      for (int d = 0; d < 7; d++) {
+        String date = DateMath.plus(first, d);
+        boolean today = date.equals(DateMath.today());
+        if (today) {
+          p.setColor(u.soft);
+          c.drawRoundRect(
+              margin + col * d + 2 * density,
+              4 * density,
+              margin + col * (d + 1) - 2 * density,
+              header - 5 * density,
+              u.dp(10),
+              u.dp(10),
+              p);
+        }
+        p.setColor(today ? u.accent : u.muted);
+        p.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        p.setTextAlign(Paint.Align.CENTER);
+        p.setTextSize(12 * font);
+        c.drawText(DAYS[d], margin + col * (d + .5f), 22 * font, p);
+        p.setTextSize(10 * font);
+        c.drawText(date.substring(5).replace("-", "/"), margin + col * (d + .5f), 40 * font, p);
+      }
+      p.setTextAlign(Paint.Align.LEFT);
       for (int i = 1; i <= meta(a.store).optJSONArray("times").length(); i++) {
         p.setColor(u.muted);
-        c.drawText(String.valueOf(i), 7 * density, header + (i - .5f) * row, p);
+        p.setTextSize(12 * font);
+        c.drawText(String.valueOf(i), 14 * density, header + (i - 1) * row + 27 * font, p);
+        String time = meta(a.store).optJSONArray("times").optString(i - 1);
+        p.setTextSize(8 * font);
+        c.drawText(
+            time.length() >= 5 ? time.substring(0, 5) : "",
+            6 * density,
+            header + (i - 1) * row + 43 * font,
+            p);
         p.setColor(u.border);
         c.drawLine(margin, header + i * row, getWidth(), header + i * row, p);
       }
@@ -927,25 +981,59 @@ final class CampusCourses {
                   header + row * (x.optInt("start") - 1) + 2 * density,
                   margin + col * (x.optInt("day") + 1) - 2 * density,
                   header + row * x.optInt("end") - 2 * density);
-          float[] hsv = {
-            Math.floorMod(x.optString("name").hashCode(), 360),
-            a.dark ? .46f : .14f,
-            a.dark ? .4f : 1
-          };
-          p.setColor(Color.HSVToColor(hsv));
-          c.drawRoundRect(r, 5 * density, 5 * density, p);
-          p.setColor(u.ink);
-          p.setTextSize(9 * density);
+          int[] colours = {0xff5362c9, 0xff2b8a7d, 0xff9c6bc0, 0xffb87540, 0xff537cba};
+          int tint =
+              CampusUi.readableAccent(
+                  colours[Math.floorMod(x.optString("name").hashCode(), colours.length)],
+                  u.surface);
+          p.setColor(CampusUi.blend(tint, u.surface, u.dark ? .24f : .1f));
+          c.drawRoundRect(r, 9 * density, 9 * density, p);
+          p.setColor(tint);
+          c.drawRoundRect(
+              r.left,
+              r.top + 9 * density,
+              r.left + 3 * density,
+              r.bottom - 9 * density,
+              2 * density,
+              2 * density,
+              p);
+          p.setTextSize(12 * font);
           String title = x.optString("name");
-          float y = r.top + 15 * density;
-          for (int at = 0; at < title.length() && y < r.bottom - 4 * density; ) {
+          float y = r.top + 20 * font;
+          c.save();
+          c.clipRect(r);
+          for (int at = 0, lines = 0;
+              at < title.length() && y < r.bottom - 14 * font && lines < 4;
+              lines++) {
             int take =
-                p.breakText(title.substring(at), true, Math.max(4, r.width() - 8 * density), null);
+                p.breakText(title.substring(at), true, Math.max(4, r.width() - 16 * density), null);
             if (take == 0) break;
-            c.drawText(title.substring(at, at + take), r.left + 4 * density, y, p);
+            String line = title.substring(at, at + take);
+            if ((lines == 3 || y + 17 * font >= r.bottom - 14 * font) && at + take < title.length())
+              line =
+                  android.text.TextUtils.ellipsize(
+                          title.substring(at),
+                          new android.text.TextPaint(p),
+                          r.width() - 16 * density,
+                          android.text.TextUtils.TruncateAt.END)
+                      .toString();
+            c.drawText(line, r.left + 8 * density, y, p);
             at += take;
-            y += 13 * density;
+            y += 17 * font;
           }
+          if (!x.optString("location").isEmpty() && y + 12 * font < r.bottom) {
+            p.setTextSize(10 * font);
+            p.setColor(u.muted);
+            String room =
+                android.text.TextUtils.ellipsize(
+                        x.optString("location"),
+                        new android.text.TextPaint(p),
+                        r.width() - 16 * density,
+                        android.text.TextUtils.TruncateAt.END)
+                    .toString();
+            c.drawText(room, r.left + 8 * density, y + 4 * font, p);
+          }
+          c.restore();
           hit.add(x);
           boxes.add(r);
         } catch (Exception ignored) {

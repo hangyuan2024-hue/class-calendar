@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Palette-matched Android dialogs, including readable native date/time selectors. -->
+    <style name="CampusDialogSky" parent="@android:style/Theme.Material.Light.Dialog.Alert">
+        <item name="android:colorAccent">#3E5EBB</item>
+        <item name="android:colorPrimary">#1E3159</item>
+        <item name="android:windowBackground">#FFFFFF</item>
+        <item name="android:textColorPrimary">#1E2D4B</item>
+        <item name="android:textColorSecondary">#606E87</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+    <style name="CampusDialogSkyNight" parent="@android:style/Theme.Material.Dialog.Alert">
+        <item name="android:colorAccent">#627196</item>
+        <item name="android:colorPrimary">#1E3159</item>
+        <item name="android:windowBackground">#142739</item>
+        <item name="android:textColorPrimary">#EDF5FC</item>
+        <item name="android:textColorSecondary">#AFBECE</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+    <style name="CampusDialogForest" parent="@android:style/Theme.Material.Light.Dialog.Alert">
+        <item name="android:colorAccent">#267661</item>
+        <item name="android:colorPrimary">#153F37</item>
+        <item name="android:windowBackground">#FFFFFF</item>
+        <item name="android:textColorPrimary">#213B35</item>
+        <item name="android:textColorSecondary">#5C756B</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+    <style name="CampusDialogForestNight" parent="@android:style/Theme.Material.Dialog.Alert">
+        <item name="android:colorAccent">#4A7865</item>
+        <item name="android:colorPrimary">#153F37</item>
+        <item name="android:windowBackground">#142739</item>
+        <item name="android:textColorPrimary">#EDF5FC</item>
+        <item name="android:textColorSecondary">#AFBECE</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+    <style name="CampusDialogSakura" parent="@android:style/Theme.Material.Light.Dialog.Alert">
+        <item name="android:colorAccent">#AA4265</item>
+        <item name="android:colorPrimary">#562A3C</item>
+        <item name="android:windowBackground">#FFFCFD</item>
+        <item name="android:textColorPrimary">#4B2B39</item>
+        <item name="android:textColorSecondary">#806775</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+    <style name="CampusDialogSakuraNight" parent="@android:style/Theme.Material.Dialog.Alert">
+        <item name="android:colorAccent">#8F6577</item>
+        <item name="android:colorPrimary">#562A3C</item>
+        <item name="android:windowBackground">#142739</item>
+        <item name="android:textColorPrimary">#EDF5FC</item>
+        <item name="android:textColorSecondary">#AFBECE</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+    <style name="CampusDialogApricot" parent="@android:style/Theme.Material.Light.Dialog.Alert">
+        <item name="android:colorAccent">#97552F</item>
+        <item name="android:colorPrimary">#543728</item>
+        <item name="android:windowBackground">#FFFDFA</item>
+        <item name="android:textColorPrimary">#453226</item>
+        <item name="android:textColorSecondary">#7D6C5D</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+    <style name="CampusDialogApricotNight" parent="@android:style/Theme.Material.Dialog.Alert">
+        <item name="android:colorAccent">#816950</item>
+        <item name="android:colorPrimary">#543728</item>
+        <item name="android:windowBackground">#142739</item>
+        <item name="android:textColorPrimary">#EDF5FC</item>
+        <item name="android:textColorSecondary">#AFBECE</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+    <style name="CampusDialogLavender" parent="@android:style/Theme.Material.Light.Dialog.Alert">
+        <item name="android:colorAccent">#7050AE</item>
+        <item name="android:colorPrimary">#372652</item>
+        <item name="android:windowBackground">#FEFDFF</item>
+        <item name="android:textColorPrimary">#342A4D</item>
+        <item name="android:textColorSecondary">#736885</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+    <style name="CampusDialogLavenderNight" parent="@android:style/Theme.Material.Dialog.Alert">
+        <item name="android:colorAccent">#766690</item>
+        <item name="android:colorPrimary">#372652</item>
+        <item name="android:windowBackground">#142739</item>
+        <item name="android:textColorPrimary">#EDF5FC</item>
+        <item name="android:textColorSecondary">#AFBECE</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+    <style name="CampusDialogOcean" parent="@android:style/Theme.Material.Light.Dialog.Alert">
+        <item name="android:colorAccent">#157286</item>
+        <item name="android:colorPrimary">#163D4A</item>
+        <item name="android:windowBackground">#FCFFFF</item>
+        <item name="android:textColorPrimary">#213C44</item>
+        <item name="android:textColorSecondary">#59727D</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+    <style name="CampusDialogOceanNight" parent="@android:style/Theme.Material.Dialog.Alert">
+        <item name="android:colorAccent">#477880</item>
+        <item name="android:colorPrimary">#163D4A</item>
+        <item name="android:windowBackground">#142739</item>
+        <item name="android:textColorPrimary">#EDF5FC</item>
+        <item name="android:textColorSecondary">#AFBECE</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+    <style name="CampusDialogCyber" parent="@android:style/Theme.Material.Dialog.Alert">
+        <item name="android:colorAccent">#3D796E</item>
+        <item name="android:colorPrimary">#12333C</item>
+        <item name="android:windowBackground">#112534</item>
+        <item name="android:textColorPrimary">#ECF7FC</item>
+        <item name="android:textColorSecondary">#A7BAC9</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+    <style name="CampusDialogCyberNight" parent="@android:style/Theme.Material.Dialog.Alert">
+        <item name="android:colorAccent">#3D796E</item>
+        <item name="android:colorPrimary">#12333C</item>
+        <item name="android:windowBackground">#112534</item>
+        <item name="android:textColorPrimary">#ECF7FC</item>
+        <item name="android:textColorSecondary">#A7BAC9</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+    <style name="CampusDialogGraphite" parent="@android:style/Theme.Material.Dialog.Alert">
+        <item name="android:colorAccent">#786A4C</item>
+        <item name="android:colorPrimary">#252B36</item>
+        <item name="android:windowBackground">#20252E</item>
+        <item name="android:textColorPrimary">#F3F0E9</item>
+        <item name="android:textColorSecondary">#B8B5AE</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+    <style name="CampusDialogGraphiteNight" parent="@android:style/Theme.Material.Dialog.Alert">
+        <item name="android:colorAccent">#786A4C</item>
+        <item name="android:colorPrimary">#252B36</item>
+        <item name="android:windowBackground">#20252E</item>
+        <item name="android:textColorPrimary">#F3F0E9</item>
+        <item name="android:textColorSecondary">#B8B5AE</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+    <!-- A native calendar measures its own width; generic alert minimums leave
+         a blank strip beside its header on older Android versions. -->
+    <style name="CampusDatePickerWindow" parent="">
+        <item name="android:windowMinWidthMajor">0dp</item>
+        <item name="android:windowMinWidthMinor">0dp</item>
+    </style>
+</resources>

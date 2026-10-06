@@ -87,8 +87,9 @@ final class CampusWorld {
   static void identity(CampusActivity a, LinearLayout c) {
     CampusUi u = a.ui;
     JSONObject s = stats(a.store);
-    c.addView(
-        u.text("Lv." + s.optInt("level") + "  " + s.optString("title"), 24, 0xffeef7ff, true));
+    c.addView(u.text("Lv." + s.optInt("level"), 34, u.theme.heroInk, true));
+    u.gap(c, 7);
+    c.addView(u.text(s.optString("title"), 13, u.theme.heroMuted, false));
     u.gap(c, 8);
     ProgressBar bar = new ProgressBar(a, null, android.R.attr.progressBarStyleHorizontal);
     bar.setMax(1000);
@@ -97,19 +98,14 @@ final class CampusWorld {
             ((s.optLong("exp") - s.optLong("lo"))
                 * 1000
                 / Math.max(1, s.optLong("hi") - s.optLong("lo"))));
-    bar.setProgressTintList(android.content.res.ColorStateList.valueOf(0xff65e7df));
-    c.addView(bar);
+    bar.setProgressTintList(android.content.res.ColorStateList.valueOf(u.accent));
+    bar.setProgressBackgroundTintList(
+        android.content.res.ColorStateList.valueOf(
+            CampusUi.blend(u.accent, u.theme.heroEnd, .16f)));
+    c.addView(bar, new LinearLayout.LayoutParams(-1, u.dp(5)));
     u.gap(c, 8);
     c.addView(
-        u.text(
-            "累计 "
-                + s.optLong("exp")
-                + " EXP · 距离下一级 "
-                + (s.optLong("hi") - s.optLong("exp"))
-                + " EXP",
-            12,
-            0xff9fb6d4,
-            false));
+        u.text(s.optLong("exp") + " / " + s.optLong("hi") + " XP", 11, u.theme.heroMuted, false));
   }
 
   static void details(CampusActivity a) {
@@ -123,10 +119,19 @@ final class CampusWorld {
     for (int i = 0; i < labels.length; i++) {
       final int at = i;
       LinearLayout c = u.card(a.content);
-      c.addView(u.text((s.optInt(keys[i]) > 0 ? "✓ " : "◇ ") + labels[i], 17, u.ink, true));
-      c.addView(
+      c.setOrientation(LinearLayout.HORIZONTAL);
+      c.setGravity(android.view.Gravity.CENTER_VERTICAL);
+      c.addView(u.badge(routes[i]), new LinearLayout.LayoutParams(u.dp(38), u.dp(38)));
+      LinearLayout copy = u.column();
+      copy.addView(u.text(labels[i], 15, u.ink, true));
+      u.gap(copy, 6);
+      copy.addView(
           u.text(Math.min(1, s.optInt(keys[i])) + " / 1 · +" + xp[i] + " EXP", 12, u.muted, false));
+      LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, 1);
+      p.leftMargin = u.dp(12);
+      c.addView(copy, p);
       if (s.optInt(keys[i]) == 0) c.addView(u.button("去完成", () -> a.open(routes[at]), false));
+      else c.addView(u.pill("已完成"));
     }
     String[]
         names =
@@ -165,13 +170,26 @@ final class CampusWorld {
     };
     int count = 0;
     for (boolean on : unlocked) if (on) count++;
-    u.section(a.content, "网站成长徽章 · " + count + " / " + names.length);
-    for (int i = 0; i < names.length; i++) {
-      LinearLayout c = u.card(a.content);
-      c.addView(
-          u.text(
-              (unlocked[i] ? "✦ " : "◇ ") + names[i], 16, unlocked[i] ? u.accent : u.muted, true));
-      c.addView(u.text(requirements[i], 12, u.muted, false));
+    u.section(a.content, "成长徽章 · " + count + " / " + names.length);
+    int columns = a.getResources().getConfiguration().fontScale > 1.3f ? 1 : 2;
+    for (int i = 0; i < names.length; i += columns) {
+      LinearLayout row = u.row();
+      row.setGravity(android.view.Gravity.TOP);
+      for (int j = i; j < Math.min(i + columns, names.length); j++) {
+        LinearLayout holder = u.column();
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, 1);
+        if (j > i) p.leftMargin = u.dp(10);
+        row.addView(holder, p);
+        LinearLayout c = u.card(holder);
+        c.addView(u.text(unlocked[j] ? "✦" : "◇", 25, unlocked[j] ? u.accent : u.muted, true));
+        u.gap(c, 10);
+        c.addView(u.text(names[j], 15, unlocked[j] ? u.ink : u.muted, true));
+        u.gap(c, 7);
+        c.addView(u.text(requirements[j], 12, u.muted, false));
+        c.setContentDescription(
+            names[j] + "，" + (unlocked[j] ? "已解锁" : "未解锁") + "，" + requirements[j]);
+      }
+      a.content.addView(row);
     }
     u.section(a.content, "元宇宙小百科");
     for (String[] item : WIKI)

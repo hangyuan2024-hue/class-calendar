@@ -14,24 +14,75 @@ import org.json.*;
 /** Shared native design system. Screens contain Android views and platform dialogs. */
 final class CampusUi {
   final CampusActivity a;
+  final CampusTheme theme;
   final int bg, surface, ink, muted, accent, border, soft;
   final boolean dark;
 
   CampusUi(CampusActivity a, boolean dark) {
     this.a = a;
-    this.dark = dark;
-    bg = color(dark ? "#08101E" : "#F4F6F9");
-    surface = color(dark ? "#111F34" : "#FFFFFF");
-    ink = color(dark ? "#EAF3FF" : "#15243C");
-    muted = color(dark ? "#A7B7CF" : "#718095");
-    String chosen = a.store.object("ui_palette_v1").optString("p", dark ? "#66E5EB" : "#5264E8");
-    accent = color(chosen.matches("#[0-9a-fA-F]{6}") ? chosen : dark ? "#66E5EB" : "#5264E8");
-    border = color(dark ? "#263953" : "#E6EAF0");
-    soft = color(dark ? "#1B3047" : "#EDF0FF");
+    JSONObject saved = a.store.object("ui_palette_v1");
+    theme =
+        CampusTheme.resolve(
+            a.store.string("ui_skin_v1", "fresh"),
+            saved.optString("id", "sky"),
+            saved.optString("p", null),
+            (a.getResources().getConfiguration().uiMode & 48) == 32,
+            a.page.equals("meta"));
+    this.dark = theme.dark;
+    bg = theme.bg;
+    surface = theme.surface;
+    ink = theme.ink;
+    muted = readableAccent(theme.muted, bg);
+    accent = readableAccent(theme.primary, surface);
+    border = blend(ink, surface, this.dark ? .14f : .09f);
+    soft = blend(accent, surface, this.dark ? .13f : .065f);
   }
 
   static int color(String s) {
     return Color.parseColor(s);
+  }
+
+  static int blend(int foreground, int background, float amount) {
+    return Color.rgb(
+        Math.round(Color.red(foreground) * amount + Color.red(background) * (1 - amount)),
+        Math.round(Color.green(foreground) * amount + Color.green(background) * (1 - amount)),
+        Math.round(Color.blue(foreground) * amount + Color.blue(background) * (1 - amount)));
+  }
+
+  static double luminance(int colour) {
+    double[] channels = {
+      Color.red(colour) / 255., Color.green(colour) / 255., Color.blue(colour) / 255.
+    };
+    for (int i = 0; i < 3; i++)
+      channels[i] =
+          channels[i] <= .04045 ? channels[i] / 12.92 : Math.pow((channels[i] + .055) / 1.055, 2.4);
+    return .2126 * channels[0] + .7152 * channels[1] + .0722 * channels[2];
+  }
+
+  static double contrast(int x, int y) {
+    double a = luminance(x), b = luminance(y);
+    return (Math.max(a, b) + .05) / (Math.min(a, b) + .05);
+  }
+
+  static int readableAccent(int colour, int background) {
+    int towards = luminance(background) > .5 ? Color.BLACK : Color.WHITE;
+    for (int i = 0; i < 24 && contrast(colour, background) < 4.5; i++)
+      colour = blend(towards, colour, .1f);
+    return colour;
+  }
+
+  int onAccent() {
+    return contrast(Color.WHITE, accent) >= contrast(0xff08101e, accent) ? Color.WHITE : 0xff08101e;
+  }
+
+  int tone(String route) {
+    int c =
+        route.matches("ledger|farm|growth|places|quiet")
+            ? 0xff168578
+            : route.matches("countdown|wrongbook|recordings|reminders")
+                ? 0xffbc6541
+                : route.matches("diary|oracle|privacy|words|cards|review") ? 0xff8b59b2 : accent;
+    return readableAccent(c, surface);
   }
 
   int dp(float f) {
@@ -39,11 +90,36 @@ final class CampusUi {
   }
 
   Context dialog() {
+    String id = theme.preset.id;
+    String name =
+        "CampusDialog"
+            + Character.toUpperCase(id.charAt(0))
+            + id.substring(1)
+            + (dark ? "Night" : "");
+    int style = a.getResources().getIdentifier(name, "style", a.getPackageName());
     return new ContextThemeWrapper(
         a,
-        dark
-            ? android.R.style.Theme_Material_Dialog_Alert
-            : android.R.style.Theme_Material_Light_Dialog_Alert);
+        style != 0
+            ? style
+            : dark
+                ? android.R.style.Theme_Material_Dialog_Alert
+                : android.R.style.Theme_Material_Light_Dialog_Alert);
+  }
+
+  void showDialog(AlertDialog dlg) {
+    dlg.show();
+    if (dlg.getWindow() != null) dlg.getWindow().setBackgroundDrawable(shape(surface, 24, 0));
+    for (int id :
+        new int[] {
+          AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE, AlertDialog.BUTTON_NEUTRAL
+        }) {
+      android.widget.Button button = dlg.getButton(id);
+      if (button != null) {
+        button.setTextColor(accent);
+        button.setAllCaps(false);
+        button.setMinHeight(dp(48));
+      }
+    }
   }
 
   GradientDrawable shape(int c, int r, int stroke) {
@@ -83,26 +159,28 @@ final class CampusUi {
     t.setText(s);
     t.setTextSize(size);
     t.setTextColor(c);
-    t.setLineSpacing(dp(3), 1);
+    t.setIncludeFontPadding(false);
+    t.setLineSpacing(dp(size >= 20 ? 4 : 3), 1);
     t.setBreakStrategy(android.text.Layout.BREAK_STRATEGY_SIMPLE);
-    if (bold) t.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+    t.setTypeface(Typeface.create("sans-serif", bold ? Typeface.BOLD : Typeface.NORMAL));
     return t;
   }
 
   TextView button(String s, Runnable r, boolean primary) {
-    TextView t = text(s, 14, primary ? (dark ? bg : Color.WHITE) : ink, true);
+    TextView t = text(s, 14, primary ? onAccent() : ink, true);
     t.setGravity(Gravity.CENTER);
-    t.setPadding(dp(13), dp(10), dp(13), dp(10));
+    t.setPadding(dp(16), dp(13), dp(16), dp(13));
     t.setMinHeight(dp(48));
-    touch(t, primary ? accent : surface, 13, primary ? 0 : border);
+    touch(t, primary ? accent : surface, 16, primary ? 0 : border);
     t.setOnClickListener(v -> r.run());
     return t;
   }
 
   LinearLayout card(LinearLayout parent) {
     LinearLayout l = column();
-    l.setPadding(dp(18), dp(19), dp(18), dp(19));
-    l.setBackground(shape(surface, 20, border));
+    l.setPadding(dp(18), dp(18), dp(18), dp(18));
+    l.setBackground(shape(surface, 22, 0));
+    if (!dark) l.setElevation(dp(1));
     LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2);
     p.bottomMargin = dp(14);
     parent.addView(l, p);
@@ -110,30 +188,35 @@ final class CampusUi {
   }
 
   void title(LinearLayout parent, String title, String note) {
-    parent.addView(text(title, 28, ink, true));
-    gap(parent, 7);
-    parent.addView(text(note, 12, muted, false));
-    gap(parent, 23);
+    parent.addView(text(title, 24, ink, true));
+    if (note != null && !note.isEmpty()) {
+      gap(parent, 7);
+      parent.addView(text(note, 13, muted, false));
+    }
+    gap(parent, 18);
   }
 
   void section(LinearLayout parent, String name) {
-    TextView t = text(name, 18, ink, true);
+    TextView t = text(name, 17, ink, true);
     LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2);
-    p.setMargins(0, dp(8), 0, dp(14));
+    p.setMargins(0, dp(14), 0, dp(12));
     parent.addView(t, p);
   }
 
   void empty(LinearLayout parent, String title, String note) {
     LinearLayout p = card(parent);
-    p.addView(text(title, 16, ink, true));
+    p.setBackground(shape(soft, 20, 0));
+    p.setElevation(0);
+    p.addView(text(title, 15, ink, true));
     gap(p, 8);
     p.addView(text(note, 13, muted, false));
   }
 
   TextView pill(String s) {
-    TextView t = text(s, 10, accent, true);
-    t.setPadding(dp(8), dp(4), dp(8), dp(4));
-    t.setBackground(shape(soft, 8, 0));
+    TextView t = text(s, 11, readableAccent(accent, soft), true);
+    t.setPadding(dp(9), dp(6), dp(9), dp(6));
+    t.setBackground(shape(soft, 9, 0));
+    t.setLayoutParams(new LinearLayout.LayoutParams(-2, -2));
     return t;
   }
 
@@ -146,9 +229,22 @@ final class CampusUi {
   }
 
   void actionRow(LinearLayout parent, String[] labels, Runnable[] actions) {
+    boolean stacked = a.getResources().getConfiguration().fontScale > 1.25f && labels.length > 2;
+    if (stacked) {
+      for (int i = 0; i < labels.length; i++) {
+        parent.addView(button(labels[i], actions[i], false), new LinearLayout.LayoutParams(-1, -2));
+        gap(parent, 8);
+      }
+      return;
+    }
     LinearLayout r = row();
     for (int i = 0; i < labels.length; i++) {
-      TextView b = button(labels[i], actions[i], false);
+      boolean primary =
+          i == 0
+              && (labels[i].startsWith("＋ ")
+                  || labels[i].startsWith("开始")
+                  || labels[i].equals("暂停"));
+      TextView b = button(labels[i], actions[i], primary);
       LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, 1);
       if (i + 1 < labels.length) p.rightMargin = dp(7);
       r.addView(b, p);
@@ -158,49 +254,181 @@ final class CampusUi {
   }
 
   void tileGrid(LinearLayout parent, String[][] tiles) {
-    int n = a.getResources().getConfiguration().screenWidthDp >= 600 ? 3 : 2;
+    int n =
+        a.getResources().getConfiguration().fontScale > 1.25f
+            ? 1
+            : a.getResources().getConfiguration().screenWidthDp >= 600 ? 3 : 2;
     for (int i = 0; i < tiles.length; i += n) {
       LinearLayout r = row();
       r.setGravity(Gravity.TOP);
       for (int j = i; j < Math.min(i + n, tiles.length); j++) {
         String[] x = tiles[j];
         LinearLayout cell = column();
-        cell.setPadding(dp(16), dp(17), dp(16), dp(17));
-        touch(cell, surface, 17, border);
-        cell.setMinimumHeight(dp(131));
-        Icon icon = new Icon(a, x[0], accent);
-        cell.addView(icon, new LinearLayout.LayoutParams(dp(29), dp(29)));
-        gap(cell, 13);
-        cell.addView(text(x[1], 15, ink, true));
-        gap(cell, 5);
-        cell.addView(text(x[2], 11, muted, false));
+        cell.setPadding(dp(15), dp(15), dp(15), dp(15));
+        touch(cell, surface, 20, 0);
+        cell.setMinimumHeight(dp(112));
+        LinearLayout top = row();
+        top.addView(badge(x[0]), new LinearLayout.LayoutParams(dp(32), dp(32)));
+        TextView arrow = text("›", 19, muted, false);
+        arrow.setGravity(Gravity.RIGHT);
+        top.addView(arrow, new LinearLayout.LayoutParams(0, -2, 1));
+        cell.addView(top);
+        gap(cell, 11);
+        cell.addView(text(x[1], 14, ink, true));
+        gap(cell, 6);
+        TextView description = text(x[2], 12, muted, false);
+        cell.addView(description);
         cell.setContentDescription(x[1] + "，" + x[2]);
         cell.setOnClickListener(v -> a.open(x[0]));
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, 1);
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -1, 1);
         p.bottomMargin = dp(10);
         if (j % n + 1 < n) p.rightMargin = dp(10);
         r.addView(cell, p);
       }
-      if (r.getChildCount() < n) r.addView(new View(a), new LinearLayout.LayoutParams(0, 1, 1));
+      while (r.getChildCount() < n) r.addView(new View(a), new LinearLayout.LayoutParams(0, 1, 1));
       parent.addView(r);
     }
   }
 
+  FrameLayout badge(String route) {
+    FrameLayout box = new FrameLayout(a);
+    int colour = tone(route);
+    box.setBackground(shape(blend(colour, surface, dark ? .16f : .075f), 11, 0));
+    FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(dp(23), dp(23), Gravity.CENTER);
+    box.addView(new Icon(a, route, colour), p);
+    return box;
+  }
+
+  void dock(LinearLayout parent, String[][] items) {
+    LinearLayout panel = card(parent);
+    panel.setPadding(dp(8), dp(10), dp(8), dp(10));
+    int columns =
+        a.getResources().getConfiguration().fontScale > 1.25f
+            ? 2
+            : a.getResources().getConfiguration().screenWidthDp >= 600 ? 6 : 4;
+    for (int start = 0; start < items.length; start += columns) {
+      LinearLayout row = row();
+      row.setGravity(Gravity.TOP);
+      int count = Math.min(columns, items.length - start);
+      for (int i = start; i < start + count; i++) {
+        String[] item = items[i];
+        LinearLayout cell = column();
+        cell.setGravity(Gravity.CENTER);
+        cell.setPadding(dp(4), dp(8), dp(4), dp(8));
+        cell.setMinimumHeight(dp(72));
+        touch(cell, surface, 16, 0);
+        cell.addView(badge(item[0]), new LinearLayout.LayoutParams(dp(35), dp(35)));
+        gap(cell, 9);
+        TextView name = text(item[1], 11, ink, true);
+        name.setGravity(Gravity.CENTER);
+        cell.addView(name);
+        cell.setContentDescription(item[1]);
+        cell.setOnClickListener(v -> a.open(item[0]));
+        row.addView(cell, new LinearLayout.LayoutParams(0, -2, 1));
+      }
+      panel.addView(row);
+    }
+  }
+
+  void featurePair(LinearLayout parent, String[][] items) {
+    boolean stacked = a.getResources().getConfiguration().fontScale > 1.25f;
+    LinearLayout row = stacked ? column() : row();
+    row.setGravity(Gravity.TOP);
+    for (int i = 0; i < items.length; i++) {
+      String[] item = items[i];
+      boolean space = item[0].equals("meta");
+      LinearLayout tile = column();
+      tile.setPadding(dp(17), dp(17), dp(17), dp(17));
+      int colour = space ? theme.heroStart : soft;
+      touch(tile, colour, 22, 0);
+      LinearLayout top = row();
+      top.addView(
+          text(item[1], 12, space ? theme.heroMuted : muted, false),
+          new LinearLayout.LayoutParams(0, -2, 1));
+      top.addView(
+          new Icon(a, item[0], space ? theme.heroInk : accent),
+          new LinearLayout.LayoutParams(dp(20), dp(20)));
+      tile.addView(top);
+      gap(tile, 17);
+      tile.addView(text(item[2], 25, space ? theme.heroInk : ink, true));
+      gap(tile, 7);
+      tile.addView(text(item[3], 11, space ? theme.heroMuted : muted, false));
+      tile.setContentDescription(item[1] + "，" + item[2] + "，" + item[3]);
+      tile.setOnClickListener(v -> a.open(item[0]));
+      LinearLayout.LayoutParams lp =
+          new LinearLayout.LayoutParams(stacked ? -1 : 0, stacked ? -2 : -1, stacked ? 0 : 1);
+      if (i > 0) {
+        if (stacked) lp.topMargin = dp(12);
+        else lp.leftMargin = dp(12);
+      }
+      row.addView(tile, lp);
+    }
+    parent.addView(row);
+    gap(parent, 14);
+  }
+
+  void sectionLink(LinearLayout parent, String title, String label, Runnable action) {
+    LinearLayout line = row();
+    line.addView(text(title, 17, ink, true), new LinearLayout.LayoutParams(0, -2, 1));
+    TextView more = button(label + " ›", action, false);
+    touch(more, Color.TRANSPARENT, 12, 0);
+    more.setTextColor(accent);
+    more.setTextSize(12);
+    line.addView(more);
+    parent.addView(line);
+    gap(parent, 10);
+  }
+
+  void toolRows(LinearLayout parent, String[][] items) {
+    LinearLayout group = card(parent);
+    group.setPadding(dp(6), dp(3), dp(6), dp(3));
+    for (int index = 0; index < items.length; index++) {
+      String[] x = items[index];
+      LinearLayout line = row();
+      line.setPadding(dp(12), dp(14), dp(12), dp(14));
+      line.setMinimumHeight(dp(72));
+      touch(line, surface, 15, 0);
+      line.addView(badge(x[0]), new LinearLayout.LayoutParams(dp(37), dp(37)));
+      LinearLayout copy = column();
+      copy.addView(text(x[1], 14, ink, true));
+      gap(copy, 5);
+      copy.addView(text(x[2], 12, muted, false));
+      LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, 1);
+      p.setMargins(dp(13), 0, dp(8), 0);
+      line.addView(copy, p);
+      line.addView(text("›", 24, muted, false));
+      line.setContentDescription(x[1] + "，" + x[2]);
+      line.setOnClickListener(v -> a.open(x[0]));
+      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+      group.addView(line, lp);
+      if (index + 1 < items.length) {
+        View divider = new View(a);
+        divider.setBackgroundColor(border);
+        LinearLayout.LayoutParams dividerSpace = new LinearLayout.LayoutParams(-1, dp(1));
+        dividerSpace.leftMargin = dp(62);
+        dividerSpace.rightMargin = dp(12);
+        group.addView(divider, dividerSpace);
+      }
+    }
+  }
+
   void confirm(String title, String message, Runnable yes) {
-    new AlertDialog.Builder(dialog())
-        .setTitle(title)
-        .setMessage(message)
-        .setNegativeButton("取消", null)
-        .setPositiveButton("确定", (d, w) -> yes.run())
-        .show();
+    showDialog(
+        new AlertDialog.Builder(dialog())
+            .setTitle(title)
+            .setMessage(message)
+            .setNegativeButton("取消", null)
+            .setPositiveButton("确定", (d, w) -> yes.run())
+            .create());
   }
 
   void choose(String title, String[] options, java.util.function.IntConsumer callback) {
-    new AlertDialog.Builder(dialog())
-        .setTitle(title)
-        .setItems(options, (d, w) -> callback.accept(w))
-        .setNegativeButton("取消", null)
-        .show();
+    showDialog(
+        new AlertDialog.Builder(dialog())
+            .setTitle(title)
+            .setItems(options, (d, w) -> callback.accept(w))
+            .setNegativeButton("取消", null)
+            .create());
   }
 
   static class Field {
@@ -239,25 +467,51 @@ final class CampusUi {
 
   void form(String title, JSONObject initial, Save save, Field... fields) {
     LinearLayout body = column();
-    body.setPadding(dp(23), dp(16), dp(23), dp(16));
+    body.setPadding(dp(22), dp(6), dp(22), dp(12));
     body.setBackgroundColor(surface);
     Map<String, View> views = new LinkedHashMap<>();
     for (Field f : fields) {
-      body.addView(text(f.label, 12, muted, true));
-      gap(body, 5);
+      if (!f.kind.equals("boolean")) {
+        LinearLayout label = row();
+        label.addView(text(f.label, 13, ink, true), new LinearLayout.LayoutParams(0, -2, 1));
+        label.addView(text(f.required ? "必填" : "选填", 11, muted, false));
+        body.addView(label);
+        gap(body, 8);
+      }
       View control;
       if (f.kind.equals("boolean")) {
         CheckBox b = new CheckBox(dialog());
         b.setText(f.label);
         b.setTextColor(ink);
+        b.setTextSize(14);
+        b.setPadding(dp(10), dp(8), dp(12), dp(8));
+        b.setMinHeight(dp(52));
+        b.setBackground(shape(soft, 12, 0));
         b.setButtonTintList(ColorStateList.valueOf(accent));
         b.setChecked(initial.optBoolean(f.key));
         control = b;
       } else if (f.kind.equals("choice")) {
         Spinner b = new Spinner(dialog());
         ArrayAdapter<String> adapter =
-            new ArrayAdapter<>(dialog(), android.R.layout.simple_spinner_dropdown_item, f.choices);
+            new ArrayAdapter<String>(
+                dialog(), android.R.layout.simple_spinner_dropdown_item, f.choices) {
+              @Override
+              public View getView(int position, View reuse, ViewGroup parent) {
+                TextView t = text(getItem(position) + "  ▾", 15, ink, false);
+                t.setPadding(dp(14), dp(16), dp(14), dp(16));
+                return t;
+              }
+
+              @Override
+              public View getDropDownView(int position, View reuse, ViewGroup parent) {
+                TextView t = text(getItem(position), 15, ink, false);
+                t.setPadding(dp(18), dp(16), dp(18), dp(16));
+                t.setBackgroundColor(surface);
+                return t;
+              }
+            };
         b.setAdapter(adapter);
+        b.setBackground(shape(soft, 12, border));
         for (int j = 0; j < f.choices.length; j++)
           if (f.choices[j].equals(initial.optString(f.key))) b.setSelection(j);
         control = b;
@@ -265,8 +519,17 @@ final class CampusUi {
         EditText b = new EditText(dialog());
         b.setTextColor(ink);
         b.setTextSize(16);
-        b.setMinHeight(dp(48));
-        b.setBackgroundTintList(ColorStateList.valueOf(accent));
+        b.setMinHeight(dp(52));
+        b.setPadding(dp(14), dp(14), dp(14), dp(14));
+        b.setHintTextColor(muted);
+        b.setBackgroundTintList(null);
+        b.setBackground(shape(soft, 12, border));
+        b.setOnFocusChangeListener(
+            (v, focus) ->
+                b.setBackground(shape(focus ? surface : soft, 12, focus ? accent : border)));
+        b.setHint(
+            f.kind.equals("date") ? "选择日期" : f.kind.equals("time") ? "选择时间" : "请输入" + f.label);
+        b.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_NEXT);
         b.setFilters(
             new InputFilter[] {
               new InputFilter.LengthFilter(f.kind.equals("multiline") ? 20000 : 1000)
@@ -284,90 +547,147 @@ final class CampusUi {
                                 ? InputType.TYPE_TEXT_FLAG_MULTI_LINE
                                 : 0);
         b.setInputType(type);
-        if (f.kind.equals("multiline")) b.setMinLines(3);
-        else b.setSingleLine(true);
+        if (f.kind.equals("multiline")) {
+          b.setMinLines(3);
+          b.setGravity(Gravity.TOP | Gravity.START);
+        } else b.setSingleLine(true);
         b.setText(initial.optString(f.key, ""));
         if (f.kind.equals("date")) {
           b.setFocusable(false);
+          b.setClickable(true);
+          b.setContentDescription(f.label + "，点击选择日期");
           b.setOnClickListener(
               v -> {
                 String value = b.getText().toString();
                 int[] d = DateMath.parts(value.isEmpty() ? DateMath.today() : value);
-                new DatePickerDialog(
+                showDialog(
+                    new DatePickerDialog(
                         dialog(),
+                        R.style.CampusDatePickerWindow,
                         (p, y, m, day) -> b.setText(DateMath.date(y, m + 1, day)),
                         d[0],
                         d[1] - 1,
-                        d[2])
-                    .show();
+                        d[2]));
               });
         }
         if (f.kind.equals("time")) {
           b.setFocusable(false);
+          b.setClickable(true);
+          b.setContentDescription(f.label + "，点击选择时间");
           b.setOnClickListener(
               v -> {
                 String value = b.getText().toString();
                 int[] t = DateMath.time(value.isEmpty() ? "08:00" : value);
-                new TimePickerDialog(
+                showDialog(
+                    new TimePickerDialog(
                         dialog(),
                         (p, h, m) -> b.setText(String.format(Locale.ROOT, "%02d:%02d", h, m)),
                         t[0],
                         t[1],
-                        true)
-                    .show();
+                        true));
               });
         }
         control = b;
       }
       body.addView(control, new LinearLayout.LayoutParams(-1, -2));
-      gap(body, 14);
+      gap(body, 18);
       views.put(f.key, control);
     }
-    TextView error = text("", 12, Color.rgb(218, 76, 88), false);
-    body.addView(error);
-    ScrollView scroll = new ScrollView(dialog());
+    TextView error = text("", 12, readableAccent(0xffbb3c4b, surface), false);
+    error.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+    error.setVisibility(View.GONE);
+    ScrollView scroll =
+        new ScrollView(dialog()) {
+          @Override
+          protected void onMeasure(int width, int height) {
+            int cap = Math.round(a.getResources().getDisplayMetrics().heightPixels * .58f);
+            int bound =
+                MeasureSpec.getMode(height) == MeasureSpec.UNSPECIFIED
+                    ? cap
+                    : Math.min(cap, MeasureSpec.getSize(height));
+            super.onMeasure(width, MeasureSpec.makeMeasureSpec(bound, MeasureSpec.AT_MOST));
+          }
+        };
+    scroll.setClipToPadding(false);
     scroll.addView(body);
+    LinearLayout heading = column();
+    heading.setPadding(dp(22), dp(24), dp(22), dp(18));
+    heading.addView(text(title, 20, ink, true));
+    gap(heading, 8);
+    heading.addView(text("必填内容记完整，其他细节可以稍后补充。", 12, muted, false));
+    LinearLayout.LayoutParams errorSpace = new LinearLayout.LayoutParams(-1, -2);
+    errorSpace.topMargin = dp(8);
+    heading.addView(error, errorSpace);
     AlertDialog dlg =
         new AlertDialog.Builder(dialog())
-            .setTitle(title)
+            .setCustomTitle(heading)
             .setView(scroll)
             .setNegativeButton("取消", null)
             .setPositiveButton("保存", null)
             .create();
     dlg.setOnShowListener(
-        v ->
-            dlg.getButton(AlertDialog.BUTTON_POSITIVE)
-                .setOnClickListener(
-                    b -> {
-                      try {
-                        JSONObject out = CampusJson.copy(initial);
-                        for (Field f : fields) {
-                          View view = views.get(f.key);
-                          Object value;
-                          if (view instanceof CheckBox) value = ((CheckBox) view).isChecked();
-                          else if (view instanceof Spinner)
-                            value = ((Spinner) view).getSelectedItem().toString();
-                          else {
-                            String s = ((EditText) view).getText().toString().trim();
-                            if (f.required && s.isEmpty())
-                              throw new IllegalArgumentException("请填写：" + f.label);
-                            if (!s.isEmpty() && f.kind.equals("date")) DateMath.parse(s);
-                            if (!s.isEmpty() && f.kind.equals("time")) DateMath.time(s);
-                            value =
-                                f.kind.equals("number") && !s.isEmpty()
-                                    ? Integer.valueOf(s)
-                                    : f.kind.equals("decimal") && !s.isEmpty()
-                                        ? Double.valueOf(s)
-                                        : s;
+        v -> {
+          for (int id : new int[] {AlertDialog.BUTTON_NEGATIVE, AlertDialog.BUTTON_POSITIVE}) {
+            android.widget.Button b = dlg.getButton(id);
+            b.setAllCaps(false);
+            b.setTextSize(14);
+            b.setTextColor(id == AlertDialog.BUTTON_POSITIVE ? onAccent() : muted);
+            b.setMinHeight(dp(48));
+            b.setBackground(shape(id == AlertDialog.BUTTON_POSITIVE ? accent : surface, 12, 0));
+            b.setPadding(dp(20), dp(10), dp(20), dp(10));
+          }
+          Window window = dlg.getWindow();
+          if (window != null) {
+            window.setBackgroundDrawable(shape(surface, 24, 0));
+            window.setDimAmount(.4f);
+            window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+            window.setGravity(
+                a.getResources().getConfiguration().screenWidthDp >= 600
+                    ? Gravity.CENTER
+                    : Gravity.BOTTOM);
+            window.setLayout(
+                Math.min(a.getResources().getDisplayMetrics().widthPixels - dp(16), dp(580)), -2);
+          }
+          dlg.getButton(AlertDialog.BUTTON_POSITIVE)
+              .setOnClickListener(
+                  b -> {
+                    try {
+                      JSONObject out = CampusJson.copy(initial);
+                      for (Field f : fields) {
+                        View view = views.get(f.key);
+                        Object value;
+                        if (view instanceof CheckBox) value = ((CheckBox) view).isChecked();
+                        else if (view instanceof Spinner)
+                          value = ((Spinner) view).getSelectedItem().toString();
+                        else {
+                          String s = ((EditText) view).getText().toString().trim();
+                          if (f.required && s.isEmpty()) {
+                            view.requestFocus();
+                            view.setBackground(
+                                shape(surface, 12, readableAccent(0xffbb3c4b, surface)));
+                            view.setContentDescription(f.label + "，请填写此项");
+                            throw new IllegalArgumentException("请填写：" + f.label);
                           }
-                          CampusJson.put(out, f.key, value);
+                          if (!s.isEmpty() && f.kind.equals("date")) DateMath.parse(s);
+                          if (!s.isEmpty() && f.kind.equals("time")) DateMath.time(s);
+                          value =
+                              f.kind.equals("number") && !s.isEmpty()
+                                  ? Integer.valueOf(s)
+                                  : f.kind.equals("decimal") && !s.isEmpty()
+                                      ? Double.valueOf(s)
+                                      : s;
                         }
-                        save.save(out);
-                        dlg.dismiss();
-                      } catch (Exception ex) {
-                        error.setText(ex.getMessage() == null ? "输入格式不正确" : ex.getMessage());
+                        CampusJson.put(out, f.key, value);
                       }
-                    }));
+                      save.save(out);
+                      dlg.dismiss();
+                    } catch (Exception ex) {
+                      error.setText(ex.getMessage() == null ? "输入格式不正确" : ex.getMessage());
+                      error.setVisibility(View.VISIBLE);
+                      error.announceForAccessibility(error.getText());
+                    }
+                  });
+        });
     dlg.show();
   }
 
@@ -390,7 +710,36 @@ final class CampusUi {
     protected void onDraw(Canvas canvas) {
       canvas.save();
       canvas.scale(getWidth() / 24f, getHeight() / 24f);
-      if (type.equals("home")) {
+      if (type.equals("back")) {
+        canvas.drawLine(15, 5, 8, 12, p);
+        canvas.drawLine(8, 12, 15, 19, p);
+      } else if (type.equals("search")) {
+        canvas.drawCircle(10, 10, 6, p);
+        canvas.drawLine(15, 15, 21, 21, p);
+      } else if (type.equals("growth") || type.equals("rank") || type.equals("report")) {
+        canvas.drawLine(4, 20, 4, 12, p);
+        canvas.drawLine(10, 20, 10, 8, p);
+        canvas.drawLine(16, 20, 16, 4, p);
+        canvas.drawLine(3, 22, 22, 22, p);
+        canvas.drawLine(3, 7, 13, 2, p);
+        canvas.drawLine(13, 2, 13, 5, p);
+      } else if (type.equals("farm")) {
+        canvas.drawArc(5, 9, 22, 24, 180, 170, false, p);
+        canvas.drawLine(12, 15, 12, 7, p);
+        canvas.drawOval(3, 3, 12, 9, p);
+        canvas.drawOval(12, 1, 21, 7, p);
+      } else if (type.equals("time-master")) {
+        canvas.drawCircle(12, 13, 8, p);
+        canvas.drawLine(12, 8, 12, 13, p);
+        canvas.drawLine(12, 13, 7, 13, p);
+        canvas.drawLine(6, 2, 18, 2, p);
+      } else if (type.equals("homework") || type.equals("checklist")) {
+        canvas.drawRoundRect(4, 3, 20, 22, 2, 2, p);
+        canvas.drawRoundRect(8, 1, 16, 5, 1, 1, p);
+        canvas.drawLine(8, 12, 10, 14, p);
+        canvas.drawLine(10, 14, 16, 9, p);
+        canvas.drawLine(8, 18, 16, 18, p);
+      } else if (type.equals("home")) {
         Path q = new Path();
         q.moveTo(3, 10);
         q.lineTo(12, 3);
@@ -416,6 +765,16 @@ final class CampusUi {
       } else if (type.equals("tools") || type.equals("phone")) {
         for (int x = 3; x < 18; x += 11)
           for (int y = 3; y < 18; y += 11) canvas.drawRoundRect(x, y, x + 7, y + 7, 2, 2, p);
+      } else if (type.equals("appearance")) {
+        Path palette = new Path();
+        palette.moveTo(21, 12);
+        palette.cubicTo(24, 1, 7, -2, 3, 8);
+        palette.cubicTo(-1, 17, 8, 24, 14, 21);
+        palette.cubicTo(17, 19, 12, 16, 15, 14);
+        palette.cubicTo(17, 12, 19, 15, 21, 12);
+        canvas.drawPath(palette, p);
+        for (float[] point : new float[][] {{7, 8}, {12, 5}, {17, 7}})
+          canvas.drawCircle(point[0], point[1], 1, p);
       } else if (type.equals("widget")) {
         canvas.drawRoundRect(2, 3, 22, 21, 3, 3, p);
         canvas.drawLine(2, 9, 22, 9, p);

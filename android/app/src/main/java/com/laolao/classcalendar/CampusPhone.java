@@ -101,20 +101,32 @@ final class CampusPhone {
   }
 
   static void hub(CampusActivity a) {
-    a.ui.title(a.content, "手机助手", "把手机的能力，变成每天用得上的便利。");
-    a.ui.tileGrid(
+    CampusUi u = a.ui;
+    u.title(a.content, "手机助手", "把随身的便利，留给学习和生活。");
+    u.section(a.content, "捕捉灵感与资料");
+    u.toolRows(
         a.content,
         new String[][] {
-          {"widget", "桌面学习卡片", "不用打开App，先看今日安排"},
+          {"inbox", "跨应用收件箱", "从其他 App 收下文字与图片"},
+          {"voice", "语音速记", "说一句，生成可编辑的待办草稿"},
+          {"recordings", "课堂录音", "后台录制、命名、播放与分享"},
+          {"scanner", "资料扫描成 PDF", "拍照、裁边与多页文件导出"}
+        });
+    u.section(a.content, "陪伴每一天的学习");
+    u.toolRows(
+        a.content,
+        new String[][] {
+          {"widget", "桌面学习卡片", "抬手看课程，快速记下安排"},
           {"reminders", "系统提醒中心", "课程、作业与自定义提醒"},
-          {"inbox", "跨应用收件箱", "从其他App收下文字与图片"},
-          {"voice", "语音速记", "说一句，生成待办草稿"},
-          {"recordings", "课堂录音", "后台录制、命名与分享"},
+          {"quiet", "上课自动勿扰", "按课表安静，结束后恢复"}
+        });
+    u.section(a.content, "生活与私密空间");
+    u.toolRows(
+        a.content,
+        new String[][] {
           {"privacy", "日记设备验证", "指纹、面容或设备密码"},
-          {"quiet", "上课自动勿扰", "按课表安静，结束后恢复"},
           {"places", "校园位置书签", "保存地点，查看距离与导航"},
-          {"scanner", "资料扫描成PDF", "拍照、裁边、多页与导出"},
-          {"contacts", "校园快捷联系", "挑选联系人，一键准备拨号"}
+          {"contacts", "校园快捷联系", "选择联系人，准备拨号"}
         });
   }
 

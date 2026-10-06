@@ -600,7 +600,10 @@ final class CampusLearn {
     editor.setTextSize(16);
     editor.setHint("今天发生了什么？也可以先从一句话写起。");
     editor.setHintTextColor(u.muted);
-    editor.setBackgroundTintList(android.content.res.ColorStateList.valueOf(u.accent));
+    editor.setBackgroundTintList(null);
+    editor.setBackground(u.shape(u.surface, 12, 0));
+    editor.setPadding(0, u.dp(8), 0, u.dp(12));
+    editor.setLineSpacing(u.dp(6), 1.15f);
     editor.setMinLines(8);
     editor.setGravity(Gravity.TOP);
     editor.setText(entry.optString("text"));
@@ -968,17 +971,41 @@ final class CampusLearn {
 
   static void meta(CampusActivity a) {
     CampusUi u = a.ui;
-    u.title(a.content, "捞捞元宇宙", "把专注、记忆与成长，连接成你的学习星系。");
+    u.title(a.content, "捞捞元宇宙", "每一次努力，都在点亮你的学习星系。");
     LinearLayout c = u.card(a.content);
-    c.setBackground(u.shape(0xff101d34, 22, 0xff2c4b6b));
-    c.addView(new Galaxy(a), new LinearLayout.LayoutParams(-1, u.dp(165)));
-    CampusWorld.identity(a, c);
+    android.graphics.drawable.GradientDrawable space =
+        new android.graphics.drawable.GradientDrawable(
+            android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
+            new int[] {u.theme.heroStart, u.theme.heroEnd});
+    space.setCornerRadius(u.dp(26));
+    space.setStroke(u.dp(1), CampusUi.blend(u.accent, u.theme.heroEnd, .28f));
+    c.setBackground(space);
+    LinearLayout top = u.row(), identity = u.column();
+    CampusWorld.identity(a, identity);
+    top.addView(identity, new LinearLayout.LayoutParams(0, -2, 1));
+    if (a.getResources().getConfiguration().fontScale <= 1.25f)
+      top.addView(new CampusVisual.Orbit(a), new LinearLayout.LayoutParams(u.dp(110), u.dp(122)));
+    c.addView(top);
     long done = a.store.object("done_log_v1").length(),
         cards = a.store.list("native_cards").length();
-    c.addView(u.text("学习星系 · 已完成 " + done + " 项", 23, 0xffeef7ff, true));
-    u.gap(c, 9);
-    c.addView(
-        u.text("记忆晶片 " + cards + " 枚 · 今日打卡 " + habitToday(a.store) + " 次", 12, 0xff9fb6d4, false));
+    u.gap(c, 18);
+    LinearLayout stats = u.row();
+    String[]
+        values = {String.valueOf(done), String.valueOf(cards), String.valueOf(habitToday(a.store))},
+        labels = {"已完成事项", "记忆晶片", "今日打卡"};
+    for (int i = 0; i < values.length; i++) {
+      LinearLayout stat = u.column();
+      stat.setGravity(Gravity.CENTER);
+      TextView count = u.text(values[i], 23, u.theme.heroInk, true);
+      count.setGravity(Gravity.CENTER);
+      stat.addView(count);
+      u.gap(stat, 6);
+      TextView label = u.text(labels[i], 11, u.theme.heroMuted, false);
+      label.setGravity(Gravity.CENTER);
+      stat.addView(label);
+      stats.addView(stat, new LinearLayout.LayoutParams(0, -2, 1));
+    }
+    c.addView(stats);
     u.gap(c, 16);
     c.addView(u.button("进入星轨冲刺", () -> a.open("pomo"), true));
     u.section(a.content, "十个学习模组");

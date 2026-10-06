@@ -1,0 +1,162 @@
+[
+  {
+    "id": "sky",
+    "name": "晴空蓝",
+    "bg": "#F3F6FD",
+    "surface": "#FFFFFF",
+    "ink": "#1E2D4B",
+    "muted": "#606E87",
+    "primary": "#3E5EBB",
+    "heroStart": "#1E3159",
+    "heroEnd": "#3E5694",
+    "heroMuted": "#E2E6EF",
+    "dark": "false",
+    "contrasts": {
+      "body": 12.669,
+      "muted": 4.761,
+      "accent": 5.96,
+      "hero": 7.086,
+      "heroNote": 5.668
+    }
+  },
+  {
+    "id": "forest",
+    "name": "森野绿",
+    "bg": "#F0F6F2",
+    "surface": "#FFFFFF",
+    "ink": "#213B35",
+    "muted": "#5C756B",
+    "primary": "#267661",
+    "heroStart": "#153F37",
+    "heroEnd": "#326C57",
+    "heroMuted": "#E0E9E6",
+    "dark": "false",
+    "contrasts": {
+      "body": 11.006,
+      "muted": 4.551,
+      "accent": 5.46,
+      "hero": 6.143,
+      "heroNote": 4.964
+    }
+  },
+  {
+    "id": "sakura",
+    "name": "樱花粉",
+    "bg": "#FCF3F6",
+    "surface": "#FFFCFD",
+    "ink": "#4B2B39",
+    "muted": "#806775",
+    "primary": "#AA4265",
+    "heroStart": "#562A3C",
+    "heroEnd": "#984765",
+    "heroMuted": "#F0E3E8",
+    "dark": "false",
+    "contrasts": {
+      "body": 11.322,
+      "muted": 4.688,
+      "accent": 5.602,
+      "hero": 6.133,
+      "heroNote": 4.923
+    }
+  },
+  {
+    "id": "apricot",
+    "name": "暖杏橙",
+    "bg": "#FCF5EC",
+    "surface": "#FFFDFA",
+    "ink": "#453226",
+    "muted": "#7D6C5D",
+    "primary": "#97552F",
+    "heroStart": "#543728",
+    "heroEnd": "#885736",
+    "heroMuted": "#EDE6E1",
+    "dark": "false",
+    "contrasts": {
+      "body": 11.173,
+      "muted": 4.649,
+      "accent": 5.657,
+      "hero": 6.063,
+      "heroNote": 4.91
+    }
+  },
+  {
+    "id": "lavender",
+    "name": "鸢尾紫",
+    "bg": "#F6F3FC",
+    "surface": "#FEFDFF",
+    "ink": "#342A4D",
+    "muted": "#736885",
+    "primary": "#7050AE",
+    "heroStart": "#372652",
+    "heroEnd": "#65468D",
+    "heroMuted": "#E8E3EE",
+    "dark": "false",
+    "contrasts": {
+      "body": 12.083,
+      "muted": 4.73,
+      "accent": 6.007,
+      "hero": 7.463,
+      "heroNote": 5.918
+    }
+  },
+  {
+    "id": "ocean",
+    "name": "海盐青",
+    "bg": "#EFF7F8",
+    "surface": "#FCFFFF",
+    "ink": "#213C44",
+    "muted": "#59727D",
+    "primary": "#157286",
+    "heroStart": "#163D4A",
+    "heroEnd": "#2D6678",
+    "heroMuted": "#E0E8EB",
+    "dark": "false",
+    "contrasts": {
+      "body": 10.772,
+      "muted": 4.683,
+      "accent": 5.521,
+      "hero": 6.396,
+      "heroNote": 5.151
+    }
+  },
+  {
+    "id": "cyber",
+    "name": "深海赛博",
+    "bg": "#08131D",
+    "surface": "#112534",
+    "ink": "#ECF7FC",
+    "muted": "#A7BAC9",
+    "primary": "#73E3D0",
+    "heroStart": "#12333C",
+    "heroEnd": "#17394E",
+    "heroMuted": "#DCE1E4",
+    "dark": "true",
+    "contrasts": {
+      "body": 17.193,
+      "muted": 9.374,
+      "accent": 10.185,
+      "hero": 12.127,
+      "heroNote": 9.201
+    }
+  },
+  {
+    "id": "graphite",
+    "name": "曜石黑",
+    "bg": "#12151B",
+    "surface": "#20252E",
+    "ink": "#F3F0E9",
+    "muted": "#B8B5AE",
+    "primary": "#E1C891",
+    "heroStart": "#252B36",
+    "heroEnd": "#484239",
+    "heroMuted": "#E4E3E1",
+    "dark": "true",
+    "contrasts": {
+      "body": 16.061,
+      "muted": 8.93,
+      "accent": 9.427,
+      "hero": 9.934,
+      "heroNote": 7.746
+    }
+  }
+]

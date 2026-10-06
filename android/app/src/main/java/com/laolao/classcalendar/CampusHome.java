@@ -99,7 +99,8 @@ final class CampusHome {
     LinearLayout row = null;
     for (JSONObject widget : CampusJson.rows(config.opt("home"))) {
       String id = widget.optString("id");
-      boolean wide = widget.optInt("w", 4) > 2;
+      boolean wide =
+          widget.optInt("w", 4) > 2 || a.getResources().getConfiguration().fontScale > 1.3f;
       JSONObject opts = a.store.object("fun_opts_v1");
       String preference =
           id.equals("w:rings")
@@ -113,6 +114,7 @@ final class CampusHome {
       if (wide) row = null;
       if (row == null) {
         row = u.row();
+        row.setGravity(android.view.Gravity.TOP);
         a.content.addView(row);
         u.gap(a.content, 12);
       }

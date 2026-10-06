@@ -1,0 +1,29 @@
+{
+  "device": "Android 9 / API 28 emulator",
+  "package": "com.laolao.classcalendar.preview",
+  "checks": [
+    "Disposable Android emulator",
+    "Final installed APK matches the delivered file",
+    "Native date picker available: sky",
+    "Date header fills the dialog width: sky",
+    "Native date picker available: cyber",
+    "Date header fills the dialog width: cyber",
+    "Picker review preserves business records",
+    "No fatal final-picker exception"
+  ],
+  "screens": [
+    "native-date-sky",
+    "native-date-cyber"
+  ],
+  "apk_sha256": "cb19fa0433dc812701fd95d9636f9fd176a6f63f35a6070c13056777c7167f68",
+  "header_colours": {
+    "sky": "#3E5EBB",
+    "cyber": "#555555"
+  },
+  "header_width_ratios": {
+    "sky": 1.0,
+    "cyber": 1.0
+  },
+  "passed": 8,
+  "result": "passed"
+}

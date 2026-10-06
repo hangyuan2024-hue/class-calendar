@@ -1,0 +1,21 @@
+{
+  "apk_sha256": "cb19fa0433dc812701fd95d9636f9fd176a6f63f35a6070c13056777c7167f68",
+  "size": 4372461,
+  "versionName": "3.2.9-preview",
+  "versionCode": 9,
+  "package": "com.laolao.classcalendar.preview",
+  "certificate_sha256": "bdab8ac188807f5779a6ed99ab87c89d951814cd262cb28b282f646975262067",
+  "checks": [
+    "Resource compilation passed",
+    "Java 17 compilation passed",
+    "DEX conversion passed",
+    "APK alignment passed",
+    "APK v2 and v3 signature verified",
+    "Same preview certificate as native V4",
+    "Existing preview local records preserved on installation"
+  ],
+  "source_ui_checkpoint": "7a7a43f",
+  "final_ui_commit": "9f8dc0c",
+  "colour_contrast_report": "palette-tokens.json",
+  "build_method": "aapt2 + javac 17 + d8 + zipalign + apksigner; Gradle workflow not executed locally"
+}

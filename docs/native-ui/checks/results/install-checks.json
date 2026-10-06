@@ -1,0 +1,9 @@
+{
+  "apk_sha256": "cb19fa0433dc812701fd95d9636f9fd176a6f63f35a6070c13056777c7167f68",
+  "checks": [
+    "APK installed successfully",
+    "Preview update preserves current local records"
+  ],
+  "versionName": "3.2.9-preview",
+  "versionCode": 9
+}

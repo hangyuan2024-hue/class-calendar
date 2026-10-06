@@ -585,35 +585,7 @@ final class CampusManage {
 
   static void appearance(CampusActivity a) {
     CampusUi u = a.ui;
-    u.title(a.content, "选一种舒服的校园颜色。", "原生页面会即时更新，设置按账号保留。");
-    String[] names = {"元气白", "深海赛博", "跟随系统", "樱花粉", "森野绿", "暖杏橙"};
-    for (int i = 0; i < names.length; i++) {
-      final int at = i;
-      LinearLayout c = u.card(a.content);
-      c.addView(
-          u.button(
-              names[i],
-              () -> {
-                String skin = at == 1 ? "cyber" : at == 2 ? "auto" : "fresh";
-                a.store.set("ui_skin_v1", skin);
-                a.store.set(
-                    "ui_palette_v1",
-                    CampusJson.obj(
-                        "id",
-                        new String[] {"sky", "cyber", "auto", "sakura", "forest", "apricot"}[at],
-                        "p",
-                        new String[] {
-                              "#5264E8", "#66E5EB", "#5264E8", "#D76692", "#3E9579", "#B8864F"
-                            }
-                            [at]));
-                a.dark =
-                    at == 1 || at == 2 && (a.getResources().getConfiguration().uiMode & 48) == 32;
-                a.getPreferences(0).edit().putBoolean("dark", a.dark).apply();
-                a.build();
-                a.syncSoon();
-              },
-              i == 1));
-    }
+    CampusSkins.render(a);
     u.section(a.content, "首页设置");
     a.content.addView(
         u.button(

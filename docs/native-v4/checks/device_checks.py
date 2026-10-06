@@ -9,6 +9,8 @@ from pathlib import Path
 parser = argparse.ArgumentParser()
 parser.add_argument('--phase', choices=['screens', 'forms', 'peripherals', 'media', 'restore', 'visual', 'all'], default='screens')
 parser.add_argument('--output', required=True)
+parser.add_argument('--forms-from', choices=['beginning','course','focus','words'], default='beginning', help='Resume from course or focus after earlier form assertions')
+parser.add_argument('--fixture-prefix', default='Test'+str(int(time.time())), help='Unique label prefix for records created by the forms phase')
 args = parser.parse_args()
 try:
     from adb_shell.adb_device import AdbDeviceTcp
@@ -26,14 +28,19 @@ report = json.loads(report_path.read_text()) if report_path.exists() else {'chec
 
 def shell(cmd): return device.shell(cmd, read_timeout_s=90)
 def tree():
+    result = ''
     for _ in range(6):
         result = shell('uiautomator dump /sdcard/campus-check.xml')
+        # API 28 can briefly return a null accessibility root during a route
+        # transition. Read a fresh compressed hierarchy instead of stale XML.
+        if 'dumped' not in result:
+            result = shell('uiautomator dump --compressed /sdcard/campus-check.xml')
         if 'dumped' in result:
             raw = shell('cat /sdcard/campus-check.xml')
             try: return ET.fromstring(raw)
             except ET.ParseError: pass
         time.sleep(.5)
-    raise AssertionError('Cannot read native UI hierarchy')
+    raise AssertionError('Cannot read native UI hierarchy: '+result.strip())
 def texts(root=None): return [n.attrib.get('text', '') for n in (root if root is not None else tree()).iter('node') if n.attrib.get('text')]
 def check(name, ok=True):
     if not ok: raise AssertionError(name)
@@ -134,42 +141,54 @@ try:
         root=tree();check('320dp screen retains all five navigation controls',all(t in texts(root) for t in ['今日','日历','班级','工具','我的']));shot('native-small-320dp')
         shell('wm size reset');shell('wm density reset');go('home')
     if args.phase in ('forms','all'):
-        go('home');tap('＋ 记一件事');edit(0,'NativeTaskCheck');tap('保存')
-        data=read_store()['data']; tasks=data['personal_events_v1'];task=next(x for x in tasks if x['subject']=='NativeTaskCheck')
-        check('Personal item created using native form',bool(task['id']))
-        root=restart('calendar');check('Personal item survives process restart',any(x['subject']=='NativeTaskCheck' for x in read_store()['data']['personal_events_v1']))
-        tap('NativeTaskCheck');tap('标记完成');check('Personal completion saved',next(x for x in read_store()['data']['personal_events_v1'] if x['id']==task['id'])['done'])
-        go('countdown');tap('＋ 添加考试');edit(0,'NativeExamCheck');tap('保存')
-        check('Exam countdown created',any(x['title']=='NativeExamCheck' for x in read_store()['data']['native_exams']))
-        go('ledger');tap('＋ 记一笔');edit(0,'LunchCheck');edit(1,'12.34');tap('保存')
-        check('Ledger stores exact integer cents',next(x for x in read_store()['data']['native_ledger'] if x['title']=='LunchCheck')['cents']==1234)
-        go('courses');tap('＋ 添加课程');edit(0,'NativeMathCheck');tap('保存')
-        if '课程时间重叠' in texts():tap('确认')
-        check('Course created with week recurrence',any(x['name']=='NativeMathCheck' for x in read_store()['data']['personal_course_schedule_courses_v1']))
-        go('wrongbook');tap('＋ 记录错题');edit(0,'NativeWrongCheck');edit(1,'Math');
-        # The answer field may be below the first viewport.
-        shell('input swipe 550 1470 550 690 350');time.sleep(.3)
-        fields=[n for n in tree().iter('node') if n.attrib.get('class')=='android.widget.EditText']
-        target=None
-        root=tree();nodes=list(root.iter('node'))
-        for i,n in enumerate(nodes):
-            if n.attrib.get('text')=='正确答案':
-                target=next((x for x in nodes[i+1:] if x.attrib.get('class')=='android.widget.EditText'),None);break
-        if target is not None:tap_node(target);shell('input text 42');shell('input keyevent 4')
-        tap('保存');check('Wrong-answer record created',any(x['title']=='NativeWrongCheck' for x in read_store()['data']['native_wrong']))
-        go('growth');tap('＋ 新建习惯');edit(0,'ReadCheck');tap('保存');tap('今日打卡')
-        check('Habit check-in recorded',any(any(v.values()) for v in read_store()['data']['habit_log_v1'].values()))
-        go('diary');edit(0,'Today I learned something real.')
-        check('Diary autosaves',any('something real' in x.get('text','') for x in read_store()['data']['native_diary'].values()))
-        restart('diary');check('Diary survives restart',any('something real' in x.get('text','') for x in read_store()['data']['native_diary'].values()))
-        go('pomo');tap('开始专注');check('Focus starts with a stored deadline',read_store()['data']['native_pomo_timer']['running'])
-        restart('pomo');tap('暂停');check('Focus pause persists remaining time',not read_store()['data']['native_pomo_timer']['running'] and read_store()['data']['native_pomo_timer']['remaining']>0)
-        state=read_store();state['data']['native_pomo_timer']={'id':'timer-fixture','phase':'focus','duration':60000,'remaining':60000,'deadline':int(time.time()*1000)-100,'running':True}
-        before=sum(state['data'].get('pomo_log_v1',{}).values());save_store(state);go('pomo')
-        check('Expired focus counts exactly once',sum(read_store()['data']['pomo_log_v1'].values())==before+1)
-        restart('pomo');check('Repeated launch does not count focus twice',sum(read_store()['data']['pomo_log_v1'].values())==before+1)
-        check('Focus creates real session duration',read_store()['data']['native_focus_sessions'][-1]['minutes']==1)
-        go('words');tap('开始学习');tap('翻面与反馈');tap('选择操作');tap('记住了 · 延长间隔')
+        shell('am force-stop '+pkg)
+        if args.forms_from not in ('focus','words'):
+            if args.forms_from=='beginning':
+                go('home');tap('＋ 记一件事');edit(0,args.fixture_prefix+'TaskCheck');tap('保存')
+                data=read_store()['data']; tasks=data['personal_events_v1'];task=next(x for x in tasks if x['subject']==args.fixture_prefix+'TaskCheck')
+                check('Personal item created using native form',bool(task['id']))
+                root=restart('calendar');check('Personal item survives process restart',any(x['subject']==args.fixture_prefix+'TaskCheck' for x in read_store()['data']['personal_events_v1']))
+                tap(args.fixture_prefix+'TaskCheck');tap('标记完成');check('Personal completion saved',next(x for x in read_store()['data']['personal_events_v1'] if x['id']==task['id'])['done'])
+                go('countdown');tap('＋ 添加考试');edit(0,args.fixture_prefix+'ExamCheck');tap('保存')
+                check('Exam countdown created',any(x['title']==args.fixture_prefix+'ExamCheck' for x in read_store()['data']['native_exams']))
+                go('ledger');tap('＋ 记一笔');edit(0,args.fixture_prefix+'LunchCheck');edit(1,'12.34');tap('保存')
+                check('Ledger stores exact integer cents',next(x for x in read_store()['data']['native_ledger'] if x['title']==args.fixture_prefix+'LunchCheck')['cents']==1234)
+            go('courses');tap('＋ 添加课程');edit(0,args.fixture_prefix+'MathCheck');tap('保存')
+            if '课程时间重叠' in texts():tap('确定')
+            check('Course created with week recurrence',any(x['name']==args.fixture_prefix+'MathCheck' for x in read_store()['data']['personal_course_schedule_courses_v1']))
+            go('wrongbook');tap('＋ 记录错题');edit(0,args.fixture_prefix+'WrongCheck');edit(1,'Math');
+            # The answer field may be below the first viewport.
+            shell('input swipe 550 1470 550 690 350');time.sleep(.3)
+            fields=[n for n in tree().iter('node') if n.attrib.get('class')=='android.widget.EditText']
+            target=None
+            root=tree();nodes=list(root.iter('node'))
+            for i,n in enumerate(nodes):
+                if n.attrib.get('text')=='正确答案':
+                    target=next((x for x in nodes[i+1:] if x.attrib.get('class')=='android.widget.EditText'),None);break
+            if target is not None:tap_node(target);shell('input text 42');shell('input keyevent 4')
+            tap('保存');check('Wrong-answer record created',any(x['title']==args.fixture_prefix+'WrongCheck' for x in read_store()['data']['native_wrong']))
+            go('growth');tap('＋ 新建习惯');edit(0,args.fixture_prefix+'ReadCheck');tap('保存');tap('今日打卡')
+            check('Habit check-in recorded',any(any(v.values()) for v in read_store()['data']['habit_log_v1'].values()))
+            go('diary');edit(0,'Today I learned something real.')
+            check('Diary autosaves',any('something real' in x.get('text','') for x in read_store()['data']['native_diary'].values()))
+            restart('diary');check('Diary survives restart',any('something real' in x.get('text','') for x in read_store()['data']['native_diary'].values()))
+        if args.forms_from!='words':
+            go('pomo')
+            if read_store()['data'].get('native_pomo_timer',{}).get('phase')=='break':tap('结束本轮');tap('确定')
+            tap('开始专注');check('Focus starts with a stored deadline',read_store()['data']['native_pomo_timer']['running'])
+            restart('pomo');tap('暂停');check('Focus pause persists remaining time',not read_store()['data']['native_pomo_timer']['running'] and read_store()['data']['native_pomo_timer']['remaining']>0)
+            state=read_store();state['data']['native_pomo_timer']={'id':'timer-fixture','phase':'focus','duration':60000,'remaining':60000,'deadline':int(time.time()*1000)-100,'running':True}
+            before=sum(state['data'].get('pomo_log_v1',{}).values());save_store(state);go('pomo')
+            check('Expired focus counts exactly once',sum(read_store()['data']['pomo_log_v1'].values())==before+1)
+            restart('pomo');check('Repeated launch does not count focus twice',sum(read_store()['data']['pomo_log_v1'].values())==before+1)
+            check('Focus creates real session duration',read_store()['data']['native_focus_sessions'][-1]['minutes']==1)
+        root=go('words')
+        for _ in range(12):
+            if any('本机离线词库' in text for text in texts(root)):break
+            time.sleep(.3);root=tree()
+        mode=read_store()['data'].get('native_word_mode','首页')
+        if mode!='首页':tap(mode+' ▾');tap('首页')
+        tap('开始学习');tap('翻面与反馈');tap('选择操作');tap('记住了 · 延长间隔')
         check('Offline word learning records due date',any(v.get('due',0)>int(time.time()*1000) for v in read_store()['data']['native_word_progress'].values()))
         go('draw');tap('批量添加');edit(0,'Alice\nBob\nCarol');tap('保存');tap('开始抽一个')
         check('Random draw stores a real result',len(read_store()['data']['native_draw_history'])>0)
@@ -256,6 +275,9 @@ try:
         go('tools');shot('native-tools');go('home')
     log=shell('logcat -d -s AndroidRuntime:E');(out/'android-runtime.log').write_text(log)
     check('No fatal Android runtime exception','FATAL EXCEPTION' not in log)
+    phases=report.setdefault('completed_phases',[])
+    if args.phase not in phases:phases.append(args.phase)
+    report['passed']=len(report['checks']);report['result']='passed'
 finally:
     shell('wm size reset');shell('wm density reset')
     report_path.write_text(json.dumps(report,ensure_ascii=False,indent=2));device.close()
