@@ -1,0 +1,86 @@
+[
+  {
+    "path": ".github/workflows/android.yml",
+    "sha256": "d7447993e8cfe453b5d22f1bfa9f72dc15ef8b35b0876498ff55b5d274468e42"
+  },
+  {
+    "path": "android/app/build.gradle",
+    "sha256": "071583b74ca61634e107fa47466f099f7f23e49d5b65bec06f0d565a40619f6d"
+  },
+  {
+    "path": "android/app/src/main/AndroidManifest.xml",
+    "sha256": "e3336dcd8c1b6a6c6b06e14e0e1574f2441234909df1f61b423b42714944750e"
+  },
+  {
+    "path": "android/app/src/main/java/com/laolao/classcalendar/CampusActivity.java",
+    "sha256": "12b10efd8fd9db058de51d695abc82368ce3056f6d09e2d45b434aba9001c39a"
+  },
+  {
+    "path": "android/app/src/main/java/com/laolao/classcalendar/CampusBookshelf.java",
+    "sha256": "7fec180d4a8e5ff9ea243ee524428b0a7058f0a8150f51977720dc2981931e29"
+  },
+  {
+    "path": "android/app/src/main/java/com/laolao/classcalendar/CampusDashboard.java",
+    "sha256": "e5a0637f2614ffa1f839f0ec9a7f7ad2849ed0fa256d6e4d8369332c4d2de920"
+  },
+  {
+    "path": "android/app/src/main/java/com/laolao/classcalendar/CampusGuide.java",
+    "sha256": "a0905977aaf5127c1009f28138212061ef3605e4b8480a747504e9e354c01458"
+  },
+  {
+    "path": "android/app/src/main/java/com/laolao/classcalendar/CampusHome.java",
+    "sha256": "e5dde9f9f0949e85b44486bd19c27c6e0233d755637d04a9cc78f95c8fc7a4c8"
+  },
+  {
+    "path": "android/app/src/main/java/com/laolao/classcalendar/CampusLearn.java",
+    "sha256": "0e3985a1508a64a24ae15fe07d102dbb86906f5f5bf06830f79b2bd9af2c6447"
+  },
+  {
+    "path": "android/app/src/main/java/com/laolao/classcalendar/CampusManage.java",
+    "sha256": "384fc128adc64e6fa6db4233ab19f8127f73195062cb61bc6a2cf0d50f8d0c5b"
+  },
+  {
+    "path": "android/app/src/main/java/com/laolao/classcalendar/CampusPhone.java",
+    "sha256": "63e9321754ca599c7140b4d9e28366855eb1470db322c9df0fa667dc7ab935de"
+  },
+  {
+    "path": "android/app/src/main/java/com/laolao/classcalendar/CampusSchool.java",
+    "sha256": "cb1e8451e1e1d01530375bbdec103d97ed91de085af5366e2015287fbbf249de"
+  },
+  {
+    "path": "android/app/src/main/java/com/laolao/classcalendar/CampusSkins.java",
+    "sha256": "a4c066aab30685c66f773f757f8ee3c1cdbf8541df8dad983fe689ea30ad755a"
+  },
+  {
+    "path": "android/app/src/main/java/com/laolao/classcalendar/CampusSocial.java",
+    "sha256": "c7ebfeb343ff11baa4d9ecc0e467afbd140a531f9f9a585f2f1eef12584e1293"
+  },
+  {
+    "path": "android/app/src/main/java/com/laolao/classcalendar/CampusTheme.java",
+    "sha256": "92e50a74b66f1e5560dfe59c5a88da526af62f275fbf81598debdc5bb1d2b675"
+  },
+  {
+    "path": "android/app/src/main/java/com/laolao/classcalendar/CampusToolbox.java",
+    "sha256": "a8c7040153ef78d236b58d8849e5a566801933c5a3d45d5843d8cd60f9c8fd4b"
+  },
+  {
+    "path": "android/app/src/main/java/com/laolao/classcalendar/CampusUi.java",
+    "sha256": "a623d6c878a1268fbe8937ff24c6f5339e91f4c20398a3889ab11ec54e4a529d"
+  },
+  {
+    "path": "android/app/src/main/java/com/laolao/classcalendar/CampusWidget.java",
+    "sha256": "31e036434e649a6bdf4851abf68324817719dd1a85ecdb57ddca1c637ef39d0f"
+  },
+  {
+    "path": "android/app/src/main/res/values/native_dialog_palettes.xml",
+    "sha256": "218a538c4c86dff1faa16942e5501a6bae6d1fc48f2e24d2a6024388e59fb33d"
+  },
+  {
+    "path": "android/app/src/main/res/values/strings.xml",
+    "sha256": "3f5c7e5b30fded083493be2f426122cdc81e2fed4e4587ec628bd42d60526e7c"
+  },
+  {
+    "path": "android/app/src/preview/res/values/strings.xml",
+    "sha256": "acfdf4fc9635fccb0acc8a7f412fba3d63cb8f735de98364cb0afa649819801a"
+  }
+]

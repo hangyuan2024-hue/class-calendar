@@ -135,7 +135,19 @@ public class CampusActivity extends Activity {
                     r -> toast(Boolean.TRUE.equals(r) ? "已退订邮件通知" : "退订链接无效或已过期")));
         return;
       }
-      if (path.contains("#people")) open("people");
+      if (fragment != null
+          && Arrays.asList(
+                  "home",
+                  "homework",
+                  "wall",
+                  "calendar",
+                  "plan",
+                  "ask",
+                  "growth",
+                  "tools",
+                  "me",
+                  "people")
+              .contains(fragment)) open(fragment);
       else if (path.contains("#plan")) open("plan");
       else if (path.contains("class.html")) open("class");
       else if (path.contains("dev.html")) open("admin");
@@ -225,61 +237,58 @@ public class CampusActivity extends Activity {
     head.setPadding(ui.dp(12), ui.dp(3), ui.dp(12), ui.dp(3));
     head.setBackgroundColor(ui.bg);
     head.setMinimumHeight(ui.dp(54));
-    boolean detail = !Arrays.asList("home", "calendar", "growth", "tools", "me").contains(page);
-    FrameLayout mark = ui.badge(detail ? "back" : "home");
-    ui.touch(mark, detail ? Color.TRANSPARENT : ui.soft, 24, 0);
+    boolean detail =
+        !Arrays.asList(
+                "home",
+                "homework",
+                "wall",
+                "calendar",
+                "plan",
+                "ask",
+                "growth",
+                "tools",
+                "me",
+                "class")
+            .contains(page);
+    FrameLayout mark = ui.badge(detail ? "back" : "menu");
+    ui.touch(mark, Color.TRANSPARENT, 14, 0);
     mark.removeAllViews();
     mark.addView(
-        new CampusUi.Icon(this, detail ? "back" : "brand", detail ? ui.ink : ui.accent),
+        new CampusUi.Icon(this, detail ? "back" : "menu", ui.ink),
         new FrameLayout.LayoutParams(ui.dp(23), ui.dp(23), Gravity.CENTER));
-    mark.setContentDescription(detail ? "返回上一页" : "返回今日工作台");
+    mark.setContentDescription(detail ? "返回上一页" : "打开导航菜单");
     mark.setOnClickListener(
         v -> {
           if (detail) onBackPressed();
-          else tab("home");
+          else navigationMenu();
         });
     head.addView(mark, new LinearLayout.LayoutParams(ui.dp(48), ui.dp(48)));
     LinearLayout brand = ui.column();
-    TextView name = ui.text("捞捞校园", 14, ui.ink, true);
+    TextView name = ui.text("捞捞课程表", 16, ui.ink, true);
     name.setSingleLine(true);
     brand.addView(name);
     ui.gap(brand, 4);
-    TextView subtitle = ui.text(detail ? pageSection(page) : "校园学习空间", 9, ui.muted, false);
+    TextView subtitle = ui.text(pageLabel(page), 10, ui.muted, false);
     subtitle.setSingleLine(true);
     subtitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
     brand.addView(subtitle);
     LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, 1);
-    p.leftMargin = ui.dp(9);
+    p.leftMargin = ui.dp(6);
     head.addView(brand, p);
-    if (page.equals("home")) {
-      FrameLayout find = ui.badge("search");
-      ui.touch(find, Color.TRANSPARENT, 14, 0);
-      find.setContentDescription("搜索校园记录");
-      find.setOnClickListener(v -> open("search"));
-      LinearLayout.LayoutParams fp = new LinearLayout.LayoutParams(ui.dp(48), ui.dp(48));
-      fp.rightMargin = ui.dp(2);
-      head.addView(find, fp);
-    }
-    FrameLayout palette = ui.badge("appearance");
-    ui.touch(palette, Color.TRANSPARENT, 24, 0);
-    palette.setContentDescription("切换校园皮肤");
-    palette.setOnClickListener(v -> open("appearance"));
-    head.addView(palette, new LinearLayout.LayoutParams(ui.dp(48), ui.dp(48)));
-    String displayName = api.logged() ? me.optString("display_name", "我") : "我";
-    TextView identity =
-        ui.text(
-            displayName.isEmpty()
-                ? "我"
-                : displayName.substring(0, displayName.offsetByCodePoints(0, 1)),
-            15,
-            CampusUi.readableAccent(ui.accent, ui.soft),
-            true);
-    identity.setGravity(Gravity.CENTER);
-    identity.setContentDescription(api.logged() ? "打开我的校园空间" : "登录或注册账号");
-    ui.touch(identity, ui.soft, 24, 0);
-    identity.setOnClickListener(v -> open(api.logged() ? "me" : "login"));
-    head.addView(identity, new LinearLayout.LayoutParams(ui.dp(48), ui.dp(48)));
+    head.addView(CampusGuide.avatar(this), new LinearLayout.LayoutParams(ui.dp(48), ui.dp(48)));
+    FrameLayout add = ui.badge("plus");
+    ui.touch(add, ui.soft, 14, 0);
+    add.setContentDescription("记事与快捷操作");
+    add.setOnClickListener(v -> quickAdd());
+    LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(ui.dp(48), ui.dp(48));
+    ap.leftMargin = ui.dp(4);
+    head.addView(add, ap);
     root.addView(head);
+    View headLine = new View(this);
+    headLine.setBackgroundColor(ui.border);
+    root.addView(headLine, new LinearLayout.LayoutParams(-1, ui.dp(1)));
+    if (page.equals("calendar")) root.addView(CampusSchool.calendarToolbar(this));
+    if (page.equals("parse-review")) root.addView(CampusSocial.reviewToolbar(this));
     scroll = new ScrollView(this);
     scroll.setClipToPadding(false);
     scroll.setFillViewport(true);
@@ -310,27 +319,28 @@ public class CampusActivity extends Activity {
     LinearLayout nav = ui.row();
     nav.setPadding(ui.dp(4), ui.dp(4), ui.dp(4), ui.dp(4));
     nav.setBackground(ui.shape(ui.surface, 0, 0));
-    String[] ids = {"home", "calendar", "growth", "tools", "me"},
-        names = {"今日", "日程", "成长", "工具", "我的"};
+    String[] ids = {"home", "homework", "calendar", "tools", "me"},
+        names = {"首页", "作业", "日历", "工具", "我的"};
     String active =
-        page.equals("home")
-            ? "home"
-            : page.equals("calendar")
-                ? "calendar"
-                : Arrays.asList("growth", "rank", "meta", "farm", "report").contains(page)
-                    ? "growth"
+        Arrays.asList(ids).contains(page)
+            ? page
+            : Arrays.asList(
+                        "login",
+                        "register",
+                        "appearance",
+                        "backup",
+                        "about",
+                        "security",
+                        "mail",
+                        "admin")
+                    .contains(page)
+                ? "me"
+                : Arrays.asList("courses", "ocr-review").contains(page)
+                    ? "calendar"
                     : Arrays.asList(
-                                "me",
-                                "login",
-                                "register",
-                                "appearance",
-                                "backup",
-                                "about",
-                                "security",
-                                "mail",
-                                "admin")
+                                "wall", "plan", "ask", "growth", "class", "rank", "farm", "meta")
                             .contains(page)
-                        ? "me"
+                        ? ""
                         : "tools";
     for (int j = 0; j < 5; j++) {
       final String id = ids[j];
@@ -339,7 +349,7 @@ public class CampusActivity extends Activity {
       cell.setGravity(Gravity.CENTER);
       cell.setPadding(0, ui.dp(3), 0, ui.dp(3));
       cell.setMinimumHeight(ui.dp(54));
-      ui.touch(cell, on ? ui.soft : ui.surface, 15, 0);
+      ui.touch(cell, ui.surface, 15, 0);
       cell.setContentDescription(names[j]);
       cell.setSelected(on);
       FrameLayout icon = new FrameLayout(this);
@@ -353,6 +363,12 @@ public class CampusActivity extends Activity {
       label.setGravity(Gravity.CENTER);
       cell.addView(label);
       cell.setOnClickListener(v -> tab(id));
+      if (id.equals("tools"))
+        cell.setOnLongClickListener(
+            v -> {
+              CampusToolbox.quickChoose(this);
+              return true;
+            });
       nav.addView(cell, new LinearLayout.LayoutParams(0, -2, 1));
     }
     footer.addView(
@@ -361,6 +377,9 @@ public class CampusActivity extends Activity {
             Math.min(getResources().getDisplayMetrics().widthPixels - ui.dp(28), ui.dp(560)),
             -2,
             Gravity.CENTER));
+    View bottomLine = new View(this);
+    bottomLine.setBackgroundColor(ui.border);
+    root.addView(bottomLine, new LinearLayout.LayoutParams(-1, ui.dp(1)));
     root.addView(footer);
     float animationScale =
         android.provider.Settings.Global.getFloat(
@@ -382,7 +401,20 @@ public class CampusActivity extends Activity {
     for (String[] item : CampusToolbox.ITEMS) if (item[0].equals(route)) return item[1];
     if (route.equals("homework")) return "我的作业";
     if (route.equals("wall")) return "班级墙";
-    return "我的校园空间";
+    if (route.equals("home")) return "首页";
+    if (route.equals("calendar")) return "日历";
+    if (route.equals("tools")) return "工具";
+    if (route.equals("me")) return "我的";
+    if (route.equals("class")) return "班级";
+    if (route.equals("parse-review")) return "核对导入内容";
+    if (route.equals("appearance")) return "皮肤与首页";
+    if (route.equals("backup")) return "数据与同步";
+    if (route.equals("security")) return "账号安全";
+    if (route.equals("mail")) return "邮箱通知";
+    if (route.equals("about")) return "关于";
+    if (route.equals("login")) return "登录";
+    if (route.equals("register")) return "注册";
+    return pageSection(route);
   }
 
   private String pageSection(String route) {
@@ -394,6 +426,120 @@ public class CampusActivity extends Activity {
     return "个性与设置";
   }
 
+  void navigationMenu() {
+    LinearLayout panel = ui.column();
+    panel.setPadding(ui.dp(18), ui.dp(18), ui.dp(18), ui.dp(8));
+    LinearLayout title = ui.row();
+    title.addView(ui.text("捞捞课程表", 21, ui.ink, true), new LinearLayout.LayoutParams(0, -2, 1));
+    FrameLayout search = ui.badge("search");
+    search.setContentDescription("搜索全部记录");
+    title.addView(search, new LinearLayout.LayoutParams(ui.dp(48), ui.dp(48)));
+    panel.addView(title);
+    ui.gap(panel, 8);
+    ScrollView viewport = new ScrollView(this);
+    LinearLayout entries = ui.column();
+    String[][] routes = {
+      {"home", "首页"}, {"homework", "作业"}, {"wall", "班级墙"}, {"calendar", "日历"},
+      {"plan", "规划"}, {"ask", "问答"}, {"growth", "成长"}, {"tools", "工具"},
+      {"me", "我的"}, {"class", "班级"}
+    };
+    AlertDialog dialog = new AlertDialog.Builder(ui.dialog()).setView(panel).create();
+    for (String[] entry : routes) {
+      LinearLayout row = ui.row();
+      row.setPadding(ui.dp(10), ui.dp(6), ui.dp(4), ui.dp(6));
+      row.setMinimumHeight(ui.dp(56));
+      ui.touch(row, page.equals(entry[0]) ? ui.soft : ui.surface, 12, 0);
+      row.addView(
+          new CampusUi.Icon(this, entry[0], page.equals(entry[0]) ? ui.accent : ui.muted),
+          new LinearLayout.LayoutParams(ui.dp(22), ui.dp(22)));
+      TextView label = ui.text(entry[1], 15, ui.ink, page.equals(entry[0]));
+      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1);
+      lp.leftMargin = ui.dp(16);
+      row.addView(label, lp);
+      if (entry[0].equals("tools")) {
+        TextView quick =
+            ui.button(
+                "快捷",
+                () -> {
+                  dialog.dismiss();
+                  CampusToolbox.quickChoose(this);
+                },
+                false);
+        quick.setContentDescription("快捷选择工具");
+        quick.setPadding(ui.dp(4), ui.dp(8), ui.dp(4), ui.dp(8));
+        row.addView(quick, new LinearLayout.LayoutParams(ui.dp(64), -2));
+      } else if (entry[0].equals(page)) row.addView(ui.pill("当前"));
+      row.setContentDescription("导航到" + entry[1]);
+      row.setOnClickListener(
+          v -> {
+            dialog.dismiss();
+            tab(entry[0]);
+          });
+      entries.addView(row);
+    }
+    viewport.addView(entries);
+    panel.addView(
+        viewport,
+        new LinearLayout.LayoutParams(
+            -1,
+            Math.min(ui.dp(560), (int) (getResources().getDisplayMetrics().heightPixels * .65))));
+    search.setOnClickListener(
+        v -> {
+          dialog.dismiss();
+          open("search");
+        });
+    ui.showDialog(dialog);
+    Window window = dialog.getWindow();
+    if (window != null) {
+      window.setGravity(Gravity.BOTTOM);
+      window.setLayout(
+          Math.min(getResources().getDisplayMetrics().widthPixels - ui.dp(16), ui.dp(480)), -2);
+    }
+  }
+
+  void quickAdd() {
+    final String selected = page.equals("calendar") ? selectedDay : DateMath.today();
+    LinearLayout panel = ui.column();
+    panel.setPadding(ui.dp(20), ui.dp(18), ui.dp(20), ui.dp(16));
+    panel.addView(ui.text("记事与快捷操作", 21, ui.ink, true));
+    ui.gap(panel, 14);
+    AlertDialog dialog = new AlertDialog.Builder(ui.dialog()).setView(panel).create();
+    List<String> labels = new ArrayList<>(Arrays.asList("记一件事", "粘贴导入", "打卡成长", "开始专注"));
+    List<Runnable> actions =
+        new ArrayList<>(
+            Arrays.asList(
+                () -> {
+                  selectedDay = selected;
+                  CampusSchool.personalForm(this, null);
+                },
+                () -> CampusSocial.pasteImport(this),
+                () -> open("growth"),
+                () -> open("pomo")));
+    if (!cid().isEmpty() && can("can_ingest")) {
+      labels.add(2, "发布班级事项");
+      actions.add(2, () -> CampusSchool.classForm(this, null));
+    }
+    for (int i = 0; i < labels.size(); i++) {
+      final Runnable action = actions.get(i);
+      panel.addView(
+          ui.button(
+              labels.get(i),
+              () -> {
+                dialog.dismiss();
+                action.run();
+              },
+              i == 0));
+      ui.gap(panel, 8);
+    }
+    ui.showDialog(dialog);
+    Window window = dialog.getWindow();
+    if (window != null) {
+      window.setGravity(Gravity.BOTTOM);
+      window.setLayout(
+          Math.min(getResources().getDisplayMetrics().widthPixels - ui.dp(16), ui.dp(480)), -2);
+    }
+  }
+
   void home() {
     CampusDashboard.render(this);
   }
@@ -403,7 +549,7 @@ public class CampusActivity extends Activity {
   }
 
   void profile() {
-    ui.title(content, "我的校园", "学习留下足迹，生活保留热爱。");
+    ui.title(content, "我的", "账号、皮肤与数据设置");
     LinearLayout identity = ui.card(content);
     identity.setBackground(ui.shape(ui.soft, 24, 0));
     LinearLayout line = ui.row();
@@ -448,11 +594,11 @@ public class CampusActivity extends Activity {
               else open("login");
             },
             true));
-    ui.section(content, "把校园调成喜欢的样子");
+    ui.section(content, "外观与使用习惯");
     ui.toolRows(
         content,
-        new String[][] {{"appearance", "外观与首页", "当前 · " + ui.theme.preset.name + "  /  十套完整皮肤"}});
-    CampusSkins.swatches(this, content);
+        new String[][] {{"appearance", "皮肤与首页", "当前：" + ui.theme.preset.name + " · 10 种配色"}});
+    content.addView(ui.button("提示小人设置", () -> CampusGuide.settings(this), false));
     ui.section(content, "账号与班级");
     ui.toolRows(
         content,
@@ -501,7 +647,7 @@ public class CampusActivity extends Activity {
   void auth() {
     boolean signup = page.equals("register");
     ui.title(
-        content, signup ? "加入捞捞校园" : "欢迎回来", signup ? "使用同一账号连接网站与手机。" : "登录网站原来的账号，读取你的班级与云端记录。");
+        content, signup ? "加入捞捞课程表" : "欢迎回来", signup ? "使用同一账号连接网站与手机。" : "登录网站原来的账号，读取你的班级与云端记录。");
     LinearLayout box = ui.card(content);
     box.addView(ui.text("账号 · 姓名 · 班级", 19, ui.ink, true));
     ui.gap(box, 12);

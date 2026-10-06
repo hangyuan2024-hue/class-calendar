@@ -66,29 +66,80 @@ final class CampusSchool {
     return false;
   }
 
+  /** Calendar actions stay above the scrolling month and agenda, like the website toolbar. */
+  static View calendarToolbar(CampusActivity a) {
+    CampusUi u = a.ui;
+    LinearLayout row = u.row();
+    row.setPadding(u.dp(16), u.dp(5), u.dp(16), u.dp(9));
+    row.setBackgroundColor(u.bg);
+    TextView paste = u.button("粘贴导入", () -> CampusSocial.pasteImport(a), true);
+    paste.setPadding(u.dp(8), u.dp(12), u.dp(8), u.dp(12));
+    paste.setContentDescription("粘贴导入班群消息，核对后保存到日历");
+    LinearLayout.LayoutParams action = new LinearLayout.LayoutParams(0, -2, 1);
+    action.rightMargin = u.dp(8);
+    row.addView(paste, action);
+    TextView add = u.button("记一件事", () -> personalForm(a, null), false);
+    add.setPadding(u.dp(8), u.dp(12), u.dp(8), u.dp(12));
+    add.setContentDescription("记一件事，日期为" + a.selectedDay);
+    LinearLayout.LayoutParams addSpace = new LinearLayout.LayoutParams(0, -2, 1);
+    addSpace.rightMargin = u.dp(6);
+    row.addView(add, addSpace);
+    TextView more = u.text("⋯", 25, u.ink, true);
+    more.setGravity(Gravity.CENTER);
+    more.setMinHeight(u.dp(48));
+    more.setContentDescription("日历更多操作，完整课表与导出订阅");
+    u.touch(more, u.surface, 14, u.border);
+    more.setOnClickListener(v -> calendarMore(a));
+    row.addView(more, new LinearLayout.LayoutParams(u.dp(48), -1));
+    return row;
+  }
+
+  static void calendarMore(CampusActivity a) {
+    a.ui.choose(
+        "日历更多操作",
+        new String[] {"完整课程表", "添加课程", "拍照识别课表", "日历导出与订阅", "捞捞助手"},
+        i -> {
+          if (i == 0) a.open("courses");
+          else if (i == 1) CampusCourses.form(a, null);
+          else if (i == 2) CampusCourses.ocr(a);
+          else if (i == 3) calendarOptions(a);
+          else a.open("ask");
+        });
+  }
+
   static void calendar(CampusActivity a) {
     CampusUi u = a.ui;
     String selected = a.selectedDay;
+    String todayDate = DateMath.today();
     int[] parts = DateMath.parts(selected);
     String first = DateMath.date(parts[0], parts[1], 1);
     Calendar c = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
     c.setTime(DateMath.parse(first));
     int start = (c.get(Calendar.DAY_OF_WEEK) + 5) % 7,
         days = c.getActualMaximum(Calendar.DAY_OF_MONTH);
-    u.title(a.content, "校园日程", parts[0] + "年 " + parts[1] + "月 · 课程和待办，都在这里。");
-    u.actionRow(
-        a.content,
-        new String[] {"‹ 上个月", "今天", "下个月 ›"},
-        new Runnable[] {
-          () -> month(a, -1),
-          () -> {
-            a.selectedDay = DateMath.today();
-            a.build();
-          },
-          () -> month(a, 1)
-        });
     LinearLayout block = u.card(a.content);
     block.setPadding(u.dp(12), u.dp(12), u.dp(12), u.dp(12));
+    LinearLayout monthLine = u.row();
+    LinearLayout monthTitle = u.column();
+    monthTitle.addView(u.text(parts[1] + "月", 25, u.ink, true));
+    u.gap(monthTitle, 4);
+    monthTitle.addView(u.text(parts[0] + "年 · 月视图", 11, u.muted, false));
+    monthLine.addView(monthTitle, new LinearLayout.LayoutParams(0, -2, 1));
+    monthLine.addView(monthButton(a, "‹", "上个月", () -> month(a, -1)));
+    TextView today =
+        monthButton(
+            a,
+            "今天",
+            "返回今天",
+            () -> {
+              a.selectedDay = todayDate;
+              a.build();
+            });
+    today.setTextSize(12);
+    monthLine.addView(today);
+    monthLine.addView(monthButton(a, "›", "下个月", () -> month(a, 1)));
+    block.addView(monthLine);
+    u.gap(block, 14);
     LinearLayout labels = u.row();
     for (String d : new String[] {"一", "二", "三", "四", "五", "六", "日"}) {
       TextView t = u.text(d, 11, u.muted, false);
@@ -106,41 +157,75 @@ final class CampusSchool {
       for (int j = 0; j < 7; j++) {
         int n = i + j - start + 1;
         if (n < 1 || n > days) {
-          row.addView(new View(a), new LinearLayout.LayoutParams(0, u.dp(48), 1));
+          row.addView(new View(a), new LinearLayout.LayoutParams(0, calendarCellHeight(a), 1));
           continue;
         }
         String d = DateMath.date(parts[0], parts[1], n);
-        boolean picked = d.equals(selected), today = d.equals(DateMath.today());
-        boolean occupied =
-            counts.getOrDefault(d, 0) > 0 || !CampusCourses.onDay(a.store, d).isEmpty();
+        boolean picked = d.equals(selected), isToday = d.equals(todayDate);
+        int count = counts.getOrDefault(d, 0) + CampusCourses.onDay(a.store, d).size();
+        FrameLayout cell = new FrameLayout(a);
+        u.touch(cell, picked ? u.accent : u.surface, 14, isToday && !picked ? u.border : 0);
         TextView t =
             u.text(
-                String.valueOf(n) + "\n" + (occupied ? "•" : " "),
+                String.valueOf(n),
                 14,
-                picked ? u.onAccent() : today ? u.accent : u.ink,
-                picked || today);
+                picked ? u.onAccent() : isToday ? u.accent : u.ink,
+                picked || isToday);
         t.setGravity(Gravity.CENTER);
-        u.touch(t, picked ? u.accent : u.surface, 16, 0);
-        t.setContentDescription(
-            d + "，" + (counts.getOrDefault(d, 0) + CampusCourses.onDay(a.store, d).size()) + "项安排");
-        t.setOnClickListener(
+        FrameLayout.LayoutParams number = new FrameLayout.LayoutParams(-1, -1);
+        number.bottomMargin = u.dp(6);
+        cell.addView(t, number);
+        if (count > 0) {
+          View dot = new View(a);
+          dot.setBackground(u.shape(picked ? u.onAccent() : u.accent, 4, 0));
+          FrameLayout.LayoutParams dotSpace =
+              new FrameLayout.LayoutParams(
+                  u.dp(4), u.dp(4), Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+          dotSpace.bottomMargin = u.dp(8);
+          cell.addView(dot, dotSpace);
+        }
+        cell.setContentDescription(d + (isToday ? "，今天" : "") + "，" + count + "项安排");
+        cell.setSelected(picked);
+        cell.setOnClickListener(
             v -> {
               a.selectedDay = d;
               a.build();
             });
-        row.addView(t, new LinearLayout.LayoutParams(0, u.dp(48), 1));
+        LinearLayout.LayoutParams daySpace =
+            new LinearLayout.LayoutParams(0, calendarCellHeight(a), 1);
+        daySpace.setMargins(u.dp(1), u.dp(2), u.dp(1), u.dp(2));
+        row.addView(cell, daySpace);
       }
       block.addView(row);
     }
-    u.actionRow(
-        a.content,
-        new String[] {"＋ 个人事项", "日历导出 / 订阅"},
-        new Runnable[] {() -> personalForm(a, null), () -> calendarOptions(a)});
+    u.gap(block, 6);
+    LinearLayout legend = u.row();
+    legend.addView(u.text("● 有课程或事项", 11, u.muted, false), new LinearLayout.LayoutParams(0, -2, 1));
+    TextView fullCourses = u.button("完整课表 ›", () -> a.open("courses"), false);
+    fullCourses.setTextSize(12);
+    fullCourses.setTextColor(u.accent);
+    u.touch(fullCourses, android.graphics.Color.TRANSPARENT, 12, 0);
+    legend.addView(fullCourses);
+    block.addView(legend);
     int[] chosen = DateMath.parts(selected);
-    u.section(
-        a.content,
-        (selected.equals(DateMath.today()) ? "今天" : chosen[1] + "月" + chosen[2] + "日") + "的安排");
-    for (JSONObject x : CampusCourses.onDay(a.store, selected)) {
+    List<JSONObject> courses = CampusCourses.onDay(a.store, selected);
+    List<JSONObject> items = new ArrayList<>();
+    for (JSONObject x : a.items())
+      if (selected.equals(CampusJson.date(x.optString("event_time"))) && visible(a, x))
+        items.add(x);
+    items.sort(Comparator.comparing(x -> x.optString("event_time")));
+    LinearLayout dayHeading = u.row();
+    TextView dayLabel =
+        u.text(
+            (selected.equals(todayDate) ? "今天" : chosen[1] + "月" + chosen[2] + "日") + "的安排",
+            18,
+            u.ink,
+            true);
+    dayHeading.addView(dayLabel, new LinearLayout.LayoutParams(0, -2, 1));
+    dayHeading.addView(u.pill((courses.size() + items.size()) + " 项"));
+    a.content.addView(dayHeading);
+    u.gap(a.content, 12);
+    for (JSONObject x : courses) {
       LinearLayout card = u.card(a.content);
       LinearLayout course = u.row(), time = u.column(), info = u.column();
       time.addView(u.text(x.optString("t0"), 15, u.accent, true));
@@ -155,24 +240,108 @@ final class CampusSchool {
       course.addView(info, cp);
       course.addView(u.text("›", 22, u.muted, false));
       card.addView(course);
+      card.setContentDescription(
+          x.optString("t0") + "，" + x.optString("name") + "，" + x.optString("location", "教室待定"));
+      u.touch(card, u.surface, 20, u.border);
       card.setOnClickListener(v -> CampusCourses.detail(a, x));
     }
-    boolean any = false;
-    for (JSONObject x : a.items())
-      if (selected.equals(CampusJson.date(x.optString("event_time"))) && visible(a, x)) {
-        item(a, a.content, x);
-        any = true;
-      }
-    if (!any && CampusCourses.onDay(a.store, selected).isEmpty())
-      u.empty(a.content, "今天留有空白", "可以添加个人事项，也可以把空白留给休息。");
+    for (JSONObject x : items) calendarItem(a, x);
+    if (items.isEmpty() && courses.isEmpty())
+      u.empty(a.content, "这一天没有安排", "点上方“记一件事”记录安排，或“粘贴导入”整理班群消息。");
     List<JSONObject> undecided = new ArrayList<>();
     for (JSONObject x : a.items())
       if (CampusJson.date(x.optString("event_time")).isEmpty() && !a.done(x) && !hidden(a, x))
         undecided.add(x);
     if (!undecided.isEmpty()) {
       u.section(a.content, "时间待确认");
-      for (JSONObject x : undecided) item(a, a.content, x);
+      for (JSONObject x : undecided) calendarItem(a, x);
     }
+  }
+
+  static int calendarCellHeight(CampusActivity a) {
+    return a.ui.dp(a.getResources().getConfiguration().fontScale > 1.25f ? 58 : 48);
+  }
+
+  static TextView monthButton(CampusActivity a, String label, String description, Runnable action) {
+    CampusUi u = a.ui;
+    TextView control = u.text(label, 23, u.ink, true);
+    control.setGravity(Gravity.CENTER);
+    control.setContentDescription(description);
+    control.setLayoutParams(new LinearLayout.LayoutParams(u.dp(48), u.dp(48)));
+    u.touch(control, u.surface, 12, 0);
+    control.setOnClickListener(v -> action.run());
+    return control;
+  }
+
+  /** Compact agenda rows preserve details and completion without a button wall. */
+  static void calendarItem(CampusActivity a, JSONObject x) {
+    CampusUi u = a.ui;
+    LinearLayout card = u.card(a.content);
+    card.setPadding(u.dp(12), u.dp(12), u.dp(14), u.dp(12));
+    LinearLayout line = u.row();
+    String at = x.optString("event_time");
+    TextView clock =
+        u.text(
+            at.isEmpty() ? "待定" : at.length() >= 16 ? at.substring(11, 16) : "全天",
+            12,
+            u.muted,
+            true);
+    line.addView(clock, new LinearLayout.LayoutParams(u.dp(43), -2));
+    LinearLayout copy = u.column();
+    TextView title = u.text(x.optString("subject", "未命名事项"), 15, u.ink, true);
+    if (a.done(x))
+      title.setPaintFlags(title.getPaintFlags() | android.graphics.Paint.STRIKE_THRU_TEXT_FLAG);
+    copy.addView(title);
+    u.gap(copy, 6);
+    String location = x.optString("location");
+    String kind = x.optBoolean("_mine") ? "我的事项" : x.optString("msg_type", "班级安排");
+    copy.addView(
+        u.text(
+            kind
+                + (location.isEmpty() ? "" : " · " + location)
+                + (x.optBoolean("need_confirm") ? " · 时间待确认" : ""),
+            11,
+            u.muted,
+            false));
+    LinearLayout.LayoutParams info = new LinearLayout.LayoutParams(0, -2, 1);
+    info.leftMargin = u.dp(9);
+    line.addView(copy, info);
+    TextView done = u.text(a.done(x) ? "✓" : "○", 24, a.done(x) ? u.accent : u.muted, true);
+    done.setGravity(Gravity.CENTER);
+    done.setContentDescription((a.done(x) ? "撤销完成：" : "标记完成：") + x.optString("subject"));
+    u.touch(done, android.graphics.Color.TRANSPARENT, 24, 0);
+    done.setOnClickListener(v -> a.mark(CampusJson.copy(x)));
+    line.addView(done, new LinearLayout.LayoutParams(u.dp(48), u.dp(48)));
+    card.addView(line);
+    card.setContentDescription(x.optString("subject") + "，" + kind + "，点击查看详情与更多操作");
+    u.touch(card, u.surface, 20, u.border);
+    card.setOnClickListener(v -> calendarItemDetails(a, x));
+  }
+
+  static void calendarItemDetails(CampusActivity a, JSONObject x) {
+    CampusUi u = a.ui;
+    String summary = x.optString("summary", x.optString("note"));
+    String prepare = x.optString("prepare");
+    String message =
+        (x.optString("event_time").isEmpty() ? "时间待确认" : x.optString("event_time"))
+            + (x.optString("location").isEmpty() ? "" : " · " + x.optString("location"))
+            + (summary.isEmpty() ? "" : "\n\n" + summary)
+            + (prepare.isEmpty() ? "" : "\n\n需要准备：" + prepare);
+    AlertDialog.Builder dialog =
+        new AlertDialog.Builder(u.dialog())
+            .setTitle(x.optString("subject", "事项详情"))
+            .setMessage(message)
+            .setNegativeButton("关闭", null);
+    if (x.optBoolean("_mine") || editAllowed(a, x)) {
+      dialog.setPositiveButton(
+          "编辑事项",
+          (d, which) -> {
+            if (x.optBoolean("_mine")) personalForm(a, x);
+            else classForm(a, x);
+          });
+      dialog.setNeutralButton("更多", (d, which) -> detail(a, x));
+    } else dialog.setPositiveButton("更多操作", (d, which) -> detail(a, x));
+    u.showDialog(dialog.create());
   }
 
   static void month(CampusActivity a, int delta) {
@@ -474,7 +643,7 @@ final class CampusSchool {
         "日历导出与订阅",
         new String[] {"导出全部未完成事项与课程 .ics", "复制班级日历订阅链接", "重置班级订阅链接", "查看隐藏事项", "生成临时日历分享链接"},
         i -> {
-          if (i == 0) a.export("捞捞校园安排.ics", CampusCourses.ics(a, false), "text/calendar");
+          if (i == 0) a.export("捞捞课程表安排.ics", CampusCourses.ics(a, false), "text/calendar");
           else if (i == 4 && a.requireLogin()) {
             a.ui.confirm(
                 "生成日历分享链接？",

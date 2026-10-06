@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">捞捞校园</string>
+    <string name="app_name">捞捞课程表</string>
     <string name="widget_description">桌面查看今日课程与校园待办</string>
 </resources>

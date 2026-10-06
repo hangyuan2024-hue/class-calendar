@@ -1,0 +1,30 @@
+{
+  "package": "com.laolao.classcalendar.preview",
+  "checks": [
+    "Disposable Android emulator",
+    "Launcher opens original product using native views",
+    "Mascot directly completes and persists an actual event",
+    "Saved website layout uses a single schedule renderer",
+    "Saved website layout uses the real shared tool selection",
+    "Small-screen large-font layout keeps all primary navigation",
+    "No runtime crash during previews",
+    "Original guest preference bytes restored"
+  ],
+  "screenshots": [
+    "home.png",
+    "calendar.png",
+    "tools.png",
+    "appearance.png",
+    "navigation.png",
+    "guide.png",
+    "guide-answer.png",
+    "custom-home.png",
+    "skin-cyber.png",
+    "skin-sakura.png",
+    "320dp-large-font.png"
+  ],
+  "cloud_authenticated": "not tested",
+  "physical_Huawei": "not available",
+  "result": "passed",
+  "passed": 8
+}

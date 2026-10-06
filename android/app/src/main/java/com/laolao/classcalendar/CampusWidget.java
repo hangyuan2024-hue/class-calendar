@@ -28,7 +28,7 @@ public class CampusWidget extends AppWidgetProvider {
     String owner = c.getSharedPreferences("campus_active_scope", 0).getString("owner", "guest");
     CampusStore s = new CampusStore(c, owner);
     RemoteViews v = new RemoteViews(c.getPackageName(), R.layout.campus_widget);
-    v.setTextViewText(R.id.widget_date, DateMath.today() + " · 捞捞校园");
+    v.setTextViewText(R.id.widget_date, DateMath.today() + " · 捞捞课程表");
     List<JSONObject> courses = CampusCourses.onDay(s, DateMath.today());
     StringBuilder lessons = new StringBuilder();
     for (JSONObject x : courses.subList(0, Math.min(3, courses.size())))

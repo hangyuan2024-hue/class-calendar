@@ -1,0 +1,14 @@
+{
+  "checks": [
+    "Soon homework",
+    "Overdue homework",
+    "Past meeting loses priority",
+    "Exam gets stronger urgency",
+    "Confirmation boosts urgency",
+    "Distant homework",
+    "Old overdue homework leaves reminder list",
+    "Unknown date stays visible"
+  ],
+  "method": "Compare actual Java guide urgency to actual island-core.js using identical saved records",
+  "passed": 8
+}

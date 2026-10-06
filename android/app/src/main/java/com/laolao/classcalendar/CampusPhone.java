@@ -162,7 +162,7 @@ final class CampusPhone {
               if (Build.VERSION.SDK_INT >= 26 && manager.isRequestPinAppWidgetSupported()) {
                 manager.requestPinAppWidget(new ComponentName(a, CampusWidget.class), null, null);
                 a.toast("请在桌面提示中确认添加");
-              } else message(a, "添加桌面卡片", "长按手机桌面空白处 → 小组件 / 服务卡片 → 找到「捞捞校园」→ 拖到桌面。");
+              } else message(a, "添加桌面卡片", "长按手机桌面空白处 → 小组件 / 服务卡片 → 找到「捞捞课程表」→ 拖到桌面。");
             },
             true));
     u.gap(a.content, 14);
@@ -609,7 +609,7 @@ final class CampusPhone {
 
   static void inbox(CampusActivity a) {
     CampusUi u = a.ui;
-    u.title(a.content, "跨应用收件箱", "在其他App点「分享」，选择捞捞校园即可收下。");
+    u.title(a.content, "跨应用收件箱", "在其他App点「分享」，选择捞捞课程表即可收下。");
     a.content.addView(
         u.button(
             "＋ 手动保存文字",
@@ -1476,7 +1476,7 @@ final class CampusPhone {
         },
         r ->
             a.export(
-                "捞捞校园-完整备份-" + DateMath.today() + ".json", String.valueOf(r), "application/json"));
+                "捞捞课程表-完整备份-" + DateMath.today() + ".json", String.valueOf(r), "application/json"));
   }
 
   static void restoreBackup(CampusActivity a, String raw) throws Exception {

@@ -1,7 +1,7 @@
 plugins { id "com.android.application" }
 
-// 版本号由 GitHub Actions 传进来；本地构建用 11。
-def vc = (System.getenv("APP_VERSION_CODE") ?: "11").toInteger()
+// 版本号由 GitHub Actions 传进来；本地构建用 12。
+def vc = (System.getenv("APP_VERSION_CODE") ?: "12").toInteger()
 def ksFile = file("../release.jks")
 def ksPass = System.getenv("KEYSTORE_PASSWORD")
 
@@ -13,7 +13,7 @@ android {
         minSdk 24
         targetSdk 34
         versionCode(vc)
-        versionName("3.3." + vc)
+        versionName("3.4." + vc)
         // 保留正式站点地址用于分享校园链接；页面由 Android 原生视图呈现。
         buildConfigField("String", "SITE_URL", "\"" + (System.getenv("SITE_URL") ?: "https://www.laolaokechengbiao.cn/") + "\"")
     }

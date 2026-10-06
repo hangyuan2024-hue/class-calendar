@@ -1,5 +1,9 @@
 package com.laolao.classcalendar;
 
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
+import android.view.*;
 import android.widget.*;
 import java.io.*;
 import java.net.*;
@@ -602,7 +606,7 @@ final class CampusSocial {
 
   static void ask(CampusActivity a) {
     CampusUi u = a.ui;
-    u.title(a.content, "捞捞校园助手", "查询你的安排，也可以整理班群中的重要消息。");
+    u.title(a.content, "捞捞助手", "查询你的安排，也可以整理班群中的重要消息。");
     u.section(a.content, "从校园数据中找答案");
     u.actionRow(
         a.content,
@@ -625,23 +629,7 @@ final class CampusSocial {
     u.gap(a.content, 10);
     a.content.addView(u.button("连接我自己的 AI 服务", () -> aiSettings(a), false));
     u.section(a.content, "班群消息整理");
-    JSONObject draft = a.store.object("draft_ingest");
-    a.content.addView(
-        u.button(
-            "粘贴消息，核对后再保存",
-            () ->
-                u.form(
-                    "整理班群消息",
-                    draft.length() == 0 ? CampusJson.obj("date", DateMath.today()) : draft,
-                    v -> {
-                      a.store.set("draft_ingest", v);
-                      a.store.set(
-                          "draft_parsed", parse(a, v.optString("text"), v.optString("date")));
-                      a.open("parse-review");
-                    },
-                    CampusUi.f("text", "班群消息（每条独立一行）", "multiline"),
-                    CampusUi.f("date", "消息发布日期", "date")),
-            false));
+    a.content.addView(u.button("粘贴消息，核对后再保存", () -> pasteImport(a), false));
     if (a.can("can_ingest") && !a.cid().isEmpty()) {
       u.gap(a.content, 10);
       a.content.addView(
@@ -682,6 +670,45 @@ final class CampusSocial {
       u.gap(a.content, 10);
       a.content.addView(u.button("查看上次整理任务", () -> pollIngest(a, jid), false));
     }
+  }
+
+  /** One native message-import flow shared by the calendar, guide and assistant. */
+  static void pasteImport(CampusActivity a) {
+    pasteImport(a, true);
+  }
+
+  private static void pasteImport(CampusActivity a, boolean readClipboard) {
+    JSONObject initial = CampusJson.copy(a.store.object("draft_ingest"));
+    if (initial.optString("date").isEmpty()) CampusJson.put(initial, "date", DateMath.today());
+    // Clipboard access happens only after an explicit import tap. Reviewing/editing retains drafts.
+    if (readClipboard) {
+      ClipboardManager clipboard = (ClipboardManager) a.getSystemService(Context.CLIPBOARD_SERVICE);
+      if (clipboard != null && clipboard.hasPrimaryClip()) {
+        ClipData clip = clipboard.getPrimaryClip();
+        CharSequence text =
+            clip != null && clip.getItemCount() > 0 ? clip.getItemAt(0).getText() : null;
+        if (text != null && !text.toString().trim().isEmpty()) {
+          String pasted = text.toString();
+          if (!pasted.equals(initial.optString("text")))
+            CampusJson.put(initial, "date", DateMath.today());
+          CampusJson.put(initial, "text", pasted);
+        }
+      }
+    }
+    a.ui.formAction(
+        "粘贴导入班群消息",
+        "整理并核对",
+        initial,
+        v -> {
+          DateMath.parse(v.optString("date"));
+          JSONArray parsed = parse(a, v.optString("text"), v.optString("date"));
+          if (parsed.length() == 0) throw new IllegalArgumentException("请粘贴至少一条班群消息");
+          a.store.set("draft_ingest", v);
+          a.store.set("draft_parsed", parsed);
+          a.open("parse-review");
+        },
+        CampusUi.f("text", "班群消息（每条独立一行，可直接粘贴）", "multiline"),
+        CampusUi.f("date", "消息发布日期（用来判断今天、明天）", "date"));
   }
 
   static void answer(CampusActivity a, String q) {
@@ -961,15 +988,48 @@ final class CampusSocial {
               },
               false));
     }
-    u.actionRow(
-        a.content,
-        new String[] {"保存到我的事项", a.can("can_ingest") ? "发布到班级" : "返回编辑消息"},
-        new Runnable[] {
-          () -> publishLocal(a, rows, false),
-          () -> {
-            if (a.can("can_ingest") && !a.cid().isEmpty())
-              u.confirm("发布到班级？", "选中的事项会对班级成员可见。", () -> publishLocal(a, rows, true));
-            else a.open("ask");
+  }
+
+  static View reviewToolbar(CampusActivity a) {
+    CampusUi u = a.ui;
+    LinearLayout row = u.row();
+    row.setPadding(u.dp(16), u.dp(5), u.dp(16), u.dp(9));
+    row.setBackgroundColor(u.bg);
+    TextView save =
+        u.button("保存到我的事项", () -> publishLocal(a, a.store.list("draft_parsed"), false), true);
+    save.setPadding(u.dp(8), u.dp(12), u.dp(8), u.dp(12));
+    LinearLayout.LayoutParams saveSpace = new LinearLayout.LayoutParams(0, -2, 1.3f);
+    saveSpace.rightMargin = u.dp(8);
+    row.addView(save, saveSpace);
+    TextView edit = u.button("编辑消息", () -> pasteImport(a, false), false);
+    edit.setPadding(u.dp(6), u.dp(12), u.dp(6), u.dp(12));
+    edit.setContentDescription("返回编辑原消息，保留草稿");
+    LinearLayout.LayoutParams editSpace = new LinearLayout.LayoutParams(0, -2, 1);
+    editSpace.rightMargin = u.dp(6);
+    row.addView(edit, editSpace);
+    TextView more = u.text("⋯", 25, u.ink, true);
+    more.setGravity(Gravity.CENTER);
+    more.setMinHeight(u.dp(48));
+    more.setContentDescription("审核更多操作，选择与班级发布");
+    u.touch(more, u.surface, 14, u.border);
+    more.setOnClickListener(v -> reviewMore(a));
+    row.addView(more, new LinearLayout.LayoutParams(u.dp(48), -1));
+    return row;
+  }
+
+  static void reviewMore(CampusActivity a) {
+    List<String> labels = new ArrayList<>(Arrays.asList("全部选择", "取消全选"));
+    if (a.can("can_ingest") && !a.cid().isEmpty()) labels.add("发布到班级");
+    a.ui.choose(
+        "审核更多操作",
+        labels.toArray(new String[0]),
+        i -> {
+          JSONArray rows = a.store.list("draft_parsed");
+          if (i == 2) a.ui.confirm("发布到班级？", "选中的事项会对班级成员可见。", () -> publishLocal(a, rows, true));
+          else {
+            for (JSONObject x : CampusJson.rows(rows)) CampusJson.put(x, "on", i == 0);
+            a.store.set("draft_parsed", rows);
+            a.build();
           }
         });
   }
@@ -978,9 +1038,10 @@ final class CampusSocial {
     JSONArray chosen = new JSONArray();
     for (JSONObject x : CampusJson.rows(rows))
       if (x.optBoolean("on", true)) {
-        x.remove("on");
-        x.remove("id");
-        chosen.put(x);
+        JSONObject copy = CampusJson.copy(x);
+        copy.remove("on");
+        copy.remove("id");
+        chosen.put(copy);
       }
     if (chosen.length() == 0) {
       a.toast("请至少选择一条事项");
@@ -1007,6 +1068,8 @@ final class CampusSocial {
                     chosen));
             a.rpc("parse_feedback_add", CampusJson.obj("cid", a.cid(), "rows", fb), v -> {});
             a.store.set("draft_parsed", new JSONArray());
+            selectImportedDay(a, chosen);
+            a.toast("已发布 " + chosen.length() + " 条班级事项");
             a.open("calendar");
             CampusSchool.reloadItems(a);
           });
@@ -1029,9 +1092,21 @@ final class CampusSocial {
                 false));
       a.store.set("personal_events_v1", personal);
       a.store.set("draft_parsed", new JSONArray());
+      selectImportedDay(a, chosen);
+      a.toast("已保存 " + chosen.length() + " 条个人事项");
       a.open("calendar");
       a.syncSoon();
     }
+  }
+
+  static void selectImportedDay(CampusActivity a, JSONArray rows) {
+    String first = "";
+    for (JSONObject x : CampusJson.rows(rows)) {
+      String date = CampusJson.date(x.optString("event_time"));
+      if (date.equals(a.selectedDay)) return;
+      if (first.isEmpty() && !date.isEmpty()) first = date;
+    }
+    if (!first.isEmpty()) a.selectedDay = first;
   }
 
   static void pollIngest(CampusActivity a, String jid) {

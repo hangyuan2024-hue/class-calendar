@@ -537,7 +537,7 @@ final class CampusManage {
             "仅导出学习数据（不含附件）",
             () ->
                 a.export(
-                    "捞捞校园-学习数据-" + DateMath.today() + ".json",
+                    "捞捞课程表-学习数据-" + DateMath.today() + ".json",
                     a.store.backup().toString(),
                     "application/json"),
             false));
@@ -714,7 +714,7 @@ final class CampusManage {
 
   static void about(CampusActivity a) {
     CampusUi u = a.ui;
-    u.title(a.content, "捞捞校园", BuildConfig.VERSION_NAME + " · Android 原生学习空间");
+    u.title(a.content, "捞捞课程表", BuildConfig.VERSION_NAME + " · Android 原生学习空间");
     u.empty(a.content, "把校园日常，安排得更好", "原生页面直接连接校园数据服务，不通过浏览器显示网站。课程、作业、班级交流、规划和生活记录都在这里。");
     u.section(a.content, "设备与数据");
     u.empty(

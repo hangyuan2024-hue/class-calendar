@@ -57,7 +57,7 @@
         <service android:name=".LectureService" android:exported="false" android:foregroundServiceType="microphone" />
         <receiver android:name=".CampusPlannerReceiver" android:exported="false" />
         <receiver android:name=".CampusDndReceiver" android:exported="false" />
-        <receiver android:name=".CampusWidget" android:exported="false" android:label="捞捞校园 · 今日安排">
+        <receiver android:name=".CampusWidget" android:exported="false" android:label="捞捞课程表 · 今日安排">
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/campus_widget_info" />
         </receiver>

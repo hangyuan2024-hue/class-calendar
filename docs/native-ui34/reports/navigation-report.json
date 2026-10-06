@@ -1,0 +1,20 @@
+{
+  "scope": "Completed navigation assertions from the first task-flow run; importer visibility check subsequently corrected to scroll its native agenda",
+  "result": "passed",
+  "checks": [
+    "Preserved all original native route contracts",
+    "Disposable Android emulator",
+    "Five familiar primary destinations",
+    "Record action remains available while a course is in progress",
+    "Primary tab opens native screen: 首页",
+    "Primary tab opens native screen: 作业",
+    "Primary tab opens native screen: 日历",
+    "Primary tab opens native screen: 工具",
+    "Primary tab opens native screen: 我的",
+    "Full navigation menu opens: 班级墙",
+    "Full navigation menu opens: 规划",
+    "Full navigation menu opens: 成长",
+    "Full navigation menu opens: 班级"
+  ],
+  "passed": 13
+}

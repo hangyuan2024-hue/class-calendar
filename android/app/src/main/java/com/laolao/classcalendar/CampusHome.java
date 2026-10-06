@@ -94,20 +94,11 @@ final class CampusHome {
     JSONObject config = a.store.object("home_layout_v1");
     if (config.optJSONArray("home") == null) return false;
     CampusUi u = a.ui;
-    u.sectionLink(
-        a.content,
-        "按你的习惯排列",
-        a.api.logged() ? "刷新" : "登录",
-        () -> {
-          if (a.api.logged()) a.refreshCloud();
-          else a.open("login");
-        });
-    LinearLayout row = null;
+    u.sectionLink(a.content, "首页卡片", "调整", () -> edit(a));
+    Set<String> rendered = new HashSet<>();
+    JSONObject opts = a.store.object("fun_opts_v1");
     for (JSONObject widget : CampusJson.rows(config.opt("home"))) {
       String id = widget.optString("id");
-      boolean wide =
-          widget.optInt("w", 4) > 2 || a.getResources().getConfiguration().fontScale > 1.3f;
-      JSONObject opts = a.store.object("fun_opts_v1");
       String preference =
           id.equals("w:rings")
               ? "rings"
@@ -117,36 +108,29 @@ final class CampusHome {
                       ? "plan"
                       : id.equals("w:farm") ? "farm" : "";
       if (!preference.isEmpty() && !opts.optBoolean(preference, true)) continue;
-      if (wide) row = null;
-      if (row == null) {
-        row = u.row();
-        row.setGravity(android.view.Gravity.TOP);
-        a.content.addView(row);
-        u.gap(a.content, 12);
+      String family = id.equals("w:pins") || id.equals("w:course") ? "today" : id;
+      if (!rendered.add(family)) continue;
+      if (family.equals("today")) CampusDashboard.today(a);
+      else if (id.equals("w:rings")) CampusDashboard.weekProgress(a);
+      else if (id.equals("w:quick")) CampusDashboard.shortcuts(a);
+      else if (id.equals("w:farm")) CampusDashboard.growth(a);
+      else {
+        LinearLayout card = u.card(a.content);
+        card.addView(u.text(name(id), 16, u.ink, true));
+        u.gap(card, 12);
+        body(a, card, id, true);
       }
-      LinearLayout cell = u.column();
-      LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, 1);
-      if (row.getChildCount() > 0) p.leftMargin = u.dp(10);
-      row.addView(cell, p);
-      LinearLayout card = u.card(cell);
-      card.setBackground(
-          u.shape(
-              CampusUi.blend(u.tone(route(id)), u.surface, u.dark ? .10f : .035f), 20, u.border));
-      card.setMinimumHeight(u.dp(110 * Math.max(1, Math.min(3, widget.optInt("h", 1)))));
-      card.addView(u.text(name(id), 15, u.ink, true));
-      u.gap(card, 10);
-      body(a, card, id, wide);
-      if (wide || row.getChildCount() == 2) row = null;
     }
     JSONArray rail = config.optJSONArray("rail");
     if (rail != null && rail.length() > 0) {
       u.section(a.content, "常用入口");
+      List<String[]> entries = new ArrayList<>();
       for (int i = 0; i < rail.length(); i++) {
         String id = rail.optString(i);
-        a.content.addView(u.button(name(id), () -> a.open(route(id)), false));
+        if (!route(id).isEmpty()) entries.add(new String[] {route(id), name(id)});
       }
+      u.dock(a.content, entries.toArray(new String[0][]));
     }
-    a.content.addView(u.button("调整首页卡片与顺序", () -> edit(a), false));
     return true;
   }
 
@@ -234,9 +218,16 @@ final class CampusHome {
               u.accent,
               true));
     else if (id.equals("w:quick")) {
-      c.addView(u.button("＋ 记一件事", () -> CampusSchool.personalForm(a, null), true));
+      c.addView(
+          u.button(
+              "＋ 记一件事",
+              () -> {
+                a.selectedDay = DateMath.today();
+                CampusSchool.personalForm(a, null);
+              },
+              true));
       u.gap(c, 8);
-      c.addView(u.button("整理班群消息", () -> a.open("ask"), false));
+      c.addView(u.button("粘贴导入", () -> CampusSocial.pasteImport(a), false));
     } else c.addView(u.text("点击进入原生工具", 12, u.muted, false));
     u.gap(c, 10);
     c.addView(u.button("打开", () -> a.open(route), false));

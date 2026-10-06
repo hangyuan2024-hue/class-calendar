@@ -1,0 +1,42 @@
+{
+  "package": "com.laolao.classcalendar.preview",
+  "checks": [
+    "Preserved all original native route contracts",
+    "Disposable Android emulator",
+    "Calendar opens native paste-import form directly",
+    "Import tap reads the original Chinese message from the real Android clipboard",
+    "Import reaches editable review before persistence",
+    "Reviewed import creates one actual persisted personal event",
+    "Imported event survives process restart and appears in calendar",
+    "Tool search keeps the scanner reachable",
+    "Search result opens the native scanner",
+    "Phone capability opens its native page: widget",
+    "Phone capability opens its native page: reminders",
+    "Phone capability opens its native page: inbox",
+    "Phone capability opens its native page: voice",
+    "Phone capability opens its native page: recordings",
+    "Phone capability opens its native page: privacy",
+    "Phone capability opens its native page: quiet",
+    "Phone capability opens its native page: places",
+    "Phone capability opens its native page: scanner",
+    "Phone capability opens its native page: contacts",
+    "Original mascot has a persistent native entry",
+    "Mascot opens a usable native assistant",
+    "Assistant answers from the saved timetable",
+    "Hiding mascot reminders persists without deleting website preferences",
+    "Reminder preference survives restart while the mascot remains reachable",
+    "Restoring mascot reminders writes the original preference",
+    "Restored home hint is visible",
+    "No Android runtime crash",
+    "Original guest preference bytes restored"
+  ],
+  "screenshots": [
+    "paste-review.png",
+    "calendar-imported.png",
+    "mascot-course-answer.png"
+  ],
+  "cloud_authenticated": "not tested",
+  "physical_Huawei": "not available",
+  "result": "passed",
+  "passed": 28
+}

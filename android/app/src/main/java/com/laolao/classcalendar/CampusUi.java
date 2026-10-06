@@ -471,6 +471,11 @@ final class CampusUi {
   }
 
   void form(String title, JSONObject initial, Save save, Field... fields) {
+    formAction(title, "保存", initial, save, fields);
+  }
+
+  void formAction(
+      String title, String actionLabel, JSONObject initial, Save save, Field... fields) {
     LinearLayout body = column();
     body.setPadding(dp(22), dp(6), dp(22), dp(12));
     body.setBackgroundColor(surface);
@@ -628,7 +633,7 @@ final class CampusUi {
             .setCustomTitle(heading)
             .setView(scroll)
             .setNegativeButton("取消", null)
-            .setPositiveButton("保存", null)
+            .setPositiveButton(actionLabel, null)
             .create();
     dlg.setOnShowListener(
         v -> {
@@ -715,7 +720,14 @@ final class CampusUi {
     protected void onDraw(Canvas canvas) {
       canvas.save();
       canvas.scale(getWidth() / 24f, getHeight() / 24f);
-      if (type.equals("back")) {
+      if (type.equals("menu")) {
+        canvas.drawLine(4, 6, 20, 6, p);
+        canvas.drawLine(4, 12, 20, 12, p);
+        canvas.drawLine(4, 18, 16, 18, p);
+      } else if (type.equals("plus")) {
+        canvas.drawLine(12, 5, 12, 19, p);
+        canvas.drawLine(5, 12, 19, 12, p);
+      } else if (type.equals("back")) {
         canvas.drawLine(15, 5, 8, 12, p);
         canvas.drawLine(8, 12, 15, 19, p);
       } else if (type.equals("brand")) {

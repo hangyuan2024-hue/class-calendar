@@ -1,0 +1,21 @@
+{
+  "package": "com.laolao.classcalendar.preview",
+  "checks": [
+    "Disposable Android emulator",
+    "Launcher opens original product using native views",
+    "Final settings header identifies skins and home",
+    "Final navigation panel is visible before capture",
+    "Final mascot panel is visible before capture",
+    "No runtime crash after final label polish",
+    "Original guest preference bytes restored"
+  ],
+  "screenshots": [
+    "appearance.png",
+    "navigation.png",
+    "guide.png"
+  ],
+  "cloud_authenticated": "not tested",
+  "physical_Huawei": "not available",
+  "result": "passed",
+  "passed": 7
+}

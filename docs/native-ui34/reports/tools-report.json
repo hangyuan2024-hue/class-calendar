@@ -1,0 +1,37 @@
+{
+  "package": "com.laolao.classcalendar.preview",
+  "checks": [
+    "Disposable Android emulator",
+    "Tool hub uses category rows instead of 34 expanded tools",
+    "Tool selections use real native checkboxes",
+    "Cancelling tool edits writes no preference",
+    "Checkbox save persists the actual selection and old navigation entry",
+    "Selecting tools preserves existing learning records",
+    "Selected shortcuts survive restart",
+    "Navigation tool shortcut shows the saved actual tools",
+    "Shortcut opens the real native timetable",
+    "Search filters real tools while retaining input focus",
+    "Empty actual-tool selection saves without deleting the legacy entry",
+    "An intentionally empty selection survives restart",
+    "320dp large-font add button remains visible with a 48dp touch target",
+    "320dp large-font editor keeps save and cancel visible",
+    "320dp editor provides a scrollable checkbox body",
+    "Checkbox body scrolls independently while save remains fixed",
+    "320dp large-font save button is operable and persists a selected tool",
+    "All tool flows preserve the saved learning records",
+    "No Android runtime crash",
+    "Original display size override restored",
+    "Original display density override restored",
+    "Original guest preference bytes restored"
+  ],
+  "screenshots": [
+    "tools-hub.png",
+    "quick-tools.png",
+    "320dp-large-font-tools.png",
+    "320dp-large-font-tool-editor.png"
+  ],
+  "cloud_authenticated": "not tested",
+  "physical_Huawei": "not available",
+  "result": "passed",
+  "passed": 22
+}
