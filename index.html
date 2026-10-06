@@ -2,7 +2,7 @@
 <html lang="zh-CN" data-skin="fresh">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com http://localhost:* http://127.0.0.1:*; frame-src 'self'; media-src 'self' data: blob:; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; manifest-src 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-4Ss7P6DROgF1wQ/X/Rt8C1DejNzksSTArGXdKWYrVt0=' 'sha256-LKJ+mo2uVpzerEJ1LtGu0a/v9/GSgtPMEsCqpUoIvAQ=' 'sha256-KsOFcNldfNSqeBoBNlB2wJo9zdEO1MOn6bmIN6p/6RI=' 'sha256-VSJgs2BX8TFGDzSpHfZjJ6nxbk3Wa+LBOu/bdk7KvCc='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com http://localhost:* http://127.0.0.1:*; frame-src 'self'; media-src 'self' data: blob:; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; manifest-src 'self'">
 <meta name="referrer" content="no-referrer">
 <script src="guard.js?v=20261005-campus1"></script>
 <script src="first.js?v=20261004c"></script>
@@ -1804,6 +1804,7 @@
 <link rel="stylesheet" href="campus-ui.css?v=20261005-campus1">
 <link rel="stylesheet" href="workspace-v2.css?v=20261005-studio2">
 <link rel="stylesheet" href="metaverse-v3.css?v=20261005-native3">
+<link rel="stylesheet" href="campus-tools.css?v=20261006-tools1">
 </head>
 <body class="campus-workspace">
 <a class="campus-skip" href="#campus-main">跳到主要内容</a>
@@ -1832,7 +1833,7 @@
     <header class="vhead studio-home-heading">
       <button class="av mavatar" data-tab="me" aria-label="我的"></button>
       <div class="studio-page-title"><span class="studio-eyebrow">每一天都值得认真</span><h2>学习工作台<span class="studio-title-dot" aria-hidden="true">.</span></h2></div>
-      <div class="studio-top-actions"><button class="studio-icon-btn" data-tab="calendar" aria-label="打开日历" title="打开日历"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="6" width="16" height="15" rx="3"/><path d="M8 3v6m8-6v6M4 12h16"/></svg></button><button class="btn sm studio-plan-btn" data-nx="pomo">开始专注 <span aria-hidden="true">↗</span></button><a class="btn sm appdl hidden" id="appDl" href="app.html#get" title="下载安卓 App 和 Windows 电脑版">下载</a></div>
+      <div class="studio-top-actions"><button class="btn sm studio-plan-btn" data-nx="pomo">开始专注 <span aria-hidden="true">↗</span></button><a class="btn sm appdl hidden" id="appDl" href="app.html#get" title="下载安卓 App 和 Windows 电脑版">下载</a></div>
     </header>
     <div id="classBar" class="hidden">
       <div class="cb-badge" id="cbBadge">班</div>
@@ -1845,7 +1846,7 @@
     <div class="studio-focus-grid">
       <div class="studio-welcome-wrap"><div id="hero"></div></div>
       <section class="studio-agenda-panel" aria-labelledby="studio-agenda-title">
-        <div class="studio-panel-heading"><div><span class="studio-eyebrow">即将到来</span><h3 id="studio-agenda-title">接下来的安排</h3></div><button class="studio-text-btn" data-tab="calendar">日历 <span aria-hidden="true">↗</span></button></div>
+        <div class="studio-panel-heading"><div><span class="studio-eyebrow">即将到来</span><h3 id="studio-agenda-title">接下来的安排</h3></div></div>
         <div id="agenda"></div>
       </section>
     </div>
@@ -1867,11 +1868,11 @@
       <button class="qbtn" id="qPomo"><span class="qi">🍅</span>番茄专注</button>
       <button class="qbtn hidden" id="qCourse"><span class="qi">📚</span>课程表</button>
       <button class="qbtn hidden" id="qPeople" data-tab="people"><span class="qi">👥</span>班级成员</button>
-      <button class="qbtn" id="qStore" data-tab="store"><span class="qi">🧰</span>添加工具</button>
       <button class="qbtn" id="qCal"><span class="qi">📲</span>加到日历</button>
       <button class="qbtn" id="qTools" data-tab="tools"><span class="qi">🧩</span>全部工具</button>
       <button class="qbtn" id="qIntro" data-tab="intro"><span class="qi">📖</span>功能介绍</button>
       <a class="qbtn qext" id="qPeopleDaily" href="https://www.people.com.cn/" target="_blank" rel="noopener noreferrer"><span class="qi">📰</span>人民日报</a>
+      <button class="qbtn quick-add" id="qStore" type="button" data-quick-manage aria-label="选择首页快捷工具" title="选择首页快捷工具"><span class="qi" aria-hidden="true">＋</span><span class="quick-add-label">自选</span></button>
     </div>
     </div>
     <section id="ingestPanel" class="surface hidden">
@@ -2393,6 +2394,14 @@
 </div>
 
 <div id="fabVeil" class="fab-veil"></div>
+<dialog id="quickToolDialog" class="quick-dialog" aria-labelledby="quickToolTitle">
+  <header class="quick-dialog-head"><div><span class="quick-eyebrow">我的校园工具</span><h2 id="quickToolTitle">快捷选择工具</h2></div><button type="button" id="quickToolClose" class="quick-close" aria-label="关闭工具选择">×</button></header>
+  <p id="quickToolIntro" class="quick-intro"></p>
+  <label class="quick-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg><input id="quickToolSearch" type="search" placeholder="搜索工具名称或用途" autocomplete="off" aria-label="搜索快捷工具"></label>
+  <div id="quickToolList" class="quick-tool-list"></div>
+  <p id="quickToolStatus" class="quick-status" role="status" aria-live="polite"></p>
+  <footer class="quick-dialog-foot"><span id="quickToolCount"></span><button type="button" id="quickToolReset" class="small">恢复默认</button><button type="button" id="quickToolSave" class="btn ink">保存选择</button></footer>
+</dialog>
 <div id="fabMenu" class="fabmenu" role="menu" aria-hidden="true"></div>
 <div id="cheerVeil"></div>
 <div id="cheer" role="status" aria-live="polite"><span class="st" id="cheerSt"></span><div><b id="cheerT"></b><span id="cheerS"></span><em class="xp" id="cheerX"></em></div></div>
@@ -2498,10 +2507,11 @@
 <script src="courses.js?v=20261002h"></script>
 <script src="farm.js?v=20261004a"></script>
 <script src="metaverse-v3.js?v=20261005-native3"></script>
-<script src="app.js?v=20261005-native3"></script>
+<script src="app.js?v=20261006-tools1"></script>
+<script src="campus-tools.js?v=20261006-tools1"></script>
 <script src="workspace-v3.js?v=20261005-native3"></script>
 <script src="island-core.js?v=20261004a"></script>
 <script src="island.js?v=20261005b"></script>
-<script src="ux.js?v=20261004a"></script>
+<script src="ux.js?v=20261006-tools1"></script>
 </body>
 </html>

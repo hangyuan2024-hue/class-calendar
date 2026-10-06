@@ -11,7 +11,12 @@
   const reduce = matchMedia("(prefers-reduced-motion: reduce)");
   showView = function (id) {   // eslint-disable-line no-global-assign
     if (reduce.matches || id === currentView() || document.hidden) return raw(id);
-    try { document.startViewTransition(() => raw(id)); } catch (e) { raw(id); }
+    try {
+      const transition = document.startViewTransition(() => raw(id));
+      // Cancelling a visual transition does not cancel the destination page.
+      transition.ready.catch(() => {});
+      transition.finished.catch(() => {});
+    } catch (e) { raw(id); }
   };
 })();
 

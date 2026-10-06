@@ -31,7 +31,7 @@ const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; 
 // list：数组，按 id 一条条同步；map：对象，按键同步；map2：两层对象（习惯 → 日期）；one：整体同步
 const SYNC_KINDS = { personal_events_v1: "list", personal_marks_v1: "map", done_log_v1: "map", habits_v1: "list", habit_log_v1: "map2",
   quad_v1: "map", quad_todos_v1: "list", pomo_log_v1: "map", fun_opts_v1: "one", home_layout_v1: "one", ui_skin_v1: "one",
-  ui_palette_v1: "one", plugins_enabled_v1: "one", plan_notes_v1: "map", profile_v1: "one", mood_log_v1: "map", farm_v1: "one", island_v1: "one" };
+  ui_palette_v1: "one", plugins_enabled_v1: "one", home_quick_tools_v1: "one", plan_notes_v1: "map", profile_v1: "one", mood_log_v1: "map", farm_v1: "one", island_v1: "one" };
 const LS_SYNC = "sync_meta_v1", LS_SYNC_OUT = "sync_outbox_v1", LS_SYNC_MODE = "sync_mode_v1";
 const Sync = (() => {
   const SEP = "\u0001";
@@ -2033,25 +2033,44 @@ const PFS = (() => {
     if (!db) { Object.keys(await all(ns)).forEach((k) => localStorage.removeItem(LSK(ns, k))); return; }
     db.transaction("kv", "readwrite").objectStore("kv").delete(IDBKeyRange.bound(ns + "\u0000", ns + "\u0000￿"));
   }
+  // New local tools await the entire transaction, including image attachments.
+  async function batch(ns, entries) {
+    const db = await open();
+    if (!db) {
+      const before = entries.map(([k]) => [k, localStorage.getItem(LSK(ns, k))]);
+      try { for (const [k, v] of entries) v == null ? localStorage.removeItem(LSK(ns, k)) : localStorage.setItem(LSK(ns, k), v); }
+      catch (e) { for (const [k, v] of before) v == null ? localStorage.removeItem(LSK(ns, k)) : localStorage.setItem(LSK(ns, k), v); throw e; }
+      return;
+    }
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction("kv", "readwrite"), st = tx.objectStore("kv");
+      tx.oncomplete = resolve;
+      tx.onabort = tx.onerror = () => reject(tx.error || new Error("本机存储空间不足"));
+      for (const [k, v] of entries) v == null ? st.delete(ns + "\u0000" + k) : st.put(v, ns + "\u0000" + k);
+    });
+  }
   async function wipeAll() {
     const db = await open();
     if (db) db.transaction("kv", "readwrite").objectStore("kv").clear();
     for (let i = localStorage.length - 1; i >= 0; i--) { const k = localStorage.key(i); if (k && k.startsWith("pfs:")) localStorage.removeItem(k); }
   }
-  return { all, put, clear, wipeAll };
+  return { all, put, batch, clear, wipeAll };
 })();
 
 // 以前插件直接用网页的 localStorage / IndexedDB，第一次在隔离间运行时把它们的数据搬过来
 const LEGACY_KEYS = {
   "personal-diary": /^personal_(diary_|mood_|photo_|updated_|weather_)/,
+  "random-draw": /^personal_random-draw_list$/,
+  "error-notebook": /^personal_error-notebook_list$/,
 };
 async function migratePluginData(meta) {
-  const flag = "pfs_migrated_v1:" + meta.ns;
+  const flag = (meta.bundled ? "pfs_migrated_v2:" : "pfs_migrated_v1:") + meta.ns;
   if (localStorage.getItem(flag) || (meta.channel !== "published" && meta.channel !== "builtin")) return;
   const pre1 = `plg_${meta.id}_`, pre2 = `personal_${meta.id.replace(/-/g, "_")}_`, extra = LEGACY_KEYS[meta.id];
+  const existing = meta.bundled ? await PFS.all(meta.ns) : {};
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
-    if (k && (k.startsWith(pre1) || k.startsWith(pre2) || (extra && extra.test(k)))) await PFS.put(meta.ns, k, localStorage.getItem(k));
+    if (k && !(k in existing) && (k.startsWith(pre1) || k.startsWith(pre2) || (extra && extra.test(k)))) await PFS.batch(meta.ns, [[k, localStorage.getItem(k)]]);
   }
   if (meta.id === "personal-diary") {   // 日记照片原来在 IndexedDB 里，转成插件能读到的格式
     try {
@@ -2097,8 +2116,17 @@ async function openSandbox(key, mode, holder, opts = {}) {
   rec.init = () => rec.post({ cc: "init", token, mode, tabId: opts.tabId || "", plugin: { ...st.meta }, code: st.code || "", html: st.html || "",
     store, items: classSnapshot(), date: selectedKey, theme: themeSnapshot() });
   rec.wantInit = true;
-  frame.addEventListener("load", () => { if (frame.getAttribute("src")) rec.init(); });
-  frame.src = "sandbox.html";
+  frame.addEventListener("load", () => { if (frame.getAttribute("src") || frame.hasAttribute("srcdoc")) rec.init(); });
+  const sandboxUrl = "sandbox.html?v=20261006-tools1";
+  if (st.meta.bundled) {
+    // The isolated frame has an opaque origin and cannot use the parent's service
+    // worker directly. Fetch its shell from the parent, retaining the same flags.
+    try {
+      const response = await fetch(sandboxUrl);
+      if (!response.ok) throw new Error("工具页面暂时无法读取");
+      frame.srcdoc = await response.text();
+    } catch (e) { frame.src = sandboxUrl; }
+  } else frame.src = sandboxUrl;
   return frame;
 }
 
@@ -2158,6 +2186,23 @@ window.addEventListener("message", (e) => {
   if (!f || !f.frame.contentWindow || e.source !== f.frame.contentWindow) return;   // 只认我们自己开的隔离间
   const st = pluginState[f.key];
   switch (d.cc) {
+    case "reveal": {
+      if (f.mode === "app" && f.meta.bundled && f.frame.getClientRects().length) {
+        const header = document.querySelector('.view.on > .vhead');
+        window.scrollTo({ top: Math.max(0, window.scrollY + f.frame.getBoundingClientRect().top - (header?.getBoundingClientRect().height || 60) - 12), behavior: "instant" });
+      }
+      break;
+    }
+    case "set-batch": {
+      const entries = d.entries, rid = cleanStr(d.requestId, 80);
+      const valid = Array.isArray(entries) && entries.length > 0 && entries.length <= 100 && entries.every((x) => Array.isArray(x) && x.length === 2 && typeof x[0] === "string" && x[0].length <= 200 && (x[1] === null || typeof x[1] === "string" && x[1].length <= 5_000_000));
+      if (!valid || entries.reduce((n, x) => n + (x[1] || "").length, 0) > 15_000_000) { f.post({ cc: "store-result", requestId: rid, ok: false, error: "内容过大，请减少记录或图片数量" }); break; }
+      PFS.batch(f.meta.ns, entries).then(() => {
+        for (const o of frames.values()) if (o !== f && o.meta.ns === f.meta.ns) for (const [key, value] of entries) o.post({ cc: "store", key, value });
+        f.post({ cc: "store-result", requestId: rid, ok: true });
+      }).catch(() => f.post({ cc: "store-result", requestId: rid, ok: false, error: "保存失败，本机空间可能不足。请先导出备份或减少图片。" }));
+      break;
+    }
     case "set": case "del": {
       const k = cleanStr(d.key, 200);
       const v = d.cc === "set" ? String(d.value ?? "") : null;
@@ -2231,6 +2276,20 @@ const verNewer = (a, b) => {
 };
 const idle = () => new Promise((r) => (window.requestIdleCallback ? requestIdleCallback(() => r(), { timeout: 1500 }) : setTimeout(r, 300)));
 const pubList = (rows) => (rows || []).filter((p) => p.published_at).map((p) => ({ ...p, key: p.id, ns: p.id, channel: "published" }));
+const BUNDLED_TOOLS = [
+  { id: "random-draw", name: "随机抽签器", icon: "🎲", description: "批量导入 TXT、CSV、Excel 名单，预览去重，课堂点名与随机选择", file: "plugins/random-draw.html", version: "2.0.0", inflate: true },
+  { id: "error-notebook", name: "错题记录本", icon: "📚", description: "按学科整理错题书架，图片题目、答案解析、复习和本机备份", file: "plugins/error-notebook.html", version: "2.0.0" }
+];
+function bundledRegistry(list) {
+  const out = (list || []).slice();
+  for (const b of BUNDLED_TOOLS) {
+    const i = out.findIndex((p) => p.id === b.id && p.channel === "published");
+    if (i >= 0 && verNewer(out[i].version, b.version)) continue;
+    const meta = { ...(i >= 0 ? out[i] : {}), ...b, key: b.id, ns: b.id, channel: "published", bundled: "20261006-tools1", default_on: i >= 0 ? out[i].default_on : false, author_name: "捞捞校园", published_at: "2026-10-06T00:00:00Z" };
+    if (i >= 0) out[i] = meta; else out.push(meta);
+  }
+  return out;
+}
 
 async function fetchRegistry() {
   const cols = "id,name,icon,description,version,author_name,default_on,published_at";
@@ -2245,11 +2304,21 @@ async function fetchRegistry() {
         author_name: base.author_name, default_on: false, channel: "testing", liveVersion: base.published_at ? base.version : null });
     }
   }
-  return list;
+  return bundledRegistry(list);
 }
 
 // 下载一个工具的代码（正式版存到本机，以后直接用）
 async function fetchCode(meta, cache) {
+  if (meta.bundled) {
+    const urls = [meta.file + "?v=" + meta.bundled, "plugins/tools.css?v=" + meta.bundled];
+    if (meta.inflate) urls.push("plugins/vendor/pako_inflate.min.js?v=1.0.11");
+    const parts = await Promise.all(urls.map(async (url) => { const r = await fetch(url); if (!r.ok) throw new Error("工具文件暂时无法下载，请联网重试"); return r.text(); }));
+    let html = parts[0].replace("/* CAMPUS_TOOL_STYLES */", () => parts[1]);
+    if (meta.inflate) html = html.replace("/* CAMPUS_INFLATE_LIBRARY */", () => parts[2]);
+    const body = { code: "", app_html: html, version: meta.version, bundled: meta.bundled };
+    if (await PCODE.put(meta.id, body)) { cache[meta.id] = { version: meta.version, meta, checkedAt: Date.now() }; save(LS_PLUGIN_CACHE, cache); }
+    return body;
+  }
   if (meta.channel === "published") {
     const r = (await CCAuth.rest(`plugins?select=code,app_html,version&id=eq.${encodeURIComponent(meta.id)}`))[0];
     if (!r) throw new Error("工具内容读取失败");
@@ -2296,7 +2365,7 @@ async function loadPlugins() {
     const saved = load(LS_PLUGIN_REG, null);
     list = (saved && saved.list) || Object.values(cache).filter((c) => c && c.meta).map((c) => ({ ...c.meta, key: c.meta.id, ns: c.meta.id, channel: "published" }));
   }
-  registry = await ck().injectBuiltin(list);
+  registry = await ck().injectBuiltin(bundledRegistry(list));
   for (const meta of registry) pluginState[meta.key] = pluginState[meta.key] || { meta, loaded: false, error: "" };
   renderStore();
   await idle();   // 先让页面画好，再启动工具
@@ -2309,7 +2378,10 @@ async function loadPlugins() {
     try {
       let r;
       if (meta.channel === "builtin") r = await ck().loadBuiltin();
-      else if (meta.channel === "published") r = (cache[meta.id] && await PCODE.get(meta.id)) || await fetchCode(meta, cache);   // 本机有就直接用，第一次才下载
+      else if (meta.channel === "published") {
+        r = cache[meta.id] && await PCODE.get(meta.id);
+        if (!r || meta.bundled && r.bundled !== meta.bundled) r = await fetchCode(meta, cache);
+      }
       else r = await fetchCode(meta, cache);
       await runPlugin(meta, r.code, r.app_html);
     } catch (e) { st.error = e.message; }
@@ -2423,17 +2495,21 @@ $("storeList").onclick = async (e) => {
   }
   if (meta.channel === "testing" && !confirm(`「${meta.name}」v${meta.version} 还在测试中，没有经过审核。\n它在隔离环境里运行，拿不到你的登录信息，但可能有 bug。确定开启吗？`)) return;
   // 添加：现在才下载，下载完马上能用，不用刷新页面
-  const st = pluginState[meta.key] || (pluginState[meta.key] = { meta, loaded: false, error: "" });
-  st.busy = "下载中…"; st.error = ""; renderStore();
-  try {
-    const r = await fetchCode(meta, load(LS_PLUGIN_CACHE, {}));
-    on.add(id); save(LS_PLUGINS, [...on]);
-    st.busy = "";
-    if (!st.running) await runPlugin(meta, r.code, r.app_html);
-    renderTools();
-  } catch (err) { st.busy = ""; st.error = "下载失败：" + err.message; }
+  try { await enablePlugin(meta); } catch (err) {}
   renderStore();
 };
+async function enablePlugin(meta) {
+  if (!feat("tools")) throw new Error("工具功能暂时关闭了");
+  const st = pluginState[meta.key] || (pluginState[meta.key] = { meta, loaded: false, error: "" });
+  if (st.busy) throw new Error("这个工具正在添加，请稍候");
+  st.busy = "下载中…"; st.error = ""; renderStore();
+  try {
+    const r = meta.channel === "builtin" ? await ck().loadBuiltin() : await fetchCode(meta, load(LS_PLUGIN_CACHE, {}));
+    const on = enabledSet(); on.add(meta.key); save(LS_PLUGINS, [...on]);
+    if (!st.running) await runPlugin(meta, r.code, r.app_html);
+    st.busy = ""; renderTools(); renderQuick(); renderStore();
+  } catch (err) { st.busy = ""; st.error = "下载失败：" + err.message; renderStore(); throw err; }
+}
 
 // ===== 登录状态 =====
 function renderUserChip() {
@@ -2505,9 +2581,10 @@ const ICONS = {
   me: ['<circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
        '<circle cx="12" cy="8" r="4.5" fill="currentColor"/><path d="M3.5 21c0-4.8 3.8-7.5 8.5-7.5s8.5 2.7 8.5 7.5z" fill="currentColor"/>'],
   class: ['<path d="M2.5 9 12 4l9.5 5-9.5 5z M6.5 11.2V16c0 1.6 2.5 3 5.5 3s5.5-1.4 5.5-3v-4.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>', ""],
+  growth: ['<path d="M4 20V10m8 10V4m8 16v-8M3 7l6-4 5 5 7-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>', '<rect x="3" y="10" width="3" height="11" rx="1.5" fill="currentColor"/><rect x="10.5" y="4" width="3" height="17" rx="1.5" fill="currentColor"/><rect x="18" y="12" width="3" height="9" rx="1.5" fill="currentColor"/>'],
 };
 const icon = (k) => `<svg viewBox="0 0 24 24" class="o" aria-hidden="true">${ICONS[k][0]}</svg>` + (ICONS[k][1] ? `<svg viewBox="0 0 24 24" class="f" aria-hidden="true">${ICONS[k][1]}</svg>` : "");
-const NAV = [["home", "首页"], ["homework", "作业"], ["wall", "班级墙"], ["calendar", "日历"], ["plan", "规划"], ["ask", "问答"], ["tools", "工具"], ["me", "我的"]];
+const NAV = [["home", "首页"], ["homework", "作业"], ["wall", "班级墙"], ["calendar", "日历"], ["plan", "规划"], ["ask", "问答"], ["growth", "成长"], ["tools", "工具"], ["me", "我的"]];
 let hwBadge = 0;
 
 function currentView() { return document.querySelector(".view.on[data-view]")?.dataset.view || "home"; }
@@ -2515,8 +2592,12 @@ function renderTabs() {
   let cur = currentView();
   const pinned = railPins().some((t) => t.view === cur);
   if (cur.startsWith("p_") && !pinned) cur = "tools";
-  $("tabs").innerHTML = NAV.map(([id, t]) => `<button class="nav${id === cur ? " on" : ""}${id === "tools" || id === "plan" || id === "ask" ? " desk" : ""}${(id === "plan" && !funOpts().plan) || (id === "ask" && (!laiReady() || !feat("ask"))) || !viewOn(id) ? " hidden" : ""}" data-tab="${id}">${icon(id)}<span>${cyName(t)}</span>${id === "homework" && hwBadge ? `<em class="badge">${hwBadge}</em>` : ""}</button>`).join("")
-    + railPins().map((t, i) => `<button class="nav pin${i ? " desk" : ""}${t.view === cur ? " on" : ""}" data-tab="${esc(t.view)}"><span class="emo">${esc(t.icon)}</span><span>${esc(t.name)}</span></button>`).join("")
+  $("tabs").innerHTML = NAV.map(([id, t]) => {
+    const unavailable = (id === "plan" && !funOpts().plan) || (id === "ask" && (!laiReady() || !feat("ask"))) || !viewOn(id);
+    const button = `<button class="nav${id === cur ? " on" : ""}${["wall", "calendar", "plan", "ask"].includes(id) ? " desk" : ""}${unavailable ? " hidden" : ""}" data-tab="${id}">${icon(id)}<span>${cyName(t)}</span>${id === "homework" && hwBadge ? `<em class="badge">${hwBadge}</em>` : ""}</button>`;
+    return id === "tools" ? `<div class="nav-tools-group${unavailable ? " hidden" : ""}">${button}<button type="button" id="navToolPicker" class="nav-tool-picker" data-quick-open aria-label="快捷选择工具" aria-haspopup="dialog" title="快捷选择工具"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button></div>` : button;
+  }).join("")
+    + railPins().map((t) => `<button class="nav pin desk${t.view === cur ? " on" : ""}" data-tab="${esc(t.view)}"><span class="emo">${esc(t.icon)}</span><span>${esc(t.name)}</span></button>`).join("")
     + `<a class="nav desk" href="class.html">${icon("class")}<span>${cyName("班级")}</span></a>`;
 }
 function renderTools() {
@@ -2543,7 +2624,7 @@ function showView(id) {
   const prev = currentView();
   document.querySelectorAll(".view[data-view]").forEach((v) => { v.classList.toggle("on", v.dataset.view === id); v.classList.remove("sub", "back"); });
   // 手机上：进入二级页面从右边滑进来，返回时从左边滑回来，像原生 App
-  const TABS = ["home", "homework", "wall", "calendar", "me", "tools", "plan", "ask"];
+  const TABS = ["home", "homework", "wall", "calendar", "me", "tools", "plan", "ask", "growth"];
   const cur = document.querySelector(`.view[data-view="${CSS.escape(id)}"]`);
   if (cur && prev !== id) cur.classList.add(!TABS.includes(id) ? "sub" : !TABS.includes(prev) ? "back" : "tab");
   renderTabs();
@@ -2864,6 +2945,7 @@ function renderQuick() {
   const want = [["cIngestBtn", ingestAllowed()], ["cAddBtn", canAddItem()], ["qMine", feat("mine")], ["qPlan", o.plan], ["qIcs", o.habits], ["qFarm", farmOn()], ["qPomo", o.plan],
     ["qCourse", !!courseTool()], ["qPeople", !!(currentUser && currentClass)], ["qStore", feat("tools")], ["qCal", true], ["qTools", feat("tools")], ["qIntro", true]];
   for (const [id, on] of want) $(id).classList.toggle("hidden", !on);
+  if (window.CampusQuick) CampusQuick.render();
   $("meToPlan").classList.toggle("hidden", !o.plan);
   const q = $("quickPart"); requestAnimationFrame(() => q.classList.toggle("fits", q.scrollWidth <= q.clientWidth + 2));
   $("calIngest").classList.toggle("hidden", !ingestAllowed()); $("calPub").classList.toggle("hidden", !canAddItem());
@@ -3273,6 +3355,7 @@ function renderWidgets() {
     $("wAddList").innerHTML = missing.map(([id, d]) => `<button data-wadd="${esc(id)}">＋ ${esc(d.icon)} ${esc(d.name)}</button>`).join("");
   }
   if (typeof renderPomo === "function" && document.getElementById("wgPomoTime")) renderPomo();
+  if (window.CampusQuick) CampusQuick.render();
 }
 function setEditing(on) {
   wEditing = on;

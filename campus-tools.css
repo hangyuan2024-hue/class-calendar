@@ -1,0 +1,65 @@
+/* Shared desktop picker and compact phone navigation; uses the selected skin. */
+.rail #tabs { min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+.nav-tools-group { display: flex; align-items: center; gap: 4px; width: 100%; }
+.nav-tools-group > .nav { flex: 1; min-width: 0; width: auto; }
+.nav-tool-picker { display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; padding: 0; border: 1px solid var(--line); border-radius: 11px; background: var(--card); color: var(--text); }
+.nav-tool-picker svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+[data-skin=fresh] .nav-tool-picker { background: #ffffff0b; color: #d9e3e8; border-color: #ffffff1b; }
+.nav-tool-picker:hover { background: var(--selected); color: var(--accent); }
+.quick-add .qi { border-style: dashed !important; background: transparent !important; box-shadow: none !important; font: 400 26px/1 system-ui !important; }
+.quick-add-label { font-size: 10px; color: var(--sub); }
+.quick-dialog { box-sizing: border-box; width: min(620px, calc(100vw - 32px)); max-height: min(780px, calc(100dvh - 48px)); border: 1px solid var(--line); border-radius: 24px; padding: 0; color: var(--text); background: var(--card); box-shadow: 0 24px 100px #07132233; }
+.quick-dialog::backdrop { background: #09142070; backdrop-filter: blur(5px); }
+.quick-dialog [hidden] { display: none !important; }
+.quick-dialog-head { padding: 24px 24px 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.quick-eyebrow { font-size: 11px; letter-spacing: .08em; color: var(--sub); }
+.quick-dialog-head h2 { font: 750 24px/1.3 var(--font, system-ui); margin: 5px 0 0; }
+.quick-close { flex-shrink: 0; width: 44px; height: 44px; border-radius: 13px; background: var(--muted-bg); font-size: 26px; padding: 0; }
+.quick-intro { margin: 0 24px 16px; color: var(--sub); font-size: 13px; line-height: 1.7; }
+.quick-search { display: flex; align-items: center; gap: 10px; margin: 0 24px 16px; padding: 0 14px; min-height: 48px; border: 1px solid var(--line); border-radius: 13px; background: var(--muted-bg); }
+.quick-search svg { width: 20px; height: 20px; fill: none; stroke: var(--sub); stroke-width: 1.8; flex-shrink: 0; }
+.quick-search input { width: 100%; min-width: 0; border: 0; background: transparent; color: var(--text); padding: 12px 0; outline: 0; font-size: 15px; }
+.quick-tool-list { max-height: min(440px, calc(100dvh - 310px)); overflow-y: auto; padding: 0 24px 8px; overscroll-behavior: contain; }
+.quick-section-title { display: flex; align-items: center; justify-content: space-between; color: var(--sub); font-size: 12px; margin: 12px 0 9px; }
+.quick-pick { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px; margin: 0 0 6px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); color: var(--text); text-align: left; cursor: pointer; box-sizing: border-box; }
+.quick-pick:hover, .quick-pick:has(input:checked) { background: var(--selected); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
+.quick-pick-icon { width: 38px; height: 38px; display: grid; place-items: center; flex-shrink: 0; background: var(--muted-bg); border-radius: 11px; font-size: 21px; }
+.quick-pick-copy { flex: 1; min-width: 0; }
+.quick-pick-copy b { display: block; font-size: 14px; line-height: 1.5; }
+.quick-pick-copy small { display: block; margin-top: 2px; color: var(--sub); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.quick-pick input { width: 20px; height: 20px; accent-color: var(--accent); flex-shrink: 0; }
+.quick-pick-go { color: var(--sub); font-size: 20px; }
+.quick-install { flex-shrink: 0; min-width: 54px; min-height: 44px; padding: 5px 9px; border: 1px solid var(--line); border-radius: 10px; color: var(--accent); background: var(--selected); font-size: 12px; }
+.quick-empty { padding: 30px 16px; text-align: center; color: var(--sub); font-size: 14px; }
+.quick-status { font-size: 12px; color: var(--accent); margin: 0; padding: 0 24px; min-height: 20px; }
+.quick-dialog-foot { display: flex; align-items: center; gap: 10px; padding: 14px 24px 20px; border-top: 1px solid var(--line); background: var(--card); }
+.quick-dialog-foot > span { flex: 1; font-size: 12px; color: var(--sub); }
+.quick-dialog-foot button { min-height: 44px; }
+.quick-dialog :focus-visible, .nav-tool-picker:focus-visible, .quick-add:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+@media (min-width: 701px) {
+  .rail #tabs { flex: 1; }
+  .rail .studio-rail-note { margin-top: 12px; }
+}
+@media (min-width: 701px) and (max-width: 1050px) {
+  .nav-tools-group { flex-direction: column; gap: 0; }
+  .nav-tools-group > .nav { width: 100%; }
+  .nav-tool-picker { height: 44px; flex-basis: 44px; width: 44px; }
+}
+@media (max-width: 700px) {
+  .rail #tabs { flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 1px; width: 100%; overflow: visible; }
+  .rail #tabs > .nav { flex: 1 1 0; width: auto; min-width: 44px; }
+  .rail #tabs .nav { font-size: 10px; min-height: 48px; gap: 4px; }
+  .rail #tabs .nav svg { width: 20px; height: 20px; padding: 3px 5px; }
+  .rail #tabs .nav-tools-group { flex: 1.7 1 0; width: auto; min-width: 88px; gap: 0; }
+  .rail #tabs .nav-tools-group .nav { min-width: 44px; flex: 1; padding-inline: 2px; }
+  .rail #tabs .nav-tool-picker { flex-basis: 44px; height: 44px; width: 44px; background: var(--muted-bg); color: var(--text); border-color: var(--line); }
+  .quick-dialog { max-height: calc(100dvh - 24px); width: calc(100vw - 24px); border-radius: 22px; }
+  .quick-dialog-head { padding: 20px 18px 10px; }
+  .quick-dialog-head h2 { font-size: 22px; }
+  .quick-intro { margin-inline: 18px; }
+  .quick-search { margin-inline: 18px; }
+  .quick-tool-list { padding-inline: 18px; max-height: min(460px, calc(100dvh - 280px)); }
+  .quick-status { padding-inline: 18px; }
+  .quick-dialog-foot { padding: 12px 18px 16px; gap: 8px; }
+  .quick-dialog-foot button { padding-inline: 11px; font-size: 13px; }
+}

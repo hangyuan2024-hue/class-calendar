@@ -1,6 +1,6 @@
 // 离线缓存（Service Worker）：只缓存网页自己的文件，不缓存任何数据接口的内容
-// 2026-10-05 hotfix：更新侧栏/滚动顶栏，并刷新 workspace-v3.js 缓存。
-const CACHE = "cc-static-v26-hotfix";
+// 2026-10-06：快捷工具、成长导航、批量抽签导入与错题书架。
+const CACHE = "cc-static-v27-tools";
 const PAGES = ["./", "index.html", "app.html", "login.html"];
 const EXTRA = [
   "campus-ui.css?v=20261005-campus1",
@@ -17,6 +17,13 @@ const EXTRA = [
   "workspace-hotfix.css?v=20261005-fix1",
   "metaverse-v3.css?v=20261005-native3",
   "metaverse-v3.js?v=20261005-native3",
+  "campus-tools.css?v=20261006-tools1",
+  "campus-tools.js?v=20261006-tools1",
+  "sandbox.html?v=20261006-tools1",
+  "plugins/random-draw.html?v=20261006-tools1",
+  "plugins/error-notebook.html?v=20261006-tools1",
+  "plugins/tools.css?v=20261006-tools1",
+  "plugins/vendor/pako_inflate.min.js?v=1.0.11",
   "auxiliary-v2.css?v=20261005-studio2",
   "embedded-auth-v2.css?v=20261005-studio2",
   "landing-v2.js?v=20261005-studio2"
