@@ -41,7 +41,7 @@ jobs:
           APP_VERSION_CODE: ${{ github.run_number }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           SITE_URL: https://www.laolaokechengbiao.cn/
-        run: gradle -p android assembleStableRelease --no-daemon --stacktrace
+        run: gradle -p android testPreviewDebugUnitTest assembleStableRelease --no-daemon --stacktrace
 
       - name: 放到网站下载目录
         env:
@@ -53,16 +53,16 @@ jobs:
           mkdir -p download
           cp "$SRC" download/class-calendar.apk
           cat > download/app-version.json <<JSON
-          {"versionCode": ${RUN_NUMBER}, "versionName": "3.4.${RUN_NUMBER}", "url": "download/class-calendar.apk", "size": $(stat -c %s download/class-calendar.apk), "signed": true, "at": "$(date -u +%FT%TZ)"}
+          {"versionCode": ${RUN_NUMBER}, "versionName": "4.0.${RUN_NUMBER}", "url": "download/class-calendar.apk", "size": $(stat -c %s download/class-calendar.apk), "signed": true, "at": "$(date -u +%FT%TZ)"}
           JSON
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add download
-          git commit -m "安卓 App 3.4.${RUN_NUMBER}" || exit 0
+          git commit -m "安卓 App 4.0.${RUN_NUMBER}" || exit 0
           git pull --rebase origin "${GITHUB_REF_NAME}"
           git push origin "HEAD:${GITHUB_REF_NAME}"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: class-calendar-3.4.${{ github.run_number }}
+          name: class-calendar-4.0.${{ github.run_number }}
           path: download/class-calendar.apk
