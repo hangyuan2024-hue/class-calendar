@@ -104,7 +104,7 @@ internal fun ModernHomePage(s: CampusSession) {
 }
 
 @Composable
-private fun HomeSection(s: CampusSession, id: String) {
+internal fun HomeSection(s: CampusSession, id: String) {
     val a = s.a
     val colors = MaterialTheme.colorScheme
     val today = DateMath.today()

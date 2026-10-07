@@ -774,6 +774,7 @@ public class CampusActivity extends androidx.activity.ComponentActivity {
     loading = false;
     cloudError = e.getMessage() == null ? "操作未完成，请重试" : e.getMessage();
     toast(cloudError);
+    if (ComposeEntry.active(this) && page.equals("home")) ComposeEntry.refresh(this);
     if (api != null && store != null && !api.uid().equals(store.owner)) {
       switchAccount();
       build();

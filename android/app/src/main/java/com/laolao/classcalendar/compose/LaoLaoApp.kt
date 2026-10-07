@@ -16,18 +16,17 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.*
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.*
 import androidx.core.view.WindowCompat
 import kotlinx.coroutines.launch
 
-internal val MainRoutes = listOf("home", "calendar", "growth", "tools", "me")
+internal val MainRoutes = listOf("home", "calendar", "ask", "tools", "me")
 
 private val LocalPageListState = staticCompositionLocalOf<LazyListState?> { null }
 
 private fun mainDestination(route: String) =
     when (route) {
+        "ask" -> "ask"
         "home" -> "home"
         "calendar",
         "homework",
@@ -40,7 +39,7 @@ private fun mainDestination(route: String) =
         "rank",
         "report",
         "cards",
-        "review" -> "growth"
+        "review" -> "tools"
         "me",
         "appearance",
         "home-layout",
@@ -76,6 +75,7 @@ internal fun routeTitle(route: String): String =
         "tools" -> "工具"
         "me" -> "我的"
         "growth" -> "成长"
+        "ask" -> "AI 助手"
         "wall" -> "班级墙"
         "appearance" -> "外观与配色"
         "home-layout" -> "首页卡片"
@@ -113,6 +113,7 @@ internal fun LaoLaoApp(state: CampusSession) {
     LaoLaoTheme(state) {
         val colors = MaterialTheme.colorScheme
         val motionEnabled = LocalMotionEnabled.current
+        val keyboardVisible = campusKeyboardVisible()
         val savedPages = rememberSaveableStateHolder()
         val listStates = remember { mutableMapOf<String, LazyListState>() }
         val scope = rememberCoroutineScope()
@@ -133,143 +134,82 @@ internal fun LaoLaoApp(state: CampusSession) {
             }
         }
         BackHandler { if (state.sheet != null) state.closeSheet() else state.a.onBackPressed() }
-        Scaffold(
-            containerColor = colors.background,
-            topBar = {
-                Column(Modifier.background(colors.background).statusBarsPadding()) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        if (state.route !in MainRoutes)
-                            PressIcon(Icons.AutoMirrored.Rounded.ArrowBack, "返回") {
-                                state.a.onBackPressed()
-                            }
-                        else if (state.route == "home") LaoMascot(Modifier.size(48.dp))
-                        Column(
-                            Modifier.weight(1f).padding(start = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(0.dp),
+        Box(Modifier.fillMaxSize().background(colors.background)) {
+            CampusBackdrop(Modifier.matchParentSize())
+            Scaffold(
+                containerColor = Color.Transparent,
+                contentColor = colors.onBackground,
+                topBar = { CampusTopBar(state) },
+                bottomBar = {
+                    if (state.route == "parse-review") ImportReviewActions(state)
+                    else
+                        AnimatedVisibility(
+                            visible = state.route != "ask" || !keyboardVisible,
+                            enter =
+                                if (motionEnabled)
+                                    fadeIn(tween(180)) +
+                                        slideInVertically(
+                                            spring(dampingRatio = .9f, stiffness = 420f)
+                                        ) {
+                                            it / 2
+                                        }
+                                else EnterTransition.None,
+                            exit =
+                                if (motionEnabled)
+                                    fadeOut(tween(100)) + slideOutVertically(tween(160)) { it / 2 }
+                                else ExitTransition.None,
                         ) {
-                            Text(
-                                routeTitle(state.route),
-                                style = MaterialTheme.typography.titleLarge,
-                            )
-                            if (state.route == "home")
-                                Text(
-                                    "把校园日常，安排从容。",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = colors.onSurfaceVariant,
-                                )
-                        }
-                        PressIcon(Icons.Rounded.Search, "搜索课程与记录") { state.open("search") }
-                        if (state.route == "home")
-                            PressIcon(Icons.Rounded.AutoAwesome, "打开捞捞助手") {
-                                state.sheet = GuideSheet
-                            }
-                        else {
-                            val interaction = remember {
-                                androidx.compose.foundation.interaction.MutableInteractionSource()
-                            }
-                            IconButton(
-                                onClick = { state.sheet = GuideSheet },
-                                interactionSource = interaction,
-                                modifier =
-                                    Modifier.size(48.dp).springPress(interaction).semantics {
-                                        contentDescription = "打开捞捞助手"
-                                    },
-                            ) {
-                                LaoMascot(Modifier.size(32.dp))
+                            CampusBottomBar(state, mainDestination(state.route)) { route ->
+                                if (state.route == route)
+                                    scope.launch { listStates[route]?.animateScrollToItem(0) }
+                                else state.a.tab(route)
                             }
                         }
-                    }
-                }
-            },
-            bottomBar = {
-                if (state.route == "parse-review") ImportReviewActions(state)
-                else
-                    NavigationBar(containerColor = colors.surface, tonalElevation = 0.dp) {
-                        MainRoutes.forEachIndexed { index, route ->
-                            val selected = mainDestination(state.route) == route
-                            val interaction = remember {
-                                androidx.compose.foundation.interaction.MutableInteractionSource()
-                            }
-                            NavigationBarItem(
-                                selected = selected,
-                                onClick = {
-                                    if (state.route == route)
-                                        scope.launch { listStates[route]?.animateScrollToItem(0) }
-                                    else state.a.tab(route)
-                                },
-                                interactionSource = interaction,
-                                modifier = Modifier.springPress(interaction),
-                                icon = { Icon(routeIcon(route), null, Modifier.size(24.dp)) },
-                                label = { Text(listOf("首页", "日历", "成长", "工具", "我的")[index]) },
-                                colors =
-                                    NavigationBarItemDefaults.colors(
-                                        indicatorColor = colors.primaryContainer
-                                    ),
-                            )
-                        }
-                    }
-            },
-            floatingActionButton = {
-                if (state.route == "home" || state.route == "calendar") {
-                    val source = remember {
-                        androidx.compose.foundation.interaction.MutableInteractionSource()
-                    }
-                    FloatingActionButton(
-                        onClick = {
-                            if (state.route == "calendar") CampusSchool.personalForm(state.a, null)
-                            else state.sheet = QuickAddSheet
-                        },
-                        interactionSource = source,
-                        modifier = Modifier.springPress(source),
-                        containerColor = colors.primary,
-                        contentColor = colors.onPrimary,
-                        shape = RoundedCornerShape(24.dp),
-                    ) {
-                        Icon(Icons.Rounded.Add, "记一件事")
-                    }
-                } else if (state.route == "tools")
-                    FloatingActionButton(
-                        onClick = { state.sheet = ToolPickerSheet },
-                        containerColor = colors.primaryContainer,
-                        shape = RoundedCornerShape(24.dp),
-                    ) {
-                        Icon(Icons.Rounded.FavoriteBorder, "选择常用工具")
-                    }
-            },
-            snackbarHost = { SnackbarHost(snackbar) },
-        ) { padding ->
-            AnimatedContent(
-                targetState = state.route,
-                modifier = Modifier.padding(padding).fillMaxSize(),
-                label = "page transition",
-                transitionSpec = {
-                    val direction =
-                        if (targetState in MainRoutes && initialState !in MainRoutes) -1
-                        else if (
-                            targetState in MainRoutes &&
-                                initialState in MainRoutes &&
-                                MainRoutes.indexOf(targetState) < MainRoutes.indexOf(initialState)
-                        )
-                            -1
-                        else 1
-                    if (motionEnabled)
-                        (fadeIn(tween(220)) +
-                                slideInHorizontally(spring(dampingRatio = .9f, stiffness = 360f)) {
-                                    direction * it / 12
-                                })
-                            .togetherWith(fadeOut(tween(100)))
-                    else EnterTransition.None.togetherWith(ExitTransition.None)
                 },
-            ) { route ->
-                // Skip obsolete outgoing snapshots; each route has an independent scroll state.
-                savedPages.SaveableStateProvider(route) {
-                    CompositionLocalProvider(
-                        LocalPageListState provides listStates.getOrPut(route) { LazyListState() }
-                    ) {
-                        key(route) { ModernPages.Page(state, route) }
+                snackbarHost = { SnackbarHost(snackbar) },
+            ) { padding ->
+                AnimatedContent(
+                    targetState = state.route,
+                    modifier = Modifier.padding(padding).fillMaxSize(),
+                    label = "page transition",
+                    transitionSpec = {
+                        val direction =
+                            if (targetState in MainRoutes && initialState !in MainRoutes) -1
+                            else if (
+                                targetState in MainRoutes &&
+                                    initialState in MainRoutes &&
+                                    MainRoutes.indexOf(targetState) <
+                                        MainRoutes.indexOf(initialState)
+                            )
+                                -1
+                            else 1
+                        if (motionEnabled)
+                            (fadeIn(tween(280)) +
+                                    slideInHorizontally(
+                                        spring(dampingRatio = .86f, stiffness = 320f)
+                                    ) {
+                                        direction * it / 18
+                                    } +
+                                    scaleIn(
+                                        spring(dampingRatio = .9f, stiffness = 340f),
+                                        initialScale = .992f,
+                                    ))
+                                .togetherWith(fadeOut(tween(130)))
+                        else EnterTransition.None.togetherWith(ExitTransition.None)
+                    },
+                ) { route ->
+                    // Skip obsolete outgoing snapshots; each route has an independent scroll state.
+                    savedPages.SaveableStateProvider(route) {
+                        CompositionLocalProvider(
+                            LocalPageListState provides
+                                listStates.getOrPut(route) { LazyListState() }
+                        ) {
+                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+                                Box(Modifier.widthIn(max = 680.dp).fillMaxSize()) {
+                                    key(route) { ModernPages.Page(state, route) }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -283,16 +223,25 @@ internal fun LazyListScope.animatedItem(
     key: String? = null,
     content: @Composable () -> Unit,
 ) {
-    item(key = key) { Entrance(index) { content() } }
+    item(key = key) {
+        Entrance(
+            index,
+            if (LocalMotionEnabled.current)
+                Modifier.animateItem(placementSpec = spring(dampingRatio = .88f, stiffness = 340f))
+            else Modifier,
+        ) {
+            content()
+        }
+    }
 }
 
 @Composable
 internal fun PageList(content: LazyListScope.() -> Unit) {
-    val gutter = if (LocalConfiguration.current.screenWidthDp < 360) 16.dp else 24.dp
+    val gutter = if (LocalConfiguration.current.screenWidthDp < 412) 16.dp else 24.dp
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         state = LocalPageListState.current ?: rememberLazyListState(),
-        contentPadding = PaddingValues(start = gutter, end = gutter, top = 16.dp, bottom = 96.dp),
+        contentPadding = PaddingValues(start = gutter, end = gutter, top = 8.dp, bottom = 80.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         content = content,
     )

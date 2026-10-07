@@ -3,8 +3,8 @@ plugins {
     id "org.jetbrains.kotlin.android"
 }
 
-// 版本号由 GitHub Actions 传进来；本地构建用 13。
-def vc = (System.getenv("APP_VERSION_CODE") ?: "13").toInteger()
+// 版本号由 GitHub Actions 传进来；本地构建用 19。
+def vc = (System.getenv("APP_VERSION_CODE") ?: "19").toInteger()
 def ksFile = file("../release.jks")
 def ksPass = System.getenv("KEYSTORE_PASSWORD")
 
@@ -16,7 +16,7 @@ android {
         minSdk 24
         targetSdk 34
         versionCode(vc)
-        versionName("4.0." + vc)
+        versionName("5.1." + vc)
         // 保留正式站点地址用于分享校园链接；页面由 Android 原生视图呈现。
         buildConfigField("String", "SITE_URL", "\"" + (System.getenv("SITE_URL") ?: "https://www.laolaokechengbiao.cn/") + "\"")
     }

@@ -397,6 +397,13 @@ final class CampusGuide {
 
   private static String parseDay(String q) {
     String today = DateMath.today();
+    Matcher explicit = Pattern.compile("\\d{4}-\\d{2}-\\d{2}").matcher(q);
+    if (explicit.find()) {
+      try {
+        DateMath.parse(explicit.group());
+        return explicit.group();
+      } catch (Exception ignored) { }
+    }
     if (q.contains("大后天")) return DateMath.plus(today, 3);
     if (q.contains("后天")) return DateMath.plus(today, 2);
     if (q.contains("明天") || q.contains("明日")) return DateMath.plus(today, 1);

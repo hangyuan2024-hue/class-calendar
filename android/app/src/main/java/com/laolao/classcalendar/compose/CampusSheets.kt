@@ -11,9 +11,13 @@ import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.input.*
 import androidx.compose.ui.unit.*
+import androidx.compose.ui.window.DialogWindowProvider
+import androidx.core.view.WindowCompat
 import java.text.SimpleDateFormat
 import java.util.*
 import org.json.JSONArray
@@ -27,9 +31,24 @@ internal fun CampusSheets(s: CampusSession) {
     ModalBottomSheet(
         onDismissRequest = { s.closeSheet() },
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = .97f),
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        tonalElevation = 0.dp,
+        scrimColor = MaterialTheme.colorScheme.onBackground.copy(alpha = .24f),
         shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
     ) {
+        // A Material bottom sheet owns a separate window on Android. Its system icons
+        // must follow this theme too, rather than the dialog's default light appearance.
+        val sheetView = LocalView.current
+        val lightSystemIcons = MaterialTheme.colorScheme.surface.luminance() <= .5f
+        SideEffect {
+            (sheetView.parent as? DialogWindowProvider)?.window?.let { window ->
+                WindowCompat.getInsetsController(window, sheetView).apply {
+                    isAppearanceLightStatusBars = !lightSystemIcons
+                    isAppearanceLightNavigationBars = !lightSystemIcons
+                }
+            }
+        }
         key(sheet) {
             Column(
                 Modifier.fillMaxWidth()
@@ -38,7 +57,10 @@ internal fun CampusSheets(s: CampusSession) {
                         else Modifier.heightIn(max = height)
                     )
                     .imePadding()
-                    .padding(horizontal = 24.dp),
+                    .padding(
+                        horizontal =
+                            if (LocalConfiguration.current.screenWidthDp < 360) 16.dp else 24.dp
+                    ),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 when (sheet) {
@@ -109,6 +131,9 @@ internal fun CampusSheets(s: CampusSession) {
                             }
                         }
                     }
+                    HomeEditorSheet -> HomeEditorContent(s)
+                    SearchSheet -> SearchContent(s)
+                    AlertsSheet -> AlertsContent(s)
                     GuideSheet -> {
                         SheetHeading("捞捞助手") { s.closeSheet() }
                         GuideWorkspace(s, Modifier.weight(1f, false))

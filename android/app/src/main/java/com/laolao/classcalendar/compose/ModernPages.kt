@@ -40,25 +40,27 @@ internal object ModernPages {
             "draw",
             "home-layout",
             "parse-review",
+            "search",
         )
 
     @Composable
     fun Page(state: CampusSession, route: String) {
         state.revision
         when (route) {
-            "home" -> HomePage(state)
-            "calendar" -> CalendarPage(state)
-            "homework" -> HomeworkPage(state)
-            "tools" -> ToolsPage(state)
-            "growth" -> GrowthPage(state)
-            "me" -> ProfilePage(state)
-            "appearance" -> AppearancePage(state)
-            "ask" -> GuidePage(state)
+            "home" -> CampusHomePage(state)
+            "calendar" -> CampusCalendarPage(state)
+            "homework" -> CampusHomeworkPage(state)
+            "tools" -> CampusToolsPage(state)
+            "growth" -> CampusGrowthPage(state)
+            "me" -> CampusProfilePage(state)
+            "appearance" -> CampusAppearancePage(state)
+            "ask" -> CampusAgentPage(state)
+            "search" -> CampusSearchPage(state)
             "wrongbook" -> BooksPage(state)
             "courses" -> CoursesPage(state)
             "pomo" -> FocusPage(state)
             "draw" -> DrawPage(state)
-            "home-layout" -> HomeLayoutPage(state)
+            "home-layout" -> CampusHomeLayoutPage(state)
             "parse-review" -> ImportReviewPage(state)
             else -> FeaturePage(state)
         }
@@ -655,18 +657,27 @@ internal fun TrendChart(a: CampusActivity) {
             habits.count { logs.optJSONObject(it.optString("id"))?.optBoolean(day) == true }
         }
     val max = (completed + checked).maxOrNull()?.coerceAtLeast(4) ?: 4
+    val motion = LocalMotionEnabled.current
+    var ready by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { ready = true }
+    val reveal =
+        animateFloatAsState(
+            if (ready || !motion) 1f else 0f,
+            if (motion) spring(dampingRatio = .88f, stiffness = 110f) else snap(),
+            label = "growth trend",
+        )
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("● 完成事项", style = MaterialTheme.typography.labelMedium, color = colors.primary)
         Text("● 习惯打卡", style = MaterialTheme.typography.labelMedium, color = colors.tertiary)
     }
-    Canvas(Modifier.fillMaxWidth().height(144.dp)) {
+    Canvas(Modifier.fillMaxWidth().height(112.dp)) {
         for (i in 0..3) {
             val y = size.height * i / 3
             drawLine(colors.outlineVariant, Offset(0f, y), Offset(size.width, y), 1.dp.toPx())
         }
         val width = size.width / 14
         completed.forEachIndexed { i, value ->
-            val h = (size.height - 8.dp.toPx()) * value / max
+            val h = (size.height - 8.dp.toPx()) * value / max * reveal.value.coerceIn(0f, 1f)
             drawRoundRect(
                 colors.primary.copy(alpha = .72f),
                 Offset(width * i + width * .15f, size.height - h),
@@ -675,7 +686,7 @@ internal fun TrendChart(a: CampusActivity) {
             )
         }
         checked.forEachIndexed { i, value ->
-            val h = (size.height - 8.dp.toPx()) * value / max
+            val h = (size.height - 8.dp.toPx()) * value / max * reveal.value.coerceIn(0f, 1f)
             drawRoundRect(
                 colors.tertiary.copy(alpha = .72f),
                 Offset(width * i + width * .55f, size.height - h),

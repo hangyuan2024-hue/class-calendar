@@ -787,59 +787,56 @@ final class CampusSocial {
             a.background(
                 "等待 AI 回复",
                 () -> {
-                  StringBuilder context = new StringBuilder("你是校园学习助手。只依据给出的校园数据回答相关安排，不编造。\n");
-                  for (JSONObject x : a.items())
-                    if (!a.done(x))
-                      context
-                          .append(x.optString("subject"))
-                          .append(' ')
-                          .append(x.optString("event_time"))
-                          .append('\n');
-                  for (JSONObject x : CampusCourses.onDay(a.store, DateMath.today()))
-                    context
-                        .append(x.optString("name"))
-                        .append(' ')
-                        .append(x.optString("t0"))
-                        .append('\n');
-                  URL url =
-                      new URL(cfg.optString("url").replaceAll("/+$", "") + "/chat/completions");
-                  HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                  conn.setInstanceFollowRedirects(false);
-                  conn.setConnectTimeout(15000);
-                  conn.setReadTimeout(45000);
-                  conn.setRequestMethod("POST");
-                  conn.setDoOutput(true);
-                  conn.setRequestProperty("Content-Type", "application/json");
-                  byte[] raw =
-                      CampusJson.obj(
-                              "model",
-                              cfg.optString("model"),
-                              "stream",
-                              false,
-                              "messages",
-                              new JSONArray()
-                                  .put(
-                                      CampusJson.obj(
-                                          "role", "system", "content", context.toString()))
-                                  .put(CampusJson.obj("role", "user", "content", q)))
-                          .toString()
-                          .getBytes("UTF-8");
-                  try {
-                    try (OutputStream out = conn.getOutputStream()) {
-                      out.write(raw);
-                    }
-                    if (conn.getResponseCode() != 200)
-                      throw new IOException("AI服务返回HTTP " + conn.getResponseCode());
-                    JSONObject response =
-                        new JSONObject(CampusApi.read(conn.getInputStream(), 1000000));
-                    JSONObject msg =
-                        response.getJSONArray("choices").getJSONObject(0).getJSONObject("message");
-                    return msg.optString("content");
-                  } finally {
-                    conn.disconnect();
-                  }
+                  return requestAi(a, q);
                 },
                 r -> CampusManage.message(a, "我的 AI 回复", String.valueOf(r))));
+  }
+
+  /** Existing AI request shared by native chat and the original controller. */
+  static String requestAi(CampusActivity a, String q) throws Exception {
+    JSONObject cfg = a.store.object("native_ai_config");
+    StringBuilder context = new StringBuilder("你是校园学习助手。只依据给出的校园数据回答相关安排，不编造。\n");
+    for (JSONObject x : a.items())
+      if (!a.done(x))
+        context
+            .append(x.optString("subject"))
+            .append(' ')
+            .append(x.optString("event_time"))
+            .append('\n');
+    for (JSONObject x : CampusCourses.onDay(a.store, DateMath.today()))
+      context.append(x.optString("name")).append(' ').append(x.optString("t0")).append('\n');
+    URL url = new URL(cfg.optString("url").replaceAll("/+$", "") + "/chat/completions");
+    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+    conn.setInstanceFollowRedirects(false);
+    conn.setConnectTimeout(15000);
+    conn.setReadTimeout(45000);
+    conn.setRequestMethod("POST");
+    conn.setDoOutput(true);
+    conn.setRequestProperty("Content-Type", "application/json");
+    byte[] raw =
+        CampusJson.obj(
+                "model",
+                cfg.optString("model"),
+                "stream",
+                false,
+                "messages",
+                new JSONArray()
+                    .put(CampusJson.obj("role", "system", "content", context.toString()))
+                    .put(CampusJson.obj("role", "user", "content", q)))
+            .toString()
+            .getBytes("UTF-8");
+    try {
+      try (OutputStream out = conn.getOutputStream()) {
+        out.write(raw);
+      }
+      if (conn.getResponseCode() != 200)
+        throw new IOException("AI服务返回HTTP " + conn.getResponseCode());
+      JSONObject response = new JSONObject(CampusApi.read(conn.getInputStream(), 1000000));
+      JSONObject msg = response.getJSONArray("choices").getJSONObject(0).getJSONObject("message");
+      return msg.optString("content");
+    } finally {
+      conn.disconnect();
+    }
   }
 
   static JSONArray parse(CampusActivity a, String text, String pub) {

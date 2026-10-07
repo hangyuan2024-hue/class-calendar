@@ -175,6 +175,7 @@ internal class CampusSession(val activity: CampusActivity) {
         }
 
     var notice by mutableStateOf("")
+    var agentPrompt by mutableStateOf("")
     var panelRevision by mutableIntStateOf(0)
     val a
         get() = activity
@@ -242,6 +243,12 @@ internal data object GuideSheet : CampusSheet
 internal data object ToolPickerSheet : CampusSheet
 
 internal data object QuickAddSheet : CampusSheet
+
+internal data object HomeEditorSheet : CampusSheet
+
+internal data object SearchSheet : CampusSheet
+
+internal data object AlertsSheet : CampusSheet
 
 internal class DrawImportSheet(val names: List<String>, val filename: String) : CampusSheet
 

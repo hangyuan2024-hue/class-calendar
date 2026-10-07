@@ -16,8 +16,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.*
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -44,7 +42,7 @@ internal data class LaoPalette(
 
 internal val LaoPalettes =
     listOf(
-        LaoPalette("ocean", "海盐青", Color(0xFF246C70), Color(0xFFA6D4C3)),
+        LaoPalette("ocean", "默认 · 海盐青", Color(0xFF316D67), Color(0xFFBDDAD1)),
         LaoPalette("sky", "晴空蓝", Color(0xFF3E5EBB), Color(0xFFB9D5EF)),
         LaoPalette("mint", "薄荷绿", Color(0xFF356752), Color(0xFFBFE2CE)),
         LaoPalette("lavender", "鸢尾紫", Color(0xFF7258A8), Color(0xFFD9C9EA)),
@@ -52,7 +50,7 @@ internal val LaoPalettes =
         LaoPalette("apricot", "暖杏橙", Color(0xFF945F36), Color(0xFFF3D9B8)),
         LaoPalette("forest", "森野绿", Color(0xFF267661), Color(0xFFBDE2CE)),
         LaoPalette("moon", "月光白", Color(0xFF4B586C), Color(0xFFD4DCE8)),
-        LaoPalette("cyber", "深海赛博", Color(0xFF286E72), Color(0xFF9AE0D5)),
+        LaoPalette("cyber", "深空蓝", Color(0xFF3B5487), Color(0xFFBDCEFA)),
         LaoPalette("graphite", "石墨灰", Color(0xFF555C70), Color(0xFFD8DCE6)),
     )
 internal val LaoTypography =
@@ -144,12 +142,17 @@ internal fun LaoLaoTheme(state: CampusSession, content: @Composable () -> Unit) 
     state.revision
     val saved = state.a.store.`object`("ui_palette_v1")
     val p = LaoPalettes.find { it.id == saved.optString("id") } ?: LaoPalettes.first()
-    val pref = state.a.store.string("compose_mode_v1", "system")
+    val pref = state.a.store.string("compose_mode_v1", "")
     val legacy = state.a.store.string("ui_skin_v1", "fresh")
     val dark =
-        if (pref == "system")
-            isSystemInDarkTheme() || legacy == "cyber" || legacy == "dark" || p.id == "cyber"
-        else pref == "dark"
+        when (pref) {
+            "light" -> false
+            "dark" -> true
+            "system" -> isSystemInDarkTheme()
+            // Preserve existing skin preferences until a display mode is explicitly chosen.
+            else ->
+                isSystemInDarkTheme() || legacy == "cyber" || legacy == "dark" || p.id == "cyber"
+        }
     val scheme =
         if (dark)
             darkColorScheme(
@@ -160,13 +163,14 @@ internal fun LaoLaoTheme(state: CampusSession, content: @Composable () -> Unit) 
                 secondary = Color(0xFFB9C9CC),
                 secondaryContainer = Color(0xFF2A3B42),
                 onSecondaryContainer = Color(0xFFE9EEF1),
-                background = Color(0xFF10191E),
+                background = if (p.id == "cyber") Color(0xFF10192C) else Color(0xFF121D23),
                 onBackground = Color(0xFFE9EEF1),
-                surface = Color(0xFF18232A),
+                surface = if (p.id == "cyber") Color(0xFF1A2740) else Color(0xFF1D2A30),
                 onSurface = Color(0xFFE9EEF1),
-                surfaceContainer = Color(0xFF203039),
-                surfaceContainerLow = Color(0xFF1C2931),
-                surfaceContainerHigh = Color(0xFF293A44),
+                surfaceContainer = if (p.id == "cyber") Color(0xFF26344C) else Color(0xFF27373D),
+                surfaceContainerLow = if (p.id == "cyber") Color(0xFF1C2A42) else Color(0xFF202F35),
+                surfaceContainerHigh =
+                    if (p.id == "cyber") Color(0xFF30425C) else Color(0xFF30434A),
                 surfaceContainerLowest = Color(0xFF131D23),
                 onSurfaceVariant = Color(0xFFA3B5BD),
                 outlineVariant = Color(0xFF354750),
@@ -182,12 +186,12 @@ internal fun LaoLaoTheme(state: CampusSession, content: @Composable () -> Unit) 
                 secondary = Color(0xFF637A83),
                 secondaryContainer = Color(0xFFE8EFF0),
                 onSecondaryContainer = Color(0xFF182E38),
-                background = Color(0xFFF6F8F8),
+                background = Color(0xFFF5F7F5),
                 onBackground = Color(0xFF182E38),
                 surface = Color.White,
                 onSurface = Color(0xFF182E38),
-                surfaceContainer = Color(0xFFEDF2F3),
-                surfaceContainerLow = Color(0xFFF2F6F6),
+                surfaceContainer = Color(0xFFEDF2F0),
+                surfaceContainerLow = Color(0xFFF0F4F2),
                 surfaceContainerHigh = Color(0xFFE6EDEF),
                 surfaceContainerLowest = Color.White,
                 onSurfaceVariant = Color(0xFF617580),
@@ -200,7 +204,7 @@ internal fun LaoLaoTheme(state: CampusSession, content: @Composable () -> Unit) 
             LocalContext.current.contentResolver,
             Settings.Global.ANIMATOR_DURATION_SCALE,
             1f,
-        ) != 0f
+        ) != 0f && !state.a.store.bool("compose_reduce_motion_v1", false)
     CompositionLocalProvider(LocalMotionEnabled provides enabled) {
         MaterialTheme(
             colorScheme = scheme,
@@ -224,8 +228,8 @@ internal fun Modifier.springPress(source: MutableInteractionSource): Modifier {
     val enabled = LocalMotionEnabled.current
     val scale by
         animateFloatAsState(
-            if (pressed && enabled) .972f else 1f,
-            animationSpec = spring(dampingRatio = .74f, stiffness = 520f),
+            if (pressed && enabled) .965f else 1f,
+            animationSpec = if (enabled) spring(dampingRatio = .68f, stiffness = 480f) else snap(),
             label = "press scale",
         )
     return graphicsLayer {
@@ -235,16 +239,24 @@ internal fun Modifier.springPress(source: MutableInteractionSource): Modifier {
 }
 
 @Composable
-internal fun Entrance(index: Int = 0, content: @Composable () -> Unit) {
+internal fun Entrance(
+    index: Int = 0,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
     val enabled = LocalMotionEnabled.current
     // A target-visible transition measures content immediately. Initially zero-height list
     // children would make LazyColumn compose an entire large import before the animation starts.
     val state = remember { MutableTransitionState(!enabled).apply { targetState = true } }
     AnimatedVisibility(
         visibleState = state,
+        modifier = modifier,
         enter =
-            fadeIn(tween(240, delayMillis = (index * 40).coerceAtMost(240))) +
-                slideInVertically(spring(dampingRatio = .88f, stiffness = 300f)) { it / 8 },
+            fadeIn(tween(340, delayMillis = (index * 36).coerceAtMost(180))) +
+                slideInVertically(spring(dampingRatio = .82f, stiffness = 260f)) {
+                    minOf(it / 5, 64)
+                } +
+                scaleIn(spring(dampingRatio = .86f, stiffness = 280f), initialScale = .985f),
         exit = fadeOut(tween(120)),
     ) {
         content()
@@ -265,19 +277,7 @@ internal fun PremiumCard(
     val touch =
         if (onClick == null) Modifier else Modifier.clickable(source, null, onClick = onClick)
     Column(
-        modifier
-            .springPress(source)
-            .shadow(
-                3.dp,
-                shape,
-                ambientColor = colors.primary.copy(alpha = .10f),
-                spotColor = colors.primary.copy(alpha = .08f),
-            )
-            .clip(shape)
-            .background(Brush.linearGradient(listOf(base, base.copy(alpha = .98f))))
-            .border(1.dp, colors.outlineVariant.copy(alpha = .55f), shape)
-            .then(touch)
-            .padding(Space.md),
+        modifier.springPress(source).campusGlass(base, shape).then(touch).padding(Space.md),
         verticalArrangement = Arrangement.spacedBy(Space.sm),
         content = content,
     )
@@ -407,100 +407,5 @@ internal fun IconTile(route: String, size: Dp = 48.dp) {
         contentAlignment = Alignment.Center,
     ) {
         Icon(routeIcon(route), null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
-    }
-}
-
-@Composable
-internal fun LaoMascot(modifier: Modifier = Modifier) {
-    Canvas(modifier) {
-        val sx = size.width / 120f
-        val sy = size.height / 120f
-        with(drawContext.canvas) {
-            save()
-            scale(sx, sy)
-            val navy = Color(0xFF142C48)
-            val orange = Color(0xFFFF9B56)
-            drawOval(Color(0x18213B50), topLeft = Offset(28f, 106f), size = Size(72f, 10f))
-            drawPath(
-                Path().apply {
-                    moveTo(95f, 74f)
-                    quadraticBezierTo(110f, 70f, 113f, 53f)
-                },
-                navy,
-                style = androidx.compose.ui.graphics.drawscope.Stroke(5f, cap = StrokeCap.Round),
-            )
-            drawCircle(Color.White, 6f, Offset(113f, 50f))
-            drawCircle(
-                navy,
-                6f,
-                Offset(113f, 50f),
-                style = androidx.compose.ui.graphics.drawscope.Stroke(4f),
-            )
-            drawPath(
-                Path().apply {
-                    moveTo(24f, 78f)
-                    quadraticBezierTo(12f, 84f, 12f, 96f)
-                },
-                navy,
-                style = androidx.compose.ui.graphics.drawscope.Stroke(5f, cap = StrokeCap.Round),
-            )
-            drawRoundRect(
-                Color.White,
-                Offset(22f, 28f),
-                Size(76f, 78f),
-                androidx.compose.ui.geometry.CornerRadius(24f),
-            )
-            drawPath(
-                Path().apply {
-                    moveTo(22f, 54f)
-                    lineTo(22f, 52f)
-                    cubicTo(22f, 38f, 32f, 28f, 46f, 28f)
-                    lineTo(74f, 28f)
-                    cubicTo(88f, 28f, 98f, 38f, 98f, 52f)
-                    lineTo(98f, 54f)
-                    close()
-                },
-                orange,
-            )
-            drawRoundRect(
-                navy,
-                Offset(22f, 28f),
-                Size(76f, 78f),
-                androidx.compose.ui.geometry.CornerRadius(24f),
-                style = androidx.compose.ui.graphics.drawscope.Stroke(5f),
-            )
-            listOf(40f, 80f).forEach { x ->
-                drawLine(navy, Offset(x, 20f), Offset(x, 36f), 6f, StrokeCap.Round)
-            }
-            listOf(43f, 76f).forEach { x ->
-                drawOval(navy, Offset(x, 65f), Size(8f, 12f))
-                drawCircle(Color.White, 1.8f, Offset(x + 2f, 68f))
-            }
-            drawOval(Color(0xFFFFC4CC), Offset(32f, 79f), Size(12f, 7f))
-            drawOval(Color(0xFFFFC4CC), Offset(76f, 79f), Size(12f, 7f))
-            drawPath(
-                Path().apply {
-                    moveTo(53f, 84f)
-                    quadraticBezierTo(60f, 92f, 67f, 84f)
-                },
-                navy,
-                style = androidx.compose.ui.graphics.drawscope.Stroke(4f, cap = StrokeCap.Round),
-            )
-            drawPath(
-                Path().apply {
-                    moveTo(104f, 16f)
-                    lineTo(107f, 22f)
-                    lineTo(113f, 25f)
-                    lineTo(107f, 28f)
-                    lineTo(104f, 34f)
-                    lineTo(101f, 28f)
-                    lineTo(95f, 25f)
-                    lineTo(101f, 22f)
-                    close()
-                },
-                Color(0xFFFFCF62),
-            )
-            restore()
-        }
     }
 }
