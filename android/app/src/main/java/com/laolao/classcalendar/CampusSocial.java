@@ -677,6 +677,10 @@ final class CampusSocial {
     pasteImport(a, true);
   }
 
+  static void editImport(CampusActivity a) {
+    pasteImport(a, false);
+  }
+
   private static void pasteImport(CampusActivity a, boolean readClipboard) {
     JSONObject initial = CampusJson.copy(a.store.object("draft_ingest"));
     if (initial.optString("date").isEmpty()) CampusJson.put(initial, "date", DateMath.today());
@@ -1086,6 +1090,12 @@ final class CampusSocial {
                 x.optString("event_time"),
                 "location",
                 x.optString("location"),
+                "msg_type",
+                x.optString("msg_type"),
+                "summary",
+                x.optString("summary"),
+                "prepare",
+                x.optString("prepare"),
                 "note",
                 x.optString("msg_type") + "：" + x.optString("summary"),
                 "done",

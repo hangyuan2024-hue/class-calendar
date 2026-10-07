@@ -451,10 +451,11 @@ final class CampusPhone {
             ImageView large = new ImageView(a);
             large.setImageBitmap(bitmap);
             large.setAdjustViewBounds(true);
-            new AlertDialog.Builder(a.ui.dialog())
-                .setView(large)
-                .setPositiveButton("关闭", null)
-                .show();
+            a.ui.showDialog(
+                new AlertDialog.Builder(a.ui.dialog())
+                    .setView(large)
+                    .setPositiveButton("关闭", null)
+                    .create());
           });
     } catch (Exception ignored) {
       parent.addView(a.ui.text("这张照片尚未恢复到本机", 12, a.ui.muted, false));
@@ -864,7 +865,7 @@ final class CampusPhone {
                           dialog.getButton(AlertDialog.BUTTON_POSITIVE).setText("暂停播放");
                         }
                       }));
-      dialog.show();
+      a.ui.showDialog(dialog);
     } catch (Exception e) {
       a.error(e);
     }

@@ -12,7 +12,7 @@ import java.util.*;
 import org.json.*;
 
 /** Shared native design system. Screens contain Android views and platform dialogs. */
-final class CampusUi {
+public final class CampusUi {
   final CampusActivity a;
   final CampusTheme theme;
   final int bg, surface, ink, muted, accent, border, soft;
@@ -107,6 +107,10 @@ final class CampusUi {
   }
 
   void showDialog(AlertDialog dlg) {
+    if (ComposeEntry.active(a)) {
+      ComposeEntry.dialog(a, dlg);
+      return;
+    }
     dlg.show();
     if (dlg.getWindow() != null) dlg.getWindow().setBackgroundDrawable(shape(surface, 24, 0));
     for (int id :
@@ -418,6 +422,10 @@ final class CampusUi {
   }
 
   void confirm(String title, String message, Runnable yes) {
+    if (ComposeEntry.active(a)) {
+      ComposeEntry.confirm(a, title, message, yes);
+      return;
+    }
     showDialog(
         new AlertDialog.Builder(dialog())
             .setTitle(title)
@@ -428,6 +436,10 @@ final class CampusUi {
   }
 
   void choose(String title, String[] options, java.util.function.IntConsumer callback) {
+    if (ComposeEntry.active(a)) {
+      ComposeEntry.choose(a, title, options, callback);
+      return;
+    }
     showDialog(
         new AlertDialog.Builder(dialog())
             .setTitle(title)
@@ -436,7 +448,7 @@ final class CampusUi {
             .create());
   }
 
-  static class Field {
+  public static class Field {
     final String key, label, kind;
     final boolean required;
     final String[] choices;
@@ -450,7 +462,7 @@ final class CampusUi {
     }
   }
 
-  interface Save {
+  public interface Save {
     void save(JSONObject fields) throws Exception;
   }
 
@@ -476,6 +488,10 @@ final class CampusUi {
 
   void formAction(
       String title, String actionLabel, JSONObject initial, Save save, Field... fields) {
+    if (ComposeEntry.active(a)) {
+      ComposeEntry.form(a, title, actionLabel, initial, save, fields);
+      return;
+    }
     LinearLayout body = column();
     body.setPadding(dp(22), dp(6), dp(22), dp(12));
     body.setBackgroundColor(surface);

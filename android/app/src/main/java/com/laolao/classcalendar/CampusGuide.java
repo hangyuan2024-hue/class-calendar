@@ -96,7 +96,7 @@ final class CampusGuide {
   static void settings(CampusActivity a) {
     a.ui.choose(
         "捞捞助手",
-        new String[] {enabled(a) ? "关闭首页提醒，小人仍可从顶部打开" : "显示首页提醒", "打开捞捞助手"},
+        new String[] {enabled(a) ? "隐藏首页捞捞入口，顶部仍可打开" : "显示首页捞捞入口", "打开捞捞助手"},
         which -> {
           if (which == 0) {
             setEnabled(a, !enabled(a));
@@ -106,6 +106,10 @@ final class CampusGuide {
   }
 
   static void open(CampusActivity a) {
+    if (ComposeEntry.active(a)) {
+      ComposeEntry.guide(a);
+      return;
+    }
     if (a.isFinishing()) return;
     new Panel(a).show();
   }

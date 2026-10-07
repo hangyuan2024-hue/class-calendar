@@ -429,7 +429,16 @@ final class CampusSchool {
     JSONObject init =
         x == null
             ? CampusJson.obj(
-                "id", CampusJson.id(), "date", a.selectedDay, "time", "", "done", false)
+                "id",
+                CampusJson.id(),
+                "date",
+                a.selectedDay,
+                "time",
+                "",
+                "done",
+                false,
+                "msg_type",
+                "个人")
             : CampusJson.copy(x);
     if (x != null) {
       String at = x.optString("event_time");
@@ -451,6 +460,7 @@ final class CampusSchool {
           a.syncSoon();
         },
         CampusUi.f("subject", "事项名称"),
+        CampusUi.choice("msg_type", "事项类型", "个人", "作业", "考试", "活动", "通知", "其他"),
         new CampusUi.Field("date", "日期（可留空）", "date", false),
         new CampusUi.Field("time", "时间（可留空）", "time", false),
         CampusUi.optional("location", "地点"),

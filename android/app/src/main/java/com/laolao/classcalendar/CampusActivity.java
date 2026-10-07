@@ -13,8 +13,8 @@ import java.util.*;
 import java.util.concurrent.*;
 import org.json.*;
 
-/** Full campus native launcher. All routes are Android widgets; no browser rendering engine. */
-public class CampusActivity extends Activity {
+/** Campus Compose launcher, retaining the established storage, API and device controllers. */
+public class CampusActivity extends androidx.activity.ComponentActivity {
   CampusApi api;
   CampusStore store;
   CampusUi ui;
@@ -59,6 +59,7 @@ public class CampusActivity extends Activity {
         toolQuery = saved.getString("toolQuery", "");
         toolCategory = saved.getString("toolCategory", "全部");
       }
+      ComposeEntry.install(this);
       build();
       routeIntent(getIntent());
       if (api.logged()) refreshCloud();
@@ -110,7 +111,8 @@ public class CampusActivity extends Activity {
       else if (go.equals("quick-add")) {
         open("home");
         CampusSchool.personalForm(this, null);
-      } else if (CampusSchool.handles(go)
+      } else if (go.equals("home-layout")
+          || CampusSchool.handles(go)
           || CampusLearn.handles(go)
           || CampusPhone.handles(go)
           || CampusExtras.handles(go)
@@ -180,6 +182,7 @@ public class CampusActivity extends Activity {
 
   @Override
   protected void onDestroy() {
+    ComposeEntry.dispose(this);
     handler.removeCallbacksAndMessages(null);
     worker.shutdownNow();
     CampusPhone.release(this);
@@ -207,6 +210,11 @@ public class CampusActivity extends Activity {
   }
 
   void build() {
+    if (ComposeEntry.active(this)) {
+      ui = new CampusUi(this, dark);
+      ComposeEntry.refresh(this);
+      return;
+    }
     boolean changedPage = !renderedPage.equals(page);
     int restoreY = renderedPage.equals(page) && scroll != null ? scroll.getScrollY() : 0;
     renderedPage = page;
@@ -538,6 +546,18 @@ public class CampusActivity extends Activity {
       window.setLayout(
           Math.min(getResources().getDisplayMetrics().widthPixels - ui.dp(16), ui.dp(480)), -2);
     }
+  }
+
+  LinearLayout featureContent() {
+    content = ui.column();
+    if (page.equals("login") || page.equals("register")) auth();
+    else if (CampusExtras.handles(page)) CampusExtras.render(this, page);
+    else if (CampusSchool.handles(page)) CampusSchool.render(this, page);
+    else if (CampusLearn.handles(page)) CampusLearn.render(this, page);
+    else if (CampusSocial.handles(page)) CampusSocial.render(this, page);
+    else if (CampusPhone.handles(page)) CampusPhone.render(this, page);
+    else if (CampusManage.handles(page)) CampusManage.render(this, page);
+    return content;
   }
 
   void home() {
@@ -958,6 +978,10 @@ public class CampusActivity extends Activity {
   }
 
   void toast(String s) {
+    if (ComposeEntry.active(this)) {
+      ComposeEntry.notice(this, s);
+      return;
+    }
     Toast.makeText(this, s, Toast.LENGTH_LONG).show();
   }
 

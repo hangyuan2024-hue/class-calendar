@@ -1,0 +1,7 @@
+
+# Local Android toolchain and build outputs
+android/.gradle/
+android/local.properties
+android/**/build/
+**/.build/
+**/__pycache__/

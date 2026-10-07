@@ -97,6 +97,10 @@ final class CampusManage {
       String body,
       String[] options,
       java.util.function.IntConsumer action) {
+    if (ComposeEntry.active(a)) {
+      ComposeEntry.message(a, title, body, options, action);
+      return;
+    }
     TextView text = a.ui.text(body, 15, a.ui.ink, false);
     text.setTextIsSelectable(true);
     text.setPadding(a.ui.dp(22), a.ui.dp(18), a.ui.dp(22), a.ui.dp(18));
