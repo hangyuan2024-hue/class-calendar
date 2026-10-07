@@ -19,6 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-java@v4
         with:
@@ -43,26 +45,49 @@ jobs:
           SITE_URL: https://www.laolaokechengbiao.cn/
         run: gradle -p android testPreviewDebugUnitTest assembleStableRelease --no-daemon --stacktrace
 
+      - name: 保存安装包（可直接下载）
+        uses: actions/upload-artifact@v4
+        with:
+          name: class-calendar-4.0.${{ github.run_number }}
+          path: android/app/build/outputs/apk/stable/release/app-stable-release.apk
+          if-no-files-found: error
+
       - name: 放到网站下载目录
         env:
           RUN_NUMBER: ${{ github.run_number }}
+          TARGET_BRANCH: ${{ github.ref_name }}
         run: |
-          set -e
-          SRC="android/app/build/outputs/apk/stable/release/app-stable-release.apk"
-          test -f "$SRC" || { echo "::error::没有找到稳定版 APK：$SRC"; find android/app/build/outputs/apk -maxdepth 5 -type f -print || true; exit 1; }
-          mkdir -p download
-          cp "$SRC" download/class-calendar.apk
-          cat > download/app-version.json <<JSON
-          {"versionCode": ${RUN_NUMBER}, "versionName": "4.0.${RUN_NUMBER}", "url": "download/class-calendar.apk", "size": $(stat -c %s download/class-calendar.apk), "signed": true, "at": "$(date -u +%FT%TZ)"}
-          JSON
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add download
-          git commit -m "安卓 App 4.0.${RUN_NUMBER}" || exit 0
-          git pull --rebase origin "${GITHUB_REF_NAME}"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+          set -euo pipefail
+          SRC="${GITHUB_WORKSPACE}/android/app/build/outputs/apk/stable/release/app-stable-release.apk"
+          test -f "$SRC" || { echo "::error::没有找到稳定版 APK：$SRC"; exit 1; }
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: class-calendar-4.0.${{ github.run_number }}
-          path: download/class-calendar.apk
+          # 构建可能改写已跟踪文件；发布仅在独立的干净目录中完成。
+          PUBLISH_DIR="${RUNNER_TEMP}/android-publish-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git fetch --no-tags origin "$TARGET_BRANCH"
+          git worktree add --detach "$PUBLISH_DIR" FETCH_HEAD
+          trap 'git worktree remove --force "$PUBLISH_DIR" >/dev/null 2>&1 || true' EXIT
+          git -C "$PUBLISH_DIR" config user.name "github-actions[bot]"
+          git -C "$PUBLISH_DIR" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          for ATTEMPT in 1 2 3; do
+            if [ "$ATTEMPT" -gt 1 ]; then
+              git fetch --no-tags origin "$TARGET_BRANCH"
+              git -C "$PUBLISH_DIR" reset --hard "$(git rev-parse FETCH_HEAD)"
+            fi
+            mkdir -p "$PUBLISH_DIR/download"
+            cp "$SRC" "$PUBLISH_DIR/download/class-calendar.apk"
+            cat > "$PUBLISH_DIR/download/app-version.json" <<JSON
+          {"versionCode": ${RUN_NUMBER}, "versionName": "4.0.${RUN_NUMBER}", "url": "download/class-calendar.apk", "size": $(stat -c %s "$SRC"), "signed": true, "at": "$(date -u +%FT%TZ)"}
+          JSON
+            git -C "$PUBLISH_DIR" add -- download/class-calendar.apk download/app-version.json
+            if git -C "$PUBLISH_DIR" diff --cached --quiet; then
+              echo "下载目录已经是当前版本。"
+              exit 0
+            fi
+            git -C "$PUBLISH_DIR" commit -m "安卓 App 4.0.${RUN_NUMBER}"
+            if git -C "$PUBLISH_DIR" push origin "HEAD:${TARGET_BRANCH}"; then
+              exit 0
+            fi
+          done
+          echo "::error::安装包已保存到 Artifacts，但更新网站下载目录失败。请在 Actions 中下载已保存的 APK，并检查仓库写入权限。"
+          exit 1
