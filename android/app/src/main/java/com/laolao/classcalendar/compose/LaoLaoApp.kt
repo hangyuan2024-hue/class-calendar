@@ -20,14 +20,16 @@ import androidx.compose.ui.unit.*
 import androidx.core.view.WindowCompat
 import kotlinx.coroutines.launch
 
-internal val MainRoutes = listOf("home", "calendar", "ask", "tools", "me")
+internal val MainRoutes = listOf("home", "calendar", "wall", "tools", "me")
 
 private val LocalPageListState = staticCompositionLocalOf<LazyListState?> { null }
 
 private fun mainDestination(route: String) =
     when (route) {
-        "ask" -> "ask"
         "home" -> "home"
+        "wall",
+        "rank" -> "wall"
+        "ask" -> "home"
         "calendar",
         "homework",
         "courses",
@@ -36,7 +38,6 @@ private fun mainDestination(route: String) =
         "growth",
         "farm",
         "meta",
-        "rank",
         "report",
         "cards",
         "review" -> "tools"
@@ -77,6 +78,7 @@ internal fun routeTitle(route: String): String =
         "growth" -> "成长"
         "ask" -> "AI 助手"
         "wall" -> "班级墙"
+        "rank" -> "班级成长榜"
         "appearance" -> "外观与配色"
         "home-layout" -> "首页卡片"
         "class" -> "我的班级"
@@ -113,7 +115,6 @@ internal fun LaoLaoApp(state: CampusSession) {
     LaoLaoTheme(state) {
         val colors = MaterialTheme.colorScheme
         val motionEnabled = LocalMotionEnabled.current
-        val keyboardVisible = campusKeyboardVisible()
         val savedPages = rememberSaveableStateHolder()
         val listStates = remember { mutableMapOf<String, LazyListState>() }
         val scope = rememberCoroutineScope()
@@ -144,7 +145,7 @@ internal fun LaoLaoApp(state: CampusSession) {
                     if (state.route == "parse-review") ImportReviewActions(state)
                     else
                         AnimatedVisibility(
-                            visible = state.route != "ask" || !keyboardVisible,
+                            visible = state.route !in setOf("ask", "login", "register"),
                             enter =
                                 if (motionEnabled)
                                     fadeIn(tween(180)) +
@@ -159,7 +160,7 @@ internal fun LaoLaoApp(state: CampusSession) {
                                     fadeOut(tween(100)) + slideOutVertically(tween(160)) { it / 2 }
                                 else ExitTransition.None,
                         ) {
-                            CampusBottomBar(state, mainDestination(state.route)) { route ->
+                            CampusBottomBar2026(state, mainDestination(state.route)) { route ->
                                 if (state.route == route)
                                     scope.launch { listStates[route]?.animateScrollToItem(0) }
                                 else state.a.tab(route)
@@ -198,7 +199,6 @@ internal fun LaoLaoApp(state: CampusSession) {
                         else EnterTransition.None.togetherWith(ExitTransition.None)
                     },
                 ) { route ->
-                    // Skip obsolete outgoing snapshots; each route has an independent scroll state.
                     savedPages.SaveableStateProvider(route) {
                         CompositionLocalProvider(
                             LocalPageListState provides
@@ -206,7 +206,7 @@ internal fun LaoLaoApp(state: CampusSession) {
                         ) {
                             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
                                 Box(Modifier.widthIn(max = 680.dp).fillMaxSize()) {
-                                    key(route) { ModernPages.Page(state, route) }
+                                    key(route) { CampusPage2026(state, route) }
                                 }
                             }
                         }
