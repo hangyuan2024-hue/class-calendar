@@ -9,9 +9,8 @@
   }
 
   // 旧的「个性化主题」插件已经被“我的 → 外观”取代。
-  // 它仍可能从旧缓存/云端插件列表启动，并在延迟加载后 resetTheme()，
-  // 从而把清爽 + 天空蓝的行内颜色删掉，页面就会突然回落到 Codex CSS 的靛紫默认色。
-  // 在 app.js 的 message 监听器之前拦截这两个旧主题消息，其他插件消息完全不受影响。
+  // 它可能从旧缓存/同步记录延迟启动并发送 resetTheme/theme，导致当前外观突然变色。
+  // 在 app.js 的 message 监听器之前拦截这两个旧消息；其他插件完全不受影响。
   window.addEventListener("message", function (e) {
     var d = e && e.data;
     if (!d || typeof d !== "object") return;
@@ -21,10 +20,7 @@
     }
   }, true);
 
-  var SKY = { id: "sky", name: "天空蓝", p: "#1ea0ff", s: "#ff7b2e" };
   var VALID_SKINS = { fresh: 1, auto: 1, vivid: 1, clean: 1, dark: 1, cyber: 1 };
-  var paletteApi = null;
-  var rawApply = null;
 
   function readJSON(key, fallback) {
     try {
@@ -37,9 +33,12 @@
 
   function validHex(x) { return /^#[0-9a-f]{6}$/i.test(String(x || "")); }
 
+  // 重要：天空蓝在原站里用“没有 ui_palette_v1 记录”表示。
+  // 这里必须保留 null，让 fresh/workspace-v2.css 自己的柔和蓝紫基底生效，
+  // 不能再强制写入 #1ea0ff/#ff7b2e，否则会变成高饱和蓝橙版。
   function currentPalette() {
     var p = readJSON("ui_palette_v1", null);
-    return p && validHex(p.p) && validHex(p.s) ? p : SKY;
+    return p && validHex(p.p) && validHex(p.s) ? p : null;
   }
 
   function currentSkin() {
@@ -49,46 +48,23 @@
     return { want: want, skin: want === "auto" ? "fresh" : want, dark: !!dark };
   }
 
-  function expectedMode(s) { return s.dark ? "fresh-dark" : s.skin; }
-
   function stabilizeAppearance() {
     try {
-      if (!paletteApi || typeof paletteApi.apply !== "function") return;
       var s = currentSkin();
       var root = document.documentElement;
-      // localStorage 是外观设置的唯一来源；修复旧插件/旧缓存把 DOM 改成另一套皮肤的情况。
       root.dataset.skin = s.skin;
       if (s.want === "auto" && s.dark) root.dataset.mode = "dark";
       else delete root.dataset.mode;
-      paletteApi.apply(currentPalette(), expectedMode(s));
-    } catch (e) { /* 外观保护绝不能阻断页面启动 */ }
+
+      // 有自定义/其他配色时重新应用；天空蓝(null)时清掉旧行内变量，
+      // 回到 CSS 中原本的清爽柔和配色。
+      if (window.ccPalette && typeof window.ccPalette.apply === "function") {
+        window.ccPalette.apply(currentPalette(), s.dark ? "fresh-dark" : s.skin);
+      }
+    } catch (e) { /* 外观保护不能阻断页面 */ }
   }
 
-  // 天空蓝过去用“没有 ui_palette_v1 记录”表示。Codex 后来把 fresh 的 CSS 默认主色改成了靛紫，
-  // 所以 null 已经不能再等同于天空蓝。包一层 ccPalette.apply：没有记录时显式应用天空蓝。
-  try {
-    Object.defineProperty(window, "ccPalette", {
-      configurable: true,
-      enumerable: true,
-      get: function () { return paletteApi; },
-      set: function (v) {
-        paletteApi = v;
-        if (v && typeof v.apply === "function" && !v.__laolaoStableTheme) {
-          rawApply = v.apply.bind(v);
-          v.apply = function (pal, skin) {
-            var safe = pal && validHex(pal.p) && validHex(pal.s) ? pal : SKY;
-            return rawApply(safe, skin);
-          };
-          try { Object.defineProperty(v, "__laolaoStableTheme", { value: true }); } catch (e) { v.__laolaoStableTheme = true; }
-        }
-        // boot.js 在赋值后还会执行一次自己的旧初始化；放到下一任务再修正，避免被它清回去。
-        setTimeout(stabilizeAppearance, 0);
-      }
-    });
-  } catch (e) { /* 极老浏览器直接使用后面的定时修复 */ }
-
-  // 把旧主题插件从“已启用插件”里移除。若还没有显式启用列表，就用已缓存的插件注册表
-  // 生成默认列表，但排除 theme；当前页即使已经启动了旧插件，上面的 message 拦截仍会保护外观。
+  // 把旧主题插件从已启用列表里移除。若云同步把旧状态拉回来，也会再次清理。
   function retireLegacyThemePlugin() {
     try {
       var key = "plugins_enabled_v1";
@@ -111,12 +87,12 @@
   }
 
   retireLegacyThemePlugin();
-  // 云同步可能把旧的 plugins_enabled_v1 再拉回来，因此做很轻量的周期清理。
   setInterval(retireLegacyThemePlugin, 15000);
 
-  // 页面恢复、系统深浅色变化时再校正一次；正常用户操作仍以 localStorage 中的最新选择为准。
   window.addEventListener("pageshow", function () { setTimeout(stabilizeAppearance, 0); });
-  document.addEventListener("visibilitychange", function () { if (!document.hidden) setTimeout(stabilizeAppearance, 0); });
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden) setTimeout(stabilizeAppearance, 0);
+  });
   try {
     var mq = window.matchMedia && matchMedia("(prefers-color-scheme: dark)");
     if (mq && mq.addEventListener) mq.addEventListener("change", function () {
@@ -124,7 +100,6 @@
     });
   } catch (e) {}
 
-  // app.js 会在启动、同步、切页时调用 applyLook/applyPalette；再做几次短延迟校正，
-  // 覆盖旧 Service Worker/插件代码延迟启动的竞态，不长期轮询页面样式。
+  // 覆盖页面启动、插件延迟加载、同步恢复等竞态。
   [50, 250, 1000, 2500, 6000].forEach(function (ms) { setTimeout(stabilizeAppearance, ms); });
 })();
