@@ -14,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.*
 import androidx.compose.ui.graphics.*
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.*
@@ -553,7 +554,7 @@ private fun RankMiniRow2026(index: Int, item: JSONObject) {
 
 private fun rankRows2026(a: CampusActivity): List<JSONObject> {
     val cached = a.store.get("cache_rank", null)
-    val obj = CampusJson.object(cached)
+    val obj = CampusJson.`object`(cached)
     val arr = obj.optJSONArray("rows")
     return if (arr != null) CampusJson.rows(arr) else CampusJson.rows(CampusJson.arr(cached))
 }
@@ -858,7 +859,7 @@ internal fun CampusAuthPage2026(s: CampusSession) {
                     Modifier.fillMaxWidth(),
                     enabled =
                         account.length >= 3 &&
-                            password.length >= if (signup) 8 else 1 &&
+                            password.length >= (if (signup) 8 else 1) &&
                             (!signup || name.isNotBlank()),
                 ) { submit() }
 
