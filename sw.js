@@ -1,6 +1,6 @@
 // 离线缓存（Service Worker）：只缓存网页自己的文件，不缓存任何数据接口的内容
-// 2026-10-07：主题稳定性修复 v2。恢复清爽原始柔和配色，并继续阻止旧主题插件覆盖。
-const CACHE = "cc-static-v29-theme-restore";
+// 2026-10-07：主题命名 v3。默认=柔和原始配色，深空蓝=高饱和蓝橙。
+const CACHE = "cc-static-v30-theme-names";
 const PAGES = ["./", "index.html", "app.html", "login.html"];
 const EXTRA = [
   "campus-ui.css?v=20261005-campus1",
