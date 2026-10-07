@@ -2,12 +2,12 @@
   "plugins": [
     {
       "id": "theme",
-      "name": "个性化主题",
+      "name": "个性化主题（已迁移）",
       "icon": "🎨",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "author": "信息捞捞队",
-      "description": "切换深色模式和主题配色。",
-      "default": true
+      "description": "主题功能已合并到“我的 → 外观”，旧插件不再默认启用。",
+      "default": false
     },
     {
       "id": "course-schedule",

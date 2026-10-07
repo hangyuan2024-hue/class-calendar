@@ -1,6 +1,6 @@
 // 离线缓存（Service Worker）：只缓存网页自己的文件，不缓存任何数据接口的内容
-// 2026-10-06：快捷工具、成长导航、批量抽签导入与错题书架。
-const CACHE = "cc-static-v27-tools";
+// 2026-10-07：主题稳定性修复。刷新 guard.js，停用旧主题插件覆盖。
+const CACHE = "cc-static-v28-theme-stability";
 const PAGES = ["./", "index.html", "app.html", "login.html"];
 const EXTRA = [
   "campus-ui.css?v=20261005-campus1",
