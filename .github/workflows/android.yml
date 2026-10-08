@@ -48,7 +48,7 @@ jobs:
       - name: 保存安装包（可直接下载）
         uses: actions/upload-artifact@v4
         with:
-          name: class-calendar-5.1.${{ github.run_number }}
+          name: class-calendar-5.2.${{ github.run_number }}
           path: android/app/build/outputs/apk/stable/release/app-stable-release.apk
           if-no-files-found: error
 
@@ -77,14 +77,14 @@ jobs:
             mkdir -p "$PUBLISH_DIR/download"
             cp "$SRC" "$PUBLISH_DIR/download/class-calendar.apk"
             cat > "$PUBLISH_DIR/download/app-version.json" <<JSON
-          {"versionCode": ${RUN_NUMBER}, "versionName": "5.1.${RUN_NUMBER}", "url": "download/class-calendar.apk", "size": $(stat -c %s "$SRC"), "signed": true, "at": "$(date -u +%FT%TZ)"}
+          {"versionCode": ${RUN_NUMBER}, "versionName": "5.2.${RUN_NUMBER}", "url": "download/class-calendar.apk", "size": $(stat -c %s "$SRC"), "signed": true, "at": "$(date -u +%FT%TZ)"}
           JSON
             git -C "$PUBLISH_DIR" add -- download/class-calendar.apk download/app-version.json
             if git -C "$PUBLISH_DIR" diff --cached --quiet; then
               echo "下载目录已经是当前版本。"
               exit 0
             fi
-            git -C "$PUBLISH_DIR" commit -m "安卓 App 5.1.${RUN_NUMBER}"
+            git -C "$PUBLISH_DIR" commit -m "安卓 App 5.2.${RUN_NUMBER}"
             if git -C "$PUBLISH_DIR" push origin "HEAD:${TARGET_BRANCH}"; then
               exit 0
             fi
