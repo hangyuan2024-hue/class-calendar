@@ -3,7 +3,6 @@ package com.laolao.classcalendar
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.*
@@ -11,13 +10,9 @@ import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.input.*
 import androidx.compose.ui.unit.*
-import androidx.compose.ui.window.DialogWindowProvider
-import androidx.core.view.WindowCompat
 import java.text.SimpleDateFormat
 import java.util.*
 import org.json.JSONArray
@@ -28,27 +23,7 @@ import org.json.JSONObject
 internal fun CampusSheets(s: CampusSession) {
     val sheet = s.sheet ?: return
     val height = LocalConfiguration.current.screenHeightDp.dp * .84f
-    ModalBottomSheet(
-        onDismissRequest = { s.closeSheet() },
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = .97f),
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        tonalElevation = 0.dp,
-        scrimColor = MaterialTheme.colorScheme.onBackground.copy(alpha = .24f),
-        shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
-    ) {
-        // A Material bottom sheet owns a separate window on Android. Its system icons
-        // must follow this theme too, rather than the dialog's default light appearance.
-        val sheetView = LocalView.current
-        val lightSystemIcons = MaterialTheme.colorScheme.surface.luminance() <= .5f
-        SideEffect {
-            (sheetView.parent as? DialogWindowProvider)?.window?.let { window ->
-                WindowCompat.getInsetsController(window, sheetView).apply {
-                    isAppearanceLightStatusBars = !lightSystemIcons
-                    isAppearanceLightNavigationBars = !lightSystemIcons
-                }
-            }
-        }
+    LaoBottomSheet(onDismiss = { s.closeSheet() }) {
         key(sheet) {
             Column(
                 Modifier.fillMaxWidth()
@@ -68,13 +43,13 @@ internal fun CampusSheets(s: CampusSession) {
                     is DrawImportSheet -> DrawImportContent(s, sheet)
                     is FormSheet -> FormContent(s, sheet)
                     is ChoiceSheet -> {
-                        SheetHeading(sheet.title) { s.closeSheet() }
+                        LaoSheetHeading(sheet.title) { s.closeSheet() }
                         LazyColumn(
                             Modifier.weight(1f, false),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             itemsIndexed(sheet.options) { index, label ->
-                                SoftButton(label, Modifier.fillMaxWidth()) {
+                                LaoSecondaryButton(label, Modifier.fillMaxWidth()) {
                                     s.closeSheet()
                                     s.invoke { sheet.action(index) }
                                 }
@@ -82,32 +57,32 @@ internal fun CampusSheets(s: CampusSession) {
                         }
                     }
                     is ConfirmSheet -> {
-                        SheetHeading(sheet.title) { s.closeSheet() }
+                        LaoSheetHeading(sheet.title) { s.closeSheet() }
                         Text(sheet.body, style = MaterialTheme.typography.bodyLarge)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            SoftButton("取消", Modifier.weight(1f)) { s.closeSheet() }
-                            PrimaryButton("确定", Modifier.weight(1f)) {
+                            LaoSecondaryButton("取消", Modifier.weight(1f)) { s.closeSheet() }
+                            LaoPrimaryButton("确定", Modifier.weight(1f)) {
                                 s.closeSheet()
                                 s.invoke(sheet.yes)
                             }
                         }
                     }
                     is MessageSheet -> {
-                        SheetHeading(sheet.title) { s.closeSheet() }
+                        LaoSheetHeading(sheet.title) { s.closeSheet() }
                         Box(Modifier.weight(1f, false).verticalScroll(rememberScrollState())) {
                             androidx.compose.foundation.text.selection.SelectionContainer {
                                 Text(sheet.body, style = MaterialTheme.typography.bodyLarge)
                             }
                         }
                         sheet.options.forEachIndexed { index, label ->
-                            PrimaryButton(label, Modifier.fillMaxWidth()) {
+                            LaoPrimaryButton(label, Modifier.fillMaxWidth()) {
                                 s.closeSheet()
                                 s.invoke { sheet.action(index) }
                             }
                         }
                     }
                     is PanelSheet -> {
-                        SheetHeading(sheet.title) { s.closeSheet() }
+                        LaoSheetHeading(sheet.title) { s.closeSheet() }
                         val nodes =
                             if (s.panelRevision > 0 && sheet.source != null)
                                 FeatureModels.read(sheet.source, s.a)
@@ -121,11 +96,11 @@ internal fun CampusSheets(s: CampusSession) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             sheet.actions.forEach { action ->
                                 if (action.primary)
-                                    PrimaryButton(action.text, Modifier.weight(1f)) {
+                                    LaoPrimaryButton(action.text, Modifier.weight(1f)) {
                                         s.invoke(action.click)
                                     }
                                 else
-                                    SoftButton(action.text, Modifier.weight(1f)) {
+                                    LaoSecondaryButton(action.text, Modifier.weight(1f)) {
                                         s.invoke(action.click)
                                     }
                             }
@@ -135,34 +110,12 @@ internal fun CampusSheets(s: CampusSession) {
                     SearchSheet -> SearchContent(s)
                     AlertsSheet -> AlertsContent(s)
                     GuideSheet -> {
-                        SheetHeading("捞捞助手") { s.closeSheet() }
+                        LaoSheetHeading("捞捞提醒") { s.closeSheet() }
                         GuideWorkspace(s, Modifier.weight(1f, false))
                     }
                     ToolPickerSheet -> ToolPicker(s)
-                    QuickAddSheet -> {
-                        SheetHeading("记事与快捷操作") { s.closeSheet() }
-                        listOf(
-                                "记一件事" to
-                                    {
-                                        s.a.selectedDay = DateMath.today()
-                                        CampusSchool.personalForm(s.a, null)
-                                    },
-                                "粘贴导入" to { CampusSocial.pasteImport(s.a) },
-                                "开始专注" to { s.open("pomo") },
-                                "习惯打卡" to { s.open("growth") },
-                            )
-                            .forEach { (label, action) ->
-                                SoftButton(label, Modifier.fillMaxWidth()) {
-                                    s.closeSheet()
-                                    s.invoke(action)
-                                }
-                            }
-                        if (s.a.cid().isNotBlank() && s.a.can("can_ingest"))
-                            SoftButton("发布班级事项", Modifier.fillMaxWidth()) {
-                                s.closeSheet()
-                                CampusSchool.classForm(s.a, null)
-                            }
-                    }
+                    ProfileEditorSheet -> ProfileEditorContent(s)
+                    QuickAddSheet -> LaoQuickActions(s)
                 }
                 Spacer(Modifier.height(16.dp))
             }
@@ -171,12 +124,15 @@ internal fun CampusSheets(s: CampusSession) {
 }
 
 @Composable
-internal fun SheetHeading(title: String, close: () -> Unit) {
+internal fun LaoSheetHeading(title: String, close: () -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall)
-        PressIcon(Icons.Rounded.Close, "关闭", close)
+        Text(title, Modifier.weight(1f), style = LaoType.title)
+        LaoIconButton(Icons.Rounded.Close, "关闭", click = close)
     }
 }
+
+@Composable
+internal fun SheetHeading(title: String, close: () -> Unit) = LaoSheetHeading(title, close)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -204,7 +160,7 @@ internal fun ColumnScope.FormContent(s: CampusSession, form: FormSheet) {
     var error by remember { mutableStateOf("") }
     var dateField by remember { mutableStateOf<CampusUi.Field?>(null) }
     var timeField by remember { mutableStateOf<CampusUi.Field?>(null) }
-    SheetHeading(form.title) { s.closeSheet() }
+    LaoSheetHeading(form.title) { s.closeSheet() }
     if (error.isNotBlank())
         Text(
             error,
@@ -221,24 +177,15 @@ internal fun ColumnScope.FormContent(s: CampusSession, form: FormSheet) {
                         Modifier.weight(1f),
                         style = MaterialTheme.typography.bodyLarge,
                     )
-                    Switch(value == "true", onCheckedChange = { values[field.key] = it.toString() })
+                    LaoToggle(
+                        value == "true",
+                        onCheckedChange = { values[field.key] = it.toString() },
+                    )
                 }
             else if (field.kind == "choice") {
                 var expanded by remember { mutableStateOf(false) }
                 Box {
-                    OutlinedTextField(
-                        value = value,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text(field.label) },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        trailingIcon = {
-                            PressIcon(Icons.Rounded.ExpandMore, "选择${field.label}") {
-                                expanded = true
-                            }
-                        },
-                    )
+                    LaoSelect(value, field.label, Modifier.fillMaxWidth()) { expanded = true }
                     DropdownMenu(expanded, onDismissRequest = { expanded = false }) {
                         field.choices.forEach { option ->
                             DropdownMenuItem(
@@ -255,7 +202,7 @@ internal fun ColumnScope.FormContent(s: CampusSession, form: FormSheet) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(field.label, style = MaterialTheme.typography.labelLarge)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SoftButton(
+                        LaoSecondaryButton(
                             value.ifBlank { if (field.kind == "date") "选择日期" else "选择时间" },
                             Modifier.weight(1f),
                         ) {
@@ -268,16 +215,13 @@ internal fun ColumnScope.FormContent(s: CampusSession, form: FormSheet) {
                     }
                 }
             } else
-                OutlinedTextField(
-                    value = value,
-                    onValueChange = { values[field.key] = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(field.label + if (field.required) " *" else "") },
-                    shape = RoundedCornerShape(16.dp),
-                    minLines = if (field.kind == "multiline") 3 else 1,
-                    maxLines = if (field.kind == "multiline") 8 else 1,
+                LaoInput(
+                    value,
+                    { values[field.key] = it },
+                    field.label + if (field.required) " *" else "",
+                    Modifier.fillMaxWidth(),
                     singleLine = field.kind != "multiline",
-                    keyboardOptions =
+                    keyboard =
                         KeyboardOptions(
                             keyboardType =
                                 when (field.kind) {
@@ -287,15 +231,17 @@ internal fun ColumnScope.FormContent(s: CampusSession, form: FormSheet) {
                                     else -> KeyboardType.Text
                                 }
                         ),
-                    visualTransformation =
+                    transformation =
                         if (field.kind == "password") PasswordVisualTransformation()
                         else VisualTransformation.None,
+                    minLines = if (field.kind == "multiline") 3 else 1,
+                    maxLines = if (field.kind == "multiline") 8 else 1,
                 )
         }
     }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        SoftButton("取消", Modifier.weight(1f)) { s.closeSheet() }
-        PrimaryButton(form.action, Modifier.weight(1f)) {
+        LaoSecondaryButton("取消", Modifier.weight(1f)) { s.closeSheet() }
+        LaoPrimaryButton(form.action, Modifier.weight(1f)) {
             try {
                 val out = JSONObject(form.initial.toString())
                 form.fields.forEach { f ->
@@ -377,20 +323,19 @@ internal fun ColumnScope.ToolPicker(s: CampusSession) {
         mutableStateListOf<String>().apply { repeat(old.length()) { add(old.optString(it)) } }
     }
     var search by remember { mutableStateOf("") }
-    SheetHeading("选择常用工具") { s.closeSheet() }
+    LaoSheetHeading("选择常用工具") { s.closeSheet() }
     Text(
         "收藏会同时出现在首页和工具页。",
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-    OutlinedTextField(
+    LaoInput(
         search,
         { search = it },
+        "",
         Modifier.fillMaxWidth(),
-        placeholder = { Text("搜索要收藏的工具") },
-        leadingIcon = { Icon(Icons.Rounded.Search, null) },
-        singleLine = true,
-        shape = RoundedCornerShape(16.dp),
+        placeholder = "搜索要收藏的工具",
+        leading = Icons.Rounded.Search,
     )
     LazyColumn(Modifier.weight(1f, false), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items(
@@ -417,18 +362,17 @@ internal fun ColumnScope.ToolPicker(s: CampusSession) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                Checkbox(
+                LaoCheck(
                     item[0] in selected,
-                    onCheckedChange = {
-                        if (it) selected.add(item[0]) else selected.remove(item[0])
-                    },
+                    "收藏 " + item[1],
+                    change = { if (it) selected.add(item[0]) else selected.remove(item[0]) },
                 )
             }
         }
     }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        SoftButton("取消", Modifier.weight(1f)) { s.closeSheet() }
-        PrimaryButton("保存 ${selected.size} 个", Modifier.weight(1f)) {
+        LaoSecondaryButton("取消", Modifier.weight(1f)) { s.closeSheet() }
+        LaoPrimaryButton("保存 ${selected.size} 个", Modifier.weight(1f)) {
             a.store.set("native_home_tools", JSONArray(selected.distinct()))
             s.closeSheet()
             a.build()

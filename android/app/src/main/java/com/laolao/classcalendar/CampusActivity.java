@@ -112,6 +112,7 @@ public class CampusActivity extends androidx.activity.ComponentActivity {
         open("home");
         CampusSchool.personalForm(this, null);
       } else if (go.equals("home-layout")
+          || ComposeEntry.handles(go)
           || CampusSchool.handles(go)
           || CampusLearn.handles(go)
           || CampusPhone.handles(go)
@@ -740,6 +741,32 @@ public class CampusActivity extends androidx.activity.ComponentActivity {
     unlocked = false;
   }
 
+  /** Inline Compose authentication uses the original API and account-scoped storage. */
+  void authenticate(String account, String password, String name, String role, String gender, boolean signup) {
+    if (loading) return;
+    loading = true;
+    cloudError = "";
+    build();
+    background(
+        signup ? "注册" : "登录",
+        () -> {
+          if (signup) api.register(account, password, name, role, gender);
+          else api.login(account, password);
+          return null;
+        },
+        r -> {
+          loading = false;
+          switchAccount();
+          if (signup && !store.object("ui_palette_v1").has("id")) {
+            String palette = gender.equals("f") ? "sakura" : gender.equals("m") ? "sky" : "ocean";
+            store.set("ui_palette_v1", CampusJson.obj("id", palette));
+            store.set("compose_mode_v1", "light");
+          }
+          tab("home");
+          refreshCloud();
+        });
+  }
+
   void background(String label, Work task, Done done) {
     final String owner = api.uid();
     final boolean changesOwner = label.equals("登录") || label.equals("注册") || label.equals("退出登录");
@@ -774,7 +801,7 @@ public class CampusActivity extends androidx.activity.ComponentActivity {
     loading = false;
     cloudError = e.getMessage() == null ? "操作未完成，请重试" : e.getMessage();
     toast(cloudError);
-    if (ComposeEntry.active(this) && page.equals("home")) ComposeEntry.refresh(this);
+    if (ComposeEntry.active(this)) ComposeEntry.refresh(this);
     if (api != null && store != null && !api.uid().equals(store.owner)) {
       switchAccount();
       build();
@@ -1067,6 +1094,7 @@ public class CampusActivity extends androidx.activity.ComponentActivity {
 
   @Override
   public void onBackPressed() {
+    if (ComposeEntry.onBack(this)) return;
     if (!history.isEmpty()) {
       page = history.pop();
       build();

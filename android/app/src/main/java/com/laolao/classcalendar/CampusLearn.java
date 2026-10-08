@@ -1287,6 +1287,7 @@ final class CampusLearn {
 
   static void loadRank(CampusActivity a, String period) {
     if (!a.needClass()) return;
+    final String rankClass = a.cid();
     a.background(
         "读取成长榜",
         () -> {
@@ -1295,11 +1296,13 @@ final class CampusLearn {
             if (!x.optBoolean("_mine") && a.done(x))
               ids.put(CampusJson.numericId(x.optString("id")));
           if (ids.length() > 0)
-            a.api.rpc("growth_sync_done", CampusJson.obj("cid", a.cid(), "ids", ids));
-          return a.api.rpc("growth_board", CampusJson.obj("cid", a.cid(), "period", period));
+            a.api.rpc("growth_sync_done", CampusJson.obj("cid", rankClass, "ids", ids));
+          return a.api.rpc("growth_board", CampusJson.obj("cid", rankClass, "period", period));
         },
         r -> {
+          if (!a.cid().equals(rankClass)) return;
           a.store.set("cache_rank", r);
+          a.store.set("native_rank_class", rankClass);
           a.store.set("native_rank_period", period);
           a.open("rank");
         });

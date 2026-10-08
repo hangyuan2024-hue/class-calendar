@@ -38,20 +38,21 @@ internal data class LaoPalette(
     val name: String,
     val primary: Color,
     val companion: Color,
+    val accent: Color = Color(0xFF7654CB),
 )
 
 internal val LaoPalettes =
     listOf(
-        LaoPalette("ocean", "默认 · 海盐青", Color(0xFF316D67), Color(0xFFBDDAD1)),
-        LaoPalette("sky", "晴空蓝", Color(0xFF3E5EBB), Color(0xFFB9D5EF)),
-        LaoPalette("mint", "薄荷绿", Color(0xFF356752), Color(0xFFBFE2CE)),
-        LaoPalette("lavender", "鸢尾紫", Color(0xFF7258A8), Color(0xFFD9C9EA)),
-        LaoPalette("sakura", "樱花粉", Color(0xFFA4456C), Color(0xFFF1CCD9)),
-        LaoPalette("apricot", "暖杏橙", Color(0xFF945F36), Color(0xFFF3D9B8)),
+        LaoPalette("ocean", "默认 · 海盐青", Color(0xFF17756E), Color(0xFFBFE7DC), Color(0xFF7654CB)),
+        LaoPalette("sky", "晴空蓝", Color(0xFF365BCA), Color(0xFFC6D9FF), Color(0xFFBA3F78)),
+        LaoPalette("mint", "薄荷绿", Color(0xFF14795C), Color(0xFFBDEBDD), Color(0xFF6A59C7)),
+        LaoPalette("lavender", "电光紫", Color(0xFF7450C7), Color(0xFFDDD0FF), Color(0xFF168279)),
+        LaoPalette("sakura", "莓果粉", Color(0xFFB83F77), Color(0xFFF8CDDF), Color(0xFF6956C7)),
+        LaoPalette("apricot", "日落橙", Color(0xFFA95626), Color(0xFFFFD8B5), Color(0xFF7857BE)),
         LaoPalette("forest", "森野绿", Color(0xFF267661), Color(0xFFBDE2CE)),
         LaoPalette("moon", "月光白", Color(0xFF4B586C), Color(0xFFD4DCE8)),
         LaoPalette("cyber", "深空蓝", Color(0xFF3B5487), Color(0xFFBDCEFA)),
-        LaoPalette("graphite", "石墨灰", Color(0xFF555C70), Color(0xFFD8DCE6)),
+        LaoPalette("graphite", "夜幕黑", Color(0xFF2A2E37), Color(0xFFACEFE6), Color(0xFFED81AE)),
     )
 internal val LaoTypography =
     Typography(
@@ -149,55 +150,66 @@ internal fun LaoLaoTheme(state: CampusSession, content: @Composable () -> Unit) 
             "light" -> false
             "dark" -> true
             "system" -> isSystemInDarkTheme()
-            // Preserve existing skin preferences until a display mode is explicitly chosen.
             else ->
-                isSystemInDarkTheme() || legacy == "cyber" || legacy == "dark" || p.id == "cyber"
+                isSystemInDarkTheme() ||
+                    legacy == "cyber" ||
+                    legacy == "dark" ||
+                    p.id in listOf("cyber", "graphite")
         }
+    val nightBase =
+        when (p.id) {
+            "cyber" -> Color(0xFF10172B)
+            "graphite" -> Color(0xFF0D0E13)
+            else -> Color(0xFF13141D)
+        }
+    val nightSurface = lerp(nightBase, p.primary, .15f)
+    val background = if (dark) nightBase else lerp(Color(0xFFF8F8FC), p.primary, .012f)
+    val surface = if (dark) lerp(nightSurface, Color.White, .035f) else Color.White
+    val secondary = if (dark) lerp(p.accent, Color.White, .40f) else p.accent
     val scheme =
         if (dark)
             darkColorScheme(
                 primary = p.companion,
-                onPrimary = Color(0xFF123033),
-                primaryContainer = p.primary.copy(alpha = .42f),
-                onPrimaryContainer = Color(0xFFE5F4F0),
-                secondary = Color(0xFFB9C9CC),
-                secondaryContainer = Color(0xFF2A3B42),
-                onSecondaryContainer = Color(0xFFE9EEF1),
-                background = if (p.id == "cyber") Color(0xFF10192C) else Color(0xFF121D23),
-                onBackground = Color(0xFFE9EEF1),
-                surface = if (p.id == "cyber") Color(0xFF1A2740) else Color(0xFF1D2A30),
-                onSurface = Color(0xFFE9EEF1),
-                surfaceContainer = if (p.id == "cyber") Color(0xFF26344C) else Color(0xFF27373D),
-                surfaceContainerLow = if (p.id == "cyber") Color(0xFF1C2A42) else Color(0xFF202F35),
-                surfaceContainerHigh =
-                    if (p.id == "cyber") Color(0xFF30425C) else Color(0xFF30434A),
-                surfaceContainerLowest = Color(0xFF131D23),
-                onSurfaceVariant = Color(0xFFA3B5BD),
-                outlineVariant = Color(0xFF354750),
-                tertiary = Color(0xFFFFC5A8),
-                tertiaryContainer = Color(0xFF47372E),
+                onPrimary = Color(0xFF15232B),
+                primaryContainer = lerp(surface, p.companion, .16f),
+                onPrimaryContainer = p.companion,
+                secondary = secondary,
+                secondaryContainer = lerp(surface, secondary, .13f),
+                onSecondaryContainer = Color(0xFFEEEAF7),
+                background = background,
+                onBackground = Color(0xFFF0F0F6),
+                surface = surface,
+                onSurface = Color(0xFFF0F0F6),
+                onSurfaceVariant = Color(0xFFB3B4C5),
+                surfaceContainerLowest = nightBase,
+                surfaceContainerLow = surface,
+                surfaceContainer = lerp(surface, Color.White, .045f),
+                surfaceContainerHigh = lerp(surface, Color.White, .08f),
+                outlineVariant = Color(0xFF343644),
+                tertiary = Color(0xFFFFC78E),
+                tertiaryContainer = Color(0xFF3D3026),
             )
         else
             lightColorScheme(
                 primary = p.primary,
                 onPrimary = Color.White,
-                primaryContainer = p.companion.copy(alpha = .52f),
-                onPrimaryContainer = Color(0xFF18363C),
-                secondary = Color(0xFF637A83),
-                secondaryContainer = Color(0xFFE8EFF0),
-                onSecondaryContainer = Color(0xFF182E38),
-                background = Color(0xFFF5F7F5),
-                onBackground = Color(0xFF182E38),
-                surface = Color.White,
-                onSurface = Color(0xFF182E38),
-                surfaceContainer = Color(0xFFEDF2F0),
-                surfaceContainerLow = Color(0xFFF0F4F2),
-                surfaceContainerHigh = Color(0xFFE6EDEF),
+                primaryContainer = lerp(Color.White, p.companion, .62f),
+                onPrimaryContainer = Color(0xFF19232E),
+                secondary = secondary,
+                secondaryContainer = lerp(Color.White, p.accent, .10f),
+                onSecondaryContainer = Color(0xFF29223A),
+                background = background,
+                onBackground = Color(0xFF191B26),
+                surface = surface,
+                onSurface = Color(0xFF191B26),
+                onSurfaceVariant = Color(0xFF686979),
                 surfaceContainerLowest = Color.White,
-                onSurfaceVariant = Color(0xFF617580),
-                outlineVariant = Color(0xFFE2E9EA),
-                tertiary = Color(0xFF9C6545),
-                tertiaryContainer = Color(0xFFFFEBD9),
+                surfaceContainerLow = Color(0xFFF2F3F8),
+                surfaceContainer = Color(0xFFEEF0F6),
+                surfaceContainerHigh = Color(0xFFE7EAF2),
+                outlineVariant = Color(0xFFE3E4ED),
+                tertiary = Color(0xFFA66319),
+                tertiaryContainer = Color(0xFFFFEBD2),
             )
     val enabled =
         Settings.Global.getFloat(
@@ -269,19 +281,14 @@ internal fun PremiumCard(
     tint: Color? = null,
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
-) {
-    val colors = MaterialTheme.colorScheme
-    val source = remember { MutableInteractionSource() }
-    val shape = RoundedCornerShape(24.dp)
-    val base = tint ?: colors.surface
-    val touch =
-        if (onClick == null) Modifier else Modifier.clickable(source, null, onClick = onClick)
-    Column(
-        modifier.springPress(source).campusGlass(base, shape).then(touch).padding(Space.md),
-        verticalArrangement = Arrangement.spacedBy(Space.sm),
+) =
+    LaoPanel(
+        modifier,
+        color = tint ?: MaterialTheme.colorScheme.surface,
+        padding = 20.dp,
+        onClick = onClick,
         content = content,
     )
-}
 
 @Composable
 internal fun PrimaryButton(
@@ -289,19 +296,7 @@ internal fun PrimaryButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     onClick: () -> Unit,
-) {
-    val interaction = remember { MutableInteractionSource() }
-    Button(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = modifier.springPress(interaction).heightIn(min = 48.dp),
-        interactionSource = interaction,
-        shape = RoundedCornerShape(16.dp),
-        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 16.dp),
-    ) {
-        Text(label)
-    }
-}
+) = LaoPrimaryButton(label, modifier, enabled, onClick)
 
 @Composable
 internal fun SoftButton(
@@ -309,31 +304,11 @@ internal fun SoftButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     onClick: () -> Unit,
-) {
-    val interaction = remember { MutableInteractionSource() }
-    FilledTonalButton(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = modifier.springPress(interaction).heightIn(min = 48.dp),
-        interactionSource = interaction,
-        shape = RoundedCornerShape(16.dp),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
-    ) {
-        Text(label)
-    }
-}
+) = LaoSecondaryButton(label, modifier, enabled, onClick)
 
 @Composable
-internal fun PressIcon(icon: ImageVector, description: String, onClick: () -> Unit) {
-    val interaction = remember { MutableInteractionSource() }
-    IconButton(
-        onClick = onClick,
-        interactionSource = interaction,
-        modifier = Modifier.size(48.dp).springPress(interaction),
-    ) {
-        Icon(icon, description, Modifier.size(24.dp))
-    }
-}
+internal fun PressIcon(icon: ImageVector, description: String, onClick: () -> Unit) =
+    LaoIconButton(icon, description, click = onClick)
 
 @Composable
 internal fun SectionHeading(

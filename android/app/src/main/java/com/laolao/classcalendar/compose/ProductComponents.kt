@@ -44,23 +44,7 @@ internal fun ProductSurface(
     padding: Dp = 16.dp,
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
-) {
-    val interaction = remember { MutableInteractionSource() }
-    val colors = MaterialTheme.colorScheme
-    val shape = RoundedCornerShape(24.dp)
-    Column(
-        modifier
-            .springPress(interaction)
-            .campusGlass(color, shape)
-            .then(
-                if (onClick != null) Modifier.clickable(interaction, null, onClick = onClick)
-                else Modifier
-            )
-            .padding(padding),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        content = content,
-    )
-}
+) = LaoPanel(modifier, color, padding, onClick, content = content)
 
 @Composable
 internal fun ProductIntro(

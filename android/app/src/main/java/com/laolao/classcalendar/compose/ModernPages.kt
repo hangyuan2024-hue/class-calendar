@@ -41,6 +41,15 @@ internal object ModernPages {
             "home-layout",
             "parse-review",
             "search",
+            "login",
+            "register",
+            "wall",
+            "rank",
+            "user",
+            "settings",
+            "permissions",
+            "phone",
+            "credits",
         )
 
     @Composable
@@ -56,6 +65,15 @@ internal object ModernPages {
             "appearance" -> CampusAppearancePage(state)
             "ask" -> CampusAgentPage(state)
             "search" -> CampusSearchPage(state)
+            "login" -> CampusAuthPage(state, false)
+            "register" -> CampusAuthPage(state, true)
+            "wall" -> CampusClassWallPage(state)
+            "rank" -> CampusRankPage(state)
+            "user" -> CampusPublicProfilePage(state)
+            "settings" -> CampusSettingsPage(state)
+            "permissions" -> CampusPermissionsPage(state)
+            "phone" -> CampusPhonePage(state)
+            "credits" -> CampusCreditsPage(state)
             "wrongbook" -> BooksPage(state)
             "courses" -> CoursesPage(state)
             "pomo" -> FocusPage(state)
@@ -141,7 +159,7 @@ internal fun TaskRow(s: CampusSession, task: JSONObject) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Checkbox(checked = a.done(task), onCheckedChange = { a.mark(CampusJson.copy(task)) })
+        LaoSelection(checked = a.done(task), onCheckedChange = { a.mark(CampusJson.copy(task)) })
         Column(
             Modifier.weight(1f).clickable { CampusSchool.detail(a, task) },
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -459,14 +477,13 @@ internal fun ToolsPage(s: CampusSession) {
         }
     PageList {
         animatedItem(0) {
-            OutlinedTextField(
-                value = search,
-                onValueChange = { search = it },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                placeholder = { Text("搜索工具、功能") },
-                leadingIcon = { Icon(Icons.Rounded.Search, null) },
-                shape = RoundedCornerShape(24.dp),
+            LaoInput(
+                search,
+                { search = it },
+                "",
+                Modifier.fillMaxWidth(),
+                placeholder = "搜索工具、功能",
+                leading = Icons.Rounded.Search,
             )
         }
         animatedItem(1) {
@@ -620,7 +637,7 @@ internal fun GrowthPage(s: CampusSession) {
                                 color = colors.onSurfaceVariant,
                             )
                         }
-                        Checkbox(
+                        LaoSelection(
                             checked,
                             onCheckedChange = { CampusLearn.habitToggle(a, h, DateMath.today()) },
                         )

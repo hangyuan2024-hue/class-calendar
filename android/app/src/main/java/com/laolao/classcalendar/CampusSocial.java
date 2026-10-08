@@ -413,31 +413,39 @@ final class CampusSocial {
         v -> {
           String cover = v.optString("cover");
           if (v.optString("bio").length() > 60) throw new IllegalArgumentException("个人简介最多60字");
-          JSONObject args =
-              CampusJson.obj(
-                  "p_gender",
-                  v.optString("genderLabel").equals("男")
-                      ? "m"
-                      : v.optString("genderLabel").equals("女") ? "f" : "x",
-                  "p_bio",
-                  v.optString("bio"));
-          if (!cover.isEmpty()) CampusJson.put(args, "p_cover", cover);
-          a.rpc(
-              "profile_update",
-              args,
-              r -> {
-                JSONObject data = CampusJson.object(r);
-                for (String key : CampusJson.keys(data)) CampusJson.put(a.me, key, data.opt(key));
-                a.store.set("cache_me", a.me);
-                if (a.page.equals("user")) loadUser(a, a.api.uid());
-                else a.build();
-              });
+          saveProfile(
+              a,
+              v.optString("genderLabel").equals("男")
+                  ? "m"
+                  : v.optString("genderLabel").equals("女") ? "f" : "x",
+              v.optString("bio"), cover, () -> {});
         },
         CampusUi.choice("genderLabel", "性别显示", "保密", "男", "女"),
         new CampusUi.Field("bio", "个人简介", "multiline", false),
         CampusUi.choice(
             "cover", "主页封面", "sky", "sakura", "ocean", "sunset", "forest", "galaxy", "peach",
             "mono"));
+  }
+
+  static void saveProfile(CampusActivity a, String gender, String bio, String cover, Runnable saved) {
+    if (!a.requireLogin()) return;
+    if (bio.length() > 60) throw new IllegalArgumentException("个人简介最多60字");
+    if (!Arrays.asList("m", "f", "x").contains(gender))
+      throw new IllegalArgumentException("请选择有效的性别显示方式");
+    JSONObject args = CampusJson.obj("p_gender", gender, "p_bio", bio);
+    if (!cover.isEmpty()) {
+      if (!Arrays.asList("sky", "sakura", "ocean", "sunset", "forest", "galaxy", "peach", "mono").contains(cover))
+        throw new IllegalArgumentException("请选择有效的主页封面");
+      CampusJson.put(args, "p_cover", cover);
+    }
+    a.rpc("profile_update", args, r -> {
+      JSONObject data = CampusJson.object(r);
+      for (String key : CampusJson.keys(data)) CampusJson.put(a.me, key, data.opt(key));
+      a.store.set("cache_me", a.me);
+      saved.run();
+      if (a.page.equals("user")) loadUser(a, a.api.uid());
+      else a.build();
+    });
   }
 
   static void loadUser(CampusActivity a, String uid) {

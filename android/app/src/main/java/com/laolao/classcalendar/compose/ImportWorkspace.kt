@@ -53,7 +53,7 @@ internal fun ImportReviewPage(s: CampusSession) {
             animatedItem(index + 2, "parsed-$index") {
                 PremiumCard(Modifier.fillMaxWidth()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(
+                        LaoSelection(
                             record.optBoolean("on", true),
                             onCheckedChange = { on ->
                                 record.put("on", on)

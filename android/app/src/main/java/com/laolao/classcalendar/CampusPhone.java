@@ -216,31 +216,11 @@ final class CampusPhone {
           },
           () -> reminderForm(a, null)
         });
-    JSONObject cfg = a.store.object("native_reminder_config");
     u.actionRow(
         a.content,
         new String[] {"自动提醒规则", "发送测试提醒"},
         new Runnable[] {
-          () ->
-              u.form(
-                  "自动提醒规则",
-                  CampusJson.obj(
-                      "courses",
-                      cfg.optBoolean("courses", true),
-                      "tasks",
-                      cfg.optBoolean("tasks", true),
-                      "minutes",
-                      cfg.optInt("minutes", 10)),
-                  v -> {
-                    int n = v.optInt("minutes");
-                    if (n < 0 || n > 1440) throw new IllegalArgumentException("提前分钟为0—1440");
-                    a.store.set("native_reminder_config", v);
-                    refresh(a);
-                    a.build();
-                  },
-                  CampusUi.f("courses", "课前提醒", "boolean"),
-                  CampusUi.f("tasks", "事项与作业提醒", "boolean"),
-                  CampusUi.f("minutes", "提前多少分钟", "number")),
+          () -> reminderRules(a),
           () -> Reminders.show(a, 900, "捞捞提醒已就绪", "这是一条手机系统通知。", "home")
         });
     u.section(a.content, "自定义提醒");
@@ -284,6 +264,23 @@ final class CampusPhone {
               }
             },
             false));
+  }
+
+  static void reminderRules(CampusActivity a) {
+    JSONObject cfg = a.store.object("native_reminder_config");
+    a.ui.form(
+        "自动提醒规则",
+        CampusJson.obj("courses", cfg.optBoolean("courses", true), "tasks", cfg.optBoolean("tasks", true), "minutes", cfg.optInt("minutes", 10)),
+        v -> {
+          int n = v.optInt("minutes");
+          if (n < 0 || n > 1440) throw new IllegalArgumentException("提前分钟为0—1440");
+          a.store.set("native_reminder_config", v);
+          refresh(a);
+          a.build();
+        },
+        CampusUi.f("courses", "课前提醒", "boolean"),
+        CampusUi.f("tasks", "事项与作业提醒", "boolean"),
+        CampusUi.f("minutes", "提前多少分钟", "number"));
   }
 
   static void reminderForm(CampusActivity a, JSONObject item) {
@@ -717,7 +714,7 @@ final class CampusPhone {
             true));
     a.ui.gap(a.content, 15);
     a.content.addView(a.ui.button("手动速记", () -> CampusSchool.personalForm(a, null), false));
-    a.ui.empty(a.content, "文字由系统语音服务识别", "识别完成后会打开原生事项表单，由你确认后保存。系统语音服务是否联网由手机设置决定。");
+    a.ui.empty(a.content, "说下来，再慢慢整理", "识别完成后核对文字与日期，确认后保存。语音服务的联网方式由手机设置决定。");
   }
 
   static void recordings(CampusActivity a) {
@@ -965,7 +962,7 @@ final class CampusPhone {
 
   static void quiet(CampusActivity a) {
     CampusUi u = a.ui;
-    u.title(a.content, "上课自动勿扰", "按真实课表切换安静模式，下课后恢复原状态。");
+    u.title(a.content, "上课自动勿扰", "按课表切换安静模式，下课后恢复原状态。");
     NotificationManager nm = a.getSystemService(NotificationManager.class);
     boolean access = nm.isNotificationPolicyAccessGranted();
     u.empty(
@@ -1230,7 +1227,7 @@ final class CampusPhone {
           });
     }
     if (pages.length() == 0)
-      u.empty(a.content, "添加第一张资料照片", "支持旋转、按百分比裁边、灰度处理与多页PDF。此工具不会假装已识别出文字。");
+      u.empty(a.content, "添加第一张资料照片", "拍照或从相册选取资料，旋转、裁边后整理成多页 PDF。");
   }
 
   static void crop(CampusActivity a, String id, int index) {

@@ -77,7 +77,7 @@ internal fun ColumnScope.GuideWorkspace(s: CampusSession, modifier: Modifier = M
                                 )
                             }
                             if (!entry.course)
-                                Checkbox(
+                                LaoSelection(
                                     false,
                                     onCheckedChange = { a.mark(CampusJson.copy(entry.source)) },
                                 )
@@ -139,13 +139,12 @@ internal fun ColumnScope.GuideWorkspace(s: CampusSession, modifier: Modifier = M
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        OutlinedTextField(
+        LaoInput(
             value = query,
-            onValueChange = { query = it },
+            onValue = { query = it },
+            label = "",
             modifier = Modifier.weight(1f),
-            placeholder = { Text("问捞捞：明天有什么课？") },
-            shape = RoundedCornerShape(24.dp),
-            singleLine = true,
+            placeholder = "问捞捞：明天有什么课？",
         )
         FilledIconButton(
             onClick = { ask(query) },

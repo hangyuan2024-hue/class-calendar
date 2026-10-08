@@ -22,14 +22,19 @@ import kotlinx.coroutines.launch
 
 internal val MainRoutes = listOf("home", "calendar", "wall", "tools", "me")
 
-private val LocalPageListState = staticCompositionLocalOf<LazyListState?> { null }
+internal val LocalPageListState = staticCompositionLocalOf<LazyListState?> { null }
 
 private fun mainDestination(route: String) =
     when (route) {
-        "home" -> "home"
-        "wall",
-        "rank" -> "wall"
         "ask" -> "home"
+        "wall",
+        "rank",
+        "class",
+        "groups",
+        "members",
+        "people",
+        "class-features" -> "wall"
+        "home" -> "home"
         "calendar",
         "homework",
         "courses",
@@ -46,18 +51,15 @@ private fun mainDestination(route: String) =
         "home-layout",
         "backup",
         "security",
+        "settings",
+        "permissions",
         "mail",
         "login",
         "register",
         "about",
         "intro",
         "credits",
-        "class",
-        "groups",
-        "members",
-        "people",
         "user",
-        "class-features",
         "admin",
         "admin-users",
         "admin-plugins",
@@ -75,10 +77,14 @@ internal fun routeTitle(route: String): String =
         "homework" -> "我的作业"
         "tools" -> "工具"
         "me" -> "我的"
+        "settings" -> "设置"
+        "permissions" -> "应用权限"
+        "phone" -> "手机助手"
+        "credits" -> "校园共建者"
         "growth" -> "成长"
         "ask" -> "AI 助手"
         "wall" -> "班级墙"
-        "rank" -> "班级成长榜"
+        "rank" -> "班级排行榜"
         "appearance" -> "外观与配色"
         "home-layout" -> "首页卡片"
         "class" -> "我的班级"
@@ -115,15 +121,24 @@ internal fun LaoLaoApp(state: CampusSession) {
     LaoLaoTheme(state) {
         val colors = MaterialTheme.colorScheme
         val motionEnabled = LocalMotionEnabled.current
+        val keyboardVisible = campusKeyboardVisible()
         val savedPages = rememberSaveableStateHolder()
         val listStates = remember { mutableMapOf<String, LazyListState>() }
+        val activeList = listStates.getOrPut(state.route) { LazyListState() }
+        val scrolled by
+            remember(activeList) {
+                derivedStateOf {
+                    activeList.firstVisibleItemIndex > 0 ||
+                        activeList.firstVisibleItemScrollOffset > 32
+                }
+            }
         val scope = rememberCoroutineScope()
         SideEffect {
-            state.a.window.statusBarColor = colors.background.toArgb()
-            state.a.window.navigationBarColor = colors.surface.toArgb()
+            state.a.window.statusBarColor = android.graphics.Color.TRANSPARENT
+            state.a.window.navigationBarColor = android.graphics.Color.TRANSPARENT
             WindowCompat.getInsetsController(state.a.window, state.a.window.decorView).apply {
                 isAppearanceLightStatusBars = colors.background.luminance() > .5f
-                isAppearanceLightNavigationBars = colors.surface.luminance() > .5f
+                isAppearanceLightNavigationBars = colors.background.luminance() > .5f
             }
         }
         val snackbar = remember { SnackbarHostState() }
@@ -140,33 +155,8 @@ internal fun LaoLaoApp(state: CampusSession) {
             Scaffold(
                 containerColor = Color.Transparent,
                 contentColor = colors.onBackground,
-                topBar = { CampusTopBar(state) },
-                bottomBar = {
-                    if (state.route == "parse-review") ImportReviewActions(state)
-                    else
-                        AnimatedVisibility(
-                            visible = state.route !in setOf("ask", "login", "register"),
-                            enter =
-                                if (motionEnabled)
-                                    fadeIn(tween(180)) +
-                                        slideInVertically(
-                                            spring(dampingRatio = .9f, stiffness = 420f)
-                                        ) {
-                                            it / 2
-                                        }
-                                else EnterTransition.None,
-                            exit =
-                                if (motionEnabled)
-                                    fadeOut(tween(100)) + slideOutVertically(tween(160)) { it / 2 }
-                                else ExitTransition.None,
-                        ) {
-                            CampusBottomBar2026(state, mainDestination(state.route)) { route ->
-                                if (state.route == route)
-                                    scope.launch { listStates[route]?.animateScrollToItem(0) }
-                                else state.a.tab(route)
-                            }
-                        }
-                },
+                topBar = { LaoTopBar(state, scrolled) },
+                bottomBar = { if (state.route == "parse-review") ImportReviewActions(state) },
                 snackbarHost = { SnackbarHost(snackbar) },
             ) { padding ->
                 AnimatedContent(
@@ -199,6 +189,7 @@ internal fun LaoLaoApp(state: CampusSession) {
                         else EnterTransition.None.togetherWith(ExitTransition.None)
                     },
                 ) { route ->
+                    // Skip obsolete outgoing snapshots; each route has an independent scroll state.
                     savedPages.SaveableStateProvider(route) {
                         CompositionLocalProvider(
                             LocalPageListState provides
@@ -206,13 +197,40 @@ internal fun LaoLaoApp(state: CampusSession) {
                         ) {
                             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
                                 Box(Modifier.widthIn(max = 680.dp).fillMaxSize()) {
-                                    key(route) { CampusPage2026(state, route) }
+                                    key(route) { ModernPages.Page(state, route) }
                                 }
                             }
                         }
                     }
                 }
             }
+            // This layer overlays the actual scroll content. No Scaffold bottom-bar slot
+            // or opaque wrapper remains behind the pill, so its corners stay transparent.
+            val chrome =
+                state.route !in listOf("login", "register", "parse-review", "ask") &&
+                    !keyboardVisible
+            AnimatedVisibility(
+                visible = chrome,
+                modifier = Modifier.align(Alignment.BottomCenter),
+                enter =
+                    if (motionEnabled)
+                        fadeIn(tween(180)) +
+                            slideInVertically(spring(dampingRatio = .9f, stiffness = 420f)) {
+                                it / 2
+                            }
+                    else EnterTransition.None,
+                exit =
+                    if (motionEnabled)
+                        fadeOut(tween(100)) + slideOutVertically(tween(160)) { it / 2 }
+                    else ExitTransition.None,
+            ) {
+                LaoNavigationDock(state, mainDestination(state.route), scrolled) { route ->
+                    if (state.route == route)
+                        scope.launch { listStates[route]?.animateScrollToItem(0) }
+                    else state.a.tab(route)
+                }
+            }
+            if (chrome) LaoFloatingTools(state, Modifier.align(Alignment.BottomEnd))
         }
         CampusSheets(state)
     }
@@ -230,7 +248,9 @@ internal fun LazyListScope.animatedItem(
                 Modifier.animateItem(placementSpec = spring(dampingRatio = .88f, stiffness = 340f))
             else Modifier,
         ) {
-            content()
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                content()
+            }
         }
     }
 }
@@ -241,7 +261,7 @@ internal fun PageList(content: LazyListScope.() -> Unit) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         state = LocalPageListState.current ?: rememberLazyListState(),
-        contentPadding = PaddingValues(start = gutter, end = gutter, top = 8.dp, bottom = 80.dp),
+        contentPadding = PaddingValues(start = gutter, end = gutter, top = 8.dp, bottom = 176.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         content = content,
     )

@@ -20,6 +20,10 @@ object ComposeEntry {
 
     @JvmStatic fun active(a: CampusActivity) = sessions.containsKey(a)
 
+    @JvmStatic fun handles(route: String) = route in ModernPages.routes
+
+    @JvmStatic fun onBack(a: CampusActivity) = sessions[a]?.handleBack() ?: false
+
     @JvmStatic
     fun dispose(a: CampusActivity) {
         sessions.remove(a)?.closeSheet()
@@ -27,6 +31,7 @@ object ComposeEntry {
 
     @JvmStatic
     fun install(a: CampusActivity) {
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(a.window, false)
         a.scroll = ScrollView(a)
         val session = CampusSession(a)
         sessions[a] = session
@@ -177,6 +182,7 @@ internal class CampusSession(val activity: CampusActivity) {
     var notice by mutableStateOf("")
     var agentPrompt by mutableStateOf("")
     var panelRevision by mutableIntStateOf(0)
+    var pageBack: (() -> Boolean)? = null
     val a
         get() = activity
 
@@ -188,12 +194,21 @@ internal class CampusSession(val activity: CampusActivity) {
     }
 
     fun open(route: String) {
+        closeSheet()
         a.open(route)
     }
 
     fun closeSheet() {
         (sheet as? PanelSheet)?.native?.dismiss()
         sheet = null
+    }
+
+    fun handleBack(): Boolean {
+        if (sheet != null) {
+            closeSheet()
+            return true
+        }
+        return pageBack?.invoke() ?: false
     }
 
     fun refreshControls() {
@@ -249,6 +264,8 @@ internal data object HomeEditorSheet : CampusSheet
 internal data object SearchSheet : CampusSheet
 
 internal data object AlertsSheet : CampusSheet
+
+internal data object ProfileEditorSheet : CampusSheet
 
 internal class DrawImportSheet(val names: List<String>, val filename: String) : CampusSheet
 

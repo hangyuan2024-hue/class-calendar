@@ -38,18 +38,16 @@ internal fun ColumnScope.SearchContent(s: CampusSession, sheet: Boolean = true) 
     var query by rememberSaveable { mutableStateOf(s.a.store.string("native_search", "")) }
     val c = MaterialTheme.colorScheme
     if (sheet) SheetHeading("搜索校园空间") { s.closeSheet() }
-    OutlinedTextField(
+    LaoInput(
         query,
         { query = it },
+        "",
         Modifier.fillMaxWidth(),
-        placeholder = { Text("课程、作业、工具…") },
-        leadingIcon = { Icon(Icons.Rounded.Search, null) },
-        trailingIcon = {
-            if (query.isNotBlank())
-                IconButton(onClick = { query = "" }) { Icon(Icons.Rounded.Close, "清空搜索") }
+        placeholder = "课程、作业、工具…",
+        leading = Icons.Rounded.Search,
+        trailing = {
+            if (query.isNotBlank()) LaoIconButton(Icons.Rounded.Close, "清空搜索") { query = "" }
         },
-        singleLine = true,
-        shape = RoundedCornerShape(16.dp),
     )
     val results =
         if (query.isBlank()) emptyList()

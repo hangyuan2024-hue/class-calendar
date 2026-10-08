@@ -18,7 +18,6 @@ import androidx.compose.ui.draw.*
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.*
 import java.util.Calendar
 import kotlinx.coroutines.*
@@ -522,21 +521,16 @@ internal fun CampusAgentPage(s: CampusSession) {
                     IconButton(onClick = { CampusSocial.pasteImport(a) }) {
                         Icon(Icons.Rounded.ContentPaste, "粘贴导入班群消息", tint = c.primary)
                     }
-                    OutlinedTextField(
+                    LaoInput(
                         query,
                         { query = it },
+                        "",
                         Modifier.weight(1f),
-                        placeholder = {
-                            Text("问捞捞，今天怎么安排？", maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        },
+                        placeholder = "问捞捞，今天怎么安排？",
+                        singleLine = false,
                         maxLines = 3,
-                        shape = RoundedCornerShape(16.dp),
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                        keyboardActions = KeyboardActions(onSend = { ask(query) }),
-                        colors =
-                            OutlinedTextFieldDefaults.colors(
-                                unfocusedBorderColor = c.outlineVariant
-                            ),
+                        keyboard = KeyboardOptions(imeAction = ImeAction.Send),
+                        actions = KeyboardActions(onSend = { ask(query) }),
                     )
                     FilledIconButton(
                         onClick = { ask(query) },

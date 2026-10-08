@@ -3,7 +3,7 @@ package com.laolao.classcalendar
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
@@ -11,34 +11,120 @@ import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.input.*
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.*
 
-/** The same complete feature actions, re-rendered as Material 3 components. No AndroidView. */
+/** The same complete feature actions, re-rendered with Design System 2.0. No AndroidView. */
+@Composable
+private fun UtilityActionCell(
+    text: String,
+    modifier: Modifier,
+    enabled: Boolean = true,
+    action: () -> Unit,
+) {
+    val c = MaterialTheme.colorScheme
+    val destructive = text.contains("删除") || text.contains("清空")
+    val hue = if (destructive) c.error else c.primary
+    val icon =
+        when {
+            destructive -> Icons.Rounded.DeleteOutline
+            text.contains("添加") || text.contains("新建") || text.startsWith("＋") -> Icons.Rounded.Add
+            text.contains("设置") || text.contains("规则") || text.contains("参数") -> Icons.Rounded.Tune
+            text.contains("编辑") || text.contains("修改") || text.contains("命名") ->
+                Icons.Rounded.EditNote
+            text.contains("导出") || text.contains("分享") -> Icons.Rounded.FileUpload
+            text.contains("导入") -> Icons.Rounded.FileDownload
+            text.contains("刷新") || text.contains("同步") || text.contains("更新") -> Icons.Rounded.Sync
+            text.contains("录音") || text.contains("录制") || text.contains("语音") ->
+                Icons.Rounded.MicNone
+            text.contains("拍照") || text.contains("相册") || text.contains("照片") ->
+                Icons.Rounded.PhotoCamera
+            text.contains("保存") || text.contains("完成") || text.contains("掌握") -> Icons.Rounded.Check
+            else -> Icons.Rounded.NorthEast
+        }
+    Row(
+        modifier
+            .heightIn(min = 56.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(c.surface.copy(alpha = if (enabled) .8f else .4f))
+            .border(1.dp, c.outlineVariant.copy(alpha = .45f), RoundedCornerShape(18.dp))
+            .laoTap(
+                role = androidx.compose.ui.semantics.Role.Button,
+                enabled = enabled,
+                action = action,
+            )
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(
+            Modifier.size(28.dp).background(hue.copy(alpha = .075f), RoundedCornerShape(9.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                icon,
+                null,
+                Modifier.size(17.dp),
+                tint = hue.copy(alpha = if (enabled) 1f else .4f),
+            )
+        }
+        Text(
+            text,
+            Modifier.weight(1f),
+            style = LaoType.caption,
+            color = if (enabled) c.onSurface else c.onSurfaceVariant,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
 @Composable
 internal fun FeaturePage(s: CampusSession) {
-    val nodes =
-        s.nodes
-            .filterNot { it is FeatureNode.Space }
-            .let { content ->
-                val heading = content.firstOrNull() as? FeatureNode.Copy
-                if (
-                    heading != null &&
-                        heading.size >= 20f &&
-                        heading.text.trim() == routeTitle(s.route)
-                )
-                    content.drop(1)
-                else content
+    val c = MaterialTheme.colorScheme
+    val content = s.nodes.filterNot { it is FeatureNode.Space }
+    val heading = (content.firstOrNull() as? FeatureNode.Copy)?.takeIf { it.size >= 20f }
+    val subtitle =
+        if (heading != null)
+            (content.getOrNull(1) as? FeatureNode.Copy)?.takeIf { !it.bold && it.size < 17f }
+        else null
+    val nodes = content.drop(if (heading != null) if (subtitle != null) 2 else 1 else 0)
+    LaoPage(spacing = 16.dp) {
+        animatedItem(0, "utility-heading-" + s.route) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(heading?.text ?: routeTitle(s.route), style = LaoType.headline)
+                    if (subtitle != null)
+                        Text(subtitle.text, style = LaoType.caption, color = c.onSurfaceVariant)
+                }
+                Box(
+                    Modifier.size(48.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(
+                            Brush.linearGradient(
+                                listOf(c.primary.copy(alpha = .12f), c.primary.copy(alpha = .035f))
+                            )
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(routeIcon(s.route), null, Modifier.size(26.dp), tint = c.primary)
+                }
             }
-    PageList {
+        }
         nodes.forEachIndexed { index, node ->
-            animatedItem(index, "feature-$index-${s.route}") { Feature(s, node) }
+            animatedItem(index + 1, "feature-$index-${s.route}") { Feature(s, node) }
         }
         if (nodes.isEmpty())
-            animatedItem(0) {
-                EmptyState("正在准备内容", "需要联网的班级页面会读取真实账号数据。", "刷新") { s.a.refreshCloud() }
+            animatedItem(1) {
+                LaoEmpty("正在准备内容", "需要联网的班级页面会读取真实账号数据。", "刷新") { s.a.refreshCloud() }
             }
     }
 }
@@ -79,18 +165,18 @@ internal fun Feature(s: CampusSession, node: FeatureNode) {
                 text,
                 style =
                     when {
-                        node.size >= 23 -> MaterialTheme.typography.headlineSmall
-                        node.size >= 17 -> MaterialTheme.typography.titleLarge
-                        node.bold -> MaterialTheme.typography.titleMedium
-                        node.size <= 12 -> MaterialTheme.typography.bodySmall
-                        else -> MaterialTheme.typography.bodyMedium
+                        node.size >= 23 -> LaoType.title
+                        node.size >= 17 -> LaoType.cell
+                        node.bold -> LaoType.cell
+                        node.size <= 12 -> LaoType.caption
+                        else -> LaoType.body
                     },
                 color =
                     if (!node.bold && node.size < 16) colors.onSurfaceVariant else colors.onSurface,
             )
         }
         is FeatureNode.Action ->
-            SoftButton(node.text, Modifier.fillMaxWidth(), enabled = node.enabled) {
+            UtilityActionCell(node.text, Modifier.fillMaxWidth(), node.enabled) {
                 s.invoke(node.click)
                 s.panelRevision++
             }
@@ -106,7 +192,7 @@ internal fun Feature(s: CampusSession, node: FeatureNode) {
                         ) {
                             children.forEach { n ->
                                 val action = n as FeatureNode.Action
-                                SoftButton(
+                                UtilityActionCell(
                                     action.text,
                                     Modifier.weight(1f),
                                     enabled = action.enabled,
@@ -171,7 +257,7 @@ internal fun Feature(s: CampusSession, node: FeatureNode) {
                     children.isNotEmpty() &&
                     children.all { it is FeatureNode.Group && (it.card || it.click != null) }
             if ((node.card && !nestedCardsOnly) || node.click != null)
-                PremiumCard(
+                LaoPanel(
                     Modifier.fillMaxWidth(),
                     onClick =
                         node.click?.let { click ->
@@ -196,8 +282,8 @@ internal fun Feature(s: CampusSession, node: FeatureNode) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Text(node.text, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                Switch(
+                Text(node.text, Modifier.weight(1f), style = LaoType.body)
+                LaoToggle(
                     checked,
                     enabled = node.source.isEnabled,
                     onCheckedChange = {
@@ -210,21 +296,17 @@ internal fun Feature(s: CampusSession, node: FeatureNode) {
         }
         is FeatureNode.Input -> {
             var value by remember(node.source) { mutableStateOf(node.source.text.toString()) }
-            OutlinedTextField(
+            LaoInput(
                 value,
-                onValueChange = {
+                onValue = {
                     value = it
                     s.invoke { node.source.setText(it) }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text(node.source.hint?.toString().orEmpty()) },
-                label =
-                    node.source.contentDescription
-                        ?.takeIf { it.isNotBlank() }
-                        ?.let { label -> ({ Text(label.toString()) }) },
-                shape = RoundedCornerShape(16.dp),
+                placeholder = node.source.hint?.toString().orEmpty(),
+                label = node.source.contentDescription?.toString().orEmpty(),
                 enabled = node.source.isEnabled,
-                keyboardOptions =
+                keyboard =
                     KeyboardOptions(
                         keyboardType =
                             when {
@@ -242,7 +324,7 @@ internal fun Feature(s: CampusSession, node: FeatureNode) {
                             }
                     ),
                 singleLine = node.source.maxLines == 1,
-                visualTransformation =
+                transformation =
                     if (
                         node.source.inputType and
                             android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD != 0
@@ -258,7 +340,7 @@ internal fun Feature(s: CampusSession, node: FeatureNode) {
                     mutableIntStateOf(node.source.selectedItemPosition.coerceAtLeast(0))
                 }
             Box {
-                SoftButton(
+                LaoSecondaryButton(
                     node.source.adapter?.getItem(selected)?.toString().orEmpty() + " ▾",
                     Modifier.fillMaxWidth(),
                 ) {

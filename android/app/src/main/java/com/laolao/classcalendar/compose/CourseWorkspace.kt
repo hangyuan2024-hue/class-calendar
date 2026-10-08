@@ -64,16 +64,8 @@ internal fun ModernCoursesPage(s: CampusSession) {
             }
         }
         animatedItem(2) {
-            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                listOf("当天安排", "整周课表").forEachIndexed { index, label ->
-                    SegmentedButton(
-                        selected = wholeWeek == (index == 1),
-                        onClick = { wholeWeek = index == 1 },
-                        shape = SegmentedButtonDefaults.itemShape(index, 2),
-                    ) {
-                        Text(label)
-                    }
-                }
+            LaoTabs(listOf("当天安排", "整周课表"), if (wholeWeek) "整周课表" else "当天安排") {
+                wholeWeek = it == "整周课表"
             }
         }
         if (!wholeWeek) {

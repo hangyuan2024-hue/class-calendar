@@ -272,7 +272,7 @@ private fun FocusMetric(title: String, value: String, unit: String, modifier: Mo
     }
 }
 
-private fun focusSettings(s: CampusSession) {
+internal fun focusSettings(s: CampusSession) {
     val a = s.a
     val c = a.store.`object`("native_pomo_config")
     val initial =

@@ -255,7 +255,7 @@ internal fun HomeSection(s: CampusSession, id: String) {
                     if (habits.isEmpty()) SoftButton("添加一个小习惯") { CampusLearn.habitForm(a, null) }
                     habits.forEach { h ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(
+                            LaoSelection(
                                 a.store
                                     .`object`("habit_log_v1")
                                     .optJSONObject(h.optString("id"))
