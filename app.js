@@ -4061,12 +4061,19 @@ document.addEventListener("toggle", (e) => { const d = e.target; if (d.matches &
 const GENDER_TXT = { m: "男生", f: "女生", x: "保密" };
 const myGender = () => { const g = currentUser && currentUser.gender; return g === "m" || g === "f" ? g : (load(LS_PROFILE, {}).gender || ""); };
 const avGrad = (g) => (g === "f" ? "linear-gradient(135deg,#ff8fb0,#ff5f8f)" : g === "m" ? "linear-gradient(135deg,#6f9bff,#2457d6)" : "");
+// 学校 / 单位（注册时选的，编辑资料里能改）
+const orgLine = (u) => (u && u.org_type && window.CCOrg ? CCOrg.label(u.org_type, u.org_name) : "");
+const orgIcon = (t) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${
+  t === "work" ? '<rect x="3.5" y="7.5" width="17" height="12" rx="2.5"/><path d="M9 7.5V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v1.5M3.5 13h17"/>'
+  : t === "personal" ? '<path d="M4 11.5 12 5l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5h-5v5H5a1 1 0 0 1-1-1z"/>'
+  : '<path d="M2.5 9.5 12 5l9.5 4.5L12 14z"/><path d="M6.5 11.5V16c1.5 1.4 3.4 2 5.5 2s4-.6 5.5-2v-4.5M21.5 9.5V14"/>'}</svg>`;
 function meCardHtml() {
   const u = currentUser, name = u.display_name || u.account || "我", g = myGender();
   const role = CCAuth.ROLE_NAMES[u.role] || u.role;
   return `<span class="av" style="${avGrad(g) ? "background:" + avGrad(g) + ";color:#fff" : ""}">${esc([...name][0])}</span>
     <div class="me-main"><b>${esc(name)}${g === "m" ? ' <i class="gico m">♂</i>' : g === "f" ? ' <i class="gico f">♀</i>' : ""}</b>
       <span>${esc(role)}${u.account ? " · @" + esc(u.account) : ""}</span>
+      ${orgLine(u) ? `<span class="me-org">${orgIcon(u.org_type)}${esc(orgLine(u))}</span>` : ""}
       <p class="me-bio${u.bio ? "" : " empty"}">${u.bio ? esc(u.bio) : "还没有个性签名，写一句介绍自己吧"}</p></div>
     <div class="me-ops"><button class="btn sm" id="profEdit">✏️ 编辑资料</button><button class="btn ink sm" id="myPage">我的主页 ›</button></div>`;
 }
@@ -4083,9 +4090,16 @@ function openProfile() {
   $("pfBio").value = currentUser.bio || ""; $("pfCount").textContent = `${$("pfBio").value.length}/60`;
   $("pfName").textContent = currentUser.display_name; $("pfStatus").textContent = "";
   pfCover = currentUser.cover || ""; renderCoverPick();
+  if (window.CCOrg && $("pfOrg")) {
+    const v = { type: currentUser.org_type || "", name: currentUser.org_name || "" };
+    if (!pfOrg) pfOrg = CCOrg.mount($("pfOrg"), { value: v, skipDefault: true, later: false });
+    else pfOrg.set(v);
+    pfOrg0 = JSON.stringify(orgVal());
+  }
   $("profDlg").showModal();
 }
-let pfCover = "";
+let pfCover = "", pfOrg = null, pfOrg0 = "";
+const orgVal = () => { const v = pfOrg ? pfOrg.value() : null; return v ? { p_type: v.type, p_name: v.name } : null; };
 function renderCoverPick() {
   const g = (document.querySelector("#profForm input[name=pg]:checked") || {}).value;
   $("pfCovers").innerHTML = Object.entries(COVERS).map(([k, [n, bg]]) => `<button type="button" data-cover="${k}" class="${(pfCover || (g === "f" ? "sakura" : g === "m" ? "sky" : "ocean")) === k ? "on" : ""}" style="background:${bg}" title="${n}"><span>${n}</span></button>`).join("");
@@ -4102,6 +4116,15 @@ $("profForm").onsubmit = async (e) => {
   try {
     const r = await CCAuth.rpc("profile_update", { p_gender: g, p_bio: bio, ...(pfCover ? { p_cover: pfCover } : {}) });
     currentUser.gender = r.gender; currentUser.bio = r.bio; currentUser.cover = r.cover;
+    const ov = orgVal();
+    if (ov && JSON.stringify(ov) !== pfOrg0) {
+      try { const o = await CCAuth.rpc("profile_set_org", ov); currentUser.org_type = o.org_type; currentUser.org_name = o.org_name; pfOrg0 = JSON.stringify(ov); }
+      catch (err2) {
+        renderUserChip(); renderAll();
+        $("pfStatus").textContent = /profile_set_org|PGRST202|找不到|not find/i.test(err2.message) ? "其他资料已保存；学校 / 单位要等管理员升级数据库后才能改" : "学校 / 单位没保存：" + err2.message;
+        return;
+      }
+    }
     if (currentView() === "user" && userPageId === currentUser.id) openUser(currentUser.id);
     save(LS_PROFILE, { ...load(LS_PROFILE, {}), gender: r.gender === "x" ? "" : r.gender });
     if ((g === "m" || g === "f") && g !== oldG && $("pfPal").checked) { save(LS_PALETTE, GENDER_PAL[g]); applyLook(); }
@@ -4160,7 +4183,7 @@ function renderUser(d) {
         <span class="av up-av" style="${avGrad(g) ? "background:" + avGrad(g) + ";color:#fff" : ""}">${esc([...(d.name || "?")][0])}</span>
         <div class="up-id">
           <div class="up-name">${esc(d.name)}${g === "m" ? '<i class="gico m" title="男生">♂</i>' : g === "f" ? '<i class="gico f" title="女生">♀</i>' : ""}</div>
-          <div class="up-sub">${role ? `<span class="up-chip r-${esc(d.class_role || "")}">${esc(role)}</span>` : ""}${d.class_name ? `<span>🏫 ${esc(d.class_name)}</span>` : ""}${d.account ? `<span>@${esc(d.account)}</span>` : ""}<span>加入 ${days} 天</span></div>
+          <div class="up-sub">${role ? `<span class="up-chip r-${esc(d.class_role || "")}">${esc(role)}</span>` : ""}${d.class_name ? `<span>🏫 ${esc(d.class_name)}</span>` : ""}${d.me && orgLine(currentUser) ? `<span class="up-org">${orgIcon(currentUser.org_type)}${esc(orgLine(currentUser))}</span>` : ""}${d.account ? `<span>@${esc(d.account)}</span>` : ""}<span>加入 ${days} 天</span></div>
         </div>
         <div class="up-ops">${d.me ? `<button class="btn sm" id="profEdit">✏️ 编辑资料</button>` : ""}
           ${d.can_reset ? `<button class="btn sm" data-reset="${esc(d.id)}" data-name="${esc(d.name)}">🔑 重置密码</button>` : ""}</div>

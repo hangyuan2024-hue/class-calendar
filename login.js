@@ -46,6 +46,7 @@ function setMode(m) {
   const g = document.querySelector("input[name=gender]:checked");
   setGender(m === "signup" && g ? g.value : "");
   checkAccount(); checkPw();
+  if (m === "signup" && typeof orgPick !== "undefined" && orgPick) orgPick.preload();   // 切到注册时提前把学校名单拉下来
 }
 $("tabs").onclick = (e) => { const b = e.target.closest("button[data-mode]"); if (b) setMode(b.dataset.mode); };
 $("tabs").addEventListener("keydown", (e) => {
@@ -102,7 +103,7 @@ $("accHint").addEventListener("click", (e) => {
 });
 // 选老师 / 学生：姓名框的提示跟着变
 document.querySelectorAll("input[name=role]").forEach((r) => r.addEventListener("change", () => {
-  $("name").placeholder = r.value === "teacher" ? "请填真实姓名，学生能看到" : "请填真实姓名，老师审批入班时要看";
+  $("name").placeholder = r.value === "teacher" ? "真实姓名，学生能看到" : "真实姓名，方便老师审批入班";
 }));
 function pwScore(p) { let s = 0; if (p.length >= 8) s++; if (p.length >= 12) s++; if (/[a-z]/i.test(p) && /\d/.test(p)) s++; if (/[^a-z0-9]/i.test(p) || /[a-z]/.test(p) && /[A-Z]/.test(p)) s++; return p ? Math.max(1, s) : 0; }
 function checkPw() {
@@ -126,8 +127,18 @@ $("password").addEventListener("input", checkPw); $("password2").addEventListene
 }));
 document.querySelectorAll("[data-eye]").forEach((b) => b.onclick = () => {
   const inp = $(b.dataset.eye), show = inp.type === "password";
-  inp.type = show ? "text" : "password"; b.textContent = show ? "🙈" : "👁"; b.setAttribute("aria-label", show ? "隐藏密码" : "显示密码");
+  inp.type = show ? "text" : "password"; b.classList.toggle("on", show); b.setAttribute("aria-label", show ? "隐藏密码" : "显示密码");
+  const svg = b.querySelector("svg");
+  if (svg) svg.innerHTML = show ? '<path d="M3 3l18 18"/><path d="M10.6 5.6A9.6 9.6 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a17 17 0 0 1-2.6 3.4M6.4 6.9A16.6 16.6 0 0 0 2.5 12S6 18.5 12 18.5c1.6 0 3-.4 4.2-1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>'
+    : '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>';
+  else b.textContent = show ? "🙈" : "👁";
 });
+
+// ---------- 学校 / 单位（选填） ----------
+var orgPick = null;
+if ($("orgPick") && window.CCOrg) {
+  orgPick = CCOrg.mount($("orgPick"), {});
+}
 
 async function afterLogin(isNew) {
   const me = await CCAuth.me();
@@ -151,7 +162,7 @@ form.onsubmit = async (e) => {
   }
   $("go").disabled = true;
   try {
-    if (mode === "signup") await CCAuth.signUp(account, password, $("name").value, (document.querySelector("input[name=role]:checked") || {}).value, gender);
+    if (mode === "signup") await CCAuth.signUp(account, password, $("name").value, (document.querySelector("input[name=role]:checked") || {}).value, gender, orgPick ? orgPick.value() : null);
     else await CCAuth.signIn(account, password);
     try { localStorage.setItem(LS_LAST, account.trim().toLowerCase()); } catch (e2) {}
     await afterLogin(mode === "signup");

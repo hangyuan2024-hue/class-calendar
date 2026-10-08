@@ -1800,11 +1800,13 @@
     #lao.open .lao-dock, #lao.open .lao-bub { opacity: 0; pointer-events: none; }
   }
 </style>
-<link rel="stylesheet" href="fresh.css?v=20261005c">
-<link rel="stylesheet" href="campus-ui.css?v=20261005-campus1">
-<link rel="stylesheet" href="workspace-v2.css?v=20261005-studio2">
-<link rel="stylesheet" href="metaverse-v3.css?v=20261005-native3">
-<link rel="stylesheet" href="campus-tools.css?v=20261006-tools1">
+<link rel="stylesheet" href="fresh.css?v=20261008-org1">
+<link rel="stylesheet" href="campus-ui.css?v=20261008-org1">
+<link rel="stylesheet" href="workspace-v2.css?v=20261008-org1">
+<link rel="stylesheet" href="metaverse-v3.css?v=20261008-org1">
+<link rel="stylesheet" href="campus-tools.css?v=20261008-org1">
+<link rel="stylesheet" href="org.css?v=20261008-org1">
+<link rel="stylesheet" href="polish.css?v=20261008-org1">
 </head>
 <body class="campus-workspace">
 <a class="campus-skip" href="#campus-main">跳到主要内容</a>
@@ -2302,6 +2304,8 @@
       <label><input type="radio" name="pg" value="x"><span>🤫 保密</span></label>
     </div>
     <label class="check"><input type="checkbox" id="pfPal" checked> 改了性别顺便换成对应的配色</label>
+    <label id="pfOrgLbl" for="pfOrgIn">学校 / 单位 <span class="opt-tag">选填，只有你自己和管理员能看到</span></label>
+    <div id="pfOrg" role="group" aria-labelledby="pfOrgLbl"></div>
     <label>主页封面</label>
     <div class="covers" id="pfCovers"></div>
     <label>个性签名 <span class="meta" id="pfCount" style="float:right">0/60</span>
@@ -2502,12 +2506,13 @@
   </div>
 </div>
 <script src="config.js"></script>
-<script src="auth.js?v=20261004m"></script>
+<script src="auth.js?v=20261008-org1"></script>
+<script src="org.js?v=20261008-org1"></script>
 <script src="parse.js"></script>
 <script src="courses.js?v=20261002h"></script>
 <script src="farm.js?v=20261004a"></script>
 <script src="metaverse-v3.js?v=20261005-native3"></script>
-<script src="app.js?v=20261006-tools1"></script>
+<script src="app.js?v=20261008-org1"></script>
 <script src="campus-tools.js?v=20261006-tools1"></script>
 <script src="workspace-v3.js?v=20261005-native3"></script>
 <script src="island-core.js?v=20261004a"></script>

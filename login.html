@@ -174,8 +174,10 @@
   .ob-step h3 { font-weight: 900; letter-spacing: -.3px; }
   @media (prefers-color-scheme: dark) { .inp input { background: #1c2333; } }
 </style>
-<link rel="stylesheet" href="campus-ui.css?v=20261005-campus1">
-<link rel="stylesheet" href="auxiliary-v2.css?v=20261005-studio2">
+<link rel="stylesheet" href="campus-ui.css?v=20261008-org1">
+<link rel="stylesheet" href="auxiliary-v2.css?v=20261008-org1">
+<link rel="stylesheet" href="org.css?v=20261008-org1">
+<link rel="stylesheet" href="auth-polish.css?v=20261008-org1">
 </head>
 <body class="campus-auth studio-auth">
 <a class="campus-skip" href="#account">跳到登录表单</a>
@@ -263,40 +265,44 @@
       <form id="form" autocomplete="on" novalidate>
         <div class="fld">
           <label for="account">账号</label>
-          <div class="inp"><span class="ic" aria-hidden="true">👤</span><input id="account" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="20" placeholder="学号或自己起的账号" required><span class="ok hidden" id="accOk">✓</span></div>
+          <div class="inp"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.5" r="3.6"/><path d="M5 19.5c1.4-3.3 4-5 7-5s5.6 1.7 7 5"/></svg></span><input id="account" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="20" placeholder="学号或自己起的账号" required><span class="ok hidden" id="accOk">✓</span></div>
           <div class="hint" id="accHint"></div>
         </div>
         <div class="signup-only">
           <div class="fld">
-            <label>我是</label>
-            <div class="picks gpick">
+            <label id="gLbl">我是</label>
+            <div class="picks gpick" role="radiogroup" aria-labelledby="gLbl">
               <label class="pick m"><input type="radio" name="gender" value="m"><svg viewBox="0 0 80 80" aria-hidden="true"><use href="#avM"/></svg>男生<small>默认 海军蓝 主题</small></label>
               <label class="pick f"><input type="radio" name="gender" value="f"><svg viewBox="0 0 80 80" aria-hidden="true"><use href="#avF"/></svg>女生<small>默认 樱花粉 主题</small></label>
             </div>
-            <div class="hint" id="gHint">选一下，会给你准备不一样的欢迎引导和默认皮肤（以后随时能换）</div>
+            <div class="hint" id="gHint">会准备不一样的欢迎引导和默认皮肤，以后随时能换</div>
           </div>
           <div class="fld">
-            <label>身份</label>
-            <div class="picks">
-              <label class="pick"><input type="radio" name="role" value="student" checked><span class="em">🎒</span><span>学生<small>输入班级码入班</small></span></label>
-              <label class="pick"><input type="radio" name="role" value="teacher"><span class="em">👩‍🏫</span><span>老师<small>创建班级、任命班委</small></span></label>
+            <label id="rLbl">身份</label>
+            <div class="picks" role="radiogroup" aria-labelledby="rLbl">
+              <label class="pick"><input type="radio" name="role" value="student" checked><span class="em" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a5 5 0 0 1 10 0v10.5H7z"/><path d="M10 4.5h4M7 13h10M10 13v2"/></svg></span><span>学生<small>输入班级码入班</small></span></label>
+              <label class="pick"><input type="radio" name="role" value="teacher"><span class="em" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="11" rx="2"/><path d="M8 19.5l2-4M16 19.5l-2-4M7.5 9h5M7.5 12h8"/></svg></span><span>老师<small>创建班级、任命班委</small></span></label>
             </div>
           </div>
           <div class="fld">
             <label for="name">姓名</label>
-            <div class="inp"><span class="ic" aria-hidden="true">🪪</span><input id="name" maxlength="30" autocomplete="name" placeholder="请填真实姓名，老师审批入班时要看"></div>
+            <div class="inp"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5.5" width="17" height="13" rx="3"/><circle cx="9" cy="11" r="2"/><path d="M6 15.5c.7-1.3 1.7-2 3-2s2.3.7 3 2M14.5 10h3M14.5 13h3"/></svg></span><input id="name" maxlength="30" autocomplete="name" placeholder="真实姓名，方便老师审批入班"></div>
+          </div>
+          <div class="fld">
+            <label id="orgLbl">学校 / 单位 <span class="opt-tag">选填</span></label>
+            <div id="orgPick" role="group" aria-labelledby="orgLbl"></div>
           </div>
         </div>
         <div class="fld">
           <label for="password">密码</label>
-          <div class="inp"><span class="ic" aria-hidden="true">🔒</span><input id="password" type="password" autocomplete="current-password" required placeholder="至少 8 位"><button type="button" class="eye" data-eye="password" aria-label="显示密码">👁</button></div>
+          <div class="inp"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10.5" width="14" height="9.5" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/><path d="M12 14.5v2"/></svg></span><input id="password" type="password" autocomplete="current-password" required placeholder="至少 8 位"><button type="button" class="eye" data-eye="password" aria-label="显示密码"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
           <div class="meter signup-only" id="meter"><i></i><i></i><i></i><i></i></div>
           <div class="forgot-l login-only"><a href="#" id="forgotLink">忘记密码？</a></div>
           <div class="hint" id="pwHint"></div>
         </div>
         <div class="fld signup-only">
           <label for="password2">确认密码</label>
-          <div class="inp"><span class="ic" aria-hidden="true">🔁</span><input id="password2" type="password" autocomplete="new-password" placeholder="再输一遍"><button type="button" class="eye" data-eye="password2" aria-label="显示密码">👁</button></div>
+          <div class="inp"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10.5" width="14" height="9.5" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/><path d="m9.5 15.2 1.8 1.8 3.3-3.4"/></svg></span><input id="password2" type="password" autocomplete="new-password" placeholder="再输一遍"><button type="button" class="eye" data-eye="password2" aria-label="显示密码"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
           <div class="hint" id="pw2Hint"></div>
         </div>
         <button class="go" id="go" type="submit"><span class="spin"></span><span id="goText">登录</span></button>
@@ -309,17 +315,17 @@
       <div class="sub" id="fgSub">绑定过邮箱的账号，可以用邮箱验证码设置新密码</div>
       <div id="fg1">
         <div class="fld"><label for="fgAcct">账号</label>
-          <div class="inp"><span class="ic" aria-hidden="true">👤</span><input id="fgAcct" autocapitalize="none" spellcheck="false" maxlength="20" placeholder="你的账号"></div></div>
+          <div class="inp"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.5" r="3.6"/><path d="M5 19.5c1.4-3.3 4-5 7-5s5.6 1.7 7 5"/></svg></span><input id="fgAcct" autocapitalize="none" spellcheck="false" maxlength="20" placeholder="你的账号"></div></div>
         <button class="go" type="button" id="fgSend"><span class="spin"></span>发送验证码到邮箱</button>
       </div>
       <div id="fg2" class="hidden">
         <div class="fld"><label for="fgCode">验证码</label>
-          <div class="inp"><span class="ic" aria-hidden="true">✉️</span><input id="fgCode" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="6 位数字"></div>
+          <div class="inp"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5.5" width="17" height="13" rx="2.5"/><path d="m4.5 7 7.5 6 7.5-6"/></svg></span><input id="fgCode" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="6 位数字"></div>
           <div class="hint"><a href="#" id="fgResend">没收到？重新发送</a>（也看看垃圾邮件箱）</div></div>
         <div class="fld"><label for="fgPw">新密码</label>
-          <div class="inp"><span class="ic" aria-hidden="true">🔒</span><input id="fgPw" type="password" autocomplete="new-password" placeholder="至少 8 位"><button type="button" class="eye" data-eye="fgPw" aria-label="显示密码">👁</button></div></div>
+          <div class="inp"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10.5" width="14" height="9.5" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/><path d="M12 14.5v2"/></svg></span><input id="fgPw" type="password" autocomplete="new-password" placeholder="至少 8 位"><button type="button" class="eye" data-eye="fgPw" aria-label="显示密码"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
         <div class="fld"><label for="fgPw2">再输一遍</label>
-          <div class="inp"><span class="ic" aria-hidden="true">🔁</span><input id="fgPw2" type="password" autocomplete="new-password"></div></div>
+          <div class="inp"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10.5" width="14" height="9.5" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/><path d="m9.5 15.2 1.8 1.8 3.3-3.4"/></svg></span><input id="fgPw2" type="password" autocomplete="new-password"></div></div>
         <button class="go" type="button" id="fgDone"><span class="spin"></span>设置新密码并登录</button>
       </div>
       <div class="fg-help" id="fgHelp"></div>
@@ -342,7 +348,8 @@
 </div>
 
 <script src="config.js"></script>
-<script src="auth.js?v=20261004m"></script>
-<script src="login.js?v=20261005-studio2"></script>
+<script src="auth.js?v=20261008-org1"></script>
+<script src="org.js?v=20261008-org1"></script>
+<script src="login.js?v=20261008-org1"></script>
 </body>
 </html>

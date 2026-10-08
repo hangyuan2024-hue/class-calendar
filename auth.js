@@ -118,18 +118,26 @@
     return keep(j);
   }
 
-  async function signUp(account, password, name, role, gender) {
+  const ORG_TYPES = ["university", "college", "high", "middle", "primary", "work", "personal"];
+  // org：{ type, name }，学校 / 单位，选填（数据库升级前也会先存在账号资料里，升级后自动补进个人资料）
+  async function signUp(account, password, name, role, gender, org) {
     account = normAccount(account);
     name = String(name || "").trim();
     if (!ACCOUNT_RE.test(account)) throw new Error("账号只能用 3~20 位小写字母、数字或下划线");
     if (!name) throw new Error("请填写姓名（会显示为插件作者）");
     if (String(password).length < 8) throw new Error("密码至少 8 位");
     const j = await call(BASE + "/auth/v1/signup",
-      { method: "POST", body: JSON.stringify({ email: account + "@" + DOMAIN, password, data: { name, role: role === "teacher" ? "teacher" : "student", gender: gender === "m" || gender === "f" ? gender : "" } }) });
+      { method: "POST", body: JSON.stringify({ email: account + "@" + DOMAIN, password, data: { name, role: role === "teacher" ? "teacher" : "student", gender: gender === "m" || gender === "f" ? gender : "", ...orgMeta(org) } }) });
     meCache = null;
     if (j && j.access_token) return keep(j);
     // 部分配置下注册不直接返回登录状态，再登录一次
     return signIn(account, password);
+  }
+
+  function orgMeta(org) {
+    if (!org || !ORG_TYPES.includes(org.type)) return {};
+    const n = String(org.name || "").replace(/[\u0000-\u001f\u007f]/g, "").replace(/\s+/g, " ").trim().slice(0, 40);
+    return { org_type: org.type, org_name: n };
   }
 
   // 退出：先让服务器作废这次登录（包括刷新令牌），再清掉本机的登录信息
@@ -165,7 +173,8 @@
     try {
       const q = "&id=eq." + encodeURIComponent(s.user_id);
       // 新字段（性别、签名、需要改密码）数据库升级后才有；还没升级时退回老字段
-      const rows = await rest("profiles?select=id,account,display_name,role,gender,bio,must_change_pw" + q)
+      const rows = await rest("profiles?select=id,account,display_name,role,gender,bio,must_change_pw,org_type,org_name" + q)
+        .catch(() => rest("profiles?select=id,account,display_name,role,gender,bio,must_change_pw" + q))
         .catch(() => rest("profiles?select=id,account,display_name,role" + q));
       meCache = rows && rows[0] ? rows[0] : null;
     } catch { meCache = null; }

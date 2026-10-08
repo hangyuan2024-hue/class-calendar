@@ -1,9 +1,9 @@
 // 离线缓存（Service Worker）：只缓存网页自己的文件，不缓存任何数据接口的内容
-// 2026-10-07：主题命名 v3。默认=柔和原始配色，深空蓝=高饱和蓝橙。
-const CACHE = "cc-static-v30-theme-names";
+// 2026-10-08：注册时选择学校 / 单位；界面细节打磨（字号、焦点、图标）。
+const CACHE = "cc-static-v31-org";
 const PAGES = ["./", "index.html", "app.html", "login.html"];
 const EXTRA = [
-  "campus-ui.css?v=20261005-campus1",
+  "campus-ui.css?v=20261008-org1",
   "fonts.css?v=1",
   "fonts/fd-00.woff2",
   "fonts/bricolage.woff",
@@ -11,22 +11,26 @@ const EXTRA = [
   "favicon-32.png",
   "apple-touch-icon.png",
   "manifest.webmanifest",
-  "studio-v2.css?v=20261005-studio2",
-  "workspace-v2.css?v=20261005-studio2",
+  "studio-v2.css?v=20261008-org1",
+  "workspace-v2.css?v=20261008-org1",
   "workspace-v3.js?v=20261005-native3",
   "workspace-hotfix.css?v=20261005-fix1",
-  "metaverse-v3.css?v=20261005-native3",
+  "metaverse-v3.css?v=20261008-org1",
   "metaverse-v3.js?v=20261005-native3",
-  "campus-tools.css?v=20261006-tools1",
+  "campus-tools.css?v=20261008-org1",
   "campus-tools.js?v=20261006-tools1",
   "sandbox.html?v=20261006-tools1",
   "plugins/random-draw.html?v=20261006-tools1",
   "plugins/error-notebook.html?v=20261006-tools1",
   "plugins/tools.css?v=20261006-tools1",
   "plugins/vendor/pako_inflate.min.js?v=1.0.11",
-  "auxiliary-v2.css?v=20261005-studio2",
-  "embedded-auth-v2.css?v=20261005-studio2",
-  "landing-v2.js?v=20261005-studio2"
+  "auxiliary-v2.css?v=20261008-org1",
+  "embedded-auth-v2.css?v=20261008-org1",
+  "landing-v2.js?v=20261005-studio2",
+  "org.css?v=20261008-org1",
+  "org.js?v=20261008-org1",
+  "auth-polish.css?v=20261008-org1",
+  "polish.css?v=20261008-org1"
 ];
 
 async function precache() {

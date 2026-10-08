@@ -1,0 +1,30 @@
+/* 细节打磨层（最后加载）：只修细节，不改整体布局 */
+/* 右侧栏底部留出位置，别让右下角的悬浮小卡片挡住页脚链接 */
+.siderail { padding-bottom: 120px; }
+/* 文字选中、点按高亮 */
+::selection { background: color-mix(in srgb, var(--accent, #5366e8) 22%, transparent); }
+button, a, label, summary { -webkit-tap-highlight-color: transparent; }
+/* 键盘操作时统一的焦点圈（鼠标点击不显示） */
+:where(button, a, summary, [role=tab], [role=radio], select, .qbtn, .tile):focus-visible { outline: 2px solid var(--accent, #5366e8); outline-offset: 2px; border-radius: inherit; }
+:where(button, a):focus:not(:focus-visible) { outline: none; }
+/* 数字：等宽，倒计时、时间、计数不再左右跳动 */
+.atime, .hx-cd, .hx-t small, .tl-ticks i, .ring div, .big, .due-tag, .range, .mini .d, .heat-m { font-variant-numeric: tabular-nums; }
+/* 空状态更柔和、有呼吸感 */
+.aempty, .wq-it.none { color: var(--sub); }
+#wallList > .aempty { text-align: center; padding: 34px 18px; line-height: 1.8; }
+/* 对话框按钮行：小屏时按钮别挤成一团 */
+.dlg .nd-actions { flex-wrap: wrap; row-gap: 8px; }
+/* 长名字（班级、学校、事项）不撑破卡片 */
+.cb-main b, .atitle, .hx-t b, .wrow b, .me-main b { overflow-wrap: anywhere; }
+/* 降低动态效果偏好：关闭悬浮位移 */
+@media (prefers-reduced-motion: reduce) { .tile, .qbtn, .surface { transition: none !important; } }
+/* 手机：输入框 16px，避免 iOS 聚焦时整页放大；按钮触控区不小于 40px */
+@media (max-width: 720px) {
+  .dlg input:not([type=radio]):not([type=checkbox]), .dlg textarea, .dlg select, .org .org-in { font-size: 16px; }
+  .vhead .small, .vhead .btn.sm { min-height: 36px; }
+  .dlg .nd-actions button { min-height: 40px; }
+}
+/* 首页时间轴刻度、四象限空格 */
+[data-skin] .tl-ticks i { font-size: 11px; }
+.wq-it.none { opacity: .55; font-style: normal; }
+[data-skin] .cell .chip { font-size: 11px; }
