@@ -16,6 +16,8 @@ if (typeof CourseKit === "undefined" && !document.querySelector('script[src^="co
   document.head.appendChild(sc);
 }
 const pad = (n) => String(n).padStart(2, "0");
+// 校准过的「现在」：本机时间不准时用服务器时间算倒计时和提醒（live.js 会填 CC_CLOCK_OFF）
+const ccNow = () => Date.now() + (window.CC_CLOCK_OFF || 0);
 const keyOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -37,7 +39,10 @@ const Sync = (() => {
   const SEP = "\u0001";
   let meta = null, out = null, dirty = new Set(), dirtyTimer = 0, flushTimer = 0, busy = false, lastPull = 0, pullTimer = 0;
   let state = "idle", lastOk = 0, lastErr = "", applying = false;
-  const listeners = [];
+  // 时钟校准：用服务器时间给修改打时间戳（live.js 每次问服务器时顺便校准），手机时间不准也不会让旧修改盖掉新修改
+  let clockOff = 0;
+  const nowMs = () => Date.now() + clockOff;
+  const listeners = [], noteCbs = [];
   const raw = (k) => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } };
   const put = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
   const M = () => meta || (meta = { owner: null, rev: 0, h: {}, t: {}, ...(raw(LS_SYNC) || {}) });
@@ -84,11 +89,12 @@ const Sync = (() => {
   // 本机改了某类数据：找出变化的记录放进待上传
   function note(k) {
     if (applying || !SYNC_KINDS[k]) return;
+    noteCbs.forEach((f) => { try { f(k); } catch (e) {} });
     dirty.add(k);
-    clearTimeout(dirtyTimer); dirtyTimer = setTimeout(scan, 300);
+    clearTimeout(dirtyTimer); dirtyTimer = setTimeout(scan, 200);
   }
   function scan() {
-    const m = M(), o = O(), now = Date.now();
+    const m = M(), o = O(), now = nowMs();
     if (mode() === "local") { dirty.clear(); return; }
     if (!uid) return;   // 还没登录好：先记着，登录后一起传
     let n = 0;
@@ -102,12 +108,12 @@ const Sync = (() => {
     }
     dirty.clear();
     saveMeta(); saveOut();
-    if (n) { setState("pending"); clearTimeout(flushTimer); flushTimer = setTimeout(flush, 800); }
+    if (n) { setState("pending"); clearTimeout(flushTimer); flushTimer = setTimeout(flush, 120); }   // 改了马上传，别的设备几秒内就能看到
   }
 
   async function flush() {
     if (!active()) return;
-    if (busy) { clearTimeout(flushTimer); flushTimer = setTimeout(flush, 1500); return; }
+    if (busy) { clearTimeout(flushTimer); flushTimer = setTimeout(flush, 300); return; }
     const o = O(), keys = Object.keys(o);
     if (!keys.length) { if (state === "pending") setState("ok"); return; }
     if (navigator.onLine === false) { setState("offline"); return; }
@@ -127,8 +133,11 @@ const Sync = (() => {
   }
 
   // 拉云端的新修改，比本机新的就用云端的
+  let pullAgain = false;
   async function pull() {
-    if (!active() || busy) return false;
+    if (!active()) return false;
+    if (busy) { pullAgain = true; return false; }   // 正在同步：完了再拉一次，别漏掉
+    pullAgain = false;
     if (navigator.onLine === false) { setState("offline"); return false; }
     busy = true; setState("syncing");
     let changed = new Set();
@@ -158,6 +167,7 @@ const Sync = (() => {
     } catch (e) { busy = false; applying = false; setState("error", e.message); }
     if (changed.size) emitChanged(changed);
     if (Object.keys(O()).length) flush();
+    if (pullAgain) setTimeout(pull, 50);
     return changed.size > 0;
   }
   const changeCbs = [];
@@ -174,7 +184,7 @@ const Sync = (() => {
       m.rev = r.rev || m.rev;
       if (!r.more) break;
     }
-    const o = O(), now = Date.now(), changed = new Set();
+    const o = O(), now = nowMs(), changed = new Set();
     for (const k in SYNC_KINDS) {
       const cur = raw(k), local = explode(k, cur), c = cloud[k] || {}, recs = {}, h = (m.h[k] = {}), t = (m.t[k] = {});
       for (const r in c) { t[r] = c[r].t; if (c[r].v != null) { recs[r] = c[r].v; h[r] = hash(JSON.stringify(c[r].v)); } }
@@ -235,6 +245,7 @@ const Sync = (() => {
   async function finish() { clearTimeout(dirtyTimer); scan(); await flush(); }
 
   return { note, start, pull, flush, finish, setMode, mode, active, onChange: (f) => changeCbs.push(f), onState: (f) => listeners.push(f),
+    onNote: (f) => noteCbs.push(f), rev: () => M().rev || 0, setClock: (off) => { clockOff = off; }, now: nowMs, emitChanged, kinds: SYNC_KINDS,
     status: () => ({ state, lastOk, lastErr, pending: Object.keys(O()).length }), _explode: explode, _implode: implode };
 })();
 const save = (k, v) => { localStorage.setItem(k, JSON.stringify(v)); Sync.note(k); };
@@ -610,7 +621,7 @@ function heroNextHtml(ctx) {
       return `<div class="hx${early ? " sleep" : ""}">
         <span class="hx-k">${early ? "早点睡" : "下一节"}</span>
         <span class="hx-t"><b>${esc(nc.c.name)}</b><small>${isTm ? "明天 " : ""}${esc(nc.c.t0)}${nc.c.location ? " · 📍 " + esc(nc.c.location) : ""}</small></span>
-        <span class="hx-cd" data-at="${at}">${leftLabel(at - Date.now())}</span></div>`;
+        <span class="hx-cd" data-at="${at}">${leftLabel(at - ccNow())}</span></div>`;
     }
     if (night) return `<div class="hx sleep"><span class="hx-k">早点睡</span><span class="hx-t"><b>明天没有要赶的事</b><small>睡饱了脑子才转得快</small></span></div>`;
     return `<div class="hx"><span class="hx-k">空闲</span><span class="hx-t"><b>手头没有要赶的事</b><small>来一个番茄专注一下？</small></span><button class="hx-go" data-nx="pomo">🍅 开始</button></div>`;
@@ -621,7 +632,7 @@ function heroNextHtml(ctx) {
   const hot = top.level === "late" || top.level === "urgent" || live;
   const sleep = night && !hot && !(top.mins != null && top.mins < 6 * 60);   // 深夜里不急的事：先劝睡觉
   const label = sleep ? "早点睡" : isCourse ? (live ? "正在上" : "下一节") : top.level === "late" ? "过期了" : top.exam ? "考试" : top.type === "作业" ? "先做这个" : "接下来";
-  const when = at ? `<span class="hx-cd" data-at="${at}" data-end="${live ? 1 : 0}">${live ? "还有 " + leftLabel(at - Date.now()).replace("后", "下课") : leftLabel(at - Date.now())}</span>` : `<span class="hx-cd">${esc(top.reason)}</span>`;
+  const when = at ? `<span class="hx-cd" data-at="${at}" data-end="${live ? 1 : 0}">${live ? "还有 " + leftLabel(at - ccNow()).replace("后", "下课") : leftLabel(at - ccNow())}</span>` : `<span class="hx-cd">${esc(top.reason)}</span>`;
   return `<div class="hx${hot ? " hot" : sleep ? " sleep" : ""}">
     <span class="hx-k">${label}</span>
     <span class="hx-t"><b>${esc(top.title)}</b><small>${esc([top.time || (top.day ? IslandCore.dayName(top.day, ctx.now) : ""), top.location ? "📍 " + top.location : ""].filter(Boolean).join(" · "))}</small></span>
@@ -659,7 +670,7 @@ function heroTickStart() {
   clearInterval(heroTick);
   heroTick = setInterval(() => {
     if (document.hidden || !document.querySelector(".hero.fx")) return;
-    const now = Date.now(), d = new Date(now), m = d.getHours() * 60 + d.getMinutes();
+    const now = ccNow(), d = new Date(now), m = d.getHours() * 60 + d.getMinutes();
     const tl = document.querySelector(".hero.fx .tl"), nw = tl && tl.querySelector(".tl-now");
     if (!nw && tl && !tl.classList.contains("tmr") && m >= +tl.dataset.a) { renderAgenda(); return; }
     if (nw) { const a = +tl.dataset.a, z = +tl.dataset.z; nw.style.left = ((Math.max(a, Math.min(z, m)) - a) / (z - a) * 100).toFixed(2) + "%"; }

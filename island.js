@@ -18,7 +18,7 @@ function islandItems() {
 }
 function islandCourses(k) { try { return ck().data && ck().data.courses.length ? ck().coursesOn(k) : []; } catch (e) { return []; } }
 function islandCtx() {
-  const now = new Date(), t = keyOf(now), d = ck().data;
+  const now = new Date(typeof ccNow === "function" ? ccNow() : Date.now()), t = keyOf(now), d = ck().data;
   const weekOf = (k) => { if (!d || !d.week1) return 0; const w = Math.floor((new Date(k + "T00:00:00") - new Date(d.week1 + "T00:00:00")) / 86400000 / 7) + 1; return w >= 1 && w <= 30 ? w : 0; };
   const stats = { habits: funOpts().habits ? habits.map((h) => ({ name: h.name, done: !!(habitLog[h.id] || {})[t], streak: streakOf(h) })) : [],
     pomoToday: +pomoLog[t] || 0, pomoWeek: [...Array(7)].reduce((a, _, i) => a + (+pomoLog[shiftDay(t, -i)] || 0), 0) };
