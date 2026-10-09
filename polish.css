@@ -54,3 +54,7 @@ button, a, label, summary { -webkit-tap-highlight-color: transparent; }
 /* 记一件事表单里的勾选项：勾选框和文字放一行 */
 #modal label.check, .modal2 label.check { display: flex; flex-direction: row; align-items: center; gap: 8px; color: var(--text); }
 #modal label.check input { width: 16px; height: 16px; margin: 0; flex: none; accent-color: var(--accent); }
+/* 首页时间轴：高度不变，只把课程块里的字调大、调清楚 */
+[data-skin] .hero .tl-c { font-size: 12px; font-weight: 650; display: flex; align-items: center; }
+[data-skin] .hero .tl-c span { line-height: 1; }
+@media (max-width: 700px) { [data-skin] .hero .tl-c { font-size: 11.5px; } }

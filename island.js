@@ -265,16 +265,17 @@ function islandHello() {
   islandGreeted = true;
   if (!islandOpts().greet || !currentUser) { laoWatch(); return; }
   try { if (sessionStorage.getItem("island_hi")) { laoWatch(); return; } sessionStorage.setItem("island_hi", "1"); } catch (e) {}
-  if ($("lao").classList.contains("away")) { laoWatch(); return; }   // 首页问候卡已经写了，不再重复冒泡
+  if (heroInView) { laoWatch(); return; }   // 首页问候卡已经写了，不再重复冒泡
   laoSay(IslandCore.greet(islandCtx()), { ms: 8000, q: "最急的是什么" });
   setTimeout(laoWatch, 9000);
 }
+let heroInView = false;
 // 首页问候卡里本来就有捞捞：卡片在屏幕上时，右下角那个先躲起来（点卡片里的捞捞一样能聊天）
 (() => {
   const hero = $("hero"); if (!hero || !("IntersectionObserver" in window)) return;
   new IntersectionObserver(([en]) => {
-    const on = en.isIntersecting && document.documentElement.dataset.skin === "fresh" && !!hero.querySelector(".hero.fx");
-    $("lao").classList.toggle("away", on);
+    // 用户希望捞捞一直在：不再因为首页问候卡在屏幕上就躲起来（只是不重复打招呼）
+    heroInView = en.isIntersecting && document.documentElement.dataset.skin === "fresh" && !!hero.querySelector(".hero.fx");
   }, { threshold: 0.35 }).observe(hero);
 })();
 document.addEventListener("click", (e) => {

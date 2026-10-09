@@ -557,6 +557,7 @@ const CourseKit = (() => {
     }
     renderBar();
     try { renderWidgets(); } catch (e) {}
+    try { renderAgenda(); } catch (e) {}   // 首页问候卡的时间轴要用课程：课表读好后重画一次（不然刷新后时间轴上没有课）
     sync().catch(() => {});
   }
 
