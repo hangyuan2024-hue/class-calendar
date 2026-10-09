@@ -1806,7 +1806,7 @@
 <link rel="stylesheet" href="metaverse-v3.css?v=20261008-org1">
 <link rel="stylesheet" href="campus-tools.css?v=20261008-org1">
 <link rel="stylesheet" href="org.css?v=20261008-org1">
-<link rel="stylesheet" href="polish.css?v=20261009-org2">
+<link rel="stylesheet" href="polish.css?v=20261009-fab1">
 </head>
 <body class="campus-workspace">
 <a class="campus-skip" href="#campus-main">跳到主要内容</a>
@@ -2430,7 +2430,8 @@
 <div id="modal">
   <form id="form">
     <h3 id="formTitle">记一件事</h3>
-    <input type="hidden" id="fId">
+    <input type="hidden" id="fId"><input type="hidden" id="fFrom">
+    <div class="ftip hidden" id="fFromTip">这是班级事项，班级里只有老师和班委能改。你在这里改的只对自己生效：保存后显示你的版本，班级原来那条会替你隐藏；在「我的事项」里删掉这条就恢复原样。</div>
     <label>标题 <input id="fTitle" required maxlength="60" placeholder="例如：社团例会"></label>
     <div class="row">
       <div><label>日期（可不填） <input type="date" id="fDate"></label></div>
@@ -2512,7 +2513,7 @@
 <script src="courses.js?v=20261002h"></script>
 <script src="farm.js?v=20261004a"></script>
 <script src="metaverse-v3.js?v=20261005-native3"></script>
-<script src="app.js?v=20261008-org1"></script>
+<script src="app.js?v=20261009-fab1"></script>
 <script src="campus-tools.js?v=20261006-tools1"></script>
 <script src="workspace-v3.js?v=20261005-native3"></script>
 <script src="island-core.js?v=20261004a"></script>

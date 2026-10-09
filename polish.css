@@ -34,3 +34,23 @@ button, a, label, summary { -webkit-tap-highlight-color: transparent; }
 [data-skin=fresh][data-mode=dark] .hx.sleep .hx-k { background: rgba(139,132,255,.2); color: #c7c3ff; }
 /* 手机上「我的学习空间」磁贴：「去完成 ▶」别折成两行 */
 .tile .go { white-space: nowrap; }
+/* 「＋」：在不需要它的页面藏起来；改班级事项时的说明 */
+#addBtn.fab-off { display: none !important; }
+.ftip { margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; background: var(--note-bg); color: var(--text); font-size: 12.5px; line-height: 1.7; }
+/* 工具的快捷打开：不用单独的箭头按钮，提示放在「工具」这一行里 */
+.nav-kbd { display: none; }
+@media (min-width: 701px) {
+  .rail .nav[data-tools-nav] { position: relative; }
+  .rail .nav[data-tools-nav] .nav-kbd { display: inline-block; margin-left: auto; padding: 1px 6px; border-radius: 5px; font: 600 10.5px/1.6 -apple-system, "Segoe UI", sans-serif; letter-spacing: .3px;
+    color: currentColor; opacity: 0; border: 1px solid currentColor; transition: opacity .15s; }
+  .rail .nav[data-tools-nav]:hover .nav-kbd, .rail .nav[data-tools-nav]:focus-visible .nav-kbd { opacity: .55; }
+}
+@media (max-width: 700px) {
+  /* 手机底栏：长按「工具」时有按下的反馈 */
+  .rail #tabs .nav[data-tools-nav]:active { transform: scale(.94); }
+}
+/* 日历选中那天的事项：操作按钮换行显示，「编辑」不会被挤到看不见 */
+.day-open .ops, .day-open .aextra .ops { flex-wrap: wrap; overflow: visible; }
+/* 记一件事表单里的勾选项：勾选框和文字放一行 */
+#modal label.check, .modal2 label.check { display: flex; flex-direction: row; align-items: center; gap: 8px; color: var(--text); }
+#modal label.check input { width: 16px; height: 16px; margin: 0; flex: none; accent-color: var(--accent); }

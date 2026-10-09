@@ -368,7 +368,7 @@ function renderGrid() {
         + (items.length > 4 ? `<div class="cmore">+${items.length - 4}</div>` : "");
       cell.dataset.n = pend.length;
       cell.innerHTML = html;
-      cell.onclick = () => { selectedKey = k; renderGrid(); renderSide(); emit("dayselected", k); };
+      cell.onclick = () => { selectedKey = k; renderGrid(); renderSide(); fabSync(); emit("dayselected", k); };
       cell.ondblclick = () => { selectedKey = k; if (feat("mine")) openForm(null); };
       grid.appendChild(cell);
       continue;
@@ -379,7 +379,7 @@ function renderGrid() {
     });
     if (items.length > maxChips) html += `<div class="more">还有 ${items.length - maxChips} 项</div>`;
     cell.innerHTML = html;
-    cell.onclick = () => { selectedKey = k; renderGrid(); renderSide(); emit("dayselected", k); };
+    cell.onclick = () => { selectedKey = k; renderGrid(); renderSide(); fabSync(); emit("dayselected", k); };
     cell.ondblclick = () => { selectedKey = k; if (feat("mine")) openForm(null); };
     grid.appendChild(cell);
   }
@@ -424,7 +424,7 @@ function detailHtml(r) {
        <button class="link" data-act="note" data-k="${k}">${r._note ? "改备注" : "加备注"}</button>${r._p ? `
        <button class="link" data-act="ics" data-k="${k}">📅 加到日历</button>` : ""}
        <button class="link" data-act="hide" data-k="${k}">${r._hidden ? "取消隐藏" : "隐藏"}</button>
-       ${canEditIn(r.group_id) ? `<button class="link" data-cact="cedit" data-id="${esc(r.id)}">修改</button>` : ""}
+       ${canEditIn(r.group_id) ? `<button class="link" data-cact="cedit" data-id="${esc(r.id)}">编辑</button>` : feat("mine") ? `<button class="link" data-act="mycopy" data-k="${k}" title="班级事项只有老师和班委能改；这里改的只对你自己生效">编辑（仅自己）</button>` : ""}
        ${canDelItem(r) ? `<button class="link" data-cact="cdel" data-id="${esc(r.id)}" style="color:var(--red)">删除</button>` : ""}
        ${GROUPS_OK && r.updated_at ? `<button class="link" data-cact="chist" data-id="${esc(r.id)}">修改记录</button>` : ""}`;
   return `${meta.length ? `<div class="meta">${meta.join("　")}</div>` : ""}
@@ -672,7 +672,7 @@ document.addEventListener("click", (e) => {
   if (b.dataset.nx === "pomo") { $("qPomo").click(); return; }
   const g = b.dataset.nxgo; if (g === "course") { const t = courseTool(); showView(t ? t.view : "calendar"); } else if (g) showView(g);
 });
-function agendaRow(r) {
+function agendaRow(r, forceOpen) {
   const k = esc(r._key);
   const style = r._plugin && r._color ? ` style="--c:${esc(r._color)}"` : "";
   const title = r.subject || r.summary || r.msg_type;
@@ -680,7 +680,7 @@ function agendaRow(r) {
   const typeName = r._plugin ? r._pluginName : r._mine ? "我的" : r.msg_type;
   const due = r.msg_type === "作业" && r._p && r._p.time;
   const time = r._p ? (r._p.time ? r._p.time + (due ? " 截止" : "") : "全天") : "待定";
-  const open = agendaOpen.has(r._key);
+  const open = forceOpen === true || agendaOpen.has(r._key);
   return `<div class="arow t-${esc(r.msg_type)}${r._done ? " done" : ""}${open ? " open" : ""}" data-row="${k}"${style}>
     ${r._plugin ? `<span class="adot"></span>` : `<button class="chk" data-act="done" data-k="${k}" title="${r._done ? "标记为未完成" : "标记为完成"}">${r._done ? "✓" : ""}</button>`}
     <div class="abody">
@@ -849,9 +849,10 @@ function renderSide() {
   const phone = phoneCal();
   $("side").classList.toggle("phone", phone);
   $("sideTitle").textContent += items.length ? ` · ${items.filter((r) => !r._done).length} 项` : "";
-  $("dayList").innerHTML = items.length ? (phone ? `<div class="acard surface">${items.map(agendaRow).join("")}</div>` : items.map((r) => itemHtml(r, false)).join(""))
+  // 日历里选中的这一天：操作按钮（完成 / 编辑 / 备注 / 加到日历 / 隐藏）直接摊开，不用先点一下
+  $("dayList").innerHTML = items.length ? (phone ? `<div class="acard surface day-open">${items.map((r) => agendaRow(r, true)).join("")}</div>` : items.map((r) => itemHtml(r, false)).join(""))
     : `<div class="empty">这天没有安排${feat("mine") ? `<br><small>${phone ? "点右下角「＋」记一件事，会记在这天" : "点「记一件事」或双击日期就能加在这天"}</small>` : ""}</div>`;
-  $("undatedList").innerHTML = undated.length ? (phone ? `<div class="acard surface">${undated.map(agendaRow).join("")}</div>` : undated.map((r) => itemHtml(r, true)).join("")) : `<div class="empty">暂无</div>`;
+  $("undatedList").innerHTML = undated.length ? (phone ? `<div class="acard surface day-open">${undated.map((r) => agendaRow(r, true)).join("")}</div>` : undated.map((r) => itemHtml(r, true)).join("")) : `<div class="empty">暂无</div>`;
 }
 
 function renderAll() { pluginBroadcastClass(); indexItems(); renderGrid(); renderSide(); renderAgenda(); renderHomework(); renderRail(); renderGrowth(); renderFarm(); renderPlan(); renderMeta(); renderWidgets(); syncJump(); appSchedule(); if (typeof renderIsland === "function") renderIsland(true); }
@@ -1591,6 +1592,7 @@ document.addEventListener("click", (e) => {
   if (!b) return;
   const k = b.dataset.k, act = b.dataset.act;
   if (act === "ics") { const it = allItems().find((x) => x._key === k); if (it) calImportOne(it); return; }
+  if (act === "mycopy") { const it = allItems().find((x) => x._key === k); if (it) openForm(it, { from: k }); return; }
   if (k.startsWith("c")) {
     const mk = marks[k] || {};
     if (act === "done") setMark(k, { done: !mk.done });
@@ -1603,7 +1605,7 @@ document.addEventListener("click", (e) => {
     const i = mine.findIndex((x) => x.id === k);
     if (i < 0) return;
     if (act === "done") { mine[i].done = !mine[i].done; save(LS_MINE, mine); logDone(k, mine[i].done); renderAll(); if (mine[i].done) cheerFor(k); }
-    if (act === "del" && confirm(`删除「${mine[i].subject || "这条事项"}」？`)) { delete quadMap[k]; mine.splice(i, 1); save(LS_MINE, mine); save(LS_QUAD, quadMap); renderAll(); }
+    if (act === "del" && confirm(mine[i].from ? `删除你改过的「${mine[i].subject || "这条事项"}」，恢复显示班级原来的那条？` : `删除「${mine[i].subject || "这条事项"}」？`)) { if (mine[i].from) setMark(mine[i].from, { hidden: false }); delete quadMap[k]; mine.splice(i, 1); save(LS_MINE, mine); save(LS_QUAD, quadMap); renderAll(); }
     if (act === "edit") openForm(mine[i]);
   }
 });
@@ -1619,16 +1621,21 @@ document.addEventListener("click", (e) => {
   mine.filter((r) => r.done).forEach((r) => delete quadMap[r.id]);
   mine = mine.filter((r) => !r.done); save(LS_MINE, mine); save(LS_QUAD, quadMap); renderAll();
 });
-function openForm(r) {
-  $("formTitle").textContent = r ? "编辑我的事项" : "添加我的事项";
+// opt：{ day 预设日期, quad 预设象限, hint 标题框提示, from 改的是哪条班级事项 }
+function openForm(r, opt) {
+  opt = opt || {};
+  $("formTitle").textContent = opt.from ? "改成我自己的版本" : r ? "编辑我的事项" : opt.day ? `在${opt.day === keyOf(new Date()) ? "今天" : mdOf(opt.day)}记一件事` : "添加我的事项";
   const p = r ? parseTime(r.event_time) : null;
-  $("fId").value = r ? r.id : "";
-  $("fTitle").value = r ? r.subject : "";
-  $("fDate").value = p ? p.day : r ? "" : (currentView() === "calendar" ? selectedKey : keyOf(new Date()));
-  $("fQuad").value = r && quadMap[r.id] ? String(quadMap[r.id]) : "";
+  $("fId").value = r && !opt.from ? r.id : "";
+  $("fFrom").value = opt.from || "";
+  $("fFromTip").classList.toggle("hidden", !opt.from);
+  $("fTitle").value = r ? (r.subject || r.summary || "") : "";
+  $("fTitle").placeholder = opt.hint || "例如：社团例会";
+  $("fDate").value = p ? p.day : r ? "" : (opt.day || (currentView() === "calendar" ? selectedKey : keyOf(new Date())));
+  $("fQuad").value = opt.quad || (r && quadMap[r.id] ? String(quadMap[r.id]) : "");
   $("fTime").value = p ? p.time : "";
   $("fLoc").value = r ? (r.location || "") : "";
-  $("fNote").value = r ? (r.note || "") : "";
+  $("fNote").value = r ? (opt.from ? [r.subject && r.summary ? r.summary : "", r.prepare ? "要准备：" + r.prepare : ""].filter(Boolean).join("\n") : (r.note || "")) : "";
   $("fLocal").checked = !!(r && r.local);
   $("modal").classList.add("open");
   setTimeout(() => $("fTitle").focus(), 50);
@@ -1643,6 +1650,9 @@ $("form").onsubmit = (e) => {
     note: $("fNote").value.trim(),
     local: $("fLocal").checked && Sync.active() ? true : undefined,
   };
+  // 改的是班级事项：存成我自己的一条，原来那条替我隐藏（在「我的事项」里删掉这条，或在日历里取消隐藏就恢复）
+  const from = $("fFrom").value;
+  if (from && !$("fId").value) { rec.from = from; setMark(from, { hidden: true }); }
   const i = mine.findIndex((x) => x.id === rec.id);
   if (i >= 0) mine[i] = { ...mine[i], ...rec }; else mine.push(rec);
   if ($("fQuad").value) quadMap[rec.id] = +$("fQuad").value; else delete quadMap[rec.id];
@@ -1898,37 +1908,93 @@ $("calOnceBtn").onclick = async () => {
 $("prevBtn").onclick = () => { if (--viewMonth < 0) { viewMonth = 11; viewYear--; } renderAll(); };
 $("nextBtn").onclick = () => { if (++viewMonth > 11) { viewMonth = 0; viewYear++; } renderAll(); };
 $("todayBtn").onclick = () => { viewYear = today.getFullYear(); viewMonth = today.getMonth(); selectedKey = keyOf(today); renderAll(); };
-// 电脑：直接「记一件事」；手机：右下角「＋」弹出常用操作（AI 整理、发布、打卡、专注……哪个页面都能用）
-function fabItems() {
-  const o = funOpts(), list = [];
-  if (feat("mine")) list.push(["mine", "✏️", "记一件事"]);
-  if (ingestAllowed()) list.push(["ingest", "✨", "AI 整理群消息"]);
-  if (canAddItem()) list.push(["pub", "📣", "发布班级事项"]);
-  if (o.habits) list.push(["habit", "🔥", "今日打卡"]);
-  if (o.plan) list.push(["pomo", "🍅", "开始专注"]);
+// 右下角「＋」（电脑上是侧栏的按钮）：每个页面做不同的事
+//   只有一个动作时直接做；手机上有多个动作时弹出菜单；电脑上直接做第一个（页面里本来就有其他按钮）
+const FAB_HIDE = ["me", "user", "intro", "credits", "rank", "people", "meta", "ask"];
+const mdOf = (k) => { const d = new Date(k + "T00:00:00"); return `${d.getMonth() + 1}月${d.getDate()}日`; };
+function fabItems(view) {
+  view = view || currentView();
+  const o = funOpts(), list = [], mineOn = feat("mine");
+  const pub = (t) => canAddItem() ? [["pub", "📣", t]] : [];
+  const ing = ingestAllowed() ? [["ingest", "✨", "AI 整理群消息"]] : [];
+  if (view === "calendar") {
+    const d = selectedKey === keyOf(new Date()) ? "今天" : mdOf(selectedKey);
+    if (mineOn) list.push(["mineDay", "✏️", `在${d}记一件事`]);
+    list.push(...pub(`发布到${d}`), ...ing);
+  } else if (view === "homework") {
+    if (mineOn) list.push(["mineHw", "✏️", "记一项自己的作业"]);
+    list.push(...pub("发布班级作业"), ...ing);
+  } else if (view === "wall") {
+    if (currentClass && viewOn("wall")) {
+      list.push(["post", "💬", "说点什么"], ["article", "📝", "写一篇文章"]);
+      if (!$("wNoticeWrap").classList.contains("hidden")) list.push(["notice", "📢", "发布通知"]);
+    }
+  } else if (view === "plan") {
+    if (mineOn) list.push(["quad", "🎯", "加一件到四象限"]);
+    if (o.plan) list.push(["pomo", "🍅", "开始专注"]);
+  } else if (view === "growth") {
+    if (o.habits) list.push(["habitAdd", "🔥", "添加一个习惯"]);
+    if (mineOn) list.push(["mine", "✏️", "记一件事"]);
+  } else if (view === "tools") {
+    list.push(["quick", "⚡", "快捷打开工具"]);
+    if (feat("tools")) list.push(["store", "🧩", "添加工具"]);
+  } else if (view === "farm") {
+    if (mineOn) list.push(["mine", "✏️", "记一件事（完成就有养料）"]);
+  } else {
+    if (mineOn) list.push(["mine", "✏️", "记一件事"]);
+    list.push(...ing, ...pub("发布班级事项"));
+    if (o.habits) list.push(["habit", "🔥", "今日打卡"]);
+    if (o.plan) list.push(["pomo", "🍅", "开始专注"]);
+  }
   return list;
+}
+function fabRun(k) {
+  if (k === "mine") openForm(null);
+  if (k === "mineDay") openForm(null, { day: selectedKey });
+  if (k === "mineHw") openForm(null, { title: "", hint: "比如：高数习题 3.2" });
+  if (k === "quad") openForm(null, { quad: "1" });
+  if (k === "ingest") openIngest(false);
+  if (k === "pub") { openClassForm(null); if (currentView() === "homework") $("cType").value = "作业"; }
+  if (k === "habit") showView("growth");
+  if (k === "habitAdd") { $("hName").scrollIntoView({ block: "center", behavior: "smooth" }); setTimeout(() => $("hName").focus(), 250); }
+  if (k === "pomo") $("qPomo").click();
+  if (k === "post" || k === "article" || k === "notice") {
+    if (k === "article" && $("wTitle").classList.contains("hidden")) $("wArticle").click();
+    if (k === "notice") $("wNotice").checked = true;
+    const box = k === "article" ? $("wTitle") : $("wBody");
+    box.scrollIntoView({ block: "center", behavior: "smooth" }); setTimeout(() => box.focus(), 250);
+  }
+  if (k === "store") showView("store");
+  if (k === "quick") { const b = $("navToolPicker") || document.querySelector("[data-quick-open]"); if (b) b.click(); }
+}
+// 按钮的样子跟着页面变：文字、提示、要不要显示
+function fabSync() {
+  const b = $("addBtn"); if (!b) return;
+  const view = currentView(), items = fabItems(view);
+  const hide = FAB_HIDE.includes(view) || !items.length;
+  b.classList.toggle("fab-off", hide);
+  const first = items[0];
+  b.querySelector(".lbl").textContent = first ? first[2] : "记一件事";
+  b.title = items.length > 1 && isMobile() ? "更多操作" : first ? first[2] : "";
+  b.setAttribute("aria-label", b.title);
+  b.dataset.fabView = view;
 }
 function fabToggle(open) {
   const m = $("fabMenu"), on = open ?? !m.classList.contains("open");
-  if (on) m.innerHTML = fabItems().slice().reverse().map(([k, ic, t]) => `<button data-fab="${k}" role="menuitem"><span>${ic}</span>${t}</button>`).join("");
+  if (on) m.innerHTML = fabItems().slice().reverse().map(([k, ic, t]) => `<button data-fab="${k}" role="menuitem"><span>${ic}</span>${esc(t)}</button>`).join("");
   m.classList.toggle("open", on); $("fabVeil").classList.toggle("open", on); document.documentElement.classList.toggle("fab-open", on);
   m.setAttribute("aria-hidden", on ? "false" : "true");
 }
 $("addBtn").onclick = () => {
   const items = fabItems();
-  if (!isMobile() || items.length <= 1) { fabToggle(false); return openForm(null); }
+  if (!items.length) return;
+  if (!isMobile() || items.length <= 1) { fabToggle(false); return fabRun(items[0][0]); }
   fabToggle();
 };
 $("fabVeil").onclick = () => fabToggle(false);
 $("fabMenu").onclick = (e) => {
   const b = e.target.closest("[data-fab]"); if (!b) return;
-  fabToggle(false);
-  const k = b.dataset.fab;
-  if (k === "mine") openForm(null);
-  if (k === "ingest") openIngest(false);
-  if (k === "pub") openClassForm(null);
-  if (k === "habit") showView("growth");
-  if (k === "pomo") $("qPomo").click();
+  fabToggle(false); fabRun(b.dataset.fab);
 };
 $("refreshBtn").onclick = async () => { try { await loadMyClasses(); } catch (e) {} renderClassBar(); loadClass(); };
 $("showHidden").onchange = renderAll;
@@ -2589,17 +2655,47 @@ let hwBadge = 0;
 
 function currentView() { return document.querySelector(".view.on[data-view]")?.dataset.view || "home"; }
 function renderTabs() {
+  try { fabSync(); } catch (e) {}
   let cur = currentView();
   const pinned = railPins().some((t) => t.view === cur);
   if (cur.startsWith("p_") && !pinned) cur = "tools";
   $("tabs").innerHTML = NAV.map(([id, t]) => {
     const unavailable = (id === "plan" && !funOpts().plan) || (id === "ask" && (!laiReady() || !feat("ask"))) || !viewOn(id);
     const button = `<button class="nav${id === cur ? " on" : ""}${["wall", "calendar", "plan", "ask"].includes(id) ? " desk" : ""}${unavailable ? " hidden" : ""}" data-tab="${id}">${icon(id)}<span>${cyName(t)}</span>${id === "homework" && hwBadge ? `<em class="badge">${hwBadge}</em>` : ""}</button>`;
-    return id === "tools" ? `<div class="nav-tools-group${unavailable ? " hidden" : ""}">${button}<button type="button" id="navToolPicker" class="nav-tool-picker" data-quick-open aria-label="快捷选择工具" aria-haspopup="dialog" title="快捷选择工具"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button></div>` : button;
+    // 工具：不再在旁边放一个箭头按钮。在工具页再点一次「工具」、长按「工具」或按 Ctrl/⌘+K 都能快捷打开任意工具；电脑上鼠标移上去会在这一行里提示快捷键
+    return id === "tools" ? button.replace('data-tab="tools">', `data-tab="tools" data-tools-nav title="工具（再点一次或长按：快捷打开）">`).replace("</button>", `<kbd class="nav-kbd" aria-hidden="true">${/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K"}</kbd></button>`) + `<button type="button" id="navToolPicker" class="nav-tool-picker-x" data-quick-open aria-label="快捷选择工具" tabindex="-1" hidden></button>` : button;
   }).join("")
     + railPins().map((t) => `<button class="nav pin desk${t.view === cur ? " on" : ""}" data-tab="${esc(t.view)}"><span class="emo">${esc(t.icon)}</span><span>${esc(t.name)}</span></button>`).join("")
     + `<a class="nav desk" href="class.html">${icon("class")}<span>${cyName("班级")}</span></a>`;
 }
+// 快捷打开工具：工具页上再点「工具」、长按「工具」、Ctrl/⌘+K
+const openQuickTools = () => { const b = $("navToolPicker"); if (b) b.click(); };
+let toolsPress = 0, toolsLong = false;
+document.addEventListener("pointerdown", (e) => {
+  const b = e.target.closest("[data-tools-nav]"); if (!b) return;
+  toolsLong = false; clearTimeout(toolsPress);
+  toolsPress = setTimeout(() => { toolsLong = true; buzz(20); openQuickTools(); }, 480);
+});
+["pointerup", "pointercancel", "pointerleave"].forEach((t) => document.addEventListener(t, () => clearTimeout(toolsPress), true));
+document.addEventListener("contextmenu", (e) => { if (e.target.closest("[data-tools-nav]")) e.preventDefault(); });
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-tools-nav]"); if (!b) return;
+  if (toolsLong) { toolsLong = false; e.preventDefault(); e.stopImmediatePropagation(); return; }
+  if (currentView() === "tools") { e.preventDefault(); e.stopImmediatePropagation(); openQuickTools(); }
+}, true);
+document.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "k" && feat("tools") !== false) { e.preventDefault(); openQuickTools(); }
+});
+// 第一次进工具页：告诉一下怎么快捷打开（只说一次）
+function toolsTip() {
+  if (load("tools_quick_tip_v1", false)) return;
+  save("tools_quick_tip_v1", true);
+  const tip = isMobile() ? "小技巧：在工具页再点一次底部「工具」，或者长按它，就能搜索、快捷打开任意工具～" : "小技巧：按 Ctrl/⌘+K，或在工具页再点一次「工具」，就能搜索、快捷打开任意工具～";
+  // 让捞捞说出来；捞捞被隐藏了就用顶部提示条
+  if (typeof laoSay === "function" && $("lao") && !$("lao").classList.contains("hidden")) laoSay(tip, { ms: 8000 });
+  else { showBanner(tip); setTimeout(() => showBanner(""), 5200); }
+}
+
 function renderTools() {
   const L = homeLayout();
   $("toolGrid").innerHTML = toolList().map((t) => {
@@ -2618,7 +2714,7 @@ document.addEventListener("click", (e) => {
 function showView(id) {
   let scrollStore = false;
   if (id === "store") { id = "tools"; scrollStore = true; }
-  if (id === "tools") refreshRegistry();
+  if (id === "tools") { refreshRegistry(); setTimeout(toolsTip, 600); }
   if (!document.querySelector(`.view[data-view="${CSS.escape(id)}"]`)) id = "home";
   if (!viewOn(id)) { const k = id.startsWith("p_") ? "tools" : VIEW_FEAT[id]; showBanner(`「${FEAT_NAME[k] || id}」暂时用不了：${featWhy(k) || "已关闭"}`); setTimeout(() => showBanner(""), 3500); id = "home"; }
   const prev = currentView();
