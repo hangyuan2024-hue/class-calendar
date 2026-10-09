@@ -23,6 +23,8 @@ const CourseKit = (() => {
   };
   const DAYS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
   const LS_SYNC = "course_sync_sig_v1", LS_ICS = "course_ics_v1";
+  // 课表「版本」：哪台设备把课表传上服务器，就把服务器时间写在这里；它随「我的数据」几秒内同步到别的设备，别的设备看到变了就去拿新课表
+  const LS_REV = "course_rev_v1";
   const TIME_RE = /^\d{2}:\d{2}-\d{2}:\d{2}$/;
   let data = { courses: [], week1: DEFAULT_WEEK1, times: PERIODS.summer, mode: "", custom: null, loaded: false };
   let builtinCode = null;
@@ -98,8 +100,9 @@ const CourseKit = (() => {
     return { p_courses: courses, p_meta: { week1: mondayOf(data.week1), times: data.times.slice(0, 16), ics: load(LS_ICS, true) !== false } };
   }
   function changed() {
+    const L = load(LS_SYNC, {}); L.editAt = Sync.now(); try { localStorage.setItem(LS_SYNC, JSON.stringify(L)); } catch (e) {}
     clearTimeout(syncTimer);
-    syncTimer = setTimeout(() => sync().catch(() => {}), 2500);
+    syncTimer = setTimeout(() => sync().catch(() => {}), 1200);
   }
   async function sync(force) {
     if (!currentUser || !on() || syncing) return null;
@@ -111,7 +114,9 @@ const CourseKit = (() => {
     syncing = true;
     try {
       const r = await CCAuth.rpc("courses_sync", p);
-      save(LS_SYNC, { uid: currentUser.id, sig, n: p.p_courses.length, at: Date.now() });
+      const srv = (r && r.updated_at) || "";
+      save(LS_SYNC, { uid: currentUser.id, sig, n: p.p_courses.length, at: Date.now(), srv });
+      if (srv) save(LS_REV, { at: srv, n: p.p_courses.length });   // 告诉别的设备：课表变了
       renderBar();
       return r;
     } finally { syncing = false; }
@@ -528,12 +533,15 @@ const CourseKit = (() => {
     read().then(() => { if (!dlg.open) dlg.showModal(); });
   }
 
-  // 换了手机、换了浏览器：本机没有课程、服务器上有，就自动恢复
-  async function restore() {
-    const r = await CCAuth.rpc("courses_get");
-    if (!r || !Array.isArray(r.courses) || !r.courses.length) return 0;
-    const list = r.courses.map((c, i) => ({ id: c.id || `srv${Date.now()}_${i}`, name: c.name, teacher: c.teacher || "", location: c.location || "", day: +c.day, start: +c.start, end: +c.end,
-      weeks: c.weeks || weeksText(new Set(c.wl || [])), courseType: "必修", note: "" }));
+  // 把服务器上的课表写到本机（别的设备改过 / 换了设备）
+  async function applyServer(r) {
+    const stamp = Date.now(), old = {};
+    (data.loaded ? data : await read()).courses.forEach((c) => { if (c.id) old[c.id] = c; });
+    const list = (r.courses || []).map((c, i) => {
+      const x = { id: c.id || `srv${stamp}_${i}`, name: c.name, teacher: c.teacher || "", location: c.location || "", day: +c.day, start: +c.start, end: +c.end,
+        weeks: c.weeks || weeksText(new Set(c.wl || [])), courseType: "必修", note: "" };
+      const o = old[x.id]; return o ? { ...o, ...x, courseType: o.courseType || x.courseType, note: o.note || "" } : x;   // 服务器上没有的字段（备注等）留着
+    });
     const kv = { [K.courses]: JSON.stringify(list) }, m = r.meta || {};
     if (/^\d{4}-\d{2}-\d{2}$/.test(m.week1 || "")) kv[K.week1] = JSON.stringify(m.week1);
     const t = Array.isArray(m.times) ? m.times : [];
@@ -542,25 +550,63 @@ const CourseKit = (() => {
       if (same(PERIODS.summer)) kv[K.mode] = "summer"; else if (same(PERIODS.winter)) kv[K.mode] = "winter";
       else { kv[K.custom] = JSON.stringify(t); kv[K.mode] = "custom"; }
     }
-    await write(kv);
+    if (typeof m.ics === "boolean") { try { localStorage.setItem(LS_ICS, JSON.stringify(m.ics)); } catch (e) {} }
+    await write(kv); clearTimeout(syncTimer);
+    // 刚从服务器拿的，不用再传回去
+    if (currentUser) { try { localStorage.setItem(LS_SYNC, JSON.stringify({ uid: currentUser.id, sig: JSON.stringify(payload()), n: list.length, at: Date.now(), srv: r.updated_at || "" })); } catch (e) {} }
+    renderBar();
     return list.length;
+  }
+  const sameT = (a, b) => !!a && !!b && (a === b || Date.parse(a) === Date.parse(b));
+  // 和服务器对一下：服务器上的比本机新（别的设备改过）→ 拿下来；本机有没传上去的修改 → 传上去
+  let pulling = null, pulledAt = 0;
+  function pull(force) {
+    if (!currentUser || !on()) return Promise.resolve(0);
+    if (pulling) return pulling;
+    const rev = load(LS_REV, null), last = load(LS_SYNC, {});
+    if (!force && rev && last.uid === currentUser.id && sameT(rev.at, last.srv)) return Promise.resolve(0);
+    if (!force && Date.now() - pulledAt < 1500) return Promise.resolve(0);
+    pulling = (async () => {
+      pulledAt = Date.now();
+      const r = await CCAuth.rpc("courses_get");
+      const L = load(LS_SYNC, {}), mine = L.uid === currentUser.id;
+      const local = data.loaded ? data : await read(), sig = JSON.stringify(payload()), dirty = mine ? L.sig !== sig : local.courses.length > 0;
+      if (!r || !r.updated_at) { if (local.courses.length) await sync(); return 0; }   // 服务器上还没有：把本机的传上去
+      if (mine && sameT(r.updated_at, L.srv)) { if (dirty) await sync(); return 0; }   // 服务器没变
+      if (dirty && local.courses.length) {
+        if (!mine) { await sync(true); return 0; }   // 登录前在这台设备上填的课：照旧传上去
+        if (Date.parse(r.updated_at) < (L.editAt || 0)) { await sync(true); return 0; }   // 两边都改了：本机的修改更晚
+      }
+      const n = await applyServer(r);
+      return n || -1;
+    })().finally(() => { pulling = null; });
+    return pulling;
+  }
+  async function restore() { const n = await pull(true); return n > 0 ? n : 0; }
+  // 别的设备改了课表：「我的数据」同步过来 course_rev_v1 → 马上拿新课表；切回这个页面时也对一下
+  let hooked = false;
+  function hook() {
+    if (hooked || typeof Sync === "undefined") return; hooked = true;
+    Sync.onChange((set) => { if (set && set.has && set.has(LS_REV)) setTimeout(() => pull().catch(() => {}), 50); });
+    document.addEventListener("visibilitychange", () => { if (!document.hidden && Date.now() - pulledAt > 30000) pull(true).catch(() => {}); });
   }
 
   async function boot() {
     if (!on()) return;
+    hook();
     await read();
-    if (currentUser && !data.courses.length) {
+    if (currentUser) {
+      const had = data.courses.length;
       try {
-        const n = await restore();
-        if (n) { ensureCard(); showBanner(`已从云端恢复你的 ${n} 门课`); setTimeout(() => showBanner(""), 4000); }
+        const n = await pull(true);
+        if (!had && n > 0) { ensureCard(); showBanner(`已从云端恢复你的 ${n} 门课`); setTimeout(() => showBanner(""), 4000); }
       } catch (e) {}
     }
     renderBar();
     try { renderWidgets(); } catch (e) {}
     try { renderAgenda(); } catch (e) {}   // 首页问候卡的时间轴要用课程：课表读好后重画一次（不然刷新后时间轴上没有课）
-    sync().catch(() => {});
   }
 
-  return { _nearOCR: (a, b) => nearOCR(a, b), NS, on, read, write, sync, changed, coursesOn, card, askLines, injectBuiltin, loadBuiltin, decorateTab, renderBar, openImport, boot, parseWeeks, weeksText,
+  return { pull, _nearOCR: (a, b) => nearOCR(a, b), NS, on, read, write, sync, changed, coursesOn, card, askLines, injectBuiltin, loadBuiltin, decorateTab, renderBar, openImport, boot, parseWeeks, weeksText,
     get data() { return data; } };
 })();

@@ -11,7 +11,7 @@ const CK_STUB = { NS: "course-schedule", on: () => false, injectBuiltin: async (
   read: async () => null, changed() {}, renderBar() {}, decorateTab() {}, card: () => "", askLines: () => "", boot: async () => {} };
 const ck = () => (typeof CourseKit !== "undefined" ? CourseKit : CK_STUB);
 if (typeof CourseKit === "undefined" && !document.querySelector('script[src^="courses.js"]')) {
-  const sc = document.createElement("script"); sc.src = "courses.js?v=20261009-tz1";
+  const sc = document.createElement("script"); sc.src = "courses.js?v=20261009-cs1";
   sc.onload = () => { try { if (currentUser) ck().boot().catch(() => {}); } catch (e) {} };   // 课程表标签页等网页缓存更新后（最多 10 分钟）自动出现
   document.head.appendChild(sc);
 }
@@ -37,7 +37,7 @@ const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; 
 // ===== 云端同步：登录后，我的事项、完成标记、打卡、规划、外观设置自动存到云端，换浏览器 / 换手机都能看到 =====
 // 每条数据单独同步，带修改时间；两边都改了同一条，以后改的为准。可以在「我的 → 数据」里改成「只存在这台设备」。
 // list：数组，按 id 一条条同步；map：对象，按键同步；map2：两层对象（习惯 → 日期）；one：整体同步
-const SYNC_KINDS = { personal_events_v1: "list", personal_marks_v1: "map", done_log_v1: "map", habits_v1: "list", habit_log_v1: "map2",
+const SYNC_KINDS = { course_rev_v1: "one", personal_events_v1: "list", personal_marks_v1: "map", done_log_v1: "map", habits_v1: "list", habit_log_v1: "map2",
   quad_v1: "map", quad_todos_v1: "list", pomo_log_v1: "map", fun_opts_v1: "one", home_layout_v1: "one", ui_skin_v1: "one",
   ui_palette_v1: "one", plugins_enabled_v1: "one", home_quick_tools_v1: "one", plan_notes_v1: "map", profile_v1: "one", mood_log_v1: "map", farm_v1: "one", island_v1: "one" };
 const LS_SYNC = "sync_meta_v1", LS_SYNC_OUT = "sync_outbox_v1", LS_SYNC_MODE = "sync_mode_v1";
