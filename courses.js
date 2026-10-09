@@ -15,7 +15,7 @@ const CourseKit = (() => {
     week1: "plg_course-schedule_week1",
     adj: "personal_course_schedule_adjust_v1",   // 调课 / 调休 / 停课 / 加课（见 coursesOn）
   };
-  const VER = "20261009-adj1";
+  const VER = "20261009-adj3";
   const DEFAULT_WEEK1 = "2026-09-14";
   const MAX_WEEK = 20;
   const PERIODS = {
@@ -729,6 +729,8 @@ const CourseKit = (() => {
       const L = load(LS_SYNC, {}), mine = L.uid === currentUser.id;
       const local = data.loaded ? data : await read(), sig = JSON.stringify(payload()), dirty = mine ? L.sig !== sig : local.courses.length > 0;
       if (!r || !r.updated_at) { if (local.courses.length) await sync(); return 0; }   // 服务器上还没有：把本机的传上去
+      // 本机记了调课 / 调休、服务器上那份还没有（之前服务器没升级，传上去被丢掉了）：重新传一次
+      if ((local.adj || []).length && !(r.meta && Array.isArray(r.meta.adj)) && (mine || local.courses.length)) { await sync(true); return 0; }
       if (mine && sameT(r.updated_at, L.srv)) { if (dirty) await sync(); return 0; }   // 服务器没变
       if (dirty && local.courses.length) {
         if (!mine) { await sync(true); return 0; }   // 登录前在这台设备上填的课：照旧传上去
