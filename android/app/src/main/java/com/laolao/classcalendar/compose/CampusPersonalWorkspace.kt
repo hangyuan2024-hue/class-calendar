@@ -23,7 +23,7 @@ private val CampusCovers =
     listOf(
         CampusCover("sky", "晴空", Color(0xFF96C8FF), Color(0xFF7066D5)),
         CampusCover("sakura", "莓果", Color(0xFFF9C9DF), Color(0xFFD7659B)),
-        CampusCover("ocean", "海盐", Color(0xFF8CDDCB), Color(0xFF398CA8)),
+        CampusCover("ocean", "鸢尾", Color(0xFFCCD5FF), Color(0xFF6565C1)),
         CampusCover("sunset", "日落", Color(0xFFF6CF9A), Color(0xFFCE6D98)),
         CampusCover("forest", "森林", Color(0xFFC2DEC1), Color(0xFF418B77)),
         CampusCover("galaxy", "星河", Color(0xFFAA9DDF), Color(0xFF544E94)),
@@ -219,86 +219,74 @@ private fun CampusProfileHeader(
         person.optString("cover").ifBlank {
             if (gender == "f") "sakura" else if (gender == "m") "sky" else "ocean"
         }
-    LaoPanel(Modifier.fillMaxWidth(), padding = 0.dp) {
-        Box(
-            Modifier.fillMaxWidth()
-                .height(128.dp)
-                .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
-        ) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Box(Modifier.fillMaxWidth().heightIn(min = 168.dp).clip(RoundedCornerShape(28.dp))) {
             CoverArt(cover, Modifier.matchParentSize())
-            Row(
-                Modifier.fillMaxWidth().padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
+            Column(
+                Modifier.fillMaxWidth().padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(24.dp),
             ) {
-                Text(
-                    if (own) "我的校园主页" else "同学的校园主页",
-                    Modifier.weight(1f),
-                    color = Color(0xFF263047),
-                    style = LaoType.caption,
-                )
-                if (own && logged)
-                    IconButton(
-                        onClick = { s.sheet = ProfileEditorSheet },
-                        modifier =
-                            Modifier.size(40.dp)
-                                .background(Color.White.copy(alpha = .6f), CircleShape),
-                    ) {
-                        Icon(
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        if (own) "我的校园主页" else "同学的校园主页",
+                        Modifier.weight(1f),
+                        style = LaoType.caption,
+                        color = Color(0xFF313557),
+                    )
+                    if (own && logged)
+                        LaoIconButton(
                             Icons.Rounded.Edit,
                             "编辑资料与封面",
-                            tint = Color(0xFF263047),
-                            modifier = Modifier.size(20.dp),
+                            Modifier.size(40.dp),
+                            tint = Color(0xFF313557),
+                        ) {
+                            s.sheet = ProfileEditorSheet
+                        }
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    CampusAvatar(
+                        name,
+                        gender,
+                        Modifier.size(72.dp)
+                            .border(3.dp, Color.White.copy(alpha = .85f), CircleShape),
+                    )
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            name,
+                            style = LaoType.title.copy(fontSize = 24.sp, lineHeight = 32.sp),
+                            color = Color(0xFF242843),
+                        )
+                        Text(
+                            if (person.optString("account").isNotBlank())
+                                "@" + person.optString("account")
+                            else CampusActivity.roleName(person.optString("role")),
+                            style = LaoType.caption,
+                            color = Color(0xFF343B60),
                         )
                     }
+                }
             }
-            CampusAvatar(
-                name,
-                gender,
-                Modifier.align(Alignment.BottomStart)
-                    .padding(start = 16.dp, bottom = 8.dp)
-                    .size(72.dp)
-                    .border(3.dp, Color.White.copy(alpha = .9f), CircleShape),
-            )
         }
-        Column(
-            Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+        Row(
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text(name, Modifier.weight(1f), style = LaoType.title)
-                LaoChip(
-                    CampusActivity.roleName(person.optString("role")),
-                    CampusAccent.readable(CampusAccent.violet),
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    person.optString("bio").ifBlank {
+                        if (own && !logged) "课表和记录随时可用。登录后，遇见你的同学。" else "记录日常，把每一点进步留在这里。"
+                    },
+                    style = LaoType.body,
+                    color = c.onSurfaceVariant,
                 )
+                if (className.isNotBlank()) LaoChip(className, c.primary, Icons.Rounded.School)
             }
-            val account = person.optString("account")
-            if (account.isNotBlank())
-                Text("@" + account, style = LaoType.caption, color = c.onSurfaceVariant)
-            Text(
-                person.optString("bio").ifBlank {
-                    if (own && !logged) "本机记录随时可用，登录后遇见你的同学。" else "记录日常，把每一点进步留在这里。"
-                },
-                style = LaoType.body,
-                color = c.onSurfaceVariant,
-            )
-            if (className.isNotBlank())
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Rounded.School, null, Modifier.size(16.dp), tint = c.primary)
-                    Text(className, style = LaoType.caption, color = c.primary)
-                }
-            if (own && !logged)
-                LaoPrimaryButton("登录 / 注册", Modifier.fillMaxWidth()) { s.open("login") }
-            if (own && logged)
-                LaoSecondaryButton("编辑个人主页", Modifier.fillMaxWidth()) {
-                    s.sheet = ProfileEditorSheet
-                }
+            if (own && logged) LaoTextAction("编辑主页") { s.sheet = ProfileEditorSheet }
         }
+        if (own && !logged) LaoPrimaryButton("登录 / 注册", Modifier.fillMaxWidth()) { s.open("login") }
     }
 }
 
@@ -310,21 +298,7 @@ private fun ProfileTile(
     accent: Color,
     modifier: Modifier,
     click: () -> Unit,
-) {
-    val hue = CampusAccent.readable(accent)
-    Column(
-        modifier
-            .clip(RoundedCornerShape(24.dp))
-            .background(hue.copy(alpha = .09f))
-            .clickable(onClick = click)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Icon(icon, null, Modifier.size(24.dp), tint = hue)
-        Text(title, style = LaoType.cell)
-        Text(subtitle, style = LaoType.label, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
+) = LaoEditorialCard(title, subtitle, icon, CampusAccent.readable(accent), modifier, click)
 
 @Composable
 internal fun CampusPublicProfilePage(s: CampusSession) {

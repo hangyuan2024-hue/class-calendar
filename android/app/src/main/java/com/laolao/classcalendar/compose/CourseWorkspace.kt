@@ -42,7 +42,8 @@ internal fun ModernCoursesPage(s: CampusSession) {
         animatedItem(0) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("第 $week 周", style = MaterialTheme.typography.headlineMedium)
+                    LaoEyebrow("我的课程表")
+                    Text("第 $week 周", style = LaoType.headline)
                     Text(
                         "${first.substring(5)} — ${DateMath.plus(first,6).substring(5)}",
                         style = MaterialTheme.typography.bodySmall,
@@ -80,8 +81,10 @@ internal fun ModernCoursesPage(s: CampusSession) {
                             Modifier.weight(1f)
                                 .height(64.dp)
                                 .springPress(source)
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(if (on) colors.primary else colors.surfaceContainerLow)
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(
+                                    if (on) colors.primary else colors.surface.copy(alpha = .7f)
+                                )
                                 .clickable(source, null) { day = index },
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center,

@@ -58,10 +58,10 @@ private fun settingsCatalog(s: CampusSession): List<CampusSetting> {
             },
             CampusSetting(
                 "外观与配色",
-                (LaoPalettes.firstOrNull { it.id == palette }?.name ?: "默认 · 海盐青") + " · " + mode,
+                (LaoPalettes.firstOrNull { it.id == palette }?.name ?: "默认 · 鸢尾蓝") + " · " + mode,
                 "外观",
                 Icons.Rounded.Palette,
-                "皮肤 主题 深空蓝 海盐青 深色 明亮 夜间 跟随系统 减少动画 动效 透明",
+                "皮肤 主题 深空蓝 鸢尾蓝 暖白 深色 明亮 夜间 跟随系统 减少动画 动效 透明",
             ) {
                 it.open("appearance")
             },
@@ -266,18 +266,7 @@ internal fun CampusSettingsPage(s: CampusSession) {
         }
     LaoPage(spacing = 16.dp) {
         animatedItem(0, "settings-heading") {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("按你的习惯来。", style = LaoType.headline)
-                    Text("账号、外观和提醒，都在这里。", style = LaoType.caption, color = c.onSurfaceVariant)
-                }
-                Box(
-                    Modifier.size(48.dp).background(c.primary.copy(alpha = .08f), CircleShape),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(Icons.Rounded.Tune, null, Modifier.size(24.dp), tint = c.primary)
-                }
-            }
+            LaoPageHeading("按你的习惯来。", "账号、外观和提醒，都在这里。", "设置与偏好", Icons.Rounded.Tune)
         }
         animatedItem(1, "settings-search") {
             LaoInput(
@@ -303,7 +292,7 @@ internal fun CampusSettingsPage(s: CampusSession) {
                         Box(
                             Modifier.heightIn(min = 44.dp)
                                 .clip(CircleShape)
-                                .background(if (on) c.onSurface else c.surface.copy(alpha = .65f))
+                                .background(if (on) c.primary else c.surface.copy(alpha = .8f))
                                 .laoTap(role = Role.Tab) { category = label }
                                 .semantics {
                                     selected = on
@@ -315,7 +304,7 @@ internal fun CampusSettingsPage(s: CampusSession) {
                             Text(
                                 label,
                                 style = LaoType.caption,
-                                color = if (on) c.surface else c.onSurfaceVariant,
+                                color = if (on) c.onPrimary else c.onSurfaceVariant,
                             )
                         }
                     }
@@ -388,7 +377,7 @@ private fun SettingCell(item: CampusSetting, breadcrumb: Boolean, click: () -> U
                 "学习" -> CampusAccent.violet
                 "数据" -> CampusAccent.blue
                 "关于" -> CampusAccent.amber
-                else -> CampusAccent.mint
+                else -> CampusAccent.blue
             }
         )
     Row(
@@ -406,7 +395,7 @@ private fun SettingCell(item: CampusSetting, breadcrumb: Boolean, click: () -> U
             Text(item.title, style = LaoType.cell)
             Text(
                 (if (breadcrumb) item.group + " · " else "") + item.detail,
-                style = LaoType.label,
+                style = LaoType.caption,
                 color = c.onSurfaceVariant,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,

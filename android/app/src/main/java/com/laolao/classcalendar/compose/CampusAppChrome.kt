@@ -50,14 +50,23 @@ internal fun campusKeyboardVisible(): Boolean {
 internal fun LaoTopBar(s: CampusSession, scrolled: Boolean) {
     val c = MaterialTheme.colorScheme
     val auth = s.route in listOf("login", "register")
-    val small by
-        animateDpAsState(
-            if (scrolled) 28.dp else 36.dp,
-            if (LocalMotionEnabled.current) spring(.9f, 400f) else snap(),
-            label = "scrolling brand",
+    val opacity by
+        animateFloatAsState(
+            if (scrolled) .98f else 0f,
+            if (LocalMotionEnabled.current) tween(220) else snap(),
+            label = "continuous header",
         )
     Column(
-        Modifier.fillMaxWidth().background(c.background.copy(alpha = .98f)).statusBarsPadding()
+        Modifier.fillMaxWidth()
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        c.background.copy(alpha = opacity),
+                        c.background.copy(alpha = opacity * .94f),
+                    )
+                )
+            )
+            .statusBarsPadding()
     ) {
         Row(
             Modifier.heightIn(min = 56.dp).padding(horizontal = 16.dp),
@@ -67,28 +76,17 @@ internal fun LaoTopBar(s: CampusSession, scrolled: Boolean) {
                 LaoIconButton(Icons.AutoMirrored.Rounded.ArrowBack, "返回") { s.a.onBackPressed() }
             else
                 LaoMascot(
-                    Modifier.size(small),
+                    Modifier.size(32.dp),
                     expressive = false,
                     onTap = { s.sheet = GuideSheet },
                 )
-            Column(
+            Text(
+                if (auth || s.route == "home") "捞捞课程表" else routeTitle(s.route),
                 Modifier.weight(1f).padding(start = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
-                Text(
-                    if (auth || s.route == "home") "捞捞课程表" else routeTitle(s.route),
-                    style = LaoType.cell,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                AnimatedVisibility(
-                    !scrolled && s.route == "home",
-                    enter = fadeIn(),
-                    exit = fadeOut(),
-                ) {
-                    Text("把校园日常，安排刚刚好", style = LaoType.label, color = c.onSurfaceVariant)
-                }
-            }
+                style = LaoType.cell,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
             if (!auth) {
                 LaoIconButton(Icons.Rounded.Search, "搜索课程与记录") { s.sheet = SearchSheet }
                 when (s.route) {
@@ -104,7 +102,10 @@ internal fun LaoTopBar(s: CampusSession, scrolled: Boolean) {
                                     Modifier.align(Alignment.TopEnd)
                                         .padding(top = 10.dp, end = 10.dp)
                                         .size(6.dp)
-                                        .background(CampusStatus.warning(), CircleShape)
+                                        .background(
+                                            CampusAccent.readable(LaoArt.coral),
+                                            CircleShape,
+                                        )
                                 )
                         }
                     }
@@ -124,20 +125,13 @@ internal fun LaoTopBar(s: CampusSession, scrolled: Boolean) {
                         LaoIconButton(Icons.Rounded.PersonOutline, "返回我的") { s.open("me") }
                     else ->
                         LaoMascot(
-                            Modifier.size(36.dp),
+                            Modifier.size(32.dp),
                             expressive = false,
                             onTap = { s.sheet = GuideSheet },
                         )
                 }
             }
         }
-        val line by
-            animateFloatAsState(
-                if (scrolled) .65f else 0f,
-                if (LocalMotionEnabled.current) tween(180) else snap(),
-                label = "scroll separator",
-            )
-        Box(Modifier.fillMaxWidth().height(1.dp).background(c.outlineVariant.copy(alpha = line)))
     }
 }
 
@@ -154,7 +148,7 @@ internal fun LaoNavigationDock(
     val dark = c.background.luminance() < .3f
     val sourceAlpha by
         animateFloatAsState(
-            if (scrolled) .64f else .79f,
+            if (scrolled) .86f else .80f,
             if (motion) tween(200) else snap(),
             label = "dock glass",
         )
@@ -201,7 +195,7 @@ internal fun LaoNavigationDock(
         Box(
             Modifier.offset(x = cell * position + (cell - 42.dp) / 2, y = 8.dp)
                 .size(42.dp)
-                .background(c.primary.copy(alpha = if (dark) .24f else .09f), CircleShape)
+                .background(c.primary.copy(alpha = if (dark) .24f else .12f), CircleShape)
         )
         Row(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
             MainRoutes.forEachIndexed { i, route ->
@@ -209,7 +203,7 @@ internal fun LaoNavigationDock(
                 val source = remember { MutableInteractionSource() }
                 val tint by
                     animateColorAsState(
-                        if (on) c.onSurface else c.onSurfaceVariant,
+                        if (on) c.primary else c.onSurfaceVariant,
                         if (motion) tween(160) else snap(),
                         label = "dock icon",
                     )
@@ -254,7 +248,7 @@ internal fun LaoFloatingTools(s: CampusSession, modifier: Modifier = Modifier) {
                 .shadow(8.dp, CircleShape, false)
                 .clip(CircleShape)
                 .background(
-                    Brush.linearGradient(listOf(c.onSurface, lerp(c.onSurface, c.primary, .32f)))
+                    Brush.linearGradient(listOf(c.primary, lerp(c.primary, c.secondary, .2f)))
                 )
                 .border(1.dp, Color.White.copy(alpha = .2f), CircleShape)
                 .clickable(source, null, role = Role.Button) {
@@ -266,7 +260,7 @@ internal fun LaoFloatingTools(s: CampusSession, modifier: Modifier = Modifier) {
                 .semantics { contentDescription = "打开快捷操作" },
             contentAlignment = Alignment.Center,
         ) {
-            Icon(Icons.Rounded.Add, null, Modifier.size(28.dp), tint = c.surface)
+            Icon(Icons.Rounded.Add, null, Modifier.size(28.dp), tint = c.onPrimary)
         }
         if (s.route !in listOf("home", "ask") && CampusGuide.enabled(s.a))
             LaoMascot(

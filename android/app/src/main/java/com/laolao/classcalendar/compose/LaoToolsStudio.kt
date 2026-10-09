@@ -51,7 +51,7 @@ private fun toolHue(route: String, group: String): Color =
             route in listOf("countdown", "draw", "oracle") -> CampusAccent.amber
             route in listOf("wrongbook", "ledger", "diary") -> CampusAccent.berry
             group == "规划" -> CampusAccent.violet
-            group == "生活" || group == "手机" -> CampusAccent.mint
+            group == "生活" || group == "手机" -> CampusAccent.blue
             else -> CampusAccent.blue
         }
     )
@@ -83,13 +83,12 @@ internal fun LaoToolsStudio(s: CampusSession) {
             }
     LaoPage(spacing = 16.dp) {
         animatedItem(0, "tools3-heading") {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("工具箱", Modifier.weight(1f), style = LaoType.headline)
-                Column(horizontalAlignment = Alignment.End) {
-                    Text("随身的小帮手", style = LaoType.caption, color = c.onSurfaceVariant)
-                    Text("${catalog.size} 个校园工具", style = LaoType.label, color = c.primary)
-                }
-            }
+            LaoPageHeading(
+                "随手，就顺手。",
+                "${catalog.size} 个校园工具，找到适合你的那个。",
+                "工具箱",
+                Icons.Rounded.Widgets,
+            )
         }
         animatedItem(1, "tools3-search") {
             LaoInput(
@@ -196,7 +195,7 @@ internal fun LaoToolsStudio(s: CampusSession) {
                         Row(
                             Modifier.heightIn(min = 44.dp)
                                 .clip(CircleShape)
-                                .background(if (on) c.onSurface else c.surface.copy(alpha = .6f))
+                                .background(if (on) c.primary else c.surface.copy(alpha = .75f))
                                 .border(
                                     1.dp,
                                     if (on) Color.Transparent
@@ -215,13 +214,13 @@ internal fun LaoToolsStudio(s: CampusSession) {
                             Text(
                                 label,
                                 style = LaoType.caption,
-                                color = if (on) c.surface else c.onSurfaceVariant,
+                                color = if (on) c.onPrimary else c.onSurfaceVariant,
                             )
                             Text(
                                 count.toString(),
                                 style = LaoType.label.copy(fontFamily = LaoDisplayFont),
                                 color =
-                                    if (on) c.surface.copy(alpha = .55f)
+                                    if (on) c.onPrimary.copy(alpha = .75f)
                                     else c.onSurfaceVariant.copy(alpha = .6f),
                             )
                         }
@@ -265,41 +264,33 @@ private fun ToolStudioCard(s: CampusSession, info: Array<String>, modifier: Modi
     Column(
         modifier
             .clip(RoundedCornerShape(24.dp))
-            .background(
-                Brush.linearGradient(
-                    listOf(
-                        c.surface.copy(alpha = .95f),
-                        lerp(c.surface, hue, .04f).copy(alpha = .8f),
-                    )
-                )
-            )
-            .border(1.dp, c.outlineVariant.copy(alpha = .45f), RoundedCornerShape(24.dp))
-            .laoTap { s.open(info[0]) }
+            .background(Brush.linearGradient(listOf(lerp(c.surface, hue, .075f), c.surface)))
+            .border(1.dp, c.outlineVariant.copy(alpha = .36f), RoundedCornerShape(24.dp))
+            .laoTap(role = Role.Button) { s.open(info[0]) }
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.size(36.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(hue.copy(alpha = .1f)),
+                Modifier.size(44.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(hue.copy(alpha = .12f)),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(routeIcon(info[0]), null, Modifier.size(22.dp), tint = hue)
+                Icon(routeIcon(info[0]), null, Modifier.size(25.dp), tint = hue)
             }
             Spacer(Modifier.weight(1f))
-            Text(info[3], style = LaoType.label, color = c.onSurfaceVariant.copy(alpha = .7f))
+            Text(info[3], style = LaoType.label, color = c.onSurfaceVariant)
         }
         Text(
             CampusToolbox.name(info[0]),
-            style = LaoType.cell,
+            style = LaoType.cell.copy(fontSize = 18.sp, lineHeight = 26.sp),
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
         Text(
             info[2],
-            style =
-                LaoType.label.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Normal),
+            style = LaoType.caption,
             color = c.onSurfaceVariant,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
@@ -307,19 +298,22 @@ private fun ToolStudioCard(s: CampusSession, info: Array<String>, modifier: Modi
         Spacer(Modifier.weight(1f))
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            if (state.isNotBlank())
-                Text(
-                    state,
-                    Modifier.weight(1f),
-                    style = LaoType.label,
-                    color = hue,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            else Spacer(Modifier.weight(1f))
-            Icon(Icons.Rounded.NorthEast, null, Modifier.size(16.dp), tint = hue)
+            Text(
+                state.ifBlank { "打开工具" },
+                Modifier.weight(1f),
+                style = LaoType.label,
+                color = hue,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Box(
+                Modifier.size(28.dp).background(hue.copy(alpha = .08f), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Rounded.NorthEast, null, Modifier.size(16.dp), tint = hue)
+            }
         }
     }
 }

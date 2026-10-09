@@ -126,7 +126,17 @@ internal fun CampusSheets(s: CampusSession) {
 @Composable
 internal fun LaoSheetHeading(title: String, close: () -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, Modifier.weight(1f), style = LaoType.title)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(
+                Modifier.width(24.dp)
+                    .height(3.dp)
+                    .background(
+                        MaterialTheme.colorScheme.primary,
+                        androidx.compose.foundation.shape.CircleShape,
+                    )
+            )
+            Text(title, style = LaoType.title.copy(fontSize = 24.sp, lineHeight = 32.sp))
+        }
         LaoIconButton(Icons.Rounded.Close, "关闭", click = close)
     }
 }

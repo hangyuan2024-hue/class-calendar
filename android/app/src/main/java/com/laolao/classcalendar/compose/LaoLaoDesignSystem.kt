@@ -43,16 +43,16 @@ internal data class LaoPalette(
 
 internal val LaoPalettes =
     listOf(
-        LaoPalette("ocean", "默认 · 海盐青", Color(0xFF17756E), Color(0xFFBFE7DC), Color(0xFF7654CB)),
+        LaoPalette("ocean", "默认 · 鸢尾蓝", Color(0xFF5059CC), Color(0xFFD8DFFF), Color(0xFFC65B48)),
         LaoPalette("sky", "晴空蓝", Color(0xFF365BCA), Color(0xFFC6D9FF), Color(0xFFBA3F78)),
         LaoPalette("mint", "薄荷绿", Color(0xFF14795C), Color(0xFFBDEBDD), Color(0xFF6A59C7)),
-        LaoPalette("lavender", "电光紫", Color(0xFF7450C7), Color(0xFFDDD0FF), Color(0xFF168279)),
+        LaoPalette("lavender", "暮光紫", Color(0xFF7952B7), Color(0xFFE4D6FF), Color(0xFFAF5D7E)),
         LaoPalette("sakura", "莓果粉", Color(0xFFB83F77), Color(0xFFF8CDDF), Color(0xFF6956C7)),
         LaoPalette("apricot", "日落橙", Color(0xFFA95626), Color(0xFFFFD8B5), Color(0xFF7857BE)),
         LaoPalette("forest", "森野绿", Color(0xFF267661), Color(0xFFBDE2CE)),
         LaoPalette("moon", "月光白", Color(0xFF4B586C), Color(0xFFD4DCE8)),
         LaoPalette("cyber", "深空蓝", Color(0xFF3B5487), Color(0xFFBDCEFA)),
-        LaoPalette("graphite", "夜幕黑", Color(0xFF2A2E37), Color(0xFFACEFE6), Color(0xFFED81AE)),
+        LaoPalette("graphite", "夜幕黑", Color(0xFF2A2E37), Color(0xFFD4D9EB), Color(0xFFED81AE)),
     )
 internal val LaoTypography =
     Typography(
@@ -143,6 +143,12 @@ internal fun LaoLaoTheme(state: CampusSession, content: @Composable () -> Unit) 
     state.revision
     val saved = state.a.store.`object`("ui_palette_v1")
     val p = LaoPalettes.find { it.id == saved.optString("id") } ?: LaoPalettes.first()
+    LaunchedEffect(p.id) {
+        if (p.id == "ocean" && saved.optString("p") != "#5059CC") {
+            val aligned = org.json.JSONObject(saved.toString()).put("id", p.id).put("p", "#5059CC")
+            state.a.store.set("ui_palette_v1", aligned)
+        }
+    }
     val pref = state.a.store.string("compose_mode_v1", "")
     val legacy = state.a.store.string("ui_skin_v1", "fresh")
     val dark =
@@ -162,15 +168,15 @@ internal fun LaoLaoTheme(state: CampusSession, content: @Composable () -> Unit) 
             "graphite" -> Color(0xFF0D0E13)
             else -> Color(0xFF13141D)
         }
-    val nightSurface = lerp(nightBase, p.primary, .15f)
-    val background = if (dark) nightBase else lerp(Color(0xFFF8F8FC), p.primary, .012f)
+    val nightSurface = lerp(nightBase, p.primary, .08f)
+    val background = if (dark) nightBase else Color(0xFFF8F7F4)
     val surface = if (dark) lerp(nightSurface, Color.White, .035f) else Color.White
     val secondary = if (dark) lerp(p.accent, Color.White, .40f) else p.accent
     val scheme =
         if (dark)
             darkColorScheme(
                 primary = p.companion,
-                onPrimary = Color(0xFF15232B),
+                onPrimary = Color(0xFF20233A),
                 primaryContainer = lerp(surface, p.companion, .16f),
                 onPrimaryContainer = p.companion,
                 secondary = secondary,
@@ -199,17 +205,17 @@ internal fun LaoLaoTheme(state: CampusSession, content: @Composable () -> Unit) 
                 secondaryContainer = lerp(Color.White, p.accent, .10f),
                 onSecondaryContainer = Color(0xFF29223A),
                 background = background,
-                onBackground = Color(0xFF191B26),
+                onBackground = Color(0xFF252637),
                 surface = surface,
-                onSurface = Color(0xFF191B26),
-                onSurfaceVariant = Color(0xFF686979),
+                onSurface = Color(0xFF252637),
+                onSurfaceVariant = Color(0xFF6B6A76),
                 surfaceContainerLowest = Color.White,
-                surfaceContainerLow = Color(0xFFF2F3F8),
-                surfaceContainer = Color(0xFFEEF0F6),
-                surfaceContainerHigh = Color(0xFFE7EAF2),
-                outlineVariant = Color(0xFFE3E4ED),
-                tertiary = Color(0xFFA66319),
-                tertiaryContainer = Color(0xFFFFEBD2),
+                surfaceContainerLow = Color(0xFFF0EFEC),
+                surfaceContainer = Color(0xFFEDEBE7),
+                surfaceContainerHigh = Color(0xFFE6E4E0),
+                outlineVariant = Color(0xFFE2E0DC),
+                tertiary = Color(0xFFA36B3D),
+                tertiaryContainer = Color(0xFFF6EADC),
             )
     val enabled =
         Settings.Global.getFloat(
@@ -316,20 +322,7 @@ internal fun SectionHeading(
     note: String? = null,
     action: String? = null,
     click: () -> Unit = {},
-) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(title, style = MaterialTheme.typography.titleLarge)
-            if (!note.isNullOrEmpty())
-                Text(
-                    note,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-        }
-        if (action != null) TextButton(onClick = click) { Text(action) }
-    }
-}
+) = LaoSection(title, note = note, action = action, click = click)
 
 internal fun routeIcon(route: String): ImageVector =
     when (route) {

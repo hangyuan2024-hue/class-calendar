@@ -36,7 +36,7 @@ internal fun CampusBackdrop(modifier: Modifier = Modifier) {
         val b = Offset(-shift, size.height * .62f)
         drawCircle(
             Brush.radialGradient(
-                listOf(c.primary.copy(alpha = if (dark) .18f else .11f), Color.Transparent),
+                listOf(c.primary.copy(alpha = if (dark) .08f else .025f), Color.Transparent),
                 a,
                 radius,
             ),
@@ -45,7 +45,7 @@ internal fun CampusBackdrop(modifier: Modifier = Modifier) {
         )
         drawCircle(
             Brush.radialGradient(
-                listOf(CampusLightLilac.copy(alpha = if (dark) .11f else .10f), Color.Transparent),
+                listOf(CampusLightLilac.copy(alpha = if (dark) .06f else .035f), Color.Transparent),
                 b,
                 radius,
             ),

@@ -131,17 +131,17 @@ final class CampusTheme {
         "#C8ADF5"),
     new Preset(
         "ocean",
-        "海盐青",
-        "清凉青色 · 自在校园",
+        "鸢尾蓝",
+        "暖白纸感 · 鸢尾蓝调",
         false,
-        "#EFF7F8",
-        "#FCFFFF",
-        "#213C44",
-        "#59727D",
-        "#157286",
-        "#163D4A",
-        "#2D6678",
-        "#86E2EF"),
+        "#F8F7F4",
+        "#FFFFFF",
+        "#252637",
+        "#6B6A76",
+        "#5059CC",
+        "#252849",
+        "#525BD0",
+        "#D8DFFF"),
     new Preset(
         "cyber",
         "深海赛博",
@@ -194,7 +194,7 @@ final class CampusTheme {
 
   static Preset preset(String id) {
     for (Preset p : PRESETS) if (p.id.equals(id)) return p;
-    return PRESETS[0];
+    return preset("ocean");
   }
 
   static CampusTheme resolve(

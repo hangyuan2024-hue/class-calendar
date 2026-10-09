@@ -976,6 +976,12 @@ internal fun BooksPage(s: CampusSession) {
         }
     PageList {
         animatedItem(0) {
+            LaoPageHeading(
+                "把难题，变成进步。",
+                "${groups.size} 本学科错题本 · ${all.size} 道真实记录",
+                "我的学科书架",
+                Icons.Rounded.AutoStories,
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 PrimaryButton("记录错题", Modifier.weight(1f)) { CampusLearn.wrongForm(a, null, "") }
                 SoftButton("拍照录入", Modifier.weight(1f)) {
@@ -983,16 +989,7 @@ internal fun BooksPage(s: CampusSession) {
                 }
             }
         }
-        animatedItem(1) {
-            Row(
-                Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                listOf("全部", "到期复习", "已掌握").forEach {
-                    FilterChip(selected = mode == it, onClick = { mode = it }, label = { Text(it) })
-                }
-            }
-        }
+        animatedItem(1) { LaoTabs(listOf("全部", "到期复习", "已掌握"), mode) { mode = it } }
         animatedItem(2) {
             SectionHeading(
                 if (subject == "全部") "我的学科书架" else "$subject 错题本",
@@ -1007,54 +1004,13 @@ internal fun BooksPage(s: CampusSession) {
                 animatedItem(i + 3, "book-row-$i") {
                     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         pair.forEach { (name, notes) ->
-                            val tint = LaoPalettes[abs(name.hashCode() % LaoPalettes.size)].primary
-                            PremiumCard(Modifier.weight(1f), onClick = { subject = name }) {
-                                Box(
-                                    Modifier.fillMaxWidth()
-                                        .height(144.dp)
-                                        .clip(RoundedCornerShape(16.dp))
-                                        .background(
-                                            Brush.linearGradient(
-                                                listOf(tint, tint.copy(alpha = .72f))
-                                            )
-                                        )
-                                        .padding(8.dp)
-                                ) {
-                                    Box(
-                                        Modifier.width(4.dp)
-                                            .fillMaxHeight()
-                                            .background(Color.White.copy(alpha = .22f), CircleShape)
-                                    )
-                                    Column(
-                                        Modifier.padding(start = 8.dp),
-                                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                                    ) {
-                                        Text(
-                                            name,
-                                            style = MaterialTheme.typography.titleMedium,
-                                            color = Color.White,
-                                            maxLines = 2,
-                                            overflow =
-                                                androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                                        )
-                                        Text(
-                                            "错题记录本",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = Color.White.copy(alpha = .8f),
-                                        )
-                                    }
-                                    Icon(
-                                        Icons.AutoMirrored.Rounded.MenuBook,
-                                        null,
-                                        Modifier.align(Alignment.BottomEnd).size(32.dp),
-                                        tint = Color.White.copy(alpha = .6f),
-                                    )
-                                }
-                                Text(
-                                    "${notes.size} 道 · ${notes.count{it.optBoolean("mastered")}} 道已掌握",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = colors.onSurfaceVariant,
-                                )
+                            LaoNotebook(
+                                name,
+                                notes.size,
+                                notes.count { it.optBoolean("mastered") },
+                                Modifier.weight(1f),
+                            ) {
+                                subject = name
                             }
                         }
                         if (pair.size == 1) Spacer(Modifier.weight(1f))

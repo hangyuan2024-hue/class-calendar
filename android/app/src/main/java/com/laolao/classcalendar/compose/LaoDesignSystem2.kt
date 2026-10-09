@@ -1,5 +1,6 @@
 package com.laolao.classcalendar
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -22,6 +23,7 @@ import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.*
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.TextStyle
@@ -29,14 +31,12 @@ import androidx.compose.ui.text.font.*
 import androidx.compose.ui.text.input.*
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.*
-import androidx.compose.ui.window.*
-import androidx.core.view.WindowCompat
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * Design System 2.0: native product primitives, independent of Material card/navigation templates.
+ * Native editorial product primitives; Material provides capabilities rather than page templates.
  */
 internal val LaoDisplayFont =
     FontFamily(
@@ -69,19 +69,19 @@ internal object LaoType {
         )
     val cell = TextStyle(fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.SemiBold)
     val body = TextStyle(fontSize = 14.sp, lineHeight = 22.sp)
-    val caption = TextStyle(fontSize = 12.sp, lineHeight = 18.sp, fontWeight = FontWeight.Medium)
+    val caption = TextStyle(fontSize = 13.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium)
     val label =
         TextStyle(
-            fontSize = 11.sp,
-            lineHeight = 16.sp,
+            fontSize = 12.sp,
+            lineHeight = 18.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = .3.sp,
         )
 }
 
 internal object LaoCorners {
-    val paper = RoundedCornerShape(28.dp)
-    val control = RoundedCornerShape(16.dp)
+    val paper = RoundedCornerShape(24.dp)
+    val control = RoundedCornerShape(18.dp)
 }
 
 @Composable
@@ -101,7 +101,7 @@ internal fun LaoPage(spacing: Dp = 24.dp, content: LazyListScope.() -> Unit) {
     LazyColumn(
         Modifier.fillMaxSize(),
         state = LocalPageListState.current ?: rememberLazyListState(),
-        contentPadding = PaddingValues(start = gutter, end = gutter, top = 16.dp, bottom = 176.dp),
+        contentPadding = PaddingValues(start = gutter, end = gutter, top = 12.dp, bottom = 176.dp),
         verticalArrangement = Arrangement.spacedBy(spacing),
         content = content,
     )
@@ -122,7 +122,7 @@ internal fun LaoPanel(
         modifier
             .springPress(interaction)
             .shadow(
-                if (glass) 8.dp else 2.dp,
+                if (glass) 6.dp else 3.dp,
                 LaoCorners.paper,
                 false,
                 ambientColor = Color.Black.copy(alpha = .025f),
@@ -132,11 +132,11 @@ internal fun LaoPanel(
             .background(
                 if (glass)
                     Brush.linearGradient(listOf(color.copy(alpha = .82f), color.copy(alpha = .58f)))
-                else Brush.linearGradient(listOf(color, color))
+                else Brush.linearGradient(listOf(color, lerp(color, c.background, .09f)))
             )
             .border(
                 1.dp,
-                if (glass) Color.White.copy(alpha = .35f) else c.outlineVariant.copy(alpha = .45f),
+                if (glass) Color.White.copy(alpha = .35f) else c.outlineVariant.copy(alpha = .36f),
                 LaoCorners.paper,
             )
             .then(
@@ -196,9 +196,8 @@ private fun LaoAction(
     onClick: () -> Unit,
 ) {
     val c = MaterialTheme.colorScheme
-    val dark = c.background.luminance() < .3f
-    val ink = if (dark) c.primaryContainer else Color(0xFF152C34)
-    val text = if (dark) c.onPrimaryContainer else Color.White
+    val ink = c.primary
+    val text = c.onPrimary
     val source = remember { MutableInteractionSource() }
     val haptic = LocalHapticFeedback.current
     Box(
@@ -207,7 +206,7 @@ private fun LaoAction(
             .springPress(source)
             .alpha(if (enabled) 1f else .45f)
             .clip(CircleShape)
-            .background(if (filled) ink else c.surface.copy(alpha = .35f))
+            .background(if (filled) ink else c.surface.copy(alpha = .85f))
             .border(1.dp, if (filled) ink else c.outlineVariant, CircleShape)
             .clickable(source, null, enabled = enabled, role = Role.Button) {
                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -316,7 +315,7 @@ internal fun LaoTabs(options: List<String>, selected: String, change: (String) -
             val source = remember { MutableInteractionSource() }
             val hue by
                 animateColorAsState(
-                    if (on) c.onSurface else c.onSurfaceVariant,
+                    if (on) c.primary else c.onSurfaceVariant,
                     if (LocalMotionEnabled.current) tween(180) else snap(),
                     label = "tab ink",
                 )
@@ -397,13 +396,28 @@ internal fun LaoEmpty(
     Column(
         Modifier.fillMaxWidth()
             .clip(LaoCorners.paper)
-            .background(c.primary.copy(alpha = .045f))
+            .background(
+                Brush.linearGradient(
+                    listOf(lerp(c.surface, c.primary, .035f), c.surface.copy(alpha = .7f))
+                )
+            )
+            .border(1.dp, c.outlineVariant.copy(alpha = .3f), LaoCorners.paper)
             .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        LaoMascot(Modifier.size(48.dp), expressive = false)
-        Text(title, style = LaoType.cell)
-        Text(body, style = LaoType.body, color = c.onSurfaceVariant)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) {
+                LaoPaperArt(Modifier.matchParentSize(), c.primary)
+                LaoMascot(Modifier.size(44.dp), expressive = false)
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(title, style = LaoType.cell)
+                Text(body, style = LaoType.body, color = c.onSurfaceVariant)
+            }
+        }
         if (action != null) LaoSecondaryButton(action, onClick = onClick)
     }
 }
@@ -444,7 +458,7 @@ internal fun LaoInput(
                 .heightIn(min = 56.dp)
                 .semantics { contentDescription = label }
                 .clip(LaoCorners.control)
-                .background(c.surface.copy(alpha = .8f))
+                .background(lerp(c.surface, c.primary, if (focused) .025f else .008f))
                 .border(
                     if (focused) 2.dp else 1.dp,
                     if (focused) c.primary else c.outlineVariant.copy(alpha = .65f),
@@ -455,7 +469,8 @@ internal fun LaoInput(
             singleLine = singleLine,
             minLines = minLines,
             maxLines = maxLines,
-            textStyle = LaoType.body.copy(color = c.onSurface),
+            textStyle =
+                LaoType.body.copy(fontSize = 16.sp, lineHeight = 24.sp, color = c.onSurface),
             keyboardOptions = keyboard,
             keyboardActions = actions,
             visualTransformation = transformation,
@@ -530,7 +545,9 @@ internal fun LaoBottomSheet(onDismiss: () -> Unit, content: @Composable ColumnSc
     val c = MaterialTheme.colorScheme
     val motion = LocalMotionEnabled.current
     val scope = rememberCoroutineScope()
+    val focusManager = LocalFocusManager.current
     var entered by remember { mutableStateOf(false) }
+    var closing by remember { mutableStateOf(false) }
     var drag by remember { mutableFloatStateOf(0f) }
     var dragging by remember { mutableStateOf(false) }
     val settled by
@@ -540,8 +557,13 @@ internal fun LaoBottomSheet(onDismiss: () -> Unit, content: @Composable ColumnSc
             label = "sheet drag spring",
         )
     val density = LocalDensity.current
-    LaunchedEffect(Unit) { entered = true }
+    LaunchedEffect(Unit) {
+        focusManager.clearFocus(force = true)
+        entered = true
+    }
     fun dismiss() {
+        if (closing) return
+        closing = true
         if (!motion) onDismiss()
         else {
             entered = false
@@ -551,96 +573,79 @@ internal fun LaoBottomSheet(onDismiss: () -> Unit, content: @Composable ColumnSc
             }
         }
     }
-    Dialog(
-        onDismissRequest = { dismiss() },
-        properties =
-            DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
-    ) {
-        val view = LocalView.current
-        SideEffect {
-            (view.parent as? DialogWindowProvider)?.window?.let { window ->
-                window.statusBarColor = android.graphics.Color.TRANSPARENT
-                window.navigationBarColor = android.graphics.Color.TRANSPARENT
-                WindowCompat.getInsetsController(window, view).apply {
-                    isAppearanceLightStatusBars = c.background.luminance() > .5f
-                    isAppearanceLightNavigationBars = c.surface.luminance() > .5f
-                }
-            }
+    val alpha by
+        animateFloatAsState(
+            if (entered) 1f else 0f,
+            if (motion) tween(160) else snap(),
+            label = "sheet scrim",
+        )
+    BackHandler { dismiss() }
+    Box(
+        Modifier.fillMaxSize().semantics {
+            paneTitle = "操作面板"
+            isTraversalGroup = true
         }
-        val alpha by
-            animateFloatAsState(
-                if (entered) 1f else 0f,
-                if (motion) tween(160) else snap(),
-                label = "sheet scrim",
-            )
-        Box(Modifier.fillMaxSize()) {
-            Box(
-                Modifier.matchParentSize()
-                    .background(Color(0xFF071D26).copy(alpha = .28f * alpha))
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                    ) {
-                        dismiss()
-                    }
-            )
-            AnimatedVisibility(
-                entered,
-                Modifier.align(Alignment.BottomCenter),
-                enter =
-                    if (motion) slideInVertically(spring(.86f, 320f)) { it } + fadeIn(tween(140))
-                    else EnterTransition.None,
-                exit =
-                    if (motion) slideOutVertically(tween(180)) { it } + fadeOut(tween(120))
-                    else ExitTransition.None,
-            ) {
-                CompositionLocalProvider(LocalContentColor provides c.onSurface) {
-                    ProvideTextStyle(LaoType.body) {
-                        Column(
-                            Modifier.widthIn(max = 680.dp)
-                                .fillMaxWidth()
-                                .offset {
-                                    IntOffset(0, (if (dragging) drag else settled).roundToInt())
-                                }
-                                .clip(RoundedCornerShape(topStart = 36.dp, topEnd = 36.dp))
-                                .background(
-                                    Brush.verticalGradient(
-                                        listOf(c.surface, lerp(c.surface, c.primary, .025f))
-                                    )
+    ) {
+        Box(
+            Modifier.matchParentSize()
+                .background(Color(0xFF151526).copy(alpha = .28f * alpha))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                ) {
+                    dismiss()
+                }
+        )
+        AnimatedVisibility(
+            entered,
+            Modifier.align(Alignment.BottomCenter),
+            enter =
+                if (motion) slideInVertically(spring(.86f, 320f)) { it } + fadeIn(tween(140))
+                else EnterTransition.None,
+            exit =
+                if (motion) slideOutVertically(tween(180)) { it } + fadeOut(tween(120))
+                else ExitTransition.None,
+        ) {
+            CompositionLocalProvider(LocalContentColor provides c.onSurface) {
+                ProvideTextStyle(LaoType.body) {
+                    Column(
+                        Modifier.widthIn(max = 680.dp)
+                            .fillMaxWidth()
+                            .offset { IntOffset(0, (if (dragging) drag else settled).roundToInt()) }
+                            .clip(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp))
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(c.surface, lerp(c.surface, c.primary, .025f))
                                 )
-                                .navigationBarsPadding()
-                                .padding(top = 12.dp, bottom = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                            )
+                            .pointerInput(Unit) { detectTapGestures(onTap = {}) }
+                            .navigationBarsPadding()
+                            .padding(top = 12.dp, bottom = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        Box(
+                            Modifier.fillMaxWidth()
+                                .height(20.dp)
+                                .draggable(
+                                    rememberDraggableState { drag = (drag + it).coerceAtLeast(0f) },
+                                    Orientation.Vertical,
+                                    onDragStarted = { dragging = true },
+                                    onDragStopped = {
+                                        dragging = false
+                                        if (drag > with(density) { 72.dp.toPx() }) dismiss()
+                                        else drag = 0f
+                                    },
+                                )
+                                .semantics { contentDescription = "下拉关闭弹层" },
+                            contentAlignment = Alignment.Center,
                         ) {
                             Box(
-                                Modifier.fillMaxWidth()
-                                    .height(20.dp)
-                                    .draggable(
-                                        rememberDraggableState {
-                                            drag = (drag + it).coerceAtLeast(0f)
-                                        },
-                                        Orientation.Vertical,
-                                        onDragStarted = { dragging = true },
-                                        onDragStopped = {
-                                            dragging = false
-                                            if (drag > with(density) { 72.dp.toPx() }) dismiss()
-                                            else drag = 0f
-                                        },
-                                    )
-                                    .semantics { contentDescription = "下拉关闭弹层" },
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Box(
-                                    Modifier.width(40.dp)
-                                        .height(4.dp)
-                                        .background(
-                                            c.onSurfaceVariant.copy(alpha = .3f),
-                                            CircleShape,
-                                        )
-                                )
-                            }
-                            content()
+                                Modifier.width(40.dp)
+                                    .height(4.dp)
+                                    .background(c.onSurfaceVariant.copy(alpha = .3f), CircleShape)
+                            )
                         }
+                        content()
                     }
                 }
             }
@@ -648,7 +653,6 @@ internal fun LaoBottomSheet(onDismiss: () -> Unit, content: @Composable ColumnSc
     }
 }
 
-/** Hand-drawn 24dp navigation glyphs; Material remains a lower-level capability only. */
 @Composable
 internal fun LaoGlyph(
     route: String,

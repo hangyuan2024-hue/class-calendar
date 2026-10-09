@@ -80,7 +80,9 @@ internal fun DrawPage(s: CampusSession) {
                 }
         }
     PageList {
-        animatedItem(0) { SectionHeading("把选择，交给一点惊喜", note = "选人、定顺序、分小组，使用手机安全随机数") }
+        animatedItem(0) {
+            LaoPageHeading("给选择，一点惊喜。", "选人、定顺序或分小组，名单也能直接导入。", "抽签池", Icons.Rounded.Casino)
+        }
         animatedItem(1) {
             PremiumCard(Modifier.fillMaxWidth(), tint = colors.primaryContainer) {
                 Row(

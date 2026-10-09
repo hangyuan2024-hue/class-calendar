@@ -416,43 +416,23 @@ private fun AuthWelcome(signup: Boolean) {
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(
-            Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(if (signup) 8.dp else 12.dp),
-        ) {
-            Text("你的校园，随身带走。", style = LaoType.caption, color = c.primary)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            LaoEyebrow("你的校园，随身带走。")
             Text(
                 if (signup) "你好，新同学。" else "欢迎回来，\n一起捞捞。",
                 style =
-                    if (signup) LaoType.headline.copy(fontSize = 28.sp, lineHeight = 34.sp)
+                    if (signup) LaoType.headline.copy(fontSize = 28.sp, lineHeight = 36.sp)
                     else LaoType.headline,
             )
             Text(
-                if (signup) "两小步，开启你的校园空间。" else "把校园日常，安排刚刚好。",
+                if (signup) "两小步，开启你的校园空间。" else "课程、成长与同学，都在身边。",
                 style = LaoType.caption,
                 color = c.onSurfaceVariant,
             )
         }
-        Box(Modifier.size(if (signup) 72.dp else 104.dp), contentAlignment = Alignment.Center) {
-            Canvas(Modifier.matchParentSize()) {
-                drawCircle(c.primary.copy(alpha = .06f), size.minDimension * .46f)
-                drawCircle(
-                    c.primary.copy(alpha = .1f),
-                    size.minDimension * .46f,
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()),
-                )
-                drawCircle(
-                    CampusAccent.berry.copy(alpha = .6f),
-                    4.dp.toPx(),
-                    Offset(size.width * .92f, size.height * .26f),
-                )
-                drawCircle(
-                    CampusAccent.amber.copy(alpha = .65f),
-                    3.dp.toPx(),
-                    Offset(size.width * .08f, size.height * .7f),
-                )
-            }
-            LaoMascot(Modifier.size(if (signup) 64.dp else 88.dp))
+        Box(Modifier.size(if (signup) 72.dp else 96.dp), contentAlignment = Alignment.Center) {
+            LaoPaperArt(Modifier.matchParentSize(), c.primary)
+            LaoMascot(Modifier.size(if (signup) 60.dp else 80.dp))
         }
     }
 }
@@ -620,7 +600,7 @@ internal fun CampusAvatar(name: String, gender: String, modifier: Modifier = Mod
         contentAlignment = Alignment.Center,
     ) {
         if (gender !in listOf("f", "m"))
-            Text(name.take(1).ifBlank { "捞" }, style = LaoType.headline, color = c.primary)
+            Text(name.take(1).ifBlank { "捞" }, style = LaoType.headline, color = Color(0xFF30385C))
         else
             Canvas(Modifier.fillMaxSize().padding(4.dp)) {
                 val scale = size.width / 80f

@@ -13,7 +13,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.*
 import androidx.lifecycle.Lifecycle
@@ -78,9 +77,11 @@ internal fun FocusPage(s: CampusSession) {
     val todayCount = a.store.`object`("pomo_log_v1").optInt(today)
     val minutes = history.filter { it.optString("day") == today }.sumOf { it.optInt("minutes") }
     PageList {
-        animatedItem(0) { SectionHeading("把注意力，留给一件事", note = "专注与休息都有节奏，离开页面也会保留计时") }
+        animatedItem(0) {
+            LaoPageHeading("留一点时间，给专注。", "专注与休息都有节奏，离开页面也会保留计时。", "专注空间", Icons.Rounded.Timelapse)
+        }
         animatedItem(1) {
-            PremiumCard(Modifier.fillMaxWidth()) {
+            PremiumCard(Modifier.fillMaxWidth(), tint = LaoArt.soft()) {
                 Row(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -155,8 +156,8 @@ internal fun FocusPage(s: CampusSession) {
                                 MaterialTheme.typography.displayLarge.copy(
                                     fontSize = 48.sp,
                                     lineHeight = 56.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = LaoDisplayFont,
                                 ),
                             color = colors.onSurface,
                         )

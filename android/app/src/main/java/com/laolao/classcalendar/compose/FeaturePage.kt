@@ -51,7 +51,7 @@ private fun UtilityActionCell(
         modifier
             .heightIn(min = 56.dp)
             .clip(RoundedCornerShape(18.dp))
-            .background(c.surface.copy(alpha = if (enabled) .8f else .4f))
+            .background(lerp(c.surface, hue, if (enabled && !destructive) .04f else .008f))
             .border(1.dp, c.outlineVariant.copy(alpha = .45f), RoundedCornerShape(18.dp))
             .laoTap(
                 role = androidx.compose.ui.semantics.Role.Button,
@@ -76,7 +76,8 @@ private fun UtilityActionCell(
         Text(
             text,
             Modifier.weight(1f),
-            style = LaoType.caption,
+            style =
+                LaoType.body.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold),
             color = if (enabled) c.onSurface else c.onSurfaceVariant,
             maxLines = 3,
             overflow = TextOverflow.Ellipsis,
@@ -96,28 +97,13 @@ internal fun FeaturePage(s: CampusSession) {
     val nodes = content.drop(if (heading != null) if (subtitle != null) 2 else 1 else 0)
     LaoPage(spacing = 16.dp) {
         animatedItem(0, "utility-heading-" + s.route) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(heading?.text ?: routeTitle(s.route), style = LaoType.headline)
-                    if (subtitle != null)
-                        Text(subtitle.text, style = LaoType.caption, color = c.onSurfaceVariant)
-                }
-                Box(
-                    Modifier.size(48.dp)
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(
-                            Brush.linearGradient(
-                                listOf(c.primary.copy(alpha = .12f), c.primary.copy(alpha = .035f))
-                            )
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(routeIcon(s.route), null, Modifier.size(26.dp), tint = c.primary)
-                }
-            }
+            val tool = CampusToolbox.ITEMS.find { it[0] == s.route }
+            LaoPageHeading(
+                heading?.text ?: routeTitle(s.route),
+                subtitle?.text ?: tool?.get(2).orEmpty(),
+                tool?.get(3)?.let { "$it · " + routeTitle(s.route) } ?: "校园空间",
+                routeIcon(s.route),
+            )
         }
         nodes.forEachIndexed { index, node ->
             animatedItem(index + 1, "feature-$index-${s.route}") { Feature(s, node) }
@@ -169,7 +155,7 @@ internal fun Feature(s: CampusSession, node: FeatureNode) {
                         node.size >= 17 -> LaoType.cell
                         node.bold -> LaoType.cell
                         node.size <= 12 -> LaoType.caption
-                        else -> LaoType.body
+                        else -> LaoType.body.copy(fontSize = 16.sp, lineHeight = 24.sp)
                     },
                 color =
                     if (!node.bold && node.size < 16) colors.onSurfaceVariant else colors.onSurface,

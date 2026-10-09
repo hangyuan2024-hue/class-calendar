@@ -15,7 +15,6 @@ import androidx.compose.ui.*
 import androidx.compose.ui.draw.*
 import androidx.compose.ui.geometry.*
 import androidx.compose.ui.graphics.*
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.style.*
 import androidx.compose.ui.unit.*
@@ -40,6 +39,7 @@ internal fun LaoHomeworkPage(s: CampusSession) {
         animatedItem(0) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    LaoEyebrow("学业清单")
                     Text(if (offset == 0) "本周作业" else "所选周作业", style = LaoType.headline)
                     Text(
                         mon.substring(5) + " — " + DateMath.plus(mon, 6).substring(5),
@@ -58,7 +58,7 @@ internal fun LaoHomeworkPage(s: CampusSession) {
             Row(
                 Modifier.fillMaxWidth()
                     .clip(LaoCorners.paper)
-                    .background(c.primary.copy(alpha = .06f))
+                    .background(LaoArt.soft())
                     .padding(24.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(24.dp),
@@ -133,79 +133,55 @@ internal fun LaoGrowthPage(s: CampusSession) {
         )
     LaoPage {
         animatedItem(0) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("成长，有迹可循", style = LaoType.headline)
-                    Text("每一步，都算进步。", style = LaoType.body, color = c.onSurfaceVariant)
-                }
-                LaoMascot(Modifier.size(64.dp))
-            }
+            LaoPageHeading("每一步，都算进步。", "从完成一件小事，到看见自己的成长。", "成长档案", Icons.Rounded.Insights)
         }
         animatedItem(1) {
-            LaoPanel(
-                Modifier.fillMaxWidth(),
-                color = lerp(c.surface, c.primary, .04f),
-                padding = 24.dp,
-            ) {
+            LaoPanel(Modifier.fillMaxWidth(), color = LaoArt.soft(), padding = 24.dp) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    Box(Modifier.size(104.dp), contentAlignment = Alignment.Center) {
-                        Canvas(Modifier.fillMaxSize()) {
-                            val inset = 8.dp.toPx()
-                            val origin = Offset(inset, inset)
-                            val circle = Size(size.width - inset * 2, size.height - inset * 2)
-                            drawArc(
-                                c.primary.copy(alpha = .1f),
-                                -90f,
-                                360f,
-                                false,
-                                origin,
-                                circle,
-                                style = Stroke(7.dp.toPx(), cap = StrokeCap.Round),
-                            )
-                            drawArc(
-                                Brush.sweepGradient(listOf(c.primary, c.secondary, c.primary)),
-                                -90f,
-                                progress * 360f,
-                                false,
-                                origin,
-                                circle,
-                                style = Stroke(7.dp.toPx(), cap = StrokeCap.Round),
-                            )
-                        }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        LaoEyebrow("本周的你")
                         Text(
                             if (stats[3] == 0) "—" else "${(fraction * 100).toInt()}%",
-                            style = LaoType.title.copy(fontFamily = LaoDisplayFont),
+                            style = LaoType.display.copy(fontSize = 56.sp, lineHeight = 64.sp),
+                            color = c.primary,
                         )
-                    }
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("本周的你", style = LaoType.title)
                         Text(
                             "${stats[2]} / ${stats[3]} 项安排已完成",
                             style = LaoType.caption,
                             color = c.onSurfaceVariant,
                         )
-                        LaoTextAction("查看学习周报 ↗") { s.open("report") }
+                    }
+                    Box(Modifier.size(72.dp), contentAlignment = Alignment.Center) {
+                        LaoPaperArt(Modifier.matchParentSize(), c.primary)
+                        LaoMascot(Modifier.size(56.dp))
                     }
                 }
-                HorizontalDivider(color = c.outlineVariant.copy(alpha = .5f))
+                Box(
+                    Modifier.fillMaxWidth()
+                        .height(4.dp)
+                        .clip(CircleShape)
+                        .background(c.primary.copy(alpha = .12f))
+                ) {
+                    Box(
+                        Modifier.fillMaxWidth(progress.coerceIn(0f, 1f))
+                            .fillMaxHeight()
+                            .background(c.primary, CircleShape)
+                    )
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     LaoStat(logs.length().toString(), "累计完成", Modifier.weight(1f))
                     LaoStat(
                         "${stats[4]}/${stats[5]}",
                         "今日打卡",
                         Modifier.weight(1f),
-                        CampusAccent.readable(CampusAccent.berry),
+                        CampusAccent.readable(LaoArt.coral),
                     )
-                    LaoStat(
-                        focus.toString(),
-                        "专注记录",
-                        Modifier.weight(1f),
-                        CampusAccent.readable(CampusAccent.violet),
-                    )
+                    LaoStat(focus.toString(), "专注记录", Modifier.weight(1f), c.primary)
                 }
+                LaoTextAction("查看学习周报 ↗") { s.open("report") }
             }
         }
         animatedItem(2) { LaoSection("坚持的轨迹", note = "来自你的实际完成与打卡记录") }

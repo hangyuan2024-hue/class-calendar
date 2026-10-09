@@ -50,43 +50,51 @@ internal fun LaoCalendarStudio(s: CampusSession) {
     }
     LaoPage(spacing = 16.dp) {
         animatedItem(0, "calendar3-heading") {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("${parts[1]}月", style = LaoType.headline)
-                    Text(
-                        "${parts[0]} · 把日子安排明白",
-                        style = LaoType.label,
-                        color = c.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                LaoIconButton(
-                    Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
-                    if (monthly) "上个月" else "上一周",
-                    Modifier.size(40.dp),
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                LaoEyebrow("校园日历 · ${parts[0]}", c.onSurfaceVariant)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    move(-1)
-                }
-                LaoIconButton(
-                    Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                    if (monthly) "下个月" else "下一周",
-                    Modifier.size(40.dp),
-                ) {
-                    move(1)
-                }
-                Box(
-                    Modifier.clip(CircleShape)
-                        .background(c.surface.copy(alpha = .75f))
-                        .border(1.dp, c.outlineVariant.copy(alpha = .5f), CircleShape)
-                        .laoTap(role = Role.Button) { monthly = !monthly }
-                        .semantics { contentDescription = if (monthly) "切换周视图" else "切换月视图" }
-                        .padding(horizontal = 12.dp, vertical = 12.dp)
-                ) {
-                    Text(if (monthly) "周视图" else "月历", style = LaoType.caption)
+                    Row(
+                        Modifier.weight(1f),
+                        verticalAlignment = Alignment.Bottom,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            parts[1].toString().padStart(2, '0'),
+                            style = LaoType.display.copy(fontSize = 48.sp, lineHeight = 56.sp),
+                        )
+                        Text("月", Modifier.padding(bottom = 8.dp), style = LaoType.title)
+                    }
+                    LaoIconButton(
+                        Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
+                        if (monthly) "上个月" else "上一周",
+                        Modifier.size(40.dp),
+                    ) {
+                        move(-1)
+                    }
+                    LaoIconButton(
+                        Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                        if (monthly) "下个月" else "下一周",
+                        Modifier.size(40.dp),
+                    ) {
+                        move(1)
+                    }
+                    Box(
+                        Modifier.clip(CircleShape)
+                            .background(c.surface.copy(alpha = .8f))
+                            .border(1.dp, c.outlineVariant.copy(alpha = .5f), CircleShape)
+                            .laoTap(role = Role.Button) { monthly = !monthly }
+                            .semantics { contentDescription = if (monthly) "切换周视图" else "切换月视图" }
+                            .padding(horizontal = 12.dp, vertical = 12.dp)
+                    ) {
+                        Text(
+                            if (monthly) "周视图" else "月历",
+                            style = LaoType.caption,
+                            color = c.primary,
+                        )
+                    }
                 }
             }
         }
@@ -185,7 +193,7 @@ internal fun LaoCalendarStudio(s: CampusSession) {
             Row(
                 Modifier.fillMaxWidth()
                     .clip(RoundedCornerShape(20.dp))
-                    .background(c.primary.copy(alpha = .065f))
+                    .background(lerp(c.surface, c.tertiary, .07f))
                     .laoTap(role = Role.Button) { CampusSocial.pasteImport(s.a) }
                     .semantics(mergeDescendants = true) { contentDescription = "粘贴导入" }
                     .padding(horizontal = 16.dp, vertical = 12.dp),
@@ -327,7 +335,7 @@ private fun RowScope.DateStudioCell(
     val today = day == DateMath.today()
     val background by
         animateColorAsState(
-            if (on) c.onSurface else Color.Transparent,
+            if (on) c.primary else Color.Transparent,
             if (LocalMotionEnabled.current) tween(180) else snap(),
             label = "date selection",
         )
@@ -354,21 +362,26 @@ private fun RowScope.DateStudioCell(
             Text(
                 weekday,
                 style = LaoType.label,
-                color = if (on) c.surface.copy(alpha = .55f) else c.onSurfaceVariant,
+                color = if (on) c.onPrimary.copy(alpha = .75f) else c.onSurfaceVariant,
             )
         Text(
             day?.substringAfterLast('-')?.toIntOrNull()?.toString().orEmpty(),
-            style = LaoType.cell.copy(fontFamily = LaoDisplayFont),
-            color = if (on) c.surface else if (today) c.primary else c.onSurface,
+            style =
+                LaoType.cell.copy(
+                    fontFamily = LaoDisplayFont,
+                    fontSize = 20.sp,
+                    lineHeight = 24.sp,
+                ),
+            color = if (on) c.onPrimary else if (today) c.primary else c.onSurface,
         )
         Row(Modifier.height(4.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
             if (course)
-                Box(Modifier.size(4.dp).background(if (on) c.surface else c.primary, CircleShape))
+                Box(Modifier.size(4.dp).background(if (on) c.onPrimary else c.primary, CircleShape))
             if (task)
                 Box(
                     Modifier.size(4.dp)
                         .background(
-                            if (on) c.surface.copy(alpha = .5f)
+                            if (on) c.onPrimary.copy(alpha = .6f)
                             else CampusAccent.readable(CampusAccent.berry),
                             CircleShape,
                         )
@@ -420,15 +433,17 @@ private fun AgendaStudioCell(s: CampusSession, clock: String, course: Boolean, i
             Box(
                 Modifier.width(3.dp)
                     .height(32.dp)
-                    .background(hue.copy(alpha = if (completed) .35f else .8f), CircleShape)
+                    .background(hue.copy(alpha = if (completed) .35f else 1f), CircleShape)
             )
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     if (course) item.optString("name") else taskTitle(item),
                     style =
                         LaoType.cell.copy(
+                            fontSize = 18.sp,
+                            lineHeight = 26.sp,
                             textDecoration =
-                                if (completed) TextDecoration.LineThrough else TextDecoration.None
+                                if (completed) TextDecoration.LineThrough else TextDecoration.None,
                         ),
                     color = if (completed) c.onSurfaceVariant else c.onSurface,
                     maxLines = 2,

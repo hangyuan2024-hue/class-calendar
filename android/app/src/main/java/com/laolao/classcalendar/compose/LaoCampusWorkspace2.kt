@@ -18,11 +18,8 @@ import androidx.compose.ui.geometry.*
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.*
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.*
 import androidx.compose.ui.text.style.*
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.*
 import org.json.JSONObject
 
@@ -79,27 +76,32 @@ internal fun LaoCampusHome(s: CampusSession) {
         animatedItem(0, "workspace-heading") {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        dateLabel(day) + " · " + campusName(a),
-                        Modifier.weight(1f),
-                        style = LaoType.caption,
-                        color = c.onSurfaceVariant,
-                    )
-                    LaoIconButton(Icons.Rounded.Tune, "编辑校园主页", Modifier.size(40.dp)) {
-                        s.sheet = HomeEditorSheet
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        LaoEyebrow(dateLabel(day), c.onSurfaceVariant)
+                        val greeting =
+                            when (
+                                java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+                            ) {
+                                in 5..10 -> "早上好"
+                                in 11..13 -> "中午好"
+                                in 14..18 -> "下午好"
+                                else -> "晚上好"
+                            }
+                        Text(
+                            "$greeting，${campusName(a)}",
+                            style = LaoType.headline.copy(fontSize = 28.sp, lineHeight = 36.sp),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
+                    LaoIconButton(Icons.Rounded.Tune, "编辑校园主页") { s.sheet = HomeEditorSheet }
                 }
-                Row(
-                    verticalAlignment = Alignment.Bottom,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        buildAnnotatedString {
-                            append("学习工作台")
-                            withStyle(SpanStyle(color = c.primary)) { append(".") }
-                        },
+                        "今天，也按自己的节奏来。",
                         Modifier.weight(1f),
-                        style = LaoType.headline,
+                        style = LaoType.body,
+                        color = c.onSurfaceVariant,
                     )
                     LaoTextAction("开始专注 ↗") { s.open("pomo") }
                 }
@@ -109,31 +111,7 @@ internal fun LaoCampusHome(s: CampusSession) {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 LaoCourseSpotlight(s, next, courses.size)
                 if (CampusGuide.enabled(a)) LaoNudge(s)
-                if (displayOptions.optBoolean("rings", true))
-                    Row(
-                        Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    ) {
-                        LaoStat(
-                            "${stats[0]}/${stats[1]}",
-                            "本周作业",
-                            Modifier.weight(1f),
-                            CampusAccent.readable(CampusAccent.blue),
-                        ) {
-                            s.open("homework")
-                        }
-                        LaoStat("${stats[2]}/${stats[3]}", "本周事项", Modifier.weight(1f)) {
-                            s.open("calendar")
-                        }
-                        LaoStat(
-                            "${stats[4]}/${stats[5]}",
-                            "今日打卡",
-                            Modifier.weight(1f),
-                            CampusAccent.readable(CampusAccent.berry),
-                        ) {
-                            s.open("growth")
-                        }
-                    }
+                if (displayOptions.optBoolean("rings", true)) LaoProgressStrip(s, stats)
                 HorizontalDivider(color = c.outlineVariant.copy(alpha = .5f))
             }
         }
@@ -247,74 +225,103 @@ internal fun LaoCampusHome(s: CampusSession) {
 @Composable
 private fun LaoCourseSpotlight(s: CampusSession, next: CampusGuide.Entry?, count: Int) {
     val c = MaterialTheme.colorScheme
-    val ink = Color(0xFF173C43)
-    Row(
+    val ink = LaoArt.hero()
+    Box(
         Modifier.fillMaxWidth()
-            .clip(LaoCorners.paper)
-            .background(Brush.linearGradient(listOf(ink, lerp(ink, c.primary, .25f))))
-            .laoTap { s.open("courses") }
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                if (next == null) "把这个学期，安排明白" else "接下来的课程",
-                style = LaoType.label,
-                color = Color(0xFFC3E7D9),
-            )
-            Text(
-                next?.title ?: "添加你的第一张课表",
-                style = LaoType.title,
-                color = Color.White,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                next?.location?.ifBlank { "教室待确认" } ?: "拍照或粘贴导入，轻松开始",
-                style = LaoType.caption,
-                color = Color.White.copy(alpha = .72f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text("今天 ${count} 节课", style = LaoType.label, color = Color.White.copy(alpha = .5f))
-        }
-        Box(Modifier.size(88.dp), contentAlignment = Alignment.Center) {
-            Canvas(Modifier.matchParentSize()) {
-                drawCircle(
-                    Color.White.copy(alpha = .12f),
-                    size.minDimension / 2 - 1.dp.toPx(),
-                    style = Stroke(1.dp.toPx()),
+            .clip(RoundedCornerShape(28.dp))
+            .background(
+                Brush.linearGradient(
+                    listOf(
+                        ink,
+                        lerp(ink, c.primary, if (c.background.luminance() < .3f) .1f else .6f),
+                    )
                 )
-                drawArc(
-                    Color(0xFFC9E7D6).copy(alpha = .8f),
-                    -100f,
-                    56f,
-                    false,
-                    Offset(1.dp.toPx(), 1.dp.toPx()),
-                    androidx.compose.ui.geometry.Size(
-                        size.width - 2.dp.toPx(),
-                        size.height - 2.dp.toPx(),
-                    ),
-                    style = Stroke(2.dp.toPx(), cap = StrokeCap.Round),
+            )
+            .laoTap(role = Role.Button) { s.open("courses") }
+    ) {
+        Canvas(Modifier.matchParentSize()) {
+            val origin = Offset(size.width * .97f, size.height * .04f)
+            for (i in 0..4) drawCircle(
+                Color.White.copy(alpha = .065f),
+                size.width * (.18f + i * .13f),
+                origin,
+                style = Stroke(1.dp.toPx()),
+            )
+        }
+        Column(
+            Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    if (next == null) "你的新学期，从这里开始" else "下一节课",
+                    Modifier.weight(1f),
+                    style = LaoType.caption,
+                    color = Color.White.copy(alpha = .76f),
+                )
+                Icon(
+                    Icons.Rounded.NorthEast,
+                    null,
+                    Modifier.size(18.dp),
+                    tint = Color.White.copy(alpha = .76f),
                 )
             }
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text(
-                    next?.time ?: "＋",
-                    style = LaoType.title.copy(fontFamily = LaoDisplayFont),
-                    color = Color.White,
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        next?.title ?: "把课表\n装进口袋",
+                        style = LaoType.title,
+                        color = Color.White,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        next?.location?.ifBlank { "教室待确认" } ?: "拍照、粘贴都能导入",
+                        style = LaoType.caption,
+                        color = Color.White.copy(alpha = .74f),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        next?.time ?: "＋",
+                        style =
+                            LaoType.display.copy(
+                                fontSize = if (next == null) 48.sp else 36.sp,
+                                lineHeight = 44.sp,
+                            ),
+                        color = Color.White,
+                    )
+                    Text(
+                        if (next == null) "导入课表"
+                        else if (next.day == DateMath.today()) "今天" else dateLabel(next.day),
+                        style = LaoType.label,
+                        color = Color.White.copy(alpha = .72f),
+                    )
+                }
+            }
+            HorizontalDivider(color = Color.White.copy(alpha = .16f))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Rounded.School,
+                    null,
+                    Modifier.size(16.dp),
+                    tint = Color.White.copy(alpha = .78f),
                 )
                 Text(
-                    if (next == null) "导入课表"
-                    else if (next.day == DateMath.today()) "今天"
-                    else dateLabel(next.day).substringAfter("  "),
-                    style = LaoType.label,
-                    color = Color.White.copy(alpha = .6f),
+                    "今天 $count 节课",
+                    Modifier.weight(1f).padding(start = 8.dp),
+                    style = LaoType.caption,
+                    color = Color.White.copy(alpha = .86f),
                 )
+                Text("查看完整课表", style = LaoType.label, color = Color.White.copy(alpha = .74f))
             }
         }
     }
@@ -327,7 +334,7 @@ internal fun LaoNudge(s: CampusSession) {
     Row(
         Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
-            .background(c.primary.copy(alpha = .055f))
+            .background(lerp(c.surface, c.primary, .035f))
             .clickable { s.sheet = GuideSheet }
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -565,7 +572,7 @@ internal fun LaoCheck(
             label = "task mark",
         )
     Box(
-        Modifier.size(44.dp)
+        Modifier.size(48.dp)
             .clip(CircleShape)
             .toggleable(checked, enabled = enabled, role = Role.Checkbox, onValueChange = change)
             .semantics { if (label.isNotBlank()) contentDescription = label },

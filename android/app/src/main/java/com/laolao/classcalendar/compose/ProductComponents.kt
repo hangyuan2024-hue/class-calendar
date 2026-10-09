@@ -53,17 +53,8 @@ internal fun ProductIntro(
     action: String? = null,
     click: () -> Unit = {},
 ) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(title, style = MaterialTheme.typography.headlineMedium, letterSpacing = (-.5).sp)
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        if (action != null) TextButton(onClick = click) { Text(action) }
-    }
+    LaoPageHeading(title, subtitle, "你的校园，按自己的节奏来")
+    if (action != null) LaoTextAction(action, click = click)
 }
 
 @Composable

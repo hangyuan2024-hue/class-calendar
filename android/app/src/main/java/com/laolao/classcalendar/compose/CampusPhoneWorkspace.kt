@@ -61,16 +61,12 @@ internal fun CampusPhonePage(s: CampusSession) {
     val c = MaterialTheme.colorScheme
     LaoPage(spacing = 16.dp) {
         animatedItem(0, "phone-heading") {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("手机，也是学习搭子。", style = LaoType.headline)
-                    Text("随手记录 · 安排节奏 · 留住校园", style = LaoType.caption, color = c.onSurfaceVariant)
-                }
-                PhoneSketch(Modifier.size(72.dp))
-            }
+            LaoPageHeading(
+                "手机，也是学习搭子。",
+                "10 项手机专属能力，随手记下，随时用上。",
+                "随身工具",
+                Icons.Rounded.PhoneAndroid,
+            )
         }
         animatedItem(1, "phone-settings-link") {
             Row(
@@ -102,17 +98,9 @@ internal fun CampusPhonePage(s: CampusSession) {
                             },
                     )
                 }
-                items.chunked(2).forEach { pair ->
-                    animatedItem(order++, "phone-pair-" + pair.first().route) {
-                        Row(
-                            Modifier.fillMaxWidth().height(IntrinsicSize.Min),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            pair.forEach { ability ->
-                                PhoneAbilityCard(s, ability, Modifier.weight(1f).fillMaxHeight())
-                            }
-                            if (pair.size == 1) Spacer(Modifier.weight(1f))
-                        }
+                items.forEach { ability ->
+                    animatedItem(order++, "phone-ability-" + ability.route) {
+                        PhoneAbilityCard(s, ability, Modifier.fillMaxWidth())
                     }
                 }
             }
@@ -127,43 +115,37 @@ private fun PhoneAbilityCard(s: CampusSession, ability: PhoneAbility, modifier: 
             when (ability.group) {
                 "捕捉灵感" -> CampusAccent.violet
                 "学习节奏" -> CampusAccent.blue
-                else -> CampusAccent.berry
+                else -> LaoArt.coral
             }
         )
-    Column(
+    Row(
         modifier
-            .clip(RoundedCornerShape(24.dp))
-            .background(Brush.linearGradient(listOf(c.surface, lerp(c.surface, hue, .035f))))
-            .border(1.dp, c.outlineVariant.copy(alpha = .45f), RoundedCornerShape(24.dp))
-            .laoTap { s.open(ability.route) }
+            .clip(RoundedCornerShape(22.dp))
+            .background(c.surface.copy(alpha = .86f))
+            .border(1.dp, c.outlineVariant.copy(alpha = .3f), RoundedCornerShape(22.dp))
+            .laoTap(role = androidx.compose.ui.semantics.Role.Button) { s.open(ability.route) }
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(40.dp).background(hue.copy(alpha = .1f), RoundedCornerShape(14.dp)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(routeIcon(ability.route), null, Modifier.size(24.dp), tint = hue)
-            }
-            Spacer(Modifier.weight(1f))
-            Icon(
-                Icons.Rounded.NorthEast,
-                null,
-                Modifier.size(16.dp),
-                tint = c.onSurfaceVariant.copy(alpha = .55f),
-            )
+        Box(
+            Modifier.size(48.dp).background(hue.copy(alpha = .1f), RoundedCornerShape(16.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(routeIcon(ability.route), null, Modifier.size(25.dp), tint = hue)
         }
-        Text(ability.name, style = LaoType.cell, maxLines = 2)
-        Text(
-            ability.note,
-            style = LaoType.caption,
-            color = c.onSurfaceVariant,
-            maxLines = 3,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Spacer(Modifier.weight(1f))
-        Text(phoneState(s, ability.route), style = LaoType.label, color = hue, maxLines = 2)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(ability.name, style = LaoType.cell)
+            Text(
+                ability.note,
+                style = LaoType.caption,
+                color = c.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(phoneState(s, ability.route), style = LaoType.label, color = hue)
+        }
+        Icon(Icons.Rounded.NorthEast, null, Modifier.size(18.dp), tint = hue)
     }
 }
 

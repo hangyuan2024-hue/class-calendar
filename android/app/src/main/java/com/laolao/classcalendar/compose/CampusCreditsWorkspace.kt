@@ -25,22 +25,12 @@ internal fun CampusCreditsPage(s: CampusSession) {
     val admin = s.a.me.optString("role") == "admin"
     LaoPage(spacing = 16.dp) {
         animatedItem(0, "credits-heading") {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Icon(
-                        Icons.Rounded.FavoriteBorder,
-                        null,
-                        Modifier.size(18.dp),
-                        tint = CampusAccent.readable(CampusAccent.berry),
-                    )
-                    Text("一起，把校园变好。", style = LaoType.caption, color = c.onSurfaceVariant)
-                }
-                Text("每一份热爱，\n都被认真记住。", style = LaoType.headline)
-                Text("感谢每一位参与建设捞捞课程表的同学与伙伴。", style = LaoType.body, color = c.onSurfaceVariant)
-            }
+            LaoPageHeading(
+                "让热爱，有迹可循。",
+                "感谢每一位参与建设捞捞课程表的同学与伙伴。",
+                "校园共建者",
+                Icons.Rounded.FavoriteBorder,
+            )
         }
         if (members.isNotEmpty())
             animatedItem(1, "credits-collective") {

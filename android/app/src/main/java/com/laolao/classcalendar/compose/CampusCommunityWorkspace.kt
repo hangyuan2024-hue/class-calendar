@@ -68,32 +68,12 @@ internal fun CampusClassWallPage(s: CampusSession) {
     }
     LaoPage {
         animatedItem(0, "community-header") {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Box(
-                    Modifier.size(48.dp)
-                        .background(
-                            CampusAccent.violet.copy(alpha = .1f),
-                            RoundedCornerShape(16.dp),
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        Icons.Rounded.Forum,
-                        null,
-                        tint = CampusAccent.readable(CampusAccent.violet),
-                    )
-                }
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        a.currentClass.optString("name").ifBlank { "同学的校园圈" },
-                        style = LaoType.title,
-                    )
-                    Text("通知、讨论和日常，在这里碰面。", style = LaoType.caption, color = c.onSurfaceVariant)
-                }
-            }
+            LaoPageHeading(
+                "同学，在这里碰面。",
+                a.currentClass.optString("name").ifBlank { "分享日常，接收通知，和每一次进步相遇。" },
+                "校园圈",
+                Icons.Rounded.Forum,
+            )
         }
         animatedItem(1, "community-entries") {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -191,7 +171,7 @@ internal fun CampusClassGate(s: CampusSession) {
     LaoPanel(Modifier.fillMaxWidth(), color = lerp(c.surface, c.secondary, .04f)) {
         LaoMascot(Modifier.size(56.dp))
         Text(if (s.a.api.logged()) "找到你的班级，遇见你的同学。" else "先登录，连接你的校园圈。", style = LaoType.title)
-        Text("班级墙、通知、成员和成长榜使用网站原来的班级数据。", style = LaoType.caption, color = c.onSurfaceVariant)
+        Text("找到你的班级，和同学一起分享、讨论与成长。", style = LaoType.caption, color = c.onSurfaceVariant)
         LaoPrimaryButton(if (s.a.api.logged()) "加入或管理班级" else "登录 / 注册", Modifier.fillMaxWidth()) {
             s.open(if (s.a.api.logged()) "class" else "login")
         }
@@ -206,21 +186,7 @@ private fun CommunityTile(
     accent: Color,
     modifier: Modifier,
     click: () -> Unit,
-) {
-    val color = CampusAccent.readable(accent)
-    Column(
-        modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(color.copy(alpha = .08f))
-            .clickable(onClick = click)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Icon(icon, null, Modifier.size(24.dp), tint = color)
-        Text(title, style = LaoType.cell)
-        Text(subtitle, style = LaoType.label, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
+) = LaoEditorialCard(title, subtitle, icon, CampusAccent.readable(accent), modifier, click)
 
 @Composable
 internal fun CampusPostCard(s: CampusSession, post: JSONObject, author: Boolean = true) =
@@ -286,7 +252,10 @@ internal fun LaoFeedCell(s: CampusSession, post: JSONObject, author: Boolean = t
                 if (post.optBoolean("hidden")) LaoChip("已隐藏", c.error)
                 if (post.optString("title").isNotBlank())
                     Text(post.optString("title"), style = LaoType.cell)
-                Text(post.optString("body"), style = LaoType.body)
+                Text(
+                    post.optString("body"),
+                    style = LaoType.body.copy(fontSize = 16.sp, lineHeight = 26.sp),
+                )
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -374,34 +343,12 @@ internal fun CampusRankPage(s: CampusSession) {
     }
     LaoPage {
         animatedItem(0) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Box(
-                    Modifier.size(56.dp)
-                        .background(
-                            CampusAccent.amber.copy(alpha = .12f),
-                            RoundedCornerShape(20.dp),
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        Icons.Rounded.EmojiEvents,
-                        null,
-                        Modifier.size(32.dp),
-                        tint = CampusAccent.readable(CampusAccent.amber),
-                    )
-                }
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("每一点进步，\n都值得上榜。", style = LaoType.title)
-                    Text(
-                        a.currentClass.optString("name").ifBlank { "班级成长排行榜" },
-                        style = LaoType.caption,
-                        color = c.onSurfaceVariant,
-                    )
-                }
-            }
+            LaoPageHeading(
+                "每一点进步，都值得上榜。",
+                a.currentClass.optString("name").ifBlank { "和同学一起，看见成长。" },
+                "班级成长榜",
+                Icons.Rounded.EmojiEvents,
+            )
         }
         if (!connected) animatedItem(1) { CampusClassGate(s) }
         else {

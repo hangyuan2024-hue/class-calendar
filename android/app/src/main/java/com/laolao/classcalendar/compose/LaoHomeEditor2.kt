@@ -5,6 +5,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -60,7 +61,7 @@ internal fun ColumnScope.LaoHomeEditor(s: CampusSession) {
             Column(
                 Modifier.fillMaxWidth()
                     .clip(RoundedCornerShape(24.dp))
-                    .background(c.primary.copy(alpha = .045f))
+                    .background(LaoArt.soft())
                     .padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
@@ -80,15 +81,15 @@ internal fun ColumnScope.LaoHomeEditor(s: CampusSession) {
                     Column(
                         Modifier.weight(1f)
                             .clip(RoundedCornerShape(16.dp))
-                            .background(c.onSurface)
+                            .background(LaoArt.hero())
                             .padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Text("今日重点", style = LaoType.label, color = c.surface.copy(alpha = .65f))
+                        Text("今日重点", style = LaoType.label, color = Color.White.copy(alpha = .75f))
                         Text(
                             CampusGuide.nextCourse(s.a)?.title ?: "课程与校园安排",
                             style = LaoType.caption,
-                            color = c.surface,
+                            color = Color.White,
                             maxLines = 2,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         )
@@ -97,7 +98,7 @@ internal fun ColumnScope.LaoHomeEditor(s: CampusSession) {
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             LaoMascot(Modifier.size(24.dp), expressive = false)
-                            Text("捞捞提醒", style = LaoType.label, color = c.surface.copy(alpha = .7f))
+                            Text("捞捞提醒", style = LaoType.label, color = Color.White.copy(alpha = .8f))
                         }
                     }
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -335,13 +336,38 @@ internal fun LaoToggle(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
-    Box(modifier.alpha(if (enabled) 1f else .45f)) {
-        LaoCheck(
-            checked,
-            if (checked) "已开启" else "已关闭",
-            enabled = enabled && onCheckedChange != null,
-        ) {
-            onCheckedChange?.invoke(it)
+    val c = MaterialTheme.colorScheme
+    val progress by
+        animateFloatAsState(
+            if (checked) 1f else 0f,
+            if (LocalMotionEnabled.current) spring(.85f, 420f) else snap(),
+            label = "switch thumb",
+        )
+    Box(
+        modifier
+            .size(width = 52.dp, height = 48.dp)
+            .alpha(if (enabled) 1f else .45f)
+            .toggleable(checked, enabled = enabled && onCheckedChange != null, role = Role.Switch) {
+                onCheckedChange?.invoke(it)
+            }
+            .semantics { contentDescription = if (checked) "已开启" else "已关闭" },
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(Modifier.size(width = 48.dp, height = 28.dp)) {
+            drawRoundRect(
+                lerp(c.outlineVariant, c.primary, progress),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2),
+            )
+            drawCircle(
+                Color.Black.copy(alpha = .08f),
+                10.dp.toPx(),
+                Offset(14.dp.toPx() + 20.dp.toPx() * progress, size.height / 2 + 1.dp.toPx()),
+            )
+            drawCircle(
+                Color.White,
+                10.dp.toPx(),
+                Offset(14.dp.toPx() + 20.dp.toPx() * progress, size.height / 2),
+            )
         }
     }
 }
