@@ -37,7 +37,7 @@ const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; 
 // ===== 云端同步：登录后，我的事项、完成标记、打卡、规划、外观设置自动存到云端，换浏览器 / 换手机都能看到 =====
 // 每条数据单独同步，带修改时间；两边都改了同一条，以后改的为准。可以在「我的 → 数据」里改成「只存在这台设备」。
 // list：数组，按 id 一条条同步；map：对象，按键同步；map2：两层对象（习惯 → 日期）；one：整体同步
-const SYNC_KINDS = { course_rev_v1: "one", personal_events_v1: "list", personal_marks_v1: "map", done_log_v1: "map", habits_v1: "list", habit_log_v1: "map2",
+const SYNC_KINDS = { course_rev_v1: "one", kn_rev_v1: "one", personal_events_v1: "list", personal_marks_v1: "map", done_log_v1: "map", habits_v1: "list", habit_log_v1: "map2",
   quad_v1: "map", quad_todos_v1: "list", pomo_log_v1: "map", fun_opts_v1: "one", home_layout_v1: "one", ui_skin_v1: "one",
   ui_palette_v1: "one", plugins_enabled_v1: "one", home_quick_tools_v1: "one", plan_notes_v1: "map", profile_v1: "one", mood_log_v1: "map", farm_v1: "one", island_v1: "one" };
 const LS_SYNC = "sync_meta_v1", LS_SYNC_OUT = "sync_outbox_v1", LS_SYNC_MODE = "sync_mode_v1";
@@ -332,7 +332,8 @@ function allItems() {
   const cls = classRecords.map((r) => ({ ...r, _key: "c" + r.id, _mine: false }));
   const own = mine.map((r) => ({ ...r, msg_type: "个人", _key: r.id, _mine: true }));
   const ext = pluginItems();
-  return cls.concat(own, ext).map((r) => {
+  const study = typeof studyItems === "function" ? studyItems() : [];   // 课内学习里有截止日期的考核（study.js）
+  return cls.concat(study, own, ext).map((r) => {
     if (r._plugin) return { ...r, _p: parseTime(r.event_time) };
     const mk = marks[r._key] || {};
     return { ...r, _done: !!(r._mine ? r.done : mk.done), _hidden: !r._mine && !!mk.hidden,
@@ -432,7 +433,12 @@ function detailHtml(r) {
   if (r.location) meta.push("📍 " + esc(r.location));
   if (r.prepare) meta.push("🎒 " + esc(r.prepare));
   const k = esc(r._key);
-  const ops = r._mine
+  const ops = r._study
+    ? `<button class="link" data-act="done" data-k="${k}">${r._done ? "取消完成" : "✓ 完成"}</button>
+       <button class="link" data-act="note" data-k="${k}">${r._note ? "改备注" : "加备注"}</button>${r._p ? `
+       <button class="link" data-act="ics" data-k="${k}">📅 加到日历</button>` : ""}
+       <button class="link" data-act="study" data-k="${k}">📖 在课内学习里打开</button>`
+    : r._mine
     ? `<button class="link" data-act="done" data-k="${k}">${r._done ? "取消完成" : "✓ 完成"}</button>
        <button class="link" data-act="edit" data-k="${k}">编辑</button>
        <button class="link" data-act="del" data-k="${k}">删除</button>${r._p ? `
@@ -1614,6 +1620,7 @@ document.addEventListener("click", (e) => {
   if (!b) return;
   const k = b.dataset.k, act = b.dataset.act;
   if (act === "ics") { const it = allItems().find((x) => x._key === k); if (it) calImportOne(it); return; }
+  if (act === "study") { const it = allItems().find((x) => x._key === k); if (it && typeof openStudyItem === "function") openStudyItem(it._study); return; }
   if (act === "mycopy") { const it = allItems().find((x) => x._key === k); if (it) openForm(it, { from: k }); return; }
   if (k.startsWith("c")) {
     const mk = marks[k] || {};
@@ -1932,7 +1939,7 @@ $("nextBtn").onclick = () => { if (++viewMonth > 11) { viewMonth = 0; viewYear++
 $("todayBtn").onclick = () => { viewYear = today.getFullYear(); viewMonth = today.getMonth(); selectedKey = keyOf(today); renderAll(); };
 // 右下角「＋」（电脑上是侧栏的按钮）：每个页面做不同的事
 //   只有一个动作时直接做；手机上有多个动作时弹出菜单；电脑上直接做第一个（页面里本来就有其他按钮）
-const FAB_HIDE = ["me", "user", "intro", "credits", "rank", "people", "meta", "ask"];
+const FAB_HIDE = ["me", "user", "intro", "credits", "rank", "people", "meta", "ask", "study"];   // 课内学习有自己的「＋」
 const mdOf = (k) => { const d = new Date(k + "T00:00:00"); return `${d.getMonth() + 1}月${d.getDate()}日`; };
 function fabItems(view) {
   view = view || currentView();
@@ -2671,8 +2678,10 @@ const ICONS = {
   class: ['<path d="M2.5 9 12 4l9.5 5-9.5 5z M6.5 11.2V16c0 1.6 2.5 3 5.5 3s5.5-1.4 5.5-3v-4.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>', ""],
   growth: ['<path d="M4 20V10m8 10V4m8 16v-8M3 7l6-4 5 5 7-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>', '<rect x="3" y="10" width="3" height="11" rx="1.5" fill="currentColor"/><rect x="10.5" y="4" width="3" height="17" rx="1.5" fill="currentColor"/><rect x="18" y="12" width="3" height="9" rx="1.5" fill="currentColor"/>'],
 };
+ICONS.study = ['<path d="M4 5.5C6.5 4 9.5 4 12 6c2.5-2 5.5-2 8-.5V19c-2.5-1.5-5.5-1.5-8 .5-2.5-2-5.5-2-8-.5z M12 6v13.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+  '<path d="M3.5 5.2C6.2 3.6 9.3 3.7 11.2 5.4v14.4c-2.2-1.6-5-1.7-7.7-.3z M12.8 5.4c1.9-1.7 5-1.8 7.7-.2v14.3c-2.7-1.4-5.5-1.3-7.7.3z" fill="currentColor"/>'];
 const icon = (k) => `<svg viewBox="0 0 24 24" class="o" aria-hidden="true">${ICONS[k][0]}</svg>` + (ICONS[k][1] ? `<svg viewBox="0 0 24 24" class="f" aria-hidden="true">${ICONS[k][1]}</svg>` : "");
-const NAV = [["home", "首页"], ["homework", "作业"], ["wall", "班级墙"], ["calendar", "日历"], ["plan", "规划"], ["ask", "问答"], ["growth", "成长"], ["tools", "工具"], ["me", "我的"]];
+const NAV = [["home", "首页"], ["homework", "作业"], ["wall", "班级墙"], ["calendar", "日历"], ["plan", "规划"], ["study", "学习"], ["ask", "问答"], ["growth", "成长"], ["tools", "工具"], ["me", "我的"]];
 let hwBadge = 0;
 
 function currentView() { return document.querySelector(".view.on[data-view]")?.dataset.view || "home"; }
@@ -2683,7 +2692,7 @@ function renderTabs() {
   if (cur.startsWith("p_") && !pinned) cur = "tools";
   $("tabs").innerHTML = NAV.map(([id, t]) => {
     const unavailable = (id === "plan" && !funOpts().plan) || (id === "ask" && (!laiReady() || !feat("ask"))) || !viewOn(id);
-    const button = `<button class="nav${id === cur ? " on" : ""}${["wall", "calendar", "plan", "ask"].includes(id) ? " desk" : ""}${unavailable ? " hidden" : ""}" data-tab="${id}">${icon(id)}<span>${cyName(t)}</span>${id === "homework" && hwBadge ? `<em class="badge">${hwBadge}</em>` : ""}</button>`;
+    const button = `<button class="nav${id === cur ? " on" : ""}${["wall", "calendar", "plan", "ask", "study"].includes(id) ? " desk" : ""}${unavailable ? " hidden" : ""}" data-tab="${id}">${icon(id)}<span>${cyName(t)}</span>${id === "homework" && hwBadge ? `<em class="badge">${hwBadge}</em>` : ""}</button>`;
     // 工具：不再在旁边放一个箭头按钮。在工具页再点一次「工具」、长按「工具」或按 Ctrl/⌘+K 都能快捷打开任意工具；电脑上鼠标移上去会在这一行里提示快捷键
     return id === "tools" ? button.replace('data-tab="tools">', `data-tab="tools" data-tools-nav title="工具（再点一次或长按：快捷打开）">`).replace("</button>", `<kbd class="nav-kbd" aria-hidden="true">${/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K"}</kbd></button>`) + `<button type="button" id="navToolPicker" class="nav-tool-picker-x" data-quick-open aria-label="快捷选择工具" tabindex="-1" hidden></button>` : button;
   }).join("")
@@ -2756,6 +2765,7 @@ function showView(id) {
   if (id === "people") loadPeople();
   if (id === "intro") loadIntro();
   if (id === "ask") renderAsk();
+  if (id === "study" && typeof renderStudy === "function") renderStudy();
   if (id === "credits") loadCredits();
   if (id === "rank") loadRank();
   if (scrollStore) $("storeAnchor").scrollIntoView();
