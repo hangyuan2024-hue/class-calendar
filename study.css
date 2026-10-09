@@ -137,3 +137,20 @@ button.kt-tog:hover { background: var(--line); }
   .kn-tabs .ptab { flex: none; }
   #knAdd { flex: none; }
 }
+/* 知识框架拖动 */
+.kt-grip { width: 22px; flex: none; text-align: center; color: var(--sub); opacity: .5; cursor: grab; touch-action: none; user-select: none; font-size: 15px; line-height: 30px; }
+.kt-grip.off { cursor: default; }
+.kt-row:hover .kt-grip:not(.off) { opacity: 1; }
+@media (hover: none) { .kt-grip:not(.off) { opacity: .8; } }
+.kt-row { position: relative; }
+.kt-row.kt-src { opacity: .35; }
+.kt-row.drop-before::before, .kt-row.drop-after::after { content: ""; position: absolute; left: calc(26px + var(--d) * 20px); right: 8px; height: 3px; border-radius: 3px; background: var(--accent); }
+.kt-row.drop-before::before { top: -2px; }
+.kt-row.drop-after::after { bottom: -2px; }
+.kt-row.drop-into { background: var(--selected, var(--muted-bg)); box-shadow: inset 0 0 0 2px var(--accent); }
+.kt-ghost { position: fixed; left: 0; top: 0; z-index: 9999; pointer-events: none; background: var(--card); border-radius: 10px; box-shadow: 0 14px 30px -12px rgba(0, 0, 0, .4); opacity: .95; padding-left: 4px !important; }
+.kt-ghost .kt-ops { display: none; }
+body.kt-dragging, body.kt-dragging * { cursor: grabbing !important; user-select: none !important; }
+.kt-rootzone { margin: 6px 4px 2px; padding: 9px; border: 1.5px dashed var(--line); border-radius: 10px; text-align: center; font-size: 12px; color: var(--sub); display: none; }
+body.kt-dragging .kt-rootzone { display: block; }
+.kt-rootzone.on { border-color: var(--accent); color: var(--accent); background: var(--selected, var(--muted-bg)); }

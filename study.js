@@ -189,7 +189,8 @@
     const roots = kids(c.id, null);
     const rowHtml = (n, depth) => {
       const ch = kids(c.id, n.id), open = expanded.has(n.id), isF = n.type === "folder", cnt = itemsUnder(n.id).length;
-      return `<div class="kt-row${n.is_system ? " sys" : ""}" style="--d:${depth}">
+      return `<div class="kt-row${n.is_system ? " sys" : ""}" style="--d:${depth}" data-nid="${n.id}">
+          ${n.is_system ? `<span class="kt-grip off"></span>` : `<span class="kt-grip" data-grip="${n.id}" title="按住拖动：调顺序、放进别的分类" aria-label="拖动">⠿</span>`}
           ${isF && ch.length ? `<button class="kt-tog" data-kn="tog" data-id="${n.id}" aria-label="${open ? "收起" : "展开"}">${open ? "▾" : "▸"}</button>` : `<span class="kt-tog"></span>`}
           <button class="kt-name" data-kn="node" data-id="${n.id}"><span>${n.is_system ? "📥" : isF ? "📁" : "💡"}</span>${esc(n.name)}${cnt ? `<em>${cnt}</em>` : ""}</button>
           ${n.is_system ? "" : `<span class="kt-ops">${isF ? `<button data-kn="nadd" data-id="${n.id}" title="在这里面添加">＋</button>` : ""}<button data-kn="nren" data-id="${n.id}" title="改名">✎</button><button data-kn="nmove" data-id="${n.id}" title="移动 / 排序">⇅</button><button data-kn="ndel" data-id="${n.id}" title="删除">×</button></span>`}
@@ -197,10 +198,103 @@
     };
     const real = roots.filter((n) => !n.is_system);
     return `<div class="kn-bar"><button class="btn ink sm" data-kn="nadd" data-type="folder">＋ 分类</button><button class="btn sm" data-kn="nadd" data-type="knowledge">＋ 知识点</button>
-        <span class="meta kn-bar-tip">分类可以一层套一层；资料、笔记、错题可以打上这些标签，点名称看它下面的全部内容</span></div>
-      <div class="kn-tree surface">${roots.map((n) => rowHtml(n, 0)).join("")}
+        <span class="meta kn-bar-tip">按住 ⠿ 拖动可以调顺序、放进别的分类（电脑上直接拖名称也行）；点名称看它下面的全部内容</span></div>
+      <div class="kn-tree surface" id="knTree">${roots.map((n) => rowHtml(n, 0)).join("")}
+        ${real.length ? `<div class="kt-rootzone" id="ktRoot">拖到这里：放到第一级最后</div>` : ""}
         ${real.length ? "" : `<div class="kn-tree-empty">还没有分类和知识点。比如先建「第一章 函数与极限」，里面再加「夹逼定理」「重要极限」。</div>`}</div>`;
   }
+
+  // ---------------- 知识框架：拖动排序（和原版「课内」一样：放到上半 / 下半 = 插到前面 / 后面，放到分类中间 = 放进去） ----------------
+  let dg = null, dragJustEnded = 0;
+  function dragStart(e, id, row) {
+    const r = row.getBoundingClientRect();
+    dg = { id, sx: e.clientX, sy: e.clientY, ox: e.clientX - r.left, oy: e.clientY - r.top, row, started: false, pid: e.pointerId, target: null };
+  }
+  function dragBegin() {
+    const n = node(dg.id); if (!n) { dg = null; return; }
+    dg.started = true;
+    const g = dg.row.cloneNode(true);
+    g.classList.add("kt-ghost"); g.style.width = dg.row.getBoundingClientRect().width + "px";
+    document.body.appendChild(g); dg.ghost = g;
+    // 被拖的这一枝（连同下级）变淡，不能拖进自己里面
+    dg.bad = new Set(subtree(dg.id));
+    document.querySelectorAll("#knTree .kt-row").forEach((r) => { if (dg.bad.has(+r.dataset.nid)) r.classList.add("kt-src"); });
+    document.body.classList.add("kt-dragging");
+    buzz(15);
+  }
+  function clearMarks() { document.querySelectorAll("#knTree .drop-before, #knTree .drop-after, #knTree .drop-into, #ktRoot.on").forEach((x) => x.classList.remove("drop-before", "drop-after", "drop-into", "on")); }
+  function dragMove(e) {
+    if (!dg) return;
+    if (!dg.started) { if (Math.hypot(e.clientX - dg.sx, e.clientY - dg.sy) < 5) return; dragBegin(); if (!dg) return; }
+    e.preventDefault();
+    dg.ghost.style.transform = `translate(${e.clientX - dg.ox}px, ${e.clientY - dg.oy}px)`;
+    clearMarks(); dg.target = null;
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const zone = el && el.closest("#ktRoot");
+    if (zone) { zone.classList.add("on"); dg.target = { where: "root" }; }
+    const row = el && el.closest("#knTree .kt-row");
+    if (row && !zone) {
+      const tid = +row.dataset.nid, t = node(tid);
+      if (t && !dg.bad.has(tid)) {
+        const r = row.getBoundingClientRect(), y = (e.clientY - r.top) / r.height;
+        let where = y < 0.3 ? "before" : y > 0.7 ? "after" : "into";
+        if (where === "into" && (t.type !== "folder" || t.is_system)) where = y < 0.5 ? "before" : "after";
+        if (t.is_system) where = "after";       // 「未分类」永远在最上面：放在它后面 = 第一级第一个
+        row.classList.add("drop-" + where); dg.target = { id: tid, where };
+      }
+    }
+    // 拖到屏幕上下边缘时自动滚动
+    const m = 60;
+    if (e.clientY < m) window.scrollBy(0, -12); else if (e.clientY > window.innerHeight - m) window.scrollBy(0, 12);
+  }
+  async function dragEnd(cancel) {
+    if (!dg) return;
+    const d = dg; dg = null;
+    document.body.classList.remove("kt-dragging");
+    if (!d.started) return;
+    dragJustEnded = Date.now();
+    if (d.ghost) d.ghost.remove();
+    clearMarks(); document.querySelectorAll("#knTree .kt-src").forEach((r) => r.classList.remove("kt-src"));
+    const t = d.target, n = node(d.id); if (cancel || !t || !n) return;
+    let parent, pos;
+    if (t.where === "root") { parent = null; pos = null; }
+    else {
+      const tg = node(t.id); if (!tg) return;
+      if (t.where === "into") { parent = tg.id; pos = null; }
+      else if (tg.is_system) { parent = null; pos = 0; }
+      else {
+        parent = tg.parent_id || null;
+        const sib = kids(tg.course_id, parent).filter((x) => !x.is_system && x.id !== n.id);
+        pos = sib.findIndex((x) => x.id === tg.id) + (t.where === "after" ? 1 : 0);
+      }
+    }
+    // 没动：同一个位置
+    const cur = kids(n.course_id, n.parent_id).filter((x) => !x.is_system), oldPos = cur.findIndex((x) => x.id === n.id);
+    if ((parent || null) === (n.parent_id || null) && (pos === oldPos || (pos == null && oldPos === cur.length - 1))) return;
+    if (parent) { expanded.add(parent); saveOpen(); }
+    // 先在本地挪好，界面马上跟着变；服务器失败的话 act 里会重新读回来
+    n.parent_id = parent;
+    const sib = kids(n.course_id, parent).filter((x) => !x.is_system && x.id !== n.id);
+    sib.splice(pos == null ? sib.length : pos, 0, n); sib.forEach((x, i) => { x.sort_order = i; });
+    index(); render();
+    try { await act("kn_node_move", { p_id: n.id, p_parent: parent, p_pos: pos }); } catch (err) { refresh(true); }
+  }
+  document.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0 || !e.target.closest || !e.target.closest("#knTree")) return;
+    const grip = e.target.closest("[data-grip]");
+    const row = e.target.closest(".kt-row");
+    if (!row || row.classList.contains("sys")) return;
+    // 手机：只能按住 ⠿ 拖（不然没法上下滑页面）；电脑：名称上直接拖也行
+    if (!grip && (e.pointerType !== "mouse" || !e.target.closest(".kt-name"))) return;
+    if (grip) e.preventDefault();
+    dragStart(e, +row.dataset.nid, row);
+  });
+  document.addEventListener("pointermove", (e) => { if (dg && e.pointerId === dg.pid) dragMove(e); }, { passive: false });
+  document.addEventListener("pointerup", (e) => { if (dg && e.pointerId === dg.pid) dragEnd(false); });
+  document.addEventListener("pointercancel", (e) => { if (dg && e.pointerId === dg.pid) dragEnd(true); });
+  document.addEventListener("keydown", (e) => { if (dg && e.key === "Escape") dragEnd(true); });
+  // 拖完松手时不要顺便「点开」那个名称
+  document.addEventListener("click", (e) => { if (Date.now() - dragJustEnded < 300 && e.target.closest && e.target.closest("#knTree")) { e.stopPropagation(); e.preventDefault(); } }, true);
 
   // ---------------- 弹窗 ----------------
   function dlg(html, cls) {
