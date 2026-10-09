@@ -14,7 +14,7 @@ const CourseKit = (() => {
     custom: "personal_course_schedule_custom_times_v1",
     week1: "plg_course-schedule_week1",
   };
-  const VER = "20261002c";
+  const VER = "20261009-wk1";
   const DEFAULT_WEEK1 = "2026-09-14";
   const MAX_WEEK = 20;
   const PERIODS = {

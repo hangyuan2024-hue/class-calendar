@@ -415,6 +415,13 @@ button {
   text-overflow: ellipsis;
 }
 
+/* 本周不上的课：淡淡显示 */
+.course-card.off-week { opacity: .5; filter: grayscale(.7); border: 1px dashed currentColor; }
+.course-card.off-week:hover { opacity: .8; }
+.course-card .off-tag { font-size: 10px; font-weight: 700; opacity: .9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.course-card.shared { padding-left: 9px; padding-right: 4px; }
+.course-card.shared .course-meta { font-size: 10px; }
+
 /* 色板分配 */
 .color-0 { background: var(--p0-bg); color: var(--p0-fg); }
 .color-0::before { background: var(--p0-bar); }
@@ -1071,16 +1078,53 @@ function conflictWith(course, excludeId) {
 }
 
 /* ===== 渲染 ===== */
+/* 一共画几节：上课时间表有几节，或者课程里最晚到第几节（晚上第 11、12 节的课也要画得下） */
+function periodCount() {
+  var n = currentTimes().length;
+  for (var i = 0; i < state.courses.length; i++) n = Math.max(n, +state.courses[i].end || 0);
+  return Math.min(16, Math.max(n, 10));
+}
+
 function applyGridRows() {
   var base = typeof window !== "undefined" && window.innerWidth <= 640 ? 52 : 58;
   var times = currentTimes();
   var rows = [];
-  for (var i = 0; i < times.length; i++) {
-    var parts = times[i].split("-");
-    var dur = toMinutes(parts[1]) - toMinutes(parts[0]);
+  for (var i = 0; i < periodCount(); i++) {
+    var dur = 50;
+    if (times[i]) { var parts = times[i].split("-"); dur = toMinutes(parts[1]) - toMinutes(parts[0]); }
     rows.push(Math.max(44, Math.round((dur / 50) * base)) + "px");
   }
   gridEl.style.gridTemplateRows = "46px " + rows.join(" ");
+}
+
+/* 这一天里时间重叠的课排成几条「车道」：同一节有两门课（单双周、补课）时并排显示，不叠在一起 */
+function lanes(list) {
+  list.sort(function (a, b) { return a.start - b.start || b.end - a.end; });
+  var out = [], cluster = [], cEnd = 0;
+  function flush() {
+    var laneEnd = [];
+    for (var i = 0; i < cluster.length; i++) {
+      var c = cluster[i], k = 0;
+      while (k < laneEnd.length && laneEnd[k] >= c.start) k++;
+      laneEnd[k] = c.end; out.push({ c: c, lane: k, group: cluster });
+    }
+    for (var j = out.length - cluster.length; j < out.length; j++) out[j].n = laneEnd.length;
+    cluster = [];
+  }
+  for (var i = 0; i < list.length; i++) {
+    if (cluster.length && list[i].start > cEnd) flush();
+    if (!cluster.length) cEnd = list[i].end;
+    cluster.push(list[i]); cEnd = Math.max(cEnd, list[i].end);
+  }
+  if (cluster.length) flush();
+  return out;
+}
+
+/* 不在本周的课：离本周最近的下一次是第几周 */
+function nextWeekOf(weeks, week) {
+  var set = parseWeeksToSet(weeks), best = 0, first = 0;
+  for (var w = 1; w <= MAX_WEEK; w++) if (set[w]) { if (!first) first = w; if (w > week && !best) best = w; }
+  return best || first;
 }
 
 function render() {
@@ -1104,10 +1148,11 @@ function render() {
   }
 
   /* 节次与背景格 */
-  for (var p = 0; p < 10; p++) {
+  var nper = periodCount();
+  for (var p = 0; p < nper; p++) {
     html.push(
       '<div class="grid-period" style="grid-row:' + (p + 2) + ';grid-column:1"><span>第' + (p + 1) + "节</span>" +
-      '<span class="period-time">' + times[p] + "</span></div>"
+      '<span class="period-time">' + (times[p] || "") + "</span></div>"
     );
     for (var d2 = 0; d2 < 7; d2++) {
       html.push('<div class="grid-cell' + (showToday && d2 === tIdx ? " today-col" : "") + '" style="grid-row:' + (p + 2) + ';grid-column:' + (d2 + 2) + '"></div>');
@@ -1115,24 +1160,56 @@ function render() {
   }
   gridEl.innerHTML = html.join("");
 
-  /* 课程卡片（只显示包含当前周的课程） */
-  var visible = [];
+  /* 课程卡片：本周有的课正常显示；本周没有、这个时间也空着的课淡淡地显示（标「非本周」），不然像是没导进来 */
+  var visible = [], ghosts = [];
   for (var ci = 0; ci < state.courses.length; ci++) {
-    if (weeksInclude(state.courses[ci].weeks, state.currentWeek)) {
-      visible.push(state.courses[ci]);
+    var cc0 = state.courses[ci];
+    if (weeksInclude(cc0.weeks, state.currentWeek)) visible.push(cc0);
+  }
+  for (var gi = 0; gi < state.courses.length; gi++) {
+    var g = state.courses[gi];
+    if (weeksInclude(g.weeks, state.currentWeek)) continue;
+    var hit = false;
+    for (var vj = 0; vj < visible.length; vj++) {
+      var v = visible[vj];
+      if (+v.day === +g.day && v.start <= g.end && g.start <= v.end) { hit = true; break; }
+    }
+    if (!hit) ghosts.push(g);
+  }
+  /* 同一个空格子里有好几门非本周的课：只显示离本周最近的那一门，写上「还有 N 门」 */
+  var ghostShow = [];
+  for (var gd = 0; gd < 7; gd++) {
+    var gl = lanes(ghosts.filter(function (x) { return +x.day === gd; }));
+    var seen = [];
+    for (var gk = 0; gk < gl.length; gk++) {
+      var grp = gl[gk].group;
+      if (seen.indexOf(grp) >= 0) continue;
+      seen.push(grp);
+      var pick = grp.slice().sort(function (a, b) { return nextWeekOf(a.weeks, state.currentWeek) - nextWeekOf(b.weeks, state.currentWeek); })[0];
+      ghostShow.push({ c: pick, lane: 0, n: 1, more: grp.length - 1, ghost: true });
     }
   }
-  for (var vi = 0; vi < visible.length; vi++) {
-    var c = visible[vi];
+  var placed = [];
+  for (var dd = 0; dd < 7; dd++) placed = placed.concat(lanes(visible.filter(function (x) { return +x.day === dd; })));
+  placed = placed.concat(ghostShow);
+  for (var vi = 0; vi < placed.length; vi++) {
+    var it = placed[vi], c = it.c;
     var col = c.day + 2; /* 第1列是节次，周一从第2列开始 */
     var rowStart = c.start + 1;
     var rowEnd = c.end + 1;
     var card = document.createElement("div");
-    card.className = "course-card color-" + colorIndex(c.name);
+    card.className = "course-card color-" + colorIndex(c.name) + (it.ghost ? " off-week" : "") + (it.n > 1 ? " shared" : "");
     card.style.gridColumn = col + " / " + (col + 1);
     card.style.gridRow = rowStart + " / " + (rowEnd + 1);
+    if (it.n > 1) {
+      /* 并排：每门课占这一格的 1/n */
+      card.style.width = "calc(" + (100 / it.n) + "% - 4px)";
+      card.style.marginLeft = "calc(" + (100 * it.lane / it.n) + "% + 2px)";
+      card.style.marginRight = "0";
+    }
     card.dataset.id = c.id;
     card.innerHTML =
+      (it.ghost ? '<div class="off-tag">非本周' + (it.more ? " · 还有" + it.more + "门" : "") + "</div>" : "") +
       '<div class="course-name">' + escapeHtml(c.name) + "</div>" +
       '<div class="course-meta">📍 ' + escapeHtml(c.location || "未填写地点") + "</div>" +
       '<div class="course-meta">👤 ' + escapeHtml(c.teacher || "未填写教师") + "</div>" +

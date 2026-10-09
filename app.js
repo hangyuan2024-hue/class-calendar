@@ -11,7 +11,7 @@ const CK_STUB = { NS: "course-schedule", on: () => false, injectBuiltin: async (
   read: async () => null, changed() {}, renderBar() {}, decorateTab() {}, card: () => "", askLines: () => "", boot: async () => {} };
 const ck = () => (typeof CourseKit !== "undefined" ? CourseKit : CK_STUB);
 if (typeof CourseKit === "undefined" && !document.querySelector('script[src^="courses.js"]')) {
-  const sc = document.createElement("script"); sc.src = "courses.js?v=20261009-cs1";
+  const sc = document.createElement("script"); sc.src = "courses.js?v=20261009-wk1";
   sc.onload = () => { try { if (currentUser) ck().boot().catch(() => {}); } catch (e) {} };   // 课程表标签页等网页缓存更新后（最多 10 分钟）自动出现
   document.head.appendChild(sc);
 }
