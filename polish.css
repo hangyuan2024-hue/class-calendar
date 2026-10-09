@@ -28,3 +28,9 @@ button, a, label, summary { -webkit-tap-highlight-color: transparent; }
 [data-skin] .tl-ticks i { font-size: 11px; }
 .wq-it.none { opacity: .55; font-style: normal; }
 [data-skin] .cell .chip { font-size: 11px; }
+/* 首页「早点睡」标签：原来蓝底蓝字看不清 */
+.hx.sleep .hx-k { background: #5b5bd6; color: #fff; }
+[data-skin=fresh] .hx.sleep .hx-k { background: #ebeaff; color: #4338ca; font-weight: 700; }
+[data-skin=fresh][data-mode=dark] .hx.sleep .hx-k { background: rgba(139,132,255,.2); color: #c7c3ff; }
+/* 手机上「我的学习空间」磁贴：「去完成 ▶」别折成两行 */
+.tile .go { white-space: nowrap; }
