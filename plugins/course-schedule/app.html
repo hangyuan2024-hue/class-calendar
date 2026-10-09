@@ -415,6 +415,13 @@ button {
   text-overflow: ellipsis;
 }
 
+/* 调课 / 调休 */
+.grid-head .adj-badge { font-size: 9px; padding: 1px 5px; margin-left: 4px; border-radius: 5px; background: #fff1d6; color: #b46a00; font-weight: 700; vertical-align: 1px; }
+.grid-head .adj-badge.off { background: #e8f6ee; color: #1d8a55; }
+.course-card .off-tag.adj { color: inherit; opacity: .85; }
+.course-card.adj-add { outline: 2px dashed currentColor; outline-offset: -3px; }
+.course-card.adj-swap { box-shadow: inset 0 0 0 2px rgba(180, 106, 0, .35); }
+
 /* 本周不上的课：淡淡显示 */
 .course-card.off-week { opacity: .5; filter: grayscale(.7); border: 1px dashed currentColor; }
 .course-card.off-week:hover { opacity: .8; }
@@ -965,6 +972,38 @@ function semesterStartDate() {
   return new Date(2026, 8, 14);
 }
 
+/* ===== 调课 / 调休（主页面「🔁 调课 / 调休」里记的，存在 personal_course_schedule_adjust_v1） =====
+ * swap：这天按 from 那天的课上；off：这天放假；cancel：这天某门课不上；add：这天加一节课
+ */
+var ADJ_KEY = "personal_course_schedule_adjust_v1";
+function loadAdj() {
+  try { var a = JSON.parse(localStorage.getItem(ADJ_KEY) || "[]"); return Array.isArray(a) ? a : []; } catch (e) { return []; }
+}
+function ymd(dt) { return dt.getFullYear() + "-" + ("0" + (dt.getMonth() + 1)).slice(-2) + "-" + ("0" + dt.getDate()).slice(-2); }
+function parseYmd(k) { var m = String(k || "").match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null; }
+function dateOfWeekDay(week, d) { var x = semesterStartDate(); x.setDate(x.getDate() + (week - 1) * 7 + d); return ymd(x); }
+function mdLabel(k) { var x = parseYmd(k); return x ? (x.getMonth() + 1) + "月" + x.getDate() + "日" + DAY_NAMES[(x.getDay() + 6) % 7] : k; }
+/* 课表里原本这一天的课（不管调课） */
+function baseOnDate(k) {
+  var x = parseYmd(k); if (!x) return [];
+  var wk = Math.floor(Math.round((x - semesterStartDate()) / 86400000) / 7) + 1, day = (x.getDay() + 6) % 7, out = [];
+  if (wk < 1 || wk > MAX_WEEK) return out;
+  for (var i = 0; i < state.courses.length; i++) { var c = state.courses[i]; if (+c.day === day && weeksInclude(c.weeks, wk)) out.push(c); }
+  return out;
+}
+/* 第 week 周、第 d 天（0=周一）实际上的课，和一句说明 */
+function dayCourses(week, d, adj) {
+  var k = dateOfWeekDay(week, d), on = adj.filter(function (a) { return a.date === k; }), list, note = "", i;
+  var off = on.filter(function (a) { return a.type === "off"; })[0], sw = on.filter(function (a) { return a.type === "swap"; })[0];
+  if (off) { list = []; note = off.note || "放假"; }
+  else if (sw) { list = baseOnDate(sw.from).map(function (c) { var o = {}; for (var p in c) o[p] = c[p]; o.day = d; o._from = sw.from; return o; }); note = "上" + mdLabel(sw.from) + "的课"; }
+  else list = baseOnDate(k);
+  for (i = 0; i < on.length; i++) if (on[i].type === "cancel") { var a = on[i]; list = list.filter(function (c) { return !(c.name === a.name && (!a.start || +a.start === +c.start)); }); }
+  for (i = 0; i < on.length; i++) if (on[i].type === "add") { var b = on[i]; list.push({ id: "adj_" + b.id, name: b.name, day: d, start: +b.start, end: +b.end || +b.start, location: b.location || "", teacher: b.teacher || "", weeks: "", _add: true }); }
+  if (!off && !sw) { var nc = on.filter(function (a) { return a.type === "cancel"; }).length, na = on.filter(function (a) { return a.type === "add"; }).length; note = (nc ? "停" + nc + "节" : "") + (nc && na ? "，" : "") + (na ? "加" + na + "节" : ""); }
+  return { list: list, note: note, off: !!off, swap: !!sw };
+}
+
 /* 真实日期所在教学周（1 起）：
  * actualWeek = Math.floor(dayDifference / 7) + 1
  * 例如：2026-09-14→第1周，09-21→第2周，09-28→第3周，09-29→第3周
@@ -1135,14 +1174,19 @@ function render() {
   var showToday = isTodayVisible();
   var html = [];
 
+  /* 这一周每天实际上的课（算上调课 / 调休） */
+  var ADJ = loadAdj(), days = [];
+  for (var dd0 = 0; dd0 < 7; dd0++) days.push(dayCourses(state.currentWeek, dd0, ADJ));
+
   /* 表头 */
   html.push('<div class="grid-head" style="grid-row:1;grid-column:1"></div>');
   for (var d = 0; d < 7; d++) {
-    var isToday = showToday && d === tIdx;
+    var isToday = showToday && d === tIdx, dn = days[d].note;
     html.push(
-      '<div class="grid-head day-head' + (isToday ? " today" : "") + '" data-day="' + d + '" style="grid-row:1;grid-column:' + (d + 2) + '">' +
+      '<div class="grid-head day-head' + (isToday ? " today" : "") + (dn ? " adj" : "") + '" data-day="' + d + '" style="grid-row:1;grid-column:' + (d + 2) + '"' + (dn ? ' title="' + escapeHtml(dn) + '"' : "") + '>' +
       DAY_NAMES[d] +
       (isToday ? '<span class="today-badge">今天</span>' : "") +
+      (dn ? '<span class="adj-badge' + (days[d].off ? " off" : "") + '">' + escapeHtml(days[d].off ? "放假" : days[d].swap ? "调课" : "有变动") + "</span>" : "") +
       "</div>"
     );
   }
@@ -1162,13 +1206,11 @@ function render() {
 
   /* 课程卡片：本周有的课正常显示；本周没有、这个时间也空着的课淡淡地显示（标「非本周」），不然像是没导进来 */
   var visible = [], ghosts = [];
-  for (var ci = 0; ci < state.courses.length; ci++) {
-    var cc0 = state.courses[ci];
-    if (weeksInclude(cc0.weeks, state.currentWeek)) visible.push(cc0);
-  }
+  for (var di = 0; di < 7; di++) visible = visible.concat(days[di].list);
   for (var gi = 0; gi < state.courses.length; gi++) {
     var g = state.courses[gi];
     if (weeksInclude(g.weeks, state.currentWeek)) continue;
+    if (days[+g.day] && (days[+g.day].off || days[+g.day].swap)) continue;   // 放假 / 调课的那天不显示别的周的课
     var hit = false;
     for (var vj = 0; vj < visible.length; vj++) {
       var v = visible[vj];
@@ -1198,7 +1240,7 @@ function render() {
     var rowStart = c.start + 1;
     var rowEnd = c.end + 1;
     var card = document.createElement("div");
-    card.className = "course-card color-" + colorIndex(c.name) + (it.ghost ? " off-week" : "") + (it.n > 1 ? " shared" : "");
+    card.className = "course-card color-" + colorIndex(c.name) + (it.ghost ? " off-week" : "") + (it.n > 1 ? " shared" : "") + (c._add ? " adj-add" : c._from ? " adj-swap" : "");
     card.style.gridColumn = col + " / " + (col + 1);
     card.style.gridRow = rowStart + " / " + (rowEnd + 1);
     if (it.n > 1) {
@@ -1210,15 +1252,17 @@ function render() {
     card.dataset.id = c.id;
     card.innerHTML =
       (it.ghost ? '<div class="off-tag">非本周' + (it.more ? " · 还有" + it.more + "门" : "") + "</div>" : "") +
+      (c._add ? '<div class="off-tag adj">加课</div>' : c._from ? '<div class="off-tag adj">调课 · 原' + escapeHtml(mdLabel(c._from)) + "</div>" : "") +
       '<div class="course-name">' + escapeHtml(c.name) + "</div>" +
       '<div class="course-meta">📍 ' + escapeHtml(c.location || "未填写地点") + "</div>" +
       '<div class="course-meta">👤 ' + escapeHtml(c.teacher || "未填写教师") + "</div>" +
-      '<div class="course-meta">📅 ' + escapeHtml(formatWeeks(c.weeks)) + "</div>";
-    (function (id) {
+      (c._add ? "" : '<div class="course-meta">📅 ' + escapeHtml(formatWeeks(c.weeks)) + "</div>");
+    (function (id, added) {
       card.addEventListener("click", function () {
+        if (added) { alert("这是在「调课 / 调休」里加的一节课，要改在主页面课程表上方的「🔁 调课 / 调休」里改。"); return; }
         openDetail(id);
       });
-    })(c.id);
+    })(c.id, !!c._add);
     gridEl.appendChild(card);
   }
 
@@ -1605,7 +1649,7 @@ function init() {
   /* 主页面导入了课表、或在别处改了设置：重新读一遍 */
   window.addEventListener("storage", function (e) {
     var k = e && e.key;
-    if (k !== COURSES_KEY && k !== TIME_MODE_KEY && k !== CUSTOM_TIMES_KEY && k !== WEEK1_KEY) return;
+    if (k !== COURSES_KEY && k !== TIME_MODE_KEY && k !== CUSTOM_TIMES_KEY && k !== WEEK1_KEY && k !== ADJ_KEY) return;
     var ct = loadCustomTimes();
     if (ct) TIME_MODES.custom = { label: "截图时间", periods: ct }; else delete TIME_MODES.custom;
     state.courses = loadCourses();

@@ -13,8 +13,9 @@ const CourseKit = (() => {
     mode: "personal_course_schedule_time_mode_v1",
     custom: "personal_course_schedule_custom_times_v1",
     week1: "plg_course-schedule_week1",
+    adj: "personal_course_schedule_adjust_v1",   // 调课 / 调休 / 停课 / 加课（见 coursesOn）
   };
-  const VER = "20261009-wk1";
+  const VER = "20261009-adj1";
   const DEFAULT_WEEK1 = "2026-09-14";
   const MAX_WEEK = 20;
   const PERIODS = {
@@ -67,7 +68,7 @@ const CourseKit = (() => {
     const times = mode === "custom" && customOk ? custom : PERIODS[mode === "winter" || mode === "summer" ? mode : (m >= 5 && m <= 10 ? "summer" : "winter")];
     const w1 = js(st[K.week1], DEFAULT_WEEK1);
     data = { courses: Array.isArray(courses) ? courses.filter((c) => c && c.name) : [], week1: /^\d{4}-\d{2}-\d{2}$/.test(w1) ? w1 : DEFAULT_WEEK1,
-      times, mode, custom: customOk ? custom : null, loaded: true };
+      times, mode, custom: customOk ? custom : null, adj: cleanAdj(js(st[K.adj], [])), loaded: true };
     return data;
   }
   async function write(kv) {
@@ -84,20 +85,70 @@ const CourseKit = (() => {
 
   // ---------- 某一天的课 ----------
   function weekOf(k) { return Math.floor((new Date(k + "T00:00:00") - new Date(data.week1 + "T00:00:00")) / 86400000 / 7) + 1; }
-  function coursesOn(k) {
+  // 课表里原本这一天的课（不管调课）
+  function baseOn(k) {
     const wk = weekOf(k), day = (new Date(k + "T00:00:00").getDay() + 6) % 7;
     if (wk < 1 || wk > MAX_WEEK) return [];
     return data.courses.filter((c) => Number(c.day) === day && parseWeeks(c.weeks).has(wk))
-      .map((c) => ({ ...c, t0: (data.times[c.start - 1] || "").split("-")[0], t1: (data.times[c.end - 1] || "").split("-")[1] || "", week: wk }))
-      .sort((a, b) => a.start - b.start);
+      .map((c) => ({ ...c, t0: (data.times[c.start - 1] || "").split("-")[0], t1: (data.times[c.end - 1] || "").split("-")[1] || "", week: wk }));
   }
+  // ---------- 调课 / 调休（学校临时通知） ----------
+  //   swap：date 这天按 from 那天的课上（调休补课：周六上周三的课）
+  //   off：date 这天放假 / 停课，一节都没有
+  //   cancel：date 这天某一门课不上（name，可指定 start 节）
+  //   add：date 这天加一节课（name、start-end、location、teacher）
+  // 和小程序（mp/lib/courses.js）、服务器（courses_on：邮件提醒、手机日历订阅）是同一套规则
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  function cleanAdj(a) {
+    if (!Array.isArray(a)) return [];
+    const out = [];
+    for (const x of a) {
+      if (!x || !DATE_RE.test(x.date || "") || !["swap", "off", "cancel", "add"].includes(x.type)) continue;
+      if (x.type === "swap" && (!DATE_RE.test(x.from || "") || x.from === x.date)) continue;
+      if ((x.type === "add" || x.type === "cancel") && !String(x.name || "").trim()) continue;
+      const st = Math.max(1, Math.min(16, +x.start || 0)), en = Math.max(st, Math.min(16, +x.end || st));
+      out.push({ id: String(x.id || Math.random().toString(36).slice(2, 10)).slice(0, 40), date: x.date, type: x.type,
+        ...(x.type === "swap" ? { from: x.from } : {}), ...(x.type === "add" || x.type === "cancel" ? { name: String(x.name).trim().slice(0, 60) } : {}),
+        ...(x.type === "add" ? { start: st, end: en, location: String(x.location || "").slice(0, 60), teacher: String(x.teacher || "").slice(0, 40) } : {}),
+        ...(x.type === "cancel" && +x.start ? { start: st } : {}), note: String(x.note || "").slice(0, 60) });
+      if (out.length >= 200) break;
+    }
+    return out.sort((a, b) => a.date.localeCompare(b.date));
+  }
+  function adjOn(k) { return (data.adj || []).filter((a) => a.date === k); }
+  function coursesOn(k) {
+    const on = adjOn(k);
+    let list;
+    if (on.some((a) => a.type === "off")) list = [];
+    else {
+      const sw = on.find((a) => a.type === "swap");
+      list = sw ? baseOn(sw.from).map((c) => ({ ...c, _from: sw.from })) : baseOn(k);
+    }
+    for (const a of on) if (a.type === "cancel") list = list.filter((c) => !(c.name === a.name && (!a.start || +a.start === +c.start)));
+    const wk = weekOf(k);
+    for (const a of on) if (a.type === "add") list.push({ id: "adj_" + a.id, name: a.name, start: a.start, end: a.end, location: a.location || "", teacher: a.teacher || "",
+      t0: (data.times[a.start - 1] || "").split("-")[0], t1: (data.times[a.end - 1] || "").split("-")[1] || "", week: wk, _add: true });
+    return list.sort((a, b) => a.start - b.start);
+  }
+  // 这一天的调整说明（日历、课表表头用）：「放假」「上 10月8日（周三）的课」「加课」
+  function dayNote(k) {
+    const on = adjOn(k); if (!on.length) return "";
+    if (on.some((a) => a.type === "off")) return (on.find((a) => a.type === "off").note || "放假 / 停课");
+    const sw = on.find((a) => a.type === "swap");
+    const parts = [];
+    if (sw) parts.push(`上 ${mdw(sw.from)} 的课`);
+    const nc = on.filter((a) => a.type === "cancel").length, na = on.filter((a) => a.type === "add").length;
+    if (nc) parts.push(`停 ${nc} 节`); if (na) parts.push(`加 ${na} 节`);
+    return parts.join("，");
+  }
+  const mdw = (k) => { const d = new Date(k + "T00:00:00"); return `${d.getMonth() + 1}月${d.getDate()}日（${DAYS[(d.getDay() + 6) % 7]}）`; };
 
   // ---------- 同步到服务器（邮件提醒、手机日历订阅用） ----------
   let syncTimer = 0, syncing = false;
   function payload() {
     const courses = data.courses.slice(0, 200).map((c) => ({ id: String(c.id || "").slice(0, 40), name: String(c.name).slice(0, 60), day: +c.day, start: +c.start, end: +c.end,
       weeks: String(c.weeks || "").slice(0, 40), wl: [...parseWeeks(c.weeks)].sort((a, b) => a - b), location: String(c.location || "").slice(0, 60), teacher: String(c.teacher || "").slice(0, 40) }));
-    return { p_courses: courses, p_meta: { week1: mondayOf(data.week1), times: data.times.slice(0, 16), ics: load(LS_ICS, true) !== false } };
+    return { p_courses: courses, p_meta: { week1: mondayOf(data.week1), times: data.times.slice(0, 16), ics: load(LS_ICS, true) !== false, adj: cleanAdj(data.adj) } };
   }
   function changed() {
     const L = load(LS_SYNC, {}); L.editAt = Sync.now(); try { localStorage.setItem(LS_SYNC, JSON.stringify(L)); } catch (e) {}
@@ -145,6 +196,7 @@ const CourseKit = (() => {
     barEl.addEventListener("click", (e) => {
       const b = e.target.closest("button"); if (!b) return;
       if (b.dataset.c === "import") openImport();
+      if (b.dataset.c === "adjust") openAdjust();
       if (b.dataset.c === "mail") { showView("me"); setTimeout(() => { const m = $("mailBox"); if (m) m.scrollIntoView({ behavior: "smooth", block: "center" }); }, 200); }
     });
     barEl.addEventListener("change", (e) => {
@@ -157,12 +209,116 @@ const CourseKit = (() => {
     const last = currentUser ? load(LS_SYNC, {}) : {};
     const synced = last.uid === (currentUser && currentUser.id) && last.at;
     const mailOn = typeof mailInfo !== "undefined" && mailInfo && mailInfo.email && mailInfo.prefs && mailInfo.prefs.course;
+    const upcoming = (data.adj || []).filter((a) => a.date >= keyOf(ccDate())).length;
     barEl.innerHTML = `<button class="btn ink sm" data-c="import">📷 拍照导入课表</button>
+      <button class="btn sm" data-c="adjust" title="学校临时调休、换课、停课、加课">🔁 调课 / 调休${upcoming ? `<em class="cbar-n">${upcoming}</em>` : ""}</button>
       <span class="cbar-t">${data.courses.length ? `共 ${data.courses.length} 门课` : "还没有课程"}${currentUser ? (synced ? " · ☁ 已同步" : data.courses.length ? " · 同步中…" : "") : " · 登录后可同步"}</span>
       <span class="spacer"></span>
       ${currentUser ? `<button class="small" data-c="mail">${mailOn ? "🔔 每晚提醒明天的课：开" : "🔕 每晚提醒明天的课：关"}</button>
       <label class="cbar-ck"><input type="checkbox" id="crsBarIcs" ${load(LS_ICS, true) !== false ? "checked" : ""}>手机日历订阅里带上课程</label>` : ""}`;
   }
+
+  // ---------- 调课 / 调休 的弹窗 ----------
+  let adjTab = "swap";
+  const nextSat = () => { const d = ccDate(); d.setDate(d.getDate() + ((6 - d.getDay() + 7) % 7 || 7)); return keyOf(d); };
+  const adjText = (a) => a.type === "swap" ? `上 ${mdw(a.from)} 的课` : a.type === "off" ? `放假 / 停课${a.note ? "：" + a.note : ""}`
+    : a.type === "cancel" ? `「${a.name}」${a.start ? "第" + a.start + "节" : ""}不上` : `加课「${a.name}」第${a.start}${a.end > a.start ? "-" + a.end : ""}节${a.location ? " · " + a.location : ""}`;
+  function adjDialog() {
+    let d = document.getElementById("crsAdjDlg");
+    if (!d) { d = document.createElement("dialog"); d.id = "crsAdjDlg"; d.className = "dlg kn-dlg crs-adj"; document.body.appendChild(d);
+      d.addEventListener("click", (e) => { if (e.target === d) d.close(); }); }
+    return d;
+  }
+  function openAdjust() { read().then(() => { adjRender(); const d = adjDialog(); if (!d.open) d.showModal(); }); }
+  function adjRender(msg) {
+    const d = adjDialog(), today = keyOf(ccDate()), list = (data.adj || []).slice().sort((a, b) => a.date.localeCompare(b.date));
+    const coming = list.filter((a) => a.date >= today), past = list.filter((a) => a.date < today);
+    const nper = Math.max(data.times.length, 10, ...data.courses.map((c) => +c.end || 0));
+    const pers = Array.from({ length: nper }, (_, i) => `<option value="${i + 1}">第 ${i + 1} 节${data.times[i] ? "（" + data.times[i].split("-")[0] + "）" : ""}</option>`).join("");
+    const names = [...new Set(data.courses.map((c) => c.name))];
+    const row = (a) => `<div class="adj-row${a.date < today ? " past" : ""}"><b>${mdw(a.date)}</b><span>${esc(adjText(a))}</span><button type="button" class="small" data-adjdel="${esc(a.id)}">删除</button></div>`;
+    const tabs = [["swap", "🔁 换课（调休）"], ["off", "🏖 放假 / 停课"], ["add", "➕ 加一节课"]];
+    d.innerHTML = `<form id="adjForm"><h3>调课 / 调休<small>学校临时通知换课、补课、放假、加课，在这里记一下，课表、首页、日历、提醒都会跟着变</small></h3>
+      <div class="ptabs adj-tabs">${tabs.map(([k, t]) => `<button type="button" class="ptab${adjTab === k ? " on" : ""}" data-adjtab="${k}">${t}</button>`).join("")}</div>
+      ${adjTab === "swap" ? `<div class="adj-grid"><label>哪天上课<input type="date" id="adjB" value="${nextSat()}" required></label><label>上哪天的课<input type="date" id="adjA" required></label></div>
+          <label class="check"><input type="checkbox" id="adjAoff" checked>那天（课被挪走的那天）放假，不上课</label>`
+      : adjTab === "off" ? `<div class="adj-grid"><label>日期<input type="date" id="adjD" value="${today}" required></label><label>到（放好几天时填）<input type="date" id="adjD2"></label></div>
+          <label>停哪些课<select id="adjWhich"><option value="">整天都不上</option></select></label>
+          <label>说明（可以不填）<input id="adjNote" maxlength="30" placeholder="如 国庆放假、运动会停课"></label>`
+      : `<div class="adj-grid"><label>日期<input type="date" id="adjD" value="${today}" required></label><label>课程<input id="adjName" list="adjNames" maxlength="60" placeholder="课程名" required><datalist id="adjNames">${names.map((n) => `<option value="${esc(n)}">`).join("")}</datalist></label></div>
+          <div class="adj-grid"><label>第几节开始<select id="adjS">${pers}</select></label><label>到第几节<select id="adjE">${pers}</select></label></div>
+          <div class="adj-grid"><label>地点<input id="adjLoc" maxlength="60" placeholder="可以不填"></label><label>老师<input id="adjT" maxlength="40" placeholder="可以不填"></label></div>`}
+      <div class="adj-prev" id="adjPrev"></div>
+      <div class="nd-actions"><span class="meta" id="adjSt">${esc(msg || "")}</span><span class="spacer"></span><button type="button" class="small" data-adjclose="1">关闭</button><button type="submit" class="btn ink sm">添加</button></div>
+      <div class="adj-list"><div class="adj-h">已经记下的${coming.length ? `（${coming.length}）` : ""}</div>${coming.length ? coming.map(row).join("") : `<div class="meta">还没有。比如「国庆调休：10月11日（周六）上 10月8日（周三）的课」</div>`}
+        ${past.length ? `<details><summary>已经过去的 ${past.length} 条</summary>${past.map(row).join("")}<button type="button" class="small" data-adjclean="1">清掉已经过去的</button></details>` : ""}</div>
+    </form>`;
+    adjPreview();
+  }
+  function adjPreview() {
+    const d = adjDialog(), $q = (id) => d.querySelector("#" + id), pv = $q("adjPrev"); if (!pv) return;
+    const names = (k) => { const l = baseOn(k); return l.length ? l.map((c) => c.name).join("、") : "没有课"; };
+    if (adjTab === "swap") {
+      const A = $q("adjA").value, B = $q("adjB").value;
+      pv.textContent = A && B ? `${mdw(B)} 上 ${mdw(A)} 的课：${names(A)}${$q("adjAoff").checked ? `；${mdw(A)} 放假` : ""}` : "选好两个日期，这里会显示要上哪些课";
+    } else if (adjTab === "off") {
+      const D = $q("adjD").value, sel = $q("adjWhich"), cur = sel.value;
+      const l = D ? coursesOn(D) : [];
+      sel.innerHTML = `<option value="">整天都不上</option>` + l.filter((c) => !c._add).map((c) => `<option value="${esc(c.name)}|${c.start}">只停「${esc(c.name)}」第${c.start}${c.end > c.start ? "-" + c.end : ""}节</option>`).join("");
+      if ([...sel.options].some((o) => o.value === cur)) sel.value = cur;
+      pv.textContent = D ? `${mdw(D)} 原来的课：${l.length ? l.map((c) => c.name).join("、") : "没有课"}` : "";
+    } else {
+      const n = $q("adjName").value.trim(), c = data.courses.find((x) => x.name === n);
+      if (c && !$q("adjLoc").value && !$q("adjT").value) { $q("adjLoc").value = c.location || ""; $q("adjT").value = c.teacher || ""; }
+      if (+$q("adjE").value < +$q("adjS").value) $q("adjE").value = $q("adjS").value;
+      pv.textContent = "";
+    }
+  }
+  async function adjSave(list, msg) {
+    data.adj = cleanAdj(list);
+    await write({ [K.adj]: JSON.stringify(data.adj) });
+    renderBar(); adjRender(msg);
+  }
+  document.addEventListener("input", (e) => { if (e.target.closest && e.target.closest("#crsAdjDlg")) adjPreview(); });
+  document.addEventListener("change", (e) => { if (e.target.closest && e.target.closest("#crsAdjDlg")) adjPreview(); });
+  document.addEventListener("click", async (e) => {
+    const t = e.target.closest && e.target.closest("#crsAdjDlg button"); if (!t) return;
+    if (t.dataset.adjtab) { adjTab = t.dataset.adjtab; adjRender(); return; }
+    if (t.dataset.adjclose) { adjDialog().close(); return; }
+    if (t.dataset.adjdel) { await adjSave(data.adj.filter((a) => a.id !== t.dataset.adjdel), "已删除"); return; }
+    if (t.dataset.adjclean) { const today = keyOf(ccDate()); await adjSave(data.adj.filter((a) => a.date >= today), "已清掉"); return; }
+  });
+  document.addEventListener("submit", async (e) => {
+    if (e.target.id !== "adjForm") return;
+    e.preventDefault();
+    const d = adjDialog(), $q = (id) => d.querySelector("#" + id), st = $q("adjSt"), id = () => Math.random().toString(36).slice(2, 10);
+    const list = (data.adj || []).slice(); let msg = "";
+    if (adjTab === "swap") {
+      const A = $q("adjA").value, B = $q("adjB").value;
+      if (!A || !B) { st.textContent = "两个日期都要选"; return; }
+      if (A === B) { st.textContent = "两个日期不能一样"; return; }
+      const rest = list.filter((a) => !(a.date === B && (a.type === "swap" || a.type === "off")));
+      rest.push({ id: id(), date: B, type: "swap", from: A });
+      if ($q("adjAoff").checked && !rest.some((a) => a.date === A && a.type === "off")) rest.push({ id: id(), date: A, type: "off", note: `课挪到 ${mdw(B)}` });
+      await adjSave(rest, `已记下：${mdw(B)} 上 ${mdw(A)} 的课`); return;
+    }
+    if (adjTab === "off") {
+      const D = $q("adjD").value, D2 = $q("adjD2").value || D, which = $q("adjWhich").value, note = $q("adjNote").value.trim();
+      if (!D) { st.textContent = "选一个日期"; return; }
+      if (D2 < D) { st.textContent = "结束日期比开始早"; return; }
+      if (which) { const [name, start] = which.split("|"); list.push({ id: id(), date: D, type: "cancel", name, start: +start, note }); msg = `已记下：${mdw(D)}「${name}」不上`; }
+      else {
+        let k = D, n = 0;
+        while (k <= D2 && n < 60) { if (!list.some((a) => a.date === k && a.type === "off")) list.push({ id: id(), date: k, type: "off", note }); const x = new Date(k + "T00:00:00"); x.setDate(x.getDate() + 1); k = keyOf(x); n++; }
+        msg = n > 1 ? `已记下：放假 ${n} 天` : `已记下：${mdw(D)} 放假`;
+      }
+      await adjSave(list, msg); return;
+    }
+    const D = $q("adjD").value, name = $q("adjName").value.trim();
+    if (!D || !name) { st.textContent = "日期和课程名都要填"; return; }
+    list.push({ id: id(), date: D, type: "add", name, start: +$q("adjS").value, end: Math.max(+$q("adjS").value, +$q("adjE").value), location: $q("adjLoc").value.trim(), teacher: $q("adjT").value.trim() });
+    await adjSave(list, `已记下：${mdw(D)} 加课「${name}」`);
+  });
 
   // ---------- 首页「今日课程」卡片 ----------
   function card(h) {
@@ -551,6 +707,7 @@ const CourseKit = (() => {
       else { kv[K.custom] = JSON.stringify(t); kv[K.mode] = "custom"; }
     }
     if (typeof m.ics === "boolean") { try { localStorage.setItem(LS_ICS, JSON.stringify(m.ics)); } catch (e) {} }
+    if (Array.isArray(m.adj)) kv[K.adj] = JSON.stringify(cleanAdj(m.adj));
     await write(kv); clearTimeout(syncTimer);
     // 刚从服务器拿的，不用再传回去
     if (currentUser) { try { localStorage.setItem(LS_SYNC, JSON.stringify({ uid: currentUser.id, sig: JSON.stringify(payload()), n: list.length, at: Date.now(), srv: r.updated_at || "" })); } catch (e) {} }
@@ -607,6 +764,6 @@ const CourseKit = (() => {
     try { renderAgenda(); } catch (e) {}   // 首页问候卡的时间轴要用课程：课表读好后重画一次（不然刷新后时间轴上没有课）
   }
 
-  return { pull, _nearOCR: (a, b) => nearOCR(a, b), NS, on, read, write, sync, changed, coursesOn, card, askLines, injectBuiltin, loadBuiltin, decorateTab, renderBar, openImport, boot, parseWeeks, weeksText,
+  return { dayNote, openAdjust, baseOn, cleanAdj, pull, _nearOCR: (a, b) => nearOCR(a, b), NS, on, read, write, sync, changed, coursesOn, card, askLines, injectBuiltin, loadBuiltin, decorateTab, renderBar, openImport, boot, parseWeeks, weeksText,
     get data() { return data; } };
 })();

@@ -47,17 +47,30 @@ CalendarApp.register({
       const mode = saved === "summer" || saved === "winter" || (saved === "custom" && customOk) ? saved : (m >= 5 && m <= 10 ? "summer" : "winter");
       const times = mode === "custom" ? custom : PERIODS[mode];
       const w1 = new Date(first + "T00:00:00");
+      const adj = read("personal_course_schedule_adjust_v1", []);
+      const DN = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
+      const md = (k) => { const x = new Date(k + "T00:00:00"); return `${x.getMonth() + 1}月${x.getDate()}日${DN[(x.getDay() + 6) % 7]}`; };
+      // 课表里原本这天的课
+      const base = (k) => {
+        const d = new Date(k + "T00:00:00"), week = Math.floor(Math.round((d - w1) / 86400000) / 7) + 1, day = (d.getDay() + 6) % 7;
+        if (week < 1 || week > MAX_WEEK) return [];
+        return courses.filter((c) => Number(c.day) === day && parseWeeks(c.weeks)[week]).map((c) => ({ ...c, week }));
+      };
       const out = [];
       for (let d = new Date(startKey + "T00:00:00"); keyOf(d) <= endKey; d.setDate(d.getDate() + 1)) {
-        const week = Math.floor((d - w1) / 86400000 / 7) + 1;
-        if (week < 1 || week > MAX_WEEK) continue;
-        const day = (d.getDay() + 6) % 7; // 0=周一，与 app.html 一致
-        for (const c of courses) {
-          if (Number(c.day) !== day || !parseWeeks(c.weeks)[week]) continue;
+        const k = keyOf(d), on = Array.isArray(adj) ? adj.filter((a) => a && a.date === k) : [];
+        const off = on.find((a) => a.type === "off"), sw = on.find((a) => a.type === "swap");
+        let list = off ? [] : sw ? base(sw.from).map((c) => ({ ...c, _from: sw.from })) : base(k);
+        for (const a of on) if (a.type === "cancel") list = list.filter((c) => !(c.name === a.name && (!a.start || +a.start === +c.start)));
+        for (const a of on) if (a.type === "add") list.push({ id: "adj_" + a.id, name: a.name, start: +a.start, end: +a.end || +a.start, location: a.location, teacher: a.teacher, _add: true });
+        // 调课 / 放假：日历上写一行说明
+        if (off) out.push({ id: `adj_off_${k}`, date: k, time: "", title: "🏖 " + (off.note || "放假 / 停课"), detail: "调课 / 调休：这天没有课", color: "#1d8a55" });
+        if (sw) out.push({ id: `adj_sw_${k}`, date: k, time: "", title: `🔁 调课：上${md(sw.from)}的课`, detail: "学校调休补课", color: "#b46a00" });
+        for (const c of list) {
           const st = (times[c.start - 1] || "").split("-")[0];
           const en = (times[c.end - 1] || "").split("-")[1] || "";
-          out.push({ id: `${c.id}_${keyOf(d)}`, date: keyOf(d), time: st, title: c.name,
-            detail: `第${c.start}-${c.end}节 ${st}-${en} · 第${week}周${c.teacher ? " · " + c.teacher : ""}`,
+          out.push({ id: `${c.id}_${k}`, date: k, time: st, title: c.name + (c._add ? "（加课）" : c._from ? "（调课）" : ""),
+            detail: `第${c.start}-${c.end}节 ${st}-${en}${c.week ? " · 第" + c.week + "周" : ""}${c.teacher ? " · " + c.teacher : ""}${c._from ? " · 原来是" + md(c._from) + "的课" : ""}`,
             location: c.location, color: `hsl(${hue(c.name)} 65% 55%)` });
         }
       }

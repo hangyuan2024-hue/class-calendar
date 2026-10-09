@@ -1125,6 +1125,22 @@
   .cbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 16px 12px; padding: 10px 14px; border-radius: 16px; }
   .cbar-t { font-size: 13px; color: var(--sub); }
   .cbar-ck { font-size: 13px; color: var(--sub); display: inline-flex; gap: 6px; align-items: center; }
+  .cbar-n { font-style: normal; display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 5px; border-radius: 9px; background: var(--hl); color: #fff; font-size: 11px; line-height: 18px; text-align: center; font-variant-numeric: tabular-nums; }
+  .crs-adj .adj-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 14px; }
+  .crs-adj .adj-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+  .crs-adj label.check { flex-direction: row; align-items: center; gap: 8px; color: var(--text); }
+  .crs-adj .adj-prev:not(:empty) { font-size: 13px; line-height: 1.6; color: var(--text); background: var(--hl-soft, rgba(80,120,255,.08)); border-radius: 10px; padding: 8px 12px; margin: 0 0 12px; overflow-wrap: anywhere; }
+  .crs-adj .nd-actions { display: flex; align-items: center; gap: 8px; }
+  .crs-adj .nd-actions .spacer { flex: 1; }
+  .crs-adj .adj-list { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px; }
+  .crs-adj .adj-h { font-size: 13px; font-weight: 600; color: var(--sub); margin-bottom: 6px; }
+  .crs-adj .adj-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--line); font-size: 13.5px; }
+  .crs-adj .adj-row b { flex: none; font-weight: 600; }
+  .crs-adj .adj-row span { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--sub); }
+  .crs-adj .adj-row.past { opacity: .55; }
+  .crs-adj details { margin-top: 8px; font-size: 13px; color: var(--sub); }
+  .crs-adj details summary { cursor: pointer; margin-bottom: 4px; }
+  @media (max-width: 520px) { .crs-adj .adj-grid { grid-template-columns: 1fr; } .crs-adj .adj-row { flex-wrap: wrap; } .crs-adj .adj-row b { width: 100%; } }
   .cdlg { width: min(860px, calc(100vw - 24px)); }
   .cdlg form { max-height: calc(100vh - 60px); overflow: auto; }
   .cdrop { border: 2px dashed var(--line); border-radius: 16px; padding: 22px; text-align: center; cursor: pointer; background: var(--muted-bg); }
@@ -2532,10 +2548,10 @@
 <script src="auth.js?v=20261008-org1"></script>
 <script src="org.js?v=20261008-org1"></script>
 <script src="parse.js"></script>
-<script src="courses.js?v=20261009-wk1"></script>
+<script src="courses.js?v=20261009-adj1"></script>
 <script src="farm.js?v=20261009-tz1"></script>
 <script src="metaverse-v3.js?v=20261005-native3"></script>
-<script src="app.js?v=20261009-mm1"></script>
+<script src="app.js?v=20261009-adj1"></script>
 <script src="campus-tools.js?v=20261006-tools1"></script>
 <script src="workspace-v3.js?v=20261005-native3"></script>
 <script src="island-core.js?v=20261004a"></script>
