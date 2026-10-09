@@ -145,7 +145,7 @@ function renderFarm() {
   const nextEvo = FARM_EVO.find(([lv]) => lv > s.level);
   $("farmPet").innerHTML = `
     <div class="fp-top"><span class="fp-name">${esc(s.name)}</span><button class="small" id="farmRename" title="改名">✏️</button><span class="spacer"></span><span class="fp-lv">Lv.${s.level}</span></div>
-    <div class="fp-say">${esc(FARM_HELLO[(new Date().getDate() + s.level) % FARM_HELLO.length])}</div>
+    <div class="fp-say">${esc(FARM_HELLO[((typeof ccDate === "function" ? ccDate() : new Date()).getDate() + s.level) % FARM_HELLO.length])}</div>
     <button class="fp-fig" id="farmFig" title="摸摸头">${petSVG(s.pet, s.level)}</button>
     <div class="fp-stage"><b>${esc(p.name)}</b> · ${FARM_STAGE[st]} ${[0, 1, 2, 3, 4].map((i) => `<i class="${i <= st ? "on" : ""}"></i>`).join("")}</div>
     <div class="fp-exp"><span><i style="width:${pct}%"></i></span><small>经验 ${s.exp}/${need}</small></div>

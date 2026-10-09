@@ -61,7 +61,7 @@ const CourseKit = (() => {
     const custom = js(st[K.custom], null);
     const customOk = Array.isArray(custom) && custom.length >= 4 && custom.every((t) => TIME_RE.test(t));
     const mode = st[K.mode] || "";
-    const m = new Date().getMonth() + 1;
+    const m = (typeof ccDate === "function" ? ccDate() : new Date()).getMonth() + 1;
     const times = mode === "custom" && customOk ? custom : PERIODS[mode === "winter" || mode === "summer" ? mode : (m >= 5 && m <= 10 ? "summer" : "winter")];
     const w1 = js(st[K.week1], DEFAULT_WEEK1);
     data = { courses: Array.isArray(courses) ? courses.filter((c) => c && c.name) : [], week1: /^\d{4}-\d{2}-\d{2}$/.test(w1) ? w1 : DEFAULT_WEEK1,
@@ -161,7 +161,7 @@ const CourseKit = (() => {
 
   // ---------- 首页「今日课程」卡片 ----------
   function card(h) {
-    const k = keyOf(new Date()), list = coursesOn(k), now = new Date(), hm = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    const k = keyOf((typeof ccDate === "function" ? ccDate() : new Date())), list = coursesOn(k), now = (typeof ccDate === "function" ? ccDate() : new Date()), hm = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
     const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1), tl = coursesOn(keyOf(tomorrow));
     const n = Math.max(2, h * 3);
     const row = (c, past) => `<div class="crow${past ? " past" : ""}${!past && c.t0 && c.t0 <= hm && hm < c.t1 ? " now" : ""}"><span class="ct">${esc(c.t0 || "第" + c.start + "节")}</span><span class="cn">${esc(c.name)}</span><span class="cl">${esc(c.location || "")}</span></div>`;
@@ -194,7 +194,7 @@ const CourseKit = (() => {
   // ---------- 本地 AI 问答：告诉它今天、明天有什么课 ----------
   function askLines() {
     if (!data.courses.length) return "";
-    const t = new Date(), out = [];
+    const t = (typeof ccDate === "function" ? ccDate() : new Date()), out = [];
     for (let i = 0; i < 7; i++) {
       const d = new Date(t.getFullYear(), t.getMonth(), t.getDate() + i), k = keyOf(d), l = coursesOn(k);
       if (l.length) out.push(`${k}（${DAYS[(d.getDay() + 6) % 7]}，第${l[0].week}周）：` + l.map((c) => `第${c.start}-${c.end}节${c.t0 ? " " + c.t0 + "-" + c.t1 : ""} ${c.name}${c.location ? " @" + c.location : ""}`).join("；"));

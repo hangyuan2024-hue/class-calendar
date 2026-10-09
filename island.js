@@ -7,8 +7,15 @@
 "use strict";
 const LS_ISLAND = "island_v1", LS_LAO_SAID = "lao_said_v1";
 const ISLAND_SHOW = [["urgent", "⚡", "最急的一件事"], ["course", "📚", "下一节课"], ["progress", "⭕", "今日进度"], ["pomo", "🍅", "番茄钟倒计时（专注时）"], ["farm", "🐣", "云宠和养料"]];
-const islandOpts = () => ({ on: true, show: ["pomo", "urgent", "course"], greet: true, screen: true, remind: true, side: "", y: 0, ...load(LS_ISLAND, {}) });
-const islandSave = (patch) => { save(LS_ISLAND, { ...islandOpts(), ...patch }); renderIsland(true); };
+// 捞捞开 / 关只管这台设备（lao_dev_v1，不同步）：在手机上让它休息，电脑上的捞捞不会跟着消失
+const LS_LAO_DEV = "lao_dev_v1";
+const laoDevOn = () => { try { return localStorage.getItem(LS_LAO_DEV) !== "0"; } catch (e) { return true; } };
+const islandOpts = () => ({ show: ["pomo", "urgent", "course"], greet: true, screen: true, remind: true, side: "", y: 0, ...load(LS_ISLAND, {}), on: laoDevOn() });
+const islandSave = (patch) => {
+  if ("on" in patch) { try { localStorage.setItem(LS_LAO_DEV, patch.on === false ? "0" : "1"); } catch (e) {} }
+  const { on, ...rest } = { ...islandOpts(), ...patch }, old = load(LS_ISLAND, {});
+  save(LS_ISLAND, "on" in old ? { ...rest, on: old.on } : rest); renderIsland(true);
+};
 let islandState = "bar", islandRot = 0, islandRotT = 0, islandMsgs = [], islandBusy = false, islandSet = false, islandGreeted = false, laoBubT = 0, laoTuckT = 0;
 
 // 把网站的数据整理成 island-core 要的样子
@@ -66,13 +73,15 @@ function islandMsgHtml(m) {
 }
 const laoSide = () => { const s = islandOpts().side; return s === "l" || s === "r" ? s : matchMedia("(max-width: 700px)").matches ? "l" : "r"; };
 
+// 往上挪了多少（≤0）。别的设备 / 老版本写了不合理的值（比如正数、比屏幕还高）时拉回屏幕里，捞捞永远看得见
+const laoY = (o) => { const y = +o.y || 0; return y > 0 || !isFinite(y) ? 0 : Math.max(-Math.max(0, innerHeight - 260), y); };
 function renderIsland(force) {
   const el = $("lao"); if (!el) return;
   const o = islandOpts(), on = o.on !== false;
   el.classList.toggle("hidden", !on);
   $("optIsland") && ($("optIsland").checked = on);
   if (!on) return;
-  el.dataset.side = laoSide(); el.style.setProperty("--lao-y", (+o.y || 0) + "px");
+  el.dataset.side = laoSide(); el.style.setProperty("--lao-y", laoY(o) + "px");
   el.classList.toggle("noscr", !o.screen);
   el.classList.toggle("open", islandState === "open");
   const ctx = islandCtx(), ranked = IslandCore.rank(ctx.items, ctx.courses, ctx.now);
@@ -164,7 +173,7 @@ document.addEventListener("scroll", (e) => {   // 页面里任何地方在滚动
   let st = null;
   el.addEventListener("pointerdown", (e) => {
     if (!e.target.closest("#laoBot, #laoScr") || islandState === "open") return;
-    st = { x: e.clientX, y: e.clientY, y0: +islandOpts().y || 0, moved: false, id: e.pointerId };
+    st = { x: e.clientX, y: e.clientY, y0: laoY(islandOpts()), moved: false, id: e.pointerId };
   });
   window.addEventListener("pointermove", (e) => {
     if (!st || e.pointerId !== st.id) return;

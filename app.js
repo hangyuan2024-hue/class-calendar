@@ -11,13 +11,19 @@ const CK_STUB = { NS: "course-schedule", on: () => false, injectBuiltin: async (
   read: async () => null, changed() {}, renderBar() {}, decorateTab() {}, card: () => "", askLines: () => "", boot: async () => {} };
 const ck = () => (typeof CourseKit !== "undefined" ? CourseKit : CK_STUB);
 if (typeof CourseKit === "undefined" && !document.querySelector('script[src^="courses.js"]')) {
-  const sc = document.createElement("script"); sc.src = "courses.js?v=20261002d";
+  const sc = document.createElement("script"); sc.src = "courses.js?v=20261009-tz1";
   sc.onload = () => { try { if (currentUser) ck().boot().catch(() => {}); } catch (e) {} };   // 课程表标签页等网页缓存更新后（最多 10 分钟）自动出现
   document.head.appendChild(sc);
 }
 const pad = (n) => String(n).padStart(2, "0");
 // 校准过的「现在」：本机时间不准时用服务器时间算倒计时和提醒（live.js 会填 CC_CLOCK_OFF）
-const ccNow = () => Date.now() + (window.CC_CLOCK_OFF || 0);
+// 一律按北京时间（东八区）算：电脑 / 手机时区设成别的也一样。事项时间按「当地钟面」解析，
+// 所以把「现在」挪成「北京钟面」：ccDate() 的年月日时分 = 此刻北京时间的年月日时分。
+const ccShift = () => (new Date().getTimezoneOffset() + 480) * 60000;
+const ccNow = () => Date.now() + (window.CC_CLOCK_OFF || 0) + ccShift();
+const ccDate = () => new Date(ccNow());
+// 北京钟面的时刻 → 本机真实时刻（交给安卓闹钟等用）
+const ccReal = (t) => t - (window.CC_CLOCK_OFF || 0) - ccShift();
 const keyOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -313,7 +319,7 @@ function applyFeatures() {
   try { renderAll(); } catch (e) {}
 }
 let byDay = {}, undated = [];
-let today = new Date();   // 网页开着过了零点会自动换成新的一天（见 dayTick）
+let today = ccDate();   // 网页开着过了零点会自动换成新的一天（见 dayTick）
 let viewYear = today.getFullYear(), viewMonth = today.getMonth();
 let selectedKey = keyOf(today);
 
@@ -448,7 +454,7 @@ function detailHtml(r) {
 
 function whenStr(t) {
   const d = new Date(t); if (isNaN(d)) return "";
-  const p = (x) => String(x).padStart(2, "0"), today = new Date();
+  const p = (x) => String(x).padStart(2, "0"), today = ccDate();
   const hm = `${p(d.getHours())}:${p(d.getMinutes())}`;
   if (d.toDateString() === today.toDateString()) return "今天 " + hm;
   return `${d.getMonth() + 1}月${d.getDate()}日 ${hm}`;
@@ -728,7 +734,7 @@ function renderAgenda() {
       : `<div class="aempty surface">今天没有安排，轻松一下 ☕</div>`;
     sections.push(`<div class="aday"><div class="aday-h"><b>${label}</b><span>${d.getMonth() + 1}月${d.getDate()}日${i > 2 ? "" : " 周" + WEEK[d.getDay()]}${pending.length ? ` · ${pending.length} 项` : ""}</span></div>${body}</div>`);
   }
-  const h = new Date().getHours();
+  const h = ccDate().getHours();
   const hi = h < 5 ? "夜深了" : h < 9 ? "早上好" : h < 12 ? "上午好" : h < 14 ? "中午好" : h < 18 ? "下午好" : "晚上好";
   const name = currentUser ? "，" + esc(currentUser.display_name) : "";
   const todayHw = (byDay[dayKey(0)] || []).filter((r) => r.msg_type === "作业" && !r._done).length;
@@ -866,7 +872,12 @@ function renderSide() {
   $("undatedList").innerHTML = undated.length ? (phone ? `<div class="acard surface day-open">${undated.map((r) => agendaRow(r, true)).join("")}</div>` : undated.map((r) => itemHtml(r, true)).join("")) : `<div class="empty">暂无</div>`;
 }
 
-function renderAll() { pluginBroadcastClass(); indexItems(); renderGrid(); renderSide(); renderAgenda(); renderHomework(); renderRail(); renderGrowth(); renderFarm(); renderPlan(); renderMeta(); renderWidgets(); syncJump(); appSchedule(); if (typeof renderIsland === "function") renderIsland(true); }
+// 每一块各画各的：哪一块出错也不连累别的（以前一块报错，后面的捞捞、首页都不画了）
+function renderAll() {
+  const run = (f) => { try { f(); } catch (e) { console.error(e); } };
+  [pluginBroadcastClass, indexItems, renderGrid, renderSide, renderAgenda, renderHomework, renderRail, renderGrowth, renderFarm, renderPlan, renderMeta, renderWidgets, syncJump, appSchedule].forEach(run);
+  if (typeof renderIsland === "function") run(() => renderIsland(true));
+}
 
 function showBanner(msg) { const b = $("banner"); b.textContent = msg; b.classList.toggle("show", !!msg); }
 
@@ -1020,14 +1031,14 @@ $("cform").onsubmit = async (e) => {
   try {
     if (GROUPS_OK) {
       rec.group_id = $("cGroup").value ? +$("cGroup").value : null;
-      if (!id) { rec.publish_date = keyOf(new Date()); rec.original = "（由" + (currentUser.display_name || "同学") + "手动发布）"; }
+      if (!id) { rec.publish_date = keyOf(ccDate()); rec.original = "（由" + (currentUser.display_name || "同学") + "手动发布）"; }
       await CCAuth.rpc("class_item_save", { cid: currentClass.id, iid: id ? +id : null, rec });
     } else if (id) {
       const r = await CCAuth.rest(`class_info?id=eq.${encodeURIComponent(id)}`, { method: "PATCH", headers: { Prefer: "return=representation" }, body: JSON.stringify(rec) });
       if (!r || !r.length) throw new Error("没有修改权限");
     } else {
       rec.class_id = currentClass.id;
-      rec.publish_date = keyOf(new Date());
+      rec.publish_date = keyOf(ccDate());
       rec.original = "（由" + (currentUser.display_name || "班委") + "手动发布）";
       await CCAuth.rest("class_info", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify(rec) });
     }
@@ -1097,7 +1108,7 @@ function openIngest(toggle) {
     else { (v.querySelector(".legend") || v.querySelector(".vhead")).after(p); p.classList.add("moved"); }
     p.classList.remove("hidden");
   } else if (toggle) p.classList.toggle("hidden"); else p.classList.remove("hidden");
-  setupIngestPanel(); $("ingestDate").value = $("ingestDate").value || keyOf(new Date());
+  setupIngestPanel(); $("ingestDate").value = $("ingestDate").value || keyOf(ccDate());
   if (!p.classList.contains("hidden")) { $("ingestText").focus(); p.scrollIntoView({ behavior: "smooth", block: "nearest" }); ensureLaoModel().catch(() => {}); }
 }
 $("calIngest").onclick = () => openIngest(false);
@@ -1110,7 +1121,7 @@ $("ingestGo").onclick = async () => {
   if (!text) { st.textContent = "先粘贴群消息"; st.className = "err"; return; }
   $("ingestGo").disabled = true; st.className = ""; st.textContent = "已提交，AI 正在整理，大约需要半分钟到一分钟…";
   try {
-    const res = await ingestMessages(currentClass.id, meaningfulText(text), $("ingestDate").value || keyOf(new Date()));
+    const res = await ingestMessages(currentClass.id, meaningfulText(text), $("ingestDate").value || keyOf(ccDate()));
     await loadClass();
     const added = res.added || 0;
     st.textContent = added > 0 ? `整理完成，新增 ${added} 条事项 ✓` : "整理完成，没有发现需要记录的事项";
@@ -1130,7 +1141,7 @@ function meaningfulText(text) {
 // ---- 学习：班委的修改存进数据库（同班班委共享），换设备也能接着用 ----
 const LAO_FB_LS = (cid) => "lao_fb_v1_" + cid;          // 还没传上去的学习记录（没网或没装数据库函数时先存本机）
 let laoModel = null, laoModelFor = "", laoRemoteOk = null, laoShowLearn = false;
-const laoPub = () => $("ingestDate").value || keyOf(new Date());
+const laoPub = () => $("ingestDate").value || keyOf(ccDate());
 const slimItem = (x) => ({ msg_type: x.msg_type, subject: x.subject || "", location: x.location || "", event_time: x.event_time || "" });
 function msgText(original) { const m = LaoParse.splitMessages(original || "")[0]; return m ? m.text : String(original || ""); }
 function laoLocal(cid, v) { const k = LAO_FB_LS(cid); if (v === undefined) return load(k, []); try { save(k, v); } catch (e) {} }
@@ -1150,7 +1161,7 @@ async function ensureLaoModel(rebuild) {
   const forgets = [];
   for (const r of rows.concat(local)) {
     if (r.source === "forget") { forgets.push(...(r.items || [])); continue; }
-    try { m.learn({ text: r.text, pub: r.pub, before: LaoParse.parse(r.text, r.pub || keyOf(new Date())), items: r.items || [], chatter: !!r.chatter, source: r.source === "ai" ? "ai" : "user" }); } catch (e) {}
+    try { m.learn({ text: r.text, pub: r.pub, before: LaoParse.parse(r.text, r.pub || keyOf(ccDate())), items: r.items || [], chatter: !!r.chatter, source: r.source === "ai" ? "ai" : "user" }); } catch (e) {}
   }
   for (const f of forgets) m.forget(f.kind, f.key);
   if (currentClass && currentClass.id === cid) { laoModel = m; laoModelFor = cid; }
@@ -1291,7 +1302,7 @@ $("ipResult").addEventListener("click", async (e) => {
   if (e.target.closest("#ipPublish") && ingestPersonal()) {
     // 学生：只加到自己的「我的事项」（存在这台设备上）
     const chosen = parsed.items.filter((x) => x.on);
-    chosen.forEach((x, i) => mine.push({ id: "p" + Date.now() + "_" + i, subject: x.subject || x.summary.slice(0, 20), event_time: x.event_time || keyOf(new Date()),
+    chosen.forEach((x, i) => mine.push({ id: "p" + Date.now() + "_" + i, subject: x.subject || x.summary.slice(0, 20), event_time: x.event_time || keyOf(ccDate()),
       location: x.location || "", note: [x.msg_type, x.summary].filter(Boolean).join("：") }));
     save(LS_MINE, mine);
     st.className = ""; st.textContent = `已加到我的事项 ${chosen.length} 条 ✓（只有你自己看得到）`;
@@ -1523,7 +1534,7 @@ showOneClick();
 // ===== AI 问答 =====
 let askHistory = [], askCtl = null;
 function askContext() {
-  const t = new Date(), lines = [];
+  const t = ccDate(), lines = [];
   const items = allItems().filter((r) => !r._plugin && (!r._p || (dayDiff(r._p.day) >= -14 && dayDiff(r._p.day) <= 45)))
     .sort((a, b) => ((a._p ? a._p.day + a._p.time : "9") > (b._p ? b._p.day + b._p.time : "9") ? 1 : -1));
   for (const r of items.slice(0, 120)) {
@@ -1635,14 +1646,14 @@ document.addEventListener("click", (e) => {
 // opt：{ day 预设日期, quad 预设象限, hint 标题框提示, from 改的是哪条班级事项 }
 function openForm(r, opt) {
   opt = opt || {};
-  $("formTitle").textContent = opt.from ? "改成我自己的版本" : r ? "编辑我的事项" : opt.day ? `在${opt.day === keyOf(new Date()) ? "今天" : mdOf(opt.day)}记一件事` : "添加我的事项";
+  $("formTitle").textContent = opt.from ? "改成我自己的版本" : r ? "编辑我的事项" : opt.day ? `在${opt.day === keyOf(ccDate()) ? "今天" : mdOf(opt.day)}记一件事` : "添加我的事项";
   const p = r ? parseTime(r.event_time) : null;
   $("fId").value = r && !opt.from ? r.id : "";
   $("fFrom").value = opt.from || "";
   $("fFromTip").classList.toggle("hidden", !opt.from);
   $("fTitle").value = r ? (r.subject || r.summary || "") : "";
   $("fTitle").placeholder = opt.hint || "例如：社团例会";
-  $("fDate").value = p ? p.day : r ? "" : (opt.day || (currentView() === "calendar" ? selectedKey : keyOf(new Date())));
+  $("fDate").value = p ? p.day : r ? "" : (opt.day || (currentView() === "calendar" ? selectedKey : keyOf(ccDate())));
   $("fQuad").value = opt.quad || (r && quadMap[r.id] ? String(quadMap[r.id]) : "");
   $("fTime").value = p ? p.time : "";
   $("fLoc").value = r ? (r.location || "") : "";
@@ -1684,7 +1695,7 @@ function download(name, text, type) {
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
-$("exportBtn").onclick = () => download(`我的日历备份-${keyOf(new Date())}.json`,
+$("exportBtn").onclick = () => download(`我的日历备份-${keyOf(ccDate())}.json`,
   JSON.stringify({ version: 1, mine, marks }, null, 2), "application/json");
 $("importBtn").onclick = () => $("importFile").click();
 $("importFile").onchange = async (e) => {
@@ -1812,7 +1823,7 @@ async function calDeliver(items, st) {
   if (!items.length) { say("没有可以导入的事项（没有日期的事项不能放进日历）", "err"); return; }
   if (env.app) { say(`在${esc(env.app)}里没办法导入。请点右上角「···」→「在浏览器打开」${env.ios ? "（Safari）" : ""}，再点一次。`, "err"); return; }
   const text = ICS.build(items, "捞捞课程表");
-  const fname = `捞捞课程表-${keyOf(new Date())}.ics`;
+  const fname = `捞捞课程表-${keyOf(ccDate())}.ics`;
   let link = "";
   if (currentUser && await calProbe()) {
     // 放到服务器上的那份不带私人备注（2 小时后自动删除）
@@ -1834,7 +1845,7 @@ async function calDeliver(items, st) {
 function calImportOne(it) { calDeliver([it], null); }
 
 function calItems() {
-  const t0 = keyOf(new Date());
+  const t0 = keyOf(ccDate());
   return allItems().filter((r) => r._p && !r._plugin && !r._hidden
     && ($("calMine").checked || !r._mine) && ($("calDone").checked || !r._done) && (!$("calFuture").checked || r._p.day >= t0));
 }
@@ -1929,7 +1940,7 @@ function fabItems(view) {
   const pub = (t) => canAddItem() ? [["pub", "📣", t]] : [];
   const ing = ingestAllowed() ? [["ingest", "✨", "AI 整理群消息"]] : [];
   if (view === "calendar") {
-    const d = selectedKey === keyOf(new Date()) ? "今天" : mdOf(selectedKey);
+    const d = selectedKey === keyOf(ccDate()) ? "今天" : mdOf(selectedKey);
     if (mineOn) list.push(["mineDay", "✏️", `在${d}记一件事`]);
     list.push(...pub(`发布到${d}`), ...ing);
   } else if (view === "homework") {
@@ -3067,7 +3078,7 @@ const funOpts = () => { const o = funPrefs(); if (!feat("plan")) o.plan = false;
 let doneLog = load(LS_DONE_LOG, {});
 let habits = load(LS_HABITS, []);
 let habitLog = load(LS_HABIT_LOG, {});
-const todayKey = () => keyOf(new Date());
+const todayKey = () => keyOf(ccDate());
 const shiftDay = (k, n) => { const d = new Date(k + "T00:00:00"); d.setDate(d.getDate() + n); return keyOf(d); };
 
 function logDone(k, on) {
@@ -4600,7 +4611,7 @@ window.ccAppBack = () => {
 // 提醒：今天往后 7 天，有时间的事提前 N 分钟提醒；每天晚上 8 点汇总明天的事
 function appReminderList() {
   const o = appRem(); if (!o.on) return [];
-  const out = [], now = Date.now(), t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const out = [], now = ccNow(), t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   for (let i = 0; i < 8; i++) {
     const d = new Date(t0); d.setDate(t0.getDate() + i); const k = keyOf(d);
     const list = (byDay[k] || []).filter((r) => !r._done && !r._plugin);
@@ -4624,7 +4635,7 @@ function appReminderList() {
       if (at.getTime() > now) out.push({ id: "m_" + k, at: at.getTime(), go: "cal=" + k, title: `今天有 ${list.length} 件事${hwN ? `（${hwN} 项作业）` : ""}`, body: names });
     }
   }
-  return out.sort((a, b) => a.at - b.at).slice(0, 60);
+  return out.map((x) => ({ ...x, at: ccReal(x.at) })).sort((a, b) => a.at - b.at).slice(0, 60);
 }
 let appRemTimer = 0, appRemLast = "";
 function appSchedule() {
@@ -4790,7 +4801,7 @@ const MOOD_REPLY = {
 };
 let encShift = 0;
 function encPool() {
-  const h = new Date().getHours(), wd = new Date().getDay();
+  const h = ccDate().getHours(), wd = ccDate().getDay();
   if (h >= 23 || h < 5) return ENC.night;
   if (homeStats.overdue > 0 || homeStats.hwLeft >= 3) return ENC.go;
   if (wd === 0 || wd === 6) return ENC.rest.concat(ENC.warm);
@@ -4864,7 +4875,7 @@ $("gDlg").addEventListener("change", (e) => { if (e.target.name === "gq") { cons
 
 // ===== 保持新鲜：过了零点换日期；切回这个页面时，班级数据超过 3 分钟就重新拿一次 =====
 function dayTick() {
-  const now = new Date();
+  const now = ccDate();
   if (keyOf(now) === keyOf(today)) return false;
   const wasToday = selectedKey === keyOf(today);
   today = now;
