@@ -1808,6 +1808,7 @@
 <link rel="stylesheet" href="org.css?v=20261008-org1">
 <link rel="stylesheet" href="polish.css?v=20261009-tl2">
 <link rel="stylesheet" href="study.css?v=20261009-kn1">
+<link rel="stylesheet" href="mindmap.css?v=20261009-mm1">
 </head>
 <body class="campus-workspace">
 <a class="campus-skip" href="#campus-main">跳到主要内容</a>
@@ -2063,6 +2064,12 @@
   </section>
 
   <!-- 工具 -->
+  <!-- 捞捞思维导图（工具） -->
+  <section class="view" data-view="mindmap">
+    <header class="vhead mm-head"><button class="back" data-mm="back" aria-label="返回">‹</button><h2 id="mmHeadTitle">捞捞思维导图</h2><input id="mmTitleIn" class="mm-title hidden" maxlength="80" aria-label="导图名称"><span class="spacer"></span><span id="mmSync" class="mm-sync hidden"></span></header>
+    <div id="mmBox" class="mm-box"></div>
+  </section>
+
   <!-- 课内学习（合作队伍「课内」的功能，接入捞捞的账号和数据） -->
   <section class="view" data-view="study">
     <header class="vhead"><button class="back" id="knBack" aria-label="返回">‹</button><h2 id="knTitle">课内学习</h2><span class="spacer"></span><button class="btn ink sm" id="knAdd">＋ 课程</button></header>
@@ -2071,6 +2078,7 @@
 
   <section class="view" data-view="tools">
     <header class="vhead"><button class="av mavatar" data-tab="me" aria-label="我的"></button><h2>工具</h2><span class="spacer"></span><button class="btn ink sm" data-tab="store">＋ 添加工具</button></header>
+    <button class="kn-entry surface" data-tab="mindmap"><span class="kn-ei">🧠</span><span class="kn-et"><b>捞捞思维导图</b><small>把知识点、问题、计划画成一张图；粘贴 AI 回答直接生成</small></span><span class="kn-ego">打开 ›</span></button>
     <button class="kn-entry surface" data-tab="study"><span class="kn-ei">📖</span><span class="kn-et"><b>课内学习</b><small>资料 · 笔记 · 考核 · 错题 · 知识框架，按课程整理</small></span><span class="kn-ego">打开 ›</span></button>
     <div class="sec-h" style="margin-top:6px"><b>我的工具</b><span>添加过的工具都在这里，点「⋯」可以放到首页或侧栏</span></div>
     <div id="toolGrid" class="tool-grid"></div>
@@ -2254,6 +2262,7 @@
 </main>
 
 <dialog id="knDlg" class="dlg kn-dlg"><div id="knDlgBody"></div></dialog>
+<dialog id="mmDlg" class="dlg kn-dlg mm-dlg"><div id="mmDlgBody"></div></dialog>
 
 <dialog id="nameDlg" class="dlg">
   <form method="dialog" id="nameForm">
@@ -2526,12 +2535,13 @@
 <script src="courses.js?v=20261009-wk1"></script>
 <script src="farm.js?v=20261009-tz1"></script>
 <script src="metaverse-v3.js?v=20261005-native3"></script>
-<script src="app.js?v=20261009-kn1"></script>
+<script src="app.js?v=20261009-mm1"></script>
 <script src="campus-tools.js?v=20261006-tools1"></script>
 <script src="workspace-v3.js?v=20261005-native3"></script>
 <script src="island-core.js?v=20261004a"></script>
 <script src="island.js?v=20261009-tz1"></script>
 <script src="study.js?v=20261009-kn1"></script>
+<script src="mindmap.js?v=20261009-mm1"></script>
 <script src="ux.js?v=20261006-tools1"></script>
 <script src="live.js?v=20261009-live1"></script>
 </body>

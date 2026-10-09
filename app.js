@@ -37,7 +37,7 @@ const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; 
 // ===== 云端同步：登录后，我的事项、完成标记、打卡、规划、外观设置自动存到云端，换浏览器 / 换手机都能看到 =====
 // 每条数据单独同步，带修改时间；两边都改了同一条，以后改的为准。可以在「我的 → 数据」里改成「只存在这台设备」。
 // list：数组，按 id 一条条同步；map：对象，按键同步；map2：两层对象（习惯 → 日期）；one：整体同步
-const SYNC_KINDS = { course_rev_v1: "one", kn_rev_v1: "one", personal_events_v1: "list", personal_marks_v1: "map", done_log_v1: "map", habits_v1: "list", habit_log_v1: "map2",
+const SYNC_KINDS = { course_rev_v1: "one", kn_rev_v1: "one", mm_rev_v1: "one", personal_events_v1: "list", personal_marks_v1: "map", done_log_v1: "map", habits_v1: "list", habit_log_v1: "map2",
   quad_v1: "map", quad_todos_v1: "list", pomo_log_v1: "map", fun_opts_v1: "one", home_layout_v1: "one", ui_skin_v1: "one",
   ui_palette_v1: "one", plugins_enabled_v1: "one", home_quick_tools_v1: "one", plan_notes_v1: "map", profile_v1: "one", mood_log_v1: "map", farm_v1: "one", island_v1: "one" };
 const LS_SYNC = "sync_meta_v1", LS_SYNC_OUT = "sync_outbox_v1", LS_SYNC_MODE = "sync_mode_v1";
@@ -1939,7 +1939,7 @@ $("nextBtn").onclick = () => { if (++viewMonth > 11) { viewMonth = 0; viewYear++
 $("todayBtn").onclick = () => { viewYear = today.getFullYear(); viewMonth = today.getMonth(); selectedKey = keyOf(today); renderAll(); };
 // 右下角「＋」（电脑上是侧栏的按钮）：每个页面做不同的事
 //   只有一个动作时直接做；手机上有多个动作时弹出菜单；电脑上直接做第一个（页面里本来就有其他按钮）
-const FAB_HIDE = ["me", "user", "intro", "credits", "rank", "people", "meta", "ask", "study"];   // 课内学习有自己的「＋」
+const FAB_HIDE = ["me", "user", "intro", "credits", "rank", "people", "meta", "ask", "study", "mindmap"];   // 课内学习、思维导图有自己的「＋」
 const mdOf = (k) => { const d = new Date(k + "T00:00:00"); return `${d.getMonth() + 1}月${d.getDate()}日`; };
 function fabItems(view) {
   view = view || currentView();
@@ -2749,6 +2749,7 @@ function showView(id) {
   if (!document.querySelector(`.view[data-view="${CSS.escape(id)}"]`)) id = "home";
   if (!viewOn(id)) { const k = id.startsWith("p_") ? "tools" : VIEW_FEAT[id]; showBanner(`「${FEAT_NAME[k] || id}」暂时用不了：${featWhy(k) || "已关闭"}`); setTimeout(() => showBanner(""), 3500); id = "home"; }
   const prev = currentView();
+  if (prev === "mindmap" && id !== "mindmap" && typeof mmLeave === "function") mmLeave();
   document.querySelectorAll(".view[data-view]").forEach((v) => { v.classList.toggle("on", v.dataset.view === id); v.classList.remove("sub", "back"); });
   // 手机上：进入二级页面从右边滑进来，返回时从左边滑回来，像原生 App
   const TABS = ["home", "homework", "wall", "calendar", "me", "tools", "plan", "ask", "growth"];
@@ -2766,6 +2767,7 @@ function showView(id) {
   if (id === "intro") loadIntro();
   if (id === "ask") renderAsk();
   if (id === "study" && typeof renderStudy === "function") renderStudy();
+  if (id === "mindmap" && typeof renderMindmap === "function") renderMindmap();
   if (id === "credits") loadCredits();
   if (id === "rank") loadRank();
   if (scrollStore) $("storeAnchor").scrollIntoView();
