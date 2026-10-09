@@ -624,7 +624,9 @@ function heroNextCourse(ctx) {
 function heroNextHtml(ctx) {
   const list = IslandCore.rank(ctx.items, ctx.courses, ctx.now).filter((x) => x.level !== "past");
   const top = list[0], h = ctx.now.getHours(), night = h >= 23 || h < 5;
-  if (!top) {
+  // 最靠前的事还远（两天以后、没定日子）：先提醒下一节课（今天晚点的 / 明天的，含调课、加课）
+  const far = top && top.kind !== "course" && top.level === "normal";
+  if (!top || (far && heroNextCourse(ctx))) {
     // 没有要赶的事：告诉你下一节课；深夜就劝睡觉
     const nc = heroNextCourse(ctx);
     if (nc) {

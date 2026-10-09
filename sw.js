@@ -1,6 +1,6 @@
 // 离线缓存（Service Worker）：只缓存网页自己的文件，不缓存任何数据接口的内容
 // 2026-10-08：注册时选择学校 / 单位；界面细节打磨（字号、焦点、图标）。
-const CACHE = "cc-static-v43-adj1";
+const CACHE = "cc-static-v44-adj2";
 const PAGES = ["./", "index.html", "app.html", "login.html"];
 const EXTRA = [
   "campus-ui.css?v=20261008-org1",
