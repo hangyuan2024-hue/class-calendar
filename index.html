@@ -846,6 +846,9 @@
   .wctl > * { pointer-events: auto; }
   .wctl .wx, .wctl .wmv { position: absolute; top: 6px; width: 28px; height: 28px; border-radius: 50%; background: var(--ink); color: var(--ink-text); display: grid; place-items: center; font-size: 15px; box-shadow: 0 4px 10px rgba(0,0,0,.25); }
   .wctl .wx { right: 6px; }
+  .wctl .wdg { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 7px 14px; border-radius: 999px; background: var(--ink); color: var(--ink-text); font-size: 13px; font-weight: 800; white-space: nowrap; cursor: grab; touch-action: none; box-shadow: 0 4px 10px rgba(0,0,0,.25); }
+  html.wediting .wcard.pdrag { opacity: .92; z-index: 20; box-shadow: 0 18px 40px -12px rgba(14,34,64,.45); transition: none; }
+  html.wediting .wcard.pdrag, html.wediting .wcard.pdrag * { pointer-events: none !important; }
   .wctl .wmv.l { left: 6px; } .wctl .wmv.r { left: 38px; }
   .wctl .wsz { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); font-size: 12px; font-weight: 800; padding: 3px 10px; border-radius: 999px; background: var(--ink); color: var(--ink-text); white-space: nowrap; }
   .wctl .wrs { position: absolute; right: 0; bottom: 0; width: 34px; height: 34px; cursor: nwse-resize; touch-action: none;
@@ -2551,7 +2554,7 @@
 <script src="courses.js?v=20261009-adj3"></script>
 <script src="farm.js?v=20261009-tz1"></script>
 <script src="metaverse-v3.js?v=20261005-native3"></script>
-<script src="app.js?v=20261009-adj3"></script>
+<script src="app.js?v=20261010-drag1"></script>
 <script src="campus-tools.js?v=20261006-tools1"></script>
 <script src="workspace-v3.js?v=20261005-native3"></script>
 <script src="island-core.js?v=20261004a"></script>

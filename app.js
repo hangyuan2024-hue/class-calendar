@@ -3461,7 +3461,7 @@ function renderWidgets() {
       ${cardBody(c.id, c.w, c.h)}
       <div class="wctl">${d.fixed ? "" : `<button class="wx" data-wx="${esc(c.id)}" aria-label="从首页移走">×</button>`}
         <button class="wmv l" data-wmv="-1" aria-label="往前挪">‹</button><button class="wmv r" data-wmv="1" aria-label="往后挪">›</button>
-        <button class="wsz" data-wsz title="点一下换个大小">${esc(d.name || "")} ${sizeLabel(c.w, c.h)} ⇲</button><span class="wrs" data-wrs aria-label="拖动调整大小"></span></div>
+        <button class="wdg" data-wdg title="按住拖到别的卡片上，换位置">✥ 拖动</button><button class="wsz" data-wsz title="点一下换个大小">${esc(d.name || "")} ${sizeLabel(c.w, c.h)} ⇲</button><span class="wrs" data-wrs aria-label="拖动调整大小"></span></div>
     </div>`;
   }).join("");
   const slot = box.querySelector('[data-slot="quick"]'); if (slot) slot.appendChild(quick);
@@ -3526,10 +3526,38 @@ $("widgets").addEventListener("dragstart", (e) => { if (!wEditing) return; const
 $("widgets").addEventListener("dragover", (e) => { if (!wDrag) return; const c = e.target.closest(".wcard"); if (!c) return; e.preventDefault(); document.querySelectorAll(".wcard.over").forEach((x) => x !== c && x.classList.remove("over")); c.classList.add("over"); });
 $("widgets").addEventListener("drop", (e) => {
   if (!wDrag) return; const c = e.target.closest(".wcard"); e.preventDefault();
-  if (c && c.dataset.wid !== wDrag) { const L = homeLayout(), from = L.home.findIndex((x) => x.id === wDrag), item = L.home.splice(from, 1)[0];
-    const to = L.home.findIndex((x) => x.id === c.dataset.wid); L.home.splice(to, 0, item); saveLayout(L); }
+  if (c && c.dataset.wid !== wDrag) { moveCard(wDrag, c.dataset.wid); renderWidgets(); }
   wDrag = null;
 });
+// 把卡片放到另一张卡片的位置（两张半行的挨着就是一排）。和小程序同一套规则
+function moveCard(id, toId) {
+  const L = homeLayout(), from = L.home.findIndex((x) => x.id === id), at = L.home.findIndex((x) => x.id === toId);
+  if (from < 0 || at < 0 || from === at) return;
+  const item = L.home.splice(from, 1)[0]; L.home.splice(at, 0, item); saveLayout(L);
+}
+// 按住「✥ 拖动」拖（手指、鼠标都行；手机上浏览器不支持原生拖放）
+$("widgets").addEventListener("pointerdown", (e) => {
+  const h = e.target.closest("[data-wdg]"); if (!h || !wEditing) return;
+  e.preventDefault(); e.stopPropagation();
+  const card = h.closest(".wcard"), id = card.dataset.wid, sx = e.clientX, sy = e.clientY;
+  card.setAttribute("draggable", "false"); card.classList.add("pdrag");
+  let over = null;
+  const move = (ev) => {
+    card.style.transform = `translate(${ev.clientX - sx}px, ${ev.clientY - sy}px) scale(1.02)`;
+    const t = document.elementFromPoint(ev.clientX, ev.clientY), c = t && t.closest && t.closest("#widgets .wcard");
+    const nx = c && c !== card ? c : null;
+    if (nx !== over) { over && over.classList.remove("over"); over = nx; over && over.classList.add("over"); }
+    // 拖到屏幕边上：自动滚动
+    if (ev.clientY < 60) window.scrollBy(0, -12); else if (ev.clientY > innerHeight - 60) window.scrollBy(0, 12);
+  };
+  const up = () => {
+    window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); window.removeEventListener("pointercancel", up);
+    card.classList.remove("pdrag"); card.style.transform = "";
+    if (over) { over.classList.remove("over"); moveCard(id, over.dataset.wid); }
+    renderWidgets();
+  };
+  window.addEventListener("pointermove", move); window.addEventListener("pointerup", up); window.addEventListener("pointercancel", up);
+}, true);
 $("widgets").addEventListener("dragend", () => { wDrag = null; renderWidgets(); });
 // 拖右下角调整大小（鼠标和手指都行），按格子吸附
 $("widgets").addEventListener("pointerdown", (e) => {
