@@ -27,6 +27,15 @@
 <link rel="stylesheet" href="studio-v2.css?v=20261008-org1">
 <link rel="stylesheet" href="org.css?v=20261008-org1">
 <link rel="stylesheet" href="auth-polish.css?v=20261008-org1">
+<style>
+  .agree { display: flex; align-items: flex-start; gap: 8px; margin: 14px 2px 0; font-size: 13px; line-height: 1.6; color: var(--sub, #687d97); cursor: pointer; }
+  .agree input { flex: none; width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--accent, #3b4ee0); cursor: pointer; }
+  .agree a { color: var(--accent, #3b4ee0); text-decoration: none; font-weight: 700; }
+  .agree a:hover { text-decoration: underline; }
+  .agree .agree-kid { display: block; font-size: 12px; opacity: .85; }
+  .agree.need { color: var(--red, #ef4b3f); animation: agreeShake .4s; }
+  @keyframes agreeShake { 20%, 60% { transform: translateX(-5px); } 40%, 80% { transform: translateX(5px); } }
+</style>
 </head>
 <body class="studio-public" data-root="">
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -221,6 +230,7 @@
           <div class="hint" id="pw2Hint"></div>
         </div>
         <button class="go" id="go" type="submit"><span class="spin"></span><span id="goText">登录</span></button>
+        <label class="agree" id="agreeBox"><input type="checkbox" id="agree"><span>我已阅读并同意<a href="terms.html" target="_blank" rel="noopener">《用户协议》</a>和<a href="privacy.html" target="_blank" rel="noopener">《隐私政策》</a><small class="agree-kid">未满 14 周岁请在监护人同意后使用</small></span></label>
         <div id="msg" role="alert"></div>
       </form>
       <div class="foot" id="note"></div>
@@ -274,7 +284,8 @@
 <script src="config.js"></script>
 <script src="auth.js?v=20261008-org1"></script>
 <script src="org.js?v=20261008-org1"></script>
-<script src="login.js?v=20261008-org1"></script>
+<script src="legal-info.js?v=20261010-legal1"></script>
+<script src="login.js?v=20261010-fix1"></script>
 <script src="get.js?v=3"></script>
 <script src="landing-v2.js?v=20261005-studio2"></script>
 </body>

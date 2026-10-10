@@ -151,10 +151,10 @@ async function afterLogin(isNew) {
 // ---------- 用户协议、隐私政策：登录、注册前都要勾选同意 ----------
 const LS_AGREE = "legal_agree_v1", LEGAL_VER = (window.LEGAL_INFO || {}).ver || "1";
 let agreeAuto = false;   // 这台设备以前同意过同一版协议：登录时自动勾上（注册新账号要自己勾）
-try { if (localStorage.getItem(LS_AGREE) === LEGAL_VER) { $("agree").checked = true; agreeAuto = true; } } catch (e) {}
-$("agree").addEventListener("change", () => { agreeAuto = false; $("agreeBox").classList.remove("need"); if ($("agree").checked && /协议/.test($("msg").textContent)) $("msg").textContent = ""; });
+try { if ($("agree") && localStorage.getItem(LS_AGREE) === LEGAL_VER) { $("agree").checked = true; agreeAuto = true; } } catch (e) {}
+if ($("agree")) $("agree").addEventListener("change", () => { agreeAuto = false; $("agreeBox").classList.remove("need"); if ($("agree").checked && /协议/.test($("msg").textContent)) $("msg").textContent = ""; });
 function agreeOk() {
-  if ($("agree").checked) return true;
+  if (!$("agree") || $("agree").checked) return true;
   const b = $("agreeBox"); b.classList.remove("need"); void b.offsetWidth; b.classList.add("need");
   $("msg").textContent = "请先阅读并勾选同意《用户协议》和《隐私政策》";
   $("agree").focus();
@@ -357,6 +357,10 @@ if (!document.body.classList.contains("studio-public")) setTimeout(() => ($("acc
   $("alreadyHi").textContent = `欢迎回来，${me.display_name}`;
   $("alreadyName").textContent = `${CCAuth.ROLE_NAMES[me.role] || me.role} · @${me.account || ""}`;
   $("already").classList.remove("hidden"); $("loginBox").classList.add("hidden");
+  // 介绍页（app.html）顶部：已经登录就显示名字，「进入工作台」直接进自己的账号
+  const hl = document.querySelector(".s-header-actions .s-login-link");
+  if (hl) { hl.textContent = "👤 " + (me.display_name || me.account || "我"); hl.href = "index.html"; hl.removeAttribute("data-login-focus"); }
+  document.querySelectorAll('a[href="index.html?guest=1"]').forEach((a) => { a.href = "index.html"; });
 })();
 $("continueBtn").onclick = () => afterLogin(false);
 $("switchBtn").onclick = async () => {
