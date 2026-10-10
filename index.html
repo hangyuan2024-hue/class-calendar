@@ -1832,6 +1832,7 @@
 <link rel="stylesheet" href="campus-tools.css?v=20261008-org1">
 <link rel="stylesheet" href="org.css?v=20261008-org1">
 <link rel="stylesheet" href="polish.css?v=20261009-tl2">
+<link rel="stylesheet" href="extras.css?v=20261010-hw1">
 <link rel="stylesheet" href="study.css?v=20261009-kn2">
 <link rel="stylesheet" href="mindmap.css?v=20261009-mm1">
 </head>
@@ -2058,6 +2059,7 @@
   <!-- 作业 -->
   <section class="view" data-view="homework">
     <header class="vhead"><button class="av mavatar" data-tab="me" aria-label="我的"></button><h2>作业</h2></header>
+    <div id="adSoonHw" class="adsoon hidden"></div>
     <div id="hwView"></div>
   </section>
 
@@ -2075,6 +2077,8 @@
       <span><i class="t-活动"></i>活动</span><span><i class="t-通知"></i>通知</span><span><i class="t-个人"></i>我的</span>
       <div class="cvseg hidden" id="cvCal" role="group" aria-label="日历里的课程"></div>
     </div>
+    <div id="autodelBar" class="adbar"></div>
+    <div id="adSoonCal" class="adsoon hidden"></div>
     <div id="mainCal">
       <div id="calendar" class="surface">
         <div class="week-head"><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div><div>日</div></div>
@@ -2564,7 +2568,8 @@
 <script src="courses.js?v=20261009-adj3"></script>
 <script src="farm.js?v=20261009-tz1"></script>
 <script src="metaverse-v3.js?v=20261005-native3"></script>
-<script src="app.js?v=20261010-cv1"></script>
+<script src="app.js?v=20261010-hw1"></script>
+<script src="extras.js?v=20261010-hw1"></script>
 <script src="campus-tools.js?v=20261006-tools1"></script>
 <script src="workspace-v3.js?v=20261005-native3"></script>
 <script src="island-core.js?v=20261004a"></script>

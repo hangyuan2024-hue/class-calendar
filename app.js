@@ -422,7 +422,7 @@ function itemHtml(r, showDate) {
   return `<div class="item b-${esc(r.msg_type)}${r._done ? " done" : ""}">
     <div class="ihead"><span class="atype">${r._mine ? "我的" : esc(r.msg_type)}</span><span class="iwhen">${esc(when)}</span>
       <span class="spacer"></span><span class="iscope">${r._mine ? (r.local ? "🔒 仅本机" : "仅自己可见") : groupOf(r.group_id) ? "👥 " + esc(groupOf(r.group_id).name) : "班级"}</span></div>
-    <div class="title">${esc(title)}</div>
+    <div class="title">${esc(title)}${typeof exFilesTag === "function" ? exFilesTag(r) : ""}</div>
     ${r.subject && r.summary ? `<div class="sum">${esc(r.summary)}</div>` : ""}
     ${detailHtml(r)}
   </div>`;
@@ -451,12 +451,14 @@ function detailHtml(r) {
        ${canEditIn(r.group_id) ? `<button class="link" data-cact="cedit" data-id="${esc(r.id)}">编辑</button>` : feat("mine") ? `<button class="link" data-act="mycopy" data-k="${k}" title="班级事项只有老师和班委能改；这里改的只对你自己生效">编辑（仅自己）</button>` : ""}
        ${canDelItem(r) ? `<button class="link" data-cact="cdel" data-id="${esc(r.id)}" style="color:var(--red)">删除</button>` : ""}
        ${GROUPS_OK && r.updated_at ? `<button class="link" data-cact="chist" data-id="${esc(r.id)}">修改记录</button>` : ""}`;
+  const xf = typeof exFilesBtn === "function" ? exFilesBtn(r) : "";
   return `${meta.length ? `<div class="meta">${meta.join("　")}</div>` : ""}
+    ${typeof exBadge === "function" ? exBadge(r) : ""}
     ${r.need_confirm ? `<div class="warn">⚠ 信息不完整，建议去群里核实</div>` : ""}
     ${r._note ? `<div class="note">📝 ${esc(r._note)}</div>` : ""}
     ${r.original ? `<details><summary>原文</summary>${esc(r.original)}</details>` : ""}
     ${!r._mine && r.editor && r.updated_at ? `<div class="meta editby">✏️ ${esc(r.editor)} · ${esc(whenStr(r.updated_at))}更新</div>` : ""}
-    <div class="ops">${ops}</div>`;
+    <div class="ops">${ops}${xf}</div>`;
 }
 
 function whenStr(t) {
@@ -710,7 +712,7 @@ function agendaRow(r, forceOpen) {
   return `<div class="arow t-${esc(r.msg_type)}${r._done ? " done" : ""}${open ? " open" : ""}" data-row="${k}"${style}>
     ${r._plugin ? `<span class="adot"></span>` : `<button class="chk" data-act="done" data-k="${k}" title="${r._done ? "标记为未完成" : "标记为完成"}">${r._done ? "✓" : ""}</button>`}
     <div class="abody">
-      <div class="atitle">${r.need_confirm ? "⚠ " : ""}${esc(title)}</div>
+      <div class="atitle">${r.need_confirm ? "⚠ " : ""}${esc(title)}${typeof exFilesTag === "function" ? exFilesTag(r) : ""}</div>
       <div class="asub"><span class="atype">${esc(typeName)}</span>${esc(sub)}${!sub && r.location ? "📍 " + esc(r.location) : ""}</div>
       ${r._plugin ? "" : `<div class="aextra">${detailHtml(r)}</div>`}
     </div>
@@ -819,7 +821,7 @@ function hwRow(r) {
   return `<div class="arow t-作业${r._done ? " done" : ""}${open ? " open" : ""}" data-row="${k}">
     <button class="chk" data-act="done" data-k="${k}" title="${r._done ? "标记为未完成" : "标记为完成"}">${r._done ? "✓" : ""}</button>
     <div class="abody">
-      <div class="atitle">${r.need_confirm ? "⚠ " : ""}${esc(r.subject || r.summary || "作业")}</div>
+      <div class="atitle">${r.need_confirm ? "⚠ " : ""}${esc(r.subject || r.summary || "作业")}${typeof exFilesTag === "function" ? exFilesTag(r) : ""}</div>
       ${r.subject && r.summary ? `<div class="asub">${esc(r.summary)}</div>` : ""}
       <div class="aextra">${detailHtml(r)}</div>
     </div>
@@ -910,6 +912,7 @@ function renderSide() {
 function renderAll() {
   const run = (f) => { try { f(); } catch (e) { console.error(e); } };
   [pluginBroadcastClass, indexItems, renderGrid, renderSide, renderAgenda, renderHomework, renderRail, renderGrowth, renderFarm, renderPlan, renderMeta, renderWidgets, syncJump, appSchedule].forEach(run);
+  if (typeof exRender === "function") run(exRender);
   if (typeof renderIsland === "function") run(() => renderIsland(true));
 }
 
@@ -978,12 +981,12 @@ $("classSel").onchange = (e) => {
 let classLoadedAt = 0;
 async function loadClass() {
   if (!currentUser) {
-    classRecords = []; renderAll();
+    classRecords = []; renderAll(); if (typeof exLoad === "function") exLoad();
     showNotice(`登录后可以看到你的捞捞课程表。<a href="login.html?next=index.html">登录 / 注册 →</a>（不登录也能使用「我的事项」和插件）`);
     return;
   }
   if (!currentClass) {
-    classRecords = []; renderAll();
+    classRecords = []; renderAll(); if (typeof exLoad === "function") exLoad();
     const teacher = currentUser.role === "teacher" || currentUser.role === "admin";
     showNotice(pendingClasses.length
       ? `已申请加入「${esc(pendingClasses.map((c) => c.name).join("、"))}」，等老师批准后这里就会显示捞捞课程表。<a href="class.html">查看 →</a>`
@@ -1020,6 +1023,7 @@ async function loadClass() {
     showBanner("班级数据加载失败" + (cacheOk ? "，当前显示的是上次缓存的数据" : "") + "：" + e.message);
   }
   renderAll();
+  if (typeof exLoad === "function") exLoad();
   loadWall();
 }
 
@@ -1266,7 +1270,7 @@ function renderParsed() {
         ${parsed.unsure.map((u, i) => `<div class="ux" title="${esc(u.text)}"><button class="small" data-fillu="${i}" title="放到上面自己填，捞捞会学">我来填</button><em>${esc(u.why)}</em>${esc(u.text)}</div>`).join("")}</div>` : ""}
     ${parsed.chatter.length ? `<details class="ipchat"><summary>被当成闲聊过滤掉的 ${parsed.chatter.length} 条（看看有没有漏掉的）</summary>
         ${parsed.chatter.map((c, i) => `<div class="ux"><button class="small" data-keepc="${i}" title="这条是要记的事，捞捞会学">这条要记</button>${esc(c)}</div>`).join("")}</details>` : ""}
-    <div class="ip-actions"><button class="small" id="ipCancel">取消</button><button class="btn ink sm" id="ipPublish" ${on ? "" : "disabled"}>${ingestPersonal() ? `把选中的 ${on} 条加到我的事项` : `发布选中的 ${on} 条到班级`}</button></div>`;
+    <div class="ip-actions"><button class="small" id="ipCancel">取消</button>${ingestPersonal() ? "" : `<button class="btn sm" id="ipMine" ${on ? "" : "disabled"} title="不发到班级，只加到你自己的「我的事项」">只保存给自己</button>`}<button class="btn ink sm" id="ipPublish" ${on ? "" : "disabled"}>${ingestPersonal() ? `把选中的 ${on} 条加到我的事项` : `发布选中的 ${on} 条到班级`}</button></div>`;
 }
 const withShown = (x, extra) => ({ ...x, on: true, src: "", ...extra, _shown: slimItem(x) });
 $("ingestLocal").onclick = async () => {
@@ -1333,14 +1337,14 @@ $("ipResult").addEventListener("click", async (e) => {
   const st = $("ingestStatus");
   if (e.target.closest("#ipCancel")) { parsed = null; renderParsed(); return; }
   if (e.target.closest("#ipDrop")) { parsed.unsure = []; renderParsed(); return; }
-  if (e.target.closest("#ipPublish") && ingestPersonal()) {
-    // 学生：只加到自己的「我的事项」（存在这台设备上）
+  if ((e.target.closest("#ipPublish") && ingestPersonal()) || e.target.closest("#ipMine")) {
+    // 只加到自己的「我的事项」（学生只能这样；老师、班委也可以选「只保存给自己」）
     const chosen = parsed.items.filter((x) => x.on);
     chosen.forEach((x, i) => mine.push({ id: "p" + Date.now() + "_" + i, subject: x.subject || x.summary.slice(0, 20), event_time: x.event_time || keyOf(ccDate()),
       location: x.location || "", note: [x.msg_type, x.summary].filter(Boolean).join("：") }));
     save(LS_MINE, mine);
-    st.className = ""; st.textContent = `已加到我的事项 ${chosen.length} 条 ✓（只有你自己看得到）`;
-    parsed = null; renderParsed(); $("ingestText").value = ""; renderAll();
+    st.className = ""; st.textContent = `已加到我的事项 ${chosen.length} 条 ✓（只有你自己看得到，没有发到班级）`;
+    const left = parsed.unsure.length; parsed = null; renderParsed(); if (!left) $("ingestText").value = ""; renderAll();
     return;
   }
   if (e.target.closest("#ipPublish")) {
