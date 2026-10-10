@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com http://localhost:* http://127.0.0.1:*; frame-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; manifest-src 'self'">
+<meta name="referrer" content="no-referrer">
+<script src="guard.js?v=20261005-campus1"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<title>管理后台 · 捞捞课程表</title>
+<link rel="stylesheet" href="admin.css?v=20261010-adm1">
+</head>
+<body>
+<div id="loading" class="gate"><div class="skel" style="width:60%;margin:0 auto 12px"></div><div class="skel" style="width:40%;margin:0 auto"></div></div>
+<div id="noPerm" class="gate panel hidden">
+  <h1>没有管理后台的权限</h1>
+  <p class="muted">管理后台给管理员，以及被授予「给用户分配身份」权限的人使用。<br>如需开通，请联系网站管理员。</p>
+  <p><a class="btn" href="index.html">← 回到网站</a></p>
+</div>
+
+<div id="app" class="shell hidden">
+  <aside class="side">
+    <a class="brand" href="index.html"><i>捞</i><span>捞捞课程表<small>管理后台</small></span></a>
+    <button class="nav" data-view="ov"><span class="ic">◧</span>概览</button>
+    <button class="nav" data-view="users"><span class="ic">👥</span>用户</button>
+    <button class="nav" data-view="import"><span class="ic">⇪</span>批量建号</button>
+    <button class="nav" data-view="audit"><span class="ic">🧾</span>操作日志</button>
+    <span class="sp"></span>
+    <div class="me"><b id="meName"></b><span id="meRole"></span></div>
+    <div class="links"><a href="index.html">回到网站</a><a href="dev.html">插件后台</a></div>
+  </aside>
+
+  <main>
+    <!-- 概览 -->
+    <section id="v-ov" class="view hidden">
+      <div class="ph"><div><h1>概览</h1><p>用户规模、增长和活跃情况</p></div><span class="sp"></span><button class="btn" id="ovRefresh">↻ 刷新</button></div>
+      <div class="kpis" id="kpis"></div>
+      <div class="grid2">
+        <div class="panel pad chart"><h3>最近 30 天</h3><div class="leg"><span><i style="background:var(--accent)"></i>新注册</span><span><i style="background:#22b07d"></i>当天活跃</span></div><div id="chart"></div></div>
+        <div class="panel pad"><h3>身份分布</h3><div class="bars" id="roleBars"></div></div>
+      </div>
+      <div class="grid2">
+        <div class="panel pad"><h3>学校 / 单位（前 10）<span class="faint" style="font-weight:400;font-size:12px">　点一下看名单</span></h3><div class="bars" id="orgBars"></div></div>
+        <div class="panel pad"><h3>账号情况</h3><div class="bars" id="accBars"></div></div>
+      </div>
+    </section>
+
+    <!-- 用户 -->
+    <section id="v-users" class="view hidden">
+      <div class="ph"><div><h1>用户</h1><p>搜索、筛选、批量处理。点一行看详情。</p></div><span class="sp"></span>
+        <button class="btn" id="exportAll">⇩ 导出筛选结果</button></div>
+      <div class="panel">
+        <div class="filters">
+          <input class="inp q" id="fQ" type="search" placeholder="搜账号、姓名、学校…" autocomplete="off">
+          <select class="inp" id="fRole"><option value="">全部身份</option></select>
+          <select class="inp" id="fStatus">
+            <option value="all">全部状态</option><option value="active7">7 天内活跃</option><option value="idle30">30 天没来过</option>
+            <option value="never">从没登录过</option><option value="banned">已禁用</option><option value="must_change">待改初始密码</option><option value="no_class">没加入班级</option>
+          </select>
+          <input class="inp" id="fOrg" list="orgList" placeholder="学校 / 单位" style="width:150px" autocomplete="off"><datalist id="orgList"></datalist>
+          <input class="inp" id="fCls" list="clsList" placeholder="班级（名称或班级码）" style="width:170px" autocomplete="off"><datalist id="clsList"></datalist>
+          <span class="date">注册<input class="inp" id="fFrom" type="date">–<input class="inp" id="fTo" type="date"></span>
+          <button class="btn ghost" id="fReset">清空筛选</button>
+        </div>
+        <div class="chips" id="chips"></div>
+        <div class="selall hidden" id="selAll"></div>
+        <div class="tbar"><span id="uCount">…</span><span class="sp"></span>
+          <label class="muted">每页 <select class="inp" id="pSize"><option>20</option><option selected>50</option><option>100</option><option>200</option></select></label></div>
+        <div class="tw"><table class="t" id="uTable">
+          <thead><tr><th class="ck"><input type="checkbox" id="ckPage" aria-label="选中本页"></th>
+            <th class="sort" data-sort="account">账号</th><th class="sort" data-sort="name">姓名</th><th class="sort" data-sort="role">身份</th>
+            <th class="sort" data-sort="org">学校 / 单位</th><th>班级</th><th class="sort" data-sort="created">注册时间</th><th class="sort" data-sort="seen">最近活跃</th><th>状态</th></tr></thead>
+          <tbody id="uRows"></tbody></table></div>
+        <div class="pager"><span id="pInfo"></span><span class="sp"></span>
+          <button class="btn sm" id="pPrev">‹ 上一页</button><span>第 <input class="inp" id="pNo" inputmode="numeric"> / <span id="pMax">1</span> 页</span><button class="btn sm" id="pNext">下一页 ›</button></div>
+      </div>
+      <div class="bulk hidden" id="bulk">
+        <b id="bulkN"></b>
+        <button class="btn sm" data-bulk="role">改身份</button>
+        <button class="btn sm" data-bulk="class">加入班级</button>
+        <button class="btn sm" data-bulk="ban">禁用</button>
+        <button class="btn sm" data-bulk="unban">解除禁用</button>
+        <button class="btn sm" data-bulk="pw">重置密码</button>
+        <button class="btn sm" data-bulk="export">导出</button>
+        <button class="btn sm danger admin-only" data-bulk="del">删除</button>
+        <button class="btn sm" data-bulk="clear">取消选择</button>
+      </div>
+    </section>
+
+    <!-- 批量建号 -->
+    <section id="v-import" class="view hidden">
+      <div class="ph"><div><h1>批量建号</h1><p>一次给全班或全年级开账号，第一次登录会要求改密码</p></div></div>
+      <div class="steps">
+        <div class="panel pad">
+          <h3>① 准备名单</h3>
+          <p class="muted" style="margin:0 0 10px;font-size:13px">列：<b>账号</b>（学号等，3~20 位小写字母 / 数字 / 下划线）、<b>姓名</b>、身份（学生 / 老师，不填是学生）、性别（男 / 女）、学校 / 单位、密码（不填按右边规则生成）。第一行可以是表头。
+            <button class="btn sm" id="tplBtn">⇩ 下载模板</button></p>
+          <div class="drop" id="drop">把 Excel 另存的 <b>CSV</b> 文件拖到这里，或 <label class="btn sm" style="display:inline-flex">选择文件<input type="file" id="impFile" accept=".csv,.txt,text/csv,text/plain" hidden></label><br>
+            <span class="faint">也可以在 Excel 里选中几列直接复制，粘贴到下面</span></div>
+          <textarea class="inp" id="impText" rows="7" placeholder="2026001	张三	学生	男	西安交通大学城市学院&#10;2026002	李四	学生	女	西安交通大学城市学院"></textarea>
+          <div class="sumline" id="impSum"></div>
+          <div class="tw prev" style="max-height:420px;overflow:auto"><table class="t" id="impPrev"><thead><tr><th>#</th><th>账号</th><th>姓名</th><th>身份</th><th>性别</th><th>学校 / 单位</th><th>检查</th></tr></thead><tbody></tbody></table></div>
+        </div>
+        <div class="opts">
+          <div class="panel pad">
+            <h3>② 导入设置</h3>
+            <div class="fields" style="display:grid;gap:12px">
+              <label class="fl">学生直接加入班级（可不选）<input class="inp" id="impCls" list="clsList" placeholder="班级名称或班级码" autocomplete="off"></label>
+              <div class="fl">初始密码
+                <div class="radio"><label><input type="radio" name="impPw" value="random" checked>每人随机</label><label><input type="radio" name="impPw" value="same">统一密码</label></div>
+                <input class="inp hidden" id="impSame" placeholder="至少 8 位" autocomplete="off">
+              </div>
+              <div class="warnbox">导入后会生成「账号密码单」，<b>只显示这一次</b>，请马上下载，私下发给本人；第一次登录会要求改成自己的密码。</div>
+              <button class="btn pri" id="impGo" disabled>③ 开始导入</button>
+              <div class="prog hidden" id="impProg"><i></i></div>
+              <div id="impMsg" class="muted" style="font-size:13px"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 操作日志 -->
+    <section id="v-audit" class="view hidden">
+      <div class="ph"><div><h1>操作日志</h1><p>后台每一次改动都记在这里：谁、什么时候、对谁、做了什么</p></div><span class="sp"></span><button class="btn" id="aExport">⇩ 导出本页</button></div>
+      <div class="panel">
+        <div class="filters">
+          <input class="inp q" id="aQ" type="search" placeholder="搜操作人、对象账号、内容…" autocomplete="off">
+          <select class="inp" id="aAct"><option value="">全部动作</option></select>
+        </div>
+        <div class="tw"><table class="t"><thead><tr><th>时间</th><th>操作人</th><th>动作</th><th>对象</th><th>详情</th></tr></thead><tbody id="aRows"></tbody></table></div>
+        <div class="pager"><span id="aInfo"></span><span class="sp"></span><button class="btn sm" id="aPrev">‹ 上一页</button><button class="btn sm" id="aNext">下一页 ›</button></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- 用户详情 -->
+<div id="dMask" class="drawer-mask hidden"></div>
+<aside id="drawer" class="drawer hidden" role="dialog" aria-modal="true" aria-label="用户详情"></aside>
+
+<dialog id="dlg" class="dlg"></dialog>
+<div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+<script src="config.js"></script>
+<script src="auth.js?v=20261008-org1"></script>
+<script src="admin.js?v=20261010-adm1"></script>
+</body>
+</html>

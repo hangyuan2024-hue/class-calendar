@@ -314,6 +314,7 @@ function applyFeatures() {
   $("featNotice").innerHTML = off.length ? `<b>⏸ 有些功能现在用不了</b><ul style="margin:6px 0 0;padding-left:18px">${off.map((k) => `<li>${esc(FEAT_NAME[k] || k)}：${esc(featWhy(k))}</li>`).join("")}</ul>` : "";
   const isAdmin = !!(currentUser && currentUser.role === "admin");
   $("menuSiteFeat").classList.toggle("hidden", !isAdmin);
+  $("menuAdmin").classList.toggle("hidden", !(isAdmin || (currentUser && currentUser.perms && currentUser.perms.includes("manage_users"))));
   $("menuClassFeat").classList.toggle("hidden", !(isAdmin || myClasses.some((c) => c.is_teacher)));
   renderClassBar(); renderTools(); renderQuick();
   try { renderAll(); } catch (e) {}

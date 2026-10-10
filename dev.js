@@ -478,7 +478,7 @@ $("logout").onclick = async () => { await CCAuth.signOut(); location.href = "log
   if (!staff) return;
   fillForm("__new");
   try { await refresh(); } catch (e) { toast(e.message, true); }
-  if (can("manage_users")) loadUsers().catch((e) => toast(e.message, true));
+  // 用户管理在 admin.html
   if (has("admin")) loadPerms().catch((e) => toast(e.message, true));
   if (has("admin")) loadFeats().then(() => { if (location.hash === "#features") $("featCard").scrollIntoView(); }).catch((e) => toast("功能开关读取失败：" + e.message + "（需要在扣子终端运行 setupaccounts.py）", true));
 })();
