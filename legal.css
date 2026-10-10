@@ -1,0 +1,33 @@
+:root { --bg: #f6f5f1; --card: #fff; --text: #172c36; --sub: #66747c; --line: #e6e3da; --accent: #5366e8; }
+@media (prefers-color-scheme: dark) { :root { --bg: #11151c; --card: #1a1f29; --text: #e9edf3; --sub: #9aa4b2; --line: #2a303c; --accent: #8c9bff; } }
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--text); font: 15px/1.85 -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+.wrap { max-width: 820px; margin: 0 auto; padding: 28px 16px 64px; }
+.top { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; font-size: 14px; }
+.top a { color: var(--accent); text-decoration: none; font-weight: 700; }
+.top .sp { flex: 1; }
+.doc { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 32px 36px; }
+h1 { font-size: 28px; line-height: 1.3; margin: 0 0 6px; letter-spacing: -.3px; }
+.meta { color: var(--sub); font-size: 13px; margin-bottom: 22px; }
+.lead { background: color-mix(in srgb, var(--accent) 8%, transparent); border-radius: 14px; padding: 14px 18px; margin: 0 0 24px; }
+h2 { font-size: 18px; margin: 30px 0 8px; padding-top: 4px; }
+h3 { font-size: 15.5px; margin: 18px 0 4px; }
+p { margin: 8px 0; }
+ul, ol { margin: 6px 0; padding-left: 1.4em; }
+li { margin: 4px 0; }
+b { font-weight: 700; }
+table { width: 100%; border-collapse: collapse; margin: 10px 0 14px; font-size: 14px; }
+th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+th { background: color-mix(in srgb, var(--text) 4%, transparent); white-space: nowrap; }
+.toc { columns: 2; column-gap: 24px; font-size: 14px; margin: 0 0 8px; padding-left: 1.2em; }
+.toc a { color: var(--accent); text-decoration: none; }
+.foot { text-align: center; color: var(--sub); font-size: 13px; margin-top: 22px; }
+.foot a { color: var(--accent); text-decoration: none; }
+@media (max-width: 640px) {
+  .doc { padding: 22px 18px; border-radius: 16px; }
+  h1 { font-size: 23px; }
+  .toc { columns: 1; }
+  table { display: block; overflow-x: auto; }
+}
+@media print { body { background: #fff; } .top, .foot { display: none; } .doc { border: 0; padding: 0; } }

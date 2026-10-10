@@ -43,6 +43,7 @@ function setMode(m) {
   $("password").autocomplete = m === "signup" ? "new-password" : "current-password";
   $("note").textContent = m === "signup" ? "开发者、测试员身份由管理员在后台分配。" : "";
   $("msg").textContent = "";
+  if (m === "signup" && agreeAuto && $("agree")) { $("agree").checked = false; agreeAuto = false; }
   const g = document.querySelector("input[name=gender]:checked");
   setGender(m === "signup" && g ? g.value : "");
   checkAccount(); checkPw();
@@ -147,9 +148,24 @@ async function afterLogin(isNew) {
   location.href = safeNext || dest;
 }
 
+// ---------- 用户协议、隐私政策：登录、注册前都要勾选同意 ----------
+const LS_AGREE = "legal_agree_v1", LEGAL_VER = (window.LEGAL_INFO || {}).ver || "1";
+let agreeAuto = false;   // 这台设备以前同意过同一版协议：登录时自动勾上（注册新账号要自己勾）
+try { if (localStorage.getItem(LS_AGREE) === LEGAL_VER) { $("agree").checked = true; agreeAuto = true; } } catch (e) {}
+$("agree").addEventListener("change", () => { agreeAuto = false; $("agreeBox").classList.remove("need"); if ($("agree").checked && /协议/.test($("msg").textContent)) $("msg").textContent = ""; });
+function agreeOk() {
+  if ($("agree").checked) return true;
+  const b = $("agreeBox"); b.classList.remove("need"); void b.offsetWidth; b.classList.add("need");
+  $("msg").textContent = "请先阅读并勾选同意《用户协议》和《隐私政策》";
+  $("agree").focus();
+  return false;
+}
+function agreeSave() { try { localStorage.setItem(LS_AGREE, LEGAL_VER); } catch (e) {} }
+
 form.onsubmit = async (e) => {
   e.preventDefault();
   $("msg").textContent = "";
+  if (!agreeOk()) return;
   const account = $("account").value, password = $("password").value;
   const gender = (document.querySelector("input[name=gender]:checked") || {}).value || "";
   if (mode === "signup") {
@@ -165,6 +181,7 @@ form.onsubmit = async (e) => {
     if (mode === "signup") await CCAuth.signUp(account, password, $("name").value, (document.querySelector("input[name=role]:checked") || {}).value, gender, orgPick ? orgPick.value() : null);
     else await CCAuth.signIn(account, password);
     try { localStorage.setItem(LS_LAST, account.trim().toLowerCase()); } catch (e2) {}
+    agreeSave();
     await afterLogin(mode === "signup");
   } catch (err) {
     $("msg").textContent = err.message;
