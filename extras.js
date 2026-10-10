@@ -230,25 +230,63 @@
     } catch (e) { return file; }
   }
   const CH = 600 * 1024;
-  async function upload(files) {
-    const st = dlg.querySelector("#xfSt");
+  // 把文件传到某条事项上（附件对话框、记一件事 / 发布表单共用）。say(文字) 报进度；返回传好的个数
+  async function uploadTo(cid, item, files, say) {
+    let ok = 0;
     for (const f0 of files) {
-      if (f0.size > 20 * 1024 * 1024) { st.textContent = `「${f0.name}」太大了（单个最多 20MB）`; continue; }
+      if (f0.size > 20 * 1024 * 1024) { say(`「${f0.name}」太大了（单个最多 20MB）`); continue; }
       const f = await shrink(f0);
       const buf = new Uint8Array(await f.arrayBuffer()), parts = Math.max(1, Math.ceil(buf.length / CH));
       try {
-        st.textContent = `正在上传「${f.name}」…`;
-        const { id } = await CCAuth.rpc("file_begin", { cid: cur.cid, item: cur.item, fname: f.name, fmime: f.type || "", fsize: buf.length, nparts: parts });
+        say(`正在上传「${f.name}」…`);
+        const { id } = await CCAuth.rpc("file_begin", { cid, item, fname: f.name, fmime: f.type || "", fsize: buf.length, nparts: parts });
         for (let i = 0; i < parts; i++) {
           const part = buf.subarray(i * CH, (i + 1) * CH);
           let s = ""; for (let j = 0; j < part.length; j += 0x8000) s += String.fromCharCode.apply(null, part.subarray(j, j + 0x8000));
           await CCAuth.rpc("file_part", { fid: id, n: i, b64: btoa(s) });
-          st.textContent = `正在上传「${f.name}」… ${Math.round(((i + 1) / parts) * 100)}%`;
+          say(`正在上传「${f.name}」… ${Math.round(((i + 1) / parts) * 100)}%`);
         }
         await CCAuth.rpc("file_end", { fid: id });
-        st.textContent = `「${f.name}」上传好了 ✓`;
-      } catch (err) { st.textContent = `「${f.name}」上传失败：${err.message}`; }
+        ok++; say(`「${f.name}」上传好了 ✓`);
+      } catch (err) { say(`「${f.name}」上传失败：${err.message}`); }
     }
+    return ok;
+  }
+  async function upload(files) {
+    const st = dlg.querySelector("#xfSt");
+    await uploadTo(cur.cid, cur.item, files, (t) => { st.textContent = t; });
     await list(); renderAll();
   }
+
+  // ---------- 记一件事 / 发布班级事项的表单里直接选附件（保存后自动上传） ----------
+  const pend = { f: [], c: [] };
+  function drawPend(w) {
+    const box = $(w === "f" ? "fAtt" : "cAtt"); if (!box) return;
+    if (!currentUser) { box.innerHTML = ""; return; }
+    const k = box.dataset.key, n = k ? EX.files[k] || 0 : 0;
+    box.innerHTML = `<label class="xf-pick">📎 添加图片 / 文件<input type="file" multiple hidden data-pend="${w}"></label>
+      ${n ? `<button type="button" class="link" data-files="${esc(k)}">已有 ${n} 个附件</button>` : ""}
+      ${pend[w].map((f, i) => `<span class="xf-chip">${/^image\//.test(f.type) ? "🖼" : "📄"} ${esc(f.name)} <small>${fmtSize(f.size)}</small><button type="button" data-unpend="${w}:${i}" aria-label="去掉">✕</button></span>`).join("")}
+      ${pend[w].length ? `<small class="meta">保存后自动上传</small>` : `<small class="meta">题目是图片或文件时可以直接附上，单个最多 20MB</small>`}`;
+  }
+  window.exFormFiles = (w, key) => { pend[w] = []; const box = $(w === "f" ? "fAtt" : "cAtt"); if (box) { box.dataset.key = key || ""; drawPend(w); } };
+  document.addEventListener("change", (e) => {
+    const w = e.target.dataset && e.target.dataset.pend; if (!w) return;
+    pend[w].push(...[...e.target.files].filter((f) => f.size <= 20 * 1024 * 1024 || (alert(`「${f.name}」太大了（单个最多 20MB）`), false)));
+    drawPend(w);
+  });
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-unpend]"); if (!b) return;
+    const [w, i] = b.dataset.unpend.split(":"); pend[w].splice(+i, 1); drawPend(w);
+  });
+  window.exFormUpload = async (w, cid, item, local) => {
+    const files = pend[w]; pend[w] = [];
+    if (!files.length) return;
+    if (local) { alert("「只存在这台设备」的事项不能加附件（附件要存到云端）。取消勾选后再加。"); return; }
+    if (!item) { alert("事项已保存，但没找到它，附件没传上。请在事项里点「📎 加图片 / 文件」再传。"); return; }
+    const n = await uploadTo(cid, item, files, (t) => toast2(t));
+    toast2(n === files.length ? `附件上传好了 ✓（${n} 个）` : `附件传好 ${n} / ${files.length} 个，没传上的可以在事项里点「📎」再传`);
+    EX.files[cid ? "c" + item : item] = (EX.files[cid ? "c" + item : item] || 0) + n;
+    renderAll();
+  };
 })();

@@ -331,7 +331,7 @@ function parseTime(t) {
 
 function allItems() {
   const cls = classRecords.map((r) => ({ ...r, _key: "c" + r.id, _mine: false }));
-  const own = mine.map((r) => ({ ...r, msg_type: "个人", _key: r.id, _mine: true }));
+  const own = mine.map((r) => ({ ...r, msg_type: r.kind === "作业" ? "作业" : "个人", _key: r.id, _mine: true }));
   const ext = pluginItems();
   const study = typeof studyItems === "function" ? studyItems() : [];   // 课内学习里有截止日期的考核（study.js）
   return cls.concat(study, own, ext).map((r) => {
@@ -1052,6 +1052,7 @@ function openClassForm(r) {
   $("cGroup").value = String(cur);
   if ($("cGroup").selectedIndex < 0) $("cGroup").selectedIndex = 0;
   $("cGroupRow").classList.toggle("hidden", !gs.length);
+  if (window.exFormFiles) exFormFiles("c", r ? "c" + r.id : null);
   $("cmodal").classList.add("open");
 }
 $("cAddBtn").onclick = () => openClassForm(null);
@@ -1083,7 +1084,15 @@ $("cform").onsubmit = async (e) => {
       await CCAuth.rest("class_info", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify(rec) });
     }
     $("cmodal").classList.remove("open");
+    const before = new Set((classRecords || []).map((x) => x.id));
     await loadClass();
+    if (window.exFormUpload) {
+      // 新发布的那条：刚才没有、标题和时间一样、是我发的
+      const me = currentUser && currentUser.id;
+      const nid = id || ((classRecords || []).filter((x) => !before.has(x.id) && x.subject === rec.subject && (x.event_time || "") === rec.event_time && (!x.created_by || x.created_by === me))
+        .sort((a, b) => b.id - a.id)[0] || {}).id;
+      exFormUpload("c", currentClass.id, nid ? String(nid) : null);
+    }
     if (date) $("jumpDate").onchange({ target: { value: date } });   // 发布后直接跳到那一天，确认已经上了日历
   } catch (err) { alert("保存失败：" + err.message); }
   finally { $("cSave").disabled = false; }
@@ -1343,7 +1352,7 @@ $("ipResult").addEventListener("click", async (e) => {
     // 只加到自己的「我的事项」（学生只能这样；老师、班委也可以选「只保存给自己」）
     const chosen = parsed.items.filter((x) => x.on);
     chosen.forEach((x, i) => mine.push({ id: "p" + Date.now() + "_" + i, subject: x.subject || x.summary.slice(0, 20), event_time: x.event_time || keyOf(ccDate()),
-      location: x.location || "", note: [x.msg_type, x.summary].filter(Boolean).join("：") }));
+      location: x.location || "", note: [x.msg_type, x.summary].filter(Boolean).join("："), kind: x.msg_type === "作业" ? "作业" : undefined }));
     save(LS_MINE, mine);
     st.className = ""; st.textContent = `已加到我的事项 ${chosen.length} 条 ✓（只有你自己看得到，没有发到班级）`;
     const left = parsed.unsure.length; parsed = null; renderParsed(); if (!left) $("ingestText").value = ""; renderAll();
@@ -1700,6 +1709,8 @@ function openForm(r, opt) {
   $("fLoc").value = r ? (r.location || "") : "";
   $("fNote").value = r ? (opt.from ? [r.subject && r.summary ? r.summary : "", r.prepare ? "要准备：" + r.prepare : ""].filter(Boolean).join("\n") : (r.note || "")) : "";
   $("fLocal").checked = !!(r && r.local);
+  $("fKind").value = opt.kind != null ? opt.kind : r ? (opt.from ? (r.msg_type === "作业" ? "作业" : "") : (r.kind || "")) : (currentView() === "homework" ? "作业" : "");
+  if (window.exFormFiles) exFormFiles("f", r && !opt.from ? r.id : null);
   $("modal").classList.add("open");
   setTimeout(() => $("fTitle").focus(), 50);
 }
@@ -1712,6 +1723,7 @@ $("form").onsubmit = (e) => {
     location: $("fLoc").value.trim(),
     note: $("fNote").value.trim(),
     local: $("fLocal").checked && Sync.active() ? true : undefined,
+    kind: $("fKind").value || undefined,
   };
   // 改的是班级事项：存成我自己的一条，原来那条替我隐藏（在「我的事项」里删掉这条，或在日历里取消隐藏就恢复）
   const from = $("fFrom").value;
@@ -1723,6 +1735,7 @@ $("form").onsubmit = (e) => {
   $("modal").classList.remove("open");
   if (rec.event_time) selectedKey = rec.event_time.slice(0, 10);
   renderAll();
+  if (window.exFormUpload) exFormUpload("f", null, rec.id, rec.local);
 };
 $("cancelBtn").onclick = () => $("modal").classList.remove("open");
 $("modal").onclick = (e) => { if (e.target === $("modal")) $("modal").classList.remove("open"); };

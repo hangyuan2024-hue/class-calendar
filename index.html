@@ -1832,7 +1832,7 @@
 <link rel="stylesheet" href="campus-tools.css?v=20261008-org1">
 <link rel="stylesheet" href="org.css?v=20261008-org1">
 <link rel="stylesheet" href="polish.css?v=20261009-tl2">
-<link rel="stylesheet" href="extras.css?v=20261010-hw2">
+<link rel="stylesheet" href="extras.css?v=20261010-hw3">
 <link rel="stylesheet" href="study.css?v=20261009-kn2">
 <link rel="stylesheet" href="mindmap.css?v=20261009-mm1">
 </head>
@@ -2486,7 +2486,10 @@
     <h3 id="formTitle">记一件事</h3>
     <input type="hidden" id="fId"><input type="hidden" id="fFrom">
     <div class="ftip hidden" id="fFromTip">这是班级事项，班级里只有老师和班委能改。你在这里改的只对自己生效：保存后显示你的版本，班级原来那条会替你隐藏；在「我的事项」里删掉这条就恢复原样。</div>
-    <label>标题 <input id="fTitle" required maxlength="60" placeholder="例如：社团例会"></label>
+    <div class="row">
+      <div style="flex:0 0 34%"><label title="选「作业」会显示在作业页">类型 <select id="fKind"><option value="">普通事项</option><option value="作业">作业</option></select></label></div>
+      <div><label>标题 <input id="fTitle" required maxlength="60" placeholder="例如：社团例会"></label></div>
+    </div>
     <div class="row">
       <div><label>日期（可不填） <input type="date" id="fDate"></label></div>
       <div><label>时间（可不填） <input type="time" id="fTime"></label></div>
@@ -2496,6 +2499,7 @@
       <div><label>放进时间管理 <select id="fQuad"><option value="">自动判断</option><option value="1">🔴 重要且紧急</option><option value="2">🔵 重要不紧急</option><option value="3">🟡 紧急不重要</option><option value="4">⚪ 不重要不紧急</option></select></label></div>
     </div>
     <label>备注 <textarea id="fNote" rows="3" maxlength="500"></textarea></label>
+    <div class="fatt" id="fAtt"></div>
     <label class="check hidden" id="fLocalWrap"><input type="checkbox" id="fLocal"> 🔒 只存在这台设备（不同步到云端）</label>
     <div class="btns">
       <button type="button" id="cancelBtn">取消</button>
@@ -2522,6 +2526,7 @@
       <div><label>需准备 <input id="cPrep" maxlength="100"></label></div>
     </div>
     <label id="cGroupRow" class="hidden">发给 <select id="cGroup"></select></label>
+    <div class="fatt" id="cAtt"></div>
     <label class="check"><input type="checkbox" id="cConfirm"> 信息还不确定（提醒同学去群里核实）</label>
     <div class="btns">
       <button type="button" id="cCancel">取消</button>
@@ -2567,8 +2572,8 @@
 <script src="courses.js?v=20261009-adj3"></script>
 <script src="farm.js?v=20261009-tz1"></script>
 <script src="metaverse-v3.js?v=20261005-native3"></script>
-<script src="app.js?v=20261010-hw2"></script>
-<script src="extras.js?v=20261010-hw2"></script>
+<script src="app.js?v=20261010-hw3"></script>
+<script src="extras.js?v=20261010-hw3"></script>
 <script src="campus-tools.js?v=20261006-tools1"></script>
 <script src="workspace-v3.js?v=20261005-native3"></script>
 <script src="island-core.js?v=20261004a"></script>

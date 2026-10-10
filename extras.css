@@ -31,3 +31,11 @@
 .extoast.show { opacity: 1; transform: translate(-50%, 0); }
 .exfiles { padding: 18px 20px; }
 #hwView .adsoon { margin: 14px 0 4px; }
+.fatt { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 2px 0 10px; font-size: 13px; }
+.fatt:empty { display: none; }
+#modal .fatt .xf-pick, .modal2 .fatt .xf-pick { display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; border-radius: 999px; border: 1px dashed var(--line, #ccd); cursor: pointer; font-weight: 600; margin: 0; }
+.fatt .xf-pick:hover { border-color: var(--accent, #5366e8); color: var(--accent, #5366e8); }
+.fatt .xf-chip { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 4px 6px 4px 10px; border-radius: 999px; background: color-mix(in srgb, var(--accent, #5366e8) 10%, transparent); }
+.fatt .xf-chip small { color: var(--sub); }
+.fatt .xf-chip button { border: 0; background: none; padding: 0 4px; cursor: pointer; color: var(--sub); min-height: 0; }
+.fatt .meta { color: var(--sub); flex-basis: 100%; }
