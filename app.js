@@ -37,7 +37,7 @@ const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; 
 // ===== 云端同步：登录后，我的事项、完成标记、打卡、规划、外观设置自动存到云端，换浏览器 / 换手机都能看到 =====
 // 每条数据单独同步，带修改时间；两边都改了同一条，以后改的为准。可以在「我的 → 数据」里改成「只存在这台设备」。
 // list：数组，按 id 一条条同步；map：对象，按键同步；map2：两层对象（习惯 → 日期）；one：整体同步
-const SYNC_KINDS = { course_rev_v1: "one", kn_rev_v1: "one", mm_rev_v1: "one", personal_events_v1: "list", personal_marks_v1: "map", done_log_v1: "map", habits_v1: "list", habit_log_v1: "map2",
+const SYNC_KINDS = { course_rev_v1: "one", course_view_v1: "map", kn_rev_v1: "one", mm_rev_v1: "one", personal_events_v1: "list", personal_marks_v1: "map", done_log_v1: "map", habits_v1: "list", habit_log_v1: "map2",
   quad_v1: "map", quad_todos_v1: "list", pomo_log_v1: "map", fun_opts_v1: "one", home_layout_v1: "one", ui_skin_v1: "one",
   ui_palette_v1: "one", plugins_enabled_v1: "one", home_quick_tools_v1: "one", plan_notes_v1: "map", profile_v1: "one", mood_log_v1: "map", farm_v1: "one", island_v1: "one" };
 const LS_SYNC = "sync_meta_v1", LS_SYNC_OUT = "sync_outbox_v1", LS_SYNC_MODE = "sync_mode_v1";
@@ -376,7 +376,7 @@ function renderGrid() {
   for (let i = 0; i < 42; i++) {
     const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
     const k = keyOf(d);
-    const items = byDay[k] || [];
+    const items = cvFilter(byDay[k] || [], "cal");
     const cell = document.createElement("div");
     cell.className = "cell" + (d.getMonth() !== viewMonth ? " other" : "") +
       (k === keyOf(today) ? " today" : "") + (k === selectedKey ? " selected" : "");
@@ -726,10 +726,11 @@ function renderAgenda() {
   // 过去 7 天里还没完成的作业
   const overdue = [];
   for (let i = -7; i < 0; i++) for (const r of byDay[dayKey(i)] || []) if (r.msg_type === "作业" && !r._done) overdue.push(r);
+  renderCvSegs();
   let upcoming = 0, homework = 0, todayCount = 0;
   const sections = [];
   for (let i = 0; i < AGENDA_DAYS; i++) {
-    const k = dayKey(i), items = byDay[k] || [];
+    const k = dayKey(i), items = cvFilter(byDay[k] || [], "agenda");
     const pending = items.filter((r) => !r._done);
     upcoming += pending.length;
     homework += pending.filter((r) => r.msg_type === "作业").length;
@@ -867,11 +868,35 @@ $("hwView").addEventListener("click", (e) => {
   renderHomework();
 });
 
+// ---------- 课程显示开关（日历、首页「接下来的安排」各一个）：all 全部 / nocourse 不看课程 / course 只看课程 ----------
+const LS_CV = "course_view_v1";
+const CV_OPTS = [["all", "全部"], ["nocourse", "不看课程"], ["course", "只看课程"]];
+const isCourseItem = (r) => !!r && (r._plugin === "course-schedule" || r._pluginName === "课程表");
+const cvMode = (where) => { const m = (load(LS_CV, {}) || {})[where]; return m === "nocourse" || m === "course" ? m : "all"; };
+function cvFilter(list, where) {
+  const m = cvMode(where);
+  return m === "all" ? list : list.filter((r) => (m === "course") === isCourseItem(r));
+}
+function renderCvSegs() {
+  const has = typeof CourseKit !== "undefined" && CourseKit.on && CourseKit.on() && CourseKit.data && (CourseKit.data.courses || []).length > 0;
+  for (const [id, where] of [["cvCal", "cal"], ["cvAgenda", "agenda"]]) {
+    const el = $(id); if (!el) continue;
+    const m = cvMode(where);
+    el.classList.toggle("hidden", !has && m === "all");   // 没有课程就不显示开关（选过「只看课程」的照样显示，方便改回来）
+    el.innerHTML = CV_OPTS.map(([k, t]) => `<button type="button" data-cv="${where}" data-v="${k}" class="${m === k ? "on" : ""}" aria-pressed="${m === k}">${t}</button>`).join("");
+  }
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-cv][data-v]"); if (!b) return;
+  const o = { ...(load(LS_CV, {}) || {}) }; o[b.dataset.cv] = b.dataset.v; save(LS_CV, o);
+  renderCvSegs(); renderGrid(); renderSide(); renderAgenda();
+});
+
 function renderSide() {
   const d = new Date(selectedKey + "T00:00:00");
   $("sideHide").checked = !!funOpts().hideDone;
   $("sideTitle").textContent = `${d.getMonth() + 1}月${d.getDate()}日 周${WEEK[d.getDay()]}`;
-  const items = byDay[selectedKey] || [];
+  const items = cvFilter(byDay[selectedKey] || [], "cal");
   const phone = phoneCal();
   $("side").classList.toggle("phone", phone);
   $("sideTitle").textContent += items.length ? ` · ${items.filter((r) => !r._done).length} 项` : "";

@@ -476,6 +476,12 @@
 
   /* ================= 日历页 ================= */
   #monthWrap { position: relative; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+  /* 课程显示开关：全部 / 不看课程 / 只看课程 */
+  .cvseg { display: inline-flex; gap: 2px; padding: 3px; border-radius: 999px; background: color-mix(in srgb, var(--text) 6%, transparent); margin-left: auto; flex: none; }
+  .cvseg button { border: 0; background: none; padding: 4px 11px; border-radius: 999px; font-size: 12.5px; font-weight: 600; color: var(--sub); cursor: pointer; white-space: nowrap; }
+  .cvseg button.on { background: var(--card); color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,.1); }
+  .legend .cvseg { margin-left: auto; }
+  .studio-panel-heading:has(.cvseg) { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
   #monthLabel { font-size: 21px; font-weight: 800; font-variant-numeric: tabular-nums; }
   [data-skin=vivid] #monthLabel { font-family: var(--fd); font-weight: var(--fd-weight); font-size: 26px; letter-spacing: 1px; }
   #monthWrap::after { content: "▾"; font-size: 11px; color: var(--sub); }
@@ -1869,7 +1875,7 @@
     <div class="studio-focus-grid">
       <div class="studio-welcome-wrap"><div id="hero"></div></div>
       <section class="studio-agenda-panel" aria-labelledby="studio-agenda-title">
-        <div class="studio-panel-heading"><div><span class="studio-eyebrow">即将到来</span><h3 id="studio-agenda-title">接下来的安排</h3></div></div>
+        <div class="studio-panel-heading"><div><span class="studio-eyebrow">即将到来</span><h3 id="studio-agenda-title">接下来的安排</h3></div><div class="cvseg hidden" id="cvAgenda" role="group" aria-label="接下来的安排里的课程"></div></div>
         <div id="agenda"></div>
       </section>
     </div>
@@ -2067,6 +2073,7 @@
     <div class="legend">
       <span><i class="t-作业"></i>作业</span><span><i class="t-会议"></i>会议</span>
       <span><i class="t-活动"></i>活动</span><span><i class="t-通知"></i>通知</span><span><i class="t-个人"></i>我的</span>
+      <div class="cvseg hidden" id="cvCal" role="group" aria-label="日历里的课程"></div>
     </div>
     <div id="mainCal">
       <div id="calendar" class="surface">
@@ -2557,7 +2564,7 @@
 <script src="courses.js?v=20261009-adj3"></script>
 <script src="farm.js?v=20261009-tz1"></script>
 <script src="metaverse-v3.js?v=20261005-native3"></script>
-<script src="app.js?v=20261010-adm1"></script>
+<script src="app.js?v=20261010-cv1"></script>
 <script src="campus-tools.js?v=20261006-tools1"></script>
 <script src="workspace-v3.js?v=20261005-native3"></script>
 <script src="island-core.js?v=20261004a"></script>
