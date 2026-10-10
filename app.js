@@ -857,12 +857,14 @@ function renderHomework() {
         <div style="font-size:13px;margin-top:2px">${hwWeek === 0 ? "本周" : "这周"}已完成 ${done.length} / ${week.length}${week.length && done.length === week.length ? "，全部搞定 🎉" : ""}</div>
       </div>
     </div>
+    <div id="adSoonHw" class="adsoon hidden"></div>
     ${overdue.length ? `<div class="aday"><div class="aday-h overdue"><b>之前没交的</b><span>过期但还没标记完成</span></div>${card(overdue)}</div>` : ""}
     <div class="aday"><div class="aday-h"><b>待完成</b><span>按截止时间排序</span></div>
       ${todo.length ? card(todo) : `<div class="aempty surface">${week.length ? "这周的作业都做完了 🎉" : "这周没有作业 🎉"}</div>`}</div>
     ${undatedHw.length ? `<div class="aday"><div class="aday-h"><b>截止时间待定</b><span>请去群里核实</span></div>${card(undatedHw)}</div>` : ""}
     ${done.length ? `<div class="aday"><div class="aday-h"><b>已完成</b><span>${done.length} 项</span></div>${card(done)}</div>` : ""}
     <div class="afoot">${Sync.active() ? "完成勾选会同步到你的账号；" : "勾选只记在这台设备上；"}作业由班委整理发布，有出入以群里为准。</div>`;
+  if (typeof exRender === "function") exRender();
 }
 $("hwView").addEventListener("click", (e) => {
   const b = e.target.closest("button[data-hw]"); if (!b) return;

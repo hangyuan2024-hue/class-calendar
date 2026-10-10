@@ -30,3 +30,4 @@
   background: #14213d; color: #fff; padding: 9px 16px; border-radius: 999px; font-size: 13.5px; transition: opacity .2s, transform .2s; }
 .extoast.show { opacity: 1; transform: translate(-50%, 0); }
 .exfiles { padding: 18px 20px; }
+#hwView .adsoon { margin: 14px 0 4px; }
