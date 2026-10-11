@@ -14,6 +14,7 @@
 <link rel="stylesheet" href="web/farm.css">
 <link rel="stylesheet" href="web/metaverse-v3.css">
 <link rel="stylesheet" href="webshim.css">
+<link rel="stylesheet" href="skin-web.css">
 </head>
 <body>
 <div id="app" class="booting">
@@ -21,7 +22,7 @@
     <div class="tb-brand"><img src="logo.png" alt=""><span>捞捞课程表</span></div>
     <div class="tb-crumb" id="tbCrumb"></div>
     <button class="tb-search" id="tbSearch" title="搜索、跳转、执行命令"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span>搜索事项、跳转页面、执行命令</span><kbd>Ctrl K</kbd></button>
-    <div class="tb-right"><span class="sync" id="syncDot" title="同步状态"></span></div>
+    <div class="tb-right"><span class="lan-n" data-lan-n hidden title="局域网互传已连上"></span><span class="sync" id="syncDot" title="同步状态"></span></div>
     <div class="bell none" id="bell" title="今天的课"></div>
   </header>
 
@@ -91,7 +92,10 @@
 
   <!-- 主界面 -->
   <aside class="side hidden" id="side">
+    <div class="side-head"><img src="logo.png" alt=""><b>捞捞课程表</b></div>
+    <div class="side-eyebrow">CAMPUS WORKSPACE</div>
     <nav id="nav"></nav>
+    <button class="btn primary side-new" id="sideNew" title="记一件事（Ctrl+N）">记一件事</button>
     <div class="side-foot">
       <button class="nav-item" data-view="me" id="navMe"></button>
       <button class="nav-item" data-view="settings" id="navSettings"></button>
@@ -177,6 +181,7 @@
 <script src="adjust.js"></script>
 <script src="v-web.js"></script>
 <script src="webshim.js"></script>
+<script src="lan.js"></script>
 <script src="web/schools.js"></script>
 <script src="web/study.js"></script>
 <script src="web/mindmap.js"></script>

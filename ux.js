@@ -37,7 +37,7 @@
       if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx)) { s = null; return; }   // 是在上下滚动
       if (Math.abs(dx) < 14) return;
       s.on = true; s.row.classList.add("swiping");
-      const k = s.row.dataset.row, mineItem = !k.startsWith("c") && !k.startsWith("x");
+      const k = s.row.dataset.row, mineItem = !k.startsWith("c") && !k.startsWith("x") && !/^kn\d+$/.test(k);
       s.bg = document.createElement("div");
       s.bg.innerHTML = `<span>✓ ${s.row.classList.contains("done") ? "取消完成" : "完成"}</span><span>${mineItem ? "删除 🗑" : "隐藏 ⊘"}</span>`;
       s.bg.style.cssText = `top:${s.row.offsetTop}px;height:${s.row.offsetHeight}px;bottom:auto`;
@@ -58,7 +58,7 @@
     const k = row.dataset.row;
     if (dx > 88) { const b = row.querySelector('[data-act="done"]'); if (b) b.click(); }
     else if (dx < -88) {
-      if (k.startsWith("c")) { setMark(k, { hidden: true }); showBanner("已隐藏，可以在日历页「显示已隐藏」里找回"); setTimeout(() => showBanner(""), 3000); }
+      if (k.startsWith("c") || /^kn\d+$/.test(k)) { setMark(k, { hidden: true }); showBanner("已隐藏，可以在日历页「显示已隐藏」里找回"); setTimeout(() => showBanner(""), 3000); }
       else if (!k.startsWith("x")) { const i = mine.findIndex((x) => x.id === k); if (i >= 0 && confirm(`删除「${mine[i].subject || "这条事项"}」？`)) { delete quadMap[k]; mine.splice(i, 1); save(LS_MINE, mine); save(LS_QUAD, quadMap); renderAll(); } }
     }
     // 滑过以后，接下来那一下点击不要当成「展开详情」

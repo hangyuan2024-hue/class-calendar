@@ -1,0 +1,160 @@
+/* 捞捞课程表 电脑版 · 「网页风格」皮肤（设置 → 外观 → 界面风格）
+   和网站「清爽」外观（campus-ui.css 的 [data-skin=fresh]）同一套颜色、圆角和排版：
+   白色大侧栏（选中项是浅青绿底的圆角块，下面一个「记一件事」大按钮），灰白底色上一张张白卡片，
+   页面标题用系统黑体加粗；电脑版的功能、快捷键、详情栏都不变。
+   只在 <html data-ui="web"> 时生效；默认的「电脑版风格」不受影响 */
+
+:root[data-ui="web"] {
+  --bg: #f5f6f2; --bg2: #eef2ee; --panel: #ffffff; --panel2: #f5f6f2; --line: #e4e9e4; --line2: #d3dcd5;
+  --text: #202f3c; --text2: #4c5f63; --muted: #7c8c8c;
+  --brand: #157568; --brand2: #168575; --brand-soft: #e2f0e9; --brand-ink: #10594f;
+  --bell: #da723c; --bell-soft: #fff2e7; --bell-ink: #b1531f;
+  --hero: #e5f0e8; --tile-a: #fff2e7; --tile-b: #e7f1ef;
+  --shadow: none; --card-shadow: 0 8px 24px -16px #24483c35;
+  --r: 16px; --r-sm: 10px; --r-xs: 6px; --r-xl: 22px;
+  --side: 232px; --tb: 44px;
+  --font: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+}
+:root[data-ui="web"][data-accent="jade"], :root[data-ui="web"]:not([data-accent]) { --brand: #157568; --brand-soft: #e2f0e9; --brand-ink: #10594f; }
+@media (prefers-color-scheme: dark) {
+  :root[data-ui="web"] {
+    --bg: #131e21; --bg2: #1a282b; --panel: #1c2a2d; --panel2: #131e21; --line: #2b3b3e; --line2: #3a4d50;
+    --text: #edf3ee; --text2: #b9c8c4; --muted: #8fa3a0;
+    --hero: #233e38; --tile-a: #3a2f25; --tile-b: #22393a;
+    --card-shadow: none;
+  }
+  :root[data-ui="web"][data-accent="jade"], :root[data-ui="web"]:not([data-accent]) { --brand: #69c6ad; --brand2: #7fd4bd; --brand-soft: #294b40; --brand-ink: #9fe0cc; }
+}
+
+/* ---------- 窗口框架：左边整条白色侧栏（顶到窗口最上面），右边灰白底 ---------- */
+[data-ui="web"] body { line-height: 1.6; }
+[data-ui="web"] #app { grid-template-rows: var(--tb) 1fr; }
+[data-ui="web"] .titlebar { grid-column: 2 / -1; grid-row: 1; padding-left: 26px; background: var(--bg); }
+[data-ui="web"] #app.login-mode .titlebar { grid-column: 1 / -1; }
+[data-ui="web"] .tb-brand { display: none; }
+[data-ui="web"] .bell { display: none; }
+[data-ui="web"] .tb-search { height: 32px; border-radius: 10px; flex-basis: 380px; }
+[data-ui="web"] .side { grid-row: 1 / -1; grid-column: 1; padding: 22px 16px 16px; background: var(--panel); border-right: 1px solid var(--line); -webkit-app-region: no-drag; z-index: 6; }
+[data-ui="web"] .side .side-head { display: flex; align-items: center; gap: 9px; padding: 0 6px 18px; font-size: 18px; letter-spacing: -.4px; -webkit-app-region: drag; }
+[data-ui="web"] .side-head img { width: 32px; height: 32px; border-radius: 9px; }
+[data-ui="web"] .side-head b { font-weight: 750; }
+[data-ui="web"] .side .side-eyebrow { display: block; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: 2px; margin: 0 12px 10px; }
+[data-ui="web"] #nav { gap: 2px; }
+[data-ui="web"] .nav-grp, [data-ui="web"] .nav-list { gap: 2px; }
+[data-ui="web"] .nav-g { padding: 16px 14px 6px; font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--muted); }
+[data-ui="web"] .nav-grp[data-g="more"] { margin-top: 10px; padding-top: 10px; }
+[data-ui="web"] .nav-item { height: 42px; padding: 0 14px; gap: 12px; border-radius: 10px; font-size: 14px; font-weight: 550; color: var(--text2); }
+[data-ui="web"] .nav-item svg { width: 20px; height: 20px; stroke-width: 1.9; }
+[data-ui="web"] .nav-item:hover { background: var(--bg2); }
+[data-ui="web"] .nav-item.on { background: var(--brand-soft); color: var(--brand); font-weight: 750; box-shadow: none; }
+[data-ui="web"] .nav-item.on svg { color: var(--brand); }
+[data-ui="web"] .nav-item .cnt { height: 20px; line-height: 20px; border-radius: 10px; }
+[data-ui="web"] .side .side-new { display: flex; height: 46px; margin: 14px 0 4px; border-radius: 12px; font-size: 14px; font-weight: 700; flex: none; }
+[data-ui="web"] .side-foot { border-top: 0; padding-top: 6px; }
+[data-ui="web"] .me-card { border: 1px solid var(--line); border-radius: 14px; padding: 9px 10px; margin-top: 8px; }
+
+/* 内容区：没有「纸」的圆角，直接是灰白底；每块内容是一张白卡片 */
+[data-ui="web"] .main { grid-row: 2; background: var(--bg); border-radius: 0; box-shadow: none; }
+[data-ui="web"] .vhead { padding: 14px 34px 18px; }
+[data-ui="web"] .vhead h1 { font: 750 24px/1.25 var(--font); letter-spacing: -.5px; }
+[data-ui="web"] .vhead .sub { font-size: 12.5px; letter-spacing: .3px; }
+[data-ui="web"] .vbody { padding: 0 34px 34px; }
+[data-ui="web"] #insp.open { box-shadow: inset 1px 0 0 var(--line); }
+[data-ui="web"] .td-head h1 { font-size: 28px; }
+
+/* ---------- 通用组件 ---------- */
+[data-ui="web"] .btn { height: 36px; padding: 0 15px; border-radius: 10px; font-weight: 600; border-color: var(--line); }
+[data-ui="web"] .btn:hover { border-color: var(--line2); background: var(--bg2); }
+[data-ui="web"] .btn.primary { border-color: var(--brand); background: var(--brand); color: #fff; font-weight: 700; }
+[data-ui="web"] .btn.primary:hover { background: var(--brand-ink); border-color: var(--brand-ink); }
+[data-ui="web"] .btn.ghost { border-color: transparent; }
+[data-ui="web"] .btn.sm { height: 30px; padding: 0 12px; border-radius: 9px; }
+[data-ui="web"] .btn.sm.iconbtn { width: 30px; padding: 0; }
+[data-ui="web"] .iconbtn { width: 36px; padding: 0; }
+[data-ui="web"] .btn.big { height: 46px; border-radius: 12px; }
+[data-ui="web"] .seg { border-radius: 12px; padding: 4px; background: var(--bg2); }
+[data-ui="web"] .seg button { height: 28px; border-radius: 9px; padding: 0 14px; }
+[data-ui="web"] .input, [data-ui="web"] .field input, [data-ui="web"] .field textarea, [data-ui="web"] .field select { border-radius: 10px; height: 38px; border-color: var(--line2); }
+[data-ui="web"] textarea.input, [data-ui="web"] .field textarea { height: auto; }
+[data-ui="web"] .card { border-radius: var(--r); border-color: var(--line); box-shadow: var(--card-shadow); }
+[data-ui="web"] .sec { border-bottom: 0; padding-bottom: 4px; }
+[data-ui="web"] .sec b { font-size: 16px; font-weight: 700; }
+[data-ui="web"] .tag { border-radius: 7px; height: 22px; padding: 0 8px; }
+[data-ui="web"] .chk { border-radius: 50%; width: 20px; height: 20px; }
+[data-ui="web"] .dialog { border-radius: 20px; }
+[data-ui="web"] .dialog h3 { font-size: 18px; font-weight: 750; padding: 22px 24px 4px; }
+[data-ui="web"] .dialog .dbody { padding: 14px 24px; }
+[data-ui="web"] .dialog .dfoot { padding: 14px 24px 20px; }
+[data-ui="web"] .menu { border-radius: 14px; padding: 6px; }
+[data-ui="web"] .menu button { border-radius: 9px; padding: 8px 12px; }
+[data-ui="web"] .toast { border-radius: 12px; }
+[data-ui="web"] .empty { line-height: 1.9; }
+
+/* 白卡片：几个页面里本来「写在纸上」的大块，网页风格里各自装进一张卡片 */
+[data-ui="web"] .td-todo, [data-ui="web"] .td-plate, [data-ui="web"] .tk-table, [data-ui="web"] .wk-grid, [data-ui="web"] .st-card.card,
+[data-ui="web"] .td-stats {
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--card-shadow);
+}
+
+/* ---------- 今日：和网站首页一样的「问候大卡片」 ---------- */
+[data-ui="web"] .td-band { border-radius: var(--r-xl); border-color: var(--line); background: var(--panel); box-shadow: var(--card-shadow); }
+[data-ui="web"] .tn { background: var(--hero); border-right-color: color-mix(in srgb, var(--brand) 12%, var(--line)); padding: 24px 24px 20px; }
+[data-ui="web"] .tn.hot { background: var(--tile-a); }
+[data-ui="web"] .tn-t b { font-size: 20px; font-weight: 750; }
+[data-ui="web"] .tn-cd b { font-weight: 650; letter-spacing: -1.5px; }
+[data-ui="web"] .tb { padding: 20px 24px 16px; }
+[data-ui="web"] .tb-track { border-radius: 12px; }
+[data-ui="web"] .td-quick { height: 50px; border-radius: 14px; border: 1px solid var(--line); padding: 0 18px; box-shadow: var(--card-shadow); }
+[data-ui="web"] .td-cols { gap: 22px; }
+[data-ui="web"] .td-todo { padding: 12px 16px 12px; }
+[data-ui="web"] .td-todo > .sec { padding: 4px 4px 8px; border-bottom: 1px solid var(--line); }
+[data-ui="web"] .td-row { border-radius: 10px; padding: 10px 8px; }
+[data-ui="web"] .td-aside { gap: 16px; }
+[data-ui="web"] .td-plate { padding: 14px 16px; }
+[data-ui="web"] .td-stats { border: 1px solid var(--line); overflow: hidden; }
+[data-ui="web"] .td-stats > div { padding: 14px 0 12px 14px; }
+[data-ui="web"] .td-stats b { font-weight: 650; }
+[data-ui="web"] .tp { border-radius: var(--r); padding: 14px 16px; box-shadow: var(--card-shadow); }
+[data-ui="web"] .tc { border-radius: var(--r); padding: 14px 16px; border: 1px solid var(--line); }
+[data-ui="web"] .td-week .today { border-radius: 10px; }
+
+/* ---------- 课程表、月历、事项表、作业 ---------- */
+[data-ui="web"] .wk-grid { overflow: hidden; }
+[data-ui="web"] .wk-c { border-radius: 10px; }
+[data-ui="web"] .tk-table { overflow: hidden; }
+[data-ui="web"] .tk-tools .input, [data-ui="web"] .tk-search { border-radius: 10px; }
+[data-ui="web"] .md-cal, [data-ui="web"] .mo-grid { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--card-shadow); overflow: hidden; }
+[data-ui="web"] .hw-row { padding: 14px 18px; }
+[data-ui="web"] .hw-h b { font-size: 17px; font-weight: 700; }
+
+/* ---------- 设置：每一组是一张卡片（和网站「我的」页一样） ---------- */
+[data-ui="web"] .st-wrap { gap: 16px; }
+[data-ui="web"] .st-card.card { padding: 6px 22px 8px; }
+[data-ui="web"] .st-card.card h3 { margin: 16px 0 4px; font-size: 16px; font-weight: 750; }
+[data-ui="web"] .me-cols .st-card.card:first-child { border-top: 1px solid var(--line); }
+
+/* 窗口比较窄：侧栏收成图标列 */
+@media (max-width: 1240px) {
+  :root[data-ui="web"] { --side: 76px; }
+  [data-ui="web"] .side { padding: 16px 10px; }
+  [data-ui="web"] .side .side-head { justify-content: center; padding: 0 0 12px; }
+  [data-ui="web"] .side-head b, [data-ui="web"] .side .side-eyebrow { display: none; }
+  [data-ui="web"] .nav-item { justify-content: center; padding: 0; }
+  [data-ui="web"] .side .side-new { font-size: 0; height: 42px; }
+  [data-ui="web"] .side .side-new::before { content: "＋"; font-size: 20px; font-weight: 400; }
+  [data-ui="web"] .me-card { border: 0; }
+  [data-ui="web"] .vhead, [data-ui="web"] .vbody { padding-left: 24px; padding-right: 24px; }
+}
+[data-ui="web"] .main { grid-column: 2; }
+[data-ui="web"] #insp { grid-row: 2; grid-column: 3; }
+[data-ui="web"] .login { grid-row: 2; }
+/* 今日右栏：番茄钟、倒数日自己就是卡片，外面不再套一层 */
+[data-ui="web"] .td-pomo, [data-ui="web"] .td-plate.tc { background: none; border: 0; box-shadow: none; padding: 0; }
+[data-ui="web"] .td-plate.tc { background: color-mix(in srgb, var(--c) 10%, var(--panel)); border: 1px solid var(--line); padding: 14px 16px; }
+[data-ui="web"] .td-plate .sec { border-bottom: 0; }
+[data-ui="web"] .nav-item { height: 38px; }
+[data-ui="web"] .nav-g { padding-top: 12px; }
+@media (prefers-color-scheme: dark) {
+  [data-ui="web"] .btn.primary { color: #0b231e; }
+  [data-ui="web"] .btn.primary:hover { background: var(--brand2); border-color: var(--brand2); }
+}

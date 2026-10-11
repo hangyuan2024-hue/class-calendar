@@ -49,6 +49,7 @@ const sessionStore = {
 
 // ---------- 发给界面 ----------
 let pushTimer = 0;
+let livePingKick = () => {};
 function pushState() {
   clearTimeout(pushTimer);
   pushTimer = setTimeout(() => {
@@ -512,6 +513,10 @@ handle("mark", (key, patch) => store.setMark(key, patch));
 handle("move", (id, day) => store.moveMine(id, day));
 handle("kv:set", (ns, k, v) => store.kvSet(ns, k, v));
 handle("kv:batch", (ops) => store.kvBatch(ops));
+// 局域网互传：连接信息经服务器转一下（数据本身走 WebRTC 直连，不经过服务器）
+handle("lan:send", async (to, body) => { const r = await store.lanSend(to, body); setTimeout(() => livePingKick(), 300); return r; });
+handle("lan:apply", (list) => store.lanApply(list));
+handle("lan:busy", (b) => { store.lanBusy = b ? Date.now() : 0; if (b) livePingKick(); return true; });
 handle("habit", (id, day) => store.toggleHabit(id, day));
 handle("growth", (kind, ref, undo) => store.growth(kind, ref, undo));
 handle("class:switch", (cid) => store.switchClass(cid));
@@ -527,6 +532,7 @@ handle("settings", (patch) => {
   if (patch && "autoStart" in patch) app.setLoginItemSettings({ openAtLogin: !!s.autoStart, args: ["--hidden"] });
   if (patch && "hotkey" in patch) registerHotkey();
   if (patch && "taskbarBadge" in patch) { badgeN = -1; updateTaskbar(); }
+  if (patch && ("lanSync" in patch || "liveSync" in patch)) setTimeout(() => livePingKick(), 50);
   return s;
 });
 handle("quick:parse", (text) => parseQuick(text, M.now()));
@@ -658,6 +664,7 @@ app.whenReady().then(() => {
   nativeTheme.themeSource = store.data.settings.theme === "meta" ? "dark" : store.data.settings.theme || "system";
   nativeTheme.on("updated", () => { for (const w of [win, ...pops.values()]) if (w && !w.isDestroyed()) w.setTitleBarOverlay({ ...themeColors(), height: 44 }); });
   store.on("change", pushState); store.on("status", pushState);
+  store.on("lan", (p) => { if (win && !win.isDestroyed()) win.webContents.send("lan", p); });
   store.on("auth-expired", () => { sessionStore.save(null); pushState(); });
 
   const quiet = process.argv.includes("--hidden") || process.argv.includes("--quick");
@@ -675,20 +682,26 @@ app.whenReady().then(() => {
   app.on("browser-window-focus", () => { lastUse = Date.now(); livePing(); });
   const liveWait = () => {
     if (!store.data.settings.liveSync) return 60000;
+    if (store.lanBusy && Date.now() - store.lanBusy < 30000) return 1000;   // 正在和局域网里的设备握手：问得勤一点，连得快
     if (win && !win.isDestroyed() && win.isFocused() && Date.now() - lastUse < 120000) return 3000;
     if (win && !win.isDestroyed() && win.isVisible()) return 10000;
     return 30000;
   };
   async function livePing() {
+    if (livePing.inflight) return;
     clearTimeout(livePing.t);
+    livePing.inflight = true;
+    try {
     if (sessionStore.load()) {
       if (store.pingOff || !store.data.settings.liveSync) { if (Date.now() - (store.data.lastRefresh || 0) > 60000) await store.refresh(); }
       else await store.ping();
     }
+    } finally { livePing.inflight = false; }
     const f = store.pingFail || 0;
     livePing.t = setTimeout(livePing, f ? Math.min(60000, liveWait() * 2 ** Math.min(f, 5)) : liveWait());
   }
   setTimeout(livePing, 4000);
+  livePingKick = () => { if (!livePing.inflight) livePing(); };
   ipcMain.on("user-active", () => { const idle = Date.now() - lastUse > 120000; lastUse = Date.now(); if (idle) livePing(); });
   setInterval(() => { if (sessionStore.load()) store.refresh(); }, 15 * 60 * 1000);   // 保险：每 15 分钟完整同步一次
   setInterval(checkReminders, 30 * 1000); setTimeout(checkReminders, 5000);

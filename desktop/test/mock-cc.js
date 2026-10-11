@@ -57,6 +57,9 @@
   S.extras = { cid: "c-1", autodel: true, canSet: false, keep: {}, files: { c101: 2 }, loaded: true };
   S.live = true; S.clockOff = 0; S.kv = S.kv || {};
   S.mine.push({ id: "p5", subject: "物理实验预习报告", kind: "作业", event_time: day(2, "08:00"), location: "", note: "", done: false });
+  S.mine.push({ id: "p7", subject: "日记：周末想去的地方", event_time: day(3), location: "", note: "", done: false, local: true });
+  S.settings.lanSync = true; S.settings.liveSync = true; S.dev = "dMockDesk01"; S.lanOk = true;
+  if (location.hash.includes("web")) S.settings.uiStyle = "web";
   S.mine.push({ id: "p6", subject: "上学期的社团招新", event_time: day(-13), location: "", note: "", done: false });
   const files = { c101: [{ id: "f1", name: "实验三要求.pdf", mime: "application/pdf", size: 238000, parts: 1, by: "王老师", can_del: false }, { id: "f2", name: "参考截图.png", mime: "image/png", size: 51000, parts: 1, by: "张班长", can_del: true }] };
   const RPC = {
@@ -112,6 +115,8 @@
       if (ns === "mood_log_v1") S.kv[ns] = cur; push(); return true; },
     "tool:read": (f) => (/\.html$/.test(f) ? "<!doctype html><body style=\"font:14px sans-serif;padding:20px\">（测试用的工具页面：" + f + "）<style>/* CAMPUS_TOOL_STYLES */</style><script>/* CAMPUS_INFLATE_LIBRARY */</script></body>" : ""),
     "extra:items": (l) => { S.extraItems = l; push(); return true; },
+    "lan:send": () => true, "lan:busy": () => true,
+    "lan:apply": (l) => { for (const x of l || []) { const i = S.mine.findIndex((m) => m.id === x.r); if (x.v == null) { if (i >= 0) S.mine.splice(i, 1); } else if (i >= 0) S.mine[i] = x.v; else S.mine.push(x.v); } push(); return (l || []).length; },
     "kv:batch": (ops) => { for (const [ns, k, v] of ops || []) H["kv:set"](ns, k, v); return true; },
     habit: () => true, growth: () => {}, "wallpaper:state": () => ({ on: false, windows: true }), "backup:list": () => ({ dir: "C:/Users/me/Documents/捞捞课程表备份", list: [] }),
     "clip:read": () => "", "clip:image": () => null, badge: () => {}, "attach:exists": (ps) => ps.map(() => true), "pomo:state": () => ({ ...pomo }),

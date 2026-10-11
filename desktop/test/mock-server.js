@@ -38,7 +38,9 @@ function createMock(opts = {}) {
         if (fn === "app_bootstrap") return send(res, 200, { me: { id: uid, display_name: "杭远", account: "hangyuan", role: "student" }, perms: [], classes: [{ id: "c-1", name: "计科2601班", status: "approved", is_teacher: false }], cid: "c-1", items: S.items, wall: { cid: "c-1", posts: S.wall } });
         if (fn === "courses_get") return send(res, 200, S.courses);
         if (fn === "courses_sync") { S.courses = { courses: body.p_courses, meta: body.p_meta, updated_at: new Date(Date.now() + (S.courseN = (S.courseN || 0) + 1)).toISOString() }; return send(res, 200, { updated_at: S.courses.updated_at }); }
-        if (fn === "sync_ping") { S.pings = (S.pings || 0) + 1; return send(res, 200, { now: Date.now() + (opts.clockAhead || 0), rev: S.rev, csig: S.csig || 1, peers: [], sig: [] }); }
+        if (fn === "sync_ping") { S.pings = (S.pings || 0) + 1; S.lastPing = body; const sig = (S.lanBox || []).filter((x) => x.to === body.p_dev); S.lanBox = (S.lanBox || []).filter((x) => x.to !== body.p_dev);
+          return send(res, 200, { now: Date.now() + (opts.clockAhead || 0), rev: S.rev, csig: S.csig || 1, peers: body.p_lan ? [{ dev: "wPeer000001", kind: "phone+L" }] : [], sig }); }
+        if (fn === "lan_send") { (S.lanBox = S.lanBox || []).push({ from: body.p_from, to: body.p_to, body: body.p_body }); return send(res, 200, true); }
         if (fn === "class_ctx") { S.ctxN = (S.ctxN || 0) + 1; return send(res, 200, { items: S.items, groups: [], class_opts: {} }); }
         if (fn === "item_extras") return send(res, 200, { autodel: true, can_set: false, keep: {}, files: { c11: 2 }, deleted: S.deleted || [] });
         if (fn === "file_del_items") { S.fileDel = body.items; return send(res, 200, null); }

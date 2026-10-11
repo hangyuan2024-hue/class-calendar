@@ -101,7 +101,7 @@ App.views.tasks = {
       html += `<div class="tr${this.sel.has(x.key) ? " sel" : ""}${x.key === this.cur ? " cur" : ""}${x.done ? " done" : ""}" data-k="${esc(x.key)}">
         <span><button class="chk${x.done ? " on" : ""}" data-k="${esc(x.key)}" tabindex="-1"></button></span><span>${tagHtml(x.type)}</span>
         <span class="tt"><b>${esc(x.title)}</b>${x.note ? `<i title="${esc(x.note)}">📝</i>` : ""}${x.summary ? `<small>${esc(x.summary)}</small>` : ""}</span>
-        <span class="tw${late ? " late" : ""}${x.day === tk ? " tdy" : ""}">${esc(whenText(x, now))}</span><span class="tl2">${esc(x.location)}</span><span class="ts">${x.study ? "课内学习" : x.mine ? (x.from ? "我改过的" : "我的") : App.group(x.gid) ? "👥 " + esc(App.group(x.gid).name) : "班级"}${attachList(x.key).length || CloudFiles.count(x.key) ? " 📎" : ""}${Autodel.soon(x) ? " 🗑" : ""}</span></div>`;
+        <span class="tw${late ? " late" : ""}${x.day === tk ? " tdy" : ""}">${esc(whenText(x, now))}</span><span class="tl2">${esc(x.location)}</span><span class="ts">${x.study ? "课内学习" : x.mine ? (x.from ? "我改过的" : x.local ? "🔒 仅本机" : "我的") : App.group(x.gid) ? "👥 " + esc(App.group(x.gid).name) : "班级"}${attachList(x.key).length || CloudFiles.count(x.key) ? " 📎" : ""}${Autodel.soon(x) ? " 🗑" : ""}</span></div>`;
     }
     if (!list.length) html += `<div class="empty"><b>${this.q ? "🔍" : "🎉"}</b>${this.q ? "没有找到「" + esc(this.q) + "」" : "这里没有事项"}</div>`;
     $("#tkTable", el).innerHTML = html;

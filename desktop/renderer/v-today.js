@@ -164,7 +164,7 @@ App.views.today = {
     $("#tdTodoN", this.el).textContent = total ? `${total} 件` : "";
     const row = (x) => `<div class="td-row${x.done ? " done" : ""}${Insp.key === x.key ? " insp-sel" : ""}" data-k="${esc(x.key)}"><button class="chk${x.done ? " on" : ""}" data-k="${esc(x.key)}" title="${x.done ? "标记为没完成" : "完成"}"></button>
       <span class="td-tag" style="--c:${tc(x.type)}">${esc(x.mine && x.type !== "作业" ? "我的" : x.study ? "考核" : x.type)}</span>
-      <span class="td-t">${esc(x.title)}${CloudFiles.count(x.key) || attachList(x.key).length ? ' <small title="有附件">📎</small>' : ""}${Autodel.soon(x) ? ' <small title="快要自动删除了">🗑</small>' : ""}</span>
+      <span class="td-t">${x.local ? '<small title="只存在这台设备">🔒</small> ' : ""}${esc(x.title)}${CloudFiles.count(x.key) || attachList(x.key).length ? ' <small title="有附件">📎</small>' : ""}${Autodel.soon(x) ? ' <small title="快要自动删除了">🗑</small>' : ""}</span>
       ${x.location ? `<span class="td-l">${esc(x.location)}</span>` : ""}<span class="td-w${overdue(x, now) ? " late" : ""}">${esc(x.day === t ? (x.time ? x.time + (x.type === "作业" ? " 截止" : "") : "今天") : whenText(x, now))}</span></div>`;
     const html = groups.filter((g) => g[1].length).map((g) => `<div class="td-g ${g[2] || ""}"><span>${g[0]}</span><small class="num">${g[1].length}</small></div>` + g[1].slice(0, 12).map(row).join("") + (g[1].length > 12 ? `<div class="td-more" data-go="tasks">还有 ${g[1].length - 12} 件…</div>` : "")).join("");
     el.innerHTML = html || `<div class="empty"><b>🎉</b>最近一周没有要做的事<br>在上面一句话记事，或者按 Ctrl+N</div>`;

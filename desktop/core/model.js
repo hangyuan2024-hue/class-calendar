@@ -33,7 +33,7 @@
         original: r.original || "", publish: r.publish_date || "", confirm: !!r.need_confirm, done: !!mk.done, hidden: !!mk.hidden, note: mk.note || "",
         gid: r.group_id || null, by: r.created_by || null, editor: r.editor || "", updated: r.updated_at || "", raw: r };
     });
-    const own = (s.mine || []).filter((r) => r && r.id && !r.local).map((r) => {
+    const own = (s.mine || []).filter((r) => r && r.id).map((r) => {
       const p = parseTime(r.event_time);
       // kind = "作业"：自己记的作业（和网页版一样，会出现在作业页）；from：改的是哪条班级事项（「编辑（仅自己）」）
       return { key: r.id, id: r.id, mine: true, type: r.kind === "作业" ? "作业" : "个人", kind: r.kind === "作业" ? "作业" : "", from: r.from || "", keep: r.keep || "",

@@ -129,7 +129,7 @@ const ItemDetail = {
     const now = App.now(), late = overdue(x, now), g = App.group(x.gid);
     const canCls = !x.mine && App.canEditIn(x.gid);
     return `
-      <div class="dt-top">${tagHtml(x.type)}${x.mine && x.kind === "作业" ? '<span class="tag" style="--c:var(--t-个人)">我的</span>' : ""}${g ? `<span class="tag" style="--c:var(--ok)">👥 ${esc(g.name)}</span>` : ""}${x.from ? '<span class="tag" style="--c:var(--brand)">我改过的</span>' : ""}${x.done ? '<span class="tag" style="--c:var(--ok)">已完成</span>' : late ? '<span class="tag" style="--c:var(--bad)">过期了</span>' : ""}${x.confirm ? '<span class="tag" style="--c:var(--warn)">待核实</span>' : ""}<span class="grow"></span>
+      <div class="dt-top">${tagHtml(x.type)}${x.mine && x.kind === "作业" ? '<span class="tag" style="--c:var(--t-个人)">我的</span>' : ""}${g ? `<span class="tag" style="--c:var(--ok)">👥 ${esc(g.name)}</span>` : ""}${x.from ? '<span class="tag" style="--c:var(--brand)">我改过的</span>' : ""}${x.local ? '<span class="tag" style="--c:var(--muted)" title="不上传云端；同一个 Wi-Fi 里的设备之间局域网互传">🔒 仅本机</span>' : ""}${x.done ? '<span class="tag" style="--c:var(--ok)">已完成</span>' : late ? '<span class="tag" style="--c:var(--bad)">过期了</span>' : ""}${x.confirm ? '<span class="tag" style="--c:var(--warn)">待核实</span>' : ""}<span class="grow"></span>
         ${x.study ? `<button class="btn ghost sm" data-d="study" title="在课内学习里打开">📖 课内学习</button>` : x.mine ? `<button class="btn ghost iconbtn sm" data-d="edit" title="编辑（Enter）">${icon("edit")}</button>` : canCls ? `<button class="btn ghost iconbtn sm" data-d="cedit" title="修改这条班级事项">${icon("edit")}</button>` : `<button class="btn ghost sm" data-d="mycopy" title="班级事项只有老师和班委能改；这里改的只对你自己生效">${icon("edit")}仅自己</button>`}
         ${!x.mine && !x.study && App.S.groupsOk && x.updated ? `<button class="btn ghost iconbtn sm" data-d="hist" title="修改记录">${icon("history")}</button>` : ""}
         ${!x.study && App.canDelItem(x) ? `<button class="btn ghost iconbtn sm danger" data-d="cdel" title="从班级里删除">${icon("trash")}</button>` : ""}
@@ -233,6 +233,7 @@ editItem = function (x, preset) {
       <div class="row"><label class="field" style="flex:1.3">日期<input name="day" type="date" value="${esc(v.day)}"></label><label class="field" style="flex:1">时间<input name="time" type="time" value="${esc(v.time)}"></label><label class="field" style="flex:1.4">地点<input name="location" maxlength="200" value="${esc(v.location)}" placeholder="可不填"></label></div>
       <div class="row"><span class="field" style="flex:none">这是<span class="seg" id="eiKind"><button type="button" data-kind=""${v.kind ? "" : ' class="on"'}>普通事项</button><button type="button" data-kind="作业"${v.kind === "作业" ? ' class="on"' : ""}>作业</button></span></span><small class="muted" style="align-self:flex-end;padding-bottom:6px">选「作业」会出现在作业页，完成了给云宠更多养料</small></div>
       <label class="field">备注<textarea name="note" rows="3" maxlength="2000" placeholder="可不填">${esc(v.note)}</textarea></label>
+      ${from ? "" : `<label class="ei-local"><input type="checkbox" name="local"${x && x.local ? " checked" : ""}><span>🔒 只存在这台设备<small>不上传云端；同一账号的手机、电脑连着同一个 Wi-Fi 时局域网直接互传</small></span></label>`}
     </div>
     <div class="dfoot">${isNew ? '<span class="muted grow" style="font-size:12px">Enter 保存 · Esc 取消</span>' : '<button type="button" class="btn danger" data-a="del">' + icon("trash") + '删除</button><span class="grow"></span>'}<button type="button" class="btn" data-a="cancel">取消</button><button class="btn primary">保存</button></div>
   </form>`);
@@ -253,10 +254,11 @@ editItem = function (x, preset) {
     if (!x && f.subject.dataset.parsed) { const p = JSON.parse(f.subject.dataset.parsed); if (p.subject && (p.date || p.time || p.location)) subject = p.subject; }
     if (!subject) return f.subject.focus();
     const rec = { subject, event_time: f.day.value ? f.day.value + (f.time.value ? " " + f.time.value : "") : "", location: f.location.value.trim(), note: f.note.value.trim(), kind: kind || undefined };
+    if (!from) rec.local = !!(f.local && f.local.checked);
     if (from) { await call("item:override", from, rec); closeOverlay(); toast("已存成你自己的版本，原来那条替你隐藏了"); return; }
     if (x) { const raw = (App.S.mine || []).find((r) => r.id === x.key) || {}; Object.assign(rec, { ...raw, ...rec, id: x.key }); if (!kind) delete rec.kind; }
     await call("mine:upsert", rec);
-    closeOverlay(); toast(!x ? "已记下" : "已保存");
+    closeOverlay(); toast(rec.local ? (x && x.local ? "已保存（只在这台设备）" : "已记下，只存在这台设备") : !x ? "已记下" : "已保存");
   };
   d.onclick = async (e) => {
     const a = e.target.closest("[data-a]"); if (!a) return;

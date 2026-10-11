@@ -220,3 +220,49 @@
 .popout .tb-brand { width: auto; }
 .popout [data-pop] { display: none; }
 .tl-quick { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+
+/* ---------- 局域网互传 ---------- */
+.ei-local { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 10px; background: var(--bg2, rgba(0,0,0,.03)); cursor: pointer; font-size: 13px; }
+.ei-local input { margin-top: 3px; accent-color: var(--brand); }
+.ei-local small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.lan-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; vertical-align: 1px; background: var(--muted); opacity: .5; }
+.lan-dot.ok { background: var(--ok); opacity: 1; box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 22%, transparent); }
+.lan-dot.busy { background: var(--bell); opacity: 1; animation: lanPulse 1.4s ease-in-out infinite; }
+.lan-dot.idle { background: var(--muted); opacity: .8; }
+@keyframes lanPulse { 50% { opacity: .35; } }
+.lan-n { font-size: 11px; color: var(--ok); background: var(--ok-soft); padding: 1px 7px; border-radius: 99px; margin-right: 8px; -webkit-app-region: no-drag; }
+.lan-n[hidden] { display: none; }
+
+/* 设置 → 界面风格：两张小预览图 */
+.st-ui { display: flex; gap: 10px; }
+.st-ui button { width: 168px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 8px 10px; border: 1.5px solid var(--line2); border-radius: 12px; background: var(--panel); text-align: left; }
+.st-ui button:hover { border-color: var(--muted); }
+.st-ui button.on { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+.st-ui b { font-size: 13px; margin-top: 6px; } .st-ui small { font-size: 11px; color: var(--muted); line-height: 1.4; }
+.st-ui-pv { position: relative; display: block; width: 100%; height: 64px; border-radius: 8px; overflow: hidden; background: #f3f6f5; border: 1px solid var(--line); }
+.st-ui-pv em { position: absolute; left: 0; top: 0; bottom: 0; width: 26%; background: #f3f6f5; }
+.st-ui-pv span { position: absolute; border-radius: 3px; }
+.st-ui-pv.desktop::before { content: ""; position: absolute; left: 0; right: 0; top: 10px; height: 2px; background: linear-gradient(90deg, transparent 26%, #8fd0c3 26% 46%, #f0702a 46% 47%, #cfe3dd 47% 70%, #c9d3f0 70%); }
+.st-ui-pv.desktop span:nth-of-type(1) { left: 29%; right: 0; top: 14px; bottom: 0; background: #fff; border-radius: 6px 0 0 0; box-shadow: inset 1px 1px 0 #dde6e2; }
+.st-ui-pv.desktop span:nth-of-type(2) { left: 33%; right: 8%; top: 20px; height: 12px; background: #fde8db; }
+.st-ui-pv.desktop span:nth-of-type(3) { left: 33%; right: 30%; top: 38px; height: 4px; background: #dde6e2; box-shadow: 0 8px 0 #dde6e2, 0 16px 0 #dde6e2; }
+.st-ui-pv.web { background: #f5f6f2; }
+.st-ui-pv.web em { background: #fff; border-right: 1px solid #e4e9e4; }
+.st-ui-pv.web em::before { content: ""; position: absolute; left: 12%; right: 12%; top: 18px; height: 7px; border-radius: 3px; background: #e2f0e9; box-shadow: 0 11px 0 #eef2ee, 0 22px 0 #eef2ee; }
+.st-ui-pv.web em::after { content: ""; position: absolute; left: 12%; right: 12%; bottom: 7px; height: 8px; border-radius: 3px; background: #157568; }
+.st-ui-pv.web span:nth-of-type(1) { left: 32%; right: 6%; top: 8px; height: 24px; background: #e5f0e8; border-radius: 6px; border: 1px solid #e4e9e4; }
+.st-ui-pv.web span:nth-of-type(2) { left: 32%; width: 30%; top: 36px; bottom: 6px; background: #fff; border-radius: 6px; border: 1px solid #e4e9e4; }
+.st-ui-pv.web span:nth-of-type(3) { left: 66%; right: 6%; top: 36px; bottom: 6px; background: #fff; border-radius: 6px; border: 1px solid #e4e9e4; }
+.td-aside > :empty { display: none; }
+
+/* 设置：左边一列目录（点了跳过去，滚动时高亮），右边分组 */
+.st-body { display: grid; grid-template-columns: 150px minmax(0, 780px); justify-content: center; gap: 36px; align-items: start; }
+.st-body .st-wrap { margin: 0; max-width: none; }
+.st-idx { position: sticky; top: 0; display: flex; flex-direction: column; gap: 2px; padding-top: 10px; }
+.st-idx button { border: 0; background: none; text-align: left; padding: 6px 12px; border-radius: 8px; font-size: 13px; color: var(--text2); box-shadow: inset 2px 0 0 transparent; }
+.st-idx button:hover { background: var(--bg2); color: var(--text); }
+.st-idx button.on { color: var(--brand-ink); font-weight: 600; box-shadow: inset 2px 0 0 var(--brand); border-radius: 0 8px 8px 0; background: var(--brand-soft); }
+@media (max-width: 1000px) { .st-body { grid-template-columns: minmax(0, 1fr); } .st-idx { display: none; } }
+[data-ui="web"] .st-idx button.on { border-radius: 10px; box-shadow: none; }
+.st-wrap > .st-card.card:first-child { border-top: 0; }
+[data-ui="web"] .st-wrap > .st-card.card:first-child { border-top: 1px solid var(--line); }

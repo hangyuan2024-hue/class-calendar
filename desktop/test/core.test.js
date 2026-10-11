@@ -112,6 +112,23 @@ const ok = (name) => console.log("✓", name);
   assert.ok(!C.data.ns.personal_events_v1.find((x) => x.id === old.id)); assert.ok(mock.S.fileDel.includes(old.id)); ok("自己记的事过期 2 周自动删除，附件一起删");
   await C.loadExtras(); assert.strictEqual(C.snapshot().extras.files.c11, 2); ok("拿到每条事项的附件数量");
 
+  // 只存在这台设备 + 局域网互传
+  await C.flush();
+  const lc = C.upsertMine({ subject: "只存本机的秘密", event_time: today, local: true });
+  await C.flush();
+  assert.ok(!mock.S.kv.find((r) => r.k === lc.id)); assert.ok(M.allItems(C.snapshot()).find((x) => x.key === lc.id).local); ok("「只存在这台设备」的事项不上传云端，但本机能看到");
+  const sw = C.upsertMine({ subject: "先上传后改成本机", event_time: today }); await C.flush();
+  assert.ok(mock.S.kv.find((r) => r.k === sw.id && r.v)); C.upsertMine({ ...sw, local: true }); await C.flush();
+  assert.strictEqual(mock.S.kv.find((r) => r.k === sw.id).v, null); ok("改成只存本机：云端那条删掉");
+  let lanEv = null; C.on("lan", (e) => (lanEv = e));
+  await C.ping(); assert.strictEqual(mock.S.lastPing.p_lan, true); assert.ok(/\+L$/.test(mock.S.lastPing.p_kind)); assert.strictEqual(lanEv.peers[0].dev, "wPeer000001");
+  await C.lanSend("wPeer000001", { type: "offer", sdp: "x" }); assert.strictEqual(mock.S.lanBox[0].body.type, "offer"); ok("局域网互传：在线登记、找到同一账号的设备、转发连接信息");
+  assert.strictEqual(C.lanApply([{ k: "personal_events_v1", r: "pLan1", v: { id: "pLan1", subject: "手机上只存本机的", event_time: today }, t: 5 }]), 1);
+  assert.ok(C.data.ns.personal_events_v1.find((x) => x.id === "pLan1").local); await C.flush(); assert.ok(!mock.S.kv.find((r) => r.k === "pLan1"));
+  assert.strictEqual(C.lanApply([{ k: "personal_events_v1", r: hw.id, v: { id: hw.id, subject: "想盖掉云端的" }, t: 9e12 }]), 0);
+  C.lanApply([{ k: "personal_events_v1", r: "pLan1", v: null, t: 6 }]); assert.ok(!C.data.ns.personal_events_v1.find((x) => x.id === "pLan1"));
+  C.deleteMine(lc.id); await C.flush(); assert.ok(!mock.S.kv.find((r) => r.k === lc.id)); ok("局域网收到的事项只存本机、不上传；不会盖掉云端同步的事项；删除也能传");
+
   // 注册
   const E = mkStore("e");
   await assert.rejects(E.signup("hangyuan", "12345678", { name: "x" }), /已经被注册/);

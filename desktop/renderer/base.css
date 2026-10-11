@@ -110,8 +110,20 @@ kbd { font: 11px var(--mono); padding: 1px 6px; border: 1px solid var(--line2); 
 
 .side { display: flex; flex-direction: column; padding: 8px 10px 12px; background: var(--bg); min-height: 0; }
 #nav { flex: 1; display: flex; flex-direction: column; gap: 1px; overflow: auto; padding-right: 2px; }
-.nav-g { padding: 14px 12px 4px; font-size: 12px; color: var(--muted); }
-.nav-g:first-child { padding-top: 6px; }
+/* 分组：组名可以点，收起来只剩组名（当前页面所在的组还显示当前那一项） */
+.side .side-head, .side .side-eyebrow, .side .side-new { display: none; }
+.nav-grp, .nav-list { display: flex; flex-direction: column; gap: 1px; }
+.nav-grp.empty { display: none; }
+.nav-grp[data-g="more"] { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+.nav-g { display: flex; align-items: center; gap: 4px; width: 100%; padding: 14px 12px 4px; border: 0; background: none; font-size: 12px; color: var(--muted); text-align: left; }
+.nav-g:hover { color: var(--text2); }
+.nav-chev { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; opacity: 0; transition: transform .15s, opacity .15s; }
+.nav-g:hover .nav-chev, .nav-grp.folded .nav-chev { opacity: 1; }
+.nav-grp.folded .nav-chev { transform: rotate(-90deg); }
+.nav-g .cnt { margin-left: auto; min-width: 18px; padding: 0 5px; height: 16px; border-radius: 8px; font: 600 10.5px/16px var(--num); text-align: center; background: var(--bg2); color: var(--text2); }
+.nav-g .cnt.hot { background: var(--bell); color: #fff; }
+.nav-grp:not(.folded) .nav-g .cnt { display: none; }
+.nav-grp.folded .nav-item:not(.on) { display: none; }
 .nav-item { display: flex; align-items: center; gap: 11px; height: 34px; padding: 0 12px; border: 0; border-radius: 8px; background: none; color: var(--text2); font-size: 13.5px; text-align: left; width: 100%; position: relative; }
 .nav-item svg { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .nav-item:hover { background: var(--bg2); color: var(--text); }
@@ -275,6 +287,8 @@ textarea.input, .field textarea { height: auto; padding: 8px 11px; resize: verti
   :root { --side: 66px; }
   .tb-brand span { display: none; }
   .nav-g { display: none; }
+  .nav-grp.folded .nav-item:not(.hidden) { display: flex; }
+  .nav-grp:not(.plain) { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
   .nav-item { justify-content: center; padding: 0; height: 38px; }
   .nav-item > span:not(.cnt), .nav-item .kb { display: none; }
   .nav-item .cnt { position: absolute; top: 2px; right: 4px; margin: 0; min-width: 16px; height: 16px; line-height: 16px; font-size: 10px; padding: 0 4px; }

@@ -42,6 +42,7 @@ const DEFAULT_SETTINGS = {
   noise: "off", noiseVol: 0.4,
   autodelMine: true,       // 自己记的事项过期 2 周自动删除（和网页版「我自己记的」开关一样）
   liveSync: true,          // 实时同步：别的设备改了，几秒内就同步过来
+  lanSync: true,           // 局域网互传：「只存在这台设备」的事项，同一个 Wi-Fi 里登录同一账号的设备之间直接传（不经过服务器）
 };
 
 const pad = (n) => String(n).padStart(2, "0");
@@ -56,6 +57,7 @@ function blank() {
     courses: { courses: [], meta: {} }, ns: blankNs(),
     sync: { rev: 0, t: {} }, outbox: {}, lastRefresh: 0, settings: { ...DEFAULT_SETTINGS }, attach: {}, flags: {}, raw: {},
     extras: { cid: null, autodel: true, canSet: false, keep: {}, files: {}, loaded: false }, dev: "",
+    localIds: {},   // 「只存在这台设备」的记录（ns + SEP + id）：不上传云端，只在局域网里互传
   };
 }
 
@@ -76,7 +78,7 @@ class Store extends EventEmitter {
       const d = JSON.parse(fs.readFileSync(this.file, "utf8"));
       const b = blank();
       this.data = { ...b, ...d, ns: { ...b.ns, ...(d.ns || {}) }, sync: { ...b.sync, ...(d.sync || {}) }, settings: { ...b.settings, ...(d.settings || {}) },
-        attach: d.attach || {}, flags: d.flags || {}, raw: d.raw && typeof d.raw === "object" ? d.raw : {}, extras: { ...b.extras, ...(d.extras || {}) } };
+        attach: d.attach || {}, flags: d.flags || {}, localIds: d.localIds && typeof d.localIds === "object" ? d.localIds : {}, raw: d.raw && typeof d.raw === "object" ? d.raw : {}, extras: { ...b.extras, ...(d.extras || {}) } };
       for (const [k, kind] of Object.entries(KINDS)) {   // 坏数据兜底
         const v = this.data.ns[k];
         if (kind === "list" && !Array.isArray(v)) this.data.ns[k] = [];
@@ -239,7 +241,8 @@ class Store extends EventEmitter {
     const t0 = this.realNow();
     try {
       const cid = this.data.cid || null;
-      const r = await this.api.rpc("sync_ping", { p_dev: this.data.dev, p_cid: cid, p_lan: false, p_kind: "desktop" }, { timeout: 8000 });
+      const lan = this.lanWanted();
+      const r = await this.api.rpc("sync_ping", { p_dev: this.data.dev, p_cid: cid, p_lan: lan, p_kind: "desktop" + (lan && this.hasLocal() ? "+L" : "") }, { timeout: 8000 });
       const t1 = this.realNow();
       if (r && r.now) {
         const o = r.now - (t0 + t1) / 2;
@@ -253,6 +256,8 @@ class Store extends EventEmitter {
         this.csig = { cid, v: r.csig };
       }
       if (this.status.error || !this.status.online) { this.status = { ...this.status, online: true, error: "" }; this.emit("status", this.status); }
+      // 局域网互传：同一账号在线的设备、别的设备发来的连接信息，交给界面去连（WebRTC 在界面里）
+      this.emit("lan", { dev: this.data.dev, on: lan, peers: (r && r.peers) || [], sig: (r && r.sig) || [] });
       return r;
     } catch (e) {
       this.pingFail = (this.pingFail || 0) + 1;
@@ -262,11 +267,45 @@ class Store extends EventEmitter {
     } finally { this.pinging = false; }
   }
 
+  // ---------- 局域网互传 ----------
+  lanWanted() { return this.data.settings.lanSync !== false && !!this.data.uid; }
+  hasLocal() { return Object.keys(this.data.localIds).length > 0; }
+  async lanSend(to, body) {
+    if (!this.lanWanted() || !/^[A-Za-z0-9_-]{6,40}$/.test(String(to || ""))) return false;
+    await this.api.rpc("lan_send", { p_from: this.data.dev, p_to: String(to), p_body: body }, { timeout: 8000 });
+    return true;
+  }
+  // 局域网收到的记录：只接「只存在这台设备」的列表记录（带 local 标记），以后改的为准由界面判断过了
+  lanApply(list) {
+    let n = 0;
+    for (const x of Array.isArray(list) ? list : []) {
+      if (!x || KINDS[x.k] !== "list" || x.r == null) continue;
+      const key = x.k + SEP + x.r, cur = this.data.ns[x.k].find((y) => y && String(y.id) === String(x.r));
+      if (x.v == null) { if (cur && cur.local) { this.kvSet(x.k, x.r, null, true); n++; } continue; }
+      if (cur && !cur.local) continue;                        // 本机这条是同步到云端的：不让局域网盖掉
+      if (!this.data.localIds[key] && this.tOf(x.k, String(x.r))) continue;
+      this.kvSet(x.k, x.r, { ...x.v, id: x.v.id ?? x.r, local: true }, true); n++;
+    }
+    if (n) this.changed("lan");
+    return n;
+  }
+
   async switchClass(cid) { this.data.cid = cid; this.data.items = []; this.data.groups = []; this.data.wall = null; this.changed(); return this.refresh(); }
 
   // ---------- 云端同步（和网页版同一套规则：每条记录带修改时间，以后改的为准） ----------
   tOf(ns, k) { return ((this.data.sync.t[ns] || {})[k]) || 0; }
   record(ns, k, v) {
+    // 「只存在这台设备」的记录不上传；原来在云端的改成只存本机：云端那条删掉
+    const lk = ns + SEP + k;
+    if (KINDS[ns] === "list" && ((v && v.local) || (v == null && this.data.localIds[lk]))) {
+      if (v == null) delete this.data.localIds[lk]; else this.data.localIds[lk] = 1;
+      if (!this.tOf(ns, k)) return;
+      v = null; delete this.data.sync.t[ns][k];
+      this.data.outbox[lk] = { ns, k, v: null, t: Math.max(this.now(), 1) };
+      clearTimeout(this.pushTimer); this.pushTimer = setTimeout(() => this.flush().catch(() => {}), 800);
+      return;
+    }
+    if (KINDS[ns] === "list") delete this.data.localIds[lk];
     const t = Math.max(this.now(), this.tOf(ns, k) + 1);
     (this.data.sync.t[ns] ||= {})[k] = t;
     this.data.outbox[ns + SEP + k] = { ns, k, v: v === undefined ? null : v, t };
@@ -281,6 +320,7 @@ class Store extends EventEmitter {
       if (row.v == null) delete r[k]; else r[k] = { v: row.v, t: row.t };
       return false;
     }
+    if (this.data.localIds[ns + SEP + k]) return false;              // 只存本机的这条以本机为准
     if (row.t < this.tOf(ns, k)) return false;                        // 本机的更新
     const ob = this.data.outbox[ns + SEP + k];
     if (ob && ob.t > row.t) return false;
@@ -367,6 +407,7 @@ class Store extends EventEmitter {
     if (rec.kind !== "作业") delete rec.kind;
     if (!/^c\d+$/.test(String(rec.from || ""))) delete rec.from;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(String(rec.keep || ""))) delete rec.keep;
+    if (rec.local) rec.local = true; else delete rec.local;   // 只存在这台设备（和网页版同名）
     for (const k of Object.keys(rec)) if (rec[k] === undefined) delete rec[k];
     if (i >= 0) list[i] = rec; else list.push(rec);
     this.record("personal_events_v1", id, rec);
@@ -496,7 +537,7 @@ class Store extends EventEmitter {
       wall: d.wall, features: d.features, courses: d.courses, plugins: d.plugins,
       mine: d.ns.personal_events_v1, marks: d.ns.personal_marks_v1, doneLog: d.ns.done_log_v1, pomo: d.ns.pomo_log_v1, focusMin: d.ns.focus_min_v1,
       kv: d.ns, attach: d.attach, settings: d.settings, status: this.status, lastRefresh: d.lastRefresh, pending: Object.keys(d.outbox).length,
-      extras: d.extras, extraItems: d.extraItems || [], clockOff: this.clockOff, live: !this.pingOff && !!this.pingAt };
+      extras: d.extras, extraItems: d.extraItems || [], clockOff: this.clockOff, live: !this.pingOff && !!this.pingAt, dev: d.dev, lanOk: !this.pingOff };
   }
 }
 

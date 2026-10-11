@@ -1665,7 +1665,8 @@ document.addEventListener("click", (e) => {
   if (act === "ics") { const it = allItems().find((x) => x._key === k); if (it) calImportOne(it); return; }
   if (act === "study") { const it = allItems().find((x) => x._key === k); if (it && typeof openStudyItem === "function") openStudyItem(it._study); return; }
   if (act === "mycopy") { const it = allItems().find((x) => x._key === k); if (it) openForm(it, { from: k }); return; }
-  if (k.startsWith("c")) {
+  // 班级事项、课内学习的考核（kn 开头）：完成 / 隐藏 / 备注都记在标记里；只有「我的事项」改自己那一条
+  if (k.startsWith("c") || /^kn\d+$/.test(k)) {
     const mk = marks[k] || {};
     if (act === "done") setMark(k, { done: !mk.done });
     if (act === "hide") setMark(k, { hidden: !mk.hidden });

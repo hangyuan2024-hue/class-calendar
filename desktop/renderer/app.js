@@ -1,14 +1,16 @@
 // 捞捞课程表 电脑版 · 界面外壳：登录 / 注册 / 找回密码、侧栏、标题栏（页面名 + 课铃线）、详情栏、命令面板、快捷键
 "use strict";
-// 侧栏：按用途分组；Ctrl+1…9 依次对应前 9 个
+// 侧栏：按「什么时候用」分组。最常用的（今天、课程表、作业、事项、月历）在最上面不折叠；
+// 下面几组可以点组名收起来（记在本机），当前页面所在的组总是展开。Ctrl+1…9 依次对应前 9 个
 const NAV = [
-  ["今天", ["today", "week", "homework", "tasks", "month"]],
-  ["学习", ["study", "mindmap", "focus", "plan", "ai"]],
-  ["班级", ["wall", "people", "rank", "classes", "ingest"]],
-  ["成长", ["growth", "farm", "countdown", "report", "meta"]],
-  ["更多", ["tools"]],
+  ["", "main", ["today", "week", "homework", "tasks", "month"]],
+  ["学习", "study", ["study", "mindmap", "focus", "plan", "ai"]],
+  ["班级", "class", ["wall", "ingest", "people", "rank", "classes"]],
+  ["成长", "grow", ["growth", "countdown", "farm", "report", "meta"]],
+  ["", "more", ["tools"]],
 ];
-const ORDER = NAV.flatMap((g) => g[1]);
+const ORDER = NAV.flatMap((g) => g[2]);
+const navFold = { get() { try { return JSON.parse(localStorage.getItem("nav_fold_v1")) || {}; } catch (e) { return {}; } }, set(o) { try { localStorage.setItem("nav_fold_v1", JSON.stringify(o)); } catch (e) {} } };
 const EXTRA_VIEWS = ["settings", "me", "intro", "credits"];   // 不在侧栏里，但能跳过去（我的、命令面板）
 // 被老师或管理员关掉的功能（和网页版同一套开关）
 const VIEW_FEAT = { homework: ["homework"], wall: ["wall"], plan: ["plan"], growth: ["growth"], ai: ["ask"], tools: ["tools"], rank: ["rank"], meta: ["metaverse"], ingest: ["ingest_local", "ingest_cloud"], farm: ["growth"] };
@@ -18,12 +20,27 @@ const mounted = {}, dirty = {};
 const POP = (/[#&]pop=([a-z]+)/.exec(location.hash) || [])[1] || "";
 if (POP) document.documentElement.classList.add("popout");
 
+// 界面风格：desktop = 电脑版风格（课表纸 + 课铃线，默认）；web = 网页风格（和网站一样的白卡片、大侧栏）。设置 → 外观里切换
+function setUi(v) {
+  v = v === "web" ? "web" : "desktop";
+  if (document.documentElement.dataset.ui !== v) document.documentElement.dataset.ui = v;
+  try { localStorage.setItem("ui_style_v1", v); } catch (e) {}
+}
+try { document.documentElement.dataset.ui = localStorage.getItem("ui_style_v1") === "web" ? "web" : "desktop"; } catch (e) {}
+
 function buildNav() {
   let i = 0;
-  $("#nav").innerHTML = NAV.map(([g, ids]) => `<div class="nav-g">${g}</div>` + ids.filter((id) => App.views[id]).map((id) => {
-    const v = App.views[id]; i++;
-    return `<button class="nav-item" data-view="${id}" title="${v.title}${i <= 9 ? "（Ctrl+" + i + "）" : ""}">${icon(v.icon || id)}<span>${v.title}</span><span class="cnt hidden"></span></button>`;
-  }).join("")).join("");
+  const fold = navFold.get();
+  $("#nav").innerHTML = NAV.map(([g, gid, ids]) => `<div class="nav-grp${fold[gid] ? " folded" : ""}${g ? "" : " plain"}" data-g="${gid}">` +
+    (g ? `<button class="nav-g" data-fold="${gid}" title="点一下收起 / 展开"><span>${g}</span><svg class="nav-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg><span class="cnt hidden"></span></button>` : "") +
+    `<div class="nav-list">` + ids.filter((id) => App.views[id]).map((id) => {
+      const v = App.views[id]; i++;
+      return `<button class="nav-item" data-view="${id}" title="${v.title}${i <= 9 ? "（Ctrl+" + i + "）" : ""}">${icon(v.icon || id)}<span>${v.title}</span><span class="cnt hidden"></span></button>`;
+    }).join("") + `</div></div>`).join("");
+  $$("#nav [data-fold]").forEach((b) => (b.onclick = () => {
+    const f = navFold.get(), g = b.dataset.fold; f[g] = !f[g]; navFold.set(f);
+    b.parentElement.classList.toggle("folded", !!f[g]);
+  }));
   $("#navMe").innerHTML = `${icon("me")}<span>我的</span>`;
   $("#navSettings").innerHTML = `${icon("settings")}<span>设置</span><span class="kb">Ctrl ,</span>`;
   $$(".nav-item").forEach((b) => (b.onclick = () => App.go(b.dataset.view)));
@@ -37,6 +54,14 @@ function navCounts() {
     el.classList.toggle("hidden", !c || !c.n);
     if (c && c.n) { el.textContent = c.n > 99 ? "99+" : c.n; el.classList.toggle("hot", !!c.hot); }
   }
+  // 收起来的组：组名旁边显示组里一共有几件要紧的事
+  $$("#nav .nav-grp").forEach((g) => {
+    const c = $(".nav-g .cnt", g); if (!c) return;
+    const items = $$(".nav-item:not(.hidden) .cnt:not(.hidden)", g);
+    const n = items.reduce((a, x) => a + (parseInt(x.textContent, 10) || 0), 0);
+    c.classList.toggle("hidden", !n); c.textContent = n > 99 ? "99+" : n; c.classList.toggle("hot", items.some((x) => x.classList.contains("hot")));
+    g.classList.toggle("empty", !$$(".nav-item:not(.hidden)", g).length);
+  });
   drawBadge(); crumb(); bell();
   if (typeof DIsland !== "undefined") DIsland.render(true);
 }
@@ -105,6 +130,7 @@ App.go = function (id, arg) {
   }
   $$(".view").forEach((el) => el.classList.toggle("hidden", el.dataset.v !== id));
   $$(".nav-item").forEach((b) => b.classList.toggle("on", b.dataset.view === id));
+  $$("#nav .nav-grp").forEach((g) => g.classList.toggle("has-on", !!$(`.nav-item[data-view="${id}"]`, g)));
   document.documentElement.dataset.view = id;
   if (App.view !== id) Insp.close();
   App.view = id;
@@ -125,6 +151,7 @@ function render() {
   const me = S.me || {};
   document.documentElement.dataset.theme = S.settings.theme === "meta" ? "meta" : "";
   document.documentElement.dataset.accent = S.settings.accent || "jade";
+  setUi(S.settings.uiStyle);
   if (!Plugins.started && !POP) setTimeout(() => Plugins.start().catch(() => {}), 1500);   // 单独的窗口不再启动一遍工具
   $("#meName").textContent = me.display_name || me.account || "我";
   $("#meAv").textContent = [...(me.display_name || me.account || "我")].slice(-1)[0];
@@ -355,6 +382,7 @@ setInterval(() => {
 
 (async function boot() {
   buildNav();
+  $("#sideNew").onclick = () => editItem(null);
   App.S = await window.cc.call("state");
   if (typeof App.S.clockOff === "number") M.setClock(App.S.clockOff);
   App.pomo = await window.cc.call("pomo:state");
