@@ -1,4 +1,6 @@
-# 自动打包 Windows 电脑版：改了 desktop/ 里的文件、或者在 Actions 页面手动点「Run workflow」时运行。
+# 自动打包 Windows 电脑版：改了 desktop/ 里的文件、电脑版直接用的网站文件（见下面 paths），或者在 Actions 页面手动点「Run workflow」时运行。
+# 电脑版里的课内学习、思维导图、云宠农场、元宇宙工具箱、内置工具、群消息整理规则都是打包时从网站拷最新版（desktop/scripts/sync-web.js），
+# 所以网站改了这些，电脑版会自动重新打包。
 # 打好的安装包发布到仓库的 Releases（太大了，不能放进网站目录），
 # 下载地址固定是 https://github.com/<仓库>/releases/latest/download/LaolaoKechengbiao-Setup.exe
 name: 电脑版
@@ -6,7 +8,27 @@ name: 电脑版
 on:
   push:
     branches: [main, master]
-    paths: ["desktop/**", ".github/workflows/desktop.yml", "config.js"]
+    paths:
+      - "desktop/**"
+      - ".github/workflows/desktop.yaml"
+      - "config.js"
+      - "parse.js"
+      - "island-core.js"
+      - "study.js"
+      - "study.css"
+      - "mindmap.js"
+      - "mindmap.css"
+      - "farm.js"
+      - "metaverse-v3.js"
+      - "metaverse-v3.css"
+      - "sandbox.html"
+      - "plugins/random-draw.html"
+      - "plugins/error-notebook.html"
+      - "plugins/tools.css"
+      - "plugins/vendor/**"
+      - "schools-2026.json"
+      - "fonts.css"
+      - "fonts/**"
   workflow_dispatch:
 
 permissions:
@@ -58,12 +80,13 @@ jobs:
           Copy-Item (Join-Path $exe.DirectoryName '*') desktop\llama -Recurse -Force
           Get-ChildItem desktop\llama | Select-Object Name, Length
 
-      - name: 放进网站的服务器地址和标题字体
-        shell: pwsh
-        run: |
-          Copy-Item config.js desktop\core\site-config.js -Force
-          Copy-Item fonts.css desktop\renderer\fonts.css -Force
-          Copy-Item fonts desktop\renderer\fonts -Recurse -Force
+      - name: 从网站拷最新的代码（服务器地址、字体、课内学习、思维导图、云宠农场、内置工具……）
+        working-directory: desktop
+        run: node scripts/sync-web.js ..
+
+      - name: 测试
+        working-directory: desktop
+        run: node test/core.test.js
 
       - name: 打包安装程序
         working-directory: desktop
@@ -71,7 +94,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          npm version "2.0.${{ github.run_number }}" --no-git-tag-version --allow-same-version
+          npm version "3.0.${{ github.run_number }}" --no-git-tag-version --allow-same-version
           npm install --no-audit --no-fund
           npx electron-builder --win nsis --x64 --publish never
           Get-ChildItem dist
@@ -81,6 +104,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $v = "1.0.${{ github.run_number }}"
-          $notes = "捞捞课程表 Windows 电脑版 $v`n`n网页版的功能电脑上都有了：作业、班级墙（分组频道）、成员主页、排行榜、元宇宙、规划（四象限 / PDCA / SMART / 六件事）、打卡和心情、整理群消息、工具箱、多个班级和分组管理、编辑课程表。`n`n电脑版独有：复制群消息自动识别、离线 AI 整理、任务栏按钮和角标、跳转列表、课表设成桌面壁纸、导出 PDF / 图片 / 打印、作业挂附件、倒数日、每周学习报告、每天自动备份、早安简报、专注和上课免打扰、白噪音、截图导入课表。`n`n安装时如果 Windows 提示「已保护你的电脑」，点「更多信息 → 仍要运行」。"
+          $v = "3.0.${{ github.run_number }}"
+          $notes = "捞捞课程表 Windows 电脑版 $v`n`n3.0 全新界面：标题栏下面的课铃线、今日页的课铃时间带、右侧详情栏，深色模式重新配色。`n`n和网站对齐：课内学习、思维导图、云宠农场、元宇宙工具箱、随机抽签器、错题记录本；调课 / 调休；事项云端附件；过期两周自动删除；编辑（仅自己）；自己记的作业；学校 / 单位；注册、找回密码；实时同步（几秒内）；按北京时间并用服务器校准时钟。`n`n电脑版独有：任意页面单独开窗口（放到第二块屏幕）、导出 Excel 表格、单条事项加到日历、把文件拖到事项上传附件，以及原来的托盘提醒、快速记事、桌面小窗、离线 AI、课表壁纸、导出 PDF、自动备份、早安简报、专注和白噪音。`n`n安装时如果 Windows 提示「已保护你的电脑」，点「更多信息 → 仍要运行」。"
           gh release create "desktop-v$v" "desktop/dist/LaolaoKechengbiao-Setup.exe" --title "捞捞课程表 电脑版 $v" --notes $notes --latest
