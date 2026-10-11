@@ -24,6 +24,13 @@ const RPC = new Set([
   "courses_get", "courses_sync", "course_ocr_start", "course_ocr_status", "course_learn_get", "course_learn_submit", "course_ocr_sample_add",
   // 日历订阅、工具
   "ics_my_feed", "ics_put", "plugin_changelog",
+  // 事项附件（存在云端，全班 / 自己能看）、过期自动删除
+  "item_extras", "item_keep", "class_autodel_set", "file_begin", "file_part", "file_end", "file_list", "file_get", "file_del", "file_del_items",
+  // 课内学习（kn_*）、思维导图（mm_*）
+  "kn_state", "kn_node_add", "kn_node_move", "kn_item_save", "kn_file_put", "kn_file_get",
+  "mm_list", "mm_get", "mm_save", "mm_rename", "mm_del",
+  // 账号：学校 / 单位、权限、退订邮件
+  "profile_set_org", "my_perms", "mail_unsubscribe",
 ]);
 
 // 直接读表（只读，只认这几种写法）

@@ -15,6 +15,8 @@ App.views.settings = {
       if (act === "logout") { if (await confirmBox("退出登录？", "这台电脑上的数据会清掉，下次登录会重新同步。还没上传的改动会先上传。", "退出登录", true)) await call("logout"); }
       if (act === "sync") call("refresh").then(() => toast("已同步"));
       if (act === "ics") this.exportIcs();
+      if (act === "csvItems") exportCsv("items");
+      if (act === "csvCourses") exportCsv("courses");
       if (act === "ai") { call("ai:prepare"); App.go("ai"); }
       if (act === "mini") call("mini:toggle");
       if (act === "hkReset") this.set({ hotkey: "CommandOrControl+Alt+Space" });
@@ -62,7 +64,7 @@ App.views.settings = {
       </section>
       <section class="card st-card"><h3>外观</h3>
         ${row("主题", "", `<div class="seg">${[["system", "跟随系统"], ["light", "浅色"], ["dark", "深色"], ["meta", "元宇宙"]].map(([k, n]) => `<button data-theme="${k}" class="${st.theme === k ? "on" : ""}">${n}</button>`).join("")}</div>`)}
-        ${row("主色", "按钮、选中的颜色", `<div class="st-acc">${ACCENTS.map(([k, n, c]) => `<button data-acc="${k}" class="${(st.accent || "blue") === k ? "on" : ""}" style="--a:${c}" title="${n}"></button>`).join("")}</div>`)}
+        ${row("主色", "按钮、选中的颜色", `<div class="st-acc">${ACCENTS.map(([k, n, c]) => `<button data-acc="${k}" class="${(st.accent || "jade") === k ? "on" : ""}" style="--a:${c}" title="${n}"></button>`).join("")}</div>`)}
       </section>
       <section class="card st-card"><h3>窗口和启动</h3>
         ${row("关闭窗口时缩到右下角托盘", "继续提醒、继续专注计时；右键托盘图标可以退出", sw("closeToTray"))}
@@ -78,11 +80,15 @@ App.views.settings = {
         ${row(esc(a.model || "本地模型"), a.ready ? "已就绪，在这台电脑上运行" : a.status === "downloading" ? "正在下载…" : a.status === "error" ? "出错了：" + esc(a.error) : "还没下载（约 1 GB）", `<button class="btn" data-a="ai">${a.ready ? "去聊天" : "下载并启动"}</button>`)}
       </section>
       <section class="card st-card"><h3>数据</h3>
-        ${row("同步", `${S.lastRefresh ? "上次同步 " + new Date(S.lastRefresh).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "还没同步过"}${S.pending ? ` · ${S.pending} 条改动等着上传` : ""} · 每 5 分钟自动同步`, `<button class="btn" data-a="sync">${icon("sync")}立即同步</button>`)}
+        ${row("同步", `${S.lastRefresh ? "上次完整同步 " + new Date(S.lastRefresh).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "还没同步过"}${S.pending ? ` · ${S.pending} 条改动等着上传` : ""}`, `<button class="btn" data-a="sync">${icon("sync")}立即同步</button>`)}
+        ${row("实时同步", S.live ? "开着：网页、手机上改了，几秒内就同步过来；老师发布了事项也马上能看到" : st.liveSync ? "服务器还没开通实时同步，现在每分钟同步一次" : "关着：每分钟同步一次", sw("liveSync"))}
+        ${row("时间校准", Math.abs(S.clockOff || 0) >= 60000 ? `这台电脑的时间比标准时间${S.clockOff > 0 ? "慢" : "快"}了约 ${Math.round(Math.abs(S.clockOff) / 60000)} 分钟，提醒和倒计时已经按标准时间算了。建议在 Windows 设置里打开「自动设置时间」` : "按北京时间、用服务器时间校准过，电脑时间不准也不影响提醒", "")}
+        ${row("过期自动删除我记的事", "日期过去 2 周后自动删掉（和网页版一样）；最后 3 天会在事项里提醒，可以推迟", sw("autodelMine"))}
         ${row("导出到日历", "生成 .ics 文件，可以导入 Outlook、Windows 日历、手机日历", `<button class="btn" data-a="ics">${icon("export")}导出</button>`)}
+        ${row("导出成表格", "Excel、WPS 能直接打开：所有事项，或者课程表（带调课记录）", `<button class="btn" data-a="csvItems">▦ 事项</button><button class="btn" data-a="csvCourses">▦ 课程表</button>`)}
       </section>
       <section class="card st-card"><h3>快捷键</h3>
-        <div class="st-keys">${[["Ctrl K", "搜索 / 命令面板"], ["Ctrl N", "记一件事"], ["Ctrl 1 – 9", "切换页面"], ["Ctrl V", "在课程表页粘贴课表截图"], ["Ctrl ,", "设置"], ["F5", "同步"], [hk, "快速记事（全局）"], ["↑ ↓ 空格 Enter Del", "在事项表里操作"], ["← → T", "课程表 / 月历翻页、回到今天"]].map(([k, d]) => `<div><kbd>${esc(k)}</kbd><span>${d}</span></div>`).join("")}</div>
+        <div class="st-keys">${[["Ctrl K", "搜索 / 命令面板"], ["Ctrl N", "记一件事"], ["Ctrl 1 – 9", "切换页面"], ["Ctrl V", "在课程表页粘贴课表截图"], ["Ctrl ,", "设置"], ["F5", "同步"], [hk, "快速记事（全局）"], ["Ctrl J", "捞捞助手"], ["Esc", "关掉详情栏、弹窗"], ["↑ ↓ 空格 Enter Del", "在事项表里操作"], ["← → T", "课程表 / 月历翻页、回到今天"]].map(([k, d]) => `<div><kbd>${esc(k)}</kbd><span>${d}</span></div>`).join("")}</div>
       </section>
       <p class="st-ver muted">捞捞课程表 电脑版 ${esc(S.version || "")} · <a data-ext="https://www.laolaokechengbiao.cn/">网站</a></p>`;
     // 录快捷键：点一下输入框，然后按组合键
@@ -102,5 +108,5 @@ App.views.settings = {
   },
 };
 
-const ACCENTS = [["blue", "海军蓝", "#3d6ff2"], ["sakura", "樱花粉", "#ff5f8f"], ["green", "薄荷绿", "#17a673"], ["orange", "活力橙", "#f08c00"], ["purple", "星空紫", "#8b5cf6"], ["teal", "湖水青", "#0ea5b7"], ["red", "中国红", "#e5484d"]];
+const ACCENTS = [["jade", "青绿（和网站一样）", "#0f7a68"], ["blue", "海军蓝", "#2f62d8"], ["teal", "湖水青", "#0e8ea3"], ["green", "薄荷绿", "#2c9a5c"], ["purple", "星空紫", "#7a4fd6"], ["sakura", "樱花粉", "#e0457b"], ["orange", "活力橙", "#d9640f"], ["red", "中国红", "#c8333a"], ["ink", "墨色", "#2b3b52"]];
 document.addEventListener("click", (e) => { if (e.target.closest("[data-go-cl]")) App.go("classes"); });

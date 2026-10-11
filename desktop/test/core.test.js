@@ -63,6 +63,62 @@ const ok = (name) => console.log("✓", name);
   assert.ok(re.find((x) => x.kind === "evening")); ok("晚上 8 点汇总明天：" + re.find((x) => x.kind === "evening").body);
   assert.strictEqual(remind.due(snap, e20, new Set(re.map((x) => x.id))).length, 0); ok("同一条提醒不会重复弹");
 
+  // ====== 2.1 新加：和网页版 10 月新功能对齐 ======
+  // 网页版新的数据类型、电脑版不认识的数据：都不丢
+  mock.srv.listen(new URL(url).port, "127.0.0.1"); await new Promise((r) => setTimeout(r, 80));
+  const C = mkStore("c"); await C.login("hangyuan", "12345678");
+  mock.S.kv.push({ ns: "quad_todos_v1", k: "q1", v: { id: "q1", text: "旧待办" }, t: Date.now(), rev: ++mock.S.rev });
+  mock.S.kv.push({ ns: "home_layout_v1", k: "_", v: { home: [{ id: "agenda" }] }, t: Date.now(), rev: ++mock.S.rev });
+  mock.S.kv.push({ ns: "future_kind_v9", k: "x", v: { hello: 1 }, t: Date.now(), rev: ++mock.S.rev });
+  await C.pull();
+  assert.strictEqual(C.snapshot().kv.quad_todos_v1[0].text, "旧待办"); assert.ok(C.snapshot().kv.home_layout_v1.home);
+  assert.deepStrictEqual(C.data.raw.future_kind_v9.x.v, { hello: 1 }); ok("网页版新加的数据类型能同步；还不认识的也原样保存，不会再丢");
+
+  // 实时同步：别的设备改了，问一次就拉下来；顺便校准时钟
+  const D = mkStore("d"); await D.login("hangyuan", "12345678");
+  D.upsertMine({ subject: "D 记的" }); await D.flush();
+  await C.ping(); assert.ok(C.snapshot().mine.find((x) => x.subject === "D 记的")); ok("实时同步：别的设备记的事，几秒内就过来了");
+  mock.S.csig = 2; await C.ping(); await new Promise((r) => setTimeout(r, 50)); const n0 = mock.S.ctxN || 0;
+  mock.S.csig = 3; await C.ping(); await new Promise((r) => setTimeout(r, 80)); assert.ok((mock.S.ctxN || 0) > n0); ok("老师改了班级事项：马上重新拿");
+
+  // 课程表：保存时带上调课 / 调休，告诉别的设备课表变了
+  mock.S.courses = { courses: [{ id: "a", name: "高等数学", day: 2, start: 1, end: 2, wl: [], location: "A204" }], meta: { week1: "2026-09-14", times: ["08:00-08:45", "08:55-09:40"], adj: [{ id: "j1", date: "2026-10-11", type: "swap", from: "2026-10-08" }] }, updated_at: "2026-10-10T00:00:00Z" };
+  await C.loadCourses();
+  await C.saveCourses(C.data.courses.courses.concat({ name: "体育", day: 4, start: 1, end: 2 }));
+  assert.strictEqual(mock.S.courses.meta.adj.length, 1); ok("电脑上改课程表，不会冲掉网页版记的调课 / 调休");
+  assert.ok(C.snapshot().kv.course_rev_v1 && C.snapshot().kv.course_rev_v1.at); await C.flush();
+  const before = D.data.courses.courses.length; await D.pull(); await new Promise((r) => setTimeout(r, 80));
+  assert.strictEqual(D.data.courses.courses.length, before + 1); ok("课表改了，别的设备跟着拿新课表");
+  // 调课规则（和网页版同一套）
+  const cs = { courses: [{ name: "高数", day: 3, start: 1, end: 2 }, { name: "英语", day: 3, start: 3, end: 4 }, { name: "体育", day: 4, start: 5, end: 6 }],
+    meta: { week1: "2026-09-14", times: M.DEFAULT_TIMES, adj: [{ date: "2026-10-11", type: "swap", from: "2026-10-08" }, { date: "2026-10-08", type: "off" }, { date: "2026-10-15", type: "cancel", name: "英语" }, { date: "2026-10-15", type: "add", name: "补课", start: 9, end: 10 }] } };
+  assert.deepStrictEqual(M.coursesOn(cs, M.fromKey("2026-10-11")).map((c) => c.name), ["高数", "英语"]);
+  assert.strictEqual(M.coursesOn(cs, M.fromKey("2026-10-08")).length, 0);
+  assert.deepStrictEqual(M.coursesOn(cs, M.fromKey("2026-10-15")).map((c) => c.name), ["高数", "补课"]);
+  assert.strictEqual(M.dayNote(cs, "2026-10-11"), "上 10月8日（周四） 的课"); ok("调休换课、放假、停课、加课都按网页版的规则算");
+
+  // 自己记的作业、「编辑（仅自己）」
+  const hw = C.upsertMine({ subject: "自己的作业", kind: "作业", event_time: today });
+  assert.strictEqual(M.allItems(C.snapshot()).find((x) => x.key === hw.id).type, "作业"); ok("自己记的作业算作业（作业页能看到）");
+  C.data.items = mock.S.items.slice();
+  const ov = C.overrideClassItem("c12", { subject: "班会（我改成 16 点）", event_time: tmr + " 16:00" });
+  assert.ok(C.snapshot().marks.c12.hidden); assert.strictEqual(ov.from, "c12");
+  C.deleteMine(ov.id); assert.ok(!(C.snapshot().marks.c12 || {}).hidden); ok("「编辑（仅自己）」：原来那条替我隐藏；删掉我的版本就恢复");
+
+  // 过期 2 周自动删除（第一次先多留 3 天）
+  const old = C.upsertMine({ subject: "很久以前", event_time: "2026-01-01" });
+  C.data.flags.autodelGrace = false; C.cleanMine(); assert.ok(C.data.ns.personal_events_v1.find((x) => x.id === old.id).keep); ok("第一次用自动删除：已经过期的先多留 3 天");
+  C.data.ns.personal_events_v1.find((x) => x.id === old.id).keep = "2026-01-02"; C.cleanMine(); await new Promise((r) => setTimeout(r, 50));
+  assert.ok(!C.data.ns.personal_events_v1.find((x) => x.id === old.id)); assert.ok(mock.S.fileDel.includes(old.id)); ok("自己记的事过期 2 周自动删除，附件一起删");
+  await C.loadExtras(); assert.strictEqual(C.snapshot().extras.files.c11, 2); ok("拿到每条事项的附件数量");
+
+  // 注册
+  const E = mkStore("e");
+  await assert.rejects(E.signup("hangyuan", "12345678", { name: "x" }), /已经被注册/);
+  assert.strictEqual(await E.api.anonRpc("account_available", { acct: "newbie" }), true);
+  await E.signup("newbie", "abcdefgh", { name: "新同学", gender: "f", org: { type: "university", name: "某大学" } });
+  assert.strictEqual(mock.S.users["u-2"].meta.org_name, "某大学"); ok("电脑上也能注册（含学校 / 单位），注册完直接登录");
+
   // AI 背景资料
   const ctx = assistant.context(snap, new Date());
   assert.ok(/高等数学/.test(ctx) && /高数习题/.test(ctx) && /班会/.test(ctx)); ok("AI 背景里有课表和作业（" + ctx.split("\n").length + " 行）");

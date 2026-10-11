@@ -22,12 +22,26 @@ function createMock(opts = {}) {
         return send(res, 400, { error_description: "bad refresh" });
       }
       if (u.pathname === "/auth/v1/logout") return send(res, 204);
+      if (u.pathname === "/auth/v1/signup") {
+        const acct = String(body.email || "").split("@")[0];
+        if (Object.values(S.users).some((x) => x.account === acct)) return send(res, 422, { msg: "User already registered" });
+        const id = "u-" + (Object.keys(S.users).length + 1); S.users[id] = { account: acct, pw: body.password, meta: body.data };
+        const t = "tok" + Math.random(); S.tokens[t] = id;
+        return send(res, 200, { access_token: t, refresh_token: "r-" + id, expires_in: 3600, user: { id } });
+      }
+      const am = /^\/rest\/v1\/rpc\/(account_available|pw_reset_start)$/.exec(u.pathname);
+      if (am && !uid) { if (am[1] === "account_available") return send(res, 200, !Object.values(S.users).some((x) => x.account === body.acct)); return send(res, 200, { ok: false, why: "no_email" }); }
       const m = /^\/rest\/v1\/rpc\/(\w+)$/.exec(u.pathname);
       if (m) {
         if (!uid) return send(res, 401, { message: "JWT expired" });
         const fn = m[1];
         if (fn === "app_bootstrap") return send(res, 200, { me: { id: uid, display_name: "杭远", account: "hangyuan", role: "student" }, perms: [], classes: [{ id: "c-1", name: "计科2601班", status: "approved", is_teacher: false }], cid: "c-1", items: S.items, wall: { cid: "c-1", posts: S.wall } });
         if (fn === "courses_get") return send(res, 200, S.courses);
+        if (fn === "courses_sync") { S.courses = { courses: body.p_courses, meta: body.p_meta, updated_at: new Date(Date.now() + (S.courseN = (S.courseN || 0) + 1)).toISOString() }; return send(res, 200, { updated_at: S.courses.updated_at }); }
+        if (fn === "sync_ping") { S.pings = (S.pings || 0) + 1; return send(res, 200, { now: Date.now() + (opts.clockAhead || 0), rev: S.rev, csig: S.csig || 1, peers: [], sig: [] }); }
+        if (fn === "class_ctx") { S.ctxN = (S.ctxN || 0) + 1; return send(res, 200, { items: S.items, groups: [], class_opts: {} }); }
+        if (fn === "item_extras") return send(res, 200, { autodel: true, can_set: false, keep: {}, files: { c11: 2 }, deleted: S.deleted || [] });
+        if (fn === "file_del_items") { S.fileDel = body.items; return send(res, 200, null); }
         if (fn === "udata_push") { for (const r of body.p) { const i = S.kv.findIndex((x) => x.ns === r.ns && x.k === r.k); if (i >= 0 && S.kv[i].t > r.t) continue; const row = { ...r, rev: ++S.rev }; if (i >= 0) S.kv[i] = row; else S.kv.push(row); } return send(res, 200, { applied: body.p.length }); }
         if (fn === "udata_pull") { const rows = S.kv.filter((x) => x.rev > (body.since || 0)).sort((a, b) => a.rev - b.rev); return send(res, 200, { rows: rows.map(({ ns, k, v, t }) => ({ ns, k, v, t })), rev: rows.length ? rows[rows.length - 1].rev : body.since || 0, more: false }); }
         if (fn === "growth_log") { S.growth.push(body); return send(res, 200, null); }

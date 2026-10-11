@@ -1,27 +1,41 @@
-// 今日总览：问候、一句话记事、今天的课（时间线）、待办、统计、专注、班级墙
+// 今日：问候 + 课铃时间带（接下来最该关注的一件、今天的课和有时间点的事排在一条时间轴上）+ 一句话记事 + 要做的事 + 右边一列小东西
 "use strict";
+const hm2m = (t) => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ""); return m ? +m[1] * 60 + +m[2] : null; };
+const atOf = (day, t) => { const m = hm2m(t); if (m == null || !day) return 0; const d = M.fromKey(day); d.setMinutes(m); return d.getTime(); };
+function leftLabel(ms) {
+  if (ms <= 0) return ["就是现在", ""];
+  const m = Math.ceil(ms / 60000);
+  if (m < 60) return [String(m), "分钟后"];
+  if (m < 24 * 60) { const h = Math.floor(m / 60), r = m % 60; return [h + (r ? `:${M.pad(r)}` : ""), r ? "小时后" : "小时后"]; }
+  return [String(Math.round(m / 1440)), "天后"];
+}
+function islandCtx() { return DIsland.ctx(); }
+
 App.views.today = {
   title: "今日", icon: "today",
   count() { const now = App.now(), t = M.dayKey(now); const n = App.items().filter((x) => !x.done && !x.hidden && x.day && (x.day === t || overdue(x, now))).length; return { n, hot: App.items().some((x) => !x.hidden && overdue(x, now) && x.type === "作业") }; },
   mount(el) {
     el.innerHTML = `
-      <div class="vhead"><div><h1 id="tdHello"></h1><div class="sub" id="tdSub"></div></div><span class="grow"></span>
+      <div class="vhead td-head"><div><h1 id="tdHello"></h1><div class="sub" id="tdSub"></div></div><span class="grow"></span>
         <button class="btn" id="tdMini" title="桌面上一直显示今天的课和待办">${icon("mini")}桌面小窗</button>
         <button class="btn primary" id="tdNew">${icon("plus")}记一件事</button></div>
-      <div class="vbody">
-        <div class="qa card"><span class="qa-i">✍️</span><input id="tdQuick" placeholder="一句话记事：明天下午3点交实验报告 @B302　　按 Enter 记下" spellcheck="false"><span class="qa-p" id="tdParse"></span></div>
-        <div class="td-grid">
-          <div class="card td-courses"><div class="card-h">今天的课<span class="grow"></span><small id="tdWeekNo"></small><button class="btn ghost sm" data-go="week">整周 →</button></div><div id="tdCourses"></div></div>
-          <div class="card td-todo"><div class="card-h">要做的事<span class="grow"></span><button class="btn ghost sm" data-go="tasks">全部 →</button></div><div id="tdTodo" class="todo-list"></div></div>
-          <div class="td-side">
-            <div class="card td-enc" id="tdEnc"></div>
-            <div class="td-cd" id="tdCd"></div>
-            <div class="stats" id="tdStats"></div>
-            <div class="card td-hb hidden" id="tdHb"></div>
-            <div class="card td-pomo" id="tdPomo"></div>
-            <div class="card"><div class="card-h">这一周<span class="grow"></span><button class="btn ghost sm" data-go="month">月历 →</button></div><div id="tdWeek" class="wk-strip"></div></div>
-            <div class="card"><div class="card-h">班级墙<span class="grow"></span><button class="btn ghost sm" data-go="wall">更多 →</button></div><div id="tdWall"></div></div>
-          </div>
+      <div class="vbody td-body">
+        <section class="td-band" id="tdBand"></section>
+        <div class="td-quick"><span>✍️</span><input id="tdQuick" placeholder="一句话记事：明天下午3点交实验报告 @B302　按 Enter 记下，按 / 随时回到这里" spellcheck="false"><span class="td-qp" id="tdParse"></span></div>
+        <div class="td-cols">
+          <section class="td-main">
+            <div class="sec"><b>要做的事</b><small id="tdTodoN"></small><span class="grow"></span><button class="btn ghost sm" data-go="homework">作业</button><button class="btn ghost sm" data-go="tasks">全部事项</button></div>
+            <div id="tdTodo" class="td-todo"></div>
+          </section>
+          <aside class="td-aside">
+            <div class="td-stats" id="tdStats"></div>
+            <div id="tdHb" class="td-plate hidden"></div>
+            <div id="tdCd"></div>
+            <div class="td-plate td-pomo" id="tdPomo"></div>
+            <div class="td-plate"><div class="sec"><b>这一周</b><span class="grow"></span><button class="btn ghost sm" data-go="month">月历</button></div><div id="tdWeek" class="td-week"></div></div>
+            <div class="td-plate td-enc" id="tdEnc"></div>
+            <div class="td-plate"><div class="sec"><b>班级墙</b><span class="grow"></span><button class="btn ghost sm" data-go="wall">更多</button></div><div id="tdWall"></div></div>
+          </aside>
         </div>
       </div>`;
     el.onclick = async (e) => {
@@ -30,7 +44,11 @@ App.views.today = {
       const md = e.target.closest("[data-mood]"); if (md) { const t = todayKey(), cur = (KV("mood_log_v1") || {})[t]; kvSet("mood_log_v1", t, cur === md.dataset.mood ? null : md.dataset.mood); return; }
       if (e.target.closest("[data-mood-redo]")) { kvSet("mood_log_v1", todayKey(), null); return; }
       const hb = e.target.closest("[data-hb]"); if (hb) { const on = await call("habit", hb.dataset.hb); if (on) cheer("habit"); return; }
-      const cd = e.target.closest("[data-cd]"); if (cd) App.go("countdown");
+      if (e.target.closest("[data-cd]")) return App.go("countdown");
+      if (e.target.closest("[data-nx=pomo]")) return call("pomo:start", App.S.settings.pomoFocus, "");
+      const c = e.target.closest(".chk[data-k]"); if (c) { e.stopPropagation(); const x = App.find(c.dataset.k); if (x) toggleDone(x.key, !x.done); return; }
+      const seg = e.target.closest(".tb-c[data-day]"); if (seg) return App.go("week");
+      const r = e.target.closest("[data-k]"); if (r) Insp.open(r.dataset.k);
     };
     $("#tdNew", el).onclick = () => editItem(null);
     $("#tdMini", el).onclick = () => call("mini:toggle");
@@ -46,41 +64,92 @@ App.views.today = {
       toast(`已记下：${rec.subject}${rec.event_time ? "（" + whenText({ day: rec.event_time.slice(0, 10), time: rec.event_time.slice(11) }, App.now()) + "）" : ""}`);
       q.value = ""; q.oninput();
     };
-    el.addEventListener("click", (e) => {
-      const c = e.target.closest(".chk[data-k]"); if (c) { e.stopPropagation(); const x = App.find(c.dataset.k); if (x) toggleDone(x.key, !x.done); }
-    });
-    el.addEventListener("dblclick", (e) => { const r = e.target.closest(".todo[data-k]"); if (r) App.go("tasks", { key: r.dataset.k }); });
-    el.addEventListener("contextmenu", (e) => { const r = e.target.closest(".todo[data-k]"); if (r) { const x = App.find(r.dataset.k); if (x) itemMenu(e, x); } });
+    el.addEventListener("dblclick", (e) => { const r = e.target.closest(".td-row[data-k]"); if (r) { const x = App.find(r.dataset.k); if (x && x.mine) editItem(x); } });
+    el.addEventListener("contextmenu", (e) => { const r = e.target.closest("[data-k]"); if (r) { const x = App.find(r.dataset.k); if (x) itemMenu(e, x); } });
   },
   update() {
     const S = App.S, now = App.now(), el = this.el, me = S.me || {};
     $("#tdHello", el).textContent = `${greet(now)}，${me.display_name || "同学"}`;
-    const wk = M.weekOf(S.courses.meta, now);
-    $("#tdSub", el).textContent = [`${now.getMonth() + 1}月${now.getDate()}日 星期${M.WEEK[now.getDay()]}`, wk ? `第 ${wk} 周` : "", App.className()].filter(Boolean).join(" · ");
-    $("#tdWeekNo", el).textContent = wk ? `第 ${wk} 周` : "";
-    this.tick();
-    this.todo(); this.stats(); this.week(); this.wall(); this.pomo(App.pomo); this.enc(); this.cd(); this.habits();
+    const wk = M.weekOf(S.courses.meta, now), note = M.dayNote(S.courses, M.dayKey(now));
+    $("#tdSub", el).innerHTML = [`${now.getMonth() + 1}月${now.getDate()}日 星期${M.WEEK[now.getDay()]}`, wk >= 1 && wk <= M.MAX_WEEK ? `第 ${wk} 周` : "", esc(App.className()), note ? `<span class="td-adj">🔁 ${esc(note)}</span>` : ""].filter(Boolean).join("　");
+    this.band(); this.todo(); this.stats(); this.week(); this.wall(); this.pomo(App.pomo); this.enc(); this.cd(); this.habits();
   },
-  tick() { this.courses(); },
-  courses() {
-    const S = App.S, now = App.now(), el = $("#tdCourses", this.el), nm = now.getHours() * 60 + now.getMinutes();
-    const list = M.coursesOn(S.courses, now);
-    if (!(S.courses.courses || []).length) { el.innerHTML = `<div class="empty"><b>📚</b>还没有课程表<br><a data-ext="https://www.laolaokechengbiao.cn/app.html">在网站上导入或填写课程表</a>，这里会自动同步</div>`; return; }
-    if (!list.length) {
-      let nx = null; for (let i = 1; i <= 7 && !nx; i++) { const d = M.addDays(now, i), cs = M.coursesOn(S.courses, d); if (cs.length) nx = { d, c: cs[0], n: cs.length }; }
-      el.innerHTML = `<div class="empty"><b>🎈</b>今天没课${nx ? `<br>下次上课：${M.relDay(M.dayKey(nx.d), now)} ${nx.c.tStart} ${esc(nx.c.name)}（那天 ${nx.n} 节）` : ""}</div>`; return;
+  tick() { this.band(); },
+
+  // ---------- 课铃时间带 ----------
+  band() {
+    const box = $("#tdBand", this.el); if (!box) return;
+    let ctx = null; try { ctx = islandCtx(); } catch (e) { return; }
+    box.innerHTML = this.nextHtml(ctx) + this.lineHtml(ctx);
+  },
+  nextCourse(ctx) {
+    const now = ctx.now, nm = now.getHours() * 60 + now.getMinutes(), t = M.dayKey(now);
+    const c = ctx.courses.filter((x) => hm2m(x.t0) != null && hm2m(x.t0) > nm).sort((a, b) => hm2m(a.t0) - hm2m(b.t0))[0];
+    if (c) return { c, day: t };
+    const tm = shiftDay(t, 1), c2 = ctx.coursesOn(tm).filter((x) => hm2m(x.t0) != null).sort((a, b) => hm2m(a.t0) - hm2m(b.t0))[0];
+    return c2 ? { c: c2, day: tm } : null;
+  },
+  // 左边：接下来最该关注的一件（和捞捞、网页版同一套智能排序）
+  nextHtml(ctx) {
+    const list = IslandCore.rank(ctx.items, ctx.courses, ctx.now).filter((x) => x.level !== "past");
+    const top = list[0], h = ctx.now.getHours(), night = h >= 23 || h < 5, nowMs = App.now().getTime();
+    const cd = (at, live) => { const [n, u] = leftLabel(at - nowMs); return `<div class="tn-cd"><b class="num">${esc(live ? n : n)}</b><span>${live ? (u ? u.replace("后", "") + "后下课" : "") : u}</span></div>`; };
+    const far = top && top.kind !== "course" && top.level === "normal";
+    if (!top || (far && this.nextCourse(ctx))) {
+      const nc = this.nextCourse(ctx);
+      if (nc) {
+        const at = atOf(nc.day, nc.c.t0), isTm = nc.day !== M.dayKey(ctx.now), early = night || (isTm && h >= 21);
+        return `<div class="tn${early ? " sleep" : ""}" style="--c:${nc.c.color}"><span class="tn-k">${early ? "早点睡" : "下一节"}</span>
+          <div class="tn-t"><b>${esc(nc.c.name)}</b><small>${isTm ? "明天 " : ""}${esc(nc.c.t0)}${nc.c.location ? " · " + esc(nc.c.location) : ""}${nc.c.teacher ? " · " + esc(nc.c.teacher) : ""}</small></div>${cd(at)}</div>`;
+      }
+      if (night) return `<div class="tn sleep"><span class="tn-k">早点睡</span><div class="tn-t"><b>明天没有要赶的事</b><small>睡饱了脑子才转得快</small></div></div>`;
+      return `<div class="tn idle"><span class="tn-k">空闲</span><div class="tn-t"><b>手头没有要赶的事</b><small>来一个番茄专注一下？</small></div><button class="btn primary sm" data-nx="pomo">🍅 开始专注</button></div>`;
     }
-    const tm = M.coursesOn(S.courses, M.addDays(now, 1));
-    const tmHtml = tm.length ? `<div class="tl-tmr"><span>明天</span>${tm.map((c) => `<em style="--c:${c.color}">${c.tStart} ${esc(c.name)}</em>`).join("")}</div>` : "";
-    el.innerHTML = `<div class="tl">${list.map((c) => {
-      const a = M.toMin(c.tStart), b = M.toMin(c.tEnd), cur = nm >= a && nm < b, past = nm >= b;
-      const state = cur ? `<span class="tl-now">正在上 · 还剩 ${untilText(b - nm)}</span>` : !past && a - nm <= 180 ? `<span class="tl-soon">${untilText(a - nm)}后</span>` : "";
-      const pct = cur ? Math.round(((nm - a) / (b - a)) * 100) : 0;
-      return `<div class="tl-row${cur ? " cur" : ""}${past ? " past" : ""}" style="--c:${c.color}">
-        <div class="tl-time"><b>${c.tStart}</b><span>${c.tEnd}</span></div>
-        <div class="tl-card"><div class="tl-name">${esc(c.name)}${state}</div><div class="tl-meta">第 ${c.start}${c.end > c.start ? "–" + c.end : ""} 节${c.location ? " · " + icon("place") + esc(c.location) : ""}${c.teacher ? " · " + esc(c.teacher) : ""}</div>${cur ? `<div class="tl-bar"><i style="width:${pct}%"></i></div>` : ""}</div></div>`;
-    }).join("")}</div>${tmHtml}`;
+    const isCourse = top.kind === "course", live = top.level === "now";
+    const c = isCourse ? (ctx.courses.find((x) => "course:" + x.name + x.t0 === top.key) || {}) : null;
+    const at = isCourse ? atOf(top.day, live ? c.t1 || top.time : top.time) : atOf(top.day, top.time);
+    const hot = top.level === "late" || top.level === "urgent" || live;
+    const sleep = night && !hot && !(top.mins != null && top.mins < 6 * 60);
+    const label = sleep ? "早点睡" : isCourse ? (live ? "正在上" : "下一节") : top.level === "late" ? "过期了" : top.exam ? "考试" : top.type === "作业" ? "先做这个" : "接下来";
+    const sub = [top.time || (top.day ? IslandCore.dayName(top.day, ctx.now) : ""), top.location ? "📍 " + top.location : ""].filter(Boolean).join(" · ");
+    return `<div class="tn${hot ? " hot" : sleep ? " sleep" : ""}${isCourse ? " course" : ""}"${c && c.color ? ` style="--c:${c.color}"` : ""}${isCourse ? "" : ` data-k="${esc(top.key)}"`}>
+      <span class="tn-k">${label}</span>
+      <div class="tn-t"><b>${esc(top.title)}</b><small>${esc(sub)}</small></div>
+      ${at && at > nowMs ? cd(at, live) : `<div class="tn-cd"><span>${esc(top.reason || "")}</span></div>`}
+      ${isCourse ? "" : `<button class="chk" data-k="${esc(top.key)}" title="标记完成"></button>`}</div>`;
   },
+  // 右边：一天的时间轴，课是色块，有时间点的事是小旗，竖线是现在；晚上 9 点后今天没事了就看明天
+  lineHtml(ctx) {
+    const now = ctx.now, t = M.dayKey(now), nm = now.getHours() * 60 + now.getMinutes();
+    const itemsOn = (k) => ctx.items.filter((x) => x.day === k && !x.done && hm2m(x.time) != null);
+    const lastToday = Math.max(-1, ...ctx.courses.map((c) => hm2m(c.t1 || c.t0) || 0), ...itemsOn(t).map((x) => hm2m(x.time)));
+    const tomorrow = nm >= 21 * 60 && lastToday <= nm;
+    const day = tomorrow ? shiftDay(t, 1) : t;
+    const courses = (tomorrow ? ctx.coursesOn(day) : ctx.courses).filter((c) => hm2m(c.t0) != null);
+    const items = itemsOn(day);
+    const pts = [...courses.flatMap((c) => [hm2m(c.t0), hm2m(c.t1 || c.t0)]), ...items.map((x) => hm2m(x.time))];
+    const a = Math.min(8 * 60, ...pts.map((m) => Math.floor(m / 60) * 60)), z = Math.max(22 * 60, ...pts.map((m) => Math.ceil(m / 60) * 60));
+    const pct = (m) => ((Math.max(a, Math.min(z, m)) - a) / (z - a) * 100).toFixed(2);
+    const segs = courses.map((c) => {
+      const s = hm2m(c.t0), e = hm2m(c.t1 || "") ?? s + 45, past = !tomorrow && e <= nm, on = !tomorrow && s <= nm && nm < e;
+      return `<div class="tb-c${past ? " past" : ""}${on ? " on" : ""}" data-day="${day}" style="--c:${c.color};left:${pct(s)}%;width:${(pct(e) - pct(s)).toFixed(2)}%" title="${esc(c.t0 + "–" + (c.t1 || "") + " " + c.name + (c.location ? " · " + c.location : ""))}">
+        <b>${esc(c.name)}</b><small>${esc(c.location || c.t0)}</small>${on ? `<i style="width:${(((nm - s) / (e - s)) * 100).toFixed(1)}%"></i>` : ""}</div>`;
+    }).join("");
+    const pins = items.map((x) => `<button class="tb-p${x.type === "作业" ? " hw" : ""}" data-k="${esc(x.key)}" style="left:${pct(hm2m(x.time))}%" title="${esc(x.time + " " + x.title)}"><span>${esc(x.time)} ${esc(x.title)}</span></button>`).join("");
+    const ticks = [];
+    for (let m = a; m <= z; m += 120) ticks.push(`<i style="left:${pct(m)}%">${m / 60}:00</i>`);
+    const loose = ctx.items.filter((x) => x.day === day && !x.done && hm2m(x.time) == null).length;
+    const empty = !courses.length && !items.length, note = M.dayNote(App.S.courses, day);
+    const showNow = !tomorrow && nm >= a && nm <= z;
+    return `<div class="tb${tomorrow ? " tmr" : ""}">
+      <div class="tb-h"><b>${tomorrow ? "明天" : "今天"}</b><span>${empty && !loose ? "没有课，也没有要做的事" : [courses.length ? courses.length + " 节课" : "", items.length ? items.length + " 件有时间点的事" : "", loose ? loose + " 件全天的事" : ""].filter(Boolean).join("，")}</span>${note ? `<span class="td-adj">🔁 ${esc(note)}</span>` : ""}
+        ${!App.S.courses.courses || !App.S.courses.courses.length ? `<button class="btn ghost sm" data-go="week">导入课程表</button>` : ""}</div>
+      <div class="tb-track">${segs}${pins}${showNow ? `<em class="tb-now" style="left:${pct(nm)}%"><span class="num">${M.pad(now.getHours())}:${M.pad(now.getMinutes())}</span></em>` : ""}</div>
+      <div class="tb-ticks">${ticks.join("")}</div>
+    </div>`;
+  },
+
+  // ---------- 要做的事 ----------
   todo() {
     const now = App.now(), t = M.dayKey(now), el = $("#tdTodo", this.el);
     const live = M.sortItems(App.items().filter((x) => !x.hidden));
@@ -91,71 +160,73 @@ App.views.today = {
       ["接下来一周", live.filter((x) => x.day && M.dayDiff(x.day, now) >= 2 && M.dayDiff(x.day, now) <= 7 && !x.done)],
       ["今天完成的", live.filter((x) => x.done && (App.S.doneLog || {})[x.key] === t), "ok"],
     ];
-    const row = (x) => `<div class="todo${x.done ? " done" : ""}" data-k="${esc(x.key)}"><button class="chk${x.done ? " on" : ""}" data-k="${esc(x.key)}" title="${x.done ? "标记为没完成" : "完成"}"></button>${tagHtml(x.type)}<span class="todo-t">${esc(x.title)}</span><span class="todo-w${overdue(x, now) ? " late" : ""}">${esc(x.day === t ? x.time || "今天" : whenText(x, now))}</span></div>`;
-    const html = groups.filter((g) => g[1].length).map((g) => `<div class="todo-g ${g[2] || ""}">${g[0]}<span>${g[1].length}</span></div>` + g[1].slice(0, 12).map(row).join("") + (g[1].length > 12 ? `<div class="todo-more" data-go="tasks">还有 ${g[1].length - 12} 件…</div>` : "")).join("");
+    const total = groups.slice(0, 4).reduce((n, g) => n + g[1].length, 0);
+    $("#tdTodoN", this.el).textContent = total ? `${total} 件` : "";
+    const row = (x) => `<div class="td-row${x.done ? " done" : ""}${Insp.key === x.key ? " insp-sel" : ""}" data-k="${esc(x.key)}"><button class="chk${x.done ? " on" : ""}" data-k="${esc(x.key)}" title="${x.done ? "标记为没完成" : "完成"}"></button>
+      <span class="td-tag" style="--c:${tc(x.type)}">${esc(x.mine && x.type !== "作业" ? "我的" : x.study ? "考核" : x.type)}</span>
+      <span class="td-t">${esc(x.title)}${CloudFiles.count(x.key) || attachList(x.key).length ? ' <small title="有附件">📎</small>' : ""}${Autodel.soon(x) ? ' <small title="快要自动删除了">🗑</small>' : ""}</span>
+      ${x.location ? `<span class="td-l">${esc(x.location)}</span>` : ""}<span class="td-w${overdue(x, now) ? " late" : ""}">${esc(x.day === t ? (x.time ? x.time + (x.type === "作业" ? " 截止" : "") : "今天") : whenText(x, now))}</span></div>`;
+    const html = groups.filter((g) => g[1].length).map((g) => `<div class="td-g ${g[2] || ""}"><span>${g[0]}</span><small class="num">${g[1].length}</small></div>` + g[1].slice(0, 12).map(row).join("") + (g[1].length > 12 ? `<div class="td-more" data-go="tasks">还有 ${g[1].length - 12} 件…</div>` : "")).join("");
     el.innerHTML = html || `<div class="empty"><b>🎉</b>最近一周没有要做的事<br>在上面一句话记事，或者按 Ctrl+N</div>`;
   },
   stats() {
     const S = App.S, now = App.now(), t = M.dayKey(now), log = S.doneLog || {}, pomo = S.pomo || {};
-    const monday = M.addDays(now, -M.weekday0(now)), mk = M.dayKey(monday);
+    const mk = M.dayKey(M.addDays(now, -M.weekday0(now)));
     const doneToday = Object.values(log).filter((d) => d === t).length;
     const doneWeek = Object.values(log).filter((d) => d >= mk && d <= t).length;
     const days = new Set(Object.values(log).concat(Object.keys(pomo).filter((k) => pomo[k] > 0)));
     let streak = 0; for (let d = days.has(t) ? now : M.addDays(now, -1); days.has(M.dayKey(d)); d = M.addDays(d, -1)) streak++;
-    $("#tdStats", this.el).innerHTML = [["今天完成", doneToday, "件"], ["本周完成", doneWeek, "件"], ["今日专注", (S.focusMin || {})[t] || (pomo[t] || 0) * 25, "分钟"], ["连续学习", streak, "天"]]
-      .map(([a, b, c]) => `<div class="stat"><span>${a}</span><b>${b}<small>${c}</small></b></div>`).join("");
+    $("#tdStats", this.el).innerHTML = [["今天完成", doneToday, "件"], ["本周完成", doneWeek, "件"], ["今日专注", (S.focusMin || {})[t] || (pomo[t] || 0) * 25, "分"], ["连续学习", streak, "天"]]
+      .map(([a, b, c]) => `<div><b class="num">${b}</b><small>${c}</small><span>${a}</span></div>`).join("");
   },
   week() {
     const now = App.now(), monday = M.addDays(now, -M.weekday0(now)), items = App.items().filter((x) => !x.hidden && !x.done);
     $("#tdWeek", this.el).innerHTML = Array.from({ length: 7 }, (_, i) => {
       const d = M.addDays(monday, i), k = M.dayKey(d), cs = M.coursesOn(App.S.courses, d).length, its = items.filter((x) => x.day === k), hw = its.filter((x) => x.type === "作业").length;
-      return `<div class="wk-d${k === M.dayKey(now) ? " today" : ""}${k < M.dayKey(now) ? " past" : ""}" title="${dateCN(k)}：${cs} 节课，${its.length} 件事"><span>${M.WEEK[d.getDay()]}</span><b>${d.getDate()}</b><i>${cs ? cs + "课" : "–"}</i>${its.length ? `<em class="${hw ? "hw" : ""}">${its.length}</em>` : "<em class='z'></em>"}</div>`;
+      return `<div class="${k === M.dayKey(now) ? "today" : ""}${k < M.dayKey(now) ? " past" : ""}" title="${dateCN(k)}：${cs} 节课，${its.length} 件事${M.dayNote(App.S.courses, k) ? "（" + M.dayNote(App.S.courses, k) + "）" : ""}"><span>${M.WEEK[d.getDay()]}</span><b class="num">${d.getDate()}</b><i>${cs ? cs + " 课" : "·"}</i>${its.length ? `<em class="${hw ? "hw" : ""}">${its.length}</em>` : "<em class='z'></em>"}</div>`;
     }).join("");
   },
   wall() {
     const posts = ((App.S.wall && App.S.wall.posts) || []).filter((p) => !p.hidden).slice().sort((a, b) => (b.pinned_at ? 1 : 0) - (a.pinned_at ? 1 : 0)).slice(0, 3);
-    $("#tdWall", this.el).innerHTML = posts.length ? posts.map((p) => `<div class="wl-mini" data-go="wall">${p.pinned_at ? "📌 " : p.is_notice ? "📣 " : ""}<b>${esc(p.author_name || "")}</b>：${esc(p.title ? p.title + " " + p.body : p.body)}</div>`).join("") : `<div class="empty" style="padding:14px">班级墙还没有内容</div>`;
+    $("#tdWall", this.el).innerHTML = posts.length ? posts.map((p) => `<div class="td-wl" data-go="wall"><b>${p.pinned_at ? "📌 " : p.is_notice ? "📣 " : ""}${esc(p.author_name || "")}</b><span>${esc(p.title ? p.title + "　" + p.body : p.body)}</span></div>`).join("") : `<div class="muted" style="font-size:12.5px;padding:4px 2px">班级墙还没有内容</div>`;
   },
   pomo(p) {
     const el = this.el && $("#tdPomo", this.el); if (!el) return;
     p = p || {};
-    if (p.running) {
-      const m = Math.floor(p.left / 60), s = p.left % 60;
-      el.innerHTML = `<div class="pm-mini on" data-go="focus"><span class="pm-dot"></span><div><b>${p.phase === "focus" ? "专注中" : "休息中"}${p.task ? " · " + esc(p.task) : ""}</b><span class="mono">${M.pad(m)}:${M.pad(s)}</span></div></div>`;
-    } else el.innerHTML = `<div class="pm-mini"><span>🍅</span><div><b>专注一会儿</b><span>${App.S.settings.pomoFocus} 分钟，到点提醒你休息</span></div><button class="btn sm primary" id="tdPomoGo">开始</button></div>`;
-    const b = $("#tdPomoGo", el); if (b) b.onclick = (e) => { e.stopPropagation(); call("pomo:start", App.S.settings.pomoFocus, ""); };
+    if (p.running) el.innerHTML = `<div class="tp on" data-go="focus"><span class="tp-dot"></span><div><b>${p.phase === "focus" ? "专注中" : "休息中"}${p.task ? " · " + esc(p.task) : ""}</b><small>点这里看计时</small></div><b class="num tp-t">${M.pad(Math.floor(p.left / 60))}:${M.pad(p.left % 60)}</b></div>`;
+    else el.innerHTML = `<div class="tp"><span>🍅</span><div><b>专注一会儿</b><small>${App.S.settings.pomoFocus} 分钟，到点提醒你休息</small></div><button class="btn sm" data-nx="pomo">开始</button></div>`;
   },
-  // 每日一句 + 今天心情怎么样（和网页版同一套句子，心情记录跟着账号同步）
+  // 每日一句 + 今天心情怎么样（和网页版同一套句子，心情跟着账号同步）
   enc() {
     const el = $("#tdEnc", this.el), now = App.now(), h = now.getHours(), wd = now.getDay(), t = todayKey();
     const late = App.items().filter((x) => !x.hidden && overdue(x, now) && x.type === "作业").length;
     const pool = h >= 23 || h < 5 ? ENC.night : late ? ENC.go : wd === 0 || wd === 6 ? ENC.rest.concat(ENC.warm) : ENC.warm.concat(ENC.go);
     const k = t + ((App.S.me || {}).id || ""); let hash = 0; for (let i = 0; i < k.length; i++) hash = (hash * 31 + k.charCodeAt(i)) | 0;
-    const [zh, en, emo, g] = pool[(Math.abs(hash) + (this.shift || 0)) % pool.length], m = (KV("mood_log_v1") || {})[t];
+    const [zh, en, emo] = pool[(Math.abs(hash) + (this.shift || 0)) % pool.length], m = (KV("mood_log_v1") || {})[t];
     const reply = m && MOOD_REPLY[m] ? MOOD_REPLY[m][Math.abs(hash) % MOOD_REPLY[m].length] : "";
-    el.innerHTML = `<div class="enc-i" style="background:linear-gradient(135deg,${g})">${emo}</div><div class="enc-b"><div class="enc-l">🌱 每日一句<button class="btn ghost sm" data-enc-next title="换一句">↻</button></div><div class="enc-zh">${esc(zh)}</div><div class="enc-en">${esc(en)}</div>
-      <div class="enc-m">${m ? `<span>${MOODS.find((x) => x[0] === m)[1]} ${esc(reply)}</span><a data-mood-redo>改</a>` : `<span class="muted">今天心情怎么样？</span>${MOODS.map(([k2, e, n]) => `<button data-mood="${k2}" title="${n}">${e}</button>`).join("")}`}</div></div>`;
+    el.innerHTML = `<div class="te-q"><span class="te-e">${emo}</span><div><b>${esc(zh)}</b><small>${esc(en)}</small></div><button class="btn ghost sm iconbtn" data-enc-next title="换一句">↻</button></div>
+      <div class="te-m">${m ? `<span>${MOODS.find((x) => x[0] === m)[1]} ${esc(reply)}</span><a data-mood-redo>改</a>` : `<span class="muted">今天心情怎么样？</span>${MOODS.map(([k2, e, n]) => `<button data-mood="${k2}" title="${n}">${e}</button>`).join("")}`}</div>`;
   },
   cd() {
     const list = countdowns().filter((c) => c.n >= 0), top = list.find((c) => c.pinned) || list[0];
-    $("#tdCd", this.el).innerHTML = top ? `<div class="card cd-mini" data-cd style="--c:${top.color || "#3d6ff2"}"><span>${esc(top.emoji || "📅")}</span><div>距离 <b>${esc(top.title)}</b><small>${esc(dateCN(top.date))}</small></div><b class="cd-mn">${top.n === 0 ? "今天" : top.n + "<small>天</small>"}</b></div>` : "";
+    $("#tdCd", this.el).innerHTML = top ? `<div class="td-plate tc" data-cd style="--c:${top.color || "var(--brand)"}"><span class="tc-e">${esc(top.emoji || "📅")}</span><div><small>距离</small><b>${esc(top.title)}</b><small>${esc(dateCN(top.date))}</small></div><b class="num tc-n">${top.n === 0 ? "今天" : top.n}<small>${top.n ? "天" : ""}</small></b></div>` : "";
   },
   habits() {
     const el = $("#tdHb", this.el), hs = KV("habits_v1"), log = KV("habit_log_v1") || {}, t = todayKey();
     el.classList.toggle("hidden", !hs.length || App.fun().habits === false);
     if (!hs.length) return;
     const left = hs.filter((x) => !(log[x.id] || {})[t]).length;
-    el.innerHTML = `<div class="card-h">今日打卡<span class="grow"></span><small>${left ? `还有 ${left} 个` : "全部完成 🔥"}</small><button class="btn ghost sm" data-go="growth">全部 →</button></div>
+    el.innerHTML = `<div class="sec"><b>今日打卡</b><small>${left ? `还有 ${left} 个` : "全部完成 🔥"}</small><span class="grow"></span><button class="btn ghost sm" data-go="growth">全部</button></div>
       <div class="td-hbs">${hs.map((x) => { const on = !!(log[x.id] || {})[t], st = habitStreak(x.id); return `<button class="td-hbi${on ? " on" : ""}" data-hb="${esc(x.id)}" title="${on ? "已打卡，点一下取消" : "打卡"}"><span>${esc(x.icon || "✅")}</span><b>${esc(x.name)}</b>${st ? `<small>🔥${st}</small>` : ""}</button>`; }).join("")}</div>`;
   },
   keys(e, typing) { if (!typing && e.key === "/") { $("#tdQuick", this.el).focus(); return true; } },
 };
 
 const ENC = {
-  go: [["今天的努力，是明天的底气。", "Today's effort is tomorrow's confidence.", "💪", "#667eea,#764ba2"], ["每一步都算数，继续往前走。", "Every step counts, keep going.", "🚶", "#4facfe,#00f2fe"], ["坚持一下，再坚持一下。", "Hold on, just a little longer.", "🔥", "#ffecd2,#fcb69f"], ["你的坚持，终将美好。", "Your persistence will pay off beautifully.", "🦋", "#ff9a9e,#fad0c4"], ["先完成，再完美。", "Done is better than perfect.", "✅", "#43e97b,#38f9d7"], ["一次只做一件事，做完就是胜利。", "One thing at a time — finishing is winning.", "🎯", "#f6d365,#fda085"], ["作业不会自己消失，但你可以让它消失。", "Homework won't vanish by itself — but you can make it.", "📝", "#a18cd1,#fbc2eb"], ["世界很大，你的可能性更大。", "The world is big, your possibilities are bigger.", "🌍", "#89f7fe,#66a6ff"]],
-  warm: [["你比想象中更强大。", "You are stronger than you think.", "🌟", "#f093fb,#f5576c"], ["别急，花会开的。", "Be patient, the flowers will bloom.", "🌸", "#43e97b,#38f9d7"], ["你已经做得很好了。", "You're already doing great.", "✨", "#fa709a,#fee140"], ["慢慢来，比较快。", "Slow and steady wins the race.", "🐢", "#a18cd1,#fbc2eb"], ["光而不耀，静而不止。", "Bright but calm, quiet but unstoppable.", "☀️", "#a1c4fd,#c2e9fb"], ["允许一切发生，然后继续走。", "Let things happen, then keep walking.", "🍃", "#d4fc79,#96e6a1"], ["你已经走了很远了，别忘了为自己鼓掌。", "You've come so far — applaud yourself.", "👏", "#84fab0,#8fd3f4"], ["日子还长，值得期待的还有很多。", "There's still so much to look forward to.", "🌈", "#fbc2eb,#a6c1ee"], ["今天也是值得被期待的一天。", "Today is another day worth looking forward to.", "🌅", "#fdcbf1,#e6dee9"], ["偶尔停下来，也是在往前走。", "Pausing is also part of moving forward.", "☕", "#e0c3fc,#8ec5fc"]],
-  rest: [["累了就休息，但别忘了重新出发。", "Rest if tired, but don't forget to start again.", "🛏️", "#f6d365,#fda085"], ["周末快乐！给自己充充电吧。", "Happy weekend — time to recharge.", "🔋", "#84fab0,#8fd3f4"], ["出去走走，晒晒太阳。", "Go outside and catch some sunshine.", "🌤️", "#ffecd2,#fcb69f"]],
-  night: [["夜深了，明天的事交给明天的你。", "It's late — leave tomorrow's work to tomorrow's you.", "🌙", "#30cfd0,#330867"], ["早点睡，睡饱了脑子才转得快。", "Sleep well — a rested brain works faster.", "😴", "#4b6cb7,#182848"]],
+  go: [["今天的努力，是明天的底气。", "Today's effort is tomorrow's confidence.", "💪"], ["每一步都算数，继续往前走。", "Every step counts, keep going.", "🚶"], ["坚持一下，再坚持一下。", "Hold on, just a little longer.", "🔥"], ["你的坚持，终将美好。", "Your persistence will pay off beautifully.", "🦋"], ["先完成，再完美。", "Done is better than perfect.", "✅"], ["一次只做一件事，做完就是胜利。", "One thing at a time — finishing is winning.", "🎯"], ["作业不会自己消失，但你可以让它消失。", "Homework won't vanish by itself — but you can make it.", "📝"], ["世界很大，你的可能性更大。", "The world is big, your possibilities are bigger.", "🌍"]],
+  warm: [["你比想象中更强大。", "You are stronger than you think.", "🌟"], ["别急，花会开的。", "Be patient, the flowers will bloom.", "🌸"], ["你已经做得很好了。", "You're already doing great.", "✨"], ["慢慢来，比较快。", "Slow and steady wins the race.", "🐢"], ["光而不耀，静而不止。", "Bright but calm, quiet but unstoppable.", "☀️"], ["允许一切发生，然后继续走。", "Let things happen, then keep walking.", "🍃"], ["你已经走了很远了，别忘了为自己鼓掌。", "You've come so far — applaud yourself.", "👏"], ["日子还长，值得期待的还有很多。", "There's still so much to look forward to.", "🌈"], ["今天也是值得被期待的一天。", "Today is another day worth looking forward to.", "🌅"], ["偶尔停下来，也是在往前走。", "Pausing is also part of moving forward.", "☕"]],
+  rest: [["累了就休息，但别忘了重新出发。", "Rest if tired, but don't forget to start again.", "🛏️"], ["周末快乐！给自己充充电吧。", "Happy weekend — time to recharge.", "🔋"], ["出去走走，晒晒太阳。", "Go outside and catch some sunshine.", "🌤️"]],
+  night: [["夜深了，明天的事交给明天的你。", "It's late — leave tomorrow's work to tomorrow's you.", "🌙"], ["早点睡，睡饱了脑子才转得快。", "Sleep well — a rested brain works faster.", "😴"]],
 };
 const MOOD_REPLY = {
   great: ["开心的日子要记住！把好心情分一点给同桌吧 🎉", "今天状态满分，冲鸭！"], good: ["平平稳稳就是好日子 🙂", "保持住，今天也会顺顺利利。"],

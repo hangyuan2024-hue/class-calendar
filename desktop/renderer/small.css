@@ -63,3 +63,7 @@ body.quick, body.mini { background: transparent; overflow: hidden; }
 .b-hb span { font-size: 12px; padding: 2px 8px; border-radius: 10px; background: var(--bg2); }
 .m-s.late { color: var(--bad); }
 .m-s small { font-weight: 400; }
+
+/* 小窗里的课铃线 */
+.m-bell { position: relative; padding: 0; height: 4px; flex: none; }
+.m-h { position: relative; }

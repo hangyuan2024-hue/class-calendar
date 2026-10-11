@@ -42,7 +42,7 @@
   try { window.parent.postMessage({ cc: "ready" }, "*"); } catch (e) {}
 
   function boot(cfg) {
-    var token = cfg.token, P = cfg.plugin || {}, store = cfg.store || {};
+    var token = cfg.token, P = cfg.plugin || {}, store = cfg.store || {}, writes = {}, writeSeq = 0;
     var post = function (msg) { msg.token = token; try { window.parent.postMessage(msg, "*"); } catch (err) {} };
 
     // ---------- 存储：替换 localStorage，数据由父页面按插件分开保存 ----------
@@ -65,6 +65,13 @@
       try { Object.defineProperty(window, "localStorage", { value: storage, configurable: true }); } catch (err) {}
       try { Object.defineProperty(window, "sessionStorage", { value: sessionStore, configurable: true }); } catch (err) {}
       try { Object.defineProperty(window, "indexedDB", { value: undefined, configurable: true }); } catch (err) {}   // 没有 IndexedDB，插件会改用 localStorage
+      window.CampusPlugin = { reveal: function () { post({ cc: "reveal" }); }, write: function (entries) {
+        return new Promise(function (resolve, reject) {
+          var id = "write-" + (++writeSeq), timer = setTimeout(function () { delete writes[id]; reject(new Error("保存超时，请保持页面打开后重试")); }, 20000);
+          writes[id] = { resolve: resolve, reject: reject, entries: entries, timer: timer };
+          post({ cc: "set-batch", requestId: id, entries: entries });
+        });
+      } };
     }
     installShims();
 
@@ -73,7 +80,15 @@
     function onParentMsg(e) {
       if (e.source !== window.parent || !e.data) return;
       var d = e.data;
-      if (d.cc === "store") {
+      if (d.cc === "store-result") {
+        var w = writes[d.requestId]; if (!w) return;
+        clearTimeout(w.timer); delete writes[d.requestId];
+        if (!d.ok) { w.reject(new Error(d.error || "保存失败")); return; }
+        w.entries.forEach(function (x) { if (x[1] == null) delete store[x[0]]; else store[x[0]] = x[1]; });
+        w.resolve();
+      } else if (d.cc === "theme-snapshot") {
+        Object.keys(d.vars || {}).forEach(function (k) { document.documentElement.style.setProperty("--" + k, d.vars[k]); });
+      } else if (d.cc === "store") {
         var k = String(d.key), old = has(k) ? store[k] : null;
         if (d.value == null) delete store[k]; else store[k] = String(d.value);
         // 别处（主页面导入、另一个标签页）改了数据：像浏览器一样发 storage 事件，页面可以跟着刷新
@@ -121,6 +136,7 @@
       // document.open() 会清掉 window 上的事件监听：重新接上父页面的消息（数据被别处改了要能收到）
       window.addEventListener("message", onParentMsg);
       installShims();
+      Object.keys(cfg.theme || {}).forEach(function (k) { document.documentElement.style.setProperty("--" + k, cfg.theme[k]); });
       watchHeight();
       return;
     }

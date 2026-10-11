@@ -25,6 +25,7 @@ const DATA = () => app.getPath("userData");
 const WIN = process.platform === "win32";
 let siteCfg = {};
 let win = null, quickWin = null, miniWin = null, briefWin = null, tray = null, store = null, quitting = false;
+const pops = new Map();   // 单独开出来的页面窗口（比如把思维导图拖到第二块屏幕上）：页面名 → 窗口
 
 // ---------- 登录信息：用系统加密存在本机 ----------
 const sessFile = () => path.join(DATA(), "session.bin");
@@ -52,12 +53,36 @@ function pushState() {
   clearTimeout(pushTimer);
   pushTimer = setTimeout(() => {
     const st = fullState();
-    for (const w of [win, miniWin, briefWin]) if (w && !w.isDestroyed()) w.webContents.send("state", st);
+    for (const w of [win, miniWin, briefWin, ...pops.values()]) if (w && !w.isDestroyed()) w.webContents.send("state", st);
     updateTray(); updateTaskbar();
   }, 60);
 }
-function fullState() { return { ...store.snapshot(), loggedIn: !!sessionStore.load(), ai: aiPublic(), version: app.getVersion(), platform: process.platform, siteUrl: siteCfg.SUPABASE_URL || "", anonKey: siteCfg.SUPABASE_ANON_KEY || "", inClass: store ? remind.inClass(store.snapshot(), new Date()) : false }; }
-function send(ch, payload) { for (const w of [win, miniWin, quickWin, briefWin]) if (w && !w.isDestroyed()) w.webContents.send(ch, payload); }
+function fullState() { return { ...store.snapshot(), loggedIn: !!sessionStore.load(), ai: aiPublic(), version: app.getVersion(), platform: process.platform, siteUrl: siteCfg.SUPABASE_URL || "", anonKey: siteCfg.SUPABASE_ANON_KEY || "", inClass: store ? remind.inClass(store.snapshot(), M.now()) : false }; }
+function send(ch, payload) { for (const w of [win, miniWin, quickWin, briefWin, ...pops.values()]) if (w && !w.isDestroyed()) w.webContents.send(ch, payload); }
+
+// 把一个页面单独开成一个窗口（同一份数据，主窗口那边改了这里马上跟着变）
+function popOut(view) {
+  view = String(view || "week").replace(/[^a-z]/g, "").slice(0, 20) || "week";
+  const old = pops.get(view);
+  if (old && !old.isDestroyed()) { old.show(); old.focus(); return; }
+  const w = new BrowserWindow({
+    width: view === "week" || view === "mindmap" ? 1100 : 760, height: 760, minWidth: 520, minHeight: 420, title: "捞捞课程表",
+    icon: R("build", "icon.png"), backgroundColor: nativeTheme.shouldUseDarkColors ? "#0d141c" : "#f3f6f5",
+    titleBarStyle: "hidden", titleBarOverlay: { ...themeColors(), height: 44 },
+    webPreferences: { preload: R("preload.js"), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: false },
+  });
+  w.loadFile(R("renderer", "index.html"), { hash: "pop=" + view });
+  w.on("closed", () => pops.delete(view));
+  lockNavigation(w);
+  pops.set(view, w);
+}
+async function saveText(title, name, text, ext, filterName) {
+  const r = await dialog.showSaveDialog(win, { title, defaultPath: path.join(app.getPath("documents"), name), filters: [{ name: filterName, extensions: [ext] }] });
+  if (r.canceled || !r.filePath) return false;
+  fs.writeFileSync(r.filePath, text);
+  shell.showItemInFolder(r.filePath);
+  return r.filePath;
+}
 
 // ---------- 窗口 ----------
 const themeColors = () => (nativeTheme.shouldUseDarkColors ? { color: "#00000000", symbolColor: "#e8edf6" } : { color: "#00000000", symbolColor: "#1d2b44" });
@@ -127,7 +152,7 @@ function toggleMini() {
 // 晨间简报：每天第一次用电脑时，在右下角弹出今天的课、要交的作业、倒数日
 function openBrief(force) {
   if (!store || !sessionStore.load()) return;
-  const today = M.dayKey(new Date()), h = new Date().getHours();
+  const today = M.dayKey(M.now()), h = M.now().getHours();
   if (!force && (!store.data.settings.morningBrief || store.data.flags.briefDay === today || h < 5 || h >= 14)) return;
   store.data.flags.briefDay = today; store.save();
   if (briefWin && !briefWin.isDestroyed()) { briefWin.show(); return; }
@@ -145,12 +170,12 @@ function openBrief(force) {
 // ---------- 托盘 ----------
 function trayIcon() { const img = nativeImage.createFromPath(R("build", "icon.png")); return img.isEmpty() ? img : img.resize({ width: 16, height: 16 }); }
 function todoLeft() {
-  const s = store.snapshot(), now = new Date(), today = M.dayKey(now);
+  const s = store.snapshot(), now = M.now(), today = M.dayKey(now);
   return M.allItems(s).filter((x) => !x.done && !x.hidden && x.day && (x.day === today || (x.day < today && M.dayDiff(x.day, now) >= -7))).length;
 }
 function updateTray() {
   if (!tray) return;
-  const s = store.snapshot(), now = new Date();
+  const s = store.snapshot(), now = M.now();
   const todo = todoLeft();
   const next = M.coursesOn(s.courses, now).find((c) => (M.toMin(c.tStart) ?? 0) >= now.getHours() * 60 + now.getMinutes());
   const cd = ((s.kv || {}).countdown_v1 || []).filter((c) => c && c.date && M.dayDiff(c.date, now) >= 0).sort((a, b) => a.date.localeCompare(b.date))[0];
@@ -217,7 +242,7 @@ function handleArgs(argv, first) {
 // ---------- 通知提醒 ----------
 const sentFile = () => path.join(DATA(), "reminded.json");
 let sent = new Set(), held = [];
-try { const j = JSON.parse(fs.readFileSync(sentFile(), "utf8")); if (j.day === M.dayKey(new Date())) sent = new Set(j.ids); } catch (e) {}
+try { const j = JSON.parse(fs.readFileSync(sentFile(), "utf8")); if (j.day === M.dayKey(M.now())) sent = new Set(j.ids); } catch (e) {}
 function notify(title, body, view) {
   if (!Notification.isSupported()) return;
   const n = new Notification({ title, body, icon: R("build", "icon.png"), silent: false });
@@ -226,7 +251,7 @@ function notify(title, body, view) {
 }
 function checkReminders() {
   if (!store || !sessionStore.load()) return;
-  const now = new Date(), snap = store.snapshot(), st = snap.settings;
+  const now = M.now(), snap = store.snapshot(), st = snap.settings;
   const quietFocus = st.focusQuiet && pomo.running && pomo.phase === "focus";
   const quietClass = st.classQuiet && remind.inClass(snap, now);
   for (const r of remind.due(snap, now, sent)) {
@@ -259,11 +284,11 @@ function weeklyCheck(now) {
 const backupDir = () => path.join(app.getPath("documents"), "捞捞课程表备份");
 function backupData() {
   const d = store.data;
-  return { app: "laolao-kechengbiao", version: 2, at: new Date().toISOString(), account: d.me ? d.me.account : "", ns: d.ns, attach: d.attach, courses: d.courses };
+  return { app: "laolao-kechengbiao", version: 2, at: new Date().toISOString(), account: d.me ? d.me.account : "", ns: d.ns, raw: d.raw, attach: d.attach, courses: d.courses };
 }
 function writeBackup(manual) {
   const dir = backupDir(); fs.mkdirSync(dir, { recursive: true });
-  const k = M.dayKey(new Date()), f = path.join(dir, `备份-${k}${manual ? "-" + new Date().toTimeString().slice(0, 8).replace(/:/g, "") : ""}.json`);
+  const k = M.dayKey(M.now()), f = path.join(dir, `备份-${k}${manual ? "-" + new Date().toTimeString().slice(0, 8).replace(/:/g, "") : ""}.json`);
   fs.writeFileSync(f, JSON.stringify(backupData(), null, 1));
   const all = fs.readdirSync(dir).filter((x) => /^备份-\d{4}-\d{2}-\d{2}.*\.json$/.test(x)).sort();
   for (const x of all.slice(0, Math.max(0, all.length - 14))) { try { fs.rmSync(path.join(dir, x)); } catch (e) {} }
@@ -363,7 +388,7 @@ function clipCheck() {
   const sig = t.replace(/\s+/g, "").slice(0, 200);
   if (clipAsked.has(sig)) return;
   let r = null;
-  try { r = LaoParse.parse(t, M.dayKey(new Date())); } catch (e) { return; }
+  try { r = LaoParse.parse(t, M.dayKey(M.now())); } catch (e) { return; }
   const items = (r && r.items) || [];
   if (!items.length || !items.some((x) => x.event_time || /作业|截止|提交|考试|开会|班会|通知/.test(x.subject + x.summary))) return;
   clipAsked.add(sig);
@@ -461,6 +486,23 @@ function handle(ch, fn) { ipcMain.handle(ch, async (e, ...a) => { try { return {
 handle("state", () => fullState());
 handle("login", async (acct, pw) => { await store.login(acct, pw); setTimeout(() => openBrief(false), 1500); return fullState(); });
 handle("logout", async () => { await store.logout(); return fullState(); });
+handle("signup", async (acct, pw, info) => { await store.signup(acct, pw, info || {}); setTimeout(() => openBrief(false), 1500); return fullState(); });
+// 没登录时能用的几个接口：注册时查账号、忘记密码
+const ANON = new Set(["account_available", "pw_reset_start", "pw_reset_finish"]);
+handle("api:anon", (fn, args) => { if (!ANON.has(fn)) throw new Error("不支持的操作：" + fn); return store.api.anonRpc(fn, args || {}); });
+// 事项：推迟自动删除、本班自动删除开关、「编辑（仅自己）」
+handle("item:keep", (key) => store.keepItem(key));
+handle("autodel:class", (on) => store.setClassAutodel(on));
+handle("item:override", (from, rec) => store.overrideClassItem(from, rec));
+handle("extras:reload", () => store.loadExtras());
+handle("files:count", (key, n) => store.setFileCount(key, n));
+// 调课 / 调休
+handle("adj:save", (adj) => store.saveAdj(adj));
+handle("courses:reload", () => store.loadCourses());
+handle("extra:items", (list) => store.setExtraItems(list));
+// 内置工具（随机抽签器、错题记录本）：从安装包里读，和网站同一份
+const TOOL_FILES = new Set(["random-draw.html", "error-notebook.html", "tools.css", "vendor/pako_inflate.min.js"]);
+handle("tool:read", (name) => { if (!TOOL_FILES.has(name)) throw new Error("没有这个工具文件"); return fs.readFileSync(R("renderer", "web", "tools", name), "utf8"); });
 handle("refresh", () => store.refresh());
 handle("class:reload", () => store.reloadClass());
 handle("mine:upsert", (item) => store.upsertMine(item));
@@ -487,9 +529,9 @@ handle("settings", (patch) => {
   if (patch && "taskbarBadge" in patch) { badgeN = -1; updateTaskbar(); }
   return s;
 });
-handle("quick:parse", (text) => parseQuick(text, new Date()));
+handle("quick:parse", (text) => parseQuick(text, M.now()));
 handle("quick:add", (text) => {
-  const p = parseQuick(text, new Date()); if (!p.subject) throw new Error("写一下要做什么");
+  const p = parseQuick(text, M.now()); if (!p.subject) throw new Error("写一下要做什么");
   const rec = store.upsertMine({ subject: p.subject, event_time: p.date ? p.date + (p.time ? " " + p.time : "") : "", location: p.location });
   return rec;
 });
@@ -506,7 +548,7 @@ handle("ai:prepare", () => { aiPrepare(); return aiPublic(); });
 handle("ai:cancel", () => { aiAbort.aborted = true; });
 handle("ai:chat", async (id, history) => {
   if (!aiState.ready) throw new Error("AI 助手还没准备好");
-  const msgs = [{ role: "system", content: assistant.systemPrompt(store.snapshot(), new Date()) }, ...(history || []).slice(-12).map((m) => ({ role: m.role === "user" ? "user" : "assistant", content: String(m.content || "").slice(0, 4000) }))];
+  const msgs = [{ role: "system", content: assistant.systemPrompt(store.snapshot(), M.now()) }, ...(history || []).slice(-12).map((m) => ({ role: m.role === "user" ? "user" : "assistant", content: String(m.content || "").slice(0, 4000) }))];
   const job = ai.chat(msgs, (full) => win && !win.isDestroyed() && win.webContents.send("ai-token", { id, text: full }));
   chats.set(id, job);
   try { return await job; } finally { chats.delete(id); }
@@ -518,9 +560,10 @@ handle("ai:extract", async (text, pub) => {
   const job = ai.chat([{ role: "system", content: LaoParse.extractPrompt(pub) }, { role: "user", content: String(text || "").slice(0, 6000) }], null, { temperature: 0.1, maxTokens: 1500 });
   return await job;
 });
-handle("export:ics", async () => {
+handle("export:ics", async (keys) => {
   const s = store.snapshot();
-  const items = M.allItems(s).filter((x) => x.day && !x.hidden);
+  const only = Array.isArray(keys) && keys.length ? new Set(keys.map(String)) : null;
+  const items = M.allItems(s).filter((x) => x.day && !x.hidden && (!only || only.has(String(x.key))));
   const esc = (t) => String(t || "").replace(/[\\;,]/g, (c) => "\\" + c).replace(/\n/g, "\\n");
   const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//laolao//kechengbiao desktop//CN", "X-WR-CALNAME:捞捞课程表"];
   for (const x of items) {
@@ -532,12 +575,25 @@ handle("export:ics", async () => {
     lines.push("END:VEVENT");
   }
   lines.push("END:VCALENDAR");
-  const r = await dialog.showSaveDialog(win, { title: "导出到日历", defaultPath: path.join(app.getPath("desktop"), `捞捞课程表-${M.dayKey(new Date())}.ics`), filters: [{ name: "日历文件", extensions: ["ics"] }] });
+  const nm = only && items.length === 1 ? items[0].title.replace(/[\\/:*?"<>|]/g, " ").slice(0, 40) : `捞捞课程表-${M.dayKey(M.now())}`;
+  const r = await dialog.showSaveDialog(win, { title: "导出到日历", defaultPath: path.join(app.getPath("desktop"), `${nm}.ics`), filters: [{ name: "日历文件", extensions: ["ics"] }] });
   if (r.canceled || !r.filePath) return false;
   fs.writeFileSync(r.filePath, lines.join("\r\n"));
   shell.showItemInFolder(r.filePath);
   return items.length;
 });
+// 云端附件另存到电脑上
+handle("file:save", async (name, b64) => {
+  const safe = String(name || "附件").replace(/[\\/:*?"<>|]/g, "_").slice(0, 120);
+  const r = await dialog.showSaveDialog(win, { title: "保存附件", defaultPath: path.join(app.getPath("downloads"), safe) });
+  if (r.canceled || !r.filePath) return false;
+  fs.writeFileSync(r.filePath, Buffer.from(String(b64 || ""), "base64"));
+  shell.showItemInFolder(r.filePath);
+  return r.filePath;
+});
+// 导出表格（CSV，带 BOM，Excel 双击打开不乱码）
+handle("export:csv", (name, text) => saveText("导出表格", String(name || "捞捞课程表").replace(/[\\/:*?"<>|]/g, " ").slice(0, 60) + ".csv", "\ufeff" + String(text || ""), "csv", "表格（Excel 能打开）"));
+handle("popout", (view) => popOut(view));
 // 导出、打印、壁纸
 handle("export:pdf", (html, name, landscape) => exportPdf(String(html), name, landscape));
 handle("export:image", (html, name, w, h) => exportImage(String(html), name, w, h));
@@ -600,7 +656,7 @@ app.whenReady().then(() => {
   const api = new Api({ url: cfg.SUPABASE_URL, key: cfg.SUPABASE_ANON_KEY, domain: cfg.AUTH_EMAIL_DOMAIN, store: sessionStore });
   store = new Store({ api, file: path.join(DATA(), "data.json") }).load();
   nativeTheme.themeSource = store.data.settings.theme === "meta" ? "dark" : store.data.settings.theme || "system";
-  nativeTheme.on("updated", () => { if (win && !win.isDestroyed()) win.setTitleBarOverlay({ ...themeColors(), height: 44 }); });
+  nativeTheme.on("updated", () => { for (const w of [win, ...pops.values()]) if (w && !w.isDestroyed()) w.setTitleBarOverlay({ ...themeColors(), height: 44 }); });
   store.on("change", pushState); store.on("status", pushState);
   store.on("auth-expired", () => { sessionStore.save(null); pushState(); });
 
@@ -614,7 +670,27 @@ app.whenReady().then(() => {
   handleArgs(process.argv, true);
 
   if (sessionStore.load()) store.refresh().then(() => setTimeout(() => openBrief(false), 2500));
-  setInterval(() => { if (sessionStore.load()) store.refresh(); }, 5 * 60 * 1000);   // 每 5 分钟同步一次
+  // 实时同步：窗口在前面时 3 秒问一次服务器，开着没在看 10 秒，缩到托盘 30 秒；服务器还没升级时退回每分钟同步一次
+  let lastUse = Date.now();
+  app.on("browser-window-focus", () => { lastUse = Date.now(); livePing(); });
+  const liveWait = () => {
+    if (!store.data.settings.liveSync) return 60000;
+    if (win && !win.isDestroyed() && win.isFocused() && Date.now() - lastUse < 120000) return 3000;
+    if (win && !win.isDestroyed() && win.isVisible()) return 10000;
+    return 30000;
+  };
+  async function livePing() {
+    clearTimeout(livePing.t);
+    if (sessionStore.load()) {
+      if (store.pingOff || !store.data.settings.liveSync) { if (Date.now() - (store.data.lastRefresh || 0) > 60000) await store.refresh(); }
+      else await store.ping();
+    }
+    const f = store.pingFail || 0;
+    livePing.t = setTimeout(livePing, f ? Math.min(60000, liveWait() * 2 ** Math.min(f, 5)) : liveWait());
+  }
+  setTimeout(livePing, 4000);
+  ipcMain.on("user-active", () => { const idle = Date.now() - lastUse > 120000; lastUse = Date.now(); if (idle) livePing(); });
+  setInterval(() => { if (sessionStore.load()) store.refresh(); }, 15 * 60 * 1000);   // 保险：每 15 分钟完整同步一次
   setInterval(checkReminders, 30 * 1000); setTimeout(checkReminders, 5000);
   setInterval(clipCheck, 1500);
   setInterval(() => { if (sessionStore.load() && store.data.cid) store.api.rpc("mail_tick", {}).catch(() => {}); }, (10 + Math.random() * 5) * 60 * 1000);   // 帮服务器把该发的邮件提醒发出去

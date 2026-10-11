@@ -6,6 +6,7 @@ App.views.week = {
     el.innerHTML = `
       <div class="vhead"><div><h1>课程表</h1><div class="sub" id="wkSub"></div></div><span class="grow"></span>
         <div class="row"><button class="btn iconbtn" id="wkPrev" title="上一周（←）">${icon("left")}</button><button class="btn" id="wkNow" title="回到本周（T）">本周</button><button class="btn iconbtn" id="wkNext" title="下一周（→）">${icon("right")}</button></div>
+        <button class="btn" id="wkAdj" title="学校临时换课、补课、放假、停课、加课">🔁 调课 / 调休<em class="wk-adjn hidden" id="wkAdjN"></em></button>
         <button class="btn" id="wkImport" title="把教务系统的课表截图粘贴进来，自动识别（Ctrl+V）">${icon("image")}截图导入</button>
         <button class="btn" id="wkEdit" title="手动添加、修改课程，设置第 1 周和上课时间">${icon("edit")}编辑课程表</button>
         <button class="btn iconbtn" id="wkMore" title="设成壁纸、导出 PDF、打印">⋯</button></div>
@@ -15,12 +16,14 @@ App.views.week = {
     $("#wkNow", el).onclick = () => { this.off = 0; this.update(); };
     el.addEventListener("click", (e) => {
       const c = e.target.closest(".wk-c"); if (c) { this.sel = { id: c.dataset.id, day: c.dataset.day }; this.inspect(); $$(".wk-c", el).forEach((x) => x.classList.toggle("sel", x === c)); return; }
-      const it = e.target.closest(".wk-it[data-k]"); if (it) { App.go("tasks", { key: it.dataset.k }); return; }
+      const it = e.target.closest(".wk-it[data-k], .wk-more[data-k]"); if (it) { Insp.open(it.dataset.k); return; }
       const x = e.target.closest("[data-close]"); if (x) { this.sel = null; $("#wkInsp", el).classList.add("hidden"); $$(".wk-c.sel", el).forEach((n) => n.classList.remove("sel")); }
     });
-    el.addEventListener("dblclick", (e) => { const cell = e.target.closest(".wk-cell"); if (cell) menu(e.clientX, e.clientY, [{ label: "在这里加一门课", icon: "plus", fn: () => CourseEd.editOne(null, { day: M.weekday0(M.fromKey(cell.dataset.day)), start: +cell.dataset.p }) }, { label: "这个时间记一件事", icon: "edit", fn: () => editItem(null, { day: cell.dataset.day, time: cell.dataset.t }) }]); });
+    el.addEventListener("dblclick", (e) => { const cell = e.target.closest(".wk-cell"); if (cell) menu(e.clientX, e.clientY, [{ label: "在这里加一门课", icon: "plus", fn: () => CourseEd.editOne(null, { day: M.weekday0(M.fromKey(cell.dataset.day)), start: +cell.dataset.p }) }, { label: "这个时间记一件事", icon: "edit", fn: () => editItem(null, { day: cell.dataset.day, time: cell.dataset.t }) }, "-", { label: "这天换课（调休）…", icon: "sync", fn: () => CourseEd.adjust({ tab: "swap", date: cell.dataset.day }) }, { label: "这天放假 / 停课…", icon: "close", fn: () => CourseEd.adjust({ tab: "off", date: cell.dataset.day }) }, { label: "这天加一节课…", icon: "plus", fn: () => CourseEd.adjust({ tab: "add", date: cell.dataset.day }) }]); });
+    el.addEventListener("contextmenu", (e) => { const dh = e.target.closest(".wk-dh[data-day]"); if (!dh) return; e.preventDefault(); menu(e.clientX, e.clientY, [{ label: "这天换课（调休）…", icon: "sync", fn: () => CourseEd.adjust({ tab: "swap", date: dh.dataset.day }) }, { label: "这天放假 / 停课…", icon: "close", fn: () => CourseEd.adjust({ tab: "off", date: dh.dataset.day }) }, { label: "这天加一节课…", icon: "plus", fn: () => CourseEd.adjust({ tab: "add", date: dh.dataset.day }) }]); });
     $("#wkEdit", el).onclick = () => CourseEd.open();
     $("#wkImport", el).onclick = () => CourseEd.importShot();
+    $("#wkAdj", el).onclick = () => CourseEd.adjust();
     $("#wkMore", el).onclick = (e) => { const r = e.currentTarget.getBoundingClientRect(); this.moreMenu(r.right - 220, r.bottom + 4); };
     // 在课程表页面直接 Ctrl+V 一张截图：识别导入
     document.addEventListener("paste", (e) => { if (App.view !== "week" || overlayOpen() || e.target.closest("input,textarea")) return; const f = [...(e.clipboardData || {}).files || []].find((x) => /^image\//.test(x.type)); if (f) { e.preventDefault(); CourseEd.importShot(f); } });
@@ -33,6 +36,8 @@ App.views.week = {
       w.on ? { label: "换回原来的壁纸", icon: "close", fn: () => call("wallpaper:restore").then(() => toast("已换回原来的壁纸")) } : null,
       "-",
       { label: "导出这周课表 + 作业（PDF）", icon: "export", fn: () => this.exportPdf() },
+      { label: "导出课程表表格（Excel 能打开）", icon: "export", fn: () => exportCsv("courses") },
+      { label: "单独开一个窗口（放到另一块屏幕）", icon: "mini", fn: () => popOut("week") },
       { label: "课表存成图片", icon: "image", fn: () => call("export:image", timetableHtml(this.monday(), { image: true }), "课程表-" + M.dayKey(this.monday()), 1400, 900).then((f) => f && toast("已保存图片")) },
       { label: "打印", icon: "print", fn: () => call("print", timetableHtml(this.monday(), { print: true })) },
     ]));
@@ -54,7 +59,7 @@ App.views.week = {
     if (!all.length) { grid.className = "wk-grid"; grid.style.cssText = ""; grid.innerHTML = `<div class="empty" style="grid-column:1/-1;padding:80px"><b>📚</b>还没有课程表<br><br><button class="btn primary" data-cimp>${icon("image")}截图导入</button> <button class="btn" data-cedit>${icon("edit")}手动填写</button><br><br><span class="muted">在教务系统里把课表截图（Win+Shift+S），回到这里按 Ctrl+V 就能自动识别。网页和手机上的课程表会自动同步过来。</span></div>`; grid.querySelector("[data-cimp]").onclick = () => CourseEd.importShot(); grid.querySelector("[data-cedit]").onclick = () => CourseEd.open(); return; }
     const maxP = Math.max(8, ...all.map((c) => c.end || c.start));
     const nP = Math.min(times.length, Math.max(maxP, times.filter(Boolean).length > 10 ? 10 : maxP));
-    const weekend = all.some((c) => c.day >= 5);
+    const weekend = all.some((c) => c.day >= 5) || [5, 6].some((i) => M.coursesOn(S.courses, M.addDays(mon, i)).length);   // 调休时周末也要上课
     // 每节课之间如果隔了 40 分钟以上（午饭、晚饭），中间加一条细的「休息」行
     const rows = []; let r = 3;
     for (let p = 1; p <= nP; p++) {
@@ -66,10 +71,12 @@ App.views.week = {
     grid.style.gridTemplateRows = `auto max-content ${rows.map((x) => (x.gap ? "16px" : "minmax(54px,1fr)")).join(" ")}`;
     const days = Array.from({ length: 7 }, (_, i) => M.addDays(mon, i)), tk = M.dayKey(now);
     const items = App.items().filter((x) => !x.hidden && x.day);
-    let html = `<div class="wk-corner" style="grid-row:1/3"></div>`;
+    let html = `<div class="wk-corner" style="grid-row:1/3"></div>`; const offCols = [];
     days.forEach((d, i) => {
       const k = M.dayKey(d), its = M.sortItems(items.filter((x) => x.day === k));
-      html += `<div class="wk-dh${k === tk ? " today" : ""}" style="grid-column:${i + 2}"><span>周${"一二三四五六日"[i]}</span><b>${d.getMonth() + 1}/${d.getDate()}</b></div>`;
+      const note = M.dayNote(S.courses, k), off = M.adjOn(S.courses, k).some((a) => a.type === "off");
+      html += `<div class="wk-dh${k === tk ? " today" : ""}${note ? " adj" : ""}" data-day="${k}" style="grid-column:${i + 2}" title="${note ? esc(note) + "（右键可以改调课）" : "右键：这天调课 / 放假 / 加课"}"><span>周${"一二三四五六日"[i]}</span><b>${d.getMonth() + 1}/${d.getDate()}</b>${note ? `<small>🔁 ${esc(note)}</small>` : ""}</div>`;
+      if (off) offCols.push(i + 2);
       html += `<div class="wk-its${k === tk ? " today" : ""}" style="grid-column:${i + 2};grid-row:2">${its.slice(0, 3).map((x) => `<span class="wk-it${x.done ? " done" : ""}" data-k="${esc(x.key)}" style="--c:${tc(x.type)}" title="${esc(x.type + "：" + x.title + (x.time ? " " + x.time : ""))}">${x.time ? `<i>${x.time}</i>` : ""}${esc(x.title)}</span>`).join("")}${its.length > 3 ? `<span class="wk-more" data-k="${esc(its[3].key)}">+${its.length - 3}</span>` : ""}</div>`;
     });
     for (const x of rows) {
@@ -83,10 +90,13 @@ App.views.week = {
         if (!pRow[c.start]) continue;
         const end = Math.min(c.end || c.start, nP), past = M.dayKey(d) < tk || (M.dayKey(d) === tk && M.toMin(c.tEnd) <= now.getHours() * 60 + now.getMinutes());
         const sel = this.sel && this.sel.id === String(c.id) && this.sel.day === M.dayKey(d);
-        html += `<div class="wk-c${past ? " past" : ""}${sel ? " sel" : ""}" data-id="${esc(c.id)}" data-day="${M.dayKey(d)}" style="--c:${c.color};grid-column:${i + 2};grid-row:${pRow[c.start]}/${pRow[end] + 1}" title="${esc(c.name)}"><b>${esc(c.name)}</b>${c.location ? `<span>${icon("place")}${esc(c.location)}</span>` : ""}${c.teacher && end > c.start ? `<span class="t">${esc(c.teacher)}</span>` : ""}</div>`;
+        const tag = c._add ? `<em class="wk-tag">加课</em>` : c._from ? `<em class="wk-tag" title="按 ${esc(M.mdw(c._from))} 的课上">调</em>` : "";
+        html += `<div class="wk-c${past ? " past" : ""}${sel ? " sel" : ""}${c._add ? " add" : ""}" data-id="${esc(c.id)}" data-day="${M.dayKey(d)}" style="--c:${c.color};grid-column:${i + 2};grid-row:${pRow[c.start]}/${pRow[end] + 1}" title="${esc(c.name)}${c._from ? "（按 " + esc(M.mdw(c._from)) + " 的课上）" : c._add ? "（加课）" : ""}"><b>${esc(c.name)}${tag}</b>${c.location ? `<span>${icon("place")}${esc(c.location)}</span>` : ""}${c.teacher && end > c.start ? `<span class="t">${esc(c.teacher)}</span>` : ""}</div>`;
       }
     });
+    for (const col of offCols) html += `<div class="wk-off" style="grid-column:${col};grid-row:3/${rows.length + 3}"><span>${esc(M.dayNote(S.courses, M.dayKey(days[col - 2])) || "放假")}</span></div>`;
     html += `<div class="wk-now hidden" id="wkNowLine"><i></i></div>`;
+    const up = CourseEd.upcoming(); $("#wkAdjN", el).textContent = up || ""; $("#wkAdjN", el).classList.toggle("hidden", !up);
     grid.innerHTML = html;
     this.nowLine();
     if (this.sel) this.inspect();
@@ -114,7 +124,19 @@ App.views.week = {
   },
   inspect() {
     const el = this.el, box = $("#wkInsp", el), S = App.S;
-    const c = (S.courses.courses || []).find((x) => String(x.id) === this.sel.id);
+    let c = (S.courses.courses || []).find((x) => String(x.id) === this.sel.id);
+    if (!c && /^adj_/.test(this.sel.id)) {   // 加的课（调课里记的）
+      const a = M.adjOf(S.courses).find((x) => "adj_" + x.id === this.sel.id);
+      if (!a) { box.classList.add("hidden"); return; }
+      const times = M.periodTimes(S.courses.meta);
+      box.classList.remove("hidden");
+      box.innerHTML = `<div class="insp-h" style="--c:${M.colorFor(a.name)}"><b>${esc(a.name)} <small class="tag" style="--c:var(--brand)">加课</small></b><button class="btn ghost iconbtn sm" data-close title="关闭">${icon("close")}</button></div>
+        <div class="insp-rows"><div>${icon("clock")}<span>${esc(M.mdw(a.date))} 第 ${a.start}${a.end > a.start ? "–" + a.end : ""} 节 · ${(times[a.start - 1] || "").split("-")[0]}–${(times[a.end - 1] || "").split("-")[1] || ""}</span></div>${a.location ? `<div>${icon("place")}<span>${esc(a.location)}</span></div>` : ""}${a.teacher ? `<div>👤<span>${esc(a.teacher)}</span></div>` : ""}</div>
+        <div class="insp-act"><button class="btn sm" id="wkAdjOpen">🔁 调课 / 调休</button><button class="btn sm danger" id="wkAdjDel">${icon("trash")}删掉这节加课</button></div>`;
+      $("#wkAdjOpen", box).onclick = () => CourseEd.adjust({ tab: "add", date: a.date });
+      $("#wkAdjDel", box).onclick = () => CourseEd.adjSave(M.adjOf(S.courses).filter((x) => x.id !== a.id), "已删除这节加课");
+      return;
+    }
     if (!c) { box.classList.add("hidden"); return; }
     const times = M.periodTimes(S.courses.meta), t0 = (times[c.start - 1] || "").split("-")[0], t1 = (times[(c.end || c.start) - 1] || "").split("-")[1];
     const same = (S.courses.courses || []).filter((x) => x.name === c.name).sort((a, b) => a.day - b.day || a.start - b.start);
@@ -135,7 +157,7 @@ App.views.week = {
     $("#wkCEdit", box).onclick = () => CourseEd.editOne(c);
     $("#wkCDel", box).onclick = () => CourseEd.del(c);
     $("#wkFocus", box).onclick = () => App.go("focus", { task: c.name });
-    $$(".insp-li.it", box).forEach((n) => (n.onclick = () => App.go("tasks", { key: n.dataset.k })));
+    $$(".insp-li.it", box).forEach((n) => (n.onclick = () => Insp.open(n.dataset.k)));
   },
   keys(e, typing) {
     if (typing) return;

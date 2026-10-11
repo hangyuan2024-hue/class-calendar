@@ -96,6 +96,30 @@ class Api {
     return this.keep(j);
   }
 
+  // 注册（和网页版同一套：账号对应内部邮箱 <账号>@<域名>）；org = { type, name } 学校 / 单位，可不填
+  async signUp(account, password, { name, role, gender, org } = {}) {
+    account = String(account || "").trim().toLowerCase();
+    name = String(name || "").trim();
+    if (!ACCOUNT_RE.test(account)) throw new Error("账号只能用 3~20 位小写字母、数字或下划线");
+    if (!name) throw new Error("请填写姓名");
+    if (String(password || "").length < 8) throw new Error("密码至少 8 位");
+    const meta = { name, role: role === "teacher" ? "teacher" : "student", gender: gender === "m" || gender === "f" ? gender : "" };
+    const ORG = ["university", "college", "high", "middle", "primary", "work", "personal"];
+    if (org && ORG.includes(org.type)) { meta.org_type = org.type; meta.org_name = String(org.name || "").replace(/[\u0000-\u001f\u007f]/g, "").replace(/\s+/g, " ").trim().slice(0, 40); }
+    let j;
+    try { j = await this.call(this.base + "/auth/v1/signup", { method: "POST", body: JSON.stringify({ email: account + "@" + this.domain, password, data: meta }) }); }
+    catch (e) {
+      if (/already (registered|exists)/i.test(e.message)) e.message = "这个账号已经被注册了，换一个或直接登录";
+      else if (/password should be/i.test(e.message)) e.message = "密码太短，至少 8 位";
+      else if (/signups? not allowed|signup is disabled/i.test(e.message)) e.message = "暂时关闭了注册，请联系管理员";
+      throw e;
+    }
+    if (j && j.access_token) return this.keep(j);
+    return this.signIn(account, password);   // 部分配置下注册不直接返回登录状态，再登录一次
+  }
+  // 没登录也能调的接口（查账号能不能用、找回密码）：用公开密钥
+  anonRpc(fn, args) { return this.call(this.base + "/rest/v1/rpc/" + fn, { method: "POST", body: JSON.stringify(args || {}) }); }
+
   async signOut() {
     const s = this.store.load();
     if (s) { try { await this.call(this.base + "/auth/v1/logout?scope=local", { method: "POST", timeout: 5000 }, s.access_token); } catch (e) {} }

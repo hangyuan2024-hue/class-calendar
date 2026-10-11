@@ -6,6 +6,7 @@ App.views.homework = {
   mount(el) {
     el.innerHTML = `
       <div class="vhead"><div><h1 id="hwTitle">本周作业</h1><div class="sub" id="hwSub"></div></div><span class="grow"></span>
+        <button class="btn" id="hwMine" title="自己记的作业也会出现在这里，只有你看得到">✏️ 记自己的作业</button>
         <button class="btn hidden" id="hwPub">📣 发布作业</button>
         <button class="btn" id="hwPdf" title="导出成 PDF，可以打印出来">${icon("print")}导出 / 打印</button>
         <div class="row"><button class="btn iconbtn" id="hwPrev" title="上一周（←）">${icon("left")}</button><button class="btn" id="hwNow">本周</button><button class="btn iconbtn" id="hwNext" title="下一周（→）">${icon("right")}</button></div></div>
@@ -14,6 +15,7 @@ App.views.homework = {
     $("#hwNext", el).onclick = () => { this.off++; this.update(); };
     $("#hwNow", el).onclick = () => { this.off = 0; this.update(); };
     $("#hwPub", el).onclick = () => editClassItem(null);
+    $("#hwMine", el).onclick = () => editItem(null, { kind: "作业" });
     $("#hwPdf", el).onclick = (e) => {
       const r = e.currentTarget.getBoundingClientRect();
       menu(r.left, r.bottom + 4, [
@@ -23,7 +25,7 @@ App.views.homework = {
     };
     el.addEventListener("click", (e) => {
       const c = e.target.closest(".chk[data-k]"); if (c) { const x = App.find(c.dataset.k); if (x) toggleDone(x.key, !x.done); return; }
-      const r = e.target.closest(".hw-row[data-k]"); if (r && !e.target.closest("button")) App.go("tasks", { key: r.dataset.k });
+      const r = e.target.closest(".hw-row[data-k]"); if (r && !e.target.closest("button")) Insp.open(r.dataset.k);
     });
     el.addEventListener("contextmenu", (e) => { const r = e.target.closest(".hw-row[data-k]"); if (r) { const x = App.find(r.dataset.k); if (x) itemMenu(e, x); } });
   },
@@ -57,7 +59,7 @@ App.views.homework = {
       const [cls, txt] = this.due(x), d = x.day ? M.fromKey(x.day) : null, att = attachList(x.key).length, g = App.group(x.gid);
       return `<div class="hw-row${x.done ? " done" : ""}" data-k="${esc(x.key)}">
         <button class="chk${x.done ? " on" : ""}" data-k="${esc(x.key)}" title="${x.done ? "标记为没交" : "交了"}"></button>
-        <div class="hw-m"><b>${x.confirm ? "⚠ " : ""}${esc(x.title)}${g ? ` <span class="tag" style="--c:var(--ok)">👥 ${esc(g.name)}</span>` : ""}${att ? ` <span class="muted" title="${att} 个附件">📎${att}</span>` : ""}</b>${x.summary ? `<small>${esc(x.summary)}</small>` : ""}${x.note ? `<small class="hw-note">📝 ${esc(x.note)}</small>` : ""}</div>
+        <div class="hw-m"><b>${x.confirm ? "⚠ " : ""}${esc(x.title)}${x.mine ? ` <span class="tag" style="--c:var(--t-个人)">我的</span>` : ""}${g ? ` <span class="tag" style="--c:var(--ok)">👥 ${esc(g.name)}</span>` : ""}${att || CloudFiles.count(x.key) ? ` <span class="muted" title="有附件">📎${att + CloudFiles.count(x.key)}</span>` : ""}${Autodel.soon(x) ? ` <span class="muted" title="快要自动删除了">🗑</span>` : ""}</b>${x.summary ? `<small>${esc(x.summary)}</small>` : ""}${x.note ? `<small class="hw-note">📝 ${esc(x.note)}</small>` : ""}</div>
         <div class="hw-d"><span class="due ${cls}">${esc(txt)}</span>${d ? `<small>周${M.WEEK[d.getDay()]} ${d.getMonth() + 1}/${d.getDate()}${x.time ? " " + x.time : ""}</small>` : ""}</div></div>`;
     };
     const sec = (t, sub, list, cls) => list.length ? `<section class="hw-sec ${cls || ""}"><div class="hw-h"><b>${t}</b><span>${sub}</span></div><div class="card">${list.map(row).join("")}</div></section>` : "";

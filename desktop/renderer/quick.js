@@ -6,8 +6,8 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 function draw() {
   const t = q.value.trim();
   if (!t) { prev.innerHTML = '<span class="muted">写上日子、时间、@地点，会自动认出来</span>'; return; }
-  const p = P.parse(t, new Date());
-  prev.innerHTML = `<b>${esc(p.subject || "…")}</b>` + (p.date ? `<span>📅 ${esc(M.relDay(p.date, new Date()))}（${p.date.slice(5).replace("-", "/")}）</span>` : '<span class="muted">没定日子</span>') + (p.time ? `<span>🕒 ${p.time}</span>` : "") + (p.location ? `<span>📍 ${esc(p.location)}</span>` : "");
+  const p = P.parse(t, M.now());
+  prev.innerHTML = `<b>${esc(p.subject || "…")}</b>` + (p.date ? `<span>📅 ${esc(M.relDay(p.date, M.now()))}（${p.date.slice(5).replace("-", "/")}）</span>` : '<span class="muted">没定日子</span>') + (p.time ? `<span>🕒 ${p.time}</span>` : "") + (p.location ? `<span>📍 ${esc(p.location)}</span>` : "");
 }
 q.addEventListener("input", draw);
 q.addEventListener("keydown", async (e) => {

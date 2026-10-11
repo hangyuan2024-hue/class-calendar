@@ -8,37 +8,85 @@
 <link rel="stylesheet" href="base.css">
 <link rel="stylesheet" href="views.css">
 <link rel="stylesheet" href="views2.css">
+<link rel="stylesheet" href="v3.css">
+<link rel="stylesheet" href="web/study.css">
+<link rel="stylesheet" href="web/mindmap.css">
+<link rel="stylesheet" href="web/farm.css">
+<link rel="stylesheet" href="web/metaverse-v3.css">
+<link rel="stylesheet" href="webshim.css">
 </head>
 <body>
 <div id="app" class="booting">
   <header class="titlebar">
     <div class="tb-brand"><img src="logo.png" alt=""><span>捞捞课程表</span></div>
-    <button class="tb-search" id="tbSearch" title="搜索、跳转、执行命令"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span>搜索事项、跳转页面…</span><kbd>Ctrl K</kbd></button>
-    <div class="tb-right">
-      <span class="sync" id="syncDot" title="同步状态"></span></div>
+    <div class="tb-crumb" id="tbCrumb"></div>
+    <button class="tb-search" id="tbSearch" title="搜索、跳转、执行命令"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span>搜索事项、跳转页面、执行命令</span><kbd>Ctrl K</kbd></button>
+    <div class="tb-right"><span class="sync" id="syncDot" title="同步状态"></span></div>
+    <div class="bell none" id="bell" title="今天的课"></div>
   </header>
 
-  <!-- 登录 -->
+  <!-- 登录 / 注册 / 找回密码 -->
   <section id="login" class="login hidden">
     <div class="lg-art">
       <div class="lg-brand"><img src="logo.png" alt=""><b>捞捞课程表</b><span>电脑版</span></div>
-      <h1>课、作业、通知<br>一眼看清</h1>
-      <ul>
-        <li><i>📅</i><div><b>课程表周视图</b><span>整周的课铺满屏幕，现在上到哪节一目了然</span></div></li>
-        <li><i>✅</i><div><b>作业、事项一张表</b><span>筛选、搜索、批量勾完成，键盘就能操作</span></div></li>
-        <li><i>🔔</i><div><b>右下角准时提醒</b><span>上课前、截止前弹通知，关掉窗口也不会漏</span></div></li>
-        <li><i>🤖</i><div><b>离线 AI 小助手</b><span>问「明天几点上课」「这周要交什么」</span></div></li>
+      <h1>今天上到第几节，<br>还有什么要交</h1>
+      <div class="lg-day" aria-hidden="true">
+        <div class="ld-h"><b>周三</b><span>第 3 节 · 线性代数 · 还剩 18 分钟</span></div>
+        <div class="ld-track">
+          <span style="--c:#2f6fd6;--w:2">高等数学</span><span style="--c:#0f7a68;--w:2">线性代数</span><span class="gap"></span>
+          <span style="--c:#8257d4;--w:2">大学物理</span><span style="--c:#c08a0a;--w:1">体育</span><span class="gap"></span><span style="--c:#e5642a;--w:1.4">实验报告截止</span>
+          <em style="left:38%"></em></div>
+        <div class="ld-ticks"><span>8:00</span><span>12:00</span><span>18:00</span><span>22:00</span></div>
+      </div>
+      <ul class="lg-feats">
+        <li><b>课程表铺满屏幕</b><span>调课调休、单双周都按学校的来</span></li>
+        <li><b>作业一张表</b><span>筛选、批量勾完成，键盘就能操作</span></li>
+        <li><b>右下角准时提醒</b><span>关掉窗口也在托盘里继续提醒</span></li>
+        <li><b>不联网的 AI</b><span>在电脑上问「明天几点上课」</span></li>
       </ul>
     </div>
-    <form class="lg-form" id="loginForm" autocomplete="on">
-      <h2>登录</h2>
-      <p class="muted">用网站或手机上的同一个账号，数据自动同步</p>
-      <label>账号<input id="lgAcct" name="username" autocomplete="username" placeholder="你的账号" required></label>
-      <label>密码<input id="lgPw" name="password" type="password" autocomplete="current-password" placeholder="密码" required></label>
-      <div class="lg-err" id="lgErr"></div>
-      <button class="btn primary big" id="lgBtn" type="submit">登录</button>
-      <p class="lg-reg">还没有账号？<a href="#" data-ext="https://www.laolaokechengbiao.cn/">去网站注册</a></p>
-    </form>
+    <div class="lg-side">
+      <!-- 登录 -->
+      <form class="lg-form" id="loginForm" autocomplete="on">
+        <h2>登录</h2>
+        <p class="muted">和网站、手机用同一个账号，数据自动同步</p>
+        <label>账号<input id="lgAcct" name="username" autocomplete="username" placeholder="你的账号" required></label>
+        <label>密码<input id="lgPw" name="password" type="password" autocomplete="current-password" placeholder="密码" required></label>
+        <div class="lg-err" id="lgErr"></div>
+        <button class="btn primary big" id="lgBtn" type="submit">登录</button>
+        <p class="lg-reg"><a href="#" data-lg="signup">没有账号？注册一个</a><a href="#" data-lg="forgot">忘记密码</a></p>
+      </form>
+      <!-- 注册 -->
+      <form class="lg-form hidden" id="signupForm" autocomplete="off">
+        <h2>注册</h2>
+        <p class="muted">注册后网站、手机、电脑都能用这个账号</p>
+        <label>账号<input id="suAcct" maxlength="20" placeholder="3~20 位小写字母、数字或下划线" required><span class="lg-hint" id="suAcctHint"></span></label>
+        <div class="lg-two"><label>姓名<input id="suName" maxlength="20" placeholder="真实姓名，方便老师审批入班" required></label>
+          <label>我是<select id="suRole"><option value="student">学生</option><option value="teacher">老师</option></select></label></div>
+        <div class="lg-pick" id="suGender"><label><input type="radio" name="sug" value="m">男生</label><label><input type="radio" name="sug" value="f">女生</label></div>
+        <div class="lg-two"><label>学校 / 单位类型<select id="suOrgT"><option value="">不填写</option><option value="university">本科大学</option><option value="college">专科</option><option value="high">高中</option><option value="middle">初中</option><option value="primary">小学</option><option value="work">职场</option><option value="personal">个人使用</option></select></label>
+          <label>名称<input id="suOrgN" maxlength="40" list="suSchools" placeholder="可以不填"><datalist id="suSchools"></datalist></label></div>
+        <div class="lg-two"><label>密码<input id="suPw" type="password" minlength="8" autocomplete="new-password" placeholder="至少 8 位" required></label>
+          <label>再输一次<input id="suPw2" type="password" autocomplete="new-password" required></label></div>
+        <label class="lg-agree"><input type="checkbox" id="suAgree">我已阅读并同意<a href="#" data-ext="https://www.laolaokechengbiao.cn/terms.html">用户协议</a>和<a href="#" data-ext="https://www.laolaokechengbiao.cn/privacy.html">隐私政策</a></label>
+        <div class="lg-err" id="suErr"></div>
+        <button class="btn primary big" id="suBtn" type="submit">注册并登录</button>
+        <p class="lg-reg"><a href="#" data-lg="login">已经有账号？去登录</a></p>
+      </form>
+      <!-- 找回密码 -->
+      <form class="lg-form hidden" id="forgotForm" autocomplete="off">
+        <h2>找回密码</h2>
+        <p class="muted" id="fgHelp">验证码会发到你绑定的邮箱</p>
+        <label>账号<input id="fgAcct" maxlength="20" required></label>
+        <div id="fg2" class="hidden" style="display:flex;flex-direction:column;gap:13px">
+          <label>邮箱里的 6 位验证码<input id="fgCode" maxlength="6" inputmode="numeric"></label>
+          <div class="lg-two"><label>新密码<input id="fgPw" type="password" autocomplete="new-password" placeholder="至少 8 位"></label><label>再输一次<input id="fgPw2" type="password" autocomplete="new-password"></label></div>
+        </div>
+        <div class="lg-err" id="fgErr"></div>
+        <button class="btn primary big" id="fgBtn" type="submit">发送验证码</button>
+        <p class="lg-reg"><a href="#" data-lg="login">返回登录</a></p>
+      </form>
+    </div>
   </section>
 
   <!-- 主界面 -->
@@ -51,6 +99,7 @@
     </div>
   </aside>
   <main class="main hidden" id="main"></main>
+  <aside id="insp" aria-label="详情"><div class="insp-in" id="inspIn"></div></aside>
 </div>
 
 <!-- 捞捞（网站吉祥物，和网站同一张图） -->
@@ -124,6 +173,15 @@
 <script src="v-report.js"></script>
 <script src="classitem.js"></script>
 <script src="coursed.js"></script>
+<script src="detail.js"></script>
+<script src="adjust.js"></script>
+<script src="v-web.js"></script>
+<script src="webshim.js"></script>
+<script src="web/schools.js"></script>
+<script src="web/study.js"></script>
+<script src="web/mindmap.js"></script>
+<script src="web/farm.js"></script>
+<script src="web/metalab.js"></script>
 <script src="../core/island-core.js"></script>
 <script src="island.js"></script>
 <script src="app.js"></script>

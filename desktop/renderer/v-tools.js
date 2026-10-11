@@ -7,7 +7,7 @@ const SANDBOX_FLAGS = "allow-scripts allow-forms allow-popups allow-modals allow
 const SAFE_CSS = /^(#[0-9a-f]{3,8}|(rgb|rgba|hsl|hsla)\([\d\s.,%/]+\)|[a-z]{3,20})$/i;
 // 工具用的是网页版的颜色名，换成电脑版的
 const THEME_MAP = { bg: "--bg", bg2: "--bg2", card: "--panel", line: "--line", text: "--text", sub: "--text2", accent: "--brand", red: "--bad", green: "--ok", "muted-text": "--muted", hover: "--bg2" };
-const verNewer = (a, b) => { const x = String(a || "0").split(".").map((n) => parseInt(n, 10) || 0), y = String(b || "0").split(".").map((n) => parseInt(n, 10) || 0); for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false; };
+var verNewer = (a, b) => { const x = String(a || "0").split(".").map((n) => parseInt(n, 10) || 0), y = String(b || "0").split(".").map((n) => parseInt(n, 10) || 0); for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false; };
 const lsGet = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
 
@@ -31,13 +31,29 @@ const IDB = (() => {
   };
 })();
 
+// 内置工具：网站上「捞捞校园」做的两个工具，随安装包一起带着（和网站同一份文件，打包时拷进来），不用联网下载
+const BUNDLED_TOOLS = [
+  { id: "random-draw", name: "随机抽签器", icon: "🎲", description: "批量导入 TXT、CSV、Excel 名单，预览去重，课堂点名与随机选择", file: "random-draw.html", version: "2.0.0", inflate: true },
+  { id: "error-notebook", name: "错题记录本", icon: "📚", description: "按学科整理错题书架，图片题目、答案解析、复习和本机备份", file: "error-notebook.html", version: "2.0.0" },
+];
+function bundledRegistry(list) {
+  const out = (list || []).slice();
+  for (const b of BUNDLED_TOOLS) {
+    const i = out.findIndex((p) => p.id === b.id && p.channel === "published");
+    if (i >= 0 && verNewer(out[i].version, b.version)) continue;   // 商店里有更新的版本：用商店的
+    const meta = { ...(i >= 0 ? out[i] : {}), ...b, key: b.id, ns: b.id, channel: "published", bundled: true, default_on: i >= 0 ? out[i].default_on : false, author_name: "捞捞校园", published_at: "2026-10-06T00:00:00Z" };
+    if (i >= 0) out[i] = meta; else out.push(meta);
+  }
+  return out;
+}
 const Plugins = {
   registry: [], state: {}, frames: new Map(), tabs: [], itemsCache: {}, regAt: 0, regErr: "", loading: null, started: false, clog: {},
   staff() { return (App.S.perms || []).includes("try_testing"); },
   enabled() { const v = KV("plugins_enabled_v1"); if (Array.isArray(v)) return new Set(v); return new Set(this.registry.filter((p) => p.default_on && p.channel === "published").map((p) => p.key)); },
   setEnabled(set) { return kvSet("plugins_enabled_v1", "_", [...set]); },
   cache() { return lsGet("cc_plugin_cache", {}); },
-  pub(rows) { return (rows || []).filter((p) => p.published_at).map((p) => ({ ...p, key: p.id, ns: p.id, channel: "published" })); },
+  pub(rows) { return bundledRegistry((rows || []).filter((p) => p.published_at).map((p) => ({ ...p, key: p.id, ns: p.id, channel: "published" }))); },
+  list() { const on = this.enabled(); return this.registry.filter((p) => on.has(p.key)).map((p) => ({ key: p.key, name: p.name, icon: p.icon })); },
   // 打开软件时：用顺带拿到的列表，装过的工具直接从本机运行
   async start() {
     if (this.started || !App.S.loggedIn) return; this.started = true;
@@ -48,7 +64,7 @@ const Plugins = {
     if (this.staff() && [...on].some((k) => k.endsWith("@test"))) await this.refresh(true);
     for (const meta of this.registry) {
       if (!on.has(meta.key)) continue;
-      try { const r = (meta.channel === "published" && this.cache()[meta.id] && await IDB.code.get(meta.id)) || await this.fetchCode(meta); await this.run(meta, r.code, r.app_html); }
+      try { const r = (meta.channel === "published" && !meta.bundled && this.cache()[meta.id] && await IDB.code.get(meta.id)) || await this.fetchCode(meta); await this.run(meta, r.code, r.app_html); }
       catch (e) { this.state[meta.key].error = cleanErr(e); }
     }
     App.views.tools.draw();
@@ -77,6 +93,12 @@ const Plugins = {
     return this.loading;
   },
   async fetchCode(meta) {
+    if (meta.bundled) {
+      const parts = await Promise.all([meta.file, "tools.css"].concat(meta.inflate ? ["vendor/pako_inflate.min.js"] : []).map((f) => window.cc.call("tool:read", f)));
+      let html = parts[0].replace("/* CAMPUS_TOOL_STYLES */", () => parts[1]);
+      if (meta.inflate) html = html.replace("/* CAMPUS_INFLATE_LIBRARY */", () => parts[2]);
+      return { code: "", app_html: html, version: meta.version };
+    }
     if (meta.channel === "published") {
       const r = (await apiGet(`plugins?select=code,app_html,version&id=eq.${meta.id}`))[0]; if (!r) throw new Error("工具内容读取失败");
       const body = { code: r.code, app_html: r.app_html, version: r.version || meta.version };
@@ -161,6 +183,18 @@ window.addEventListener("message", (e) => {
       break;
     }
     case "clear": IDB.kvClear(f.meta.ns); break;
+    // 新版工具（内置工具）一次存好几条，图片也在里面：全部存好了才告诉它
+    case "set-batch": {
+      const entries = d.entries, rid = String(d.requestId || "").slice(0, 80);
+      const valid = Array.isArray(entries) && entries.length > 0 && entries.length <= 100 && entries.every((x) => Array.isArray(x) && x.length === 2 && typeof x[0] === "string" && x[0].length <= 200 && (x[1] === null || (typeof x[1] === "string" && x[1].length <= 5_000_000)));
+      if (!valid || entries.reduce((n, x) => n + (x[1] || "").length, 0) > 15_000_000) { f.post({ cc: "store-result", requestId: rid, ok: false, error: "内容过大，请减少记录或图片数量" }); break; }
+      Promise.all(entries.map(([k, v]) => IDB.kvPut(f.meta.ns, k, v))).then(() => {
+        for (const o of Plugins.frames.values()) if (o !== f && o.meta.ns === f.meta.ns) for (const [k, v] of entries) o.post({ cc: "store", key: k, value: v });
+        f.post({ cc: "store-result", requestId: rid, ok: true });
+      }).catch(() => f.post({ cc: "store-result", requestId: rid, ok: false, error: "保存失败，电脑上的空间可能不够了" }));
+      break;
+    }
+    case "reveal": if (f.mode === "app" && f.frame.isConnected) f.frame.scrollIntoView({ block: "start" }); break;
     case "h": if (f.mode !== "bg") f.frame.style.height = Math.max(60, Math.min(20000, Number(d.h) || 0)) + "px"; break;
     case "tab": if (f.mode === "bg") Plugins.addTab(f, String(d.id || "").slice(0, 40), d.title); break;
     case "source": if (f.mode === "bg") { f.hasSource = true; if (App.views.month.el) App.views.month.update(); } break;
@@ -188,13 +222,14 @@ App.views.tools = {
   mount(el) {
     el.innerHTML = `<div class="vhead"><button class="btn ghost iconbtn hidden" id="tlBack" title="返回工具箱">${icon("left")}</button><div><h1 id="tlTitle">工具箱</h1><div class="sub" id="tlSub">同学们做的小工具，和网页版同一个商店；在隔离环境里运行，拿不到你的登录信息</div></div><span class="grow"></span>
         <button class="btn" id="tlRe">${icon("sync")}检查更新</button></div>
-      <div class="vbody"><div id="tlHome"><div class="tl-grid" id="tlGrid"></div><div class="sec-h"><b>添加工具</b><span id="tlSt"></span></div><div id="tlStore"></div></div><div id="tlPage" class="hidden tl-page"></div></div>`;
+      <div class="vbody"><div id="tlHome"><div class="tl-grid" id="tlGrid"></div>
+        <div class="sec-h"><b>常用</b><span>和网页版首页的快捷工具一样</span></div><div class="tl-quick">${[["mindmap", "🧠", "思维导图"], ["study", "📖", "课内学习"], ["farm", "🐣", "云宠农场"], ["focus", "🍅", "番茄专注"], ["plan", "🎯", "时间管理"], ["ingest", "✨", "整理群消息"], ["countdown", "⏳", "倒数日"], ["me", "📲", "加到手机日历"], ["intro", "📖", "功能介绍"]].map(([v, i, n]) => `<button class="btn" data-goq="${v}">${i} ${n}</button>`).join("")}<button class="btn" data-ext="https://www.people.com.cn/">📰 人民日报</button></div><div class="sec-h"><b>添加工具</b><span id="tlSt"></span></div><div id="tlStore"></div></div><div id="tlPage" class="hidden tl-page"></div></div>`;
     $("#tlBack", el).onclick = () => this.openTab(null);
     $("#tlRe", el).onclick = () => Plugins.refresh(true);
     el.addEventListener("click", (e) => this.click(e));
     el.addEventListener("toggle", (e) => { const d = e.target; if (d.matches && d.matches("details[data-clog]") && d.open) this.loadClog(d.dataset.clog); }, true);
   },
-  show() { Plugins.start().then(() => Plugins.refresh()); },
+  show(a) { Plugins.start().then(() => Plugins.refresh()).then(() => { if (a && a.open) { const t = Plugins.tabs.find((x) => x.plugin === a.open); if (t) this.openTab(t.id); } }); },
   update() { this.draw(); },
   draw() {
     const el = this.el; if (!el) return;
@@ -228,6 +263,7 @@ App.views.tools = {
     Plugins.open(t.plugin, t.appOnly ? "app" : "tab", page, { tabId: t.tabId });
   },
   async click(e) {
+    const q = e.target.closest("[data-goq]"); if (q) return App.go(q.dataset.goq);
     const tb = e.target.closest("[data-tab]"); if (tb) return this.openTab(tb.dataset.tab);
     const ub = e.target.closest("[data-upd]");
     if (ub) { const meta = Plugins.registry.find((p) => p.key === ub.dataset.upd), st = Plugins.state[meta.key]; st.busy = "下载中…"; this.draw(); try { await Plugins.fetchCode(meta); toast("已更新，重新打开软件后生效"); } catch (err) { st.error = "更新失败：" + cleanErr(err); } st.busy = ""; this.draw(); return; }

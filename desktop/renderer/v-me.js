@@ -52,6 +52,7 @@ App.views.me = {
     box.innerHTML = `
       <div class="card me-top"><div class="me-cv" style="background:${coverOf(me.cover, g)}"></div>
         <div class="me-row">${avHtml(me.display_name || me.account, "xl")}<div><b class="me-n">${esc(me.display_name || "")}${gIco(g)}</b><div class="muted">${esc(({ admin: "管理员", developer: "开发者", tester: "测试员", teacher: "老师", student: "学生" })[me.role] || me.role || "")} · @${esc(me.account || "")}</div>
+          ${orgLabel(me.org_type, me.org_name) ? `<div class="me-org">🏫 ${esc(orgLabel(me.org_type, me.org_name))}</div>` : ""}
           <div class="me-bio${me.bio ? "" : " muted"}">${me.bio ? esc(me.bio) : "还没有个性签名，写一句介绍自己吧"}</div></div><span class="grow"></span>
           <button class="btn" data-a="prof">✏️ 编辑资料</button><button class="btn primary" data-a="page">我的主页 ›</button></div></div>
       <div class="me-cols">
@@ -80,6 +81,7 @@ App.views.me = {
             <div class="st-row"><div><b>规划 · 时间管理</b></div><div class="st-ctl">${sw(f.plan, 'data-fun-sw="plan"')}</div></div>
             <div class="st-row"><div><b>元宇宙模式</b><small>霓虹科幻风格</small></div><div class="st-ctl">${sw(st.theme === "meta", 'data-a="meta"')}</div></div>
           </section>
+          ${staffHtml()}
           <section class="card st-card"><h3>关于</h3>
             <div class="st-row"><div><b>捞捞课程表 电脑版 ${esc(S.version || "")}</b><small>和网站、手机用同一个账号</small></div><div class="st-ctl"><button class="btn ghost" data-ext="https://www.laolaokechengbiao.cn/">打开网站</button><button class="btn danger" data-a="logout">退出登录</button></div></div>
           </section>
@@ -111,6 +113,8 @@ App.views.me = {
     let cover = me.cover || "";
     const d = h(`<form class="dialog" role="dialog"><h3>编辑资料</h3><div class="dbody">
       <div class="field">性别<div class="seg" id="pfG">${[["m", "男生"], ["f", "女生"], ["x", "保密"]].map(([k, t]) => `<button type="button" data-g="${k}" class="${g0 === k ? "on" : ""}">${t}</button>`).join("")}</div></div>
+      <div class="row"><label class="field" style="flex:1">学校 / 单位<select name="ot"><option value="">不填写</option>${ORG_TYPES.map(([k, n]) => `<option value="${k}"${me.org_type === k ? " selected" : ""}>${n}</option>`).join("")}</select></label>
+        <label class="field" style="flex:1.6">名称<input name="on" maxlength="40" list="pfSchools" value="${esc(me.org_name || "")}" placeholder="可以不填"><datalist id="pfSchools">${window.CC_SCHOOLS ? window.CC_SCHOOLS.p.flatMap(([, l]) => l.map((x) => `<option value="${esc(x[0])}">`)).join("") : ""}</datalist></label></div>
       <label class="field">个性签名 <small class="muted" id="pfN"></small><input name="bio" maxlength="60" value="${esc(me.bio || "")}" placeholder="写一句介绍自己"></label>
       <div class="field">主页封面<div class="pf-covers">${Object.entries(COVERS).map(([k, [n, bg]]) => `<button type="button" data-cover="${k}" style="background:${bg}" class="${cover === k ? "on" : ""}"><span>${n}</span></button>`).join("")}</div></div>
       <div class="fb-err"></div></div><div class="dfoot"><span class="grow"></span><button type="button" class="btn" data-a="no">取消</button><button class="btn primary">保存</button></div></form>`);
@@ -122,7 +126,15 @@ App.views.me = {
       d.querySelector('[data-a="no"]').onclick = () => closeOverlay();
       d.onsubmit = async (e) => {
         e.preventDefault();
-        try { await api("profile_update", { p_gender: gender, p_bio: bio.value.trim(), ...(cover ? { p_cover: cover } : {}) }); closeOverlay(); toast("资料已保存"); await call("refresh"); res(true); }
+        try {
+          await api("profile_update", { p_gender: gender, p_bio: bio.value.trim(), ...(cover ? { p_cover: cover } : {}) });
+          const ot = d.elements.ot.value, on = d.elements.on.value.trim();
+          if (ot !== (me.org_type || "") || on !== (me.org_name || "")) {
+            try { await api("profile_set_org", { p_type: ot || null, p_name: on }, true); }
+            catch (e2) { toast(notFound(e2) ? "其他资料已保存；学校 / 单位要等管理员升级数据库后才能改" : "学校 / 单位没保存：" + cleanErr(e2), { bad: true }); }
+          }
+          closeOverlay(); toast("资料已保存"); await call("refresh"); res(true);
+        }
         catch (err) { d.querySelector(".fb-err").textContent = cleanErr(err); }
       };
       openOverlay(d, () => res(false));
@@ -256,3 +268,22 @@ App.views.me = {
     } catch (err) {}
   },
 };
+
+// 学校 / 单位（和网页版 org.js 同一套类型）
+const ORG_TYPES = [["university", "本科大学"], ["college", "专科 / 高职"], ["high", "高中"], ["middle", "初中"], ["primary", "小学"], ["work", "职场人员"], ["personal", "个人使用"]];
+function orgLabel(type, name) {
+  const n = (ORG_TYPES.find((x) => x[0] === type) || [])[1]; if (!n) return "";
+  return name ? (["university", "college", "high", "middle", "primary"].includes(type) ? name : n + " · " + name) : n;
+}
+
+// 管理员、开发者、测试员：网站上的管理后台（在浏览器里打开，和网页版的入口一样）
+function staffHtml() {
+  const me = App.S.me || {}, perms = App.S.perms || [], role = me.role;
+  const site = "https://www.laolaokechengbiao.cn/";
+  const rows = [];
+  if (role === "admin") rows.push(["全站功能开关", "一键暂停有问题的功能（所有人都会生效）", site + "dev.html#features"]);
+  if (role === "admin" || perms.includes("manage_users")) rows.push(["用户管理", "给用户分配身份、重置密码、看操作记录", site + "admin.html"]);
+  if (["admin", "developer", "tester"].includes(role)) rows.push(["插件开发后台", "上传、测试、审核插件", site + "dev.html"]);
+  if (!rows.length) return "";
+  return `<section class="card st-card"><h3>管理 <small>在浏览器里打开网站的后台</small></h3>${rows.map(([t, d, u]) => `<div class="st-row"><div><b>${t}</b><small>${d}</small></div><div class="st-ctl"><button class="btn" data-ext="${u}">${icon("ext")}打开</button></div></div>`).join("")}</section>`;
+}

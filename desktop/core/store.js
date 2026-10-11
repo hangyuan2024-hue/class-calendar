@@ -9,11 +9,14 @@ const M = require("./model");
 
 // 和网页版 app.js 里的 SYNC_KINDS 一致（网页没有的是电脑版新加的，网页会原样保留）
 // list：数组，按 id 一条条同步；map：对象，按键同步；map2：两层对象（习惯 → 日期）；one：整体同步
+// 网页版以后再加新的类型也不怕：不认识的记录原样存在 raw 里（不会丢，也不会被跳过），备份里也带着
 const KINDS = {
+  course_rev_v1: "one", course_view_v1: "map", kn_rev_v1: "one", mm_rev_v1: "one",
   personal_events_v1: "list", personal_marks_v1: "map", done_log_v1: "map", pomo_log_v1: "map",
-  habits_v1: "list", habit_log_v1: "map2", quad_v1: "map", plan_notes_v1: "map", mood_log_v1: "map",
-  profile_v1: "one", fun_opts_v1: "one", plugins_enabled_v1: "one",
-  countdown_v1: "list", focus_min_v1: "map", island_v1: "one", farm_v1: "one",          // 电脑版新加：倒数日、每天专注了多少分钟
+  habits_v1: "list", habit_log_v1: "map2", quad_v1: "map", quad_todos_v1: "list", plan_notes_v1: "map", mood_log_v1: "map",
+  profile_v1: "one", fun_opts_v1: "one", plugins_enabled_v1: "one", home_layout_v1: "one", ui_skin_v1: "one", ui_palette_v1: "one", home_quick_tools_v1: "one",
+  island_v1: "one", farm_v1: "one",
+  countdown_v1: "list", focus_min_v1: "map",          // 电脑版加的：倒数日、每天专注了多少分钟（网页版会原样保留）
 };
 const SYNC_NS = Object.keys(KINDS);
 const SEP = "\u0001";
@@ -25,7 +28,7 @@ const DEFAULT_SETTINGS = {
   closeToTray: true,       // 关窗口时缩到右下角
   autoStart: false,        // 开机自动启动
   theme: "system",         // light / dark / system
-  accent: "blue",          // 主色
+  accent: "jade",          // 主色（jade = 和网站一样的青绿）
   hotkey: "CommandOrControl+Alt+Space",
   pomoFocus: 25, pomoBreak: 5,
   clipWatch: true,         // 复制了像作业通知的群消息时提示整理
@@ -37,24 +40,31 @@ const DEFAULT_SETTINGS = {
   countdownRemind: true,   // 倒数日提前 7 / 3 / 1 天提醒
   taskbarBadge: true,      // 任务栏图标上显示今天还剩几件事
   noise: "off", noiseVol: 0.4,
+  autodelMine: true,       // 自己记的事项过期 2 周自动删除（和网页版「我自己记的」开关一样）
+  liveSync: true,          // 实时同步：别的设备改了，几秒内就同步过来
 };
 
 const pad = (n) => String(n).padStart(2, "0");
 const dayKey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+// 北京时间的「今天」（和网页版一样按东八区算）
+const bjDay = (ms) => dayKey(new Date(ms + (new Date().getTimezoneOffset() + 480) * 60000));
 const blankNs = () => { const o = {}; for (const [k, kind] of Object.entries(KINDS)) o[k] = kind === "list" ? [] : kind === "one" ? null : {}; return o; };
 
 function blank() {
   return {
     v: 2, uid: null, me: null, perms: [], classes: [], cid: null, items: [], groups: [], classOpts: {}, wall: null, features: null, plugins: null,
     courses: { courses: [], meta: {} }, ns: blankNs(),
-    sync: { rev: 0, t: {} }, outbox: {}, lastRefresh: 0, settings: { ...DEFAULT_SETTINGS }, attach: {}, flags: {},
+    sync: { rev: 0, t: {} }, outbox: {}, lastRefresh: 0, settings: { ...DEFAULT_SETTINGS }, attach: {}, flags: {}, raw: {},
+    extras: { cid: null, autodel: true, canSet: false, keep: {}, files: {}, loaded: false }, dev: "",
   };
 }
 
 class Store extends EventEmitter {
   constructor({ api, file, now }) {
     super();
-    this.api = api; this.file = file; this.now = now || (() => Date.now());
+    this.api = api; this.file = file; this.realNow = now || (() => Date.now());
+    this.clockOff = 0;                                  // 本机时间比服务器慢了多少（sync_ping 校准），修改时间以服务器为准
+    this.now = () => this.realNow() + this.clockOff;
     this.data = blank(); this.saveTimer = 0; this.pushTimer = 0;
     this.status = { syncing: false, online: true, error: "", lastOk: 0 };
     this.busy = null;
@@ -66,13 +76,15 @@ class Store extends EventEmitter {
       const d = JSON.parse(fs.readFileSync(this.file, "utf8"));
       const b = blank();
       this.data = { ...b, ...d, ns: { ...b.ns, ...(d.ns || {}) }, sync: { ...b.sync, ...(d.sync || {}) }, settings: { ...b.settings, ...(d.settings || {}) },
-        attach: d.attach || {}, flags: d.flags || {} };
+        attach: d.attach || {}, flags: d.flags || {}, raw: d.raw && typeof d.raw === "object" ? d.raw : {}, extras: { ...b.extras, ...(d.extras || {}) } };
       for (const [k, kind] of Object.entries(KINDS)) {   // 坏数据兜底
         const v = this.data.ns[k];
         if (kind === "list" && !Array.isArray(v)) this.data.ns[k] = [];
         if ((kind === "map" || kind === "map2") && (!v || typeof v !== "object" || Array.isArray(v))) this.data.ns[k] = {};
       }
       if ((d.v || 1) < 2) this.migrate1();
+      // 3.0 换了新界面：默认主色从蓝色换成和网站一样的青绿（自己挑过别的颜色的不动）
+      if (!this.data.flags.ui3) { if (!this.data.settings.accent || this.data.settings.accent === "blue") this.data.settings.accent = "jade"; this.data.flags.ui3 = true; }
     } catch (e) { this.data = blank(); }
     return this;
   }
@@ -108,6 +120,13 @@ class Store extends EventEmitter {
     await this.refresh();
     return true;
   }
+  async signup(account, password, info) {
+    const s = await this.api.signUp(account, password, info);
+    if (this.data.uid && this.data.uid !== s.user_id) { const keep = this.data.settings; this.data = blank(); this.data.settings = keep; }
+    this.data.uid = s.user_id; this.save(true);
+    await this.refresh();
+    return true;
+  }
   async logout() {
     try { await this.flush(); } catch (e) {}
     await this.api.signOut();
@@ -135,8 +154,9 @@ class Store extends EventEmitter {
         d.wall = b.wall || null; d.features = b.features || null;
         if (Array.isArray(b.plugins)) d.plugins = b.plugins;
         if (b.mail !== undefined) d.mail = b.mail;
-        try { const c = await this.api.rpc("courses_get", {}, { retry: true }); if (c) d.courses = { courses: c.courses || [], meta: c.meta || {}, updated_at: c.updated_at }; } catch (e) { /* 课程表功能关着 */ }
+        await this.loadCourses().catch(() => {});   // 课程表功能关着时会失败，不影响别的
         await this.pull();
+        await this.loadExtras().catch(() => {});
         await this.flush();
         d.lastRefresh = this.now();
         this.status = { syncing: false, online: true, error: "", lastOk: this.now() };
@@ -159,6 +179,89 @@ class Store extends EventEmitter {
     } catch (e) { if (e.status === 404) return this.refresh(); throw e; }
   }
 
+  async loadCourses() {
+    const c = await this.api.rpc("courses_get", {}, { retry: true });
+    if (c) { this.data.courses = { courses: c.courses || [], meta: c.meta || {}, updated_at: c.updated_at }; this.changed("courses"); }
+    return c;
+  }
+
+  // ---------- 事项附件数量、过期自动删除（和网页版 extras.js 同一套接口） ----------
+  async loadExtras() {
+    const cid = this.data.cid || null;
+    try {
+      const r = await this.api.rpc("item_extras", { cid }, { retry: true });
+      this.data.extras = { cid, autodel: r.autodel !== false, canSet: !!r.can_set, keep: r.keep || {}, files: r.files || {}, loaded: true };
+      if (r.deleted && r.deleted.length) { const g = new Set(r.deleted.map(String)); this.data.items = this.data.items.filter((x) => !g.has(String(x.id))); }
+    } catch (e) { if (e.status !== 404) throw e; }   // 服务器还没升级：不影响别的
+    this.cleanMine();
+    this.changed("extras");
+  }
+  // 自己记的事项：日期过去 2 周自动删除（推迟过的看 keep）。第一次用时，已经过期的先多留 3 天
+  cleanMine() {
+    const today = bjDay(this.now()), list = this.data.ns.personal_events_v1;
+    const addD = (k, n) => { const x = new Date(k + "T00:00:00"); x.setDate(x.getDate() + n); return dayKey(x); };
+    const exp = (m) => { const p = M.parseTime(m.event_time); if (!p) return null; const base = addD(p.day, 14); return m.keep && m.keep > base ? m.keep : base; };
+    if (!this.data.flags.autodelGrace) {
+      for (const m of list) { const e = exp({ ...m, keep: "" }); if (e && e < addD(today, 3)) { m.keep = addD(today, 3); this.record("personal_events_v1", m.id, m); } }
+      this.data.flags.autodelGrace = true; return;
+    }
+    if (!this.data.settings.autodelMine) return;
+    const gone = list.filter((m) => { const e = exp(m); return e && e < today; });
+    if (!gone.length) return;
+    for (const m of gone) { list.splice(list.indexOf(m), 1); this.record("personal_events_v1", m.id, null); delete this.data.attach[m.id]; }
+    this.api.rpc("file_del_items", { items: gone.map((m) => m.id) }).catch(() => {});
+  }
+  // 推迟删除（多留 3 天）
+  async keepItem(key) {
+    if (/^c\d+$/.test(key)) {
+      if (!this.data.cid) throw new Error("还没加入班级");
+      const r = await this.api.rpc("item_keep", { cid: this.data.cid, item_id: +key.slice(1) });
+      this.data.extras.keep[key] = r.keep_until; this.changed("extras"); return r.keep_until;
+    }
+    const it = this.data.ns.personal_events_v1.find((x) => x.id === key); if (!it) throw new Error("没找到这件事");
+    const today = bjDay(this.now()), p = M.parseTime(it.event_time);
+    const addD = (k, n) => { const x = new Date(k + "T00:00:00"); x.setDate(x.getDate() + n); return dayKey(x); };
+    let e = p ? addD(p.day, 14) : today; if (it.keep && it.keep > e) e = it.keep;
+    this.upsertMine({ ...it, keep: addD(e > today ? e : today, 3) });
+    return this.data.ns.personal_events_v1.find((x) => x.id === key).keep;
+  }
+  async setClassAutodel(on) {
+    if (!this.data.cid) throw new Error("还没加入班级");
+    this.data.extras.autodel = await this.api.rpc("class_autodel_set", { cid: this.data.cid, on_: !!on }); this.changed("extras"); return this.data.extras.autodel;
+  }
+  setFileCount(key, n) { this.data.extras.files[key] = Math.max(0, n | 0); if (!n) delete this.data.extras.files[key]; this.changed("extras"); }
+
+  // ---------- 实时同步：每隔几秒问一次服务器有没有新东西（sync_ping，很轻），顺便校准时钟 ----------
+  async ping() {
+    if (this.pingOff || this.pinging || !this.data.uid) return null;
+    if (!this.data.dev) { this.data.dev = "d" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36); this.save(); }
+    this.pinging = true;
+    const t0 = this.realNow();
+    try {
+      const cid = this.data.cid || null;
+      const r = await this.api.rpc("sync_ping", { p_dev: this.data.dev, p_cid: cid, p_lan: false, p_kind: "desktop" }, { timeout: 8000 });
+      const t1 = this.realNow();
+      if (r && r.now) {
+        const o = r.now - (t0 + t1) / 2;
+        this.clockOff = Math.abs(o - this.clockOff) > 1000 || !this.pingAt ? Math.round(o) : Math.round(this.clockOff * 0.8 + o * 0.2);
+        M.setClock(this.clockOff);
+      }
+      this.pingAt = this.realNow(); this.pingFail = 0;
+      if (r && r.rev > (this.data.sync.rev || 0) && !this.busy) await this.pull().catch(() => {});
+      if (r && cid && r.csig != null && this.data.cid === cid) {
+        if (this.csig && this.csig.cid === cid && this.csig.v !== r.csig) this.reloadClass().then(() => this.loadExtras()).catch(() => {});
+        this.csig = { cid, v: r.csig };
+      }
+      if (this.status.error || !this.status.online) { this.status = { ...this.status, online: true, error: "" }; this.emit("status", this.status); }
+      return r;
+    } catch (e) {
+      this.pingFail = (this.pingFail || 0) + 1;
+      if (e && (e.status === 404 || /sync_ping|PGRST202|Could not find/i.test(e.message || ""))) this.pingOff = true;   // 服务器还没装：退回定时同步
+      if (e && e.status === 401) this.emit("auth-expired");
+      return null;
+    } finally { this.pinging = false; }
+  }
+
   async switchClass(cid) { this.data.cid = cid; this.data.items = []; this.data.groups = []; this.data.wall = null; this.changed(); return this.refresh(); }
 
   // ---------- 云端同步（和网页版同一套规则：每条记录带修改时间，以后改的为准） ----------
@@ -170,7 +273,14 @@ class Store extends EventEmitter {
     clearTimeout(this.pushTimer); this.pushTimer = setTimeout(() => this.flush().catch(() => {}), 800);
   }
   applyRow(row) {
-    const { ns, k } = row, kind = KINDS[ns]; if (!kind) return false;
+    const { ns, k } = row, kind = KINDS[ns];
+    if (!kind) {   // 不认识的类型：原样记下（以后升级了也能用；从备份恢复时也会带上）
+      if (typeof ns !== "string" || !/^[a-z0-9_]{1,60}$/.test(ns)) return false;
+      const r = (this.data.raw[ns] ||= {}), old = r[k];
+      if (old && old.t > row.t) return false;
+      if (row.v == null) delete r[k]; else r[k] = { v: row.v, t: row.t };
+      return false;
+    }
     if (row.t < this.tOf(ns, k)) return false;                        // 本机的更新
     const ob = this.data.outbox[ns + SEP + k];
     if (ob && ob.t > row.t) return false;
@@ -195,6 +305,7 @@ class Store extends EventEmitter {
   }
   async pull() {
     let n = 0;
+    const rev0 = JSON.stringify(this.data.ns.course_rev_v1 || null);
     for (let guard = 0; guard < 50; guard++) {
       const r = await this.api.rpc("udata_pull", { since: this.data.sync.rev || 0 }, { retry: true });
       for (const row of (r && r.rows) || []) if (this.applyRow(row)) n++;
@@ -202,6 +313,8 @@ class Store extends EventEmitter {
       if (!r || !r.more) break;
     }
     if (n) this.changed("pull");
+    // 别的设备改了课表（course_rev_v1 变了）：马上拿新课表
+    if (JSON.stringify(this.data.ns.course_rev_v1 || null) !== rev0) this.loadCourses().catch(() => {});
     return n;
   }
   async flush() {
@@ -250,15 +363,29 @@ class Store extends EventEmitter {
     const i = list.findIndex((x) => x.id === id);
     const rec = { ...(i >= 0 ? list[i] : { done: false }), ...item, id };
     for (const k of ["subject", "event_time", "location", "note"]) rec[k] = String(rec[k] ?? "").slice(0, k === "note" ? 2000 : 200);
+    // kind：作业 / 普通；from：改的是哪条班级事项；keep：推迟自动删除到哪天（这几个和网页版同名）
+    if (rec.kind !== "作业") delete rec.kind;
+    if (!/^c\d+$/.test(String(rec.from || ""))) delete rec.from;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(rec.keep || ""))) delete rec.keep;
+    for (const k of Object.keys(rec)) if (rec[k] === undefined) delete rec[k];
     if (i >= 0) list[i] = rec; else list.push(rec);
     this.record("personal_events_v1", id, rec);
     this.changed("mine");
     return rec;
   }
+  // 「编辑（仅自己）」：把班级事项存成自己的一条，原来那条替我隐藏（删掉这条就恢复）
+  overrideClassItem(fromKey, rec) {
+    if (!/^c\d+$/.test(fromKey)) throw new Error("只能改班级事项");
+    const out = this.upsertMine({ ...rec, id: undefined, from: fromKey });
+    this.setMark(fromKey, { hidden: true });
+    return out;
+  }
   deleteMine(id) {
     const list = this.data.ns.personal_events_v1, i = list.findIndex((x) => x.id === id);
     if (i < 0) return false;
+    const from = list[i].from;
     list.splice(i, 1); this.record("personal_events_v1", id, null);
+    if (from) this.setMark(from, { hidden: false });   // 删掉「仅自己」的版本：班级原来那条重新显示
     if (this.data.ns.quad_v1[id] != null) { delete this.data.ns.quad_v1[id]; this.record("quad_v1", id, null); }
     if (this.data.attach[id]) delete this.data.attach[id];
     this.changed("mine");
@@ -276,12 +403,14 @@ class Store extends EventEmitter {
     if (/^c\d+$/.test(key)) {
       this.setMark(key, { done: !!done });
       this.growth("done", key.slice(1), !done);
+    } else if (/^kn\d+$/.test(key)) {
+      this.setMark(key, { done: !!done });   // 课内学习的考核：和网页版一样记在完成标记里
     } else {
       const it = this.data.ns.personal_events_v1.find((x) => x.id === key); if (!it) return;
       this.upsertMine({ ...it, done: !!done });
     }
     const log = this.data.ns.done_log_v1;
-    if (done) log[key] = dayKey(new Date(this.now())); else delete log[key];
+    if (done) log[key] = bjDay(this.now()); else delete log[key];
     this.record("done_log_v1", key, log[key] || null);
     this.changed("done");
   }
@@ -294,7 +423,7 @@ class Store extends EventEmitter {
   }
   // 完成一个番茄：和网页版一样记「几个番茄」，另外记专注了多少分钟
   logPomo(minutes) {
-    const k = dayKey(new Date(this.now())), pl = this.data.ns.pomo_log_v1, fm = this.data.ns.focus_min_v1;
+    const k = bjDay(this.now()), pl = this.data.ns.pomo_log_v1, fm = this.data.ns.focus_min_v1;
     pl[k] = (Number(pl[k]) || 0) + 1; fm[k] = (Number(fm[k]) || 0) + Math.max(1, Math.round(minutes));
     this.record("pomo_log_v1", k, pl[k]); this.record("focus_min_v1", k, fm[k]);
     this.growth("pomo", k + "|" + pl[k], false);
@@ -302,7 +431,7 @@ class Store extends EventEmitter {
   }
   // 习惯打卡（今天打过就取消）
   toggleHabit(id, day) {
-    day = day || dayKey(new Date(this.now()));
+    day = day || bjDay(this.now());
     const log = this.data.ns.habit_log_v1, on = !(log[id] && log[id][day]);
     this.kvSet("habit_log_v1", [id, day], on ? true : null);
     this.growth("habit", id + "|" + day, !on);
@@ -338,10 +467,27 @@ class Store extends EventEmitter {
     this.data.courses = { courses: list, meta: m, updated_at: new Date(this.now()).toISOString() };
     this.changed("courses");
     if (m.week1) m.week1 = M.mondayKey(m.week1);
-    try { await this.api.rpc("courses_sync", { p_courses: list, p_meta: { week1: m.week1 || null, times: m.times || [], ics: m.ics !== false } }); }
+    m.adj = M.cleanAdj(m.adj);   // 调课 / 调休：一定要带上，不然会把网页版记的冲掉
+    try {
+      const r = await this.api.rpc("courses_sync", { p_courses: list, p_meta: { week1: m.week1 || null, times: m.times || [], ics: m.ics !== false, adj: m.adj } });
+      const srv = (r && r.updated_at) || "";
+      if (srv) { this.data.courses.updated_at = srv; this.kvSet("course_rev_v1", "_", { at: srv, n: list.length }, true); }   // 告诉别的设备：课表变了
+      this.changed("courses");
+    }
     catch (e) { if (e.status === 404) { this.data.courses = prev; this.changed("courses"); throw new Error("服务器还不支持保存课程表，请管理员更新数据库"); } throw e; }
     return list.length;
   }
+
+  // 课内学习的考核（界面交过来的，存一份在本机：电脑关了网也能提醒）
+  setExtraItems(list) {
+    const clean = (Array.isArray(list) ? list : []).filter((x) => x && /^kn\d+$/.test(String(x.key))).slice(0, 300).map((x) => ({
+      key: String(x.key), studyId: x.studyId, course: String(x.course || "").slice(0, 60), title: String(x.title || "").slice(0, 200), summary: String(x.summary || "").slice(0, 500),
+      day: /^\d{4}-\d{2}-\d{2}$/.test(x.day || "") ? x.day : "", time: /^\d{2}:\d{2}$/.test(x.time || "") ? x.time : "" }));
+    if (JSON.stringify(clean) === JSON.stringify(this.data.extraItems || [])) return false;
+    this.data.extraItems = clean; this.changed("extra"); return true;
+  }
+  // 只改调课 / 调休
+  async saveAdj(adj) { return this.saveCourses(this.data.courses.courses || [], { adj: M.cleanAdj(adj) }); }
 
   // 给界面用的一份数据（不含登录令牌）
   snapshot() {
@@ -349,7 +495,8 @@ class Store extends EventEmitter {
     return { me: d.me, perms: d.perms, classes: d.classes, cid: d.cid, items: d.items, groups: d.groups || [], classOpts: d.classOpts || {}, groupsOk: !!d.groupsOk,
       wall: d.wall, features: d.features, courses: d.courses, plugins: d.plugins,
       mine: d.ns.personal_events_v1, marks: d.ns.personal_marks_v1, doneLog: d.ns.done_log_v1, pomo: d.ns.pomo_log_v1, focusMin: d.ns.focus_min_v1,
-      kv: d.ns, attach: d.attach, settings: d.settings, status: this.status, lastRefresh: d.lastRefresh, pending: Object.keys(d.outbox).length };
+      kv: d.ns, attach: d.attach, settings: d.settings, status: this.status, lastRefresh: d.lastRefresh, pending: Object.keys(d.outbox).length,
+      extras: d.extras, extraItems: d.extraItems || [], clockOff: this.clockOff, live: !this.pingOff && !!this.pingAt };
   }
 }
 

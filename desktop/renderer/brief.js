@@ -7,7 +7,8 @@ const tc = (t) => `var(--t-${M.TYPES.includes(t) ? t : "通知"})`;
 let S = null;
 function render() {
   if (!S) return;
-  const now = new Date(), tk = M.dayKey(now), h = now.getHours(), me = S.me || {};
+  if (S && typeof S.clockOff === "number") M.setClock(S.clockOff);
+  const now = M.now(), tk = M.dayKey(now), h = now.getHours(), me = S.me || {};
   $("hello").textContent = `${h < 11 ? "早上好" : h < 13 ? "中午好" : "下午好"}，${me.display_name || "同学"}`;
   const wk = M.weekOf((S.courses || {}).meta, now);
   $("sub").textContent = `${now.getMonth() + 1}月${now.getDate()}日 周${M.WEEK[now.getDay()]}${wk ? " · 第 " + wk + " 周" : ""}`;

@@ -6,6 +6,7 @@ App.views.month = {
     el.innerHTML = `
       <div class="vhead"><div><h1 id="moTitle"></h1><div class="sub">拖动「我的」事项可以改日期 · 双击某天新建</div></div><span class="grow"></span>
         <div class="mo-legend">${M.TYPES.map((t) => `<span><i style="background:${tc(t)}"></i>${t}</span>`).join("")}</div>
+        <div class="seg" id="moCv" title="日历里显示课程吗（和网页版同一个开关）"><button data-cv="all">全部</button><button data-cv="nocourse">不看课程</button><button data-cv="course">只看课程</button></div>
         <label class="row" style="gap:6px;font-size:13px;color:var(--text2)"><button class="switch on" id="moDone"></button>显示已完成</label>
         <input type="date" class="input mo-jump" id="moJump" title="跳到某一天">
         <div class="row"><button class="btn iconbtn" id="moPrev" title="上个月（←）">${icon("left")}</button><button class="btn" id="moNow" title="回到今天（T）">今天</button><button class="btn iconbtn" id="moNext" title="下个月（→）">${icon("right")}</button></div></div>
@@ -14,10 +15,11 @@ App.views.month = {
     $("#moJump", el).onchange = (e) => { if (e.target.value) this.show({ day: e.target.value }); };
     $("#moNext", el).onclick = () => this.shift(1);
     $("#moNow", el).onclick = () => { this.ym = null; this.day = M.dayKey(App.now()); this.update(); };
+    $("#moCv", el).onclick = (e) => { const b = e.target.closest("[data-cv]"); if (b) kvSet("course_view_v1", "cal", b.dataset.cv); };
     $("#moDone", el).onclick = (e) => { this.showDone = !this.showDone; e.currentTarget.classList.toggle("on", this.showDone); this.update(); };
     const g = $("#moGrid", el);
-    g.addEventListener("click", (e) => { const c = e.target.closest(".mo-d"); if (c) { this.day = c.dataset.day; $$(".mo-d", g).forEach((x) => x.classList.toggle("sel", x === c)); this.side(); } });
-    g.addEventListener("dblclick", (e) => { const ch = e.target.closest(".mo-ch[data-k]"); if (ch) { const x = App.find(ch.dataset.k); if (x && x.mine) editItem(x); else App.go("tasks", { key: ch.dataset.k }); return; } const c = e.target.closest(".mo-d"); if (c) editItem(null, { day: c.dataset.day }); });
+    g.addEventListener("click", (e) => { const ch = e.target.closest(".mo-ch[data-k]"); if (ch && e.detail === 1) Insp.open(ch.dataset.k); const c = e.target.closest(".mo-d"); if (c) { this.day = c.dataset.day; $$(".mo-d", g).forEach((x) => x.classList.toggle("sel", x === c)); this.side(); } });
+    g.addEventListener("dblclick", (e) => { const ch = e.target.closest(".mo-ch[data-k]"); if (ch) { const x = App.find(ch.dataset.k); if (x && x.mine) editItem(x); else Insp.open(ch.dataset.k); return; } const c = e.target.closest(".mo-d"); if (c) editItem(null, { day: c.dataset.day }); });
     g.addEventListener("contextmenu", (e) => { const ch = e.target.closest(".mo-ch[data-k]"); if (ch) { const x = App.find(ch.dataset.k); if (x) itemMenu(e, x); return; } const c = e.target.closest(".mo-d"); if (c) { e.preventDefault(); menu(e.clientX, e.clientY, [{ label: "在这天记一件事", icon: "plus", fn: () => editItem(null, { day: c.dataset.day }) }]); } });
     // ---------- 拖动改日期 ----------
     g.addEventListener("dragstart", (e) => {
@@ -40,8 +42,9 @@ App.views.month = {
     });
     $("#moSide", el).addEventListener("click", (e) => {
       const c = e.target.closest(".chk[data-k]"); if (c) { const x = App.find(c.dataset.k); if (x) toggleDone(x.key, !x.done); return; }
-      const r = e.target.closest(".ms-it[data-k]"); if (r) App.go("tasks", { key: r.dataset.k });
+      const r = e.target.closest(".ms-it[data-k]"); if (r) Insp.open(r.dataset.k);
       if (e.target.closest("#msNew")) editItem(null, { day: this.day });
+      if (e.target.closest("#msAdj")) CourseEd.adjust({ date: this.day });
       if (e.target.closest("#msPub")) editClassItem(null, { day: this.day });
     });
   },
@@ -54,7 +57,10 @@ App.views.month = {
     $("#moTitle", el).textContent = `${y} 年 ${m + 1} 月`;
     const first = new Date(y, m, 1), start = M.addDays(first, -M.weekday0(first));
     const weeks = Math.ceil((M.weekday0(first) + new Date(y, m + 1, 0).getDate()) / 7);
-    const items = App.items().filter((x) => !x.hidden && x.day && (this.showDone || !x.done));
+    const cv = (KV("course_view_v1") || {}).cal, mode = cv === "course" || cv === "nocourse" ? cv : "all";
+    $$("#moCv button", el).forEach((b) => b.classList.toggle("on", b.dataset.cv === mode));
+    $("#moCv", el).classList.toggle("hidden", !(App.S.courses.courses || []).length && mode === "all");
+    const items = mode === "course" ? [] : App.items().filter((x) => !x.hidden && x.day && (this.showDone || !x.done));
     const by = {}; for (const x of M.sortItems(items)) (by[x.day] ||= []).push(x);
     // 工具（插件）往日历里加的事项，只显示
     const plug = {}; for (const x of Plugins.items(M.dayKey(start), M.dayKey(M.addDays(start, weeks * 7 - 1)))) (plug[x.day] ||= []).push(x);
@@ -62,11 +68,11 @@ App.views.month = {
     const g = $("#moGrid", el); g.style.gridTemplateRows = `repeat(${weeks}, 1fr)`;
     let html = "";
     for (let i = 0; i < weeks * 7; i++) {
-      const d = M.addDays(start, i), k = M.dayKey(d), its = by[k] || [], cs = M.coursesOn(App.S.courses, d).length;
+      const d = M.addDays(start, i), k = M.dayKey(d), its = by[k] || [], csl = mode === "nocourse" ? [] : M.coursesOn(App.S.courses, d), cs = csl.length;
       const wk = i % 7 === 0 ? M.weekOf(App.S.courses.meta, d) : null;
       html += `<div class="mo-d${d.getMonth() !== m ? " out" : ""}${k === tk ? " today" : ""}${k === this.day ? " sel" : ""}${i % 7 >= 5 ? " we" : ""}" data-day="${k}">
-        <div class="mo-n"><b>${d.getDate() === 1 ? d.getMonth() + 1 + "月" : ""}${d.getDate()}</b>${wk ? `<small class="wkno">第${wk}周</small>` : ""}${cs ? `<small class="cs">${cs} 节课</small>` : ""}</div>
-        <div class="mo-chs">${(plug[k] || []).slice(0, 2).map((x) => `<div class="mo-ch plug" style="--c:${x.color || "var(--muted)"}" title="${esc(x.plugin + "：" + x.title + (x.time ? "　" + x.time : ""))}">${x.time ? `<i>${x.time}</i>` : ""}${esc(x.title)}</div>`).join("")}${its.slice(0, 4).map((x) => `<div class="mo-ch${x.done ? " done" : ""}${x.mine ? " mine" : ""}" data-k="${esc(x.key)}" draggable="true" style="--c:${tc(x.type)}" title="${esc(x.type + "：" + x.title + (x.time ? "　" + x.time : "") + (x.mine ? "\n可以拖到别的日子" : ""))}">${x.time ? `<i>${x.time}</i>` : ""}${esc(x.title)}</div>`).join("")}${its.length > 4 ? `<div class="mo-more">还有 ${its.length - 4} 件</div>` : ""}</div></div>`;
+        <div class="mo-n"><b>${d.getDate() === 1 ? d.getMonth() + 1 + "月" : ""}${d.getDate()}</b>${wk ? `<small class="wkno">第${wk}周</small>` : ""}${M.dayNote(App.S.courses, k) ? `<small class="mo-adj" title="${esc(M.dayNote(App.S.courses, k))}">🔁</small>` : ""}${cs ? `<small class="cs">${cs} 节课</small>` : ""}</div>
+        <div class="mo-chs">${mode === "course" ? csl.slice(0, 5).map((c) => `<div class="mo-ch crs" style="--c:${c.color}" title="${esc(c.tStart + " " + c.name + (c.location ? " · " + c.location : ""))}"><i>${c.tStart}</i>${esc(c.name)}</div>`).join("") : ""}${(plug[k] || []).slice(0, 2).map((x) => `<div class="mo-ch plug" style="--c:${x.color || "var(--muted)"}" title="${esc(x.plugin + "：" + x.title + (x.time ? "　" + x.time : ""))}">${x.time ? `<i>${x.time}</i>` : ""}${esc(x.title)}</div>`).join("")}${its.slice(0, 4).map((x) => `<div class="mo-ch${x.done ? " done" : ""}${x.mine ? " mine" : ""}" data-k="${esc(x.key)}" draggable="true" style="--c:${tc(x.type)}" title="${esc(x.type + "：" + x.title + (x.time ? "　" + x.time : "") + (x.mine ? "\n可以拖到别的日子" : ""))}">${x.time ? `<i>${x.time}</i>` : ""}${esc(x.title)}</div>`).join("")}${its.length > 4 ? `<div class="mo-more">还有 ${its.length - 4} 件</div>` : ""}</div></div>`;
     }
     g.innerHTML = html;
     this.side();
@@ -76,6 +82,7 @@ App.views.month = {
     const its = M.sortItems(App.items().filter((x) => !x.hidden && x.day === k));
     const cs = M.coursesOn(App.S.courses, d);
     box.innerHTML = `<div class="ms-h"><b>${d.getMonth() + 1}月${d.getDate()}日</b><span>周${M.WEEK[d.getDay()]} · ${esc(M.relDay(k, now))}</span></div>
+      ${M.dayNote(App.S.courses, k) ? `<div class="ms-adj">🔁 ${esc(M.dayNote(App.S.courses, k))}<button class="btn ghost sm" id="msAdj">调课</button></div>` : ""}
       <div class="ms-s">课 <small>${cs.length}</small></div>
       ${cs.length ? cs.map((c) => `<div class="ms-c" style="--c:${c.color}"><span class="mono">${c.tStart}</span><b>${esc(c.name)}</b><small>${esc(c.location || "")}</small></div>`).join("") : `<div class="muted ms-e">没课</div>`}
       <div class="ms-s">事项 <small>${its.length}</small></div>

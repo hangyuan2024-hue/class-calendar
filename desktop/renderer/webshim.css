@@ -1,0 +1,52 @@
+/* 网站模块（课内学习、思维导图、云宠农场、元宇宙工具箱、内置工具）在电脑版里的样子：
+   网站样式用的变量名、通用组件（.surface .btn.ink button.small .dlg …）换成电脑版的设计；只在 .web 里面生效，不影响别的页面 */
+.web, dialog.dlg, #metaLab {
+  --sub: var(--text2); --muted-bg: var(--bg); --accent: var(--brand); --green: var(--ok); --red: var(--bad); --gray: var(--muted);
+  --card: var(--panel); --surface: var(--panel); --border: var(--line); --hover: var(--bg2); --selected: var(--brand-soft);
+  --ink: var(--brand); --ink-text: #fff; --danger-bg: var(--bad-soft); --r-xl: 18px; --hero: var(--brand-soft); --grid: var(--line);
+}
+@media (prefers-color-scheme: dark) { .web, dialog.dlg, #metaLab { --ink-text: #08201b; } }
+
+.web .spacer, dialog.dlg .spacer { flex: 1; }
+.web .surface { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); }
+.web .btn.ink, dialog.dlg .btn.ink, #metaLab .btn.ink { background: var(--brand); border-color: var(--brand); color: var(--ink-text); font-weight: 600; }
+.web .btn.accent, dialog.dlg .btn.accent { background: var(--bell); border-color: var(--bell); color: #fff; }
+.web button.small, dialog.dlg button.small, #metaLab button.small { height: 26px; padding: 0 10px; border: 1px solid var(--line2); border-radius: 7px; background: var(--panel); font-size: 12px; font-weight: 500; }
+.web button.small:hover, dialog.dlg button.small:hover { background: var(--bg2); }
+.web button.link, dialog.dlg button.link { border: 0; background: none; color: var(--brand); padding: 3px 8px; font-size: 13px; border-radius: 6px; }
+.web button.link:hover, dialog.dlg button.link:hover { background: var(--brand-soft); }
+.web .meta, dialog.dlg .meta { color: var(--muted); font-size: 12px; margin-top: 4px; }
+.web .sec-h { display: flex; align-items: baseline; gap: 8px; margin: 14px 16px 8px; }
+.web .sec-h b { font-size: 14px; font-weight: 700; } .web .sec-h span { color: var(--muted); font-size: 12px; }
+.web .ptabs, dialog.dlg .ptabs { display: inline-flex; gap: 2px; padding: 3px; margin: 0 0 12px; background: var(--bg2); border-radius: 9px; overflow-x: auto; }
+.web .ptab, dialog.dlg .ptab { height: 28px; padding: 0 12px; border: 0; border-radius: 7px; background: none; color: var(--text2); font-size: 13px; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.web .ptab.on, dialog.dlg .ptab.on { background: var(--panel); color: var(--text); font-weight: 600; box-shadow: 0 1px 2px rgba(19, 36, 58, .1); }
+.web .chk, dialog.dlg .chk { border-radius: 50%; width: 20px; height: 20px; }
+.web .chk.on::after { content: ""; }
+.web .hidden, dialog.dlg .hidden { display: none !important; }
+
+/* 网站的 <dialog class="dlg"> 弹窗 */
+dialog.dlg { border: 1px solid var(--line); border-radius: var(--r); padding: 0; width: min(520px, calc(100vw - 48px)); max-height: 84vh; background: var(--panel); color: var(--text); box-shadow: var(--shadow-lg); }
+dialog.dlg.kn-dlg { width: min(640px, calc(100vw - 48px)); }
+dialog.dlg::backdrop { background: rgba(13, 22, 34, .34); }
+dialog.dlg form, dialog.dlg > div > form { padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; }
+dialog.dlg h3 { margin: 0; font-size: 16px; display: flex; flex-direction: column; gap: 2px; }
+dialog.dlg h3 small { font-size: 12px; font-weight: 400; color: var(--muted); }
+dialog.dlg label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--text2); }
+dialog.dlg label.check, dialog.dlg label:has(> input[type=checkbox]:first-child) { flex-direction: row; align-items: center; gap: 6px; font-size: 13px; }
+dialog.dlg input:not([type=checkbox]):not([type=radio]):not([type=file]), dialog.dlg select, dialog.dlg textarea { font: inherit; font-size: 14px; padding: 7px 10px; border: 1px solid var(--line2); border-radius: var(--r-sm); background: var(--panel); color: var(--text); width: 100%; outline: none; }
+dialog.dlg input:focus, dialog.dlg select:focus, dialog.dlg textarea:focus { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+dialog.dlg .nd-actions { display: flex; gap: 8px; align-items: center; }
+
+/* 页面在电脑版里的排版 */
+.web .vbody { padding-top: 4px; }
+.web #knBack.hidden { display: none; }
+.view.web .vhead h1#knTitle { font-size: 26px; }
+.mm-view .vbody.mm-body { padding: 0 22px 18px; overflow: hidden; display: flex; flex-direction: column; }
+.mm-view .mm-box { border-radius: var(--r); }
+.mm-view .mm-head h1 { font-size: 22px; }
+.mm-view .mm-title { width: 320px; height: 34px; font-size: 16px; }
+.mm-view .mm-head .back.hidden { display: none; }
+.farm-wrap { margin: 0; }
+.farm-toast { bottom: 40px; }
+#metaLab { margin: 8px 0 18px; }

@@ -157,7 +157,7 @@ App.views.ingest = {
       ${P.unsure.length ? `<div class="ig-uns"><div class="row"><b>🤔 拿不准的 ${P.unsure.length} 条</b><span class="grow"></span><button class="btn primary sm" data-ai>🤖 交给内置 AI</button>${!personal && App.feat("ingest_cloud") ? `<button class="btn sm" data-cloud>☁ 交给云端 AI</button>` : ""}<button class="btn ghost sm" data-drop>不要了</button></div>
         ${P.unsure.map((u, i) => `<div class="ig-u" title="${esc(u.text)}"><button class="btn ghost sm" data-fillu="${i}">我来填</button><em>${esc(u.why)}</em><span>${esc(u.text)}</span></div>`).join("")}</div>` : ""}
       ${P.chatter.length ? `<details class="ig-ch"><summary>被当成闲聊过滤掉的 ${P.chatter.length} 条（看看有没有漏掉的）</summary>${P.chatter.map((c, i) => `<div class="ig-u"><button class="btn ghost sm" data-keepc="${i}">这条要记</button><span>${esc(c)}</span></div>`).join("")}</details>` : ""}
-      <div class="row ig-pub"><button class="btn ghost" data-cancel>取消</button><span class="grow"></span><button class="btn primary big" data-publish${on ? "" : " disabled"}>${personal ? `把选中的 ${on} 条加到我的事项` : `发布选中的 ${on} 条到班级`}</button></div></div>`;
+      <div class="row ig-pub"><button class="btn ghost" data-cancel>取消</button><span class="grow"></span>${personal ? "" : `<button class="btn big" data-publish="mine"${on ? "" : " disabled"} title="不发到班级，只加到你自己的「我的事项」">只保存给自己</button>`}<button class="btn primary big" data-publish${on ? "" : " disabled"}>${personal ? `把选中的 ${on} 条加到我的事项` : `发布选中的 ${on} 条到班级`}</button></div></div>`;
   },
   edit(e) {
     const f = e.target.closest("[data-pf]"); if (!f || !this.parsed) return;
@@ -210,9 +210,10 @@ App.views.ingest = {
     const P = this.parsed, chosen = P.items.filter((x) => x.on);
     btn.disabled = true;
     try {
-      if (this.personal()) {
-        for (const x of chosen) await call("mine:upsert", { subject: x.subject || x.summary.slice(0, 20), event_time: x.event_time || "", location: x.location || "", note: [x.msg_type, x.summary].filter(Boolean).join("：") });
-        this.st(`已加到我的事项 ${chosen.length} 条 ✓（只有你自己看得到）`);
+      if (this.personal() || btn.dataset.publish === "mine") {
+        // 只加到自己的「我的事项」（学生只能这样；老师、班委也可以选「只保存给自己」）；作业记成「我的作业」
+        for (const x of chosen) await call("mine:upsert", { subject: x.subject || x.summary.slice(0, 20), event_time: x.event_time || todayKey(), location: x.location || "", note: [x.msg_type, x.summary].filter(Boolean).join("："), kind: x.msg_type === "作业" ? "作业" : undefined });
+        this.st(`已加到我的事项 ${chosen.length} 条 ✓（只有你自己看得到，没有发到班级）`);
       } else {
         const items = chosen.map(({ on, src, _shown, _forced, src_text, via, confidence, ...x }) => x);
         const n = await api("publish_parsed_items", { cid: App.S.cid, items });

@@ -9,7 +9,7 @@ const DIsland = {
   opts() { return { on: true, show: ["pomo", "urgent", "course"], greet: true, screen: true, remind: true, side: "", y: 0, ...(KV("island_v1") || {}) }; },
   save(p) { return kvSet("island_v1", "_", { ...this.opts(), ...p }); },
   ctx() {
-    const S = App.S, now = new Date(), t = M.dayKey(now), meta = (S.courses || {}).meta || {};
+    const S = App.S, now = App.now(), t = M.dayKey(now), meta = (S.courses || {}).meta || {};
     const items = App.items().filter((x) => !x.hidden).map((x) => ({ key: x.key, title: x.title, type: x.type, summary: x.summary, day: x.day, time: x.time, location: x.location, done: x.done, needConfirm: x.confirm, mine: x.mine }));
     const on = (k) => M.coursesOn(S.courses, M.fromKey(k)).map((c) => ({ ...c, t0: c.tStart, t1: c.tEnd }));
     const hl = KV("habit_log_v1") || {}, pl = S.pomo || {};
@@ -101,7 +101,7 @@ const DIsland = {
   },
   hush() { const b = $("#laoBub"); if (b) b.classList.remove("show"); const bot = $("#laoBot"); if (bot) bot.classList.remove("talk"); },
   once(key) {
-    const t = M.dayKey(new Date()), said = JSON.parse(localStorage.getItem("lao_said_v1") || "{}");
+    const t = M.dayKey(App.now()), said = JSON.parse(localStorage.getItem("lao_said_v1") || "{}");
     if (said[key]) return false;
     for (const k in said) if (said[k] < shiftDay(t, -3)) delete said[k];
     said[key] = t; localStorage.setItem("lao_said_v1", JSON.stringify(said)); return true;

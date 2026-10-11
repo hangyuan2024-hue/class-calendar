@@ -7,6 +7,7 @@ const FILTERS = [
   ["late", "过期没完成", "⏰", (x, n) => !x.hidden && overdue(x, n)],
   ["noday", "没定日子", "📎", (x, n) => !x.hidden && !x.done && !x.day],
   ["done", "已完成", "✅", (x, n) => x.done && !x.hidden],
+  ["soon", "快要自动删除", "🗑", (x, n) => !x.hidden && Autodel.soon(x)],
   ["hidden", "已隐藏", "🙈", (x, n) => x.hidden],
   ["all", "全部", "🗂", (x, n) => !x.hidden],
 ];
@@ -17,7 +18,8 @@ App.views.tasks = {
     el.innerHTML = `
       <div class="vhead"><div><h1>事项</h1><div class="sub">班级发的作业、通知，加上你自己记的事</div></div><span class="grow"></span>
         <button class="btn hidden" id="tkPub">📣 发布班级事项</button>
-        <button class="btn primary" id="tkNew">${icon("plus")}记一件事<kbd style="background:none;border-color:rgba(255,255,255,.4);color:#fff">Ctrl N</kbd></button></div>
+        <button class="btn ghost" id="tkCsv" title="导出成表格，Excel 能直接打开">▦ 导出表格</button>
+        <button class="btn primary" id="tkNew">${icon("plus")}记一件事<kbd style="background:none;border-color:rgba(255,255,255,.4);color:inherit">Ctrl N</kbd></button></div>
       <div class="tk-body">
         <aside class="tk-filters" id="tkFilters"></aside>
         <section class="tk-main">
@@ -30,11 +32,13 @@ App.views.tasks = {
         <aside class="tk-detail" id="tkDetail"></aside>
       </div>`;
     $("#tkNew", el).onclick = () => editItem(null);
+    $("#tkCsv", el).onclick = () => exportCsv("items");
     $("#tkPub", el).onclick = () => editClassItem(null);
     $("#tkQ", el).oninput = (e) => { this.q = e.target.value.trim(); this.table(); };
     $("#tkQ", el).onkeydown = (e) => { if (e.key === "Escape") { e.target.value = ""; this.q = ""; this.table(); $("#tkTable", el).focus(); e.stopPropagation(); } if (e.key === "ArrowDown") { $("#tkTable", el).focus(); this.move(1, false); e.preventDefault(); } };
     $("#tkSort", el).onclick = (e) => { const b = e.target.closest("button"); if (!b) return; this.sort = b.dataset.s; $$("#tkSort button", el).forEach((x) => x.classList.toggle("on", x === b)); this.table(); };
-    $("#tkFilters", el).onclick = (e) => {
+    $("#tkFilters", el).onclick = async (e) => {
+      const ad = e.target.closest("[data-ad]"); if (ad) { if (ad.dataset.ad === "mine") call("settings", { autodelMine: App.S.settings.autodelMine === false }); else { try { await call("autodel:class", !((App.S.extras || {}).autodel !== false)); } catch (err) {} } return; }
       const f = e.target.closest("[data-f]"); if (f) { this.filter = f.dataset.f; this.sel.clear(); this.update(); return; }
       const t = e.target.closest("[data-t]"); if (t) { const k = t.dataset.t; this.types.has(k) ? this.types.delete(k) : this.types.add(k); this.update(); }
     };
@@ -45,14 +49,13 @@ App.views.tasks = {
       this.pick(r.dataset.k, e.ctrlKey || e.metaKey, e.shiftKey);
     });
     tb.addEventListener("click", (e) => { const c = e.target.closest(".chk[data-k]"); if (c) { const x = App.find(c.dataset.k); if (x) toggleDone(x.key, !x.done); } });
-    tb.addEventListener("dblclick", (e) => { const r = e.target.closest(".tr[data-k]"); if (!r) return; const x = App.find(r.dataset.k); if (x && x.mine) editItem(x); else this.focusNote(); });
+    tb.addEventListener("dblclick", (e) => { const r = e.target.closest(".tr[data-k]"); if (!r) return; const x = App.find(r.dataset.k); if (x && x.mine) editItem(x); else if (x && !x.study && App.canEditIn(x.gid)) editClassItem(x); else this.focusNote(); });
     tb.addEventListener("contextmenu", (e) => {
       const r = e.target.closest(".tr[data-k]"); if (!r) return;
       if (this.sel.size > 1 && this.sel.has(r.dataset.k)) { e.preventDefault(); const ks = [...this.sel]; return menu(e.clientX, e.clientY, this.bulkActions(ks)); }
       const x = App.find(r.dataset.k); if (x) itemMenu(e, x);
     });
     $("#tkBulk", el).onclick = (e) => { const b = e.target.closest("[data-b]"); if (b) this.bulkActions([...this.sel])[+b.dataset.b].fn(); };
-    $("#tkDetail", el).addEventListener("click", (e) => this.detailClick(e));
   },
   show(arg) {
     if (arg && arg.key) {
@@ -76,6 +79,7 @@ App.views.tasks = {
     $("#tkPub", el).classList.toggle("hidden", !App.canAddItem());
     $("#tkFilters", el).innerHTML = `<div class="tf-h">清单</div>` + FILTERS.map(([id, name, ic, f]) => { const c = items.filter((x) => f(x, n)).length; return `<button class="tf${this.filter === id ? " on" : ""}" data-f="${id}"><span>${ic}</span>${name}<small class="${id === "late" && c ? "hot" : ""}">${c || ""}</small></button>`; }).join("")
       + `<div class="tf-h">类型</div><div class="tf-types">${M.TYPES.map((t) => `<button class="tf-t${this.types.has(t) ? " on" : ""}" data-t="${t}" style="--c:${tc(t)}">${t}</button>`).join("")}</div>`
+      + `<div class="tf-h">自动删除</div><div class="tf-ad"><label><button class="switch${App.S.settings.autodelMine !== false ? " on" : ""}" data-ad="mine"></button>我自己记的</label>${App.S.cid ? `<label title="${(App.S.extras || {}).canSet ? "本班的会议、活动、通知过期 2 周后自动删除" : "老师和有编辑权限的班委可以改"}"><button class="switch${(App.S.extras || {}).autodel !== false ? " on" : ""}" data-ad="cls"${(App.S.extras || {}).canSet ? "" : " disabled"}></button>本班其它事项</label>` : ""}<small>作业总是在过去 2 周后删除；最后 3 天会提醒，可以推迟</small></div>`
       + `<div class="tf-tip"><b>键盘操作</b><span><kbd>↑</kbd><kbd>↓</kbd> 选择　<kbd>Shift</kbd> 连选</span><span><kbd>空格</kbd> 完成　<kbd>Enter</kbd> 编辑</span><span><kbd>Del</kbd> 删除/隐藏　<kbd>Ctrl A</kbd> 全选</span></div>`;
     this.table();
   },
@@ -97,7 +101,7 @@ App.views.tasks = {
       html += `<div class="tr${this.sel.has(x.key) ? " sel" : ""}${x.key === this.cur ? " cur" : ""}${x.done ? " done" : ""}" data-k="${esc(x.key)}">
         <span><button class="chk${x.done ? " on" : ""}" data-k="${esc(x.key)}" tabindex="-1"></button></span><span>${tagHtml(x.type)}</span>
         <span class="tt"><b>${esc(x.title)}</b>${x.note ? `<i title="${esc(x.note)}">📝</i>` : ""}${x.summary ? `<small>${esc(x.summary)}</small>` : ""}</span>
-        <span class="tw${late ? " late" : ""}${x.day === tk ? " tdy" : ""}">${esc(whenText(x, now))}</span><span class="tl2">${esc(x.location)}</span><span class="ts">${x.mine ? "我的" : App.group(x.gid) ? "👥 " + esc(App.group(x.gid).name) : "班级"}${attachList(x.key).length ? " 📎" : ""}</span></div>`;
+        <span class="tw${late ? " late" : ""}${x.day === tk ? " tdy" : ""}">${esc(whenText(x, now))}</span><span class="tl2">${esc(x.location)}</span><span class="ts">${x.study ? "课内学习" : x.mine ? (x.from ? "我改过的" : "我的") : App.group(x.gid) ? "👥 " + esc(App.group(x.gid).name) : "班级"}${attachList(x.key).length || CloudFiles.count(x.key) ? " 📎" : ""}${Autodel.soon(x) ? " 🗑" : ""}</span></div>`;
     }
     if (!list.length) html += `<div class="empty"><b>${this.q ? "🔍" : "🎉"}</b>${this.q ? "没有找到「" + esc(this.q) + "」" : "这里没有事项"}</div>`;
     $("#tkTable", el).innerHTML = html;
@@ -140,60 +144,15 @@ App.views.tasks = {
     $("#tkUnsel", b).onclick = () => { this.sel = new Set(this.cur ? [this.cur] : []); this.table(); };
   },
   detail(force) {
-    const box = $("#tkDetail", this.el), x = this.cur && App.find(this.cur), now = App.now();
+    const box = $("#tkDetail", this.el), x = this.cur && App.find(this.cur);
     const ta = $("textarea", box);
     if (!force && ta && document.activeElement === ta && box.dataset.k === this.cur) return;   // 正在写备注：不打断
     box.dataset.k = this.cur || "";
-    if (!x) { box.innerHTML = `<div class="empty" style="margin-top:80px"><b>👈</b>点左边的一件事，在这里看详情、写备注</div>`; return; }
-    const late = overdue(x, now);
-    box.innerHTML = `
-      <div class="dt-top">${tagHtml(x.type)}${App.group(x.gid) ? `<span class="tag" style="--c:var(--ok)">👥 ${esc(App.group(x.gid).name)}</span>` : ""}${x.done ? '<span class="tag" style="--c:var(--ok)">已完成</span>' : late ? '<span class="tag" style="--c:var(--bad)">过期了</span>' : ""}${x.confirm ? '<span class="tag" style="--c:var(--warn)">待核实</span>' : ""}<span class="grow"></span>
-        ${x.mine ? `<button class="btn ghost iconbtn sm" data-d="edit" title="编辑（Enter）">${icon("edit")}</button>` : App.canEditIn(x.gid) ? `<button class="btn ghost iconbtn sm" data-d="cedit" title="修改这条班级事项">${icon("edit")}</button>` : ""}
-        ${!x.mine && App.S.groupsOk && x.updated ? `<button class="btn ghost iconbtn sm" data-d="hist" title="修改记录">${icon("history")}</button>` : ""}
-        ${App.canDelItem(x) ? `<button class="btn ghost iconbtn sm danger" data-d="cdel" title="从班级里删除">${icon("trash")}</button>` : ""}</div>
-      <h2 class="dt-title selectable">${esc(x.title)}</h2>
-      <div class="dt-rows">
-        <div>${icon("clock")}<span class="${late ? "late" : ""}">${x.day ? dateCN(x.day) + (x.time ? " " + x.time : "") + `　<small>${esc(M.relDay(x.day, now))}</small>` : "没定日子"}</span></div>
-        ${x.location ? `<div>${icon("place")}<span class="selectable">${esc(x.location)}</span></div>` : ""}
-        ${x.publish ? `<div>📣<span>${esc(x.publish)} 发布</span></div>` : ""}
-      </div>
-      ${x.summary ? `<div class="dt-sec"><div class="dt-l">内容</div><div class="selectable dt-txt">${esc(x.summary)}</div></div>` : ""}
-      ${x.prepare ? `<div class="dt-sec"><div class="dt-l">要准备</div><div class="selectable dt-txt">${esc(x.prepare)}</div></div>` : ""}
-      ${x.original ? `<details class="dt-sec"><summary class="dt-l">原始消息</summary><div class="selectable dt-txt dt-orig">${esc(x.original)}</div></details>` : ""}
-      ${!x.mine && x.editor && x.updated ? `<div class="dt-by muted">✏️ ${esc(x.editor)} · ${esc(whenStr(x.updated))}更新</div>` : ""}
-      <div class="dt-sec"><div class="dt-l">附件 <small class="muted">只在这台电脑上</small></div>${attachHtml(x.key)}</div>
-      <div class="dt-sec"><div class="dt-l">我的备注 <small class="muted" id="dtSaved"></small></div><textarea class="input" rows="4" maxlength="2000" placeholder="写点什么，自动保存，手机和网页上也能看到">${esc(x.note)}</textarea></div>
-      <div class="dt-act">
-        <button class="btn ${x.done ? "" : "primary"}" data-d="done">${x.done ? "标记为没完成" : "✓ 完成"}<kbd>空格</kbd></button>
-        <button class="btn" data-d="focus">🍅 专注</button>
-        ${x.mine ? `<button class="btn danger" data-d="del">${icon("trash")}删除</button>` : `<button class="btn" data-d="hide">${x.hidden ? "取消隐藏" : "隐藏"}</button>`}
-        ${x.original ? `<button class="btn ghost" data-d="copy">复制原文</button>` : ""}
-      </div>`;
-    const t = $("textarea", box); let timer = 0;
-    const save = async () => {
-      clearTimeout(timer); const v = t.value.trim(); const cur = App.find(x.key); if (!cur || v === (cur.note || "")) return;
-      if (x.mine) { const raw = (App.S.mine || []).find((r) => r.id === x.key); await call("mine:upsert", { ...raw, note: v }); } else await call("mark", x.key, { note: v });
-      const s = $("#dtSaved", box); if (s) s.textContent = "已保存";
-    };
-    t.oninput = () => { clearTimeout(timer); timer = setTimeout(save, 700); $("#dtSaved", box).textContent = "…"; };
-    t.onblur = save;
-    t.onkeydown = (e) => { if (e.key === "Escape") { t.blur(); $("#tkTable", this.el).focus(); e.stopPropagation(); } };
+    if (!x) { box.innerHTML = `<div class="empty" style="margin-top:80px"><b>👈</b>点左边的一件事，在这里看详情、写备注</div>`; box.onclick = null; return; }
+    box.innerHTML = ItemDetail.html(x, { kbd: true });
+    ItemDetail.bind(box, x, () => $("#tkTable", this.el).focus());
   },
   focusNote() { const t = $("#tkDetail textarea", this.el); if (t) { t.focus(); t.selectionStart = t.value.length; } },
-  async detailClick(e) {
-    const b = e.target.closest("[data-d]"); if (!b) return;
-    const x = App.find(this.cur); if (!x) return;
-    const a = b.dataset.d;
-    if (a === "done") toggleDone(x.key, !x.done);
-    if (a === "edit") editItem(x);
-    if (a === "cedit") editClassItem(x);
-    if (a === "cdel") deleteClassItem(x);
-    if (a === "hist") showItemHistory(x);
-    if (a === "focus") App.go("focus", { task: x.title });
-    if (a === "del") deleteMine(x.key);
-    if (a === "hide") hideItem(x.key, !x.hidden);
-    if (a === "copy") { navigator.clipboard.writeText(x.original).then(() => toast("已复制")); }
-  },
   keys(e, typing) {
     if ((e.ctrlKey || e.metaKey) && (e.key === "f" || e.key === "F")) { $("#tkQ", this.el).focus(); $("#tkQ", this.el).select(); return true; }
     if (typing) return;

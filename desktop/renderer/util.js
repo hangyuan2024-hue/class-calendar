@@ -5,7 +5,7 @@ const $ = (s, r) => (r || document).querySelector(s);
 const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 function h(html) { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstElementChild; }
-const tc = (type) => `var(--t-${M.TYPES.includes(type) ? type : "通知"})`;
+const tc = (type) => `var(--t-${M.TYPES.includes(type) ? type : "通知"})`;   // 考核（课内学习）也有自己的颜色
 const tagHtml = (type) => `<span class="tag" style="--c:${tc(type)}">${esc(type)}</span>`;
 
 // 全局状态（主进程推过来的一份数据）
@@ -15,7 +15,8 @@ const App = {
   find(key) { return this.items().find((x) => x.key === key); },
   className() { const c = (this.S.classes || []).find((x) => x.id === this.S.cid); return c ? c.name : ""; },
   isTeacher() { const c = (this.S.classes || []).find((x) => x.id === this.S.cid); return !!(c && c.is_teacher); },
-  now: () => new Date(),
+  // 「现在」：北京时间 + 服务器校准（和网页版一样，电脑时区设成别的也不影响）
+  now: () => M.now(),
 };
 
 // 调用主进程；出错就弹红色提示
@@ -58,6 +59,11 @@ const ICON = {
   export: '<path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/>', ext: '<path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', place: '<path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
 };
+ICON.study = '<path d="M4 5.5C6.5 4 9.5 4 12 6c2.5-2 5.5-2 8-.5V19c-2.5-1.5-5.5-1.5-8 .5-2.5-2-5.5-2-8-.5z"/><path d="M12 6v13.5"/>';
+ICON.mindmap = '<circle cx="12" cy="12" r="2.6"/><circle cx="4.5" cy="6" r="1.8"/><circle cx="19.5" cy="6" r="1.8"/><circle cx="4.5" cy="18" r="1.8"/><circle cx="19.5" cy="18" r="1.8"/><path d="M9.8 10.6 6 7.2M14.2 10.6 18 7.2M9.8 13.4 6 16.8M14.2 13.4 18 16.8"/>';
+ICON.farm = '<path d="M12 20c-4.4 0-7-2.4-7-6 0-4.5 3.5-9 7-9s7 4.5 7 9c0 3.6-2.6 6-7 6z"/><circle cx="9.5" cy="12.5" r=".8"/><circle cx="14.5" cy="12.5" r=".8"/><path d="M10.5 15.5q1.5 1 3 0M9 5.5 7.5 3M15 5.5 16.5 3"/>';
+ICON.intro = '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>';
+ICON.credits = '<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>';
 const icon = (n, cls) => `<svg class="${cls || "ico"}" viewBox="0 0 24 24">${ICON[n] || ""}</svg>`;
 
 // ---------- 提示 ----------
@@ -220,7 +226,8 @@ const apiGet = (p) => window.cc.call("api:get", p);
 const cleanErr = (e) => String((e && e.message) || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, "");
 const notFound = (e) => e && (e.status === 404 || /Could not find the function|PGRST202/.test(e.message || ""));
 const kvSet = (ns, k, v) => call("kv:set", ns, k, v);
-const LIST_NS = new Set(["personal_events_v1", "habits_v1", "countdown_v1"]), ONE_NS = new Set(["profile_v1", "fun_opts_v1", "plugins_enabled_v1", "island_v1", "farm_v1"]);
+const LIST_NS = new Set(["personal_events_v1", "habits_v1", "countdown_v1", "quad_todos_v1"]),
+  ONE_NS = new Set(["profile_v1", "fun_opts_v1", "plugins_enabled_v1", "island_v1", "farm_v1", "course_rev_v1", "kn_rev_v1", "mm_rev_v1", "home_layout_v1", "ui_skin_v1", "ui_palette_v1", "home_quick_tools_v1"]);
 const KV = (ns) => { const v = App.S && App.S.kv ? App.S.kv[ns] : undefined; if (v !== undefined && v !== null) return v; return LIST_NS.has(ns) ? [] : ONE_NS.has(ns) ? null : {}; };
 const todayKey = () => M.dayKey(App.now());
 const shiftDay = (k, n) => M.dayKey(M.addDays(M.fromKey(k), n));
@@ -332,6 +339,26 @@ function cheerFor(key) {
     const hw = App.items().filter((y) => y.type === "作业" && y.day >= mon && y.day <= sun && !y.hidden);
     cheer(hw.length && hw.every((y) => y.done || y.key === key) ? "allhw" : "homework");
   } else cheer("item");
+}
+
+// ---------- 电脑版的新本事 ----------
+// 把一个页面单独开成窗口（比如课程表放第二块屏幕、思维导图全屏）
+function popOut(view) { return call("popout", view || App.view); }
+// 导出成表格（Excel 能直接打开）：事项 / 课程表
+function csvCell(v) { const s = String(v ?? ""); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+function exportCsv(kind) {
+  const now = App.now();
+  if (kind === "courses") {
+    const meta = App.S.courses.meta || {}, times = M.periodTimes(meta), list = (App.S.courses.courses || []).slice().sort((a, b) => a.day - b.day || a.start - b.start);
+    if (!list.length) return toast("还没有课程表", { bad: true });
+    const rows = [["课程", "星期", "第几节", "上课时间", "周次", "地点", "老师"]].concat(list.map((c) => [c.name, "周" + "一二三四五六日"[c.day], c.start + (c.end > c.start ? "-" + c.end : ""), ((times[c.start - 1] || "").split("-")[0] || "") + "-" + ((times[(c.end || c.start) - 1] || "").split("-")[1] || ""), c.weeks || compactWeeks(c.wl || []) || "每周", c.location || "", c.teacher || ""]));
+    const adj = M.adjOf(App.S.courses);
+    if (adj.length) { rows.push([], ["调课 / 调休"]); for (const a of adj) rows.push([M.mdw(a.date), M.adjText(a)]); }
+    return call("export:csv", "课程表-" + M.dayKey(now), rows.map((r) => r.map(csvCell).join(",")).join("\r\n")).then((f) => f && toast("已导出表格"));
+  }
+  const list = M.sortItems(App.items().filter((x) => !x.hidden));
+  const rows = [["类型", "标题", "内容", "日期", "时间", "地点", "要准备", "来源", "完成", "我的备注"]].concat(list.map((x) => [x.type, x.title, x.summary, x.day, x.time, x.location, x.prepare, x.mine ? "我的" : x.study ? "课内学习" : App.group(x.gid) ? App.group(x.gid).name : "班级", x.done ? "是" : "", x.note]));
+  return call("export:csv", "事项-" + M.dayKey(now), rows.map((r) => r.map(csvCell).join(",")).join("\r\n")).then((f) => f && toast(`已导出 ${list.length} 件事`));
 }
 
 // 圆环

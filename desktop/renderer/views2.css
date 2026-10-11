@@ -1,31 +1,16 @@
 /* 捞捞课程表 电脑版 2.0 · 新页面的样式（作业、班级墙、规划、打卡、排行榜、元宇宙、成员、班级、整理、工具箱、我的、倒数日、报告） */
 
-/* ---------- 主色、元宇宙主题 ---------- */
-:root[data-accent="sakura"] { --brand: #ff5f8f; --brand2: #ff8fb0; --brand-soft: #ffe8ef; --brand-ink: #d63a6e; }
-:root[data-accent="green"] { --brand: #17a673; --brand2: #3ccf91; --brand-soft: #e2f6ee; --brand-ink: #0f7d56; }
-:root[data-accent="orange"] { --brand: #f08c00; --brand2: #ffab40; --brand-soft: #fff1dc; --brand-ink: #b86a00; }
-:root[data-accent="purple"] { --brand: #8b5cf6; --brand2: #a78bfa; --brand-soft: #efe9ff; --brand-ink: #6d3fd8; }
-:root[data-accent="teal"] { --brand: #0ea5b7; --brand2: #22c3d6; --brand-soft: #def6f9; --brand-ink: #087f8e; }
-:root[data-accent="red"] { --brand: #e5484d; --brand2: #ff6b6f; --brand-soft: #fde8e8; --brand-ink: #b4232a; }
-@media (prefers-color-scheme: dark) {
-  :root[data-accent] { --brand-soft: color-mix(in srgb, var(--brand) 22%, #1b202b); --brand-ink: color-mix(in srgb, var(--brand) 55%, white); }
-}
+/* ---------- 元宇宙主题（主色在 base.css） ---------- */
 :root[data-theme="meta"] {
   --bg: #090b1a; --bg2: #11152b; --panel: #121733; --panel2: #171d40; --line: #262d5c; --line2: #343d78;
   --text: #e6ecff; --text2: #a9b4e8; --muted: #7d88c0; --brand: #00e5ff; --brand2: #ff2bd6; --brand-soft: #0e2f45; --brand-ink: #7cf3ff;
   --ok: #39ffa5; --ok-soft: #0d3326; --warn: #ffe600; --warn-soft: #3a3510; --bad: #ff4d8d; --bad-soft: #3d1530;
-  --shadow: 0 0 0 1px rgba(0, 229, 255, .06), 0 6px 24px rgba(0, 0, 0, .5); color-scheme: dark;
+  --shadow: 0 0 0 1px rgba(0, 229, 255, .06), 0 6px 24px rgba(0, 0, 0, .5); --bell: #ff2bd6; --bell-soft: #3d1530; color-scheme: dark;
 }
 :root[data-theme="meta"] body { background: radial-gradient(900px 600px at 100% 0%, rgba(255, 43, 214, .12), transparent 60%), radial-gradient(900px 600px at 0% 100%, rgba(0, 229, 255, .1), transparent 60%), var(--bg); }
 :root[data-theme="meta"] .card { border-color: rgba(0, 229, 255, .18); }
 :root[data-theme="meta"] .vhead h1 { text-shadow: 0 0 18px rgba(0, 229, 255, .55); }
 :root[data-theme="meta"] .btn.primary { background: linear-gradient(90deg, #00e5ff, #ff2bd6); border: 0; color: #08091a; }
-
-/* ---------- 侧边栏分组 ---------- */
-.nav-g { font-size: 11px; color: var(--muted); font-weight: 600; padding: 10px 12px 3px; letter-spacing: .5px; }
-.nav-g:first-child { padding-top: 2px; }
-#nav .nav-item { height: 34px; }
-@media (max-width: 1200px) { .nav-g { font-size: 0; padding: 6px 0 2px; border-top: 1px solid var(--line); margin: 4px 8px 0; } .nav-g:first-child { border: 0; } }
 
 /* ---------- 通用 ---------- */
 .sec-h { display: flex; align-items: baseline; gap: 10px; margin: 22px 0 10px; }
@@ -62,27 +47,6 @@
 @keyframes conf { to { transform: translate(var(--dx), var(--dy)) rotate(var(--r)); opacity: 0; } }
 
 /* ---------- 今日：每日一句、倒数日、打卡 ---------- */
-.td-enc { display: flex; overflow: hidden; }
-.enc-i { width: 74px; flex: none; display: grid; place-items: center; font-size: 30px; }
-.enc-b { padding: 10px 14px; flex: 1; min-width: 0; }
-.enc-l { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--muted); }
-.enc-zh { font-weight: 600; margin-top: 2px; }
-.enc-en { font-size: 12px; color: var(--muted); }
-.enc-m { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-top: 6px; font-size: 12.5px; }
-.enc-m button { border: 0; background: var(--bg2); border-radius: 8px; font-size: 17px; width: 30px; height: 28px; padding: 0; }
-.enc-m button:hover { background: var(--brand-soft); transform: scale(1.1); }
-.enc-m a { margin-left: 6px; font-size: 12px; }
-.cd-mini { display: flex; align-items: center; gap: 12px; padding: 12px 16px; cursor: pointer; border-left: 4px solid var(--c); }
-.cd-mini > span { font-size: 22px; }
-.cd-mini div { flex: 1; display: flex; flex-direction: column; font-size: 13px; }
-.cd-mini small { color: var(--muted); font-size: 12px; }
-.cd-mn { font-size: 26px; color: var(--c); }
-.cd-mn small { font-size: 12px; margin-left: 2px; }
-.td-hbs { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 14px 14px; }
-.td-hbi { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 10px; border: 1px dashed var(--line2); background: none; font-size: 13px; }
-.td-hbi.on { border: 1px solid var(--ok); background: var(--ok-soft); }
-.td-hbi.on b { text-decoration: line-through; color: var(--muted); font-weight: 400; }
-.td-hbi small { color: var(--warn); font-size: 11px; }
 
 /* ---------- 作业 ---------- */
 .hw-wrap { max-width: 980px; }

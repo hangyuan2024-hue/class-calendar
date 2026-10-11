@@ -7,7 +7,8 @@ let S = null, pomo = null;
 const tc = (t) => `var(--t-${M.TYPES.includes(t) ? t : "通知"})`;
 function render() {
   if (!S) return;
-  const now = new Date(), tk = M.dayKey(now), nm = now.getHours() * 60 + now.getMinutes();
+  if (S && typeof S.clockOff === "number") M.setClock(S.clockOff);
+  const now = M.now(), tk = M.dayKey(now), nm = now.getHours() * 60 + now.getMinutes();
   $("date").textContent = `${now.getMonth() + 1}月${now.getDate()}日 周${M.WEEK[now.getDay()]}`;
   const wk = M.weekOf((S.courses || {}).meta, now);
   $("sub").textContent = wk ? `第 ${wk} 周` : "";
@@ -23,6 +24,16 @@ function render() {
   const items = M.sortItems(M.allItems(S).filter((x) => !x.hidden && x.day && (x.day === tk || (!x.done && x.day < tk && M.dayDiff(x.day, now) >= -7))));
   $("todo").innerHTML = items.length ? items.map((x) => `<div class="m-t${x.done ? " done" : ""}"><button class="chk${x.done ? " on" : ""}" data-k="${esc(x.key)}"></button><i style="background:${tc(x.type)}"></i><span>${esc(x.title)}</span><small class="${!x.done && x.day < tk ? "late" : ""}">${x.day < tk ? M.relDay(x.day, now) : x.time || ""}</small></div>`).join("") : '<div class="m-e">今天没有要做的事 🎉</div>';
   drawPomo();
+  // 课铃线：今天的节次一段一段，上过的填满，正在上的那节有走针（和主窗口标题栏下面那条一样）
+  const times = M.periodTimes((S.courses || {}).meta || {}), last = Math.max(8, ...cs.map((c) => c.end || c.start)), by = {};
+  for (const c of cs) for (let p = c.start; p <= (c.end || c.start); p++) by[p] = c;
+  let bell = "";
+  if (cs.length) for (let p = 1; p <= last; p++) {
+    if (p > 1) { const a = M.toMin((times[p - 2] || "").split("-")[1]), b = M.toMin((times[p - 1] || "").split("-")[0]); if (a != null && b != null && b - a >= 40) bell += `<i class="gap"></i>`; }
+    const c = by[p], [a, b] = (times[p - 1] || "").split("-").map(M.toMin), pct = c && nm >= a && nm < b ? Math.round(((nm - a) / (b - a)) * 100) : 0;
+    bell += `<i class="${!c ? "" : nm >= b ? "c past" : nm >= a ? "c on" : "c"}" style="${c ? `--c:${c.color};` : ""}${pct ? `--p:${pct}%` : ""}"></i>`;
+  }
+  $("bell").innerHTML = bell; $("bell").classList.toggle("hidden", !cs.length);
 }
 function drawPomo() {
   const el = $("pomo");

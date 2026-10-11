@@ -5,7 +5,9 @@ const CALLS = ["state", "login", "logout", "refresh", "class:reload", "mine:upse
   "quick:parse", "quick:add", "quick:hide", "open:main", "open:external", "mini:toggle", "brief:open", "brief:close", "pomo:start", "pomo:stop", "pomo:state",
   "ai:prepare", "ai:cancel", "ai:chat", "ai:stop", "ai:extract", "export:ics", "export:pdf", "export:image", "print", "wallpaper:set", "wallpaper:restore", "wallpaper:state",
   "attach:pick", "attach:add", "attach:remove", "attach:open", "attach:show", "attach:exists", "backup:now", "backup:list", "backup:open", "backup:restore",
-  "badge", "clip:read", "clip:image"];
+  "badge", "clip:read", "clip:image",
+  "signup", "api:anon", "item:keep", "autodel:class", "item:override", "extras:reload", "files:count", "adj:save", "courses:reload",
+  "file:save", "popout", "export:csv", "extra:items", "tool:read"];
 const EVENTS = ["state", "nav", "ai-state", "ai-token", "pomo", "pomo-done", "quick-open", "badge"];
 contextBridge.exposeInMainWorld("cc", {
   call: async (ch, ...args) => {
@@ -18,4 +20,6 @@ contextBridge.exposeInMainWorld("cc", {
   // 拖进窗口的文件在电脑上的位置（作业附件用）
   pathOf: (file) => { try { return webUtils.getPathForFile(file) || ""; } catch (e) { return ""; } },
   platform: process.platform,
+  // 有人在用：实时同步问得勤一点
+  active: () => ipcRenderer.send("user-active"),
 });

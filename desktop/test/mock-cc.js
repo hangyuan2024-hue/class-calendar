@@ -51,6 +51,21 @@
     status: { syncing: false, online: true, error: "", lastOk: Date.now() }, lastRefresh: Date.now(), pending: 0,
     ai: { status: location.hash.includes("aiready") ? "ready" : "idle", ready: location.hash.includes("aiready"), got: 0, total: 0, error: "", model: "通义千问 Qwen2.5 1.5B" },
   };
+  // 调课 / 调休示例：这周四放假，周六上周四的课，周五晚上加一节习题课
+  const wkd = (w) => { const d = new Date(); return day(w - ((d.getDay() + 6) % 7)); };
+  if (!location.hash.includes("noadj")) S.courses.meta.adj = [{ id: "a1", date: wkd(3), type: "off", note: "课挪到周六" }, { id: "a2", date: wkd(5), type: "swap", from: wkd(3) }, { id: "a3", date: wkd(4), type: "add", name: "线代习题课", start: 9, end: 10, location: "教2-305", teacher: "孙老师" }];
+  S.extras = { cid: "c-1", autodel: true, canSet: false, keep: {}, files: { c101: 2 }, loaded: true };
+  S.live = true; S.clockOff = 0; S.kv = S.kv || {};
+  S.mine.push({ id: "p5", subject: "物理实验预习报告", kind: "作业", event_time: day(2, "08:00"), location: "", note: "", done: false });
+  S.mine.push({ id: "p6", subject: "上学期的社团招新", event_time: day(-13), location: "", note: "", done: false });
+  const files = { c101: [{ id: "f1", name: "实验三要求.pdf", mime: "application/pdf", size: 238000, parts: 1, by: "王老师", can_del: false }, { id: "f2", name: "参考截图.png", mime: "image/png", size: 51000, parts: 1, by: "张班长", can_del: true }] };
+  const RPC = {
+    file_list: (a) => files[a.cid ? "c" + a.item : a.item] || [],
+    file_get: () => ({ data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" }),
+    file_del: () => true, file_begin: () => ({ id: "f" + Date.now() }), file_part: () => true, file_end: () => true,
+    kn_state: () => ({ rev: 1, courses: [{ id: 1, name: "数据结构", color: "#2f6fd6" }, { id: 2, name: "高等数学", color: "#0f7a68" }], nodes: [], items: [{ id: 9, course_id: 1, kind: "assessment", title: "期中考试", deadline: day(9, "09:00"), done: false }] }),
+    mm_list: () => [], my_perms: () => [], item_extras: () => ({ autodel: true, keep: {}, files: { c101: 2 } }),
+  };
   const pomo = { running: false, phase: "focus", left: 0, total: 0, task: "" };
   const push = () => emit("state", JSON.parse(JSON.stringify(S)));
   window.__calls = [];
@@ -80,6 +95,26 @@
       let i = 0; const t = setInterval(() => { i += 6; emit("ai-token", { id, text: text.slice(0, i) }); if (i >= text.length) { clearInterval(t); res(text); } }, 30);
     }),
     "ai:stop": () => {}, "export:ics": () => 9,
+    "adj:save": (adj) => { S.courses.meta.adj = window.CCModel.cleanAdj(adj); push(); return S.courses.courses.length; },
+    "item:keep": (k) => { const d = day(3); if (/^c/.test(k)) S.extras.keep[k] = d; else { const it = S.mine.find((x) => x.id === k); if (it) it.keep = d; } push(); return d; },
+    "autodel:class": (on) => { S.extras.autodel = !!on; push(); return !!on; },
+    "item:override": (from, rec) => { S.marks[from] = { ...(S.marks[from] || {}), hidden: true }; return H["mine:upsert"]({ ...rec, from }); },
+    "files:count": (k, n) => { S.extras.files[k] = n; }, "extras:reload": () => {}, "courses:reload": () => {},
+    "api:rpc": (fn, a) => { if (!RPC[fn]) throw Object.assign(new Error("Could not find the function " + fn), { status: 404 }); return RPC[fn](a || {}); },
+    "api:get": () => [], "api:anon": (fn, a) => (fn === "account_available" ? a.acct !== "hangyuan" : { ok: false, why: "no_email" }),
+    signup: () => { S.loggedIn = true; return JSON.parse(JSON.stringify(S)); },
+    "file:save": (n) => "C:/Users/me/Downloads/" + n, popout: () => {}, "export:csv": (n) => "C:/Users/me/Documents/" + n + ".csv",
+    "kv:set": (ns, k, v) => { const kind = ["personal_events_v1", "habits_v1", "countdown_v1", "quad_todos_v1"].includes(ns) ? "list" : ["profile_v1", "fun_opts_v1", "plugins_enabled_v1", "island_v1", "farm_v1", "course_rev_v1", "kn_rev_v1", "mm_rev_v1", "home_layout_v1", "ui_skin_v1", "ui_palette_v1", "home_quick_tools_v1"].includes(ns) ? "one" : ns === "habit_log_v1" ? "map2" : "map";
+      const cur = S.kv[ns] ?? (kind === "list" ? [] : kind === "one" ? null : {});
+      if (kind === "one") S.kv[ns] = v; else if (kind === "list") { const l = cur.filter((x) => String(x.id) !== String(k)); if (v) l.push(v); S.kv[ns] = l; }
+      else if (kind === "map2") { const [a, b] = Array.isArray(k) ? k : String(k).split("\u0001"); cur[a] = cur[a] || {}; if (v == null) delete cur[a][b]; else cur[a][b] = v; S.kv[ns] = cur; }
+      else { if (v == null) delete cur[k]; else cur[k] = v; S.kv[ns] = cur; }
+      if (ns === "mood_log_v1") S.kv[ns] = cur; push(); return true; },
+    "tool:read": (f) => (/\.html$/.test(f) ? "<!doctype html><body style=\"font:14px sans-serif;padding:20px\">（测试用的工具页面：" + f + "）<style>/* CAMPUS_TOOL_STYLES */</style><script>/* CAMPUS_INFLATE_LIBRARY */</script></body>" : ""),
+    "extra:items": (l) => { S.extraItems = l; push(); return true; },
+    "kv:batch": (ops) => { for (const [ns, k, v] of ops || []) H["kv:set"](ns, k, v); return true; },
+    habit: () => true, growth: () => {}, "wallpaper:state": () => ({ on: false, windows: true }), "backup:list": () => ({ dir: "C:/Users/me/Documents/捞捞课程表备份", list: [] }),
+    "clip:read": () => "", "clip:image": () => null, badge: () => {}, "attach:exists": (ps) => ps.map(() => true), "pomo:state": () => ({ ...pomo }),
   };
   window.cc = {
     call: async (ch, ...a) => { window.__calls.push([ch, ...a]); if (!H[ch]) throw new Error("不支持：" + ch); return H[ch](...a); },
