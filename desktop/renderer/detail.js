@@ -211,8 +211,11 @@ const Insp = {
     const box = $("#inspIn"), x = App.find(this.key); if (!x) return;
     const ta = $("textarea", box);
     if (!force && ta && document.activeElement === ta && box.dataset.k === this.key) return;   // 正在写备注：不打断
-    box.dataset.k = this.key;
-    box.innerHTML = ItemDetail.html(x, { close: true });
+    // 内容没变就不重画：重画会把鼠标下面的按钮换掉（按钮闪、点了没反应），附件列表也会重新读一遍
+    const html = ItemDetail.html(x, { close: true });
+    if (!force && box.dataset.k === this.key && this._html === html) return;
+    box.dataset.k = this.key; this._html = html;
+    box.innerHTML = html;
     ItemDetail.bind(box, x, () => this.close());
   },
 };

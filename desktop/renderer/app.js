@@ -4,7 +4,7 @@
 // 下面几组可以点组名收起来（记在本机），当前页面所在的组总是展开。Ctrl+1…9 依次对应前 9 个
 const NAV = [
   ["", "main", ["today", "week", "homework", "tasks", "month"]],
-  ["学习", "study", ["study", "mindmap", "focus", "plan", "ai"]],
+  ["学习与规划", "study", ["study", "mindmap", "focus", "plan", "ai"]],
   ["班级", "class", ["wall", "ingest", "people", "rank", "classes"]],
   ["成长", "grow", ["growth", "countdown", "farm", "report", "meta"]],
   ["", "more", ["tools"]],
@@ -27,6 +27,51 @@ function setUi(v) {
   try { localStorage.setItem("ui_style_v1", v); } catch (e) {}
 }
 try { document.documentElement.dataset.ui = localStorage.getItem("ui_style_v1") === "web" ? "web" : "desktop"; } catch (e) {}
+
+// 配色：和网站「外观 → 配色」同一套（16 套 + 自己调），存在同步数据 ui_palette_v1 里 —— 网站上换了配色，电脑版也跟着变，反过来也一样。
+// 一套配色 = 主色 p（按钮、选中）+ 点缀色 s（现在、截止、要紧的事，网站上叫 today 色）。没选（null）就是默认的青绿
+const WEB_PALETTES = [
+  { id: "sky", name: "天空蓝", p: "#1ea0ff", s: "#ff7b2e" }, { id: "sakura", name: "樱花粉", p: "#ff5f8f", s: "#ffb03b" },
+  { id: "peach", name: "蜜桃", p: "#ff7a6b", s: "#ffc24b" }, { id: "lavender", name: "薰衣草", p: "#8c6bff", s: "#ff7bc0" },
+  { id: "grape", name: "葡萄紫", p: "#a03fd8", s: "#22c3a6" }, { id: "mint", name: "薄荷绿", p: "#17b890", s: "#ff8a3d" },
+  { id: "matcha", name: "抹茶", p: "#5f9e45", s: "#e0a526" }, { id: "ocean", name: "深海", p: "#0f8bb5", s: "#ff6a5c" },
+  { id: "navy", name: "海军蓝", p: "#2457d6", s: "#ffb020" }, { id: "galaxy", name: "星空", p: "#5b5bd6", s: "#ff5fa2" },
+  { id: "sunset", name: "落日", p: "#f25c54", s: "#f7b267" }, { id: "orange", name: "活力橙", p: "#ff8a1f", s: "#1ea0ff" },
+  { id: "lemon", name: "柠檬", p: "#e0b000", s: "#3c8dff" }, { id: "cocoa", name: "可可", p: "#a0703f", s: "#e8a33d" },
+  { id: "rose", name: "玫瑰", p: "#e0457b", s: "#8c6bff" }, { id: "graphite", name: "石墨", p: "#3d4b5c", s: "#ff7b2e" },
+];
+const Pal = (() => {
+  const rgb = (h) => { h = String(h || "").replace("#", ""); const n = parseInt(h, 16); return /^[0-9a-f]{6}$/i.test(h) ? [(n >> 16) & 255, (n >> 8) & 255, n & 255] : [15, 122, 104]; };
+  const hex = (c) => "#" + c.map((x) => Math.round(Math.max(0, Math.min(255, x))).toString(16).padStart(2, "0")).join("");
+  const mix = (a, b, t) => { const x = rgb(a), y = rgb(b); return hex(x.map((v, i) => v + (y[i] - v) * t)); };
+  const lum = (h) => rgb(h).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }).reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+  // 和网站 boot.js 一样：主色太浅时加深，按钮上的白字看得清
+  const readable = (h) => { let c = h, i = 0; while (1.05 / (lum(c) + 0.05) < 3 && i++ < 12) c = mix(c, "#000000", 0.12); return c; };
+  const valid = (v) => v && /^#[0-9a-f]{6}$/i.test(v.p || "") ? v : null;
+  const cur = () => valid(App.S && App.S.kv && App.S.kv.ui_palette_v1);
+  const dark = () => matchMedia("(prefers-color-scheme: dark)").matches;
+  let keys = [];
+  function apply() {
+    const r = document.documentElement;
+    keys.forEach((k) => r.style.removeProperty(k)); keys = [];
+    const v = cur(); if (!v || r.dataset.theme === "meta") { r.dataset.pal = ""; return; }
+    const P = readable(v.p), S = /^#[0-9a-f]{6}$/i.test(v.s || "") ? v.s : "#ff7b2e", d = dark(), web = r.dataset.ui === "web";
+    const o = d ? {
+      "--brand": mix(v.p, "#ffffff", 0.18), "--brand2": mix(v.p, "#ffffff", 0.32), "--brand-soft": mix(v.p, "#141c22", 0.74), "--brand-ink": mix(v.p, "#ffffff", 0.5),
+      "--bell": mix(S, "#ffffff", 0.1), "--bell-soft": mix(S, "#141c22", 0.78), "--bell-ink": mix(S, "#ffffff", 0.4),
+    } : {
+      "--brand": P, "--brand2": mix(v.p, "#ffffff", 0.18), "--brand-soft": mix(v.p, "#ffffff", 0.86), "--brand-ink": mix(P, "#000000", 0.2),
+      "--bell": readable(S), "--bell-soft": mix(S, "#ffffff", 0.86), "--bell-ink": mix(readable(S), "#000000", 0.2),
+    };
+    // 网页风格：和网站一样，底色、卡片线、问候卡片也带一点主色
+    if (web && !d) Object.assign(o, { "--bg": mix(v.p, "#ffffff", 0.95), "--bg2": mix(v.p, "#ffffff", 0.9), "--line": mix(v.p, "#e4e9e4", 0.82), "--hero": mix(v.p, "#ffffff", 0.84), "--tile-a": mix(S, "#ffffff", 0.86) });
+    if (web && d) Object.assign(o, { "--hero": mix(v.p, "#1c2a2d", 0.72) });
+    for (const k in o) { r.style.setProperty(k, o[k]); keys.push(k); }
+    r.dataset.pal = v.id || "custom";
+  }
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", apply);
+  return { apply, cur, mix, set: (v) => kvSet("ui_palette_v1", "_", v || null) };
+})();
 
 function buildNav() {
   let i = 0;
@@ -152,6 +197,7 @@ function render() {
   document.documentElement.dataset.theme = S.settings.theme === "meta" ? "meta" : "";
   document.documentElement.dataset.accent = S.settings.accent || "jade";
   setUi(S.settings.uiStyle);
+  Pal.apply();
   if (!Plugins.started && !POP) setTimeout(() => Plugins.start().catch(() => {}), 1500);   // 单独的窗口不再启动一遍工具
   $("#meName").textContent = me.display_name || me.account || "我";
   $("#meAv").textContent = [...(me.display_name || me.account || "我")].slice(-1)[0];
@@ -275,7 +321,7 @@ function commands() {
     { g: "操作", i: "▦", t: "导出事项表格（Excel 能打开）", fn: () => exportCsv("items") },
     { g: "操作", i: "▦", t: "导出课程表表格（Excel 能打开）", fn: () => exportCsv("courses") },
     { g: "操作", i: "◐", t: "切换深色 / 浅色", fn: () => call("settings", { theme: matchMedia("(prefers-color-scheme: dark)").matches ? "light" : "dark" }) },
-    { g: "操作", i: "✦", t: "问 AI 助手", fn: () => App.go("ai") },
+    { g: "操作", i: "✦", t: "问答（问捞捞 AI）", fn: () => App.go("ai") },
     { g: "操作", i: "✨", t: "整理群消息（粘贴剪贴板）", fn: () => App.go("ingest", { paste: true }) },
     { g: "操作", i: "🔁", t: "调课 / 调休", fn: () => CourseEd.adjust() },
     { g: "操作", i: "⏳", t: "添加倒数日", fn: () => App.go("countdown", { add: true }) },

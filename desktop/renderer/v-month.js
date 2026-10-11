@@ -1,7 +1,7 @@
 // 月历：一整月的事项铺开；自己记的事可以直接拖到别的日子；双击某天新建；右边看当天详情
 "use strict";
 App.views.month = {
-  title: "月历", icon: "month", ym: null, day: null, showDone: true,
+  title: "日历", icon: "month", ym: null, day: null, showDone: true,
   mount(el) {
     el.innerHTML = `
       <div class="vhead"><div><h1 id="moTitle"></h1><div class="sub">拖动「我的」事项可以改日期 · 双击某天新建</div></div><span class="grow"></span>

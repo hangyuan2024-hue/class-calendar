@@ -147,9 +147,13 @@ App.views.tasks = {
     const box = $("#tkDetail", this.el), x = this.cur && App.find(this.cur);
     const ta = $("textarea", box);
     if (!force && ta && document.activeElement === ta && box.dataset.k === this.cur) return;   // 正在写备注：不打断
+    const same = box.dataset.k === (this.cur || "");
     box.dataset.k = this.cur || "";
+    if (!same) this._html = "";
     if (!x) { box.innerHTML = `<div class="empty" style="margin-top:80px"><b>👈</b>点左边的一件事，在这里看详情、写备注</div>`; box.onclick = null; return; }
-    box.innerHTML = ItemDetail.html(x, { kbd: true });
+    const html = ItemDetail.html(x, { kbd: true });
+    if (!force && box.dataset.k === this.cur && this._html === html) return;   // 没变就不重画（不然按钮会闪、点不动）
+    this._html = html; box.innerHTML = html;
     ItemDetail.bind(box, x, () => $("#tkTable", this.el).focus());
   },
   focusNote() { const t = $("#tkDetail textarea", this.el); if (t) { t.focus(); t.selectionStart = t.value.length; } },

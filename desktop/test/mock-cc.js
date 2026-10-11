@@ -102,7 +102,7 @@
     "item:keep": (k) => { const d = day(3); if (/^c/.test(k)) S.extras.keep[k] = d; else { const it = S.mine.find((x) => x.id === k); if (it) it.keep = d; } push(); return d; },
     "autodel:class": (on) => { S.extras.autodel = !!on; push(); return !!on; },
     "item:override": (from, rec) => { S.marks[from] = { ...(S.marks[from] || {}), hidden: true }; return H["mine:upsert"]({ ...rec, from }); },
-    "files:count": (k, n) => { S.extras.files[k] = n; }, "extras:reload": () => {}, "courses:reload": () => {},
+    "files:count": (k, n) => { if ((S.extras.files[k] || 0) === n) return false; S.extras.files[k] = n; push(); return true; }, "extras:reload": () => {}, "courses:reload": () => {},
     "api:rpc": (fn, a) => { if (!RPC[fn]) throw Object.assign(new Error("Could not find the function " + fn), { status: 404 }); return RPC[fn](a || {}); },
     "api:get": () => [], "api:anon": (fn, a) => (fn === "account_available" ? a.acct !== "hangyuan" : { ok: false, why: "no_email" }),
     signup: () => { S.loggedIn = true; return JSON.parse(JSON.stringify(S)); },

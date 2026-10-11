@@ -35,7 +35,7 @@ const META_BADGES = [
   ["💻", "桌面玩家", "用上了电脑版", () => true],
 ];
 App.views.meta = {
-  title: "元宇宙", icon: "meta", wiki: 0,
+  title: "元宇宙空间", icon: "meta", wiki: 0,
   mount(el) {
     el.innerHTML = `<div class="vhead"><div><h1>捞捞元宇宙</h1><div class="sub">经验和徽章由你的完成记录、打卡、番茄钟、目标自动计算，跟着账号同步</div></div><span class="grow"></span><button class="btn primary" id="mtWarp"></button></div>
       <div class="vbody"><div class="mt-wrap"><div id="mtBox"></div><div class="sec-h"><b>元宇宙工具箱</b><span>专注、任务、记忆晶片、倒计时、记账、心情……和网页版同一套（存在这台电脑上）</span></div><div id="metaLab" class="web"></div></div></div>`;

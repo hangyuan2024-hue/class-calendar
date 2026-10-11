@@ -2,10 +2,10 @@
 "use strict";
 const SUGGEST = ["明天几点上课？在哪？", "这周要交哪些作业？", "今天还有什么没做完？", "帮我排一下今晚的学习计划", "下周有什么活动或会议？", "用简单的话解释一下什么是傅里叶变换"];
 App.views.ai = {
-  title: "AI 助手", icon: "ai", msgs: [], busy: null,
+  title: "问答", icon: "ai", msgs: [], busy: null,
   mount(el) {
     el.innerHTML = `
-      <div class="vhead"><div><h1>AI 助手「捞捞」</h1><div class="sub" id="aiSub">在你电脑上运行，不联网也能用，聊天内容不会上传</div></div><span class="grow"></span>
+      <div class="vhead"><div><h1>问答 · 捞捞 AI</h1><div class="sub" id="aiSub">在你电脑上运行，不联网也能用，聊天内容不会上传</div></div><span class="grow"></span>
         <button class="btn" id="aiClear" title="清空对话，重新开始">${icon("plus")}新对话</button></div>
       <div class="ai-body">
         <div class="ai-setup hidden" id="aiSetup"></div>

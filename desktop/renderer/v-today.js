@@ -12,7 +12,7 @@ function leftLabel(ms) {
 function islandCtx() { return DIsland.ctx(); }
 
 App.views.today = {
-  title: "今日", icon: "today",
+  title: "首页", icon: "today",
   count() { const now = App.now(), t = M.dayKey(now); const n = App.items().filter((x) => !x.done && !x.hidden && x.day && (x.day === t || overdue(x, now))).length; return { n, hot: App.items().some((x) => !x.hidden && overdue(x, now) && x.type === "作业") }; },
   mount(el) {
     el.innerHTML = `
@@ -32,7 +32,7 @@ App.views.today = {
             <div id="tdHb" class="td-plate hidden"></div>
             <div id="tdCd"></div>
             <div class="td-plate td-pomo" id="tdPomo"></div>
-            <div class="td-plate"><div class="sec"><b>这一周</b><span class="grow"></span><button class="btn ghost sm" data-go="month">月历</button></div><div id="tdWeek" class="td-week"></div></div>
+            <div class="td-plate"><div class="sec"><b>这一周</b><span class="grow"></span><button class="btn ghost sm" data-go="month">日历</button></div><div id="tdWeek" class="td-week"></div></div>
             <div class="td-plate td-enc" id="tdEnc"></div>
             <div class="td-plate"><div class="sec"><b>班级墙</b><span class="grow"></span><button class="btn ghost sm" data-go="wall">更多</button></div><div id="tdWall"></div></div>
           </aside>
@@ -80,7 +80,35 @@ App.views.today = {
   band() {
     const box = $("#tdBand", this.el); if (!box) return;
     let ctx = null; try { ctx = islandCtx(); } catch (e) { return; }
-    box.innerHTML = this.nextHtml(ctx) + this.lineHtml(ctx);
+    // 内容没变就不重画（重画会让鼠标下面的东西闪一下、点击丢掉）
+    const html = this.nextHtml(ctx) + this.lineHtml(ctx);
+    if (html !== this._bandHtml || !box.firstChild) { box.innerHTML = html; this._bandHtml = html; }
+    this.layout();
+    if (!this._ro && window.ResizeObserver) { this._ro = new ResizeObserver(() => this.layout()); this._ro.observe(box); }
+  },
+  // 按时间轴的真实宽度摆放：事的小卡片错开成几行（最多 4 行，靠右的往左展开），时间刻度挤不下的隐藏
+  layout() {
+    const tr = $("#tdBand .tb-track", this.el); if (!tr || !tr.clientWidth) return;
+    const W = tr.clientWidth, rows = [], gap = 6;
+    let more = 0;
+    for (const b of $$(".tb-p", tr)) {
+      b.hidden = false; b.classList.remove("r"); b.style.setProperty("--row", 0);
+      const x = (parseFloat(b.style.left) || 0) / 100 * W, w = Math.min(b.offsetWidth, W * 0.62);
+      const right = x + w > W - 4, iv = right ? [x - w, x] : [x, x + w];
+      let r = rows.findIndex((row) => row.every(([s0, e0]) => iv[1] + gap <= s0 || iv[0] >= e0 + gap));
+      if (r < 0) { if (rows.length < 4) { r = rows.length; rows.push([]); } else { b.hidden = true; more++; continue; } }
+      rows[r].push(iv); b.classList.toggle("r", right); b.style.setProperty("--row", r);
+    }
+    tr.style.setProperty("--rows", Math.max(1, rows.length));
+    const mb = $(".tb-more", tr); if (mb) { mb.hidden = !more; mb.textContent = `还有 ${more} 件 ›`; }
+    // 刻度：「现在」优先，其余从左到右，和已经放下的重叠就隐藏
+    const tk = $("#tdBand .tb-ticks", this.el); if (!tk) return;
+    const labs = $$("i", tk); labs.forEach((i) => (i.style.visibility = ""));
+    const kept = [], order = labs.filter((i) => i.classList.contains("now")).concat(labs.filter((i) => !i.classList.contains("now")));
+    for (const i of order) {
+      const r = i.getBoundingClientRect();
+      if (kept.some((k) => r.left < k.right + 6 && r.right > k.left - 6)) i.style.visibility = "hidden"; else kept.push(r);
+    }
   },
   nextCourse(ctx) {
     const now = ctx.now, nm = now.getHours() * 60 + now.getMinutes(), t = M.dayKey(now);
@@ -130,22 +158,39 @@ App.views.today = {
     const pts = [...courses.flatMap((c) => [hm2m(c.t0), hm2m(c.t1 || c.t0)]), ...items.map((x) => hm2m(x.time))];
     const a = Math.min(8 * 60, ...pts.map((m) => Math.floor(m / 60) * 60)), z = Math.max(22 * 60, ...pts.map((m) => Math.ceil(m / 60) * 60));
     const pct = (m) => ((Math.max(a, Math.min(z, m)) - a) / (z - a) * 100).toFixed(2);
+    const live = !tomorrow;
+    // 上面一条是课（色块），下面是有时间点的事（小卡片：时间 + 名字）。挨得近的事自动错开放到下一行，靠右的往左展开，不会被切掉
     const segs = courses.map((c) => {
-      const s = hm2m(c.t0), e = hm2m(c.t1 || "") ?? s + 45, past = !tomorrow && e <= nm, on = !tomorrow && s <= nm && nm < e;
+      const s = hm2m(c.t0), e = hm2m(c.t1 || "") ?? s + 45, past = live && e <= nm, on = live && s <= nm && nm < e;
       return `<div class="tb-c${past ? " past" : ""}${on ? " on" : ""}" data-day="${day}" style="--c:${c.color};left:${pct(s)}%;width:${(pct(e) - pct(s)).toFixed(2)}%" title="${esc(c.t0 + "–" + (c.t1 || "") + " " + c.name + (c.location ? " · " + c.location : ""))}">
-        <b>${esc(c.name)}</b><small>${esc(c.location || c.t0)}</small>${on ? `<i style="width:${(((nm - s) / (e - s)) * 100).toFixed(1)}%"></i>` : ""}</div>`;
+        <b>${esc(c.name)}</b><small>${esc(c.t0)}${c.location ? " · " + esc(c.location) : ""}</small>${on ? `<i style="width:${(((nm - s) / (e - s)) * 100).toFixed(1)}%"></i>` : ""}</div>`;
     }).join("");
-    const pins = items.map((x) => `<button class="tb-p${x.type === "作业" ? " hw" : ""}" data-k="${esc(x.key)}" style="left:${pct(hm2m(x.time))}%" title="${esc(x.time + " " + x.title)}"><span>${esc(x.time)} ${esc(x.title)}</span></button>`).join("");
+    // 每张卡片大约占时间轴的 22%：靠左的往右占，靠右的往左占；和同一行已有的卡片重叠就放到下一行（最多 3 行）
+    // 事的小卡片按真实宽度排行（layout()）：放不下时先保证作业（截止）和还没到的事有位置
+    const rank = (x) => (x.type === "作业" ? 0 : 1) + (live && hm2m(x.time) < nm ? 2 : 0);
+    const sorted = items.slice().sort((p, q) => rank(p) - rank(q) || hm2m(p.time) - hm2m(q.time));
+    const pins = sorted.map((x) => {
+      const m = hm2m(x.time), p = +pct(m), past = live && m < nm;
+      const cls = ["tb-p", x.type === "作业" ? "hw" : "", past ? "past" : ""].filter(Boolean).join(" ");
+      return `<button class="${cls}" data-k="${esc(x.key)}" style="left:${p}%;--c:var(--t-${x.type || "个人"}, var(--brand))" title="${esc(x.time + " " + x.title + (x.location ? " · " + x.location : ""))}"><span class="num">${esc(x.time)}</span><b>${esc(x.title)}</b>${x.type === "作业" ? "<em>截止</em>" : ""}</button>`;
+    }).join("");
     const ticks = [];
-    for (let m = a; m <= z; m += 120) ticks.push(`<i style="left:${pct(m)}%">${m / 60}:00</i>`);
+    for (let m = a; m <= z; m += 60) ticks.push(`<i style="left:${pct(m)}%"${(m - a) % 120 ? ' class="minor"' : m === a ? ' class="e0"' : m === z ? ' class="e1"' : ""}>${(m - a) % 120 ? "" : m / 60 + ":00"}</i>`);
     const loose = ctx.items.filter((x) => x.day === day && !x.done && hm2m(x.time) == null).length;
     const empty = !courses.length && !items.length, note = M.dayNote(App.S.courses, day);
-    const showNow = !tomorrow && nm >= a && nm <= z;
+    const showNow = live && nm >= a && nm <= z;
     return `<div class="tb${tomorrow ? " tmr" : ""}">
       <div class="tb-h"><b>${tomorrow ? "明天" : "今天"}</b><span>${empty && !loose ? "没有课，也没有要做的事" : [courses.length ? courses.length + " 节课" : "", items.length ? items.length + " 件有时间点的事" : "", loose ? loose + " 件全天的事" : ""].filter(Boolean).join("，")}</span>${note ? `<span class="td-adj">🔁 ${esc(note)}</span>` : ""}
+        <span class="tb-lg"><i class="c"></i>课<i class="p"></i>事<i class="h"></i>截止</span>
         ${!App.S.courses.courses || !App.S.courses.courses.length ? `<button class="btn ghost sm" data-go="week">导入课程表</button>` : ""}</div>
-      <div class="tb-track">${segs}${pins}${showNow ? `<em class="tb-now" style="left:${pct(nm)}%"><span class="num">${M.pad(now.getHours())}:${M.pad(now.getMinutes())}</span></em>` : ""}</div>
-      <div class="tb-ticks">${ticks.join("")}</div>
+      <div class="tb-track${courses.length ? "" : " nocls"}" style="--rows:1">
+        <div class="tb-grid">${ticks.map((t) => t.replace(/>[^<]*<\/i>$/, "></i>")).join("")}</div>
+        ${showNow ? `<div class="tb-past" style="width:${pct(nm)}%"></div>` : ""}
+        <div class="tb-lane-c">${segs || `<span class="tb-none">${tomorrow ? "明天没课" : "今天没课"}</span>`}</div>
+        <div class="tb-lane-p">${pins || `<span class="tb-none">${loose ? `没有定了时间的事（${loose} 件全天的事在下面）` : "没有定了时间的事"}</span>`}<button class="tb-more" data-go="tasks" hidden></button></div>
+        ${showNow ? `<em class="tb-now" style="left:${pct(nm)}%"></em>` : ""}
+      </div>
+      <div class="tb-ticks">${ticks.filter((t) => !t.includes("minor")).join("")}${showNow ? `<i class="now" style="left:${pct(nm)}%">${M.pad(now.getHours())}:${M.pad(now.getMinutes())}</i>` : ""}</div>
     </div>`;
   },
 

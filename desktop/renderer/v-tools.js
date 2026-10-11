@@ -218,9 +218,9 @@ window.addEventListener("message", (e) => {
 });
 
 App.views.tools = {
-  title: "工具箱", icon: "tools", cur: null,
+  title: "工具", icon: "tools", cur: null,
   mount(el) {
-    el.innerHTML = `<div class="vhead"><button class="btn ghost iconbtn hidden" id="tlBack" title="返回工具箱">${icon("left")}</button><div><h1 id="tlTitle">工具箱</h1><div class="sub" id="tlSub">同学们做的小工具，和网页版同一个商店；在隔离环境里运行，拿不到你的登录信息</div></div><span class="grow"></span>
+    el.innerHTML = `<div class="vhead"><button class="btn ghost iconbtn hidden" id="tlBack" title="返回工具">${icon("left")}</button><div><h1 id="tlTitle">工具</h1><div class="sub" id="tlSub">同学们做的小工具，和网页版同一个商店；在隔离环境里运行，拿不到你的登录信息</div></div><span class="grow"></span>
         <button class="btn" id="tlRe">${icon("sync")}检查更新</button></div>
       <div class="vbody"><div id="tlHome"><div class="tl-grid" id="tlGrid"></div>
         <div class="sec-h"><b>常用</b><span>和网页版首页的快捷工具一样</span></div><div class="tl-quick">${[["mindmap", "🧠", "思维导图"], ["study", "📖", "课内学习"], ["farm", "🐣", "云宠农场"], ["focus", "🍅", "番茄专注"], ["plan", "🎯", "时间管理"], ["ingest", "✨", "整理群消息"], ["countdown", "⏳", "倒数日"], ["me", "📲", "加到手机日历"], ["intro", "📖", "功能介绍"]].map(([v, i, n]) => `<button class="btn" data-goq="${v}">${i} ${n}</button>`).join("")}<button class="btn" data-ext="https://www.people.com.cn/">📰 人民日报</button></div><div class="sec-h"><b>添加工具</b><span id="tlSt"></span></div><div id="tlStore"></div></div><div id="tlPage" class="hidden tl-page"></div></div>`;
@@ -256,7 +256,7 @@ App.views.tools = {
     const el = this.el, t = Plugins.tabs.find((x) => x.id === id);
     this.cur = t ? id : null;
     $("#tlHome", el).classList.toggle("hidden", !!t); $("#tlPage", el).classList.toggle("hidden", !t); $("#tlBack", el).classList.toggle("hidden", !t); $("#tlRe", el).classList.toggle("hidden", !!t);
-    $("#tlTitle", el).textContent = t ? Plugins.splitTitle(t).join(" ") : "工具箱";
+    $("#tlTitle", el).textContent = t ? Plugins.splitTitle(t).join(" ") : "工具";
     $("#tlSub", el).textContent = t ? "这个工具运行在隔离环境里，它的数据只存在这台电脑上" : "同学们做的小工具，和网页版同一个商店；在隔离环境里运行，拿不到你的登录信息";
     if (!t) return;
     const page = $("#tlPage", el); page.innerHTML = "";

@@ -6,7 +6,7 @@ const webMissing = (name) => `<div class="empty" style="padding:80px 20px"><b>�
 
 // ---------- 课内学习 ----------
 App.views.study = {
-  title: "课内学习", icon: "study",
+  title: "学习", icon: "study",
   count() { const its = App.items().filter((x) => x.study && !x.done && x.day && M.dayDiff(x.day, App.now()) >= 0 && M.dayDiff(x.day, App.now()) <= 7); return { n: its.length, hot: its.some((x) => M.dayDiff(x.day, App.now()) <= 1) }; },
   mount(el) {
     el.classList.add("web"); el.dataset.view = "study";

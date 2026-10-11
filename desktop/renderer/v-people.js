@@ -7,7 +7,7 @@ const COVERS = { sky: ["天空", "linear-gradient(135deg,#7cc8ff 0%,#3a8dff 55%,
 const coverOf = (c, g) => (COVERS[c] || COVERS[g === "f" ? "sakura" : g === "m" ? "sky" : "ocean"])[1];
 const gIco = (g) => (g === "m" ? '<i class="gico m" title="男生">♂</i>' : g === "f" ? '<i class="gico f" title="女生">♀</i>' : "");
 App.views.people = {
-  title: "成员", icon: "people", uid: null, q: "", data: null,
+  title: "班级成员", icon: "people", uid: null, q: "", data: null,
   mount(el) {
     el.innerHTML = `<div class="vhead"><button class="btn ghost iconbtn hidden" id="ppBack" title="返回成员列表">${icon("left")}</button><div><h1 id="ppTitle">班级成员</h1><div class="sub" id="ppSub"></div></div><span class="grow"></span>
         <div class="tk-search pp-q" id="ppQw">${icon("search")}<input id="ppQ" placeholder="搜索名字、签名" spellcheck="false"></div>

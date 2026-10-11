@@ -231,7 +231,13 @@ class Store extends EventEmitter {
     if (!this.data.cid) throw new Error("还没加入班级");
     this.data.extras.autodel = await this.api.rpc("class_autodel_set", { cid: this.data.cid, on_: !!on }); this.changed("extras"); return this.data.extras.autodel;
   }
-  setFileCount(key, n) { this.data.extras.files[key] = Math.max(0, n | 0); if (!n) delete this.data.extras.files[key]; this.changed("extras"); }
+  // 附件数量：没变就什么都不做（详情栏每次画都会报一次数量；以前每次都通知界面重画，详情栏就一直在重画、按钮点不动）
+  setFileCount(key, n) {
+    n = Math.max(0, n | 0);
+    if ((this.data.extras.files[key] || 0) === n) return false;
+    if (n) this.data.extras.files[key] = n; else delete this.data.extras.files[key];
+    this.changed("extras"); return true;
+  }
 
   // ---------- 实时同步：每隔几秒问一次服务器有没有新东西（sync_ping，很轻），顺便校准时钟 ----------
   async ping() {

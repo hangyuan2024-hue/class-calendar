@@ -9,7 +9,7 @@ App.views.settings = {
       if (e.target.closest("#stIsland")) { DIsland.save({ on: DIsland.opts().on === false }); return; }
       const sw = e.target.closest(".switch[data-set]"); if (sw) { this.set({ [sw.dataset.set]: !sw.classList.contains("on") }); return; }
       const th = e.target.closest("button[data-theme]"); if (th) { this.set({ theme: th.dataset.theme }); return; }
-      const ac = e.target.closest("[data-acc]"); if (ac) { this.set({ accent: ac.dataset.acc }); return; }
+      const pl = e.target.closest("button[data-pal]"); if (pl) { const x = WEB_PALETTES.find((q) => q.id === pl.dataset.pal); Pal.set(x ? { id: x.id, p: x.p, s: x.s } : null); if (App.S.settings.accent !== "jade") this.set({ accent: "jade" }); return; }
       const ui = e.target.closest("[data-ui-pick]"); if (ui) { setUi(ui.dataset.uiPick); this.set({ uiStyle: ui.dataset.uiPick }); return; }
       const a = e.target.closest("[data-a]"); if (!a) return;
       const act = a.dataset.a;
@@ -27,13 +27,17 @@ App.views.settings = {
       if (act === "wp") App.views.week.wallpaper();
       if (act === "wpoff") call("wallpaper:restore").then(() => toast("已换回原来的壁纸"));
     });
+    el.addEventListener("input", (e) => {
+      if (e.target.id !== "stPalP" && e.target.id !== "stPalS") return;
+      clearTimeout(this.palT); this.palT = setTimeout(() => Pal.set({ id: "custom", p: $("#stPalP", el).value, s: $("#stPalS", el).value }), 250);
+    });
     el.addEventListener("change", (e) => { if (e.target.id === "stClass" && e.target.value !== App.S.cid) call("class:switch", e.target.value).then(() => toast("已切换班级")); });
   },
   async set(patch) { await call("settings", patch); },
   async exportIcs() { const n = await call("export:ics"); if (n !== false) toast(`已导出 ${n} 件事，可以导入 Outlook、Windows 日历或手机日历`); },
   update() {
     const S = App.S, st = S.settings, me = S.me || {}, a = S.ai || {}, el = $("#stWrap", this.el);
-    if (el.contains(document.activeElement) && document.activeElement.matches("input[type=number]")) return;   // 正在输入数字：不打断
+    if (el.contains(document.activeElement) && document.activeElement.matches("input[type=number], input[type=color]")) return;   // 正在输入数字：不打断
     const sw = (k) => `<button class="switch${st[k] ? " on" : ""}" data-set="${k}"></button>`;
     const sel = (k, opts, unit) => `<select class="input st-sel" data-set="${k}" data-num="1">${opts.map((o) => `<option value="${o}"${+st[k] === o ? " selected" : ""}>${o ? o + " " + unit : "不提醒"}</option>`).join("")}</select>`;
     const row = (t, d, ctl) => `<div class="st-row"><div><b>${t}</b>${d ? `<small>${d}</small>` : ""}</div><div class="st-ctl">${ctl}</div></div>`;
@@ -44,7 +48,9 @@ App.views.settings = {
       <section class="card st-card" id="st-look" data-st="外观"><h3>外观</h3>
         ${row("界面风格", "随时可以换回来，数据和功能都一样", `<div class="st-ui">${[["desktop", "电脑版风格", "课表纸 + 课铃线，紧凑，一屏看到更多"], ["web", "网页风格", "和网站一样的白卡片、大侧栏，熟悉好认"]].map(([k, n, d]) => `<button data-ui-pick="${k}" class="${(st.uiStyle || "desktop") === k ? "on" : ""}"><i class="st-ui-pv ${k}"><em></em><span></span><span></span><span></span></i><b>${n}</b><small>${d}</small></button>`).join("")}</div>`)}
         ${row("主题", "", `<div class="seg">${[["system", "跟随系统"], ["light", "浅色"], ["dark", "深色"], ["meta", "元宇宙"]].map(([k, n]) => `<button data-theme="${k}" class="${st.theme === k ? "on" : ""}">${n}</button>`).join("")}</div>`)}
-        ${row("主色", "按钮、选中的颜色", `<div class="st-acc">${ACCENTS.map(([k, n, c]) => `<button data-acc="${k}" class="${(st.accent || "jade") === k ? "on" : ""}" style="--a:${c}" title="${n}"></button>`).join("")}</div>`)}
+        ${row("配色", "和网站「外观 → 配色」同一套，网站上换了这里也跟着变；主色是按钮和选中，点缀色用在「现在」和截止", "")}
+        <div class="st-pal">${[{ id: "", name: "默认青绿", p: "#0f7a68", s: "#f0702a" }, ...WEB_PALETTES].map((x) => `<button data-pal="${x.id}" class="${(Pal.cur() ? Pal.cur().id : "") === x.id && !(x.id === "" && st.accent && st.accent !== "jade" && !Pal.cur()) ? "on" : ""}" title="${x.name}"><i style="background:linear-gradient(135deg, ${Pal.mix(x.p, "#ffffff", 0.3)}, ${x.p})"><em style="background:${x.s}"></em></i><span>${x.name}</span></button>`).join("")}
+          <label class="st-palc${Pal.cur() && Pal.cur().id === "custom" ? " on" : ""}" title="自己调：主色 + 点缀色"><input type="color" id="stPalP" value="${Pal.cur() ? Pal.cur().p : "#0f7a68"}"><input type="color" id="stPalS" value="${Pal.cur() && Pal.cur().s ? Pal.cur().s : "#f0702a"}"><span>我的配色</span></label></div>
       </section>
       <section class="card st-card" id="st-remind" data-st="提醒"><h3>提醒 <small>在屏幕右下角弹出，窗口关了也会提醒</small></h3>
         ${row("事项开始 / 截止前", "有具体时间的事项", sel("remindBefore", [0, 5, 10, 15, 30, 60, 120], "分钟"))}
@@ -88,7 +94,7 @@ App.views.settings = {
         ${row(esc(a.model || "本地模型"), a.ready ? "已就绪，在这台电脑上运行" : a.status === "downloading" ? "正在下载…" : a.status === "error" ? "出错了：" + esc(a.error) : "还没下载（约 1 GB）", `<button class="btn" data-a="ai">${a.ready ? "去聊天" : "下载并启动"}</button>`)}
       </section>
       <section class="card st-card" id="st-keys" data-st="快捷键"><h3>快捷键</h3>
-        <div class="st-keys">${[["Ctrl K", "搜索 / 命令面板"], ["Ctrl N", "记一件事"], ["Ctrl 1 – 9", "切换页面"], ["Ctrl V", "在课程表页粘贴课表截图"], ["Ctrl ,", "设置"], ["F5", "同步"], [hk, "快速记事（全局）"], ["Ctrl J", "捞捞助手"], ["Esc", "关掉详情栏、弹窗"], ["↑ ↓ 空格 Enter Del", "在事项表里操作"], ["← → T", "课程表 / 月历翻页、回到今天"]].map(([k, d]) => `<div><kbd>${esc(k)}</kbd><span>${d}</span></div>`).join("")}</div>
+        <div class="st-keys">${[["Ctrl K", "搜索 / 命令面板"], ["Ctrl N", "记一件事"], ["Ctrl 1 – 9", "切换页面"], ["Ctrl V", "在课程表页粘贴课表截图"], ["Ctrl ,", "设置"], ["F5", "同步"], [hk, "快速记事（全局）"], ["Ctrl J", "捞捞助手"], ["Esc", "关掉详情栏、弹窗"], ["↑ ↓ 空格 Enter Del", "在事项表里操作"], ["← → T", "课程表 / 日历翻页、回到今天"]].map(([k, d]) => `<div><kbd>${esc(k)}</kbd><span>${d}</span></div>`).join("")}</div>
       </section>
       <section class="card st-card" id="st-acct" data-st="账号"><h3>账号</h3>
         <div class="st-me"><span class="av lg">${esc((me.display_name || me.account || "我").slice(-1))}</span><div><b>${esc(me.display_name || "")}</b><small>账号 ${esc(me.account || "")}${me.role === "teacher" ? " · 老师" : ""}</small></div><span class="grow"></span><button class="btn danger" data-a="logout">退出登录</button></div>
