@@ -165,7 +165,9 @@ public final class CampusUi {
     t.setTextColor(c);
     t.setIncludeFontPadding(false);
     t.setLineSpacing(dp(size >= 20 ? 3 : 2), 1);
-    t.setBreakStrategy(android.text.Layout.BREAK_STRATEGY_SIMPLE);
+    if (android.os.Build.VERSION.SDK_INT >= 29)
+      t.setBreakStrategy(android.graphics.text.LineBreaker.BREAK_STRATEGY_SIMPLE);
+    // Pre-29 TextView defaults to SIMPLE; avoid referencing newer constants there.
     t.setTypeface(Typeface.create("sans-serif", bold ? Typeface.BOLD : Typeface.NORMAL));
     return t;
   }

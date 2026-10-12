@@ -56,9 +56,11 @@ final class Reminders {
     int n = 0;
     try {
       JSONArray list = new JSONArray(json == null ? "[]" : json);
+      java.util.List<JSONObject> ordered = CampusJson.rows(list);
+      ordered.sort(java.util.Comparator.comparingLong(r -> r.optLong("at")));
       long now = System.currentTimeMillis();
-      for (int i = 0; i < list.length() && n < 60; i++) {
-        JSONObject r = list.getJSONObject(i);
+      for (int i = 0; i < ordered.size() && n < 60; i++) {
+        JSONObject r = ordered.get(i);
         long at = r.optLong("at");
         if (at <= now || at > now + 15L * 86400000L || r.optString("id").isEmpty()) continue;
         schedule(c, am, r, at);
@@ -74,7 +76,10 @@ final class Reminders {
   private static void schedule(Context c, AlarmManager am, JSONObject r, long at) {
     PendingIntent p =
         pi(c, r.optString("id").hashCode(), intentFor(c, r), PendingIntent.FLAG_UPDATE_CURRENT);
-    // 不需要精确到秒：用省电的方式排（休眠时可能晚几分钟）
+    if (PhoneCompatibility.exact(c)) {
+      try { am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, p); return; }
+      catch (SecurityException denied) { /* Permission may change after the check. */ }
+    }
     am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, p);
   }
 

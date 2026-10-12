@@ -27,4 +27,4 @@ internal object CampusAccent {
 internal fun campusName(a: CampusActivity) =
     a.me.optString("display_name").ifBlank { a.me.optString("name").ifBlank { "同学" } }
 
-@Composable internal fun CampusDailyHomePage(s: CampusSession) = LaoCampusHome(s)
+@Composable internal fun CampusDailyHomePage(s: CampusSession) = DailyDashboard(s)

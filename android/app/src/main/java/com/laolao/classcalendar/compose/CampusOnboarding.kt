@@ -60,7 +60,7 @@ internal enum class OnboardingShortcut {
 
 private enum class IntroductionStep(val label: String) {
     WELCOME("认识捞捞"),
-    EXPERIENCE("选择界面"),
+    EXPERIENCE("选择身份风格"),
     IMPORT("装好课表"),
     POCKET("随身更方便"),
     READY("开始使用"),
@@ -201,8 +201,8 @@ internal fun CampusOnboarding(
                         IntroductionStep.WELCOME -> {
                             item {
                                 IntroductionHero(
-                                    "把校园日常，\n安排刚刚好。",
-                                    "课程、作业、班级和成长，在一个熟悉的地方。用几步认识捞捞，再按你的习惯开始。",
+                                    "让每个今天，\n都有清晰的方向。",
+                                    "我是捞捞。先认识你的使用方式，再把今天的课程、任务和日程放在一起。",
                                     "你好，新伙伴",
                                 )
                             }
@@ -217,36 +217,31 @@ internal fun CampusOnboarding(
                             item {
                                 IntroductionFeature(
                                     Icons.Rounded.Groups,
-                                    "你的校园空间，一直都在",
+                                    "班级与团队，都有自己的空间",
                                     "登录原有账号连接班级；也可以先使用本机课表和学习工具。",
                                 )
                             }
                         }
                         IntroductionStep.EXPERIENCE -> {
-                            item {
-                                IntroductionHero(
-                                    "两种界面，\n一种校园日常。",
-                                    "保留现有设计，也能切到网页同款。课程和记录共用，之后随时可以再换。",
-                                    "按你的习惯来",
-                                )
-                            }
-                            items(UiExperience.entries.size) { position ->
-                                val choice = UiExperience.entries[position]
-                                ExperiencePreview(choice, experience == choice) {
-                                    try {
-                                        onExperienceSelected(choice)
-                                        error = ""
-                                    } catch (failure: Exception) {
-                                        error = failure.message ?: "界面选择未保存，请重试"
+                            item { IntroductionHero("选择你的节奏。", "这只决定风格与常用入口，不改变账号身份或班级权限。", "第 2 步 · 为你安排") }
+                            items(LaoStyles.size) { position ->
+                                val choice = LaoStyles[position]
+                                val chosen = LaoStylePrefs.resolve(s.a).id == choice.id
+                                LaoPanel(Modifier.fillMaxWidth(),color=if(chosen) colors.primaryContainer else colors.surface,onClick={
+                                    s.a.store.set(LaoStylePrefs.key(s.a.store),choice.id)
+                                    s.a.build()
+                                    if(s.a.store.bool("appearance_sync_v1",true)) s.a.syncSoon()
+                                }) {
+                                    Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                                        Icon(when(choice.id) { "mentor" -> Icons.Rounded.Groups; "business" -> Icons.Rounded.Work; else -> Icons.Rounded.School },null,tint=colors.primary)
+                                        Column(Modifier.weight(1f)) {
+                                            Text(choice.name,style=LaoType.title)
+                                            Text(choice.summary,style=LaoType.caption,color=colors.onSurfaceVariant)
+                                        }
+                                        if(chosen) Icon(Icons.Rounded.CheckCircle,null,tint=colors.primary)
                                     }
+                                    Text(audienceTools(choice.id).take(4).joinToString(" · ") { when(it) { "homework" -> "待办"; "class" -> "班级/团队"; "courses" -> "课表"; "pomo" -> "专注"; else -> routeTitle(it) } },style=LaoType.caption)
                                 }
-                            }
-                            item {
-                                Text(
-                                    "之后前往「我的 → 设置 → 界面体验」即可切换。配色与深浅模式仍由你选择。",
-                                    style = LaoType.caption,
-                                    color = colors.onSurfaceVariant,
-                                )
                             }
                         }
                         IntroductionStep.IMPORT -> {
@@ -292,7 +287,7 @@ internal fun CampusOnboarding(
                                 IntroductionHero(
                                     "随身的方便，\n让手机来帮忙。",
                                     "提醒、快捷工具和局域网传输，按需要开启。引导过程不会请求权限。",
-                                    "校园里的随身伙伴",
+                                    "你的随身伙伴",
                                 )
                             }
                             item {
@@ -334,7 +329,7 @@ internal fun CampusOnboarding(
                                 IntroductionHero(
                                     "准备好了。\n今天，从这里开始。",
                                     "你不用一次学会所有功能。先看下一节课，记一件要事，再慢慢找到自己的节奏。",
-                                    "欢迎来到你的校园",
+                                    "欢迎来到你的今天",
                                 )
                             }
                             item {
@@ -350,7 +345,7 @@ internal fun CampusOnboarding(
                                         ) {
                                             Text("捞捞一直在这儿", style = LaoType.title)
                                             Text(
-                                                "轻点提示小人，查看安排与提醒。它不会占用底部导航的位置。",
+                                                "捞捞可以拖到你喜欢的位置。轻点看提示，不想被打扰时也能隐藏。",
                                                 style = LaoType.body,
                                                 color = colors.onSurfaceVariant,
                                             )
@@ -386,7 +381,7 @@ internal fun CampusOnboarding(
                         index--
                     }
                 LaoPrimaryButton(
-                    if (step == IntroductionStep.READY) "开始我的校园日常"
+                    if (step == IntroductionStep.READY) "开始我的今天"
                     else if (step == IntroductionStep.WELCOME) "认识一下捞捞" else "继续",
                     Modifier.weight(if (index > 0) 1.5f else 1f),
                     enabled = !completing,

@@ -32,9 +32,11 @@ private data class CampusSetting(
 
 private fun settingsCatalog(s: CampusSession): List<CampusSetting> {
     val a = s.a
-    val palette = a.store.`object`("ui_palette_v1").optString("id", "ocean")
+    val synced = a.store.bool("appearance_sync_v1", true)
+    fun key(cloud: String, mobile: String) = if (synced) cloud else mobile
+    val palette = a.store.`object`(key("ui_palette_v1", "mobile_palette_v1")).optString("id", LaoStylePrefs.resolve(a).defaultPalette)
     val mode =
-        when (a.store.string("compose_mode_v1", "system")) {
+        when (a.store.string(key("compose_mode_v1", "mobile_mode_v1"), "system")) {
             "dark" -> "深色"
             "light" -> "明亮"
             else -> "跟随系统"
@@ -59,12 +61,6 @@ private fun settingsCatalog(s: CampusSession): List<CampusSetting> {
             CampusSetting("学校与单位", "按省份选择学校，或填写单位与个人空间", "账号", Icons.Rounded.School,
                 "学校 单位 大学 专科 高职 工作 省份 所属") { it.open("organization") },
             CampusSetting(
-                "界面体验",
-                UiExperiencePrefs.read(a).label + " · 随时切换",
-                "外观", Icons.Rounded.ViewCarousel,
-                "设计版 网页版 网页同款 原生 经典 布局 体验 切换",
-            ) { it.open("appearance") },
-            CampusSetting(
                 "局域网直连同步",
                 "同账号设备之间，与网页和电脑版互传记录",
                 "数据", Icons.Rounded.Wifi,
@@ -72,7 +68,7 @@ private fun settingsCatalog(s: CampusSession): List<CampusSetting> {
             ) { it.open("lan") },
             CampusSetting(
                 "重新查看使用引导",
-                "界面选择、课程导入、提醒与常用工具",
+                "身份风格、今日安排、导入与提醒",
                 "关于", Icons.Rounded.Explore,
                 "首次 新手 入门 帮助 引导 介绍 教程",
             ) { ComposeEntry.onboarding(it.a) },
@@ -86,7 +82,7 @@ private fun settingsCatalog(s: CampusSession): List<CampusSetting> {
                 it.open("appearance")
             },
             CampusSetting("显示模式", mode, "外观", Icons.Rounded.DarkMode, "明亮 深色 夜间 跟随系统 自动") {
-                displayModeSettings(it)
+                it.open("appearance")
             },
             CampusSetting(
                 "减少动态效果",
@@ -94,16 +90,17 @@ private fun settingsCatalog(s: CampusSession): List<CampusSetting> {
                 "外观",
                 Icons.Rounded.Animation,
                 "关闭动画 静态 动效",
-                toggle = a.store.bool("compose_reduce_motion_v1", false),
+                toggle = a.store.bool(key("compose_reduce_motion_v1", "mobile_reduce_motion_v1"), false),
             ) {
                 it.a.store.set(
-                    "compose_reduce_motion_v1",
-                    !it.a.store.bool("compose_reduce_motion_v1", false),
+                    key("compose_reduce_motion_v1", "mobile_reduce_motion_v1"),
+                    !it.a.store.bool(key("compose_reduce_motion_v1", "mobile_reduce_motion_v1"), false),
                 )
                 it.a.build()
+                if (synced) it.a.syncSoon()
             },
             CampusSetting(
-                "校园主页布局",
+                "首页布局",
                 "预览、排序、模块与信息密度",
                 "外观",
                 Icons.Rounded.DashboardCustomize,
@@ -170,7 +167,7 @@ private fun settingsCatalog(s: CampusSession): List<CampusSetting> {
                 CampusPhone.reminderRules(it.a)
             },
             CampusSetting("提示小人", "小人显示与提醒偏好", "通知", Icons.Rounded.AutoAwesome, "捞捞 吉祥物 助手 小人设置") {
-                CampusGuide.settings(it.a)
+                it.open("appearance")
             },
             CampusSetting(
                 "上课自动勿扰",
@@ -290,7 +287,7 @@ internal fun CampusSettingsPage(s: CampusSession) {
         }
     LaoPage(spacing = 16.dp) {
         animatedItem(0, "settings-heading") {
-            LaoPageHeading("按你的习惯来。", "账号、外观和提醒，都在这里。", "设置与偏好", Icons.Rounded.Tune)
+            Text("偏好工作室", style = LaoType.headline)
         }
         animatedItem(1, "settings-search") {
             LaoInput(
@@ -335,40 +332,40 @@ internal fun CampusSettingsPage(s: CampusSession) {
                 }
             else Text("找到 ${shown.size} 项设置", style = LaoType.caption, color = c.onSurfaceVariant)
         }
-        shown
-            .groupBy { it.group }
-            .entries
-            .forEachIndexed { index, (group, entries) ->
-                animatedItem(index + 3, "settings-group-" + group) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        LaoSection(
-                            group +
-                                when (group) {
-                                    "账号" -> "与校园"
-                                    "外观" -> "与布局"
-                                    "学习" -> "习惯"
-                                    "通知" -> "与提醒"
-                                    "数据" -> "与隐私"
-                                    else -> "与支持"
+        if (query.isBlank() && category == "全部") animatedItem(3, "settings-personality") {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                LaoMascot(Modifier.size(68.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("你的捞捞，由你定义", style = LaoType.title)
+                    Text(LocalLaoStyle.current.name + " · " + if(s.a.store.bool("appearance_sync_v1",true)) "账号外观偏好" else "手机独立外观", style = LaoType.caption, color = c.onSurfaceVariant)
+                }
+                LaoIconButton(Icons.Rounded.Palette, "打开外观工作室") { s.open("appearance") }
+            }
+        }
+        shown.groupBy { it.group }.entries.forEachIndexed { index, (group, entries) ->
+            animatedItem(index + 4, "settings-heading-$group") { LaoSection(group) }
+            entries.chunked(2).forEachIndexed { row, pair ->
+                animatedItem(index + row + 5, "settings-tiles-$group-$row") {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        pair.forEach { item ->
+                            Column(Modifier.weight(1f).clip(LocalLaoStyle.current.card)
+                                .background(c.surface).border(1.dp,c.outlineVariant.copy(alpha=.45f),LocalLaoStyle.current.card)
+                                .laoTap(role=Role.Button) { s.invoke { item.action(s) } }
+                                .padding(14.dp),verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+                                    Icon(item.icon,null,Modifier.size(24.dp),tint=c.primary)
+                                    Spacer(Modifier.weight(1f))
+                                    if(item.toggle != null) Icon(if(item.toggle) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,null,Modifier.size(20.dp),tint=c.secondary)
                                 }
-                        )
-                        LaoPanel(Modifier.fillMaxWidth(), padding = 0.dp) {
-                            Column {
-                                entries.forEachIndexed { i, item ->
-                                    SettingCell(item, query.isNotBlank()) {
-                                        s.invoke { item.action(s) }
-                                    }
-                                    if (i < entries.lastIndex)
-                                        HorizontalDivider(
-                                            Modifier.padding(start = 72.dp, end = 16.dp),
-                                            color = c.outlineVariant.copy(alpha = .45f),
-                                        )
-                                }
+                                Text(item.title,style=LaoType.cell)
+                                Text(item.detail,style=LaoType.caption,color=c.onSurfaceVariant,minLines=2)
                             }
                         }
+                        if(pair.size==1) Spacer(Modifier.weight(1f))
                     }
                 }
             }
+        }
         if (shown.isEmpty())
             animatedItem(3, "settings-empty") {
                 LaoEmpty("没有找到这项设置", "试试配色、提醒、密码或备份。", "清空搜索") { query = "" }
@@ -460,10 +457,11 @@ private fun growthDisplaySettings(s: CampusSession) {
 private fun displayModeSettings(s: CampusSession) {
     s.a.ui.choose("显示模式", arrayOf("明亮", "深色", "跟随系统")) { i ->
         val mode = listOf("light", "dark", "system")[i]
-        s.a.store.set("compose_mode_v1", mode)
-        s.a.store.set("ui_skin_v1", if (mode == "dark") "cyber" else "fresh")
+        val synced = s.a.store.bool("appearance_sync_v1", true)
+        s.a.store.set(if (synced) "compose_mode_v1" else "mobile_mode_v1", mode)
+        s.a.store.set(if (synced) "ui_skin_v1" else "mobile_skin_v1", if (mode == "dark") "cyber" else "fresh")
         s.a.build()
-        s.a.syncSoon()
+        if (synced) s.a.syncSoon()
     }
 }
 

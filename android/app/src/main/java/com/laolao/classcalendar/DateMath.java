@@ -13,7 +13,9 @@ final class DateMath {
   }
 
   static String today() {
-    return new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date());
+    SimpleDateFormat f = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
+    f.setTimeZone(TimeZone.getTimeZone("Asia/Shanghai"));
+    return f.format(new Date());
   }
 
   static Date parse(String s) {

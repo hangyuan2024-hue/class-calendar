@@ -115,7 +115,7 @@ final class CampusJson {
   static long at(String day, String time) {
     int[] d = DateMath.parts(day),
         t = DateMath.time(time == null || time.isEmpty() ? "23:59" : time);
-    Calendar c = Calendar.getInstance();
+    Calendar c = Calendar.getInstance(TimeZone.getTimeZone("Asia/Shanghai"));
     c.set(d[0], d[1] - 1, d[2], t[0], t[1], 0);
     c.set(Calendar.MILLISECOND, 0);
     return c.getTimeInMillis();

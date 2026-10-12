@@ -280,7 +280,16 @@ internal fun CampusPermissionsPage(s: CampusSession) {
                 LaoSecondaryButton("打开资料扫描", Modifier.fillMaxWidth()) { s.open("scanner") }
             }
         }
-        animatedItem(5) {
+        animatedItem(5,"phone-reliability") {
+            LaoSection("提醒可靠性", note=Build.MANUFACTURER + " · Android " + Build.VERSION.RELEASE)
+            Text("系统强制停止、关闭通知或后台限制会影响提醒；授权后请发送测试通知并锁屏检查。",style=LaoType.caption,color=c.onSurfaceVariant)
+            LaoSecondaryButton(if(PhoneCompatibility.exact(s.a)) "精确提醒 · 已允许" else "允许精确提醒",Modifier.fillMaxWidth()) { PhoneCompatibility.open(s.a,"exact") }
+            LaoSecondaryButton(if(PhoneCompatibility.unrestricted(s.a)) "电池限制 · 已解除" else "检查电池优化",Modifier.fillMaxWidth()) { PhoneCompatibility.open(s.a,"battery") }
+            LaoSecondaryButton("检查自启动与后台权限",Modifier.fillMaxWidth()) { PhoneCompatibility.open(s.a,"app") }
+            Text("小米/红米：自启动、后台省电无限制；华为/荣耀：应用启动管理；OPPO/一加/realme、vivo/iQOO：自启动与允许后台活动。菜单名称随系统版本变化。",style=LaoType.caption,color=c.onSurfaceVariant)
+            LaoTextAction("发送测试通知") { Reminders.show(s.a,900,"捞捞提醒检查","通知可见后，再添加两分钟后的提醒并锁屏验证。","reminders") }
+        }
+        animatedItem(6) {
             LaoTextAction("查看全部系统权限", Modifier.fillMaxWidth()) { openAppPermissions(s) }
         }
     }

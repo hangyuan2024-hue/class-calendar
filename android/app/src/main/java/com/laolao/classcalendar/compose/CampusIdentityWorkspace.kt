@@ -44,7 +44,7 @@ internal fun CampusAuthPage(s: CampusSession, signup: Boolean) {
     // Credentials stay in memory only. Never persist passwords as UI saved state or preferences.
     var password by remember { mutableStateOf("") }
     var confirmation by remember { mutableStateOf("") }
-    var gender by rememberSaveable { mutableStateOf("") }
+    val gender = "x"
     var role by rememberSaveable { mutableStateOf("student") }
     var step by rememberSaveable { mutableIntStateOf(0) }
     var reveal by remember { mutableStateOf(false) }
@@ -65,8 +65,7 @@ internal fun CampusAuthPage(s: CampusSession, signup: Boolean) {
     fun continueIdentity() {
         error =
             when {
-                gender.isBlank() -> "请选择男生、女生或暂不公开"
-                name.isBlank() -> "填写一个同学们认识的名字吧"
+                name.isBlank() -> "请填写显示名称"
                 else -> ""
             }
         if (error.isNotBlank()) {
@@ -85,12 +84,12 @@ internal fun CampusAuthPage(s: CampusSession, signup: Boolean) {
                 password.isBlank() -> "请填写密码"
                 signup && password.length < 8 -> "密码至少需要 8 位"
                 signup && confirmation != password -> "两次密码不一致"
-                signup && (name.isBlank() || gender.isBlank()) -> "先完成你的校园身份"
+                signup && name.isBlank() -> "请先填写身份与显示名称"
                 else -> ""
             }
         if (error.isNotBlank()) {
             when {
-                signup && (name.isBlank() || gender.isBlank()) -> step = 0
+                signup && name.isBlank() -> step = 0
                 !account.trim().lowercase().matches(Regex("[a-z0-9_]{3,20}")) ->
                     accountFocus.requestFocus()
                 signup && confirmation != password && password.length >= 8 ->
@@ -143,7 +142,7 @@ internal fun CampusAuthPage(s: CampusSession, signup: Boolean) {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                if (identity) "先认识一下" else if (signup) "设置登录信息" else "登录你的校园",
+                                if (identity) "先认识一下" else if (signup) "设置登录信息" else "登录捞捞",
                                 Modifier.weight(1f),
                                 style = LaoType.title,
                             )
@@ -179,35 +178,6 @@ internal fun CampusAuthPage(s: CampusSession, signup: Boolean) {
                     }
                 }
                 if (identity) {
-                    item("auth-avatar") {
-                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                GenderCard("m", "男生", "晴空蓝", gender, Modifier.weight(1f)) {
-                                    gender = "m"
-                                    clearError()
-                                }
-                                GenderCard("f", "女生", "莓果粉", gender, Modifier.weight(1f)) {
-                                    gender = "f"
-                                    clearError()
-                                }
-                            }
-                            Row(
-                                Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(
-                                    "头像与配色以后都能换。",
-                                    Modifier.weight(1f),
-                                    style = LaoType.label,
-                                    color = c.onSurfaceVariant,
-                                )
-                                LaoTextAction(if (gender == "x") "✓ 暂不公开" else "暂不公开性别") {
-                                    gender = "x"
-                                    clearError()
-                                }
-                            }
-                        }
-                    }
                     item("auth-name") {
                         LaoInput(
                             name,
@@ -215,9 +185,9 @@ internal fun CampusAuthPage(s: CampusSession, signup: Boolean) {
                                 name = it
                                 clearError()
                             },
-                            "怎么称呼你",
+                            "显示名称",
                             Modifier.fillMaxWidth(),
-                            "同学们认识的名字",
+                            "姓名或常用昵称",
                             Icons.Rounded.Badge,
                             enabled = !busy,
                             keyboard = KeyboardOptions(imeAction = ImeAction.Done),
@@ -227,25 +197,14 @@ internal fun CampusAuthPage(s: CampusSession, signup: Boolean) {
                     }
                     item("auth-role") {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("你的校园身份", style = LaoType.caption, color = c.onSurfaceVariant)
-                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                AuthRole(
-                                    "学生",
-                                    "课程、成长和同学",
-                                    Icons.Rounded.School,
-                                    role == "student",
-                                    Modifier.weight(1f),
-                                ) {
-                                    role = "student"
-                                }
-                                AuthRole(
-                                    "老师",
-                                    "课程与班级协作",
-                                    Icons.Rounded.Groups,
-                                    role == "teacher",
-                                    Modifier.weight(1f),
-                                ) {
-                                    role = "teacher"
+                            Text("你的使用身份", style = LaoType.caption, color = c.onSurfaceVariant)
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                listOf(
+                                    Triple("student", "学生", Icons.Rounded.School),
+                                    Triple("teacher", "老师", Icons.Rounded.Groups),
+                                    Triple("other", "职场 · 个人", Icons.Rounded.WorkOutline),
+                                ).forEach { (id, label, icon) ->
+                                    AuthRole(label, when (id) { "student" -> "课程与学习任务"; "teacher" -> "教学日程与班级协作"; else -> "工作日程与团队协作" }, icon, role == id, Modifier.fillMaxWidth()) { role = id }
                                 }
                             }
                         }
@@ -417,23 +376,20 @@ private fun AuthWelcome(signup: Boolean) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            LaoEyebrow("你的校园，随身带走。")
+            Text("捞捞课程表", style = LaoType.caption, color = c.primary)
             Text(
-                if (signup) "你好，新同学。" else "欢迎回来，\n一起捞捞。",
+                if (signup) "创建账号" else "欢迎回来",
                 style =
                     if (signup) LaoType.headline.copy(fontSize = 28.sp, lineHeight = 36.sp)
                     else LaoType.headline,
             )
             Text(
-                if (signup) "两小步，开启你的校园空间。" else "课程、成长与同学，都在身边。",
+                if (signup) "学生、老师、职场与个人" else "课程 · 任务 · 班级与团队",
                 style = LaoType.caption,
                 color = c.onSurfaceVariant,
             )
         }
-        Box(Modifier.size(if (signup) 72.dp else 96.dp), contentAlignment = Alignment.Center) {
-            LaoPaperArt(Modifier.matchParentSize(), c.primary)
-            LaoMascot(Modifier.size(if (signup) 60.dp else 80.dp))
-        }
+
     }
 }
 

@@ -69,32 +69,16 @@ internal fun CampusClassWallPage(s: CampusSession) {
     LaoPage {
         animatedItem(0, "community-header") {
             LaoPageHeading(
-                "同学，在这里碰面。",
-                a.currentClass.optString("name").ifBlank { "分享日常，接收通知，和每一次进步相遇。" },
-                "校园圈",
+                "班级消息",
+                a.currentClass.optString("name").ifBlank { "尚未选择班级或团队" },
+                "通知与讨论",
                 Icons.Rounded.Forum,
             )
         }
-        animatedItem(1, "community-entries") {
+        if (connected) animatedItem(1, "community-entries") {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                CommunityTile(
-                    "班级排行榜",
-                    "一起把进步看见",
-                    Icons.Rounded.EmojiEvents,
-                    CampusAccent.amber,
-                    Modifier.weight(1f),
-                ) {
-                    s.open("rank")
-                }
-                CommunityTile(
-                    "班级成员",
-                    "认识你的同学",
-                    Icons.Rounded.Groups,
-                    CampusAccent.violet,
-                    Modifier.weight(1f),
-                ) {
-                    s.open("people")
-                }
+                LaoPrimaryButton("发布消息", Modifier.weight(1f)) { CampusSocial.post(a, null) }
+                LaoSecondaryButton("空间管理", Modifier.weight(1f)) { s.open("class") }
             }
         }
         if (!connected) animatedItem(2) { CampusClassGate(s) }

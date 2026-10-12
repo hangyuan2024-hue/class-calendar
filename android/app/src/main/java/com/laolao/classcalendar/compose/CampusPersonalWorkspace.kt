@@ -79,124 +79,37 @@ internal fun CampusPersonalPage(s: CampusSession) {
     val a = s.a
     val c = MaterialTheme.colorScheme
     val logged = a.api.logged()
-    val week = weekStats(a)
-    val focus = rows(a.store.list("native_focus_sessions")).count { !it.optBoolean("cancelled") }
-    val posts = campusWallRows(a).filter { it.optString("author_id") == a.api.uid() }
-    LaoPage {
-        animatedItem(0, "personal-header") {
-            CampusProfileHeader(s, a.me, a.currentClass.optString("name"), own = true)
-        }
-        animatedItem(1, "personal-stats") {
-            LaoPanel(Modifier.fillMaxWidth()) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    LaoStat(
-                        week[2].toString(),
-                        "本周完成",
-                        Modifier.weight(1f),
-                        CampusAccent.readable(CampusAccent.blue),
-                    ) {
-                        s.open("calendar")
-                    }
-                    LaoStat(
-                        week[4].toString(),
-                        "今日打卡",
-                        Modifier.weight(1f),
-                        CampusAccent.readable(CampusAccent.berry),
-                    ) {
-                        s.open("growth")
-                    }
-                    LaoStat(
-                        focus.toString(),
-                        "完成专注",
-                        Modifier.weight(1f),
-                        CampusAccent.readable(CampusAccent.violet),
-                    ) {
-                        s.open("pomo")
-                    }
+    LaoPage(spacing = 16.dp) {
+        animatedItem(0, "account-summary") {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                CampusAvatar(campusName(a), a.me.optString("gender"), Modifier.size(56.dp))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(if (logged) campusName(a) else "尚未登录", style = LaoType.title)
+                    Text(if (logged) "@" + a.me.optString("account") else "本机课表与记录可继续使用", style = LaoType.caption, color = c.onSurfaceVariant)
+                    if (logged) Text(LaoStylePrefs.resolve(a).name, style = LaoType.caption, color = c.primary)
                 }
+                if (logged) LaoIconButton(Icons.Rounded.Edit, "编辑个人资料") { s.sheet = ProfileEditorSheet }
             }
+            if (!logged) LaoPrimaryButton("登录 / 注册", Modifier.fillMaxWidth()) { s.open("login") }
         }
-        animatedItem(2, "personal-campus") {
-            LaoSection("我的校园")
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ProfileTile(
-                    "班级墙",
-                    "和同学分享日常",
-                    Icons.Rounded.Forum,
-                    CampusAccent.blue,
-                    Modifier.weight(1f),
-                ) {
-                    s.open("wall")
-                }
-                ProfileTile(
-                    "班级排行榜",
-                    "每一点进步都算数",
-                    Icons.Rounded.EmojiEvents,
-                    CampusAccent.amber,
-                    Modifier.weight(1f),
-                ) {
-                    s.open("rank")
-                }
-            }
+        animatedItem(1, "account-essential") {
+            LaoSection("账号与空间")
+            LaoLink("班级与团队", a.currentClass.optString("name").ifBlank { "创建、加入与切换" }, "class", s)
+            LaoLink("学校与单位", "学校、工作单位与个人空间", "organization", s)
+            LaoLink("账号安全", "密码与登录信息", "security", s)
         }
-        animatedItem(3, "personal-space") {
-            LaoPanel(Modifier.fillMaxWidth()) {
-                LaoLink("我的成长", "习惯、学习周报与成长足迹", "growth", s)
-                LaoLink("个人日记", "留住校园里值得记下的瞬间", "diary", s)
-                LaoLink("班级成员", "认识你的校园伙伴", "people", s)
-                if (logged)
-                    Row(
-                        Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable {
-                            CampusSocial.loadUser(a, a.api.uid())
-                        },
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    ) {
-                        IconTile("user", 40.dp)
-                        Column(
-                            Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            Text("查看公开主页", style = LaoType.cell)
-                            Text(
-                                "封面、发言和已公开的成长记录",
-                                style = LaoType.caption,
-                                color = c.onSurfaceVariant,
-                            )
-                        }
-                        Icon(Icons.Rounded.ChevronRight, null, Modifier.size(20.dp))
-                    }
-            }
+        animatedItem(2, "account-appearance") {
+            LaoSection("我的偏好")
+            LaoLink("外观与配色", LaoStylePrefs.resolve(a).name + if (a.store.bool("appearance_sync_v1", true)) " · 与网站同步" else " · 仅手机", "appearance", s)
+            LaoLink("提醒与通知", "课程、任务与自定义提醒", "reminders", s)
+            LaoLink("数据与同步", "备份、恢复与账号同步", "backup", s)
         }
-        if (posts.isNotEmpty()) {
-            animatedItem(5) { LaoSection("我在班级墙", action = "全部动态") { s.open("wall") } }
-            posts.take(3).forEachIndexed { i, post ->
-                animatedItem(i + 6, "own-post-" + post.optString("id")) { CampusPostCard(s, post) }
-            }
-        }
-        animatedItem(10, "personal-settings") {
-            LaoPanel(Modifier.fillMaxWidth(), onClick = { s.open("settings") }) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Icon(Icons.Rounded.Tune, null, Modifier.size(24.dp), tint = c.primary)
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("设置", style = LaoType.cell)
-                        Text(
-                            "账号 · 外观 · 学习 · 提醒 · 数据",
-                            style = LaoType.caption,
-                            color = c.onSurfaceVariant,
-                        )
-                    }
-                    Icon(
-                        Icons.Rounded.ChevronRight,
-                        null,
-                        Modifier.size(20.dp),
-                        tint = c.onSurfaceVariant,
-                    )
-                }
-            }
+        animatedItem(3, "account-records") {
+            LaoSection("我的记录")
+            LaoLink("全部待办", "课程以外的全部任务与日程", "homework", s)
+            LaoLink("成长与习惯", "完成记录、打卡与学习周报", "growth", s)
+            LaoLink("个人日记", "私密记录", "diary", s)
+            LaoLink("设置", "全部设置与版本信息", "settings", s)
         }
     }
 }

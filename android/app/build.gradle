@@ -3,8 +3,8 @@ plugins {
     id "org.jetbrains.kotlin.android"
 }
 
-// 版本号由 GitHub Actions 传进来；本地构建用 28。
-    def vc = (System.getenv("APP_VERSION_CODE") ?: "33").toInteger()
+// CI can override the version code; packaged source defaults to this redesign release.
+def vc = (System.getenv("APP_VERSION_CODE") ?: "38").toInteger()
 def ksFile = file("../release.jks")
 def ksPass = System.getenv("KEYSTORE_PASSWORD")
 
@@ -48,7 +48,7 @@ android {
     }
     lint {
         checkReleaseBuilds false
-        abortOnError false
+        abortOnError true
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17

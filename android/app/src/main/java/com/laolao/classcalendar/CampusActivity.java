@@ -1023,7 +1023,20 @@ public class CampusActivity extends androidx.activity.ComponentActivity {
     if (api.logged() && !cid().isEmpty()) store.queueGrowth(cid(), kind, reference, undo);
   }
 
+  boolean quietToast;
+
+  /** Runs a background refresh without the transient progress notice. */
+  void quietly(Runnable r) {
+    quietToast = true;
+    try {
+      r.run();
+    } finally {
+      quietToast = false;
+    }
+  }
+
   void toast(String s) {
+    if (quietToast) return;
     if (ComposeEntry.active(this)) {
       ComposeEntry.notice(this, s);
       return;
@@ -1111,6 +1124,7 @@ public class CampusActivity extends androidx.activity.ComponentActivity {
     }
   }
 
+  @android.annotation.SuppressLint("MissingSuperCall")
   @Override
   public void onBackPressed() {
     if (ComposeEntry.onBack(this)) return;

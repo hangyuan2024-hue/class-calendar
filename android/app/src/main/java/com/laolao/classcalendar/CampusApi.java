@@ -105,7 +105,8 @@ final class CampusApi {
     account = account.trim().toLowerCase(java.util.Locale.ROOT);
     if (!account.matches("[a-z0-9_]{3,20}") || password.length() < 8 || name.trim().isEmpty())
       throw new IllegalArgumentException("请填写有效账号、姓名和至少8位密码");
-    JSONObject data = CampusJson.obj("name", name, "role", role.equals("teacher") ? "teacher" : "student", "gender", gender.equals("m") || gender.equals("f") ? gender : "");
+    String identity = role.equals("teacher") || role.equals("other") ? role : "student";
+    JSONObject data = CampusJson.obj("name", name, "role", role.equals("teacher") ? "teacher" : "student", "identity", identity, "gender", gender.equals("m") || gender.equals("f") ? gender : "");
     String orgType = organization.optString("org_type");
     if (java.util.Arrays.asList("university", "college", "high", "middle", "primary", "work", "personal").contains(orgType)) {
       String orgName = organization.optString("org_name").replaceAll("[\\x00-\\x1F\\x7F]", "").replaceAll("\\s+", " ").trim();
@@ -152,6 +153,7 @@ final class CampusApi {
 
   private Object request(String path, String method, Object body, String token, String prefer)
       throws Exception {
+    long startedNanos = System.nanoTime();
     HttpURLConnection connection = (HttpURLConnection) new URL(base + path).openConnection();
     connection.setConnectTimeout(15000);
     connection.setReadTimeout(20000);
@@ -169,6 +171,10 @@ final class CampusApi {
         }
       }
       int status = connection.getResponseCode();
+      if (status < 300 && base.startsWith("https://")) {
+        long date = connection.getHeaderFieldDate("Date", 0);
+        SyncReliability.calibrate(date, java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos));
+      }
       InputStream stream = status < 400 ? connection.getInputStream() : connection.getErrorStream();
       String text = stream == null ? "" : read(stream, 16000000);
       Object parsed = null;

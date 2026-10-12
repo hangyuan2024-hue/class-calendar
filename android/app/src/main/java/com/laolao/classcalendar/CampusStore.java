@@ -26,6 +26,9 @@ final class CampusStore {
               "home_layout_v1",
               "ui_skin_v1",
               "ui_palette_v1",
+              "compose_mode_v1",
+              "compose_reduce_motion_v1",
+              "ui_style_v1",
               "plugins_enabled_v1",
               "profile_v1",
               "farm_v1",
@@ -162,7 +165,7 @@ final class CampusStore {
           for (String id : ids) {
             Object a = before.opt(id), b = after.opt(id);
             if (String.valueOf(a).equals(String.valueOf(b))) continue;
-            long stamp = Math.max(System.currentTimeMillis(), times.optLong(id) + 1);
+            long stamp = SyncReliability.stamp(SyncReliability.now(), times.optLong(id));
             CampusJson.put(times, id, stamp);
             CampusJson.put(
                 next.optJSONObject("pending"),
@@ -321,7 +324,7 @@ final class CampusStore {
       }
       if (!owner.equals(api.uid())) return;
       JSONObject response =
-          CampusJson.object(api.rpc("udata_pull", CampusJson.obj("since", revision)));
+          SyncReliability.pull(api.rpc("udata_pull", CampusJson.obj("since", revision)), revision);
       synchronized (LOCK) {
         JSONObject next = CampusJson.copy(memory.value),
             data = next.optJSONObject("data"),
@@ -359,6 +362,7 @@ final class CampusStore {
         commit(next);
       }
       if (!response.optBoolean("more")) break;
+      if (guard == 49) throw new IllegalStateException("同步记录较多，进度已保存，请继续同步");
     }
     for (int guard = 0; guard < 100; guard++) {
       JSONArray batch = new JSONArray();
@@ -375,10 +379,14 @@ final class CampusStore {
         for (JSONObject row : CampusJson.rows(batch)) {
           String key = row.optString("ns") + "\u0001" + row.optString("k");
           JSONObject current = pending.optJSONObject(key);
-          if (current != null && current.optLong("t") == row.optLong("t")) pending.remove(key);
+          if (SyncReliability.acknowledged(current, row)) pending.remove(key);
         }
         commit(next);
       }
+    }
+    synchronized (LOCK) {
+      if (memory.value.optJSONObject("pending").length() > 0)
+        throw new IllegalStateException("仍有待上传记录，数据已保留，请继续同步");
     }
     set("native_last_sync", System.currentTimeMillis());
   }
@@ -451,7 +459,7 @@ final class CampusStore {
         }
         for (String id : ids)
           if (!String.valueOf(before.opt(id)).equals(String.valueOf(after.opt(id)))) {
-            long t = Math.max(System.currentTimeMillis(), times.optLong(id) + 1);
+            long t = SyncReliability.stamp(SyncReliability.now(), times.optLong(id));
             CampusJson.put(times, id, t);
             CampusJson.put(
                 pending,

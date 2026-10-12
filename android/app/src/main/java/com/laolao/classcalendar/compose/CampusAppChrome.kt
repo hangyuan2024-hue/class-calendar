@@ -59,12 +59,7 @@ internal fun LaoTopBar(s: CampusSession, scrolled: Boolean) {
     Column(
         Modifier.fillMaxWidth()
             .background(
-                Brush.verticalGradient(
-                    listOf(
-                        c.background.copy(alpha = opacity),
-                        c.background.copy(alpha = opacity * .94f),
-                    )
-                )
+                c.background
             )
             .statusBarsPadding()
     ) {
@@ -83,7 +78,7 @@ internal fun LaoTopBar(s: CampusSession, scrolled: Boolean) {
             Text(
                 if (auth || s.route == "home") "捞捞课程表" else routeTitle(s.route),
                 Modifier.weight(1f).padding(start = 8.dp),
-                style = LaoType.cell,
+                style = if (s.route in MainRoutes) LaoType.title.copy(fontSize = 20.sp) else LaoType.cell.copy(fontSize = 17.sp),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -115,6 +110,7 @@ internal fun LaoTopBar(s: CampusSession, scrolled: Boolean) {
                         LaoIconButton(Icons.Rounded.MoreHoriz, "日历更多选项") {
                             CampusSchool.calendarOptions(s.a)
                         }
+                    "class" -> LaoIconButton(Icons.Rounded.Refresh, "刷新班级与团队") { s.a.refreshCloud() }
                     "wall" -> LaoIconButton(Icons.Rounded.Settings, "我的班级与成员管理") { s.open("class") }
                     "me" -> LaoIconButton(Icons.Rounded.Settings, "账号与外观设置") { s.open("settings") }
                     "phone" -> LaoIconButton(Icons.Rounded.Tune, "打开设置") { s.open("settings") }
@@ -146,58 +142,16 @@ internal fun LaoNavigationDock(
     val motion = LocalMotionEnabled.current
     val labels = listOf("首页", "日历", "班级", "工具", "我的")
     val dark = c.background.luminance() < .3f
-    val sourceAlpha by
-        animateFloatAsState(
-            if (scrolled) .86f else .80f,
-            if (motion) tween(200) else snap(),
-            label = "dock glass",
-        )
-    BoxWithConstraints(
-        Modifier.navigationBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-            .widthIn(max = 600.dp)
-            .fillMaxWidth()
-            .shadow(
-                12.dp,
-                CircleShape,
-                false,
-                ambientColor = Color.Black.copy(alpha = .06f),
-                spotColor = c.onSurface.copy(alpha = .12f),
-            )
-            .clip(CircleShape)
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        c.surface.copy(alpha = sourceAlpha),
-                        c.surface.copy(alpha = sourceAlpha - .15f),
-                    )
-                )
-            )
-            .border(
-                1.dp,
-                Brush.verticalGradient(
-                    listOf(
-                        Color.White.copy(alpha = if (dark) .22f else .95f),
-                        c.outlineVariant.copy(alpha = .35f),
-                    )
-                ),
-                CircleShape,
-            )
-            .semantics { contentDescription = "通透圆角导航" }
+    // A solid, edge-anchored bar: always legible, never floats over content mid-scroll.
+    Column(
+        Modifier.fillMaxWidth()
+            .background(c.surface.copy(alpha = if (scrolled) .98f else .96f))
+            .semantics { contentDescription = "主导航" }
     ) {
-        val cell = maxWidth / MainRoutes.size
-        val position by
-            animateFloatAsState(
-                MainRoutes.indexOf(current).coerceAtLeast(0).toFloat(),
-                if (motion) spring(.86f, 380f) else snap(),
-                label = "custom dock spring",
-            )
-        Box(
-            Modifier.offset(x = cell * position + (cell - 42.dp) / 2, y = 8.dp)
-                .size(42.dp)
-                .background(c.primary.copy(alpha = if (dark) .24f else .12f), CircleShape)
-        )
-        Row(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(c.outlineVariant.copy(alpha = if (dark) .6f else .8f)))
+        Row(
+            Modifier.fillMaxWidth().widthIn(max = 600.dp).navigationBarsPadding().padding(horizontal = 8.dp, vertical = 6.dp)
+        ) {
             MainRoutes.forEachIndexed { i, route ->
                 val on = route == current
                 val source = remember { MutableInteractionSource() }
@@ -207,23 +161,27 @@ internal fun LaoNavigationDock(
                         if (motion) tween(160) else snap(),
                         label = "dock icon",
                     )
+                val pill by
+                    animateDpAsState(if (on) 56.dp else 32.dp, if (motion) spring(.8f, 500f) else snap(), label = "pill")
                 Column(
                     Modifier.weight(1f)
                         .heightIn(min = 56.dp)
-                        .springPress(source)
-                        .clip(CircleShape)
                         .clickable(source, null, role = Role.Tab) { choose(route) }
                         .semantics {
                             selected = on
                             contentDescription = "导航到" + labels[i]
                         },
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterVertically),
                 ) {
-                    Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
-                        LaoGlyph(route, on, tint, Modifier.size(24.dp))
+                    Box(
+                        Modifier.width(pill).height(30.dp)
+                            .background(if (on) c.primary.copy(alpha = if (dark) .22f else .12f) else Color.Transparent, CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        LaoGlyph(route, on, tint, Modifier.size(22.dp))
                     }
-                    Text(labels[i], style = LaoType.label, color = tint)
+                    Text(labels[i], style = LaoType.label.copy(fontSize = 11.sp, letterSpacing = 0.sp), color = tint)
                 }
             }
         }
@@ -239,18 +197,15 @@ internal fun LaoFloatingTools(s: CampusSession, modifier: Modifier = Modifier) {
         modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(start = 16.dp, end = 24.dp, bottom = 112.dp)
+            .padding(start = 16.dp, end = 20.dp, bottom = 92.dp)
     ) {
         Box(
             Modifier.align(Alignment.CenterEnd)
-                .size(56.dp)
+                .size(52.dp)
                 .springPress(source)
-                .shadow(8.dp, CircleShape, false)
-                .clip(CircleShape)
-                .background(
-                    Brush.linearGradient(listOf(c.primary, lerp(c.primary, c.secondary, .2f)))
-                )
-                .border(1.dp, Color.White.copy(alpha = .2f), CircleShape)
+                .shadow(6.dp, LocalLaoStyle.current.button, false, spotColor = c.primary.copy(alpha = .35f))
+                .clip(LocalLaoStyle.current.button)
+                .background(c.primary)
                 .clickable(source, null, role = Role.Button) {
                     haptic.performHapticFeedback(
                         androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove
@@ -262,12 +217,5 @@ internal fun LaoFloatingTools(s: CampusSession, modifier: Modifier = Modifier) {
         ) {
             Icon(Icons.Rounded.Add, null, Modifier.size(28.dp), tint = c.onPrimary)
         }
-        if (s.route !in listOf("home", "ask") && CampusGuide.enabled(s.a))
-            LaoMascot(
-                Modifier.align(Alignment.CenterStart).size(48.dp).semantics {
-                    contentDescription = "查看捞捞提醒"
-                },
-                onTap = { s.sheet = GuideSheet },
-            )
     }
 }

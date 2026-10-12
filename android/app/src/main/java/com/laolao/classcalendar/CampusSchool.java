@@ -790,21 +790,26 @@ final class CampusSchool {
                   CampusUi.f("ccode", "班级码")),
           a::refreshCloud
         });
-    if (a.me.optString("role").equals("teacher") || a.me.optString("role").equals("admin"))
-      a.content.addView(
-          u.button(
-              "创建新班级",
-              () ->
-                  u.form(
-                      "创建班级",
-                      new JSONObject(),
-                      v ->
-                          a.rpc(
-                              "create_class",
-                              CampusJson.obj("cname", v.optString("name")),
-                              r -> a.refreshCloud()),
-                      CampusUi.f("name", "班级名称")),
-              false));
+    a.content.addView(
+        u.button(
+            "创建班级 / 团队",
+            () ->
+                u.form(
+                    "创建班级或团队",
+                    new JSONObject(),
+                    v -> {
+                      String name = v.optString("name").trim();
+                      if (name.length() < 2) throw new IllegalArgumentException("名称至少需要 2 个字");
+                      a.rpc(
+                          "create_class",
+                          CampusJson.obj("cname", name),
+                          r -> {
+                            a.toast("创建成功，你已成为管理者");
+                            a.refreshCloud();
+                          });
+                    },
+                    CampusUi.f("name", "班级或团队名称")),
+            false));
     u.section(a.content, "已加入与待审批");
     for (JSONObject c : CampusJson.rows(a.store.list("cache_classes"))) {
       LinearLayout box = u.card(a.content);
