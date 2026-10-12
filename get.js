@@ -21,7 +21,35 @@
 
   const EXE = "https://github.com/hangyuan2024-hue/class-calendar/releases/latest/download/LaolaoKechengbiao-Setup.exe";
   const web = new URL("index.html", root).href;
-  let apk = new URL("download/class-calendar.apk", root).href, ver = null;
+  const originalApk = new URL("download/class-calendar.apk", root).href;
+  let apk = originalApk, backupApk = originalApk, ver = null;
+  const alternatives = new WeakMap();
+
+  function useDownload(a, url) {
+    a.href = url;
+    // 跨域 Releases 由服务端 Content-Disposition 下载；不依赖浏览器忽略的 download 属性。
+    if (new URL(url).origin === root.origin) a.setAttribute("download", "");
+    else a.removeAttribute("download");
+  }
+
+  function showAlternative(a, kind) {
+    let hint = alternatives.get(a);
+    const visible = kind === "apk" && apk !== backupApk;
+    if (!hint && visible) {
+      hint = document.createElement("p"); hint.className = "after";
+      hint.append("下载慢或打不开？");
+      const link = document.createElement("a");
+      link.dataset.downloadFallback = "1"; link.dataset.kind = "apk";
+      link.textContent = "换用备用线路";
+      link.style.textDecoration = "underline"; link.style.textUnderlineOffset = "3px";
+      hint.append(link); a.insertAdjacentElement("afterend", hint);
+      alternatives.set(a, hint);
+    }
+    if (hint) {
+      hint.hidden = !visible;
+      useDownload(hint.querySelector("a"), backupApk);
+    }
+  }
 
   // 这个按钮实际下载什么：apk / exe / web（苹果手机、已经在 App 里）/ pick（苹果电脑、Linux：让用户自己选）
   const kindOf = (a) => {
@@ -54,11 +82,12 @@
     $$("[data-get]").forEach((a) => {
       const k = kindOf(a);
       a.dataset.kind = k;
-      if (k === "apk") { a.href = apk; a.setAttribute("download", ""); }
+      if (k === "apk") useDownload(a, apk);
       else if (k === "exe") { a.href = EXE; a.removeAttribute("download"); }
       else if (k === "web") { a.href = web; a.removeAttribute("download"); }
       else { a.href = "#get"; a.removeAttribute("download"); }
       if (!a.classList.contains("done")) setLabel(a, ...TEXT[k]());
+      showAlternative(a, k);
     });
     $$("[data-meta]").forEach((el) => {
       const a = el.dataset.meta ? document.getElementById(el.dataset.meta) : null;
@@ -73,19 +102,22 @@
 
   const info = { ready: null };
   info.ready = (async () => {
+    const ctl = new AbortController();
+    const timeout = setTimeout(() => ctl.abort(), 8000);
     try {
-      const ctl = new AbortController(); setTimeout(() => ctl.abort(), 8000);
       const r = await fetch(new URL("download/app-version.json?t=" + Date.now(), root), { cache: "no-store", signal: ctl.signal });
       if (!r.ok) return null;
       const v = await r.json();
       ver = v;
       if (v.url) apk = new URL(v.url, root).href;
+      backupApk = v.fallbackUrl ? new URL(v.fallbackUrl, root).href : originalApk;
       apply();
       $$("[data-ver]").forEach((el) => (el.textContent = v.versionName));
       $$("[data-size]").forEach((el) => (el.textContent = mb(v.size)));
       $$("[data-date]").forEach((el) => (el.textContent = day(v.at)));
       return v;
     } catch (e) { return null; }
+    finally { clearTimeout(timeout); }
   })();
   window.CCGet = { plat, info };
 
@@ -93,7 +125,7 @@
   const wx = document.getElementById("wx");
   if (wx) wx.addEventListener("click", () => wx.classList.remove("show"));
   document.addEventListener("click", (e) => {
-    const a = e.target.closest("[data-get]");
+    const a = e.target.closest("[data-get], [data-download-fallback]");
     if (!a) return;
     const k = a.dataset.kind;
     if (k === "web") return;
