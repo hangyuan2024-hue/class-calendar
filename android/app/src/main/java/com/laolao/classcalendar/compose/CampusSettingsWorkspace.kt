@@ -46,6 +46,9 @@ private fun settingsCatalog(s: CampusSession): List<CampusSetting> {
             CampusSetting("账号与安全", "密码、登录信息与账号保护", "账号", Icons.Rounded.Shield, "修改密码 学号 安全") {
                 it.open("security")
             },
+            CampusSetting("登录设备", "查看已登录的设备，把陌生设备踢下线", "账号", Icons.Rounded.Devices, "设备 踢出 下线 登录") {
+                com.laolao.classcalendar.CampusDevices.show(it.a)
+            },
             CampusSetting(
                 "个人资料与封面",
                 "头像、性别、简介和校园主页",

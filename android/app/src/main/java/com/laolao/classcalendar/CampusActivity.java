@@ -174,6 +174,7 @@ public class CampusActivity extends androidx.activity.ComponentActivity {
         build();
       }
       if (lan != null) lan.start();
+      CampusDevices.touch(this);
     }
   }
 
@@ -735,7 +736,7 @@ public class CampusActivity extends androidx.activity.ComponentActivity {
             signup ? "已有账号，登录" : "没有账号，注册", () -> open(signup ? "login" : "register"), false));
   }
 
-  private void switchAccount() {
+  void switchAccount() {
     if (LectureService.live) startService(new Intent(this, LectureService.class).setAction("stop"));
     CampusPhone.release(this);
     CampusDndReceiver.restoreFilter(this);
