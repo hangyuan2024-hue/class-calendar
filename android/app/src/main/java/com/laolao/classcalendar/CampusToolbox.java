@@ -12,6 +12,8 @@ import org.json.*;
 /** Native, searchable tool catalogue. Filtering never replaces or reloads the focused input. */
 final class CampusToolbox {
   static final String[][] ITEMS = {
+    {"study", "课内学习", "资料、笔记、考核、错题与知识树，按课程整理", "学习"},
+    {"mindmap", "捞捞思维导图", "整理知识结构，编辑节点、分支与布局", "学习"},
     {"courses", "完整课程表", "周次、单双周、教室与冲突检查", "学习"},
     {"countdown", "考试倒计时", "记录考试，安排每日复习目标", "学习"},
     {"wrongbook", "错题记录本", "拍照归档，记录原因与复习进度", "学习"},
@@ -32,6 +34,7 @@ final class CampusToolbox {
     {"oracle", "神谕阁", "答案之书、牌卡与思考灵感", "生活"},
     {"draw", "随机抽签器", "随机抽取、打乱顺序与公平分组", "生活"},
     {"phone", "手机助手", "十项手机专属能力，随身更方便", "手机"},
+    {"lan", "局域网传输", "同账号设备之间，与网页和电脑直连同步", "手机"},
     {"widget", "桌面学习卡片", "在手机桌面查看今日课程与安排", "手机"},
     {"reminders", "系统提醒中心", "课程、作业与自定义通知提醒", "手机"},
     {"inbox", "跨应用收件箱", "从其他 App 接收文字和图片", "手机"},

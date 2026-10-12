@@ -18,6 +18,7 @@ public class CampusActivity extends androidx.activity.ComponentActivity {
   CampusApi api;
   CampusStore store;
   CampusUi ui;
+  NativeLanController lan;
   LinearLayout content;
   ScrollView scroll;
   JSONObject me = new JSONObject(), currentClass = new JSONObject();
@@ -60,6 +61,7 @@ public class CampusActivity extends androidx.activity.ComponentActivity {
         toolCategory = saved.getString("toolCategory", "全部");
       }
       ComposeEntry.install(this);
+      lan = new NativeLanController(this);
       build();
       routeIntent(getIntent());
       if (api.logged()) refreshCloud();
@@ -171,23 +173,27 @@ public class CampusActivity extends androidx.activity.ComponentActivity {
         currentClass = store.object("cache_class");
         build();
       }
+      if (lan != null) lan.start();
     }
   }
 
   @Override
   protected void onPause() {
     super.onPause();
+    if (lan != null) lan.stop();
     unlocked = false;
     CampusPhone.cancelBiometric();
   }
 
   @Override
   protected void onDestroy() {
+    if (lan != null) lan.destroy();
     ComposeEntry.dispose(this);
     handler.removeCallbacksAndMessages(null);
     worker.shutdownNow();
     CampusPhone.release(this);
     CampusWords.release(this);
+    CampusItemExtras.release(this);
     super.onDestroy();
   }
 
@@ -743,6 +749,10 @@ public class CampusActivity extends androidx.activity.ComponentActivity {
 
   /** Inline Compose authentication uses the original API and account-scoped storage. */
   void authenticate(String account, String password, String name, String role, String gender, boolean signup) {
+    authenticate(account, password, name, role, gender, signup, new JSONObject());
+  }
+
+  void authenticate(String account, String password, String name, String role, String gender, boolean signup, JSONObject organization) {
     if (loading) return;
     loading = true;
     cloudError = "";
@@ -750,7 +760,7 @@ public class CampusActivity extends androidx.activity.ComponentActivity {
     background(
         signup ? "注册" : "登录",
         () -> {
-          if (signup) api.register(account, password, name, role, gender);
+          if (signup) api.register(account, password, name, role, gender, organization);
           else api.login(account, password);
           return null;
         },
@@ -924,6 +934,7 @@ public class CampusActivity extends androidx.activity.ComponentActivity {
           me = store.object("cache_me");
           currentClass = store.object("cache_class");
           build();
+          CampusStudy.refresh(this, false);
         });
     handler.postDelayed(
         () -> {
@@ -948,10 +959,12 @@ public class CampusActivity extends androidx.activity.ComponentActivity {
       if (!x.has("msg_type")) CampusJson.put(x, "msg_type", "个人");
       rows.add(x);
     }
+    rows.addAll(CampusStudy.assessmentItems(this));
     return rows;
   }
 
   boolean done(JSONObject x) {
+    if (x.has("_study")) return CampusStudy.done(this, x);
     return x.optBoolean("_mine")
         ? x.optBoolean("done")
         : store.object("personal_marks_v1").optJSONObject(x.optString("_key")) != null
@@ -962,6 +975,10 @@ public class CampusActivity extends androidx.activity.ComponentActivity {
   }
 
   void mark(JSONObject x) {
+    if (x.has("_study")) {
+      CampusStudy.mark(this, x);
+      return;
+    }
     String key = x.optString("_key"), date = DateMath.today();
     boolean personal = x.optBoolean("_mine");
     boolean on = !done(x);
@@ -984,6 +1001,7 @@ public class CampusActivity extends androidx.activity.ComponentActivity {
   }
 
   void syncSoon() {
+    if (lan != null) lan.dataChanged();
     final CampusStore target = store;
     final String owner = api.uid();
     if (api.logged())
@@ -1062,6 +1080,7 @@ public class CampusActivity extends androidx.activity.ComponentActivity {
   @Override
   protected void onActivityResult(int r, int result, Intent i) {
     super.onActivityResult(r, result, i);
+    if (CampusItemExtras.result(this, r, result, i)) return;
     if (CampusPhone.result(this, r, result, i)) return;
     if (result != RESULT_OK || i == null || i.getData() == null) return;
     try {

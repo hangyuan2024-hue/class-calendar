@@ -33,6 +33,7 @@ internal fun CampusAppearancePage(s: CampusSession) {
         s.a.syncSoon()
     }
     LaoPage {
+        animatedItem(0, "experience-selector") { ExperienceSelector(s) }
         animatedItem(0) { ProductIntro("一眼喜欢，久看不累", "整套配色与显示模式，为你的日常而设计。") }
         animatedItem(1) {
             LaoPanel(Modifier.fillMaxWidth(), color = c.surfaceContainerLow, padding = 24.dp) {

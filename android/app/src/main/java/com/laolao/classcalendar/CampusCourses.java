@@ -182,7 +182,7 @@ final class CampusCourses {
       } catch (Exception ignored) {
       }
     list.sort(Comparator.comparingInt(x -> x.optInt("start")));
-    return list;
+    return CampusCourseAdjust.apply(s, day, list);
   }
 
   static List<String> conflicts(JSONArray all, JSONObject x) {
@@ -218,20 +218,21 @@ final class CampusCourses {
     JSONObject updates = CampusJson.obj(META, m, "plg_course-schedule_week1", m.optString("week1"));
     if (rows != null) CampusJson.put(updates, COURSES, rows);
     s.batch(updates);
+    CampusCourseAdjust.acceptCloud(s, response);
   }
 
   static void sync(CampusActivity a) {
     if (!a.requireLogin()) return;
     final CampusStore target = a.store;
     final JSONArray rows = target.list(COURSES);
-    final JSONObject m = meta(target);
+    final JSONObject m = CampusCourseAdjust.cloudMeta(target);
     final String sig = rows.toString() + m.toString();
     a.background(
         "同步课程",
         () ->
             a.api.rpc("courses_sync", CampusJson.obj("p_courses", cloudRows(rows, m), "p_meta", m)),
         v -> {
-          if ((target.list(COURSES).toString() + meta(target)).equals(sig))
+          if ((target.list(COURSES).toString() + CampusCourseAdjust.cloudMeta(target)).equals(sig))
             target.set("native_courses_dirty", false);
           a.toast("课程表已同步");
           a.build();
@@ -375,9 +376,10 @@ final class CampusCourses {
   static void detail(CampusActivity a, JSONObject x) {
     a.ui.choose(
         x.optString("name"),
-        new String[] {"编辑课程", "加入系统日历（本周）", "删除课程"},
+        new String[] {"编辑课程", "加入系统日历（本周）", "删除课程", "调课 / 临时停课"},
         i -> {
           if (i == 0) form(a, x);
+          else if (i == 3) CampusCourseAdjust.open(a, x);
           else if (i == 2)
             a.ui.confirm(
                 "删除课程？",

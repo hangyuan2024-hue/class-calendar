@@ -88,6 +88,14 @@ object ComposeEntry {
     }
 
     @JvmStatic
+    fun onboarding(a: CampusActivity) {
+        sessions[a]?.apply {
+            closeSheet()
+            showOnboarding = true
+        }
+    }
+
+    @JvmStatic
     fun photo(a: CampusActivity, id: String) {
         sessions[a]?.sheet = PhotoSheet(id)
     }
@@ -167,6 +175,16 @@ object ComposeEntry {
 }
 
 internal class CampusSession(val activity: CampusActivity) {
+    // Launcher first use only: a shared file, reminder or deep link must remain immediately usable.
+    var showOnboarding by mutableStateOf(
+        !UiExperiencePrefs.onboardingComplete(activity) &&
+            activity.page == "home" &&
+            activity.intent?.let {
+                it.action != android.content.Intent.ACTION_SEND &&
+                    it.action != android.content.Intent.ACTION_SEND_MULTIPLE &&
+                    !it.hasExtra("go") && it.data == null
+            } != false
+    )
     var route by mutableStateOf(activity.page)
     var revision by mutableIntStateOf(0)
     var nodes by mutableStateOf<List<FeatureNode>>(emptyList())

@@ -26,7 +26,7 @@ internal fun ColumnScope.LaoQuickActions(s: CampusSession) {
     val operations =
         mutableListOf(
             LaoOperation("记一件事", "日程、作业与待办", Icons.Rounded.EditNote) {
-                s.a.selectedDay = DateMath.today()
+                if (s.route != "calendar") s.a.selectedDay = DateMath.today()
                 CampusSchool.personalForm(s.a, null)
             },
             LaoOperation("粘贴导入", "整理班群消息", Icons.Rounded.ContentPaste) {

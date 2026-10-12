@@ -56,6 +56,26 @@ private fun settingsCatalog(s: CampusSession): List<CampusSetting> {
             CampusSetting("我的班级", "加入班级、分组和成员管理", "账号", Icons.Rounded.Groups, "邀请码 班委 老师 成员") {
                 it.open("class")
             },
+            CampusSetting("学校与单位", "按省份选择学校，或填写单位与个人空间", "账号", Icons.Rounded.School,
+                "学校 单位 大学 专科 高职 工作 省份 所属") { it.open("organization") },
+            CampusSetting(
+                "界面体验",
+                UiExperiencePrefs.read(a).label + " · 随时切换",
+                "外观", Icons.Rounded.ViewCarousel,
+                "设计版 网页版 网页同款 原生 经典 布局 体验 切换",
+            ) { it.open("appearance") },
+            CampusSetting(
+                "局域网直连同步",
+                "同账号设备之间，与网页和电脑版互传记录",
+                "数据", Icons.Rounded.Wifi,
+                "局域网 传输 互传 LAN 同步 直连 WebRTC",
+            ) { it.open("lan") },
+            CampusSetting(
+                "重新查看使用引导",
+                "界面选择、课程导入、提醒与常用工具",
+                "关于", Icons.Rounded.Explore,
+                "首次 新手 入门 帮助 引导 介绍 教程",
+            ) { ComposeEntry.onboarding(it.a) },
             CampusSetting(
                 "外观与配色",
                 (LaoPalettes.firstOrNull { it.id == palette }?.name ?: "默认 · 鸢尾蓝") + " · " + mode,
@@ -109,6 +129,10 @@ private fun settingsCatalog(s: CampusSession): List<CampusSetting> {
             ) {
                 CampusCourses.settings(it.a)
             },
+            CampusSetting("调课与临时停课", "换课、停课、取消和临时加课", "学习", Icons.Rounded.EventRepeat,
+                "调课 课表 临时 换课 停课 日期 替换") { CampusCourseAdjust.open(it.a) },
+            CampusSetting("事项保存期限", "过期两周清理、延期三天与附件管理", "数据", Icons.Rounded.AutoDelete,
+                "自动 删除 过期 清理 延期 作业 附件") { CampusItemExtras.settings(it.a) },
             CampusSetting(
                 "专注与休息",
                 "专注时长、自动休息与声音提醒",

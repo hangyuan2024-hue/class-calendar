@@ -97,9 +97,21 @@ final class CampusApi {
 
   void register(String account, String password, String name, String role, String gender)
       throws Exception {
+    register(account, password, name, role, gender, new JSONObject());
+  }
+
+  void register(String account, String password, String name, String role, String gender, JSONObject organization)
+      throws Exception {
     account = account.trim().toLowerCase(java.util.Locale.ROOT);
     if (!account.matches("[a-z0-9_]{3,20}") || password.length() < 8 || name.trim().isEmpty())
       throw new IllegalArgumentException("请填写有效账号、姓名和至少8位密码");
+    JSONObject data = CampusJson.obj("name", name, "role", role.equals("teacher") ? "teacher" : "student", "gender", gender.equals("m") || gender.equals("f") ? gender : "");
+    String orgType = organization.optString("org_type");
+    if (java.util.Arrays.asList("university", "college", "high", "middle", "primary", "work", "personal").contains(orgType)) {
+      String orgName = organization.optString("org_name").replaceAll("[\\x00-\\x1F\\x7F]", "").replaceAll("\\s+", " ").trim();
+      CampusJson.put(data, "org_type", orgType);
+      CampusJson.put(data, "org_name", orgName.substring(0, Math.min(40, orgName.length())));
+    }
     Object s =
         request(
             "/auth/v1/signup",
@@ -110,13 +122,7 @@ final class CampusApi {
                 "password",
                 password,
                 "data",
-                CampusJson.obj(
-                    "name",
-                    name,
-                    "role",
-                    role.equals("teacher") ? "teacher" : "student",
-                    "gender",
-                    gender)),
+                data),
             anon,
             null);
     if (s instanceof JSONObject && ((JSONObject) s).has("access_token")) keep((JSONObject) s);

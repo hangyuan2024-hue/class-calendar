@@ -47,6 +47,7 @@ private fun mainDestination(route: String) =
         "review" -> "tools"
         "me",
         "appearance",
+        "organization",
         "home-layout",
         "backup",
         "security",
@@ -80,6 +81,10 @@ internal fun routeTitle(route: String): String =
         "permissions" -> "应用权限"
         "phone" -> "手机助手"
         "credits" -> "校园共建者"
+        "lan" -> "局域网传输"
+        "study" -> "课内学习"
+        "mindmap" -> "捞捞思维导图"
+        "organization" -> "学校与单位"
         "growth" -> "成长"
         "ask" -> "AI 助手"
         "wall" -> "班级墙"
@@ -117,13 +122,15 @@ internal fun routeTitle(route: String): String =
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
 @Composable
 internal fun LaoLaoApp(state: CampusSession) {
-    LaoLaoTheme(state) {
+    val experience by rememberUiExperience()
+    LaoLaoTheme(state, experience) {
         val colors = MaterialTheme.colorScheme
+        val owner = state.a.store.owner
         val motionEnabled = LocalMotionEnabled.current
         val keyboardVisible = campusKeyboardVisible()
         val savedPages = rememberSaveableStateHolder()
         val listStates = remember { mutableMapOf<String, LazyListState>() }
-        val activeList = listStates.getOrPut(state.route) { LazyListState() }
+        val activeList = listStates.getOrPut(owner + ":" + experience.id + ":" + state.route) { LazyListState() }
         val scrolled by
             remember(activeList) {
                 derivedStateOf {
@@ -145,28 +152,29 @@ internal fun LaoLaoApp(state: CampusSession) {
         Box(Modifier.fillMaxSize().background(colors.background)) {
             Box(
                 Modifier.matchParentSize()
-                    .then(if (state.sheet != null) Modifier.clearAndSetSemantics {} else Modifier)
+                    .then(if (state.sheet != null || state.showOnboarding) Modifier.clearAndSetSemantics {} else Modifier)
             ) {
-                CampusBackdrop(Modifier.matchParentSize())
+                if (experience == UiExperience.STUDIO) CampusBackdrop(Modifier.matchParentSize())
                 Scaffold(
                     containerColor = Color.Transparent,
                     contentColor = colors.onBackground,
-                    topBar = { LaoTopBar(state, scrolled) },
+                    topBar = { if (experience == UiExperience.WEB) WebTopBar(state) else LaoTopBar(state, scrolled) },
                     bottomBar = { if (state.route == "parse-review") ImportReviewActions(state) },
                     snackbarHost = { SnackbarHost(snackbar) },
                 ) { padding ->
                     AnimatedContent(
-                        targetState = state.route,
+                        targetState = experience to state.route,
                         modifier = Modifier.padding(padding).fillMaxSize(),
                         label = "page transition",
                         transitionSpec = {
+                            val tabs = if (targetState.first == UiExperience.WEB) WebMainRoutes else MainRoutes
                             val direction =
-                                if (targetState in MainRoutes && initialState !in MainRoutes) -1
+                                if (targetState.second in tabs && initialState.second !in tabs) -1
                                 else if (
-                                    targetState in MainRoutes &&
-                                        initialState in MainRoutes &&
-                                        MainRoutes.indexOf(targetState) <
-                                            MainRoutes.indexOf(initialState)
+                                    targetState.second in tabs &&
+                                        initialState.second in tabs &&
+                                        tabs.indexOf(targetState.second) <
+                                            tabs.indexOf(initialState.second)
                                 )
                                     -1
                                 else 1
@@ -184,20 +192,25 @@ internal fun LaoLaoApp(state: CampusSession) {
                                     .togetherWith(fadeOut(tween(130)))
                             else EnterTransition.None.togetherWith(ExitTransition.None)
                         },
-                    ) { route ->
+                    ) { target ->
+                        val route = target.second
+                        val pageKey = owner + ":" + target.first.id + ":" + route
                         // Skip obsolete outgoing snapshots; each route has an independent scroll
                         // state.
-                        savedPages.SaveableStateProvider(route) {
+                        savedPages.SaveableStateProvider(pageKey) {
                             CompositionLocalProvider(
                                 LocalPageListState provides
-                                    listStates.getOrPut(route) { LazyListState() }
+                                    listStates.getOrPut(pageKey) { LazyListState() }
                             ) {
                                 Box(
                                     Modifier.fillMaxSize(),
                                     contentAlignment = Alignment.TopCenter,
                                 ) {
                                     Box(Modifier.widthIn(max = 680.dp).fillMaxSize()) {
-                                        key(route) { ModernPages.Page(state, route) }
+                                        key(pageKey) {
+                                            if (target.first == UiExperience.WEB) CampusWebPage(state, route)
+                                            else ModernPages.Page(state, route)
+                                        }
                                     }
                                 }
                             }
@@ -208,8 +221,8 @@ internal fun LaoLaoApp(state: CampusSession) {
                 // or opaque wrapper remains behind the pill, so its corners stay transparent.
                 val chrome =
                     state.route !in listOf("login", "register", "parse-review", "ask") &&
-                        !keyboardVisible
-                if (chrome)
+                        !keyboardVisible && !state.showOnboarding
+                if (chrome && experience == UiExperience.STUDIO)
                     Box(
                         Modifier.align(Alignment.BottomCenter)
                             .fillMaxWidth()
@@ -239,15 +252,33 @@ internal fun LaoLaoApp(state: CampusSession) {
                             fadeOut(tween(100)) + slideOutVertically(tween(160)) { it / 2 }
                         else ExitTransition.None,
                 ) {
-                    LaoNavigationDock(state, mainDestination(state.route), scrolled) { route ->
+                    val select: (String) -> Unit = { route ->
                         if (state.route == route)
-                            scope.launch { listStates[route]?.animateScrollToItem(0) }
+                            scope.launch { listStates[owner + ":" + experience.id + ":" + route]?.animateScrollToItem(0) }
                         else state.a.tab(route)
                     }
+                    if (experience == UiExperience.WEB) WebBottomNavigation(state, select)
+                    else LaoNavigationDock(state, mainDestination(state.route), scrolled, select)
                 }
-                if (chrome) LaoFloatingTools(state, Modifier.align(Alignment.BottomEnd))
+                if (chrome) {
+                    if (experience == UiExperience.WEB) WebFloatingActions(state, Modifier.align(Alignment.BottomEnd))
+                    else LaoFloatingTools(state, Modifier.align(Alignment.BottomEnd))
+                }
             }
             CampusSheets(state)
+            if (state.showOnboarding) {
+                CampusOnboarding(state, experience, { UiExperiencePrefs.write(state.a, it) }) { shortcut ->
+                    state.showOnboarding = false
+                    when (shortcut) {
+                        OnboardingShortcut.COURSES -> state.open("courses")
+                        OnboardingShortcut.CLIPBOARD -> CampusSocial.pasteImport(state.a)
+                        OnboardingShortcut.REMINDERS -> state.open("reminders")
+                        OnboardingShortcut.TOOLS -> state.open("tools")
+                        OnboardingShortcut.LAN -> state.open("lan")
+                        null -> Unit
+                    }
+                }
+            }
         }
     }
 }
@@ -268,6 +299,7 @@ private fun LaoWindowAppearance(state: CampusSession, colors: ColorScheme) {
         window.decorView.setBackgroundColor(colors.background.toArgb())
         window.statusBarColor = android.graphics.Color.TRANSPARENT
         window.navigationBarColor = android.graphics.Color.TRANSPARENT
+        if (android.os.Build.VERSION.SDK_INT >= 29) window.isNavigationBarContrastEnforced = false
         WindowCompat.getInsetsController(window, window.decorView).apply {
             isAppearanceLightStatusBars = colors.background.luminance() > .5f
             isAppearanceLightNavigationBars = colors.background.luminance() > .5f

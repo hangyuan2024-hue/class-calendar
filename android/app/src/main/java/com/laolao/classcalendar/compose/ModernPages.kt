@@ -50,6 +50,10 @@ internal object ModernPages {
             "permissions",
             "phone",
             "credits",
+            "lan",
+            "study",
+            "mindmap",
+            "organization",
         )
 
     @Composable
@@ -74,6 +78,10 @@ internal object ModernPages {
             "permissions" -> CampusPermissionsPage(state)
             "phone" -> CampusPhonePage(state)
             "credits" -> CampusCreditsPage(state)
+            "lan" -> CampusLanWorkspace(state)
+            "study" -> CampusStudyPage(state)
+            "mindmap" -> CampusMindMapPage(state)
+            "organization" -> CampusOrganizationPage(state)
             "wrongbook" -> BooksPage(state)
             "courses" -> CoursesPage(state)
             "pomo" -> FocusPage(state)

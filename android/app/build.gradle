@@ -4,7 +4,7 @@ plugins {
 }
 
 // 版本号由 GitHub Actions 传进来；本地构建用 28。
-def vc = (System.getenv("APP_VERSION_CODE") ?: "32").toInteger()
+    def vc = (System.getenv("APP_VERSION_CODE") ?: "33").toInteger()
 def ksFile = file("../release.jks")
 def ksPass = System.getenv("KEYSTORE_PASSWORD")
 
@@ -75,6 +75,7 @@ dependencies {
     implementation "androidx.compose.animation:animation"
     implementation "androidx.lifecycle:lifecycle-runtime-ktx:2.8.6"
     implementation "androidx.lifecycle:lifecycle-runtime-compose:2.8.6"
+    implementation "io.github.webrtc-sdk:android:125.6422.07"
     testImplementation "junit:junit:4.13.2"
     testImplementation "org.json:json:20240303"
     debugImplementation "androidx.compose.ui:ui-tooling"

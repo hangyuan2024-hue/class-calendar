@@ -139,7 +139,11 @@ internal val LaoTypography =
     )
 
 @Composable
-internal fun LaoLaoTheme(state: CampusSession, content: @Composable () -> Unit) {
+internal fun LaoLaoTheme(
+    state: CampusSession,
+    experience: UiExperience = UiExperience.STUDIO,
+    content: @Composable () -> Unit,
+) {
     state.revision
     val saved = state.a.store.`object`("ui_palette_v1")
     val p = LaoPalettes.find { it.id == saved.optString("id") } ?: LaoPalettes.first()
@@ -172,7 +176,7 @@ internal fun LaoLaoTheme(state: CampusSession, content: @Composable () -> Unit) 
     val background = if (dark) nightBase else Color(0xFFF8F7F4)
     val surface = if (dark) lerp(nightSurface, Color.White, .035f) else Color.White
     val secondary = if (dark) lerp(p.accent, Color.White, .40f) else p.accent
-    val scheme =
+    val studioScheme =
         if (dark)
             darkColorScheme(
                 primary = p.companion,
@@ -217,6 +221,26 @@ internal fun LaoLaoTheme(state: CampusSession, content: @Composable () -> Unit) 
                 tertiary = Color(0xFFA36B3D),
                 tertiaryContainer = Color(0xFFF6EADC),
             )
+    // The second layout follows the current mobile site's neutral Studio 02 tokens.
+    // Other selected palettes still tint it; switching layouts never edits account preferences.
+    val scheme = if (experience == UiExperience.WEB) {
+        if (dark) studioScheme.copy(
+            background = Color(0xFF111C23), surface = Color(0xFF1A2932),
+            onBackground = Color(0xFFE9EDF0), onSurface = Color(0xFFE9EDF0),
+            onSurfaceVariant = Color(0xFFA3B1B8), outlineVariant = Color(0xFF30404A),
+            surfaceContainerLow = Color(0xFF23343D), surfaceContainer = Color(0xFF293453),
+            primary = if (p.id == "ocean") Color(0xFF9DAAFF) else studioScheme.primary,
+            primaryContainer = Color(0xFF293453),
+        ) else studioScheme.copy(
+            background = Color(0xFFF6F5F1), surface = Color.White,
+            onBackground = Color(0xFF172C36), onSurface = Color(0xFF172C36),
+            onSurfaceVariant = Color(0xFF6D7A80), outlineVariant = Color(0xFFE4E6E3),
+            surfaceContainerLow = Color(0xFFF0F1ED),
+            surfaceContainer = Color(0xFFE9ECFC),
+            primary = if (p.id == "ocean") Color(0xFF5366E8) else studioScheme.primary,
+            primaryContainer = if (p.id == "ocean") Color(0xFFE9ECFC) else studioScheme.primaryContainer,
+        )
+    } else studioScheme
     val enabled =
         Settings.Global.getFloat(
             LocalContext.current.contentResolver,
@@ -335,6 +359,10 @@ internal fun routeIcon(route: String): ImageVector =
         "cards",
         "review" -> Icons.AutoMirrored.Rounded.MenuBook
         "courses" -> Icons.Rounded.School
+        "study" -> Icons.AutoMirrored.Rounded.MenuBook
+        "mindmap" -> Icons.Rounded.AccountTree
+        "lan" -> Icons.Rounded.Wifi
+        "organization" -> Icons.Rounded.LocationCity
         "tools",
         "plugins" -> Icons.Rounded.Widgets
         "growth",

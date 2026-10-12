@@ -464,10 +464,15 @@ final class CampusSchool {
         new CampusUi.Field("date", "日期（可留空）", "date", false),
         new CampusUi.Field("time", "时间（可留空）", "time", false),
         CampusUi.optional("location", "地点"),
+        new CampusUi.Field("local", "只在本机保存（可通过局域网互传）", "boolean", false),
         new CampusUi.Field("note", "私人备注", "multiline", false));
   }
 
   static void detail(CampusActivity a, JSONObject x) {
+    if (x.has("_study")) {
+      CampusStudy.openItem(a, x.optLong("_study"));
+      return;
+    }
     CampusUi u = a.ui;
     boolean mine = x.optBoolean("_mine");
     List<String> labels =
@@ -477,12 +482,16 @@ final class CampusSchool {
     if (mine || a.can("can_delete")) labels.add("删除事项");
     if (!mine) labels.add("查看修改记录");
     labels.add("查看原消息");
+    labels.add("附件与保存期限");
     u.choose(
         x.optString("subject"),
         labels.toArray(new String[0]),
         i -> {
           String label = labels.get(i), key = x.optString("_key");
           switch (label) {
+            case "附件与保存期限":
+              CampusItemExtras.open(a, x);
+              break;
             case "私人备注":
               JSONObject marks = a.store.object("personal_marks_v1").optJSONObject(key);
               if (marks == null) marks = new JSONObject();

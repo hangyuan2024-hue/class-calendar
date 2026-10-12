@@ -65,6 +65,7 @@ internal fun ModernCoursesPage(s: CampusSession) {
             }
         }
         animatedItem(2) {
+            LaoSecondaryButton("调课与临时停课", Modifier.fillMaxWidth()) { CampusCourseAdjust.open(a) }
             LaoTabs(listOf("当天安排", "整周课表"), if (wholeWeek) "整周课表" else "当天安排") {
                 wholeWeek = it == "整周课表"
             }
