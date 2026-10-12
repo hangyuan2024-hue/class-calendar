@@ -37,7 +37,7 @@ const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; 
 // ===== 云端同步：登录后，我的事项、完成标记、打卡、规划、外观设置自动存到云端，换浏览器 / 换手机都能看到 =====
 // 每条数据单独同步，带修改时间；两边都改了同一条，以后改的为准。可以在「我的 → 数据」里改成「只存在这台设备」。
 // list：数组，按 id 一条条同步；map：对象，按键同步；map2：两层对象（习惯 → 日期）；one：整体同步
-const SYNC_KINDS = { course_rev_v1: "one", course_view_v1: "map", kn_rev_v1: "one", mm_rev_v1: "one", personal_events_v1: "list", personal_marks_v1: "map", done_log_v1: "map", habits_v1: "list", habit_log_v1: "map2",
+const SYNC_KINDS = { ui_style_v1: "one", compose_mode_v1: "one", compose_reduce_motion_v1: "one", course_rev_v1: "one", course_view_v1: "map", kn_rev_v1: "one", mm_rev_v1: "one", personal_events_v1: "list", personal_marks_v1: "map", done_log_v1: "map", habits_v1: "list", habit_log_v1: "map2",
   quad_v1: "map", quad_todos_v1: "list", pomo_log_v1: "map", fun_opts_v1: "one", home_layout_v1: "one", ui_skin_v1: "one",
   ui_palette_v1: "one", plugins_enabled_v1: "one", home_quick_tools_v1: "one", plan_notes_v1: "map", profile_v1: "one", mood_log_v1: "map", farm_v1: "one", island_v1: "one" };
 const LS_SYNC = "sync_meta_v1", LS_SYNC_OUT = "sync_outbox_v1", LS_SYNC_MODE = "sync_mode_v1";
@@ -131,13 +131,19 @@ const Sync = (() => {
         part.forEach((x, j) => { if (o[x] === batch[j]) delete o[x]; });
         saveOut();
       }
-      busy = false; setState("ok");
+      busy = false; setState(Object.keys(o).length ? "pending" : "ok");
+      if(Object.keys(o).length) {clearTimeout(flushTimer);flushTimer=setTimeout(flush,120);}
     } catch (e) {
       busy = false; setState("error", e.message);
       clearTimeout(flushTimer); flushTimer = setTimeout(flush, 30000);
     }
   }
 
+  function validatePull(r,since) {
+    if(!r || !Array.isArray(r.rows) || !Number.isSafeInteger(r.rev) || r.rev < since || (r.more && r.rev<=since)) throw new Error("同步进度异常，保留本机记录，请重试");
+    for(const row of r.rows) if(!row || typeof row.ns!=="string" || !row.ns || typeof row.k!=="string" || !row.k || !Number.isSafeInteger(row.t) || row.t<=0 || !("v" in row)) throw new Error("同步记录不完整，未推进同步进度");
+    return r;
+  }
   // 拉云端的新修改，比本机新的就用云端的
   let pullAgain = false;
   async function pull() {
@@ -150,7 +156,7 @@ const Sync = (() => {
     try {
       const m = M();
       for (let guard = 0; guard < 50; guard++) {
-        const r = await CCAuth.rpc("udata_pull", { since: m.rev || 0 });
+        const r = validatePull(await CCAuth.rpc("udata_pull", { since: m.rev || 0 }),m.rev||0);
         const byNs = {};
         for (const row of r.rows || []) { if (SYNC_KINDS[row.ns]) (byNs[row.ns] ||= []).push(row); }
         for (const k in byNs) {
@@ -167,6 +173,7 @@ const Sync = (() => {
         }
         m.rev = r.rev || m.rev;
         if (!r.more) break;
+        if(guard===49) throw new Error("记录较多，请继续同步；尚未标记为完成");
       }
       saveMeta(); saveOut();
       lastPull = Date.now(); busy = false; setState(Object.keys(O()).length ? "pending" : "ok");
@@ -185,10 +192,11 @@ const Sync = (() => {
     m.rev = 0; m.h = {}; m.t = {};
     const cloud = {};
     for (let guard = 0; guard < 50; guard++) {
-      const r = await CCAuth.rpc("udata_pull", { since: m.rev });
+      const r = validatePull(await CCAuth.rpc("udata_pull", { since: m.rev }),m.rev);
       for (const row of r.rows || []) if (SYNC_KINDS[row.ns]) (cloud[row.ns] ||= {})[row.k] = row;
       m.rev = r.rev || m.rev;
       if (!r.more) break;
+      if(guard===49) throw new Error("首次同步尚未完整，请重试");
     }
     const o = O(), now = nowMs(), changed = new Set();
     for (const k in SYNC_KINDS) {
@@ -484,7 +492,10 @@ const CYBER_NAMES = { 排行榜: "战力榜", 感谢名单: "荣誉殿堂", 首�
 const cyName = (t) => (document.documentElement.dataset.skin === "cyber" && CYBER_NAMES[t]) || t;
 function applyLook() {
   const root = document.documentElement;
-  const want = load(LS_SKIN, "fresh"), skin = want === "auto" ? "fresh" : want;
+  root.classList.toggle("reduce-motion",load("compose_reduce_motion_v1",false) === true);
+  const phoneMode = load("compose_mode_v1", "");
+  const selected = load(LS_SKIN, "fresh");
+  const want = phoneMode === "dark" ? (selected === "cyber" ? "cyber" : "dark") : phoneMode === "light" ? (["fresh","vivid","clean"].includes(selected) ? selected : "fresh") : phoneMode === "system" ? "auto" : selected, skin = want === "auto" ? "fresh" : want;
   root.dataset.skin = SKIN_COLOR[skin] ? skin : "fresh";
   const dark = want === "auto" && darkMQ && darkMQ.matches;
   if (dark) root.dataset.mode = "dark"; else delete root.dataset.mode;
@@ -511,7 +522,7 @@ function applyLook() {
   $("bgDim").value = dim; $("bgBlur").value = blur;
 }
 $("skinPick").onclick = (e) => { const b = e.target.closest("[data-skin]"); if (!b) return; if (b.dataset.skin === "cyber") enterMeta(); else setSkin(b.dataset.skin); };
-function setSkin(k) { save(LS_SKIN, k); applyLook(); try { renderAll(); } catch (e) {} }
+function setSkin(k) { save("compose_mode_v1", k === "dark" || k === "cyber" ? "dark" : k === "auto" ? "system" : "light"); save(LS_SKIN, k); applyLook(); try { renderAll(); } catch (e) {} }
 // ===== 配色（以前是「个性化主题」插件，现在合并进外观设置） =====
 const LS_PALETTE = "ui_palette_v1";
 const PALETTES = [
@@ -658,30 +669,38 @@ function heroNextHtml(ctx) {
   </div>`;
 }
 function heroLineHtml(ctx) {
-  const now = ctx.now, t = keyOf(now), nowMin = now.getHours() * 60 + now.getMinutes();
-  const itemsOn = (k) => ctx.items.filter((x) => x.day === k && !x.done && hm2min(x.time) != null);
-  const lastToday = Math.max(-1, ...ctx.courses.map((c) => hm2min(c.t1 || c.t0) || 0), ...itemsOn(t).map((x) => hm2min(x.time)));
-  const tomorrow = nowMin >= 21 * 60 && lastToday <= nowMin;
-  const day = tomorrow ? shiftDay(t, 1) : t;
-  const courses = (tomorrow ? islandCourses(day) : ctx.courses).filter((c) => hm2min(c.t0) != null);
-  const items = itemsOn(day);
-  const pts = [...courses.flatMap((c) => [hm2min(c.t0), hm2min(c.t1 || c.t0)]), ...items.map((x) => hm2min(x.time))];
-  const a = Math.min(8 * 60, ...pts.map((m) => Math.floor(m / 60) * 60)), z = Math.max(22 * 60, ...pts.map((m) => Math.ceil(m / 60) * 60));
-  const pct = (m) => ((Math.max(a, Math.min(z, m)) - a) / (z - a) * 100).toFixed(2);
-  const go = courseTool() ? "course" : "calendar";
-  const segs = courses.map((c) => { const s = hm2min(c.t0), e = hm2min(c.t1 || "") ?? s + 45, past = !tomorrow && e <= nowMin, on = !tomorrow && s <= nowMin && nowMin < e;
-    return `<button class="tl-c${past ? " past" : ""}${on ? " on" : ""}" style="left:${pct(s)}%;width:${(pct(e) - pct(s)).toFixed(2)}%" data-nxgo="${go}" title="${esc(c.t0 + "–" + (c.t1 || "") + " " + c.name + (c.location ? " · " + c.location : ""))}"><span>${esc(c.name)}</span></button>`; }).join("");
-  const dots = items.map((x) => `<button class="tl-d${x.type === "作业" ? " hw" : ""}" style="left:${pct(hm2min(x.time))}%" data-nxgo="${x.type === "作业" ? "homework" : "calendar"}" title="${esc(x.time + " " + x.title)}"></button>`).join("");
-  const ticks = [a, ...[12 * 60, 18 * 60].filter((m) => m > a + 90 && m < z - 90), z].map((m) => `<i style="left:${pct(m)}%">${m / 60}:00</i>`).join("");
-  const loose = ctx.items.filter((x) => x.day === day && !x.done && hm2min(x.time) == null).length;
-  const empty = !courses.length && !items.length;
-  return `<div class="tl${tomorrow ? " tmr" : ""}" data-a="${a}" data-z="${z}">
-    <div class="tl-h"><b>${tomorrow ? "明天" : "今天"}</b><span>${empty && !loose ? "没有课，也没有要做的事" : [courses.length ? courses.length + " 节课" : "", items.length ? items.length + " 件有时间点的事" : "", loose ? loose + " 件全天的事" : ""].filter(Boolean).join(" · ")}</span></div>
-    <div class="tl-track">${segs}${dots}${tomorrow || nowMin < a ? "" : `<em class="tl-now" style="left:${pct(nowMin)}%"></em>`}</div>
-    <div class="tl-ticks">${ticks}</div>
-  </div>`;
+  const day=keyOf(ctx.now), mode=load("home_agenda_filter_v1","all");
+  const courses=ctx.courses.map((c,i)=>({key:"course:"+i,title:c.name,time:c.t0||"",end:c.t1||"",location:c.location||"",type:"课程",course:true,done:false}));
+  const items=ctx.items.filter(x=>x.day===day).map(x=>({...x,course:false}));
+  const rows=[...courses,...items].filter(x=>mode==="courses"?x.course:mode==="items"?!x.course:true)
+    .sort((a,b)=>(a.time||"").localeCompare(b.time||"") || a.title.localeCompare(b.title));
+  return `<section class="named-agenda" aria-label="今日时间与事项"><header><b>今日安排</b><span>${rows.length} 项</span></header>
+    <div class="named-agenda-filters" role="group" aria-label="今日显示内容">${[["all","全部"],["courses","只看课程"],["items","只看其他事项"]].map(([id,label])=>`<button type="button" data-home-agenda-filter="${id}" aria-pressed="${mode===id}">${label}</button>`).join("")}</div>
+    ${rows.map(x=>`<div class="named-agenda-row${x.done?" done":""}"><div class="named-agenda-time"><strong>${esc(x.time||"全天")}</strong>${x.end?`<small>${esc(x.end)}</small>`:""}</div><div class="named-agenda-copy"><strong>${esc(x.title||"未命名事项")}</strong><small>${esc([x.type,x.location,x.done?"已完成":x.course?"":"待完成"].filter(Boolean).join(" · "))}</small></div>${x.course?`<button type="button" data-nxgo="${courseTool()?"course":"calendar"}" aria-label="查看课程 ${esc(x.title)}">›</button>`:`<button type="button" data-act="done" data-k="${esc(x.key)}" aria-label="完成 ${esc(x.title)}" aria-pressed="${!!x.done}">${x.done?"✓":"○"}</button>`}</div>`).join("")||'<p class="named-agenda-empty">今天没有符合筛选的安排</p>'}</section>`;
 }
-// 每 30 秒：挪「现在」竖线、更新倒计时；倒计时走到 0 就整块重画（换下一件）
+document.addEventListener("click",e=>{
+  const button=e.target.closest("[data-home-agenda-filter]");if(!button)return;
+  localStorage.setItem("home_agenda_filter_v1",JSON.stringify(button.dataset.homeAgendaFilter));renderAgenda();
+});
+const namedAgendaStyle=document.createElement("style");
+namedAgendaStyle.textContent=`
+html.reduce-motion *,html.reduce-motion *::before,html.reduce-motion *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+.named-agenda{margin-top:20px;position:relative;text-align:left;color:var(--text);width:100%;grid-column:1/-1}
+.named-agenda header{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:10px}
+.named-agenda header span{font-size:12px;color:var(--sub)}
+.named-agenda-filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.named-agenda-filters button{background:var(--surface);color:var(--sub);border:1px solid var(--line);border-radius:6px;padding:9px 12px;min-height:40px;font:inherit;font-size:12px}
+.named-agenda-filters button[aria-pressed=true]{background:var(--accent);color:var(--tile-text);border-color:var(--accent)}
+.named-agenda-row{display:grid;grid-template-columns:48px minmax(0,1fr) 40px;gap:10px;align-items:center;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:12px;margin:8px 0}
+.named-agenda-time{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--accent)}
+.named-agenda-time small,.named-agenda-copy small{color:var(--sub);font-size:12px;line-height:1.6}
+.named-agenda-copy{min-width:0}.named-agenda-copy strong{display:block;font-size:15px;overflow-wrap:anywhere;line-height:1.5}.named-agenda-copy small{display:block;margin-top:4px}
+.named-agenda-row>button{min-width:40px;min-height:40px;background:transparent;color:var(--accent);border:0;font-size:22px}
+.named-agenda-row.done .named-agenda-copy strong{text-decoration:line-through;color:var(--sub)}
+.named-agenda-empty{font-size:13px;color:var(--sub);padding:16px 0}
+.hero.fx:has(.named-agenda){height:auto;min-height:0}.hero.fx .named-agenda{max-width:100%}
+`;
+document.head.appendChild(namedAgendaStyle);
 let heroTick = 0;
 function heroTickStart() {
   clearInterval(heroTick);
@@ -775,6 +794,9 @@ function renderAgenda() {
       ${meta && feat("metaverse") ? `<button class="hero-id" data-tab="meta">${metaCardMini(metaStats())}</button>` : ""}
       <svg class="mascot" viewBox="0 0 120 120" aria-hidden="true"><use href="#mascotArt"/></svg>
     </div>`;
+  if(document.documentElement.dataset.skin!=="fresh") {
+    try { const ctx=islandCtx(); $("hero").insertAdjacentHTML("beforeend",heroLineHtml(ctx)); } catch(e) { console.error(e); }
+  }
   homeStats = { hwLeft: homework + overdue.length, overdue: overdue.length, todayCount, upcoming };
   const undatedMine = undated.filter((r) => r._mine), undatedCls = undated.filter((r) => !r._mine);
   const doneCount = allItems().filter((r) => r._done && !r._plugin).length, doneMine = mine.filter((r) => r.done).length, hideDone = funOpts().hideDone;
@@ -4585,7 +4607,9 @@ function renderSecurity() {
     <div class="gi sec-row"><span class="ic">📮</span><span class="sx"><span class="sxt">找回密码用的邮箱</span>
       <small>${s && s.email ? `已绑定 ${esc(s.email)}，忘记密码可以在登录页自己找回` : s && !s.smtp ? "管理员还没开通邮件发送；忘记密码时请找老师重置" : "还没绑定。绑定后忘记密码可以自己用邮箱找回"}</small></span>
       ${s && s.email ? '<span class="ok-tag">✓</span>' : s && s.smtp ? `<button class="btn sm" id="secBind">去绑定</button>` : ""}</div>
-    <div class="gi sec-row"><span class="ic">🧑‍🏫</span><span class="sx"><span class="sxt">没绑邮箱也别担心</span><small>班主任可以在你的个人主页给你重置一个临时密码</small></span></div>`;
+    <div class="gi sec-row"><span class="ic">🧑‍🏫</span><span class="sx"><span class="sxt">没绑邮箱也别担心</span><small>班主任可以在你的个人主页给你重置一个临时密码</small></span></div>
+    <div id="devBox"></div>`;
+  loadDevices();
 }
 document.addEventListener("click", (e) => {
   if (e.target.closest("#pwChangeBtn")) openPw(false);
@@ -5055,3 +5079,55 @@ try {
   if ("serviceWorker" in navigator && (location.protocol === "https:" || localStorage.getItem("sw_test")))
     window.addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(() => {}); });
 } catch (e) {}
+
+
+// ---- 登录设备管理：每次打开/切回报到；被踢出就退出并回登录页 ----
+const DEV_KEY = "cc_device_id_v1";
+function devId() {
+  let v = ""; try { v = localStorage.getItem(DEV_KEY) || ""; } catch (e) {}
+  if (!v) { v = "web-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 12); try { localStorage.setItem(DEV_KEY, v); } catch (e) {} }
+  return v;
+}
+function devName() {
+  const u = navigator.userAgent || "";
+  const os = /iPhone|iPad/.test(u) ? "iPhone" : /Android/.test(u) ? "安卓手机" : /Windows/.test(u) ? "Windows 电脑" : /Mac/.test(u) ? "Mac 电脑" : "电脑";
+  const br = /MicroMessenger/.test(u) ? "微信内网页" : /Edg\//.test(u) ? "Edge" : /Chrome\//.test(u) ? "Chrome" : /Safari\//.test(u) ? "Safari" : /Firefox/.test(u) ? "Firefox" : "浏览器";
+  return os + " · " + br;
+}
+let devLast = 0, devList = [], devErr = "";
+async function devTouch(force) {
+  if (!currentUser || (!force && Date.now() - devLast < 60000)) return;
+  devLast = Date.now();
+  try {
+    const r = await CCAuth.rpc("device_touch", { p_device: devId(), p_name: devName(), p_platform: "web" });
+    if (r && r.revoked) {
+      try { localStorage.removeItem(DEV_KEY); } catch (e) {}
+      try { await CCAuth.signOut(); } catch (e) {}
+      try { localStorage.removeItem("cc_session_v1"); } catch (e) {}
+      alert("你的账号在别的设备上把这台设备退出登录了。本机记录仍然保留，请重新登录。");
+      location.replace("login.html?next=index.html");
+    }
+  } catch (e) { /* 后台未开通或网络不好：不影响使用 */ }
+}
+setTimeout(() => devTouch(true), 2500);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) devTouch(false); });
+async function loadDevices() {
+  const box = document.getElementById("devBox"); if (!box || !currentUser) return;
+  try { await devTouch(true); devList = (await CCAuth.rpc("device_list", { p_device: devId() })) || []; devErr = ""; }
+  catch (e) { devList = []; devErr = /device_list|function|404/i.test(e.message) ? "后台还没开通设备管理" : e.message; }
+  const ago = (t) => { const m = Math.round((Date.now() - Date.parse(t)) / 60000); return isNaN(m) ? "" : m < 2 ? "刚刚" : m < 60 ? m + " 分钟前" : m < 1440 ? Math.round(m / 60) + " 小时前" : Math.round(m / 1440) + " 天前"; };
+  const ic = { web: "💻", android: "📱", wechat: "💬" };
+  box.innerHTML = `<div class="gi sec-row"><span class="ic">🖥️</span><span class="sx"><span class="sxt">登录设备</span><small>看到不认识的设备，点「踢出」后再改密码</small></span></div>` +
+    (devErr ? `<div class="gi sec-row"><span class="ic">⚠️</span><span class="sx"><small>${esc(devErr)}</small></span></div>` : "") +
+    devList.map((d) => `<div class="gi sec-row"><span class="ic">${ic[d.platform] || "📱"}</span><span class="sx"><span class="sxt">${esc(d.name)}${d.current ? " · 本机" : ""}</span><small>最近使用 ${ago(d.last_seen)}</small></span>${d.current ? "" : `<button class="btn sm" data-devkick="${esc(d.id)}">踢出</button>`}</div>`).join("") +
+    (devList.length > 1 ? `<button class="gi" id="devKickAll"><span class="ic">🚪</span>退出其他所有设备</button>` : "");
+}
+document.addEventListener("click", async (e) => {
+  const k = e.target.closest("[data-devkick]"), all = e.target.closest("#devKickAll");
+  if (!k && !all) return;
+  const d = k && devList.find((x) => x.id === k.dataset.devkick);
+  if (!confirm(all ? "除了这台设备，其它设备全部退出登录？" : "把「" + (d ? d.name : "这台设备") + "」退出登录？")) return;
+  try { await CCAuth.rpc("device_revoke", { p_id: all ? null : k.dataset.devkick, p_all: !!all, p_device: devId() }); }
+  catch (err) { alert("没踢出：" + err.message); }
+  loadDevices();
+});

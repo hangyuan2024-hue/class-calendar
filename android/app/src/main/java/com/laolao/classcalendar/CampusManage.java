@@ -486,6 +486,8 @@ final class CampusManage {
                   CampusUi.f("newpw", "新密码", "password"),
                   CampusUi.f("again", "再次输入新密码", "password"))
         });
+    u.section(a.content, "登录设备");
+    a.content.addView(u.button("查看登录设备 / 踢出其他设备", () -> CampusDevices.show(a), true));
     u.section(a.content, "本机隐私");
     a.content.addView(u.button("设置日记设备验证", () -> a.open("privacy"), false));
   }
