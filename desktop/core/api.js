@@ -103,7 +103,7 @@ class Api {
     if (!ACCOUNT_RE.test(account)) throw new Error("账号只能用 3~20 位小写字母、数字或下划线");
     if (!name) throw new Error("请填写姓名");
     if (String(password || "").length < 8) throw new Error("密码至少 8 位");
-    const meta = { name, role: role === "teacher" ? "teacher" : "student", gender: gender === "m" || gender === "f" ? gender : "" };
+    const meta = { name, role: role === "teacher" ? "teacher" : "student", identity: role === "teacher" || role === "other" ? role : "student", gender: gender === "m" || gender === "f" ? gender : "" };
     const ORG = ["university", "college", "high", "middle", "primary", "work", "personal"];
     if (org && ORG.includes(org.type)) { meta.org_type = org.type; meta.org_name = String(org.name || "").replace(/[\u0000-\u001f\u007f]/g, "").replace(/\s+/g, " ").trim().slice(0, 40); }
     let j;

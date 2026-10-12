@@ -127,7 +127,7 @@
     if (!name) throw new Error("请填写姓名（会显示为插件作者）");
     if (String(password).length < 8) throw new Error("密码至少 8 位");
     const j = await call(BASE + "/auth/v1/signup",
-      { method: "POST", body: JSON.stringify({ email: account + "@" + DOMAIN, password, data: { name, role: role === "teacher" ? "teacher" : "student", gender: gender === "m" || gender === "f" ? gender : "", ...orgMeta(org) } }) });
+      { method: "POST", body: JSON.stringify({ email: account + "@" + DOMAIN, password, data: { name, role: role === "teacher" ? "teacher" : "student", identity: role === "teacher" || role === "other" ? role : "student", gender: gender === "m" || gender === "f" ? gender : "", ...orgMeta(org) } }) });
     meCache = null;
     if (j && j.access_token) return keep(j);
     // 部分配置下注册不直接返回登录状态，再登录一次

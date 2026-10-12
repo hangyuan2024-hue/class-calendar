@@ -438,3 +438,17 @@ setInterval(() => {
     App.go(App.view || "today"); setTimeout(() => App.autoWallpaper(), 8000); setTimeout(() => DIsland.hello(), 1500);
   }
 })();
+
+// 注册：身份和「学校 / 单位类型」对得上——学生、老师选学校；职场 / 个人选单位或个人使用
+(function syncSignupRole() {
+  const role = document.getElementById("suRole"), orgT = document.getElementById("suOrgT"), nm = document.getElementById("suName");
+  if (!role || !orgT) return;
+  const SCHOOL = ["university", "college", "high", "middle", "primary"], OTHER = ["work", "personal"];
+  const run = () => {
+    const ok = role.value === "other" ? OTHER : SCHOOL;
+    [...orgT.options].forEach((o) => { o.hidden = o.disabled = !!o.value && !ok.includes(o.value); });
+    if (orgT.value && !ok.includes(orgT.value)) orgT.value = "";
+    if (nm) nm.placeholder = role.value === "teacher" ? "真实姓名，学生能看到" : role.value === "other" ? "名字或昵称" : "真实姓名，方便老师审批入班";
+  };
+  role.addEventListener("change", run); run();
+})();

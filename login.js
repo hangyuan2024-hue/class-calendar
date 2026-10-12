@@ -103,9 +103,14 @@ $("accHint").addEventListener("click", (e) => {
   e.preventDefault(); setMode("login"); setTimeout(() => $("password").focus(), 50);
 });
 // 选老师 / 学生：姓名框的提示跟着变
-document.querySelectorAll("input[name=role]").forEach((r) => r.addEventListener("change", () => {
-  $("name").placeholder = r.value === "teacher" ? "真实姓名，学生能看到" : "真实姓名，方便老师审批入班";
-}));
+// 身份和「学校 / 单位」要对得上：学生、老师只能选学校；职场 / 个人只能选单位或个人使用
+const SCHOOL_TYPES = ["university", "college", "high", "middle", "primary"], OTHER_TYPES = ["work", "personal"];
+function syncRole() {
+  const v = (document.querySelector("input[name=role]:checked") || {}).value || "student";
+  $("name").placeholder = v === "teacher" ? "真实姓名，学生能看到" : v === "other" ? "名字或昵称，团队成员能看到" : "真实姓名，方便老师审批入班";
+  if (typeof orgPick !== "undefined" && orgPick && orgPick.allow) orgPick.allow(v === "other" ? OTHER_TYPES : SCHOOL_TYPES);
+}
+document.querySelectorAll("input[name=role]").forEach((r) => r.addEventListener("change", syncRole));
 function pwScore(p) { let s = 0; if (p.length >= 8) s++; if (p.length >= 12) s++; if (/[a-z]/i.test(p) && /\d/.test(p)) s++; if (/[^a-z0-9]/i.test(p) || /[a-z]/.test(p) && /[A-Z]/.test(p)) s++; return p ? Math.max(1, s) : 0; }
 function checkPw() {
   const p = $("password").value, p2 = $("password2").value;
@@ -140,6 +145,7 @@ var orgPick = null;
 if ($("orgPick") && window.CCOrg) {
   orgPick = CCOrg.mount($("orgPick"), {});
 }
+syncRole();
 
 async function afterLogin(isNew) {
   const me = await CCAuth.me();
@@ -218,7 +224,7 @@ async function onboard(me) {
   const g = (document.querySelector("input[name=gender]:checked") || {}).value || "m";
   const cfg = OB[g];
   ob = { step: 0, g, cfg, me, dest: safeNext || "index.html", uid: s && s.user_id, name: (me && me.display_name) || $("name").value.trim() || "同学",
-    teacher: !!(me && me.role === "teacher"), skin: cfg.skin, pal: cfg.pal, habits: new Set([cfg.habits[0][1], cfg.habits[1][1]]), sync: "cloud" };
+    teacher: !!(me && me.role === "teacher"), other: (document.querySelector("input[name=role]:checked") || {}).value === "other", skin: cfg.skin, pal: cfg.pal, habits: new Set([cfg.habits[0][1], cfg.habits[1][1]]), sync: "cloud" };
   setGender(g);
   $("ob").classList.remove("hidden");
   renderOb();
@@ -251,8 +257,8 @@ function renderOb() {
         <button class="opt ${ob.sync === "local" ? "on" : ""}" data-sync="local"><span class="em">📱</span><span><b>只存在这台设备</b><small>不上传，换浏览器就看不到了</small></span></button>
       </div>
       <div class="ob-nav"><button class="ghost" data-ob="back">上一步</button><button class="go" data-ob="next">下一步 →</button></div>`;
-  if (step === 4) h = `<div class="ob-art">${mascot}</div><h3>${cfg.done}</h3><p class="lead">${cfg.doneLead}<br>${ob.teacher ? "第一步：创建你的班级，把班级码发给学生。" : "第一步：找老师要班级码，加入你的班级。"}</p>
-      <div class="ob-nav"><button class="ghost" data-ob="home">先去首页看看</button><button class="go" data-ob="class">${ob.teacher ? "去创建班级 →" : "输入班级码 →"}</button></div>`;
+  if (step === 4) h = `<div class="ob-art">${mascot}</div><h3>${cfg.done}</h3><p class="lead">${cfg.doneLead}<br>${ob.teacher ? "第一步：创建你的班级，把班级码发给学生。" : ob.other ? "第一步：创建一个班级 / 团队，把邀请码发给大家；或者输入别人给你的码加入。" : "第一步：找老师要班级码，加入你的班级。"}</p>
+      <div class="ob-nav"><button class="ghost" data-ob="home">先去首页看看</button><button class="go" data-ob="class">${ob.teacher || ob.other ? "去创建班级 →" : "输入班级码 / 自己建班 →"}</button></div>`;
   $("obBody").innerHTML = `<div class="ob-step${ob.shown === step ? "" : " anim"}">${h}</div>${step < OB_STEPS - 1 ? `<button class="ob-skip" data-ob="skip">跳过，直接用默认设置</button>` : ""}`;
   ob.shown = step;
 }

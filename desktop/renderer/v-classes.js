@@ -42,12 +42,13 @@ App.views.classes = {
     const joinedSec = `<div class="sec-h"><b>我加入的班级</b><span>${joined.length} 个</span></div>
       ${joined.length ? joined.map((c) => this.joinedHtml(c)).join("") : `<div class="card empty">还没有加入班级。向老师要 6 位班级码，填在上面。</div>`}`;
     const isT = this.teacherRole() || teach.length;
-    const teachSec = isT ? `<div class="sec-h"><b>我管理的班级</b><span>${teach.length} 个 · 每个班单独管理、单独发通知</span></div>
+    // 创建班级对所有人开放：班委、课代表、社团负责人自己建的班，自己就是管理者
+    const teachSec = `<div class="sec-h"><b>${isT ? "我管理的班级" : "我创建的班级"}</b><span>${isT ? `${teach.length} 个 · 每个班单独管理、单独发通知` : "班委也可以自己建班，建好后你就是这个班的管理者"}</span></div>
         ${teach.map((c) => this.teachHtml(c)).join("")}
-        <div class="card cl-new"><form class="row" data-f="create" style="padding:14px 16px"><input class="input" name="name" maxlength="40" placeholder="${teach.length ? "再建一个班，" : ""}新班级名称，如 计科2501、高数5班" style="flex:1"><button class="btn primary">${icon("plus")}创建班级</button></form></div>` : "";
+        <div class="card cl-new"><form class="row" data-f="create" style="padding:14px 16px"><input class="input" name="name" maxlength="40" placeholder="${teach.length ? "再建一个班，" : ""}新班级名称，如 计科2501、高数5班" style="flex:1"><button class="btn primary">${icon("plus")}创建班级</button></form></div>`;
     // 老师：先看自己管理的班；没加入别人的班就不显示「我加入的班级」，加入框放到最后
     box.innerHTML = isT ? teachSec + (joined.length ? joinedSec : "") + `<div class="sec-h"><b>加入别的班</b><span>比如你也在别的老师的班里</span></div>` + joinCard
-      : joinCard + joinedSec;
+      : joinCard + joinedSec + teachSec;
     this.lookup();
   },
   // 输入班级码时先查一下是哪个班
@@ -126,7 +127,12 @@ App.views.classes = {
       }
       if (f.dataset.f === "create") {
         const name = f.name.value.trim(); if (!name) return f.name.focus();
-        const r = await api("create_class", { cname: name });
+        let r;
+        try { r = await api("create_class", { cname: name }); }
+        catch (e2) {
+          if (!this.teacherRole() && /teacher|老师|权限|permission|denied|forbidden|not allowed/i.test(e2.message || "")) { toast("后台暂时只允许老师创建班级，请让管理员开放「所有人可创建班级」", { bad: true }); return; }
+          throw e2;
+        }
         this.open.add(r.id); toast(`已创建，班级码 ${r.code}`);
       }
       await this.load(); call("refresh");

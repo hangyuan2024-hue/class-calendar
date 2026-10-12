@@ -205,7 +205,7 @@
       const ks = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
       if (!(e.key in ks)) return;
       e.preventDefault();
-      const bs = [...root.querySelectorAll("[data-type]")], i = bs.findIndex((b) => b.dataset.type === st.type);
+      const bs = [...root.querySelectorAll("[data-type]")].filter((b) => !b.hidden), i = bs.findIndex((b) => b.dataset.type === st.type);
       const n = bs[(i + ks[e.key] + bs.length) % bs.length]; n.click(); n.focus();
     });
     inp.addEventListener("focus", () => { if (st.type === "university") { loadData().then(fillProv).catch(() => {}); if (inp.value.trim() && !st.picked) openList(); else if (!inp.value.trim()) openList(); } });
@@ -240,6 +240,12 @@
       value,
       set(v) { v = v || {}; st.type = NAME_OF[v.type] ? v.type : "university"; inp.value = clean(v.name); st.skip = !!(v.type && !v.name && opts.skipDefault); st.picked = false; close(); render();
         if (st.type === "university" && inp.value) loadData().then(() => { st.picked = DATA.byName.has(inp.value); setHint(); root.classList.toggle("picked", st.picked && !st.skip); }).catch(() => {}); },
+      // 只显示跟身份对得上的类型（学生/老师 → 学校；职场/个人 → 单位、个人使用）
+      allow(types) {
+        const ok = new Set(types && types.length ? types : TYPES.map((t) => t[0]));
+        root.querySelectorAll("[data-type]").forEach((b) => { b.hidden = !ok.has(b.dataset.type); });
+        if (!ok.has(st.type)) { const wasUniv = st.type === "university"; st.type = TYPES.find((t) => ok.has(t[0]))[0]; if (wasUniv !== (st.type === "university")) { inp.value = ""; st.picked = false; } close(); render(); emit(); }
+      },
       focus() { (st.skip ? skipB : inp).focus(); },
       preload: () => loadData().catch(() => {}),
     };

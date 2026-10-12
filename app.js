@@ -992,7 +992,7 @@ async function loadClass() {
     const teacher = currentUser.role === "teacher" || currentUser.role === "admin";
     showNotice(pendingClasses.length
       ? `已申请加入「${esc(pendingClasses.map((c) => c.name).join("、"))}」，等老师批准后这里就会显示捞捞课程表。<a href="class.html">查看 →</a>`
-      : teacher ? `你还没有班级。<a href="class.html">去创建班级 →</a>` : `你还没有加入班级。<a href="class.html">输入班级码加入 →</a>`);
+      : teacher ? `你还没有班级。<a href="class.html">去创建班级 →</a>` : `你还没有加入班级。<a href="class.html">输入班级码加入，或自己创建一个班 →</a>`);
     return;
   }
   showNotice("");

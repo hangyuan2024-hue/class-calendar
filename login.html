@@ -81,6 +81,9 @@
   .fg-help:empty { display: none; }
   .fg-more { margin-top: 12px; font-size: 13px; color: var(--sub); } .fg-more summary { cursor: pointer; font-weight: 700; } .fg-more p { line-height: 1.7; margin: 6px 0; }
   .picks { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .picks.r3 { grid-template-columns: repeat(3, 1fr); }
+  .picks.r3 .pick { flex-direction: column; text-align: center; gap: 4px; padding-left: 6px; padding-right: 6px; }
+  @media (max-width: 420px) { .picks.r3 { grid-template-columns: 1fr; } .picks.r3 .pick { flex-direction: row; text-align: left; } }
   .pick { position: relative; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 16px; background: var(--solid); cursor: pointer; transition: transform .15s, border-color .2s, box-shadow .2s; font-weight: 700; }
   .pick:hover { transform: translateY(-1px); }
   .pick input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; z-index: 1; }
@@ -287,9 +290,10 @@
           </div>
           <div class="fld">
             <label id="rLbl">身份</label>
-            <div class="picks" role="radiogroup" aria-labelledby="rLbl">
-              <label class="pick"><input type="radio" name="role" value="student" checked><span class="em" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a5 5 0 0 1 10 0v10.5H7z"/><path d="M10 4.5h4M7 13h10M10 13v2"/></svg></span><span>学生<small>输入班级码入班</small></span></label>
+            <div class="picks r3" role="radiogroup" aria-labelledby="rLbl">
+              <label class="pick"><input type="radio" name="role" value="student" checked><span class="em" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a5 5 0 0 1 10 0v10.5H7z"/><path d="M10 4.5h4M7 13h10M10 13v2"/></svg></span><span>学生<small>加入或创建班级</small></span></label>
               <label class="pick"><input type="radio" name="role" value="teacher"><span class="em" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="11" rx="2"/><path d="M8 19.5l2-4M16 19.5l-2-4M7.5 9h5M7.5 12h8"/></svg></span><span>老师<small>创建班级、任命班委</small></span></label>
+              <label class="pick"><input type="radio" name="role" value="other"><span class="em" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="7.5" width="17" height="12" rx="2"/><path d="M9 7.5V5.5h6v2M3.5 12.5h17"/></svg></span><span>职场 / 个人<small>自己用或带团队</small></span></label>
             </div>
           </div>
           <div class="fld">

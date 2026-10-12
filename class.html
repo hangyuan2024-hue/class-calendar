@@ -116,10 +116,10 @@
     <div id="myList" class="empty">加载中…</div>
   </section>
 
-  <!-- 老师：我的班级 -->
+  <!-- 我管理的班级：老师、学生（班委）都可以创建 -->
   <section class="card hidden" id="teachCard">
-    <h2>我管理的班级</h2>
-    <div class="desc">把班级码发到班群，同学申请后在这里批准；可以把同学设为班委，并单独开关每项权限；还可以在班里再分组（比如不同的课、不同的小组），给每个组设组长。</div>
+    <h2 id="teachTitle">我管理的班级</h2>
+    <div class="desc" id="teachDesc">把班级码发到班群，同学申请后在这里批准；可以把同学设为班委，并单独开关每项权限；还可以在班里再分组（比如不同的课、不同的小组），给每个组设组长。</div>
     <form class="row" id="createForm">
       <input id="newName" aria-label="新班级名称" maxlength="40" placeholder="新班级名称，如 计科2501" style="flex:1; min-width:180px">
       <button class="primary" id="createBtn" type="submit">创建班级</button>

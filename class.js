@@ -20,7 +20,8 @@ async function load() {
   await Promise.all(mine.filter((c) => !c.is_teacher && (groups[c.id] || []).some((g) => g.lead) || c.member_role === "monitor")
     .map(async (c) => { try { rosters[c.id] = await rpc("class_roster", { cid: c.id }); } catch (e) { /* 没有看名单的权限 */ } }));
   renderMine();
-  if (me.role === "teacher" || me.role === "admin") await renderTeaching();
+  // 不只老师：学生（比如班委）也能创建班级，创建者就是这个班的管理者
+  await renderTeaching();
   if (location.hash === "#features" && !load._scrolled) { load._scrolled = true; const h = document.querySelector("[id^=feat_]"); if (h) h.scrollIntoView(); }
   if (me.role === "admin") renderAdmin().catch((e) => toast(e.message, true));
 }
@@ -164,7 +165,14 @@ document.addEventListener("change", (e) => {
 $("createForm").onsubmit = (e) => {
   e.preventDefault();
   guard($("createBtn"), async () => {
-    const r = await rpc("create_class", { cname: $("newName").value });
+    let r;
+    try { r = await rpc("create_class", { cname: $("newName").value }); }
+    catch (err) {
+      // 后台还只允许「老师」身份创建时，给一句看得懂的提示
+      if (me.role !== "teacher" && me.role !== "admin" && /teacher|老师|权限|permission|denied|forbidden|not allowed/i.test(err.message || ""))
+        throw new Error("后台暂时只允许老师创建班级，请让管理员在后台开放「所有人可创建班级」");
+      throw err;
+    }
     $("newName").value = ""; toast(`已创建，班级码 ${r.code}`);
     await load();
     const d = document.querySelector(`details.cls[data-id="${r.id}"]`); if (d) d.open = true;
@@ -256,7 +264,12 @@ $("logout").onclick = async () => { await CCAuth.signOut(); location.href = "log
   if (!me) { await CCAuth.signOut(); location.href = "login.html?next=class.html"; return; }
   $("who").textContent = `${me.display_name}（${CCAuth.ROLE_NAMES[me.role] || me.role}）`;
   const teacher = me.role === "teacher" || me.role === "admin";
-  $("teachCard").classList.toggle("hidden", !teacher);
+  // 创建班级对所有人开放：学生、班委建的班，自己就是这个班的管理者
+  $("teachCard").classList.remove("hidden");
+  if (!teacher) {
+    $("teachTitle").textContent = "我创建的班级";
+    $("teachDesc").textContent = "班委、课代表、社团负责人也可以自己建班：建好后你就是这个班的管理者，把班级码发到群里，同学申请后在这里批准；也能设班委、分组。";
+  }
   $("adminCard").classList.toggle("hidden", me.role !== "admin");
   $("devLink").classList.toggle("hidden", !(me.perms && me.perms.length));
   if (me.role === "teacher") { $("joinCard").classList.add("hidden"); $("myCard").classList.add("hidden"); }
