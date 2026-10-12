@@ -669,38 +669,29 @@ function heroNextHtml(ctx) {
   </div>`;
 }
 function heroLineHtml(ctx) {
-  const day=keyOf(ctx.now), mode=load("home_agenda_filter_v1","all");
-  const courses=ctx.courses.map((c,i)=>({key:"course:"+i,title:c.name,time:c.t0||"",end:c.t1||"",location:c.location||"",type:"课程",course:true,done:false}));
-  const items=ctx.items.filter(x=>x.day===day).map(x=>({...x,course:false}));
-  const rows=[...courses,...items].filter(x=>mode==="courses"?x.course:mode==="items"?!x.course:true)
-    .sort((a,b)=>(a.time||"").localeCompare(b.time||"") || a.title.localeCompare(b.title));
-  return `<section class="named-agenda" aria-label="今日时间与事项"><header><b>今日安排</b><span>${rows.length} 项</span></header>
-    <div class="named-agenda-filters" role="group" aria-label="今日显示内容">${[["all","全部"],["courses","只看课程"],["items","只看其他事项"]].map(([id,label])=>`<button type="button" data-home-agenda-filter="${id}" aria-pressed="${mode===id}">${label}</button>`).join("")}</div>
-    ${rows.map(x=>`<div class="named-agenda-row${x.done?" done":""}"><div class="named-agenda-time"><strong>${esc(x.time||"全天")}</strong>${x.end?`<small>${esc(x.end)}</small>`:""}</div><div class="named-agenda-copy"><strong>${esc(x.title||"未命名事项")}</strong><small>${esc([x.type,x.location,x.done?"已完成":x.course?"":"待完成"].filter(Boolean).join(" · "))}</small></div>${x.course?`<button type="button" data-nxgo="${courseTool()?"course":"calendar"}" aria-label="查看课程 ${esc(x.title)}">›</button>`:`<button type="button" data-act="done" data-k="${esc(x.key)}" aria-label="完成 ${esc(x.title)}" aria-pressed="${!!x.done}">${x.done?"✓":"○"}</button>`}</div>`).join("")||'<p class="named-agenda-empty">今天没有符合筛选的安排</p>'}</section>`;
+  const now = ctx.now, t = keyOf(now), nowMin = now.getHours() * 60 + now.getMinutes();
+  const itemsOn = (k) => ctx.items.filter((x) => x.day === k && !x.done && hm2min(x.time) != null);
+  const lastToday = Math.max(-1, ...ctx.courses.map((c) => hm2min(c.t1 || c.t0) || 0), ...itemsOn(t).map((x) => hm2min(x.time)));
+  const tomorrow = nowMin >= 21 * 60 && lastToday <= nowMin;
+  const day = tomorrow ? shiftDay(t, 1) : t;
+  const courses = (tomorrow ? islandCourses(day) : ctx.courses).filter((c) => hm2min(c.t0) != null);
+  const items = itemsOn(day);
+  const pts = [...courses.flatMap((c) => [hm2min(c.t0), hm2min(c.t1 || c.t0)]), ...items.map((x) => hm2min(x.time))];
+  const a = Math.min(8 * 60, ...pts.map((m) => Math.floor(m / 60) * 60)), z = Math.max(22 * 60, ...pts.map((m) => Math.ceil(m / 60) * 60));
+  const pct = (m) => ((Math.max(a, Math.min(z, m)) - a) / (z - a) * 100).toFixed(2);
+  const go = courseTool() ? "course" : "calendar";
+  const segs = courses.map((c) => { const s = hm2min(c.t0), e = hm2min(c.t1 || "") ?? s + 45, past = !tomorrow && e <= nowMin, on = !tomorrow && s <= nowMin && nowMin < e;
+    return `<button class="tl-c${past ? " past" : ""}${on ? " on" : ""}" style="left:${pct(s)}%;width:${(pct(e) - pct(s)).toFixed(2)}%" data-nxgo="${go}" title="${esc(c.t0 + "–" + (c.t1 || "") + " " + c.name + (c.location ? " · " + c.location : ""))}"><span>${esc(c.name)}</span></button>`; }).join("");
+  const dots = items.map((x) => `<button class="tl-d${x.type === "作业" ? " hw" : ""}" style="left:${pct(hm2min(x.time))}%" data-nxgo="${x.type === "作业" ? "homework" : "calendar"}" title="${esc(x.time + " " + x.title)}"></button>`).join("");
+  const ticks = [a, ...[12 * 60, 18 * 60].filter((m) => m > a + 90 && m < z - 90), z].map((m) => `<i style="left:${pct(m)}%">${m / 60}:00</i>`).join("");
+  const loose = ctx.items.filter((x) => x.day === day && !x.done && hm2min(x.time) == null).length;
+  const empty = !courses.length && !items.length;
+  return `<div class="tl${tomorrow ? " tmr" : ""}" data-a="${a}" data-z="${z}">
+    <div class="tl-h"><b>${tomorrow ? "明天" : "今天"}</b><span>${empty && !loose ? "没有课，也没有要做的事" : [courses.length ? courses.length + " 节课" : "", items.length ? items.length + " 件有时间点的事" : "", loose ? loose + " 件全天的事" : ""].filter(Boolean).join(" · ")}</span></div>
+    <div class="tl-track">${segs}${dots}${tomorrow || nowMin < a ? "" : `<em class="tl-now" style="left:${pct(nowMin)}%"></em>`}</div>
+    <div class="tl-ticks">${ticks}</div>
+  </div>`;
 }
-document.addEventListener("click",e=>{
-  const button=e.target.closest("[data-home-agenda-filter]");if(!button)return;
-  localStorage.setItem("home_agenda_filter_v1",JSON.stringify(button.dataset.homeAgendaFilter));renderAgenda();
-});
-const namedAgendaStyle=document.createElement("style");
-namedAgendaStyle.textContent=`
-html.reduce-motion *,html.reduce-motion *::before,html.reduce-motion *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
-.named-agenda{margin-top:20px;position:relative;text-align:left;color:var(--text);width:100%;grid-column:1/-1}
-.named-agenda header{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:10px}
-.named-agenda header span{font-size:12px;color:var(--sub)}
-.named-agenda-filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
-.named-agenda-filters button{background:var(--surface);color:var(--sub);border:1px solid var(--line);border-radius:6px;padding:9px 12px;min-height:40px;font:inherit;font-size:12px}
-.named-agenda-filters button[aria-pressed=true]{background:var(--accent);color:var(--tile-text);border-color:var(--accent)}
-.named-agenda-row{display:grid;grid-template-columns:48px minmax(0,1fr) 40px;gap:10px;align-items:center;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:12px;margin:8px 0}
-.named-agenda-time{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--accent)}
-.named-agenda-time small,.named-agenda-copy small{color:var(--sub);font-size:12px;line-height:1.6}
-.named-agenda-copy{min-width:0}.named-agenda-copy strong{display:block;font-size:15px;overflow-wrap:anywhere;line-height:1.5}.named-agenda-copy small{display:block;margin-top:4px}
-.named-agenda-row>button{min-width:40px;min-height:40px;background:transparent;color:var(--accent);border:0;font-size:22px}
-.named-agenda-row.done .named-agenda-copy strong{text-decoration:line-through;color:var(--sub)}
-.named-agenda-empty{font-size:13px;color:var(--sub);padding:16px 0}
-.hero.fx:has(.named-agenda){height:auto;min-height:0}.hero.fx .named-agenda{max-width:100%}
-`;
-document.head.appendChild(namedAgendaStyle);
 let heroTick = 0;
 function heroTickStart() {
   clearInterval(heroTick);
