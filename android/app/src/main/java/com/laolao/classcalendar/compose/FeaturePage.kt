@@ -50,9 +50,9 @@ private fun UtilityActionCell(
     Row(
         modifier
             .heightIn(min = 56.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .background(lerp(c.surface, hue, if (enabled && !destructive) .04f else .008f))
-            .border(1.dp, c.outlineVariant.copy(alpha = .45f), RoundedCornerShape(18.dp))
+            .clip(LocalLaoStyle.current.button)
+            .background(c.surface)
+            .border(1.dp, c.outlineVariant.copy(alpha = .7f), LocalLaoStyle.current.button)
             .laoTap(
                 role = androidx.compose.ui.semantics.Role.Button,
                 enabled = enabled,
@@ -105,7 +105,16 @@ internal fun FeaturePage(s: CampusSession) {
                 routeIcon(s.route),
             )
         }
-        nodes.forEachIndexed { index, node ->
+        val actions = nodes.filterIsInstance<FeatureNode.Action>()
+        if (actions.isNotEmpty()) animatedItem(1, "utility-actions-${s.route}") {
+            actions.chunked(2).forEach { pair ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    pair.forEach { node -> UtilityActionCell(node.text, Modifier.weight(1f), node.enabled) { s.invoke(node.click); s.panelRevision++ } }
+                    if (pair.size == 1) Spacer(Modifier.weight(1f))
+                }
+            }
+        }
+        nodes.filterNot { it is FeatureNode.Action }.forEachIndexed { index, node ->
             animatedItem(index + 1, "feature-$index-${s.route}") { Feature(s, node) }
         }
         if (nodes.isEmpty())

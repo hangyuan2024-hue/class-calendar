@@ -17,14 +17,13 @@ import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.*
 
-internal val WebMainRoutes = listOf("home", "homework", "growth", "tools", "me")
+internal val WebMainRoutes = listOf("home", "calendar", "class", "tools", "me")
 
 internal fun webDestination(route: String): String = when (route) {
-    "home", "calendar", "ask", "parse-review" -> "home"
-    "homework" -> "homework"
-    "growth", "farm", "meta", "report", "cards", "review", "habits" -> "growth"
-    "me", "settings", "appearance", "home-layout", "login", "register", "class", "wall", "rank",
-    "people", "user", "about", "credits", "backup", "security", "mail", "permissions", "lan", "organization" -> "me"
+    "home", "ask" -> "home"
+    "calendar", "courses", "homework", "parse-review" -> "calendar"
+    "class", "wall", "rank", "people", "members", "groups", "class-features", "user" -> "class"
+    "me", "settings", "appearance", "home-layout", "login", "register", "about", "credits", "backup", "security", "mail", "permissions", "organization" -> "me"
     else -> "tools"
 }
 
@@ -55,8 +54,8 @@ internal fun WebTopBar(s: CampusSession) {
 @Composable
 internal fun WebBottomNavigation(s: CampusSession, onSelect: (String) -> Unit) {
     val c = MaterialTheme.colorScheme
-    val labels = listOf("首页", "作业", "成长", "工具", "我的")
-    val icons = listOf(Icons.Rounded.Home, Icons.Rounded.Description, Icons.Rounded.Insights,
+    val labels = listOf("首页", "日历", "班级", "工具", "我的")
+    val icons = listOf(Icons.Rounded.Home, Icons.Rounded.CalendarMonth, Icons.Rounded.Groups,
         Icons.Rounded.GridView, Icons.Rounded.PersonOutline)
     Column(Modifier.fillMaxWidth().background(c.surface.copy(alpha = .96f)).navigationBarsPadding()) {
         HorizontalDivider(color = c.outlineVariant, thickness = .5.dp)
@@ -93,28 +92,12 @@ internal fun WebFloatingActions(s: CampusSession, modifier: Modifier = Modifier)
         modifier.fillMaxWidth().navigationBarsPadding().padding(start = 12.dp, end = 18.dp, bottom = 78.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (CampusGuide.enabled(s.a)) {
-            Box(
-                Modifier.size(60.dp).semantics { contentDescription = "捞捞提示小人" }
-                    .clip(RoundedCornerShape(16.dp)).clickable { s.sheet = GuideSheet },
-                contentAlignment = Alignment.Center,
-            ) { LaoMascot(Modifier.size(54.dp)) }
-        }
         Spacer(Modifier.weight(1f))
-        if (s.route in listOf("home", "calendar", "homework", "wall", "growth", "tools")) Box(
-            Modifier.size(48.dp).clip(RoundedCornerShape(13.dp)).background(c.primary)
-                .semantics { contentDescription = "快捷操作"; role = Role.Button }
-                .laoTap(role = Role.Button) {
-                    when (s.route) {
-                        "calendar" -> CampusSchool.personalForm(s.a, null)
-                        "growth" -> CampusLearn.habitForm(s.a, null)
-                        "wall" -> CampusSocial.post(s.a, null)
-                        "tools" -> CampusToolbox.quickChoose(s.a)
-                        else -> s.sheet = QuickAddSheet
-                    }
-                },
-            contentAlignment = Alignment.Center,
-        ) { Icon(Icons.Rounded.Add, null, Modifier.size(28.dp), tint = c.onPrimary) }
+        Box(Modifier.size(48.dp).clip(LocalLaoStyle.current.button).background(c.primary)
+            .semantics { contentDescription="打开快捷操作";role=Role.Button }
+            .laoTap(role=Role.Button) { s.sheet=QuickAddSheet },contentAlignment=Alignment.Center) {
+            Icon(Icons.Rounded.Add,null,Modifier.size(26.dp),tint=c.onPrimary)
+        }
     }
 }
 
@@ -149,14 +132,6 @@ internal fun ExperienceSelector(s: CampusSession) {
 
 @Composable
 internal fun CampusWebPage(s: CampusSession, route: String) {
-    when (route) {
-        "home" -> WebHomePage(s)
-        "calendar" -> WebCalendarPage(s)
-        "homework" -> WebHomeworkPage(s)
-        "growth" -> WebGrowthPage(s)
-        "tools" -> WebToolsPage(s)
-        "me" -> WebProfilePage(s)
-        "login", "register" -> WebAuthPage(s, route == "register")
-        else -> ModernPages.Page(s, route)
-    }
+    // Both appearance modes share the same complete screen layouts and native feature bridge.
+    ModernPages.Page(s, route)
 }

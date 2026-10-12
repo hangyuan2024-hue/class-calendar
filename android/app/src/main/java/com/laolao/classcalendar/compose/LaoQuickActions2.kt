@@ -23,31 +23,29 @@ private data class LaoOperation(
 @Composable
 internal fun ColumnScope.LaoQuickActions(s: CampusSession) {
     val c = MaterialTheme.colorScheme
-    val operations =
-        mutableListOf(
-            LaoOperation("记一件事", "日程、作业与待办", Icons.Rounded.EditNote) {
-                if (s.route != "calendar") s.a.selectedDay = DateMath.today()
-                CampusSchool.personalForm(s.a, null)
-            },
-            LaoOperation("粘贴导入", "整理班群消息", Icons.Rounded.ContentPaste) {
-                CampusSocial.pasteImport(s.a)
-            },
-            LaoOperation("开始专注", "给注意力留点时间", Icons.Rounded.Timelapse) { s.open("pomo") },
-            LaoOperation("习惯打卡", "让今天再好一点", Icons.Rounded.Spa) { s.open("growth") },
-            LaoOperation("选择快捷工具", "常用工具放在手边", Icons.Rounded.Widgets) { s.sheet = ToolPickerSheet },
-            LaoOperation("写日记", "留住一个校园瞬间", Icons.Rounded.AutoStories) { s.open("diary") },
-        )
-    if (s.a.cid().isNotBlank()) {
-        if (s.a.can("can_ingest"))
-            operations +=
-                LaoOperation("发布班级事项", "共享课程与安排", Icons.Rounded.Campaign) {
-                    CampusSchool.classForm(s.a, null)
-                }
-        operations +=
-            LaoOperation("发布班级消息", "通知、讨论与日常", Icons.Rounded.Forum) { CampusSocial.post(s.a, null) }
+    fun op(id:String): LaoOperation = when(id) {
+        "course" -> LaoOperation("添加课程", "周次、时间与教室", Icons.Rounded.School) { CampusCourses.form(s.a,null) }
+        "import" -> LaoOperation("导入课表", "截图、文件或粘贴", Icons.Rounded.FileDownload) { importCourses(s) }
+        "task" -> LaoOperation("记一件事", "日程、作业与待办", Icons.Rounded.EditNote) { if(s.route !in listOf("calendar","courses")) s.a.selectedDay=DateMath.today(); CampusSchool.personalForm(s.a,null) }
+        "create" -> LaoOperation("创建空间", "班级或团队", Icons.Rounded.GroupAdd) { if(s.a.api.logged()) showCreateClass(s.a) else s.open("login") }
+        "join" -> LaoOperation("输入班级码", "申请加入已有空间", Icons.Rounded.Key) { if(s.a.api.logged()) showJoinClass(s.a) else s.open("login") }
+        "post" -> LaoOperation("发布班级消息", "通知与讨论", Icons.Rounded.Forum) { CampusSocial.post(s.a,null) }
+        "shared" -> LaoOperation("发布班级事项", "共享课程与安排", Icons.Rounded.Campaign) { CampusSchool.classForm(s.a,null) }
+        "paste" -> LaoOperation("粘贴导入", "整理收到的消息", Icons.Rounded.ContentPaste) { CampusSocial.pasteImport(s.a) }
+        "pomo" -> LaoOperation("开始专注", "给注意力留点时间", Icons.Rounded.Timelapse) { s.open("pomo") }
+        "habit" -> LaoOperation("习惯打卡", "记录今日成长", Icons.Rounded.Spa) { s.open("growth") }
+        "reminder" -> LaoOperation("自定义提醒", "日期、时间与内容", Icons.Rounded.Notifications) { CampusPhone.reminderForm(s.a,null) }
+        "appearance" -> LaoOperation("外观工作室", "风格与配色", Icons.Rounded.Palette) { s.open("appearance") }
+        "backup" -> LaoOperation("导出备份", "先保留一份记录", Icons.Rounded.CloudDownload) { s.a.export("laolao-backup.json",s.a.store.backup().toString(),"application/json") }
+        else -> LaoOperation("选择快捷工具", "收藏常用入口", Icons.Rounded.Widgets) { s.sheet=ToolPickerSheet }
     }
-    LaoSheetHeading("顺手，做一件事") { s.closeSheet() }
-    Text("你的校园快捷操作", style = LaoType.caption, color = c.onSurfaceVariant)
+    val operations = quickActionIds(s.route).map(::op).toMutableList()
+    if(s.route in listOf("class","wall","people","members","groups") && s.a.cid().isNotBlank()) {
+        operations += op("post")
+        if(s.a.can("can_ingest")) operations += op("shared")
+    }
+    LaoSheetHeading("快捷操作 · " + routeTitle(s.route)) { s.closeSheet() }
+    Text("当前页面的常用操作", style = LaoType.caption, color = c.onSurfaceVariant)
     LazyColumn(Modifier.weight(1f, false), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         items(operations.chunked(2)) { pair ->
             Row(
@@ -63,7 +61,7 @@ internal fun ColumnScope.LaoQuickActions(s: CampusSession) {
                         Modifier.weight(1f)
                             .fillMaxHeight()
                             .heightIn(min = 104.dp)
-                            .clip(RoundedCornerShape(24.dp))
+                            .clip(LocalLaoStyle.current.card)
                             .background(hue.copy(alpha = .055f))
                             .laoTap(role = androidx.compose.ui.semantics.Role.Button) {
                                 s.closeSheet()

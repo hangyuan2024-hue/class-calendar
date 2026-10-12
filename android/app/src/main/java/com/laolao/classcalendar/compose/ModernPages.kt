@@ -44,6 +44,7 @@ internal object ModernPages {
             "login",
             "register",
             "wall",
+            "class",
             "rank",
             "user",
             "settings",
@@ -59,6 +60,7 @@ internal object ModernPages {
     @Composable
     fun Page(state: CampusSession, route: String) {
         state.revision
+        AutoRefresh(state, route)
         when (route) {
             "home" -> CampusHomePage(state)
             "calendar" -> CampusCalendarPage(state)
@@ -72,6 +74,7 @@ internal object ModernPages {
             "login" -> CampusAuthPage(state, false)
             "register" -> CampusAuthPage(state, true)
             "wall" -> CampusClassWallPage(state)
+            "class" -> CampusClassPage(state)
             "rank" -> CampusRankPage(state)
             "user" -> CampusPublicProfilePage(state)
             "settings" -> CampusSettingsPage(state)
@@ -203,42 +206,15 @@ internal fun TaskRow(s: CampusSession, task: JSONObject) {
 
 @Composable
 internal fun ProgressOverview(stats: IntArray) {
-    PremiumCard(Modifier.fillMaxWidth()) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            listOf("本周作业", "本周事项", "今日打卡").forEachIndexed { index, label ->
-                Column(
-                    Modifier.weight(1f),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    val done = stats[index * 2]
-                    val total = stats[index * 2 + 1]
-                    val value by
-                        animateFloatAsState(
-                            if (total == 0) 0f else done.toFloat() / total,
-                            spring(dampingRatio = 1f, stiffness = 160f),
-                            label = "progress $label",
-                        )
-                    Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(
-                            progress = { value },
-                            modifier = Modifier.fillMaxSize(),
-                            strokeWidth = 4.dp,
-                            trackColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        )
-                        Text(
-                            if (total == 0) "—" else "${(value*100).roundToInt()}%",
-                            style = MaterialTheme.typography.labelMedium,
-                        )
-                    }
-                    Text(label, style = MaterialTheme.typography.labelMedium)
-                    Text(
-                        "$done / $total",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        listOf("本周作业", "本周事项", "今日打卡").forEachIndexed { index, label ->
+            val done = stats[index * 2]
+            val total = stats[index * 2 + 1]
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(label, style = MaterialTheme.typography.labelMedium)
+                Text(if (total == 0) "暂无记录" else "已完成 $done / $total", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            LinearProgressIndicator(progress = { if(total==0) 0f else (done.toFloat()/total).coerceIn(0f,1f) }, modifier = Modifier.fillMaxWidth(), trackColor = MaterialTheme.colorScheme.surfaceContainerHigh)
         }
     }
 }
@@ -1102,3 +1078,22 @@ internal fun RecordImage(a: CampusActivity, id: String) {
 }
 
 @Composable internal fun CoursesPage(s: CampusSession) = ModernCoursesPage(s)
+
+private val ClassRoutes = setOf("class", "wall", "rank", "people", "members", "groups", "class-features")
+
+/** Reloads cloud-backed pages when opened, when the app returns, and every minute while visible. */
+@Composable
+private fun AutoRefresh(s: CampusSession, route: String) {
+    if (route != "credits" && route !in ClassRoutes) return
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(route, lifecycle) {
+        while (true) {
+            val a = s.a
+            if (a.api.logged() && lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) a.quietly {
+                if (route == "credits") a.rpc("credit_list", JSONObject()) { r -> a.store.set("cache_credits", r); a.build() }
+                else a.refreshCloud()
+            }
+            kotlinx.coroutines.delay(60_000)
+        }
+    }
+}

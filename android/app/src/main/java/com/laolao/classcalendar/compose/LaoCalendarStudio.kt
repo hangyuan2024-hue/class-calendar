@@ -32,15 +32,10 @@ internal fun LaoCalendarStudio(s: CampusSession) {
     val parts = DateMath.parts(selected)
     val courses = CampusCourses.onDay(s.a.store, selected)
     val tasks = visibleTasks(s.a).filter { taskDate(it) == selected }
-    val displayedTasks = tasks.filter { CampusSchool.visible(s.a, it) }
     val done = tasks.count { s.a.done(it) }
-    val entries =
-        (courses.map { Triple(it.optString("t0"), true, it) } +
-                displayedTasks.map { Triple(taskClock(it).ifBlank { "00:00" }, false, it) })
-            .filter {
-                filter == "全部" || (it.second && filter == "课程") || (!it.second && filter == "事项")
-            }
-            .sortedBy { it.first }
+    val entries = dailyAgenda(courses, tasks).filter {
+        filter == "全部" || (it.course && filter == "课程") || (!it.course && filter == "事项")
+    }
     fun select(day: String) {
         selected = day
         s.a.selectedDay = day
@@ -51,7 +46,7 @@ internal fun LaoCalendarStudio(s: CampusSession) {
     LaoPage(spacing = 16.dp) {
         animatedItem(0, "calendar3-heading") {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                LaoEyebrow("校园日历 · ${parts[0]}", c.onSurfaceVariant)
+                Text("${parts[0]} 年", style = LaoType.caption, color = c.onSurfaceVariant)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -63,7 +58,7 @@ internal fun LaoCalendarStudio(s: CampusSession) {
                     ) {
                         Text(
                             parts[1].toString().padStart(2, '0'),
-                            style = LaoType.display.copy(fontSize = 48.sp, lineHeight = 56.sp),
+                            style = LaoType.display.copy(fontSize = 28.sp, lineHeight = 36.sp),
                         )
                         Text("月", Modifier.padding(bottom = 8.dp), style = LaoType.title)
                     }
@@ -102,16 +97,9 @@ internal fun LaoCalendarStudio(s: CampusSession) {
             var distance by remember { mutableFloatStateOf(0f) }
             Column(
                 Modifier.fillMaxWidth()
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(
-                                c.surface.copy(alpha = .85f),
-                                lerp(c.surface, c.primary, .03f).copy(alpha = .65f),
-                            )
-                        )
-                    )
-                    .border(1.dp, c.outlineVariant.copy(alpha = .45f), RoundedCornerShape(24.dp))
+                    .clip(LocalLaoStyle.current.card)
+                    .background(c.surface)
+                    .border(1.dp, c.outlineVariant, LocalLaoStyle.current.card)
                     .pointerInput(monthly, selected) {
                         detectHorizontalDragGestures(
                             onDragStart = { distance = 0f },
@@ -187,25 +175,6 @@ internal fun LaoCalendarStudio(s: CampusSession) {
                         }
                     }
                 }
-            }
-        }
-        animatedItem(2, "calendar3-import") {
-            Row(
-                Modifier.fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(lerp(c.surface, c.tertiary, .07f))
-                    .laoTap(role = Role.Button) { CampusSocial.pasteImport(s.a) }
-                    .semantics(mergeDescendants = true) { contentDescription = "粘贴导入" }
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Icon(Icons.Rounded.ContentPaste, null, Modifier.size(24.dp), tint = c.primary)
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("粘贴导入", style = LaoType.cell, color = c.primary)
-                    Text("班群消息，核对后变成日程", style = LaoType.label, color = c.onSurfaceVariant)
-                }
-                Icon(Icons.Rounded.NorthEast, null, Modifier.size(18.dp), tint = c.primary)
             }
         }
         animatedItem(3, "calendar3-day-summary") {
@@ -293,30 +262,17 @@ internal fun LaoCalendarStudio(s: CampusSession) {
                     }
                 }
             }
-        entries.forEachIndexed { index, (clock, course, item) ->
-            animatedItem(
-                index + 4,
-                "calendar3-" +
-                    selected +
-                    "-" +
-                    course +
-                    "-" +
-                    item.optString("id", index.toString()),
-            ) {
-                AgendaStudioCell(s, clock, course, item)
+        entries.forEachIndexed { index, entry ->
+            animatedItem(index + 4, "calendar-$selected-${entry.key}") {
+                DailyAgendaRow(s, entry)
             }
         }
-        if (entries.isNotEmpty())
-            animatedItem(entries.size + 4, "calendar3-tail") {
-                Row(
-                    Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(Modifier.size(4.dp).background(c.primary.copy(alpha = .5f), CircleShape))
-                    Text("每一件小事，都值得被好好安排。", style = LaoType.label, color = c.onSurfaceVariant)
-                }
+        animatedItem(entries.size + 5, "calendar-import-actions") {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                LaoSecondaryButton("粘贴导入", Modifier.weight(1f)) { CampusSocial.pasteImport(s.a) }
+                LaoSecondaryButton("全部待办", Modifier.weight(1f)) { s.open("homework") }
             }
+        }
     }
 }
 

@@ -30,7 +30,7 @@ internal fun ModernCoursesPage(s: CampusSession) {
             }
         )
     }
-    var wholeWeek by rememberSaveable { mutableStateOf(false) }
+    var wholeWeek by rememberSaveable { mutableStateOf(true) }
     val meta = CampusCourses.meta(a.store)
     val times = meta.optJSONArray("times") ?: JSONArray()
     val all = rows(a.store.list(CampusCourses.COURSES))
@@ -42,8 +42,8 @@ internal fun ModernCoursesPage(s: CampusSession) {
         animatedItem(0) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    LaoEyebrow("我的课程表")
-                    Text("第 $week 周", style = LaoType.headline)
+                    Text("我的课表", style = LaoType.caption, color = colors.onSurfaceVariant)
+                    Text("第 $week 周", style = LaoType.title)
                     Text(
                         "${first.substring(5)} — ${DateMath.plus(first,6).substring(5)}",
                         style = MaterialTheme.typography.bodySmall,
@@ -65,14 +65,14 @@ internal fun ModernCoursesPage(s: CampusSession) {
             }
         }
         animatedItem(2) {
-            LaoSecondaryButton("调课与临时停课", Modifier.fillMaxWidth()) { CampusCourseAdjust.open(a) }
+            
             LaoTabs(listOf("当天安排", "整周课表"), if (wholeWeek) "整周课表" else "当天安排") {
                 wholeWeek = it == "整周课表"
             }
         }
         if (!wholeWeek) {
             animatedItem(3) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                     repeat(7) { index ->
                         val on = day == index
                         val source = remember {
@@ -82,7 +82,7 @@ internal fun ModernCoursesPage(s: CampusSession) {
                             Modifier.weight(1f)
                                 .height(64.dp)
                                 .springPress(source)
-                                .clip(RoundedCornerShape(20.dp))
+                                .clip(LocalLaoStyle.current.button)
                                 .background(
                                     if (on) colors.primary else colors.surface.copy(alpha = .7f)
                                 )
@@ -106,7 +106,7 @@ internal fun ModernCoursesPage(s: CampusSession) {
                 }
             }
             animatedItem(4) {
-                SectionHeading(dateLabel(date), note = "${daily.size} 节课程 · 点击课程查看或编辑")
+                SectionHeading(dateLabel(date), note = "${daily.size} 节课程")
             }
             daily.forEachIndexed { index, course ->
                 animatedItem(index + 5, "day-course-${course.optString("id")}") {
@@ -129,7 +129,7 @@ internal fun ModernCoursesPage(s: CampusSession) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("周课表", style = MaterialTheme.typography.titleMedium)
                         Text(
-                            "左右滑动查看全周",
+                            "${selected.size} 门课程",
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.onSurfaceVariant,
                         )
@@ -160,16 +160,12 @@ internal fun ModernCoursesPage(s: CampusSession) {
                 if (week != currentWeek)
                     SoftButton("回到本周", Modifier.weight(1f)) { week = currentWeek }
             }
-            Text(
-                "课表支持周次、单双周和课程冲突检查。",
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.onSurfaceVariant,
-            )
+            LaoSecondaryButton("调课与临时停课", Modifier.fillMaxWidth()) { CampusCourseAdjust.open(a) }
         }
     }
 }
 
-private fun importCourses(s: CampusSession) {
+internal fun importCourses(s: CampusSession) {
     val a = s.a
     a.ui.choose("导入课程", arrayOf("拍照 / 截图识别", "导入 JSON 文件", "粘贴 JSON")) { index ->
         when (index) {
@@ -198,8 +194,8 @@ private fun WeeklyTimetable(
     initialDay: Int,
 ) {
     val colors = MaterialTheme.colorScheme
-    val column = 96.dp
-    val row = 64.dp
+    val column = 88.dp
+    val row = 72.dp
     val header = 56.dp
     val density = androidx.compose.ui.platform.LocalDensity.current
     val scroll = rememberScrollState(initial = with(density) { (column * initialDay).roundToPx() })

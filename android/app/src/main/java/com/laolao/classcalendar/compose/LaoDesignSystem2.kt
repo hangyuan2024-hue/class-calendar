@@ -51,37 +51,37 @@ internal object LaoType {
             fontSize = 40.sp,
             lineHeight = 48.sp,
             fontWeight = FontWeight.Bold,
-            letterSpacing = (-1.3).sp,
+            letterSpacing = 0.sp,
         )
     val headline =
         TextStyle(
             fontSize = 32.sp,
             lineHeight = 40.sp,
             fontWeight = FontWeight.Bold,
-            letterSpacing = (-.8).sp,
+            letterSpacing = 0.sp,
         )
     val title =
         TextStyle(
-            fontSize = 22.sp,
-            lineHeight = 30.sp,
+            fontSize = 20.sp,
+            lineHeight = 28.sp,
             fontWeight = FontWeight.Bold,
-            letterSpacing = (-.3).sp,
+            letterSpacing = 0.sp,
         )
     val cell = TextStyle(fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.SemiBold)
     val body = TextStyle(fontSize = 14.sp, lineHeight = 22.sp)
-    val caption = TextStyle(fontSize = 13.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium)
+    val caption = TextStyle(fontSize = 12.sp, lineHeight = 18.sp, fontWeight = FontWeight.Medium)
     val label =
         TextStyle(
             fontSize = 12.sp,
             lineHeight = 18.sp,
             fontWeight = FontWeight.Bold,
-            letterSpacing = .3.sp,
+            letterSpacing = 0.sp,
         )
 }
 
 internal object LaoCorners {
-    val paper = RoundedCornerShape(24.dp)
-    val control = RoundedCornerShape(18.dp)
+    val paper = RoundedCornerShape(12.dp)
+    val control = RoundedCornerShape(8.dp)
 }
 
 @Composable
@@ -97,12 +97,13 @@ internal fun Modifier.laoTap(
 
 @Composable
 internal fun LaoPage(spacing: Dp = 24.dp, content: LazyListScope.() -> Unit) {
-    val gutter = if (LocalConfiguration.current.screenWidthDp < 360) 16.dp else 24.dp
+    val style = LocalLaoStyle.current
+    val gutter = if (LocalConfiguration.current.screenWidthDp < 360) 14.dp else style.gutter
     LazyColumn(
         Modifier.fillMaxSize(),
         state = LocalPageListState.current ?: rememberLazyListState(),
-        contentPadding = PaddingValues(start = gutter, end = gutter, top = 12.dp, bottom = 176.dp),
-        verticalArrangement = Arrangement.spacedBy(spacing),
+        contentPadding = PaddingValues(start = gutter, end = gutter, top = 8.dp, bottom = 132.dp),
+        verticalArrangement = Arrangement.spacedBy(minOf(spacing, style.gap + 4.dp)),
         content = content,
     )
 }
@@ -117,34 +118,22 @@ internal fun LaoPanel(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val c = MaterialTheme.colorScheme
+    val shape = LocalLaoStyle.current.card
+    val dark = c.background.luminance() < .3f
     val interaction = remember { MutableInteractionSource() }
+    // Flat paper: one hairline, one soft lift; no gradients that read as dated skeuomorphism.
     Column(
         modifier
-            .springPress(interaction)
-            .shadow(
-                if (glass) 6.dp else 3.dp,
-                LaoCorners.paper,
-                false,
-                ambientColor = Color.Black.copy(alpha = .025f),
-                spotColor = c.onSurface.copy(alpha = .05f),
-            )
-            .clip(LaoCorners.paper)
-            .background(
-                if (glass)
-                    Brush.linearGradient(listOf(color.copy(alpha = .82f), color.copy(alpha = .58f)))
-                else Brush.linearGradient(listOf(color, lerp(color, c.background, .09f)))
-            )
-            .border(
-                1.dp,
-                if (glass) Color.White.copy(alpha = .35f) else c.outlineVariant.copy(alpha = .36f),
-                LaoCorners.paper,
-            )
+            .then(if (onClick != null) Modifier.springPress(interaction) else Modifier)
+            .clip(shape)
+            .background(if (glass) color.copy(alpha = .9f) else color)
+            .border(1.dp, c.outlineVariant.copy(alpha = if (dark) .5f else .55f), shape)
             .then(
                 if (onClick != null) Modifier.clickable(interaction, null, onClick = onClick)
                 else Modifier
             )
-            .padding(padding),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(minOf(padding, 20.dp)),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
         content = content,
     )
 }
@@ -205,9 +194,8 @@ private fun LaoAction(
             .heightIn(min = 48.dp)
             .springPress(source)
             .alpha(if (enabled) 1f else .45f)
-            .clip(CircleShape)
-            .background(if (filled) ink else c.surface.copy(alpha = .85f))
-            .border(1.dp, if (filled) ink else c.outlineVariant, CircleShape)
+            .clip(LocalLaoStyle.current.button)
+            .background(if (filled) ink else c.primary.copy(alpha = .08f))
             .clickable(source, null, enabled = enabled, role = Role.Button) {
                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 onClick()
@@ -217,8 +205,8 @@ private fun LaoAction(
     ) {
         Text(
             label,
-            style = LaoType.cell,
-            color = if (filled) text else c.onSurface,
+            style = LaoType.cell.copy(fontSize = 15.sp),
+            color = if (filled) text else c.primary,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
     }
@@ -396,23 +384,16 @@ internal fun LaoEmpty(
     Column(
         Modifier.fillMaxWidth()
             .clip(LaoCorners.paper)
-            .background(
-                Brush.linearGradient(
-                    listOf(lerp(c.surface, c.primary, .035f), c.surface.copy(alpha = .7f))
-                )
-            )
+            .background(c.surface)
             .border(1.dp, c.outlineVariant.copy(alpha = .3f), LaoCorners.paper)
-            .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) {
-                LaoPaperArt(Modifier.matchParentSize(), c.primary)
-                LaoMascot(Modifier.size(44.dp), expressive = false)
-            }
+            Icon(Icons.Rounded.EventAvailable, null, Modifier.size(32.dp), tint = c.primary)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(title, style = LaoType.cell)
                 Text(body, style = LaoType.body, color = c.onSurfaceVariant)

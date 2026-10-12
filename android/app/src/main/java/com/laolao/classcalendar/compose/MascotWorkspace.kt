@@ -5,6 +5,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.*
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.*
 import androidx.compose.ui.graphics.*
@@ -18,6 +19,8 @@ internal fun LaoMascot(
     expressive: Boolean = true,
     onTap: (() -> Unit)? = null,
 ) {
+    val skin = LocalLaoStyle.current.id
+    val costume = if (skin == "campus") MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary
     val source = remember { MutableInteractionSource() }
     val motion = LocalMotionEnabled.current && expressive
     val breath: State<Float>
@@ -92,7 +95,7 @@ internal fun LaoMascot(
     ) {
         val scale = minOf(size.width, size.height) / 120f
         val navy = Color(0xFF0E2240)
-        val orange = Color(0xFFFF8A3D)
+        val orange = costume
         val stroke = Stroke(5f, cap = StrokeCap.Round, join = StrokeJoin.Round)
         withTransform({
             translate((size.width - 120f * scale) / 2, (size.height - 120f * scale) / 2)

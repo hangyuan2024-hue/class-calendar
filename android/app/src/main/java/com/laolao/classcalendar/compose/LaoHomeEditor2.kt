@@ -48,125 +48,20 @@ private fun moduleNote(s: CampusSession, id: String) =
 @OptIn(ExperimentalLayoutApi::class)
 internal fun ColumnScope.LaoHomeEditor(s: CampusSession) {
     val c = MaterialTheme.colorScheme
-    var selected by remember { mutableStateOf(laoHomeOrder(s.a)) }
+    var selected by remember { mutableStateOf(laoHomeOrder(s.a).filterNot { it in listOf("w:cal", "w:course", "w:hw", "w:pins", "w:rings", "w:quick", "w:habits") }) }
     val latest by rememberUpdatedState(selected)
-    var density by remember { mutableStateOf(s.a.store.string("native_home_density_v2", "rich")) }
     val positions = remember { mutableStateMapOf<String, Float>() }
     var dragged by remember { mutableStateOf<String?>(null) }
     var start by remember { mutableFloatStateOf(0f) }
     var distance by remember { mutableFloatStateOf(0f) }
-    LaoSheetHeading("把首页，排成你的样子") { s.closeSheet() }
+    LaoSheetHeading("首页附加模块") { s.closeSheet() }
     LazyColumn(Modifier.weight(1f, false), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item {
-            Column(
-                Modifier.fillMaxWidth()
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(LaoArt.soft())
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        "实时预览",
-                        Modifier.weight(1f),
-                        style = LaoType.caption,
-                        color = c.onSurfaceVariant,
-                    )
-                    LaoChip(if (density == "rich") "丰富" else "轻盈", c.secondary)
-                }
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(
-                        Modifier.weight(1f)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(LaoArt.hero())
-                            .padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Text("今日重点", style = LaoType.label, color = Color.White.copy(alpha = .75f))
-                        Text(
-                            CampusGuide.nextCourse(s.a)?.title ?: "课程与校园安排",
-                            style = LaoType.caption,
-                            color = Color.White,
-                            maxLines = 2,
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                        )
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            LaoMascot(Modifier.size(24.dp), expressive = false)
-                            Text("捞捞提醒", style = LaoType.label, color = Color.White.copy(alpha = .8f))
-                        }
-                    }
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        selected.take(3).forEach { id ->
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                Icon(
-                                    routeIcon(moduleRoute(id)),
-                                    null,
-                                    Modifier.size(16.dp),
-                                    tint = c.primary,
-                                )
-                                Text(
-                                    productModuleName(id),
-                                    style = LaoType.label,
-                                    maxLines = 1,
-                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                                )
-                            }
-                        }
-                        if (selected.size > 3)
-                            Text(
-                                "还有 ${selected.size - 3} 个模块",
-                                style = LaoType.label,
-                                color = c.onSurfaceVariant,
-                            )
-                        if (selected.isEmpty())
-                            Text("喜欢的模块，自己选择。", style = LaoType.caption, color = c.onSurfaceVariant)
-                    }
-                }
-            }
+            Text("今日安排", style = LaoType.title)
+            Text("课程 ${CampusCourses.onDay(s.a.store, DateMath.today()).size} 节 · 今日事项 ${visibleTasks(s.a).count { taskDate(it) == DateMath.today() }} 项", style = LaoType.caption, color = c.onSurfaceVariant)
+            HorizontalDivider(color = c.outlineVariant)
         }
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("你喜欢哪种节奏？", style = LaoType.cell)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("light" to "轻盈 · 少一点", "rich" to "丰富 · 看更多").forEach { (id, title) ->
-                        Box(
-                            Modifier.weight(1f)
-                                .clip(CircleShape)
-                                .background(
-                                    if (density == id) c.primary.copy(alpha = .12f)
-                                    else Color.Transparent
-                                )
-                                .border(
-                                    1.dp,
-                                    if (density == id) c.primary.copy(alpha = .3f)
-                                    else c.outlineVariant,
-                                    CircleShape,
-                                )
-                                .laoTap(role = Role.RadioButton) { density = id }
-                                .semantics { this.selected = density == id }
-                                .padding(horizontal = 8.dp, vertical = 12.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                title,
-                                style = LaoType.caption,
-                                color = if (density == id) c.primary else c.onSurfaceVariant,
-                            )
-                        }
-                    }
-                }
-            }
-        }
-        item { LaoSection("首页顺序", note = "按住右侧手柄拖动；点圆点可移除。") }
+        item { LaoSection("附加模块") }
         items(selected, key = { it }) { id ->
             val moving = dragged == id
             Row(
@@ -292,13 +187,13 @@ internal fun ColumnScope.LaoHomeEditor(s: CampusSession) {
                 }
             }
         }
-        item { LaoSection("再加一点喜欢的", note = "随时可以添加，也可以留白。") }
+        item { LaoSection("添加模块") }
         item {
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                ProductHomeModules.filterNot { it in selected }
+                ProductHomeModules.filterNot { it in selected || it in listOf("w:cal", "w:course", "w:hw", "w:pins", "w:rings", "w:quick", "w:habits") }
                     .forEach { id ->
                         LaoSecondaryButton("＋ " + productModuleName(id)) {
                             selected = selected + id
@@ -321,7 +216,6 @@ internal fun ColumnScope.LaoHomeEditor(s: CampusSession) {
                 },
             )
             s.a.store.set("native_compose_home_v1", config)
-            s.a.store.set("native_home_density_v2", density)
             s.closeSheet()
             s.a.build()
             s.notice = "校园主页已更新"

@@ -62,6 +62,7 @@ internal fun LaoToolsStudio(s: CampusSession) {
     var query by rememberSaveable { mutableStateOf("") }
     var category by rememberSaveable { mutableStateOf("全部") }
     val shelfWidth = if (LocalConfiguration.current.screenWidthDp < 360) 64.dp else 70.dp
+    val priority = audienceTools(LocalLaoStyle.current.id)
     val catalog = CampusToolbox.ITEMS.toList()
     val pinned =
         CampusToolbox.pinned(s.a).let { (0 until it.length()).map { i -> it.optString(i) } }
@@ -79,14 +80,14 @@ internal fun LaoToolsStudio(s: CampusSession) {
             }
             .let { list ->
                 if (category == "最近" && query.isBlank()) list.sortedBy { recent.indexOf(it[0]) }
-                else list
+                else list.sortedBy { priority.indexOf(it[0]).let { rank -> if(rank < 0) 100 else rank } }
             }
     LaoPage(spacing = 16.dp) {
         animatedItem(0, "tools3-heading") {
             LaoPageHeading(
-                "随手，就顺手。",
-                "${catalog.size} 个校园工具，找到适合你的那个。",
-                "工具箱",
+                "工具",
+                "${catalog.size} 项 · 常用 ${pinned.size} 项",
+                "我的工具箱",
                 Icons.Rounded.Widgets,
             )
         }
@@ -228,16 +229,19 @@ internal fun LaoToolsStudio(s: CampusSession) {
                 }
             } else Text("找到 ${shown.size} 个工具", style = LaoType.caption, color = c.onSurfaceVariant)
         }
-        shown.chunked(2).forEachIndexed { index, pair ->
-            animatedItem(index + 4, "tools3-pair-" + pair.joinToString { it[0] }) {
+        shown.forEachIndexed { index, info ->
+            animatedItem(index + 4, "tool-${info[0]}") {
                 Row(
-                    Modifier.fillMaxWidth().height(IntrinsicSize.Min),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    Modifier.fillMaxWidth().clip(LocalLaoStyle.current.card).background(c.surface)
+                        .laoTap(role = Role.Button) { s.open(info[0]) }.padding(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    pair.forEach { info ->
-                        ToolStudioCard(s, info, Modifier.weight(1f).fillMaxHeight())
+                    IconTile(info[0], 40.dp)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(CampusToolbox.name(info[0]), style = LaoType.cell)
+                        Text(toolState(s, info[0]).ifBlank { info[2] }, style = LaoType.caption, color = c.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
-                    if (pair.size == 1) Spacer(Modifier.weight(1f))
+                    Icon(Icons.Rounded.ChevronRight, null, Modifier.size(20.dp), tint = c.onSurfaceVariant)
                 }
             }
         }

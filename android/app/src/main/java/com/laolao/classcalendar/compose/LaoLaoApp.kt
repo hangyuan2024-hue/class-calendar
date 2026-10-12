@@ -19,7 +19,7 @@ import androidx.compose.ui.unit.*
 import androidx.core.view.WindowCompat
 import kotlinx.coroutines.launch
 
-internal val MainRoutes = listOf("home", "calendar", "wall", "tools", "me")
+internal val MainRoutes = listOf("home", "calendar", "class", "tools", "me")
 
 internal val LocalPageListState = staticCompositionLocalOf<LazyListState?> { null }
 
@@ -32,7 +32,7 @@ private fun mainDestination(route: String) =
         "groups",
         "members",
         "people",
-        "class-features" -> "wall"
+        "class-features" -> "class"
         "home" -> "home"
         "calendar",
         "homework",
@@ -74,7 +74,7 @@ internal fun routeTitle(route: String): String =
     when (route) {
         "home" -> "捞捞课程表"
         "calendar" -> "日历"
-        "homework" -> "我的作业"
+        "homework" -> "全部待办"
         "tools" -> "工具"
         "me" -> "我的"
         "settings" -> "设置"
@@ -91,7 +91,7 @@ internal fun routeTitle(route: String): String =
         "rank" -> "班级排行榜"
         "appearance" -> "外观与配色"
         "home-layout" -> "首页卡片"
-        "class" -> "我的班级"
+        "class" -> "班级与团队"
         "parse-review" -> "核对导入内容"
         "login" -> "登录"
         "register" -> "注册"
@@ -154,7 +154,7 @@ internal fun LaoLaoApp(state: CampusSession) {
                 Modifier.matchParentSize()
                     .then(if (state.sheet != null || state.showOnboarding) Modifier.clearAndSetSemantics {} else Modifier)
             ) {
-                if (experience == UiExperience.STUDIO) CampusBackdrop(Modifier.matchParentSize())
+                if (experience == UiExperience.STUDIO && LocalLaoStyle.current.backdrop) CampusBackdrop(Modifier.matchParentSize())
                 Scaffold(
                     containerColor = Color.Transparent,
                     contentColor = colors.onBackground,
@@ -222,21 +222,6 @@ internal fun LaoLaoApp(state: CampusSession) {
                 val chrome =
                     state.route !in listOf("login", "register", "parse-review", "ask") &&
                         !keyboardVisible && !state.showOnboarding
-                if (chrome && experience == UiExperience.STUDIO)
-                    Box(
-                        Modifier.align(Alignment.BottomCenter)
-                            .fillMaxWidth()
-                            .height(176.dp)
-                            .background(
-                                Brush.verticalGradient(
-                                    listOf(
-                                        Color.Transparent,
-                                        colors.background.copy(alpha = .62f),
-                                        colors.background.copy(alpha = .95f),
-                                    )
-                                )
-                            )
-                    )
                 AnimatedVisibility(
                     visible = chrome,
                     modifier = Modifier.align(Alignment.BottomCenter),
@@ -263,6 +248,7 @@ internal fun LaoLaoApp(state: CampusSession) {
                 if (chrome) {
                     if (experience == UiExperience.WEB) WebFloatingActions(state, Modifier.align(Alignment.BottomEnd))
                     else LaoFloatingTools(state, Modifier.align(Alignment.BottomEnd))
+                    if (state.sheet == null) DraggableCompanion(state)
                 }
             }
             CampusSheets(state)

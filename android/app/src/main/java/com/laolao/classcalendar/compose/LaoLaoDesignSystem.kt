@@ -61,14 +61,14 @@ internal val LaoTypography =
                 fontSize = 40.sp,
                 lineHeight = 48.sp,
                 fontWeight = FontWeight.Bold,
-                letterSpacing = (-1).sp,
+                letterSpacing = 0.sp,
             ),
         headlineLarge =
             androidx.compose.ui.text.TextStyle(
                 fontSize = 32.sp,
                 lineHeight = 40.sp,
                 fontWeight = FontWeight.Bold,
-                letterSpacing = (-.6).sp,
+                letterSpacing = 0.sp,
             ),
         headlineMedium =
             androidx.compose.ui.text.TextStyle(
@@ -145,16 +145,31 @@ internal fun LaoLaoTheme(
     content: @Composable () -> Unit,
 ) {
     state.revision
-    val saved = state.a.store.`object`("ui_palette_v1")
-    val p = LaoPalettes.find { it.id == saved.optString("id") } ?: LaoPalettes.first()
-    LaunchedEffect(p.id) {
-        if (p.id == "ocean" && saved.optString("p") != "#5059CC") {
-            val aligned = org.json.JSONObject(saved.toString()).put("id", p.id).put("p", "#5059CC")
-            state.a.store.set("ui_palette_v1", aligned)
-        }
-    }
-    val pref = state.a.store.string("compose_mode_v1", "")
-    val legacy = state.a.store.string("ui_skin_v1", "fresh")
+    val appearanceSync = state.a.store.bool("appearance_sync_v1", true)
+    val style = LaoStylePrefs.resolve(state.a)
+    val saved =
+        if (appearanceSync) state.a.store.`object`("ui_palette_v1")
+        else state.a.store.`object`("mobile_palette_v1")
+    val preset =
+        LaoPalettes.find { it.id == saved.optString("id") }
+            ?: LaoPalettes.find { it.id == style.defaultPalette }
+            ?: LaoPalettes.first()
+    val customPrimary = saved.optString("p")
+    val customAccent = saved.optString("s")
+    val p = if(customPrimary.matches(Regex("#[0-9a-fA-F]{6}"))) {
+        preset.copy(primary=Color(android.graphics.Color.parseColor(customPrimary)),
+            accent=if(customAccent.matches(Regex("#[0-9a-fA-F]{6}"))) Color(android.graphics.Color.parseColor(customAccent)) else preset.accent)
+    } else preset
+    val pref =
+        state.a.store.string(
+            if (appearanceSync) "compose_mode_v1" else "mobile_mode_v1",
+            "",
+        )
+    val legacy =
+        state.a.store.string(
+            if (appearanceSync) "ui_skin_v1" else "mobile_skin_v1",
+            "fresh",
+        )
     val dark =
         when (pref) {
             "light" -> false
@@ -170,11 +185,11 @@ internal fun LaoLaoTheme(
         when (p.id) {
             "cyber" -> Color(0xFF10172B)
             "graphite" -> Color(0xFF0D0E13)
-            else -> Color(0xFF13141D)
+            else -> style.paperDark
         }
-    val nightSurface = lerp(nightBase, p.primary, .08f)
-    val background = if (dark) nightBase else Color(0xFFF8F7F4)
-    val surface = if (dark) lerp(nightSurface, Color.White, .035f) else Color.White
+    val nightSurface = lerp(nightBase, p.primary, .06f)
+    val background = if (dark) nightBase else style.paper
+    val surface = if (dark) lerp(nightSurface, Color.White, .045f) else Color.White
     val secondary = if (dark) lerp(p.accent, Color.White, .40f) else p.accent
     val studioScheme =
         if (dark)
@@ -246,18 +261,22 @@ internal fun LaoLaoTheme(
             LocalContext.current.contentResolver,
             Settings.Global.ANIMATOR_DURATION_SCALE,
             1f,
-        ) != 0f && !state.a.store.bool("compose_reduce_motion_v1", false)
-    CompositionLocalProvider(LocalMotionEnabled provides enabled) {
+        ) != 0f &&
+            !state.a.store.bool(
+                if (appearanceSync) "compose_reduce_motion_v1" else "mobile_reduce_motion_v1",
+                false,
+            )
+    CompositionLocalProvider(LocalMotionEnabled provides enabled, LocalLaoStyle provides style) {
         MaterialTheme(
             colorScheme = scheme,
             typography = LaoTypography,
             shapes =
                 Shapes(
                     extraSmall = RoundedCornerShape(8.dp),
-                    small = RoundedCornerShape(16.dp),
-                    medium = RoundedCornerShape(24.dp),
-                    large = RoundedCornerShape(32.dp),
-                    extraLarge = RoundedCornerShape(32.dp),
+                    small = style.button,
+                    medium = style.card,
+                    large = RoundedCornerShape(style.corner + 6.dp),
+                    extraLarge = RoundedCornerShape(style.corner + 10.dp),
                 ),
             content = content,
         )
@@ -399,7 +418,7 @@ internal fun routeIcon(route: String): ImageVector =
 internal fun IconTile(route: String, size: Dp = 48.dp) {
     Box(
         Modifier.size(size)
-            .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(16.dp)),
+            .background(MaterialTheme.colorScheme.primaryContainer, LocalLaoStyle.current.button),
         contentAlignment = Alignment.Center,
     ) {
         Icon(routeIcon(route), null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)

@@ -66,16 +66,9 @@ internal fun LaoPageHeading(
         if (title.length > 9 && !title.contains('\n') && title.contains('，'))
             title.replaceFirst("，", "，\n")
         else title
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.weight(1f)) { LaoEyebrow(eyebrow) }
-            if (icon != null)
-                Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
-                    LaoPaperArt(Modifier.matchParentSize(), c.primary)
-                    Icon(icon, null, Modifier.size(20.dp), tint = c.primary)
-                }
-        }
-        Text(composedTitle, style = LaoType.headline, color = c.onSurface)
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(eyebrow, style = LaoType.caption, color = c.onSurfaceVariant)
+        Text(composedTitle, style = LaoType.title, color = c.onSurface)
         if (summary.isNotBlank()) Text(summary, style = LaoType.body, color = c.onSurfaceVariant)
     }
 }
@@ -131,20 +124,9 @@ internal fun LaoEditorialCard(
     val c = MaterialTheme.colorScheme
     Column(
         modifier
-            .shadow(
-                2.dp,
-                RoundedCornerShape(24.dp),
-                false,
-                ambientColor = Color.Black.copy(alpha = .025f),
-                spotColor = hue.copy(alpha = .05f),
-            )
-            .clip(RoundedCornerShape(24.dp))
-            .background(
-                Brush.linearGradient(
-                    listOf(lerp(c.surface, hue, .06f), c.surface.copy(alpha = .94f))
-                )
-            )
-            .border(1.dp, c.outlineVariant.copy(alpha = .35f), RoundedCornerShape(24.dp))
+            .clip(LocalLaoStyle.current.card)
+            .background(c.surface)
+            .border(1.dp, c.outlineVariant.copy(alpha = .6f), LocalLaoStyle.current.card)
             .laoTap(role = Role.Button, action = onClick)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),

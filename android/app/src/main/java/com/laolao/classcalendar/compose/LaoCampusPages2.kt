@@ -24,13 +24,15 @@ import androidx.compose.ui.unit.*
 @Composable
 internal fun LaoHomeworkPage(s: CampusSession) {
     val c = MaterialTheme.colorScheme
-    var offset by rememberSaveable { mutableIntStateOf(0) }
     var filter by rememberSaveable { mutableStateOf("待完成") }
-    val mon = DateMath.plus(CampusCourses.monday(DateMath.today()), offset * 7)
+    var query by rememberSaveable { mutableStateOf("") }
+    var kind by rememberSaveable { mutableStateOf("全部") }
+    val today = DateMath.today()
     val all =
         visibleTasks(s.a)
             .filter {
-                it.optString("msg_type") == "作业" && taskDate(it) in mon..DateMath.plus(mon, 6)
+                (kind == "全部" || it.optString("msg_type") == kind) &&
+                    (query.isBlank() || (taskTitle(it) + it.optString("summary") + it.optString("location")).contains(query.trim(), true))
             }
             .sortedBy { it.optString("event_time") }
     val done = all.count { s.a.done(it) }
@@ -39,73 +41,43 @@ internal fun LaoHomeworkPage(s: CampusSession) {
         animatedItem(0) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    LaoEyebrow("学业清单")
-                    Text(if (offset == 0) "本周作业" else "所选周作业", style = LaoType.headline)
+                    Text("全部待办", style = LaoType.headline)
                     Text(
-                        mon.substring(5) + " — " + DateMath.plus(mon, 6).substring(5),
+                        "${all.size - done} 项待完成 · $done 项已完成",
                         style = LaoType.caption,
                         color = c.onSurfaceVariant,
                     )
                 }
-                LaoIconButton(Icons.Rounded.Add, "添加作业") {
-                    s.a.selectedDay = if (offset == 0) DateMath.today() else mon
+                LaoIconButton(Icons.Rounded.Add, "添加事项") {
+                    s.a.selectedDay = today
                     CampusSchool.personalForm(s.a, null)
-                    (s.sheet as? FormSheet)?.initial?.put("msg_type", "作业")
                 }
             }
         }
         animatedItem(1) {
-            Row(
-                Modifier.fillMaxWidth()
-                    .clip(LaoCorners.paper)
-                    .background(LaoArt.soft())
-                    .padding(24.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(24.dp),
-            ) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        (all.size - done).toString(),
-                        style = LaoType.display.copy(fontSize = 56.sp, lineHeight = 64.sp),
-                    )
-                    Text("件作业，等你完成", style = LaoType.caption, color = c.onSurfaceVariant)
-                }
-                Column(
-                    horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    LaoChip("${done}/${all.size} 已完成", c.primary)
-                    Row {
-                        LaoIconButton(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, "上一周") {
-                            offset--
-                        }
-                        LaoIconButton(Icons.AutoMirrored.Rounded.KeyboardArrowRight, "下一周") {
-                            offset++
-                        }
-                    }
-                }
-            }
+            LaoInput(query, { query = it }, "", Modifier.fillMaxWidth(), "搜索事项、内容或地点", Icons.Rounded.Search)
+            LaoTabs(listOf("全部") + visibleTasks(s.a).map { it.optString("msg_type", "事项") }.distinct(), kind) { kind = it }
         }
         animatedItem(2) { LaoTabs(listOf("待完成", "已完成", "全部"), filter) { filter = it } }
         if (selected.isEmpty())
             animatedItem(3) {
                 LaoEmpty(
-                    if (all.isEmpty()) "还没有这一周的作业" else "这一栏，已经清空",
-                    "复制班群消息，粘贴后核对保存。",
+                    if (query.isNotBlank()) "没有匹配的事项" else "没有${filter}的事项",
+                    if (query.isNotBlank()) "搜索：$query" else "全部事项 $done/${all.size} 已完成",
                     "粘贴导入",
                 ) {
                     CampusSocial.pasteImport(s.a)
                 }
             }
         selected
-            .groupBy { taskDate(it) }
+            .groupBy { pendingBucket(it, today) }
             .entries
             .forEachIndexed { i, (day, tasks) ->
                 animatedItem(i + 3, "homework2-" + day + filter) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         LaoChip(
-                            if (day == DateMath.today()) "今天截止" else dateLabel(day),
-                            if (day <= DateMath.today()) CampusStatus.warning() else c.primary,
+                            "$day · ${tasks.size} 项",
+                            if (day == "已逾期") CampusStatus.warning() else c.primary,
                         )
                         tasks.forEach { LaoTaskCell(s, it) }
                     }
