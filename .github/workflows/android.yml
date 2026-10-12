@@ -52,14 +52,47 @@ jobs:
           path: android/app/build/outputs/apk/stable/release/app-stable-release.apk
           if-no-files-found: error
 
+      - name: 发布到与电脑版相同的下载线路
+        id: android-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          TAG="android-v5.3.${RUN_NUMBER}"
+          RELEASE_DIR="${RUNNER_TEMP}/android-release-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          mkdir -p "$RELEASE_DIR"
+          cp android/app/build/outputs/apk/stable/release/app-stable-release.apk "$RELEASE_DIR/class-calendar.apk"
+          cat > "$RELEASE_DIR/notes.md" <<NOTES
+          捞捞课程表 安卓版 5.3.${RUN_NUMBER}
+
+          官网安卓版下载使用 GitHub Releases 安装包分发，与电脑版采用同类下载线路。
+          本安装包沿用正式签名，可以覆盖安装已有正式版。
+          官网原下载地址保留为备用线路。
+          NOTES
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$RELEASE_DIR/class-calendar.apk" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            # 安卓发布不能抢占 latest：电脑版仍使用 releases/latest/download。
+            gh release create "$TAG" "$RELEASE_DIR/class-calendar.apk" \
+              --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --latest=false \
+              --title "捞捞课程表 安卓版 5.3.${RUN_NUMBER}" --notes-file "$RELEASE_DIR/notes.md"
+          fi
+          DOWNLOAD_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/class-calendar.apk"
+          PUBLISHED_URL="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[] | select(.name == "class-calendar.apk") | .url')"
+          test "$PUBLISHED_URL" = "$DOWNLOAD_URL" || { echo "::error::安卓版 Releases 安装包尚未发布成功，保留原官网入口。"; exit 1; }
+          echo "url=$DOWNLOAD_URL" >> "$GITHUB_OUTPUT"
+
       - name: 放到网站下载目录
         env:
           RUN_NUMBER: ${{ github.run_number }}
           TARGET_BRANCH: ${{ github.ref_name }}
+          APK_RELEASE_URL: ${{ steps.android-release.outputs.url }}
         run: |
           set -euo pipefail
           SRC="${GITHUB_WORKSPACE}/android/app/build/outputs/apk/stable/release/app-stable-release.apk"
           test -f "$SRC" || { echo "::error::没有找到稳定版 APK：$SRC"; exit 1; }
+          test -n "$APK_RELEASE_URL" || { echo "::error::缺少已发布的安卓版下载地址。"; exit 1; }
 
           # 构建可能改写已跟踪文件；发布仅在独立的干净目录中完成。
           PUBLISH_DIR="${RUNNER_TEMP}/android-publish-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
@@ -77,7 +110,7 @@ jobs:
             mkdir -p "$PUBLISH_DIR/download"
             cp "$SRC" "$PUBLISH_DIR/download/class-calendar.apk"
             cat > "$PUBLISH_DIR/download/app-version.json" <<JSON
-          {"versionCode": ${RUN_NUMBER}, "versionName": "5.3.${RUN_NUMBER}", "url": "download/class-calendar.apk", "size": $(stat -c %s "$SRC"), "signed": true, "at": "$(date -u +%FT%TZ)"}
+          {"versionCode": ${RUN_NUMBER}, "versionName": "5.3.${RUN_NUMBER}", "url": "${APK_RELEASE_URL}", "fallbackUrl": "download/class-calendar.apk", "size": $(stat -c %s "$SRC"), "signed": true, "at": "$(date -u +%FT%TZ)"}
           JSON
             git -C "$PUBLISH_DIR" add -- download/class-calendar.apk download/app-version.json
             if git -C "$PUBLISH_DIR" diff --cached --quiet; then
