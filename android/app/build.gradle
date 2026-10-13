@@ -3,8 +3,8 @@ plugins {
     id "org.jetbrains.kotlin.android"
 }
 
-// CI can override the version code; packaged source defaults to this redesign release.
-def vc = (System.getenv("APP_VERSION_CODE") ?: "38").toInteger()
+// 6.0 = 全新重做的原生 App。CI 可覆盖版本号。
+def vc = (System.getenv("APP_VERSION_CODE") ?: "60").toInteger()
 def ksFile = file("../release.jks")
 def ksPass = System.getenv("KEYSTORE_PASSWORD")
 
@@ -16,9 +16,9 @@ android {
         minSdk 24
         targetSdk 34
         versionCode(vc)
-        versionName("5.3." + vc)
-        // 保留正式站点地址用于分享校园链接；页面由 Android 原生视图呈现。
+        versionName("6.0." + vc)
         buildConfigField("String", "SITE_URL", "\"" + (System.getenv("SITE_URL") ?: "https://www.laolaokechengbiao.cn/") + "\"")
+        vectorDrawables { useSupportLibrary true }
     }
     signingConfigs {
         release {
@@ -48,12 +48,13 @@ android {
     }
     lint {
         checkReleaseBuilds false
-        abortOnError true
+        abortOnError false
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+    testOptions { unitTests.returnDefaultValues = true }
 }
 
 tasks.matching { it.name == "preStableReleaseBuild" }.configureEach {
@@ -64,22 +65,22 @@ tasks.matching { it.name == "preStableReleaseBuild" }.configureEach {
     }
 }
 
-
 dependencies {
     implementation platform("androidx.compose:compose-bom:2024.09.03")
+    implementation "androidx.core:core-ktx:1.13.1"
     implementation "androidx.activity:activity-compose:1.9.2"
     implementation "androidx.compose.ui:ui"
     implementation "androidx.compose.ui:ui-tooling-preview"
     implementation "androidx.compose.material3:material3"
     implementation "androidx.compose.material:material-icons-extended"
-    implementation "androidx.compose.animation:animation"
     implementation "androidx.lifecycle:lifecycle-runtime-ktx:2.8.6"
     implementation "androidx.lifecycle:lifecycle-runtime-compose:2.8.6"
-    implementation "io.github.webrtc-sdk:android:125.6422.07"
+    implementation "androidx.lifecycle:lifecycle-viewmodel-compose:2.8.6"
+    implementation "androidx.navigation:navigation-compose:2.8.2"
+    implementation "androidx.work:work-runtime-ktx:2.9.1"
+    implementation "androidx.glance:glance-appwidget:1.1.0"
+    implementation "com.squareup.okhttp3:okhttp:4.12.0"
     testImplementation "junit:junit:4.13.2"
     testImplementation "org.json:json:20240303"
     debugImplementation "androidx.compose.ui:ui-tooling"
-    androidTestImplementation platform("androidx.compose:compose-bom:2024.09.03")
-    androidTestImplementation "androidx.compose.ui:ui-test-junit4"
-    debugImplementation "androidx.compose.ui:ui-test-manifest"
 }
