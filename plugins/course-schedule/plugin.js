@@ -17,7 +17,7 @@ CalendarApp.register({
     // 与 app.html 相同的周次解析规则
     function parseWeeks(str) {
       const set = {}; const s = typeof str === "string" ? str.trim() : "";
-      if (!s) { for (let z = 1; z <= MAX_WEEK; z++) set[z] = true; return set; }
+      if (!s) { for (let z = 1; z <= 16; z++) set[z] = true; return set; }   // 空 = 1-16 周（和课程表页面、小程序、服务器一致；以前这里是 20 周，日历上第 17-20 周会多出课）
       const pm = s.match(/^(\d+)\s*[-–—~至]\s*(\d+)\s*[（(]?\s*(单|双)\s*[）)]?$/);
       if (pm) {
         for (let i = +pm[1]; i <= +pm[2]; i++) if ((pm[3] === "单") === (i % 2 === 1)) set[i] = true;

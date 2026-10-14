@@ -42,7 +42,7 @@
 
   // 人多的时候：读数据的请求遇到「服务器忙 / 网络抖动」会自动重试（等一小会儿、每人错开时间），
   // 写数据的请求不重试（避免重复提交）。每个请求最多等 20 秒。
-  const SAFE_RPC = /\/rpc\/(app_bootstrap2?|class_ctx|class_groups_get|class_item_history|my_classes|my_perms|feature_state|mail_my|growth_board|wall_my_reports|wall_report_list|credit_list|class_roster|parse_feedback_list|ingest_job_status|class_features_get|admin_features|ics_my_feed|udata_pull|udata_push)$/;
+  const SAFE_RPC = /\/rpc\/(app_bootstrap2?|class_ctx|class_groups_get|class_item_history|my_classes|my_perms|feature_state|mail_my|growth_board|wall_my_reports|wall_report_list|credit_list|class_roster|parse_feedback_list|ingest_job_status|class_features_get|admin_features|ics_my_feed|udata_pull|udata_push|device_alive|device_list|class_schedule_get|courses_get)$/;
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   async function call(url, opts, token) {
     const method = (opts.method || "GET").toUpperCase();
@@ -76,6 +76,8 @@
         if (res.status === 403 && !fromDb) {
           const err = new Error("服务器网关拦下了这次请求（403），可能是内容太大或触发了安全规则"); err.status = 403; err.gateway = true; throw err;
         }
+        // 后端 5.4.0：这台设备已在其他设备上被踢出（服务器作废了这张凭证）
+        if (body && /device_revoked/.test(String(body.message || body.hint || ""))) { const err = new Error("这台设备已在其他设备上被退出登录"); err.status = 401; err.revoked = true; throw err; }
         const err = new Error(humanError(body || {}, res.status)); err.status = res.status; throw err;
       }
       return body;
@@ -103,7 +105,7 @@
         { method: "POST", body: JSON.stringify({ refresh_token: s.refresh_token }) })
         .then(keep)
         // 只有服务器明确说「登录已失效」才退出；网络不好、服务器忙时保留登录，下次再续
-        .catch((e) => { if (e && (e.status === 400 || e.status === 401)) { store(null); return null; } return s; })
+        .catch((e) => { if (e && (e.status === 400 || e.status === 401)) { store(null); meCache = null; lost(e.revoked ? "revoked" : "expired"); return null; } return s; })
         .finally(() => { refreshing = null; });
     }
     return refreshing;
@@ -152,7 +154,25 @@
   // PostgREST 查询：path 如 "plugins?select=id,name"
   async function rest(path, opts = {}) {
     const s = await session();
-    return call(BASE + "/rest/v1/" + path, opts, s && s.access_token);
+    try { return await call(BASE + "/rest/v1/" + path, opts, s && s.access_token); }
+    catch (e) {
+      // 凭证被服务器作废（被别的设备踢出 / 改了密码）：清掉登录，通知页面
+      if (e && e.status === 401 && s) { store(null); meCache = null; lost(e.revoked ? "revoked" : "expired"); }
+      throw e;
+    }
+  }
+  // 登录失效：发 cc-auth-lost 事件（首页 app.js 会接住，自己处理）；没人接的页面：被踢出就提示并回登录页
+  let lostOnce = false;
+  function lost(why) {
+    if (lostOnce) return; lostOnce = true;
+    setTimeout(() => { lostOnce = false; }, 3000);
+    let handled = false;
+    try { handled = !window.dispatchEvent(new CustomEvent("cc-auth-lost", { detail: { why }, cancelable: true })); } catch {}
+    if (handled || why !== "revoked") return;
+    try { localStorage.removeItem("cc_device_id_v1"); } catch {}
+    if (/login\.html$/.test(location.pathname)) return;   // 已经在登录页：不用再跳
+    alert("这台设备已在其他设备上被退出登录。本机记录仍然保留，请重新登录；如果不是你本人操作，请登录后立刻修改密码。");
+    location.replace("login.html?next=" + encodeURIComponent(location.pathname.split("/").pop() || "index.html"));
   }
   async function rpc(fn, args) {
     return rest("rpc/" + fn, { method: "POST", body: JSON.stringify(args || {}) });

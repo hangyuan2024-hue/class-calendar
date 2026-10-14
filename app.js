@@ -964,6 +964,7 @@ async function loadMyClasses() {
 }
 
 function renderClassBar() {
+  try { if (typeof CourseKit !== "undefined") CourseKit.renderBar(); } catch (e) {}   // 课程表工具条上的「班级课表」按钮跟着当前班级变
   const bar = $("classBar");
   bar.classList.toggle("hidden", !currentClass);
   if (!currentClass) return;
@@ -5072,11 +5073,14 @@ try {
 } catch (e) {}
 
 
-// ---- 登录设备管理：每次打开/切回报到；被踢出就退出并回登录页 ----
+// ---- 登录设备管理（后端 5.4.0）----
+// 每次打开 / 切回报到一次；别的设备点「踢出」后，服务器立刻作废这台设备的登录凭证，
+// 这台设备的下一次请求就会被拒绝（auth.js 发出 cc-auth-lost 事件，这里统一退出）。
+// 服务器没开「请求拦截」时（device_touch 返回 hook=false），页面在前台时每 10 秒问一次 device_alive，最迟 10 秒内退出。
 const DEV_KEY = "cc_device_id_v1";
 function devId() {
   let v = ""; try { v = localStorage.getItem(DEV_KEY) || ""; } catch (e) {}
-  if (!v) { v = "web-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 12); try { localStorage.setItem(DEV_KEY, v); } catch (e) {} }
+  if (!/^[A-Za-z0-9_-]{6,64}$/.test(v)) { v = "web-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 12); try { localStorage.setItem(DEV_KEY, v); } catch (e) {} }
   return v;
 }
 function devName() {
@@ -5085,23 +5089,38 @@ function devName() {
   const br = /MicroMessenger/.test(u) ? "微信内网页" : /Edg\//.test(u) ? "Edge" : /Chrome\//.test(u) ? "Chrome" : /Safari\//.test(u) ? "Safari" : /Firefox/.test(u) ? "Firefox" : "浏览器";
   return os + " · " + br;
 }
-let devLast = 0, devList = [], devErr = "";
+let devLast = 0, devList = [], devErr = "", devHook = null, devAliveT = 0, devKicking = false;
 async function devTouch(force) {
-  if (!currentUser || (!force && Date.now() - devLast < 60000)) return;
+  if (!currentUser || devKicking || (!force && Date.now() - devLast < 60000)) return;
   devLast = Date.now();
   try {
     const r = await CCAuth.rpc("device_touch", { p_device: devId(), p_name: devName(), p_platform: "web" });
-    if (r && r.revoked) {
-      try { localStorage.removeItem(DEV_KEY); } catch (e) {}
-      try { await CCAuth.signOut(); } catch (e) {}
-      try { localStorage.removeItem("cc_session_v1"); } catch (e) {}
-      alert("你的账号在别的设备上把这台设备退出登录了。本机记录仍然保留，请重新登录。");
-      location.replace("login.html?next=index.html");
-    }
-  } catch (e) { /* 后台未开通或网络不好：不影响使用 */ }
+    if (r && r.revoked) { devKicked("revoked"); return; }
+    devHook = !!(r && r.hook);
+    devAliveLoop();
+  } catch (e) { /* 后台未开通或网络不好：不影响使用（被踢出由 cc-auth-lost 统一处理） */ }
 }
+function devAliveLoop() {
+  clearTimeout(devAliveT);
+  if (devHook !== false || document.hidden || !currentUser || devKicking) return;
+  devAliveT = setTimeout(async () => {
+    try { const r = await CCAuth.rpc("device_alive", { p_device: devId() }); if (r && r.revoked) { devKicked("revoked"); return; } }
+    catch (e) { if (/device_alive|PGRST202|Could not find/i.test((e && e.message) || "")) { devHook = true; return; } }
+    devAliveLoop();
+  }, 10000);
+}
+async function devKicked(why) {
+  if (devKicking) return; devKicking = true; clearTimeout(devAliveT);
+  if (why === "revoked") { try { localStorage.removeItem(DEV_KEY); } catch (e) {} }
+  try { await CCAuth.signOut(); } catch (e) {}
+  try { localStorage.removeItem("cc_session_v1"); } catch (e) {}
+  if (why === "revoked") alert("这台设备已在其他设备上被退出登录。本机记录仍然保留，请重新登录；如果不是你本人操作，请登录后立刻修改密码。");
+  else alert("登录已过期，请重新登录。");
+  location.replace("login.html?next=index.html");
+}
+window.addEventListener("cc-auth-lost", (e) => { if (!currentUser) return; e.preventDefault(); devKicked(e.detail && e.detail.why); });
 setTimeout(() => devTouch(true), 2500);
-document.addEventListener("visibilitychange", () => { if (!document.hidden) devTouch(false); });
+document.addEventListener("visibilitychange", () => { if (document.hidden) clearTimeout(devAliveT); else { devTouch(false); devAliveLoop(); } });
 async function loadDevices() {
   const box = document.getElementById("devBox"); if (!box || !currentUser) return;
   try { await devTouch(true); devList = (await CCAuth.rpc("device_list", { p_device: devId() })) || []; devErr = ""; }
@@ -5118,7 +5137,13 @@ document.addEventListener("click", async (e) => {
   if (!k && !all) return;
   const d = k && devList.find((x) => x.id === k.dataset.devkick);
   if (!confirm(all ? "除了这台设备，其它设备全部退出登录？" : "把「" + (d ? d.name : "这台设备") + "」退出登录？")) return;
-  try { await CCAuth.rpc("device_revoke", { p_id: all ? null : k.dataset.devkick, p_all: !!all, p_device: devId() }); }
+  let ok = false;
+  try { await CCAuth.rpc("device_revoke", { p_id: all ? null : k.dataset.devkick, p_all: !!all, p_device: devId() }); ok = true; }
   catch (err) { alert("没踢出：" + err.message); }
   loadDevices();
+  // 不认识的设备 = 密码可能泄露了：提醒顺手改密码
+  if (ok && confirm((all ? "其它设备已全部退出登录" : "「" + (d ? d.name : "那台设备") + "」已退出登录") + "，它正在进行的操作也会立刻失效。\n\n如果那不是你的设备，说明密码可能被别人知道了。现在去修改密码吗？")) {
+    const b = document.getElementById("pwChangeBtn") || document.querySelector("[data-act='pw'], #pwBtn");
+    if (b) { b.scrollIntoView({ behavior: "smooth", block: "center" }); b.click(); }
+  }
 });

@@ -14,8 +14,9 @@ const CourseKit = (() => {
     custom: "personal_course_schedule_custom_times_v1",
     week1: "plg_course-schedule_week1",
     adj: "personal_course_schedule_adjust_v1",   // 调课 / 调休 / 停课 / 加课（见 coursesOn）
+    semester: "personal_course_schedule_semester_v1",
   };
-  const VER = "20261009-adj3";
+  const VER = "20261014-v540";
   const DEFAULT_WEEK1 = "2026-09-14";
   const MAX_WEEK = 20;
   const PERIODS = {
@@ -68,7 +69,7 @@ const CourseKit = (() => {
     const times = mode === "custom" && customOk ? custom : PERIODS[mode === "winter" || mode === "summer" ? mode : (m >= 5 && m <= 10 ? "summer" : "winter")];
     const w1 = js(st[K.week1], DEFAULT_WEEK1);
     data = { courses: Array.isArray(courses) ? courses.filter((c) => c && c.name) : [], week1: /^\d{4}-\d{2}-\d{2}$/.test(w1) ? w1 : DEFAULT_WEEK1,
-      times, mode, custom: customOk ? custom : null, adj: cleanAdj(js(st[K.adj], [])), loaded: true };
+      times, mode, custom: customOk ? custom : null, adj: cleanAdj(js(st[K.adj], [])), semester: String(st[K.semester] || "").replace(/^"|"$/g, ""), loaded: true };
     return data;
   }
   async function write(kv) {
@@ -197,6 +198,8 @@ const CourseKit = (() => {
       const b = e.target.closest("button"); if (!b) return;
       if (b.dataset.c === "import") openImport();
       if (b.dataset.c === "adjust") openAdjust();
+      if (b.dataset.c === "shot") shotMine();
+      if (b.dataset.c === "class") openClass();
       if (b.dataset.c === "mail") { showView("me"); setTimeout(() => { const m = $("mailBox"); if (m) m.scrollIntoView({ behavior: "smooth", block: "center" }); }, 200); }
     });
     barEl.addEventListener("change", (e) => {
@@ -212,10 +215,172 @@ const CourseKit = (() => {
     const upcoming = (data.adj || []).filter((a) => a.date >= keyOf(ccDate())).length;
     barEl.innerHTML = `<button class="btn ink sm" data-c="import">📷 拍照导入课表</button>
       <button class="btn sm" data-c="adjust" title="学校临时调休、换课、停课、加课">🔁 调课 / 调休${upcoming ? `<em class="cbar-n">${upcoming}</em>` : ""}</button>
+      <button class="btn sm" data-c="shot" title="把课程表保存成一张图片">🖼 存为图片</button>
+      ${clsId() ? `<button class="btn sm" data-c="class" title="老师 / 班委发布的课表，全班都能看到">🏫 班级课表</button>` : ""}
       <span class="cbar-t">${data.courses.length ? `共 ${data.courses.length} 门课` : "还没有课程"}${currentUser ? (synced ? " · ☁ 已同步" : data.courses.length ? " · 同步中…" : "") : " · 登录后可同步"}</span>
       <span class="spacer"></span>
       ${currentUser ? `<button class="small" data-c="mail">${mailOn ? "🔔 每晚提醒明天的课：开" : "🔕 每晚提醒明天的课：关"}</button>
       <label class="cbar-ck"><input type="checkbox" id="crsBarIcs" ${load(LS_ICS, true) !== false ? "checked" : ""}>手机日历订阅里带上课程</label>` : ""}`;
+  }
+
+  // ---------- 班级课表 + 存为图片（后端 5.4.0；画图用 course-image.js，和小程序同一份） ----------
+  const clsId = () => (typeof currentClass !== "undefined" && currentClass && currentUser ? currentClass.id : null);
+  const clsName = () => (typeof currentClass !== "undefined" && currentClass ? currentClass.name || "本班" : "");
+  const curWeek = (src) => Math.min(MAX_WEEK, Math.max(1, Math.floor((new Date(keyOf(ccDate()) + "T00:00:00") - new Date(src.week1 + "T00:00:00")) / 86400000 / 7) + 1));
+  const colorOf = (name) => { const P = [["#e6eefc", "#2e5fa8", "#5b8def"], ["#fdecef", "#b04a5a", "#e68a97"], ["#e6f7ee", "#2e7d55", "#5fc491"], ["#fff3e2", "#b06a2a", "#eda35c"], ["#f2ecfc", "#6b4aa8", "#9d7be0"],
+    ["#e4f4f9", "#2b6f86", "#5fb7d4"], ["#fdeef7", "#ab4a82", "#e587bd"], ["#f3f1e7", "#7d6a38", "#c2ab62"], ["#eef3e1", "#5d7730", "#9cb85c"], ["#fdefe9", "#a95c3d", "#e0936f"]];
+    let h = 0; const t = String(name || ""); for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) >>> 0; const c = P[h % P.length]; return { bg: c[0], fg: c[1], bar: c[2] }; };
+  // 某一周每天的课：我的课表按调课 / 调休算；班级课表没有调课
+  function weekCourses(src, wk) {
+    const out = [], mon = new Date(src.week1 + "T00:00:00"); mon.setDate(mon.getDate() + (wk - 1) * 7);
+    const dates = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(mon); d.setDate(mon.getDate() + i); const k = keyOf(d);
+      dates.push(`${d.getMonth() + 1}/${d.getDate()}`);
+      const list = src === data ? coursesOn(k) : src.courses.filter((c) => +c.day === i && parseWeeks(c.weeks).has(wk));
+      list.forEach((c) => out.push({ ...c, day: i }));
+    }
+    return { list: out, dates };
+  }
+  function imgModel(src, wk, title) {
+    let list, dates = [], sub = src.semester || "";
+    if (wk >= 1) { const w = weekCourses(src, wk); list = w.list; dates = w.dates; sub = (sub ? sub + " · " : "") + `第 ${wk} 周 · ${dates[0]} – ${dates[6]}`; }
+    else { list = src.courses.map((c) => ({ ...c, weeks: c.weeks ? weeksText(parseWeeks(c.weeks)) + "周" : "" })); sub = (sub ? sub + " · " : "") + "整学期"; }
+    const tw = keyOf(ccDate()), cur = curWeek(src);
+    return CourseImage.model({ title, sub, times: src.times, dates: wk >= 1 ? dates : [], today: wk >= 1 && wk === cur && tw >= src.week1 ? (ccDate().getDay() + 6) % 7 : -1,
+      courses: list.map((c) => ({ name: c.name, day: +c.day, start: +c.start, end: +c.end, location: c.location || "", teacher: c.teacher || "", weeks: wk < 1 ? c.weeks || "" : "", color: colorOf(c.name) })) });
+  }
+  function renderPng(m) {
+    const sz = CourseImage.size(m), cv = document.createElement("canvas");
+    cv.width = sz.width; cv.height = sz.height;
+    CourseImage.draw(cv.getContext("2d"), m);
+    return cv.toDataURL("image/png");
+  }
+  function crsDlg(id) {
+    let d = document.getElementById(id);
+    if (!d) { d = document.createElement("dialog"); d.id = id; d.className = "dlg kn-dlg crs-x"; document.body.appendChild(d);
+      d.addEventListener("click", (e) => { if (e.target === d) d.close(); }); }
+    return d;
+  }
+  const wx = /MicroMessenger/i.test(navigator.userAgent || "");
+  // 存为图片：电脑上直接下载；手机 / 微信里打开大图，长按保存
+  let shotState = null;
+  function shotRender() {
+    const st = shotState, d = crsDlg("crsShotDlg");
+    const url = renderPng(imgModel(st.src, st.wk, st.title));
+    d.innerHTML = `<h3>${esc(st.title)}<small>${wx ? "长按图片可以保存或发给朋友" : "点「下载图片」保存；手机上也可以长按图片保存"}</small></h3>
+      <div class="crs-seg"><button class="small ${st.wk >= 1 ? "on" : ""}" data-x="week">第 ${st.cur} 周</button><button class="small ${st.wk < 1 ? "on" : ""}" data-x="all">整学期（不分周）</button></div>
+      <img class="crs-shot" src="${url}" alt="课程表图片">
+      <div class="row"><span class="spacer"></span><button class="small" data-x="close">关闭</button>${wx ? "" : `<a class="btn ink sm" download="${esc(st.title)}.png" href="${url}">⬇ 下载图片</a>`}</div>`;
+    d.onclick = (e) => { const b = e.target.closest("[data-x]"); if (e.target === d) d.close(); if (!b) return;
+      if (b.dataset.x === "close") d.close(); else { shotState.wk = b.dataset.x === "all" ? 0 : shotState.cur; shotRender(); } };
+    if (!d.open) d.showModal();
+  }
+  async function shot(src, title) {
+    if (typeof CourseImage === "undefined") { alert("画图组件没加载好，请刷新页面再试"); return; }
+    if (!src.courses.length) { alert("课表是空的，先导入或添加课程"); return; }
+    const cur = curWeek(src);
+    shotState = { src, title, cur, wk: cur };
+    shotRender();
+  }
+  async function shotMine() {
+    await read();
+    shot(data, currentUser && currentUser.display_name ? currentUser.display_name + " 的课程表" : "我的课程表");
+  }
+
+  // 班级课表
+  let clsRes = null;
+  function classShape(r) {
+    const m = (r && r.meta) || {}, t = Array.isArray(m.times) && m.times.length >= 4 && m.times.every((x) => TIME_RE.test(x)) ? m.times : null;
+    return { courses: ((r && r.courses) || []).map((c, i) => ({ id: "cls_" + i, name: c.name, teacher: c.teacher || "", location: c.location || "", day: +c.day, start: +c.start, end: +c.end, weeks: c.weeks || "" })),
+      week1: /^\d{4}-\d{2}-\d{2}$/.test(m.week1 || "") ? m.week1 : data.week1, times: t || data.times, custom: t, semester: m.semester || "", adj: [] };
+  }
+  const notReady = (e) => /class_schedule|PGRST202|Could not find|404/i.test((e && e.message) || "");
+  async function openClass(msg) {
+    const cid = clsId(); if (!cid) { alert("先加入班级"); return; }
+    await read();
+    const d = crsDlg("crsClsDlg");
+    d.innerHTML = `<h3>班级课表 · ${esc(clsName())}</h3><p class="sub">正在读取…</p>`;
+    if (!d.open) d.showModal();
+    try { clsRes = await CCAuth.rpc("class_schedule_get", { p_cid: String(cid) }); }
+    catch (e) { d.innerHTML = `<h3>班级课表</h3><p class="sub">${notReady(e) ? "后台还没升级到 5.4.0，暂时不能用班级课表。" : esc(e.message)}</p><div class="row"><span class="spacer"></span><button class="small" data-x="close">关闭</button></div>`;
+      d.onclick = (ev) => { if (ev.target.closest("[data-x=close]")) d.close(); }; return; }
+    const r = clsRes, can = !!r.can_manage, mine = data.courses.length;
+    const ago = (t) => { const m = Math.round((Date.now() - Date.parse(t)) / 60000); return isNaN(m) ? "" : m < 2 ? "刚刚" : m < 60 ? m + " 分钟前" : m < 1440 ? Math.round(m / 60) + " 小时前" : Math.round(m / 1440) + " 天前"; };
+    let body;
+    if (!r.has) {
+      body = `<p class="sub">「${esc(clsName())}」还没有班级课表。${can ? "把你的课表发布到班级后，全班同学都能看到，还能一键套用到自己的课表。" : "老师或有「增改事项」权限的班委可以在这里发布，发布后你可以一键套用。"}</p>`;
+      if (can) body += `<label>课表名称<input id="crsPubTitle" maxlength="30" value="${esc(clsName() + " 课程表")}"></label>
+        <label class="crs-ck"><input type="checkbox" id="crsPubNotice" ${can ? "checked" : ""}> 同时发一条班级通知</label>
+        <div class="row"><span class="spacer"></span><button class="small" data-x="close">取消</button><button class="btn ink sm" data-x="pub" ${mine ? "" : "disabled"}>${mine ? `发布我的 ${mine} 门课` : "先在课程表里添加课程"}</button></div>`;
+      else body += `<div class="row"><span class="spacer"></span><button class="small" data-x="close">关闭</button></div>`;
+    } else {
+      const src = classShape(r), url = renderPng(imgModel(src, 0, r.title || clsName() + " 课程表"));
+      body = `<p class="sub">${esc(r.publisher_name || "")} 发布 · ${ago(r.updated_at)} · 共 ${r.n || src.courses.length} 门</p>
+        ${msg ? `<p class="crs-ok">${esc(msg)}</p>` : ""}
+        <img class="crs-shot" src="${url}" alt="班级课表">
+        <div class="crs-acts">
+          <button class="btn ink sm" data-x="use-replace">📥 换成班级课表${mine ? `（替换我的 ${mine} 门）` : ""}</button>
+          ${mine ? `<button class="btn sm" data-x="use-merge">➕ 合并到我的课表</button>` : ""}
+          <button class="btn sm" data-x="shot">🖼 存为图片</button>
+          ${can ? `<button class="small" data-x="pub-open">📤 用我的课表更新</button><button class="small" data-x="clear">撤下</button>` : ""}
+          <span class="spacer"></span><button class="small" data-x="close">关闭</button>
+        </div>
+        <div id="crsPubBox" hidden><label>课表名称<input id="crsPubTitle" maxlength="30" value="${esc(r.title || clsName() + " 课程表")}"></label>
+          <label class="crs-ck"><input type="checkbox" id="crsPubNotice"> 同时发一条班级通知</label>
+          <div class="row"><span class="spacer"></span><button class="btn ink sm" data-x="pub" ${mine ? "" : "disabled"}>用我的 ${mine} 门课更新</button></div></div>`;
+    }
+    d.innerHTML = `<h3>班级课表 · ${esc(clsName())}</h3>` + body;
+    d.onclick = async (e) => {
+      const b = e.target.closest("[data-x]"); if (e.target === d) { d.close(); return; } if (!b) return;
+      const x = b.dataset.x;
+      if (x === "close") d.close();
+      else if (x === "pub-open") { const box = $("crsPubBox"); box.hidden = !box.hidden; }
+      else if (x === "shot") { d.close(); shot(classShape(r), r.title || clsName() + " 课程表"); }
+      else if (x === "use-replace" || x === "use-merge") { await useClass(r, x === "use-merge" ? "merge" : "replace"); d.close(); }
+      else if (x === "clear") {
+        if (!confirm("从班级撤下这份课表？同学们已经套用到自己课表里的课不受影响。")) return;
+        try { await CCAuth.rpc("class_schedule_clear", { p_cid: String(cid) }); openClass("已撤下"); } catch (err) { alert("没撤下：" + err.message); }
+      } else if (x === "pub") {
+        b.disabled = true; b.textContent = "正在发布…";
+        try { const n = await publish(cid, ($("crsPubTitle") || {}).value || "", !!($("crsPubNotice") || {}).checked); openClass(`已发布到班级（${n} 门课）`); }
+        catch (err) { b.disabled = false; b.textContent = "重试"; alert("没发布成功：" + (notReady(err) ? "后台还没升级到 5.4.0" : err.message)); }
+      }
+    };
+  }
+  async function publish(cid, title, notice) {
+    await read();
+    const p = payload();
+    if (!p.p_courses.length) throw new Error("你的课表还是空的");
+    const r = await CCAuth.rpc("class_schedule_publish", { p_cid: String(cid), p_courses: p.p_courses, p_title: String(title).slice(0, 40), p_meta: { week1: p.p_meta.week1, times: p.p_meta.times, semester: data.semester || "" } });
+    if (notice && typeof currentClass !== "undefined" && currentClass && (currentClass.is_teacher || currentClass.can_edit)) {
+      const who = (currentUser && currentUser.display_name) || "班委", today = keyOf(ccDate());
+      try {
+        await CCAuth.rest("class_info", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ class_id: cid, msg_type: "通知",
+          subject: "班级课表" + (clsRes && clsRes.has ? "更新了" : "发布了"), summary: `${who}发布了班级课表（${(r && r.n) || p.p_courses.length} 门课）。打开课程表 →「🏫 班级课表」查看，点「换成班级课表」就不用自己导入了。`,
+          event_time: today, location: "", prepare: "", need_confirm: false, publish_date: today, original: "（课程表页发布）" }) });
+        if (typeof loadClass === "function") loadClass();
+      } catch (e) { /* 通知没发出去不影响课表 */ }
+    }
+    return (r && r.n) || p.p_courses.length;
+  }
+  async function useClass(r, how) {
+    await read();
+    const src = classShape(r), stamp = Date.now().toString(36), key = (c) => c.name + "|" + c.day + "|" + c.start;
+    const add = src.courses.map((c, i) => ({ ...c, id: "c" + stamp + "_" + i, courseType: "必修", note: "" }));
+    let list = add;
+    if (how === "merge") { const have = new Set(data.courses.map(key)); list = data.courses.concat(add.filter((c) => !have.has(key(c)))); }
+    const kv = { [K.courses]: JSON.stringify(list) }, m = r.meta || {};
+    if (/^\d{4}-\d{2}-\d{2}$/.test(m.week1 || "")) kv[K.week1] = JSON.stringify(m.week1);
+    if (src.custom) {
+      const same = (a) => a.length === src.custom.length && a.every((x, i) => x === src.custom[i]);
+      if (same(PERIODS.summer)) kv[K.mode] = "summer"; else if (same(PERIODS.winter)) kv[K.mode] = "winter"; else { kv[K.custom] = JSON.stringify(src.custom); kv[K.mode] = "custom"; }
+    }
+    if (m.semester && !data.semester) kv[K.semester] = m.semester;
+    const before = data.courses.length;
+    await write(kv);
+    ensureCard(); renderBar();
+    showBanner(how === "merge" ? `已加上 ${list.length - before} 门课` : `已换成班级课表（${list.length} 门）`); setTimeout(() => showBanner(""), 4000);
   }
 
   // ---------- 调课 / 调休 的弹窗 ----------
@@ -766,6 +931,6 @@ const CourseKit = (() => {
     try { renderAgenda(); } catch (e) {}   // 首页问候卡的时间轴要用课程：课表读好后重画一次（不然刷新后时间轴上没有课）
   }
 
-  return { dayNote, openAdjust, baseOn, cleanAdj, pull, _nearOCR: (a, b) => nearOCR(a, b), NS, on, read, write, sync, changed, coursesOn, card, askLines, injectBuiltin, loadBuiltin, decorateTab, renderBar, openImport, boot, parseWeeks, weeksText,
+  return { openClass, shotMine, dayNote, openAdjust, baseOn, cleanAdj, pull, _nearOCR: (a, b) => nearOCR(a, b), NS, on, read, write, sync, changed, coursesOn, card, askLines, injectBuiltin, loadBuiltin, decorateTab, renderBar, openImport, boot, parseWeeks, weeksText,
     get data() { return data; } };
 })();
