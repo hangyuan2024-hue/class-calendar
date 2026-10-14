@@ -41,7 +41,7 @@
 .fatt .meta { color: var(--sub); flex-basis: 100%; }
 
 /* ===== 5.4.0：课程表存为图片、班级课表 ===== */
-.crs-x { width: min(640px, calc(100vw - 24px)); padding: 20px 22px; box-sizing: border-box; }
+dialog.dlg.crs-x { width: min(640px, calc(100vw - 24px)); max-width: none; padding: 20px 22px; box-sizing: border-box; }
 .crs-x h3 { margin-top: 0; }
 .crs-x .sub { color: var(--sub); font-size: 13px; line-height: 1.6; margin: 0 0 12px; }
 .crs-shot { display: block; width: 100%; height: auto; max-height: 56vh; object-fit: contain; border-radius: 12px; border: 1px solid var(--line); margin: 4px 0 14px; background: #f6f5f1; }
@@ -55,3 +55,11 @@
 .crs-x label.crs-ck input { width: auto; flex: none; margin: 0; }
 .crs-ok { margin: 0 0 10px; padding: 8px 12px; border-radius: 10px; background: #e6f7ee; color: #2e7d55; font-size: 13px; }
 #crsPubBox { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.crs-x:focus, .crs-x:focus-visible { outline: none; }
+/* 手机：和网站其它弹窗一样从底部升起，占满宽度，底部留出 iPhone 横条的位置 */
+@media (max-width: 700px) {
+  dialog.dlg.crs-x { width: 100%; max-width: 100%; margin: auto 0 0; border-radius: 22px 22px 0 0; max-height: 88vh; padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); }
+  .crs-x .crs-shot { max-height: 50vh; }
+  .crs-acts .btn, .crs-acts .small { flex: 1 1 auto; justify-content: center; }
+  .crs-acts .spacer { display: none; }
+}

@@ -16,7 +16,7 @@ const CourseKit = (() => {
     adj: "personal_course_schedule_adjust_v1",   // 调课 / 调休 / 停课 / 加课（见 coursesOn）
     semester: "personal_course_schedule_semester_v1",
   };
-  const VER = "20261014-v540";
+  const VER = "20261014-v541";
   const DEFAULT_WEEK1 = "2026-09-14";
   const MAX_WEEK = 20;
   const PERIODS = {
@@ -28,6 +28,9 @@ const CourseKit = (() => {
   // 课表「版本」：哪台设备把课表传上服务器，就把服务器时间写在这里；它随「我的数据」几秒内同步到别的设备，别的设备看到变了就去拿新课表
   const LS_REV = "course_rev_v1";
   const TIME_RE = /^\d{2}:\d{2}-\d{2}:\d{2}$/;
+  // 这次打开页面以来本机课表最多有过几门课：只有「看到过课、后来被删光」才算主动清空，才允许把空课表传上云端
+  // （防止本机存储读不出来 / 被浏览器清掉时，把空课表传上去盖掉云端，所有设备跟着变空）
+  let seenMax = 0;
   let data = { courses: [], week1: DEFAULT_WEEK1, times: PERIODS.summer, mode: "", custom: null, loaded: false };
   let builtinCode = null;
 
@@ -68,7 +71,9 @@ const CourseKit = (() => {
     const m = (typeof ccDate === "function" ? ccDate() : new Date()).getMonth() + 1;
     const times = mode === "custom" && customOk ? custom : PERIODS[mode === "winter" || mode === "summer" ? mode : (m >= 5 && m <= 10 ? "summer" : "winter")];
     const w1 = js(st[K.week1], DEFAULT_WEEK1);
-    data = { courses: Array.isArray(courses) ? courses.filter((c) => c && c.name) : [], week1: /^\d{4}-\d{2}-\d{2}$/.test(w1) ? w1 : DEFAULT_WEEK1,
+    const list0 = Array.isArray(courses) ? courses.filter((c) => c && c.name) : [];
+    seenMax = Math.max(seenMax, list0.length);
+    data = { courses: list0, week1: /^\d{4}-\d{2}-\d{2}$/.test(w1) ? w1 : DEFAULT_WEEK1,
       times, mode, custom: customOk ? custom : null, adj: cleanAdj(js(st[K.adj], [])), semester: String(st[K.semester] || "").replace(/^"|"$/g, ""), loaded: true };
     return data;
   }
@@ -162,7 +167,13 @@ const CourseKit = (() => {
     const p = payload(), sig = JSON.stringify(p);
     const last = load(LS_SYNC, {});
     if (!force && last.uid === currentUser.id && last.sig === sig) return null;
-    if (!p.p_courses.length && !(last.uid === currentUser.id && last.n)) return null;   // 从没同步过、也没有课：不用传
+    if (!p.p_courses.length) {
+      if (!seenMax) return null;   // 本机一开始就是空的（没导入过，或存储丢了）：绝不上传空课表
+      // 用户自己把课删光了：删掉云端那份（不上传空课表——服务器 5.4.1 起会拒绝用空课表覆盖）
+      try { await CCAuth.rpc("courses_clear"); } catch (e) {}
+      try { localStorage.removeItem(LS_SYNC); } catch (e) {}
+      renderBar(); return null;
+    }
     syncing = true;
     try {
       const r = await CCAuth.rpc("courses_sync", p);
@@ -894,6 +905,11 @@ const CourseKit = (() => {
       const L = load(LS_SYNC, {}), mine = L.uid === currentUser.id;
       const local = data.loaded ? data : await read(), sig = JSON.stringify(payload()), dirty = mine ? L.sig !== sig : local.courses.length > 0;
       if (!r || !r.updated_at) { if (local.courses.length) await sync(); return 0; }   // 服务器上还没有：把本机的传上去
+      const srvN = (r.courses || []).length;
+      // 云端是空的（主动清空会直接删掉云端那份，所以空 = 被出问题的设备盖掉了）：用本机的课表补回去
+      if (!srvN && local.courses.length) { await sync(true); return 0; }
+      // 本机课表是空的、云端有：直接从云端恢复，不把空课表传上去
+      if (!local.courses.length && srvN && !seenMax) return (await applyServer(r)) || -1;
       // 本机记了调课 / 调休、服务器上那份还没有（之前服务器没升级，传上去被丢掉了）：重新传一次
       if ((local.adj || []).length && !(r.meta && Array.isArray(r.meta.adj)) && (mine || local.courses.length)) { await sync(true); return 0; }
       if (mine && sameT(r.updated_at, L.srv)) { if (dirty) await sync(); return 0; }   // 服务器没变
