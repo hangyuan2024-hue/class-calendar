@@ -4432,7 +4432,7 @@ async function loadPeople() {
   $("peopleBox").innerHTML = `<div class="aempty surface">加载中…</div>`;
   try {
     const r = await CCAuth.rpc("class_people", { cid: currentClass.id });
-    const list = r.people || [], q = ($("peopleQ").value || "").trim();
+    const list = (r && r.people) || [], q = ($("peopleQ").value || "").trim();
     const show = q ? list.filter((p) => (p.name + (p.bio || "")).includes(q)) : list;
     const card = (p) => `<button class="pc surface" data-user="${esc(p.id)}">
         <span class="pc-cv" style="background:${coverOf(p.cover, p.gender)}"></span>
@@ -5147,3 +5147,19 @@ document.addEventListener("click", async (e) => {
     if (b) { b.scrollIntoView({ behavior: "smooth", block: "center" }); b.click(); }
   }
 });
+
+// ---- 5.4.1：日期 / 时间框在手机上点了没反应 ----
+// 点框（或点它上面的文字）时直接弹出系统的日期 / 时间选择器；空着时显示「点这里选日期」提示
+(() => {
+  const isDT = (el) => el && el.tagName === "INPUT" && /^(date|time|datetime-local)$/.test(el.type);
+  const mark = (el) => { if (!isDT(el)) return; if (!el.dataset.ph) el.dataset.ph = el.type === "time" ? "点这里选时间" : "点这里选日期"; el.classList.toggle("is-empty", !el.value); };
+  document.addEventListener("click", (e) => {
+    const el = isDT(e.target) ? e.target : null; if (!el || el.disabled || el.readOnly) return;
+    try { if (typeof el.showPicker === "function") el.showPicker(); } catch (err) { /* 不支持就交给浏览器自己处理 */ }
+  });
+  ["input", "change", "focusin", "focusout"].forEach((t) => document.addEventListener(t, (e) => mark(e.target), true));
+  const scan = () => document.querySelectorAll("input[type=date], input[type=time]").forEach(mark);
+  // 弹窗打开时程序会改 value：打开后补一次
+  new MutationObserver(() => { clearTimeout(scan._t); scan._t = setTimeout(scan, 60); }).observe(document.body, { attributes: true, attributeFilter: ["class", "open"], subtree: true, childList: true });
+  scan();
+})();

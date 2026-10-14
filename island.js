@@ -130,7 +130,7 @@ function laoSay(text, opts = {}) {
   b.dataset.q = opts.q || "";
   b.classList.remove("show"); void b.offsetWidth; b.classList.add("show");
   $("laoBot").classList.add("talk"); $("lao").classList.add("talking");
-  clearTimeout(laoBubT); laoBubT = setTimeout(laoHush, opts.ms || 7000);
+  clearTimeout(laoBubT); laoBubT = setTimeout(laoHush, opts.ms || (innerWidth <= 700 ? 4500 : 7000));   // 手机屏幕小，气泡早点收起
 }
 function laoHush() { const b = $("laoBub"); if (b) b.classList.remove("show"); $("laoBot") && $("laoBot").classList.remove("talk"); $("lao") && $("lao").classList.remove("talking"); }
 // 同一件事只提醒一次

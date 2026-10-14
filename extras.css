@@ -63,3 +63,29 @@ dialog.dlg.crs-x { width: min(640px, calc(100vw - 24px)); max-width: none; paddi
   .crs-acts .btn, .crs-acts .small { flex: 1 1 auto; justify-content: center; }
   .crs-acts .spacer { display: none; }
 }
+
+/* ===== 5.4.1 手机网页修复 ===== */
+/* 1. 首页「接下来的安排」：手机上不再用框内小滚动条（手指一滑经常滑的是整页，框里滑不动），直接整页往下排 */
+@media (max-width: 700px) {
+  [data-skin] .studio-agenda-panel, .studio-agenda-panel { height: auto !important; max-height: none !important; overflow: visible !important; }
+  [data-skin] #agenda, #agenda { overflow: visible !important; max-height: none !important; flex: none; padding-right: 0; }
+}
+/* 2. 日期 / 时间输入框：iPhone 上空的日期框高度会塌成一条细线，点不中就「没反应」；撑开高度、左对齐 */
+input[type=date], input[type=time], input[type=datetime-local] { -webkit-appearance: none; appearance: none; min-height: 44px; box-sizing: border-box; text-align: left; }
+input[type=date]::-webkit-date-and-time-value, input[type=time]::-webkit-date-and-time-value, input[type=datetime-local]::-webkit-date-and-time-value { text-align: left; min-height: 1.3em; margin: 0; }
+/* 空着的时候给个提示，免得以为是坏的（只在 iPhone / iPad 上：那里空的日期框什么都不显示） */
+@supports (-webkit-touch-callout: none) {
+  input[type=date].is-empty::before, input[type=time].is-empty::before { content: attr(data-ph); color: var(--sub, #8a959a); }
+  input[type=date].is-empty:focus::before, input[type=time].is-empty:focus::before { content: ""; }
+}
+/* 3. 手机上左下角的捞捞：不再显示旁边那块深色的「最急一项」卡片（首页问候卡里已经有了），只留小捞捞，不挡内容、不抢滑动 */
+@media (max-width: 700px) {
+  #lao .lao-scr { display: none !important; }
+  #lao .lao-dock { transform: scale(.82); transform-origin: left bottom; }
+  #lao[data-side=r] .lao-dock { transform-origin: right bottom; }
+  #lao .lao-bub { bottom: 62px; font-size: 13px; }
+}
+/* 4. 成长页「最近 14 天」的数据表在手机上被截掉：改成可以左右滑 */
+#gTrend details { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+/* 5. 打开弹窗（记一件事、班级课表…）时把捞捞藏起来，它的气泡不再盖住输入框和按钮 */
+body:has(#modal.open) #lao, body:has(.modal2.open) #lao, body:has(dialog[open]) #lao { display: none !important; }
