@@ -89,3 +89,19 @@ input[type=date]::-webkit-date-and-time-value, input[type=time]::-webkit-date-an
 #gTrend details { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
 /* 5. 打开弹窗（记一件事、班级课表…）时把捞捞藏起来，它的气泡不再盖住输入框和按钮 */
 body:has(#modal.open) #lao, body:has(.modal2.open) #lao, body:has(dialog[open]) #lao { display: none !important; }
+
+/* ===== 5.5.0：日历订阅设置 ===== */
+.cal-prefs { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+.cal-prefs summary { cursor: pointer; font-weight: 700; font-size: 14px; color: var(--accent, #5366e8); }
+.cal-pgrp { margin-top: 12px; }
+.cal-pgrp > b { display: block; font-size: 13px; margin-bottom: 6px; }
+.cal-chips { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.cal-chips label, .cal-one { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; color: var(--text); margin: 0; flex-direction: row; }
+.cal-one { margin-top: 8px; }
+.cal-prow { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; font-size: 13px; flex-wrap: wrap; }
+.cal-prow select { font: inherit; font-size: 13px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); }
+.cal-ok { margin: 8px 0 0; padding: 6px 10px; border-radius: 8px; background: #e6f7ee; color: #2e7d55; font-size: 13px; }
+#calPrefs input[type=checkbox] { width: 18px !important; height: 18px; min-height: 0 !important; margin: 0 !important; padding: 0 !important; flex: none !important; -webkit-appearance: auto; appearance: auto; }
+#calPrefs label { display: inline-flex !important; flex-direction: row !important; align-items: center; justify-content: flex-start; gap: 6px; white-space: nowrap; width: auto !important; margin: 0 !important; font-weight: 500; }
+#calPrefs .cal-one { display: flex !important; margin-top: 10px !important; }
+#calPrefs select { width: auto !important; max-width: 60%; }

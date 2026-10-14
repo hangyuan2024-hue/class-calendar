@@ -1963,7 +1963,9 @@ async function calRenderSub() {
   box.innerHTML = `${feed.classes ? "" : `<p class="cal-note">⚠ 你还没有加入班级，订阅后暂时是空的，入班后会自动出现。</p>`}
     <div class="cal-row">${main}</div>
     <div class="cal-link"><input readonly id="calLinkIn" value="${esc(https)}" aria-label="订阅链接"><button type="button" class="small" data-copy="1">复制</button></div>
-    <p class="cal-note">${env.android ? "复制后按下面「手动添加的方法」粘贴到日历 App。" : env.app && env.ios ? "复制后按下面的方法在「设置 → 日历」里添加。" : ""}只包含班级事项，日历 App 会定时自动刷新。这个链接相当于你的身份，别发到群里；发出去了可以 <a href="#" id="calReset">重置链接</a>。</p>`;
+    <p class="cal-note">${env.android ? "复制后按下面「手动添加的方法」粘贴到日历 App。" : env.app && env.ios ? "复制后按下面的方法在「设置 → 日历」里添加。" : ""}日历 App 会定时自动刷新。这个链接相当于你的身份，别发到群里；发出去了可以 <a href="#" id="calReset">重置链接</a>。</p>
+    <details class="cal-prefs" id="calPrefs"><summary>⚙ 订阅里放什么、提前多久提醒</summary><div id="calPrefsBody"><p class="cal-note">正在读取…</p></div></details>`;
+  $("calPrefs").addEventListener("toggle", () => { if ($("calPrefs").open) calRenderPrefs(); }, { once: true });
   $("calLinkIn").onfocus = (e) => e.target.select();
   box.querySelectorAll("[data-copy]").forEach((b) => { b.onclick = () => calCopy(https, b); });
   $("calReset").onclick = async (e) => {
@@ -1971,6 +1973,49 @@ async function calRenderSub() {
     if (!confirm("重置后旧链接马上失效，已经订阅的设备需要重新订阅。继续吗？")) return;
     try { await CCAuth.rpc("ics_my_feed", { reset: true }); } catch (err) { alert("重置失败：" + err.message); }
     calRenderSub();
+  };
+}
+
+// ---- 5.5.0：订阅内容和提醒设置（和小程序「提醒设置」是同一份） ----
+const CAL_OPT = {
+  course: [[null, "不提醒"], [0, "上课时"], [5, "5 分钟前"], [10, "10 分钟前"], [15, "15 分钟前"], [30, "30 分钟前"], [60, "1 小时前"]],
+  item: [[null, "不提醒"], [0, "开始时"], [15, "15 分钟前"], [30, "30 分钟前"], [60, "1 小时前"], [120, "2 小时前"], ["prev20", "前一天晚上 8 点"]],
+  allday: [[null, "不提醒"], ["prev20", "前一天晚上 8 点"], ["prev9", "前一天上午 9 点"], ["day8", "当天早上 8 点"]],
+  hw: [[0, "截止时"], [30, "30 分钟前"], [60, "1 小时前"], [180, "3 小时前"], ["prev20", "前一天晚上 8 点"], ["day8", "当天早上 8 点"]],
+};
+let calPrefs = null;
+async function calRenderPrefs(msg) {
+  const box = $("calPrefsBody"); if (!box) return;
+  try { if (!calPrefs) calPrefs = await CCAuth.rpc("ics_prefs_get"); }
+  catch (e) { box.innerHTML = `<p class="cal-note">${/ics_prefs|PGRST202|Could not find/i.test(e.message) ? "后台还没升级到 5.5.0，暂时不能自定义" : esc(e.message)}</p>`; return; }
+  const p = calPrefs, same = (a, b) => String(a) === String(b);
+  const sel = (k) => `<select data-pk="${k}">${CAL_OPT[k].map(([v, t], i) => `<option value="${i}" ${(v === null ? !(p[k] || []).length : (p[k] || []).length && same(p[k][0], v)) ? "selected" : ""}>${t}</option>`).join("")}</select>`;
+  const types = ["作业", "通知", "会议", "活动", "我的事项"];
+  box.innerHTML = `${msg ? `<p class="cal-ok">${esc(msg)}</p>` : ""}
+    <div class="cal-pgrp"><b>放进日历的内容</b><div class="cal-chips">
+      ${types.map((t) => `<label><input type="checkbox" data-pt="${t}" ${p.types[t] !== false ? "checked" : ""}> ${t}</label>`).join("")}
+      <label><input type="checkbox" data-pc="1" ${p.courses_effective ? "checked" : ""}> 课程</label></div>
+      <label class="cal-one"><input type="checkbox" data-pd="1" ${p.hide_done ? "checked" : ""}> 已经完成的就不放进日历</label></div>
+    <div class="cal-pgrp"><b>提前多久提醒</b>
+      <div class="cal-prow"><span>课程</span>${sel("course")}</div>
+      <div class="cal-prow"><span>通知 / 会议 / 活动 / 我的事项</span>${sel("item")}</div>
+      <div class="cal-prow"><span>全天的事（没写时间）</span>${sel("allday")}</div>
+      <div class="cal-prow"><span>作业（最多选 3 个）</span><div class="cal-chips">${CAL_OPT.hw.map(([v, t]) => `<label><input type="checkbox" data-ph="${v}" ${(p.hw || []).some((c) => same(c, v)) ? "checked" : ""}> ${t}</label>`).join("")}</div></div></div>
+    <p class="cal-note">改完会自动保存，已经订阅的日历下次自动刷新时生效（一般 1 小时内）。iPhone 默认会去掉订阅日历的提醒：设置 → 日历 → 账户 → 订阅的日历 → 关掉「移除提醒」。微信提醒请在小程序「我的 → 提醒设置」里开。</p>`;
+  box.onchange = async (e) => {
+    const t = e.target, next = { ...calPrefs, types: { ...calPrefs.types } };
+    delete next.courses_effective;
+    if (t.dataset.pt) next.types[t.dataset.pt] = t.checked;
+    else if (t.dataset.pc) next.courses = t.checked;
+    else if (t.dataset.pd) next.hide_done = t.checked;
+    else if (t.dataset.pk) { const v = CAL_OPT[t.dataset.pk][+t.value][0]; next[t.dataset.pk] = v === null ? [] : [v]; }
+    else if (t.dataset.ph != null) {
+      const on = [...box.querySelectorAll("[data-ph]")].filter((x) => x.checked).map((x) => (/^\d+$/.test(x.dataset.ph) ? +x.dataset.ph : x.dataset.ph));
+      if (on.length > 3) { t.checked = false; alert("作业提醒最多选 3 个"); return; }
+      next.hw = on;
+    } else return;
+    try { calPrefs = await CCAuth.rpc("ics_prefs_set", { p: next }); calRenderPrefs("已保存"); }
+    catch (err) { alert("没保存上：" + err.message); calRenderPrefs(); }
   };
 }
 
@@ -3007,7 +3052,13 @@ async function handleUnsub() {
 }
 // 截止提醒、失败重发：谁开着网页谁顺手推一下（数据库有定时任务时也会自己跑）
 // 定时让数据库把该发的提醒发出去：网页在后台时不发，每人错开时间（几千人同时开着也不会挤在同一秒）
-function mailTick() { if (currentUser && !document.hidden) CCAuth.rpc("mail_tick").catch(() => {}); }
+let wxTickAt = 0;
+function mailTick() {
+  if (!currentUser || document.hidden) return;
+  CCAuth.rpc("mail_tick").catch(() => {});
+  // 5.5.0：顺手让服务器检查要不要发微信提醒（服务器没有定时任务时靠这个），5 分钟最多一次
+  if (Date.now() - wxTickAt > 300000) { wxTickAt = Date.now(); CCAuth.rpc("wx_push_tick").catch(() => {}); }
+}
 setInterval(mailTick, (10 + Math.random() * 5) * 60 * 1000);
 
 // ===== 感谢名单 =====
