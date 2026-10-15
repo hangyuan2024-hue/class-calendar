@@ -423,6 +423,9 @@ button {
 .course-card.adj-swap { box-shadow: inset 0 0 0 2px rgba(180, 106, 0, .35); }
 
 /* 本周不上的课：淡淡显示 */
+/* 只占一节的课：格子矮，只放得下课名和地点；非本周的只放标签和课名。文字不压缩，放不下就截掉（5.7.1） */
+.course-card > * { flex-shrink: 0; }
+.course-card.short .m-tea, .course-card.short .m-wk, .course-card.short.off-week .m-loc { display: none; }
 .course-card.off-week { opacity: .5; filter: grayscale(.7); border: 1px dashed currentColor; }
 .course-card.off-week:hover { opacity: .8; }
 .course-card .off-tag { font-size: 10px; font-weight: 700; opacity: .9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1240,7 +1243,7 @@ function render() {
     var rowStart = c.start + 1;
     var rowEnd = c.end + 1;
     var card = document.createElement("div");
-    card.className = "course-card color-" + colorIndex(c.name) + (it.ghost ? " off-week" : "") + (it.n > 1 ? " shared" : "") + (c._add ? " adj-add" : c._from ? " adj-swap" : "");
+    card.className = "course-card color-" + colorIndex(c.name) + (it.ghost ? " off-week" : "") + (it.n > 1 ? " shared" : "") + (c._add ? " adj-add" : c._from ? " adj-swap" : "") + (c.end <= c.start ? " short" : "");
     card.style.gridColumn = col + " / " + (col + 1);
     card.style.gridRow = rowStart + " / " + (rowEnd + 1);
     if (it.n > 1) {
@@ -1254,9 +1257,9 @@ function render() {
       (it.ghost ? '<div class="off-tag">非本周' + (it.more ? " · 还有" + it.more + "门" : "") + "</div>" : "") +
       (c._add ? '<div class="off-tag adj">加课</div>' : c._from ? '<div class="off-tag adj">调课 · 原' + escapeHtml(mdLabel(c._from)) + "</div>" : "") +
       '<div class="course-name">' + escapeHtml(c.name) + "</div>" +
-      '<div class="course-meta">📍 ' + escapeHtml(c.location || "未填写地点") + "</div>" +
-      '<div class="course-meta">👤 ' + escapeHtml(c.teacher || "未填写教师") + "</div>" +
-      (c._add ? "" : '<div class="course-meta">📅 ' + escapeHtml(formatWeeks(c.weeks)) + "</div>");
+      '<div class="course-meta m-loc">📍 ' + escapeHtml(c.location || "未填写地点") + "</div>" +
+      '<div class="course-meta m-tea">👤 ' + escapeHtml(c.teacher || "未填写教师") + "</div>" +
+      (c._add ? "" : '<div class="course-meta m-wk">📅 ' + escapeHtml(formatWeeks(c.weeks)) + "</div>");
     (function (id, added) {
       card.addEventListener("click", function () {
         if (added) { alert("这是在「调课 / 调休」里加的一节课，要改在主页面课程表上方的「🔁 调课 / 调休」里改。"); return; }

@@ -16,7 +16,7 @@ const CourseKit = (() => {
     adj: "personal_course_schedule_adjust_v1",   // 调课 / 调休 / 停课 / 加课（见 coursesOn）
     semester: "personal_course_schedule_semester_v1",
   };
-  const VER = "20261014-v541";
+  const VER = "20261015-v571";
   const DEFAULT_WEEK1 = "2026-09-14";
   const MAX_WEEK = 20;
   const PERIODS = {
