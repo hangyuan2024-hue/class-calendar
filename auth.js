@@ -2,7 +2,14 @@
 // 账号在后台对应一个内部邮箱：<账号>@<AUTH_EMAIL_DOMAIN>，用户不需要真实邮箱。
 (function () {
   const CFG = window.APP_CONFIG || {};
-  const BASE = CFG.SUPABASE_URL || "";
+  // 两条线路：国内直连（SUPABASE_URL）+ 海外中转（SUPABASE_URL_ALT，Cloudflare Worker，见「海外线路」说明）。
+  // 一条连不上就自动换另一条，记住能用的那条 3 天（5.7.0）
+  const ROUTES = [CFG.SUPABASE_URL, CFG.SUPABASE_URL_ALT].filter(Boolean).map((u) => String(u).replace(/\/+$/, ""));
+  const LS_ROUTE = "cc_api_route_v1";
+  let routeI = 0, routeKnown = false;
+  try { const r = JSON.parse(localStorage.getItem(LS_ROUTE) || "null"); if (r && ROUTES[r.i] && Date.now() - r.at < 3 * 864e5) { routeI = r.i; routeKnown = true; } } catch (e) {}
+  const base = () => ROUTES[routeI] || "";
+  function setRoute(i) { if (!ROUTES[i]) return; routeI = i; routeKnown = true; try { localStorage.setItem(LS_ROUTE, JSON.stringify({ i, at: Date.now() })); } catch (e) {} }
   const KEY = CFG.SUPABASE_ANON_KEY || "";
   const DOMAIN = CFG.AUTH_EMAIL_DOMAIN || "calendar.test";
   const LS = "cc_session_v1";
@@ -47,16 +54,25 @@
   async function call(url, opts, token) {
     const method = (opts.method || "GET").toUpperCase();
     const retryable = method === "GET" || SAFE_RPC.test(url.split("?")[0]);
+    let switched = false;
     for (let attempt = 0; ; attempt++) {
       let res, netErr = null;
       const ctl = typeof AbortController === "function" ? new AbortController() : null;
-      const timer = ctl ? setTimeout(() => ctl.abort(), 20000) : 0;
+      // 还不知道哪条线路能用：第一次只等 8 秒，连不上就换线路（海外连国内服务器常常卡住不动）
+      const timer = ctl ? setTimeout(() => ctl.abort(), !routeKnown && ROUTES.length > 1 ? 8000 : 20000) : 0;
       try {
         res = await fetch(url, {
           ...opts, signal: ctl ? ctl.signal : undefined,
           headers: { apikey: KEY, Authorization: "Bearer " + (token || KEY), "Content-Type": "application/json", ...(opts.headers || {}) },
         });
       } catch (e) { netErr = e; } finally { clearTimeout(timer); }
+      // 这条线路连不上：换另一条再试一次（连接失败说明请求没送到，写数据也可以安全重试；超时的写请求不重试，免得重复提交）
+      if (netErr && !switched && ROUTES.length > 1 && navigator.onLine !== false && (netErr.name !== "AbortError" || retryable || !routeKnown)) {
+        const cur = ROUTES.find((b) => url.startsWith(b));
+        const other = ROUTES.findIndex((b) => b !== cur);
+        if (cur && other >= 0) { url = ROUTES[other] + url.slice(cur.length); setRoute(other); switched = true; attempt--; continue; }
+      }
+      if (res && !routeKnown) { const i = ROUTES.findIndex((b) => url.startsWith(b)); if (i >= 0) setRoute(i); }
       const busy = netErr || (res && [429, 502, 503, 504].includes(res.status));
       // 服务器忙：最多重试 3 次；连不上网：只重试 1 次（断网时别让人干等）
       const maxTry = netErr ? (navigator.onLine === false ? 0 : 1) : 3;
@@ -101,7 +117,7 @@
     if (!s || !s.access_token) return null;
     if (s.expires_at - 60 > Date.now() / 1000) return s;
     if (!refreshing) {
-      refreshing = call(BASE + "/auth/v1/token?grant_type=refresh_token",
+      refreshing = call(base() + "/auth/v1/token?grant_type=refresh_token",
         { method: "POST", body: JSON.stringify({ refresh_token: s.refresh_token }) })
         .then(keep)
         // 只有服务器明确说「登录已失效」才退出；网络不好、服务器忙时保留登录，下次再续
@@ -114,7 +130,7 @@
   async function signIn(account, password) {
     account = normAccount(account);
     if (!ACCOUNT_RE.test(account)) throw new Error("账号只能用 3~20 位小写字母、数字或下划线");
-    const j = await call(BASE + "/auth/v1/token?grant_type=password",
+    const j = await call(base() + "/auth/v1/token?grant_type=password",
       { method: "POST", body: JSON.stringify({ email: account + "@" + DOMAIN, password }) });
     meCache = null;
     return keep(j);
@@ -128,7 +144,7 @@
     if (!ACCOUNT_RE.test(account)) throw new Error("账号只能用 3~20 位小写字母、数字或下划线");
     if (!name) throw new Error("请填写姓名（会显示为插件作者）");
     if (String(password).length < 8) throw new Error("密码至少 8 位");
-    const j = await call(BASE + "/auth/v1/signup",
+    const j = await call(base() + "/auth/v1/signup",
       { method: "POST", body: JSON.stringify({ email: account + "@" + DOMAIN, password, data: { name, role: role === "teacher" ? "teacher" : "student", identity: role === "teacher" || role === "other" ? role : "student", gender: gender === "m" || gender === "f" ? gender : "", ...orgMeta(org) } }) });
     meCache = null;
     if (j && j.access_token) return keep(j);
@@ -147,14 +163,14 @@
     let s = null;
     try { s = await session(); } catch {}
     s = s || load();
-    if (s) { try { await call(BASE + "/auth/v1/logout?scope=local", { method: "POST" }, s.access_token); } catch {} }
+    if (s) { try { await call(base() + "/auth/v1/logout?scope=local", { method: "POST" }, s.access_token); } catch {} }
     store(null); meCache = null;
   }
 
   // PostgREST 查询：path 如 "plugins?select=id,name"
   async function rest(path, opts = {}) {
     const s = await session();
-    try { return await call(BASE + "/rest/v1/" + path, opts, s && s.access_token); }
+    try { return await call(base() + "/rest/v1/" + path, opts, s && s.access_token); }
     catch (e) {
       // 凭证被服务器作废（被别的设备踢出 / 改了密码）：清掉登录，通知页面
       if (e && e.status === 401 && s) { store(null); meCache = null; lost(e.revoked ? "revoked" : "expired"); }
@@ -206,5 +222,5 @@
   }
 
   const can = (user, perm) => !!(user && user.perms && user.perms.includes(perm));
-  window.CCAuth = { primeMe, signIn, signUp, signOut, session, rest, rpc, me, esc, can, ROLE_NAMES, STAFF, STAFF_PERMS, PERM_NAMES, ACCOUNT_RE };
+  window.CCAuth = { base, routes: () => ROUTES.slice(), route: () => routeI, setRoute, primeMe, signIn, signUp, signOut, session, rest, rpc, me, esc, can, ROLE_NAMES, STAFF, STAFF_PERMS, PERM_NAMES, ACCOUNT_RE };
 })();

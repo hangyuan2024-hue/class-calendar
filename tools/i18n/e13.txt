@@ -1,0 +1,3 @@
+2699	not done
+2700	Completed ticks sync to your account; 
+2701	Ticks are recorded only on this device; 

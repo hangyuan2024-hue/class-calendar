@@ -1,0 +1,250 @@
+0	0 / 3 done
+1	6 digits
+2	A302 · sample course
+3	AI Organize
+4	B105 · sample course
+5	LAOLAO CAMPUS · your campus study buddy
+6	Tab to add a subtopic, drag to move, mark key points and pitfalls, outline view
+7	Windows 10 / 11 · 64-bit
+8	On iPhone, add it to the Home Screen from Safari
+9	← Back to sign in
+10	↕ One account, synced in real time
+11	↺ Reset
+12	▣ Windows desktop
+13	▯ Android app
+14	◉ Web
+15	☁ Cloud database · device security
+16	✓ One account on all your devices
+17	✓ Keep your own to-dos and progress
+18	✓ Join your class with a class code
+19	Terms of Service
+20	Privacy Policy
+21	One account,
+22	Weekly timetable
+23	Little by little, getting better.
+24	found at a glance.
+25	Three steps into
+26	Three layouts
+27	Previous
+28	Class
+29	Next
+30	Your next class,
+31	Download
+32	Download for Windows
+33	Download Android app
+34	Download apps
+35	never missed.
+36	Look around without signing in →
+37	Can I try it without signing in?
+38	Focus feature preview
+39	Focus time
+40	Time left in focus demo
+41	East Field
+42	two
+43	Two spaces
+44	Get a little ready for tomorrow
+45	still worth taking seriously.
+46	your day carries on.
+47	Learn more
+48	Today
+49	Have a good day today
+50	Here with you, every day.
+51	From 8 a.m. classes to evening study, from lectures to your own little world.
+52	We'll tailor the welcome guide and default theme — you can change it anytime
+53	PE
+54	Try organizing
+55	Demo timer — nothing is saved to your account
+56	Homework
+57	Homework, events and your own to-dos, organized into a schedule. Tick them off and feel lighter.
+58	Showcase
+59	You might also
+60	Your campus day, wherever you are
+61	your rhythm.
+62	Your account
+63	Sign in with the same account and turn on cloud sync, and your timetable, to-dos and completion records sync across devices. Records kept offline or only on one device need to be synced online or backed up yourself.
+64	When information has a place, you get more time for yourself.
+65	Get to know your workspace
+66	Try it without signing in
+67	Dismiss ×
+68	Type it again
+69	Prepare the club activity talk
+70	Functions & Limits
+71	Create my account
+72	Create a class, appoint class officers
+73	Feature preview
+74	Feature demo
+75	join in.
+76	Discover more tools
+77	Read at the library for a while
+78	Send code to email
+79	Your campus buddy in your pocket
+80	Yes. Click "Open workspace" to try to-dos, planning and tools. Sign in to sync your account and join a class.
+81	Use the web version. On iPhone, open it in Safari, tap Share, then "Add to Home Screen". The desktop app supports Windows, and there is an app for Android phones.
+82	developers from every university
+83	Classmate
+84	Mon
+85	Wed
+86	Tue
+87	Fri
+88	Due Fri 22:00
+89	Thu
+90	Week view
+91	and
+92	Hi, I'm Laolao.
+93	Priority matrix, Pomodoro, habit check-ins. Find what works for you — slow and steady still gets there.
+94	Team
+95	Team work and feature intros, playing on a loop.
+96	In class, in the library, on the way back to your dorm.
+97	Open in browser
+98	in one place.
+99	Core features done · localization in progress
+100	College English
+101	Plan on a big screen, with desktop reminders and an AI assistant.
+102	Female
+103	Easy editing
+104	Name
+105	S
+106	Study · Today 22:00
+107	Study officer
+108	and your study thinking to Laolao Mind Map. Separate spaces, shared data.
+109	Student ID or a username you choose
+110	School / organization
+111	Student
+112	Android 7.0 or later
+113	The Android installer won't download in WeChat — what now?
+114	QR code for the Android download page
+115	One thing done, a little lighter
+116	Finish Calculus chapter 3 exercises
+117	Lab Building 201
+118	Password
+119	Export & sync
+120	Export images and Markdown; sync across devices after signing in
+121	Derivatives ⭐
+122	A little focus,
+123	The mini program is in testing and uses the same account and data as the web version. Once fully open, search "捞捞课程表" in WeChat to open it. For now, use the web version or the Android app.
+124	Less searching around, more calm planning.
+125	Workspace ↗
+126	Live
+127	Developers wanted
+128	Start focusing
+129	A few small questions before you start,
+130	Start my campus day
+131	Open-source repo · coming soon
+132	Open source
+133	Built in the open,
+134	WeChat mini program
+135	Is the WeChat mini program live?
+136	WeChat mini program in testing, opening soon
+137	WeChat notifications or phone calendar subscription — you choose how to be reminded
+138	Can't download directly in WeChat
+139	Forgot password?
+140	Quick generate
+141	Mind map / logic chart / org chart, with four themes to switch
+142	Mind map localization
+143	make it a good start.
+144	we've thought about them too.
+145	I have read and agree to the
+146	I want to join
+147	I am
+148	My study space
+149	My to-dos
+150	Is data shared between phone and computer?
+151	Works on phone and computer
+152	Open download page
+153	Open Laolao Mind Map
+154	Open Laolao Timetable
+155	Just open a browser
+156	Open the real workspace ↗
+157	Open web version
+158	Reset password 🔑
+159	Turn a course, a question or a plan into one clear diagram.
+160	Bring order to your days
+161	Turn homework, notices and events from group chats into calendar entries.
+162	Recognize from a photo or screenshot, publish to your class in one tap, save as an image for the group chat
+163	Laolao
+164	Laolao will open its source code step by step. Whether you code, design, write docs, or just have a good idea — come help make it better. Contributors are credited in the project.
+165	Laolao Team
+166	Laolao Mind Map
+167	Laolao Timetable
+168	Laolao Timetable · give campus life its own rhythm
+169	Laolao Timetable home
+170	A different screen,
+171	Sign in with another account
+172	Reminders
+173	Got it, thanks!
+174	Organized items · example
+175	Please double-check the results; teacher and class notices take priority.
+176	New password
+177	Getting started
+178	A new day — take it slow
+179	No sign-in needed to try to-dos, planning and tools and find what works for you.
+180	Leave your daily schedule to Laolao Timetable,
+181	Tomorrow
+182	Show password
+183	Anyone going to the library tonight?
+184	Pause autoplay
+185	Plans, and little surprises too.
+186	If you are under 14, please use it with a guardian's consent
+187	This week
+188	spaces.
+189	See your next class, finish what's at hand. Sign in with the same account on phone and computer and pick up where you left off.
+190	Campus · Tomorrow 14:00
+191	Campus study buddy
+192	There's so much more to campus life.
+193	Every campus day,
+194	A study space on your desktop
+195	Welcome
+196	Welcome back
+197	Welcome back 👋
+198	In progress: works offline, data kept on your device first
+199	Roles we're recruiting
+200	Right now, just one thing
+201	Every deadline,
+202	Open it every day, easily
+203	Didn't get it? Resend
+204	No email linked — what can I do?
+205	After signing up, import your timetable and join your class with a class code to keep everyone's important plans together.
+206	Create a new account
+207	Testing & campus outreach
+208	Tap anywhere to close
+209	Tap the tabs above to try different features
+210	Tap "···" at the top right of WeChat, choose "Open in browser", then download the Android installer. If you see an "unknown source" warning during installation, follow the system prompt to allow it.
+211	Tap the top right
+212	Use the arrows or dots below to switch.
+213	Head teacher
+214	Class
+215	Class wall, AI Q&A, tool plugins, pet farm…
+216	Class wall, class notices, homework list — managed together by class officers and teachers
+217	sort out every course.
+218	Life · leave some time for yourself
+219	Scan with your phone
+220	Male
+221	UI & illustration
+222	Sign in
+223	Sign in to keep your timetable, homework and personal goals together. Take it slow — every step counts.
+224	Sign in to see your Laolao Timetable
+225	Take a look at your study space
+226	See what Laolao
+227	Real name, so your teacher can approve you joining the class
+228	to know.
+229	Confirm password
+230	Sample preview
+231	Integrals ⚠️
+232	Programming
+233	keeps your timetable, homework and class messages in order,
+234	Paste an AI answer, Markdown or indented notes and turn them straight into a mind map
+235	Paste group messages or pick chat screenshots, organized into items with time and place
+236	How it's built
+237	Linear Algebra
+238	If your account has an email linked, you can set a new password with an email code
+239	Put a full stop on today's tasks
+240	Leave some breathing room in life
+241	Continue
+242	Site navigation
+243	Web · Android · Windows · WeChat mini program (testing)
+244	However many group messages,
+245	Group message organizing preview
+246	Group message rules
+247	Teacher
+248	Teachers who forget their password should contact the site admin. After recovering, link your email under "Me → Email notifications" so you can reset it yourself next time.
+249	can do for you.

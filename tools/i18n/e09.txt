@@ -1,0 +1,210 @@
+2250	; {0} day off
+2251	🏖 Day off / cancelled
+2252	🏫 Class timetable
+2253	📚 Today's classes{1}
+2254	📤 Update with my timetable
+2255	📥 Use class timetable{5}
+2256	📷 Photo import timetable
+2257	📷 Timetable original
+2258	🔁 Class swap (make-up day)
+2259	🔁 Class swaps / days off{0}
+2260	🔍 Compare with original
+2261	🔔 Nightly reminder of tomorrow's classes: on
+2262	🔕 Nightly reminder of tomorrow's classes: off
+2263	🖼 Save as image
+2264	🧠 Auto-corrected {0} fields based on past checks (green; hover to see what was originally recognized).
+2265	· Images, PDF, Word and more, up to 20MB each
+2266	"{0}" upload failed: {1}
+2267	"{0}" uploaded ✓
+2268	"{0}" is too large (max 20MB each)
+2269	Items saved "only on this device" can't have attachments (attachments are stored in the cloud). Untick it first.
+2270	Download original
+2271	The item was saved but couldn't be found, so attachments weren't uploaded. Tap "📎 Add image / file" in the item to upload again.
+2272	after today
+2273	Homework: always
+2274	Uploads automatically after saving
+2275	Visible to the whole class
+2276	Delete this attachment?
+2277	Add image / file
+2278	Remove
+2279	Only visible to you
+2280	days later
+2281	Postponed; won't be deleted until {0}
+2282	{1} attachments already
+2283	Noted by me
+2284	Postpone deletion
+2285	Postpone deletion (keep 3 more days)
+2286	You'll be reminded in the last 3 days; tap "Postpone deletion" to keep it 3 more days
+2287	{0} attachments
+2288	Other class items
+2289	Class meetings, events and notices are deleted automatically 2 weeks after they pass
+2290	Uploading "{0}"…
+2291	Uploading "{0}"… {1}%
+2292	Teachers and class officers with edit permission can change it
+2293	No attachments yet
+2294	Attachments
+2295	Attachments uploaded ✓ ({0})
+2296	{0} / {1} attachments uploaded; tap "📎" in the item to retry the rest
+2297	Attachments ({0})
+2298	Attach the question directly if it's an image or file, up to 20MB each
+2299	(2 weeks past the date) tap "Postpone deletion" to keep it
+2300	＋ Choose images or files (multiple allowed, or drag them in)
+2301	📎 Add image / file
+2302	🗑 {0} items will be deleted soon
+2303	🗑 auto-deleted {0}
+2304	🗑 Auto-deleted 2 weeks after it passes
+2305	" is in
+2306	" last time was
+2307	":
+2308	" is now Lv.
+2309	", just 25 minutes — then reward yourself with a break.
+2310	Up
+2311	Down
+2312	Next week
+2313	Where's my next class
+2314	Next class is
+2315	You're welcome~ call me anytime 😊
+2316	No need to do it all at once — just start with "
+2317	.
+2318	habits all checked in 🔥
+2319	not checked in:
+2320	Pomodoros, this week in total
+2321	What do you want to finish first today?
+2322	Today there are
+2323	What classes today
+2324	Today's
+2325	All of today's classes are done 🎉
+2326	Still left today:
+2327	Still today:
+2328	things.
+2329	things, most urgent first:
+2330	things related to "
+2331	All homework submitted — great 🎉
+2332	You haven't imported your timetable yet. Take a photo of it in "Tools → Timetable" to import, then ask me about any day's classes 📷
+2333	You don't have any habits yet. Add one on the "Growth" page, e.g. "memorize 30 words" — daily check-ins earn growth points and food.
+2334	Food
+2335	Another one?
+2336	min until class ends
+2337	min until class starts
+2338	Just passed
+2339	Go adopt a cloud pet at the pet farm 🐣
+2340	You can study something else in peace ☕
+2341	You can plan something for yourself.
+2342	place 🏆
+2343	week ·
+2344	week)
+2345	In three days
+2346	days
+2347	days)
+2348	Passed
+2349	Very focused 👏
+2350	Ask anything, for example:
+2351	growth points, class rank
+2352	Did I check in today
+2353	I keep an eye on your schedule: what's most urgent, which day has which classes, this week's homework, where your next class is, exams — plus check-ins, Pomodoros and your pet. Just ask, for example:
+2354	I'm Laolao, the little study helper living on this island 🤖 I put what you should do first at the top — ask me anything anytime.
+2355	Nothing urgent at hand,
+2356	Found
+2357	Sorted by priority, work from the top:
+2358	Teaching week
+2359	day week
+2360	Exams / quizzes in the calendar:
+2361	No exams in the calendar yet 👀 When there's news, ask a class officer to post it to the class, or "Note something" yourself.
+2362	Get some rest 🌙
+2363	What's on tomorrow
+2364	See you tomorrow, sleep well 🌙
+2365	What's most urgent
+2366	The first thing to do is "
+2367	Last week
+2368	No classes in the next week 🎈
+2369	There are
+2370	In class · time left
+2371	No date set
+2372	Nothing planned ☕
+2373	Nothing planned, the calendar is empty ☕
+2374	No classes 🎈
+2375	No overdue homework, nice 👍
+2376	Nothing urgent right now — it's fine to rest a bit.
+2377	It's now
+2378	You're now in "
+2379	Nothing urgent now, take it easy ☕
+2380	's "
+2381	classes:
+2382	classes:
+2383	Due
+2384	Good work — take a deep breath first 🌿
+2385	Overdue
+2386	Overdue unsubmitted homework:
+2387	Remaining
+2388	Unsubmitted homework:
+2389	I'm not sure about that yet 😅 I can answer about schedules, classes, homework, exams and check-ins — try asking:
+2390	This week you've earned
+2391	This week's are all done; due next week:
+2392	Not on the board this week yet — finish a homework task to earn growth points.
+2393	homework overdue — catch up first.
+2394	homework (most urgent first):
+2395	homework:
+2396	, catch up quickly:
+2397	, sorted by priority:
+2398	:
+2399	(No.
+2400	(streak
+2401	, you have
+2402	, go feed it 🥕
+2403	, at
+2404	; finish one thing to earn food 🌾
+2405	, No.
+2406	{0} things · sorted by priority
+2407	· ready to feed
+2408	⏰ "{0}" due in {1} min{2}!
+2409	In class ·
+2410	Next class
+2411	Cloud pet & food
+2412	Done today {0}/{1}
+2413	Today's progress
+2414	Your study helper · ask anything
+2415	Close
+2416	Food {0}{1}
+2417	Complete "{1}"
+2418	is due
+2419	I'm back 👋 tap me to ask questions
+2420	Check-ins {0}/{1}
+2421	Hold Laolao to drag it left or right, up or down; after hiding, bring it back under "Me → Fun features".
+2422	Laolao is here
+2423	Shown on Laolao's little screen (rotates if several are ticked)
+2424	Laolao's screen: {0} {1}
+2425	Put back in place
+2426	The most urgent thing
+2427	Any overdue homework
+2428	Local AI connected · ask anything
+2429	Nothing urgent
+2430	Nothing urgent ☕
+2431	Tap to chat
+2432	Pomodoro {0}
+2433	Pomodoro countdown (while focusing)
+2434	See all {0} ›
+2435	Let Laolao rest (hide)
+2436	Relax
+2437	{0} more…
+2438	, first class
+2439	🌙 Tomorrow{0}{1}, tap me to see
+2440	🍅 Start focusing
+2441	🏆 See leaderboard
+2442	🐣 Feed your pet
+2443	👋 Laolao says hi when you open the site
+2444	💬 Pop-up bubbles at the right time (class, deadline, overdue)
+2445	📚 "{1}" starts in {0} min{2}
+2446	📟 Show little screen (off = Laolao only)
+2447	📷 Import timetable
+2448	🔥 Check in
+2449	😣 {0} homework overdue, earliest is "{1}" — catch up first
+2450	Connected to {0} devices on the same network; "this device only" data transfers directly
+2451	fast
+2452	slow
+2453	Server not upgraded yet, unavailable for now
+2454	Looking for devices signed in to the same account on the same network (same Wi-Fi)…
+2455	No "this device only" data, not needed
+2456	This device's clock is about {1} minutes {0} standard time, so homework deadlines and class reminders may be off. Turn on "Set time automatically" in system settings.
+2457	Delete 🗑
+2458	Hidden; find it again via "Show hidden" on the calendar page
+2459	Hide ⊘

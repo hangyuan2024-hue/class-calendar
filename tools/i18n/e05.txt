@@ -1,0 +1,250 @@
+1250	If it won't open in WeChat or QQ: tap "Copy" to get the subscription link → open your phone's
+1251	View in calendar
+1252	In virtual space you can walk inside a cell, stand on the streets of ancient Rome, or do dangerous chemistry experiments. Immersive learning makes abstract knowledge visible and tangible.
+1253	Places
+1254	Hold on a little longer, and a little longer.
+1255	A whole month — be proud
+1256	Visible persistence
+1257	Small stuff like forms and sign-ups — knock them out in a few minutes
+1258	Augmented reality (AR)
+1259	Notes (saved only on this device)
+1260	Notes:
+1261	Revision, long-term assignments, habits — where your time is best spent
+1262	Copy
+1263	Copy the line below, paste it into "Terminal" and press Enter
+1264	Can't copy — long-press the link to copy it manually
+1265	After copying, paste it into your calendar app using "How to add manually" below.
+1266	After copying, add it under "Settings → Calendar" as described below.
+1267	Copy page URL
+1268	Copy subscription link
+1269	More
+1270	It's late
+1271	It's late — leave tomorrow's things to tomorrow's you.
+1272	Large
+1273	Big family
+1274	days ago
+1275	Sky
+1276	Sky blue
+1277	Running
+1278	If "Windows protected your PC" appears, click "More info → Run anyway"; if the browser warns the file may be harmful, choose "Keep"
+1279	Study
+1280	Learning records are stored only on this device for now. An admin runs this once in the Coze terminal:
+1281	School / organization not saved:
+1282	Universe
+1283	Safety tips
+1284	Android app
+1285	Android phone
+1286	Installer downloaded
+1287	Done
+1288	Done +1
+1289	Complete 1 Pomodoro
+1290	Complete 1 thing
+1291	{0}/3 done — finish to earn XP
+1292	{0}/{1} done
+1293	{2} / {3} done
+1294	Complete a Pomodoro
+1295	Complete one PDCA round
+1296	Finish a homework task to make the board — first come, first served!
+1297	Complete a class homework task
+1298	Completed items
+1299	This is how you'll be cheered on when you finish items
+1300	Finish tasks to earn food and raise your cloud pet
+1301	Finishing homework, habit check-ins and Pomodoros all earn growth points; the class leaderboard ranks by week, month and overall. Don't want to be listed? Go anonymous or opt out.
+1302	Completed ticks sync to your account;
+1303	Round done, start the next 🔄
+1304	Real name
+1305	What did you actually do? Record the process
+1306	Lab
+1307	Wide
+1308	Password changed ✓
+1309	Import {0} items
+1310	Imported timetable
+1311	This will restore {0} of my items and overwrite data on this device. Continue?
+1312	Small
+1313	Squad
+1314	Tip: tap "Tools" at the bottom again on the Tools page, or long-press it, to search and quickly open any tool~
+1315	Tip: press Ctrl/⌘+K, or tap "Tools" again on the Tools page, to search and quickly open any tool~
+1316	hours
+1317	h ago
+1318	Little flame
+1319	Section title
+1320	Less
+1321	Do less
+1322	Like this
+1323	Right now
+1324	Handle soon
+1325	Show all
+1326	Studio
+1327	Tools
+1328	Tools & plugins
+1329	Couldn't read tool content
+1330	Tools are temporarily turned off
+1331	Tool files can't be downloaded right now, please retry online
+1332	Tool page can't be loaded right now
+1333	Tools (tap again or long-press: quick open)
+1334	Downloaded {0} items. Double-click the file to import (Outlook, Apple Calendar); for Google Calendar import under "Settings → Import & export". {1}
+1335	Downloaded {0} items. Open it from the notification bar or "File manager → Downloads" and choose
+1336	Downloaded "{0}". Tap Safari's address bar
+1337	Reported
+1338	Saved
+1339	Local AI turned off.
+1340	{0} can now edit the feature guide
+1341	Off
+1342	Refreshed ✓
+1343	Added {0} to My items ✓ (only you can see them; not published to class)
+1344	Published {0} items ✓{1}
+1345	Sent
+1346	Synced ·
+1347	Back in the real world
+1348	In calendar ✓
+1349	Copied
+1350	Copied ✓
+1351	Done
+1352	On — visible when you sign in to the same account in another browser
+1353	Checked in
+1354	Report submitted; a teacher will handle it soon
+1355	Submitted — AI is organizing, about 30 seconds to a minute…
+1356	Paused
+1357	Added
+1358	Added ✓
+1359	Requested to join "{0}". Laolao Timetable will appear here once the teacher approves.
+1360	Completed items are left out of the calendar
+1361	Sorted automatically by due time and type; if something's wrong, use ⇄ to move it (drag on computer). To-dos added in boxes appear in "My items".
+1362	Already the latest version ✓
+1363	Already installed and connected ({0})
+1364	{0} days in a row
+1365	Linked
+1366	{0} linked — you can reset a forgotten password yourself on the sign-in page
+1367	Hidden by the teacher; only you{0} can see it
+1368	Unlocked {16}/{17}
+1369	Overdue
+1370	Overdue by {0} days
+1371	Connected! "Q&A" now appears in the left sidebar
+1372	Unsubscribed from all email notifications. To receive them again, turn them on under "Me → Email notifications".
+1373	Reset done. Give the username and temporary password to {0} (you can copy):
+1374	Plan my study session tonight
+1375	FAQ
+1376	A calm, steady day is a good day 🙂
+1377	Broadcast
+1378	Turn on cloud sync
+1379	Couldn't turn on sync:
+1380	Start
+1381	At start
+1382	Remember the happy days! Share some good mood with your deskmate 🎉
+1383	Current version {5}{6}
+1384	8 a.m. that day
+1385	Move earlier
+1386	Move up
+1387	Move later
+1388	Move down
+1389	To-do
+1390	Pending
+1391	TBD
+1392	WeChat
+1393	WeChat in-app browser
+1394	Weibo
+1395	Badges
+1396	Heart set on it, day after day
+1397	Forget
+1398	Forget this one
+1399	Quick open tools
+1400	Quick buttons
+1401	Quick pick tools
+1402	Total
+1403	Restore failed:
+1404	Restore complete
+1405	Show again
+1406	Restore default intro
+1407	Anything to say to the whole class?
+1408	To get reminders: open this subscription in the same place and turn off "
+1409	The thanks list can't open right now (an admin needs to run setupaccounts.py once in the Coze terminal)
+1410	Slow and steady is faster.
+1411	Achievement badges
+1412	Growth
+1413	Growth & check-ins
+1414	Growth & leaderboard
+1415	Growth points
+1416	How are growth points counted?
+1417	Growth leaderboard
+1418	Growth data
+1419	Growth trail
+1420	Me
+1421	We're not the best, but we're the most united
+1422	Show me on the board as:
+1423	I'm Laolao — what would you like to ask?
+1424	I'll fill it in
+1425	Me
+1426	Me · profile
+1427	My profile
+1428	My profile ›
+1429	My habit check-ins:
+1430	My items
+1431	my-calendar-backup-{0}.json
+1432	My colors
+1433	I can see the homework and plans in your calendar; answers are generated on your computer.
+1434	Me:
+1435	Me: rank {0}
+1436	Power ranking
+1437	Team
+1438	No text recognized in the screenshot — try a clearer one
+1439	Due
+1440	Due date
+1441	At deadline
+1442	Due time TBD
+1443	publish manually)
+1444	Nothing urgent at hand
+1445	Can't open this profile: {0}
+1446	Check in
+1447	Check in 1 habit
+1448	Open
+1449	Open ›
+1450	Open ▶
+1451	open it to import. {1}
+1452	How to open: press ⌘+Space and type "Terminal"
+1453	Open this site and tap "Subscribe in Apple Calendar" → "Subscribe".
+1454	The Coze backend isn't updated to 5.6.0 yet: replace calendar_routes.py with the new one and redeploy
+1455	Do
+1456	Bulk import TXT, CSV or Excel rosters, preview and dedupe, roll call and random picks
+1457	Email for password recovery
+1458	Sending {0} to cloud AI…
+1459	Move "
+1460	Paste your prepared intro here
+1461	Turn class group messages into a clear calendar. Here's how each feature works — tap the contents to jump.
+1462	Make your goal clear
+1463	Replace the editor with this version? (You still need to tap "Save & publish" for it to take effect)
+1464	Add {0} selected to My items
+1465	Douyin
+1466	Hugs. You don't have to tough it out when you're sad — talk to a friend or teacher you trust 🤍
+1467	Matcha
+1468	Photo import
+1469	Drag to resize
+1470	{0} unsure
+1471	Couldn't get the subscription link: {0}
+1472	Hold and drag onto another card to swap places
+1473	Mistake bookshelf by subject: image questions, answers, review and local backup
+1474	Sorted by due time
+1475	Sort by due time
+1476	Laolao Metaverse
+1477	Laolao Metaverse is temporarily closed:
+1478	Laolao Metaverse has its own neon colors; your colors come back when you switch to another style
+1479	laolao-local-ai-install.bat
+1480	Laolao Campus
+1481	Laolao Timetable · feature guide
+1482	laolao-timetable-{0}.ics
+1483	Another one
+1484	Open another way
+1485	Change cover, edit profile
+1486	Use my intro
+1487	Change email
+1488	Rankings are just for encouragement; you can go anonymous or opt out anytime
+1489	Leaderboard
+1490	Leaderboard can't open right now: {0}
+1491	from the ranking; growth points are still recorded.
+1492	Next up
+1493	How early to remind
+1494	Plugins
+1495	Action failed:
+1496	Alipay
+1497	Supports **bold**, lists starting with "- ", numbering starting with "1. "
+1498	Collapse
+1499	Edit

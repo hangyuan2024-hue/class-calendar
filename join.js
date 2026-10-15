@@ -42,11 +42,17 @@
 
   // ---------- 报名 ----------
   function rpc(fn, body, token) {
-    return fetch(CFG.SUPABASE_URL + "/rest/v1/rpc/" + fn, {
-      method: "POST",
-      headers: { apikey: CFG.SUPABASE_ANON_KEY, Authorization: "Bearer " + (token || CFG.SUPABASE_ANON_KEY), "Content-Type": "application/json" },
-      body: JSON.stringify(body || {}),
-    }).then(function (r) {
+    // 国内线路连不上就走海外中转（和网页版同一套逻辑，5.7.0）
+    var bases = [CFG.SUPABASE_URL, CFG.SUPABASE_URL_ALT].filter(Boolean);
+    try { var rt = JSON.parse(localStorage.getItem("cc_api_route_v1") || "null"); if (rt && rt.i > 0 && bases[rt.i]) bases.reverse(); } catch (e) {}
+    var go = function (b) {
+      return fetch(b + "/rest/v1/rpc/" + fn, {
+        method: "POST",
+        headers: { apikey: CFG.SUPABASE_ANON_KEY, Authorization: "Bearer " + (token || CFG.SUPABASE_ANON_KEY), "Content-Type": "application/json" },
+        body: JSON.stringify(body || {}),
+      });
+    };
+    return go(bases[0]).catch(function (e) { if (bases.length < 2) throw e; return go(bases[1]); }).then(function (r) {
       return r.text().then(function (t) {
         var j = null; try { j = t ? JSON.parse(t) : null; } catch (e) {}
         if (!r.ok) { var m = (j && (j.message || j.error)) || ("HTTP " + r.status); var err = new Error(m); err.status = r.status; err.code = j && j.code; throw err; }

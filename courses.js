@@ -210,6 +210,7 @@ const CourseKit = (() => {
       if (b.dataset.c === "import") openImport();
       if (b.dataset.c === "adjust") openAdjust();
       if (b.dataset.c === "shot") shotMine();
+      if (b.dataset.c === "src") openSrcView();
       if (b.dataset.c === "class") openClass();
       if (b.dataset.c === "mail") { showView("me"); setTimeout(() => { const m = $("mailBox"); if (m) m.scrollIntoView({ behavior: "smooth", block: "center" }); }, 200); }
     });
@@ -227,6 +228,7 @@ const CourseKit = (() => {
     barEl.innerHTML = `<button class="btn ink sm" data-c="import">📷 拍照导入课表</button>
       <button class="btn sm" data-c="adjust" title="学校临时调休、换课、停课、加课">🔁 调课 / 调休${upcoming ? `<em class="cbar-n">${upcoming}</em>` : ""}</button>
       <button class="btn sm" data-c="shot" title="把课程表保存成一张图片">🖼 存为图片</button>
+      ${srcRec() ? `<button class="btn sm" data-c="src" title="拍照导入时用的课表图，不用再去相册里找">📷 课表原图</button>` : ""}
       ${clsId() ? `<button class="btn sm" data-c="class" title="老师 / 班委发布的课表，全班都能看到">🏫 班级课表</button>` : ""}
       <span class="cbar-t">${data.courses.length ? `共 ${data.courses.length} 门课` : "还没有课程"}${currentUser ? (synced ? " · ☁ 已同步" : data.courses.length ? " · 同步中…" : "") : " · 登录后可同步"}</span>
       <span class="spacer"></span>
@@ -639,12 +641,13 @@ const CourseKit = (() => {
           <div class="cdrop-in"><b>选一张课表截图</b><small>教务系统网页、课表 App 截图都行，也可以拍电脑屏幕；电脑上可以直接粘贴（Ctrl+V）或拖进来</small></div>
           <img id="crsPrev" alt="" hidden>
         </div>
-        <ul class="ctips"><li>截全：要看得到「星期一…星期日」和左边的节次</li><li>App 截图通常只显示「本周」的课，周次可能要自己核对</li><li>图片只用来识别，识别完不保存</li><li>你核对时改的地方会被记住，越用越准</li></ul>
+        <ul class="ctips"><li>截全：要看得到「星期一…星期日」和左边的节次</li><li>App 截图通常只显示「本周」的课，周次可能要自己核对</li><li>服务器识别完就删掉图片；原图只存在这台设备的浏览器里，以后点「📷 课表原图」随时对照</li><li>你核对时改的地方会被记住，越用越准</li></ul>
         <div class="cal-row"><button type="button" class="btn ink" id="crsGo" disabled>开始识别</button><span class="cal-st" id="crsSt"></span></div>
       </div>
       <div id="crsStep2" hidden>
         <div class="cal-st" id="crsWarn"></div>
-        <div class="crev-h"><b id="crsCount"></b><span class="spacer"></span><button type="button" class="small" id="crsAdd">＋ 加一门</button><button type="button" class="small" id="crsRe">换一张图</button></div>
+        <div class="crev-h"><b id="crsCount"></b><span class="spacer"></span><button type="button" class="small" id="crsSrcBtn" hidden>🔍 对照原图</button><button type="button" class="small" id="crsAdd">＋ 加一门</button><button type="button" class="small" id="crsRe">换一张图</button></div>
+        <div class="csrc" id="crsSrc" hidden></div>
         <div class="crev" id="crsRev"></div>
         <div class="cal-card cset">
           <label class="crow2">第 1 周的周一是<input type="date" id="crsW1"></label>
@@ -673,10 +676,61 @@ const CourseKit = (() => {
     q("#crsRev").addEventListener("click", (e) => { const b = e.target.closest("[data-del]"); if (b) { collect(); removed.push(...rows.splice(+b.dataset.del, 1)); renderRows(); } });
     q("#crsRev").addEventListener("change", (e) => { if (e.target.matches("[data-f=start]")) { collect(); const r = rows[+e.target.closest("[data-i]").dataset.i]; if (r.end < r.start) r.end = r.start; renderRows(); } });
     q("#crsSave").onclick = doSave;
+    // 对照原图：整张图上标出每门课的位置和序号，点序号跳到那一门
+    q("#crsSrcBtn").onclick = () => { const p = q("#crsSrc"); p.hidden = !p.hidden; q("#crsSrcBtn").textContent = p.hidden ? "🔍 对照原图" : "收起原图"; if (!p.hidden) renderSrc(); };
+    q("#crsSrc").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-bi]"); if (!b) return;
+      const row = q(`.crev-r[data-i="${b.dataset.bi}"]`); if (!row) return;
+      row.scrollIntoView({ behavior: "smooth", block: "center" }); row.classList.remove("flash"); void row.offsetWidth; row.classList.add("flash");
+    });
     return dlg;
   }
 
-  let pickedB64 = "";
+  let pickedB64 = "", pickedWH = null;
+  // 识别时的原图（缩小后）存在这台设备的浏览器里，课程表上随时能看（5.7.0）
+  const LS_SRCIMG = "course_src_img_v1";
+  const srcCss = () => `url("data:image/jpeg;base64,${pickedB64}")`;
+  // 原图里一门课的那一格：用背景图裁出来。box = [x0,y0,x1,y1]（0~1）
+  function cropHtml(box, W, H, maxH, extra) {
+    if (!box || box.length !== 4 || !W || !H) return "";
+    const bw = Math.max(box[2] - box[0], 0.005), bh = Math.max(box[3] - box[1], 0.005), A = (bw * W) / (bh * H);
+    const px = bw >= 1 ? 0 : (box[0] / (1 - bw)) * 100, py = bh >= 1 ? 0 : (box[1] / (1 - bh)) * 100;
+    return `<div class="ccrop" ${extra || ""} style="aspect-ratio:${A.toFixed(4)};width:min(100%,${Math.round(maxH * A)}px);background-size:${(100 / bw).toFixed(3)}% auto;background-position:${px.toFixed(3)}% ${py.toFixed(3)}%"></div>`;
+  }
+  function renderSrc() {
+    const p = dlg.querySelector("#crsSrc"); if (!pickedB64) return;
+    p.innerHTML = `<div class="csrc-in"><img src="data:image/jpeg;base64,${pickedB64}" alt="课表原图">${rows.map((r, i) => r.box ? `<button type="button" class="csbox${r.on ? "" : " off"}${r.conf != null && r.conf < 0.9 ? " warn" : ""}" data-bi="${i}" style="left:${r.box[0] * 100}%;top:${r.box[1] * 100}%;width:${(r.box[2] - r.box[0]) * 100}%;height:${(r.box[3] - r.box[1]) * 100}%" title="${esc(r.name)}"><i>${i + 1}</i></button>` : "").join("")}</div>`;
+  }
+  function keepSrc(fresh, picked) {
+    try {
+      if (!pickedB64 || !pickedWH) return;
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const s = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement("canvas");
+          c.width = Math.round(img.naturalWidth * s); c.height = Math.round(img.naturalHeight * s);
+          c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+          const items = {}; fresh.forEach((x, i) => { if (picked[i] && picked[i].box) items[x.id] = { box: picked[i].box, name: x.name }; });
+          const rec = { img: c.toDataURL("image/jpeg", 0.8), w: c.width, h: c.height, at: Date.now(), items };
+          try { localStorage.setItem(LS_SRCIMG, JSON.stringify(rec)); }
+          catch (e) { rec.img = c.toDataURL("image/jpeg", 0.55); try { localStorage.setItem(LS_SRCIMG, JSON.stringify(rec)); } catch (e2) { /* 存不下就算了 */ } }
+          renderBar();
+        } catch (e) {}
+      };
+      img.src = "data:image/jpeg;base64," + pickedB64;
+    } catch (e) {}
+  }
+  function srcRec() { try { const r = JSON.parse(localStorage.getItem(LS_SRCIMG) || "null"); return r && r.img ? r : null; } catch (e) { return null; } }
+  function openSrcView() {
+    const r = srcRec(); if (!r) return;
+    let d = document.getElementById("crsSrcDlg");
+    if (!d) { d = document.createElement("dialog"); d.id = "crsSrcDlg"; d.className = "dlg crs-x csrc-dlg"; document.body.appendChild(d); d.addEventListener("click", (e) => { if (e.target === d || e.target.closest("[data-x]")) d.close(); }); }
+    const cur = new Set(data.courses.map((c) => c.id));
+    const marks = Object.entries(r.items || {}).filter(([id]) => cur.has(id));
+    d.innerHTML = `<div class="csrc-head"><b>📷 课表原图</b><small>${new Date(r.at).toLocaleDateString("zh-CN")} 拍照导入时用的图 · 框出来的是认出的课，对照着看教室、老师对不对</small><button type="button" class="small" data-x>关闭</button></div>
+      <div class="csrc-in"><img src="${r.img}" alt="课表原图">${marks.map(([id, m]) => `<span class="csbox" style="left:${m.box[0] * 100}%;top:${m.box[1] * 100}%;width:${(m.box[2] - m.box[0]) * 100}%;height:${(m.box[3] - m.box[1]) * 100}%" title="${esc(m.name)}"></span>`).join("")}</div>`;
+    d.showModal();
+  }
   async function pickFile(file) {
     const q = (s) => dlg.querySelector(s), st = q("#crsSt");
     if (!file || !/^image\//.test(file.type || "image/")) { st.textContent = "请选择图片文件"; st.className = "cal-st err"; return; }
@@ -702,6 +756,7 @@ const CourseKit = (() => {
         const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
         out = c.toDataURL("image/jpeg", quality).split(",")[1];
         if (Math.min(c.width, c.height) < 200) throw new Error("图片太小了");
+        pickedWH = { w: c.width, h: c.height };
         if (out.length < 4_000_000) return out;
         max = Math.round(max * 0.8); quality -= 0.08;
       }
@@ -739,7 +794,7 @@ const CourseKit = (() => {
   function showReview() {
     const q = (s) => dlg.querySelector(s), res = ocrResult || {};
     rows = (res.courses || []).map((c) => ({ on: true, name: c.name, day: c.day, start: c.start, end: c.end, weeks: c.weeks || "", location: c.location || "", teacher: c.teacher || "",
-      weeksFound: !!c.weeks_found, conf: c.conf, note: c.note || "" }));
+      weeksFound: !!c.weeks_found, conf: c.conf, note: c.note || "", box: Array.isArray(c.box) ? c.box : null }));
     for (const r of rows) r.orig = { ...r };
     removed = [];
     const nLearn = learnApply(rows);
@@ -748,7 +803,7 @@ const CourseKit = (() => {
     for (const r of rows) if (!r.weeks) { r.weeks = `1-${guessMax}`; r.weeksGuess = true; }
     const warn = [...(res.warnings || [])];
     if (!rows.length) warn.unshift("没认出课程。可以换一张更清楚、更完整的截图，或点「＋ 加一门」手动添加。");
-    else warn.unshift(`认出 ${rows.length} 门课，请逐门核对（标黄的是不太确定的地方），可以直接改。你改的地方会被记住，下次识别更准。`);
+    else warn.unshift(`认出 ${rows.length} 门课。每门课上面是原图里对应的那一格，对照着看名字、教室、老师对不对；标黄的是不太确定的地方，可以直接改。你改的地方会被记住，下次识别更准。`);
     if (nLearn) warn.splice(1, 0, `🧠 按以前的核对结果自动改了 ${nLearn} 处（标绿的，鼠标放上去能看到原来认出的字）。`);
     if (!anyWeeks && rows.length) warn.push(`周次先按「1-${guessMax}」填了（标黄），请改成实际的周次。`);
     else if (rows.some((r) => r.weeksGuess)) warn.push("标黄的周次没认出来，先按整个学期填了，请核对。");
@@ -768,6 +823,8 @@ const CourseKit = (() => {
     q("#crsMailTxt").textContent = email ? `发到 ${email}` : "还没绑定邮箱：到「我的 → 邮箱通知」绑定后就能打开";
     q("#crsIcs").checked = load(LS_ICS, true) !== false;
     q("#crsSt2").textContent = "";
+    q("#crsSrcBtn").hidden = !rows.some((r) => r.box); q("#crsSrc").hidden = true; q("#crsSrcBtn").textContent = "🔍 对照原图";
+    q("#crsRev").style.setProperty("--src", srcCss());
     renderRows();
     q("#crsStep1").hidden = true; q("#crsStep2").hidden = false;
   }
@@ -781,15 +838,17 @@ const CourseKit = (() => {
     q("#crsCount").textContent = `${rows.filter((r) => r.on).length} / ${rows.length} 门要导入`;
     q("#crsRev").innerHTML = rows.map((r, i) => {
       const unsure = r.conf != null && r.conf < 0.9;
-      return `<div class="crev-r${r.on ? "" : " off"}" data-i="${i}">
+      const warnLoc = !lc(r, "location") && (!r.location || unsure), warnTea = !lc(r, "teacher") && unsure && !!r.teacher;
+      const crop = r.box && pickedWH ? cropHtml(r.box, pickedWH.w, pickedWH.h, 90, `title="原图里的这一格（第 ${i + 1} 门）"`) : "";
+      return `<div class="crev-r${r.on ? "" : " off"}" data-i="${i}">${crop ? `<div class="crev-src"><span class="crev-no">${i + 1}</span>${crop}</div>` : ""}
         <label class="cchk"><input type="checkbox" data-f="on" ${r.on ? "checked" : ""}></label>
         <input class="cname${lc(r, "name") || (unsure ? " warn" : "")}" data-f="name" value="${esc(r.name)}" placeholder="课程名" maxlength="60"${lt(r, "name")}>
         <select data-f="day">${DAYS.map((d, k) => `<option value="${k}"${+r.day === k ? " selected" : ""}>${d}</option>`).join("")}</select>
         <span class="cper">第<select data-f="start">${per(r.start)}</select>-<select data-f="end">${per(r.end)}</select>节</span>
         <input class="cweeks${r.weeksGuess ? " warn" : ""}" data-f="weeks" value="${esc(r.weeks)}" placeholder="周次 如 1-16、1-15单" maxlength="40" title="周次：1-16、1-15单、2-16双、1-3,5-8">
-        <input class="${lc(r, "location")}" data-f="location" value="${esc(r.location)}" placeholder="地点" maxlength="60"${lt(r, "location")}>
-        <input class="${lc(r, "teacher")}" data-f="teacher" value="${esc(r.teacher)}" placeholder="老师" maxlength="40"${lt(r, "teacher")}>
-        <button type="button" class="cdel" data-del="${i}" aria-label="删除这门课">🗑</button>
+        <input class="${lc(r, "location") || (warnLoc ? " warn" : "")}" data-f="location" value="${esc(r.location)}" placeholder="地点" maxlength="60"${lt(r, "location")}>
+        <input class="${lc(r, "teacher") || (warnTea ? " warn" : "")}" data-f="teacher" value="${esc(r.teacher)}" placeholder="老师" maxlength="40"${lt(r, "teacher")}>
+        <button type="button" class="cdel" data-del="${i}" aria-label="删除这门课">🗑</button>${unsure && !r.fresh ? `<div class="crev-unsure">⚠ 这一格认得不太确定，对照原图看看</div>` : ""}
       </div>`;
     }).join("") || `<div class="empty">没有课程</div>`;
   }
@@ -835,6 +894,7 @@ const CourseKit = (() => {
     q("#crsSave").disabled = true; st.className = "cal-st"; st.textContent = "保存中…";
     try {
       await write(kv);
+      keepSrc(fresh, pick);
       learnSubmit(rows);
       if (currentUser && q("#crsShare").checked && pickedB64) {
         const final = rows.filter((r) => r.on).map(({ name, day, start, end, weeks, location, teacher }) => ({ name, day, start, end, weeks, location, teacher }));

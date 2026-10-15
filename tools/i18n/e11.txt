@@ -1,0 +1,82 @@
+2604	&gt; Connecting
+2605	&gt; Syncing class data ………
+2606	&gt; Loading profile: {0} ………
+2607	&gt; Disconnecting …
+2608	Linux: add the environment variable OLLAMA_ORIGINS={2} to the ollama service
+2614	Remove "{0}"?
+2615	Its saved data stays on this device and will be back if you add it again.
+2616	"{0}" v{1} is still in testing and hasn't been reviewed.
+2617	It runs in a sandbox and can't access your sign-in, but may have bugs. Turn it on?
+2618	Sign out.
+2619	Also clear personal data on this device (my items, check-ins, diary, etc.)?
+2620	On a public computer or someone else's phone, click "OK"; on your own device, click "Cancel".
+2621	The priority matrix (Eisenhower matrix) sorts tasks by "important" and "urgent" into four groups:
+2622	① Important & urgent — do now; ② Important, not urgent — schedule it; this is where your time is best spent; ③ Urgent, not important — handle quickly or ask for help; ④ Not important, not urgent — do less or skip.
+2623	How to use: write down everything, then place each in a box. Clear box ① first each day, then save big blocks of time for box ②.
+2624	The PDCA cycle (Deming cycle) splits a task into four steps and improves it round by round:
+2625	P Plan: set goals and methods; D Do: carry out the plan; C Check: compare results with goals and find problems; A Act: keep what works and carry unsolved problems into the next plan.
+2626	Good for: exam prep, learning a skill, preparing for competitions — anything that needs repeated improvement.
+2627	The SMART principle turns vague wishes into actionable goals. A good goal meets five criteria:
+2628	S Specific: say exactly what you'll achieve; M Measurable: use numbers to tell when it's done; A Achievable: within reach with effort; R Relevant: related to what you really want; T Time-bound: has a clear deadline.
+2629	Example: change "I want to get good at English" into "Memorize 30 CET-4 words every day before Nov 30 and score 80% on weekend self-tests".
+2630	The six-task method (Ivy Lee method):
+2631	1. Before bed, write down the 6 most important things for tomorrow; 2. Order them by importance; 3. Next day, start with #1 and finish it before moving on; 4. Move anything unfinished to the next day's list.
+2632	It forces you to prioritize and focus on one thing at a time, so a long to-do list doesn't scare you.
+2633	Pomodoro technique: pick one task and focus on it for 25 minutes (one "Pomodoro") without checking your phone; then rest 5 minutes; after every 4 Pomodoros, rest 15–30 minutes.
+2634	Tips: break big tasks into Pomodoro-sized chunks; if interrupted, write it down and deal with it after the Pomodoro. The timer below is ready to use.
+2635	Reset the password for "{0}"?
+2636	A temporary password will be generated; they must change it right after signing in with it. The old password stops working immediately.
+2637	Too many messy class group messages? **Laolao Timetable** organizes the homework, notices and events from your group chat into a calendar, so everyone sees "when, and what to do" at a glance.
+2638	- Class officers paste group messages and AI organizes them into items
+2639	- Classmates see this week's homework and today's plan
+2640	- Switch phones or browsers, sign in to the same account and your data is there
+2641	Home lists the next two weeks by "Today, Tomorrow, This week", with separate reminders for overdue homework.
+2642	- Tap the circle on the left to complete, with a little celebration
+2643	- "Hide completed" keeps the list clean; "Clean up" deletes your own completed items in one tap
+2644	- "Customize home" lets you drag and resize cards and add the timetable, Pomodoro and leaderboard
+2645	The calendar shows the whole month; tap a day to see details on the right, and **double-click a date** to add an item that day.
+2646	- "Note something" is for your own things, only you can see them
+2647	- Date is optional, use it as a to-do
+2648	- Add to your phone calendar in one tap; new items from class officers sync automatically
+2649	Everyone in the class and teachers can post, comment and reply. Teachers and class officers can post notices and pin them.
+2650	- Tap a name or avatar to open their profile
+2651	- Report unfriendly content; only teachers can see who reported
+2652	The planning page has five time-management methods, each with an intro — expand if you're not sure:
+2653	1. Priority matrix: sort by importance and urgency
+2654	2. PDCA cycle: plan, do, check, act
+2655	3. SMART goals: make goals clear
+2656	4. Six-task method: only the 6 most important each day
+2657	5. Pomodoro: focus 25 min, rest 5 min
+2658	- Edit profile: gender, bio, profile cover
+2659	- Appearance: lively, minimal, dark and metaverse styles, a dozen color schemes, and custom backgrounds
+2660	- Data: choose cloud sync or this device only
+2661	- Account security: change password; with an email linked you can reset a forgotten password yourself
+2662	**Forgot your password?** If you linked an email, tap "Forgot password" on the sign-in page; if not, ask your head teacher to reset it from your profile.
+2663	**Is my data still there on a new phone?** Yes, just sign in to the same account (choose cloud sync under "Me → Save location").
+2664	**Items differ from the group chat?** The group chat has the final say — add a note to the item, or ask a class officer to fix it.
+2665	From now on it's saved only on this device.
+2666	Delete the copy already in the cloud too?
+2667	Click "OK" to delete the cloud copy; "Cancel" to keep it (you can get it back if you turn sync on again).
+2668	, and anything it's doing stops immediately.
+2669	If that's not your device, your password may be known to someone else. Change your password now?
+2670	Good morning, {0}
+2671	Good afternoon, {0}
+2672	Good evening, {0}
+2673	Good morning, {0}
+2674	Good noon, {0}
+2675	It's late, {0}
+2676	{0} timed items
+2677	{0} all-day items
+2678	{0} not done
+2679	Done this week {0}
+2680	💧 Food {0}
+2681	Student · @{0}
+2682	Teacher · @{0}
+2683	Class officer · @{0}
+2684	Admin · @{0}
+2685	Developer · @{0}
+2686	Tester · @{0}
+2687	📎 Add image / file
+2688	Default
+2689	Deep space blue
+2690	Your style and colors follow your account after you sign in

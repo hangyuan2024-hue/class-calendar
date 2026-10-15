@@ -1,0 +1,250 @@
+1500	Edit note
+1501	This device stays signed in after the change.
+1502	Changes save automatically; subscribed calendars update on their next refresh (usually within an hour). iPhone removes alerts from subscribed calendars by default: Settings → Calendar → Accounts → Subscribed Calendars → turn off "Remove Alerts". Turn on WeChat reminders in the mini program under "Me → Reminders".
+1503	Make it my own version
+1504	Improve
+1505	Put it above and fill it in yourself — Laolao will learn
+1506	Where to put it
+1507	Give up this Pomodoro? It won't be recorded.
+1508	Discard these changes?
+1509	What goes into the calendar
+1510	How did it go? How far from the goal? What's the problem?
+1511	Digital twin
+1512	Full-week timetable on screen, corner reminders, offline AI assistant · about 100 MB
+1513	Organized
+1514	Organize into your own "My items", visible only to you, no tokens
+1515	Organizing failed
+1516	Organizing failed:
+1517	Organizing done, {0} items added ✓
+1518	Organizing done, nothing to record
+1519	File name: 捞捞本地AI安装.bat (in your browser's download list)
+1520	New password must be at least 8 characters
+1521	Start a new PDCA, e.g. raise midterm math score by 15 points
+1522	Newbie traveler
+1523	None
+1524	Sun
+1525	Calendar
+1526	Calendar & "Note something"
+1527	The calendar shows the whole month; tap a day to see details on the right, and **double-click a date** to add an item that day. - "Note something" is for your own things, only you can see them - Date is optional, use it as a to-do - Add to your phone calendar in one tap; new items from class officers sync automatically
+1528	There's a long way ahead, with plenty to look forward to.
+1529	Date
+1530	Diary photo migration failed
+1531	Remind today's things at 7:30 a.m.
+1532	Good morning
+1533	Early class
+1534	Never late for early class, never late on homework
+1535	Sleep early
+1536	Sleep early — a rested brain works faster.
+1537	Time TBD
+1538	Time hunter
+1539	Timeline
+1540	Come back tomorrow
+1541	Due tomorrow
+1542	{0} things tomorrow{1}
+1543	Nothing urgent tomorrow
+1544	What's on tomorrow?
+1545	Galaxy
+1546	Starry sky
+1547	Interstellar scholar
+1548	Yesterday
+1549	Good evening
+1550	Dawn
+1551	None yet
+1552	No tools available to add right now
+1553	Changelog unavailable for now
+1554	More actions
+1555	Update
+1556	Update failed:
+1557	Changelog
+1558	Last updated by {0} on {1}
+1559	Trend of completed items{3} in the last 14 days
+1560	Check-ins in the last 14 days
+1561	Last 16 weeks · {0} things done · {1} check-ins · {2} Pomodoros
+1562	{2} in the last 7 days
+1563	Last used {3}
+1564	What's most urgent lately?
+1565	Recent emails
+1566	The most important one
+1567	Month
+1568	{0} changes waiting to upload…
+1569	{0} homework tasks are overdue — go check!
+1570	New version v{0}
+1571	New version {0}
+1572	Time-bound
+1573	A bit tired
+1574	Later, when free — don't let it take a whole block of time
+1575	The server doesn't support subscriptions yet; use "One-time import" below for now. (Admin: run
+1576	Not checked in
+1577	Unknown
+1578	This week's items
+1579	This week's homework
+1580	All homework this week done!
+1581	This week's homework completion
+1582	Growth points this week
+1583	No homework due this week yet
+1584	This week's progress
+1585	Local AI
+1586	Local AI found {0} more; confirm and publish together
+1587	Local AI failed:
+1588	Local AI organizing…
+1589	Local AI is ready!
+1590	Local AI found nothing to record in these messages
+1591	Local organize
+1592	Local organize is off:
+1593	The local model didn't answer in the expected format — try a bigger model
+1594	Local model returned
+1595	This month
+1596	Device storage is full
+1597	Device storage is full; tool code wasn't saved and will download again next time
+1598	items · {1} chit-chat filtered{2}{3}
+1599	messages · {5} past items referenced
+1600	comments
+1601	How about a Pomodoro of focus?
+1602	Release to refresh
+1603	Geek
+1604	Lemon
+1605	View
+1606	View →
+1607	View all {1} comments
+1608	View original
+1609	Mark as done
+1610	Mark as not done
+1611	Mark done
+1612	Title (leave empty for a regular message)
+1613	Invalid format
+1614	Dream team
+1615	Check
+1616	Check for updates
+1617	to check)
+1618	Forest
+1619	Model {0} is ready
+1620	Mod library
+1621	Sakura
+1622	Sakura Pink
+1623	corrections ·
+1624	Welcome aboard, let's go 🚀
+1625	Welcome
+1626	Welcome, {0}
+1627	Welcome, guest
+1628	Welcome to your little universe 🌸
+1629	Welcome to Laolao Timetable!
+1630	In progress
+1631	Downloading Chinese model {0}
+1632	Preparing your personal subscription link…
+1633	Refreshing…
+1634	Syncing…
+1635	Opening… in the list that pops up, choose
+1636	Opening calendar… when the item list appears, tap
+1637	Checking for new tools and updates…
+1638	Recognizing screenshot {0}/{1}…{2}
+1639	Reading…
+1640	Connecting…
+1641	Signing out…
+1642	Every deadline will be gently taken down
+1643	Every step counts — keep going.
+1644	Plan only the 6 most important things each day
+1645	After 7 p.m. every evening, get tomorrow's classes (import or fill in your timetable first)
+1646	After 7 p.m. every evening, homework due tomorrow that isn't ticked done
+1647	Daily encouragement
+1648	Remind tomorrow's things at 8 p.m.
+1649	e.g. Calculus exercises 3.2
+1650	Earlier than the deadline is a win
+1651	Not saved:
+1652	Move unfinished to tomorrow
+1653	Nothing happened?
+1654	Undated items · {0}
+1655	Didn't work:
+1656	No permission to edit
+1657	No items to import (items without a date can't go into the calendar)
+1658	No items to import
+1659	Nothing urgent 👍
+1660	"{0}" not found
+1661	Notification permission wasn't granted, so reminders can't pop up. Turn it on in your phone's "Settings → Apps → Laolao Timetable → Notifications".
+1662	No items found.
+1663	Nothing on fire 👍
+1664	No homework due 🎉
+1665	No records
+1666	No classes, nothing to do
+1667	No email linked? Don't worry
+1668	Offline — syncs automatically when back online
+1669	Not recognized:
+1670	Not signed out:
+1671	It's fine, keep it
+1672	Vibrant orange
+1673	Event
+1674	Testing{0}
+1675	Couldn't load test version
+1676	Test email handed to the mail service; it should arrive in a minute or two
+1677	Browser
+1678	Navy blue
+1679	Deep sea
+1680	Add
+1681	Add a habit
+1682	Add to Outlook
+1683	Add failed:
+1684	Add tool
+1685	Add subscribed calendar
+1686	Add my item
+1687	Add class item
+1688	Add account
+1689	Only this class's teacher can clear all learning records
+1690	Clear failed:
+1691	Clear all of this class's learning records
+1692	Clear all of this class's learning records? Laolao will forget all learned places, course aliases and corrections.
+1693	Full marks
+1694	Full
+1695	Nice ✨
+1696	Tap "Note something" or double-click a date to add it on that day
+1697	Tap to change size
+1698	Tap "＋" at the bottom right to note something on this day
+1699	Take a look
+1700	Tap to ask Laolao
+1701	Tap here to download the update
+1702	Tap here to try again
+1703	Tap to pick a date
+1704	Tap to pick a time
+1705	Version {0} · {1} MB ·
+1706	Strike team
+1707	Rose
+1708	Only admins can edit right now. Enter a username above to let them edit too.
+1709	Now at:
+1710	Class
+1711	Your head teacher can reset a temporary password from your profile
+1712	Class officer
+1713	When class officers or teachers post homework and notices
+1714	Class items + my own
+1715	Only teachers and class officers can change class items; edits here apply only to you
+1716	Class wall
+1717	Class wall failed to load:
+1718	New reports on the class wall (teachers)
+1719	Pinned on class wall
+1720	Pinned posts from the class wall appear here
+1721	Class growth leaderboard
+1722	Class data failed to load
+1723	Class data updated at {0}
+1724	Too many messy class group messages? **Laolao Timetable** organizes the homework, notices and events from your group chat into a calendar, so everyone sees "when, and what to do" at a glance. - Class officers paste group messages and AI organizes them into items - Classmates see this week's homework and today's plan - Switch phones or browsers, sign in to the same account and your data is there
+1725	Class node
+1726	use
+1727	What number tells you it's done?
+1728	Open with computer calendar
+1729	Signal
+1730	Computer
+1731	Pomodoro
+1732	Pomodoro technique
+1733	Pomodoro technique: pick one task and focus on it for 25 minutes (one "Pomodoro") without checking your phone; then rest 5 minutes; after every 4 Pomodoros, rest 15–30 minutes. Tips: break big tasks into Pomodoro-sized chunks; if interrupted, write it down and deal with it after the Pomodoro. The timer below is ready to use.
+1734	Pomodoro rookie
+1735	Pomodoro timer
+1736	Sign in / Sign up
+1737	Sign in / Sign up →
+1738	Sign in to sync to the cloud and see it in any browser or phone
+1739	Sign in to see your Laolao Timetable.
+1740	Sign in to link an email for notifications.
+1741	Sign in to recognize screenshots
+1742	Sign in to see Laolao Timetable; "My items" works without signing in
+1743	Session expired, please sign in again.
+1744	Sign in and join a class to post on the class wall.
+1745	Sign in and join a class to subscribe.
+1746	Signed-in devices
+1747	Know-it-all
+1748	What's the goal? How will you do it?
+1749	Goal clarity

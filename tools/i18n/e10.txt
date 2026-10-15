@@ -1,0 +1,143 @@
+2460	Anyone going to the library tonight?
+2461	Study officer
+2462	Calculus ch.3 exercises due Fri 22:00
+2463	Got it
+2464	Class monitor
+2465	Class meeting tomorrow 15:00 in A201
+2466	Fri 22:00
+2467	Class meeting
+2468	Tomorrow 15:00 · A201
+2469	2 chit-chat filtered
+2470	Lab bldg
+2471	Diff. equations
+2472	Series ❓
+2473	Service notifications
+2474	Homework due soon
+2475	Homework
+2476	Due
+2477	Today 22:00
+2478	3 hours left
+2479	Tomorrow's classes
+2480	College English + 2 more
+2481	🎉 Sports day sign-up is open
+2482	📢 No class on Wednesday
+2483	📝 Lab report template
+2484	Developers from all universities wanted
+2485	Turn sound on
+2487	Video
+2488	Feature
+2489	Resume autoplay
+2490	Turn sound off
+2491	The next one could be you
+2492	Students from any university can join and help make Laolao better →
+2493	View open-source repo ↗
+2494	Meet Laolao in 15 seconds
+2495	Chat screenshots to schedules, photo-imported timetables, mind maps — all in one account.
+2496	Intro
+2497	Chat screenshots, turned into a schedule
+2498	Screenshot homework, meetings and notices from your group chat — Laolao reads the text, drops the chit-chat and turns it into items with time and place.
+2499	One photo of your timetable, the whole term done
+2500	Screenshots from the academic system or a photo of a paper timetable — courses, classrooms and weeks are recognized automatically, and you can publish it to your class.
+2501	Turn a course into one diagram
+2502	Paste an AI answer or note outline to generate a mind map, drag to adjust, and see the whole knowledge structure at a glance when revising.
+2503	Deadline coming? WeChat will remind you
+2504	Homework deadlines, tomorrow's classes, new class notices — pick which ones you want and get them in WeChat "Service notifications".
+2505	Made by students, for students
+2506	Laolao started as a side project by a group of students. We're opening it up and welcome students from every university to build it with us.
+2507	Laolao began with a small annoyance: class group chats move so fast that homework and notices get buried. Between classes we turned it into a timetable, group message organizer and class wall, and then a mind map for revision. The web version, Android app and Windows desktop version are all available, and the WeChat mini program is in testing.
+2508	Product & design
+2509	UI, illustration and interaction, so first-time users know what to do
+2510	Web · mini program · apps
+2511	One account; web, Android, Windows and the WeChat mini program share data
+2512	Recognition & organizing
+2513	Timetable recognition, chat screenshot OCR, group message rules — done locally where possible
+2514	Backend & security
+2515	Cloud sync, device management, permissions — lost data can be recovered
+2516	Hatching
+2517	Baby
+2518	Growing
+2519	Grown-up
+2520	Legendary
+2521	Hatch
+2522	Baby
+2523	Legend
+2524	Let's do our best today too
+2525	Finish one thing and I get a bit fuller
+2526	You look cool when you're focused
+2527	Checked in yet? I'm waiting for food
+2528	Slow and steady is faster
+2529	You're doing great today too
+2530	Little Cloud
+2531	Not enough food: finish something, check in, or focus for a Pomodoro 🌾
+2532	✨ Evolved! {0} became "{1}"
+2533	🎉 Level up! Now Lv.{0}
+2534	🥕 Fed {0} times, XP +{1}
+2535	🥕 Yummy! XP +{0}
+2536	· ready to feed
+2537	💧 Food {4}{5}
+2538	Feed ›
+2539	Today's Pomodoros
+2540	Streak
+2541	{0} days
+2542	{0} · rank {1}
+2543	Not checked in today
+2544	Everything's done 🎉 You can go
+2545	Focus for a Pomodoro
+2546	, +2 food each
+2547	{1}: {2} food
+2548	Reach Lv.{0} to evolve into "{1}"
+2549	Already legendary ✨
+2550	Rename
+2551	Pat
+2552	XP {8}/{9}
+2553	💧 Food
+2554	Earned today
+2555	Earned in total
+2556	Times fed
+2557	🥕 Feed once
+2558	-{16} food
+2559	⚡ Feed to level up
+2560	🔄 Switch pet
+2561	Switched to "{0}" 🎈
+2562	Name your pet (max 12 characters)
+2563	New name "{0}" is so cute ✨
+2564	Cloud sprite
+2565	Humanoid · cloud
+2566	Strawberry sprite
+2567	Humanoid · fruit
+2568	Rice sprite
+2569	Humanoid · grain
+2570	Bread sprite
+2571	Humanoid · bakery
+2572	Cream cat
+2573	Animal · cat
+2574	Sapling sprite
+2575	Plant · tree
+2576	Organize class group messages
+2577	Publish class homework and notices
+2578	Add your own to-dos
+2579	Priority matrix & study planning
+2580	Habits & growth records
+2581	Food & companionship
+2582	Start a focus session
+2583	View your courses
+2584	Find classmates and teachers
+2585	Export or subscribe to system calendar
+2586	Get to know campus tools
+2587	Open People's Daily website
+2588	Shown on home{3}
+2589	See the full schedule by date
+2590	Class notices & chat
+2591	You can also add
+2592	Tick after adding
+2593	No tool found — try other keywords.
+2594	{0} selected
+2595	Tap to open
+2596	Choose home tools
+2597	Tick the shortcuts you use on home. Installed tools can go in the toolbar too; unticking only removes the shortcut.
+2598	Search and open tools directly. The calendar and class wall are here too.
+2599	Adding {0}…
+2600	Added — click "Save choice" to put it on home.
+2601	Device storage is full; choice not saved.
+2602	Expand sidebar
+2603	Laolao Timetable · laolaokechengbiao.cn

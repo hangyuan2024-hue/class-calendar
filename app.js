@@ -1936,7 +1936,7 @@ function calEnv() {
   return { ios, android, mac, desktop: !ios && !android, app };
 }
 
-const calUrl = (fn, q) => SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1/rpc/" + fn + "?" + new URLSearchParams({ ...q, apikey: SUPABASE_ANON_KEY }).toString();
+const calUrl = (fn, q) => ((window.CCAuth && CCAuth.base && CCAuth.base()) || SUPABASE_URL).replace(/\/+$/, "") + "/rest/v1/rpc/" + fn + "?" + new URLSearchParams({ ...q, apikey: SUPABASE_ANON_KEY }).toString();
 let calServer = null;   // 服务器能不能直接吐出日历文件（订阅和 iPhone 导入都靠它）
 async function calProbe() {
   if (calServer !== null) return calServer;

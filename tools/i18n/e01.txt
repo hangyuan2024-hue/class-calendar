@@ -1,0 +1,250 @@
+250	its own rhythm
+251	At least 8 characters
+252	iPhone, Mac and other devices can all use the web version.
+253	Does it work on iPhone and Mac?
+254	Load your timetable and class
+255	what matters is
+256	Live seriously, grow freely.
+257	Meet Laolao
+258	Meet
+259	Let today
+260	Know every class in advance
+261	Keep what matters in order, and leave more time for what you love.
+262	Set new password and sign in
+263	Please open in a browser
+264	Please contact your
+265	Courses, times and classrooms in one place. Import your timetable and plan the whole term clearly.
+266	Do I need to double-check organized courses and notices?
+267	Timetable
+268	Timetable / screenshot recognition
+269	Timetable, homework and class messages in one place, with reminders when it's time.
+270	Username
+271	Account sign-in
+272	Skip to main content
+273	Role
+274	Join a class with a class code
+275	Open workspace
+276	Pick
+277	Optional
+278	Choose a work
+279	Choose the devices you use, and Laolao follows you.
+280	Choose what suits you
+281	all in
+282	has
+283	taken care of.
+284	Reset focus demo
+285	What matters,
+286	Check classes and to-dos on the go, and get reminders on time.
+287	Yes. Organizing helps you pull out key information, but times, classrooms and homework requirements should follow what the teacher posted. Check before saving.
+288	Verification code
+289	Calculus chapter 3 exercises
+290	Calculus chapter 3 exercises, submit before Fri 22:00.
+291	Calculus
+292	Default Sakura Pink theme
+293	Default Navy Blue theme
+294	(check your spam folder too)
+295	: your teacher can reset a temporary password from your profile (tap your name on the class wall). After signing in with it you'll be asked to set a new password right away.
+296	🌐 Web
+297	💬 WeChat mini program
+298	📱 Local rules: group messages are organized on your device, no LLM needed
+299	🔍 Timetable / screenshot recognition service
+300	🤖 Android app
+301	An organized term
+302	From today's class to the whole term's goals.
+303	Homework, notices and events are organized into your calendar automatically. Switch phones or browsers, sign in to the same account, and your to-dos are still there.
+304	Homework to-dos · finish with peace of mind
+305	Your campus, continued here
+306	Try it first →
+307	Feature preview
+308	Join or create a class
+309	Move forward with your class
+310	helps you sort it out
+311	Phone and computer, in sync
+312	Get your classes organized
+313	Campus life workspace
+314	Everything,
+315	Class notices · stay informed
+316	Sign in · Laolao Timetable
+317	Leave time for every goal
+318	Too many group messages?
+319	Work / personal
+320	For yourself or your team
+321	Courses and to-dos preview
+322	Courses and to-dos, together
+323	Timetable import · the whole week at a glance
+324	Skip to sign-in form
+325	has its place.
+326	Sleep before 11
+327	3–20 lowercase letters, digits or underscores, e.g. your student ID
+328	{0}, welcome aboard!
+329	▶ Laolao Metaverse
+330	⚠ Caps Lock is on
+331	✓ Matches
+332	✓ New password set, signing in…
+333	Your to-dos, check-ins and plans can follow your account.
+334	Done in a minute — no email or phone number needed
+335	together
+336	Back
+337	Next →
+338	Not uploaded — won't be visible in another browser
+339	Good
+340	The two entries don't match
+341	The two passwords don't match
+342	3 things today
+343	Deadlines, exams and training plans on one screen. Finish tasks to earn XP and unlock achievements in the Laolao Metaverse.
+344	Hi there~
+345	Your little universe
+346	Your little universe is ready — go take a look 💫
+347	Metaverse
+348	Go to home first
+349	Spend 30 seconds on setup to unlock your dashboard.
+350	Skip for now →
+351	Write a diary
+352	Ready?
+353	Create your account ✨
+354	Setup complete!
+355	Do 5 practice questions
+356	Level up
+357	Go sign in →
+358	Letters, digits and underscores only
+359	Name or nickname, visible to team members
+360	Drink 8 glasses of water
+361	Hi, {0}~
+362	This one →
+363	We picked a default for you. Change it if you like — anytime under "Me → Appearance".
+364	Female selected: Sakura Pink theme and a special welcome guide 🌸
+365	Male selected: Navy Blue theme and a special welcome guide 🚀
+366	All set!
+367	Developer and tester roles are assigned by admins.
+368	Start setting up →
+369	Very secure 👍
+370	Which small habits do you want to build?
+371	Keep homework, clubs and everyday things in one cute calendar, with a Sakura Pink theme to make every day a little happier.
+372	Timetable, homework and class notices in one place. From the first class to every small goal, Laolao helps you plan campus life calmly.
+373	Stretch for 10 minutes
+374	Pick colors you like
+375	Visible when you sign in to the same account in another browser or phone
+376	Next, spend 30 seconds making this place your own.
+377	Where is my data stored?
+378	New term quests loaded 🚀
+379	At most 20 characters
+380	A bit weak
+381	Campus life gets busy,
+382	Format looks good
+383	Format looks good; capitals will become lowercase
+384	Welcome back, {0}
+385	Welcome to
+386	Welcome to your class's little universe 🌸
+387	Checking whether it's taken…
+388	Every day has a direction.
+389	No email linked
+390	Sign up and start
+391	Watch your streak flame grow day by day 🔥
+392	Real name, visible to students
+393	Step 1: create a class / team and send the invite code to everyone, or enter a code someone gave you.
+394	Step 1: create your class and send the class code to your students.
+395	Step 1: ask your teacher for the class code and join your class.
+396	A new version is available — tap to refresh
+397	Email sending isn't set up on this site yet, so email recovery isn't available.
+398	At least 3 characters
+399	At least 8 characters; letters + digits are safer
+400	Gear ready — start your first quest of the term ⚡
+401	Try
+402	Please read and agree to the Terms of Service and Privacy Policy first
+403	Please enter your name
+404	Please ask your head teacher to reset a temporary password.
+405	Please contact your head teacher: they can reset a temporary password from your profile.
+406	Please enter a valid username
+407	Please choose male or female
+408	Invalid username format
+409	Skip and use defaults
+410	Enter class code / create a class →
+411	Exercise for 30 minutes
+412	{0} more needed
+413	OK
+414	this term
+415	This username
+416	This username is available
+417	This username is available (capitals become lowercase)
+418	This username is taken. Try another — or is it yours?
+419	This username is taken. Try another, or switch to "Sign in"
+420	Unlock achievements with streaks 🏆
+421	Pick 1–3 and check in on the "Growth" page each day, {1}. You can also skip.
+422	Pick a few daily tasks
+423	Done ({0}) →
+424	Choose your theme
+425	Read for 20 minutes
+426	Hide password
+427	A code has been sent to your linked email
+428	The code is 6 digits
+429	, valid for 15 minutes.
+430	, so you can't recover it yourself.
+431	📱 Download Android app
+432	Upload and manage your own plugins
+433	Unpublish published plugins
+434	Delete items
+435	Approve plugins
+436	Add/edit items
+437	Password too short, at least 8 characters
+438	Password must be at least 8 characters
+439	Developer
+440	Sign-up is temporarily closed. Please contact an admin
+441	Server is responding slowly, please try again later
+442	The server gateway blocked this request (403) — the content may be too large or hit a security rule
+443	View code of plugins awaiting review
+444	You don't have permission to do this
+445	Tester
+446	Too many people right now, please try again in a moment
+447	Session expired, please sign in again
+448	View member list
+449	Assign user roles
+450	Network connection failed, please check your network and try again
+451	Set plugins on by default
+452	Try plugins in testing
+453	Please enter your name (shown as plugin author)
+454	Request failed ({0})
+455	Username must be 3–20 lowercase letters, digits or underscores
+456	Wrong username or password
+457	Account not activated yet. Please contact an admin
+458	Transfer plugin author
+459	This username is taken. Try another or sign in
+460	This device was signed out from another device
+461	Reject plugins
+462	15 min
+463	25 min
+464	45 min
+465	LM Studio / other OpenAI-compatible
+466	Works on iPhone, Android and computer, with automatic sync
+467	⚪ Not important, not urgent
+468	✏️ Edit
+469	✏️ Name it
+470	✨ AI Organize
+471	✨ Organize group messages
+472	⬇️ Download
+473	Complete 3 or more things in a day, then
+474	One-click install
+475	One-click install local AI
+476	Last month
+477	Upload image
+478	Next month
+479	Download the Android app and Windows desktop version
+480	Download and install Ollama (available for Windows and Mac).
+481	Unfriendly / personal attack
+482	Focus
+483	Focus for a while, then take a break
+484	Bio
+485	Planned for today
+486	People who contributed to this site
+487	Main navigation
+488	Main color
+489	Home page
+490	Profile cover
+491	Only teachers can see reports; the author won't know who reported.
+492	Report this content
+493	Habit check-in
+494	Pet farm (finish tasks to earn food for your cloud pet)
+495	Your pet and food follow your account — same pet on any phone or computer
+496	Pet design by a teammate · formerly the "Cloud Pet" tool
+497	Cloud sync (recommended)
+498	People's Daily
+499	Publish as a notice

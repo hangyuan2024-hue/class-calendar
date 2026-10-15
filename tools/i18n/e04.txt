@@ -1,0 +1,248 @@
+1000	Nothing planned today ☕
+1001	Nothing planned today, take it easy ☕
+1002	No homework due today, take a breather~
+1003	Full energy today, let's go!
+1004	You were reliable today
+1005	Today's effort is tomorrow's confidence.
+1006	What to do today
+1007	No focus yet today. {0} Pomodoros in the last 7 days
+1008	Do today's work today
+1009	Today's tasks
+1010	Today's check-ins
+1011	Today's classes
+1012	View anyway
+1013	Remove "{0}" from the thanks list?
+1014	Remove from home
+1015	Code
+1016	Write good code and bugs can't hide
+1017	From now on it's saved only on this device. Delete the copy already in the cloud too? Click "OK" to delete the cloud copy; "Cancel" to keep it (you can get it back if you turn sync on again).
+1018	s
+1019	items
+1020	things
+1021	all-day items
+1022	timed items
+1023	Task list
+1024	Check in any habit 3 days in a row
+1025	Check in any habit 7 days in a row
+1026	WeCom
+1027	Take a break
+1028	Ollama will be installed and a model downloaded automatically; this page detects it and connects when ready
+1029	Meeting
+1030	Homework won't disappear on its own, but you can make it disappear.
+1031	Phone notifications before homework deadlines and class events
+1032	Choose at most 3 homework reminders
+1033	Homework done!
+1034	Homework
+1035	Homework (choose up to 3)
+1036	War room
+1037	The author didn't describe this update
+1038	Author: {6}
+1039	You{0} haven't earned growth points yet — try finishing a homework task?
+1040	You signed in with a temporary password from your teacher. For security, please change it now to a new password only you know.
+1041	You can try the "testing" version.
+1042	You've done great already.
+1043	You've come a long way — don't forget to applaud yourself.
+1045	You're stronger than you think.
+1046	Your persistence will pay off.
+1047	Your email, e.g. 123456@qq.com
+1048	You haven't posted anything yet
+1049	You haven't posted on the class wall yet — go say hi 👋
+1050	You haven't joined a class yet.
+1051	You don't have a class yet.
+1052	You chose
+1053	Your theme and habits are ready
+1054	e.g. Club meeting
+1055	Sidebar
+1056	Save
+1057	Saving…
+1058	Save changes
+1059	Save & publish
+1060	Save failed — device storage may be full. Export a backup or remove some images first.
+1061	Save failed:
+1062	Private
+1063	Keep it up — today will go smoothly too.
+1064	Keep this pace
+1065	Edit
+1066	Edit content
+1067	Change password
+1068	Edit class item
+1069	Edit intro
+1070	Edit history
+1071	Edit history ·
+1072	Club
+1073	Pausing now and then is still moving forward.
+1074	Pixel
+1075	Let things happen, then keep going.
+1076	Allow editing
+1077	Metaverse legend
+1078	Metaverse wiki
+1079	Metaverse space
+1080	Metaverse XP +{0}
+1081	Metaverse identity
+1082	Learning in the metaverse
+1083	The metaverse is a virtual space parallel to and connected with the real world, where people learn, socialize, work and create through avatars. The word first appeared in the 1992 sci-fi novel "Snow Crash".
+1084	Lively
+1085	Do this first
+1086	Connect a local model under "Me → Local AI" first
+1087	Organize with local rules first, no tokens; send the unsure ones to AI
+1088	Done first, perfect later.
+1089	Paste group messages first
+1090	Shine without glare, calm without stopping.
+1091	All day
+1092	All-day items (no time given)
+1093	Whole class
+1094	Everyone in the class and teachers can post, comment and reply. Teachers and class officers can post notices and pin them. - Tap a name or avatar to open their profile - Report unfriendly content; only teachers can see who reported
+1095	The whole class's message board
+1096	All
+1097	All done, see you tomorrow 🎉
+1098	Sat
+1099	Six-task method
+1100	The six-task method (Ivy Lee method): 1. Before bed, write down the 6 most important things for tomorrow; 2. Order them by importance; 3. Next day, start with #1 and finish it before moving on; 4. Move anything unfinished to the next day's list. It forces you to prioritize and focus on one thing at a time, so a long to-do list doesn't scare you.
+1101	Other
+1102	Other info saved; school / organization can be changed after an admin upgrades the database
+1103	All other devices have been signed out
+1104	Specific
+1105	Content
+1106	Too much content — please reduce records or images
+1107	Built-in
+1108	Check again
+1109	Write a bio so classmates know you better ✍️
+1110	Write an article
+1111	Write down a goal, e.g. get good at English
+1112	Write down today's 6 most important things, ordered by importance
+1113	Write as article
+1114	Get ready
+1115	Go for a walk and get some sun.
+1116	Error:
+1117	Error: {0}
+1118	Prioritize
+1119	Group
+1120	min
+1121	min ago
+1122	Just now
+1123	Just starting
+1124	First connection
+1125	Delete
+1126	Delete "{0}" and its check-ins?
+1127	Delete "{0}"?
+1128	Delete "{0}"? {1} won't see it anymore.
+1129	Delete your {0} completed "My items"? Class items are not affected.
+1130	Delete your edited "{0}" and show the original class item again?
+1131	Delete failed:
+1132	Delete section "{0}"?
+1133	Delete this PDCA?
+1134	Delete this habit
+1135	Delete this goal?
+1136	Delete this
+1137	Delete this post? This can't be undone.
+1138	Delete this comment?
+1139	Patience — the flowers will bloom.
+1140	Reminders on time
+1141	Reminders, update checks
+1142	Refresh failed
+1143	9 a.m. the day before
+1144	8 p.m. the day before
+1145	Feature guide updated ✓
+1146	Add one to the matrix
+1147	Joined {10} days
+1148	Join a class to earn growth points with classmates and make the leaderboard
+1149	Join a class to post on the class wall.
+1150	Join a class to see class members.
+1151	Add note
+1152	Loading…
+1153	Load failed:
+1154	Load failed: {0}
+1155	Ticks are recorded only on this device;
+1156	Anonymous
+1157	Perfect ten
+1158	Version history
+1159	Original
+1160	Original:
+1161	Go chat with Laolao in "Q&A"
+1162	Go focus
+1163	Create a class →
+1164	Go ▶
+1165	Add
+1166	Sign in
+1167	Link now
+1168	Another Pomodoro done 🍅
+1169	One less thing to worry about
+1170	Another one done!
+1171	double-click to run it
+1172	Send a test email
+1173	Publish to {0}
+1174	Publish to class
+1175	Publish failed:
+1176	Publish class item
+1177	Publish class homework
+1178	Publish this
+1179	Publish {0} selected to class
+1180	Post notice
+1181	posted {1}{2}
+1182	Send to whole class
+1183	Posts & comments
+1184	Send
+1185	Sending…
+1186	Send code
+1187	Post a notice, write an article, or just chat
+1188	Cancel
+1189	Remove @{0}'s editing permission?
+1190	Cancel reply
+1191	Mark not done
+1192	Remove permission
+1193	Unpin
+1194	Unhide
+1195	Another style
+1196	Saved only on this device — won't be visible in another browser
+1197	Save for myself only
+1198	Send only to "{1}"
+1199	Showing only teachers, class officers and you. Ask your teacher to grant "View member list" in Class management for the full list.
+1200	Only shows the next two weeks; see "Calendar" for earlier or later
+1201	Courses only
+1202	Use other features meanwhile; it connects automatically when the download finishes
+1203	You can relax now 🎉
+1204	Coco
+1205	Achievable
+1206	Measurable
+1208	Sync failed:
+1209	Sync record incomplete; sync progress not advanced
+1210	Sync progress error — local records kept, please try again
+1211	The list is still empty{0}
+1212	Name
+1213	later
+1214	Server not upgraded to 5.5.0 yet; customization unavailable for now
+1215	Server not upgraded to 5.6.0 yet; screenshot recognition unavailable for now
+1216	Device management isn't enabled on the server yet
+1217	Day after tomorrow
+1218	, then all class officers can share it.
+1219	Walk toward the light and shine together
+1220	Sunny
+1221	Listen to a song you like, then start the next thing 🎧
+1222	Week
+1223	{0}
+1224	{0} {1}/{2}{3}
+1225	{1}{2}{3}
+1226	Happy weekend! Recharge yourself.
+1227	and check-ins
+1228	Chat with Laolao
+1229	Which practices to keep? Which problems go into the next round?
+1230	Fix anything that's wrong — Laolao will remember
+1231	Drink some water and look into the distance
+1232	Drink 8 glasses of water
+1233	Thu
+1234	Priority matrix · {0} to-dos
+1235	Priority matrix, PDCA, SMART…
+1236	Priority matrix, PDCA, SMART, Pomodoro
+1237	Priority matrix
+1238	The priority matrix (Eisenhower matrix) sorts tasks by "important" and "urgent" into four groups: ① Important & urgent — do now; ② Important, not urgent — schedule it; this is where your time is best spent; ③ Urgent, not important — handle quickly or ask for help; ④ Not important, not urgent — do less or skip. How to use: write down everything, then place each in a box. Clear box ① first each day, then save big blocks of time for box ②.
+1239	Reply
+1240	Reply to {0}
+1241	United · serious · fun
+1242	Icon
+1243	icon → open this file →
+1244	Image too large to store — use a smaller one
+1245	Note something for {0}
+1246	Import doesn't work in {0}. Tap "···" at the top right → "Open in browser"{1}, then try again.
+1247	Open the timetable in "Tools" and take a photo of your timetable to recognize it automatically — it gets more accurate with use. You can also get an email every evening about tomorrow's classes.
+1248	In the results below, fix the type, place, subject and time, or tap "Not an item" / "Keep this" — Laolao remembers everything when you publish and gets it right next time. What it learns is shared with everyone in this class who can organize.
+1249	Protect your personal info in any virtual world: don't share your real name, school or address casually, and leave and tell a teacher or parent if someone or something makes you uncomfortable.

@@ -2,8 +2,9 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com http://localhost:* http://127.0.0.1:*; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com https://*.workers.dev wss://*.workers.dev http://localhost:* http://127.0.0.1:*; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="referrer" content="no-referrer">
+<script src="i18n.js?v=20261015-v570"></script>
 <script src="guard.js?v=20261005-campus1"></script>
 <script src="entry.js?v=4"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -82,7 +83,7 @@
 <header class="s-header">
   <a class="s-brand" href="app.html" aria-label="捞捞课程表首页"><span class="s-brand-icon"><img src="favicon.svg" alt=""></span><span>捞捞<span class="s-brand-sub">校园学习伙伴</span></span></a>
   <nav class="s-nav" aria-label="网站导航"><a href="#showcase">作品展映</a><a href="#products">两大板块</a><a href="#team">团队</a><a href="#open">开源共建</a><a href="#get">下载</a></nav>
-  <div class="s-header-actions"><a class="s-login-link" href="#login" data-login-focus>登录</a><a class="s-button s-button-small" href="index.html?guest=1">进入工作台 <span aria-hidden="true">↗</span></a></div>
+  <div class="s-header-actions"><button class="s-login-link lang-btn" type="button" data-lang-toggle>EN</button><a class="s-login-link" href="#login" data-login-focus>登录</a><a class="s-button s-button-small" href="index.html?guest=1">进入工作台 <span aria-hidden="true">↗</span></a></div>
 </header>
 <main id="main">
 <section class="s-hero" aria-labelledby="hero-title">
@@ -347,7 +348,7 @@
 
 
 <script src="config.js"></script>
-<script src="auth.js?v=20261014-v540"></script>
+<script src="auth.js?v=20261015-v570"></script>
 <script src="org.js?v=20261008-org1"></script>
 <script src="legal-info.js?v=20261010-legal1"></script>
 <script src="login.js?v=20261010-fix1"></script>

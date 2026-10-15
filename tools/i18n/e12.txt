@@ -1,0 +1,8 @@
+2691	Planning, goals and Pomodoro records are synced to your account.
+2692	Planning, goals and Pomodoro records are saved only on this device.
+2693	Check-ins and completion records are synced to your account and visible on any device you sign in to.
+2694	Check-ins and completion records are saved only on this device.
+2695	Applies only to this device
+2696	Class items are organized by class officers. "My items", completion marks, check-ins, planning and appearance are synced to your account; background images are saved only on this device.
+2697	Class items are organized by class officers. "My items", completion marks and background images are saved only on this device and never uploaded.
+2698	carousel

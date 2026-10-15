@@ -1,0 +1,249 @@
+1750	Goal reached
+1751	Relevant
+1752	See the numbers
+1753	See a device you don't recognize? Tap "Sign out" on it, then change your password
+1754	Before bed, write down tomorrow's 6 most important things
+1755	A rested brain works faster
+1756	Graphite
+1757	Institute
+1758	Daybreak
+1759	Confirm linking
+1760	Sharpshooter
+1761	One step closer to an empty list
+1762	Subject / title
+1763	s ago
+1764	Move to "{1}"
+1765	Move or delete
+1766	Remove
+1767	Remove "{0}"? Its saved data stays on this device and will be back if you add it again.
+1768	Remove Alerts
+1769	Solid!
+1770	Empty
+1771	Empty
+1772	Free
+1773	No.
+1774	Rank {0}
+1775	Screenshot {0} not recognized: {1}
+1776	Round {0}
+1777	Period {0} → {1}
+1778	Step 1
+1779	This took too long; tap "Refresh class data" later to see if it's in the calendar
+1780	Wait for it to finish installing
+1781	Levels, quests, badges and the metaverse wiki
+1782	Admin
+1783	Admins can assign anyone
+1784	Email sending isn't set up yet; ask your teacher to reset a forgotten password
+1785	Email sending isn't set up yet; you can link an email here once it is.
+1786	Plain white
+1787	Urgent, not important
+1788	Rest when tired, but don't forget to set off again.
+1789	Tired? Take a break, drink some water, stretch ☕
+1790	25 Pomodoros total
+1791	10 things done total
+1792	100 things done total
+1793	Total growth points
+1794	XP and badges are calculated from your completions, check-ins, Pomodoros and goals{20}.
+1795	Link an email you use (QQ Mail, 163, etc.) and we'll send a code to confirm it's you.
+1796	Linked 🎉 Important things will be sent here
+1797	Reset the password for "{0}"? A temporary password will be generated; they must change it right after signing in with it. The old password stops working immediately.
+1798	Build an identical "twin" of a real factory, city or even campus on a computer, synced with real data. Test changes in the virtual world first — cheaper and safer.
+1799	Give yourself a thumbs-up
+1800	Keep going
+1801	Edit
+1802	Edit…
+1803	Edit my item
+1804	Edit (just me)
+1805	Network connection failed
+1806	This page detects it automatically and connects once installed
+1807	Pinned notice
+1808	No missed messages, no lost homework
+1809	Notices posted on the class wall by teachers and class officers
+1810	Exam
+1811	Alliance
+1812	Memorize 30 words
+1813	Installs Ollama automatically, allows this site to use it, and downloads Chinese model {0} (about {1} GB); after that organizing and Q&A cost no tokens
+1814	Auto-update: the built-in Android calendar usually can't subscribe by URL. You can install a free app from the store:
+1815	Custom background
+1816	Self-discipline knight
+1817	Free focus (not tied to an item)
+1818	classes
+1819	Hall of fame
+1820	Firefly
+1821	Sunset
+1822	Grape purple
+1823	Mint green
+1824	Lavender
+1825	Open spot
+1826	Avatars & digital humans
+1827	An avatar is your "self" in the metaverse; digital humans are virtual people who can talk and show expressions, already used for news anchoring, customer service and virtual streamers.
+1828	Virtual reality (VR)
+1829	Peach
+1830	Spiral upward
+1831	Measure:
+1832	Supply station
+1833	{0} filtered as chit-chat (check if anything was missed)
+1834	What should it look like? The more specific the better
+1835	Bring:
+1836	Trainee explorer
+1837	Planning
+1838	Planning · priority matrix
+1839	Planning · time management
+1840	The planning page has five time-management methods, each with an intro — expand if you're not sure: 1. Priority matrix: sort by importance and urgency 2. PDCA cycle: plan, do, check, act 3. SMART goals: make goals clear 4. Six-task method: only the 6 most important each day 5. Pomodoro: focus 25 min, rest 5 min
+1841	After unlinking you won't receive emails; you can link another email later. Continue?
+1842	Plan
+1843	Plan → Do → Check → Act
+1844	Schedule it
+1845	Subscribe in Apple Calendar
+1846	Subscription link
+1847	Recognized {0} lines — check them, then organize
+1848	Recognized {0} lines, organizing locally…
+1849	Note something
+1850	Note something (earn food when done)
+1851	Add your own homework
+1852	Lots of records — please keep syncing; not marked complete yet
+1853	Settings
+1854	Choose where to put "{5}"
+1855	Setting failed:
+1856	Couldn't set background:
+1857	Guest
+1858	Comment
+1859	Comment failed:
+1860	Recognition failed
+1861	Recognition timed out, please try again later
+1862	Say something
+1863	Say something… (Enter to send)
+1864	Please verify in the group chat
+1865	Please enter a subject or title
+1866	Please set a new password
+1867	Couldn't load class:
+1868	Class
+1869	Courses
+1870	Course aliases
+1871	Timetable pro
+1872	Who can edit this page
+1873	Contribution
+1874	Username {0} temporary password {1}
+1875	Accounts / calendar accounts
+1876	Profile, appearance, data
+1877	Get up and walk, rest 5 minutes
+1878	Extra large
+1879	Super happy
+1880	Running / sunshine run
+1881	To LV.{5}:
+1882	Skip break
+1883	Sign out
+1884	Profile
+1885	Load this version
+1886	Enter their username, e.g. student ID
+1887	Join with class code
+1888	Join with a class code, or create your own class →
+1890	Achieve 1 SMART goal
+1891	Overdue
+1892	Overdue but not marked done
+1893	Back to tools
+1894	Not bad
+1895	{0} days left
+1896	Still missing: {0}
+1897	There's
+1898	{0} more
+1899	Not yet
+1900	No PDCA yet. Write a goal you want to improve and tap "Start".
+1901	No bio yet — write a line about yourself
+1902	No habits yet. Pick a suggestion below or write your own.
+1903	No habits yet,
+1904	No posts yet — be the first ✍️
+1905	No versions yet; a copy is kept every time you save.
+1906	No posts yet
+1907	No changelog yet
+1908	No goals yet. Write one down, then refine it with the five SMART points.
+1909	No records (this was added before the feature launched).
+1910	No notices yet
+1911	Homework not marked done
+1912	Not signed in
+1913	Not linked. After linking you can reset a forgotten password by email
+1914	this app
+1915	Keeping a low profile — no bio yet
+1916	This tool is being added, please wait
+1917	This device
+1918	This device was signed out from another device. Local records are kept; please sign in again. If it wasn't you, change your password right after signing in.
+1919	This week
+1920	What homework haven't I submitted this week?
+1921	No homework this week 🎉
+1922	No homework due this week 🎉
+1923	All homework this week is done 🎉
+1924	Nobody on the board this week yet — finish a homework task to get on it!
+1925	Nothing planned this day{0}
+1926	No classes or plans this day
+1927	This image can't be opened
+1928	This image can't be opened, try another
+1929	What is this site
+1930	What is this? How to use it
+1931	This is your own intro
+1932	this item
+1933	This is actually chit-chat — don't organize it again
+1934	This post was reported by several classmates and is waiting for a teacher.
+1935	This is something to note — Laolao will learn
+1936	Keep this
+1937	This one's easy for you
+1938	Enter "{0}" →
+1939	Open plugin admin →
+1940	Visited the Laolao Metaverse once
+1941	Progress ring, trend chart and habit check-ins
+1942	Connected, but no model loaded
+1943	Connected, but no model downloaded yet. Run ollama pull qwen2.5:3b in a terminal first
+1944	Can't connect. Make sure Ollama is running and that you restarted it after setting OLLAMA_ORIGINS as in step 3 below.
+1945	Can't reach the server; showing the list from last time.
+1946	Can't reach the local model; make sure Ollama is still running
+1947	Connection failed:
+1948	{0}-day streak!
+1949	Active streak
+1950	Chasing light
+1951	Sign out all other devices
+1952	Sign out. Also clear personal data on this device (my items, check-ins, diary, etc.)? On a public computer or someone else's phone, click "OK"; on your own device, click "Cancel".
+1953	Unsubscribe failed:
+1954	Unsubscribe link is invalid or expired
+1955	Pick colors you like — they work with the lively, minimal and dark styles
+1956	Dream chaser
+1957	Notice
+1958	Notice / Meeting / Event / My items
+1959	that device
+1960	Email notifications
+1961	Email notifications aren't set up yet (an admin needs to run setupaccounts.py once in the Coze terminal)
+1962	Check again
+1963	After resetting, the old link stops working immediately and subscribed devices must subscribe again. Continue?
+1964	Reset failed:
+1965	Reset link
+1966	Important, not urgent
+1967	Important & urgent
+1968	Retry
+1969	DingTalk
+1970	Milky Way
+1971	Galaxy commander
+1972	Mistake notebook
+1973	Q&A
+1974	Read for 30 minutes
+1975	Sign out all devices except this one?
+1976	Random picker
+1977	Hide
+1978	After hiding, the whole class can't see this post; the author still can. Continue?
+1979	Hide completed
+1980	Hide completed ({1})
+1981	Hide this
+1982	Bring:
+1983	What's needed? How much each day?
+1984	items
+1985	not submitted
+1986	not done{7}
+1987	Feishu
+1988	First sync isn't complete yet, please retry
+1989	Home
+1990	Reset home cards to default?
+1991	Tap "Enter Laolao Metaverse" at the top right of home for a neon sci-fi style. The metaverse space has your level, daily quests, achievement badges and a metaverse wiki.
+1992	Home lists the next two weeks by "Today, Tomorrow, This week", with separate reminders for overdue homework. - Tap the circle on the left to complete, with a little celebration - "Hide completed" keeps the list clean; "Clean up" deletes your own completed items in one tap - "Customize home" lets you drag and resize cards and add the timetable, Pomodoro and leaderboard
+1993	Do now
+1994	Wrong code
+1995	Code sent to {0}, valid for 15 minutes. If you don't see it, check your spam folder.
+1996	Code sent — check your email
+1997	(on iOS 17+ it's Settings → Apps → Calendar) →
+1998	({0} homework)
+1999	({2} homework)

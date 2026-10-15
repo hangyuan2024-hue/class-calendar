@@ -1,0 +1,250 @@
+2000	(open it after downloading to install; your data won't be lost)
+2001	("My items" and plugins work without signing in)
+2002	(no description from the author)
+2003	(you're on v{1}){2}
+2004	(including {0} overdue)
+2005	(tick it in the calendar or Homework page)
+2006	(edited)
+2007	(hidden)
+2008	(forget)
+2009	(me)
+2010	(due)
+2011	(no items in the calendar yet)
+2012	(not live)
+2013	(the model didn't answer — try asking another way)
+2014	(by
+2015	(will retry automatically)
+2016	(an admin needs to run setupaccounts.py once in the Coze terminal)
+2017	(online v
+2018	(choose Safari)
+2019	＋ Add one, Enter to save
+2020	＋ Add a section
+2021	, all done 🎉
+2022	, other class items
+2023	; add the first one below
+2024	, and anything it's doing stops immediately. If that's not your device, your password may be known to someone else. Change your password now?
+2025	to import {0} items into your phone calendar.
+2026	; showing cached data from last time
+2027	; check that the model name is correct
+2028	, counted up to 12 per day
+2029	, counted up to 5 per day
+2030	, add a subscription → paste the link, and it syncs Laolao Timetable into your phone's built-in calendar.
+2031	, class:
+2032	, synced with your account
+2033	🌐 Laolao Metaverse
+2034	🌐 Enter metaverse mode
+2035	🌐 Enter Laolao Metaverse
+2036	🌱 Quote of the day
+2037	🍅 Start
+2038	🍅 Pomodoro
+2039	🎨 Decorate profile
+2040	🎯 Planning
+2041	🏆 This week's ranking
+2042	🐣 Food +{0}
+2043	👀 As a teacher, you can see anonymous students' real names; teachers aren't ranked.
+2044	👇 The Pomodoro timer is below — pick a task and tap "Start focusing".
+2045	👉 Do only #{0} now:
+2046	👥 {1} ({2} people)
+2047	💻 Computer
+2048	📅 {1}/{2} ({3})
+2049	📅 Add to calendar
+2050	📅 Put in calendar
+2051	📌 Class wall notice
+2052	📌 Pin
+2053	📍 Place (leave empty if none)
+2054	📖 Open in Coursework
+2055	📚 Tomorrow's classes
+2056	📢 Notices
+2057	📣 Whole class
+2058	📣 New class items
+2059	📱 App update {0} available,
+2060	🔑 Reset password
+2061	🔒 This device only
+2062	🔥 Today's check-ins
+2063	🔥 Check-ins {0}
+2064	🔥 {0}-day streak
+2065	🗑 Clear my {0} completed
+2066	🚩 Reports to handle ({0})
+2067	🚩 Reported
+2068	🚫 Not an item
+2069	🤔 {0} unsure
+2070	🤖 Android phone
+2071	🧠 Based on this class's past edits
+2072	🧠 Following last edit
+2073	🧠 Laolao learned from this class:
+2074	App screenshots usually show only "this week's" classes; you may need to check the weeks yourself
+2075	title="This cell in the original (course {0})"
+2076	title="Auto-corrected; originally recognized as "{0}""
+2077	{0} / {1} to import
+2078	On {0}, follow {1}'s classes: {2}{3}
+2079	{0} original classes: {1}
+2080	Published by {0} · {1} · {2} courses
+2081	Image used for photo import on {0} · boxes mark recognized courses — compare classrooms and teachers
+2082	{0} published a class timetable ({1} courses). Open Timetable → "🏫 Class timetable" and tap "Use class timetable" — no need to import it yourself.
+2083	{0}/{1} ({2})
+2084	{0} ({1}, week {2}):
+2085	· ☁ Synced
+2086	· Syncing…
+2087	· Sign in to sync
+2088	⚠ This cell wasn't recognized confidently — compare with the original
+2089	➕ Add a class
+2090	➕ Merge into my timetable
+2091	⬇ Download image
+2092	"{0}" {1} cancelled
+2093	Can't read the weeks for "{0}", e.g. 1-16, 1-15 odd (单), 2-16 even (双), 1-3,5-8
+2094	The weeks for "{0}" exceed {1}
+2095	"{0}" ends before it starts
+2096	"{0}" has no class timetable yet. {1}
+2097	Follow {0}'s classes
+2098	Uploading…
+2099	Follow which day's classes
+2100	The two dates can't be the same
+2101	Please choose both dates
+2102	No classes today 🎈{0}
+2103	Withdraw this timetable from the class? Courses classmates already copied into their own timetables aren't affected.
+2104	Your corrections are remembered and make it more accurate over time
+2105	Your timetable is still empty
+2106	Use the class times from the screenshot
+2107	Save to timetable
+2108	Laolao Info Team
+2109	Cancel {0} classes
+2110	Which classes are cancelled
+2111	Join a class first
+2112	Add courses to your timetable first
+2113	{0} courses
+2114	Close
+2115	Delete this course
+2116	Until period
+2117	To (for multi-day breaks)
+2118	Add {0} classes
+2119	Add to existing courses (no duplicates)
+2120	Extra class "{0}" period {1}{2}{3}
+2121	Odd
+2122	This cell in the original (course {0})
+2123	Even
+2124	Send to {0}
+2125	published
+2126	Publish my {0} courses
+2127	Cancel only "{2}" period {3}{4}
+2128	Only admins can see it, to improve recognition; nothing is uploaded unless ticked
+2129	Optional
+2130	Also post a class notice
+2131	Server not upgraded to 5.4.0 yet
+2132	Server not upgraded to 5.4.0 yet; class timetables are unavailable for now.
+2133	Sat
+2134	Sun
+2135	Weeks, e.g. 1-16, 1-15单
+2136	Weeks were filled as "1-{0}" (highlighted); please change them to the actual weeks.
+2137	Weeks: 1-16, 1-15单 (odd), 2-16双 (even), 1-3,5-8
+2138	Which day has class
+2139	Image too small
+2140	Place
+2141	e.g. National Day holiday, sports day
+2142	Temporary schedule swaps, class changes, cancellations, extra classes
+2143	Note temporary class swaps, make-up classes, holidays and extra classes here — timetable, home, calendar and reminders all follow
+2144	Restored your {0} courses from the cloud
+2145	Saved {0} courses{1} 🎉
+2146	Deleted
+2147	Added {0} courses
+2148	Published to class ({0} courses)
+2149	Switched to class timetable ({0})
+2150	Withdrawn
+2151	Cleared
+2152	Recorded{3}
+2153	{0} already past
+2154	Noted: on {0}, follow {1}'s classes
+2155	Noted: {0} extra class "{1}"
+2156	Noted: {0} day off
+2157	Noted: {0} "{1}" cancelled
+2158	Noted: {0} days off
+2159	Start recognition
+2160	Required
+2161	My timetable
+2162	My courses (next 7 days):
+2163	Capture it all: the "Monday…Sunday" header and the periods on the left must be visible
+2164	Include courses in phone calendar subscription
+2165	Once you publish your timetable to the class, everyone can see it and copy it to their own timetable in one tap.
+2166	Save the timetable as an image
+2167	Send this screenshot and the checked results to admins to help improve recognition
+2168	The timetable image used for photo import — no need to dig through your album
+2169	Use another image
+2170	Withdraw
+2171	Hide original
+2172	Holiday / cancelled
+2173	Holiday / cancelled{0}
+2174	Screenshots from the academic system or timetable apps work, or take a photo of a computer screen; on a computer you can paste (Ctrl+V) or drag it in
+2175	No classes all day
+2176	Whole term
+2177	Whole term (all weeks)
+2178	Both date and course name are required
+2179	{0} classes tomorrow, first one {1} {2}
+2180	updated
+2181	Replace existing
+2182	The server deletes the image after recognition; the original is kept only in this device's browser, so you can compare anytime with "📷 Timetable original"
+2183	This class
+2184	Highlighted weeks weren't recognized and were filled with the whole term; please check.
+2185	Format not supported — use a JPG or PNG screenshot
+2186	Publishing…
+2187	Reading image…
+2188	Email tomorrow's classes after 7 p.m. every evening
+2189	Publish failed:
+2190	Withdraw failed:
+2191	No courses to import
+2192	No classes
+2193	No courses
+2194	No courses recognized. Try a clearer, more complete screenshot, or tap "＋ Add" to add manually.
+2195	Clear past ones
+2196	Tap "Download image" to save; on phones you can also long-press the image
+2197	Class timetable
+2198	Class timetable · {0}
+2199	Update with my {10} courses
+2200	Drawing component didn't load — please refresh and try again
+2201	Sign in to recognize images (recognition runs on the server)
+2202	's timetable
+2203	Monday of week 1 is
+2204	Week {0} · {1} – {2}
+2205	Period {1}{2}
+2206	Week {3}
+2207	Periods {0}-{1}{2} {3}{4}
+2208	Week {0}
+2209	Period {0} {1}
+2210	Starting period
+2211	Timetable by our team: photo import, nightly reminders of tomorrow's classes, sync to phone calendar
+2212	End date is before start date
+2213	Timetable published by teachers / class officers, visible to the whole class
+2214	Teachers or class officers with "Add/edit items" permission can publish here; then you can copy it in one tap.
+2215	Auto-corrected; originally recognized as "{0}"
+2216	period
+2217	Show courses in subscribed phone calendars too
+2218	Recognized {0} courses. Above each course is the matching cell from the original image — compare the name, classroom and teacher; highlighted fields are less certain and can be edited. Your corrections are remembered for next time.
+2219	Recognizing… {0}{1} s (usually 5–15 s)
+2220	Description (optional)
+2221	Please sign in first
+2222	Please choose an image file
+2223	Classes moved to {0}
+2224	Course name
+2225	Timetable is temporarily turned off
+2226	Timetable image
+2227	Timetable updated: {0} courses. Calendar, home and reminders follow.
+2228	Couldn't read the timetable file
+2229	Timetable original
+2230	Timetable name
+2231	Timetable is empty — import or add courses first
+2232	Class swaps / days off
+2233	{0} more classes…
+2234	None yet. e.g. "National Day swap: on Oct 11 (Sat), follow Oct 8 (Wed) classes"
+2235	No courses yet
+2236	No courses yet.
+2237	No email linked: link one under "Me → Email notifications" to turn this on
+2238	This image can't be opened:
+2239	Pick a date
+2240	Choose a timetable screenshot
+2241	Pick two dates and the classes will be shown here
+2242	That day (the day classes moved from) is off — no classes
+2243	Long-press the image to save or share
+2244	courses
+2245	(sync to server failed; will retry automatically:
+2246	(replace my {0})
+2247	(published from timetable page)
+2248	＋ Add
+2249	, synced to server

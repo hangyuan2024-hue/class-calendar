@@ -1,0 +1,237 @@
+750	📖 Feature guide
+751	📣 Publish
+752	📥 One-time import
+753	🔄 Switch pet
+754	🔄 Subscribe to Laolao Timetable
+755	🔍 Find people
+756	🔒 Only on this device (not synced to cloud)
+757	🔴 Important & urgent
+758	🔵 Important, not urgent
+759	🖼 Recognize screenshot
+760	🟡 Urgent, not important
+761	🤫 Private
+762	&gt; Loading profile: {0} ………
+763	&gt; Syncing class data ………
+764	&gt; Disconnecting …
+765	&gt; Connecting
+768	1 hour ago
+769	10 min ago
+770	Sleep before 12
+771	15 min ago
+772	2 hours ago
+773	21 days — it's a habit now
+774	3 hours ago
+775	30 min ago
+776	5 min ago
+777	6-digit code
+781	AI organize group messages
+782	AI is organizing, waited {0} s…
+783	AI terminal
+784	AI Q&A
+785	AR overlays virtual content on the real world — like scanning a textbook to see a 3D model, or navigation arrows drawn on the road. It doesn't replace reality; it adds a layer on top.
+786	EXP · total {7} EXP
+787	Google Calendar: ＋ next to Other calendars → From URL → paste the link.
+788	Installing Ollama on Linux requires your computer password
+789	Mac
+790	Mac: click "Subscribe in Apple Calendar", or in the Calendar app choose File → New Calendar Subscription → paste the link.
+791	Ollama is installed
+792	Ollama is installed and connected
+793	Outlook: click "Add to Outlook", or in Outlook choose Add calendar → Subscribe from web → paste the link.
+794	PDCA cycle
+795	The PDCA cycle (Deming cycle) splits a task into four steps and improves it round by round: P Plan: set goals and methods; D Do: carry out the plan; C Check: compare results with goals and find problems; A Act: keep what works and carry unsolved problems into the next plan. Good for: exam prep, learning a skill, preparing for competitions — anything that needs repeated improvement.
+796	The SMART principle turns vague wishes into actionable goals. A good goal meets five criteria: S Specific: say exactly what you'll achieve; M Measurable: use numbers to tell when it's done; A Achievable: within reach with effort; R Relevant: related to what you really want; T Time-bound: has a clear deadline. Example: change "I want to get good at English" into "Memorize 30 CET-4 words every day before Nov 30 and score 80% on weekend self-tests".
+797	SMART goals
+798	They chose not to appear on the leaderboard; their growth record is visible only to themselves and teachers 🔒
+799	VR uses a headset to replace your whole view with a computer-generated world that moves as you turn and walk, so you feel "really there". Common in games, driving simulators and virtual labs.
+800	Windows PC
+801	Windows desktop version
+802	The built-in Windows Calendar doesn't support subscriptions; use one-time import instead.
+811	{0} {1} · Laolao Timetable
+812	{0} {1} · edit intro
+813	{0} reports
+814	{0} pts
+815	{0} min ago
+816	in {0} min
+817	{0} days ago
+818	in {0} days
+819	in {0} h{1}
+820	{0} h ago
+821	{0} items
+822	{0} overdue
+823	{0}/{1} classmates working on it
+824	checked at {0}:{1} ·
+825	{0}homework reminders and timetable photo import are easier
+826	{1}/{0}
+827	{1}/{2}/{0}
+828	Month {0}
+829	{0}/{1}
+830	{0}/{1} {2}
+831	{0}/{1} ({2})
+832	Homework for the week of {0}/{1}
+833	{0}nobody on the board yet.
+834	{0} (today {1}, {2}-day streak)
+835	{0} ({1}) {2}
+836	{16}Homework is organized by class officers; the group chat has the final say.
+837	{17}'s class wall
+838	{18} posts
+839	{1} · {2} sections
+840	{1} people
+841	{1}the whole class has earned
+842	{1}/{2} – {3}/{4}
+843	{1}/{2} ({3}){4}
+844	{1}/{2}{3}{4}
+845	Web pages in {1} can't download files or open calendars. Tap the top right
+846	{2}/{3} ({4}) · {5} items in two weeks
+847	{2}, then tap "Add to phone calendar" again.
+848	{3}/{4} classmates working on it
+849	{3}Calendar apps refresh it automatically. This link works like your identity — don't post it in groups; if you did, you can
+850	{4}/{5} EXP · total {6}
+851	{5} growth points
+852	{5}/{6}{7}
+853	{8}Done {9} / {10}{11}
+854	| Place
+855	| Done
+856	| To verify
+857	| Bring
+858	· {0} things
+859	· {0} classes
+860	· {0} items
+861	· {1} growth points
+862	· {0} duplicates removed
+863	· Laolao remembered {0} edits
+864	· this device
+865	· Week {0}
+866	…and {0} more
+867	→ paste link → Next → Save.
+868	⏏ Back to reality
+869	⏏ Exit metaverse
+870	⏰ Due in {0} min: {1}
+871	⏰ In {0} min: {1}
+872	⏰ Reminder the night before homework is due
+873	⏸ Some features are unavailable right now
+874	⚙ What's in the subscription, how early to remind
+875	⚠ You opened this in {0}
+876	⚠ You haven't joined a class yet, so the subscription is empty for now. Items appear automatically after you join.
+877	⚠ Incomplete info, the group chat has the final say
+878	⚠ Incomplete info, classmates will be reminded to verify
+879	⚠ Incomplete info, please verify in the group chat
+880	✏️ {0} · updated {1}
+881	✏️ Editing feature guide
+882	✏️ Edit profile
+883	✓ Homework {0}
+884	✓ Other {0}
+885	✓ Done
+886	✓ Sent
+887	✓ Checked in
+888	✓ Connected: {0}. The "Q&A" page is open, and local AI can also be used when organizing messages.
+889	✓ This is a clear SMART goal, go for it!
+890	✗ Not sent{0}
+891	✥ Drag
+892	. Didn't pop up?
+893	"{0}" v{1} is still in testing and hasn't been reviewed. It runs in a sandbox and can't access your sign-in, but may have bugs. Turn it on?
+894	Checked in "{0}"
+895	Where to put "{0}"
+896	"{0}" is unavailable right now: {1}
+897	"Add All"
+898	"Open in browser"
+899	" signed out
+900	" group members
+901	" sign out?
+902	[Needs confirmation]
+903	Mon
+904	One-minute tour
+905	One-line description (optional)
+906	A whole week
+907	A week's homework sorted by due time, showing days left; overdue unsubmitted homework is listed too. Switch to the previous or next week.
+908	A full week! The habit is forming
+909	Do one thing at a time — finishing it is a win.
+910	One-time import didn't show "Add All": make sure you tapped it in Safari, or tap the download icon in Safari's address bar to open the downloaded file.
+911	One-time import: tap "Import", open the file after it downloads, and choose "Calendar". Built-in calendars on Xiaomi, Huawei, OPPO and vivo can usually open .ics files directly; if not, look for "Import" under Calendar → Settings.
+912	So-so
+913	So-so is fine too — finishing one small thing will help.
+914	Live your days the way you want, together
+915	One-click install (Linux)
+916	One-click install (Mac)
+917	One-click install (Windows)
+918	Wed
+919	Three days — a good start
+920	Previous week
+921	Improvements from last round:
+922	Good morning
+923	Last week's homework
+924	Move up
+925	At class time
+926	Class times
+927	Focus in class, play hard after
+928	Next week
+929	Next class
+930	Good afternoon
+931	Next {0}
+932	Next week's homework
+933	Any events next week?
+934	Pull to refresh
+935	Move down
+936	Class over
+937	Downloading…
+938	Download failed:
+939	Model download failed:
+940	Not going
+941	Don't publish to class; only add to your own "My items"
+942	Unhappy
+943	No reminder
+944	No late nights
+945	Hide courses
+946	Words that aren't places
+947	Discard
+948	No title
+949	Make the most of your youth, and of yourself
+950	Not important, not urgent
+951	Focus 1 Pomodoro
+952	Focus 25 min, rest 5 min
+953	Focusing
+954	Focus master
+955	Finished a Pomodoro 🍅
+956	Focus:
+957	The world is big, and your possibilities are bigger.
+958	Two weeks unbroken — amazing
+959	Due within two weeks
+960	Homework and meetings due within two days — deal with these first
+961	The two new passwords don't match
+962	class times · remembered
+963	Personal
+964	places ·
+965	Pomodoros
+966	course aliases ·
+967	Mid
+968	Good noon
+969	For security, local AI only accepts a local address, e.g. http://localhost:11434
+970	Why does this matter to you?
+971	Dashboard
+972	Report
+973	Report failed:
+974	Previously unsubmitted
+975	One habit check-in
+976	Items
+977	Tue
+978	Pet farm
+979	Cloud AI failed:
+980	Cloud AI organize
+981	Cloud AI organize is off:
+982	Cloud AI added {0} items ✓ (rule-organized items aren't published yet — confirm, then tap the button below)
+983	Cloud traveler
+984	Fri
+985	Homework hero
+986	Send to cloud AI
+987	Send to local AI (no tokens)
+988	What is the metaverse
+989	Only visible to me
+990	It's okay to be unhappy today; tomorrow will be a bit better. If you need, you can always talk to someone.
+991	Focused today
+992	Today is a day worth looking forward to.
+993	Today's to-dos
+994	How are you feeling today?
+995	Due today
+996	Sleep early tonight and wake up full of energy tomorrow.
+997	{0} things today{1}
+998	{0} things today, one at a time
+999	{0} homework due today, don't forget~

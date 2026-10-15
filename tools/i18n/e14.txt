@@ -1,0 +1,65 @@
+2702	Slow or won't open?
+2703	Use the backup mirror
+2704	v{0}, {1}
+2705	About 100 MB, Win10 / Win11
+2706	Already installed — back to the app
+2707	iPhone: use the web version
+2708	Choose your device to download
+2709	Free, installs on Android 7.0 and later. {0}
+2710	Free, installs on Windows 10 / 11 (64-bit); same account as your phone
+2711	Account and data sync automatically between phone and computer
+2712	Android app and Windows desktop version available; Mac can use the web version directly
+2713	Look first
+2714	Download started
+2715	Double-click to install after downloading. If "Windows protected your PC" appears, click "More info → Run anyway".
+2716	This is the phone installer — scanning the code below with your phone is easier.
+2717	After downloading, tap class-calendar.apk in the notification bar to install.
+2718	University
+2719	All 1,412 undergraduate universities in China
+2720	College / vocational
+2721	School name
+2722	High school
+2723	Middle school
+2724	Primary school
+2725	Working professional
+2726	Company or organization name
+2727	Personal use
+2728	Name your space
+2729	Search schools, e.g. 浙大, 华科
+2730	e.g. Shenzhen Polytechnic University (optional)
+2731	e.g. Hangzhou No.2 High School (optional)
+2732	e.g. Beijing No.8 Middle School (optional)
+2733	e.g. Experimental Primary School (optional)
+2734	e.g. Example Technology Co., Ltd. (optional)
+2735	e.g. My study, grad-exam corner (optional)
+2813	Private
+2814	Sino-foreign
+2815	Overseas partnership
+2816	School list failed to load
+2817	School or organization type
+2818	Filter by province
+2819	Clear
+2820	School
+2821	All China
+2822	Leave blank
+2823	; you can add it later under "Me → Edit profile"
+2824	Chose to leave blank{0}
+2825	Selected
+2826	You didn't pick a school from the list; the name you typed will be saved
+2827	Type a few characters to search, or pick a province first; you can also type a school not in the list
+2828	Shown in your profile; only you and admins can see it
+2829	{0}: you can fill in a name or choose "Leave blank"
+2830	Name
+2831	Fill in instead
+2832	Loading school list…
+2833	The list didn't load; you can type the full school name directly
+2834	Type a school name to search, e.g. "华科", "西安交通"
+2835	Or pick a province on the left to see all its universities
+2836	"{0}" not found{1}
+2837	{0} · {1} universities
+2838	Not in the list? Use "{2}"
+2839	Oct 10, 2026
+2840	through your class's teacher / admin
+2841	Default colors
+2842	Default · soft blue-purple
+2843	Deep space blue · vivid blue + warm orange
