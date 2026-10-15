@@ -70,9 +70,10 @@
       if (netErr && !switched && ROUTES.length > 1 && navigator.onLine !== false && (netErr.name !== "AbortError" || retryable || !routeKnown)) {
         const cur = ROUTES.find((b) => url.startsWith(b));
         const other = ROUTES.findIndex((b) => b !== cur);
-        if (cur && other >= 0) { url = ROUTES[other] + url.slice(cur.length); setRoute(other); switched = true; attempt--; continue; }
+        if (cur && other >= 0) { url = ROUTES[other] + url.slice(cur.length); switched = true; attempt--; continue; }
       }
-      if (res && !routeKnown) { const i = ROUTES.findIndex((b) => url.startsWith(b)); if (i >= 0) setRoute(i); }
+      // 只有真的连通了才记住这条线路（换过去也失败的，不会把以后的请求都带偏）
+      if (res && (!routeKnown || switched)) { const i = ROUTES.findIndex((b) => url.startsWith(b)); if (i >= 0 && (i !== routeI || !routeKnown)) setRoute(i); }
       const busy = netErr || (res && [429, 502, 503, 504].includes(res.status));
       // 服务器忙：最多重试 3 次；连不上网：只重试 1 次（断网时别让人干等）
       const maxTry = netErr ? (navigator.onLine === false ? 0 : 1) : 3;
