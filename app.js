@@ -1220,7 +1220,11 @@ async function ingestOcrOne(file, say) {
   for (;;) {
     await new Promise((r) => setTimeout(r, 1300));
     const st = await CCAuth.rpc("course_ocr_status", { jid: job_id });
-    if (st.status === "done") return (st.result && st.result.text) || "";
+    if (st.status === "done") {
+      // 扣子后端还是旧版：把聊天截图当课程表识别了，结果里没有 text
+      if (!st.result || typeof st.result.text !== "string") throw new Error("扣子后端还没更新到 5.6.0：请把新的 calendar_routes.py 换上并重新部署");
+      return st.result.text;
+    }
     if (st.status === "failed") throw new Error(st.message || "识别失败");
     say(st.progress || 0);
     if (Date.now() - t0 > 150000) throw new Error("识别超时了，请稍后再试");
@@ -1232,7 +1236,7 @@ $("ingestImgFile").onchange = async (e) => {
   if (!files.length) return;
   const st = $("ingestStatus"), btn = $("ingestImg"), ta = $("ingestText");
   btn.disabled = true; st.className = "";
-  const got = [];
+  const got = [], errs = [];
   try {
     for (let i = 0; i < files.length; i++) {
       const say = (pct) => { st.textContent = `正在识别第 ${i + 1}/${files.length} 张截图…${pct ? pct + "%" : ""}`; };
@@ -1240,16 +1244,17 @@ $("ingestImgFile").onchange = async (e) => {
       try { const t = await ingestOcrOne(files[i], say); if (t.trim()) got.push(t.trim()); }
       catch (err) {
         if (/chat_ocr|PGRST202|Could not find/i.test(err.message)) throw new Error("后台还没升级到 5.6.0，暂时不能识别截图");
-        got.push(""); st.textContent = `第 ${i + 1} 张没认出来：${err.message}`; await new Promise((r) => setTimeout(r, 1500));
+        got.push(""); errs.push(err.message); st.textContent = `第 ${i + 1} 张没认出来：${err.message}`; await new Promise((r) => setTimeout(r, 1500));
       }
     }
     const text = got.filter(Boolean).join("\n\n");
-    if (!text) { st.textContent = "截图里没认出文字，换一张清晰些的试试"; st.className = "err"; return; }
+    if (!text) { st.textContent = errs.length ? "没认出来：" + errs[0] : "截图里没认出文字，换一张清晰些的试试"; st.className = "err"; return; }
     ta.value = (ta.value.trim() ? ta.value.trim() + "\n\n" : "") + text;
-    st.textContent = `认出 ${text.split("\n").length} 行文字，正在本地整理…`;
+    const nl = text.split("\n").filter((x) => x.trim()).length;
+    st.textContent = `认出 ${nl} 行文字，正在本地整理…`;
     // 认完直接本地整理（不花 token）；本地整理被关掉了就停在这里，让人自己选
     if (feat("ingest_local") && !$("ingestLocal").classList.contains("hidden")) $("ingestLocal").click();
-    else st.textContent = `认出 ${text.split("\n").length} 行文字，检查一下再整理`;
+    else st.textContent = `认出 ${nl} 行文字，检查一下再整理`;
   } catch (err) { st.textContent = err.message; st.className = "err"; }
   finally { btn.disabled = false; }
 };

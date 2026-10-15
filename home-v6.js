@@ -17,6 +17,14 @@
     team: '<div class="ha ha-team"><div class="ring"><span>🎨</span><span>📱</span><span>🧠</span><span>🛡️</span><b>捞捞</b></div><p>全国高校开发者招募中</p></div>',
   };
 
+  // 视频格式：大多数浏览器放 mp4；放不了 mp4 的（少数安卓 / Linux 浏览器）有 webm 就换 webm
+  var probe = document.createElement("video");
+  function pickSrc(x) {
+    var mp4 = safeUrl(x.src), webm = safeUrl(x.webm);
+    if (webm && !(probe.canPlayType && probe.canPlayType('video/mp4; codecs="avc1.640028"')) && probe.canPlayType('video/webm; codecs="vp9"')) return webm;
+    return mp4;
+  }
+
   // ---------- 作品展映 ----------
   (function showcase() {
     var track = $("h6Track"), dotsBox = $("h6Dots"), stage = $("h6Stage");
@@ -25,7 +33,7 @@
     if (!list.length) { var sec = $("showcase"); if (sec) sec.hidden = true; return; }
     track.innerHTML = list.map(function (x, i) {
       var media = x.type === "video"
-        ? '<video class="h6-video" muted playsinline preload="' + (i ? "none" : "metadata") + '" data-src="' + esc(safeUrl(x.src)) + '"' + (safeUrl(x.poster) ? ' poster="' + esc(safeUrl(x.poster)) + '"' : "") + '></video><button class="h6-sound" type="button" aria-label="打开声音">🔇</button>'
+        ? '<video class="h6-video" muted playsinline preload="' + (i ? "none" : "metadata") + '" data-src="' + esc(pickSrc(x)) + '"' + (safeUrl(x.poster) ? ' poster="' + esc(safeUrl(x.poster)) + '"' : "") + '></video>' + (x.sound === false ? "" : '<button class="h6-sound" type="button" aria-label="打开声音">🔇</button>')
         : ART[x.art];
       return '<figure class="h6-slide' + (x.type === "video" ? " is-video" : "") + '" role="group" aria-roledescription="作品" aria-label="' + (i + 1) + ' / ' + list.length + '" data-i="' + i + '">' +
         '<div class="h6-media">' + media + '</div>' +
@@ -61,6 +69,8 @@
         // 视频：播完再换下一个（太长的最多放 60 秒）
         if (!paused && !hover && visible) timer = setTimeout(function () { go(cur + 1); }, 60000);
         v.onended = function () { if (!paused && !hover) go(cur + 1); };
+        // 放不了（浏览器不支持、网络断了）：3 秒后跳到下一个，不卡住轮播
+        v.onerror = function () { if (vidOf(cur) === v) { clearTimeout(timer); timer = setTimeout(function () { go(cur + 1); }, 3000); } };
         stage.classList.add("on-video");
         return;
       }

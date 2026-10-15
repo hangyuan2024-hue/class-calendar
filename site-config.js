@@ -1,9 +1,10 @@
 /* =========================================================================
  * 首页 / 开发者招募页的内容配置 —— 改这里就行，不用动别的文件
  *   · showcase：首页「作品展映」轮播。可以放视频，也可以用内置的功能卡片。
- *       视频：把 mp4 放进网站的 media 文件夹（建议 ≤ 15MB、横屏 16:9、H.264），
+ *       视频：把 mp4 放进网站的 media 文件夹（建议 ≤ 15MB、横屏 16:9、H.264；可以再加一个 webm: "media/xx.webm" 备用），
  *            写 { type: "video", src: "media/文件名.mp4", poster: "media/封面.jpg", title, desc }
  *            （网站的安全设置只允许播放本站的文件，B 站 / 抖音链接放不进来）
+ *            没有声音的视频加 sound: false，就不显示「打开声音」按钮
  *       卡片：{ type: "card", art: "ocr" | "ingest" | "mindmap" | "remind" | "wall" | "team", title, desc, tag }
  *   · team：团队介绍。members 留空就显示「分工」卡片，填了就显示成员。
  *   · repo：开源仓库地址。还没开放就留空，页面会显示「即将开放」。
@@ -12,6 +13,7 @@
 window.LAOLAO_SITE = {
   showcase: [
     // { type: "video", src: "media/team-intro.mp4", poster: "media/team-intro.jpg", title: "团队介绍", desc: "我们是谁，为什么做捞捞", tag: "视频" },
+    { type: "video", src: "media/laolao-intro-15s.mp4", webm: "media/laolao-intro-15s.webm", poster: "media/laolao-intro-15s.jpg", sound: false, title: "15 秒认识捞捞", desc: "聊天截图变日程、拍照导入课表、思维导图，一个账号全都有。", tag: "作品介绍" },
     { type: "card", art: "ingest", tag: "捞捞课程表", title: "聊天截图，一键变日程", desc: "群里的作业、班会、通知截个图，捞捞认出文字、去掉闲聊，整理成带时间地点的事项。" },
     { type: "card", art: "ocr", tag: "捞捞课程表", title: "拍一张课表，整学期都有了", desc: "教务系统截图或纸质课表拍照，自动识别课程、教室、周次，还能发布给全班。" },
     { type: "card", art: "mindmap", tag: "捞捞思维导图", title: "把一门课，画成一张图", desc: "粘贴 AI 回答或笔记大纲直接生成导图，拖一拖就能调整，复习时一眼看清知识框架。" },
