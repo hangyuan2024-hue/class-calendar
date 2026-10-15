@@ -990,7 +990,7 @@ $("classSel").onchange = (e) => {
   currentClass = myClasses.find((c) => c.id === e.target.value) || null;
   save(LS_CUR_CLASS, currentClass && currentClass.id);
   classGroups = []; classOpts = {}; wallChan = "";
-  $("ingestPanel").classList.add("hidden");
+  closeIngest();
   renderClassBar(); loadFeatures(); loadClass();
 };
 
@@ -1164,8 +1164,31 @@ function setupIngestPanel() {
   if (!feat("ingest_local")) notes.push("本地整理已关闭：" + featWhy("ingest_local"));
   $("ipFeatNote").textContent = notes.join("；"); $("ipFeatNote").classList.toggle("hidden", !notes.length);
 }
+// 手机上「AI 整理」改成从底部升起的面板：以前是把面板塞在首页最下面再滚过去，看不到、也不好收起
+function ingestSheet(on) {
+  const p = $("ingestPanel");
+  let veil = $("ingestVeil");
+  if (on && !veil) { veil = document.createElement("div"); veil.id = "ingestVeil"; veil.onclick = closeIngest; document.body.appendChild(veil); }
+  if (on && p.parentElement !== document.body) document.body.appendChild(p);   // 页面里的区块会挡住层级，挪到最外层
+  p.classList.toggle("sheet", !!on);
+  if (veil) veil.classList.toggle("open", !!on);
+  document.documentElement.classList.toggle("ingest-open", !!on);
+}
+function closeIngest() { $("ingestPanel").classList.add("hidden"); ingestSheet(false); }
 function openIngest(toggle) {
   const p = $("ingestPanel"), v = document.querySelector(".view.on[data-view]");
+  if (!p.querySelector(".ip-x")) {
+    const x = document.createElement("button"); x.type = "button"; x.className = "ip-x"; x.setAttribute("aria-label", "收起"); x.textContent = "✕"; x.onclick = closeIngest;
+    p.querySelector(".ip-head").appendChild(x);
+  }
+  if (isMobile()) {
+    if (toggle && !p.classList.contains("hidden") && p.classList.contains("sheet")) { closeIngest(); return; }
+    p.classList.remove("hidden", "moved"); ingestSheet(true);
+    setupIngestPanel(); $("ingestDate").value = $("ingestDate").value || keyOf(ccDate());
+    ensureLaoModel().catch(() => {});
+    return;
+  }
+  ingestSheet(false);
   if (v && !v.contains(p)) {   // 在别的页面（比如日历）点 AI 整理：面板搬到当前页面顶上
     if (v.dataset.view === "home") { $("agenda").before(p); p.classList.remove("moved"); }
     else { (v.querySelector(".legend") || v.querySelector(".vhead")).after(p); p.classList.add("moved"); }
@@ -1177,7 +1200,59 @@ function openIngest(toggle) {
 $("calIngest").onclick = () => openIngest(false);
 $("calPub").onclick = () => openClassForm(null);
 $("cIngestBtn").onclick = () => openIngest(true);
-$("ingestClose").onclick = () => $("ingestPanel").classList.add("hidden");
+$("ingestClose").onclick = closeIngest;
+
+// ---- 5.6.0：识别聊天截图（扣子服务器认字，不调大模型；认出的文字再用本地规则整理）----
+async function ingestImgData(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("这张图片打不开")); i.src = url; });
+    const k = Math.min(1, 2400 / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement("canvas"); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+    const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL("image/jpeg", 0.86);
+  } finally { URL.revokeObjectURL(url); }
+}
+async function ingestOcrOne(file, say) {
+  const data = await ingestImgData(file);
+  const { job_id } = await CCAuth.rpc("chat_ocr_start", { img: data });
+  const t0 = Date.now();
+  for (;;) {
+    await new Promise((r) => setTimeout(r, 1300));
+    const st = await CCAuth.rpc("course_ocr_status", { jid: job_id });
+    if (st.status === "done") return (st.result && st.result.text) || "";
+    if (st.status === "failed") throw new Error(st.message || "识别失败");
+    say(st.progress || 0);
+    if (Date.now() - t0 > 150000) throw new Error("识别超时了，请稍后再试");
+  }
+}
+$("ingestImg").onclick = () => { if (!currentUser) { alert("登录后才能识别截图"); return; } $("ingestImgFile").click(); };
+$("ingestImgFile").onchange = async (e) => {
+  const files = [...e.target.files].filter((f) => /^image\//.test(f.type)).slice(0, 9); e.target.value = "";
+  if (!files.length) return;
+  const st = $("ingestStatus"), btn = $("ingestImg"), ta = $("ingestText");
+  btn.disabled = true; st.className = "";
+  const got = [];
+  try {
+    for (let i = 0; i < files.length; i++) {
+      const say = (pct) => { st.textContent = `正在识别第 ${i + 1}/${files.length} 张截图…${pct ? pct + "%" : ""}`; };
+      say(0);
+      try { const t = await ingestOcrOne(files[i], say); if (t.trim()) got.push(t.trim()); }
+      catch (err) {
+        if (/chat_ocr|PGRST202|Could not find/i.test(err.message)) throw new Error("后台还没升级到 5.6.0，暂时不能识别截图");
+        got.push(""); st.textContent = `第 ${i + 1} 张没认出来：${err.message}`; await new Promise((r) => setTimeout(r, 1500));
+      }
+    }
+    const text = got.filter(Boolean).join("\n\n");
+    if (!text) { st.textContent = "截图里没认出文字，换一张清晰些的试试"; st.className = "err"; return; }
+    ta.value = (ta.value.trim() ? ta.value.trim() + "\n\n" : "") + text;
+    st.textContent = `认出 ${text.split("\n").length} 行文字，正在本地整理…`;
+    // 认完直接本地整理（不花 token）；本地整理被关掉了就停在这里，让人自己选
+    if (feat("ingest_local") && !$("ingestLocal").classList.contains("hidden")) $("ingestLocal").click();
+    else st.textContent = `认出 ${text.split("\n").length} 行文字，检查一下再整理`;
+  } catch (err) { st.textContent = err.message; st.className = "err"; }
+  finally { btn.disabled = false; }
+};
 $("ingestGo").onclick = async () => {
   const text = $("ingestText").value.trim(), st = $("ingestStatus");
   if (!feat("ingest_cloud") || ingestPersonal()) { st.textContent = "云端 AI 整理已关闭：" + featWhy("ingest_cloud"); st.className = "err"; return; }
@@ -4509,6 +4584,7 @@ async function handleHash() {
   } else if (location.hash === "#intro") { history.replaceState(null, "", location.pathname); showView("intro"); }
   else if (location.hash.startsWith("#cal=")) { const k = location.hash.slice(5); history.replaceState(null, "", location.pathname); if (/^\d{4}-\d{2}-\d{2}$/.test(k)) $("jumpDate").onchange({ target: { value: k } }); }
   else if (location.hash === "#people") { history.replaceState(null, "", location.pathname); showView("people"); }
+  else if (location.hash === "#mindmap" || location.hash === "#study") { const v = location.hash.slice(1); history.replaceState(null, "", location.pathname); showView(v); }   // 首页「捞捞思维导图」板块直达
 }
 window.addEventListener("hashchange", handleHash);
 document.addEventListener("click", async (e) => {

@@ -105,3 +105,18 @@ body:has(#modal.open) #lao, body:has(.modal2.open) #lao, body:has(dialog[open]) 
 #calPrefs label { display: inline-flex !important; flex-direction: row !important; align-items: center; justify-content: flex-start; gap: 6px; white-space: nowrap; width: auto !important; margin: 0 !important; font-weight: 500; }
 #calPrefs .cal-one { display: flex !important; margin-top: 10px !important; }
 #calPrefs select { width: auto !important; max-width: 60%; }
+
+/* ===== 5.6.0：AI 整理在手机上从底部升起 ===== */
+#ingestPanel .ip-x { display: none; margin-left: auto; width: 32px; height: 32px; border-radius: 50%; border: 0; background: var(--muted-bg, #eee); color: var(--sub); font-size: 15px; line-height: 32px; padding: 0; }
+#ingestPanel.sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 80; margin: 0 !important; max-height: 88vh; overflow-y: auto; border-radius: 22px 22px 0 0;
+  padding: 16px 16px calc(18px + env(safe-area-inset-bottom)); box-shadow: 0 -18px 50px rgba(10, 20, 40, .25); animation: sheetUp .28s cubic-bezier(.2, .8, .25, 1); background: var(--surface, var(--card, #fff)); }
+#ingestPanel.sheet .ip-x { display: block; }
+#ingestPanel.sheet textarea { min-height: 150px; font-size: 16px; }
+#ingestPanel.sheet .ingest-row { flex-wrap: wrap; gap: 8px; }
+#ingestPanel.sheet .ingest-row .spacer { display: none; }
+#ingestPanel.sheet #ingestStatus { flex-basis: 100%; order: 9; }
+#ingestVeil { position: fixed; inset: 0; z-index: 79; background: rgba(8, 20, 40, .42); display: none; }
+#ingestVeil.open { display: block; }
+html.ingest-open #addBtn, html.ingest-open #lao { display: none !important; }
+html.ingest-open body { overflow: hidden; }
+@keyframes sheetUp { from { transform: translateY(40%); opacity: .5; } }

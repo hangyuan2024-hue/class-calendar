@@ -27,6 +27,7 @@
 <link rel="stylesheet" href="studio-v2.css?v=20261008-org1">
 <link rel="stylesheet" href="org.css?v=20261008-org1">
 <link rel="stylesheet" href="auth-polish.css?v=20261008-org1">
+<link rel="stylesheet" href="home-v6.css?v=20261015-v560">
 <style>
   .agree { display: flex; align-items: flex-start; gap: 8px; margin: 14px 2px 0; font-size: 13px; line-height: 1.6; color: var(--sub, #687d97); cursor: pointer; }
   .agree input { flex: none; width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--accent, #3b4ee0); cursor: pointer; }
@@ -80,7 +81,7 @@
 <a class="s-skip" href="#main">跳到主要内容</a>
 <header class="s-header">
   <a class="s-brand" href="app.html" aria-label="捞捞课程表首页"><span class="s-brand-icon"><img src="favicon.svg" alt=""></span><span>捞捞<span class="s-brand-sub">校园学习伙伴</span></span></a>
-  <nav class="s-nav" aria-label="网站导航"><a href="#features">功能亮点</a><a href="#how">怎么使用</a><a href="#get">多端下载</a><a href="#faq">常见问题</a></nav>
+  <nav class="s-nav" aria-label="网站导航"><a href="#showcase">作品展映</a><a href="#products">两大板块</a><a href="#team">团队</a><a href="#open">开源共建</a><a href="#get">下载</a></nav>
   <div class="s-header-actions"><a class="s-login-link" href="#login" data-login-focus>登录</a><a class="s-button s-button-small" href="index.html?guest=1">进入工作台 <span aria-hidden="true">↗</span></a></div>
 </header>
 <main id="main">
@@ -88,7 +89,7 @@
   <div class="s-hero-copy">
     <div class="s-eyebrow"><span class="s-dot"></span> LAOLAO CAMPUS <span class="s-eyebrow-line"></span> 把日子，过得有条理</div>
     <h1 id="hero-title">校园的每一天，<br>都有<span class="s-underline">自己的节奏<svg viewBox="0 0 420 16" preserveAspectRatio="none" aria-hidden="true"><path d="M4 11 Q180 -2 415 8" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round"/></svg></span>。</h1>
-    <p class="s-hero-lead">课表、作业、班级消息，还有你的小目标。<br>让重要的事井井有条，把更多时间留给热爱。</p>
+    <p class="s-hero-lead"><b>捞捞课程表</b>管好课表、作业和班级消息，<b>捞捞思维导图</b>理清每一门课。<br>让重要的事井井有条，把更多时间留给热爱。</p>
     <div class="s-hero-actions"><a class="s-button" href="index.html?guest=1">开始我的校园日常 <span aria-hidden="true">↗</span></a><a class="s-text-link" href="#features">认识一下捞捞 <span aria-hidden="true">↓</span></a></div>
     <div class="s-hero-notes"><span><svg aria-hidden="true" viewBox="0 0 16 16"><path d="m3 8 3 3 7-7"/></svg>免登录也能先体验</span><span><svg aria-hidden="true" viewBox="0 0 16 16"><path d="m3 8 3 3 7-7"/></svg>手机和电脑都能用</span></div>
     <div class="s-hero-bottom"><span class="s-mini-avatar"><svg viewBox="0 0 120 120" aria-hidden="true"><use href="#mascotArt"/></svg></span><p>嗨，我是捞捞。<br><b>今天，也陪你认真生活。</b></p><svg class="s-hand-arrow" viewBox="0 0 80 48" aria-hidden="true"><path d="M4 9 Q40 3 51 35 Q58 47 73 29 M58 28l16 0-4 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
@@ -132,8 +133,72 @@
 </section>
 <div class="s-platform-strip"><span>你的校园日常，随时接得上</span><div><span>◉ 网页版</span><span>▯ 安卓 App</span><span>▣ Windows 电脑版</span></div><a href="#get">选择适合你的方式 <span aria-hidden="true">↗</span></a></div>
 
+<!-- ===== 5.6.0 首页：作品展映 / 两大板块 / 团队 / 开源共建（内容在 site-config.js 里改） ===== -->
+<section class="h6-show" id="showcase" aria-labelledby="show-title">
+  <div class="h6-show-head"><div><span class="s-kicker">00 / SHOWCASE</span><h2 id="show-title">看看捞捞，<span>能帮你做什么。</span></h2></div><p>团队作品与功能介绍，自动循环播放。<br>点左右箭头或下面的小圆点切换。</p></div>
+  <div class="h6-stage" id="h6Stage" tabindex="0" aria-roledescription="轮播" aria-label="作品展映">
+    <div class="h6-track" id="h6Track"></div>
+    <button class="h6-nav prev" id="h6Prev" type="button" aria-label="上一个">‹</button>
+    <button class="h6-nav next" id="h6Next" type="button" aria-label="下一个">›</button>
+    <div class="h6-bar"><div class="h6-dots" id="h6Dots" role="tablist" aria-label="选择作品"></div><button class="h6-pause" id="h6Pause" type="button" aria-label="暂停自动播放">❚❚</button></div>
+  </div>
+</section>
+
+<section class="s-section h6-products" id="products" aria-labelledby="prod-title">
+  <div class="s-section-head"><div><span class="s-kicker">01 / TWO SPACES</span><h2 id="prod-title">一个账号，<br>两个<span>板块。</span></h2></div><p>日常安排交给捞捞课程表，<br>学习思考交给捞捞思维导图。各管各的，数据互通。</p></div>
+  <div class="h6-prod-grid">
+    <article class="h6-prod h6-prod-cal">
+      <div class="h6-prod-top"><span class="h6-prod-ic">▦</span><div><small>LAOLAO SCHEDULE</small><h3>捞捞课程表</h3></div><span class="h6-badge ok">已上线</span></div>
+      <p class="h6-prod-lead">课表、作业、班级消息放在一起，快到时间提醒你。</p>
+      <ul class="h6-prod-list">
+        <li><b>课程表</b>拍照 / 截图识别，一键发布到班级，保存成图片发群里</li>
+        <li><b>AI 整理</b>粘贴群消息或直接选聊天截图，整理成带时间地点的事项</li>
+        <li><b>提醒</b>微信服务通知、手机日历订阅，提醒方式自己选</li>
+        <li><b>班级</b>班级墙、班级通知、作业清单，班委和老师一起管</li>
+      </ul>
+      <div class="h6-prod-act"><a class="s-button" href="index.html?guest=1">打开捞捞课程表 <span aria-hidden="true">↗</span></a><span class="h6-prod-where">网页 · 安卓 · Windows · 微信小程序（测试中）</span></div>
+    </article>
+    <article class="h6-prod h6-prod-mm">
+      <div class="h6-prod-top"><span class="h6-prod-ic">✺</span><div><small>LAOLAO MIND MAP</small><h3>捞捞思维导图</h3></div><span class="h6-badge wip">基本功能已完成 · 本地化进行中</span></div>
+      <p class="h6-prod-lead">把一门课、一个问题、一份计划，画成一张清清楚楚的图。</p>
+      <ul class="h6-prod-list">
+        <li><b>快速生成</b>粘贴 AI 回答、Markdown 或缩进笔记，直接变成导图</li>
+        <li><b>三种结构</b>思维导图 / 逻辑图 / 组织结构图，四套主题随手换</li>
+        <li><b>好用的编辑</b>Tab 加子主题、拖动换位置、标记重点和易错、大纲视图</li>
+        <li><b>导出与同步</b>导出图片和 Markdown；登录后多台设备同步</li>
+      </ul>
+      <div class="h6-mm-preview" aria-hidden="true"><span class="r">高等数学</span><svg viewBox="0 0 60 92" preserveAspectRatio="none"><path d="M0 46 C30 46 30 14 60 14 M0 46 H60 M0 46 C30 46 30 78 60 78" fill="none" stroke="#e8d6c3" stroke-width="2" vector-effect="non-scaling-stroke"/></svg><div class="kids"><span class="a">函数与极限</span><span class="b">导数 ⭐</span><span class="c">积分 ⚠️</span></div></div>
+      <div class="h6-prod-act"><a class="s-button s-button-ink" href="index.html?guest=1#mindmap">打开捞捞思维导图 <span aria-hidden="true">↗</span></a><span class="h6-prod-where">正在做：离线可用、数据优先存在你的设备</span></div>
+    </article>
+  </div>
+</section>
+
+<section class="s-section h6-team" id="team" aria-labelledby="team-title">
+  <div class="s-section-head"><div><span class="s-kicker">02 / THE TEAM</span><h2 id="team-title">认识一下，<br><span id="h6TeamName">捞捞团队</span>。</h2></div><p id="h6TeamSlogan">认真生活，也自在生长。</p></div>
+  <div class="h6-team-grid">
+    <div class="h6-team-story"><p id="h6TeamStory"></p>
+      <div class="h6-sys" aria-label="系统构成">
+        <div class="h6-sys-row"><span>🌐 网页版</span><span>🤖 安卓 App</span><span>🖥 Windows</span><span>💬 微信小程序</span></div>
+        <div class="h6-sys-arrow" aria-hidden="true">↕ 同一个账号，数据实时同步</div>
+        <div class="h6-sys-row core"><span>☁ 云端数据库 · 设备安全管理</span><span>🔍 课表 / 截图识别服务</span></div>
+        <div class="h6-sys-arrow" aria-hidden="true">↕</div>
+        <div class="h6-sys-row local"><span>📱 本地整理规则：群消息在你的设备上整理，不必交给大模型</span></div>
+      </div>
+    </div>
+    <div class="h6-team-cards" id="h6TeamCards"></div>
+  </div>
+</section>
+
+<section class="h6-open" id="open" aria-labelledby="open-title">
+  <div class="h6-open-copy"><span class="s-kicker">03 / OPEN SOURCE</span><h2 id="open-title">开源共建，<br>欢迎<span>各高校开发者</span>加入。</h2>
+    <p>捞捞会逐步开放源代码。不论你会写代码、做设计、写文档，还是只是有个好点子——都欢迎来一起把它做得更好。贡献者会在项目里署名。</p>
+    <div class="h6-open-act"><a class="s-button" href="join.html">我想参加 <span aria-hidden="true">↗</span></a><a class="s-text-link h6-repo" id="h6Repo" href="join.html#repo">开源仓库 · 即将开放</a></div>
+  </div>
+  <ul class="h6-open-tags" aria-label="正在招募的方向"><li>思维导图本地化</li><li>微信小程序</li><li>课表 / 截图识别</li><li>群消息整理规则</li><li>界面与插画</li><li>测试与校园推广</li></ul>
+</section>
+
 <section class="s-section s-features" id="features" aria-labelledby="features-title">
-  <div class="s-section-head"><div><span class="s-kicker">01 / EVERYDAY ESSENTIALS</span><h2 id="features-title">重要的事，<br>都在一个<span>地方。</span></h2></div><p>从早八到晚自习，从课堂到自己的小世界。<br>少一点来回寻找，多一点从容安排。</p></div>
+  <div class="s-section-head"><div><span class="s-kicker">04 / EVERYDAY ESSENTIALS</span><h2 id="features-title">重要的事，<br>都在一个<span>地方。</span></h2></div><p>从早八到晚自习，从课堂到自己的小世界。<br>少一点来回寻找，多一点从容安排。</p></div>
   <div class="s-feature-grid">
     <article class="s-feature s-feature-schedule"><div class="s-feature-top"><span class="s-feature-icon">▦</span><span>01</span></div><h3>下一节课，<br>一眼就找到。</h3><p>课程、时间、教室集中查看。支持课表导入，把整个学期安排得明明白白。</p><div class="s-feature-mini"><div class="s-mini-row"><span>08:30</span><b>高等数学<small>A302 · 课程示例</small></b><i>上课</i></div><div class="s-mini-row muted"><span>10:20</span><b>大学英语<small>B105 · 课程示例</small></b></div></div></article>
     <article class="s-feature s-feature-todo"><div class="s-feature-top"><span class="s-feature-icon">✓</span><span>02</span></div><h3>每一个截止，<br>都有着落。</h3><p>作业、活动和个人事项整理成日程。完成后轻轻勾选，心里也轻一点。</p><div class="s-paper-task"><span>TO DO, THEN LET GO.</span><div><i>✓</i><b>给今天的任务画上句号</b></div><div class="muted"><i></i><b>为明天留一点准备</b></div></div></article>
@@ -143,18 +208,18 @@
 </section>
 
 <section class="s-story" id="more" aria-labelledby="story-title">
- <div class="s-story-copy"><span class="s-kicker">02 / MAKE ROOM FOR WHAT MATTERS</span><h2 id="story-title">群消息再多，<br>要紧的事<span>不漏掉。</span></h2><p>把群里的作业、通知和活动整理进日历。<br>信息有了位置，你也有了更多自己的时间。</p><a class="s-button s-button-ink" href="index.html?guest=1">体验日程整理 <span aria-hidden="true">↗</span></a><small>整理结果需要核对，以老师与班级通知为准。</small></div>
+ <div class="s-story-copy"><span class="s-kicker">05 / MAKE ROOM FOR WHAT MATTERS</span><h2 id="story-title">群消息再多，<br>要紧的事<span>不漏掉。</span></h2><p>把群里的作业、通知和活动整理进日历。<br>信息有了位置，你也有了更多自己的时间。</p><a class="s-button s-button-ink" href="index.html?guest=1">体验日程整理 <span aria-hidden="true">↗</span></a><small>整理结果需要核对，以老师与班级通知为准。</small></div>
  <div class="s-story-visual" aria-label="群消息整理功能示意"><div class="s-message-stack"><div class="s-message s-message-soft"><span>同学</span><p>晚上有人一起去图书馆吗？</p></div><div class="s-message"><span class="s-msg-avatar">学</span><div><b>学习委员 <small>14:20</small></b><p>高数第三章习题，周五 22:00 前提交。</p></div></div><div class="s-message s-message-soft"><span>同学</span><p>收到，谢谢！</p></div></div><div class="s-story-arrow" aria-hidden="true">↓</div><div class="s-organized"><span class="s-organized-icon">✓</span><div><small>整理后的事项 · 示例</small><b>高数第三章习题</b><span>周五 22:00 截止 <i>作业</i></span></div><span class="s-organized-star" aria-hidden="true">✦</span></div></div>
 </section>
 
-<section class="s-section s-how" id="how" aria-labelledby="how-title"><div class="s-section-head"><div><span class="s-kicker">03 / A SIMPLE START</span><h2 id="how-title">三步，进入<span>你的节奏。</span></h2></div><a class="s-text-link" href="#login" data-login-focus>创建我的账号 <span aria-hidden="true">↗</span></a></div><ol class="s-steps"><li><span>01</span><h3>先认识你的工作台</h3><p>无需登录，也可以体验个人事项、规划和工具，找到适合你的用法。</p></li><li><span>02</span><h3>装下课表和班级</h3><p>注册后导入课表，使用班级码加入班级，把大家的重要安排放在一起。</p></li><li><span>03</span><h3>每天，轻松打开</h3><p>查看下一节课，完成手头的事。手机和电脑登录同一账号，接着用。</p></li></ol></section>
+<section class="s-section s-how" id="how" aria-labelledby="how-title"><div class="s-section-head"><div><span class="s-kicker">06 / A SIMPLE START</span><h2 id="how-title">三步，进入<span>你的节奏。</span></h2></div><a class="s-text-link" href="#login" data-login-focus>创建我的账号 <span aria-hidden="true">↗</span></a></div><ol class="s-steps"><li><span>01</span><h3>先认识你的工作台</h3><p>无需登录，也可以体验个人事项、规划和工具，找到适合你的用法。</p></li><li><span>02</span><h3>装下课表和班级</h3><p>注册后导入课表，使用班级码加入班级，把大家的重要安排放在一起。</p></li><li><span>03</span><h3>每天，轻松打开</h3><p>查看下一节课，完成手头的事。手机和电脑登录同一账号，接着用。</p></li></ol></section>
 
 <section class="s-download" id="get" aria-labelledby="download-title">
- <div class="s-download-head"><div><span class="s-kicker">04 / ALWAYS WITH YOU</span><h2 id="download-title">换个屏幕，<br>也接得上你的日常。</h2></div><p>在教室，在图书馆，在回宿舍的路上。<br>选择你常用的设备，让捞捞跟着你。</p></div>
+ <div class="s-download-head"><div><span class="s-kicker">07 / ALWAYS WITH YOU</span><h2 id="download-title">换个屏幕，<br>也接得上你的日常。</h2></div><p>在教室，在图书馆，在回宿舍的路上。<br>选择你常用的设备，让捞捞跟着你。</p></div>
  <div class="s-download-grid">
   <article class="s-download-card"><span class="s-device-icon" aria-hidden="true">▯</span><span class="s-device-tag">ANDROID</span><h3>口袋里的校园伙伴</h3><p>随手查看课程与事项，接收时间提醒。</p><a class="s-button get" id="getApk" data-get="apk" href="download/class-calendar.apk" download><span data-lbl>下载安卓 App</span><span aria-hidden="true">↓</span></a><small class="meta" data-meta="getApk">安卓 7.0 及以上</small><div class="s-qr qr" data-qr hidden><img src="download/qr.svg" alt="安卓客户端下载页面二维码"><span>用手机扫码<br>打开下载页</span></div><p class="after" data-after aria-live="polite"></p></article>
   <article class="s-download-card"><span class="s-device-icon desktop" aria-hidden="true">▣</span><span class="s-device-tag">WINDOWS</span><h3>桌面上的学习空间</h3><p>大屏整理安排，配合桌面提醒与 AI 助手。</p><a class="s-button get" id="getExe" data-get="exe" href="https://github.com/hangyuan2024-hue/class-calendar/releases/latest/download/LaolaoKechengbiao-Setup.exe"><span data-lbl>下载 Windows 电脑版</span><span aria-hidden="true">↓</span></a><small class="meta" data-meta="getExe">Windows 10 / 11 · 64 位</small><p class="after" data-after aria-live="polite"></p></article>
-  <article class="s-download-card s-web-card"><span class="s-device-icon" aria-hidden="true">◎</span><span class="s-device-tag">WEB</span><h3>打开浏览器，就在</h3><p>苹果手机、Mac 或其他设备，都可以使用网页版。</p><a class="s-button s-button-outline" href="index.html?guest=1">打开网页版 <span aria-hidden="true">↗</span></a><small>iPhone 可通过 Safari 添加到主屏幕</small><span class="s-coming"><i></i> 微信小程序正在开发，敬请期待</span></article>
+  <article class="s-download-card s-web-card"><span class="s-device-icon" aria-hidden="true">◎</span><span class="s-device-tag">WEB</span><h3>打开浏览器，就在</h3><p>苹果手机、Mac 或其他设备，都可以使用网页版。</p><a class="s-button s-button-outline" href="index.html?guest=1">打开网页版 <span aria-hidden="true">↗</span></a><small>iPhone 可通过 Safari 添加到主屏幕</small><span class="s-coming"><i></i> 微信小程序测试中，即将全面开放</span></article>
  </div>
 </section>
 
@@ -164,7 +229,7 @@
  <details><summary>苹果手机和 Mac 也可以使用吗？<span aria-hidden="true">+</span></summary><p>可以使用网页版。iPhone 用 Safari 打开后，点击分享，再选择「添加到主屏幕」。目前独立桌面软件支持 Windows，安卓手机有 App。</p></details>
  <details><summary>安卓安装包在微信里无法下载怎么办？<span aria-hidden="true">+</span></summary><p>点击微信右上角「···」，选择「在浏览器打开」，然后下载安卓安装包。安装时如提示未知来源，请按照系统提示选择是否允许安装。</p></details>
  <details><summary>课程和通知的整理结果需要核对吗？<span aria-hidden="true">+</span></summary><p>需要。日程整理用于帮助你提取重要信息，时间、教室和作业要求仍应以老师发布的内容为准，确认后再保存。</p></details>
- <details><summary>微信小程序已经上线了吗？<span aria-hidden="true">+</span></summary><p>当前项目页面显示小程序正在开发。上线后会在下载页提供明确的入口，目前可以先使用网页版或安卓 App。</p></details>
+ <details><summary>微信小程序已经上线了吗？<span aria-hidden="true">+</span></summary><p>小程序正在测试，和网页版用同一个账号、数据互通。全面开放后在微信里搜索「捞捞课程表」就能打开，现在可以先用网页版或安卓 App。</p></details>
  </div></section>
 
 <section class="lgtop s-login-section" id="login" aria-labelledby="stageTitle">
@@ -265,7 +330,7 @@
 </div>
 </section>
 </main>
-<footer class="s-footer"><a class="s-brand" href="app.html"><span class="s-brand-icon"><img src="favicon.svg" alt=""></span><span>捞捞<span class="s-brand-sub">认真生活，也自在生长。</span></span></a><p>LAOLAO CAMPUS · 你的校园学习伙伴</p><div><a href="index.html?guest=1">工作台 ↗</a><a href="download/">下载客户端</a><a href="#login" data-login-focus>账号登录</a></div></footer>
+<footer class="s-footer"><a class="s-brand" href="app.html"><span class="s-brand-icon"><img src="favicon.svg" alt=""></span><span>捞捞<span class="s-brand-sub">认真生活，也自在生长。</span></span></a><p>LAOLAO CAMPUS · 你的校园学习伙伴</p><div><a href="index.html?guest=1">工作台 ↗</a><a href="download/">下载客户端</a><a href="join.html">开发者招募</a><a href="#login" data-login-focus>账号登录</a></div></footer>
 <div id="wx" role="dialog" aria-modal="true" aria-label="请在浏览器打开"><button class="s-wx-close" type="button">关闭提示 ×</button>
   <svg viewBox="0 0 120 120" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M20 110 C 40 60, 70 40, 104 16"/><path d="M84 14 L106 14 L100 36"/></svg>
   <p>微信里不能直接下载<br>点右上角 <b>···</b><br>选 <b>在浏览器打开</b></p>
@@ -288,5 +353,7 @@
 <script src="login.js?v=20261010-fix1"></script>
 <script src="get.js?v=20261012-release1"></script>
 <script src="landing-v2.js?v=20261005-studio2"></script>
+<script src="site-config.js?v=20261015-v560"></script>
+<script src="home-v6.js?v=20261015-v560"></script>
 </body>
 </html>
