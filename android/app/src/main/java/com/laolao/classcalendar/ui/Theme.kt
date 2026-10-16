@@ -27,6 +27,28 @@ val PALETTES = listOf(
     Palette("navy", "学院蓝", Color(0xFF2457D6), Color(0xFFFFB020), Color(0xFFF4F7FF), Color(0xFFD6E2FF)),
 )
 
+/** App 里选的配色；选「跟网站一致」时读网站同步过来的 ui_palette_v1（{id, p, s}，也兼容旧的纯字符串） */
+fun paletteFor(repo: com.laolao.classcalendar.data.Repo): Palette {
+    val palId = repo.pref("palette", "web")
+    if (palId != "web") return PALETTES.firstOrNull { it.id == palId } ?: PALETTES[0]
+    val raw = repo.s.get("ui_palette_v1")
+    val o = raw as? org.json.JSONObject
+    val id = o?.optString("id") ?: raw?.toString().orEmpty()
+    PALETTES.firstOrNull { it.id == id }?.let { return it }
+    val p = hexColor(o?.optString("p").orEmpty()) ?: return PALETTES[0]
+    val s = hexColor(o?.optString("s").orEmpty()) ?: PALETTES[0].accent2
+    // 自定义颜色：背景和浅色块由主色调淡得到
+    fun mix(c: Color, t: Float) = Color(c.red * t + (1 - t), c.green * t + (1 - t), c.blue * t + (1 - t), 1f)
+    return Palette("web", "跟网站一致", p, s, mix(p, .05f), mix(p, .2f))
+}
+
+fun hexColor(h: String): Color? {
+    val t = h.trim().removePrefix("#")
+    if (t.length != 6) return null
+    val v = t.toLongOrNull(16) ?: return null
+    return Color(0xFF000000 or v)
+}
+
 data class LaoColors(val accent: Color, val accent2: Color, val bg: Color, val tint: Color, val card: Color, val line: Color, val ink: Color, val muted: Color, val dark: Boolean)
 
 val LocalLao = staticCompositionLocalOf { LaoColors(Color(0xFF1E8CFF), Color(0xFFFF7B2E), Color(0xFFF3FBFF), Color(0xFFCDEEFF), Color.White, Color(0xFFDFE9F3), Color(0xFF14202E), Color(0xFF6B7A90), false) }

@@ -83,12 +83,7 @@ fun TodosScreen() {
     val repo = LocalRepo.current; LocalTick.current
     var showDone by remember { mutableStateOf(false) }
     var edit by remember { mutableStateOf<AgendaItem?>(null) }
-    val marks = repo.marks()
-    val all = (repo.personal().map { it to Kind.EVENT } + repo.classItems().map { it to Kind.CLASS }).mapNotNull { (e, k) ->
-        val (d, t) = parseEventTime(e.optString("event_time")) ?: (LocalDate.now() to null)
-        AgendaItem(e.optString("id"), k, e.optString("subject").ifBlank { "未命名事项" }, d, t, null, e.optString("location"), e.optString("note"),
-            marks.optJSONObject(e.optString("id"))?.optBoolean("done") == true)
-    }.sortedWith(compareBy({ it.date }, { it.start ?: Int.MAX_VALUE }))
+    val all = repo.allItems().sortedWith(compareBy({ it.date }, { it.start ?: Int.MAX_VALUE }))
     val list = all.filter { showDone || !it.done }
     LazyColumn(contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 96.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
@@ -99,11 +94,18 @@ fun TodosScreen() {
         }
         if (list.isEmpty()) item { Card0 { Empty("没有待办", "点右下角 + 新建") } }
         list.groupBy { it.date }.forEach { (d, rows) ->
-            item { SectionTitle(if (d == LocalDate.now()) "今天" else "${d.monthValue}月${d.dayOfMonth}日 ${WEEKDAYS[d.dayOfWeek.value - 1]}") }
+            item(key = "h$d") { SectionTitle(dayTitle(d)) }
             items(rows, key = { it.id + it.kind }) { a -> AgendaRow(a, false) { edit = a } }
         }
     }
     edit?.let { a -> if (a.kind == Kind.EVENT) EventEditor(a) { edit = null } else ItemDetail(a) { edit = null } }
+}
+
+fun dayTitle(d: LocalDate): String = when (d) {
+    LocalDate.MAX -> "未定日期"
+    LocalDate.now() -> "今天"
+    LocalDate.now().plusDays(1) -> "明天"
+    else -> "${d.monthValue}月${d.dayOfMonth}日 ${WEEKDAYS[d.dayOfWeek.value - 1]}"
 }
 
 @Composable
@@ -127,35 +129,57 @@ fun CountdownScreen() {
     }
 }
 
-/** Create / edit a personal event (synced to website & mini program via personal_events_v1). */
+/** 新建 / 编辑自己的事项（和网站、小程序同步：personal_events_v1）。日期时间用系统的选择器，不用手打 */
 @Composable
-fun EventEditor(item: AgendaItem?, onClose: () -> Unit) {
+fun EventEditor(item: AgendaItem?, homework: Boolean = false, onClose: () -> Unit) {
     val repo = LocalRepo.current
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     var title by remember { mutableStateOf(item?.title ?: "") }
-    var date by remember { mutableStateOf((item?.date ?: LocalDate.now()).toString()) }
+    var date by remember { mutableStateOf<LocalDate?>(if (item == null) LocalDate.now() else item.date.takeIf { it != LocalDate.MAX }) }
     var time by remember { mutableStateOf(item?.start?.let { com.laolao.classcalendar.model.fmt(it) } ?: "") }
     var place by remember { mutableStateOf(item?.place ?: "") }
     var note by remember { mutableStateOf(item?.note ?: "") }
+    var hw by remember { mutableStateOf(item?.isHomework ?: homework) }
     var err by remember { mutableStateOf<String?>(null) }
-    AlertDialog(onDismissRequest = onClose, title = { Text(if (item == null) "新建待办 / 日程" else "编辑事项") },
+    fun pickDate() {
+        val d = date ?: LocalDate.now()
+        android.app.DatePickerDialog(ctx, { _, y, m, dd -> date = LocalDate.of(y, m + 1, dd) }, d.year, d.monthValue - 1, d.dayOfMonth).show()
+    }
+    fun pickTime() {
+        val m = parseHm(time) ?: (8 * 60)
+        android.app.TimePickerDialog(ctx, { _, h, mi -> time = "%02d:%02d".format(h, mi) }, m / 60, m % 60, true).show()
+    }
+    AlertDialog(onDismissRequest = onClose, title = { Text(if (item == null) (if (homework) "记一项作业" else "新建待办 / 日程") else "编辑事项") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                OutlinedTextField(title, { title = it.take(60) }, label = { Text("事项名称") }, singleLine = true)
-                OutlinedTextField(date, { date = it }, label = { Text("日期（例 2026-10-13）") }, singleLine = true)
-                OutlinedTextField(time, { time = it }, label = { Text("时间（例 14:30，可空=全天）") }, singleLine = true)
+                OutlinedTextField(title, { title = it.take(60) }, label = { Text(if (hw) "作业内容" else "事项名称") }, singleLine = true)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedButton({ pickDate() }, Modifier.weight(1.3f)) {
+                        Text(date?.let { "${it.monthValue}月${it.dayOfMonth}日 ${WEEKDAYS[it.dayOfWeek.value - 1]}" } ?: "选日期", maxLines = 1)
+                    }
+                    OutlinedButton({ pickTime() }, Modifier.weight(1f)) { Text(time.ifBlank { "全天" }, maxLines = 1) }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("今天" to 0L, "明天" to 1L, "后天" to 2L).forEach { (l, n) ->
+                        AssistChip({ date = LocalDate.now().plusDays(n) }, { Text(l, fontSize = 12.sp) })
+                    }
+                    if (time.isNotBlank()) AssistChip({ time = "" }, { Text("改成全天", fontSize = 12.sp) })
+                    if (date != null) AssistChip({ date = null; time = "" }, { Text("不定日期", fontSize = 12.sp) })
+                }
                 OutlinedTextField(place, { place = it.take(40) }, label = { Text("地点（可选）") }, singleLine = true)
                 OutlinedTextField(note, { note = it.take(300) }, label = { Text("备注（可选）") })
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(hw, { hw = it })
+                    Text("这是作业（截止前提醒，显示在作业页）", fontSize = 13.sp)
+                }
                 err?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
             }
         },
         confirmButton = {
             TextButton({
-                val d = runCatching { LocalDate.parse(date.trim()) }.getOrNull()
                 when {
-                    title.isBlank() -> err = "请填写事项名称"
-                    d == null -> err = "日期格式应为 2026-10-13"
-                    time.isNotBlank() && parseHm(time) == null -> err = "时间格式应为 14:30"
-                    else -> { repo.saveEvent(item?.id, title, d, time.trim(), place, note); com.laolao.classcalendar.work.Reminders.schedule(repo.api.let { com.laolao.classcalendar.LaoApp.instance }); onClose() }
+                    title.isBlank() -> err = "请填写" + (if (hw) "作业内容" else "事项名称")
+                    else -> { repo.saveEvent(item?.id, title, date, if (date == null) "" else time.trim(), place, note, homework = hw); onClose() }
                 }
             }) { Text("保存") }
         },

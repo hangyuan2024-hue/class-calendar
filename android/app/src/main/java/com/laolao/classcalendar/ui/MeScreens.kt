@@ -63,6 +63,8 @@ fun MeScreen() {
                 }
             }
         }
+        item { MenuRow(Icons.Rounded.Widgets, "桌面小组件", "今天的课、下节课倒计时、作业清单、一键记事") { nav.navigate("widgets") } }
+        item { MenuRow(Icons.Rounded.Apps, "工具箱", "番茄专注、倒数日、课程表、导入备忘录、拍课表") { nav.navigate("tools") } }
         item { MenuRow(Icons.Rounded.Shield, "账号与安全", "登录设备、退出登录") { nav.navigate("account") } }
         item { MenuRow(Icons.Rounded.Devices, "登录设备", "查看已登录的设备，踢出其他设备") { nav.navigate("devices") } }
         item { MenuRow(Icons.Rounded.Palette, "外观与配色", "跟随网站配色或自选，深色模式") { nav.navigate("appearance") } }
@@ -191,6 +193,9 @@ fun PermissionsScreen() {
     val c = LocalLao.current
     val repo = LocalRepo.current
     var on by remember { mutableStateOf(repo.pref("remind", "on") == "on") }
+    var hwOn by remember { mutableStateOf(repo.pref("remind_hw", "on") == "on") }
+    var newsOn by remember { mutableStateOf(repo.pref("notify_news", "on") == "on") }
+    var lead by remember { mutableStateOf(repo.pref("remind_lead", "10")) }
     var tick by remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) { while (true) { delay(2000); tick++ } }
     tick
@@ -204,9 +209,30 @@ fun PermissionsScreen() {
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
             Card0 {
+                Text("这些提醒都由手机系统按时弹出：App 没打开、被划掉、手机重启后都照样会响。", fontSize = 12.sp, color = c.muted)
+                Spacer(Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("开始前 10 分钟提醒", modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
-                    Switch(on, { on = it; repo.setPref("remind", if (it) "on" else "off"); if (it) Reminders.schedule(ctx) })
+                    Text("上课 / 日程开始前提醒", modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+                    Switch(on, { on = it; repo.setPref("remind", if (it) "on" else "off"); Reminders.schedule(ctx) })
+                }
+                if (on) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("5", "10", "15", "30").forEach { m ->
+                        FilterChip(lead == m, { lead = m; repo.setPref("remind_lead", m); Reminders.schedule(ctx) }, label = { Text("提前${m}分", fontSize = 12.sp) })
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("作业截止提醒", fontWeight = FontWeight.SemiBold)
+                        Text("前一天 20:00、截止前 1 小时；通知上能直接点「完成」", fontSize = 12.sp, color = c.muted)
+                    }
+                    Switch(hwOn, { hwOn = it; repo.setPref("remind_hw", if (it) "on" else "off"); Reminders.schedule(ctx) })
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("班级新消息通知", fontWeight = FontWeight.SemiBold)
+                        Text("老师、班委发了新作业或通知时提醒（后台约 15 分钟检查一次）", fontSize = 12.sp, color = c.muted)
+                    }
+                    Switch(newsOn, { newsOn = it; repo.setPref("notify_news", if (it) "on" else "off") })
                 }
             }
         }
@@ -264,11 +290,12 @@ fun ToolsScreen() {
     val native = listOf(
         Tool("课程表", Icons.Rounded.TableChart, "courses", "周视图、添加课程"), Tool("全部待办", Icons.Rounded.Checklist, "todos", "个人与班级事项"),
         Tool("番茄专注", Icons.Rounded.Timer, "pomodoro", "25 分钟专注"), Tool("倒数日", Icons.Rounded.HourglassBottom, "countdown", "重要日子倒计时"),
-        Tool("班级排行", Icons.Rounded.Leaderboard, "rank", "成长值排行"), Tool("校园共建者", Icons.Rounded.Favorite, "credits", "贡献名单"),
+        Tool("拍课表导入", Icons.Rounded.PhotoCamera, "course_import", "截图自动认出课程"), Tool("导入备忘录", Icons.Rounded.ContentPaste, "memo", "一段文字变成待办"),
+        Tool("班级排行", Icons.Rounded.Leaderboard, "rank", "成长值排行"), Tool("桌面小组件", Icons.Rounded.Widgets, "widgets", "放到桌面随时看"),
+        Tool("校园共建者", Icons.Rounded.Favorite, "credits", "贡献名单"),
     )
     val web = listOf("思维导图", "局域网传输", "课内学习", "记账", "日记", "习惯打卡", "四象限", "AI 助手")
     LazyColumn(contentPadding = PaddingValues(16.dp, 12.dp, 16.dp, 40.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item { Text("工具", style = MaterialTheme.typography.headlineMedium) }
         native.chunked(2).forEach { row ->
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {

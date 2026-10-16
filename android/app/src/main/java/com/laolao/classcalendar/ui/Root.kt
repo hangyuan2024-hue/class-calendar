@@ -29,14 +29,15 @@ val LocalSnack = staticCompositionLocalOf<(String) -> Unit> { {} }
 
 data class Tab(val route: String, val label: String, val icon: ImageVector)
 val TABS = listOf(
-    Tab("home", "首页", Icons.Rounded.Home), Tab("calendar", "日历", Icons.Rounded.CalendarMonth),
-    Tab("class", "班级", Icons.Rounded.Groups), Tab("tools", "工具", Icons.Rounded.Apps), Tab("me", "我的", Icons.Rounded.Person),
+    Tab("home", "首页", Icons.Rounded.Home), Tab("homework", "作业", Icons.Rounded.AssignmentTurnedIn),
+    Tab("calendar", "日历", Icons.Rounded.CalendarMonth), Tab("class", "班级", Icons.Rounded.Groups), Tab("me", "我的", Icons.Rounded.Person),
 )
 
 val TITLES = mapOf(
     "courses" to "课程表", "todos" to "全部待办", "devices" to "登录设备", "appearance" to "外观与配色",
     "sync" to "数据与同步", "permissions" to "提醒与后台", "pomodoro" to "番茄专注", "countdown" to "倒数日",
     "credits" to "校园共建者", "rank" to "班级排行榜", "about" to "关于捞捞课程表", "account" to "账号与安全",
+    "tools" to "工具箱", "memo" to "导入备忘录", "course_import" to "拍课表导入", "widgets" to "桌面小组件与快捷入口",
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -46,9 +47,7 @@ fun LaoRoot(repo: Repo) {
     val tick by store.version.collectAsState()
     val logged by repo.logged.collectAsState()
     val error by repo.error.collectAsState()
-    val palId = repo.pref("palette", "web")
-    val webPal = store.get("ui_palette_v1")?.toString().orEmpty()
-    val palette = PALETTES.firstOrNull { it.id == if (palId == "web") webPal else palId } ?: PALETTES[0]
+    val palette = remember(tick) { paletteFor(repo) }
     val snack = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     LaunchedEffect(error) { error?.let { snack.showSnackbar(it); repo.clearError() } }
@@ -61,6 +60,16 @@ fun LaoRoot(repo: Repo) {
             val entry by nav.currentBackStackEntryAsState()
             val route = entry?.destination?.route ?: "home"
             val isTab = TABS.any { it.route == route }
+            // 小组件、通知、快捷方式、分享进来的页面
+            val pending by com.laolao.classcalendar.LaoApp.pendingRoute.collectAsState()
+            LaunchedEffect(pending) {
+                val target = pending ?: return@LaunchedEffect
+                com.laolao.classcalendar.LaoApp.pendingRoute.value = null
+                val known = TABS.any { it.route == target } || target in TITLES
+                if (known) runCatching {
+                    nav.navigate(target) { popUpTo("home") { saveState = TABS.any { it.route == target } }; launchSingleTop = true }
+                }
+            }
             // Quiet auto refresh every minute while visible, so pages never need a manual refresh.
             LifecycleResumeEffect(Unit) {
                 val job = scope.launch { while (true) { delay(60_000); repo.refresh(quiet = true) } }
@@ -91,6 +100,10 @@ fun LaoRoot(repo: Repo) {
                     NavHost(nav, "home", Modifier.padding(pad).consumeWindowInsets(pad),
                         enterTransition = { fadeIn() }, exitTransition = { fadeOut() }) {
                         composable("home") { HomeScreen() }
+                        composable("homework") { HomeworkScreen() }
+                        composable("memo") { MemoImportScreen() }
+                        composable("course_import") { CourseImportScreen() }
+                        composable("widgets") { WidgetsScreen() }
                         composable("calendar") { CalendarScreen() }
                         composable("class") { ClassScreen() }
                         composable("tools") { ToolsScreen() }
@@ -121,8 +134,10 @@ fun QuickFab(route: String) {
     var editor by remember { mutableStateOf<String?>(null) }
     val nav = LocalNav.current
     val actions: List<Pair<String, () -> Unit>> = when (route) {
-        "home", "calendar", "todos" -> listOf("新建待办 / 日程" to { editor = "event" }, "添加课程" to { editor = "course" }, "开始专注" to { nav.navigate("pomodoro") })
-        "courses" -> listOf("添加课程" to { editor = "course" }, "修改作息时间" to { editor = "meta" })
+        "home", "calendar", "todos" -> listOf("新建待办 / 日程" to { editor = "event" }, "记一项作业" to { editor = "homework" }, "导入备忘录" to { nav.navigate("memo") },
+            "拍课表导入" to { nav.navigate("course_import") }, "添加课程" to { editor = "course" }, "开始专注" to { nav.navigate("pomodoro") })
+        "homework" -> listOf("记一项作业" to { editor = "homework" })
+        "courses" -> listOf("添加课程" to { editor = "course" }, "拍课表导入" to { nav.navigate("course_import") }, "修改作息时间" to { editor = "meta" })
         "class" -> listOf("创建班级 / 团队" to { editor = "create" }, "用班级码加入" to { editor = "join" })
         "countdown" -> listOf("新建倒数日" to { editor = "event" })
         else -> emptyList()
@@ -136,6 +151,7 @@ fun QuickFab(route: String) {
     }
     when (editor) {
         "event" -> EventEditor(null) { editor = null }
+        "homework" -> EventEditor(null, homework = true) { editor = null }
         "course" -> CourseEditor(null) { editor = null }
         "meta" -> MetaEditor { editor = null }
         "create" -> ClassDialog(create = true) { editor = null }

@@ -3,8 +3,8 @@ plugins {
     id "org.jetbrains.kotlin.android"
 }
 
-// 6.0 = 全新重做的原生 App。CI 可覆盖版本号。
-def vc = (System.getenv("APP_VERSION_CODE") ?: "60").toInteger()
+// 6.0 = 全新重做的原生 App；6.1 = 桌面小组件、离线提醒、分享导入。CI 可覆盖版本号。
+def vc = (System.getenv("APP_VERSION_CODE") ?: "61").toInteger()
 def ksFile = file("../release.jks")
 def ksPass = System.getenv("KEYSTORE_PASSWORD")
 
@@ -16,7 +16,7 @@ android {
         minSdk 24
         targetSdk 34
         versionCode(vc)
-        versionName("6.0." + vc)
+        versionName("6.1." + vc)
         buildConfigField("String", "SITE_URL", "\"" + (System.getenv("SITE_URL") ?: "https://www.laolaokechengbiao.cn/") + "\"")
         vectorDrawables { useSupportLibrary true }
     }

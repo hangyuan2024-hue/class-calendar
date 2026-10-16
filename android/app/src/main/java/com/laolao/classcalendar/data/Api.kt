@@ -20,19 +20,26 @@ class ApiError(val status: Int, message: String) : IOException(message)
 /** Same auth / REST / RPC endpoints as the website and mini program. */
 class Api(context: Context) {
     private val ctx = context.applicationContext
-    val base: String
+    // 6.1：两条线路（和网站、小程序、电脑版一样）：国内直连 + 海外中转。连不上自动换另一条，真的连通了才记住（3 天后重新试国内）
+    private val routes: List<String>
+    @Volatile private var ri = 0
+    @Volatile private var routeKnown = false
+    private val routePrefs = context.applicationContext.getSharedPreferences("laolao_route_v1", 0)
+    val base: String get() = routes[ri]
     private val anon: String
     private val domain: String
     @Volatile private var session: JSONObject? = null
     private val client = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
+        .connectTimeout(8, TimeUnit.SECONDS)
         .readTimeout(25, TimeUnit.SECONDS)
         .followRedirects(false)
         .build()
 
     init {
         val cfg = JSONObject(ctx.resources.openRawResource(R.raw.campus_config).bufferedReader().readText())
-        base = cfg.getString("base")
+        routes = listOf(cfg.getString("base"), cfg.optString("alt", "")).map { it.trimEnd('/') }.filter { it.isNotBlank() }.distinct()
+        val saved = routePrefs.getInt("i", -1)
+        if (saved in routes.indices && System.currentTimeMillis() - routePrefs.getLong("at", 0L) < 3L * 86_400_000L) { ri = saved; routeKnown = true }
         anon = cfg.getString("anon")
         domain = cfg.getString("accountDomain")
         session = runCatching { SecretBox.read(ctx)?.let(::JSONObject) }.getOrNull()
@@ -116,7 +123,38 @@ class Api(context: Context) {
 
     private suspend fun <T> io(block: () -> T): T = withContext(Dispatchers.IO) { block() }
 
+    private fun keepRoute() {
+        routeKnown = true
+        routePrefs.edit().putInt("i", ri).putLong("at", System.currentTimeMillis()).apply()
+    }
+
+    /** 连不上（断网、超时、域名解析失败）时换另一条线路再试一次。 */
     private fun request(path: String, method: String, body: Any?, token: String, prefer: String?): Any? {
+        val first = ri
+        try {
+            val r = requestOnce(path, method, body, token, prefer)
+            if (!routeKnown || ri != first) keepRoute()
+            return r
+        } catch (e: ApiError) {
+            if (!routeKnown) keepRoute()   // 服务器回话了（哪怕是报错），说明这条线路是通的
+            throw e
+        } catch (e: IOException) {
+            if (routes.size < 2) throw e
+            ri = (first + 1) % routes.size
+            try {
+                val r = requestOnce(path, method, body, token, prefer)
+                keepRoute()
+                return r
+            } catch (e2: ApiError) {
+                keepRoute(); throw e2
+            } catch (e2: IOException) {
+                ri = first
+                throw e
+            }
+        }
+    }
+
+    private fun requestOnce(path: String, method: String, body: Any?, token: String, prefer: String?): Any? {
         val started = System.nanoTime()
         val rb = (body?.toString() ?: "").toRequestBody("application/json; charset=utf-8".toMediaType())
         val req = Request.Builder().url(base + path)
@@ -152,6 +190,10 @@ class Api(context: Context) {
             throw IOException("连接超时，请稍后重试；本地记录已保留")
         } catch (e: java.net.UnknownHostException) {
             throw IOException("没有网络，本地记录已保留")
+        } catch (e: ApiError) {
+            throw e
+        } catch (e: IOException) {
+            throw IOException("网络连接失败，本地记录已保留")
         }
     }
 }

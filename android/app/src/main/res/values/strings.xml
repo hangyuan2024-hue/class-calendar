@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">捞捞课程表</string>
-    <string name="widget_description">桌面查看今日课程与校园待办</string>
+    <string name="widget_description">今天的课和事：课程、待办、班级通知一眼看完</string>
+    <string name="widget_next_desc">下节课倒计时：还有几分钟、在哪个教室</string>
+    <string name="widget_hw_desc">作业清单：没交的作业，点圆圈直接勾完成</string>
+    <string name="widget_quick_desc">一键记事 / 拍课表 / 导入备忘录</string>
+    <string name="tile_quick">记一件事</string>
 </resources>

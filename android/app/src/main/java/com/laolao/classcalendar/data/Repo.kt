@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Build
 import com.laolao.classcalendar.model.AgendaItem
 import com.laolao.classcalendar.model.AgendaModel
+import com.laolao.classcalendar.model.Kind
 import com.laolao.classcalendar.model.Course
 import com.laolao.classcalendar.model.CourseMeta
 import kotlinx.coroutines.Dispatchers
@@ -108,6 +109,7 @@ class Repo(private val ctx: Context) {
                 store.sync(api)
             }
             _error.value = null
+            runCatching { onRefreshed?.invoke() }
         } catch (e: ApiError) {
             if (e.status == 401) signedOut()
             if (!quiet) _error.value = e.message
@@ -117,19 +119,69 @@ class Repo(private val ctx: Context) {
     }
 
     fun clearError() { _error.value = null }
+    /** 每次同步成功后（LaoApp 里设置）：发新事项通知、更新小组件和提醒 */
+    var onRefreshed: (() -> Unit)? = null
 
     // ---------- personal events ----------
-    fun saveEvent(id: String?, title: String, date: LocalDate, time: String, place: String, note: String) {
-        val key = id ?: ("n" + UUID.randomUUID().toString().replace("-", "").take(16))
-        s.entry("personal_events_v1", key, JSONObject().put("id", key).put("subject", title.trim()).put("event_time", date.toString() + if (time.isBlank()) "" else " $time")
-            .put("location", place.trim()).put("note", note.trim()))
+    fun saveEvent(id: String?, title: String, date: LocalDate?, time: String, place: String, note: String, homework: Boolean = false, done: Boolean? = null, src: String = "") {
+        val key = id ?: ("p" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().replace("-", "").take(6))
+        val old = if (id != null) personal().firstOrNull { it.optString("id") == id } else null
+        val rec = (old ?: JSONObject()).put("id", key).put("subject", title.trim())
+            .put("event_time", if (date == null) "" else date.toString() + if (time.isBlank()) "" else " $time")
+            .put("location", place.trim()).put("note", note.trim())
+        if (homework) rec.put("kind", "作业") else rec.remove("kind")
+        if (done != null) rec.put("done", done) else if (!rec.has("done")) rec.put("done", false)
+        if (src.isNotBlank()) rec.put("src", src)
+        s.entry("personal_events_v1", key, rec)
+        onLocalChange?.invoke()
     }
-    fun deleteEvent(id: String) { s.entry("personal_events_v1", id, null) }
-    fun toggleDone(id: String) {
-        val m = marks().optJSONObject(id) ?: JSONObject()
-        m.put("done", !m.optBoolean("done"))
-        s.entry("personal_marks_v1", id, m)
+    fun deleteEvent(id: String) { s.entry("personal_events_v1", id, null); onLocalChange?.invoke() }
+    /** 勾完成 / 取消完成（和网站、小程序同一套：班级事项记在 personal_marks_v1["c<编号>"]，自己记的记在事项的 done 字段） */
+    fun setDone(a: AgendaItem, done: Boolean) {
+        if (a.kind == Kind.COURSE) return
+        if (a.kind == Kind.CLASS) {
+            val m = marks().optJSONObject(a.id) ?: JSONObject()
+            m.put("done", done)
+            s.entry("personal_marks_v1", a.id, m)
+        } else {
+            val rec = personal().firstOrNull { it.optString("id") == a.id } ?: return
+            rec.put("done", done)
+            s.entry("personal_events_v1", a.id, rec)
+        }
+        // 成长记录（网站「成长」页、排行榜用）：完成的那天
+        if (done) s.entry("done_log_v1", a.id, LocalDate.now().toString()) else s.entry("done_log_v1", a.id, null)
+        onLocalChange?.invoke()
     }
+    fun toggleDone(a: AgendaItem) = setDone(a, !a.done)
+    fun findItem(key: String): AgendaItem? = allItems().firstOrNull { it.id == key }
+
+    /** 本地数据改了（勾完成、记事）：小组件、提醒跟着更新（LaoApp 里设置） */
+    var onLocalChange: (() -> Unit)? = null
+
+    /** 所有班级事项 + 自己记的事项（没有日期的放在今天之后的「待定」里） */
+    fun allItems(): List<AgendaItem> {
+        val m = marks()
+        return personal().mapNotNull { AgendaModel.toItem(it, m, Kind.EVENT, LocalDate.MAX) } +
+            classItems().mapNotNull { AgendaModel.toItem(it, m, Kind.CLASS, LocalDate.MAX) }
+    }
+
+    /** 作业：班级发的作业 + 自己记的作业，按截止时间排；没日期的在最后 */
+    fun homework(): List<AgendaItem> = allItems().filter { it.isHomework }
+        .sortedWith(compareBy<AgendaItem>({ it.date }, { it.start ?: Int.MAX_VALUE }, { it.title }))
+
+    // ---------- 5.8：已读 ----------
+    suspend fun viewCounts(): JSONObject? {
+        val cid = currentClass().optString("id"); if (cid.isBlank()) return null
+        return runCatching { api.rpc("item_view_counts", JSONObject().put("cid", cid)) as? JSONObject }.getOrNull()
+    }
+    suspend fun markSeen(ids: List<String>) {
+        val cid = currentClass().optString("id"); if (cid.isBlank() || ids.isEmpty()) return
+        val arr = JSONArray(); ids.take(200).forEach { id -> id.toLongOrNull()?.let { arr.put(it) } }
+        if (arr.length() == 0) return
+        runCatching { api.rpc("item_seen", JSONObject().put("cid", cid).put("ids", arr)) }
+    }
+    suspend fun viewers(id: String): List<JSONObject> =
+        api.rpc("item_viewers", JSONObject().put("cid", currentClass().optString("id")).put("iid", id.toLong())).rows()
 
     // ---------- courses ----------
     fun saveCourse(c: Course) {
@@ -144,6 +196,37 @@ class Repo(private val ctx: Context) {
     suspend fun uploadCourses() {
         api.rpc("courses_sync", JSONObject().put("p_courses", JSONArray(courses().map { it.toJson() })).put("p_meta", meta().toJson()))
         prefs.edit().putBoolean("courses_dirty", false).apply()
+    }
+
+    /** 拍课表：把截图交给服务器识别（和网站同一个接口），每秒问一次进度。onProgress(百分比, 已用秒数) */
+    suspend fun ocrCourses(b64: String, onProgress: (Int, Int) -> Unit): JSONObject {
+        val job = api.rpc("course_ocr_start", JSONObject().put("img", b64)).obj().optString("job_id")
+        if (job.isBlank()) throw ApiError(0, "上传失败，请重试")
+        val t0 = System.currentTimeMillis()
+        var r: JSONObject? = null
+        while (System.currentTimeMillis() - t0 < 160_000) {
+            kotlinx.coroutines.delay(1000)
+            r = runCatching { api.rpc("course_ocr_status", JSONObject().put("jid", job)).obj() }.getOrNull()
+            onProgress(r?.optInt("progress") ?: 0, ((System.currentTimeMillis() - t0) / 1000).toInt())
+            if (r != null && r.optString("status") != "running" && r.optString("status").isNotBlank()) break
+        }
+        val res = r ?: throw ApiError(0, "识别超时了，请稍后再试")
+        if (res.optString("status") != "done" || res.optJSONObject("result") == null) {
+            val msg = if (res.optString("status") == "failed") res.optString("message") else ""
+            throw ApiError(0, msg.ifBlank { "识别超时了，请稍后再试" })
+        }
+        return res.getJSONObject("result")
+    }
+
+    /** 把核对好的课程存进课程表并上传（replace=true 替换原来的课） */
+    suspend fun importCourses(list: List<Course>, replace: Boolean, times: List<String>?, week1: LocalDate?) {
+        val keep = if (replace) emptyList() else courses()
+        s.setCacheData("native_courses", JSONArray((keep + list).map { it.toJson() }))
+        val m = meta()
+        if (times != null || week1 != null) s.setCacheData("native_course_meta", CourseMeta(week1 ?: m.week1, times ?: m.times).toJson())
+        prefs.edit().putBoolean("courses_dirty", true).apply()
+        onLocalChange?.invoke()
+        uploadCourses()
     }
 
     // ---------- classes ----------

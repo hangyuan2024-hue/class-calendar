@@ -52,7 +52,7 @@ fun shortcutsFor(identity: String) = when (identity) {
     "other" -> listOf(Shortcut("日程", Icons.Rounded.Event, "todos"), Shortcut("倒数日", Icons.Rounded.HourglassBottom, "countdown"),
         Shortcut("专注", Icons.Rounded.Timer, "pomodoro"), Shortcut("团队", Icons.Rounded.Groups, "class"))
     else -> listOf(Shortcut("课程表", Icons.Rounded.TableChart, "courses"), Shortcut("待办", Icons.Rounded.Checklist, "todos"),
-        Shortcut("番茄钟", Icons.Rounded.Timer, "pomodoro"), Shortcut("班级", Icons.Rounded.Groups, "class"))
+        Shortcut("番茄钟", Icons.Rounded.Timer, "pomodoro"), Shortcut("拍课表", Icons.Rounded.PhotoCamera, "course_import"))
 }
 
 @Composable
@@ -108,6 +108,21 @@ fun HomeScreen() {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("all" to "全部", "course" to "只看课程", "other" to "只看其他事项").forEach { (id, l) ->
                         FilterChip(filter == id, { filter = id; repo.setPref("home_filter", id) }, label = { Text(l) })
+                    }
+                }
+            }
+            val hwLeft = repo.homework().filter { !it.done }
+            if (hwLeft.isNotEmpty()) item {
+                val first = hwLeft.first()
+                Card0(onClick = { nav.navigate("homework") { popUpTo("home") { saveState = true }; launchSingleTop = true; restoreState = true } }) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.AssignmentTurnedIn, null, tint = c.accent2)
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("还有 ${hwLeft.size} 项作业没完成", fontWeight = FontWeight.SemiBold)
+                            Text("最近：${first.title} · ${dueText(first)}", fontSize = 12.sp, color = c.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        Text("去看看 ›", color = c.accent, fontSize = 13.sp)
                     }
                 }
             }
@@ -220,10 +235,10 @@ fun AgendaRow(a: AgendaItem, active: Boolean, onClick: () -> Unit) {
             Column(Modifier.weight(1f)) {
                 Text(a.title, fontWeight = FontWeight.SemiBold, color = if (a.done) c.muted else c.ink,
                     textDecoration = if (a.done) androidx.compose.ui.text.style.TextDecoration.LineThrough else null)
-                val sub = listOf(a.kind.label, a.place, if (a.kind == Kind.COURSE) a.note else "").filter { it.isNotBlank() }.joinToString(" · ")
+                val sub = listOf(if (a.isHomework) "作业" else a.kind.label, a.place, if (a.kind == Kind.COURSE) a.note else "").filter { it.isNotBlank() }.joinToString(" · ")
                 Text(sub, fontSize = 12.sp, color = c.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            if (a.kind != Kind.COURSE) Checkbox(a.done, { repo.toggleDone(a.id) })
+            if (a.kind != Kind.COURSE) Checkbox(a.done, { repo.toggleDone(a) })
         }
     }
 }
@@ -263,5 +278,5 @@ fun Blackboard(focus: AgendaItem?, onClose: () -> Unit) {
 @Composable
 fun ItemDetail(a: AgendaItem, onClose: () -> Unit) {
     AlertDialog(onDismissRequest = onClose, confirmButton = { TextButton(onClick = onClose) { Text("关闭") } }, title = { Text(a.title) },
-        text = { Text(listOf("${a.kind.label} · ${a.date} ${a.timeText}", a.place.let { if (it.isBlank()) "" else "地点：$it" }, a.note).filter { it.isNotBlank() }.joinToString("\n")) })
+        text = { Text(listOf("${if (a.isHomework) "作业" else a.kind.label} · ${if (a.date == LocalDate.MAX) "未定日期" else a.date.toString() + " " + a.timeText}", a.place.let { if (it.isBlank()) "" else "地点：$it" }, a.note).filter { it.isNotBlank() }.joinToString("\n")) })
 }

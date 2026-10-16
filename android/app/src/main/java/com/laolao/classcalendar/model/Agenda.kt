@@ -19,7 +19,13 @@ data class AgendaItem(
     val place: String = "",
     val note: String = "",
     val done: Boolean = false,
+    /** 班级事项的类型（作业 / 通知 / 会议 / 活动），自己记的作业也是「作业」 */
+    val type: String = "",
+    /** 班级事项在服务器上的编号（已读、附件用）；自己记的事项为空 */
+    val serverId: String = "",
+    val summary: String = "",
 ) {
+    val isHomework: Boolean get() = type == "作业"
     val timeText: String get() = if (start == null) "全天" else fmt(start) + (end?.let { "–" + fmt(it) } ?: "")
 }
 
@@ -103,13 +109,29 @@ object AgendaModel {
             }
     }
 
+    /** 一条班级事项 / 自己记的事项 → AgendaItem。和网站一样：班级事项的完成标记存在 personal_marks_v1["c<编号>"]，自己记的存在记录的 done 字段里 */
+    fun toItem(e: JSONObject, marks: JSONObject, kind: Kind, fallbackDay: LocalDate? = null): AgendaItem? {
+        val parsed = parseEventTime(e.optString("event_time"))
+        val d = parsed?.first ?: fallbackDay ?: return null
+        val t = parsed?.second
+        val raw = e.optString("id")
+        val isClass = kind == Kind.CLASS
+        val key = if (isClass) "c$raw" else raw
+        val mk = marks.optJSONObject(key)
+        if (isClass && mk?.optBoolean("hidden") == true) return null
+        val done = if (isClass) mk?.optBoolean("done") == true else (e.optBoolean("done") || mk?.optBoolean("done") == true)
+        val type = if (isClass) e.optString("msg_type", "通知") else if (e.optString("kind") == "作业") "作业" else ""
+        val note = if (isClass) (mk?.optString("note") ?: "") else e.optString("note")
+        return AgendaItem(key, kind, e.optString("subject").ifBlank { e.optString("summary").ifBlank { "未命名事项" } }, d, t,
+            t?.let { minOf(it + 60, 24 * 60 - 1) }, e.optString("location"), note, done, type, if (isClass) raw else "",
+            if (isClass && e.optString("subject").isNotBlank()) e.optString("summary") else "")
+    }
+
     fun eventsOn(day: LocalDate, events: List<JSONObject>, marks: JSONObject, kind: Kind): List<AgendaItem> =
         events.mapNotNull { e ->
-            val (d, t) = parseEventTime(e.optString("event_time")) ?: return@mapNotNull null
-            if (d != day) return@mapNotNull null
-            val id = e.optString("id")
-            AgendaItem(id, kind, e.optString("subject").ifBlank { "未命名事项" }, d, t, t?.let { minOf(it + 60, 24 * 60 - 1) },
-                e.optString("location"), e.optString("note"), marks.optJSONObject(id)?.optBoolean("done") == true)
+            val p = parseEventTime(e.optString("event_time")) ?: return@mapNotNull null
+            if (p.first != day) return@mapNotNull null
+            toItem(e, marks, kind)
         }
 
     /** Every item of the day, chronological; all-day items last. Never truncated. */

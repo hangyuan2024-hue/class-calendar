@@ -7,3 +7,6 @@
 # not include consumer rules; preserve them in release as well as debug builds.
 -keep class org.webrtc.** { *; }
 -keepattributes RuntimeVisibleAnnotations,RuntimeInvisibleAnnotations
+
+# 6.1 小组件：Glance 按类名反射创建点击回调
+-keep class * implements androidx.glance.appwidget.action.ActionCallback { <init>(); }
