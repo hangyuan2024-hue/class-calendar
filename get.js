@@ -145,10 +145,56 @@
   // 微信里：点下载先教怎么在浏览器打开
   const wx = document.getElementById("wx");
   if (wx) wx.addEventListener("click", () => wx.classList.remove("show"));
+  // 海外线路：在网页里分段下载（每段 4MB，哪段断了就重下哪段，最后拼成一个文件保存）。
+  // 海外网络下大文件经常下到一半断掉，浏览器自己续传又会因为 GitHub 的临时地址过期而失败。
+  let dlBusy = false;
+  async function chunkedExe(a) {
+    if (dlBusy) return; dlBusy = true;
+    const say = (t, sub) => { if (a.querySelector("[data-lbl]")) setLabel(a, t, sub); else a.textContent = t; };
+    const after = (t) => (a.closest("[data-dl]") || document).querySelectorAll("[data-after]").forEach((el) => (el.textContent = t));
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    try {
+      let size = 0;
+      for (let i = 0; i < 3 && !size; i++) { try { const h = await fetch(EXE_ALT, { method: "HEAD", cache: "no-store" }); size = +h.headers.get("content-length") || 0; } catch (e) { await wait(1500); } }
+      if (!size) throw new Error("size");
+      const CH = 4 * 1048576, parts = [];
+      let got = 0;
+      for (let off = 0; off < size; off += CH) {
+        const end = Math.min(size, off + CH) - 1;
+        let buf = null;
+        for (let t = 0; t < 8 && !buf; t++) {
+          try {
+            const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 90000);
+            const r = await fetch(EXE_ALT, { headers: { range: `bytes=${off}-${end}` }, cache: "no-store", signal: ctl.signal });
+            const b = await r.arrayBuffer(); clearTimeout(timer);
+            if (r.status === 206 && b.byteLength === end - off + 1) buf = b;
+            else if (r.status === 200 && off === 0 && b.byteLength === size) { parts.push(b); got = size; off = size; break; }
+            else throw new Error("bad part");
+          } catch (e) { say(`网络断了，正在接着下… ${Math.round((got / size) * 100)}%`); await wait(Math.min(15000, 1000 * 2 ** t)); }
+        }
+        if (got >= size) break;
+        if (!buf) throw new Error("part");
+        parts.push(buf); got += buf.byteLength;
+        say(`正在下载 ${Math.round((got / size) * 100)}%`, `${(got / 1048576).toFixed(0)} / ${(size / 1048576).toFixed(0)} MB · 断了会自动接着下，别关这个页面`);
+      }
+      const url = URL.createObjectURL(new Blob(parts, { type: "application/octet-stream" }));
+      const x = document.createElement("a"); x.href = url; x.download = "LaolaoKechengbiao-Setup.exe"; document.body.appendChild(x); x.click();
+      setTimeout(() => { x.remove(); URL.revokeObjectURL(url); }, 60000);
+      say("下载好了 ✓", "在浏览器的下载列表里找到它，双击安装");
+      after("下载好后双击安装。如果提示「Windows 已保护你的电脑」，点「更多信息 → 仍要运行」。");
+    } catch (e) {
+      say("海外线路没下完，改从 GitHub 下载");
+      location.href = EXE_GH;
+    } finally {
+      dlBusy = false;
+      setTimeout(() => { a.classList.remove("done"); if (a.querySelector("[data-lbl]")) setLabel(a, ...TEXT[a.dataset.kind || "exe"]()); }, 8000);
+    }
+  }
   document.addEventListener("click", (e) => {
     const a = e.target.closest("[data-get], [data-download-fallback]");
     if (!a) return;
     const k = a.dataset.kind;
+    if (k === "exe" && a.href === EXE_ALT && !plat.wx && window.fetch && window.Blob) { e.preventDefault(); a.classList.add("done"); chunkedExe(a); return; }
     if (k === "web") return;
     if (k === "pick") { e.preventDefault(); const g = document.getElementById("get"); if (g) g.scrollIntoView({ behavior: "smooth" }); return; }
     if (plat.wx && wx) { e.preventDefault(); wx.classList.add("show"); return; }
