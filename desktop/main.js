@@ -659,7 +659,13 @@ app.on("second-instance", (e, argv) => { if (!handleArgs(argv)) showMain(); });
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
   const cfg = siteCfg = loadSiteConfig([R("core", "site-config.js"), R("..", "config.js")]);
-  const api = new Api({ url: cfg.SUPABASE_URL, key: cfg.SUPABASE_ANON_KEY, domain: cfg.AUTH_EMAIL_DOMAIN, store: sessionStore });
+  // 线路：国内直连 / 海外中转，记住能用的那条（3 天后重新试一次国内线路）
+  const routeFile = path.join(DATA(), "route.json");
+  const routeStore = {
+    load() { try { const j = JSON.parse(fs.readFileSync(routeFile, "utf8")); return Date.now() - j.at < 3 * 86400000 ? j.i : null; } catch (e) { return null; } },
+    save(i) { try { fs.mkdirSync(DATA(), { recursive: true }); fs.writeFileSync(routeFile, JSON.stringify({ i, at: Date.now() })); } catch (e) {} },
+  };
+  const api = new Api({ url: cfg.SUPABASE_URL, alt: cfg.SUPABASE_URL_ALT, key: cfg.SUPABASE_ANON_KEY, domain: cfg.AUTH_EMAIL_DOMAIN, store: sessionStore, routeStore });
   store = new Store({ api, file: path.join(DATA(), "data.json") }).load();
   nativeTheme.themeSource = store.data.settings.theme === "meta" ? "dark" : store.data.settings.theme || "system";
   nativeTheme.on("updated", () => { for (const w of [win, ...pops.values()]) if (w && !w.isDestroyed()) w.setTitleBarOverlay({ ...themeColors(), height: 44 }); });

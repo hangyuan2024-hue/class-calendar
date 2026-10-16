@@ -31,8 +31,15 @@ function humanError(j, status) {
 
 class Api {
   // store: { load() → 登录信息或 null, save(s) }
-  constructor({ url, key, domain, store, fetchImpl }) {
-    this.base = url.replace(/\/+$/, "");
+  // 3.3.2：两条线路（和网站 auth.js、小程序 api.js 一样）：国内直连 + 海外中转（config.js 的 SUPABASE_URL_ALT）。
+  //   一条连不上（断网、超时）自动换另一条；真的连通了才记住用哪条（routeStore），下次直接走那条。
+  //   还不知道哪条能用时，第一次请求最多等 8 秒就换线路，海外用户不用干等 20 秒。
+  constructor({ url, alt, key, domain, store, fetchImpl, routeStore }) {
+    this.routes = [url, alt].filter(Boolean).map((u) => String(u).replace(/\/+$/, "")).filter((u, i, a) => a.indexOf(u) === i);
+    this.routeStore = routeStore || null;
+    let saved = null; try { saved = this.routeStore ? this.routeStore.load() : null; } catch (e) {}
+    this.ri = Number.isInteger(saved) && saved >= 0 && saved < this.routes.length ? saved : 0;
+    this.routeKnown = Number.isInteger(saved) && saved >= 0 && saved < this.routes.length;
     this.key = key;
     this.domain = domain || "calendar.test";
     this.store = store;
@@ -41,18 +48,27 @@ class Api {
     this.online = true;
   }
 
-  async call(url, opts = {}, token) {
+  get base() { return this.routes[this.ri]; }
+  // path：以 / 开头的接口路径（老写法传完整网址也认）
+  async call(path, opts = {}, token) {
     const method = (opts.method || "GET").toUpperCase();
     const retryable = method === "GET" || opts.retry;
+    let rel = String(path); for (const r of this.routes) if (rel.startsWith(r)) { rel = rel.slice(r.length); break; }
+    let switched = false;
     for (let attempt = 0; ; attempt++) {
       let res = null, netErr = null;
-      const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), opts.timeout || 20000);
+      const url = this.base + rel, tmo = this.routeKnown || this.routes.length < 2 ? opts.timeout || 20000 : Math.min(opts.timeout || 20000, 8000);
+      const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), tmo);
       try {
         res = await this.fetch(url, {
           method, body: opts.body, signal: ctl.signal,
           headers: { apikey: this.key, Authorization: "Bearer " + (token || this.key), "Content-Type": "application/json", ...(opts.headers || {}) },
         });
       } catch (e) { netErr = e; } finally { clearTimeout(timer); }
+      // 这条线路连不上：换另一条再试一次（每次请求最多换一次）
+      if (netErr && this.routes.length > 1 && !switched) { switched = true; this.ri = (this.ri + 1) % this.routes.length; attempt--; continue; }
+      if (res && !this.routeKnown) { this.routeKnown = true; try { if (this.routeStore) this.routeStore.save(this.ri); } catch (e) {} }
+      else if (res && switched) { try { if (this.routeStore) this.routeStore.save(this.ri); } catch (e) {} }
       const busy = netErr || [429, 502, 503, 504].includes(res.status);
       if (busy && retryable && attempt < (netErr ? 1 : 3)) { await new Promise((r) => setTimeout(r, 500 * 2 ** attempt + Math.random() * 400)); continue; }
       if (netErr) { this.online = false; const e = new Error(netErr.name === "AbortError" ? "服务器响应太慢，请稍后重试" : "网络连接失败，请检查网络"); e.offline = true; throw e; }

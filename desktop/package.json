@@ -1,7 +1,7 @@
 {
   "name": "laolao-kechengbiao-desktop",
   "productName": "捞捞课程表",
-  "version": "3.3.1",
+  "version": "3.3.2",
   "description": "捞捞课程表 Windows 电脑版：课程表、作业、提醒、课内学习、思维导图、离线 AI 助手",
   "main": "main.js",
   "author": "捞捞课程表",
@@ -15,7 +15,7 @@
     "sync-web": "node scripts/sync-web.js",
     "prestart": "node scripts/sync-web.js",
     "start": "electron .",
-    "test": "node test/core.test.js && node test/rpc-allow.test.js",
+    "test": "node test/core.test.js && node test/rpc-allow.test.js && node test/route.test.js",
     "predist": "node scripts/sync-web.js",
     "dist": "electron-builder --win nsis --x64 --publish never"
   },
