@@ -276,6 +276,8 @@ const can = (perm) => !!(currentClass && currentClass[perm]);
 let GROUPS_OK = false, classGroups = [], classOpts = {};
 // 5.8.0 老师模式（身份是老师：首页换成教学工作台、多一个「班级情况」，不显示宠物农场这些学生用的）、职场模式（单位类型选了职场人员：班级→团队、作业→任务…）
 const teacherMode = () => !!currentUser && currentUser.role === "teacher";
+// 不是老师身份、但自己建了班（管理员、班委建的班）：也能看「班级情况」，首页不变
+const overviewMode = () => teacherMode() || (!!currentUser && (myClasses || []).some((c) => c.is_teacher));
 const workMode = () => !!currentUser && currentUser.org_type === "work" && !teacherMode();
 let CLASS_KINDS = load("class_kinds_v1", {}) || {};
 const kindOf = (c) => (c && (c.kind || CLASS_KINDS[c.id])) || "class";
@@ -2900,10 +2902,11 @@ function renderTabs() {
   if (cur.startsWith("p_") && !pinned) cur = "tools";
   document.body.classList.toggle("is-teacher", teacherMode());
   document.body.classList.toggle("is-work", workMode());
-  const nav = teacherMode() ? NAV.filter(([id]) => id !== "growth").flatMap((x) => x[0] === "home" ? [x, ["teach", "班级情况"]] : [x]) : NAV;
+  const nav = teacherMode() ? NAV.filter(([id]) => id !== "growth").flatMap((x) => x[0] === "home" ? [x, ["teach", "班级情况"]] : [x])
+    : overviewMode() ? NAV.flatMap((x) => x[0] === "wall" ? [x, ["teach", "班级情况"]] : [x]) : NAV;
   $("tabs").innerHTML = nav.map(([id, t]) => {
     const unavailable = (id === "plan" && !funOpts().plan) || (id === "ask" && (!laiReady() || !feat("ask"))) || !viewOn(id);
-    const button = `<button class="nav${id === cur ? " on" : ""}${["wall", "calendar", "plan", "ask", "study"].includes(id) ? " desk" : ""}${unavailable ? " hidden" : ""}" data-tab="${id}">${icon(id)}<span>${cyName(t)}</span>${id === "homework" && hwBadge ? `<em class="badge">${hwBadge}</em>` : ""}</button>`;
+    const button = `<button class="nav${id === cur ? " on" : ""}${["wall", "calendar", "plan", "ask", "study"].includes(id) || (id === "teach" && !teacherMode()) ? " desk" : ""}${unavailable ? " hidden" : ""}" data-tab="${id}">${icon(id)}<span>${cyName(t)}</span>${id === "homework" && hwBadge ? `<em class="badge">${hwBadge}</em>` : ""}</button>`;
     // 工具：不再在旁边放一个箭头按钮。在工具页再点一次「工具」、长按「工具」或按 Ctrl/⌘+K 都能快捷打开任意工具；电脑上鼠标移上去会在这一行里提示快捷键
     return id === "tools" ? button.replace('data-tab="tools">', `data-tab="tools" data-tools-nav title="工具（再点一次或长按：快捷打开）">`).replace("</button>", `<kbd class="nav-kbd" aria-hidden="true">${/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K"}</kbd></button>`) + `<button type="button" id="navToolPicker" class="nav-tool-picker-x" data-quick-open aria-label="快捷选择工具" tabindex="-1" hidden></button>` : button;
   }).join("")

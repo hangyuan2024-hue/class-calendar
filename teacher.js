@@ -29,10 +29,11 @@
     const view = document.querySelector('.view[data-view="home"]'); if (!view) return;
     let box = $t("teachHome");
     const on = typeof teacherMode === "function" && teacherMode();
+    const own = !on && typeof overviewMode === "function" && overviewMode();   // 自己建了班的管理员 / 班委：首页只加一张卡片
     const eb = view.querySelector(".studio-home-heading .studio-eyebrow"), h2 = view.querySelector(".studio-home-heading h2");
     if (h2 && !h2.dataset.t0) { h2.dataset.t0 = h2.firstChild.textContent; eb.dataset.t0 = eb.textContent; }
-    if (h2) { h2.firstChild.textContent = on ? "教学工作台" : (window.CC_HOME_TITLE || h2.dataset.t0); eb.textContent = on ? "今天也辛苦了" : (window.CC_HOME_EYEBROW || eb.dataset.t0); }
-    if (!on) { if (box) box.remove(); return; }
+    if (h2 && !own) { h2.firstChild.textContent = on ? "教学工作台" : (window.CC_HOME_TITLE || h2.dataset.t0); eb.textContent = on ? "今天也辛苦了" : (window.CC_HOME_EYEBROW || eb.dataset.t0); }
+    if (!on && !own) { if (box) box.remove(); return; }
     if (!box) {
       box = document.createElement("section"); box.id = "teachHome"; box.className = "t-home surface";
       const n = $t("notice"); n.parentNode.insertBefore(box, n.nextSibling);
@@ -44,7 +45,7 @@
     }
     const draw = () => {
       const cl = teachClasses();
-      box.innerHTML = `<div class="t-home-h"><b>👩‍🏫 我的班级</b><span class="spacer"></span><button class="small" data-tgo="">班级情况 ›</button></div>
+      box.innerHTML = `<div class="t-home-h"><b>${own ? "📊 我管理的班级" : "👩‍🏫 我的班级"}</b><span class="spacer"></span><button class="small" data-tgo="">班级情况 ›</button></div>
         ${T.err ? `<div class="meta">${esc(T.err)}</div>` : !T.classes ? `<div class="meta">加载中…</div>`
         : cl.length ? `<div class="t-home-l">${cl.map((c) => `<button class="t-hc" data-tgo="${esc(c.id)}"><b>${esc(c.name)}</b>
             <span>${c.total} 人${c.pending ? ` · <em>${c.pending} 人待审批</em>` : ""}</span><small>近 7 天完成作业 ${c.done7} 次 · 这两周作业 ${c.hw} 项</small></button>`).join("")}</div>`
