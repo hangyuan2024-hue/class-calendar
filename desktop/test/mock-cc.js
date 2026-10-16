@@ -60,14 +60,26 @@
   S.mine.push({ id: "p7", subject: "日记：周末想去的地方", event_time: day(3), location: "", note: "", done: false, local: true });
   S.settings.lanSync = true; S.settings.liveSync = true; S.dev = "dMockDesk01"; S.lanOk = true;
   if (location.hash.includes("web")) S.settings.uiStyle = "web";
+  if (location.hash.includes("teacher")) { S.me.role = "teacher"; S.me.display_name = "王老师"; S.classes[0].is_teacher = true; S.classes.push({ id: "c-3", name: "数据结构教研组", status: "approved", is_teacher: true }); }
+  if (location.hash.includes("work")) { S.me.org_type = "work"; S.classes[0].name = "市场部"; }
   S.mine.push({ id: "p6", subject: "上学期的社团招新", event_time: day(-13), location: "", note: "", done: false });
   const files = { c101: [{ id: "f1", name: "实验三要求.pdf", mime: "application/pdf", size: 238000, parts: 1, by: "王老师", can_del: false }, { id: "f2", name: "参考截图.png", mime: "image/png", size: 51000, parts: 1, by: "张班长", can_del: true }] };
   const RPC = {
     file_list: (a) => files[a.cid ? "c" + a.item : a.item] || [],
-    file_get: () => ({ data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" }),
+    file_get: () => ({ data: window.__IMG || "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" }),
     file_del: () => true, file_begin: () => ({ id: "f" + Date.now() }), file_part: () => true, file_end: () => true,
     kn_state: () => ({ rev: 1, courses: [{ id: 1, name: "数据结构", color: "#2f6fd6" }, { id: 2, name: "高等数学", color: "#0f7a68" }], nodes: [], items: [{ id: 9, course_id: 1, kind: "assessment", title: "期中考试", deadline: day(9, "09:00"), done: false }] }),
     mm_list: () => [], my_perms: () => [], item_extras: () => ({ autodel: true, keep: {}, files: { c101: 2 } }),
+    // 3.3（网站 5.8.0）
+    item_seen: () => 1, file_thumb: () => true, my_class_kinds: () => ({ "c-1": "class", "c-3": "staff" }),
+    item_view_counts: () => ({ total: 42, can_list: true, views: { 101: 35, 103: 20 }, done: { 101: 12 }, mine: [] }),
+    item_viewers: () => [{ user_id: "a", name: "张三", account: "zs", role: "student", seen_at: null, done: false }, { user_id: "b", name: "李四", role: "monitor", seen_at: new Date().toISOString(), done: true }, { user_id: "c", name: "王五", role: "student", seen_at: new Date(Date.now() - 7200000).toISOString(), done: false }],
+    item_files_many: () => ({ "101": [{ id: "f1", name: "实验三要求.pdf", mime: "application/pdf", size: 238000, parts: 1 }, { id: "f2", name: "参考截图.png", mime: "image/png", size: 51000, parts: 1, thumb: null, can_thumb: true }] }),
+    teacher_classes: () => [{ id: "c-1", name: "计科2601班", kind: "class", code: "K7M2QX", total: 42, pending: 3, hw: 6, done7: 96 }, { id: "c-3", name: "数据结构教研组", kind: "staff", code: "T8Q2ZP", total: 5 }],
+    teacher_overview: (a) => ({ class: { id: a.cid, name: "计科2601班", code: "K7M2QX", kind: "class" }, total: 4, pending: 3, hw_count: 3, days: a.days,
+      items: [{ id: 101, type: "作业", subject: "数据结构 实验三：二叉树遍历", time: day(1, "23:59"), by: "王老师", views: 3, done: 1 }, { id: 102, type: "通知", subject: "体测安排", time: day(0, "14:30"), by: "张班长", views: 4, done: 0 }],
+      students: [{ user_id: "a", name: "张三", account: "zs", role: "student", hw_done: 0, seen: 1, last_active: null }, { user_id: "d", name: "赵六", role: "student", hw_done: 1, seen: 3, last_active: new Date(Date.now() - 86400000 * 8).toISOString() }, { user_id: "b", name: "李四", role: "monitor", hw_done: 2, seen: 6, last_active: new Date(Date.now() - 86400000).toISOString() }, { user_id: "c", name: "王五", role: "student", hw_done: 3, seen: 8, last_active: new Date().toISOString() }] }),
+    create_class_kind: (a) => ({ id: "c-9", name: a.cname, code: "QQ88ZZ", kind: a.ckind }),
   };
   const pomo = { running: false, phase: "focus", left: 0, total: 0, task: "" };
   const push = () => emit("state", JSON.parse(JSON.stringify(S)));

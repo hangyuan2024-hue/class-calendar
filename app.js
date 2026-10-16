@@ -503,7 +503,7 @@ const darkMQ = window.matchMedia ? matchMedia("(prefers-color-scheme: dark)") : 
 // 「跟随系统」：系统切到深色时，清爽外观也跟着变深
 if (darkMQ) (darkMQ.addEventListener ? darkMQ.addEventListener("change", () => { if (load(LS_SKIN, "fresh") === "auto") applyLook(); }) : 0);
 // 元宇宙里的叫法
-const CYBER_NAMES = { 排行榜: "战力榜", 感谢名单: "荣誉殿堂", 首页: "主控台", 作业: "任务清单", 班级墙: "广播频道", 日历: "时间线", 规划: "作战室", 工具: "模组库", 元宇宙空间: "元宇宙空间", 我的: "身份档案", 问答: "AI 终端", 成长: "成长数据", 班级: "班级节点", 捞捞课程表: "捞捞元宇宙" };
+const CYBER_NAMES = { 排行榜: "战力榜", 感谢名单: "荣誉殿堂", 首页: "主控台", 作业: "任务清单", 班级墙: "广播频道", 日历: "时间线", 规划: "作战室", 规划与专注: "作战室", 工具: "模组库", 元宇宙空间: "元宇宙空间", 我的: "身份档案", 问答: "AI 终端", 成长: "成长数据", 班级: "班级节点", 捞捞课程表: "捞捞元宇宙" };
 const cyName = (t) => (document.documentElement.dataset.skin === "cyber" && CYBER_NAMES[t]) || t;
 function applyLook() {
   const root = document.documentElement;
@@ -783,7 +783,6 @@ function renderAgenda() {
     let ctx = null; try { ctx = typeof IslandCore !== "undefined" ? islandCtx() : null; } catch (e) {}
     const wk = ctx && ctx.weekOf ? ctx.weekOf(keyOf(today)) : 0;
     $("hero").innerHTML = `<div class="hero fx">
-      ${feat("metaverse") ? `<button class="metabtn" id="metaBtn">🌐 捞捞元宇宙</button>` : ""}
       <div class="date">${today.getMonth() + 1}月${today.getDate()}日 周${WEEK[today.getDay()]}${wk ? ` · 第 ${wk} 周` : ""}</div>
       <h3>${hi + name}</h3>
       <div class="say">${say}</div>
@@ -793,7 +792,7 @@ function renderAgenda() {
     heroTickStart();
   } else
   $("hero").innerHTML = `<div class="hero">
-      ${feat("metaverse") || meta ? `<button class="metabtn" id="metaBtn">${meta ? "⏏ 退出元宇宙" : "🌐 进入捞捞元宇宙"}</button>` : ""}
+      ${meta ? `<button class="metabtn" id="metaBtn">⏏ 退出元宇宙</button>` : ""}
       <div class="date">📅 ${today.getMonth() + 1}月${today.getDate()}日 周${WEEK[today.getDay()]}</div>
       <h3>${meta ? (currentUser ? "欢迎接入" + name : "欢迎接入，访客") : hi + name}</h3>
       <div class="say">${say}</div>
@@ -2891,7 +2890,7 @@ const ICONS = {
 ICONS.study = ['<path d="M4 5.5C6.5 4 9.5 4 12 6c2.5-2 5.5-2 8-.5V19c-2.5-1.5-5.5-1.5-8 .5-2.5-2-5.5-2-8-.5z M12 6v13.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
   '<path d="M3.5 5.2C6.2 3.6 9.3 3.7 11.2 5.4v14.4c-2.2-1.6-5-1.7-7.7-.3z M12.8 5.4c1.9-1.7 5-1.8 7.7-.2v14.3c-2.7-1.4-5.5-1.3-7.7.3z" fill="currentColor"/>'];
 const icon = (k) => `<svg viewBox="0 0 24 24" class="o" aria-hidden="true">${ICONS[k][0]}</svg>` + (ICONS[k][1] ? `<svg viewBox="0 0 24 24" class="f" aria-hidden="true">${ICONS[k][1]}</svg>` : "");
-const NAV = [["home", "首页"], ["homework", "作业"], ["wall", "班级墙"], ["calendar", "日历"], ["plan", "规划"], ["study", "学习"], ["ask", "问答"], ["growth", "成长"], ["tools", "工具"], ["me", "我的"]];
+const NAV = [["home", "首页"], ["homework", "作业"], ["wall", "班级墙"], ["calendar", "日历"], ["plan", "规划与专注"], ["study", "学习"], ["ask", "问答"], ["growth", "成长"], ["tools", "工具"], ["me", "我的"]];
 let hwBadge = 0;
 
 function currentView() { return document.querySelector(".view.on[data-view]")?.dataset.view || "home"; }
@@ -3304,6 +3303,7 @@ function renderQuick() {
 $("quickPart").addEventListener("wheel", (e) => { const q = e.currentTarget; if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && q.scrollWidth > q.clientWidth) { e.preventDefault(); q.scrollLeft += e.deltaY; } }, { passive: false });
 window.addEventListener("resize", () => { const q = $("quickPart"); q.classList.toggle("fits", q.scrollWidth <= q.clientWidth + 2); });
 $("qPomo").onclick = () => { showView("plan"); setTimeout(() => $("pomoSec").scrollIntoView({ behavior: "smooth", block: "start" }), 120); };
+$("qPomoTop").onclick = () => $("pomoSec").scrollIntoView({ behavior: "smooth", block: "start" });   // 规划与专注页顶上：直接跳到番茄专注
 $("qCourse").onclick = () => { const t = courseTool(); if (t) showView(t.view); };
 $("qCal").onclick = () => calOpen();
 const funPrefs = () => ({ ...FUN_DEFAULT, ...load(LS_FUN, {}) });
@@ -3570,7 +3570,7 @@ function toolList() {
   if (o.plan) out.push({ id: "t:plan", view: "plan", icon: "🎯", name: "规划", desc: "四象限、PDCA、SMART、番茄钟" });
   if (feat("rank") && currentClass) out.push({ id: "t:rank", view: "rank", icon: "🏆", name: "排行榜", desc: "班级成长排行榜" });
   if (farmOn()) out.push({ id: "t:farm", view: "farm", icon: "🐣", name: "云宠农场", desc: "完成任务攒养料，喂云宠长大" });
-  if (feat("metaverse")) out.push({ id: "t:meta", view: "meta", icon: "🪐", name: "元宇宙空间", desc: "等级、任务、徽章和元宇宙小百科" });
+  if (feat("metaverse")) out.push({ id: "t:meta", view: "meta", icon: "🏅", name: "等级与徽章", desc: "完成作业、打卡、专注攒经验升级、解锁徽章；还能换成霓虹「元宇宙」界面" });
   for (const t of feat("tools") ? pluginTabs : []) {
     const meta = (pluginState[t.plugin] || {}).meta || {};
     out.push({ id: "p:" + t.id, view: t.id, icon: t.icon, name: String(t.title).replace(/^\p{Extended_Pictographic}️?\s*/u, ""), desc: meta.description || "", plugin: t.plugin });

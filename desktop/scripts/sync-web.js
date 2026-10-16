@@ -29,6 +29,7 @@ console.log("从网站同步代码：", SITE);
 copy(S("parse.js"), path.join(DESK, "core", "parse.js"));
 copy(S("island-core.js"), path.join(DESK, "core", "island-core.js"));
 copy(S("config.js"), path.join(DESK, "core", "site-config.js"));
+copy(S("memo.js"), R("web", "memo.js"));   // 3.3：导入手机备忘录的拆分规则
 
 // 2. 字体
 copy(S("fonts.css"), R("fonts.css"));

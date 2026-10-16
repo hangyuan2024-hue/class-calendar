@@ -158,3 +158,13 @@
   [data-ui="web"] .btn.primary { color: #0b231e; }
   [data-ui="web"] .btn.primary:hover { background: var(--brand2); border-color: var(--brand2); }
 }
+
+/* 3.3：窗口不高时侧栏紧凑一点，「记一件事」按钮不再盖住下面的项目；能往下滚时底部有一条渐隐提示 */
+@media (max-height: 940px) {
+  [data-ui="web"] .side .side-eyebrow { display: none; }
+  [data-ui="web"] .side .side-head { padding-bottom: 12px; }
+  [data-ui="web"] .nav-item { height: 36px; }
+  [data-ui="web"] .nav-g { padding: 10px 14px 4px; }
+  [data-ui="web"] .side .side-new { height: 40px; margin-top: 10px; }
+}
+[data-ui="web"] #nav { -webkit-mask-image: linear-gradient(#000 calc(100% - 22px), transparent); mask-image: linear-gradient(#000 calc(100% - 22px), transparent); padding-bottom: 14px; }

@@ -22,8 +22,8 @@ App.views.growth = {
   count() { const h = KV("habits_v1"), log = KV("habit_log_v1") || {}, t = todayKey(); const n = h.filter((x) => !(log[x.id] || {})[t]).length; return App.fun().habits === false ? null : { n }; },
   mount(el) {
     el.innerHTML = `
-      <div class="vhead"><div><h1>成长</h1><div class="sub">完成事项、习惯打卡、专注番茄都会攒成长值，班级排行榜上能看到</div></div><span class="grow"></span>
-        <button class="btn" data-go="rank">${icon("rank")}排行榜</button><button class="btn" data-go="meta">${icon("meta")}元宇宙</button></div>
+      <div class="vhead"><div><h1>成长</h1><div class="sub">完成事项、习惯打卡、专注番茄都会攒成长值，上面「排行榜」里能看到</div></div><span class="grow"></span>
+        <button class="btn" data-go="meta" title="完成作业、打卡、专注攒经验：升级、解锁徽章">${icon("meta")}等级与徽章</button></div>
       <div class="vbody gr-body">
         <div class="gr-top"><div class="card gr-rings" id="grRings"></div><div class="card gr-trend"><div class="card-h">最近 14 天<span class="grow"></span><small id="grLg"></small></div><div id="grTrend"></div></div></div>
         <div class="gr-cols">

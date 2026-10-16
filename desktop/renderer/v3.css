@@ -309,3 +309,72 @@
   .td-band > .tn .tn-cd { margin-top: 6px; }
 }
 .tb-lane-c, .tb-lane-p { z-index: 1; } .tb-now { z-index: 0; }
+
+/* 3.3 合并的页面：顶上一排切换（规划与专注、成长） */
+.mtabs { flex: none; display: flex; align-items: center; gap: 4px; margin: 14px 30px 0; padding: 4px; background: var(--bg2); border-radius: 12px; width: max-content; max-width: calc(100% - 60px); overflow-x: auto; }
+.mtabs b { font-size: 13px; color: var(--muted); padding: 0 10px 0 8px; white-space: nowrap; }
+.mtabs button { height: 30px; padding: 0 14px; border: 0; border-radius: 9px; background: none; color: var(--text2); font-size: 13.5px; white-space: nowrap; cursor: pointer; }
+.mtabs button:hover { color: var(--text); }
+.mtabs button.on { background: var(--panel); color: var(--text); font-weight: 600; box-shadow: 0 1px 3px rgba(19, 36, 58, .12); }
+.mtabs + .vhead { padding-top: 12px; }
+
+/* ---------- 3.3 导入手机备忘录 ---------- */
+.m58-h3 { display: flex; align-items: center; gap: 10px; } .m58-h3 .m58-entry { margin-left: auto; font-weight: 400; }
+.memo58 textarea { width: 100%; box-sizing: border-box; font: inherit; font-size: 14px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--text); resize: vertical; }
+.m58-how summary { cursor: pointer; font-size: 13px; color: var(--brand-ink); } .m58-how p { margin: 6px 0; font-size: 13px; color: var(--text2); }
+.m58-list { display: flex; flex-direction: column; gap: 6px; max-height: 34vh; overflow: auto; }
+.m58-r { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 10px; }
+.m58-r.off { opacity: .45; }
+.m58-r input:not([type=checkbox]) { height: 30px; border: 1px solid var(--line); border-radius: 8px; padding: 0 8px; background: var(--panel); color: var(--text); font: inherit; font-size: 13px; }
+.m58-r .m58-s { flex: 1; min-width: 0; } .m58-r input[type=date] { width: 132px; } .m58-r input[type=time] { width: 92px; }
+.m58-k, .m58-ck { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; white-space: nowrap; color: var(--text2); }
+
+/* ---------- 3.3 作业：已读 + 小图 ---------- */
+.hw58 { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 6px; }
+.hw58-th { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
+.hw58-img { width: 68px; height: 68px; padding: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--bg2); cursor: zoom-in; font-size: 22px; display: flex; align-items: center; justify-content: center; }
+.hw58-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.hw58-f { height: 30px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg2); font-size: 12px; color: var(--text2); cursor: pointer; align-self: center; }
+.hw58-read { font-size: 12px; color: var(--muted); white-space: nowrap; }
+button.hw58-read { border: 0; background: none; padding: 0; color: var(--brand-ink); cursor: pointer; }
+button.hw58-read:hover { text-decoration: underline; }
+.hw58-lb .hw58-lbi { min-height: 300px; display: flex; align-items: center; justify-content: center; position: relative; background: var(--bg2); border-radius: 10px; }
+.hw58-lbi img { max-width: 100%; max-height: 62vh; object-fit: contain; }
+.hw58-lbi img.blur { position: absolute; filter: blur(2px); opacity: .6; }
+.hw58-sum { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.hw58-sum div { background: var(--bg2); border-radius: 10px; padding: 10px; text-align: center; } .hw58-sum b { display: block; font-size: 22px; } .hw58-sum span { font-size: 12px; color: var(--muted); }
+.hw58-pane { display: flex; flex-wrap: wrap; gap: 6px; max-height: 40vh; overflow: auto; }
+.hw58-p { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px 2px 2px; font-size: 13px; }
+.hw58-p .av { width: 24px; height: 24px; font-size: 11px; }
+.hw58-p i { font-style: normal; font-size: 10px; background: #fef3c7; color: #92400e; border-radius: 4px; padding: 0 4px; }
+.hw58-p small { color: var(--muted); font-size: 11px; } .hw58-p b { color: var(--ok); } .hw58-p.ok { border-color: color-mix(in srgb, var(--ok) 40%, transparent); }
+
+/* ---------- 3.3 班级情况 ---------- */
+.t58 { display: flex; flex-direction: column; gap: 12px; max-width: 1100px; }
+.t58-days { height: 32px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--text); padding: 0 8px; font: inherit; font-size: 13px; }
+.t58-cls { display: flex; flex-wrap: wrap; gap: 8px; }
+.t58-chip { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text); font-size: 14px; cursor: pointer; }
+.t58-chip small { color: var(--muted); font-size: 12px; } .t58-chip.on { background: var(--brand); color: #fff; border-color: transparent; } .t58-chip.on small { color: rgba(255,255,255,.8); }
+.t58-chip em { font-style: normal; background: var(--bell); color: #fff; border-radius: 999px; font-size: 11px; padding: 0 6px; }
+.t58-chip.add { color: var(--muted); }
+.t58-ov, .t58-staff { padding: 16px 18px; }
+.t58-ovh { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; } .t58-ovh b { font-size: 17px; }
+.t58-kpi { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.t58-kpi > * { background: var(--bg2); border: 0; border-radius: 12px; padding: 12px 6px; text-align: center; color: var(--text); font: inherit; }
+.t58-kpi b { display: block; font-size: 24px; } .t58-kpi span { font-size: 12px; color: var(--muted); } .t58-kpi button { cursor: pointer; } .t58-kpi .warn b { color: var(--bell); }
+.t58-tabs { align-self: flex-start; } .t58-filter { align-items: center; }
+.t58-stu { padding: 4px 18px; }
+.t58-s { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); } .t58-s:last-child, .t58-it:last-child { border-bottom: 0; }
+.t58-sn { flex: 1; min-width: 0; display: flex; flex-direction: column; } .t58-sn b { font-size: 14px; } .t58-sn small { font-size: 12px; color: var(--muted); }
+.t58-sn i { font-style: normal; font-size: 10px; background: #fef3c7; color: #92400e; border-radius: 4px; padding: 0 4px; margin-left: 6px; font-weight: 400; }
+.t58-sp { width: 30%; min-width: 140px; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; } .t58-sp small { font-size: 12px; color: var(--muted); }
+.t58-bar { width: 100%; height: 8px; background: var(--bg2); border-radius: 99px; overflow: hidden; }
+.t58-bar i { display: block; height: 100%; background: var(--brand); border-radius: 99px; } .t58-bar i.ok { background: var(--ok); } .t58-bar i.low { background: var(--bell); }
+.t58-it { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.t58-ith { display: flex; align-items: center; gap: 8px; } .t58-ith b { font-size: 14px; }
+.t58-ib { display: grid; grid-template-columns: 36px 1fr 60px; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); margin-top: 4px; } .t58-ib small { text-align: right; }
+.t58-g { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: 1px solid var(--line); background: var(--panel); border-radius: 12px; padding: 10px 14px; margin-bottom: 8px; cursor: pointer; color: var(--text); font: inherit; }
+.t58-g b { font-size: 14px; } .t58-g small { flex: 1; font-size: 12px; color: var(--muted); } .t58-g span { color: var(--brand-ink); font-size: 13px; }
+/* 3.3：弹窗打开时，捞捞的气泡不要盖住按钮 */
+body:has(#overlay.show) #island { display: none; }
+.m58-r input[type=time] { width: 112px; }

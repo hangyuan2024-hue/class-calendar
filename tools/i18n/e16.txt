@@ -113,3 +113,7 @@
 2962	Share the group code with colleagues — they enter it on the Class page to join (teacher accounts only).
 2963	This group isn't in your class list yet. Refresh the page and try again.
 2964	Copy:
+2965	Plan & Focus
+2966	Levels & badges
+2967	Earn XP from homework, check-ins and focus to level up and unlock badges; you can also switch to the neon "metaverse" look
+2968	📊 Classes I manage

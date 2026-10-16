@@ -2,16 +2,25 @@
 "use strict";
 // 侧栏：按「什么时候用」分组。最常用的（今天、课程表、作业、事项、月历）在最上面不折叠；
 // 下面几组可以点组名收起来（记在本机），当前页面所在的组总是展开。Ctrl+1…9 依次对应前 9 个
+// 3.3：侧栏精简——「专注」和「规划」合成一个「规划与专注」；「成长」「每周报告」「排行榜」「云宠农场」合成一个「成长」（页面顶上一排切换）；
+// 「倒数日」「元宇宙空间」挪进「工具」（侧栏太长，同学说看不懂元宇宙）
 const NAV = [
   ["", "main", ["today", "week", "homework", "tasks", "month"]],
-  ["学习与规划", "study", ["study", "mindmap", "focus", "plan", "ai"]],
-  ["班级", "class", ["wall", "ingest", "people", "rank", "classes"]],
-  ["成长", "grow", ["growth", "countdown", "farm", "report", "meta"]],
-  ["", "more", ["tools"]],
+  ["学习与规划", "study", ["ai", "plan", "study", "mindmap"]],
+  ["班级", "class", ["wall", "teach", "ingest", "people", "classes"]],
+  ["", "grow", ["growth", "tools"]],
 ];
-const ORDER = NAV.flatMap((g) => g[2]);
+// 合并的页面：key = 侧栏上那一项；值 = 页面顶上切换的几页
+const MERGE = {
+  plan: [["focus", "🍅 专注计时"], ["plan", "🎯 时间管理法"]],
+  growth: [["growth", "📈 打卡成长"], ["report", "📊 每周报告"], ["rank", "🏆 排行榜"], ["farm", "🐣 云宠农场"]],
+};
+const NAV_TITLE = { plan: "规划与专注", growth: "成长" };
+const navOf = (id) => { for (const k in MERGE) if (MERGE[k].some((x) => x[0] === id)) return k; return id; };
+const mergeLast = { get(k) { try { return localStorage.getItem("merge_last_" + k) || ""; } catch (e) { return ""; } }, set(k, v) { try { localStorage.setItem("merge_last_" + k, v); } catch (e) {} } };
+const ORDER = NAV.flatMap((g) => g[2]).concat(Object.values(MERGE).flat().map((x) => x[0])).filter((v, i, a) => a.indexOf(v) === i);
 const navFold = { get() { try { return JSON.parse(localStorage.getItem("nav_fold_v1")) || {}; } catch (e) { return {}; } }, set(o) { try { localStorage.setItem("nav_fold_v1", JSON.stringify(o)); } catch (e) {} } };
-const EXTRA_VIEWS = ["settings", "me", "intro", "credits"];   // 不在侧栏里，但能跳过去（我的、命令面板）
+const EXTRA_VIEWS = ["settings", "me", "intro", "credits", "countdown", "meta"];   // 不在侧栏里，但能跳过去（我的、命令面板）
 // 被老师或管理员关掉的功能（和网页版同一套开关）
 const VIEW_FEAT = { homework: ["homework"], wall: ["wall"], plan: ["plan"], growth: ["growth"], ai: ["ask"], tools: ["tools"], rank: ["rank"], meta: ["metaverse"], ingest: ["ingest_local", "ingest_cloud"], farm: ["growth"] };
 const viewOn = (id) => !VIEW_FEAT[id] || VIEW_FEAT[id].some((k) => App.feat(k));
@@ -80,7 +89,8 @@ function buildNav() {
     (g ? `<button class="nav-g" data-fold="${gid}" title="点一下收起 / 展开"><span>${g}</span><svg class="nav-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg><span class="cnt hidden"></span></button>` : "") +
     `<div class="nav-list">` + ids.filter((id) => App.views[id]).map((id) => {
       const v = App.views[id]; i++;
-      return `<button class="nav-item" data-view="${id}" title="${v.title}${i <= 9 ? "（Ctrl+" + i + "）" : ""}">${icon(v.icon || id)}<span>${v.title}</span><span class="cnt hidden"></span></button>`;
+      const t = NAV_TITLE[id] || v.title;
+      return `<button class="nav-item" data-view="${id}" title="${t}${i <= 9 ? "（Ctrl+" + i + "）" : ""}">${icon(v.icon || id)}<span>${t}</span><span class="cnt hidden"></span></button>`;
     }).join("") + `</div></div>`).join("");
   $$("#nav [data-fold]").forEach((b) => (b.onclick = () => {
     const f = navFold.get(), g = b.dataset.fold; f[g] = !f[g]; navFold.set(f);
@@ -88,7 +98,7 @@ function buildNav() {
   }));
   $("#navMe").innerHTML = `${icon("me")}<span>我的</span>`;
   $("#navSettings").innerHTML = `${icon("settings")}<span>设置</span><span class="kb">Ctrl ,</span>`;
-  $$(".nav-item").forEach((b) => (b.onclick = () => App.go(b.dataset.view)));
+  $$(".nav-item").forEach((b) => (b.onclick = () => { const k = b.dataset.view; App.go(MERGE[k] ? (mergeLast.get(k) || MERGE[k][0][0]) : k); }));
 }
 function navCounts() {
   for (const id of ORDER) {
@@ -174,8 +184,17 @@ App.go = function (id, arg) {
     mounted[id] = true; dirty[id] = true;
   }
   $$(".view").forEach((el) => el.classList.toggle("hidden", el.dataset.v !== id));
-  $$(".nav-item").forEach((b) => b.classList.toggle("on", b.dataset.view === id));
-  $$("#nav .nav-grp").forEach((g) => g.classList.toggle("has-on", !!$(`.nav-item[data-view="${id}"]`, g)));
+  const nid = navOf(id);
+  $$(".nav-item").forEach((b) => b.classList.toggle("on", b.dataset.view === nid));
+  $$("#nav .nav-grp").forEach((g) => g.classList.toggle("has-on", !!$(`.nav-item[data-view="${nid}"]`, g)));
+  // 合并的页面：顶上一排切换（专注计时 / 时间管理法；打卡成长 / 每周报告 / 排行榜 / 云宠农场）
+  if (MERGE[nid] && v.el) {
+    mergeLast.set(nid, id);
+    let bar = $(".mtabs", v.el);
+    if (!bar) { bar = h(`<div class="mtabs" role="tablist"></div>`); v.el.prepend(bar); bar.onclick = (e) => { const b = e.target.closest("[data-mt]"); if (b) App.go(b.dataset.mt); }; }
+    bar.innerHTML = `<b>${esc(NAV_TITLE[nid])}</b>` + MERGE[nid].filter(([x]) => App.views[x] && viewOn(x) && !(App.views[x].navOn && !App.views[x].navOn()))
+      .map(([x, t]) => `<button role="tab" data-mt="${x}" class="${x === id ? "on" : ""}">${t}</button>`).join("");
+  }
   document.documentElement.dataset.view = id;
   if (App.view !== id) Insp.close();
   App.view = id;
