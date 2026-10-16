@@ -4955,7 +4955,7 @@ function renderAppBox() {
       <button class="gi" id="appCheck"><span class="ic">⬆️</span>检查更新<small>当前版本 ${esc(cur)}${appLatest && appLatest.versionCode > AndroidBridge.versionCode() ? ` · <b style="color:var(--red)">有新版本 ${esc(appLatest.versionName)}</b>` : ""}</small></button>`;
   } else {
     box.innerHTML = `<a class="gi" href="app.html#get"><span class="ic">📱</span><span class="sx"><span class="sxt">安卓 App</span><small>${appLatest ? `版本 ${esc(appLatest.versionName)} · ${(appLatest.size / 1048576).toFixed(1)} MB · ` : ""}作业到点提醒、拍照导入课表更方便</small></span><span class="btn ink sm">下载</span></a>
-      <a class="gi" href="https://github.com/hangyuan2024-hue/class-calendar/releases/latest/download/LaolaoKechengbiao-Setup.exe"><span class="ic">💻</span><span class="sx"><span class="sxt">Windows 电脑版</span><small>整周课表铺满屏幕、右下角提醒、离线 AI 助手 · 约 100 MB</small></span><span class="btn ink sm">下载</span></a>`;
+      <a class="gi" href="https://github.com/hangyuan2024-hue/class-calendar/releases/latest/download/LaolaoKechengbiao-Setup.exe"><span class="ic">💻</span><span class="sx"><span class="sxt">Windows 电脑版</span><small>整周课表铺满屏幕、右下角提醒、离线 AI 助手 · 约 100 MB</small></span><span class="btn ink sm">下载</span></a>${(() => { try { return CCAuth.route() === 1; } catch (e) { return false; } })() ? `<a class="gi" href="${esc(((window.APP_CONFIG && APP_CONFIG.SUPABASE_URL_ALT) || "https://laolao-relay.hangyuan2024.workers.dev").replace(/\/+$/, ""))}/dl/windows"><span class="ic">🌏</span><span class="sx"><span class="sxt">Windows 电脑版（海外线路）</span><small>在海外从 GitHub 下载经常断，可以用这条</small></span><span class="btn sm">下载</span></a>` : ""}`;
   }
 }
 document.addEventListener("change", (e) => {

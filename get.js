@@ -19,7 +19,16 @@
   const mb = (n) => (n / 1048576).toFixed(1) + " MB";
   const day = (s) => { const d = new Date(s); return isNaN(d) ? "" : `${d.getMonth() + 1}月${d.getDate()}日`; };
 
-  const EXE = "https://github.com/hangyuan2024-hue/class-calendar/releases/latest/download/LaolaoKechengbiao-Setup.exe";
+  const EXE_GH = "https://github.com/hangyuan2024-hue/class-calendar/releases/latest/download/LaolaoKechengbiao-Setup.exe";
+  // 5.8.3：海外线路（Cloudflare 中转）也能下电脑版安装包，海外直连 GitHub 经常下到一半断掉。
+  // 在海外（时区不是国内，或者这台设备已经在用海外线路）而且海外线路能下载时，按钮直接用海外线路；另一条放在按钮下面「换一条线路」
+  const ALT = ((window.APP_CONFIG && window.APP_CONFIG.SUPABASE_URL_ALT) || "https://laolao-relay.hangyuan2024.workers.dev").replace(/\/+$/, "");
+  const EXE_ALT = ALT + "/dl/windows";
+  const overseas = (() => {
+    try { if (window.CCAuth && CCAuth.route && CCAuth.route() === 1) return true; } catch (e) {}
+    try { const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; return !!tz && !/^Asia\/(Shanghai|Chongqing|Chungking|Harbin|Urumqi|Kashgar|Hong_Kong|Macau|Taipei)$/.test(tz) && !/^PRC$/.test(tz); } catch (e) { return false; }
+  })();
+  let altOk = false, EXE = EXE_GH;
   const web = new URL("index.html", root).href;
   const originalApk = new URL("download/class-calendar.apk", root).href;
   let apk = originalApk, backupApk = originalApk, ver = null;
@@ -34,12 +43,12 @@
 
   function showAlternative(a, kind) {
     let hint = alternatives.get(a);
-    const visible = kind === "apk" && apk !== backupApk;
+    const visible = (kind === "apk" && apk !== backupApk) || (kind === "exe" && altOk);
     if (!hint && visible) {
       hint = document.createElement("p"); hint.className = "after";
-      hint.append("下载慢或打不开？");
+      hint.append(kind === "exe" ? "下载慢或下到一半断了？" : "下载慢或打不开？");
       const link = document.createElement("a");
-      link.dataset.downloadFallback = "1"; link.dataset.kind = "apk";
+      link.dataset.downloadFallback = "1"; link.dataset.kind = kind;
       link.textContent = "换用备用线路";
       link.style.textDecoration = "underline"; link.style.textUnderlineOffset = "3px";
       hint.append(link); a.insertAdjacentElement("afterend", hint);
@@ -47,7 +56,9 @@
     }
     if (hint) {
       hint.hidden = !visible;
-      useDownload(hint.querySelector("a"), backupApk);
+      const l = hint.querySelector("a");
+      if (kind === "exe") { l.href = EXE === EXE_ALT ? EXE_GH : EXE_ALT; l.textContent = EXE === EXE_ALT ? "换用 GitHub 下载" : "换用海外线路下载"; l.dataset.kind = "exe"; l.removeAttribute("download"); }
+      else useDownload(l, backupApk);
     }
   }
 
@@ -120,6 +131,16 @@
     finally { clearTimeout(timeout); }
   })();
   window.CCGet = { plat, info };
+  // 海外线路能不能下载安装包（中转还没更新时这里会失败，就一直用 GitHub）
+  if (plat.desktop || plat.windows) (async () => {
+    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 6000);
+    try {
+      const r = await fetch(EXE_ALT, { method: "HEAD", signal: ctl.signal, cache: "no-store" });
+      altOk = r.ok && /octet|exe|download|application/i.test(r.headers.get("content-type") || "application/octet-stream");
+    } catch (e) { altOk = false; } finally { clearTimeout(t); }
+    if (altOk && overseas) EXE = EXE_ALT;
+    if (altOk) apply();
+  })();
 
   // 微信里：点下载先教怎么在浏览器打开
   const wx = document.getElementById("wx");
