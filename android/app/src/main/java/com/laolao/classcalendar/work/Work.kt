@@ -86,7 +86,8 @@ object Notify {
         val keyName = "seen_ids_$cid"
         val old = repo.pref(keyName, "")
         repo.setPref(keyName, JSONArray(ids.takeLast(500)).toString())
-        if (old.isEmpty() || LaoApp.foreground) return
+        // 极光推送通了就由推送来提醒，这里不重复弹
+        if (old.isEmpty() || LaoApp.foreground || com.laolao.classcalendar.push.Push.recentlyWorked(c)) return
         val known = runCatching { JSONArray(old) }.getOrNull()?.let { a -> (0 until a.length()).map { a.optString(it) }.toHashSet() } ?: return
         val fresh = repo.classItems().filter { it.optString("id") !in known }
         if (fresh.isEmpty()) return

@@ -70,6 +70,17 @@
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
 
+        <!-- 极光推送 -->
+        <service android:name=".push.PushService" android:enabled="true" android:exported="false">
+            <intent-filter><action android:name="cn.jiguang.user.service.action" /></intent-filter>
+        </service>
+        <receiver android:name=".push.PushReceiver" android:enabled="true" android:exported="false">
+            <intent-filter>
+                <action android:name="cn.jpush.android.intent.RECEIVER_MESSAGE" />
+                <category android:name="${applicationId}" />
+            </intent-filter>
+        </receiver>
+
         <receiver android:name=".work.ReminderReceiver" android:exported="false" />
         <receiver android:name=".work.DoneReceiver" android:exported="false" />
         <receiver android:name=".work.WidgetTickReceiver" android:exported="false" />

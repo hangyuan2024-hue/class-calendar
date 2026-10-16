@@ -49,11 +49,12 @@ class Repo(private val ctx: Context) {
     }
     private suspend fun afterAuth() {
         _store.value = SyncStore(ctx, api.uid()); _logged.value = true
+        com.laolao.classcalendar.push.Push.start(ctx, api.uid())
         runCatching { touchDevice() }
         refresh()
     }
     suspend fun logout() { api.logout(); signedOut() }
-    private fun signedOut() { _store.value = SyncStore(ctx, "guest"); _logged.value = false }
+    private fun signedOut() { com.laolao.classcalendar.push.Push.stop(ctx); _store.value = SyncStore(ctx, "guest"); _logged.value = false }
 
     // ---------- snapshots ----------
     fun profile(): Profile {
@@ -228,6 +229,9 @@ class Repo(private val ctx: Context) {
         onLocalChange?.invoke()
         uploadCourses()
     }
+
+    /** 让服务器给自己发一条极光推送，测试通不通 */
+    suspend fun pushTest(): JSONObject = api.rpc("jpush_test_me").obj()
 
     // ---------- classes ----------
     suspend fun createClass(name: String) { api.rpc("create_class", JSONObject().put("cname", name.trim())); refresh() }

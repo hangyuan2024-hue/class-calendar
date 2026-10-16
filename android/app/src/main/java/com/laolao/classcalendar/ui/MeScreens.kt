@@ -193,6 +193,8 @@ fun PermissionsScreen() {
     val c = LocalLao.current
     val repo = LocalRepo.current
     var on by remember { mutableStateOf(repo.pref("remind", "on") == "on") }
+    val scope = rememberCoroutineScope()
+    val snack = LocalSnack.current
     var hwOn by remember { mutableStateOf(repo.pref("remind_hw", "on") == "on") }
     var newsOn by remember { mutableStateOf(repo.pref("notify_news", "on") == "on") }
     var lead by remember { mutableStateOf(repo.pref("remind_lead", "10")) }
@@ -234,6 +236,18 @@ fun PermissionsScreen() {
                     }
                     Switch(newsOn, { newsOn = it; repo.setPref("notify_news", if (it) "on" else "off") })
                 }
+            }
+        }
+        item {
+            Card0 {
+                Text("即时推送", fontWeight = FontWeight.SemiBold)
+                Text("老师、班委一发布，几秒内就收到（App 没打开也行）。收不到时，后台检查照样会在 15 分钟内提醒。", fontSize = 12.sp, color = c.muted)
+                TextButton({
+                    scope.launch {
+                        val r = runCatching { repo.pushTest() }
+                        snack(r.fold({ if (it.optBoolean("ok")) "已发出，几秒内应该会弹出通知" else it.optString("reason").ifBlank { "没发出去" } }, { "没发出去：" + (it.message ?: "") }))
+                    }
+                }) { Text("发一条测试推送") }
             }
         }
         item { Check("通知权限", notif, "允许 App 弹出提醒") { go(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, ctx.packageName)) } }

@@ -43,8 +43,15 @@ android {
     kotlinOptions { jvmTarget = "17" }
     flavorDimensions "edition"
     productFlavors {
-        stable { dimension "edition" }
-        preview { dimension "edition"; applicationIdSuffix ".preview"; versionNameSuffix "-preview" }
+        // 极光推送 AppKey（公开信息，本来就会写进 App；Master Secret 只放在数据库里）
+        stable {
+            dimension "edition"
+            manifestPlaceholders = [JPUSH_PKGNAME: "com.laolao.classcalendar", JPUSH_APPKEY: "a4e90cf4ea66b0174921b742", JPUSH_CHANNEL: "official"]
+        }
+        preview {
+            dimension "edition"; applicationIdSuffix ".preview"; versionNameSuffix "-preview"
+            manifestPlaceholders = [JPUSH_PKGNAME: "com.laolao.classcalendar.preview", JPUSH_APPKEY: "a4e90cf4ea66b0174921b742", JPUSH_CHANNEL: "preview"]
+        }
     }
     lint {
         checkReleaseBuilds false
@@ -80,6 +87,8 @@ dependencies {
     implementation "androidx.work:work-runtime-ktx:2.9.1"
     implementation "androidx.glance:glance-appwidget:1.1.0"
     implementation "com.squareup.okhttp3:okhttp:4.12.0"
+    // 极光推送（5.x 会自动带上 JCore）
+    implementation "cn.jiguang.sdk:jpush:5.4.0"
     testImplementation "junit:junit:4.13.2"
     testImplementation "org.json:json:20240303"
     debugImplementation "androidx.compose.ui:ui-tooling"

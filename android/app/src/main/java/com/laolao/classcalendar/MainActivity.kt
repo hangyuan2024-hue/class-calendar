@@ -55,6 +55,7 @@ class MainActivity : ComponentActivity() {
         val repo = LaoApp.instance.repo
         lifecycleScope.launch {
             runCatching { repo.touchDevice() }
+            if (repo.api.logged()) com.laolao.classcalendar.push.Push.start(this@MainActivity, repo.api.uid())
             repo.refresh(quiet = true)
             com.laolao.classcalendar.work.Reminders.schedule(this@MainActivity)
         }
