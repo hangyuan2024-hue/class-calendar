@@ -395,3 +395,80 @@ const Work58 = {
 }
 // 工具页的「常用」里加一个入口；命令面板也能搜到（Ctrl+K →「导入」）
 document.addEventListener("click", (e) => { const b = e.target.closest("[data-goq=memo]"); if (b) { e.preventDefault(); e.stopPropagation(); Memo58.open(); } }, true);
+
+// ================= 5. 登录设备管理（和网站「我的 → 安全」同一套，后端 5.4.0） =================
+// 这台电脑每次打开、之后每 2 分钟报到一次；在别的设备上被「踢出」后，这里马上退出登录（本机的个人记录还在）
+const Dev58 = {
+  list: [], err: "", at: 0, hook: null, kicking: false, lastTouch: 0,
+  id() { return (App.S && App.S.dev) || ""; },
+  name() { return "Windows 电脑版" + (navigator.userAgent.includes("Windows NT 10") ? "" : ""); },
+  async touch(force) {
+    if (!App.S || !App.S.loggedIn || !this.id() || this.kicking || (!force && Date.now() - this.lastTouch < 120000)) return;
+    this.lastTouch = Date.now();
+    try {
+      const r = await api("device_touch", { p_device: this.id(), p_name: this.name(), p_platform: "desktop" }, true);
+      if (r && r.revoked) return this.kicked();
+      this.hook = !!(r && r.hook);
+    } catch (e) { /* 后台没开通设备管理：不影响使用 */ }
+  },
+  async alive() {
+    if (this.hook !== false || !App.S || !App.S.loggedIn || this.kicking) return;
+    try { const r = await api("device_alive", { p_device: this.id() }, true); if (r && r.revoked) this.kicked(); } catch (e) { if (notFound(e)) this.hook = true; }
+  },
+  async kicked() {
+    if (this.kicking) return; this.kicking = true;
+    try { await call("logout"); } catch (e) {}
+    infoBox("这台电脑已退出登录", "你的账号在另一台设备上把这台电脑退出了登录。本机的个人记录还在，重新登录就能继续用。<br><br>如果不是你本人操作，请登录后立刻修改密码。");
+    setTimeout(() => (this.kicking = false), 5000);
+  },
+  async load(force) {
+    if (!force && Date.now() - this.at < 30000) return;
+    this.at = Date.now();
+    await this.touch(true);
+    try { this.list = (await api("device_list", { p_device: this.id() }, true)) || []; this.err = ""; }
+    catch (e) { this.list = []; this.err = notFound(e) ? "后台还没开通设备管理（网站数据库要先执行 5.4.0 的 SQL）" : cleanErr(e); }
+    this.paint();
+  },
+  html() {
+    const ic = { web: "💻", android: "📱", wechat: "💬", desktop: "🖥️", ios: "📱" };
+    const when = (t) => { const m = Math.round((Date.now() - Date.parse(t)) / 60000); return isNaN(m) ? "" : m < 2 ? "刚刚" : m < 60 ? m + " 分钟前" : m < 1440 ? Math.round(m / 60) + " 小时前" : Math.round(m / 1440) + " 天前"; };
+    return `<section class="card st-card" id="st-dev" data-st="登录设备"><h3>登录设备 <small>你的账号现在在哪些设备上登录着。看到不认识的设备，点「踢出」再改密码</small></h3>
+      <div id="devList">${this.err ? `<div class="muted" style="padding:8px 0">${esc(this.err)}</div>` : !this.at ? `<div class="muted" style="padding:8px 0">加载中…</div>`
+        : this.list.map((d) => `<div class="st-row"><div><b>${ic[d.platform] || "📱"} ${esc(d.name || "设备")}${d.current ? ` <span class="tag" style="--c:var(--ok)">这台电脑</span>` : ""}</b><small>最近使用 ${esc(when(d.last_seen))}</small></div>
+          <div class="st-ctl">${d.current ? "" : `<button class="btn sm danger" data-devkick="${esc(d.id)}">踢出</button>`}</div></div>`).join("") || `<div class="muted" style="padding:8px 0">只有这台电脑</div>`}</div>
+      <div class="st-row"><div><small>踢出后，那台设备会立刻退出登录，正在进行的操作也会失效；它本机的记录不会被删。</small></div><div class="st-ctl"><button class="btn sm" data-devref>刷新</button>${this.list.filter((d) => !d.current).length > 1 ? `<button class="btn sm danger" data-devall>退出其他所有设备</button>` : ""}</div></div></section>`;
+  },
+  paint() {
+    const v = App.views.settings, el = v && v.el && $("#st-dev", v.el); if (!el) return;
+    el.outerHTML = this.html();
+  },
+  async kick(id, all) {
+    const d = this.list.find((x) => x.id === id);
+    if (!(await confirmBox(all ? "退出其他所有设备？" : `把「${d ? d.name : "这台设备"}」退出登录？`, "那台设备会立刻退出登录。", "踢出", true))) return;
+    try { await api("device_revoke", { p_id: all ? null : id, p_all: !!all, p_device: this.id() }); }
+    catch (e) { toast("没踢出：" + cleanErr(e), { bad: true }); return; }
+    await this.load(true);
+    if (await confirmBox("已退出登录", "如果那不是你的设备，说明密码可能被别人知道了。现在去改密码吗？", "去改密码")) App.views.me.changePw && App.views.me.changePw();
+  },
+};
+{
+  const st = App.views.settings, up0 = st.update, mount0 = st.mount;
+  st.update = function () {
+    up0.call(this);
+    const wrap = $("#stWrap", this.el), acct = wrap && $("#st-acct", wrap); if (!acct) return;
+    acct.insertAdjacentHTML("afterend", Dev58.html());
+    const idx = $("#stIdx", this.el);
+    if (idx && !$('[data-st-go="st-dev"]', idx)) { const b = h(`<button data-st-go="st-dev">登录设备</button>`); const a = $('[data-st-go="st-acct"]', idx); a ? a.after(b) : idx.append(b); }
+    Dev58.load(false);
+  };
+  st.mount = function (el) {
+    mount0.call(this, el);
+    el.addEventListener("click", (e) => {
+      const k = e.target.closest("[data-devkick]"); if (k) { Dev58.kick(k.dataset.devkick, false); return; }
+      if (e.target.closest("[data-devall]")) { Dev58.kick(null, true); return; }
+      if (e.target.closest("[data-devref]")) Dev58.load(true);
+    });
+  };
+  setInterval(() => { Dev58.touch(false); Dev58.alive(); }, 15000);
+  setTimeout(() => Dev58.touch(true), 3000);
+}

@@ -31,6 +31,10 @@ const RPC = new Set([
   "mm_list", "mm_get", "mm_save", "mm_rename", "mm_del",
   // 账号：学校 / 单位、权限、退订邮件
   "profile_set_org", "my_perms", "mail_unsubscribe",
+  // 3.3（网站 5.8.0）：作业已读、附件小图、班级情况、教师组 / 团队
+  "item_seen", "item_view_counts", "item_viewers", "item_files_many", "file_thumb", "teacher_classes", "teacher_overview", "create_class_kind", "my_class_kinds",
+  // 3.3：登录设备管理（网站 5.4.0）：这台电脑报到、看有哪些设备登录着、把别的设备踢出
+  "device_touch", "device_alive", "device_list", "device_revoke",
 ]);
 
 // 直接读表（只读，只认这几种写法）

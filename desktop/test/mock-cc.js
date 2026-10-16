@@ -80,6 +80,8 @@
       items: [{ id: 101, type: "作业", subject: "数据结构 实验三：二叉树遍历", time: day(1, "23:59"), by: "王老师", views: 3, done: 1 }, { id: 102, type: "通知", subject: "体测安排", time: day(0, "14:30"), by: "张班长", views: 4, done: 0 }],
       students: [{ user_id: "a", name: "张三", account: "zs", role: "student", hw_done: 0, seen: 1, last_active: null }, { user_id: "d", name: "赵六", role: "student", hw_done: 1, seen: 3, last_active: new Date(Date.now() - 86400000 * 8).toISOString() }, { user_id: "b", name: "李四", role: "monitor", hw_done: 2, seen: 6, last_active: new Date(Date.now() - 86400000).toISOString() }, { user_id: "c", name: "王五", role: "student", hw_done: 3, seen: 8, last_active: new Date().toISOString() }] }),
     create_class_kind: (a) => ({ id: "c-9", name: a.cname, code: "QQ88ZZ", kind: a.ckind }),
+    device_touch: () => ({ revoked: false, hook: true }), device_alive: () => ({ revoked: false }), device_revoke: () => true,
+    device_list: () => [{ id: "d1", name: "Windows 电脑版", platform: "desktop", last_seen: new Date().toISOString(), current: true }, { id: "d2", name: "iPhone · 微信内网页", platform: "web", last_seen: new Date(Date.now() - 3600000 * 5).toISOString() }, { id: "d3", name: "安卓手机", platform: "android", last_seen: new Date(Date.now() - 86400000 * 3).toISOString() }],
   };
   const pomo = { running: false, phase: "focus", left: 0, total: 0, task: "" };
   const push = () => emit("state", JSON.parse(JSON.stringify(S)));
