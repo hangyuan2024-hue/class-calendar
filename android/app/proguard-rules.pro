@@ -10,3 +10,9 @@
 
 # 6.1 小组件：Glance 按类名反射创建点击回调
 -keep class * implements androidx.glance.appwidget.action.ActionCallback { <init>(); }
+# 正式版压缩时，忽略可选依赖的缺失提示（OkHttp 的可选 TLS 库、注解）
+-dontwarn org.conscrypt.**
+-dontwarn org.bouncycastle.**
+-dontwarn org.openjsse.**
+-dontwarn javax.annotation.**
+-dontwarn kotlinx.coroutines.debug.**

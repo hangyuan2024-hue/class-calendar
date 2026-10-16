@@ -16,7 +16,7 @@ android {
         minSdk 24
         targetSdk 34
         versionCode(vc)
-        versionName("6.1." + vc)
+        versionName(System.getenv("APP_VERSION_NAME") ?: ("6.1." + vc))
         buildConfigField("String", "SITE_URL", "\"" + (System.getenv("SITE_URL") ?: "https://www.laolaokechengbiao.cn/") + "\"")
         vectorDrawables { useSupportLibrary true }
     }
