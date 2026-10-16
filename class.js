@@ -166,14 +166,15 @@ $("createForm").onsubmit = (e) => {
   e.preventDefault();
   guard($("createBtn"), async () => {
     let r;
-    try { r = await rpc("create_class", { cname: $("newName").value }); }
+    const kind = ($("newKind") || {}).value || "class";
+    try { r = kind === "class" ? await rpc("create_class", { cname: $("newName").value }) : await rpc("create_class_kind", { cname: $("newName").value, ckind: kind }); }
     catch (err) {
       // 后台还只允许「老师」身份创建时，给一句看得懂的提示
       if (me.role !== "teacher" && me.role !== "admin" && /teacher|老师|权限|permission|denied|forbidden|not allowed/i.test(err.message || ""))
         throw new Error("后台暂时只允许老师创建班级，请让管理员在后台开放「所有人可创建班级」");
       throw err;
     }
-    $("newName").value = ""; toast(`已创建，班级码 ${r.code}`);
+    $("newName").value = ""; toast(`已创建，${kind === "staff" ? "组码" : kind === "team" ? "团队码" : "班级码"} ${r.code}`);
     await load();
     const d = document.querySelector(`details.cls[data-id="${r.id}"]`); if (d) d.open = true;
   });
@@ -272,6 +273,26 @@ $("logout").onclick = async () => { await CCAuth.signOut(); location.href = "log
   }
   $("adminCard").classList.toggle("hidden", me.role !== "admin");
   $("devLink").classList.toggle("hidden", !(me.perms && me.perms.length));
-  if (me.role === "teacher") { $("joinCard").classList.add("hidden"); $("myCard").classList.add("hidden"); }
+  // 5.8.0 老师也能用组码加入教师组；职场人员：班级→团队
+  if (me.role === "teacher") {
+    $("joinCard").querySelector("h2").firstChild.textContent = "加入教师组 ";
+    $("joinCard").querySelector(".desc").textContent = "输入同事给的 6 位组码（教研组、年级组、备课组），提交后等建组的老师批准。";
+    $("joinCode").placeholder = "组码，如 K7M2QX";
+    $("myCard").querySelector("h2").textContent = "我加入的教师组";
+  }
+  const work = me.org_type === "work" && me.role !== "teacher";
+  const kinds = [["class", work ? "班级 / 小组" : "班级"]].concat(me.role === "teacher" || me.role === "admin" ? [["staff", "教师组（只有老师能加入）"]] : []).concat([["team", "团队（工作用）"]]);
+  const ks = document.createElement("select"); ks.id = "newKind"; ks.setAttribute("aria-label", "类型");
+  ks.innerHTML = kinds.map(([v, t]) => `<option value="${v}"${(work ? v === "team" : v === "class") ? " selected" : ""}>${t}</option>`).join("");
+  $("newName").after(ks);
+  if (work) {
+    $("teachTitle").textContent = "我创建的团队";
+    $("teachDesc").textContent = "建一个团队，把团队码发给同事，申请后在这里批准；可以设负责人、分小组。团队里一起看任务、会议和通知。";
+    $("newName").placeholder = "团队名称，如 市场部、XX 项目组";
+    $("createBtn").textContent = "创建";
+    $("joinCard").querySelector("h2").firstChild.textContent = "加入团队 ";
+    $("joinCard").querySelector(".desc").textContent = "输入同事给的 6 位团队码，提交后等管理员批准。";
+    $("myCard").querySelector("h2").textContent = "我的团队";
+  }
   try { await load(); } catch (e) { toast(e.message, true); }
 })();

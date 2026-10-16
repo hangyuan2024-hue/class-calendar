@@ -190,7 +190,7 @@
       box.onclick = async (e) => {
         const o = e.target.closest("[data-xopen]"), d = e.target.closest("[data-xdel]");
         if (o) { o.disabled = true; try { await openOne(o.dataset.xopen, +o.dataset.parts, o.dataset.name, o.dataset.mime); } catch (err) { alert(err.message); } o.disabled = false; }
-        if (d && confirm("删除这个附件？")) { await CCAuth.rpc("file_del", { fid: d.dataset.xdel }); await list(); renderAll(); }
+        if (d && confirm("删除这个附件？")) { await CCAuth.rpc("file_del", { fid: d.dataset.xdel }); if (window.hwPlusReset) window.hwPlusReset(cur.k); await list(); renderAll(); }
       };
     } catch (e) { box.innerHTML = `<div class="meta">${esc(e.message)}</div>`; }
   }
@@ -208,6 +208,19 @@
     blobCache.set(fid, b);
     return b;
   }
+  window.exFetchBlob = fetchBlob;
+  // 图片做一张小图（长边 360，JPEG），作业页直接显示；返回 data:image/jpeg;base64,…
+  async function makeThumb(blob) {
+    try {
+      const bmp = await createImageBitmap(blob);
+      const s = Math.min(1, 360 / Math.max(bmp.width, bmp.height));
+      const c = document.createElement("canvas"); c.width = Math.max(1, Math.round(bmp.width * s)); c.height = Math.max(1, Math.round(bmp.height * s));
+      const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(bmp, 0, 0, c.width, c.height);
+      for (const q of [0.72, 0.55, 0.4]) { const u = c.toDataURL("image/jpeg", q); if (u.length < 150000) return u; }
+    } catch (e) {}
+    return null;
+  }
+  window.exMakeThumb = makeThumb;
   async function openOne(fid, parts, name, mime) {
     const b = await fetchBlob(fid, parts, mime), url = URL.createObjectURL(b);
     if (/^image\//.test(mime)) {
@@ -247,6 +260,8 @@
           say(`正在上传「${f.name}」… ${Math.round(((i + 1) / parts) * 100)}%`);
         }
         await CCAuth.rpc("file_end", { fid: id });
+        if (/^image\//.test(f.type)) { const t = await makeThumb(f); if (t) await CCAuth.rpc("file_thumb", { fid: id, b64: t }).catch(() => {}); }
+        if (window.hwPlusReset) window.hwPlusReset(cid ? "c" + item : item);
         ok++; say(`「${f.name}」上传好了 ✓`);
       } catch (err) { say(`「${f.name}」上传失败：${err.message}`); }
     }
@@ -289,4 +304,6 @@
     EX.files[cid ? "c" + item : item] = (EX.files[cid ? "c" + item : item] || 0) + n;
     renderAll();
   };
+  // 网络很快时，班级数据可能在这个文件加载完之前就拿到了（那时还没有 exLoad）：补一次
+  try { if (typeof classLoadedAt !== "undefined" && classLoadedAt && currentUser) setTimeout(load2, 0); } catch (e) {}
 })();

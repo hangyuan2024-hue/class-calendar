@@ -274,6 +274,19 @@ const LS_CUR_CLASS = "current_class_v1";
 const can = (perm) => !!(currentClass && currentClass[perm]);
 // ===== 班级分组 + 大家一起维护（服务器装了 setup_miniapp.py 新版后才有；没装时 GROUPS_OK = false，一切照旧）=====
 let GROUPS_OK = false, classGroups = [], classOpts = {};
+// 5.8.0 老师模式（身份是老师：首页换成教学工作台、多一个「班级情况」，不显示宠物农场这些学生用的）、职场模式（单位类型选了职场人员：班级→团队、作业→任务…）
+const teacherMode = () => !!currentUser && currentUser.role === "teacher";
+const workMode = () => !!currentUser && currentUser.org_type === "work" && !teacherMode();
+let CLASS_KINDS = load("class_kinds_v1", {}) || {};
+const kindOf = (c) => (c && (c.kind || CLASS_KINDS[c.id])) || "class";
+const KIND_NAME = { staff: "教师组", team: "团队" };
+async function refreshKinds() {
+  if (!currentUser || !myClasses.length) return;
+  try {
+    const k = await CCAuth.rpc("my_class_kinds");
+    if (k && JSON.stringify(k) !== JSON.stringify(CLASS_KINDS)) { CLASS_KINDS = k; save("class_kinds_v1", k); renderClassBar(); renderTabs(); }
+  } catch (e) { /* 数据库还没升级到 5.8.0 */ }
+}
 const isClassStaff = () => !!currentClass && (currentClass.is_teacher || currentClass.member_role === "monitor" || (currentUser && currentUser.role === "admin"));
 const groupOf = (gid) => gid ? classGroups.find((g) => String(g.id) === String(gid)) : null;
 // 能不能在「全班」（gid 为空）或某个组里添加、修改事项（服务器还会再检查一遍）
@@ -837,6 +850,7 @@ function hwRow(r) {
       <div class="atitle">${r.need_confirm ? "⚠ " : ""}${esc(r.subject || r.summary || "作业")}${typeof exFilesTag === "function" ? exFilesTag(r) : ""}</div>
       ${r.subject && r.summary ? `<div class="asub">${esc(r.summary)}</div>` : ""}
       <div class="aextra">${detailHtml(r)}</div>
+      ${typeof hwPlusRow === "function" ? hwPlusRow(r) : ""}
     </div>
     <div class="hw-side"><span class="due-tag ${di.cls}">${esc(di.text)}</span>${when ? `<small>${esc(when)}</small>` : ""}</div>
   </div>`;
@@ -878,6 +892,7 @@ function renderHomework() {
     ${done.length ? `<div class="aday"><div class="aday-h"><b>已完成</b><span>${done.length} 项</span></div>${card(done)}</div>` : ""}
     <div class="afoot">${Sync.active() ? "完成勾选会同步到你的账号；" : "勾选只记在这台设备上；"}作业由班委整理发布，有出入以群里为准。</div>`;
   if (typeof exRender === "function") exRender();
+  if (typeof hwPlusAfter === "function") hwPlusAfter(overdue.concat(todo, undatedHw, done)).catch(() => {});
 }
 $("hwView").addEventListener("click", (e) => {
   const b = e.target.closest("button[data-hw]"); if (!b) return;
@@ -929,6 +944,7 @@ function renderAll() {
   [pluginBroadcastClass, indexItems, renderGrid, renderSide, renderAgenda, renderHomework, renderRail, renderGrowth, renderFarm, renderPlan, renderMeta, renderWidgets, syncJump, appSchedule].forEach(run);
   if (typeof exRender === "function") run(exRender);
   if (typeof renderIsland === "function") run(() => renderIsland(true));
+  (window.CC_HOME_HOOKS || []).forEach(run);   // 5.8.0 老师 / 职场首页
 }
 
 function showBanner(msg) { const b = $("banner"); b.textContent = msg; b.classList.toggle("show", !!msg); }
@@ -961,6 +977,7 @@ async function loadMyClasses() {
   pendingClasses = all.filter((c) => c.status === "pending");
   const saved = load(LS_CUR_CLASS, null);
   currentClass = myClasses.find((c) => c.id === saved) || myClasses[0] || null;
+  refreshKinds();
 }
 
 function renderClassBar() {
@@ -979,9 +996,11 @@ function renderClassBar() {
   $("cbNameBtn").classList.toggle("hidden", !canNameClass());
   const sel = $("classSel");
   sel.classList.toggle("hidden", !multi);
-  sel.innerHTML = myClasses.map((c) => `<option value="${esc(c.id)}" ${c.id === currentClass.id ? "selected" : ""}>${esc(c.name)}${c.nickname ? "（" + esc(c.nickname) + "）" : ""}</option>`).join("");
-  const roleName = currentClass.is_teacher ? "老师" : currentClass.member_role === "monitor" ? "班委" : "学生";
-  $("classRole").textContent = roleName;
+  sel.innerHTML = myClasses.map((c) => `<option value="${esc(c.id)}" ${c.id === currentClass.id ? "selected" : ""}>${KIND_NAME[kindOf(c)] ? KIND_NAME[kindOf(c)] + " · " : ""}${esc(c.name)}${c.nickname ? "（" + esc(c.nickname) + "）" : ""}</option>`).join("");
+  const kd = kindOf(currentClass);
+  const roleName = kd === "staff" ? (currentClass.is_teacher ? "组长" : "组员") : kd === "team" ? (currentClass.is_teacher ? "管理员" : currentClass.member_role === "monitor" ? "负责人" : "成员")
+    : currentClass.is_teacher ? "老师" : currentClass.member_role === "monitor" ? "班委" : "学生";
+  $("classRole").textContent = roleName + (KIND_NAME[kd] ? " · " + KIND_NAME[kd] : "");
   $("cAddBtn").classList.toggle("hidden", !canAddItem());
   $("cIngestBtn").classList.toggle("hidden", !ingestAllowed());
   renderQuick();
@@ -2135,7 +2154,7 @@ function fabItems(view) {
   const ing = ingestAllowed() ? [["ingest", "✨", "AI 整理群消息"]] : [];
   if (view === "calendar") {
     const d = selectedKey === keyOf(ccDate()) ? "今天" : mdOf(selectedKey);
-    if (mineOn) list.push(["mineDay", "✏️", `在${d}记一件事`]);
+    if (mineOn) list.push(["mineDay", "✏️", `在${d}记一件事`], ["memo", "📝", "导入手机备忘录"]);
     list.push(...pub(`发布到${d}`), ...ing);
   } else if (view === "homework") {
     if (mineOn) list.push(["mineHw", "✏️", "记一项自己的作业"]);
@@ -2157,7 +2176,7 @@ function fabItems(view) {
   } else if (view === "farm") {
     if (mineOn) list.push(["mine", "✏️", "记一件事（完成就有养料）"]);
   } else {
-    if (mineOn) list.push(["mine", "✏️", "记一件事"]);
+    if (mineOn) list.push(["mine", "✏️", "记一件事"], ["memo", "📝", "导入手机备忘录"]);
     list.push(...ing, ...pub("发布班级事项"));
     if (o.habits) list.push(["habit", "🔥", "今日打卡"]);
     if (o.plan) list.push(["pomo", "🍅", "开始专注"]);
@@ -2166,6 +2185,7 @@ function fabItems(view) {
 }
 function fabRun(k) {
   if (k === "mine") openForm(null);
+  if (k === "memo" && window.openMemo) window.openMemo();
   if (k === "mineDay") openForm(null, { day: selectedKey });
   if (k === "mineHw") openForm(null, { title: "", hint: "比如：高数习题 3.2" });
   if (k === "quad") openForm(null, { quad: "1" });
@@ -2862,6 +2882,7 @@ const ICONS = {
          '<path d="M12 3l1.8 4.6L18.5 9.5l-4.7 1.9L12 16l-1.8-4.6L5.5 9.5l4.7-1.9z" fill="currentColor"/><path d="M18.5 15.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z" fill="currentColor"/>'],
   me: ['<circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
        '<circle cx="12" cy="8" r="4.5" fill="currentColor"/><path d="M3.5 21c0-4.8 3.8-7.5 8.5-7.5s8.5 2.7 8.5 7.5z" fill="currentColor"/>'],
+  teach: ['<path d="M4 20V11m5.3 9V6m5.4 14v-6M20 20V9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>', '<rect x="2.8" y="10" width="3" height="11" rx="1.2" fill="currentColor"/><rect x="8" y="5" width="3" height="16" rx="1.2" fill="currentColor"/><rect x="13.2" y="13" width="3" height="8" rx="1.2" fill="currentColor"/><rect x="18.5" y="8" width="3" height="13" rx="1.2" fill="currentColor"/>'],
   class: ['<path d="M2.5 9 12 4l9.5 5-9.5 5z M6.5 11.2V16c0 1.6 2.5 3 5.5 3s5.5-1.4 5.5-3v-4.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>', ""],
   growth: ['<path d="M4 20V10m8 10V4m8 16v-8M3 7l6-4 5 5 7-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>', '<rect x="3" y="10" width="3" height="11" rx="1.5" fill="currentColor"/><rect x="10.5" y="4" width="3" height="17" rx="1.5" fill="currentColor"/><rect x="18" y="12" width="3" height="9" rx="1.5" fill="currentColor"/>'],
 };
@@ -2877,7 +2898,10 @@ function renderTabs() {
   let cur = currentView();
   const pinned = railPins().some((t) => t.view === cur);
   if (cur.startsWith("p_") && !pinned) cur = "tools";
-  $("tabs").innerHTML = NAV.map(([id, t]) => {
+  document.body.classList.toggle("is-teacher", teacherMode());
+  document.body.classList.toggle("is-work", workMode());
+  const nav = teacherMode() ? NAV.filter(([id]) => id !== "growth").flatMap((x) => x[0] === "home" ? [x, ["teach", "班级情况"]] : [x]) : NAV;
+  $("tabs").innerHTML = nav.map(([id, t]) => {
     const unavailable = (id === "plan" && !funOpts().plan) || (id === "ask" && (!laiReady() || !feat("ask"))) || !viewOn(id);
     const button = `<button class="nav${id === cur ? " on" : ""}${["wall", "calendar", "plan", "ask", "study"].includes(id) ? " desk" : ""}${unavailable ? " hidden" : ""}" data-tab="${id}">${icon(id)}<span>${cyName(t)}</span>${id === "homework" && hwBadge ? `<em class="badge">${hwBadge}</em>` : ""}</button>`;
     // 工具：不再在旁边放一个箭头按钮。在工具页再点一次「工具」、长按「工具」或按 Ctrl/⌘+K 都能快捷打开任意工具；电脑上鼠标移上去会在这一行里提示快捷键
@@ -2939,13 +2963,14 @@ function showView(id) {
   if (prev === "mindmap" && id !== "mindmap" && typeof mmLeave === "function") mmLeave();
   document.querySelectorAll(".view[data-view]").forEach((v) => { v.classList.toggle("on", v.dataset.view === id); v.classList.remove("sub", "back"); });
   // 手机上：进入二级页面从右边滑进来，返回时从左边滑回来，像原生 App
-  const TABS = ["home", "homework", "wall", "calendar", "me", "tools", "plan", "ask", "growth"];
+  const TABS = ["home", "homework", "wall", "calendar", "me", "tools", "plan", "ask", "growth", "teach"];
   const cur = document.querySelector(`.view[data-view="${CSS.escape(id)}"]`);
   if (cur && prev !== id) cur.classList.add(!TABS.includes(id) ? "sub" : !TABS.includes(prev) ? "back" : "tab");
   renderTabs();
   if (["home", "calendar", "homework"].includes(id)) renderAll();
   if (id === "wall") loadWall(true);
   if (id === "growth") renderGrowth();
+  if (id === "teach" && typeof renderTeach === "function") renderTeach();
   if (id === "farm") renderFarm();
   if (id === "plan") renderPlan();
   if (id === "meta") renderMeta();
@@ -3552,7 +3577,9 @@ function toolList() {
 const toolById = (id) => toolList().find((t) => t.id === id);
 const railPins = () => homeLayout().rail.map(toolById).filter(Boolean);
 function cardInfo(id) { return WDEF[id] || toolById(id); }
-function cardAvailable(id) { const d = WDEF[id]; return d ? (!d.on || d.on()) : !!toolById(id); }
+function cardAvailable(id) {
+  if ((teacherMode() || workMode()) && id === "w:farm") return false;   // 老师、职场不显示宠物农场
+  const d = WDEF[id]; return d ? (!d.on || d.on()) : !!toolById(id); }
 const isMobile = () => matchMedia("(max-width: 700px)").matches;
 
 function miniCalHtml() {

@@ -8,7 +8,7 @@
  * ========================================================================= */
 (function () {
   "use strict";
-  var LS = "cc_lang", VER = "20261015-v570";
+  var LS = "cc_lang", VER = "20261016-v580";
   function pick() {
     try {
       var q = (location.search.match(/[?&]lang=(en|zh)\b/) || [])[1];

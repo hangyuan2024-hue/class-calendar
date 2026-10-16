@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-4Ss7P6DROgF1wQ/X/Rt8C1DejNzksSTArGXdKWYrVt0=' 'sha256-LKJ+mo2uVpzerEJ1LtGu0a/v9/GSgtPMEsCqpUoIvAQ=' 'sha256-KsOFcNldfNSqeBoBNlB2wJo9zdEO1MOn6bmIN6p/6RI=' 'sha256-VSJgs2BX8TFGDzSpHfZjJ6nxbk3Wa+LBOu/bdk7KvCc='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com https://*.workers.dev wss://*.workers.dev http://localhost:* http://127.0.0.1:*; frame-src 'self'; media-src 'self' data: blob:; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; manifest-src 'self'">
 <meta name="referrer" content="no-referrer">
-<script src="i18n.js?v=20261015-v570"></script>
+<script src="i18n.js?v=20261016-v580"></script>
 <script src="guard.js?v=20261005-campus1"></script>
 <script src="first.js?v=20261004c"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -1833,7 +1833,7 @@
 <link rel="stylesheet" href="campus-tools.css?v=20261008-org1">
 <link rel="stylesheet" href="org.css?v=20261008-org1">
 <link rel="stylesheet" href="polish.css?v=20261009-tl2">
-<link rel="stylesheet" href="extras.css?v=20261015-v570">
+<link rel="stylesheet" href="extras.css?v=20261016-v580">
 <link rel="stylesheet" href="study.css?v=20261009-kn2">
 <link rel="stylesheet" href="mindmap.css?v=20261009-mm1">
 </head>
@@ -2017,6 +2017,10 @@
   </section>
 
   <!-- 成长 -->
+  <section class="view" data-view="teach">
+    <header class="vhead"><button class="av mavatar" data-tab="me" aria-label="我的"></button><h2>班级情况</h2><span class="spacer"></span><button class="small" id="tRefresh">刷新</button></header>
+    <div id="teachView"></div>
+  </section>
   <section class="view" data-view="growth">
     <header class="vhead"><button class="back" data-tab="home" aria-label="返回首页">‹</button><h2>成长</h2></header>
     <div class="surface" style="margin:0 16px"><div class="rings" id="gRings"></div></div>
@@ -2486,7 +2490,7 @@
 
 <div id="modal">
   <form id="form">
-    <h3 id="formTitle">记一件事</h3>
+    <div class="form-h"><h3 id="formTitle">记一件事</h3><button type="button" class="small memo-open" id="fMemo" title="把手机备忘录里的待办一次导入">📝 从备忘录导入</button></div>
     <input type="hidden" id="fId"><input type="hidden" id="fFrom">
     <div class="ftip hidden" id="fFromTip">这是班级事项，班级里只有老师和班委能改。你在这里改的只对自己生效：保存后显示你的版本，班级原来那条会替你隐藏；在「我的事项」里删掉这条就恢复原样。</div>
     <div class="row">
@@ -2576,8 +2580,8 @@
 <script src="courses.js?v=20261015-v571"></script>
 <script src="farm.js?v=20261009-tz1"></script>
 <script src="metaverse-v3.js?v=20261005-native3"></script>
-<script src="app.js?v=20261015-v570"></script>
-<script src="extras.js?v=20261010-hw3"></script>
+<script src="app.js?v=20261016-v580"></script>
+<script src="extras.js?v=20261016-v580"></script>
 <script src="campus-tools.js?v=20261006-tools1"></script>
 <script src="workspace-v3.js?v=20261005-native3"></script>
 <script src="island-core.js?v=20261004a"></script>
@@ -2585,6 +2589,11 @@
 <script src="study.js?v=20261009-kn2"></script>
 <script src="mindmap.js?v=20261009-mm1"></script>
 <script src="ux.js?v=20261011-kn1"></script>
+<script src="memo.js?v=20261016-v580"></script>
+<script src="memo-ui.js?v=20261016-v580"></script>
+<script src="hwplus.js?v=20261016-v580"></script>
+<script src="teacher.js?v=20261016-v580"></script>
+<script src="work.js?v=20261016-v580"></script>
 <script src="live.js?v=20261009-live1"></script>
 </body>
 </html>

@@ -1,0 +1,115 @@
+2847	iPhone Notes: open the note → "···" at top right → "Copy" (or select all → Copy), then paste below.
+2848	Android notes: open the note → Share → "Copy text", or export it as a txt file and tap "Choose txt file" below.
+2849	📝 Import phone notes
+2850	Bring your notes' to-dos over in one go:
+2851	one item per line
+2852	; dates and times are detected automatically. A line with just a date ("Wed:", "Oct 20") applies to the lines below it.
+2853	How do I get text out of my phone's notes?
+2854	Notes saved in WeChat work the same way: open → copy → paste.
+2855	Paste your notes, e.g.:&#10;Wed:&#10;Calculus homework ch.3&#10;3pm club meeting A201&#10;Oct 20 dentist 9:30am&#10;- [ ] buy milk
+2856	📄 Choose txt file
+2857	📋 Paste from clipboard
+2858	Split into items
+2859	Select all
+2860	Skip checked-off items
+2861	Add to my items
+2862	File too large (max 2MB)
+2863	This browser won't let pages read the clipboard. Long-press the box and choose "Paste".
+2864	Clipboard is empty
+2865	Couldn't read the clipboard. Long-press the box and choose "Paste".
+2866	Paste your notes first
+2867	No items found — is the text empty?
+2868	Found
+2869	items,
+2870	with dates detected. Fix anything that's off right here.
+2871	Import this one
+2873	Checked items show on the Homework page
+2875	Done
+2876	Add to my items (
+2877	)
+2878	Imported
+2879	items into "My items" ✓ Dated ones show on the calendar and home page
+2880	Nothing new (maybe already imported)
+2881	· ✓ {0} done
+2882	👀 Seen {0}/{1}{2}
+2883	See who has and hasn't seen it
+2884	📎 Loading attachments…
+2885	Previous
+2886	Next
+2887	Loading original…
+2888	Original didn't load: 
+2889	Copy these names:
+2890	Who has and hasn't seen it (only the poster, teachers and class officers can see this list)
+2891	Copy names (to remind in the group chat)
+2892	Everyone has seen it 🎉
+2893	None
+2894	Nobody has marked it done yet
+2895	Only the poster, teachers and class officers can see this list · class of {1}
+2896	Seen
+2897	Not seen
+2898	Not seen ({5})
+2899	Seen, not done ({6})
+2900	Done ({7})
+2901	"Seen" = opened the Homework page or this item; teachers' own views don't count. "Done" = the student checked it off.
+2902	👀 Seen list
+2903	The database hasn't been upgraded to 5.8.0 yet. Please run the 5.8.0 SQL first.
+2904	Teaching desk
+2905	Thanks for all you do today
+2906	{0} awaiting approval
+2908	{4} homework completions in the last 7 days · {5} assignments these two weeks
+2909	No classes yet.
+2910	Create a class →
+2911	Once it's set up, share the class code with students; after they join you'll see how each one is doing here.
+2912	👩‍🏫 My classes
+2913	Class overview ›
+2914	After you post homework, "Class overview" shows who hasn't seen or finished it, and you can copy their names to the group chat in one tap.
+2915	Sign in to see your class overview
+2916	＋ New class
+2917	You don't have a class of your own yet.
+2918	Copy class code
+2919	Class code {1} ⧉
+2920	Last {2} days
+2921	Updating…
+2922	Time range
+2923	Homework due
+2924	Completion rate
+2925	Pending ›
+2926	👥 Each student
+2927	📋 Posted items (who saw them)
+2928	🧑‍🏫 Teacher groups
+2929	Copy names
+2930	Never opened
+2931	Opened today
+2932	days since last opened
+2933	{4} · seen {5}
+2934	Homework {8}{9}
+2935	No students yet. Post the class code in your class group chat — students join by entering it.
+2936	None 🎉
+2937	All {1}
+2938	Homework unfinished {3}
+2939	Not opened in 7 days {5}
+2940	"Homework" = how many assignments due in the last {8} days the student checked off; "seen" = opened the Homework page or an item. Teachers' own views don't count.
+2941	List ›
+2942	Seen
+2943	No items in the last {0} days. Post one from the home page with "Post item" or "AI organize".
+2944	🗂 My own work
+2945	✏️ Add an item
+2946	📣 Post class item
+2947	✨ AI-organize chat messages
+2948	📚 My timetable
+2949	📅 Calendar
+2950	Items you add yourself are visible only to you; your timetable can be imported from a photo and shared with the class.
+2951	Joined
+2952	· group code
+2953	Created by me · {0} teachers{1}
+2954	Open ›
+2955	Subject groups, grade groups, lesson-prep groups… create a teacher group and share its code with colleagues. Only teacher accounts can join.
+2956	＋ New teacher group
+2957	Join with a group code
+2958	A teacher group works like a class: post notices, share schedules (meetings, exam duty), discuss on the wall, and keep a timetable together.
+2959	Teacher group name (e.g. Grade 10 Math prep group)
+2960	"{0}" is ready. Group code: {1} Share it with colleagues — they enter it on the Class page to join (teacher accounts only).
+2961	"{0}" is ready. Group code: {1}
+2962	Share the group code with colleagues — they enter it on the Class page to join (teacher accounts only).
+2963	This group isn't in your class list yet. Refresh the page and try again.
+2964	Copy:
