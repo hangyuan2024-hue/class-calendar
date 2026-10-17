@@ -37,7 +37,7 @@ const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; 
 // ===== 云端同步：登录后，我的事项、完成标记、打卡、规划、外观设置自动存到云端，换浏览器 / 换手机都能看到 =====
 // 每条数据单独同步，带修改时间；两边都改了同一条，以后改的为准。可以在「我的 → 数据」里改成「只存在这台设备」。
 // list：数组，按 id 一条条同步；map：对象，按键同步；map2：两层对象（习惯 → 日期）；one：整体同步
-const SYNC_KINDS = { ui_style_v1: "one", compose_mode_v1: "one", compose_reduce_motion_v1: "one", course_rev_v1: "one", course_view_v1: "map", kn_rev_v1: "one", mm_rev_v1: "one", personal_events_v1: "list", personal_marks_v1: "map", done_log_v1: "map", habits_v1: "list", habit_log_v1: "map2",
+const SYNC_KINDS = { hw_view_v1: "one", ui_style_v1: "one", compose_mode_v1: "one", compose_reduce_motion_v1: "one", course_rev_v1: "one", course_view_v1: "map", kn_rev_v1: "one", mm_rev_v1: "one", personal_events_v1: "list", personal_marks_v1: "map", done_log_v1: "map", habits_v1: "list", habit_log_v1: "map2",
   quad_v1: "map", quad_todos_v1: "list", pomo_log_v1: "map", fun_opts_v1: "one", home_layout_v1: "one", ui_skin_v1: "one",
   ui_palette_v1: "one", plugins_enabled_v1: "one", home_quick_tools_v1: "one", plan_notes_v1: "map", profile_v1: "one", mood_log_v1: "map", farm_v1: "one", island_v1: "one" };
 const LS_SYNC = "sync_meta_v1", LS_SYNC_OUT = "sync_outbox_v1", LS_SYNC_MODE = "sync_mode_v1";
@@ -857,10 +857,53 @@ function hwRow(r) {
   </div>`;
 }
 
+// 作业显示方式（5.9.0）：due 按截止时间（默认，下周要交的这周就能看到）/ week 按周看。跟着账号同步，网页、小程序、App 一样
+const LS_HWV = "hw_view_v1";
+const hwMode = () => (load(LS_HWV, "due") === "week" ? "week" : "due");
+const hwFold = new Set();
+let hwShowDone = false;
+function hwModeSeg() {
+  const m = hwMode();
+  return `<div class="cvseg" role="group" aria-label="作业怎么排">${[["due", "按截止时间"], ["week", "按周看"]].map(([k, t]) =>
+    `<button type="button" data-hwv="${k}" class="${m === k ? "on" : ""}" aria-pressed="${m === k}">${t}</button>`).join("")}</div>`;
+}
 function renderHomework() {
   const box = $("hwView");
   if (!box || !box.closest(".view.on")) return;
   const items = allItems().filter((r) => r.msg_type === "作业");
+  const card = (list) => `<div class="acard surface">${list.map(hwRow).join("")}</div>`;
+  if (hwMode() === "due") {
+    // ---- 按截止时间：所有没做完的一个列表，分成 已过期 / 今天 / 明天 / 这周 / 下周 / 以后 / 时间待定 ----
+    const now = ccDate();
+    const G = CCNext.groups(items.map((r) => ({ day: r._p ? r._p.day : "", time: r._p ? r._p.time || "" : "", done: !!r._done, r })), now);
+    const left = G.reduce((n, g) => n + g.items.length, 0);
+    const mon = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (today.getDay() + 6) % 7);
+    const a = keyOf(mon), b = keyOf(new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6));
+    const week = items.filter((r) => r._p && r._p.day >= a && r._p.day <= b), wdone = week.filter((r) => r._done).length;
+    const done = items.filter((r) => r._done && (!r._p || dayDiff(r._p.day) >= -30)).sort((x, y) => String((load("done_log_v1", {}) || {})[y._key] || (y._p && y._p.day) || "").localeCompare(String((load("done_log_v1", {}) || {})[x._key] || (x._p && x._p.day) || "")));
+    const late = (G.find((g) => g.key === "late") || { items: [] }).items.length;
+    box.innerHTML = `
+    <div class="hw-head">
+      <h2>作业</h2><span class="range">${left ? `还有 ${left} 项没做` : "都做完了 🎉"}</span>
+      <span class="spacer"></span>${hwModeSeg()}
+    </div>
+    <div class="hw-prog surface" style="display:flex;align-items:center;gap:16px">
+      ${ringSvg(wdone, week.length, 76, "var(--hw-ring, var(--green))", "hw")}
+      <div style="flex:1;min-width:0">
+        <div class="row1"><span><b>${left}</b>项没完成${late ? `（含 ${late} 项过期）` : ""}</span></div>
+        <div style="font-size:13px;margin-top:2px">本周已完成 ${wdone} / ${week.length}${week.length && wdone === week.length ? "，全部搞定 🎉" : ""}</div>
+      </div>
+    </div>
+    <div id="adSoonHw" class="adsoon hidden"></div>
+    ${G.length ? G.map((g) => { const f = hwFold.has(g.key); return `<div class="aday"><div class="aday-h${g.key === "late" ? " overdue" : ""}" data-hwfold="${g.key}" style="cursor:pointer"><b>${g.title}</b><span>${g.items.length} 项 · ${esc(g.sub)}${f ? " · 已收起，点一下展开" : ""}</span></div>${f ? "" : card(g.items.map((x) => x.r))}</div>`; }).join("")
+      : `<div class="aday"><div class="aempty surface">没有要做的作业 🎉</div></div>`}
+    ${done.length ? `<div class="aday"><div class="aday-h" data-hwdone style="cursor:pointer"><b>已完成</b><span>最近 30 天 ${done.length} 项 · ${hwShowDone ? "点一下收起" : "点一下展开"}</span></div>${hwShowDone ? card(done) : ""}</div>` : ""}
+    <div class="afoot">${Sync.active() ? "完成勾选会同步到你的账号；" : "勾选只记在这台设备上；"}右上角可以换成「按周看」。作业由班委整理发布，有出入以群里为准。</div>`;
+    if (typeof exRender === "function") exRender();
+    if (typeof hwPlusAfter === "function") hwPlusAfter(G.reduce((l, g) => l.concat(g.items.map((x) => x.r)), []).concat(hwShowDone ? done : [])).catch(() => {});
+    return;
+  }
+  // ---- 按周看 ----
   const mon = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (today.getDay() + 6) % 7 + hwWeek * 7);
   const sun = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6);
   const a = keyOf(mon), b = keyOf(sun);
@@ -870,19 +913,19 @@ function renderHomework() {
   const overdue = hwWeek === 0 ? items.filter((r) => r._p && !r._done && r._p.day < a && dayDiff(r._p.day) >= -30).sort(byDue) : [];
   const undatedHw = hwWeek === 0 ? items.filter((r) => !r._p) : [];
   const title = hwWeek === 0 ? "本周作业" : hwWeek === 1 ? "下周作业" : hwWeek === -1 ? "上周作业" : `${mon.getMonth() + 1}月${mon.getDate()}日这周的作业`;
-  const pct = week.length ? Math.round(done.length / week.length * 100) : 0;
-  const card = (list) => `<div class="acard surface">${list.map(hwRow).join("")}</div>`;
+  // 这周以后还有没做完的：提示一下，免得以为都做完了
+  const later = items.filter((r) => r._p && !r._done && r._p.day > b).length;
   box.innerHTML = `
     <div class="hw-head">
       <h2>${title}</h2><span class="range">${mon.getMonth() + 1}月${mon.getDate()}日 – ${sun.getMonth() + 1}月${sun.getDate()}日</span>
-      <span class="spacer"></span>
+      <span class="spacer"></span>${hwModeSeg()}
       <div class="navgrp"><button data-hw="-1" aria-label="上一周">‹</button><button data-hw="0">本周</button><button data-hw="1" aria-label="下一周">›</button></div>
     </div>
     <div class="hw-prog surface" style="display:flex;align-items:center;gap:16px">
       ${ringSvg(done.length, week.length, 76, "var(--hw-ring, var(--green))", "hw")}
       <div style="flex:1;min-width:0">
         <div class="row1"><span><b>${todo.length + overdue.length}</b>项没完成${overdue.length ? `（含 ${overdue.length} 项过期）` : ""}</span></div>
-        <div style="font-size:13px;margin-top:2px">${hwWeek === 0 ? "本周" : "这周"}已完成 ${done.length} / ${week.length}${week.length && done.length === week.length ? "，全部搞定 🎉" : ""}</div>
+        <div style="font-size:13px;margin-top:2px">${hwWeek === 0 ? "本周" : "这周"}已完成 ${done.length} / ${week.length}${week.length && done.length === week.length ? "，全部搞定 🎉" : ""}${later ? `；以后还有 <a href="#" data-hw="1">${later} 项</a>` : ""}</div>
       </div>
     </div>
     <div id="adSoonHw" class="adsoon hidden"></div>
@@ -896,7 +939,13 @@ function renderHomework() {
   if (typeof hwPlusAfter === "function") hwPlusAfter(overdue.concat(todo, undatedHw, done)).catch(() => {});
 }
 $("hwView").addEventListener("click", (e) => {
-  const b = e.target.closest("button[data-hw]"); if (!b) return;
+  const v = e.target.closest("button[data-hwv]");
+  if (v) { save(LS_HWV, v.dataset.hwv); hwWeek = 0; renderHomework(); return; }
+  const f = e.target.closest("[data-hwfold]");
+  if (f) { const k = f.dataset.hwfold; hwFold.has(k) ? hwFold.delete(k) : hwFold.add(k); renderHomework(); return; }
+  if (e.target.closest("[data-hwdone]")) { hwShowDone = !hwShowDone; renderHomework(); return; }
+  const b = e.target.closest("[data-hw]"); if (!b) return;
+  e.preventDefault();
   hwWeek = b.dataset.hw === "0" ? 0 : hwWeek + Number(b.dataset.hw);
   renderHomework();
 });
@@ -1369,6 +1418,14 @@ function renderLaoLearn() {
       <div class="ll-row">${canClear ? `<button class="small" id="ipLearnClear">清空本班全部学习记录</button>` : `<span class="ll-none">清空全部学习记录需要本班老师操作</span>`}</div>
     </div>` : ""}`;
 }
+// 5.9.0 作业的截止时间可以直接选「下次××课前」（按课程表算）
+function ipNextSel(x) {
+  if (x.msg_type !== "作业" || typeof CCNext === "undefined" || !window.ccNextCtx) return "";
+  const c = window.ccNextCtx(); if (!c) return "";
+  x._nx = CCNext.choices((x.subject || "") + " " + (x.summary || ""), c, 5);
+  if (!x._nx.length) return "";
+  return `<select data-pf="next" class="pinx" title="截止时间设成下次上某门课之前"><option value="">📚 下次上课前…</option>${x._nx.map((n, i) => `<option value="${i}">下次${esc(n.name)}课前 · ${esc(n.text)}</option>`).join("")}</select>`;
+}
 function renderParsed() {
   const box = $("ipResult");
   if (!parsed) { box.classList.add("hidden"); return; }
@@ -1383,6 +1440,7 @@ function renderParsed() {
         <input data-pf="subject" value="${esc(x.subject)}" placeholder="科目 / 标题" class="pisub">
         <input type="date" data-pf="date" value="${esc(d || "")}">
         <input type="time" data-pf="time" value="${esc(t || "")}">
+        ${ipNextSel(x)}
         <input data-pf="summary" value="${esc(x.summary)}" class="pis" placeholder="内容">
         <input data-pf="location" value="${esc(x.location || "")}" class="piloc" placeholder="📍 地点（没有就空着）">
         <div class="pim">${x.src ? `<span class="src">${esc(x.src)}</span>` : ""}${x.via === "memory" ? `<span class="lrn">🧠 按上次的修改</span>` : x.via === "learned" ? `<span class="lrn">🧠 参考了本班以前的修改</span>` : ""}${x.prepare ? `<span>🎒 ${esc(x.prepare)}</span>` : ""}${x.need_confirm ? `<span class="warn">⚠ 信息不完整，会提醒同学核实</span>` : ""}
@@ -1413,6 +1471,7 @@ $("ipResult").addEventListener("input", (e) => {
   const f = e.target.closest("[data-pf]"); if (!f) return;
   const x = parsed.items[+f.closest("[data-pi]").dataset.pi], k = f.dataset.pf;
   if (k === "on") { x.on = f.checked; renderParsed(); return; }
+  if (k === "next") { const n = (x._nx || [])[+f.value]; if (n) { x.event_time = n.day + " " + n.time; x.need_confirm = false; renderParsed(); } return; }
   if (k === "date" || k === "time") {
     const row = f.closest("[data-pi]"), d = row.querySelector('[data-pf="date"]').value, t = row.querySelector('[data-pf="time"]').value;
     x.event_time = d ? d + (t ? " " + t : "") : ""; x.need_confirm = !d;
@@ -1473,7 +1532,7 @@ $("ipResult").addEventListener("click", async (e) => {
     return;
   }
   if (e.target.closest("#ipPublish")) {
-    const items = parsed.items.filter((x) => x.on).map(({ on, src, _shown, _forced, src_text, via, confidence, ...x }) => x);
+    const items = parsed.items.filter((x) => x.on).map(({ on, src, _shown, _forced, src_text, via, confidence, _nx, ...x }) => x);
     const b = e.target.closest("#ipPublish"); b.disabled = true;
     try {
       const n = await CCAuth.rpc("publish_parsed_items", { cid: currentClass.id, items });
