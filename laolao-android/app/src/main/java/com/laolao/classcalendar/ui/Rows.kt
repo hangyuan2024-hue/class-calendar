@@ -50,15 +50,16 @@ fun Main.itemRow(r: Item, showDate: Boolean = false, dueTag: Boolean = false): V
         val fg = when (lv) { 3 -> C.red; 2 -> C.accent; 1 -> C.accent; else -> C.sub }
         val bgc = when (lv) { 3 -> C.dangerBg; 2, 1 -> C.selected; else -> C.mutedBg }
         row.addView(chip(t, fg, bgc, 12f).apply { pad(8, 3) }, LinearLayout.LayoutParams(WRAP, WRAP).apply { leftMargin = dp(8) })
-    } else if (Items.startIn(r) != null) {
-        // 会议、活动这类：还有多久开始
-        val (t, lv) = Items.startIn(r)!!
-        val fg = when (lv) { 3 -> Color.WHITE; 2 -> Color.WHITE; 1 -> C.accent; else -> C.sub }
-        val bgc = when (lv) { 3 -> C.green; 2 -> C.accent; 1 -> C.selected; else -> C.mutedBg }
+    } else if (Items.state(r) != null) {
+        // 已完成 / 已上完 / 已结束；会议、活动、课：进行中、还有多久开始
+        val (t, lv) = Items.state(r)!!
+        val fg = when (lv) { 3, 2 -> Color.WHITE; 1 -> C.accent; -1 -> C.mutedText; else -> C.sub }
+        val bgc = when (lv) { 3 -> C.green; 2 -> C.accent; 1 -> C.selected; -1 -> Color.TRANSPARENT; else -> C.mutedBg }
         row.addView(col().apply { gravity = Gravity.END
-            addView(chip(t, fg, bgc, 11.5f).apply { pad(8, 3) })
-            if (lv < 2) addView(text(r.time, 11.5f, C.mutedText).apply { margins(t = 3); gravity = Gravity.END })
+            addView(chip(t, fg, bgc, 11.5f).apply { pad(if (lv == -1) 0 else 8, 3) })
+            if (lv in 0..1 && r.time.isNotEmpty()) addView(text(r.time, 11.5f, C.mutedText).apply { margins(t = 3); gravity = Gravity.END })
         }, LinearLayout.LayoutParams(WRAP, WRAP).apply { leftMargin = dp(8) })
+        if (lv == -1 && !r.done) row.alpha = 0.55f        // 上完的课、开完的会：变淡
     } else {
         val t = if (!r.dated) "待定" else if (r.time.isEmpty()) "全天" else r.time + if (r.hw && !r.done) " 截止" else ""
         row.addView(text(t, 12.5f, if (r.hw && !r.done && r.time.isNotEmpty()) C.accent else C.sub, SEMI).apply { pad(8, 2, 0, 0) })

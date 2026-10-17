@@ -26,7 +26,9 @@ class HomePage(a: Main) : Page(a) {
     private lateinit var ps: PullScroll
     private lateinit var body: LinearLayout
     private var heroBox: LinearLayout? = null
-    private val tick = object : Runnable { override fun run() { fillHero(); com.laolao.classcalendar.core.Bg.main.postDelayed(this, 30_000) } }
+    private var ticks = 0
+    // 每 30 秒挪「现在」；每分钟整页重画一次：「还有多久开始」「上课中」「已上完」跟着变（手指在列表里时不打断）
+    private val tick = object : Runnable { override fun run() { if (++ticks % 2 == 0 && !InnerScroll.busy) render() else fillHero(); com.laolao.classcalendar.core.Bg.main.postDelayed(this, 30_000) } }
 
     override fun build(): View {
         val f = FrameLayout(ctx).apply { setBackgroundColor(C.bg) }
@@ -54,7 +56,6 @@ class HomePage(a: Main) : Page(a) {
     }
     private val cards = HomeCards(this)
     private var shown = 0; private var capped = false
-    private var agendaAll = false
 
 
     private fun notice(s: String, warn: Boolean = true): TextView = ctx.text(s, 13.5f, if (warn) C.red else C.accent).apply { bg(if (warn) C.dangerBg else C.selected, 14); pad(14, 11); margins(b = 12) }
@@ -196,6 +197,9 @@ class HomePage(a: Main) : Page(a) {
     }
 
     // ---------- 接下来的安排 ----------
+    // 做完的、上完的课留在列表里标「已完成 / 已上完」；默认翻到第一件还没做的事；手动翻走了，底部有按钮一键回来
+    private var agManual = false; private var agY = 0; private var agAuto = 0L
+    private var nextRow: View? = null
     private fun agenda(A: Items.Agenda) {
         val c = ctx.card(18, 22).apply { margins(t = 16) }
         val hr = ctx.row()
@@ -207,43 +211,90 @@ class HomePage(a: Main) : Page(a) {
             val hide = Items.hideDone()
             hr.addView(ctx.text(if (hide) "显示已完成" else "隐藏已完成（${A.doneCount}）", 12f, C.accent, SEMI).apply {
                 pad(8, 6); press(0, 8)
-                tap { com.laolao.classcalendar.core.Kv.setQuiet("app_hide_done", !hide); render() }
+                tap { com.laolao.classcalendar.core.Kv.setQuiet("app_hide_done", !hide); agManual = false; render() }
             })
         }
         c.addView(hr)
         c.add(ctx.hline(), 12)
-        shown = 0; capped = false
-        if (A.overdue.isNotEmpty()) dayBlock(c, "已过期", "还没标记完成的作业", A.overdue, late = true, showDate = true)
+        // 列表放在一个最高 440dp 的框里，超出在框里滚
+        val list = ctx.col()
+        nextRow = null
+        val now = System.currentTimeMillis()
+        if (A.overdue.isNotEmpty()) dayBlock(list, "已过期", "还没标记完成的作业", A.overdue, now, late = true, showDate = true)
         for (d in A.days) {
-            if (!agendaAll && shown >= 7) { capped = true; break }
             if (d.items.isEmpty()) {
-                dayHead(c, d.label, d.sub, false)
-                c.addView(ctx.col().apply {
+                dayHead(list, d.label, d.sub, false)
+                list.addView(ctx.col().apply {
                     gravity = Gravity.CENTER; pad(12, 18); bg(C.mutedBg, 12)
                     addView(ctx.text("✓", 16f, C.green, BOLD).apply { gravity = Gravity.CENTER; bg(0, 16, C.green) }, LinearLayout.LayoutParams(dp(30), dp(30)))
                     addView(ctx.text("今天没有安排，轻松一下 ☕", 13f, C.sub).apply { margins(t = 8) })
                 })
                 continue
             }
-            dayBlock(c, d.label, d.sub, d.items)
+            dayBlock(list, d.label, d.sub, d.items, now)
         }
-        if (!capped && A.undatedMine.isNotEmpty()) dayBlock(c, "待办", "没定日期的事 · ${A.undatedMine.count { !it.done }} 项", A.undatedMine)
-        if (!capped && A.undatedCls.isNotEmpty()) dayBlock(c, "时间待定", "请去群里核实", A.undatedCls)
-        if (capped || agendaAll) c.add(ctx.text(if (agendaAll) "收起 ⌃" else "展开两周内的全部安排 ⌄", 13.5f, C.accent, SEMI).apply { gravity = Gravity.CENTER; pad(0, 10); press(C.selected, 12); tap { agendaAll = !agendaAll; render() } }, 12)
+        if (A.undatedMine.isNotEmpty()) dayBlock(list, "待办", "没定日期的事 · ${A.undatedMine.count { !it.done }} 项", A.undatedMine, now)
+        if (A.undatedCls.isNotEmpty()) dayBlock(list, "时间待定", "请去群里核实", A.undatedCls, now)
+        list.setPadding(0, 0, 0, dp(12))
+        val box = FrameLayout(ctx)
+        val sc = InnerScroll(ctx, dp(440)).apply { addView(list) }
+        box.addView(sc, FrameLayout.LayoutParams(MATCH, WRAP))
+        val back = ctx.text("回到接下来", 13f, Color.WHITE, BOLD).apply {
+            gravity = Gravity.CENTER; pad(16, 8); background = round(C.accent, dp(18).toFloat()); lift(6); visibility = View.GONE
+            tap { agManual = false; goNext(sc, true) }
+        }
+        box.addView(back, FrameLayout.LayoutParams(WRAP, WRAP).apply { gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL; bottomMargin = dp(10) })
+        c.add(box, 2)
+        sc.setOnScrollChangeListener { _, _, y, _, _ ->
+            if (System.currentTimeMillis() - agAuto > 500) { agManual = true; agY = y }
+            paintBack(sc, back)
+        }
+        sc.post { if (!agManual) goNext(sc, false) else sc.scrollTo(0, agY); paintBack(sc, back) }
         val foot = "只显示今天起两周内的安排，更早或更晚的去「日历」里看" + if (Store.itemsAt > 0) "\n班级数据更新于 " + T.ago(Store.itemsAt) + " · 下拉可以刷新" else ""
-        c.add(ctx.hline(), 14)
+        c.add(ctx.hline(), 8)
         c.add(ctx.text(foot, 12f, C.sub).apply { setLineSpacing(0f, 1.4f); tap { a.push(CalendarPage(a, pushed = true)) } }, 10)
         body.addView(c)
     }
-    private fun dayHead(c: LinearLayout, label: String, sub: String, late: Boolean) {
+    /** 翻到第一件还没做的事（连同那一天的标题一起露出来） */
+    private fun goNext(sc: InnerScroll, smooth: Boolean) {
+        val r = nextRow ?: return
+        var y = 0; var v: View? = r
+        while (v != null && v !== sc) { y += v.top; v = v.parent as? View }
+        val target = maxOf(0, y - (r.getTag(R_HEAD) as? Int ?: dp(10)))
+        agAuto = System.currentTimeMillis()
+        if (smooth) sc.smoothScrollTo(0, target) else sc.scrollTo(0, target)
+        agY = target
+    }
+    private fun paintBack(sc: InnerScroll, back: TextView) {
+        val r = nextRow
+        if (r == null || !sc.scrollable) { back.visibility = View.GONE; return }
+        var y = 0; var v: View? = r
+        while (v != null && v !== sc) { y += v.top; v = v.parent as? View }
+        val rel = y - sc.scrollY
+        val off = rel + r.height < 0 || rel > sc.height - dp(30)
+        if (off) { back.text = if (rel < 0) "↑ 回到接下来" else "↓ 回到接下来"; if (back.visibility != View.VISIBLE) { back.visibility = View.VISIBLE; back.alpha = 0f; back.animate().alpha(1f).setDuration(160).start() } }
+        else back.visibility = View.GONE
+    }
+    private val R_HEAD = 0x7f0a1001
+    private fun dayHead(c: LinearLayout, label: String, sub: String, late: Boolean): View {
         val r = ctx.row().apply { gravity = Gravity.BOTTOM; margins(t = 16, b = 2) }
         r.addView(ctx.text(label, 14f, if (late) C.red else C.text, BOLD))
         r.addView(ctx.text(sub, 12f, C.sub).apply { pad(8, 0, 0, 0) })
         c.addView(r)
+        return r
     }
-    private fun dayBlock(c: LinearLayout, label: String, sub: String, list: List<Item>, late: Boolean = false, showDate: Boolean = false) {
+    private fun dayBlock(c: LinearLayout, label: String, sub: String, list: List<Item>, now: Long, late: Boolean = false, showDate: Boolean = false) {
         dayHead(c, label, sub, late)
-        list.forEachIndexed { i, r -> if (i > 0) c.addView(ctx.hline()); c.addView(a.itemRow(r, showDate)) }
+        list.forEachIndexed { i, r ->
+            if (i > 0) c.addView(ctx.hline())
+            val v = a.itemRow(r, showDate)
+            c.addView(v)
+            if (nextRow == null && Items.pending(r, now)) {
+                nextRow = v
+                // 这一天的第一件就是「接下来」：把日期标题也露出来；不是第一件：露出上一件已经完成的一点点
+                v.setTag(R_HEAD, if (i == 0) dp(46) else dp(28))
+            }
+        }
         shown += list.size
     }
 

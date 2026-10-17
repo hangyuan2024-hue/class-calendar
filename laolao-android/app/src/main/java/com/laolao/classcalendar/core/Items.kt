@@ -180,6 +180,26 @@ object Items {
             else -> "$dd 天后开始" to 0
         }
     }
+    /**
+     * 一件事现在的状态（首页「接下来的安排」、日历的每一行）：
+     * 已完成 / 已上完 / 已结束（-1，变淡）、上课中 / 进行中（3）、一小时内开始（2）、今天 / 明天（1）、更远（0）；作业不在这里（看截止）
+     */
+    fun state(r: Item, nowMs: Long = System.currentTimeMillis()): Pair<String, Int>? {
+        if (r.done && !r.course) return "已完成" to -1
+        if (!r.dated || r.time.isEmpty() || r.hw) return null
+        val st = r.at()
+        val end = T.min(r.endTime)?.let { T.epoch(r.day, it) }?.takeIf { it > st } ?: (st + (if (r.course) 45 else 60) * 60_000L)
+        if (nowMs >= end) return (if (r.course) "已上完" else "已结束") to -1
+        if (r.course) {
+            if (nowMs >= st) return "上课中" to 3
+            val m = Math.ceil((st - nowMs) / 60000.0).toLong()
+            return if (T.dayDiff(r.day) == 0L && m <= 180) (if (m < 60) "$m 分钟后上课" else T.left(st - nowMs).removeSuffix("后") + "后上课") to (if (m < 60) 2 else 1) else null
+        }
+        return startIn(r, nowMs)
+    }
+    /** 还没做完、也还没过去的事（「接下来」从这里开始） */
+    fun pending(r: Item, nowMs: Long = System.currentTimeMillis()): Boolean = !r.done && (state(r, nowMs)?.second ?: 0) >= 0
+
     /** 待交的作业（小组件、提醒用）：过期 7 天内 + 没定日子 + 以后的，按截止时间排 */
     fun pendingHomework(): List<Item> = all().filter { it.hw && !it.done && (!it.dated || T.dayDiff(it.day) >= -7) }
         .sortedWith(compareBy<Item>({ if (it.dated) 0 else 1 }, { it.day }, { it.time.ifEmpty { "99" } }))

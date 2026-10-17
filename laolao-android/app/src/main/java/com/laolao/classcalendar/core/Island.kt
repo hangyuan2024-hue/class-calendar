@@ -76,7 +76,7 @@ object Island {
                 val endMin = T.min(it.endTime)?.takeIf { e -> e > tm }?.let { e -> (e - tm).toDouble() } ?: 60.0
                 val startsAt = it.type != "作业" && it.time.isNotEmpty()
                 if (startsAt && mins < 0 && -mins < endMin) {
-                    score = 98 * w; level = "now"; reason = "进行中 · 还有 ${maxOf(1, Math.round(endMin + mins).toInt())} 分钟结束"
+                    score = 125 * w; level = "now"; reason = "进行中 · 还有 ${maxOf(1, Math.round(endMin + mins).toInt())} 分钟结束"
                 } else if (startsAt && mins >= 0) {
                     score = 100 / (1 + hours / 12) * w
                     level = if (hours <= 1) "urgent" else if (hours <= 48) "soon" else "normal"

@@ -47,7 +47,7 @@ class PullScroll(ctx: Context, private val onRefresh: ((() -> Unit) -> Unit)?) :
     val scroll: ScrollView = object : ScrollView(ctx) {
         var y0 = 0f; var pulling = false
         override fun dispatchTouchEvent(e: MotionEvent): Boolean {
-            if (onRefresh != null && !refreshing) when (e.actionMasked) {
+            if (onRefresh != null && !refreshing && !InnerScroll.busy) when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> { y0 = e.rawY; pulling = false }
                 MotionEvent.ACTION_MOVE -> {
                     val dy = e.rawY - y0
@@ -215,4 +215,28 @@ fun keepScroll(body: LinearLayout) {
     val y = sv?.scrollY ?: 0
     body.removeAllViews()
     if (sv != null && y > 0) sv.post { sv.scrollTo(0, y) }
+}
+
+/**
+ * 页面里面的一小块滚动区（首页「接下来的安排」）：最高 maxH，超出在框里滚；
+ * 手指在框里时外面的页面不跟着滚、也不触发下拉刷新；滚到头了再往外带
+ */
+class InnerScroll(ctx: Context, private val maxH: Int) : ScrollView(ctx) {
+    companion object { @JvmStatic var busy = false }
+    private var y0 = 0f
+    init { isVerticalScrollBarEnabled = false; overScrollMode = View.OVER_SCROLL_NEVER }
+    override fun onMeasure(w: Int, h: Int) { super.onMeasure(w, MeasureSpec.makeMeasureSpec(maxH, MeasureSpec.AT_MOST)) }
+    val scrollable: Boolean get() = canScrollVertically(1) || canScrollVertically(-1)
+    override fun dispatchTouchEvent(e: MotionEvent): Boolean {
+        when (e.actionMasked) {
+            MotionEvent.ACTION_DOWN -> { y0 = e.rawY; if (scrollable) { busy = true; parent?.requestDisallowInterceptTouchEvent(true) } }
+            MotionEvent.ACTION_MOVE -> if (busy) {
+                val dy = e.rawY - y0
+                // 已经到顶还往下拉、到底还往上推：交给外面的页面
+                if ((dy > 0 && !canScrollVertically(-1)) || (dy < 0 && !canScrollVertically(1))) { busy = false; parent?.requestDisallowInterceptTouchEvent(false) }
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> busy = false
+        }
+        return super.dispatchTouchEvent(e)
+    }
 }
