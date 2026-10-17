@@ -14,6 +14,9 @@ import com.laolao.classcalendar.core.Store
  */
 class HomeworkPage(a: Main) : Page(a) {
     private var tab = 0          // 0 待完成 1 已完成
+    private var week = 0         // 按周看：0 本周
+    /** 显示方式跟着账号同步（网页、小程序一样）：due 按截止时间 / week 按周看 */
+    private fun mode(): String = if (com.laolao.classcalendar.core.Kv.str("hw_view_v1", "due") == "week") "week" else "due"
     private val folded = HashSet<String>()
     private lateinit var body: LinearLayout
 
@@ -35,8 +38,16 @@ class HomeworkPage(a: Main) : Page(a) {
         keepScroll(body)
         val hw = if (Store.work()) "任务" else "作业"
         val H = Items.homeworkAll()
-        body.addView(ctx.text(if (H.left == 0) "都做完了 🎉" else "还有 ${H.left} 项没做", 12f, C.sub, SEMI))
-        body.addView(ctx.text(hw, 26f, C.text, HEAVY).apply { margins(t = 2) })
+        val hr = ctx.row()
+        val hc = ctx.col()
+        hc.addView(ctx.text(if (H.left == 0) "都做完了 🎉" else "还有 ${H.left} 项没做", 12f, C.sub, SEMI))
+        hc.addView(ctx.text(hw, 26f, C.text, HEAVY).apply { margins(t = 2) })
+        hr.addView(hc, LinearLayout.LayoutParams(0, WRAP, 1f))
+        hr.addView(Seg(ctx, listOf("按截止时间", "按周看"), if (mode() == "week") 1 else 0) { i ->
+            com.laolao.classcalendar.core.Kv.set("hw_view_v1", if (i == 1) "week" else "due"); week = 0; render()
+        }, LinearLayout.LayoutParams(dp(196), WRAP))
+        body.addView(hr)
+        if (mode() == "week") { weekView(hw); return }
 
         // 本周进度
         val pc = ctx.card(16, 18).apply { margins(t = 14) }
@@ -70,5 +81,31 @@ class HomeworkPage(a: Main) : Page(a) {
             body.addView(h)
             if (!fold) body.addView(a.group(g.items, showDate = g.key != "today" && g.key != "tomorrow", dueTag = true))
         }
+    }
+
+    /** 按周看（以前的样子，可以切上一周 / 下一周） */
+    private fun weekView(hw: String) {
+        val W = Items.homework(week)
+        val nav = ctx.row().apply { margins(t = 14) }
+        nav.addView(ctx.col().apply {
+            addView(ctx.text(W.title.replace("作业", hw), 18f, C.text, BOLD))
+            addView(ctx.text(W.range, 12f, C.sub))
+        }, LinearLayout.LayoutParams(0, WRAP, 1f))
+        nav.addView(ctx.text("‹", 22f, C.text).apply { gravity = Gravity.CENTER; press(C.card, 12, C.line); tap { week--; render() } }, LinearLayout.LayoutParams(dp(40), dp(40)))
+        if (week != 0) nav.addView(ctx.text("本周", 13f, C.accent, BOLD).apply { gravity = Gravity.CENTER; press(C.selected, 12); pad(10, 0); tap { week = 0; render() } }, LinearLayout.LayoutParams(WRAP, dp(40)).apply { leftMargin = dp(6) })
+        nav.addView(ctx.text("›", 22f, C.text).apply { gravity = Gravity.CENTER; press(C.card, 12, C.line); tap { week++; render() } }, LinearLayout.LayoutParams(dp(40), dp(40)).apply { leftMargin = dp(6) })
+        body.addView(nav)
+        val total = W.todo.size + W.done.size
+        val later = Items.all().count { it.hw && !it.done && it.dated && it.day > Items.weekStart(week).let { a -> com.laolao.classcalendar.core.T.addDays(a, 6) } }
+        val pc = ctx.card(16, 18).apply { margins(t = 12) }
+        pc.addView(ctx.text("这周完成了 ${W.done.size} / $total" + if (W.overdue.isNotEmpty()) " · 之前还有 ${W.overdue.size} 项过期" else "", 15f, C.text, BOLD))
+        if (later > 0) pc.add(ctx.text("以后还有 $later 项没做 ›", 13f, C.accent, SEMI).apply { tap { week++; render() } }, 6)
+        body.addView(pc)
+        if (W.overdue.isNotEmpty()) { body.addView(ctx.section("之前没交的", "过期但还没标记完成", C.red)); body.addView(a.group(W.overdue, showDate = true, dueTag = true)) }
+        body.addView(ctx.section("待完成", "按截止时间排序"))
+        if (W.todo.isEmpty()) body.addView(ctx.empty("✅", if (total == 0) "这周没有$hw" else "这周的${hw}都做完了"))
+        else body.addView(a.group(W.todo, showDate = true, dueTag = true))
+        if (W.undated.isNotEmpty()) { body.addView(ctx.section("截止时间待定", "请去群里核实")); body.addView(a.group(W.undated)) }
+        if (W.done.isNotEmpty()) { body.addView(ctx.section("已完成", "${W.done.size} 项")); body.addView(a.group(W.done, showDate = true)) }
     }
 }

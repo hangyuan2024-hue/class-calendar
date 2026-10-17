@@ -135,13 +135,30 @@ object Courses {
     /** 一句话里说的是哪门课：「数学作业」→「高等数学」（名字里有两个字以上对得上） */
     fun match(text: String): String? {
         val tx = text.replace(Regex("作业|练习|习题|报告|预习|复习|课前|上课|下次|下节|交"), " ")
-        var best: String? = null; var score = 1
+        var best: String? = null; var score = 1.0
         for (n in names()) {
             val core = n.replace(Regex("[（(].*?[)）]|[A-Za-z0-9ⅠⅡⅢⅣ]+$"), "").trim()
-            val sc = if (core.length >= 2 && tx.contains(core)) 100 + core.length else common(tx, core)
+            val sc = if (core.length >= 2 && tx.contains(core)) 100.0 + core.length else maxOf(common(tx, core).toDouble(), abbr(tx, core))
             if (sc > score) { score = sc; best = n }
         }
         return best
+    }
+    /** 简称：「线代」→「线性代数」、「高数」→「高等数学」（第一个字一样，后面的字按顺序出现在课名里） */
+    private fun abbr(tx: String, core: String): Double {
+        if (core.isEmpty()) return 0.0
+        var best = 0
+        for (i in tx.indices) {
+            if (tx[i] != core[0]) continue
+            for (len in 2..4) {
+                if (i + len > tx.length) break
+                val sub = tx.substring(i, i + len)
+                if (sub.any { it.isWhitespace() }) break
+                var p = 0
+                for (ch in core) if (p < sub.length && ch == sub[p]) p++
+                if (p == sub.length && len > best) best = len
+            }
+        }
+        return if (best > 0) best + 0.5 else 0.0
     }
     private fun common(a: String, b: String): Int {
         var best = 0

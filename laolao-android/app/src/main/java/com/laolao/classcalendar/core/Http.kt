@@ -29,15 +29,53 @@ object Http {
     var sslFactory: () -> SSLSocketFactory = { SSLSocketFactory.getDefault() as SSLSocketFactory }
     var verifier: HostnameVerifier? = null
 
-    class Timing(var dns: Long = 0, var connect: Long = 0, var tls: Long = 0, var total: Long = 0, var addr: String = "", var addrs: String = "")
+    class Timing(var dns: Long = 0, var connect: Long = 0, var tls: Long = 0, var total: Long = 0, var addr: String = "", var addrs: String = "", var note: String = "")
 
     /** 解析域名（带超时，系统的解析没法设超时） */
-    fun resolve(host: String, ms: Long): List<InetAddress> {
+    fun system(host: String, ms: Long): List<InetAddress> {
         val q = LinkedBlockingQueue<Any>()
         Thread { try { q.put(InetAddress.getAllByName(host).toList()) } catch (e: Exception) { q.put(e) } }.apply { isDaemon = true; start() }
         val r = q.poll(ms, TimeUnit.MILLISECONDS) ?: throw SocketTimeoutException("解析域名超时")
         if (r is Exception) throw r
         @Suppress("UNCHECKED_CAST") return r as List<InetAddress>
+    }
+
+    /**
+     * 代理软件（Clash 等「fake-ip」模式）给的假地址：28.x.x.x、198.18.x.x。
+     * 电脑开着这类软件时，模拟器、同一个网络里的手机查到的就是假地址，直接连会一直卡住。
+     */
+    fun fake(a: InetAddress): Boolean {
+        if (a !is Inet4Address) return false
+        val b = a.address; val b0 = b[0].toInt() and 255; val b1 = b[1].toInt() and 255
+        return b0 == 28 || (b0 == 198 && (b1 == 18 || b1 == 19))
+    }
+
+    /** 加密 DNS（阿里、Cloudflare 一起问，谁先回来用谁），绕开被改过的系统 DNS */
+    var dohServers = listOf("https://223.5.5.5/resolve?type=A&name=", "https://1.1.1.1/dns-query?type=A&name=", "https://1.12.12.12/resolve?type=A&name=")
+    private val dohCache = java.util.concurrent.ConcurrentHashMap<String, Pair<Long, List<InetAddress>>>()
+    fun doh(host: String, ms: Long): List<InetAddress> {
+        dohCache[host]?.let { if (System.currentTimeMillis() - it.first < 30 * 60_000L) return it.second }
+        val q = LinkedBlockingQueue<List<InetAddress>>()
+        for (srv in dohServers) Thread {
+            try {
+                val r = send(srv + host, "GET", null, mapOf("Accept" to "application/dns-json"), ms.toInt(), ms.toInt())
+                val ans = org.json.JSONObject(r.body).optJSONArray("Answer")
+                val ips = (0 until (ans?.length() ?: 0)).mapNotNull { ans!!.optJSONObject(it) }.filter { it.optInt("type") == 1 }
+                    .mapNotNull { try { InetAddress.getByName(it.optString("data")) } catch (_: Exception) { null } }.filter { !fake(it) }
+                if (ips.isNotEmpty()) q.put(ips)
+            } catch (_: Exception) {}
+        }.apply { isDaemon = true; start() }
+        val r = q.poll(ms + 500, TimeUnit.MILLISECONDS) ?: throw java.net.UnknownHostException("加密 DNS 也没查到 $host")
+        dohCache[host] = System.currentTimeMillis() to r
+        return r
+    }
+
+    /** 先用系统的；查到的全是假地址（或者查不到），再用加密 DNS */
+    fun resolve(host: String, ms: Long, t: Timing? = null): List<InetAddress> {
+        val sys = try { system(host, ms) } catch (e: Exception) { null }
+        if (sys != null && sys.isNotEmpty() && sys.none { fake(it) }) return sys
+        return try { doh(host, ms).also { t?.let { x -> x.note = "系统 DNS 给的是" + (if (sys.isNullOrEmpty()) "空" else "假地址 " + sys.joinToString(" ") { a -> a.hostAddress ?: "" }) + "，改用加密 DNS" } } }
+        catch (e: Exception) { if (sys != null && sys.isNotEmpty()) sys else throw e }
     }
 
     /** 同时连几个地址，IPv4 先出发、IPv6 晚 300 毫秒，谁先连上用谁 */
@@ -77,7 +115,7 @@ object Http {
         val u = URL(url)
         val https = u.protocol == "https"
         val port = if (u.port > 0) u.port else if (https) 443 else 80
-        val addrs = resolve(u.host, connectMs.toLong())
+        val addrs = resolve(u.host, connectMs.toLong(), t)
         t?.let { it.dns = System.currentTimeMillis() - t0; it.addrs = addrs.joinToString(" ") { a -> a.hostAddress ?: "" } }
         val raw = connect(addrs, port, connectMs)
         t?.let { it.connect = System.currentTimeMillis() - t0 - it.dns; it.addr = raw.inetAddress?.hostAddress ?: "" }

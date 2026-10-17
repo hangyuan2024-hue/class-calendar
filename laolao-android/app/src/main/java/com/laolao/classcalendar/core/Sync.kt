@@ -11,7 +11,7 @@ import org.json.JSONObject
 object Sync {
     val KINDS = mapOf(
         "personal_events_v1" to "list", "personal_marks_v1" to "map", "done_log_v1" to "map",
-        "course_rev_v1" to "one", "course_view_v1" to "map", "ui_palette_v1" to "one",
+        "course_rev_v1" to "one", "hw_view_v1" to "one", "course_view_v1" to "map", "ui_palette_v1" to "one",
     )
     private const val META = "sync_meta_v1"
     private const val OUT = "sync_outbox_v1"

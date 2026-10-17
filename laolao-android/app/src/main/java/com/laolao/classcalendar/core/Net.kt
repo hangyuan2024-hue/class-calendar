@@ -161,13 +161,18 @@ object Net {
             val t = Http.Timing()
             val line = try {
                 val r = Http.send(url, "GET", null, if (url.contains("/auth/")) hdrs(null, emptyMap()) else emptyMap(), 8000, 12000, t)
-                "✅ $name：HTTP ${r.status}，${t.total} 毫秒（解析 ${t.dns}、连接 ${t.connect}、加密 ${t.tls}）\n    连的是 ${t.addr}"
+                "✅ $name：HTTP ${r.status}，${t.total} 毫秒（解析 ${t.dns}、连接 ${t.connect}、加密 ${t.tls}）\n    连的是 ${t.addr}" + (if (t.note.isNotEmpty()) "\n    ${t.note}" else "")
             } catch (e: Exception) {
                 "❌ $name：${e.javaClass.simpleName} ${e.message ?: ""}" +
-                    (if (t.addrs.isNotEmpty()) "\n    地址 ${t.addrs}" else "\n    （域名没解析出来）")
+                    (if (t.addrs.isNotEmpty()) "\n    地址 ${t.addrs}" else "\n    （域名没解析出来）") + (if (t.note.isNotEmpty()) "\n    ${t.note}" else "")
             }
             each(line)
         }
+        // 加密 DNS 能不能用（系统 DNS 被代理软件改成假地址时靠它）
+        val host = java.net.URL(ROUTES.getOrElse(1) { ROUTES[0] }).host
+        val t1 = System.currentTimeMillis()
+        each(try { "ℹ️ 加密 DNS 查海外线路：" + Http.doh(host, 6000).joinToString(" ") { it.hostAddress ?: "" } + "（${System.currentTimeMillis() - t1} 毫秒）" }
+             catch (e: Exception) { "ℹ️ 加密 DNS：没查到（${e.message}）" })
         // 系统自带的方式再试一次国内线路，对比用
         val t0 = System.currentTimeMillis()
         each(try { val r = system(ROUTES[0], "/auth/v1/health", "GET", null, null, emptyMap(), 12000); "ℹ️ 系统方式·国内线路：HTTP ${r.status}，${System.currentTimeMillis() - t0} 毫秒" }
