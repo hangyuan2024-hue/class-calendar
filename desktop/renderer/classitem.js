@@ -21,6 +21,7 @@ function editClassItem(x, preset) {
       <div class="row"><label class="field" style="flex:1">地点<input name="location" maxlength="60" value="${esc(x ? x.location : "")}"></label><label class="field" style="flex:1">需准备<input name="prepare" maxlength="100" value="${esc(x ? x.prepare : "")}"></label></div>
       ${scopes.length > 1 || cur ? `<label class="field">发给<select name="gid">${scopes.map(([k, t]) => `<option value="${k}"${String(cur) === k ? " selected" : ""}>${esc(t)}</option>`).join("")}</select><small class="muted">发给某个组的事项，只有组员（和老师、班委）能看到</small></label>` : ""}
       <label class="row" style="gap:6px;font-size:13px;color:var(--text2)"><input type="checkbox" name="confirm"${x && x.confirm ? " checked" : ""}> 信息还不确定（提醒同学去群里核实）</label>
+      <label class="row" style="gap:6px;font-size:13px;color:var(--text2)"><input type="checkbox" name="popup"${x && Pop59.has(x.id) ? " checked" : ""}> 📣 重要：弹窗提醒全班（大家下次打开时弹出来，点「我知道了」才关掉）</label>
     </div>
     <div class="dfoot">${!isNew && App.canDelItem(x) ? `<button type="button" class="btn danger" data-a="del">${icon("trash")}删除</button>` : ""}<span class="grow"></span><button type="button" class="btn" data-a="cancel">取消</button><button class="btn primary">${isNew ? "发布到班级" : "保存修改"}</button></div>
   </form>`);
@@ -42,8 +43,14 @@ function editClassItem(x, preset) {
         if (!isNew) throw new Error("服务器还没更新，修改请先用网页版");
         await api("publish_parsed_items", { cid: S.cid, items: [{ ...rec, original: "（电脑版发布）", publish_date: todayKey() }] });
       }
+      const want = f.popup.checked, was = !isNew && Pop59.has(x.id);
       closeOverlay(); toast(isNew ? "已发布到班级" : "已保存");
       await call("class:reload");
+      // 3.3.3 弹窗提醒：勾了 / 取消了才去改（新发布的按标题、时间找回它的 id）
+      if (want !== was) {
+        const nid = !isNew ? x.id : ((App.S.items || []).filter((r) => r.subject === rec.subject && (r.event_time || "") === rec.event_time).sort((a, b) => b.id - a.id)[0] || {}).id;
+        if (nid) { try { await Pop59.set(S.cid, nid, want); if (want) toast("大家打开时会弹窗提醒"); } catch (e2) { toast(notFound(e2) ? "弹窗提醒没开上：网站数据库还没执行 5.9.2 的 SQL" : "弹窗提醒没开上：" + cleanErr(e2), { bad: true }); } }
+      }
     } catch (err) { btn.disabled = false; }
   };
   d.onclick = (e) => {

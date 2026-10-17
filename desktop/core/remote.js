@@ -35,6 +35,8 @@ const RPC = new Set([
   "item_seen", "item_view_counts", "item_viewers", "item_files_many", "file_thumb", "teacher_classes", "teacher_overview", "create_class_kind", "my_class_kinds",
   // 3.3：登录设备管理（网站 5.4.0）：这台电脑报到、看有哪些设备登录着、把别的设备踢出
   "device_touch", "device_alive", "device_list", "device_revoke",
+  // 3.3.3（网站 5.9.2）：重要事项弹窗
+  "popup_state", "popup_set", "popup_ack",
 ]);
 
 // 直接读表（只读，只认这几种写法）

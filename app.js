@@ -1166,7 +1166,47 @@ async function loadClass() {
   renderAll();
   if (typeof exLoad === "function") exLoad();
   loadWall();
+  popupCheck();
 }
+
+// ===== 5.9.2 重要事项弹窗：老师、班委发布时勾了「弹窗提醒全班」，同学打开时弹出来，点「我知道了」以后不再弹（换设备也不弹） =====
+let popupItems = new Set(), popupBusy = false, popupLater = new Set();
+async function popupCheck() {
+  if (!currentUser || !currentClass || popupBusy) return;
+  const cid = currentClass.id;
+  let st;
+  try { st = await CCAuth.rpc("popup_state", { p_cid: cid }); } catch (e) { return; }   // 数据库还没升级：不弹
+  if (!currentClass || currentClass.id !== cid || !st) return;
+  popupItems = new Set((st.items || []).map(Number));
+  const acked = new Set((st.acked || []).map(Number)), t = keyOf(ccDate());
+  const list = (classRecords || []).filter((r) => popupItems.has(+r.id) && !acked.has(+r.id) && !popupLater.has(+r.id)
+    && !(r.event_time && String(r.event_time).slice(0, 10) < keyOf(new Date(ccDate().getTime() - 86400000))));   // 已经过去一天以上的不弹
+  if (!list.length) return;
+  popupBusy = true;
+  try { for (const r of list) await popupShow(r, list.length); } finally { popupBusy = false; }
+}
+function popupShow(r, total) {
+  return new Promise((done) => {
+    const d = document.createElement("dialog"); d.className = "dlg pop-dlg";
+    const p = parseTime(r.event_time), when = p ? (p.day === keyOf(today) ? "今天" : `${+p.day.slice(5, 7)}月${+p.day.slice(8)}日 周${WEEK[new Date(p.day + "T00:00:00").getDay()]}`) + (p.time ? " " + p.time : "") : "";
+    d.innerHTML = `<div class="pop-b"><span class="pop-k">📣 重要${esc(r.msg_type || "通知")}</span>
+      <h3>${esc(r.subject || r.summary || "通知")}</h3>
+      <div class="pop-m">${[when && "🕘 " + esc(when), r.location && "📍 " + esc(r.location), r.prepare && "🎒 " + esc(r.prepare)].filter(Boolean).join("　")}</div>
+      ${r.summary && r.summary !== r.subject ? `<div class="pop-s">${esc(r.summary)}</div>` : ""}
+      <div class="pop-a"><span class="pop-n">${esc(currentClass ? currentClass.name : "")}${total > 1 ? ` · 共 ${total} 条` : ""}</span><button class="small" data-later>稍后再看</button><button class="btn" data-ok>我知道了</button></div></div>`;
+    document.body.appendChild(d);
+    const close = (ok) => {
+      if (ok) CCAuth.rpc("popup_ack", { p_item: +r.id }).catch(() => {}); else popupLater.add(+r.id);
+      d.close(); d.remove(); done();
+    };
+    d.querySelector("[data-ok]").onclick = () => close(true);
+    d.querySelector("[data-later]").onclick = () => close(false);
+    d.addEventListener("cancel", (e) => { e.preventDefault(); close(false); });
+    d.showModal();
+  });
+}
+// 切回这个页面时也看一眼（老师刚发的重要通知，开着网页的同学也能马上看到）
+document.addEventListener("visibilitychange", () => { if (!document.hidden) setTimeout(popupCheck, 1500); });
 
 // ===== 班委 / 老师：发布、修改、删除班级事项 =====
 function openClassForm(r) {
@@ -1182,6 +1222,7 @@ function openClassForm(r) {
   $("cLoc").value = r ? (r.location || "") : "";
   $("cPrep").value = r ? (r.prepare || "") : "";
   $("cConfirm").checked = r ? !!r.need_confirm : false;
+  $("cPopup").checked = !!(r && popupItems.has(+r.id));
   // 发给谁：全班 / 某个组（只列出我有权限的）
   const gs = GROUPS_OK ? classGroups.filter((g) => canEditIn(g.id)) : [];
   const cur = r ? r.group_id || "" : "";
@@ -1231,6 +1272,13 @@ $("cform").onsubmit = async (e) => {
       const nid = id || ((classRecords || []).filter((x) => !before.has(x.id) && x.subject === rec.subject && (x.event_time || "") === rec.event_time && (!x.created_by || x.created_by === me))
         .sort((a, b) => b.id - a.id)[0] || {}).id;
       exFormUpload("c", currentClass.id, nid ? String(nid) : null);
+    }
+    // 5.9.2 弹窗提醒：勾了 / 取消了才去改
+    const pnid = id || ((classRecords || []).filter((x) => !before.has(x.id) && x.subject === rec.subject && (x.event_time || "") === rec.event_time).sort((a, b) => b.id - a.id)[0] || {}).id;
+    const wantPop = $("cPopup").checked;
+    if (pnid && wantPop !== popupItems.has(+pnid)) {
+      try { await CCAuth.rpc("popup_set", { p_cid: currentClass.id, p_item: +pnid, p_on: wantPop }); wantPop ? popupItems.add(+pnid) : popupItems.delete(+pnid); }
+      catch (e2) { alert(/popup_set|PGRST202|Could not find/i.test(e2.message) ? "事项已经保存，但弹窗提醒没开上：数据库还没执行 5.9.2 的 SQL" : "事项已经保存，但弹窗提醒没开上：" + e2.message); }
     }
     if (date) $("jumpDate").onchange({ target: { value: date } });   // 发布后直接跳到那一天，确认已经上了日历
   } catch (err) { alert("保存失败：" + err.message); }
