@@ -74,7 +74,7 @@ class ClassPage(a: Main) : Page(a) {
             val nm = ctx.input("${w}名称，比如 计科2501")
             cc.addView(nm)
             cc.add(ctx.button("创建") { create(nm.text.toString()) }, 12)
-            cc.add(ctx.text("审批入班、任命班委、分组等管理功能请在网页上操作", 12.5f, C.sub).apply { tap { a.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Cfg.SITE))) } }, 10)
+            cc.add(ctx.text("创建后点上面的班级 →「管理这个班级」可以审批同学、任命班委（分组请在网页上操作）", 12.5f, C.sub), 10)
             body.addView(cc)
         }
     }
@@ -97,12 +97,14 @@ class ClassPage(a: Main) : Page(a) {
         val opts = mutableListOf<String>()
         val cur = c.str("id") == Store.cls?.str("id")
         if (!cur) opts += "切换到这个$w"
+        if (c.optBoolean("is_teacher")) opts += "管理这个$w（审批、班委、功能开关）"
         if (c.optBoolean("is_teacher") && c.str("code").isNotEmpty()) { opts += "复制${w}码 ${c.str("code")}"; opts += "复制邀请语（发到群里）" }
         opts += "成员名单"
         if (!c.optBoolean("is_teacher")) opts += "退出$w"
         Dialogs.sheet(ctx, c.str("name"), opts, danger = setOf(opts.size - 1).filter { opts.last().startsWith("退出") }.toSet()) { i ->
             val o = opts[i]
             when {
+                o.startsWith("管理") -> a.push(ClassManagePage(a, c.str("id")))
                 o.startsWith("切换") -> Bg.load({ Store.switchClass(c.str("id")) }) { _, e -> if (e != null) a.toast(e.message ?: "") else { a.toast("已切换到「${c.str("name")}」"); close() } }
                 o.startsWith("复制邀请") -> copy("请用「捞捞课程表」加入「${c.str("name")}」：下载安卓 App 或打开微信小程序 / 网页版注册（选“学生”，填真实姓名），在「我的 → 班级」输入班级码 ${c.str("code")} 申请加入。", "邀请语已复制，发到班群就行")
                 o.startsWith("复制") -> copy(c.str("code"), "班级码 ${c.str("code")} 已复制")
@@ -133,7 +135,7 @@ class ClassPage(a: Main) : Page(a) {
         Bg.load({ val r = Api.rpcObj("create_class", jsonOf("cname" to name)); Store.refresh(); if (r.str("id").isNotEmpty()) Store.switchClass(r.str("id")); r }) { r, e ->
             busy = false
             if (e != null || r == null) { a.toast("创建失败：" + (e?.message ?: "")); return@load }
-            Dialogs.alert(ctx, "「${r.str("name").ifEmpty { name }}」创建好了 🎉", "班级码是 ${r.str("code")}。\n\n把班级码发给同学，他们申请后，在网页的「班级管理」里批准就行。")
+            Dialogs.alert(ctx, "「${r.str("name").ifEmpty { name }}」创建好了 🎉", "班级码是 ${r.str("code")}。\n\n把班级码发给同学，他们申请后，在「我的 → 管理这个班级」里批准就行。")
             render()
         }
     }

@@ -33,7 +33,11 @@ object C {
     var course = 0xFF17A2B8.toInt()
 
     fun load(ctx: Context) {
-        dark = (ctx.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        // 「我的 → 外观」：跟随系统 / 总是浅色 / 总是深色（只存在这台手机上）
+        dark = when (ctx.getSharedPreferences("app", Context.MODE_PRIVATE).getString("dark_mode", "")) {
+            "light" -> false; "dark" -> true
+            else -> (ctx.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        }
         if (!dark) {
             bg = c("#f6f5f1"); card = c("#ffffff"); line = c("#e4e6e3"); text = c("#172c36"); sub = c("#6d7a80"); accent = c("#5366e8")
             red = c("#bf6650"); green = c("#39856a"); gray = c("#89959b"); purple = c("#8270b7"); hover = c("#f0f1ed"); mutedBg = c("#f5f5f0")
@@ -81,6 +85,13 @@ fun View.press(color: Int, radiusDp: Int = 0, stroke: Int = 0, ripple: Int = C.a
     val content: Drawable = if (color == 0 && stroke == 0) ColorDrawable(Color.TRANSPARENT) else round(color, r, stroke, if (stroke != 0) dp(1) else 0)
     background = RippleDrawable(ColorStateList.valueOf(ripple), content, round(Color.WHITE, r))
     isClickable = true; isFocusable = true
+    if (color == C.card) lift(3, C.text)
+}
+/** 立体感：投影（安卓 9 起影子带一点主题色，不是死灰） */
+fun View.lift(e: Int = 6, tint: Int = C.accent): View {
+    elevation = dp(e).toFloat()
+    if (Build.VERSION.SDK_INT >= 28) { outlineSpotShadowColor = C.mix(tint, Color.BLACK, 0.35f); outlineAmbientShadowColor = C.mix(tint, Color.BLACK, 0.5f) }
+    return this
 }
 fun View.tap(fn: (View) -> Unit) { setOnClickListener { v -> fn(v) } }
 fun View.buzz() { performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY) }
@@ -96,8 +107,8 @@ fun View.margins(l: Int = 0, t: Int = 0, r: Int = 0, b: Int = 0): View {
 fun View.pad(l: Int, t: Int = l, r: Int = l, b: Int = t): View { setPadding(dp(l), dp(t), dp(r), dp(b)); return this }
 
 // ---------- 组件 ----------
-fun Context.col(): LinearLayout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-fun Context.row(): LinearLayout = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+fun Context.col(): LinearLayout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; clipChildren = false }
+fun Context.row(): LinearLayout = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; clipChildren = false }
 fun Context.text(s: CharSequence, sp: Float = 15f, color: Int = C.text, face: Typeface? = null, lines: Int = 0): TextView = TextView(this).apply {
     text = s; setTextSize(TypedValue.COMPLEX_UNIT_SP, sp); setTextColor(color); includeFontPadding = true
     if (face != null) typeface = face
@@ -113,8 +124,9 @@ fun Context.icon(res: Int, sizeDp: Int, tint: Int = 0): ImageView = ImageView(th
 }
 /** 白色卡片 */
 fun Context.card(padDp: Int = 18, radius: Int = 18): LinearLayout = col().apply {
-    bg(C.card, radius, if (C.dark) C.line else C.line)
+    bg(C.card, radius, if (C.dark) C.line else C.alpha(C.line, 0.6f))
     pad(padDp)
+    lift(3, C.text)      // 轻轻浮起来一点，不再是平贴在页面上
 }
 /** 主按钮（实心胶囊） */
 fun Context.button(s: String, color: Int = C.accent, fg: Int = Color.WHITE, h: Int = 48, fn: (View) -> Unit): TextView = text(s, 16f, fg, BOLD).apply {

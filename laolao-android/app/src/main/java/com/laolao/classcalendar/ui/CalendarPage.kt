@@ -15,17 +15,27 @@ import com.laolao.classcalendar.core.T
 import java.time.LocalDate
 
 /** 日历：月视图 + 选中那天的安排 */
-class CalendarPage(a: Main) : Page(a) {
+class CalendarPage(a: Main, private val pushed: Boolean = false) : Page(a) {
     private var month: LocalDate = T.today().withDayOfMonth(1)
     private var sel: String = T.todayKey()
     private var showHidden = false
     private lateinit var body: LinearLayout
 
     override fun build(): View {
+        val f = android.widget.FrameLayout(ctx).apply { setBackgroundColor(C.bg) }
         val ps = PullScroll(ctx) { done -> a.refreshSoon(force = true) { done() } }
-        ps.setBackgroundColor(C.bg)
-        body = ps.content.apply { pad(18, 14, 18, 60) }
-        return ps
+        body = ps.content.apply { pad(18, if (pushed) 0 else 14, 18, 110) }
+        if (pushed) {
+            val col = ctx.col()
+            col.addView(header("日历"))
+            col.addView(ps, LinearLayout.LayoutParams(MATCH, 0, 1f))
+            f.addView(col, android.widget.FrameLayout.LayoutParams(MATCH, MATCH))
+        } else f.addView(ps, android.widget.FrameLayout.LayoutParams(MATCH, MATCH))
+        Fab(a, f) { listOf(
+            FabItem("✏️", "在 ${T.dayName(sel)} 记一件事") { a.push(EditPage(a, null, day = sel)) },
+            FabItem("📝", "在 ${T.dayName(sel)} 记作业") { a.push(EditPage(a, null, homework = true, day = sel)) },
+        ) }.also { a.fabs += it }
+        return f
     }
     fun jump(day: String) { T.date(day)?.let { month = it.withDayOfMonth(1); sel = day } }
 

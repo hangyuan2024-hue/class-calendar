@@ -86,6 +86,20 @@ class ReminderReceiver : BroadcastReceiver() {
         when (i.action) {
             ACTION_TICK -> { Widgets.update(ctx); Background.reschedule(ctx); return }
             ACTION_BRIEF -> { Background.brief(ctx); Background.reschedule(ctx); return }
+            ACTION_POMO -> {
+                when (com.laolao.classcalendar.core.Plan.tick()) {
+                    "focus" -> Notify.show(ctx, 7100, Notify.CH_CLASS, "🍅 一个番茄完成！", "休息 5 分钟吧，今天已经 ${com.laolao.classcalendar.core.Plan.today()} 个番茄", null, "plan", false)
+                    "break" -> Notify.show(ctx, 7100, Notify.CH_CLASS, "休息结束", "准备下一个番茄吧 🍅", null, "plan", false)
+                }
+                Background.pomoAlarm(ctx); return
+            }
+            ACTION_TM -> {
+                val tm = com.laolao.classcalendar.core.TimeMaster
+                val phase = try { tm.timer().optString("phase") } catch (_: Exception) { "" }
+                if (try { tm.reconcile() } catch (_: Exception) { false })
+                    Notify.show(ctx, 7101, Notify.CH_CLASS, if (phase == "focus") "🍅 专注完成" else "休息结束", if (phase == "focus") "这一段专注已经记录，休息一下吧" else "准备开始下一段专注", null, "timemaster", false)
+                Background.pomoAlarm(ctx); return
+            }
         }
         val key = i.getStringExtra("key")
         // 已经做完了 / 删掉了就不提醒
@@ -94,7 +108,7 @@ class ReminderReceiver : BroadcastReceiver() {
             key?.takeIf { !it.startsWith("crs_") }, if (key?.startsWith("crs_") == true) "course" else null, i.getBooleanExtra("done", false))
         Widgets.update(ctx)
     }
-    companion object { const val ACTION_TICK = "com.laolao.classcalendar.TICK"; const val ACTION_BRIEF = "com.laolao.classcalendar.BRIEF" }
+    companion object { const val ACTION_TICK = "com.laolao.classcalendar.TICK"; const val ACTION_BRIEF = "com.laolao.classcalendar.BRIEF"; const val ACTION_POMO = "com.laolao.classcalendar.POMO"; const val ACTION_TM = "com.laolao.classcalendar.TM" }
 }
 
 /** 开机、升级后：重新排好提醒 */
@@ -237,4 +251,15 @@ object Background {
         } catch (_: SecurityException) { a.set(AlarmManager.RTC_WAKEUP, at, pi) }
     }
     fun exactAllowed(ctx: Context) = exactOk(ctx)
+
+    /** 番茄钟：专注 / 休息到点的提醒（App 关着也会响） */
+    fun pomoAlarm(ctx: Context) {
+        val pi = PendingIntent.getBroadcast(ctx, 99, Intent(ctx, ReminderReceiver::class.java).setAction(ReminderReceiver.ACTION_POMO), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val p = com.laolao.classcalendar.core.Plan.pomo()
+        if (p.mode == "focus" || p.mode == "break") set(ctx, p.end, pi, exact = true) else am(ctx).cancel(pi)
+        // 时间管理大师的计时：另一个闹钟
+        val pi2 = PendingIntent.getBroadcast(ctx, 98, Intent(ctx, ReminderReceiver::class.java).setAction(ReminderReceiver.ACTION_TM), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val end = try { com.laolao.classcalendar.core.TimeMaster.endsAt() } catch (_: Exception) { 0L }
+        if (end > 0) set(ctx, end, pi2, exact = true) else am(ctx).cancel(pi2)
+    }
 }

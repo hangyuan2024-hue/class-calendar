@@ -11,7 +11,9 @@ import org.json.JSONObject
 object Sync {
     val KINDS = mapOf(
         "personal_events_v1" to "list", "personal_marks_v1" to "map", "done_log_v1" to "map",
-        "course_rev_v1" to "one", "hw_view_v1" to "one", "course_view_v1" to "map", "ui_palette_v1" to "one",
+        "course_rev_v1" to "one", "hw_view_v1" to "one",
+        "habits_v1" to "list", "habit_log_v1" to "map2", "quad_v1" to "map", "pomo_log_v1" to "map", "plan_notes_v1" to "map", "fun_opts_v1" to "one", "course_view_v1" to "map", "ui_palette_v1" to "one",
+        "farm_v1" to "one", "profile_v1" to "one", "home_layout_v1" to "one", "home_quick_tools_v1" to "one", "mood_log_v1" to "map",
     )
     private const val META = "sync_meta_v1"
     private const val OUT = "sync_outbox_v1"
@@ -45,6 +47,7 @@ object Sync {
         when (KINDS[k]) {
             "one" -> if (v != null) out["_"] = v
             "list" -> (v as? JSONArray)?.objs()?.forEach { x -> if (x.has("id") && !x.optBoolean("local")) out[x.get("id").toString()] = x }
+            "map2" -> (v as? JSONObject)?.let { o -> for (a in o.keys()) { val inner = o.optJSONObject(a) ?: continue; for (b in inner.keys()) out[a + SEP + b] = inner.get(b) } }
             else -> (v as? JSONObject)?.let { o -> for (a in o.keys()) out[a] = o.get(a) }
         }
         return out
@@ -61,6 +64,11 @@ object Sync {
                 }
                 recs.keys.filter { it !in seen }.sorted().forEach { res.put(recs[it]) }
                 return res
+            }
+            "map2" -> {
+                val o = JSONObject()
+                for ((r, v) in recs) { val i = r.indexOf(SEP); if (i < 0) continue; val a = r.substring(0, i); (o.optJSONObject(a) ?: JSONObject().also { o.put(a, it) }).put(r.substring(i + 1), v) }
+                return o
             }
             else -> { val o = JSONObject(); for ((a, b) in recs) o.put(a, b); return o }
         }
@@ -173,7 +181,7 @@ object Sync {
                 val next = implode(k, recs, cur)
                 applying = true; Kv.setQuiet(k, if (next is JSONArray && next.length() == 0 && cur == null) null else next); applying = false
             }
-            m.put("owner", uid)
+            m.put("owner", uid); m.put("kinds", sig())
             Kv.setQuiet(META, m); Kv.setQuiet(OUT, o)
         }
         Bus.emit("data")
@@ -184,7 +192,10 @@ object Sync {
     fun start(userId: String) {
         uid = userId
         val owner = synchronized(lock) { meta().str("owner") }
+        val kinds = synchronized(lock) { meta().str("kinds") }
         try {
+            // 新版本多同步了几种数据：重新对一遍（云端已有的以云端为准）
+            if (owner == userId && kinds != sig()) { firstMerge(); return }
             if (owner != userId) {
                 if (owner.isNotEmpty()) { applying = true; KINDS.keys.forEach { Kv.setQuiet(it, null) }; applying = false; Kv.setQuiet(OUT, null) }
                 firstMerge()
@@ -192,6 +203,7 @@ object Sync {
         } catch (e: Exception) { state = "error"; lastErr = e.message ?: "" }
     }
     fun stop() { uid = null; state = "off" }
+    private fun sig() = KINDS.keys.sorted().joinToString(",")
     /** 退出登录前：把没传的传完 */
     fun finish() { scan(); flush() }
     fun pending(): Int = Kv.obj(OUT).length()

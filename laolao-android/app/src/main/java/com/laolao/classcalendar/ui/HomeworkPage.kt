@@ -25,11 +25,13 @@ class HomeworkPage(a: Main) : Page(a) {
         val ps = PullScroll(ctx) { done -> a.refreshSoon(force = true) { done() } }
         body = ps.content.apply { pad(18, 14, 18, 110) }
         f.addView(ps, FrameLayout.LayoutParams(MATCH, MATCH))
-        val fab = ctx.text("+", 30f, Color.WHITE).apply {
-            gravity = Gravity.CENTER; press(C.accent, 20, ripple = C.alpha(Color.WHITE, 0.3f)); elevation = dp(6).toFloat()
-            tap { a.push(EditPage(a, null, homework = true)) }
+        a.fabs += Fab(a, f) {
+            val hw = if (Store.work()) "任务" else "作业"
+            val l = mutableListOf(FabItem("📝", "记一项$hw") { a.push(EditPage(a, null, homework = true)) })
+            if (Store.can("can_edit")) l += FabItem("📢", "发布班级$hw") { a.push(EditPage(a, null, homework = true, classMode = true)) }
+            l += FabItem("📋", "粘贴一段$hw 自动拆分") { a.push(MemoPage(a, "")) }
+            l
         }
-        f.addView(fab, FrameLayout.LayoutParams(dp(58), dp(58)).apply { gravity = Gravity.BOTTOM or Gravity.END; rightMargin = dp(20); bottomMargin = dp(20) })
         return f
     }
 

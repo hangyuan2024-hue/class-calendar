@@ -225,10 +225,16 @@ class PhotoProvider : ContentProvider() {
     }
     override fun onCreate() = true
     override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor {
+        val path = uri.path ?: ""
+        // /att/<文件名>：下载好的附件，给别的 App 打开（只读）
+        if (path.startsWith("/att/")) {
+            val f = File(File(context!!.cacheDir, "att"), path.removePrefix("/att/").substringAfterLast('/'))
+            return ParcelFileDescriptor.open(f, ParcelFileDescriptor.MODE_READ_ONLY)
+        }
         val f = file(context!!)
         return ParcelFileDescriptor.open(f, ParcelFileDescriptor.parseMode(mode))
     }
-    override fun getType(uri: Uri) = "image/jpeg"
+    override fun getType(uri: Uri): String = if ((uri.path ?: "").startsWith("/att/")) Media.mimeOf(uri.path ?: "").ifEmpty { "application/octet-stream" } else "image/jpeg"
     override fun query(uri: Uri, p: Array<out String>?, s: String?, a: Array<out String>?, o: String?): Cursor? = null
     override fun insert(uri: Uri, v: ContentValues?): Uri? = null
     override fun delete(uri: Uri, s: String?, a: Array<out String>?) = 0

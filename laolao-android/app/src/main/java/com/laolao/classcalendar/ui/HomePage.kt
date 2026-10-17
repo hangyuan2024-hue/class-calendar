@@ -34,11 +34,7 @@ class HomePage(a: Main) : Page(a) {
         body = ps.content.apply { pad(18, 10, 18, 110) }
         f.addView(ps, FrameLayout.LayoutParams(MATCH, MATCH))
         // 右下角「＋」
-        val fab = ctx.text("+", 30f, Color.WHITE).apply {
-            gravity = Gravity.CENTER; press(C.accent, 20, ripple = C.alpha(Color.WHITE, 0.3f)); elevation = dp(6).toFloat()
-            tap { addMenu() }
-        }
-        f.addView(fab, FrameLayout.LayoutParams(dp(58), dp(58)).apply { gravity = Gravity.BOTTOM or Gravity.END; rightMargin = dp(20); bottomMargin = dp(20) })
+        a.fabs += Fab(a, f) { addMenu() }
         return f
     }
     fun scrollTop() { ps.scroll.smoothScrollTo(0, 0) }
@@ -52,8 +48,14 @@ class HomePage(a: Main) : Page(a) {
         if (Store.error.isNotEmpty() && Store.itemsAt > 0) body.add(notice("网络不太好，显示的是上次的数据：" + Store.error), 4)
         else if (Store.error.isNotEmpty() && Store.me == null) body.add(notice("连不上服务器：" + Store.error + "。下拉可以重试"), 4)
         hero()
-        agenda()
+        val A = Items.agenda()
+        agenda(A)
+        cards.build(body, A)
     }
+    private val cards = HomeCards(this)
+    private var shown = 0; private var capped = false
+    private var agendaAll = false
+
 
     private fun notice(s: String, warn: Boolean = true): TextView = ctx.text(s, 13.5f, if (warn) C.red else C.accent).apply { bg(if (warn) C.dangerBg else C.selected, 14); pad(14, 11); margins(b = 12) }
 
@@ -72,7 +74,7 @@ class HomePage(a: Main) : Page(a) {
         val av = ctx.text(name.take(1).ifEmpty { "?" }, 15f, Color.WHITE, BOLD).apply {
             gravity = Gravity.CENTER
             background = GradientDrawable(GradientDrawable.Orientation.TL_BR, if (Store.me?.str("gender") == "f") intArrayOf(C.c("#ff9ac1"), C.c("#ff5f8f")) else intArrayOf(C.mix(C.accent, Color.WHITE, 0.25f), C.accent)).apply { cornerRadius = dp(11).toFloat() }
-            tap { a.selectTab(3) }
+            tap { a.selectTab(4) }
         }
         r.addView(av, LinearLayout.LayoutParams(dp(38), dp(38)))
         body.addView(r)
@@ -104,8 +106,11 @@ class HomePage(a: Main) : Page(a) {
         c.addView(tl)
         val meta = ctx.row().apply { margins(t = 4) }
         meta.addView(ctx.chip(Store.role(), C.sub, C.hover, 11.5f).apply { pad(8, 2) })
-        meta.addView(ctx.text(if (Store.work()) "团队管理" else "班级管理", 12.5f, C.accent, SEMI).apply { pad(10, 2); tap { a.push(ClassPage(a)) } })
+        if (cls.str("nickname").isNotEmpty()) meta.addView(ctx.text("「${cls.str("nickname")}」", 12.5f, C.sub, lines = 1))
+        meta.addView(ctx.text("👥 成员", 12.5f, C.sub, SEMI).apply { pad(8, 2); tap { a.push(PeoplePage(a)) } })
+        meta.addView(ctx.text(if (Store.work()) "团队管理" else "班级管理", 12.5f, C.accent, SEMI).apply { pad(6, 2); tap { a.push(if (Store.isTeacher) ClassManagePage(a, cls.str("id")) else ClassPage(a)) } })
         c.addView(meta)
+        if (cls.str("motto").isNotEmpty()) c.addView(ctx.text("“${cls.str("motto")}”", 12.5f, C.sub, lines = 1).apply { margins(t = 4) })
         r.addView(c, LinearLayout.LayoutParams(0, WRAP, 1f).apply { leftMargin = dp(12) })
         body.addView(r)
     }
@@ -186,13 +191,12 @@ class HomePage(a: Main) : Page(a) {
         val sub = listOf(if (lessons.isNotEmpty()) "${lessons.size} 节课" else "", if (its.isNotEmpty()) "${its.size} 件有时间点的事" else "", if (loose > 0) "$loose 件全天的事" else "").filter { it.isNotEmpty() }.joinToString(" · ")
         hr.addView(ctx.text(sub.ifEmpty { "没有课，也没有要做的事" }, 12f, C.alpha(C.heroText, 0.68f)).apply { pad(8, 0, 0, 0) })
         box.addView(hr)
-        box.add(Timeline(ctx, lessons, its, if (tomorrow) -1 else nowMin) { go -> if (go == "course") a.push(CoursePage(a)) else a.selectTab(2) }, 10)
+        box.add(Timeline(ctx, lessons, its, if (tomorrow) -1 else nowMin) { go -> if (go == "course") a.push(CoursePage(a)) else a.push(CalendarPage(a, pushed = true)) }, 10)
         return box
     }
 
     // ---------- 接下来的安排 ----------
-    private fun agenda() {
-        val A = Items.agenda()
+    private fun agenda(A: Items.Agenda) {
         val c = ctx.card(18, 22).apply { margins(t = 16) }
         val hr = ctx.row()
         val hc = ctx.col()
@@ -208,8 +212,10 @@ class HomePage(a: Main) : Page(a) {
         }
         c.addView(hr)
         c.add(ctx.hline(), 12)
+        shown = 0; capped = false
         if (A.overdue.isNotEmpty()) dayBlock(c, "已过期", "还没标记完成的作业", A.overdue, late = true, showDate = true)
         for (d in A.days) {
+            if (!agendaAll && shown >= 7) { capped = true; break }
             if (d.items.isEmpty()) {
                 dayHead(c, d.label, d.sub, false)
                 c.addView(ctx.col().apply {
@@ -221,11 +227,12 @@ class HomePage(a: Main) : Page(a) {
             }
             dayBlock(c, d.label, d.sub, d.items)
         }
-        if (A.undatedMine.isNotEmpty()) dayBlock(c, "待办", "没定日期的事 · ${A.undatedMine.count { !it.done }} 项", A.undatedMine)
-        if (A.undatedCls.isNotEmpty()) dayBlock(c, "时间待定", "请去群里核实", A.undatedCls)
+        if (!capped && A.undatedMine.isNotEmpty()) dayBlock(c, "待办", "没定日期的事 · ${A.undatedMine.count { !it.done }} 项", A.undatedMine)
+        if (!capped && A.undatedCls.isNotEmpty()) dayBlock(c, "时间待定", "请去群里核实", A.undatedCls)
+        if (capped || agendaAll) c.add(ctx.text(if (agendaAll) "收起 ⌃" else "展开两周内的全部安排 ⌄", 13.5f, C.accent, SEMI).apply { gravity = Gravity.CENTER; pad(0, 10); press(C.selected, 12); tap { agendaAll = !agendaAll; render() } }, 12)
         val foot = "只显示今天起两周内的安排，更早或更晚的去「日历」里看" + if (Store.itemsAt > 0) "\n班级数据更新于 " + T.ago(Store.itemsAt) + " · 下拉可以刷新" else ""
         c.add(ctx.hline(), 14)
-        c.add(ctx.text(foot, 12f, C.sub).apply { setLineSpacing(0f, 1.4f); tap { a.selectTab(2) } }, 10)
+        c.add(ctx.text(foot, 12f, C.sub).apply { setLineSpacing(0f, 1.4f); tap { a.push(CalendarPage(a, pushed = true)) } }, 10)
         body.addView(c)
     }
     private fun dayHead(c: LinearLayout, label: String, sub: String, late: Boolean) {
@@ -237,21 +244,22 @@ class HomePage(a: Main) : Page(a) {
     private fun dayBlock(c: LinearLayout, label: String, sub: String, list: List<Item>, late: Boolean = false, showDate: Boolean = false) {
         dayHead(c, label, sub, late)
         list.forEachIndexed { i, r -> if (i > 0) c.addView(ctx.hline()); c.addView(a.itemRow(r, showDate)) }
+        shown += list.size
     }
 
-    // ---------- 右下角「＋」 ----------
-    private fun addMenu() {
-        val opts = mutableListOf("✏️ 记一件事", "💬 一句话记事", "📋 从备忘录 / 聊天记录导入", "📷 拍课表，自动变成课程表")
-        if (Store.can("can_edit")) opts += "📢 发布班级事项（全班可见）"
-        Dialogs.sheet(ctx, "", opts) { i ->
-            when (i) {
-                0 -> a.push(EditPage(a, null))
-                1 -> QuickAdd.open(a)
-                2 -> a.push(MemoPage(a, ""))
-                3 -> a.push(CourseImportPage(a))
-                4 -> a.push(EditPage(a, null, classMode = true))
-            }
-        }
+    // ---------- 右下角「＋」（照小程序：一串胶囊按钮） ----------
+    private fun addMenu(): List<FabItem> {
+        val l = mutableListOf(
+            FabItem("✏️", "记一件事") { a.push(EditPage(a, null)) },
+            FabItem("💬", "一句话记事") { QuickAdd.open(a) },
+            FabItem("📋", "导入备忘录 / 聊天记录") { a.push(MemoPage(a, "")) },
+            FabItem("📷", "拍课表导入") { a.push(CourseImportPage(a)) },
+        )
+        if (Store.can("can_edit")) l += FabItem("📢", "发布班级事项") { a.push(EditPage(a, null, classMode = true)) }
+        if (Store.cls != null && (Store.can("can_ingest") || Store.feat("ingest_local"))) l += FabItem("✨", "整理群消息") { a.push(IngestPage(a)) }
+        if (Store.cls != null && Store.feat("wall")) l += FabItem("📌", "发到班级墙") { a.push(WallPage(a)) }
+        l += FabItem("🔥", "今日打卡") { a.selectTab(2) }
+        return l
     }
 }
 
@@ -260,8 +268,9 @@ class HeroBox(ctx: Context) : LinearLayout(ctx) {
     private val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = ctx.dp(1).toFloat() }
     init {
         setWillNotDraw(false)
-        background = GradientDrawable().apply { setColor(C.hero); cornerRadius = ctx.dp(22).toFloat(); setStroke(ctx.dp(1), C.alpha(C.accent, if (C.dark) 0.25f else 0.2f)) }
+        background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(C.mix(C.hero, Color.WHITE, if (C.dark) 0.04f else 0.45f), C.hero, C.mix(C.hero, C.accent, 0.08f))).apply { cornerRadius = ctx.dp(22).toFloat(); setStroke(ctx.dp(1), C.alpha(C.accent, if (C.dark) 0.25f else 0.2f)) }
         clipToOutline = true
+        lift(10, C.accent)
     }
     override fun onDraw(c: Canvas) {
         super.onDraw(c)

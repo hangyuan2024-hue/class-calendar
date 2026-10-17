@@ -161,6 +161,25 @@ object Items {
         val n = T.dayDiff(r.day)
         return when { n < 0 -> "已过期 ${-n} 天" to 3; n == 0L -> "今天截止" to 2; n == 1L -> "明天截止" to 1; else -> "还剩 $n 天" to (if (n <= 3) 1 else 0) }
     }
+    /**
+     * 会议、活动、通知、我的事项这类「到点开始」的事：还有多久开始（作业是截止，不走这里）。
+     * 返回 文字 to 紧急程度（3 进行中、2 一小时内、1 今天 / 明天、0 更远），不适用返回 null
+     */
+    fun startIn(r: Item, nowMs: Long = System.currentTimeMillis()): Pair<String, Int>? {
+        if (r.hw || r.course || r.done || !r.dated || r.time.isEmpty()) return null
+        val st = r.at(); val end = T.min(r.endTime)?.let { T.epoch(r.day, it) }?.takeIf { it > st } ?: (st + 3_600_000L)
+        if (nowMs >= end) return null
+        if (nowMs >= st) return "进行中" to 3
+        val m = Math.ceil((st - nowMs) / 60000.0).toLong()
+        val dd = T.dayDiff(r.day)
+        return when {
+            m < 60 -> "$m 分钟后开始" to 2
+            dd == 0L -> T.left(st - nowMs).removeSuffix("后") + "后开始" to 1
+            dd == 1L -> "明天 ${r.time} 开始" to 1
+            dd == 2L -> "后天 ${r.time} 开始" to 0
+            else -> "$dd 天后开始" to 0
+        }
+    }
     /** 待交的作业（小组件、提醒用）：过期 7 天内 + 没定日子 + 以后的，按截止时间排 */
     fun pendingHomework(): List<Item> = all().filter { it.hw && !it.done && (!it.dated || T.dayDiff(it.day) >= -7) }
         .sortedWith(compareBy<Item>({ if (it.dated) 0 else 1 }, { it.day }, { it.time.ifEmpty { "99" } }))

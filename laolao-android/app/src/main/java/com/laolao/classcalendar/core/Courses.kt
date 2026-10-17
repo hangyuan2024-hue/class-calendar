@@ -207,7 +207,7 @@ object Courses {
     /** 拍照识别后核对好的课：存到服务器（网页、小程序、邮件提醒、手机日历订阅都跟着变） */
     fun upload(courses: List<JSONObject>, times: List<String>?, week1: LocalDate?) {
         val cur = meta()
-        val meta = JSONObject()
+        val meta = metaNow()
         val w = week1 ?: week1()
         meta.put("week1", T.key(w.minusDays((w.dayOfWeek.value - 1).toLong())))
         meta.put("times", JSONArray(times ?: times()))
@@ -228,4 +228,96 @@ object Courses {
         Bus.emit("data")
     }
     fun clearLocal() { cache = null; Kv.setQuiet(LS, null) }
+
+    // ---------- 在手机上直接改（加课、改课、删课、调课调休、作息、第 1 周、学期）：改完马上存到服务器 ----------
+    val WINTER_T get() = WINTER
+    val SUMMER_T get() = SUMMER
+    fun metaNow(): JSONObject = JSONObject(meta().toString())
+    fun semester(): String = meta().str("semester")
+    /** 现在用的是哪套作息：winter / summer / custom */
+    fun mode(): String { val t = times(); return if (t == WINTER) "winter" else if (t == SUMMER) "summer" else "custom" }
+    fun adjList(): List<JSONObject> = (meta().optJSONArray("adj") ?: JSONArray()).objs().sortedBy { it.str("date") }
+    /** 存一份完整的课表（课 + meta 的一部分改动）；课删光了就删掉云端那份 */
+    fun save(courses: List<JSONObject>, patch: JSONObject = JSONObject()) {
+        val m = metaNow()
+        for (k in patch.keys()) m.put(k, patch.get(k))
+        m.put("week1", T.key(T.date(m.str("week1"))?.let { it.minusDays((it.dayOfWeek.value - 1).toLong()) } ?: week1()))
+        if (m.optJSONArray("times") == null) m.put("times", JSONArray(times()))
+        if (!m.has("ics")) m.put("ics", true)
+        val arr = JSONArray()
+        courses.take(200).forEach { c ->
+            val ws = parseWeeks(c.str("weeks"))
+            arr.put(jsonOf("id" to c.str("id").ifBlank { newId("c") }.take(40), "name" to c.str("name").take(60), "day" to c.optInt("day"), "start" to c.optInt("start"), "end" to c.optInt("end"),
+                "weeks" to c.str("weeks").take(40), "wl" to JSONArray(ws.sorted()), "location" to c.str("location").take(60), "teacher" to c.str("teacher").take(40)))
+        }
+        var srv = ""
+        if (arr.length() == 0) { try { Api.rpc("courses_clear") } catch (_: Exception) {} }
+        else srv = (Api.rpc("courses_sync", jsonOf("p_courses" to arr, "p_meta" to m)) as? JSONObject)?.str("updated_at") ?: ""
+        val o = JSONObject().put("courses", arr).put("meta", m).put("updated_at", srv).put("at", System.currentTimeMillis())
+        cache = o; Kv.setQuiet(LS, o)
+        if (srv.isNotEmpty()) Kv.set(LS_REV, jsonOf("at" to srv, "n" to arr.length()))
+        Bus.emit("data")
+    }
+    fun all(): List<JSONObject> = list().map { JSONObject(it.toString()) }
+    fun saveCourse(c: JSONObject) {
+        if (c.str("name").isBlank()) throw ApiError(0, "请填写课程名称")
+        if (parseWeeks(c.str("weeks")).isEmpty()) throw ApiError(0, "上课周次不对，比如 1-16、1-8单、1,3,5")
+        if (c.optInt("end") < c.optInt("start")) throw ApiError(0, "结束节次不能早于开始节次")
+        val l = all().toMutableList(); val i = l.indexOfFirst { it.str("id") == c.str("id") && c.str("id").isNotEmpty() }
+        if (i >= 0) l[i] = c else l += c.put("id", c.str("id").ifEmpty { newId("c") })
+        save(l)
+    }
+    fun deleteCourse(id: String) = save(all().filter { it.str("id") != id })
+    fun clearAll() = save(emptyList())
+    fun setAdj(l: List<JSONObject>) = save(all(), jsonOf("adj" to JSONArray(l.take(200))))
+    fun addAdj(x: JSONObject) { x.put("id", newId("a").take(40)); setAdj(adjList() + x) }
+    fun delAdj(id: String) = setAdj(adjList().filter { it.str("id") != id })
+    /** 一条调整的说明 */
+    fun adjText(a: JSONObject): String = when (a.str("type")) {
+        "swap" -> "上 " + T.md(a.str("from")) + "（" + T.wk(a.str("from")) + "）的课"
+        "off" -> "放假 / 停课" + if (a.str("note").isNotEmpty()) "：" + a.str("note") else ""
+        "cancel" -> "「${a.str("name")}」" + (if (a.optInt("start") > 0) "第${a.optInt("start")}节" else "") + "不上"
+        else -> "加课「${a.str("name")}」第${a.optInt("start")}" + (if (a.optInt("end") > a.optInt("start")) "-${a.optInt("end")}" else "") + "节" + if (a.str("location").isNotEmpty()) " · " + a.str("location") else ""
+    }
+    fun setTimes(t: List<String>) { if (t.size < 4 || !t.all { TIME_RE.matches(it) }) throw ApiError(0, "作息时间格式不对"); save(all(), jsonOf("times" to JSONArray(t))) }
+    fun setWeek1(d: LocalDate) = save(all(), jsonOf("week1" to T.key(d)))
+    fun setSemester(s: String) = save(all(), jsonOf("semester" to s.trim().take(30)))
+
+    // ---------- 班级课表（老师 / 班委发布，全班能看、一键套用） ----------
+    fun classGet(cid: String): JSONObject? {
+        val r = Api.rpc("class_schedule_get", jsonOf("p_cid" to cid)) as? JSONObject
+        val all = Kv.obj("class_schedule_cache_v1"); all.put(cid, r ?: JSONObject.NULL); Kv.setQuiet("class_schedule_cache_v1", all)
+        return r?.takeIf { (it.optJSONArray("courses")?.length() ?: 0) > 0 }
+    }
+    fun classPublish(cid: String, title: String) {
+        val l = all(); if (l.isEmpty()) throw ApiError(0, "你的课表还是空的，先导入或添加课程再发布")
+        val arr = JSONArray(l.map { c -> jsonOf("id" to c.str("id"), "name" to c.str("name"), "day" to c.optInt("day"), "start" to c.optInt("start"), "end" to c.optInt("end"), "weeks" to c.str("weeks"), "wl" to JSONArray(parseWeeks(c.str("weeks")).sorted()), "location" to c.str("location"), "teacher" to c.str("teacher")) })
+        Api.rpc("class_schedule_publish", jsonOf("p_cid" to cid, "p_courses" to arr, "p_title" to title.take(40), "p_meta" to jsonOf("week1" to T.key(week1()), "times" to JSONArray(times()), "semester" to semester())))
+    }
+    fun classClear(cid: String) { Api.rpc("class_schedule_clear", jsonOf("p_cid" to cid)) }
+    /** 班级课表的课（画格子用，形状和自己的一样） */
+    fun classCourses(r: JSONObject): List<JSONObject> = (r.optJSONArray("courses") ?: JSONArray()).objs()
+    /** 套用：replace 换成班级课表；merge 保留自己的，只加上没有的 */
+    fun useClass(r: JSONObject, merge: Boolean): Int {
+        val stamp = java.lang.Long.toString(System.currentTimeMillis(), 36)
+        val add = classCourses(r).mapIndexed { i, c -> JSONObject(c.toString()).put("id", "c${stamp}_$i") }
+        val mine = all(); fun key(c: JSONObject) = c.str("name") + "|" + c.optInt("day") + "|" + c.optInt("start")
+        val list = if (merge) { val have = mine.map(::key).toSet(); mine + add.filter { key(it) !in have } } else add
+        val m = r.optJSONObject("meta") ?: JSONObject(); val patch = JSONObject()
+        if (T.date(m.str("week1")) != null) patch.put("week1", m.str("week1"))
+        m.optJSONArray("times")?.let { if (it.length() >= 4) patch.put("times", it) }
+        if (m.str("semester").isNotEmpty() && semester().isEmpty()) patch.put("semester", m.str("semester"))
+        save(list, patch)
+        return list.size - if (merge) mine.size else 0
+    }
+    /** 某一周、某一天的课（给任意一份课表数据用：班级课表预览） */
+    fun onFor(courses: List<JSONObject>, k: String, w1: LocalDate, tm: List<String>): List<Lesson> {
+        val wk = Math.floorDiv(java.time.temporal.ChronoUnit.DAYS.between(w1, T.date(k)), 7L).toInt() + 1
+        if (wk < 1 || wk > MAX_WEEK) return emptyList()
+        val day = T.date(k)!!.dayOfWeek.value - 1
+        return courses.filter { it.optInt("day", -1) == day && wk in weeksOf(it) }.map { c -> val st = c.optInt("start", 1); val en = c.optInt("end", st)
+            Lesson(c.str("name"), st, en, tm.getOrNull(st - 1)?.substringBefore("-") ?: "", tm.getOrNull(en - 1)?.substringAfter("-") ?: "", c.str("location"), c.str("teacher"), wk) }.sortedBy { it.start }
+    }
+    /** 一节课对应哪一条课程记录（点开详情、编辑用） */
+    fun courseOf(l: Lesson, day: Int): JSONObject? = list().firstOrNull { it.str("name") == l.name && it.optInt("day") == day && it.optInt("start") == l.start }
 }

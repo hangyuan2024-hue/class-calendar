@@ -24,12 +24,22 @@ import com.laolao.classcalendar.push.Push
 import com.laolao.classcalendar.work.Background
 import com.laolao.classcalendar.widget.Widgets
 
-/** 主界面：底部四个标签（首页 / 作业 / 日历 / 我的），其它页面一层层叠在上面 */
+/** 主界面：底部五个标签（首页 / 作业 / 成长 / 工具 / 我的），其它页面一层层叠在上面 */
 class Main : Activity() {
     private lateinit var root: FrameLayout
-    private lateinit var tabBox: LinearLayout
+    val rootView: FrameLayout get() = root
+    /** 各页面右下角的「＋」：按返回键先收起展开的菜单 */
+    val fabs = mutableListOf<Fab>()
+    private lateinit var tabBox: FrameLayout
+    /** 标签页区域（底栏半透明浮在内容上面） */
+    val tabArea: View? get() = if (::tabBox.isInitialized && login == null) tabBox else null
+    /** 底栏的高度：浮动按钮、捞捞、滚动内容都要让出这么多 */
+    var underBar = 0
+    private lateinit var tabInd: View
+    private val padded = java.util.WeakHashMap<View, Int>()
     private lateinit var tabContent: FrameLayout
     private lateinit var tabBar: LinearLayout
+    private lateinit var barWrap: GlassBar
     private val tabs = mutableListOf<Page>()
     private val tabViews = mutableListOf<Pair<ImageView, TextView>>()
     private var cur = 0
@@ -38,6 +48,8 @@ class Main : Activity() {
     private var lastRefresh = 0L
     private var resultFn: ((Int, Intent?) -> Unit)? = null
     private var dark = false
+    /** 捞捞助手（标签页左下角，可以拖） */
+    var lao: Lao? = null
 
     override fun onCreate(s: Bundle?) {
         super.onCreate(s)
@@ -77,23 +89,31 @@ class Main : Activity() {
 
     // ---------- 登录 / 主界面 ----------
     fun showLogin() {
-        stack.clear(); tabs.clear(); tabViews.clear(); root.removeAllViews()
+        lao?.stop(); lao = null
+        stack.clear(); tabs.clear(); tabViews.clear(); fabs.clear(); root.removeAllViews()
         val p = LoginPage(this); login = p
         root.addView(p.view, FrameLayout.LayoutParams(MATCH, MATCH))
         Widgets.update(this)
     }
     fun showTabs() {
-        login = null; stack.clear(); tabs.clear(); tabViews.clear(); root.removeAllViews()
-        tabBox = col()
-        tabContent = FrameLayout(this)
-        tabBox.addView(tabContent, LinearLayout.LayoutParams(MATCH, 0, 1f))
-        tabBar = row().apply { setBackgroundColor(C.card); pad(0, 6, 0, 6) }
-        tabBox.addView(View(this).apply { setBackgroundColor(C.line) }, LinearLayout.LayoutParams(MATCH, maxOf(1, dp(1) / 2)))
-        tabBox.addView(tabBar, LinearLayout.LayoutParams(MATCH, WRAP))
+        login = null; stack.clear(); tabs.clear(); tabViews.clear(); fabs.clear(); root.removeAllViews()
+        tabBox = FrameLayout(this)
+        tabContent = FrameLayout(this).apply { clipChildren = false }
+        lao?.stop(); lao = Lao(this, tabContent)
+        tabBox.addView(tabContent, FrameLayout.LayoutParams(MATCH, MATCH))
+        // 底栏：毛玻璃一样半透明，内容从下面透出来；选中的标签有一块会滑动的底色
+        barWrap = GlassBar(this, tabContent).apply { lift(8, C.text) }
+        barWrap.addView(View(this).apply { setBackgroundColor(C.alpha(C.line, 0.7f)) }, FrameLayout.LayoutParams(MATCH, maxOf(1, dp(1) / 2)))
+        tabInd = View(this).apply { background = round(C.alpha(C.accent, if (C.dark) 0.26f else 0.13f), dp(16).toFloat()) }
+        barWrap.addView(tabInd, FrameLayout.LayoutParams(dp(60), dp(32)).apply { topMargin = dp(5) })
+        tabBar = row().apply { pad(0, 6, 0, 6) }
+        barWrap.addView(tabBar, FrameLayout.LayoutParams(MATCH, WRAP))
+        tabBox.addView(barWrap, FrameLayout.LayoutParams(MATCH, WRAP).apply { gravity = Gravity.BOTTOM })
+        barWrap.addOnLayoutChangeListener { _, _, t, _, b, _, _, _, _ -> if (b - t != underBar) { underBar = b - t; tabContent.post { if (cur >= 0) { padUnder(tabs[cur].view); moveInd(false) }; lao?.attach() } } }
         root.addView(tabBox, FrameLayout.LayoutParams(MATCH, MATCH))
-        tabs += HomePage(this); tabs += HomeworkPage(this); tabs += CalendarPage(this); tabs += MePage(this)
-        val names = listOf("首页", if (Store.work()) "任务" else "作业", "日历", "我的")
-        val icons = listOf(R.drawable.tab_home, R.drawable.tab_homework, R.drawable.tab_calendar, R.drawable.tab_me)
+        tabs += HomePage(this); tabs += HomeworkPage(this); tabs += GrowthPage(this); tabs += ToolsPage(this); tabs += MePage(this)
+        val names = listOf("首页", if (Store.work()) "任务" else "作业", "成长", "工具", "我的")
+        val icons = listOf(R.drawable.tab_home, R.drawable.tab_homework, R.drawable.tab_growth, R.drawable.tab_tools, R.drawable.tab_me)
         for (i in tabs.indices) {
             val cell = col().apply { gravity = Gravity.CENTER; tap { selectTab(i) } }
             val ic = icon(icons[i], 25)
@@ -111,24 +131,58 @@ class Main : Activity() {
         val ap = getSharedPreferences("app", MODE_PRIVATE)
         if (System.currentTimeMillis() - ap.getLong("upd_at", 0) > 86400_000L) {
             ap.edit().putLong("upd_at", System.currentTimeMillis()).apply()
-            Bg.later(4000) { (tabs.getOrNull(3) as? MePage)?.checkUpdate(false) }
+            Bg.later(4000) { (tabs.lastOrNull() as? MePage)?.checkUpdate(false) }
         }
     }
     fun selectTab(i: Int) {
         if (i == cur) { (tabs[i] as? HomePage)?.scrollTop(); return }
+        fabs.forEach { it.close() }
         if (cur >= 0) tabs[cur].onHide()
         cur = i
+        val first = tabContent.childCount == 0
         tabContent.removeAllViews()
-        tabContent.addView(tabs[i].view, FrameLayout.LayoutParams(MATCH, MATCH))
+        val pv = tabs[i].view
+        tabContent.addView(pv, FrameLayout.LayoutParams(MATCH, MATCH))
+        padUnder(pv)
+        if (!first) { pv.alpha = 0f; pv.translationY = dp(10).toFloat(); pv.animate().alpha(1f).translationY(0f).setDuration(200).start() }
         tabViews.forEachIndexed { k, (ic, tx) ->
             ic.setColorFilter(if (k == i) C.accent else C.tab)
             tx.setTextColor(if (k == i) C.accent else C.tab)
+            tx.typeface = if (k == i) BOLD else SEMI
         }
+        // 选中的图标弹一下
+        tabViews.getOrNull(i)?.first?.let { ic -> ic.scaleX = 0.7f; ic.scaleY = 0.7f; ic.translationY = dp(3).toFloat()
+            ic.animate().scaleX(1f).scaleY(1f).translationY(0f).setDuration(320).setInterpolator(android.view.animation.OvershootInterpolator(3f)).start() }
+        moveInd(!first)
         tabs[i].render(); tabs[i].onShow()
+        tabContent.post { lao?.attach() }
+    }
+
+    /** 滑动的底色块移到当前标签下面 */
+    private fun moveInd(anim: Boolean) {
+        val cell = tabBar.getChildAt(cur) ?: return
+        if (cell.width == 0) { tabBar.post { moveInd(false) }; return }
+        val x = cell.left + (cell.width - tabInd.width.coerceAtLeast(dp(60))) / 2f
+        if (anim) tabInd.animate().translationX(x).setDuration(300).setInterpolator(android.view.animation.OvershootInterpolator(1.2f)).start() else tabInd.translationX = x
+    }
+    /** 标签页里的滚动内容：底下多留出底栏那么高，滚到底时不被底栏挡住，滚动时内容从底栏下面透出来 */
+    private fun padUnder(v: View) {
+        if (underBar == 0) return
+        fun walk(x: View): Boolean {
+            if (x is android.widget.ScrollView) {
+                val base = padded.getOrPut(x) { x.paddingBottom }
+                x.setPadding(x.paddingLeft, x.paddingTop, x.paddingRight, base + underBar); x.clipToPadding = false
+                return true
+            }
+            if (x is android.view.ViewGroup) for (k in 0 until x.childCount) if (walk(x.getChildAt(k))) return true
+            return false
+        }
+        walk(v)
     }
 
     // ---------- 页面栈 ----------
     fun push(p: Page) {
+        fabs.forEach { it.close() }
         val v = p.view
         v.isClickable = true
         if (v.background == null) v.setBackgroundColor(C.bg)
@@ -140,15 +194,19 @@ class Main : Activity() {
     }
     fun pop(p: Page? = null) {
         val top = p ?: stack.lastOrNull() ?: return
+        fabs.forEach { it.close() }
         stack.remove(top)
         top.onHide()
         Dialogs.hideKeyboard(top.view)
         val v = top.view
         v.animate().translationX(resources.displayMetrics.widthPixels * 0.3f).alpha(0f).setDuration(150).withEndAction { root.removeView(v) }.start()
         (stack.lastOrNull() ?: if (cur >= 0 && tabs.isNotEmpty()) tabs[cur] else null)?.let { it.render(); it.onShow() }
+        if (stack.isEmpty()) lao?.let { l -> if (Lao.on() != (l.isAttached)) tabContent.post { l.attach() } else l.paint(true) }
     }
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
+        fabs.firstOrNull { it.open }?.let { it.close(); return }
+        if (stack.isEmpty() && lao?.isOpen == true) { lao?.close(); return }
         val top = stack.lastOrNull()
         if (top != null) { if (!top.onBack()) pop(top); return }
         if (login == null && cur > 0) { selectTab(0); return }
@@ -158,7 +216,7 @@ class Main : Activity() {
     // ---------- 数据变了：只重画看得见的页面（合并 100 毫秒内的多次通知） ----------
     private val renderRun = Runnable {
         val top = stack.lastOrNull()
-        if (top != null) { if (top.autoRender) top.render() } else if (cur >= 0 && cur < tabs.size) tabs[cur].render()
+        if (top != null) { if (top.autoRender) top.render() } else if (cur >= 0 && cur < tabs.size) { tabs[cur].render(); lao?.paint() }
     }
     private fun schedule() { Bg.main.removeCallbacks(renderRun); Bg.main.postDelayed(renderRun, 100) }
 
@@ -178,7 +236,7 @@ class Main : Activity() {
         super.onResume()
         C.load(this)
         if (C.dark != dark) { recreate(); return }
-        if (login == null && Api.loggedIn) { refreshSoon(); schedule() }
+        if (login == null && Api.loggedIn) { refreshSoon(); schedule(); lao?.paint(true) }
         if (login == null && !Api.loggedIn) showLogin()
     }
     override fun onPause() { super.onPause(); Bg.run { com.laolao.classcalendar.core.Sync.finish() }; Widgets.update(this) }
@@ -204,13 +262,20 @@ class Main : Activity() {
         // 点极光推送打开的：看它带的 route
         val jp = i.getStringExtra("cn.jpush.android.EXTRA")?.let { try { org.json.JSONObject(it).optString("route") } catch (_: Exception) { "" } } ?: ""
         i.removeExtra("cn.jpush.android.EXTRA")
-        val go = i.getStringExtra("go") ?: jp.takeIf { it == "homework" || it == "calendar" }
+        val go = i.getStringExtra("go") ?: jp.takeIf { it in setOf("homework", "calendar", "growth", "plan", "wall", "rank") }
         i.removeExtra("item"); i.removeExtra("go")
         Bg.main.post {
             when {
                 key != null -> push(ItemPage(this, key))
                 go == "homework" -> { stack.toList().forEach { pop(it) }; selectTab(1) }
-                go == "calendar" -> { stack.toList().forEach { pop(it) }; selectTab(2) }
+                go == "calendar" -> { selectTab(0); push(CalendarPage(this, pushed = true)) }
+                go == "growth" -> { stack.toList().forEach { pop(it) }; selectTab(2) }
+                go == "plan" -> { if (stack.lastOrNull() !is PlanPage) push(PlanPage(this)) }
+                go == "timemaster" -> { if (stack.lastOrNull() !is TimeMasterPage) push(TimeMasterPage(this)) }
+                go == "wall" -> push(WallPage(this))
+                go == "rank" -> push(RankPage(this))
+                go == "farm" -> push(FarmPage(this))
+                go == "ask" -> push(AskPage(this))
                 go == "add" -> push(EditPage(this, null))
                 go == "course" -> push(CoursePage(this))
                 go == "course_import" -> push(CourseImportPage(this))

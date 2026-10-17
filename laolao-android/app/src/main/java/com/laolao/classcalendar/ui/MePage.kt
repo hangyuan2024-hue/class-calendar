@@ -48,37 +48,66 @@ class MePage(a: Main) : Page(a) {
         pcc.addView(ctx.text("账号 " + (me?.str("account") ?: "") + " · " + roleName + (me?.str("org_name")?.takeIf { it.isNotBlank() }?.let { " · $it" } ?: ""), 12.5f, C.sub, lines = 2).apply { margins(t = 3) })
         pc.addView(pcc, LinearLayout.LayoutParams(0, WRAP, 1f).apply { leftMargin = dp(14) })
         body.addView(pc)
+        val pr = ctx.row().apply { margins(t = 10) }
+        pr.addView(ctx.soft("✏️ 编辑资料") { ProfileSheet.open(a, me?.str("gender") ?: "", me?.str("cover") ?: "", me?.str("bio") ?: "") { render() } }, LinearLayout.LayoutParams(0, dp(42), 1f))
+        pr.addView(ctx.soft("我的主页 ›") { a.push(UserPage(a)) }, LinearLayout.LayoutParams(0, dp(42), 1f).apply { leftMargin = dp(10) })
+        body.addView(pr)
 
-        val g1 = ctx.card(4, 18).apply { margins(t = 14) }
         val cls = Store.cls
-        g1.addView(ctx.cell("🏫", if (Store.work()) "我的团队" else "我的班级", cls?.let { it.str("name") + " · " + Store.role() + if (Store.classes.size > 1) " · 共 ${Store.classes.size} 个" else "" } ?: if (Store.pending.isNotEmpty()) "等老师批准中" else "还没加入，点这里输入班级码") { a.push(ClassPage(a)) })
-        g1.addView(ctx.hline())
-        val wk = Courses.weekNow()
-        g1.addView(ctx.cell("📚", "课程表", if (Courses.has()) "${Courses.list().size} 门课" + (if (wk > 0) " · 现在是第 $wk 周" else "") else "拍一张课表截图就能导入") { a.push(CoursePage(a)) })
-        g1.addView(ctx.hline())
-        g1.addView(ctx.cell("📋", "从备忘录 / 聊天记录导入", "粘贴一段文字，自动拆成一条条待办") { a.push(MemoPage(a, "")) })
-        body.addView(g1)
+        fun group(title: String, sub: String, vararg rows: Triple<String, String, Pair<String, () -> Unit>>?) {
+            val list = rows.filterNotNull(); if (list.isEmpty()) return
+            body.addView(ctx.section(title, sub))
+            val g = ctx.card(4, 18)
+            list.forEachIndexed { i, (ic, t, d) -> if (i > 0) g.addView(ctx.hline()); g.addView(ctx.cell(ic, t, d.first) { d.second() }) }
+            body.addView(g)
+        }
+        fun row(ic: String, t: String, d: String, fn: () -> Unit) = Triple(ic, t, d to fn)
+        val open = { u: String -> try { a.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(u))) } catch (_: Exception) { a.toast("打不开浏览器") } }
 
-        val g2 = ctx.card(4, 18).apply { margins(t = 14) }
-        g2.addView(ctx.cell("🔔", "提醒与通知", "上课前、作业截止前提醒；App 关着也能收到") { a.push(RemindPage(a)) })
-        g2.addView(ctx.hline())
-        g2.addView(ctx.cell("🧩", "桌面小组件", "今天的课和事、下节课倒计时、作业清单、一键记事") { a.push(WidgetsPage(a)) })
-        body.addView(g2)
-
-        val g3 = ctx.card(4, 18).apply { margins(t = 14) }
-        val st = when (Sync.state) { "ok" -> "☁ 已同步" + if (Sync.lastOk > 0) " · " + T.ago(Sync.lastOk) else ""; "syncing" -> "☁ 同步中…"; "error" -> "⚠ 没同步上：" + Sync.lastErr; else -> "☁ 登录后自动同步" }
+        // 我的数据
+        val st = when (Sync.state) { "ok" -> "已同步" + if (Sync.lastOk > 0) " · " + T.ago(Sync.lastOk) else ""; "syncing" -> "同步中…"; "error" -> "没同步上：" + Sync.lastErr; else -> "登录后自动同步" }
         val pend = Sync.pending()
-        g3.addView(ctx.cell("🔄", "和网页、小程序同步", st + if (pend > 0) "（还有 $pend 条没传）" else "", "立即同步") { v ->
-            a.toast("正在同步…")
-            a.refreshSoon(force = true) { a.toast(if (Sync.state == "error") "没同步上：" + Sync.lastErr else "同步好了"); render() }
+        body.addView(ctx.section("我的数据", "存在云端，网页、小程序、电脑版同一份"))
+        val gd = ctx.card(4, 18)
+        gd.addView(ctx.cell("☁️", "云端同步", st + if (pend > 0) "（还有 $pend 条没传）" else "", "⟳ 立即同步") {
+            a.toast("正在同步…"); a.refreshSoon(force = true) { a.toast(if (Sync.state == "error") "没同步上：" + Sync.lastErr else "同步好了"); render() }
         })
-        g3.addView(ctx.hline())
-        g3.addView(ctx.cell("🌐", "网络线路", "现在用的是" + Net.routeName() + "，连不上会自动换另一条", "检测") { a.push(NetCheckPage(a)) })
-        g3.addView(ctx.hline())
-        g3.addView(ctx.cell("💻", "在网页上用更多功能", "成长打卡、班级墙、工具箱、AI 整理…") { a.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Cfg.SITE))) })
-        g3.addView(ctx.hline())
-        g3.addView(ctx.cell("⬆️", "检查更新", "当前版本 " + version()) { checkUpdate(true) })
-        body.addView(g3)
+        gd.addView(ctx.hline()); gd.addView(ctx.cell("🗄", "备份与恢复", "我的事项和完成标记存成文件，和网页、小程序互通") { a.push(BackupPage(a)) })
+        gd.addView(ctx.hline()); gd.addView(ctx.cell("↻", "刷新班级数据", "重新从服务器拉一遍班级事项") { a.toast("正在刷新…"); a.refreshSoon(force = true) { a.toast("刷新好了"); render() } })
+        body.addView(gd)
+
+        group("外观与趣味", "需要哪个开哪个",
+            row("🎨", "外观", "配色、深色模式、背景") { a.push(LookPage(a)) },
+            row("🎉", "趣味与效率", "完成时的鼓励、撒花、捞捞助手、打卡、规划、云宠") { a.push(FunPage(a)) },
+            if (Store.feat("plan")) row("🗂️", "打开规划页", "四象限、PDCA、SMART、六件事、番茄钟") { a.push(PlanPage(a)) } else null,
+            row("📈", "查看成长页", "进度环、趋势图、打卡") { a.selectTab(2) })
+
+        group("提醒", "作业、上课、班级通知，到点提醒你",
+            row("🔔", "提醒与通知", "这台手机直接提醒：上课前、作业截止前，App 关着也能收到") { a.push(RemindPage(a)) },
+            row("📲", "加到手机日历", "订阅链接、订阅里放什么、提前多久提醒、一次性导入") { a.push(FeedPage(a)) },
+            if (Store.feat("mail")) row("📧", "邮箱通知", "重要的事发到邮箱，不怕漏看群消息") { a.push(MailPage(a)) } else null,
+            row("🧩", "桌面小组件", "今天的课和事、下节课倒计时、作业清单、一键记事") { a.push(WidgetsPage(a)) })
+
+        group("账号安全", "忘记密码时怎么找回",
+            row("🔐", "账号与安全", "修改密码、登录设备、踢出其他设备") { a.push(SecurityPage(a)) },
+            if (Store.feat("mail")) row("📮", "找回密码用的邮箱", "绑定后忘记密码可以用邮箱验证码重置") { a.push(MailPage(a)) } else null,
+            row("🧑‍🏫", "没绑邮箱也别担心", "班主任可以在你的个人主页给你重置一个临时密码") { a.toast("找班主任：在班级成员里点你的名字 → 重置密码") })
+
+        val wk = Courses.weekNow()
+        group(if (Store.work()) "团队与账号" else "班级与账号", "",
+            row("🏫", if (Store.work()) "我的团队" else "我的班级", cls?.let { it.str("name") + " · " + Store.role() + if (Store.classes.size > 1) " · 共 ${Store.classes.size} 个" else "" } ?: if (Store.pending.isNotEmpty()) "等老师批准中" else "还没加入，点这里输入班级码") { a.push(ClassPage(a)) },
+            row("📚", "课程表", if (Courses.has()) "${Courses.list().size} 门课" + (if (wk > 0) " · 现在是第 $wk 周" else "") else "拍一张课表截图就能导入") { a.push(CoursePage(a)) },
+            if (cls != null) row("👥", "班级成员", "点头像进入 TA 的主页") { a.push(PeoplePage(a)) } else null,
+            if (cls != null && Store.isTeacher) row("🎛️", "班级管理 · 本班功能开关", "审批同学、任命班委、决定学生和班委能用哪些功能") { a.push(ClassManagePage(a, cls.str("id"))) } else null,
+            if (me?.str("role") in setOf("admin", "developer")) row("⚙️", "管理后台", "全站功能开关、身份与权限（在网页里打开）") { open(Cfg.SITE + "admin.html") } else null,
+            row("🧰", "工具与插件", "课程表、错题本、单词、记账…") { a.selectTab(3) })
+
+        group("下载与关于", "",
+            row("💻", "Windows 电脑版", "整周课表铺满屏幕、右下角提醒 · 同一个账号自动同步") { open(Cfg.SITE + "download/") },
+            row("📖", "功能介绍", "每个功能怎么用") { open(Cfg.SITE) },
+            row("💛", "感谢名单", "为捞捞课程表做出贡献的人") { a.push(CreditsPage(a)) },
+            row("🌐", "网络线路", "现在用的是" + Net.routeName() + "，连不上会自动换另一条") { a.push(NetCheckPage(a)) },
+            row("⬆️", "检查更新", "当前版本 " + version()) { checkUpdate(true) })
 
         body.add(ctx.button("退出登录", C.card, C.red) {
             Dialogs.sheet(ctx, "退出登录", listOf("退出登录", "退出并清除这台手机上的个人数据"), danger = setOf(1)) { i ->

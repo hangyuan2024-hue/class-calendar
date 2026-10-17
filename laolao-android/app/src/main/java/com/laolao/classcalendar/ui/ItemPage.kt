@@ -76,6 +76,9 @@ class ItemPage(a: Main, private val key: String) : Page(a) {
                 }
             })
         }
+        if (!r.course && (r.mine || Store.cls != null)) ops.addView(ctx.cell("📎", "附件", if (r.mine) "图片、文件，只有自己能看到" else "老师、班委发的图片和文件") { a.push(FilesPage(a, r.key)) })
+        if (!r.mine && !r.course && (Store.isTeacher || Store.cls?.str("member_role") == "monitor" || Store.items.any { it.opt("id").toString() == r.id && it.str("created_by") == com.laolao.classcalendar.core.Api.uid }))
+            ops.addView(ctx.cell("👀", "已读名单", "谁看过、谁还没看、谁完成了") { a.push(ViewersPage(a, r.id, r.title)) })
         if (r.dated) ops.addView(ctx.cell("📅", "加到手机日历", "到时候手机日历也会提醒") { toCalendar(r) })
         ops.addView(ctx.cell("↗", "分享给同学") {
             val s = "【${typeName(r.type)}】${r.title}" + (if (r.dated) "\n时间：" + T.md(r.day) + " " + T.wk(r.day) + " " + r.time else "") + (if (r.location.isNotBlank()) "\n地点：" + r.location else "") + (if (r.summary.isNotBlank() && r.summary != r.title) "\n" + r.summary else "") + "\n—— 来自捞捞课程表"
