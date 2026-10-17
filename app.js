@@ -832,8 +832,7 @@ function renderAgenda() {
     ${sections.join("")}
     ${undatedMine.length ? `<div class="aday"><div class="aday-h"><b>待办</b><span>没定日期的事 · ${undatedMine.filter((r) => !r._done).length} 项</span></div><div class="acard surface">${undatedMine.map(agendaRow).join("")}</div></div>` : ""}
     ${undatedCls.length ? `<div class="aday"><div class="aday-h"><b>时间待定</b><span>请去群里核实</span></div><div class="acard surface">${undatedCls.map(agendaRow).join("")}</div></div>` : ""}
-    <div class="afoot">只显示今天起两周内的安排，更早或更晚的去「日历」里看</div>
-    <button type="button" class="anext-btn hidden" id="aNextBtn">回到接下来</button>`;
+    <div class="afoot">只显示今天起两周内的安排，更早或更晚的去「日历」里看</div>`;
   agendaFocus();
 }
 // 5.9.1「接下来的安排」：做完的、上完的留在列表里标「已完成」，默认翻到第一件还没做的；手动翻走了，底部有按钮一键回来
@@ -870,7 +869,7 @@ function agendaFocus() {
   else agendaBtn();
 }
 $("agenda").addEventListener("scroll", () => { if (Date.now() - agendaAuto > 600) agendaManual = true; agendaBtn(); }, { passive: true });
-$("agenda").addEventListener("click", (e) => { if (e.target.closest("#aNextBtn")) { agendaManual = false; agendaGo(true); setTimeout(agendaBtn, 450); } });
+document.addEventListener("click", (e) => { if (e.target.closest("#aNextBtn")) { agendaManual = false; agendaGo(true); setTimeout(agendaBtn, 450); } });
 function toggleRow(e) {
   if (e.target.closest("button, a, summary, details")) return;
   const row = e.target.closest(".arow[data-row]");

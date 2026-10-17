@@ -1836,7 +1836,9 @@
   .astat small { font-size: 11.5px; color: var(--sub); font-variant-numeric: tabular-nums; }
   .arow.ended { opacity: .55; }
   .arow.ended .atitle { text-decoration: line-through; text-decoration-color: color-mix(in srgb, currentColor 45%, transparent); }
-  .anext-btn { position: sticky; bottom: 10px; display: block; margin: 6px auto 4px; padding: 8px 16px; border: 0; border-radius: 999px; background: var(--accent); color: #fff; font-weight: 700; font-size: 13px; cursor: pointer; box-shadow: 0 8px 20px -8px color-mix(in srgb, var(--accent) 70%, #000); z-index: 2; }
+  /* 放在「接下来的安排」标题旁边，不盖住列表 */
+  .anext-btn { align-self: center; margin-left: auto; padding: 5px 12px; border: 0; border-radius: 999px; background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); font-weight: 700; font-size: 12.5px; cursor: pointer; white-space: nowrap; }
+  .anext-btn:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); }
   .anext-btn.hidden { display: none; }
 </style>
 <link rel="stylesheet" href="fresh.css?v=20261008-org1">
@@ -1890,7 +1892,7 @@
     <div class="studio-focus-grid">
       <div class="studio-welcome-wrap"><div id="hero"></div></div>
       <section class="studio-agenda-panel" aria-labelledby="studio-agenda-title">
-        <div class="studio-panel-heading"><div><span class="studio-eyebrow">即将到来</span><h3 id="studio-agenda-title">接下来的安排</h3></div><div class="cvseg hidden" id="cvAgenda" role="group" aria-label="接下来的安排里的课程"></div></div>
+        <div class="studio-panel-heading"><div><span class="studio-eyebrow">即将到来</span><h3 id="studio-agenda-title">接下来的安排</h3></div><button type="button" class="anext-btn hidden" id="aNextBtn">回到接下来</button><div class="cvseg hidden" id="cvAgenda" role="group" aria-label="接下来的安排里的课程"></div></div>
         <div id="agenda"></div>
       </section>
     </div>
