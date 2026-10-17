@@ -73,7 +73,7 @@ class MePage(a: Main) : Page(a) {
             a.refreshSoon(force = true) { a.toast(if (Sync.state == "error") "没同步上：" + Sync.lastErr else "同步好了"); render() }
         })
         g3.addView(ctx.hline())
-        g3.addView(ctx.cell("🌐", "网络线路", "现在用的是" + Net.routeName() + "，连不上会自动换另一条", "") {})
+        g3.addView(ctx.cell("🌐", "网络线路", "现在用的是" + Net.routeName() + "，连不上会自动换另一条", "检测") { a.push(NetCheckPage(a)) })
         g3.addView(ctx.hline())
         g3.addView(ctx.cell("💻", "在网页上用更多功能", "成长打卡、班级墙、工具箱、AI 整理…") { a.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Cfg.SITE))) })
         g3.addView(ctx.hline())

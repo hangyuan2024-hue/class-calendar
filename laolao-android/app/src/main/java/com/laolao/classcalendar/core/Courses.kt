@@ -116,6 +116,53 @@ object Courses {
         return parts.joinToString("，")
     }
 
+    // ---------- 「下次上课前」：交作业最常用的截止时间 ----------
+    class NextLesson(val name: String, val day: String, val time: String) {
+        /** 「周一 08:00」 */
+        val text: String get() = T.dayName(day).let { if (it.length > 3) T.md(day) else it } + " " + time
+    }
+    fun names(): List<String> = list().map { it.str("name") }.distinct()
+    /** 这门课下一次上课（现在之后，两周内） */
+    fun nextOf(name: String): NextLesson? {
+        val now = T.now(); val nowMin = now.hour * 60 + now.minute; val t = T.todayKey()
+        for (i in 0..14) {
+            val k = T.addDays(t, i.toLong())
+            val l = on(k).filter { it.name == name && it.m0 != null && (i > 0 || it.m0!! > nowMin) }.minByOrNull { it.m0!! } ?: continue
+            return NextLesson(l.name, k, l.t0)
+        }
+        return null
+    }
+    /** 一句话里说的是哪门课：「数学作业」→「高等数学」（名字里有两个字以上对得上） */
+    fun match(text: String): String? {
+        val tx = text.replace(Regex("作业|练习|习题|报告|预习|复习|课前|上课|下次|下节|交"), " ")
+        var best: String? = null; var score = 1
+        for (n in names()) {
+            val core = n.replace(Regex("[（(].*?[)）]|[A-Za-z0-9ⅠⅡⅢⅣ]+$"), "").trim()
+            val sc = if (core.length >= 2 && tx.contains(core)) 100 + core.length else common(tx, core)
+            if (sc > score) { score = sc; best = n }
+        }
+        return best
+    }
+    private fun common(a: String, b: String): Int {
+        var best = 0
+        for (i in a.indices) for (j in b.indices) { var k = 0; while (i + k < a.length && j + k < b.length && a[i + k] == b[j + k] && !a[i + k].isWhitespace()) k++; if (k > best) best = k }
+        return best
+    }
+    /** 截止时间候选：先放对得上的那门课，再按时间先后放别的课 */
+    fun nextChoices(text: String, max: Int = 6): List<NextLesson> {
+        val m = match(text)
+        val all = names().mapNotNull { nextOf(it) }.sortedBy { it.day + it.time }
+        return (all.filter { it.name == m } + all.filter { it.name != m }).take(max)
+    }
+    fun stripNext(s: String): String = s.replace(NEXT_RE, " ").replace(Regex("\\s+"), " ").trim().trim('，', ',', '：', ':')
+    private val NEXT_RE = Regex("下(节|次|一节|一次)(课|上课)?(前|之前|以前)?|(上课|课)(前|之前)|下节|下次课")
+    /** 一句话里写了「下节课前 / 下次上课前」：换成那门课下次上课的时间 */
+    fun resolveNext(text: String): NextLesson? {
+        if (!NEXT_RE.containsMatchIn(text) || !has()) return null
+        val m = match(text) ?: return null
+        return nextOf(m)
+    }
+
     // ---------- 和服务器同步 ----------
     /** 别的设备改过课表（course_rev_v1 变了）、太久没拿、或者强制：从服务器拿 */
     fun pull(force: Boolean = false): Boolean {

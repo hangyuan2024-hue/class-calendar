@@ -32,6 +32,7 @@ class EditPage(a: Main, private val key: String?, private val homework: Boolean 
     private lateinit var dayBox: LinearLayout
     private lateinit var guess: TextView
     private var editingId: String? = null
+    private var typeSeg: Seg? = null
     private var busy = false
 
     override fun build(): View {
@@ -46,7 +47,8 @@ class EditPage(a: Main, private val key: String?, private val homework: Boolean 
             } else { fDay = day ?: if (classMode || fHw) T.todayKey() else T.todayKey() }
             if (classMode) {
                 b.addView(label("类型"))
-                b.addView(Seg(ctx, Items.TYPES.map { typeName(it) }, fType) { fType = it })
+                typeSeg = Seg(ctx, Items.TYPES.map { typeName(it) }, fType) { fType = it }
+                b.addView(typeSeg)
             }
             b.addView(label(if (classMode) "科目 / 标题" else "什么事"))
             title = ctx.input(if (classMode) "比如：数学作业" else "比如：明天下午3点交数学作业", src?.title?.removePrefix("⚠ ") ?: "")
@@ -98,6 +100,21 @@ class EditPage(a: Main, private val key: String?, private val homework: Boolean 
             }, LinearLayout.LayoutParams(0, WRAP, 1f).apply { rightMargin = dp(8) })
         }
         dayBox.addView(quick)
+        // 下次上课前（按课程表算，标题里写了哪门课就排在最前面）
+        val next = com.laolao.classcalendar.core.Courses.nextChoices(if (::title.isInitialized) title.text.toString() else "")
+        if (next.isNotEmpty()) {
+            val hs = android.widget.HorizontalScrollView(ctx).apply { isHorizontalScrollBarEnabled = false; margins(t = 10) }
+            val cr = ctx.row()
+            for (n in next) {
+                val on = fDay == n.day && fTime == n.time
+                cr.addView(ctx.text("📚 下次" + n.name.take(8) + "课前 · " + n.text, 13f, if (on) C.accent else C.text, SEMI).apply {
+                    bg(if (on) C.selected else C.card, 12, if (on) C.accent else C.line); pad(12, 8)
+                    tap { fDay = n.day; fTime = n.time; if (classMode) typeSeg?.let { fType = 0; it.pick(0) }; paintDay() }
+                }, LinearLayout.LayoutParams(WRAP, WRAP).apply { rightMargin = dp(8) })
+            }
+            hs.addView(cr)
+            dayBox.addView(hs)
+        }
         val r = ctx.row().apply { margins(t = 10) }
         val dTxt = if (fDay.isEmpty()) "📅 选日期" else "📅 " + T.md(fDay) + " " + T.wk(fDay)
         r.addView(ctx.text(dTxt, 15f, C.text, SEMI).apply { press(C.card, 12, C.line); pad(14, 11); tap { Dialogs.pickDate(ctx, fDay) { fDay = it; paintDay() } } }, LinearLayout.LayoutParams(0, WRAP, 1.3f))
@@ -110,10 +127,13 @@ class EditPage(a: Main, private val key: String?, private val homework: Boolean 
     }
 
     /** 标题里写了时间（「明天下午3点…」）：提示一键填入 */
+    private var lastMatch: String? = null
     private fun suggest() {
         val s = title.text.toString()
-        val q = Memo.quick(s)
-        val hasDate = Memo.findDate(s, T.today()) != null || Memo.findTime(s) != null
+        val m = com.laolao.classcalendar.core.Courses.match(s)
+        if (m != lastMatch) { lastMatch = m; paintDay() }
+        val q = Items.withLesson(Memo.quick(s), s)
+        val hasDate = Memo.findDate(s, T.today()) != null || Memo.findTime(s) != null || q.day.isNotEmpty()
         if (!hasDate || (q.day == fDay && q.time == fTime)) { guess.visibility = View.GONE; return }
         guess.visibility = View.VISIBLE
         guess.text = "✨ 认出了：" + (if (q.day.isNotEmpty()) T.dayName(q.day) + " " else "") + q.time + (if (q.place.isNotEmpty()) " · 📍" + q.place else "") + "  点这里填入"
@@ -141,7 +161,7 @@ class EditPage(a: Main, private val key: String?, private val homework: Boolean 
             return
         }
         // 只写了一句话、没选时间：顺手认一下
-        if (guess.visibility == View.VISIBLE && fTime.isEmpty()) { val q = Memo.quick(t); if (q.time.isNotEmpty()) { fDay = q.day; fTime = q.time; t = q.subject } }
+        if (guess.visibility == View.VISIBLE && fTime.isEmpty()) { val q = Items.withLesson(Memo.quick(t), t); if (q.time.isNotEmpty()) { fDay = q.day; fTime = q.time; t = q.subject } }
         val rec = jsonOf("id" to (editingId ?: newId("p")), "subject" to t, "event_time" to When(fDay, fTime).takeIf { fDay.isNotEmpty() }?.toString().orEmpty(),
             "location" to place.text.toString().trim(), "note" to note.text.toString().trim())
         if (fHw) rec.put("kind", "作业") else rec.put("kind", "")

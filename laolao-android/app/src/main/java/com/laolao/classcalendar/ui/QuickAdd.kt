@@ -54,7 +54,7 @@ class QuickAdd : Activity() {
             override fun afterTextChanged(x: Editable?) {
                 val t = x.toString().trim()
                 if (t.isEmpty()) { preview.text = ""; return }
-                val q = Memo.quick(t)
+                val q = Items.withLesson(Memo.quick(t), t)
                 preview.text = "→ " + q.subject + "  " + (if (q.day.isNotEmpty()) "🗓 " + T.dayName(q.day) + " " + q.time else "🗓 没写日期（放进待办）") +
                     (if (q.place.isNotEmpty()) "  📍" + q.place else "") + if (q.homework) "  · 作业" else ""
             }
@@ -70,7 +70,7 @@ class QuickAdd : Activity() {
         fun go() {
             val t = e.text.toString().trim()
             if (t.isEmpty()) { finish(); return }
-            val q = Memo.quick(t)
+            val q = Items.withLesson(Memo.quick(t), t)
             val rec = jsonOf("id" to newId("p"), "subject" to q.subject, "event_time" to if (q.day.isEmpty()) "" else When(q.day, q.time).toString(),
                 "location" to q.place, "note" to "", "done" to false)
             if (q.homework) rec.put("kind", "作业")

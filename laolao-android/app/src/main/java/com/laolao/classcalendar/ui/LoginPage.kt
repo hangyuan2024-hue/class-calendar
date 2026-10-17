@@ -79,6 +79,7 @@ class LoginPage(a: Main) : Page(a) {
             gravity = Gravity.CENTER; pad(10); margins(t = 8)
             tap { Dialogs.alert(ctx, "忘记密码", "请找老师或班委在「班级管理」里帮你重置密码；如果绑定过微信，也可以在微信小程序里用微信登录后修改密码。") }
         })
+        c.addView(ctx.text("连不上？网络检测", 13f, C.sub, SEMI).apply { gravity = Gravity.CENTER; pad(10); tap { a.push(NetCheckPage(a)) } })
         accHint = ctx.text("", 12f, C.sub).apply { visibility = View.GONE; margins(t = 4) }
         acct.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
@@ -179,7 +180,7 @@ class LoginPage(a: Main) : Page(a) {
         }) { _, e ->
             busy = false; btn.alpha = 1f; btn.text = if (signup) "注册并登录" else "登录"
             if (e != null) {
-                fail((e.message ?: "登录失败") + if (e is com.laolao.classcalendar.core.ApiError && e.status == 0) "（当前：${Net.routeName()}，已自动尝试另一条线路）" else "")
+                fail((e.message ?: "登录失败") + if (e is com.laolao.classcalendar.core.ApiError && e.status == 0) "。可以点下面的「网络检测」看看是哪一步卡住" else "")
                 return@load
             }
             if (!Api.loggedIn) { fail("登录失败，请重试"); return@load }

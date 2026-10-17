@@ -123,6 +123,37 @@ object Items {
         val title = when (offset) { 0 -> "本周作业"; 1 -> "下周作业"; -1 -> "上周作业"; else -> T.md(a) + "这周" }
         return Week(title, T.md(a) + " – " + T.md(b), week.filter { !it.done }, week.filter { it.done }, overdue, if (offset == 0) hw.filter { !it.dated } else emptyList())
     }
+    /**
+     * 作业页：所有没做完的作业按截止时间分组（不再按周切开，下周要交的也一眼看得到）
+     * 已过期 / 今天 / 明天 / 这周 / 下周 / 以后 / 时间待定；已完成的单独一组（最近 30 天）
+     */
+    class Group(val key: String, val title: String, val sub: String, val items: List<Item>)
+    class HwAll(val groups: List<Group>, val done: List<Item>, val left: Int, val weekDone: Int, val weekTotal: Int)
+    fun homeworkAll(): HwAll {
+        val hw = all().filter { it.hw }
+        val t = T.todayKey(); val tm = T.addDays(t, 1)
+        val sun = T.addDays(weekStart(0), 6); val nextSun = T.addDays(sun, 7)
+        val byDue = compareBy<Item>({ it.day }, { it.time.ifEmpty { "99" } })
+        val todo = hw.filter { !it.done && (!it.dated || T.dayDiff(it.day) >= -30) }
+        fun g(key: String, title: String, sub: String, f: (Item) -> Boolean): Group? {
+            val l = todo.filter { it.dated && f(it) }.sortedWith(byDue); return if (l.isEmpty()) null else Group(key, title, sub, l)
+        }
+        val groups = listOfNotNull(
+            g("late", "已过期", "还没做完的") { it.day < t || (it.day == t && it.time.isNotEmpty() && it.at() < System.currentTimeMillis()) },
+            g("today", "今天截止", T.md(t) + " " + T.wk(t)) { it.day == t && !(it.time.isNotEmpty() && it.at() < System.currentTimeMillis()) },
+            g("tomorrow", "明天截止", T.md(tm) + " " + T.wk(tm)) { it.day == tm },
+            g("week", "这周", "到 " + T.md(sun) + " 周日") { it.day > tm && it.day <= sun },
+            g("next", "下周", T.md(T.addDays(sun, 1)) + " – " + T.md(nextSun)) { it.day > sun && it.day <= nextSun },
+            g("later", "以后", "下周之后") { it.day > nextSun },
+        ) + listOfNotNull(todo.filter { !it.dated }.takeIf { it.isNotEmpty() }?.let { Group("undated", "时间待定", "去群里核实一下截止时间", it) })
+        val log = Kv.obj(DONE_LOG)
+        val done = hw.filter { it.done && (!it.dated || T.dayDiff(it.day) >= -30) }
+            .sortedByDescending { log.optString(it.key).ifEmpty { it.day } }
+        val a = weekStart(0)
+        val week = hw.filter { it.dated && it.day >= a && it.day <= sun }
+        return HwAll(groups, done, todo.size, week.count { it.done }, week.size)
+    }
+
     /** 「今天截止」「还剩 3 天」「已过期 2 天」 */
     fun due(r: Item): Pair<String, Int> {
         if (!r.dated) return "时间待定" to 0
@@ -188,6 +219,13 @@ object Items {
         Courses.on(t).filter { (it.m0 ?: -1) > nowMin }.minByOrNull { it.m0!! }?.let { return t to it }
         for (i in 1..7) { val k = T.addDays(t, i.toLong()); Courses.on(k).filter { it.m0 != null }.minByOrNull { it.m0!! }?.let { return k to it } }
         return null
+    }
+
+    /** 一句话 / 备忘录里写了「下节课前」：换成那门课下次上课的时间 */
+    fun withLesson(q: Memo.Row, text: String): Memo.Row {
+        if (q.day.isNotEmpty()) return q
+        val n = Courses.resolveNext(text) ?: return q
+        return Memo.Row(Courses.stripNext(q.subject).ifEmpty { q.subject }, n.day, n.time, q.place, q.note, q.done, true)
     }
 
     // ---------- 操作 ----------

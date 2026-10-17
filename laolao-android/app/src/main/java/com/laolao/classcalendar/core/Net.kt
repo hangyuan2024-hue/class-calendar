@@ -41,6 +41,8 @@ object Net {
     }
 
     class Resp(val status: Int, val body: String)
+    /** 最近一次失败的原因（网络检测里显示） */
+    @Volatile var lastError = ""
     private class Out(val route: Int, val resp: Resp?, val err: Exception?)
 
     /** 安卓自带的 HttpURLConnection 支持 PATCH；万一某台手机不支持，就直接改它的 method 字段 */
@@ -54,7 +56,24 @@ object Net {
         throw ApiError(0, "这台手机不支持这个操作")
     }
 
+    private fun hdrs(token: String?, headers: Map<String, String>): Map<String, String> {
+        val h = LinkedHashMap<String, String>()
+        h["apikey"] = Cfg.ANON; h["Authorization"] = "Bearer " + (token ?: Cfg.ANON)
+        h["Content-Type"] = "application/json"; h["Accept"] = "application/json"
+        h.putAll(headers)
+        return h
+    }
+
+    /** 先用自己的客户端（IPv4/IPv6 一起连）；它因为证书之类的原因连不上，再用系统自带的试一次 */
     private fun once(base: String, path: String, method: String, body: String?, token: String?, headers: Map<String, String>, readMs: Int): Resp {
+        try { return Http.send(base + path, method, body?.toByteArray(Charsets.UTF_8), hdrs(token, headers), 8000, readMs) }
+        catch (e: SocketTimeoutException) { throw e }
+        catch (e: java.net.UnknownHostException) { throw e }
+        catch (e: Exception) { if (method != "GET" && e !is javax.net.ssl.SSLException) throw e }
+        return system(base, path, method, body, token, headers, readMs)
+    }
+
+    private fun system(base: String, path: String, method: String, body: String?, token: String?, headers: Map<String, String>, readMs: Int): Resp {
         val c = URL(base + path).openConnection() as HttpURLConnection
         try {
             c.connectTimeout = 9000
@@ -117,7 +136,8 @@ object Net {
             if (left <= 0) break
             o = q.poll(left, TimeUnit.MILLISECONDS) ?: break
         }
-        throw ApiError(0, if (lastErr is SocketTimeoutException || lastErr == null) "服务器响应太慢，请稍后重试" else "网络连接失败，请检查网络后重试")
+        lastError = lastErr?.let { it.javaClass.simpleName + ": " + it.message } ?: "两条线路都没回应"
+        throw ApiError(0, if (lastErr is SocketTimeoutException || lastErr == null) "两条线路都连不上服务器（超时）" else "网络连接失败（${lastErr.javaClass.simpleName}）")
     }
 
     /** 启动时：两条线路一起问一声，谁先回来先用谁（不阻塞界面） */
@@ -131,6 +151,27 @@ object Net {
             val i = q.poll(9, TimeUnit.SECONDS)
             if (i != null && !known) cur = i
         }
+    }
+
+    /** 网络检测：两条线路 + 两个参照网站，各自的解析、连接、加密握手、总耗时 */
+    fun diagnose(each: (String) -> Unit) {
+        val targets = listOf("国内线路" to ROUTES[0] + "/auth/v1/health", "海外线路" to ROUTES.getOrElse(1) { ROUTES[0] } + "/auth/v1/health",
+            "参照：百度" to "https://www.baidu.com/", "参照：Cloudflare" to "https://www.cloudflare.com/cdn-cgi/trace")
+        for ((name, url) in targets) {
+            val t = Http.Timing()
+            val line = try {
+                val r = Http.send(url, "GET", null, if (url.contains("/auth/")) hdrs(null, emptyMap()) else emptyMap(), 8000, 12000, t)
+                "✅ $name：HTTP ${r.status}，${t.total} 毫秒（解析 ${t.dns}、连接 ${t.connect}、加密 ${t.tls}）\n    连的是 ${t.addr}"
+            } catch (e: Exception) {
+                "❌ $name：${e.javaClass.simpleName} ${e.message ?: ""}" +
+                    (if (t.addrs.isNotEmpty()) "\n    地址 ${t.addrs}" else "\n    （域名没解析出来）")
+            }
+            each(line)
+        }
+        // 系统自带的方式再试一次国内线路，对比用
+        val t0 = System.currentTimeMillis()
+        each(try { val r = system(ROUTES[0], "/auth/v1/health", "GET", null, null, emptyMap(), 12000); "ℹ️ 系统方式·国内线路：HTTP ${r.status}，${System.currentTimeMillis() - t0} 毫秒" }
+             catch (e: Exception) { "ℹ️ 系统方式·国内线路：${e.javaClass.simpleName} ${e.message ?: ""}" })
     }
 
     fun human(body: String, status: Int): String {
