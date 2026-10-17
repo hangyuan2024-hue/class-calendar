@@ -9,6 +9,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import com.laolao.classcalendar.core.Bg
 import com.laolao.classcalendar.core.Items
+import com.laolao.classcalendar.core.Popup
 import com.laolao.classcalendar.core.Memo
 import com.laolao.classcalendar.core.Store
 import com.laolao.classcalendar.core.T
@@ -24,6 +25,7 @@ import com.laolao.classcalendar.core.str
 class EditPage(a: Main, private val key: String?, private val homework: Boolean = false, private val day: String? = null,
                private val classMode: Boolean = false, private val copyOf: String? = null) : Page(a) {
     private var fDay = ""; private var fTime = ""; private var fHw = homework; private var fLocal = false; private var fType = 0
+    private var fPopup = false; private var popup0 = false
     private lateinit var title: EditText
     private lateinit var summary: EditText
     private lateinit var place: EditText
@@ -59,7 +61,15 @@ class EditPage(a: Main, private val key: String?, private val homework: Boolean 
             b.addView(label("日期和时间"))
             dayBox = ctx.col(); b.addView(dayBox); paintDay()
             b.addView(label("地点", true)); place = ctx.input("比如：图书馆三楼", src?.location ?: ""); b.addView(place)
-            if (classMode) { b.addView(label("要准备", true)); prep = ctx.input("比如：带计算器", src?.prepare ?: ""); b.addView(prep) }
+            if (classMode) {
+                b.addView(label("要准备", true)); prep = ctx.input("比如：带计算器", src?.prepare ?: ""); b.addView(prep)
+                // 5.9.2 重要的事：弹窗提醒全班
+                popup0 = Popup.has(src?.id); fPopup = popup0
+                val opts = ctx.card(2, 16).apply { margins(t = 16); pad(14, 2) }
+                val tg = Toggle(ctx, "📣 重要：弹窗提醒全班", "同学下次打开时弹出来，点「我知道了」才关掉", fPopup) { fPopup = it }
+                opts.addView(tg); b.addView(opts)
+                if (src != null) Bg.load({ Store.cls?.let { Popup.refresh(it.str("id")) }; Popup.has(src.id) }) { on, _ -> if (on != null && on != popup0) { popup0 = on; fPopup = on; tg.on = on; tg.refresh() } }
+            }
             else {
                 b.addView(label("备注", true))
                 note = ctx.input("想补充的话", key?.let { Items.mineRecord(src?.id ?: "")?.str("note") } ?: "", multi = true); b.addView(note)
@@ -154,9 +164,17 @@ class EditPage(a: Main, private val key: String?, private val homework: Boolean 
         if (classMode) {
             busy = true
             val id = key?.let { Items.find(it)?.id }
-            Bg.load({ Items.publish(id, Items.TYPES[fType], t, summary.text.toString(), fDay, fTime, place.text.toString(), prep.text.toString()) }) { _, e ->
+            val want = fPopup
+            var popErr = ""
+            Bg.load({
+                val nid = Items.publish(id, Items.TYPES[fType], t, summary.text.toString(), fDay, fTime, place.text.toString(), prep.text.toString())
+                // 5.9.2 弹窗提醒：勾了 / 取消了才去改
+                if (nid != null && want != popup0) try { Popup.set(Store.cls!!.str("id"), nid, want) } catch (e: Exception) {
+                    popErr = if (Regex("popup_set|PGRST202|Could not find", RegexOption.IGNORE_CASE).containsMatchIn(e.message ?: "")) "弹窗提醒没开上：数据库还没执行 5.9.2 的 SQL" else "弹窗提醒没开上：" + e.message
+                }
+            }) { _, e ->
                 busy = false
-                if (e != null) a.toast(e.message ?: "保存失败") else { a.toast(if (id == null) "已发布，全班都能看到" else "已保存"); close() }
+                if (e != null) a.toast(e.message ?: "保存失败") else { a.toast((if (id == null) "已发布，全班都能看到" else "已保存") + if (popErr.isNotEmpty()) "；$popErr" else if (want && !popup0) "，大家打开时会弹窗提醒" else ""); close() }
             }
             return
         }

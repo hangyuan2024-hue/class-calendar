@@ -17,6 +17,8 @@ import com.laolao.classcalendar.core.Courses
 import com.laolao.classcalendar.core.Item
 import com.laolao.classcalendar.core.Items
 import com.laolao.classcalendar.core.Lesson
+import com.laolao.classcalendar.core.Bg
+import com.laolao.classcalendar.core.Popup
 import com.laolao.classcalendar.core.Store
 import com.laolao.classcalendar.core.T
 import com.laolao.classcalendar.core.str
@@ -40,7 +42,36 @@ class HomePage(a: Main) : Page(a) {
         return f
     }
     fun scrollTop() { ps.scroll.smoothScrollTo(0, 0) }
-    override fun onShow() { com.laolao.classcalendar.core.Bg.main.removeCallbacks(tick); com.laolao.classcalendar.core.Bg.main.postDelayed(tick, 30_000) }
+    /** 5.9.2 重要事项弹窗：老师、班委勾了「弹窗提醒全班」的，打开首页时弹出来 */
+    private var popping = false
+    private fun popups() {
+        if (popping) return
+        Bg.load({ Popup.pending() }) { list, _ -> if (!list.isNullOrEmpty()) { popping = true; showPop(list, 0) } }
+    }
+    private fun showPop(list: List<org.json.JSONObject>, i: Int) {
+        if (i >= list.size || a.isFinishing) { popping = false; return }
+        val r = list[i]; val id = r.opt("id").toString().toLong()
+        val c = ctx.col().apply { pad(22, 22, 22, 16) }
+        c.addView(ctx.text("📣 重要" + r.str("msg_type").ifEmpty { "通知" }, 13f, C.red, HEAVY).apply { pad(12, 4); background = round(C.dangerBg, dp(14).toFloat()) }, LinearLayout.LayoutParams(WRAP, WRAP))
+        c.add(ctx.text(r.str("subject").ifEmpty { r.str("summary").ifEmpty { "通知" } }, 20f, C.text, HEAVY).apply { setLineSpacing(0f, 1.25f) }, 12)
+        val et = r.str("event_time"); val day = et.take(10); val tm = if (et.length >= 16) et.substring(11, 16) else ""
+        val meta = listOf(if (day.length == 10) "🕘 " + T.dayName(day) + (if (tm.isNotEmpty()) " $tm" else "") else "", if (r.str("location").isNotEmpty()) "📍 " + r.str("location") else "", if (r.str("prepare").isNotEmpty()) "🎒 " + r.str("prepare") else "").filter { it.isNotEmpty() }.joinToString("　")
+        if (meta.isNotEmpty()) c.add(ctx.text(meta, 13.5f, C.sub), 6)
+        if (r.str("summary").isNotEmpty() && r.str("summary") != r.str("subject")) c.add(android.widget.ScrollView(ctx).apply { addView(ctx.text(r.str("summary"), 15f, C.text).apply { setLineSpacing(0f, 1.45f) }) }, 12)
+        lateinit var d: android.app.Dialog
+        var done = false
+        val next = { ok: Boolean -> if (!done) { done = true; Bg.run { if (ok) Popup.ack(id) else Popup.later(id) }; d.dismiss(); Bg.main.postDelayed({ showPop(list, i + 1) }, 250) } }
+        val br = ctx.row().apply { margins(t = 20) }
+        br.addView(ctx.text((Store.cls?.str("name") ?: "") + if (list.size > 1) " · ${i + 1}/${list.size}" else "", 12f, C.sub, lines = 1), LinearLayout.LayoutParams(0, WRAP, 1f))
+        br.addView(ctx.text("稍后再看", 14f, C.sub, SEMI).apply { pad(12, 10); tap { next(false) } })
+        br.addView(ctx.button("我知道了", h = 42) { next(true) }, LinearLayout.LayoutParams(WRAP, dp(42)).apply { leftMargin = dp(6) })
+        c.addView(br)
+        d = Dialogs.show(ctx, c)
+        d.setOnDismissListener { next(false) }
+    }
+
+    override fun onShow() {
+        Bg.main.postDelayed({ popups() }, 1200); com.laolao.classcalendar.core.Bg.main.removeCallbacks(tick); com.laolao.classcalendar.core.Bg.main.postDelayed(tick, 30_000) }
     override fun onHide() { com.laolao.classcalendar.core.Bg.main.removeCallbacks(tick) }
 
     override fun render() {
@@ -207,11 +238,6 @@ class HomePage(a: Main) : Page(a) {
         hc.addView(ctx.text("即将到来", 11.5f, C.sub, SEMI))
         hc.addView(ctx.text("接下来的安排", 18f, C.text, BOLD).apply { margins(t = 2) })
         hr.addView(hc, LinearLayout.LayoutParams(0, WRAP, 1f))
-        // 「回到接下来」放在标题这一行（不盖住列表里的内容），翻走了才出现
-        val back = ctx.text("回到接下来", 12f, C.accent, BOLD).apply {
-            gravity = Gravity.CENTER; pad(10, 5); background = round(C.selected, dp(14).toFloat()); visibility = View.GONE
-        }
-        hr.addView(back, LinearLayout.LayoutParams(WRAP, WRAP).apply { rightMargin = dp(4) })
         if (A.doneCount > 0) {
             val hide = Items.hideDone()
             hr.addView(ctx.text(if (hide) "显示已完成" else "隐藏已完成（${A.doneCount}）", 12f, C.accent, SEMI).apply {
@@ -241,11 +267,16 @@ class HomePage(a: Main) : Page(a) {
         if (A.undatedMine.isNotEmpty()) dayBlock(list, "待办", "没定日期的事 · ${A.undatedMine.count { !it.done }} 项", A.undatedMine, now)
         if (A.undatedCls.isNotEmpty()) dayBlock(list, "时间待定", "请去群里核实", A.undatedCls, now)
         list.setPadding(0, 0, 0, dp(12))
+        val back = ctx.text("回到接下来", 13f, C.accent, BOLD).apply {
+            gravity = Gravity.CENTER; pad(16, 7); background = round(C.selected, dp(16).toFloat()); visibility = View.GONE
+        }
         val box = FrameLayout(ctx)
         val sc = InnerScroll(ctx, dp(440)).apply { addView(list) }
         box.addView(sc, FrameLayout.LayoutParams(MATCH, WRAP))
         back.tap { agManual = false; goNext(sc, true) }
         c.add(box, 2)
+        // 「回到接下来」：列表下面一条（不盖住列表、也不离得太远），翻走了、看不到「接下来」那件事才出现
+        c.addView(back, LinearLayout.LayoutParams(WRAP, WRAP).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = dp(8) })
         sc.setOnScrollChangeListener { _, _, y, _, _ ->
             if (System.currentTimeMillis() - agAuto > 500) { agManual = true; agY = y }
             paintBack(sc, back)

@@ -318,7 +318,8 @@ object Items {
     fun mineRecord(id: String): JSONObject? = mine().firstOrNull { it.str("id") == id }
 
     // ---------- 班级事项：发布 / 修改 / 删除（班委、老师） ----------
-    fun publish(id: String?, type: String, title: String, summary: String, day: String, time: String, location: String, prepare: String) {
+    /** 返回这条事项的 id（新发布的从服务器拿） */
+    fun publish(id: String?, type: String, title: String, summary: String, day: String, time: String, location: String, prepare: String): String? {
         val c = Store.cls ?: throw ApiError(0, "还没有班级")
         val rec = jsonOf("msg_type" to type, "subject" to title.trim(), "summary" to summary.trim(), "event_time" to if (day.isEmpty()) "" else day + if (time.isNotEmpty()) " $time" else "",
             "location" to location.trim(), "prepare" to prepare.trim(), "need_confirm" to day.isEmpty())
@@ -329,9 +330,12 @@ object Items {
         } else {
             rec.put("class_id", c.str("id")); rec.put("publish_date", T.todayKey())
             rec.put("original", "（由" + (Store.me?.str("display_name")?.ifBlank { null } ?: "班委") + "手动发布）")
-            Api.rest("class_info", "POST", rec, h, hedge = false)
+            val res = Api.rest("class_info", "POST", rec, h, hedge = false) as? JSONArray
+            Store.loadItems()
+            return res?.optJSONObject(0)?.opt("id")?.toString()
         }
         Store.loadItems()
+        return id
     }
     fun deleteClassItem(id: String) {
         val res = Api.rest("class_info?id=eq.$id", "DELETE", null, mapOf("Prefer" to "return=representation")) as? JSONArray

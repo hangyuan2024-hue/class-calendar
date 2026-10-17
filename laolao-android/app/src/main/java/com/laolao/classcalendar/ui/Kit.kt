@@ -178,6 +178,8 @@ class Toggle(ctx: Context, title: String, desc: String, var on: Boolean, val onC
         paint(false)
         tap { on = !on; paint(true); buzz(); onChange(on) }
     }
+    /** 外面改了 on 之后重画一下（不触发 onChange） */
+    fun refresh() = paint(true)
     private fun paint(anim: Boolean) {
         track.bg(if (on) C.accent else C.line, 14); track.setPadding(dp(3), 0, dp(3), 0)
         val x = if (on) dp(18).toFloat() else 0f
