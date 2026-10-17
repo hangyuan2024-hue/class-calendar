@@ -147,7 +147,7 @@ function laoWatch() {
   const ctx = islandCtx(), now = ctx.now, t = keyOf(now), ranked = IslandCore.rank(ctx.items, ctx.courses, now);
   for (const x of ranked) {
     if (x.kind === "course" && x.mins > 0 && x.mins <= 15 && laoOnce("c|" + t + "|" + x.title + x.time)) return laoSay(`📚 还有 ${Math.round(x.mins)} 分钟上「${x.title}」${x.location ? "，在 " + x.location : ""}`, { q: "下节课在哪" });
-    if (x.kind === "item" && x.mins != null && x.mins > 0 && x.mins <= 60 && laoOnce("d|" + x.key + "|" + x.day)) return laoSay(`⏰「${x.title}」还剩 ${Math.max(1, Math.round(x.mins))} 分钟${x.type === "作业" ? "就截止了" : ""}！`, { q: "最急的是什么" });
+    if (x.kind === "item" && x.mins != null && x.mins > 0 && x.mins <= 60 && laoOnce("d|" + x.key + "|" + x.day)) return laoSay(x.type === "作业" ? `⏰「${x.title}」还剩 ${Math.max(1, Math.round(x.mins))} 分钟就截止了！` : `⏰「${x.title}」${Math.max(1, Math.round(x.mins))} 分钟后开始${x.location ? "，在 " + x.location : ""}`, { q: "最急的是什么" });
   }
   const late = ranked.filter((x) => x.level === "late");
   if (late.length && now.getHours() >= 8 && laoOnce("late|" + t)) return laoSay(`😣 有 ${late.length} 项作业过期了，最早的是「${late[0].title}」，先补上吧`, { q: "有没有过期的作业" });

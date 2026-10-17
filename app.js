@@ -725,6 +725,25 @@ document.addEventListener("click", (e) => {
   if (b.dataset.nx === "pomo") { $("qPomo").click(); return; }
   const g = b.dataset.nxgo; if (g === "course") { const t = courseTool(); showView(t ? t.view : "calendar"); } else if (g) showView(g);
 });
+// 5.9.1 一件事现在的状态：已完成 / 已上完 / 进行中 / 还有多久开始（会议、活动这类，规则在 island-core.js，和小程序、App、电脑版一样）
+function rowState(r) {
+  if (!r || !r._p) return null;
+  if (r._done) return { st: "done", text: "已完成" };
+  if (typeof IslandCore === "undefined" || !IslandCore.startInfo || !r._p.time) return null;
+  const now = ccDate();
+  if (isCourseItem(r)) {
+    const m = String(r.summary || "").match(/(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})/);
+    const si = IslandCore.startInfo({ type: "课程", day: r._p.day, time: r._p.time, end: m ? m[2] : "" }, now);
+    if (!si) return null;
+    if (si.st === "past") return { st: "done", text: "已上完" };
+    if (si.st === "now") return { st: "now", text: "上课中" };
+    return si.mins < 24 * 60 ? { st: si.st, text: si.text.replace("开始", "上课") } : null;
+  }
+  if (r._plugin || r.msg_type === "作业") return null;
+  const si = IslandCore.startInfo({ type: r.msg_type, day: r._p.day, time: r._p.time }, now);
+  if (!si) return null;
+  return si.st === "past" ? { st: "done", text: "已结束" } : si;
+}
 function agendaRow(r, forceOpen) {
   const k = esc(r._key);
   const style = r._plugin && r._color ? ` style="--c:${esc(r._color)}"` : "";
@@ -734,14 +753,15 @@ function agendaRow(r, forceOpen) {
   const due = r.msg_type === "作业" && r._p && r._p.time;
   const time = r._p ? (r._p.time ? r._p.time + (due ? " 截止" : "") : "全天") : "待定";
   const open = forceOpen === true || agendaOpen.has(r._key);
-  return `<div class="arow t-${esc(r.msg_type)}${r._done ? " done" : ""}${open ? " open" : ""}" data-row="${k}"${style}>
+  const rs = rowState(r), ended = rs && rs.st === "done" && !r._done;
+  return `<div class="arow t-${esc(r.msg_type)}${r._done ? " done" : ""}${ended ? " ended" : ""}${open ? " open" : ""}" data-row="${k}"${rs ? ` data-st="${rs.st}"` : ""}${style}>
     ${r._plugin ? `<span class="adot"></span>` : `<button class="chk" data-act="done" data-k="${k}" title="${r._done ? "标记为未完成" : "标记为完成"}">${r._done ? "✓" : ""}</button>`}
     <div class="abody">
       <div class="atitle">${r.need_confirm ? "⚠ " : ""}${esc(title)}${typeof exFilesTag === "function" ? exFilesTag(r) : ""}</div>
       <div class="asub"><span class="atype">${esc(typeName)}</span>${esc(sub)}${!sub && r.location ? "📍 " + esc(r.location) : ""}</div>
       ${r._plugin ? "" : `<div class="aextra">${detailHtml(r)}</div>`}
     </div>
-    <span class="atime${due && !r._done ? " due" : ""}">${esc(time)}</span>
+    ${rs ? `<span class="astat"><b class="st-${rs.st}">${esc(rs.text)}</b>${rs.st === "done" ? "" : `<small>${esc(time)}</small>`}</span>` : `<span class="atime${due && !r._done ? " due" : ""}">${esc(time)}</span>`}
     ${r._done && !r._plugin ? `<button class="adel" data-act="${r._mine ? "del" : "hide"}" data-k="${k}" title="${r._mine ? "删除" : "隐藏"}" aria-label="${r._mine ? "删除" : "隐藏"}">${r._mine ? "🗑" : "⊘"}</button>` : ""}
   </div>`;
 }
@@ -812,8 +832,45 @@ function renderAgenda() {
     ${sections.join("")}
     ${undatedMine.length ? `<div class="aday"><div class="aday-h"><b>待办</b><span>没定日期的事 · ${undatedMine.filter((r) => !r._done).length} 项</span></div><div class="acard surface">${undatedMine.map(agendaRow).join("")}</div></div>` : ""}
     ${undatedCls.length ? `<div class="aday"><div class="aday-h"><b>时间待定</b><span>请去群里核实</span></div><div class="acard surface">${undatedCls.map(agendaRow).join("")}</div></div>` : ""}
-    <div class="afoot">只显示今天起两周内的安排，更早或更晚的去「日历」里看</div>`;
+    <div class="afoot">只显示今天起两周内的安排，更早或更晚的去「日历」里看</div>
+    <button type="button" class="anext-btn hidden" id="aNextBtn">回到接下来</button>`;
+  agendaFocus();
 }
+// 5.9.1「接下来的安排」：做完的、上完的留在列表里标「已完成」，默认翻到第一件还没做的；手动翻走了，底部有按钮一键回来
+let agendaManual = false, agendaAuto = 0;
+function agendaNextRow() {
+  const box = $("agenda");
+  return [...box.querySelectorAll(".arow[data-row]")].find((x) => !x.classList.contains("done") && !x.classList.contains("ended")) || null;
+}
+function agendaGo(smooth) {
+  const box = $("agenda"), row = agendaNextRow();
+  if (!row) return;
+  const day = row.closest(".aday"), head = day && day.querySelector(".aday-h");
+  // 把这一天的标题也露出来；这一天前面已经做完的，往上翻还能看到
+  const at = (el) => el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop;
+  let top = at(row) - (head ? head.offsetHeight + 12 : 12);
+  if (day && day.querySelector(".arow") === row) top = at(day) - 4;
+  agendaAuto = Date.now();
+  box.scrollTo({ top: Math.max(0, top), behavior: smooth ? "smooth" : "auto" });
+}
+function agendaBtn() {
+  const box = $("agenda"), btn = $("aNextBtn"), row = agendaNextRow();
+  if (!btn) return;
+  if (!row || box.scrollHeight <= box.clientHeight + 4) { btn.classList.add("hidden"); return; }
+  const y = row.getBoundingClientRect().top - box.getBoundingClientRect().top;
+  const off = y < 0 ? "up" : y > box.clientHeight - 40 ? "down" : "";
+  btn.classList.toggle("hidden", !off);
+  btn.textContent = off === "up" ? "↑ 回到接下来" : "↓ 回到接下来";
+}
+function agendaFocus() {
+  const box = $("agenda");
+  if (!box) return;
+  box.classList.add("ascroll");
+  if (!agendaManual) requestAnimationFrame(() => { agendaGo(false); agendaBtn(); });
+  else agendaBtn();
+}
+$("agenda").addEventListener("scroll", () => { if (Date.now() - agendaAuto > 600) agendaManual = true; agendaBtn(); }, { passive: true });
+$("agenda").addEventListener("click", (e) => { if (e.target.closest("#aNextBtn")) { agendaManual = false; agendaGo(true); setTimeout(agendaBtn, 450); } });
 function toggleRow(e) {
   if (e.target.closest("button, a, summary, details")) return;
   const row = e.target.closest(".arow[data-row]");
@@ -5208,6 +5265,10 @@ function dayTick() {
   renderAll(); return true;
 }
 setInterval(dayTick, 60000);
+// 5.9.1 语言切换放在「我的 → 外观」里（原来在首页右上角）
+if ($("optLang") && window.CCLang) { $("optLang").value = CCLang.lang === "en" ? "en" : "zh"; $("optLang").onchange = (e) => CCLang.set(e.target.value); }
+// 「还有多久开始」「进行中」「已上完」每分钟跟着变（只在首页看得见时）
+setInterval(() => { if (document.hidden || currentView() !== "home" || !$("agenda").querySelector("[data-st]")) return; const y = $("agenda").scrollTop; renderAgenda(); if (agendaManual) $("agenda").scrollTop = y; }, 60000);
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) return;
   dayTick();

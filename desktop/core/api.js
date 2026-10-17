@@ -78,30 +78,47 @@ class Api {
       try { body = text ? JSON.parse(text) : null; } catch (e) { body = { message: text }; }
       if (!res.ok) {
         const e = new Error([429, 502, 503, 504].includes(res.status) ? "现在用的人太多了，请过一会儿再试" : humanError(body, res.status));
-        e.status = res.status; throw e;
+        e.status = res.status; e.raw = String((body && (body.error_description || body.msg || body.message || body.error || body.error_code)) || ""); throw e;
       }
       return body;
     }
   }
 
+  // 3.3.3：过期时间按「本机现在 + 有效秒数」算，不用服务器给的绝对时间——电脑时钟慢了几分钟、几小时时，
+  //   以前会拿着已经过期的令牌去请求，服务器回 401，电脑版就当成「登录失效」把账号退出了
   keep(j) {
     const s = { access_token: j.access_token, refresh_token: j.refresh_token,
-      expires_at: j.expires_at || Math.floor(Date.now() / 1000) + (j.expires_in || 3600), user_id: j.user && j.user.id };
+      expires_at: Math.floor(Date.now() / 1000) + (j.expires_in || (j.expires_at ? Math.max(300, j.expires_at - Math.floor(Date.now() / 1000)) : 3600)), user_id: j.user && j.user.id };
     this.store.save(s);
     return s;
   }
 
-  async session() {
+  // force：服务器说令牌不行了（401），不管本机认为过没过期，都换一个新的
+  async session(force) {
     const s = this.store.load();
     if (!s || !s.access_token) return null;
-    if (s.expires_at - 60 > Date.now() / 1000) return s;
+    if (!force && s.expires_at - 300 > Date.now() / 1000) return s;      // 提前 5 分钟换，睡眠唤醒后也来得及
     if (!this.refreshing) {
-      this.refreshing = this.call(this.base + "/auth/v1/token?grant_type=refresh_token", { method: "POST", body: JSON.stringify({ refresh_token: s.refresh_token }) })
-        .then((j) => this.keep(j))
-        .catch((e) => { if (e.status === 400 || e.status === 401) { this.store.save(null); return null; } return s; })   // 断网时先留着
-        .finally(() => { this.refreshing = null; });
+      this.refreshing = this.refreshOnce(s).finally(() => { this.refreshing = null; });
     }
     return this.refreshing;
+  }
+  // 3.3.3 修「电脑版有时候无缘无故自己退出登录」：
+  //   · 换令牌的请求最多等 6 秒。以前要等 20 秒，超时后换线路再用同一个旧令牌去换——服务器其实已经换过了，
+  //     旧令牌 10 秒后作废，第二次就被拒，电脑版以为登录失效直接退出。6 秒内重试，服务器会认这次是同一次换令牌
+  //   · 只有服务器明确说「这个登录已经无效」才退出；网络不好、服务器忙、线路超时都先保留登录，过一会儿再试
+  async refreshOnce(s) {
+    try {
+      const j = await this.call(this.base + "/auth/v1/token?grant_type=refresh_token", { method: "POST", timeout: 6000, body: JSON.stringify({ refresh_token: s.refresh_token }) });
+      if (!j || !j.access_token) return s;
+      return this.keep(j);
+    } catch (e) {
+      const now = this.store.load();
+      if (now && now.refresh_token !== s.refresh_token) return now;          // 别的地方已经换好了
+      const dead = (e.status === 400 || e.status === 401 || e.status === 403) && /refresh.?token|invalid.?grant|not.?found|already.?used|revoked|session/i.test(String(e.raw || e.message || ""));
+      if (dead) { this.store.save(null); return null; }
+      return s;                                                             // 断网、超时、服务器忙：先留着
+    }
   }
 
   async signIn(account, password) {
@@ -142,9 +159,17 @@ class Api {
     this.store.save(null);
   }
 
+  // 3.3.3：请求被 401 拒了（令牌过期、电脑刚睡醒、时钟不准）：先换一个新令牌再试一次，换不到才算真的登录失效
   async rest(p, opts = {}) {
     const s = await this.session();
-    return this.call(this.base + "/rest/v1/" + p, opts, s && s.access_token);
+    try { return await this.call(this.base + "/rest/v1/" + p, opts, s && s.access_token); }
+    catch (e) {
+      if (e.status !== 401 || !s) throw e;
+      const s2 = await this.session(true);
+      if (!s2) throw e;                                       // 登录确实失效了（已经清掉）
+      if (s2.access_token === s.access_token) { e.keep = true; throw e; }   // 没换成（网络不好）：别退出，下次再试
+      return this.call(this.base + "/rest/v1/" + p, opts, s2.access_token);
+    }
   }
   rpc(fn, args, opts = {}) { return this.rest("rpc/" + fn, { method: "POST", body: JSON.stringify(args || {}), ...opts }); }
 }

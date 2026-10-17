@@ -112,7 +112,7 @@ const DIsland = {
     const c = this.ctx(), now = c.now, t = M.dayKey(now), ranked = IslandCore.rank(c.items, c.courses, now);
     for (const x of ranked) {
       if (x.kind === "course" && x.mins > 0 && x.mins <= 15 && this.once("c|" + t + "|" + x.title + x.time)) return this.say(`📚 还有 ${Math.round(x.mins)} 分钟上「${x.title}」${x.location ? "，在 " + x.location : ""}`, "下节课在哪");
-      if (x.kind === "item" && x.mins != null && x.mins > 0 && x.mins <= 60 && this.once("d|" + x.key + "|" + x.day)) return this.say(`⏰「${x.title}」还剩 ${Math.max(1, Math.round(x.mins))} 分钟${x.type === "作业" ? "就截止了" : ""}！`, "最急的是什么");
+      if (x.kind === "item" && x.mins != null && x.mins > 0 && x.mins <= 60 && this.once("d|" + x.key + "|" + x.day)) return this.say(x.type === "作业" ? `⏰「${x.title}」还剩 ${Math.max(1, Math.round(x.mins))} 分钟就截止了！` : `⏰「${x.title}」${Math.max(1, Math.round(x.mins))} 分钟后开始${x.location ? "，在 " + x.location : ""}`, "最急的是什么");
     }
     const late = ranked.filter((x) => x.level === "late");
     if (late.length && now.getHours() >= 8 && this.once("late|" + t)) return this.say(`😣 有 ${late.length} 项作业过期了，最早的是「${late[0].title}」，先补上吧`, "有没有过期的作业");

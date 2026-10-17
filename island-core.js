@@ -50,8 +50,29 @@
     return "还剩 " + Math.round(mins / 1440) + " 天";
   }
 
+  // 到点开始的事（会议、活动、通知、我的事项）：还有多久开始。作业是「截止」，用上面的 leftText
+  function startText(mins) {
+    if (mins < 60) return Math.max(1, Math.ceil(mins)) + " 分钟后开始";
+    if (mins < 1440) { var h = Math.floor(mins / 60), m = Math.round(mins - h * 60); return h + " 小时" + (m > 0 && m < 60 && h < 3 ? " " + m + " 分" : "") + "后开始"; }
+    return Math.round(mins / 1440) + " 天后开始";
+  }
+  // 一件事现在的状态：{ st: "done" | "now" | "soon" | "later" | "past" | "due", text, mins }
+  // it：{ type, day, time, end（"HH:MM"，可选）, done }；没写结束时间的按开始后 1 小时算
+  function startInfo(it, now) {
+    if (!it || !it.day) return null;
+    if (it.done) return { st: "done", text: "已完成", mins: null };
+    if (it.type === "作业" || !it.time) return null;
+    var st = fromKey(it.day), p = it.time.split(":"); st.setHours(+p[0], +p[1], 0, 0);
+    var en = new Date(st.getTime() + 3600000);
+    if (it.end && /^\d{1,2}:\d{2}$/.test(it.end)) { var q = it.end.split(":"), e2 = fromKey(it.day); e2.setHours(+q[0], +q[1], 0, 0); if (e2 > st) en = e2; }
+    var mins = (st - now) / 60000, toEnd = (en - now) / 60000;
+    if (toEnd <= 0) return { st: "past", text: "已结束", mins: mins };
+    if (mins <= 0) return { st: "now", text: "进行中", mins: mins, left: Math.max(1, Math.round(toEnd)) };
+    return { st: mins < 60 ? "soon" : "later", text: startText(mins), mins: mins };
+  }
+
   // ---------- 智能排序 ----------
-  // items：[{ key, title, type, day, time, location, done, needConfirm, mine, summary }]
+  // items：[{ key, title, type, day, time, end?, location, done, needConfirm, mine, summary }]
   // courses：今天、明天的课 [{ name, day, t0, t1, location, start, end }]
   function weightOf(it) {
     var text = (it.title || "") + " " + (it.summary || "");
@@ -70,6 +91,14 @@
         if (it.time) { var p = it.time.split(":"); due.setHours(+p[0], +p[1]); } else due.setHours(23, 59);
         mins = due.getTime() / 60000 - nowMin;
         var hours = mins / 60;
+        var si = it.type !== "作业" && it.time ? startInfo({ type: it.type, day: it.day, time: it.time, end: it.end }, now) : null;
+        if (si && si.st === "now") {            // 正在开的会、正在进行的活动：排最前
+          score = 125 * w; level = "now"; reason = "进行中 · 还有 " + si.left + " 分钟结束";
+        } else if (si && si.st !== "past") {     // 还没开始：说「还有多久开始」，不说「还剩」
+          score = 100 / (1 + hours / 12) * w;
+          level = hours <= 1 ? "urgent" : hours <= 48 ? "soon" : "normal";
+          reason = si.text;
+        } else {
         if (mins < 0) {
           if (dayDiff(t, it.day) > (opts.lateDays || 7)) return;   // 过期太久的不再提醒
           score = (it.type === "作业" ? 150 : 60) - Math.min(-hours / 24, 7) * 8;
@@ -81,6 +110,7 @@
         score *= w;
         if (it.type !== "作业" && mins < -120) score *= 0.2;      // 开完的会、过去的活动：基本不用管了
         reason = leftText(mins);
+        }
       }
       if (it.needConfirm) score += 3;
       out.push({ kind: "item", key: it.key, title: it.title || "事项", type: it.type, day: it.day || "", time: it.time || "", location: it.location || "",
@@ -294,5 +324,5 @@
   }
   function fallback() { return { text: "这个我还不太会 😅 我能回答日程、课程、作业、考试、打卡这些，试试问：", chips: CHIPS }; }
 
-  return { rank: rank, greet: greet, answer: answer, fallback: fallback, hello: hello, parseDay: parseDay, dayName: dayName, leftText: leftText, keyOf: keyOf, CHIPS: CHIPS };
+  return { rank: rank, startInfo: startInfo, startText: startText, greet: greet, answer: answer, fallback: fallback, hello: hello, parseDay: parseDay, dayName: dayName, leftText: leftText, keyOf: keyOf, CHIPS: CHIPS };
 });

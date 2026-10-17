@@ -1825,6 +1825,19 @@
     #lao.open::before { content: ""; position: fixed; inset: 0; background: rgba(10, 20, 40, .3); }
     #lao.open .lao-dock, #lao.open .lao-bub { opacity: 0; pointer-events: none; }
   }
+  /* 5.9.1 接下来的安排：状态标签、只在框里滚动、回到接下来 */
+  #agenda.ascroll { max-height: min(70vh, 640px); overflow-y: auto; overscroll-behavior: contain; position: relative; scrollbar-width: thin; padding-right: 2px; }
+  .astat { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; padding-top: 1px; }
+  .astat b { font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 999px; white-space: nowrap; background: var(--chip, rgba(127,127,127,.12)); color: var(--sub); }
+  .astat b.st-now { background: #1f9d63; color: #fff; }
+  .astat b.st-soon { background: var(--accent); color: #fff; }
+  .astat b.st-later { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
+  .astat b.st-done { background: transparent; color: var(--sub); padding-right: 0; }
+  .astat small { font-size: 11.5px; color: var(--sub); font-variant-numeric: tabular-nums; }
+  .arow.ended { opacity: .55; }
+  .arow.ended .atitle { text-decoration: line-through; text-decoration-color: color-mix(in srgb, currentColor 45%, transparent); }
+  .anext-btn { position: sticky; bottom: 10px; display: block; margin: 6px auto 4px; padding: 8px 16px; border: 0; border-radius: 999px; background: var(--accent); color: #fff; font-weight: 700; font-size: 13px; cursor: pointer; box-shadow: 0 8px 20px -8px color-mix(in srgb, var(--accent) 70%, #000); z-index: 2; }
+  .anext-btn.hidden { display: none; }
 </style>
 <link rel="stylesheet" href="fresh.css?v=20261008-org1">
 <link rel="stylesheet" href="campus-ui.css?v=20261008-org1">
@@ -1864,7 +1877,7 @@
     <header class="vhead studio-home-heading">
       <button class="av mavatar" data-tab="me" aria-label="我的"></button>
       <div class="studio-page-title"><span class="studio-eyebrow">每一天都值得认真</span><h2>学习工作台<span class="studio-title-dot" aria-hidden="true">.</span></h2></div>
-      <div class="studio-top-actions"><button class="btn sm lang-btn" type="button" data-lang-toggle>EN</button><button class="btn sm studio-plan-btn" data-nx="pomo">开始专注 <span aria-hidden="true">↗</span></button><a class="btn sm appdl hidden" id="appDl" href="app.html#get" title="下载安卓 App 和 Windows 电脑版">下载</a></div>
+      <div class="studio-top-actions"><button class="btn sm studio-plan-btn" data-nx="pomo">开始专注 <span aria-hidden="true">↗</span></button><a class="btn sm appdl hidden" id="appDl" href="app.html#get" title="下载安卓 App 和 Windows 电脑版">下载</a></div>
     </header>
     <div id="classBar" class="hidden">
       <div class="cb-badge" id="cbBadge">班</div>
@@ -2149,6 +2162,8 @@
           <button class="skin" data-skin="cyber" data-feat="metaverse"><div class="pv cyber"><i></i><em></em></div>捞捞元宇宙</button>
         </div>
       </div>
+      <label class="gi" id="langRow"><span class="ic">🌐</span><span class="sx"><span class="sxt">语言 / Language</span><small>默认跟着浏览器；切换后这台设备记住</small></span>
+        <select class="gsel" id="optLang" data-noi18n><option value="zh">中文</option><option value="en">English</option></select></label>
       <div class="gx" id="palBox">
         <div class="pal-h"><b>配色</b><span class="meta" id="palNote">选一套喜欢的颜色，元气、简约、夜间风格都能用</span></div>
         <div class="pals" id="palPick"></div>
@@ -2581,12 +2596,12 @@
 <script src="farm.js?v=20261009-tz1"></script>
 <script src="metaverse-v3.js?v=20261005-native3"></script>
 <script src="nextclass.js?v=20261017-v590"></script>
-<script src="app.js?v=20261017-v590"></script>
+<script src="app.js?v=20261017-v591"></script>
 <script src="extras.js?v=20261016-v580"></script>
 <script src="campus-tools.js?v=20261006-tools1"></script>
 <script src="workspace-v3.js?v=20261005-native3"></script>
-<script src="island-core.js?v=20261004a"></script>
-<script src="island.js?v=20261014-v542"></script>
+<script src="island-core.js?v=20261017-v591"></script>
+<script src="island.js?v=20261017-v591"></script>
 <script src="study.js?v=20261009-kn2"></script>
 <script src="mindmap.js?v=20261009-mm1"></script>
 <script src="ux.js?v=20261011-kn1"></script>

@@ -10,6 +10,13 @@ function leftLabel(ms) {
   return [String(Math.round(m / 1440)), "天后"];
 }
 function islandCtx() { return DIsland.ctx(); }
+// 3.3.3 会议、活动这类到点开始的事：一天之内显示「还有多久开始 / 进行中」（规则在 island-core.js，和网页、小程序、App 一样）
+function startTag(x, now) {
+  if (!x || x.done || x.type === "作业" || !x.time || !x.day || typeof IslandCore === "undefined" || !IslandCore.startInfo) return "";
+  const si = IslandCore.startInfo({ type: x.type, day: x.day, time: x.time }, now);
+  if (!si || si.st === "past" || (si.mins != null && si.mins > 24 * 60)) return "";
+  return `<span class="td-st st-${si.st}">${esc(si.text)}</span>`;
+}
 
 App.views.today = {
   title: "首页", icon: "today",
@@ -138,7 +145,7 @@ App.views.today = {
     const at = isCourse ? atOf(top.day, live ? c.t1 || top.time : top.time) : atOf(top.day, top.time);
     const hot = top.level === "late" || top.level === "urgent" || live;
     const sleep = night && !hot && !(top.mins != null && top.mins < 6 * 60);
-    const label = sleep ? "早点睡" : isCourse ? (live ? "正在上" : "下一节") : top.level === "late" ? "过期了" : top.exam ? "考试" : top.type === "作业" ? "先做这个" : "接下来";
+    const label = sleep ? "早点睡" : isCourse ? (live ? "正在上" : "下一节") : live ? "进行中" : top.level === "late" ? "过期了" : top.exam ? "考试" : top.type === "作业" ? "先做这个" : "接下来";
     const sub = [top.time || (top.day ? IslandCore.dayName(top.day, ctx.now) : ""), top.location ? "📍 " + top.location : ""].filter(Boolean).join(" · ");
     return `<div class="tn${hot ? " hot" : sleep ? " sleep" : ""}${isCourse ? " course" : ""}"${c && c.color ? ` style="--c:${c.color}"` : ""}${isCourse ? "" : ` data-k="${esc(top.key)}"`}>
       <span class="tn-k">${label}</span>
@@ -195,6 +202,7 @@ App.views.today = {
   },
 
   // ---------- 要做的事 ----------
+  // 3.3.3 会议、活动这类到点开始的事：一天之内的显示「还有多久开始 / 进行中」（规则在 island-core.js，和网页、小程序、App 一样）
   todo() {
     const now = App.now(), t = M.dayKey(now), el = $("#tdTodo", this.el);
     const live = M.sortItems(App.items().filter((x) => !x.hidden));
@@ -210,7 +218,7 @@ App.views.today = {
     const row = (x) => `<div class="td-row${x.done ? " done" : ""}${Insp.key === x.key ? " insp-sel" : ""}" data-k="${esc(x.key)}"><button class="chk${x.done ? " on" : ""}" data-k="${esc(x.key)}" title="${x.done ? "标记为没完成" : "完成"}"></button>
       <span class="td-tag" style="--c:${tc(x.type)}">${esc(x.mine && x.type !== "作业" ? "我的" : x.study ? "考核" : x.type)}</span>
       <span class="td-t">${x.local ? '<small title="只存在这台设备">🔒</small> ' : ""}${esc(x.title)}${CloudFiles.count(x.key) || attachList(x.key).length ? ' <small title="有附件">📎</small>' : ""}${Autodel.soon(x) ? ' <small title="快要自动删除了">🗑</small>' : ""}</span>
-      ${x.location ? `<span class="td-l">${esc(x.location)}</span>` : ""}<span class="td-w${overdue(x, now) ? " late" : ""}">${esc(x.day === t ? (x.time ? x.time + (x.type === "作业" ? " 截止" : "") : "今天") : whenText(x, now))}</span></div>`;
+      ${x.location ? `<span class="td-l">${esc(x.location)}</span>` : ""}${startTag(x, now)}<span class="td-w${overdue(x, now) ? " late" : ""}">${esc(x.day === t ? (x.time ? x.time + (x.type === "作业" ? " 截止" : "") : "今天") : whenText(x, now))}</span></div>`;
     const html = groups.filter((g) => g[1].length).map((g) => `<div class="td-g ${g[2] || ""}"><span>${g[0]}</span><small class="num">${g[1].length}</small></div>` + g[1].slice(0, 12).map(row).join("") + (g[1].length > 12 ? `<div class="td-more" data-go="tasks">还有 ${g[1].length - 12} 件…</div>` : "")).join("");
     el.innerHTML = html || `<div class="empty"><b>🎉</b>最近一周没有要做的事<br>在上面一句话记事，或者按 Ctrl+N</div>`;
   },

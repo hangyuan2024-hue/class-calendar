@@ -164,7 +164,7 @@ class Store extends EventEmitter {
         this.status = { syncing: false, online: true, error: "", lastOk: this.now() };
       } catch (e) {
         this.status = { ...this.status, syncing: false, online: !e.offline, error: e.message };
-        if (e.status === 401) { this.emit("auth-expired"); }
+        if (e.status === 401 && !e.keep) { this.emit("auth-expired"); }
       } finally { this.busy = null; this.changed("refresh"); this.emit("status", this.status); }
     })();
     return this.busy;
@@ -268,7 +268,7 @@ class Store extends EventEmitter {
     } catch (e) {
       this.pingFail = (this.pingFail || 0) + 1;
       if (e && (e.status === 404 || /sync_ping|PGRST202|Could not find/i.test(e.message || ""))) this.pingOff = true;   // 服务器还没装：退回定时同步
-      if (e && e.status === 401) this.emit("auth-expired");
+      if (e && e.status === 401 && !e.keep) this.emit("auth-expired");
       return null;
     } finally { this.pinging = false; }
   }
