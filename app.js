@@ -4731,6 +4731,18 @@ async function handleHash() {
   if (h.get("u") && currentUser) {
     const c = h.get("c"); if (c && myClasses.some((x) => x.id === c) && (!currentClass || currentClass.id !== c)) { currentClass = myClasses.find((x) => x.id === c); save(LS_CUR_CLASS, c); renderClassBar(); loadClass(); }
     history.replaceState(null, "", location.pathname); openUser(h.get("u"), c);
+  } else if (h.get("files")) {
+    // 5.9.1 微信小程序选不了手机存储里的文件：小程序复制一个链接，在手机浏览器打开，直接弹出这件事的附件窗口
+    const k = h.get("files"), c = h.get("c");
+    history.replaceState(null, "", location.pathname);
+    if (!currentUser) { alert("先登录（和小程序同一个账号），登录后再打开一次小程序复制的链接"); return; }
+    if (c && myClasses.some((x) => x.id === c) && (!currentClass || currentClass.id !== c)) { currentClass = myClasses.find((x) => x.id === c); save(LS_CUR_CLASS, c); renderClassBar(); try { await loadClass(); } catch (e) {} }
+    for (let i = 0; i < 40; i++) {           // 班级事项可能还在加载：最多等 8 秒
+      const ok = k.startsWith("c") ? (classRecords || []).some((x) => "c" + x.id === k) : mine.some((x) => x.id === k);
+      if (ok && window.exOpenFiles) { window.exOpenFiles(k); return; }
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    alert("找不到这件事，可能已经被删除了，或者不在你现在的班级里");
   } else if (location.hash === "#intro") { history.replaceState(null, "", location.pathname); showView("intro"); }
   else if (location.hash.startsWith("#cal=")) { const k = location.hash.slice(5); history.replaceState(null, "", location.pathname); if (/^\d{4}-\d{2}-\d{2}$/.test(k)) $("jumpDate").onchange({ target: { value: k } }); }
   else if (location.hash === "#people") { history.replaceState(null, "", location.pathname); showView("people"); }

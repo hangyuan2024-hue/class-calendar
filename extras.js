@@ -147,6 +147,7 @@
     return `<button class="link" data-files="${esc(r._key)}">📎 ${n ? `附件（${n}）` : "加图片 / 文件"}</button>`;
   }
   window.exFilesBtn = filesBtn;
+  window.exOpenFiles = openFiles;   // 5.9.1 小程序「从手机文件里选」：复制的链接 #files=事项 打开就是这个附件窗口
   window.exFilesTag = (r) => (EX.files[r._key] ? `<span class="afile" title="有 ${EX.files[r._key]} 个附件">📎${EX.files[r._key]}</span>` : "");
 
   let dlg = null, cur = null;
