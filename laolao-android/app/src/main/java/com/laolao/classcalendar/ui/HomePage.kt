@@ -207,6 +207,11 @@ class HomePage(a: Main) : Page(a) {
         hc.addView(ctx.text("即将到来", 11.5f, C.sub, SEMI))
         hc.addView(ctx.text("接下来的安排", 18f, C.text, BOLD).apply { margins(t = 2) })
         hr.addView(hc, LinearLayout.LayoutParams(0, WRAP, 1f))
+        // 「回到接下来」放在标题这一行（不盖住列表里的内容），翻走了才出现
+        val back = ctx.text("回到接下来", 12f, C.accent, BOLD).apply {
+            gravity = Gravity.CENTER; pad(10, 5); background = round(C.selected, dp(14).toFloat()); visibility = View.GONE
+        }
+        hr.addView(back, LinearLayout.LayoutParams(WRAP, WRAP).apply { rightMargin = dp(4) })
         if (A.doneCount > 0) {
             val hide = Items.hideDone()
             hr.addView(ctx.text(if (hide) "显示已完成" else "隐藏已完成（${A.doneCount}）", 12f, C.accent, SEMI).apply {
@@ -239,11 +244,7 @@ class HomePage(a: Main) : Page(a) {
         val box = FrameLayout(ctx)
         val sc = InnerScroll(ctx, dp(440)).apply { addView(list) }
         box.addView(sc, FrameLayout.LayoutParams(MATCH, WRAP))
-        val back = ctx.text("回到接下来", 13f, Color.WHITE, BOLD).apply {
-            gravity = Gravity.CENTER; pad(16, 8); background = round(C.accent, dp(18).toFloat()); lift(6); visibility = View.GONE
-            tap { agManual = false; goNext(sc, true) }
-        }
-        box.addView(back, FrameLayout.LayoutParams(WRAP, WRAP).apply { gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL; bottomMargin = dp(10) })
+        back.tap { agManual = false; goNext(sc, true) }
         c.add(box, 2)
         sc.setOnScrollChangeListener { _, _, y, _, _ ->
             if (System.currentTimeMillis() - agAuto > 500) { agManual = true; agY = y }
