@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">捞捞课程表</string>
+    <string name="w_today">今天的课和事</string>
+    <string name="w_today_desc">今天要上的课和要做的事，点一下打开</string>
+    <string name="w_next">下节课倒计时</string>
+    <string name="w_next_desc">下一节课 / 最该先做的事，还剩多久</string>
+    <string name="w_hw">作业清单</string>
+    <string name="w_hw_desc">没做完的作业，按截止时间排，点方框直接打勾</string>
+    <string name="w_quick">一键记事</string>
+    <string name="w_quick_desc">一句话记一件事，或者拍课表导入</string>
+    <string name="tile_add">记一件事</string>
+    <string name="sc_add">记一件事</string>
+    <string name="sc_hw">作业</string>
+    <string name="sc_course">课程表</string>
+</resources>

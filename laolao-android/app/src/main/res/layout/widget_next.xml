@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/n_root" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:background="@drawable/w_hero" android:padding="16dp">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+        <TextView android:id="@+id/n_label" android:layout_width="wrap_content" android:layout_height="wrap_content" android:background="@drawable/w_soft"
+            android:paddingStart="8dp" android:paddingEnd="8dp" android:paddingTop="3dp" android:paddingBottom="3dp"
+            android:textColor="@color/w_accent" android:textSize="11.5sp" android:textStyle="bold" />
+        <TextView android:id="@+id/n_date" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+            android:gravity="end" android:textColor="@color/w_sub" android:textSize="11sp" android:maxLines="1" />
+    </LinearLayout>
+    <TextView android:id="@+id/n_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp"
+        android:textColor="@color/w_text" android:textSize="18sp" android:textStyle="bold" android:maxLines="2" android:ellipsize="end" />
+    <TextView android:id="@+id/n_sub" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp"
+        android:textColor="@color/w_sub" android:textSize="12.5sp" android:maxLines="1" android:ellipsize="end" />
+    <Chronometer android:id="@+id/n_cd" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="6dp"
+        android:textColor="@color/w_accent" android:textSize="20sp" android:textStyle="bold" />
+    <TextView android:id="@+id/n_left" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="6dp"
+        android:textColor="@color/w_accent" android:textSize="18sp" android:textStyle="bold" android:visibility="gone" />
+    <TextView android:id="@+id/n_more" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp"
+        android:textColor="@color/w_sub" android:textSize="11.5sp" android:maxLines="1" android:ellipsize="end" />
+</LinearLayout>

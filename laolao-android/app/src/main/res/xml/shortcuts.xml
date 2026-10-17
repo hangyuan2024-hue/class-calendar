@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut android:shortcutId="add" android:enabled="true" android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/sc_add">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="com.laolao.classcalendar"
+            android:targetClass="com.laolao.classcalendar.ui.QuickAdd" />
+    </shortcut>
+    <shortcut android:shortcutId="homework" android:enabled="true" android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/sc_hw">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="com.laolao.classcalendar"
+            android:targetClass="com.laolao.classcalendar.ui.Main">
+            <extra android:name="go" android:value="homework" />
+        </intent>
+    </shortcut>
+    <shortcut android:shortcutId="course" android:enabled="true" android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/sc_course">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="com.laolao.classcalendar"
+            android:targetClass="com.laolao.classcalendar.ui.Main">
+            <extra android:name="go" android:value="course" />
+        </intent>
+    </shortcut>
+</shortcuts>
