@@ -1,12 +1,12 @@
-# 安卓正式版：打包 → 发布到 Releases → 更新官网下载（download/app-version.json）。
-# 必须用仓库里的 android/release.jks 和 Secrets 里的 KEYSTORE_PASSWORD 签名，才能覆盖安装旧版（5.3.x）。
-# 版本号：versionCode = 600 + 第几次运行（一定比旧版 31 大，老用户会收到更新），版本名 6.1.第几次运行。
+# 安卓 App 7.0（全新重做，代码在 laolao-android 文件夹）：打包 → 发布到 Releases → 更新官网下载（download/app-version.json）
+# 签名用仓库里的 android/release.jks 和 Secrets 里的 KEYSTORE_PASSWORD（和以前同一个签名，老用户可以直接覆盖安装）。
+# 版本号：versionCode = 700 + 第几次运行（一定比 6.x 大），版本名 7.0.第几次运行。
 name: 安卓 App
 
 on:
   push:
     branches: [main, master]
-    paths: ["android/**", ".github/workflows/android.yml"]
+    paths: ["laolao-android/**", ".github/workflows/android.yml"]
   workflow_dispatch:
 
 permissions:
@@ -31,8 +31,8 @@ jobs:
       - name: 版本号
         id: ver
         run: |
-          echo "code=$((600 + ${{ github.run_number }}))" >> "$GITHUB_OUTPUT"
-          echo "name=6.1.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          echo "code=$((700 + ${{ github.run_number }}))" >> "$GITHUB_OUTPUT"
+          echo "name=7.0.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
 
       - name: 检查正式签名
         env:
@@ -41,23 +41,30 @@ jobs:
           test -f android/release.jks || { echo "::error::仓库里缺少 android/release.jks（签名文件），不能生成能覆盖旧版的正式安装包。"; exit 1; }
           test -n "$KEYSTORE_PASSWORD" || { echo "::error::缺少 KEYSTORE_PASSWORD。请在 Settings → Secrets and variables → Actions 里添加。"; exit 1; }
 
-      - name: 测试并打包正式版
-        working-directory: android
+      - name: 测试并打包
+        working-directory: laolao-android
         env:
           APP_VERSION_CODE: ${{ steps.ver.outputs.code }}
           APP_VERSION_NAME: ${{ steps.ver.outputs.name }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          SITE_URL: https://www.laolaokechengbiao.cn/
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           chmod +x gradlew
-          ./gradlew testStableReleaseUnitTest assembleStableRelease --no-daemon --stacktrace
+          ./gradlew testReleaseUnitTest assembleRelease --no-daemon --stacktrace
+
+      - name: 检查签名和版本
+        run: |
+          APK=laolao-android/app/build/outputs/apk/release/app-release.apk
+          test -f "$APK" || { echo "::error::没有生成安装包"; exit 1; }
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BT/apksigner" verify --print-certs "$APK" | head -3
+          "$BT/aapt2" dump badging "$APK" | head -2
 
       - name: 保存安装包（Actions 里也能直接下载）
         uses: actions/upload-artifact@v4
         with:
-          name: 捞捞课程表-正式版-${{ steps.ver.outputs.name }}
-          path: android/app/build/outputs/apk/stable/release/app-stable-release.apk
+          name: 捞捞课程表-安卓-${{ steps.ver.outputs.name }}
+          path: laolao-android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
       - name: 发布到 Releases
@@ -70,14 +77,15 @@ jobs:
           TAG="android-v${VNAME}"
           DIR="${RUNNER_TEMP}/android-release"
           mkdir -p "$DIR"
-          cp android/app/build/outputs/apk/stable/release/app-stable-release.apk "$DIR/class-calendar.apk"
+          cp laolao-android/app/build/outputs/apk/release/app-release.apk "$DIR/class-calendar.apk"
           cat > "$DIR/notes.md" <<NOTES
           捞捞课程表 安卓版 ${VNAME}
 
-          6.1：桌面小组件（今天的课和事、下节课倒计时、作业清单、一键记事 / 拍课表）；
-          App 关着也能按时提醒上课和作业截止，通知上直接点「完成」；班级新作业 / 通知自动提醒；
-          一句话记事；从备忘录、微信分享文字导入待办，分享课表截图识别成课程表；新的作业页。
-          正式签名，可以直接覆盖安装旧版，数据不会丢。
+          7.0：全新重做的原生安卓 App，界面和用法跟微信小程序一样（首页问候卡、下一节课、今天的时间轴、接下来的安排、作业、日历、我的）。
+          国内、海外都能秒开：两条线路同时试，谁快用谁，不会再卡在「连接超时」。
+          桌面小组件（今天的课和事、下节课倒计时、作业清单、一键记事）；App 关着也会按时提醒上课和作业截止，通知上直接点「完成」；
+          老师一发布，极光推送马上通知；一句话记事、从备忘录导入、拍课表识别。
+          正式签名，可以直接覆盖安装旧版，账号数据都在云端，不会丢。
           NOTES
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" "$DIR/class-calendar.apk" --repo "$GITHUB_REPOSITORY" --clobber
@@ -96,7 +104,7 @@ jobs:
           BRANCH: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          SRC="${GITHUB_WORKSPACE}/android/app/build/outputs/apk/stable/release/app-stable-release.apk"
+          SRC="${GITHUB_WORKSPACE}/laolao-android/app/build/outputs/apk/release/app-release.apk"
           PUB="${RUNNER_TEMP}/android-publish"
           git fetch --no-tags origin "$BRANCH"
           git worktree add --detach "$PUB" FETCH_HEAD
