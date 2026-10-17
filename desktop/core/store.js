@@ -6,6 +6,7 @@ const fs = require("fs");
 const path = require("path");
 const { EventEmitter } = require("events");
 const M = require("./model");
+const CoachCore = require("./coach-core.js");
 
 // 和网页版 app.js 里的 SYNC_KINDS 一致（网页没有的是电脑版新加的，网页会原样保留）
 // list：数组，按 id 一条条同步；map：对象，按键同步；map2：两层对象（习惯 → 日期）；one：整体同步
@@ -13,7 +14,7 @@ const M = require("./model");
 const KINDS = {
   course_rev_v1: "one", course_view_v1: "map", kn_rev_v1: "one", mm_rev_v1: "one",
   personal_events_v1: "list", personal_marks_v1: "map", done_log_v1: "map", pomo_log_v1: "map",
-  habits_v1: "list", habit_log_v1: "map2", quad_v1: "map", quad_todos_v1: "list", plan_notes_v1: "map", mood_log_v1: "map",
+  habits_v1: "list", habit_log_v1: "map2", quad_v1: "map", quad_todos_v1: "list", plan_notes_v1: "map", mood_log_v1: "map", coach_v1: "map",
   profile_v1: "one", fun_opts_v1: "one", plugins_enabled_v1: "one", home_layout_v1: "one", ui_skin_v1: "one", ui_palette_v1: "one", home_quick_tools_v1: "one",
   island_v1: "one", farm_v1: "one",
   countdown_v1: "list", focus_min_v1: "map",          // 电脑版加的：倒数日、每天专注了多少分钟（网页版会原样保留）
@@ -58,6 +59,7 @@ function blank() {
     sync: { rev: 0, t: {} }, outbox: {}, lastRefresh: 0, settings: { ...DEFAULT_SETTINGS }, attach: {}, flags: {}, raw: {},
     extras: { cid: null, autodel: true, canSet: false, keep: {}, files: {}, loaded: false }, dev: "",
     localIds: {},   // 「只存在这台设备」的记录（ns + SEP + id）：不上传云端，只在局域网里互传
+    coachLog: [],   // 3.3.3 捞捞教练：几点完成了哪件事，只存在这台电脑（不同步），最多 60 天
   };
 }
 
@@ -446,7 +448,19 @@ class Store extends EventEmitter {
     this.changed("marks");
   }
   // 勾选完成（班级事项记在完成标记里；我的事项直接改那一条）
+  // 3.3.3 捞捞教练：记一条（要用户在设置里开启；只存在这台电脑）
+  coachRec(ev) {
+    if (!this.data.settings.coach || !ev || !ev.e) return false;
+    this.data.coachLog = CoachCore.append(Array.isArray(this.data.coachLog) ? this.data.coachLog : [], { ...ev, t: ev.t || Date.now() }, Date.now());
+    this.save(); return true;
+  }
   setDone(key, done) {
+    try {
+      const raw = /^c\d+$/.test(key) ? (this.data.items || []).find((r) => "c" + r.id === key) : (this.data.ns.personal_events_v1 || []).find((x) => x.id === key);
+      const p = raw ? M.parseTime(raw.event_time) : null;
+      let due = 0; if (p) { const d = new Date(p.day + "T" + (p.time || "23:59") + ":00+08:00"); due = d.getTime(); }
+      this.coachRec({ e: done ? "done" : "undo", k: key, y: raw ? (raw.msg_type || (raw.kind === "作业" ? "作业" : "个人")) : "", d: due });
+    } catch (e) {}
     if (/^c\d+$/.test(key)) {
       this.setMark(key, { done: !!done });
       this.growth("done", key.slice(1), !done);
@@ -472,6 +486,7 @@ class Store extends EventEmitter {
   logPomo(minutes) {
     const k = bjDay(this.now()), pl = this.data.ns.pomo_log_v1, fm = this.data.ns.focus_min_v1;
     pl[k] = (Number(pl[k]) || 0) + 1; fm[k] = (Number(fm[k]) || 0) + Math.max(1, Math.round(minutes));
+    this.coachRec({ e: "pomo", m: Math.round(minutes) });      // 番茄钟是真计时，教练最信这个
     this.record("pomo_log_v1", k, pl[k]); this.record("focus_min_v1", k, fm[k]);
     this.growth("pomo", k + "|" + pl[k], false);
     this.changed("pomo");
@@ -482,6 +497,7 @@ class Store extends EventEmitter {
     const log = this.data.ns.habit_log_v1, on = !(log[id] && log[id][day]);
     this.kvSet("habit_log_v1", [id, day], on ? true : null);
     this.growth("habit", id + "|" + day, !on);
+    if (on) this.coachRec({ e: "habit", k: id });
     return on;
   }
   // 成长值（排行榜）：老师不参加

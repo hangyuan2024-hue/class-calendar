@@ -28,6 +28,7 @@ App.views.today = {
         <button class="btn primary" id="tdNew">${icon("plus")}记一件事</button></div>
       <div class="vbody td-body">
         <section class="td-band" id="tdBand"></section>
+        <div id="tdCoach"></div>
         <div class="td-quick"><span>✍️</span><input id="tdQuick" placeholder="一句话记事：明天下午3点交实验报告 @B302　按 Enter 记下，按 / 随时回到这里" spellcheck="false"><span class="td-qp" id="tdParse"></span></div>
         <div class="td-cols">
           <section class="td-main">
@@ -80,6 +81,7 @@ App.views.today = {
     const wk = M.weekOf(S.courses.meta, now), note = M.dayNote(S.courses, M.dayKey(now));
     $("#tdSub", el).innerHTML = [`${now.getMonth() + 1}月${now.getDate()}日 星期${M.WEEK[now.getDay()]}`, wk >= 1 && wk <= M.MAX_WEEK ? `第 ${wk} 周` : "", esc(App.className()), note ? `<span class="td-adj">🔁 ${esc(note)}</span>` : ""].filter(Boolean).join("　");
     this.band(); this.todo(); this.stats(); this.week(); this.wall(); this.pomo(App.pomo); this.enc(); this.cd(); this.habits();
+    if (typeof Coach59 !== "undefined") Coach59.render();     // 3.3.3 捞捞教练
   },
   tick() { this.band(); },
 

@@ -5,7 +5,7 @@ const CALLS = ["state", "login", "logout", "refresh", "class:reload", "mine:upse
   "quick:parse", "quick:add", "quick:hide", "open:main", "open:external", "mini:toggle", "brief:open", "brief:close", "pomo:start", "pomo:stop", "pomo:state",
   "ai:prepare", "ai:cancel", "ai:chat", "ai:stop", "ai:extract", "export:ics", "export:pdf", "export:image", "print", "wallpaper:set", "wallpaper:restore", "wallpaper:state",
   "attach:pick", "attach:add", "attach:remove", "attach:open", "attach:show", "attach:exists", "backup:now", "backup:list", "backup:open", "backup:restore",
-  "badge", "clip:read", "clip:image",
+  "badge", "clip:read", "clip:image", "coach:log", "coach:rec", "coach:clear",
   "signup", "api:anon", "item:keep", "autodel:class", "item:override", "extras:reload", "files:count", "adj:save", "courses:reload",
   "file:save", "popout", "export:csv", "extra:items", "tool:read", "lan:send", "lan:apply", "lan:busy"];
 const EVENTS = ["state", "nav", "ai-state", "ai-token", "pomo", "pomo-done", "quick-open", "badge", "lan"];

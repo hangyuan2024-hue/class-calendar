@@ -28,6 +28,7 @@ console.log("从网站同步代码：", SITE);
 // 1. 共用的规则和配置
 copy(S("parse.js"), path.join(DESK, "core", "parse.js"));
 copy(S("island-core.js"), path.join(DESK, "core", "island-core.js"));
+copy(S("coach-core.js"), path.join(DESK, "core", "coach-core.js"));   // 3.3.3 捞捞教练（和网页、小程序同一份）
 copy(S("config.js"), path.join(DESK, "core", "site-config.js"));
 copy(S("memo.js"), R("web", "memo.js"));   // 3.3：导入手机备忘录的拆分规则
 

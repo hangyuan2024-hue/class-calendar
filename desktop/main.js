@@ -518,6 +518,10 @@ handle("lan:send", async (to, body) => { const r = await store.lanSend(to, body)
 handle("lan:apply", (list) => store.lanApply(list));
 handle("lan:busy", (b) => { store.lanBusy = b ? Date.now() : 0; if (b) livePingKick(); return true; });
 handle("habit", (id, day) => store.toggleHabit(id, day));
+// 3.3.3 捞捞教练：本机记录（界面算建议用）、界面上的「看到了 / 采纳了」
+handle("coach:log", () => (store.data.settings.coach ? store.data.coachLog || [] : []));
+handle("coach:rec", (ev) => store.coachRec(ev && typeof ev === "object" ? { t: Date.now(), e: String(ev.e || "").slice(0, 8), k: String(ev.k || "").slice(0, 80), s: String(ev.s || "").slice(0, 12) } : null));
+handle("coach:clear", () => { store.data.coachLog = []; store.save(); return true; });
 handle("growth", (kind, ref, undo) => store.growth(kind, ref, undo));
 handle("class:switch", (cid) => store.switchClass(cid));
 handle("wall:post", (t, b, n, gid) => store.wallPost(t, b, n, gid));

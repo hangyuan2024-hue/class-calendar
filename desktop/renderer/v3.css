@@ -382,3 +382,20 @@ button.hw58-read:hover { text-decoration: underline; }
 /* 3.3：弹窗打开时，捞捞的气泡不要盖住按钮 */
 body:has(#overlay.show) #island { display: none; }
 .m58-r input[type=time] { width: 112px; }
+
+/* 3.3.3 捞捞教练 */
+#tdCoach:empty { display: none; }
+.cc-card { margin: 0 0 12px; padding: 14px 16px 10px; border-radius: 16px; background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 9%, var(--panel, var(--bg2, #fff))), var(--panel, var(--bg2, #fff))); border: 1px solid color-mix(in srgb, var(--brand) 20%, transparent); }
+.cc-h { display: flex; align-items: center; gap: 6px; } .cc-k { flex: 1; color: var(--brand); font-weight: 800; font-size: 12.5px; }
+.cc-chip { padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 700; background: color-mix(in srgb, var(--brand) 12%, transparent); color: var(--brand); }
+.cc-chip.fire { background: rgba(232, 89, 12, .12); color: #e8590c; } .cc-chip.risk { background: color-mix(in srgb, var(--bad) 12%, transparent); color: var(--bad); } .cc-chip.ok { background: color-mix(in srgb, var(--ok, #1f9d63) 14%, transparent); color: var(--ok, #1f9d63); }
+.cc-bar { height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--brand) 12%, transparent); margin-top: 9px; overflow: hidden; }
+.cc-bar i { display: block; height: 100%; background: var(--brand); } .cc-bar i.ok { background: var(--ok, #1f9d63); }
+.cc-say { display: block; margin-top: 10px; font-size: 15.5px; font-weight: 800; line-height: 1.45; }
+.cc-top { margin-top: 8px; padding: 9px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel, transparent); } .cc-top b { display: block; } .cc-top small { color: var(--text2); }
+.cc-btns { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+.cc-more { display: block; margin-top: 6px; padding: 6px 0 2px; border: 0; background: none; color: var(--brand); font-weight: 700; font-size: 12.5px; cursor: pointer; }
+.cc-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; } .cc-stats div { padding: 10px; border-radius: 12px; border: 1px solid var(--line); text-align: center; } .cc-stats b { display: block; font-size: 22px; color: var(--brand); } .cc-stats small { color: var(--text2); }
+.cc-li { padding: 3px 0; line-height: 1.55; } .cc-sub { margin-top: 12px; font-weight: 800; font-size: 12.5px; color: var(--text2); }
+.cc-bars { display: flex; align-items: flex-end; gap: 3px; height: 90px; margin-top: 8px; padding-bottom: 14px; } .cc-bars i { position: relative; flex: 1; border-radius: 3px 3px 0 0; background: color-mix(in srgb, var(--brand) 28%, transparent); } .cc-bars i.b { background: var(--brand); }
+.cc-bars em { position: absolute; bottom: -15px; left: 50%; transform: translateX(-50%); font-style: normal; font-size: 10px; color: var(--text2); }

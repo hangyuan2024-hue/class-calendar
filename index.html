@@ -1825,6 +1825,30 @@
     #lao.open::before { content: ""; position: fixed; inset: 0; background: rgba(10, 20, 40, .3); }
     #lao.open .lao-dock, #lao.open .lao-bub { opacity: 0; pointer-events: none; }
   }
+  /* 5.9.3 捞捞教练 */
+  #coachCard:empty { display: none; }
+  .cc-card { margin: 0 0 14px; padding: 16px 18px 12px; border-radius: 22px; background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 8%, var(--surface)), var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent); box-shadow: 0 10px 30px -18px color-mix(in srgb, var(--accent) 60%, #000); }
+  .cc-h { display: flex; align-items: center; gap: 6px; }
+  .cc-k { flex: 1; color: var(--accent); font-weight: 800; font-size: 13px; }
+  .cc-chip { padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
+  .cc-chip.fire { background: rgba(232, 89, 12, .12); color: #e8590c; } .cc-chip.risk { background: color-mix(in srgb, var(--red) 12%, transparent); color: var(--red); } .cc-chip.ok { background: rgba(31, 157, 99, .12); color: #1f9d63; }
+  .cc-bar { height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--accent) 12%, transparent); margin-top: 10px; overflow: hidden; }
+  .cc-bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; transition: width .4s; } .cc-bar i.ok { background: #1f9d63; }
+  .cc-say { margin-top: 12px; font-size: 17px; font-weight: 800; line-height: 1.4; }
+  .cc-top { margin-top: 10px; padding: 11px 14px; border-radius: 16px; background: color-mix(in srgb, var(--surface) 85%, transparent); border: 1px solid var(--line); }
+  .cc-top b { display: block; font-size: 15px; } .cc-top small { color: var(--sub); font-size: 12.5px; }
+  .cc-btns { display: flex; gap: 8px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+  .cc-note { margin-top: 8px; color: var(--sub); font-size: 13px; }
+  .cc-more { display: block; width: 100%; text-align: left; margin-top: 8px; padding: 8px 0 2px; border: 0; background: none; color: var(--accent); font-weight: 700; font-size: 13px; cursor: pointer; }
+  .cc-ask p { color: var(--sub); font-size: 13px; line-height: 1.6; margin: 6px 0 0; }
+  .cc-dlg { width: min(520px, calc(100vw - 24px)); } .cc-dlgb { padding: 20px 20px 18px; max-height: 84vh; overflow: auto; }
+  .cc-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }
+  .cc-stats div { padding: 12px 8px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); text-align: center; }
+  .cc-stats b { display: block; font-size: 24px; color: var(--accent); } .cc-stats small { color: var(--sub); }
+  .cc-li { padding: 3px 0; line-height: 1.55; font-size: 14px; } .cc-sub { margin-top: 14px; font-weight: 800; font-size: 13px; color: var(--sub); } .cc-sub small { font-weight: 400; margin-left: 6px; }
+  .cc-bars { display: flex; align-items: flex-end; gap: 3px; height: 96px; margin-top: 8px; padding-bottom: 14px; }
+  .cc-bars i { position: relative; flex: 1; background: color-mix(in srgb, var(--accent) 28%, transparent); border-radius: 3px 3px 0 0; } .cc-bars i.b { background: var(--accent); }
+  .cc-bars em { position: absolute; bottom: -15px; left: 50%; transform: translateX(-50%); font-style: normal; font-size: 10px; color: var(--sub); }
   /* 5.9.2 重要事项弹窗 */
   .pop-dlg { width: min(420px, calc(100vw - 32px)); }
   .pop-dlg .pop-b { padding: 24px 22px 18px; }
@@ -1898,6 +1922,7 @@
       </div>
     </div>
     <div id="notice" class="surface hidden"></div>
+    <div id="coachCard"></div>
     <div class="studio-focus-grid">
       <div class="studio-welcome-wrap"><div id="hero"></div></div>
       <section class="studio-agenda-panel" aria-labelledby="studio-agenda-title">
@@ -2211,6 +2236,7 @@
     <div class="group surface">
       <label class="gi"><span class="ic">🎉</span>完成时的鼓励
         <select class="gsel" id="optCheer"><option value="mascot">捞捞小人</option><option value="sticker">表情包</option><option value="text">只要文字</option><option value="off">关闭</option></select></label>
+      <button class="gi" type="button" onclick="window.CoachUI && CoachUI.open()"><span class="ic">🧭</span>捞捞教练<small>学你的节奏、推荐现在做什么、每周复盘；只在本机计算</small></button>
       <label class="gi"><span class="ic">✨</span>撒花动画<input type="checkbox" class="switch" id="optConfetti"></label>
       <label class="gi" data-feat="growth"><span class="ic">⭕</span>首页显示本周进度环<input type="checkbox" class="switch" id="optRings"></label>
       <label class="gi" data-feat="growth"><span class="ic">🔥</span>习惯打卡<input type="checkbox" class="switch" id="optHabits"></label>
@@ -2609,12 +2635,14 @@
 <script src="farm.js?v=20261009-tz1"></script>
 <script src="metaverse-v3.js?v=20261005-native3"></script>
 <script src="nextclass.js?v=20261017-v590"></script>
-<script src="app.js?v=20261017-v592"></script>
+<script src="app.js?v=20261018-v593"></script>
 <script src="extras.js?v=20261017-v592"></script>
 <script src="campus-tools.js?v=20261006-tools1"></script>
 <script src="workspace-v3.js?v=20261005-native3"></script>
 <script src="island-core.js?v=20261017-v591"></script>
 <script src="island.js?v=20261017-v591"></script>
+<script src="coach-core.js?v=20261018-v593"></script>
+<script src="coach-ui.js?v=20261018-v593"></script>
 <script src="study.js?v=20261009-kn2"></script>
 <script src="mindmap.js?v=20261009-mm1"></script>
 <script src="ux.js?v=20261011-kn1"></script>
