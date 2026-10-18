@@ -258,7 +258,7 @@ object Ics {
             val typ = r.type.ifEmpty { "通知" }
             val title = (if (r.needConfirm) "【需确认】" else "") + "[$typ] " + r.title.ifEmpty { r.summary.ifEmpty { typ } } + if (typ == "作业" && r.time.isNotEmpty()) "（截止）" else ""
             val descr = listOf(if (r.summary != r.title) r.summary else "", if (r.prepare.isNotEmpty()) "需准备：" + r.prepare else "", if (r.note.isNotEmpty()) "备注：" + r.note else "",
-                if (r.original.isNotEmpty() && r.original != r.summary) "原文：" + r.original.take(300) else "").filter { it.isNotBlank() }.joinToString("\n")
+                if (r.original.isNotEmpty() && r.original != r.summary) "原文：" + r.original.take(2000) else "").filter { it.isNotBlank() }.joinToString("\n")
             val L = mutableListOf("BEGIN:VEVENT", "UID:" + (if (r.mine) "mine-" else "class-") + r.id + "@class-calendar", "DTSTAMP:$stamp")
             val m = T.min(r.time)
             if (m != null) { val st = T.epoch(r.day, m); val mid = T.epoch(r.day, 0) + 86_400_000L; L += "DTSTART:" + utc(st); L += "DTEND:" + utc(minOf(st + 3_600_000L, mid)) }

@@ -134,7 +134,7 @@ const ItemDetail = {
         ${!x.mine && !x.study && App.S.groupsOk && x.updated ? `<button class="btn ghost iconbtn sm" data-d="hist" title="修改记录">${icon("history")}</button>` : ""}
         ${!x.study && App.canDelItem(x) ? `<button class="btn ghost iconbtn sm danger" data-d="cdel" title="从班级里删除">${icon("trash")}</button>` : ""}
         ${opts.close ? `<button class="btn ghost iconbtn sm" data-d="close" title="关闭（Esc）">${icon("close")}</button>` : ""}</div>
-      <h2 class="dt-title selectable">${esc(x.title)}</h2>
+      <h2 class="dt-title selectable">${x.mine && x.pin && !x.done ? "📌 " : ""}${esc(x.title)}</h2>
       <div class="dt-rows">
         <div>${icon("clock")}<span class="${late ? "late" : ""}">${x.day ? dateCN(x.day) + (x.time ? " " + x.time : "") + (dateCN(x.day).startsWith(M.relDay(x.day, now)) ? (x.type === "作业" && x.time ? "　<small>截止</small>" : "") : `　<small>${esc(M.relDay(x.day, now))}${x.type === "作业" && x.time ? " 截止" : ""}</small>`) : "没定日子"}</span></div>
         ${x.location ? `<div>${icon("place")}<span class="selectable">${esc(x.location)}</span></div>` : ""}
@@ -143,15 +143,18 @@ const ItemDetail = {
       </div>
       ${Autodel.badge(x)}
       ${x.summary ? `<div class="dt-sec"><div class="dt-l">内容</div><div class="selectable dt-txt">${esc(x.summary)}</div></div>` : ""}
+      ${x.mine && x.list && x.list.length ? `<div class="dt-sec"><div class="dt-l">清单 <small class="muted">${x.list.filter((i) => i.d).length}/${x.list.length}</small></div><div class="mlist">${x.list.map((i, n) => `<button type="button" class="mli${i.d ? " on" : ""}" data-d="li" data-i="${n}"><span class="mcb">${i.d ? "✓" : ""}</span><span class="mlt selectable">${esc(i.t)}</span></button>`).join("")}</div></div>` : ""}
+      ${x.mine && x.rep ? `<div class="dt-sec"><div class="dt-l">重复</div><div class="dt-txt">🔁 ${esc(MemoCore.repName(x.rep))}${x.reps ? ` · 已完成 ${x.reps} 次` : ""}<small class="muted">　勾完成会自动排到下一次</small></div></div>` : ""}
       ${x.prepare ? `<div class="dt-sec"><div class="dt-l">要准备</div><div class="selectable dt-txt">${esc(x.prepare)}</div></div>` : ""}
       ${x.original ? `<details class="dt-sec"><summary class="dt-l">原始消息</summary><div class="selectable dt-txt dt-orig">${esc(x.original)}</div></details>` : ""}
       ${!x.mine && x.editor && x.updated ? `<div class="dt-by muted">✏️ ${esc(x.editor)} · ${esc(whenStr(x.updated))}更新</div>` : ""}
       ${cloudFilesHtml(x)}
       ${x.study ? "" : `<div class="dt-sec"><div class="dt-l">电脑上的文件 <small class="muted">只记在这台电脑上，点开直接打开</small></div>${attachHtml(x.key)}</div>`}
-      <div class="dt-sec"><div class="dt-l">我的备注 <small class="muted dt-saved"></small></div><textarea class="input" rows="4" maxlength="2000" placeholder="写点什么，自动保存，手机和网页上也能看到">${esc(x.note)}</textarea></div>
+      <div class="dt-sec"><div class="dt-l">我的备注 <small class="muted dt-saved"></small></div><textarea class="input" rows="4" maxlength="5000" placeholder="写点什么，自动保存，手机和网页上也能看到">${esc(x.note)}</textarea></div>
       <div class="dt-act">
         <button class="btn ${x.done ? "" : "primary"}" data-d="done">${x.done ? "标记为没完成" : "✓ 完成"}${opts.kbd ? "<kbd>空格</kbd>" : ""}</button>
         <button class="btn" data-d="focus">🍅 专注</button>
+        ${x.mine ? `<button class="btn ghost" data-d="pin">${x.pin ? "取消置顶" : "📌 置顶"}</button>` : ""}
         ${x.study ? "" : x.mine ? `<button class="btn danger" data-d="del">${icon("trash")}${x.from ? "删掉我的版本" : "删除"}</button>` : `<button class="btn" data-d="hide">${x.hidden ? "取消隐藏" : "隐藏"}</button>`}
         ${x.day && !x.study ? `<button class="btn ghost" data-d="ics" title="导出成日历文件，双击就能加到 Outlook / 系统日历">📅 加到日历</button>` : ""}
         ${x.original ? `<button class="btn ghost" data-d="copy">复制原文</button>` : ""}
@@ -177,6 +180,12 @@ const ItemDetail = {
     x = App.find(x.key) || x;
     const a = b.dataset.d;
     if (a === "done") toggleDone(x.key, !x.done);
+    // 6.2 清单一项项勾、置顶
+    if (a === "li" || a === "pin") {
+      const raw = (App.S.mine || []).find((r) => r.id === x.key); if (!raw) return;
+      const rec = a === "li" ? { ...raw, list: MemoCore.toggleItem(raw, +b.dataset.i) } : { ...raw, pin: !raw.pin };
+      call("mine:upsert", rec).then(() => { if (a === "pin") toast(rec.pin ? "已置顶，今天页最上面一直能看到" : "已取消置顶"); else if (MemoCore.listStat(rec).all && !raw.done) toast("清单都勾完了 🎉"); });
+    }
     if (a === "edit") editItem(x);
     if (a === "cedit") editClassItem(x);
     if (a === "mycopy") editItem(x, { from: x.key });
@@ -225,8 +234,8 @@ const Insp = {
 editItem = function (x, preset) {
   preset = preset || {};
   const from = preset.from || "", isNew = !x || !!from;
-  const v = x ? { subject: x.title, day: x.day, time: x.time, location: x.location, note: from ? [x.summary, x.prepare ? "要准备：" + x.prepare : ""].filter(Boolean).join("\n") : x.note, kind: from ? (x.type === "作业" ? "作业" : "") : x.kind || "" }
-    : { subject: "", day: preset.day || "", time: preset.time || "", location: "", note: "", kind: preset.kind || (App.view === "homework" ? "作业" : "") };
+  const v = x ? { subject: x.title, day: x.day, time: x.time, location: x.location, note: from ? x.full || [x.summary, x.prepare ? "要准备：" + x.prepare : ""].filter(Boolean).join("\n") : x.note, list: from ? "" : MemoCore.listToText(x.list || []), rep: from ? "" : x.rep || "", pin: !from && !!x.pin, kind: from ? (x.type === "作业" ? "作业" : "") : x.kind || "" }
+    : { subject: "", day: preset.day || "", time: preset.time || "", location: "", note: "", list: "", rep: "", pin: false, kind: preset.kind || (App.view === "homework" ? "作业" : "") };
   const title = from ? "改成我自己的版本" : !x ? (v.kind === "作业" ? "记一项自己的作业" : "记一件事") : "编辑事项";
   const d = h(`<form class="dialog" role="dialog">
     <h3>${title}</h3>
@@ -235,7 +244,10 @@ editItem = function (x, preset) {
       <label class="field">要做什么<input name="subject" maxlength="200" placeholder="比如：交实验报告　（可以直接写「明天下午3点交实验报告 @B302」）" value="${esc(v.subject)}" required></label>
       <div class="row"><label class="field" style="flex:1.3">日期<input name="day" type="date" value="${esc(v.day)}"></label><label class="field" style="flex:1">时间<input name="time" type="time" value="${esc(v.time)}"></label><label class="field" style="flex:1.4">地点<input name="location" maxlength="200" value="${esc(v.location)}" placeholder="可不填"></label></div>
       <div class="row"><span class="field" style="flex:none">这是<span class="seg" id="eiKind"><button type="button" data-kind=""${v.kind ? "" : ' class="on"'}>普通事项</button><button type="button" data-kind="作业"${v.kind === "作业" ? ' class="on"' : ""}>作业</button></span></span><small class="muted" style="align-self:flex-end;padding-bottom:6px">选「作业」会出现在作业页，完成了给云宠更多养料</small></div>
-      <label class="field">备注<textarea name="note" rows="3" maxlength="2000" placeholder="可不填">${esc(v.note)}</textarea></label>
+      <label class="field">备注<textarea name="note" rows="4" maxlength="5000" placeholder="可不填，想写多少写多少（最多 5000 字）">${esc(v.note)}</textarea></label>
+      <label class="field">清单 <small class="muted">每行一项，可以一项项勾；已经做完的行首加 ✓</small><textarea name="list" rows="3" maxlength="8000" placeholder="比如：&#10;买牛奶&#10;打印签到表">${esc(v.list)}</textarea></label>
+      <div class="row"><label class="field" style="flex:1">重复<select name="rep">${MemoCore.REPS.map(([k, t]) => `<option value="${k}"${v.rep === k ? " selected" : ""}>${t}</option>`).join("")}</select></label>
+        <label class="ei-local" style="flex:1.4;align-self:flex-end"><input type="checkbox" name="pin"${v.pin ? " checked" : ""}><span>📌 置顶<small>一直显示在今天页最上面</small></span></label></div>
       ${from ? "" : `<label class="ei-local"><input type="checkbox" name="local"${x && x.local ? " checked" : ""}><span>🔒 只存在这台设备<small>不上传云端；同一账号的手机、电脑连着同一个 Wi-Fi 时局域网直接互传</small></span></label>`}
     </div>
     <div class="dfoot">${isNew ? '<span class="muted grow" style="font-size:12px">Enter 保存 · Esc 取消</span>' : '<button type="button" class="btn danger" data-a="del">' + icon("trash") + '删除</button><span class="grow"></span>'}<button type="button" class="btn" data-a="cancel">取消</button><button class="btn primary">保存</button></div>
@@ -256,10 +268,16 @@ editItem = function (x, preset) {
     let subject = f.subject.value.trim();
     if (!x && f.subject.dataset.parsed) { const p = JSON.parse(f.subject.dataset.parsed); if (p.subject && (p.date || p.time || p.location)) subject = p.subject; }
     if (!subject) return f.subject.focus();
-    const rec = { subject, event_time: f.day.value ? f.day.value + (f.time.value ? " " + f.time.value : "") : "", location: f.location.value.trim(), note: f.note.value.trim(), kind: kind || undefined };
+    const rec = { subject, event_time: f.day.value ? f.day.value + (f.time.value ? " " + f.time.value : "") : "", location: f.location.value.trim(), note: f.note.value.trim(), kind: kind || undefined,
+      rep: f.rep.value || undefined, pin: f.pin.checked || undefined };
+    // 6.2 清单：每行一项（原来勾过的保留）；备忘录粘进备注的「□ xxx」多行自动变成清单
+    let lt = f.list.value;
+    if (!lt.trim() && MemoCore.looksLikeList(rec.note)) { lt = rec.note; rec.note = ""; }
+    rec.list = MemoCore.listFromText(lt, x && !from ? x.list || [] : []);
+    if (rec.rep && !rec.event_time) rec.event_time = M.dayKey(App.now());   // 重复的事要有起始日期，没填就从今天开始
     if (!from) rec.local = !!(f.local && f.local.checked);
     if (from) { await call("item:override", from, rec); closeOverlay(); toast("已存成你自己的版本，原来那条替你隐藏了"); return; }
-    if (x) { const raw = (App.S.mine || []).find((r) => r.id === x.key) || {}; Object.assign(rec, { ...raw, ...rec, id: x.key }); if (!kind) delete rec.kind; }
+    if (x) { const raw = (App.S.mine || []).find((r) => r.id === x.key) || {}; Object.assign(rec, { ...raw, ...rec, id: x.key }); if (!kind) delete rec.kind; if (!rec.rep) delete rec.rep; if (!rec.pin) delete rec.pin; }
     await call("mine:upsert", rec);
     closeOverlay(); toast(rec.local ? (x && x.local ? "已保存（只在这台设备）" : "已记下，只存在这台设备") : !x ? "已记下" : "已保存");
   };

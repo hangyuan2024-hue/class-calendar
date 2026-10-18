@@ -145,6 +145,21 @@ object Coach {
         return cands.maxByOrNull { val a = m.sty[it] ?: intArrayOf(0, 0); (a[1] + 1.0) / (a[0] + 2.0) } ?: cands[0]
     }
 
+    // ---------- 3.5 哪些事「现在就能动手做」（和 coach-core.js 的 doable 同一套规则） ----------
+    // 只推荐能马上开始、能做完的事；会议、讲座、活动、典礼这类到点去参加的事不推荐（日程和提醒里照样有）。
+    private val DO_RE = Regex("作业|报告(?!会|厅)|习题|练习|论文|ppt|PPT|复习|预习|背诵|背单词|单词|阅读|读书|笔记|整理|提交|上交|打卡|写|填|交|做|改|准备|报名|缴费|打印|签字|看完|刷题|错题")
+    private val MEET_RE = Regex("会议|大会|例会|班会|年会|晚会|座谈|讲座|论坛|典礼|仪式|宣讲|培训|比赛|竞赛|演出|集合|面试|答辩|聚餐|聚会|观影|升旗|报告会|报告厅|研讨|沙龙|见面会|分享会|交流会|发布会|招聘会|运动会|开幕|闭幕|彩排|排练|值班|门诊|牙医|体检|活动")
+    private val PREP_RE = Regex("作业|习题|论文|ppt|PPT|报名|缴费|提交|上交|填写|填表|材料|讲稿|演讲稿|稿子|复习|预习|背诵")
+    fun doable(x: Island.Row): Boolean {
+        if (x.kind != "item") return false
+        if (x.exam || x.type == "作业") return true
+        if (x.type == "会议" || x.type == "活动" || x.type == "课程") return false
+        val t = x.title
+        if (MEET_RE.containsMatchIn(t) && !PREP_RE.containsMatchIn(t)) return false
+        if (x.time.isNotEmpty() && !DO_RE.containsMatchIn(t)) return false
+        return true
+    }
+
     // ---------- 4. 现在最适合做什么 ----------
     class Pick(val kind: String, val key: String, val title: String, val type: String = "", val reason: String = "", val step: String = "", val level: String = "")
     class Sug(val mode: String, val top: Pick?, val say: String, val style: String, val alts: List<Pick>, val streak: Streak, val goal: Goal, val best: List<Int>, val sus: Int)
@@ -155,7 +170,7 @@ object Coach {
         val focusMin = credible(log).filter { (it.y == "pomo" || it.y == "flow") && nowMs - it.t < 2 * H }.sumOf { if (it.m > 0) it.m else 25 }
         fun sug(mode: String, top: Pick?, say: String, style: String = "", alts: List<Pick> = emptyList()) = Sug(mode, top, say, style, alts, st, g, best, m.sus)
         ranked.firstOrNull { it.kind == "course" && it.level == "now" }?.let { return sug("class", Pick("course", it.key, it.title, reason = it.reason, step = "专心听讲，有作业记得随手记下来"), "正在上「${it.title}」，手机先放一放 📚") }
-        val cands = ranked.filter { it.kind == "item" && it.level != "past" && (skip[it.key] ?: 0L) <= nowMs }
+        val cands = ranked.filter { it.kind == "item" && it.level != "past" && doable(it) && (skip[it.key] ?: 0L) <= nowMs }
         if (night && cands.none { it.level == "late" || it.level == "urgent" })
             return sug("sleep", null, if (st.today >= 1) "今天已经完成 ${fmt(st.today)} 件，够了！早点睡，明天接着来 🌙" else "夜深了，明天再做，睡饱了效率更高 🌙")
         if (focusMin >= 75 && cands.none { it.level == "late" || it.level == "now" })
@@ -183,8 +198,7 @@ object Coach {
     private fun stepFor(x: Island.Row): String = when {
         x.exam -> "先花 15 分钟把重点过一遍"
         x.type == "作业" -> if (x.level == "late") "先补上最简单的那部分，开个番茄 25 分钟" else "先做 25 分钟，开个番茄，做多少算多少"
-        x.type == "会议" || x.type == "活动" -> if (x.level == "now") "已经开始了，现在过去" else "提前把要带的东西准备好" + if (x.location.isNotEmpty()) "，地点 ${x.location}" else ""
-        else -> "现在花 5 分钟处理掉它"
+        else -> "先做 5 分钟，开了头就不难了"
     }
     private fun sayFor(style: String, x: Island.Row, st: Streak, g: Goal, best: List<Int>, h: Int): String {
         val name = "「${x.title}」"
@@ -204,7 +218,7 @@ object Coach {
         val st = streak(m, nowMs); val g = goal(m, nowMs); val best = bestHours(m)
         fun at(hh: Int, mi: Int = 0) = ms(today.atTime(hh, mi))
         fun busy(t: Long): Boolean { val d = ldt(t); val mm = d.hour * 60 + d.minute; return courses.any { c -> val a = c.m0; val b = c.m1 ?: c.m0; a != null && b != null && mm >= a - 5 && mm < b } }
-        val pending = ranked.filter { it.kind == "item" && it.level != "past" }
+        val pending = ranked.filter { it.kind == "item" && it.level != "past" && doable(it) }
         for (bh in best) {
             val t = at(bh)
             if (out.isNotEmpty() || t <= nowMs + 10 * MIN || bh >= 23 || bh < 7 || pending.isEmpty() || g.met || busy(t)) continue

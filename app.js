@@ -352,9 +352,16 @@ function parseTime(t) {
   return m ? { day: m[1], time: m[2] || "" } : null;
 }
 
+// 6.2 内容完整：摘要被写成「……按指定...」而原文还在，就显示完整原文；从班级事项改出来的「我的版本」，备注也补全
+const CUT_RE = /(\.{3,}|…+)\s*$/;
+const origOf = (r) => { const o = String((r && r.original) || ""); return o && !/^（由/.test(o) ? o : ""; };
+function fullText(r) { const s = String((r && r.summary) || ""), o = origOf(r); return o && (!s || CUT_RE.test(s)) ? o : s; }
+function fullNote(src) { return src ? [src.subject && fullText(src) ? fullText(src) : origOf(src), src.prepare ? "要准备：" + src.prepare : ""].filter(Boolean).join("\n") : ""; }
 function allItems() {
-  const cls = classRecords.map((r) => ({ ...r, _key: "c" + r.id, _mine: false }));
-  const own = mine.map((r) => ({ ...r, msg_type: r.kind === "作业" ? "作业" : "个人", _key: r.id, _mine: true }));
+  const cls = classRecords.map((r) => ({ ...r, summary: fullText(r), _key: "c" + r.id, _mine: false }));
+  const byKey = {}; cls.forEach((r) => { byKey[r._key] = r; });
+  const own = mine.map((r) => ({ ...r, msg_type: r.kind === "作业" ? "作业" : "个人", _key: r.id, _mine: true,
+    ...(r.from && CUT_RE.test(r.note || "") && byKey[r.from] ? { note: fullNote(byKey[r.from]) } : {}) }));
   const ext = pluginItems();
   const study = typeof studyItems === "function" ? studyItems() : [];   // 课内学习里有截止日期的考核（study.js）
   return cls.concat(study, own, ext).map((r) => {
@@ -445,11 +452,26 @@ function itemHtml(r, showDate) {
   return `<div class="item b-${esc(r.msg_type)}${r._done ? " done" : ""}">
     <div class="ihead"><span class="atype">${r._mine ? "我的" : esc(r.msg_type)}</span><span class="iwhen">${esc(when)}</span>
       <span class="spacer"></span><span class="iscope">${r._mine ? (r.local ? "🔒 仅本机" : "仅自己可见") : groupOf(r.group_id) ? "👥 " + esc(groupOf(r.group_id).name) : "班级"}</span></div>
-    <div class="title">${esc(title)}${typeof exFilesTag === "function" ? exFilesTag(r) : ""}</div>
-    ${r.subject && r.summary ? `<div class="sum">${esc(r.summary)}</div>` : ""}
+    <div class="title">${pinMark(r)}${esc(title)}${typeof exFilesTag === "function" ? exFilesTag(r) : ""}</div>
+    ${r.subject && r.summary ? `<div class="sum">${esc(r.summary)}</div>` : ""}${memoTags(r) ? `<div class="sum">${memoTags(r)}</div>` : ""}
     ${detailHtml(r)}
   </div>`;
 }
+
+// 6.2 备忘录：清单（一项项勾）、重复、置顶的显示
+function memoListHtml(r) {
+  const a = MemoCore.listOf(r);
+  if (!a.length) return "";
+  return `<div class="mlist">${a.map((x, i) => `<button type="button" class="mli${x.d ? " on" : ""}" data-act="li" data-i="${i}" data-k="${esc(r._key)}"><span class="mcb">${x.d ? "✓" : ""}</span><span class="mlt">${esc(x.t)}</span></button>`).join("")}</div>`;
+}
+function memoTags(r) {
+  if (!r._mine) return "";
+  const st = MemoCore.listStat(r), t = [];
+  if (st.n) t.push(`<span class="mtag${st.all ? " ok" : ""}">☑ ${st.text}</span>`);
+  if (r.rep) t.push(`<span class="mtag">🔁 ${esc(MemoCore.repName(r.rep))}</span>`);
+  return t.join("");
+}
+const pinMark = (r) => (r._mine && r.pin && !r._done ? "📌 " : "");
 
 // 事项的补充信息和操作按钮（普通模式侧栏、简洁模式展开后共用）
 function detailHtml(r) {
@@ -465,6 +487,7 @@ function detailHtml(r) {
     : r._mine
     ? `<button class="link" data-act="done" data-k="${k}">${r._done ? "取消完成" : "✓ 完成"}</button>
        <button class="link" data-act="edit" data-k="${k}">编辑</button>
+       <button class="link" data-act="pin" data-k="${k}">${r.pin ? "取消置顶" : "📌 置顶"}</button>
        <button class="link" data-act="del" data-k="${k}">删除</button>${r._p ? `
        <button class="link" data-act="ics" data-k="${k}">📅 加到日历</button>` : ""}`
     : `<button class="link" data-act="done" data-k="${k}">${r._done ? "取消完成" : "✓ 完成"}</button>
@@ -478,8 +501,10 @@ function detailHtml(r) {
   return `${meta.length ? `<div class="meta">${meta.join("　")}</div>` : ""}
     ${typeof exBadge === "function" ? exBadge(r) : ""}
     ${r.need_confirm ? `<div class="warn">⚠ 信息不完整，建议去群里核实</div>` : ""}
+    ${r._mine ? memoListHtml(r) : ""}
+    ${r._mine && r.rep ? `<div class="meta">🔁 ${esc(MemoCore.repName(r.rep))}重复${r.reps ? ` · 已完成 ${+r.reps} 次` : ""}</div>` : ""}
     ${r._note ? `<div class="note">📝 ${esc(r._note)}</div>` : ""}
-    ${r.original ? `<details><summary>原文</summary>${esc(r.original)}</details>` : ""}
+    ${origOf(r) && origOf(r) !== r.summary ? `<details><summary>原文</summary><div class="orig">${esc(origOf(r))}</div></details>` : ""}
     ${!r._mine && r.editor && r.updated_at ? `<div class="meta editby">✏️ ${esc(r.editor)} · ${esc(whenStr(r.updated_at))}更新</div>` : ""}
     <div class="ops">${ops}${xf}</div>`;
 }
@@ -757,8 +782,8 @@ function agendaRow(r, forceOpen) {
   return `<div class="arow t-${esc(r.msg_type)}${r._done ? " done" : ""}${ended ? " ended" : ""}${open ? " open" : ""}" data-row="${k}"${rs ? ` data-st="${rs.st}"` : ""}${style}>
     ${r._plugin ? `<span class="adot"></span>` : `<button class="chk" data-act="done" data-k="${k}" title="${r._done ? "标记为未完成" : "标记为完成"}">${r._done ? "✓" : ""}</button>`}
     <div class="abody">
-      <div class="atitle">${r.need_confirm ? "⚠ " : ""}${esc(title)}${typeof exFilesTag === "function" ? exFilesTag(r) : ""}</div>
-      <div class="asub"><span class="atype">${esc(typeName)}</span>${esc(sub)}${!sub && r.location ? "📍 " + esc(r.location) : ""}</div>
+      <div class="atitle">${r.need_confirm ? "⚠ " : ""}${pinMark(r)}${esc(title)}${typeof exFilesTag === "function" ? exFilesTag(r) : ""}</div>
+      <div class="asub"><span class="atype">${esc(typeName)}</span>${memoTags(r)}${esc(sub)}${!sub && r.location ? "📍 " + esc(r.location) : ""}</div>
       ${r._plugin ? "" : `<div class="aextra">${detailHtml(r)}</div>`}
     </div>
     ${rs ? `<span class="astat"><b class="st-${rs.st}">${esc(rs.text)}</b>${rs.st === "done" ? "" : `<small>${esc(time)}</small>`}</span>` : `<span class="atime${due && !r._done ? " due" : ""}">${esc(time)}</span>`}
@@ -766,8 +791,21 @@ function agendaRow(r, forceOpen) {
   </div>`;
 }
 
+// 6.2 搜索：标题、摘要、备注、清单、地点、原文都能搜（我的事项、班级事项都搜，包括已完成和两周以后的）
+let agendaQ = "";
+function agendaSearchHtml() {
+  const hits = allItems().filter((r) => !r._plugin && MemoCore.match(r, agendaQ))
+    .sort((a, b) => (a._done - b._done) || ((a._p ? a._p.day + (a._p.time || "") : "9") < (b._p ? b._p.day + (b._p.time || "") : "9") ? -1 : 1)).slice(0, 80);
+  if (!hits.length) return `<div class="aempty surface">没有找到「${esc(agendaQ)}」相关的事项</div>`;
+  return `<div class="aday"><div class="aday-h"><b>搜索结果</b><span>${hits.length} 条</span></div><div class="acard surface">${hits.map((r) => {
+    const html = agendaRow(r), sn = MemoCore.snippet(r, agendaQ);
+    const when = r._p ? `${r._p.day.slice(5).replace("-", "/")} ` : "";
+    return sn || when ? html.replace('<div class="aextra">', `<div class="asub msnip">${esc(when)}${esc(sn)}</div><div class="aextra">`) : html;
+  }).join("")}</div></div>`;
+}
 function renderAgenda() {
   const box = $("agenda");
+  if (agendaQ) { box.innerHTML = agendaSearchHtml(); return; }
   const t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const dayKey = (i) => keyOf(new Date(t0.getFullYear(), t0.getMonth(), t0.getDate() + i));
   // 过去 7 天里还没完成的作业
@@ -827,7 +865,9 @@ function renderAgenda() {
   const doneCount = allItems().filter((r) => r._done && !r._plugin).length, doneMine = mine.filter((r) => r.done).length, hideDone = funOpts().hideDone;
   const tools = doneCount ? `<div class="atools"><label class="hd-sw"><input type="checkbox" data-hidedone ${hideDone ? "checked" : ""}> 隐藏已完成（${doneCount}）</label>
     ${doneMine ? `<button class="small" data-cleardone>🗑 清理我已完成的 ${doneMine} 项</button>` : ""}</div>` : "";
+  const pins = allItems().filter((r) => r._mine && r.pin && !r._done);
   box.innerHTML = `${tools}
+    ${pins.length ? `<div class="aday apin"><div class="aday-h"><b>📌 置顶</b><span>${pins.length} 项</span></div><div class="acard surface">${pins.map(agendaRow).join("")}</div></div>` : ""}
     ${overdue.length ? `<div class="aday"><div class="aday-h overdue"><b>已过期</b><span>还没标记完成的作业</span></div><div class="acard surface">${overdue.map(agendaRow).join("")}</div></div>` : ""}
     ${sections.join("")}
     ${undatedMine.length ? `<div class="aday"><div class="aday-h"><b>待办</b><span>没定日期的事 · ${undatedMine.filter((r) => !r._done).length} 项</span></div><div class="acard surface">${undatedMine.map(agendaRow).join("")}</div></div>` : ""}
@@ -839,7 +879,7 @@ function renderAgenda() {
 let agendaManual = false, agendaAuto = 0;
 function agendaNextRow() {
   const box = $("agenda");
-  return [...box.querySelectorAll(".arow[data-row]")].find((x) => !x.classList.contains("done") && !x.classList.contains("ended")) || null;
+  return [...box.querySelectorAll(".arow[data-row]")].find((x) => !x.classList.contains("done") && !x.classList.contains("ended") && !x.closest(".apin")) || null;   // 6.2 置顶的不算「接下来」
 }
 function agendaGo(smooth) {
   const box = $("agenda"), row = agendaNextRow();
@@ -904,8 +944,8 @@ function hwRow(r) {
   return `<div class="arow t-作业${r._done ? " done" : ""}${open ? " open" : ""}" data-row="${k}">
     <button class="chk" data-act="done" data-k="${k}" title="${r._done ? "标记为未完成" : "标记为完成"}">${r._done ? "✓" : ""}</button>
     <div class="abody">
-      <div class="atitle">${r.need_confirm ? "⚠ " : ""}${esc(r.subject || r.summary || "作业")}${typeof exFilesTag === "function" ? exFilesTag(r) : ""}</div>
-      ${r.subject && r.summary ? `<div class="asub">${esc(r.summary)}</div>` : ""}
+      <div class="atitle">${r.need_confirm ? "⚠ " : ""}${pinMark(r)}${esc(r.subject || r.summary || "作业")}${typeof exFilesTag === "function" ? exFilesTag(r) : ""}</div>
+      ${r.subject && r.summary ? `<div class="asub">${esc(r.summary)}</div>` : ""}${memoTags(r) ? `<div class="asub">${memoTags(r)}</div>` : ""}
       <div class="aextra">${detailHtml(r)}</div>
       ${typeof hwPlusRow === "function" ? hwPlusRow(r) : ""}
     </div>
@@ -1954,7 +1994,18 @@ document.addEventListener("click", (e) => {
   } else {
     const i = mine.findIndex((x) => x.id === k);
     if (i < 0) return;
-    if (act === "done") { mine[i].done = !mine[i].done; save(LS_MINE, mine); logDone(k, mine[i].done); renderAll(); if (mine[i].done) cheerFor(k); }
+    if (act === "done") {
+      // 6.2 重复的事项：勾完成就排到下一次，不会消失
+      const roll = !mine[i].done ? MemoCore.complete(mine[i], keyOf(ccDate())) : null;
+      if (roll) { Object.assign(mine[i], roll); save(LS_MINE, mine); logDone(k, true); renderAll(); cheerFor(k); memoToast("✓ 已完成，下次是 " + roll.event_time.slice(5, 10).replace("-", "月") + "日"); return; }
+      mine[i].done = !mine[i].done; save(LS_MINE, mine); logDone(k, mine[i].done); renderAll(); if (mine[i].done) cheerFor(k);
+    }
+    if (act === "li") {
+      mine[i].list = MemoCore.toggleItem(mine[i], +b.dataset.i); save(LS_MINE, mine); renderAll();
+      if (MemoCore.listStat(mine[i]).all && !mine[i].done) memoToast("清单都勾完了 🎉 要不要把这件事也标成完成？");
+      return;
+    }
+    if (act === "pin") { mine[i].pin = !mine[i].pin || undefined; if (!mine[i].pin) delete mine[i].pin; save(LS_MINE, mine); renderAll(); }
     if (act === "del" && confirm(mine[i].from ? `删除你改过的「${mine[i].subject || "这条事项"}」，恢复显示班级原来的那条？` : `删除「${mine[i].subject || "这条事项"}」？`)) { if (mine[i].from) setMark(mine[i].from, { hidden: false }); delete quadMap[k]; mine.splice(i, 1); save(LS_MINE, mine); save(LS_QUAD, quadMap); renderAll(); }
     if (act === "edit") openForm(mine[i]);
   }
@@ -1985,7 +2036,10 @@ function openForm(r, opt) {
   $("fQuad").value = opt.quad || (r && quadMap[r.id] ? String(quadMap[r.id]) : "");
   $("fTime").value = p ? p.time : "";
   $("fLoc").value = r ? (r.location || "") : "";
-  $("fNote").value = r ? (opt.from ? [r.subject && r.summary ? r.summary : "", r.prepare ? "要准备：" + r.prepare : ""].filter(Boolean).join("\n") : (r.note || "")) : "";
+  $("fNote").value = r ? (opt.from ? fullNote(r) : (r.note || "")) : "";   // 6.2 改成我自己的版本：带上完整内容
+  $("fList").value = r && !opt.from ? MemoCore.listToText(MemoCore.listOf(r)) : "";
+  $("fRep").value = r && !opt.from ? r.rep || "" : "";
+  $("fPin").checked = !!(r && !opt.from && r.pin);
   $("fLocal").checked = !!(r && r.local);
   $("fKind").value = opt.kind != null ? opt.kind : r ? (opt.from ? (r.msg_type === "作业" ? "作业" : "") : (r.kind || "")) : (currentView() === "homework" ? "作业" : "");
   if (window.exFormFiles) exFormFiles("f", r && !opt.from ? r.id : null);
@@ -2001,13 +2055,21 @@ $("form").onsubmit = (e) => {
     location: $("fLoc").value.trim(),
     note: $("fNote").value.trim(),
     local: $("fLocal").checked && Sync.active() ? true : undefined,
+    rep: $("fRep").value || undefined,
+    pin: $("fPin").checked || undefined,
     kind: $("fKind").value || undefined,
   };
   // 改的是班级事项：存成我自己的一条，原来那条替我隐藏（在「我的事项」里删掉这条，或在日历里取消隐藏就恢复）
   const from = $("fFrom").value;
   if (from && !$("fId").value) { rec.from = from; setMark(from, { hidden: true }); }
   const i = mine.findIndex((x) => x.id === rec.id);
-  if (i >= 0) mine[i] = { ...mine[i], ...rec }; else mine.push(rec);
+  // 6.2 清单：每行一项（原来勾过的保留）；备忘录粘进备注的「□ xxx」多行也自动变成清单
+  let listText = $("fList").value;
+  if (!listText.trim() && MemoCore.looksLikeList(rec.note)) { listText = rec.note; rec.note = ""; }
+  rec.list = MemoCore.listFromText(listText, i >= 0 ? MemoCore.listOf(mine[i]) : []);
+  if (rec.rep && !rec.event_time) rec.event_time = keyOf(ccDate());   // 重复的事要有个起始日期，没填就从今天开始
+  if (i >= 0) { mine[i] = { ...mine[i], ...rec }; for (const f of ["rep", "pin"]) if (!rec[f]) delete mine[i][f]; if (!rec.list.length) delete mine[i].list; }
+  else { if (!rec.list.length) delete rec.list; for (const f of ["rep", "pin"]) if (!rec[f]) delete rec[f]; mine.push(rec); }
   if ($("fQuad").value) quadMap[rec.id] = +$("fQuad").value; else delete quadMap[rec.id];
   save(LS_MINE, mine); save(LS_QUAD, quadMap);
   $("modal").classList.remove("open");
@@ -2074,7 +2136,7 @@ const ICS = (() => {
       r.summary || "",
       r.prepare ? "需准备：" + r.prepare : "",
       r._note ? "备注：" + r._note : "",
-      r.original && r.original !== r.summary ? "原文：" + String(r.original).slice(0, 300) : "",
+      origOf(r) && origOf(r) !== r.summary ? "原文：" + origOf(r).slice(0, 2000) : "",
       r.need_confirm ? "⚠ 信息不完整，以群里为准" : "",
     ].filter(Boolean).join("\n");
     const L = ["BEGIN:VEVENT", `UID:${r._mine ? "mine-" + r.id : "class-" + r.id}@class-calendar`, `DTSTAMP:${stamp}`];
@@ -5503,4 +5565,20 @@ document.addEventListener("click", async (e) => {
   // 弹窗打开时程序会改 value：打开后补一次
   new MutationObserver(() => { clearTimeout(scan._t); scan._t = setTimeout(scan, 60); }).observe(document.body, { attributes: true, attributeFilter: ["class", "open"], subtree: true, childList: true });
   scan();
+})();
+
+// ===== 6.2 备忘录：搜索框、小提示 =====
+function memoToast(t) {
+  let el = document.getElementById("memoToast");
+  if (!el) { el = document.createElement("div"); el.id = "memoToast"; el.className = "memo-toast"; document.body.appendChild(el); }
+  el.textContent = t; el.classList.add("on"); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("on"), 2600);
+}
+(function () {
+  const head = document.querySelector(".studio-agenda-panel .studio-panel-heading");
+  if (!head || document.getElementById("aSearch")) return;
+  const w = document.createElement("div"); w.className = "asearch";
+  w.innerHTML = `<input id="aSearch" type="search" placeholder="🔍 搜索事项、备注、清单" aria-label="搜索事项" maxlength="40">`;
+  head.after(w);
+  let t = 0;
+  $("aSearch").addEventListener("input", (e) => { clearTimeout(t); t = setTimeout(() => { agendaQ = e.target.value.trim(); renderAgenda(); if (!agendaQ) agendaFocus(); }, 160); });
 })();

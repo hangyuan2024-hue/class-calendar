@@ -9,6 +9,8 @@ class Item(
     val day: String, val time: String, val location: String, val prepare: String, val original: String,
     val note: String, val done: Boolean, val hidden: Boolean, val mine: Boolean, val course: Boolean,
     val color: Int = 0, val needConfirm: Boolean = false, val local: Boolean = false, val endTime: String = "",
+    // 6.2 备忘录：清单、重复、置顶；full = 班级事项的完整内容（改成「我自己的版本」时带进备注）
+    val list: List<MemoCore.Li> = emptyList(), val rep: String = "", val reps: Int = 0, val pin: Boolean = false, val full: String = "",
 ) {
     val hw: Boolean get() = type == "作业"
     val dated: Boolean get() = day.isNotEmpty()
@@ -35,19 +37,28 @@ object Items {
     fun mine(): List<JSONObject> = Kv.arr(MINE).objs()
     fun marks(): JSONObject = Kv.obj(MARK)
 
+    // 6.2 内容完整：摘要被写成「……按指定...」而原文还在，就显示完整原文（和网页、小程序、电脑版同一条规则）
+    private val CUT_RE = Regex("(\\.{3,}|…+)\\s*$")
+    private fun origOf(r: JSONObject): String { val o = r.str("original"); return if (o.isNotEmpty() && !o.startsWith("（由")) o else "" }
+    fun fullText(r: JSONObject): String { val s = r.str("summary"); val o = origOf(r); return if (o.isNotEmpty() && (s.isEmpty() || CUT_RE.containsMatchIn(s))) o else s }
+    fun fullNote(r: JSONObject): String = listOf(if (r.str("subject").isNotEmpty() && fullText(r).isNotEmpty()) fullText(r) else origOf(r),
+        if (r.str("prepare").isNotEmpty()) "要准备：" + r.str("prepare") else "").filter { it.isNotEmpty() }.joinToString("\n")
     private fun fromClass(r: JSONObject, mk: JSONObject): Item {
         val key = "c" + r.opt("id")
         val m = mk.optJSONObject(key) ?: JSONObject()
         val w = When.of(r.str("event_time"))
-        val subject = r.str("subject"); val summary = r.str("summary")
+        val subject = r.str("subject"); val summary = fullText(r)
         return Item(key, r.opt("id").toString(), r.str("msg_type").ifBlank { "通知" }, subject.ifBlank { summary.ifBlank { r.str("msg_type") } }, summary,
             w?.day ?: "", w?.time ?: "", r.str("location"), r.str("prepare"), r.str("original"), m.str("note"),
-            m.optBoolean("done"), m.optBoolean("hidden"), false, false, needConfirm = r.optBoolean("need_confirm"))
+            m.optBoolean("done"), m.optBoolean("hidden"), false, false, needConfirm = r.optBoolean("need_confirm"), full = fullNote(r))
     }
-    private fun fromMine(r: JSONObject): Item {
+    private fun fromMine(r: JSONObject, cls: Map<String, JSONObject> = emptyMap()): Item {
         val w = When.of(r.str("event_time"))
+        val src = cls[r.str("from")]
+        val note = if (src != null && CUT_RE.containsMatchIn(r.str("note"))) fullNote(src) else r.str("note")
         return Item(r.str("id"), r.str("id"), if (r.str("kind") == "作业") "作业" else "个人", r.str("subject").ifBlank { "（没写标题）" }, "",
-            w?.day ?: "", w?.time ?: "", r.str("location"), "", "", r.str("note"), r.optBoolean("done"), false, true, false, local = r.optBoolean("local"))
+            w?.day ?: "", w?.time ?: "", r.str("location"), "", "", note, r.optBoolean("done"), false, true, false, local = r.optBoolean("local"),
+            list = MemoCore.listOf(r), rep = MemoCore.repName(r.str("rep")).let { if (it.isEmpty()) "" else r.str("rep") }, reps = r.optInt("reps", 0), pin = r.optBoolean("pin"))
     }
     fun lessonsAsItems(a: String, b: String): List<Item> {
         if (!Store.feat("courses") || !Courses.has()) return emptyList()
@@ -65,7 +76,8 @@ object Items {
     /** 全部事项（班级 + 我的），可选带上一段日期里的课 */
     fun all(showHidden: Boolean = false, courses: Pair<String, String>? = null): List<Item> {
         val mk = marks()
-        var list = Store.items.map { fromClass(it, mk) } + mine().map { fromMine(it) }
+        val cls = Store.items.associateBy { "c" + it.opt("id") }
+        var list = Store.items.map { fromClass(it, mk) } + mine().map { fromMine(it, cls) }
         if (!showHidden) list = list.filter { !it.hidden }
         if (courses != null) list = list + lessonsAsItems(courses.first, courses.second)
         return list
@@ -80,7 +92,7 @@ object Items {
 
     // ---------- 首页：今天起两周 ----------
     class Agenda(val overdue: List<Item>, val days: List<Day>, val undatedMine: List<Item>, val undatedCls: List<Item>,
-                 val todayCount: Int, val hwLeft: Int, val say: String, val doneCount: Int)
+                 val todayCount: Int, val hwLeft: Int, val say: String, val doneCount: Int, val pins: List<Item> = emptyList())
     fun agenda(): Agenda {
         val t0 = T.todayKey()
         val list = all(courses = t0 to T.addDays(t0, 13))
@@ -108,7 +120,8 @@ object Items {
             todayCount > 0 -> "今天有 $todayCount 件事，一件件来"
             else -> "今天没有要交的作业，喘口气吧～"
         }
-        return Agenda(overdue, days, undated.filter { it.mine }, undated.filter { !it.mine }, todayCount, hw + overdue.size, say, list.count { it.done && !it.course })
+        return Agenda(overdue, days, undated.filter { it.mine }, undated.filter { !it.mine }, todayCount, hw + overdue.size, say, list.count { it.done && !it.course },
+            list.filter { it.mine && it.pin && !it.done })
     }
 
     // ---------- 作业页 ----------
@@ -276,10 +289,16 @@ object Items {
             on = !m.optBoolean("done"); m.put("done", on); mk.put(key, m); Kv.set(MARK, mk)
             growth(key.substring(1), !on)
         } else {
-            val list = Kv.arr(MINE); var hit = false; var v = false
-            for (x in list.objs()) if (x.str("id") == key) { v = !x.optBoolean("done"); x.put("done", v); hit = true }
+            val list = Kv.arr(MINE); var hit = false; var v = false; var roll: JSONObject? = null
+            for (x in list.objs()) if (x.str("id") == key) {
+                // 6.2 重复的事项：勾完成就排到下一次，不会消失
+                roll = if (!x.optBoolean("done")) MemoCore.complete(x, T.todayKey()) else null
+                if (roll != null) { for (k in roll.keys()) x.put(k, roll.get(k)); v = true } else { v = !x.optBoolean("done"); x.put("done", v) }
+                hit = true
+            }
             if (!hit) return false
             on = v; Kv.set(MINE, list)
+            if (roll != null) lastRoll = roll.str("event_time").take(10)
         }
         val log = Kv.obj(DONE_LOG); if (on) log.put(key, T.todayKey()) else log.remove(key); Kv.set(DONE_LOG, log)
         // 捞捞教练：记下几点完成的（只存在这台手机），用来学你的节奏、判断是不是一口气乱勾
@@ -287,6 +306,25 @@ object Items {
         Bus.emit("data")
         return on
     }
+    /** 6.2 刚才勾的是重复的事项：下一次是哪天（给界面提示用），用完清空 */
+    var lastRoll: String = ""
+    fun toggleListItem(id: String, i: Int): List<MemoCore.Li> {
+        val list = Kv.arr(MINE); var out = emptyList<MemoCore.Li>()
+        for (x in list.objs()) if (x.str("id") == id) {
+            out = MemoCore.listOf(x).mapIndexed { n, it -> if (n == i) MemoCore.Li(it.t, !it.d) else it }
+            x.put("list", MemoCore.toJson(out))
+        }
+        Kv.set(MINE, list); Bus.emit("data"); return out
+    }
+    fun togglePin(id: String): Boolean {
+        val list = Kv.arr(MINE); var on = false
+        for (x in list.objs()) if (x.str("id") == id) { on = !x.optBoolean("pin"); if (on) x.put("pin", true) else x.remove("pin") }
+        Kv.set(MINE, list); Bus.emit("data"); return on
+    }
+    /** 6.2 搜索：标题、摘要、备注、清单、地点、原文（我的事项、班级事项都搜，包括已完成的、两周以后的） */
+    fun search(q: String): List<Item> = all(showHidden = true).filter { r ->
+        MemoCore.match(listOf(r.title, r.summary, r.note, r.location, r.prepare, r.original, r.type).joinToString(" ") + " " + r.list.joinToString(" ") { it.t }, q)
+    }.sortedWith(compareBy<Item>({ it.done }, { if (it.dated) it.day + it.time.ifEmpty { "00" } else "9" })).take(80)
     fun setDone(key: String, done: Boolean) { val r = find(key) ?: return; if (r.done != done) toggleDone(key) }
     private fun growth(id: String, undo: Boolean) {
         val c = Store.cls ?: return
@@ -304,6 +342,9 @@ object Items {
             if (x.str("id") == rec.str("id")) { for (k in rec.keys()) x.put(k, rec.get(k)); hit = true }
             if (x.has("local") && !x.optBoolean("local")) x.remove("local")
             if (x.has("kind") && x.str("kind").isEmpty()) x.remove("kind")
+            if (x.has("rep") && x.str("rep").isEmpty()) x.remove("rep")
+            if (x.has("pin") && !x.optBoolean("pin")) x.remove("pin")
+            if ((x.optJSONArray("list")?.length() ?: -1) == 0) x.remove("list")
             out.put(x)
         }
         if (!hit) out.put(rec)

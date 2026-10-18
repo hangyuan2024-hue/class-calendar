@@ -136,6 +136,18 @@ const ok = (name) => console.log("✓", name);
   await E.signup("newbie", "abcdefgh", { name: "新同学", gender: "f", org: { type: "university", name: "某大学" } });
   assert.strictEqual(mock.S.users["u-2"].meta.org_name, "某大学"); ok("电脑上也能注册（含学校 / 单位），注册完直接登录");
 
+  // 6.2 备忘录：重复的事勾完成排到下一次、清单保留、置顶、截断的摘要显示完整原文
+  {
+    const r = A.upsertMine({ subject: "背单词", event_time: today + " 07:30", rep: "day", pin: true, list: [{ t: "Unit 1", d: true }, { t: "" }] });
+    assert.deepStrictEqual(r.list, [{ t: "Unit 1", d: true }]);
+    const roll = A.setDone(r.id, true);
+    const after = A.snapshot().mine.find((x) => x.id === r.id);
+    assert.ok(roll && after.event_time > today + " 07:30" && after.event_time.endsWith(" 07:30") && !after.done && after.reps === 1 && after.list[0].d === false && after.pin === true);
+    const bad = A.upsertMine({ subject: "x", rep: "sometimes", pin: 0 }); assert.ok(!("rep" in bad) && !("pin" in bad));
+    const items = M.allItems({ items: [{ id: 99, msg_type: "会议", subject: "表彰大会", summary: "请全体成员参会，按指定...", original: "请全体成员参会，按指定座位入座，12:20前入场完毕" }], mine: [{ id: "p9", subject: "表彰大会", from: "c99", note: "请全体成员参会，按指定..." }] });
+    assert.ok(items[0].summary.endsWith("入场完毕") && items[1].note.endsWith("入场完毕"));
+    ok("备忘录：重复的事勾完成排到明天、清单重置、置顶保留；被「...」截断的内容显示完整原文");
+  }
   // AI 背景资料
   const ctx = assistant.context(snap, new Date());
   assert.ok(/高等数学/.test(ctx) && /高数习题/.test(ctx) && /班会/.test(ctx)); ok("AI 背景里有课表和作业（" + ctx.split("\n").length + " 行）");

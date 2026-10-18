@@ -23,14 +23,21 @@
     return m ? { day: m[1], time: m[2] || "" } : null;
   }
 
+  // 6.2 内容完整：摘要被写成「……按指定...」而原文还在，就显示完整原文（和网页、小程序同一条规则）
+  const CUT_RE = /(\.{3,}|…+)\s*$/;
+  const origOf = (r) => { const o = String((r && r.original) || ""); return o && !/^（由/.test(o) ? o : ""; };
+  const fullText = (r) => { const s = String((r && r.summary) || ""), o = origOf(r); return o && (!s || CUT_RE.test(s)) ? o : s; };
+  const fullNote = (r) => [r.subject && fullText(r) ? fullText(r) : origOf(r), r.prepare ? "要准备：" + r.prepare : ""].filter(Boolean).join("\n");
+  const listOf = (r) => (Array.isArray(r.list) ? r.list : []).filter((x) => x && String(x.t || "").trim()).map((x) => ({ t: String(x.t).trim(), d: !!x.d }));
   // 班级事项 + 我的事项 → 统一格式
   function allItems(s) {
     const marks = s.marks || {};
+    const byKey = {}; (s.items || []).forEach((r) => { byKey["c" + r.id] = r; });
     const cls = (s.items || []).map((r) => {
       const key = "c" + r.id, mk = marks[key] || {}, p = parseTime(r.event_time);
       return { key, id: r.id, mine: false, type: TYPES.includes(r.msg_type) ? r.msg_type : (r.msg_type || "通知"), title: r.subject || r.summary || r.msg_type || "（无标题）",
-        summary: r.subject ? r.summary || "" : "", day: p ? p.day : "", time: p ? p.time : "", location: r.location || "", prepare: r.prepare || "",
-        original: r.original || "", publish: r.publish_date || "", confirm: !!r.need_confirm, done: !!mk.done, hidden: !!mk.hidden, note: mk.note || "",
+        summary: r.subject ? fullText(r) : "", day: p ? p.day : "", time: p ? p.time : "", location: r.location || "", prepare: r.prepare || "",
+        original: origOf(r) && origOf(r) !== fullText(r) ? origOf(r) : "", full: fullNote(r), publish: r.publish_date || "", confirm: !!r.need_confirm, done: !!mk.done, hidden: !!mk.hidden, note: mk.note || "",
         gid: r.group_id || null, by: r.created_by || null, editor: r.editor || "", updated: r.updated_at || "", raw: r };
     });
     const own = (s.mine || []).filter((r) => r && r.id).map((r) => {
@@ -38,7 +45,9 @@
       // kind = "作业"：自己记的作业（和网页版一样，会出现在作业页）；from：改的是哪条班级事项（「编辑（仅自己）」）
       return { key: r.id, id: r.id, mine: true, type: r.kind === "作业" ? "作业" : "个人", kind: r.kind === "作业" ? "作业" : "", from: r.from || "", keep: r.keep || "",
         title: r.subject || "（无标题）", summary: "", day: p ? p.day : "", time: p ? p.time : "",
-        location: r.location || "", prepare: "", original: "", publish: "", confirm: false, done: !!r.done, hidden: false, note: r.note || "", local: !!r.local };
+        location: r.location || "", prepare: "", original: "", publish: "", confirm: false, done: !!r.done, hidden: false, local: !!r.local,
+        note: r.from && CUT_RE.test(r.note || "") && byKey[r.from] ? fullNote(byKey[r.from]) : r.note || "",
+        list: listOf(r), rep: r.rep || "", reps: +r.reps || 0, pin: !!r.pin };   // 6.2 备忘录：清单、重复、置顶
     });
     // 课内学习里有截止日期的考核（界面从网站的课内学习模块拿到后交给主进程）；完成、备注、隐藏记在完成标记里
     const ext = (s.extraItems || []).filter((x) => x && /^kn\d+$/.test(x.key)).map((x) => { const mk = marks[x.key] || {};

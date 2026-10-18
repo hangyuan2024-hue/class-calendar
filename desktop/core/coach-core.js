@@ -120,6 +120,23 @@
     return best;
   }
 
+  // ---------- 4.5 哪些事「现在就能动手做」 ----------
+  // 教练和刷任务只推荐能马上开始、能做完的事：作业、复习备考、没定钟点的待办。
+  // 会议、讲座、活动、典礼这类「到点去参加」的事没法现在完成，不推荐（它们照样会在日程和提醒里出现）。
+  var DO_RE = /作业|报告(?!会|厅)|习题|练习|论文|ppt|PPT|复习|预习|背诵|背单词|单词|阅读|读书|笔记|整理|提交|上交|打卡|写|填|交|做|改|准备|报名|缴费|打印|签字|看完|刷题|错题/;
+  var MEET_RE = /会议|大会|例会|班会|年会|晚会|座谈|讲座|论坛|典礼|仪式|宣讲|培训|比赛|竞赛|演出|集合|面试|答辩|聚餐|聚会|观影|升旗|报告会|报告厅|研讨|沙龙|见面会|分享会|交流会|发布会|招聘会|运动会|开幕|闭幕|彩排|排练|值班|门诊|牙医|体检|活动/;
+  var PREP_RE = /作业|习题|论文|ppt|PPT|报名|缴费|提交|上交|填写|填表|材料|讲稿|演讲稿|稿子|复习|预习|背诵/;
+  function doable(x) {
+    if (!x || x.kind !== "item") return false;
+    if (x.exam) return true;                                   // 考试：现在就能复习
+    if (x.type === "作业") return true;
+    var t = String(x.title || "") + " " + String(x.summary || "");
+    if (x.type === "会议" || x.type === "活动" || x.type === "课程") return false;
+    if (MEET_RE.test(t) && !PREP_RE.test(t)) return false;     // 「个人」「通知」里写的其实是会、讲座、活动（但「讲座报名」「答辩PPT」能现在做）
+    if (x.time && !DO_RE.test(t)) return false;                // 定了钟点、又不像要动手做的事：多半是到点去参加的约
+    return true;
+  }
+
   // ---------- 5. 现在最适合做什么 ----------
   // ctx：{ now, ranked（IslandCore.rank 的结果）, model（combine 后的）, log, pomoToday, skip: {key: 到期毫秒}, rnd }
   function suggest(ctx) {
@@ -136,6 +153,7 @@
     // 深夜：只有真的急（已过期 / 几小时内截止）才提，否则劝睡觉
     var cands = (ctx.ranked || []).filter(function (x) {
       if (x.kind !== "item" || x.level === "past") return false;
+      if (!doable(x)) return false;
       if (skip[x.key] && skip[x.key] > now.getTime()) return false;
       return true;
     });
@@ -178,8 +196,7 @@
   function stepFor(x) {
     if (x.exam) return "先花 15 分钟把重点过一遍";
     if (x.type === "作业") return x.level === "late" ? "先补上最简单的那部分，开个番茄 25 分钟" : "先做 25 分钟，开个番茄，做多少算多少";
-    if (x.type === "会议" || x.type === "活动") return x.level === "now" ? "已经开始了，现在过去" : "提前把要带的东西准备好" + (x.location ? "，地点 " + x.location : "");
-    return "现在花 5 分钟处理掉它";
+    return "先做 5 分钟，开了头就不难了";
   }
   function sayFor(style, x, st, g, best, h) {
     var name = "「" + x.title + "」";
@@ -197,7 +214,7 @@
     var st = streak(model, now), g = goal(model, now), best = bestHours(model);
     var at = function (hh, mi) { var d = fromKey(t); d.setHours(hh, mi || 0, 0, 0); return d.getTime(); };
     var busy = function (ms) { return (ctx.courses || []).some(function (c) { var a = hm(c.t0), b = hm(c.t1 || c.t0); var m = new Date(ms).getHours() * 60 + new Date(ms).getMinutes(); return a != null && b != null && m >= a - 5 && m < b; }); };
-    var pending = (ctx.ranked || []).filter(function (x) { return x.kind === "item" && x.level !== "past"; });
+    var pending = (ctx.ranked || []).filter(function (x) { return x.kind === "item" && x.level !== "past" && doable(x); });
     // ① 你效率最高的那个钟点（今天还没到、还有事要做、今天的小目标还没完成）
     best.forEach(function (bh) {
       var ms = at(bh, 0);
@@ -240,7 +257,7 @@
     if (h >= 23 || h < 5) return { cards: [], end: "sleep", say: "夜深了，今天不刷了，睡饱了明天效率更高 🌙" };
     var live = (ctx.ranked || []).filter(function (x) { return x.kind === "course" && x.level === "now"; })[0];
     if (live) return { cards: [], end: "class", say: "正在上「" + live.title + "」，下课再来刷 📚" };
-    var items = (ctx.ranked || []).filter(function (x) { return x.kind === "item" && x.level !== "past" && !(skip[x.key] > now.getTime()); }).slice(0, 3);
+    var items = (ctx.ranked || []).filter(function (x) { return x.kind === "item" && x.level !== "past" && doable(x) && !(skip[x.key] > now.getTime()); }).slice(0, 3);
     var cards = [], work = 0, sinceBreak = 0;
     var add = function (c) {
       if (work >= ROUND) return false;
@@ -343,7 +360,7 @@
     return out.length > 3000 ? out.slice(out.length - 3000) : out;
   }
   return { credible: credible, learn: learn, combine: combine, streak: streak, goal: goal, bestHours: bestHours, pickStyle: pickStyle,
-    suggest: suggest, nudges: nudges, weekly: weekly, append: append, STYLES: STYLES,
+    suggest: suggest, doable: doable, nudges: nudges, weekly: weekly, append: append, STYLES: STYLES,
     deck: deck, more: more, awayCredit: awayCredit, ROUND: ROUND, LOOT: LOOT, RARITY: RARITY, COST: COST, DAY_CAP: DAY_CAP,
     bag: bag, roll: roll, redeem: redeem, mergeBag: mergeBag, loot: loot, owned: owned, roomLine: roomLine, BAG: "coach_bag_v1", LOG: "coach_log_v1", SYNC: "coach_v1", OPTS: "coach_opts_v1" };
 });

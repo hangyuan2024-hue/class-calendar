@@ -132,7 +132,9 @@ function untilText(min) { if (min < 60) return `${min} 分钟`; const hh = Math.
 
 // ---------- 完成 / 删除（带撤销） ----------
 async function toggleDone(key, done) {
-  await call("done", key, done);
+  const roll = await call("done", key, done);
+  // 6.2 重复的事项：勾完成排到下一次
+  if (done && roll && roll.event_time) { toast(`✓ 已完成，下次是 ${dateCN(roll.event_time.slice(0, 10))}`); cheerFor(key); return; }
   if (done) { const x = App.find(key); toast(`已完成：${x ? x.title : ""}`, { action: { label: "撤销", fn: () => call("done", key, false) } }); cheerFor(key); }
 }
 async function deleteMine(key) {

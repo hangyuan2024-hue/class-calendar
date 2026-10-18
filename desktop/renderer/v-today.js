@@ -209,17 +209,18 @@ App.views.today = {
     const now = App.now(), t = M.dayKey(now), el = $("#tdTodo", this.el);
     const live = M.sortItems(App.items().filter((x) => !x.hidden));
     const groups = [
+      ["📌 置顶", live.filter((x) => x.mine && x.pin && !x.done)],   // 6.2 备忘录：置顶的一直在最上面
       ["过期没完成", live.filter((x) => overdue(x, now) && M.dayDiff(x.day, now) >= -14), "bad"],
       ["今天", live.filter((x) => x.day === t && !overdue(x, now) && !x.done)],
       ["明天", live.filter((x) => x.day && M.dayDiff(x.day, now) === 1 && !x.done)],
       ["接下来一周", live.filter((x) => x.day && M.dayDiff(x.day, now) >= 2 && M.dayDiff(x.day, now) <= 7 && !x.done)],
       ["今天完成的", live.filter((x) => x.done && (App.S.doneLog || {})[x.key] === t), "ok"],
     ];
-    const total = groups.slice(0, 4).reduce((n, g) => n + g[1].length, 0);
+    const total = groups.slice(1, 5).reduce((n, g) => n + g[1].length, 0);
     $("#tdTodoN", this.el).textContent = total ? `${total} 件` : "";
     const row = (x) => `<div class="td-row${x.done ? " done" : ""}${Insp.key === x.key ? " insp-sel" : ""}" data-k="${esc(x.key)}"><button class="chk${x.done ? " on" : ""}" data-k="${esc(x.key)}" title="${x.done ? "标记为没完成" : "完成"}"></button>
       <span class="td-tag" style="--c:${tc(x.type)}">${esc(x.mine && x.type !== "作业" ? "我的" : x.study ? "考核" : x.type)}</span>
-      <span class="td-t">${x.local ? '<small title="只存在这台设备">🔒</small> ' : ""}${esc(x.title)}${CloudFiles.count(x.key) || attachList(x.key).length ? ' <small title="有附件">📎</small>' : ""}${Autodel.soon(x) ? ' <small title="快要自动删除了">🗑</small>' : ""}</span>
+      <span class="td-t">${x.local ? '<small title="只存在这台设备">🔒</small> ' : ""}${esc(x.title)}${x.list && x.list.length ? ` <small class="muted" title="清单">☑ ${x.list.filter((i) => i.d).length}/${x.list.length}</small>` : ""}${x.rep ? ` <small class="muted" title="重复">🔁 ${esc(MemoCore.repName(x.rep))}</small>` : ""}${CloudFiles.count(x.key) || attachList(x.key).length ? ' <small title="有附件">📎</small>' : ""}${Autodel.soon(x) ? ' <small title="快要自动删除了">🗑</small>' : ""}</span>
       ${x.location ? `<span class="td-l">${esc(x.location)}</span>` : ""}${startTag(x, now)}<span class="td-w${overdue(x, now) ? " late" : ""}">${esc(x.day === t ? (x.time ? x.time + (x.type === "作业" ? " 截止" : "") : "今天") : whenText(x, now))}</span></div>`;
     const html = groups.filter((g) => g[1].length).map((g) => `<div class="td-g ${g[2] || ""}"><span>${g[0]}</span><small class="num">${g[1].length}</small></div>` + g[1].slice(0, 12).map(row).join("") + (g[1].length > 12 ? `<div class="td-more" data-go="tasks">还有 ${g[1].length - 12} 件…</div>` : "")).join("");
     el.innerHTML = html || `<div class="empty"><b>🎉</b>最近一周没有要做的事<br>在上面一句话记事，或者按 Ctrl+N</div>`;

@@ -7,6 +7,7 @@ const path = require("path");
 const { EventEmitter } = require("events");
 const M = require("./model");
 const CoachCore = require("./coach-core.js");
+const MemoCore = require("./memo-core.js");   // 6.2 备忘录：清单、重复、置顶（和网页、小程序同一份）
 
 // 和网页版 app.js 里的 SYNC_KINDS 一致（网页没有的是电脑版新加的，网页会原样保留）
 // list：数组，按 id 一条条同步；map：对象，按键同步；map2：两层对象（习惯 → 日期）；one：整体同步
@@ -410,7 +411,11 @@ class Store extends EventEmitter {
     const id = item.id || "p" + this.now() + Math.floor(Math.random() * 1000);
     const i = list.findIndex((x) => x.id === id);
     const rec = { ...(i >= 0 ? list[i] : { done: false }), ...item, id };
-    for (const k of ["subject", "event_time", "location", "note"]) rec[k] = String(rec[k] ?? "").slice(0, k === "note" ? 2000 : 200);
+    for (const k of ["subject", "event_time", "location", "note"]) rec[k] = String(rec[k] ?? "").slice(0, k === "note" ? MemoCore.NOTE_MAX : 200);
+    // 6.2 清单 / 重复 / 置顶：格式不对的去掉，空的不存
+    const li = MemoCore.listOf(rec); if (li.length) rec.list = li; else delete rec.list;
+    if (!MemoCore.repName(rec.rep)) delete rec.rep;
+    if (rec.pin) rec.pin = true; else delete rec.pin;
     // kind：作业 / 普通；from：改的是哪条班级事项；keep：推迟自动删除到哪天（这几个和网页版同名）
     if (rec.kind !== "作业") delete rec.kind;
     if (!/^c\d+$/.test(String(rec.from || ""))) delete rec.from;
@@ -468,7 +473,10 @@ class Store extends EventEmitter {
       this.setMark(key, { done: !!done });   // 课内学习的考核：和网页版一样记在完成标记里
     } else {
       const it = this.data.ns.personal_events_v1.find((x) => x.id === key); if (!it) return;
-      this.upsertMine({ ...it, done: !!done });
+      // 6.2 重复的事项：勾完成就排到下一次，不会消失
+      const roll = done && !it.done ? MemoCore.complete(it, bjDay(this.now())) : null;
+      this.upsertMine(roll ? { ...it, ...roll } : { ...it, done: !!done });
+      if (roll) { const log = this.data.ns.done_log_v1; log[key] = bjDay(this.now()); this.record("done_log_v1", key, log[key]); this.changed("done"); return roll; }
     }
     const log = this.data.ns.done_log_v1;
     if (done) log[key] = bjDay(this.now()); else delete log[key];

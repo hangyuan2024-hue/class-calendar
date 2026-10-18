@@ -231,6 +231,7 @@ class HomePage(a: Main) : Page(a) {
     // ---------- 接下来的安排 ----------
     // 做完的、上完的课留在列表里标「已完成 / 已上完」；默认翻到第一件还没做的事；手动翻走了，底部有按钮一键回来
     private var agManual = false; private var agY = 0; private var agAuto = 0L
+    private var agQ = ""
     private var nextRow: View? = null
     private fun agenda(A: Items.Agenda) {
         val c = ctx.card(18, 22).apply { margins(t = 16) }
@@ -248,10 +249,16 @@ class HomePage(a: Main) : Page(a) {
         }
         c.addView(hr)
         c.add(ctx.hline(), 12)
+        // 6.2 搜索：标题、备注、清单、地点、原文都能搜（打字时只刷新结果，不重画整页）
+        val sIn = ctx.input("🔍 搜索事项、备注、清单", agQ).apply { setSingleLine(true); textSize = 14f }
+        c.add(sIn, 0)
+        val res = ctx.col()
+        c.add(res, 4)
         // 列表放在一个最高 440dp 的框里，超出在框里滚
         val list = ctx.col()
         nextRow = null
         val now = System.currentTimeMillis()
+        if (A.pins.isNotEmpty()) { dayBlock(list, "📌 置顶", "${A.pins.size} 项", A.pins, now, showDate = true); nextRow = null }   // 置顶的不算「接下来」
         if (A.overdue.isNotEmpty()) dayBlock(list, "已过期", "还没标记完成的作业", A.overdue, now, late = true, showDate = true)
         for (d in A.days) {
             if (d.items.isEmpty()) {
@@ -276,6 +283,22 @@ class HomePage(a: Main) : Page(a) {
         box.addView(sc, FrameLayout.LayoutParams(MATCH, WRAP))
         back.tap { agManual = false; goNext(sc, true) }
         c.add(box, 2)
+        fun paintSearch() {
+            res.removeAllViews()
+            val q = agQ.trim()
+            box.visibility = if (q.isEmpty()) View.VISIBLE else View.GONE
+            if (q.isEmpty()) return
+            val hits = Items.search(q)
+            if (hits.isEmpty()) { res.add(ctx.text("没有找到「$q」相关的事项", 13.5f, C.sub).apply { pad(4, 14) }, 4); return }
+            dayHead(res, "搜索结果", "${hits.size} 条", false)
+            hits.forEachIndexed { i, r -> if (i > 0) res.addView(ctx.hline()); res.addView(a.itemRow(r, showDate = true)) }
+        }
+        sIn.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(x: CharSequence?, st: Int, n: Int, af: Int) {}
+            override fun onTextChanged(x: CharSequence?, st: Int, b: Int, n: Int) {}
+            override fun afterTextChanged(e: android.text.Editable?) { agQ = e?.toString() ?: ""; paintSearch() }
+        })
+        paintSearch()
         // 「回到接下来」：列表下面一条（不盖住列表、也不离得太远），翻走了、看不到「接下来」那件事才出现
         c.addView(back, LinearLayout.LayoutParams(WRAP, WRAP).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = dp(8) })
         sc.setOnScrollChangeListener { _, _, y, _, _ ->

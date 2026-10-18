@@ -68,7 +68,7 @@ App.views.tasks = {
   },
   visible() {
     const n = App.now(), f = FILTERS.find((x) => x[0] === this.filter)[3], q = this.q.toLowerCase();
-    let list = App.items().filter((x) => f(x, n) && (!this.types.size || this.types.has(x.type)) && (!q || (x.title + " " + x.summary + " " + x.location + " " + x.note + " " + x.original).toLowerCase().includes(q)));
+    let list = App.items().filter((x) => f(x, n) && (!this.types.size || this.types.has(x.type)) && (!q || (x.title + " " + x.summary + " " + x.location + " " + x.note + " " + x.original + " " + (x.list || []).map((i) => i.t).join(" ")).toLowerCase().includes(q)));
     if (this.sort === "type") list = M.sortItems(list).sort((a, b) => M.TYPES.indexOf(a.type) - M.TYPES.indexOf(b.type));
     else if (this.sort === "new") list = list.slice().sort((a, b) => (b.publish || b.key).localeCompare(a.publish || a.key));
     else { list = M.sortItems(list); if (this.filter === "done") list.reverse(); }

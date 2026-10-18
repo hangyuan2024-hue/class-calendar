@@ -34,12 +34,15 @@ fun Main.itemRow(r: Item, showDate: Boolean = false, dueTag: Boolean = false): V
         row.addView(box, (box.layoutParams as LinearLayout.LayoutParams).apply { rightMargin = dp(12); topMargin = dp(1) })
     }
     val body = col()
-    val title = text((if (r.needConfirm) "⚠ " else "") + r.title, 15f, if (r.done) C.mutedText else C.text, SEMI, 2)
+    val title = text((if (r.needConfirm) "⚠ " else "") + (if (r.pin && !r.done) "📌 " else "") + r.title, 15f, if (r.done) C.mutedText else C.text, SEMI, 2)
     if (r.done) title.paintFlags = title.paintFlags or Paint.STRIKE_THRU_TEXT_FLAG
     body.addView(title)
     val meta = row().apply { margins(t = 4) }
     val tn = if (r.course) "课程" else if (r.mine && !r.hw) "我的" else typeName(r.type)
     meta.addView(chip(tn, C.type(r.type), if (r.hw) C.dangerBg else if (r.type == "会议") C.selected else C.mutedBg))
+    // 6.2 清单进度、重复
+    if (r.list.isNotEmpty()) meta.addView(chip("☑ " + com.laolao.classcalendar.core.MemoCore.statText(r.list), if (r.list.all { it.d }) C.green else C.sub, C.mutedBg), LinearLayout.LayoutParams(WRAP, WRAP).apply { leftMargin = dp(6) })
+    if (r.rep.isNotEmpty()) meta.addView(chip("🔁 " + com.laolao.classcalendar.core.MemoCore.repName(r.rep), C.sub, C.mutedBg), LinearLayout.LayoutParams(WRAP, WRAP).apply { leftMargin = dp(6) })
     val subText = (if (showDate && r.dated) com.laolao.classcalendar.core.T.dayName(r.day) + (if (r.time.isNotEmpty()) " " + r.time else "") + "  " else "") + r.sub
     if (subText.isNotBlank()) meta.addView(text(subText.trim(), 12.5f, C.sub, lines = 1).apply { pad(6, 0, 0, 0) }, LinearLayout.LayoutParams(0, WRAP, 1f))
     body.addView(meta)
@@ -72,7 +75,10 @@ fun Main.itemRow(r: Item, showDate: Boolean = false, dueTag: Boolean = false): V
 
 /** 打勾 / 取消 */
 fun Main.toggle(r: Item) {
+    Items.lastRoll = ""
     val on = Items.toggleDone(r.key)
+    // 6.2 重复的事项：排到下一次
+    if (on && Items.lastRoll.isNotEmpty()) { toast("✓ 已完成，下次是 " + T.md(Items.lastRoll) + " " + T.wk(Items.lastRoll)); Items.lastRoll = ""; return }
     if (on) {
         val left = Items.pendingHomework().count { it.dated && it.day == r.day }
         // 作业：捞捞跳出来鼓励一下（照小程序）；其它事项轻提示
@@ -84,12 +90,13 @@ fun Main.toggle(r: Item) {
 fun Main.quickActions(r: Item) {
     if (r.course) return
     val opts = mutableListOf(if (r.done) "取消完成" else "✓ 完成", "查看详情")
-    if (r.mine) { opts += "编辑"; opts += "删除" } else { opts += if (r.hidden) "取消隐藏" else "隐藏（只是自己看不到）" }
-    Dialogs.sheet(this, r.title, opts, danger = if (r.mine) setOf(3) else emptySet()) { i ->
+    if (r.mine) { opts += "编辑"; opts += if (r.pin) "取消置顶" else "📌 置顶"; opts += "删除" } else { opts += if (r.hidden) "取消隐藏" else "隐藏（只是自己看不到）" }
+    Dialogs.sheet(this, r.title, opts, danger = if (r.mine) setOf(4) else emptySet()) { i ->
         when (opts[i]) {
             "取消完成", "✓ 完成" -> toggle(r)
             "查看详情" -> push(ItemPage(this, r.key))
             "编辑" -> push(EditPage(this, r.key))
+            "取消置顶", "📌 置顶" -> toast(if (Items.togglePin(r.id)) "已置顶，首页最上面一直能看到" else "已取消置顶")
             "删除" -> Dialogs.confirm(this, "删除「${r.title}」？", "", "删除", danger = true) { Items.deleteMine(r.id); toast("已删除") }
             else -> { Items.setMark(r.key, com.laolao.classcalendar.core.jsonOf("hidden" to !r.hidden)); toast(if (r.hidden) "已恢复显示" else "已隐藏，可以在日历里点「显示隐藏的」找回") }
         }

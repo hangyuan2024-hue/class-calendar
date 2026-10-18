@@ -9,6 +9,7 @@ import com.laolao.classcalendar.core.Plan
 import com.laolao.classcalendar.core.T
 import com.laolao.classcalendar.core.Tools
 import com.laolao.classcalendar.core.Memo
+import com.laolao.classcalendar.core.MemoCore
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -88,10 +89,14 @@ class CoreTest {
         val g = C.goal(m2, now); near(3.0, g.cap); assertEquals(4, g.target)
         // 推荐
         fun row(kind: String, key: String, title: String, type: String, level: String, score: Double, reason: String) = Island.Row(kind, key, title, type, "2026-10-17", "", "", level, false, score, "", reason)
-        val ranked = listOf(row("item", "hw", "高数作业", "作业", "urgent", 60.0, "还剩 3 小时"), row("item", "meet", "班会", "会议", "soon", 30.0, "2 天后开始"))
+        val ranked = listOf(row("item", "hw", "高数作业", "作业", "urgent", 60.0, "还剩 3 小时"), row("item", "words", "背单词", "个人", "soon", 30.0, "还剩 2 天"),
+            row("item", "meet", "班会", "会议", "soon", 80.0, "2 天后开始"),
+            Island.Row("item", "conf", "26年换届暨总结表彰大会", "个人", "2026-10-19", "12:30", "中快三楼", "soon", false, 90.0, "", "1 天后开始"))
         val e = C.combine(emptyList())
         val s = C.suggest(ranked, e, emptyList(), now, rnd = 0.9); assertEquals("go", s.mode); assertEquals("hw", s.top!!.key); assertTrue(s.top!!.step.contains("番茄"))
-        assertEquals("meet", C.suggest(ranked, e, emptyList(), now, mapOf("hw" to now + 3_600_000), 0.9).top!!.key)
+        assertEquals("words", C.suggest(ranked, e, emptyList(), now, mapOf("hw" to now + 3_600_000), 0.9).top!!.key)
+        assertTrue(s.alts.none { it.key == "meet" || it.key == "conf" })
+        assertEquals("free", C.suggest(ranked.drop(2), e, emptyList(), now, rnd = 0.9).mode)
         assertEquals("sleep", C.suggest(listOf(ranked[1]), e, emptyList(), at(17, 23, 30), rnd = 0.9).mode)
         assertEquals("rest", C.suggest(listOf(ranked[1]), e, listOf(ev(now - 3_000_000, "pomo", m = 50), ev(now - 1_500_000, "pomo", m = 25)), now, rnd = 0.9).mode)
         assertEquals("class", C.suggest(listOf(row("course", "c", "线代", "课程", "now", 96.0, "正在上课")) + ranked, e, emptyList(), now, rnd = 0.9).mode)
@@ -143,5 +148,26 @@ class CoreTest {
         assertEquals(listOf(4, 1, 3, 2), listOf(mg.own["star"], mg.own["fox"], mg.sh, mg.owned()))
         assertEquals(34, Flow.LOOT.size)
         assertEquals("班里现在 7 人在专注 · 今天全班 230 分钟 · 班级连续 3 天", Flow.roomLine(7, 230, 3))
+    }
+
+    /** 6.2 备忘录：和网页 test/memo.test.js 同样的例子 */
+    @Test fun memo() {
+        val M = MemoCore
+        assertEquals("2026-10-17", M.nextDay("2026-10-16", "day"))
+        assertEquals("2026-10-19", M.nextDay("2026-10-16", "weekday"))
+        assertEquals("2026-10-23", M.nextDay("2026-10-16", "week"))
+        assertEquals("2026-02-28", M.nextDay("2026-01-31", "month"))
+        assertEquals("2029-02-28", M.nextDay("2028-02-29", "year"))
+        val r = org.json.JSONObject().put("event_time", "2026-10-12 07:30").put("rep", "day").put("reps", 2)
+            .put("list", org.json.JSONArray().put(org.json.JSONObject().put("t", "A").put("d", true)))
+        val p = M.complete(r, "2026-10-18")!!
+        assertEquals("2026-10-19 07:30", p.getString("event_time")); assertEquals(3, p.getInt("reps")); assertEquals(false, p.getJSONArray("list").getJSONObject(0).getBoolean("d"))
+        assertEquals("2026-11-01", M.complete(org.json.JSONObject().put("event_time", "2026-10-25").put("rep", "week"), "2026-10-18")!!.getString("event_time"))
+        assertEquals(null, M.complete(org.json.JSONObject().put("event_time", "").put("rep", "day"), "2026-10-18"))
+        val l = M.listFromText("□ 牛奶\n✓ 面包\n- 鸡蛋\n\n[x] 苹果\n1. 香蕉", listOf(MemoCore.Li("鸡蛋", true)))
+        assertEquals(listOf("牛奶" to false, "面包" to true, "鸡蛋" to true, "苹果" to true, "香蕉" to false), l.map { it.t to it.d })
+        assertEquals("3/5", M.statText(l))
+        assertTrue(M.looksLikeList("□ a\n□ b\n□ c")); assertTrue(!M.looksLikeList("今天去开会\n记得带电脑"))
+        assertTrue(M.match("社团例会 带电脑和充电器 A201 打印签到表", "签到 a201")); assertTrue(!M.match("社团例会", "例会 体育馆"))
     }
 }

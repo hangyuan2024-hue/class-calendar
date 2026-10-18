@@ -151,7 +151,8 @@
       if (!r.on || (skipDone && r.done) || !r.subject) return;
       var et = r.date ? r.date + (r.time ? " " + r.time : "") : "";
       if (have[r.subject + "|" + et]) return;   // 已经导入过的不重复
-      mine.push({ id: "p" + stamp + "_m" + i, subject: r.subject, event_time: et, location: "", note: r.note || "", done: !!r.done, kind: r.kind || undefined, src: "memo" });
+      const asList = typeof MemoCore !== "undefined" && MemoCore.looksLikeList(r.note);   // 6.2 备忘录里的「□ xxx」多行 → 清单，能一项项勾
+      mine.push({ id: "p" + stamp + "_m" + i, subject: r.subject, event_time: et, location: "", note: asList ? "" : r.note || "", list: asList ? MemoCore.listFromText(r.note) : undefined, done: !!r.done, kind: r.kind || undefined, src: "memo" });
       n++;
     });
     save(LS_MINE, mine);

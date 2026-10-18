@@ -143,6 +143,8 @@ class MemoPage(a: Main, private val initial: String) : Page(a) {
             val rec = jsonOf("id" to "p${stamp}_m$i", "subject" to r.subject, "event_time" to if (r.day.isEmpty()) "" else r.day + if (r.time.isNotEmpty()) " " + r.time else "",
                 "location" to r.place, "note" to r.note, "done" to r.done, "src" to "memo")
             if (r.hw) rec.put("kind", "作业")
+            // 6.2 备忘录里的「□ xxx」多行 → 清单，能一项项勾
+            if (com.laolao.classcalendar.core.MemoCore.looksLikeList(r.note)) { rec.put("list", com.laolao.classcalendar.core.MemoCore.toJson(com.laolao.classcalendar.core.MemoCore.listFromText(r.note))); rec.put("note", "") }
             Items.saveMine(rec)
         }
         a.toast("导入了 ${pick.size} 件 ✓")

@@ -550,7 +550,7 @@
           else { out.unsure.push({ text: raw, sender: msg.sender, why: "看不出是什么事", guess: day ? mk("通知") : null }); continue; }
         }
         function mk(tp) {
-          const summary = segT.length > 80 ? segT.slice(0, 79) + "…" : segT;
+          const summary = segT.slice(0, 1000);   // 6.2 不再截断成「……」，内容要完整
           return {
             msg_type: tp, subject: titleOf(segT, tp, course, loc), summary,
             event_time: day ? day + (time ? " " + time : "") : "", location: loc, prepare: findPrepare(segT),
@@ -739,7 +739,7 @@
     if (!Array.isArray(arr)) return null;
     return arr.filter((x) => x && typeof x === "object").map((x) => ({
       msg_type: TYPES4.includes(x.msg_type) ? x.msg_type : "通知",
-      subject: String(x.subject || "").slice(0, 60), summary: String(x.summary || "").slice(0, 300),
+      subject: String(x.subject || "").slice(0, 60), summary: String(x.summary || "").slice(0, 1000),
       event_time: /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?$/.test(x.event_time || "") ? x.event_time : "",
       location: String(x.location || "").slice(0, 60), prepare: String(x.prepare || "").slice(0, 100),
       original: String(x.original || "").slice(0, 1000), publish_date: pub, need_confirm: !!x.need_confirm || !x.event_time,

@@ -37,7 +37,7 @@ class ItemPage(a: Main, private val key: String) : Page(a) {
         tr.addView(ctx.chip(if (r.mine && !r.hw) "我的" else typeName(r.type), C.type(r.type), if (r.hw) C.dangerBg else C.mutedBg, 12.5f).apply { pad(8, 2) })
         tr.addView(ctx.text(if (r.mine) (if (r.local) "🔒 只存在这台手机" else "仅自己可见") else (Store.cls?.str("name") ?: "班级"), 12.5f, C.sub).apply { pad(8, 0) })
         c.addView(tr)
-        c.add(ctx.text(r.title, 21f, C.text, HEAVY), 10)
+        c.add(ctx.text((if (r.pin && !r.done) "📌 " else "") + r.title, 21f, C.text, HEAVY).apply { setTextIsSelectable(true) }, 10)
         if (r.needConfirm) c.add(ctx.text("⚠ 信息不完整，建议去群里核实", 13f, C.red).apply { bg(C.dangerBg, 8); pad(10, 6) }, 10)
         fun line(icon: String, s: String, color: Int = C.text) { if (s.isNotBlank()) c.add(ctx.row().apply { gravity = Gravity.TOP; addView(ctx.text(icon, 15f), LinearLayout.LayoutParams(dp(26), WRAP)); addView(ctx.text(s, 15f, color), LinearLayout.LayoutParams(0, WRAP, 1f)) }, 10) }
         if (r.dated) {
@@ -48,7 +48,20 @@ class ItemPage(a: Main, private val key: String) : Page(a) {
         line("📍", r.location)
         line("🎒", if (r.prepare.isNotBlank()) "要准备：" + r.prepare else "")
         line("📄", if (r.summary.isNotBlank() && r.summary != r.title) r.summary else "")
-        if (r.note.isNotBlank()) c.add(ctx.text("📝 " + r.note, 14.5f, C.text).apply { bg(C.noteBg, 10); pad(12, 9) }, 12)
+        // 6.2 备忘录：清单（一项项勾）、重复
+        if (r.list.isNotEmpty()) {
+            c.add(ctx.text("清单 " + com.laolao.classcalendar.core.MemoCore.statText(r.list), 13f, C.sub, SEMI), 14)
+            r.list.forEachIndexed { i, li ->
+                c.add(ctx.row().apply {
+                    gravity = Gravity.TOP; pad(2, 8, 2, 8); press(0, 8)
+                    addView(a.check(li.d) { _ -> val l = Items.toggleListItem(r.id, i); if (l.isNotEmpty() && l.all { it.d } && !r.done) a.toast("清单都勾完了 🎉"); render() }, LinearLayout.LayoutParams(dp(22), dp(22)).apply { rightMargin = dp(12) })
+                    addView(ctx.text(li.t, 15f, if (li.d) C.mutedText else C.text).apply { if (li.d) paintFlags = paintFlags or android.graphics.Paint.STRIKE_THRU_TEXT_FLAG }, LinearLayout.LayoutParams(0, WRAP, 1f))
+                    tap { val l = Items.toggleListItem(r.id, i); if (l.isNotEmpty() && l.all { it.d } && !r.done) a.toast("清单都勾完了 🎉"); render() }
+                }, 0)
+            }
+        }
+        if (r.rep.isNotEmpty()) line("🔁", com.laolao.classcalendar.core.MemoCore.repName(r.rep) + "重复" + (if (r.reps > 0) " · 已完成 ${r.reps} 次" else "") + "（勾完成会排到下一次）", C.sub)
+        if (r.note.isNotBlank()) c.add(ctx.text("📝 " + r.note, 14.5f, C.text).apply { bg(C.noteBg, 10); pad(12, 9); setTextIsSelectable(true) }, 12)
         body.addView(c)
 
         // 完成
@@ -60,6 +73,7 @@ class ItemPage(a: Main, private val key: String) : Page(a) {
         val ops = ctx.card(4, 18).apply { margins(t = 14) }
         if (r.mine) {
             ops.addView(ctx.cell("✏️", "编辑") { a.push(EditPage(a, r.key)) })
+            ops.addView(ctx.cell("📌", if (r.pin) "取消置顶" else "置顶", "一直显示在首页最上面") { a.toast(if (Items.togglePin(r.id)) "已置顶" else "已取消置顶"); render() })
             ops.addView(ctx.cell("🗑", "删除") { Dialogs.confirm(ctx, "删除「${r.title}」？", "", "删除", danger = true) { Items.deleteMine(r.id); a.toast("已删除"); close() } })
         } else {
             ops.addView(ctx.cell("📝", if (r.note.isBlank()) "加备注" else "改备注", "只有自己看得到") {
@@ -88,7 +102,7 @@ class ItemPage(a: Main, private val key: String) : Page(a) {
 
         if (r.original.isNotBlank() && !r.original.startsWith("（由")) {
             body.addView(ctx.section("原文", if (showOrig) "点这里收起" else "老师 / 群里的原话，点这里展开").apply { tap { showOrig = !showOrig; render() } })
-            if (showOrig) body.addView(ctx.text(r.original.take(2000), 14f, C.sub).apply { bg(C.card, 14, C.line); pad(14, 12); setTextIsSelectable(true) })
+            if (showOrig) body.addView(ctx.text(r.original, 14f, C.sub).apply { bg(C.card, 14, C.line); pad(14, 12); setTextIsSelectable(true) })
         }
     }
 

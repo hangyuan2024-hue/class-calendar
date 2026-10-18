@@ -26,6 +26,8 @@ class EditPage(a: Main, private val key: String?, private val homework: Boolean 
                private val classMode: Boolean = false, private val copyOf: String? = null) : Page(a) {
     private var fDay = ""; private var fTime = ""; private var fHw = homework; private var fLocal = false; private var fType = 0
     private var fPopup = false; private var popup0 = false
+    private var fRep = ""; private var fPin = false          // 6.2 备忘录：重复、置顶
+    private lateinit var listIn: EditText
     private lateinit var title: EditText
     private lateinit var summary: EditText
     private lateinit var place: EditText
@@ -44,7 +46,7 @@ class EditPage(a: Main, private val key: String?, private val homework: Boolean 
         return scaffold(name, save) { b ->
             if (src != null) {
                 fDay = src.day; fTime = src.time; fHw = src.hw
-                if (key != null && src.mine) { editingId = src.id; fLocal = src.local }
+                if (key != null && src.mine) { editingId = src.id; fLocal = src.local; fRep = src.rep; fPin = src.pin }
                 if (classMode) fType = maxOf(0, Items.TYPES.indexOf(src.type))
             } else { fDay = day ?: if (classMode || fHw) T.todayKey() else T.todayKey() }
             if (classMode) {
@@ -72,11 +74,22 @@ class EditPage(a: Main, private val key: String?, private val homework: Boolean 
             }
             else {
                 b.addView(label("备注", true))
-                note = ctx.input("想补充的话", key?.let { Items.mineRecord(src?.id ?: "")?.str("note") } ?: "", multi = true); b.addView(note)
+                // 6.2 改成我自己的版本：带上完整内容，不再只抄被截断的摘要
+                note = ctx.input("想写多少写多少（最多 5000 字）", key?.let { Items.mineRecord(src?.id ?: "")?.str("note") } ?: (if (copyOf != null) src?.full ?: "" else ""), multi = true).apply {
+                    filters = arrayOf<android.text.InputFilter>(android.text.InputFilter.LengthFilter(5000)) }
+                b.addView(note)
+                b.addView(label("清单", true))
+                listIn = ctx.input("每行一项，可以一项项勾，比如：\n买牛奶\n打印签到表", if (editingId != null) com.laolao.classcalendar.core.MemoCore.listToText(src?.list ?: emptyList()) else "", multi = true)
+                b.addView(listIn)
+                b.addView(label("重复"))
+                val reps = com.laolao.classcalendar.core.MemoCore.REPS
+                b.addView(Seg(ctx, reps.map { it.second }, maxOf(0, reps.indexOfFirst { it.first == fRep })) { fRep = reps[it].first })
                 val opts = ctx.card(2, 16).apply { margins(t = 16); pad(14, 2) }
                 opts.addView(Toggle(ctx, if (Store.work()) "这是一项任务" else "这是一项作业", "会出现在「${if (Store.work()) "任务" else "作业"}」里，截止前提醒你", fHw) { fHw = it })
                 opts.addView(ctx.hline())
                 opts.addView(Toggle(ctx, "只存在这台手机", "不同步到网页和小程序", fLocal) { fLocal = it })
+                opts.addView(ctx.hline())
+                opts.addView(Toggle(ctx, "📌 置顶", "一直显示在首页最上面", fPin) { fPin = it })
                 b.addView(opts)
             }
             b.add(ctx.button(if (classMode && key == null) "发布给全班" else "保存") { save() }, 22)
@@ -186,6 +199,16 @@ class EditPage(a: Main, private val key: String?, private val homework: Boolean 
         if (fLocal) rec.put("local", true) else rec.put("local", false)
         if (copyOf != null && editingId == null) { rec.put("from", copyOf); Items.setMark(copyOf, jsonOf("hidden" to true)) }
         if (editingId == null) rec.put("done", false)
+        // 6.2 清单（原来勾过的保留）；备忘录粘进备注的「□ xxx」多行自动变成清单；重复、置顶
+        val MC = com.laolao.classcalendar.core.MemoCore
+        var lt = listIn.text.toString()
+        if (lt.isBlank() && MC.looksLikeList(rec.str("note"))) { lt = rec.str("note"); rec.put("note", "") }
+        val old = editingId?.let { Items.mineRecord(it) }?.let { MC.listOf(it) } ?: emptyList()
+        val ls = MC.listFromText(lt, old)
+        if (ls.isNotEmpty()) rec.put("list", MC.toJson(ls)) else if (editingId != null) rec.put("list", org.json.JSONArray())
+        rec.put("rep", fRep)
+        if (fPin) rec.put("pin", true) else rec.put("pin", false)
+        if (fRep.isNotEmpty() && rec.str("event_time").isEmpty()) rec.put("event_time", T.todayKey())   // 重复的事要有起始日期
         Items.saveMine(rec)
         a.toast(if (editingId != null) "已保存" else "记好了 ✓")
         close()

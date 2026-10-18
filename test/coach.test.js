@@ -39,20 +39,29 @@ const ok = (s) => console.log("✓ " + s);
 {
   const ranked = [
     { kind: "item", key: "hw", title: "高数作业", type: "作业", level: "urgent", score: 60, reason: "还剩 3 小时" },
-    { kind: "item", key: "meet", title: "班会", type: "会议", level: "soon", score: 30, reason: "2 天后开始" },
+    { kind: "item", key: "words", title: "背单词", type: "个人", level: "soon", score: 30, reason: "还剩 2 天" },
+    { kind: "item", key: "meet", title: "班会", type: "会议", level: "soon", score: 80, reason: "2 天后开始" },
+    { kind: "item", key: "conf", title: "26年换届暨总结表彰大会", type: "个人", time: "12:30", location: "中快三楼", level: "soon", score: 90, reason: "1 天后开始" },
+    { kind: "item", key: "talk", title: "讲座", type: "活动", time: "19:20", level: "soon", score: 85, reason: "1 天后开始" },
   ];
   const m = C.combine([]);
   const s = C.suggest({ now, ranked, model: m, log: [], rnd: 0.9 });
   assert.strictEqual(s.mode, "go"); assert.strictEqual(s.top.key, "hw"); assert.ok(s.top.step.includes("番茄"));
   const s2 = C.suggest({ now, ranked, model: m, log: [], skip: { hw: now.getTime() + 3600000 }, rnd: 0.9 });
-  assert.strictEqual(s2.top.key, "meet");
+  assert.strictEqual(s2.top.key, "words");
+  assert.ok(!s.alts.some((a) => a.key === "meet" || a.key === "conf" || a.key === "talk"));
+  const onlyMeet = C.suggest({ now, ranked: ranked.slice(2), model: m, log: [], rnd: 0.9 });
+  assert.strictEqual(onlyMeet.mode, "free");   // 只剩会议 / 讲座：不推荐它们，改成番茄复习
+  assert.ok(C.doable({ kind: "item", title: "讲座报名", type: "通知", time: "12:00" }));
+  assert.ok(C.doable({ kind: "item", title: "答辩PPT", type: "个人", time: "20:00" }));
+  assert.ok(!C.doable({ kind: "item", title: "牙医", type: "个人", time: "09:30" }));
   const night = C.suggest({ now: new Date(2026, 9, 17, 23, 30), ranked: [ranked[1]], model: m, log: [], rnd: 0.9 });
   assert.strictEqual(night.mode, "sleep");
   const tired = C.suggest({ now, ranked: [ranked[1]], model: m, log: [{ t: now.getTime() - 3000000, e: "pomo", m: 50 }, { t: now.getTime() - 1500000, e: "pomo", m: 25 }], rnd: 0.9 });
   assert.strictEqual(tired.mode, "rest");
   const cls = C.suggest({ now, ranked: [{ kind: "course", key: "c", title: "线代", level: "now", score: 96, reason: "正在上课" }].concat(ranked), model: m, log: [], rnd: 0.9 });
   assert.strictEqual(cls.mode, "class");
-  ok("推荐：最急的先做、换一个、深夜劝睡、专注太久劝休息、上课时不打扰");
+  ok("推荐：最急的先做、换一个、会议讲座不推荐、深夜劝睡、专注太久劝休息、上课时不打扰");
 }
 // 4. 说法会学：哪种提示被接受得多就多用
 {
@@ -89,6 +98,7 @@ const ok = (s) => console.log("✓ " + s);
     { kind: "item", key: "b", title: "英语单词", type: "个人", level: "later", score: 50 },
     { kind: "item", key: "c", title: "物理小测", type: "个人", exam: true, level: "later", score: 40 },
     { kind: "item", key: "z", title: "过期的", level: "past", score: 99 },
+    { kind: "item", key: "m", title: "表彰大会", type: "个人", time: "12:30", level: "soon", score: 95 },
   ];
   const d = C.deck({ now, ranked, skip: { b: now.getTime() + 1000 } });
   const ks = d.cards.map((c) => c.kind + (c.min || "") + (c.key || "")).join(",");

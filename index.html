@@ -442,6 +442,23 @@
   .item .sum { color: var(--sub); }
   .meta { color: var(--sub); font-size: 12px; margin-top: 4px; }
   .note { font-size: 12px; margin-top: 6px; background: var(--note-bg); border-radius: 8px; padding: 4px 8px; }
+  /* 6.2 内容完整 + 备忘录：清单、重复、置顶、搜索 */
+  .note, details .orig, .item .sum { white-space: pre-wrap; word-break: break-word; }
+  .note { line-height: 1.6; padding: 6px 10px; }
+  .mlist { margin-top: 8px; display: flex; flex-direction: column; gap: 2px; }
+  .mli { display: flex; align-items: flex-start; gap: 8px; text-align: left; background: none; border: 0; padding: 4px 2px; font: inherit; font-size: 13px; color: var(--text); cursor: pointer; border-radius: 6px; }
+  .mli:hover { background: var(--hover); }
+  .mli .mcb { flex: none; width: 16px; height: 16px; margin-top: 1px; border: 2px solid var(--gray); border-radius: 4px; display: grid; place-items: center; font-size: 11px; color: #fff; }
+  .mli.on .mcb { background: var(--green); border-color: var(--green); }
+  .mli.on .mlt { text-decoration: line-through; color: var(--muted-text); }
+  .mlt { white-space: pre-wrap; word-break: break-word; }
+  .mtag { display: inline-block; font-size: 11px; padding: 0 6px; margin-right: 6px; border-radius: 999px; background: var(--muted-bg); color: var(--sub); line-height: 18px; }
+  .mtag.ok { background: var(--selected); color: var(--green); }
+  .asearch { margin: 2px 0 10px; }
+  .asearch input { width: 100%; box-sizing: border-box; padding: 8px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--muted-bg); color: var(--text); font: inherit; font-size: 13px; }
+  .msnip { color: var(--sub); }
+  .memo-toast { position: fixed; left: 50%; bottom: 90px; transform: translate(-50%, 20px); background: rgba(20,28,40,.92); color: #fff; padding: 10px 16px; border-radius: 12px; font-size: 13px; opacity: 0; pointer-events: none; transition: .25s; z-index: 9999; max-width: calc(100vw - 40px); }
+  .memo-toast.on { opacity: 1; transform: translate(-50%, 0); }
   details { margin-top: 6px; font-size: 12px; color: var(--sub); } details summary { cursor: pointer; }
   .ops { margin-top: 6px; display: flex; gap: 2px; flex-wrap: wrap; margin-left: -8px; }
   .warn { color: #e08600; font-size: 12px; margin-top: 4px; }
@@ -2562,7 +2579,12 @@
       <div><label>地点 <input id="fLoc" maxlength="60"></label></div>
       <div><label>放进时间管理 <select id="fQuad"><option value="">自动判断</option><option value="1">🔴 重要且紧急</option><option value="2">🔵 重要不紧急</option><option value="3">🟡 紧急不重要</option><option value="4">⚪ 不重要不紧急</option></select></label></div>
     </div>
-    <label>备注 <textarea id="fNote" rows="3" maxlength="500"></textarea></label>
+    <label>备注 <textarea id="fNote" rows="4" maxlength="5000" placeholder="想写多少写多少，最多 5000 字"></textarea></label>
+    <label>清单（每行一项，可以一项项勾） <textarea id="fList" rows="3" maxlength="8000" placeholder="例如：&#10;买牛奶&#10;打印签到表&#10;✓ 已经做完的，行首加 ✓"></textarea></label>
+    <div class="row">
+      <div><label>重复 <select id="fRep"><option value="">不重复</option><option value="day">每天</option><option value="weekday">工作日（周一到周五）</option><option value="week">每周</option><option value="month">每月</option><option value="year">每年</option></select></label></div>
+      <div><label class="check" style="margin-top:26px"><input type="checkbox" id="fPin"> 📌 置顶（一直显示在首页最上面）</label></div>
+    </div>
     <div class="fatt" id="fAtt"></div>
     <label class="check hidden" id="fLocalWrap"><input type="checkbox" id="fLocal"> 🔒 只存在这台设备（不同步到云端）</label>
     <div class="btns">
@@ -2633,26 +2655,27 @@
 <script src="config.js"></script>
 <script src="auth.js?v=20261015-v572"></script>
 <script src="org.js?v=20261008-org1"></script>
-<script src="parse.js"></script>
+<script src="parse.js?v=20261018-v62"></script>
+<script src="memo-core.js?v=20261018-v62"></script>
 <script src="course-image.js?v=20261014-v540"></script>
 <script src="courses.js?v=20261015-v571"></script>
 <script src="farm.js?v=20261009-tz1"></script>
 <script src="metaverse-v3.js?v=20261005-native3"></script>
 <script src="nextclass.js?v=20261017-v590"></script>
-<script src="app.js?v=20261018-v593"></script>
+<script src="app.js?v=20261018-v62"></script>
 <script src="extras.js?v=20261017-v592"></script>
 <script src="campus-tools.js?v=20261006-tools1"></script>
 <script src="workspace-v3.js?v=20261005-native3"></script>
 <script src="island-core.js?v=20261017-v591"></script>
 <script src="island.js?v=20261017-v591"></script>
-<script src="coach-core.js?v=20261018-v594"></script>
+<script src="coach-core.js?v=20261018-v62"></script>
 <script src="flow-ui.js?v=20261018-v594"></script>
 <script src="coach-ui.js?v=20261018-v594"></script>
 <script src="study.js?v=20261009-kn2"></script>
 <script src="mindmap.js?v=20261009-mm1"></script>
 <script src="ux.js?v=20261011-kn1"></script>
 <script src="memo.js?v=20261016-v580"></script>
-<script src="memo-ui.js?v=20261017-v590"></script>
+<script src="memo-ui.js?v=20261018-v62"></script>
 <script src="nextclass-ui.js?v=20261017-v590"></script>
 <script src="hwplus.js?v=20261016-v580"></script>
 <script src="teacher.js?v=20261016-v581"></script>
