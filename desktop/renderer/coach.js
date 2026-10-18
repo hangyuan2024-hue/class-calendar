@@ -102,14 +102,14 @@ const Coach59 = {
         ${m.sus ? `<div class="cc-li muted">🧐 最近有 ${m.sus} 次一口气勾了好几件、或者勾了又马上取消，这些只算了一部分。做完一件勾一件，记录才准。</div>` : ""}` : `<p class="muted">捞捞教练还没打开。</p>`}
         ${window.FlowUI ? `<button class="cc-more" data-cc="book">🎁 捞捞的收藏 ${CoachCore.owned(CoachCore.mergeBag(this.bag(), [], now))}/${CoachCore.LOOT.length} ›</button>` : ""}
         <div class="cc-sub">设置</div>
-        <label class="row" style="gap:8px;padding:4px 0"><input type="checkbox" data-cco="coach"${on ? " checked" : ""}> 打开捞捞教练</label>
-        <label class="row" style="gap:8px;padding:4px 0"><input type="checkbox" data-cco="coach_notify"${this.opt("notify", true) ? " checked" : ""}> 到合适的时候用系统通知提醒（一天最多 3 条，23 点到 7 点不打扰）</label>
-        <label class="row" style="gap:8px;padding:4px 0"><input type="checkbox" data-cco="coach_lao"${this.opt("lao", true) ? " checked" : ""}> 让捞捞说教练的话</label>
+        ${[["coach", "打开捞捞教练", "关掉后不再记录，今天页也不显示教练卡片", on], ["coach_notify", "到合适的时候用系统通知提醒", "一天最多 3 条，23 点到 7 点不打扰", this.opt("notify", true)], ["coach_lao", "让捞捞说教练的话", "", this.opt("lao", true)]]
+          .filter((x, i) => i === 0 || on).map(([k, t, sub, v]) => `<div class="row cc-setr" style="gap:12px;padding:8px 0;align-items:center"><div class="grow"><div>${t}</div>${sub ? `<small class="muted">${sub}</small>` : ""}</div><button class="switch${v ? " on" : ""}" data-cco="${k}" role="switch" aria-checked="${!!v}" title="${t}"></button></div>`).join("")}
         <div class="cc-sub">数据怎么用</div>
         <div class="cc-li muted">🔒 几点完成了哪件事这些原始记录只存在这台电脑，最多保留 60 天，不上传。<br>☁ 跟着账号同步的只有统计数字（每个钟点的活跃度、每天完成几件、哪种提醒有用），没有标题和内容。<br>👥 「刷任务」时班里只能看到有几个人在专注、全班专注了多少分钟，看不到是谁、在做什么。<br>🧠 所有计算都在这台电脑上完成，不用大模型，不发给任何第三方。</div>
       </div>
       <div class="dfoot"><button type="button" class="btn danger" data-a="clear">清空学到的数据</button><span class="grow"></span><button type="button" class="btn primary" data-a="close">好的</button></div></div>`);
-    d.onchange = async (e) => { const k = e.target.dataset.cco; if (!k) return; await call("settings", { [k]: e.target.checked, coach_asked: true }); this.logAt = 0; this.plan(true); this.render(); };
+    // 6.3 设置用和「设置」页一样的开关（原来是小勾选框）
+    d.addEventListener("click", async (e) => { const b = e.target.closest("button.switch[data-cco]"); if (!b) return; const v = !b.classList.contains("on"); b.classList.toggle("on", v); await call("settings", { [b.dataset.cco]: v, coach_asked: true }); this.logAt = 0; this.plan(true); this.render(); });
     d.onclick = async (e) => {
       const a = e.target.closest("[data-a]"); if (!a) return;
       if (a.dataset.a === "close") closeOverlay();

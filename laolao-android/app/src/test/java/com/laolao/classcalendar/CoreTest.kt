@@ -176,8 +176,21 @@ class CoreTest {
         assertTrue(Island.isDue("通知", "今天晚上需要上晚自习，并且在6:30之前完成钉钉位置签到"))
         assertTrue(!Island.isDue("会议", "班会"))
         val ev = org.json.JSONObject().put("on", true).put("name", "晚自习").put("days", org.json.JSONArray(listOf(0, 1, 2, 3, 4))).put("t0", "18:30").put("t1", "21:00")
-        assertEquals(1, Island.evening("2026-10-19", ev).size)
-        assertEquals(0, Island.evening("2026-10-18", ev).size)
+        assertEquals(1, Island.evening("2026-10-19", ev, emptyList()).size)
+        assertEquals(0, Island.evening("2026-10-18", ev, emptyList()).size)
+        // 跟着调休：放假没有、周六上周三的课就有、停课写了晚自习那天没有
+        val adj = listOf(org.json.JSONObject().put("date", "2026-10-19").put("type", "off"), org.json.JSONObject().put("date", "2026-10-24").put("type", "swap").put("from", "2026-10-21"),
+            org.json.JSONObject().put("date", "2026-10-22").put("type", "cancel").put("name", "晚自习"))
+        assertEquals(listOf(0, 1, 0, 1), listOf("2026-10-19", "2026-10-24", "2026-10-22", "2026-10-23").map { Island.evening(it, ev, adj).size })
+        assertTrue(Island.evening("2026-10-23", ev, adj)[0].study)
+        // 晚自习（催我写作业）：教练推荐作业；设成别打扰就是上课模式
+        val eveRow = Island.Row("course", "course:晚自习", "晚自习", "课程", "2026-10-20", "18:30", "", "now", false, 96.0, "", "正在上课", evening = true, study = true)
+        val words = Island.Row("item", "w", "背单词", "个人", "2026-10-21", "", "", "soon", false, 70.0, "", "")
+        val dm = Island.Row("item", "h", "离散数学", "作业", "2026-10-22", "", "", "soon", false, 60.0, "", "")
+        val t19 = java.time.LocalDateTime.of(2026, 10, 20, 19, 0).atZone(java.time.ZoneId.of("Asia/Shanghai")).toInstant().toEpochMilli()
+        val sg = Coach.suggest(listOf(eveRow, words, dm), Coach.combine(emptyList()), emptyList(), t19, rnd = 0.9)
+        assertEquals("go", sg.mode); assertEquals("h", sg.top!!.key); assertTrue(sg.say.contains("晚自习"))
+        assertEquals("class", Coach.suggest(listOf(Island.Row("course", "course:晚自习", "晚自习", "课程", "2026-10-20", "18:30", "", "now", false, 96.0, "", "", evening = true, study = false), dm), Coach.combine(emptyList()), emptyList(), t19, rnd = 0.9).mode)
         val busy = Island.Row("item", "zx", "党课", "活动", "2026-10-18", "19:00", "", "now", false, 125.0, "", "进行中")
         val hw = Island.Row("item", "hw", "离散数学", "作业", "2026-10-20", "", "", "soon", false, 60.0, "", "还剩 2 天")
         assertEquals("class", Coach.suggest(listOf(busy, hw), Coach.combine(emptyList()), emptyList(), System.currentTimeMillis(), rnd = 0.9).mode)   // 进行中的会：不催作业（比深夜判断还先）

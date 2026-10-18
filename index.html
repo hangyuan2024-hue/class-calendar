@@ -1176,6 +1176,7 @@
   .eve .row { display: flex; gap: 10px; } .eve .row label { flex: 1; }
   .eve-days { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 8px; } .eve-days label { margin-top: 0; }
   .eve .btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+  .eve-mode { margin-top: 12px; font-size: 13px; } .eve-mode label { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; margin-top: 6px; } .eve-mode small { color: var(--sub); font-size: 12px; flex-basis: 100%; padding-left: 22px; }
   .cdlg form { max-height: calc(100vh - 60px); overflow: auto; }
   .cdrop { border: 2px dashed var(--line); border-radius: 16px; padding: 22px; text-align: center; cursor: pointer; background: var(--muted-bg); }
   .cdrop.over, .cdrop:focus { border-color: var(--accent); outline: none; }
@@ -1869,7 +1870,21 @@
   .cc-flow b { font-size: 16px; } .cc-flow small { opacity: .85; font-size: 12px; }
   .cc-more { display: block; width: 100%; text-align: left; margin-top: 8px; padding: 8px 0 2px; border: 0; background: none; color: var(--accent); font-weight: 700; font-size: 13px; cursor: pointer; }
   .cc-ask p { color: var(--sub); font-size: 13px; line-height: 1.6; margin: 6px 0 0; }
-  .cc-dlg { width: min(520px, calc(100vw - 24px)); } .cc-dlgb { padding: 20px 20px 18px; max-height: 84vh; overflow: auto; }
+  .cc-dlg { width: min(520px, calc(100vw - 24px)); }
+  /* 6.3 教练设置：真正的开关（原来是个小勾选框），右上角 ✕ 关窗口（原来写着「关闭」，容易当成关掉教练） */
+  .cc-dh { display: flex; align-items: center; justify-content: space-between; gap: 8px; } .cc-dh h3 { margin: 0; }
+  .cc-x { width: 32px; height: 32px; border-radius: 50%; border: 0; background: var(--muted-bg); color: var(--sub); font-size: 15px; cursor: pointer; flex: none; } .cc-x:hover { background: var(--hover); color: var(--text); }
+  .cc-set { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; margin-top: 6px; }
+  .cc-set .gi { cursor: pointer; } .cc-st { flex: 1; min-width: 0; display: flex; flex-direction: column; } .cc-st small { color: var(--sub); font-size: 12px; margin-top: 2px; }
+  .cc-sw { appearance: none; -webkit-appearance: none; flex: none; width: 44px; height: 26px; border-radius: 999px; background: var(--line); position: relative; cursor: pointer; transition: background .2s; margin: 0; }
+  .cc-sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: transform .2s; }
+  .cc-sw:checked { background: var(--accent); } .cc-sw:checked::after { transform: translateX(18px); }
+  .cc-sw:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  /* 弹窗里的通用表单样式（label 竖排、input 占满一行）别套到开关上 */
+  .cc-dlg .cc-set label.gi { display: flex; flex-direction: row; align-items: center; gap: 12px; margin: 0; padding: 14px 16px; text-align: left; font-weight: 400; }
+  .cc-dlg .cc-set .gi .ic { flex: none; width: 22px; text-align: center; }
+  .cc-dlg .cc-set .cc-st { text-align: left; align-items: flex-start; font-size: 14.5px; color: var(--text); } .cc-dlg .cc-set .cc-st small { display: block; text-align: left; align-self: flex-start; margin: 2px 0 0; padding: 0; width: auto; }
+  .cc-dlg .cc-set input.cc-sw { flex: none; width: 44px; min-width: 44px; max-width: 44px; height: 26px; min-height: 0; padding: 0; margin: 0; border: 0; border-radius: 999px; box-shadow: none; } .cc-dlgb { padding: 20px 20px 18px; max-height: 84vh; overflow: auto; }
   .cc-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }
   .cc-stats div { padding: 12px 8px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); text-align: center; }
   .cc-stats b { display: block; font-size: 24px; color: var(--accent); } .cc-stats small { color: var(--sub); }
@@ -2668,19 +2683,19 @@
 <script src="memo-core.js?v=20261018-v63"></script>
 <script src="docx-text.js?v=20261018-v63"></script>
 <script src="course-image.js?v=20261014-v540"></script>
-<script src="courses.js?v=20261018-v63"></script>
+<script src="courses.js?v=20261018-v64"></script>
 <script src="farm.js?v=20261009-tz1"></script>
 <script src="metaverse-v3.js?v=20261005-native3"></script>
 <script src="nextclass.js?v=20261017-v590"></script>
-<script src="app.js?v=20261018-v63"></script>
+<script src="app.js?v=20261018-v64"></script>
 <script src="extras.js?v=20261017-v592"></script>
 <script src="campus-tools.js?v=20261006-tools1"></script>
 <script src="workspace-v3.js?v=20261005-native3"></script>
-<script src="island-core.js?v=20261018-v63"></script>
-<script src="island.js?v=20261018-v63"></script>
-<script src="coach-core.js?v=20261018-v63"></script>
+<script src="island-core.js?v=20261018-v64"></script>
+<script src="island.js?v=20261018-v64"></script>
+<script src="coach-core.js?v=20261018-v64"></script>
 <script src="flow-ui.js?v=20261018-v594"></script>
-<script src="coach-ui.js?v=20261018-v594"></script>
+<script src="coach-ui.js?v=20261018-v64"></script>
 <script src="study.js?v=20261009-kn2"></script>
 <script src="mindmap.js?v=20261009-mm1"></script>
 <script src="ux.js?v=20261011-kn1"></script>

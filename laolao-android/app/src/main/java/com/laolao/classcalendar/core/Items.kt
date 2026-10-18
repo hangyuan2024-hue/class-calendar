@@ -61,11 +61,17 @@ object Items {
             list = MemoCore.listOf(r), rep = MemoCore.repName(r.str("rep")).let { if (it.isEmpty()) "" else r.str("rep") }, reps = r.optInt("reps", 0), pin = r.optBoolean("pin"))
     }
     fun lessonsAsItems(a: String, b: String): List<Item> {
-        if (!Store.feat("courses") || !Courses.has()) return emptyList()
+        val hasC = Store.feat("courses") && Courses.has()
+        val evOn = (Kv.get("evening_v1") as? JSONObject)?.optBoolean("on") == true
+        if (!hasC && !evOn) return emptyList()
         val out = mutableListOf<Item>()
+        val adj = try { Courses.adjList() } catch (_: Exception) { emptyList() }
         var k = a; var guard = 0
         while (k <= b && guard++ < 400) {
-            for (c in Courses.on(k)) out += Item("crs_${c.name}_${c.start}_$k", "", "课程", c.name + if (c.add) "（加课）" else if (c.from.isNotEmpty()) "（调课）" else "",
+            // 6.3 晚自习：和课一样显示在「接下来的安排」和日历里，跟着调课 / 调休走
+            if (evOn) for (e in Island.evening(k, adj = adj)) out += Item("eve_$k", "", "课程", "🌙 " + e.name, "${e.t0}-${e.t1}" + (if (e.study) " · 写作业时间" else "") + (if (e.location.isNotEmpty()) " · ${e.location}" else ""),
+                k, e.t0, e.location, "", "", "", false, false, false, true, 0xFF7C5CFF.toInt(), endTime = e.t1)
+            if (hasC) for (c in Courses.on(k)) out += Item("crs_${c.name}_${c.start}_$k", "", "课程", c.name + if (c.add) "（加课）" else if (c.from.isNotEmpty()) "（调课）" else "",
                 "第${c.start}-${c.end}节" + (if (c.t0.isNotEmpty()) " ${c.t0}-${c.t1}" else "") + (if (c.location.isNotEmpty()) " · ${c.location}" else ""),
                 k, c.t0, c.location, "", "", "", false, false, false, true, Courses.color(c.name), endTime = c.t1)
             k = T.addDays(k, 1)

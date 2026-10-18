@@ -170,7 +170,9 @@ object Coach {
         val night = h >= 23 || h < 5; val late = h >= 22
         val focusMin = credible(log).filter { (it.y == "pomo" || it.y == "flow") && nowMs - it.t < 2 * H }.sumOf { if (it.m > 0) it.m else 25 }
         fun sug(mode: String, top: Pick?, say: String, style: String = "", alts: List<Pick> = emptyList()) = Sug(mode, top, say, style, alts, st, g, best, m.sus)
-        ranked.firstOrNull { it.kind == "course" && it.level == "now" }?.let { return sug("class", Pick("course", it.key, it.title, reason = it.reason, step = "专心听讲，有作业记得随手记下来"), "正在上「${it.title}」，手机先放一放 📚") }
+        // 6.3 晚自习（设成「催我写作业」）：正好写作业，不进上课模式，作业排前面
+        val study = ranked.firstOrNull { it.kind == "course" && it.level == "now" && it.evening && it.study }
+        ranked.firstOrNull { it.kind == "course" && it.level == "now" && !(it.evening && it.study) }?.let { return sug("class", Pick("course", it.key, it.title, reason = it.reason, step = "专心听讲，有作业记得随手记下来"), "正在上「${it.title}」，手机先放一放 📚") }
         // 6.3 正在开会、上晚自习、参加活动：也别催作业
         busyNow(ranked)?.let { return sug("class", Pick("course", it.key, it.title, reason = it.reason, step = "专心把这件事做好，结束了再来"), "正在「${it.title}」，专心一点，结束了再来 📌") }
         val cands = ranked.filter { it.kind == "item" && it.level != "past" && doable(it) && (skip[it.key] ?: 0L) <= nowMs }
@@ -178,6 +180,8 @@ object Coach {
             return sug("sleep", null, if (st.today >= 1) "今天已经完成 ${fmt(st.today)} 件，够了！早点睡，明天接着来 🌙" else "夜深了，明天再做，睡饱了效率更高 🌙")
         if (focusMin >= 75 && cands.none { it.level == "late" || it.level == "now" })
             return sug("rest", null, "已经专注 $focusMin 分钟了，起来走走、喝口水，10 分钟后再继续 🍵")
+        if (cands.isEmpty() && study != null)
+            return sug("free", Pick("pomo", "pomo", "专注 25 分钟", reason = "晚自习时间", step = "挑一门最近吃力的课，复习 25 分钟"), "「${study.title}」时间，作业都做完了？来一个番茄复习一下 📖")
         if (cands.isEmpty())
             return sug("free", Pick("pomo", "pomo", "专注 25 分钟", reason = "没有急事的时候最适合提前学", step = "挑一门最近吃力的课，复习 25 分钟"),
                 if (g.met) "今天的小目标完成了 🎉 剩下的时间留给自己" else "手头没有要赶的事，来一个番茄，预习或者复习一下？")
@@ -187,6 +191,7 @@ object Coach {
             var s = x.score * fit
             if (late && !(x.level == "late" || x.level == "urgent")) s *= 0.4
             if (x.exam) s *= 1.1
+            if (study != null && (x.type == "作业" || x.exam)) s *= 1.5   // 晚自习：作业、复习排前面
             x to s
         }.sortedByDescending { it.second }
         val top = scored[0].first
@@ -195,7 +200,7 @@ object Coach {
         if (st.days >= 2) styles += "streak"
         if (g.done > 0 && !g.met) styles += "progress"
         val style = pickStyle(m, styles, rnd)
-        return sug("go", Pick("item", top.key, top.title, top.type, top.reason, stepFor(top), top.level), sayFor(style, top, st, g, best, h), style,
+        return sug("go", Pick("item", top.key, top.title, top.type, top.reason, stepFor(top), top.level), if (study != null) "正在「${study.title}」，正好把「${top.title}」写了 ✍️" else sayFor(style, top, st, g, best, h), style,
             scored.drop(1).take(2).map { Pick("item", it.first.key, it.first.title, reason = it.first.reason) })
     }
     private fun stepFor(x: Island.Row): String = when {

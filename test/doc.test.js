@@ -25,5 +25,20 @@ const ok = (s) => console.log("✓ " + s);
   const ranked = I.rank([], I.withEvening([], ev, "2026-10-19").map((c) => ({ ...c, day: "2026-10-19" })), new Date(2026, 9, 19, 19, 0));
   assert.strictEqual(ranked[0].level, "now");
   ok("晚自习：选中的那几天到点算「上课中」");
+  // 4. 晚自习跟着调休走：放假没有；周六上周三的课 → 周六也有；停课写了「晚自习」那天没有
+  const adj = [{ date: "2026-10-19", type: "off" }, { date: "2026-10-24", type: "swap", from: "2026-10-21" }, { date: "2026-10-22", type: "cancel", name: "晚自习" }];
+  assert.strictEqual(I.evening(ev, "2026-10-19", adj).length, 0);
+  assert.strictEqual(I.evening(ev, "2026-10-24", adj).length, 1);
+  assert.strictEqual(I.evening(ev, "2026-10-22", adj).length, 0);
+  assert.strictEqual(I.evening(ev, "2026-10-23", adj).length, 1);
+  ok("晚自习跟着调课 / 调休：放假、换课、停课");
+  // 5. 晚自习默认「催我写作业」：教练照样推荐、作业排前面；设成「别打扰」就进上课模式
+  const C = require("../coach-core.js"), at = new Date(2026, 9, 20, 19, 0);
+  const items = [{ key: "a", title: "背单词", type: "个人", day: "2026-10-21" }, { key: "h", title: "离散数学", type: "作业", day: "2026-10-22" }];
+  const sug = (e) => C.suggest({ now: at, ranked: I.rank(items, I.withEvening([], e, "2026-10-20").map((c) => ({ ...c, day: "2026-10-20" })), at), model: C.combine([]), log: [], rnd: 0.9 });
+  const s1 = sug(ev); assert.strictEqual(s1.mode, "go"); assert.strictEqual(s1.top.key, "h"); assert.ok(s1.say.includes("晚自习"), s1.say);
+  assert.strictEqual(sug({ ...ev, study: false }).mode, "class");
+  assert.ok(C.deck({ now: at, ranked: I.rank(items, I.withEvening([], ev, "2026-10-20").map((c) => ({ ...c, day: "2026-10-20" })), at) }).cards.length > 0);
+  ok("晚自习默认催写作业（作业排前面、刷任务照样能刷），设成「别打扰」就不打扰");
   console.log("文档导入 / 晚自习：全部通过");
 })().catch((e) => { console.error("✗", e); process.exit(1); });

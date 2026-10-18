@@ -6,7 +6,8 @@ import java.time.LocalDate
 
 /** 一节课（某一天的） */
 data class Lesson(val name: String, val start: Int, val end: Int, val t0: String, val t1: String, val location: String, val teacher: String,
-                  val week: Int, val add: Boolean = false, val from: String = "") {
+                  val week: Int, val add: Boolean = false, val from: String = "",
+                  val evening: Boolean = false, val study: Boolean = false) {   // 6.3 晚自习：evening；study = 晚自习时催写作业
     val m0: Int? get() = T.min(t0)
     val m1: Int? get() = T.min(t1) ?: m0?.plus(45)
 }

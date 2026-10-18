@@ -75,16 +75,22 @@
   }
 
   // ---------- 6.3 晚自习（课程表里设置；跟着账号同步，键 evening_v1） ----------
-  // ev：{ on: true, name: "晚自习", days: [0..6]（0 = 周一）, t0: "18:30", t1: "21:00", location }
-  // 返回这一天要加进「今天的课」里的那一节（当成课：到点「上课中」，教练和捞捞都不打扰），没有就是 []
-  function evening(ev, k) {
+  // ev：{ on: true, name: "晚自习", days: [0..6]（0 = 周一）, t0: "18:30", t1: "21:00", location, study: true }
+  //   study（默认 true）：晚自习就是写作业的时间，教练照样推荐、还会更催作业；false = 这段时间别打扰
+  // adj：课程表的调课 / 调休记录（和课程一样）：放假那天没有；「这天上周三的课」就按周三算；「停课」写了晚自习的名字那天也没有
+  // 返回这一天要加进「今天的课」里的那一节（到点「上课中」），没有就是 []
+  function evening(ev, k, adj) {
     if (!ev || !ev.on || !/^\d{1,2}:\d{2}$/.test(ev.t0 || "") || !/^\d{1,2}:\d{2}$/.test(ev.t1 || "") || ev.t1 <= ev.t0) return [];
-    var wd = (fromKey(k).getDay() + 6) % 7;
+    var name = String(ev.name || "晚自习").slice(0, 20);
+    var on = (adj || []).filter(function (a) { return a && a.date === k; });
+    if (on.some(function (a) { return a.type === "off" || (a.type === "cancel" && String(a.name || "").trim() === name); })) return [];
+    var sw = on.filter(function (a) { return a.type === "swap" && /^\d{4}-\d{2}-\d{2}$/.test(a.from || ""); })[0];
+    var wd = (fromKey(sw ? sw.from : k).getDay() + 6) % 7;
     if ((ev.days || []).map(Number).indexOf(wd) < 0) return [];
-    return [{ id: "evening", name: String(ev.name || "晚自习").slice(0, 20), t0: ev.t0, t1: ev.t1, location: String(ev.location || "").slice(0, 40), start: 90, end: 90, teacher: "", evening: true }];
+    return [{ id: "evening", name: name, t0: ev.t0, t1: ev.t1, location: String(ev.location || "").slice(0, 40), start: 90, end: 90, teacher: "", evening: true, study: ev.study !== false }];
   }
-  function withEvening(list, ev, k) {
-    var e = evening(ev, k); if (!e.length) return list || [];
+  function withEvening(list, ev, k, adj) {
+    var e = evening(ev, k, adj); if (!e.length) return list || [];
     return (list || []).filter(function (c) { return !c.evening; }).concat(e);
   }
 
@@ -143,7 +149,7 @@
       if (toEnd <= 0) return;
       var on = toStart <= 0, score = on ? 96 : toStart <= 180 ? 110 / (1 + toStart / 60) : 0;
       if (!score) return;
-      out.push({ kind: "course", key: "course:" + c.name + c.t0, title: c.name, type: "课程", day: t, time: c.t0, location: c.location || "",
+      out.push({ kind: "course", key: "course:" + c.name + c.t0, title: c.name, type: "课程", day: t, time: c.t0, location: c.location || "", evening: !!c.evening, study: !!c.study,
         mins: toStart, level: on ? "now" : toStart <= 20 ? "urgent" : "soon", score: Math.round(score * 10) / 10,
         when: c.t0 + "–" + (c.t1 || ""), reason: on ? "正在上课 · 还有 " + Math.round(toEnd) + " 分钟下课" : Math.round(toStart) + " 分钟后上课" });
     });

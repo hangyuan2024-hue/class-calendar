@@ -138,7 +138,7 @@
     const hours = []; for (let i = 7; i <= 23; i++) hours.push(i);
     const max = Math.max(0.0001, ...hours.map((i) => m.h[i]));
     d.innerHTML = `<div class="cc-dlgb">
-      <h3>🧭 捞捞教练 <button class="small" data-ccx style="float:right">关闭</button></h3>
+      <div class="cc-dh"><h3>🧭 捞捞教练</h3><button type="button" class="cc-x" data-ccx aria-label="关掉这个窗口" title="关掉这个窗口">✕</button></div>
       <p class="meta">在这台设备上学你的节奏：几点状态最好、作业习惯提前还是拖到最后、哪种提醒对你有用。</p>
       ${o.on ? `<div class="cc-stats"><div><b>${fmt(r.thisWeek.done)}</b><small>这周完成</small></div><div><b>${fmt(r.lastWeek.done)}</b><small>上周</small></div><div><b>${r.streak}</b><small>连续天数</small></div></div>
       ${r.highlights.map((x) => `<div class="cc-li">✨ ${esc(x)}</div>`).join("")}
@@ -149,8 +149,10 @@
       ${m.sus ? `<div class="cc-li meta">🧐 最近有 ${m.sus} 次一口气勾了好几件、或者勾了又马上取消，这些只算了一部分。做完一件勾一件，记录才准。</div>` : ""}` : `<p>捞捞教练还没打开。</p>`}
       ${typeof FlowUI !== "undefined" ? `<button class="cc-more" data-cc="book">🎁 捞捞的收藏 ${C.owned(C.mergeBag(rd(C.BAG, null), [], now))}/${C.LOOT.length} ›</button>` : ""}
       <div class="cc-sub">设置</div>
-      <label class="gi"><span class="ic">🧭</span>打开捞捞教练<input type="checkbox" class="switch" data-cco="on" ${o.on ? "checked" : ""}></label>
-      <label class="gi"><span class="ic">💬</span>让捞捞说教练的话<input type="checkbox" class="switch" data-cco="lao" ${o.lao ? "checked" : ""}></label>
+      <div class="cc-set">
+        <label class="gi"><span class="ic">🧭</span><span class="cc-st">打开捞捞教练<small>关掉后不再记录，首页也不显示教练卡片</small></span><input type="checkbox" class="cc-sw" role="switch" data-cco="on" ${o.on ? "checked" : ""}></label>
+        ${o.on ? `<label class="gi"><span class="ic">💬</span><span class="cc-st">让捞捞说教练的话<small>小岛上的捞捞也会提醒你现在该做什么</small></span><input type="checkbox" class="cc-sw" role="switch" data-cco="lao" ${o.lao ? "checked" : ""}></label>` : ""}
+      </div>
       <div class="cc-sub">数据怎么用</div>
       <div class="cc-li meta">🔒 几点完成了哪件事这些原始记录只存在这台设备，最多保留 60 天，不上传。<br>☁ 跟着账号同步的只有统计数字（每个钟点的活跃度、每天完成几件、哪种提醒有用），没有标题和内容。<br>👥 「刷任务」时班里只能看到有几个人在专注、全班专注了多少分钟，看不到是谁、在做什么。<br>🧠 所有计算都在你的设备上完成，不用大模型，不发给任何第三方。</div>
       <button class="small" data-ccclear style="color:var(--red);margin-top:8px">清空学到的数据</button></div>`;

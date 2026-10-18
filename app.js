@@ -2689,6 +2689,14 @@ function pluginItems() {
     if (!c || c.range !== range) { if (!f.pending || f.pending !== range) { f.pending = range; f.post({ cc: "items-req", reqId: range, start: s, end: e }); } }
     for (const it of (c && c.range === range ? c.list : [])) out.push(it);
   }
+  // 6.3 晚自习（课程表里设置）：和课一样显示在「接下来的安排」和日历里，跟着调课 / 调休走
+  try {
+    const ev = load("evening_v1", null), adj = (typeof CourseKit !== "undefined" && CourseKit.data && CourseKit.data.adj) || [];
+    const nx = (k) => { const d = new Date(k + "T00:00:00"); d.setDate(d.getDate() + 1); return keyOf(d); };
+    if (ev && ev.on) for (let k = s, g = 0; k <= e && g < 120; k = nx(k), g++)
+      for (const c of IslandCore.evening(ev, k, adj)) out.push({ _plugin: "course-schedule", _pluginName: "课程表", _key: "eve_" + k, _color: "#7c5cff", msg_type: "插件",
+        subject: "🌙 " + c.name, summary: c.t0 + "-" + c.t1 + (c.study ? " · 写作业时间" : ""), location: c.location || "", event_time: k + " " + c.t0 });
+  } catch (err) {}
   return out;
 }
 function acceptItems(f, reqId, list) {

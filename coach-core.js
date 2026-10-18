@@ -149,6 +149,9 @@
     var base = { streak: st, goal: g, best: best, sus: model.sus || 0 };
     // 正在上课
     var live = (ctx.ranked || []).filter(function (x) { return x.kind === "course" && x.level === "now"; })[0];
+    // 6.3 晚自习（设置成「催我写作业」时）：正好是写作业的时间，不进「上课」模式，下面照样推荐、而且更催作业
+    var study = live && live.evening && live.study ? live : null;
+    if (study) live = null;
     if (live) return mix(base, { mode: "class", top: { kind: "course", key: live.key, title: live.title, reason: live.reason, step: "专心听讲，有作业记得随手记下来" }, say: "正在上「" + live.title + "」，手机先放一放 📚" });
     // 6.3 正在开会、上晚自习、参加活动（日程里「进行中」的事）：也别催作业
     var busy = busyNow(ctx.ranked);
@@ -167,6 +170,7 @@
     if (focusMin >= 75 && !cands.some(function (x) { return x.level === "late" || x.level === "now"; })) {
       return mix(base, { mode: "rest", top: null, say: "已经专注 " + focusMin + " 分钟了，起来走走、喝口水，10 分钟后再继续 🍵" });
     }
+    if (!cands.length && study) return mix(base, { mode: "free", top: { kind: "pomo", key: "pomo", title: "专注 25 分钟", reason: "晚自习时间", step: "挑一门最近吃力的课，复习 25 分钟" }, say: "「" + study.title + "」时间，作业都做完了？来一个番茄复习一下 📖" });
     if (!cands.length) {
       var idle = g.met ? "今天的小目标完成了 🎉 剩下的时间留给自己" : "手头没有要赶的事，来一个番茄，预习或者复习一下？";
       return mix(base, { mode: "free", top: { kind: "pomo", key: "pomo", title: "专注 25 分钟", reason: "没有急事的时候最适合提前学", step: "挑一门最近吃力的课，复习 25 分钟" }, say: idle });
@@ -178,6 +182,7 @@
       var s = x.score * fit;
       if (late && !(x.level === "late" || x.level === "urgent")) s *= 0.4;
       if (x.exam) s *= 1.1;
+      if (study && (x.type === "作业" || x.exam)) s *= 1.5;            // 晚自习：作业、复习排前面
       return { x: x, s: s };
     }).sort(function (a, b) { return b.s - a.s; });
     var top = scored[0].x;
@@ -188,7 +193,7 @@
     if (g.done > 0 && !g.met) styles.push("progress");
     var style = pickStyle(model, styles, ctx.rnd);
     var reason = top.reason || "";
-    var say = sayFor(style, top, st, g, best, h);
+    var say = study ? "正在「" + study.title + "」，正好把「" + top.title + "」写了 ✍️" : sayFor(style, top, st, g, best, h);
     return mix(base, {
       mode: "go", style: style,
       top: { kind: "item", key: top.key, title: top.title, type: top.type, reason: reason, step: stepFor(top), level: top.level },
@@ -260,7 +265,7 @@
     var now = ctx.now, h = now.getHours(), skip = ctx.skip || {};
     if (h >= 23 || h < 5) return { cards: [], end: "sleep", say: "夜深了，今天不刷了，睡饱了明天效率更高 🌙" };
     var live = (ctx.ranked || []).filter(function (x) { return x.kind === "course" && x.level === "now"; })[0];
-    if (live) return { cards: [], end: "class", say: "正在上「" + live.title + "」，下课再来刷 📚" };
+    if (live && !(live.evening && live.study)) return { cards: [], end: "class", say: "正在上「" + live.title + "」，下课再来刷 📚" };
     var busy = busyNow(ctx.ranked);
     if (busy) return { cards: [], end: "class", say: "正在「" + busy.title + "」，结束了再来刷 📌" };
     var items = (ctx.ranked || []).filter(function (x) { return x.kind === "item" && x.level !== "past" && doable(x) && !(skip[x.key] > now.getTime()); }).slice(0, 3);

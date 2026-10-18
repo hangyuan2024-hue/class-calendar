@@ -245,21 +245,26 @@ const CourseKit = (() => {
     if (!d) { d = document.createElement("dialog"); d.id = "eveDlg"; d.className = "dlg eve-dlg"; document.body.appendChild(d); }
     d.innerHTML = `<form method="dialog" class="eve">
       <h3>🌙 晚自习时间</h3>
-      <p class="muted" style="font-size:12.5px;margin:4px 0 12px">设好以后，这段时间算「上课中」：首页时间轴会显示，捞捞和今日教练不会催你写作业。电脑、手机、小程序一起生效。</p>
+      <p class="muted" style="font-size:12.5px;margin:4px 0 12px">设好以后，晚自习会显示在首页「接下来的安排」、时间轴和日历里，到点算「上课中」。电脑、手机、小程序一起生效。</p>
       <label class="check"><input type="checkbox" name="on" ${ev.on ? "checked" : ""}> 开启</label>
       <label>名称 <input name="name" maxlength="20" value="${esc(ev.name || "晚自习")}"></label>
       <div class="eve-days">${DAYS.map((t, i) => `<label class="check"><input type="checkbox" name="d${i}" ${(ev.days || []).map(Number).includes(i) ? "checked" : ""}> ${t}</label>`).join("")}</div>
       <div class="row"><label>开始 <input type="time" name="t0" value="${esc(ev.t0 || "18:30")}" required></label><label>结束 <input type="time" name="t1" value="${esc(ev.t1 || "21:00")}" required></label></div>
       <label>地点（可不填） <input name="location" maxlength="40" value="${esc(ev.location || "")}" placeholder="例如：教二 305"></label>
+      <div class="eve-mode">晚自习的时候
+        <label class="check"><input type="radio" name="study" value="1" ${ev.study !== false ? "checked" : ""}> 📚 催我写作业（推荐）<small>教练照样推荐，作业排在最前面</small></label>
+        <label class="check"><input type="radio" name="study" value="0" ${ev.study === false ? "checked" : ""}> 🤫 别打扰我<small>当成上课，教练和捞捞都不提醒</small></label>
+      </div>
+      <p class="muted" style="font-size:12px;margin:6px 0 0">放假、调休跟着「🔁 调课 / 调休」走：放假那天没有晚自习；「这天上周三的课」就按周三算；某一天单独不上：在「🔁 调课 / 调休 → 放假停课」里选「只停「${esc(ev.name || "晚自习")}」」。</p>
       <div class="err eve-err" style="color:var(--red);font-size:13px"></div>
       <div class="btns"><button type="button" data-x="cancel">取消</button><button type="submit" class="primary">保存</button></div>
     </form>`;
     const f = d.querySelector("form");
     d.querySelector('[data-x="cancel"]').onclick = () => d.close();
     f.onsubmit = (e) => {
-      const v = { on: f.on.checked, name: f.name.value.trim() || "晚自习", days: DAYS.map((_, i) => i).filter((i) => f["d" + i].checked), t0: f.t0.value, t1: f.t1.value, location: f.location.value.trim() };
+      const v = { on: f.on.checked, study: f.querySelector('input[name="study"]:checked').value === "1", name: f.name.value.trim() || "晚自习", days: DAYS.map((_, i) => i).filter((i) => f["d" + i].checked), t0: f.t0.value, t1: f.t1.value, location: f.location.value.trim() };
       if (v.on && (!v.days.length || !(v.t1 > v.t0))) { e.preventDefault(); d.querySelector(".eve-err").textContent = !v.days.length ? "至少选一天" : "结束时间要晚于开始时间"; return; }
-      save("evening_v1", v); renderBar();
+      save("evening_v1", v); renderBar(); try { if (typeof renderCoach === "function") renderCoach(); } catch (err) {}
       try { if (typeof renderAll === "function") renderAll(); } catch (err) {}
     };
     d.showModal();
@@ -471,7 +476,9 @@ const CourseKit = (() => {
     } else if (adjTab === "off") {
       const D = $q("adjD").value, sel = $q("adjWhich"), cur = sel.value;
       const l = D ? coursesOn(D) : [];
-      sel.innerHTML = `<option value="">整天都不上</option>` + l.filter((c) => !c._add).map((c) => `<option value="${esc(c.name)}|${c.start}">只停「${esc(c.name)}」第${c.start}${c.end > c.start ? "-" + c.end : ""}节</option>`).join("");
+      const ev = load("evening_v1", null), eveOn = !!(ev && ev.on && typeof IslandCore !== "undefined" && D && IslandCore.evening(ev, D, data.adj).length);
+      sel.innerHTML = `<option value="">整天都不上</option>` + l.filter((c) => !c._add).map((c) => `<option value="${esc(c.name)}|${c.start}">只停「${esc(c.name)}」第${c.start}${c.end > c.start ? "-" + c.end : ""}节</option>`).join("")
+        + (eveOn ? `<option value="${esc(ev.name || "晚自习")}|0">只停「${esc(ev.name || "晚自习")}」</option>` : "");   // 6.3 晚自习也能单独停一天
       if ([...sel.options].some((o) => o.value === cur)) sel.value = cur;
       pv.textContent = D ? `${mdw(D)} 原来的课：${l.length ? l.map((c) => c.name).join("、") : "没有课"}` : "";
     } else {

@@ -26,7 +26,7 @@ function islandItems() {
 // 6.3 晚自习（课程表里设置，跟着账号同步）：当成这一天的最后一节课，到点「上课中」，教练和捞捞都不打扰
 function islandCourses(k) {
   let base = []; try { base = ck().data && ck().data.courses.length ? ck().coursesOn(k) : []; } catch (e) {}
-  try { return IslandCore.withEvening(base, load("evening_v1", null), k); } catch (e) { return base; }
+  try { return IslandCore.withEvening(base, load("evening_v1", null), k, (ck().data || {}).adj); } catch (e) { return base; }
 }
 function islandCtx() {
   const now = new Date(typeof ccNow === "function" ? ccNow() : Date.now()), t = keyOf(now), d = ck().data;
