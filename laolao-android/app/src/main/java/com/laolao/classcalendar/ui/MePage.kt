@@ -78,6 +78,7 @@ class MePage(a: Main) : Page(a) {
 
         group("外观与趣味", "需要哪个开哪个",
             row("🎨", "外观", "配色、深色模式、背景") { a.push(LookPage(a)) },
+            row("🧭", "捞捞教练", "学你的节奏、推荐现在做什么、每周复盘；只在本机计算") { a.push(CoachPage(a)) },
             row("🎉", "趣味与效率", "完成时的鼓励、撒花、捞捞助手、打卡、规划、云宠") { a.push(FunPage(a)) },
             if (Store.feat("plan")) row("🗂️", "打开规划页", "四象限、PDCA、SMART、六件事、番茄钟") { a.push(PlanPage(a)) } else null,
             row("📈", "查看成长页", "进度环、趋势图、打卡") { a.selectTab(2) })

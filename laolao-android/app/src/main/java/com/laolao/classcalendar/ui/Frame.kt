@@ -33,6 +33,9 @@ abstract class Page(val a: Main) {
     open val autoRender: Boolean = true
     open fun onShow() {}
     open fun onHide() {}
+    /** 整个 App 切到后台 / 回到前台（锁屏、切到别的 App）：只通知最上面那一页 */
+    open fun onAppPause() {}
+    open fun onAppResume() {}
     /** 返回 true 表示自己处理了返回键 */
     open fun onBack(): Boolean = false
     fun close() = a.pop(this)

@@ -32,6 +32,7 @@ object Growth {
         val now = !l.optBoolean(t)
         if (now) l.put(t, true) else l.remove(t)
         all.put(id, l); Kv.set(HLOG, all)
+        if (now) Coach.record(Coach.Ev(System.currentTimeMillis(), "habit", id))
         val c = Store.cls
         if (c != null && !c.optBoolean("is_teacher") && Store.feat("rank")) Bg.run { try { Api.rpc("growth_log", jsonOf("cid" to c.str("id"), "k" to "habit", "r" to "$id|$t", "undo" to !now)) } catch (_: Exception) {} }
         Bus.emit("data")

@@ -93,6 +93,19 @@ class ReminderReceiver : BroadcastReceiver() {
                 }
                 Background.pomoAlarm(ctx); return
             }
+            ACTION_COACH -> {
+                val C = com.laolao.classcalendar.core.Coach
+                if (!C.on() || !C.opt("notify")) return
+                // 到点再看一眼：已经做到了就不打扰
+                val now = System.currentTimeMillis(); val m = C.model()
+                val kind = i.getStringExtra("kind") ?: ""
+                val skip = when (kind) { "streak" -> C.streak(m, now).today >= 1; "best" -> C.goal(m, now).met || C.now().mode != "go"; else -> false }
+                if (!skip) {
+                    val text = if (kind == "best") C.now().say else i.getStringExtra("text") ?: ""
+                    Notify.show(ctx, 7200, Notify.CH_CLASS, i.getStringExtra("title") ?: "", text, null, if (kind == "weekly") "coach" else null, false)
+                }
+                return
+            }
             ACTION_TM -> {
                 val tm = com.laolao.classcalendar.core.TimeMaster
                 val phase = try { tm.timer().optString("phase") } catch (_: Exception) { "" }
@@ -108,7 +121,7 @@ class ReminderReceiver : BroadcastReceiver() {
             key?.takeIf { !it.startsWith("crs_") }, if (key?.startsWith("crs_") == true) "course" else null, i.getBooleanExtra("done", false))
         Widgets.update(ctx)
     }
-    companion object { const val ACTION_TICK = "com.laolao.classcalendar.TICK"; const val ACTION_BRIEF = "com.laolao.classcalendar.BRIEF"; const val ACTION_POMO = "com.laolao.classcalendar.POMO"; const val ACTION_TM = "com.laolao.classcalendar.TM" }
+    companion object { const val ACTION_TICK = "com.laolao.classcalendar.TICK"; const val ACTION_BRIEF = "com.laolao.classcalendar.BRIEF"; const val ACTION_POMO = "com.laolao.classcalendar.POMO"; const val ACTION_TM = "com.laolao.classcalendar.TM"; const val ACTION_COACH = "com.laolao.classcalendar.COACH" }
 }
 
 /** 开机、升级后：重新排好提醒 */
@@ -116,6 +129,7 @@ class BootReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, i: Intent) {
         Store.init(ctx)
         Background.reschedule(ctx); Background.startJob(ctx); Widgets.update(ctx)
+        Guard.ensure(ctx)    // 5.9.4 游戏前先做 5 分钟（用户打开过才会启动）
     }
 }
 
@@ -242,6 +256,21 @@ object Background {
             set(ctx, at, PendingIntent.getBroadcast(ctx, 100 + MAX - 1, Intent(ctx, ReminderReceiver::class.java).setAction(ReminderReceiver.ACTION_BRIEF), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE), exact = true)
         }
         p.edit().putInt("n", MAX).apply()
+        coach(ctx)
+    }
+    /** 捞捞教练：今天挑合适的时间提醒（状态最好的钟点、连续天数快断了、周日晚上复盘），最多 3 条；到点再确认一次还要不要发 */
+    fun coach(ctx: Context) {
+        for (i in 0 until 3) PendingIntent.getBroadcast(ctx, 90 + i, Intent(ctx, ReminderReceiver::class.java).setAction(ReminderReceiver.ACTION_COACH), PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE)?.let { am(ctx).cancel(it); it.cancel() }
+        val C = com.laolao.classcalendar.core.Coach
+        if (!Api.loggedIn || !C.on() || !C.opt("notify")) return
+        val list = try {
+            val c = com.laolao.classcalendar.core.Island.ctx()
+            C.nudges(com.laolao.classcalendar.core.Island.rank(c.items, c.courses, c.now), c.courses, C.model(), System.currentTimeMillis())
+        } catch (_: Exception) { emptyList() }
+        list.forEachIndexed { i, n ->
+            val it = Intent(ctx, ReminderReceiver::class.java).setAction(ReminderReceiver.ACTION_COACH).putExtra("kind", n.kind).putExtra("title", n.title).putExtra("text", n.body)
+            set(ctx, n.at, PendingIntent.getBroadcast(ctx, 90 + i, it, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE), exact = false)
+        }
     }
     private fun set(ctx: Context, at: Long, pi: PendingIntent, exact: Boolean) {
         val a = am(ctx)

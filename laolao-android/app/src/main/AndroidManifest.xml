@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -12,6 +13,11 @@
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <!-- 「提醒与通知」里可以让用户把 App 设成不被省电模式拦住 -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- 5.9.4「游戏前先做 5 分钟」（默认关，用户自己打开并授权）：知道打开了哪个 App、在它上面弹一句、后台常驻 -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <queries>
         <intent><action android:name="android.media.action.IMAGE_CAPTURE" /></intent>
@@ -20,6 +26,8 @@
         <intent><action android:name="android.intent.action.VIEW" /><data android:mimeType="*/*" /></intent>
         <intent><action android:name="android.intent.action.INSERT" /><data android:mimeType="vnd.android.cursor.dir/event" /></intent>
         <intent><action android:name="android.intent.action.VIEW" /><data android:scheme="https" /></intent>
+        <!-- 5.9.4 选「打开哪些 App 时问一句」：列出桌面上能打开的 App -->
+        <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent>
     </queries>
 
     <application
@@ -103,6 +111,18 @@
                 <action android:name="android.intent.action.TIME_SET" />
             </intent-filter>
         </receiver>
+        <!-- 5.9.4 游戏前先做 5 分钟 -->
+        <service android:name=".work.GuardService" android:exported="false" android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="打开用户自己选的游戏时，提示先完成 5 分钟学习任务（用户主动开启）" />
+        </service>
+        <activity
+            android:name=".work.GuardAsk"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:launchMode="singleInstance"
+            android:taskAffinity="com.laolao.classcalendar.guard"
+            android:theme="@style/AppTheme.Invisible" />
         <service android:name=".work.SyncJob" android:exported="false" android:permission="android.permission.BIND_JOB_SERVICE" />
 
         <!-- 下拉通知栏的快捷开关 -->

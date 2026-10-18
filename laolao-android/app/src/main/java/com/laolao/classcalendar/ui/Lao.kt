@@ -51,6 +51,8 @@ class Lao(private val a: Main, private val host: FrameLayout) {
     private val botBox = FrameLayout(a).apply { clipChildren = false }
     private val shadow = View(a)
     private val bot = ImageView(a).apply { scaleType = ImageView.ScaleType.FIT_CENTER }
+    /** 5.9.4 刷任务里掉的帽子 / 墨镜……戴在捞捞头上 */
+    private val wearTv = a.text("", 22f).apply { gravity = Gravity.CENTER; translationY = -px(14).toFloat(); elevation = px(2).toFloat() }
     private val scr = LinearLayout(a).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
     private val scrIc = a.text("", 16f)
     private val scrT = a.text("", 13f, Color.WHITE, BOLD, 1)
@@ -72,6 +74,7 @@ class Lao(private val a: Main, private val host: FrameLayout) {
         shadow.background = GradientDrawable().apply { shape = GradientDrawable.OVAL; gradientType = GradientDrawable.RADIAL_GRADIENT; gradientRadius = px(24).toFloat(); colors = intArrayOf(C.alpha(Color.BLACK, if (C.dark) 0.5f else 0.28f), Color.TRANSPARENT) }
         botBox.addView(shadow, FrameLayout.LayoutParams(px(48), px(12)).apply { gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL })
         botBox.addView(bot, FrameLayout.LayoutParams(px(BOT), px(BOT)).apply { gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL })
+        botBox.addView(wearTv, FrameLayout.LayoutParams(WRAP, WRAP).apply { gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL })
         drag()
         // 小屏幕：深色，带投影
         scr.background = round(if (C.dark) 0xF522343E.toInt() else 0xF5172C36.toInt(), px(16).toFloat(), if (C.dark) C.alpha(Color.WHITE, 0.08f) else 0, if (C.dark) 1 else 0)
@@ -94,7 +97,8 @@ class Lao(private val a: Main, private val host: FrameLayout) {
         host.addView(box, place())
         paint(true)
         bob?.cancel()
-        bob = ObjectAnimator.ofFloat(bot, "translationY", 0f, -px(4).toFloat()).apply { duration = 1800; repeatCount = ValueAnimator.INFINITE; repeatMode = ValueAnimator.REVERSE; start() }
+        bob = ObjectAnimator.ofFloat(bot, "translationY", 0f, -px(4).toFloat()).apply { duration = 1800; repeatCount = ValueAnimator.INFINITE; repeatMode = ValueAnimator.REVERSE
+            addUpdateListener { wearTv.translationY = bot.translationY - px(14) }; start() }
         loop()
     }
     fun stop() { bob?.cancel(); Bg.main.removeCallbacks(tick) }
@@ -119,6 +123,8 @@ class Lao(private val a: Main, private val host: FrameLayout) {
         val list = try { Island.rank(c.items, c.courses, c.now).filter { it.level != "past" } } catch (_: Exception) { emptyList() }
         val h = c.now.hour; val night = h >= 23 || h < 5
         bot.setImageResource(if (night) R.drawable.mascot_sleep else R.drawable.mascot)
+        val wear = try { com.laolao.classcalendar.core.Flow.wearEmoji() } catch (_: Exception) { "" }
+        wearTv.text = wear; wearTv.visibility = if (wear.isEmpty()) View.GONE else View.VISIBLE
         val top = list.firstOrNull()
         val level: String
         if (top != null) {
@@ -139,6 +145,11 @@ class Lao(private val a: Main, private val host: FrameLayout) {
         if (!greeted && opt("greet")) { greeted = true; say = try { Island.greet(c) } catch (_: Exception) { "" } }
         else if (opt("remind") && top != null && top.kind == "item" && top.level in setOf("late", "now", "urgent") && once("r:" + top.key + ":" + top.level))
             say = when { top.level == "late" -> "「${top.title}」已经过期了，先补上吧！"; top.level == "now" -> "「${top.title}」已经开始了" + (if (top.location.isNotEmpty()) "，在 ${top.location}" else "") + "，快去吧！"; else -> "「${top.title}」${top.reason.ifEmpty { "快到了" }}" + (if (top.type == "作业") "，别忘了哦" else if (top.location.isNotEmpty()) "，在 ${top.location}" else "，提前准备一下") }
+        // 5.9.3 捞捞教练：没有更急的提醒时，偶尔说一句「现在适合做什么」（同一件事 3 小时内只说一次）
+        if (say.isEmpty() && com.laolao.classcalendar.core.Coach.on() && com.laolao.classcalendar.core.Coach.opt("lao")) {
+            val cs = try { com.laolao.classcalendar.core.Coach.now() } catch (_: Exception) { null }
+            if (cs != null && cs.mode in setOf("go", "rest", "sleep") && once("coach:" + (cs.top?.key ?: cs.mode) + ":" + c.now.hour / 3)) say = cs.say
+        }
         if (say.isNotEmpty()) say(say)
     }
     private fun layoutDock() {

@@ -270,6 +270,7 @@ object Items {
     // ---------- 操作 ----------
     fun toggleDone(key: String): Boolean {
         val on: Boolean
+        val r0 = try { find(key) } catch (_: Exception) { null }
         if (Regex("^c\\d+$").matches(key)) {
             val mk = marks(); val m = mk.optJSONObject(key) ?: JSONObject()
             on = !m.optBoolean("done"); m.put("done", on); mk.put(key, m); Kv.set(MARK, mk)
@@ -281,6 +282,8 @@ object Items {
             on = v; Kv.set(MINE, list)
         }
         val log = Kv.obj(DONE_LOG); if (on) log.put(key, T.todayKey()) else log.remove(key); Kv.set(DONE_LOG, log)
+        // 捞捞教练：记下几点完成的（只存在这台手机），用来学你的节奏、判断是不是一口气乱勾
+        Coach.record(Coach.Ev(System.currentTimeMillis(), if (on) "done" else "undo", key, r0?.type ?: "", if (r0 != null && r0.dated) r0.at() else 0))
         Bus.emit("data")
         return on
     }

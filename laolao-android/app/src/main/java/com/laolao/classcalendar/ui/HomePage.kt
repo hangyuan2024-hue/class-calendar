@@ -81,6 +81,7 @@ class HomePage(a: Main) : Page(a) {
         if (Store.error.isNotEmpty() && Store.itemsAt > 0) body.add(notice("网络不太好，显示的是上次的数据：" + Store.error), 4)
         else if (Store.error.isNotEmpty() && Store.me == null) body.add(notice("连不上服务器：" + Store.error + "。下拉可以重试"), 4)
         hero()
+        CoachCard.build(a, body) { render() }      // 5.9.3 捞捞教练：现在最适合做什么
         val A = Items.agenda()
         agenda(A)
         cards.build(body, A)

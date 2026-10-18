@@ -13,7 +13,7 @@ object Sync {
         "personal_events_v1" to "list", "personal_marks_v1" to "map", "done_log_v1" to "map",
         "course_rev_v1" to "one", "hw_view_v1" to "one",
         "habits_v1" to "list", "habit_log_v1" to "map2", "quad_v1" to "map", "pomo_log_v1" to "map", "plan_notes_v1" to "map", "fun_opts_v1" to "one", "course_view_v1" to "map", "ui_palette_v1" to "one",
-        "farm_v1" to "one", "profile_v1" to "one", "home_layout_v1" to "one", "home_quick_tools_v1" to "one", "mood_log_v1" to "map",
+        "farm_v1" to "one", "profile_v1" to "one", "home_layout_v1" to "one", "home_quick_tools_v1" to "one", "mood_log_v1" to "map", "coach_v1" to "map",
     )
     private const val META = "sync_meta_v1"
     private const val OUT = "sync_outbox_v1"

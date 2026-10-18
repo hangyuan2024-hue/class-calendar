@@ -238,8 +238,10 @@ class Main : Activity() {
         if (C.dark != dark) { recreate(); return }
         if (login == null && Api.loggedIn) { refreshSoon(); schedule(); lao?.paint(true) }
         if (login == null && !Api.loggedIn) showLogin()
+        stack.lastOrNull()?.onAppResume()
+        com.laolao.classcalendar.work.Guard.ensure(this)
     }
-    override fun onPause() { super.onPause(); Bg.run { com.laolao.classcalendar.core.Sync.finish() }; Widgets.update(this) }
+    override fun onPause() { super.onPause(); stack.lastOrNull()?.onAppPause(); Bg.run { com.laolao.classcalendar.core.Sync.finish() }; Widgets.update(this) }
     override fun onDestroy() { Bus.off(this); super.onDestroy() }
     override fun onNewIntent(i: Intent) { super.onNewIntent(i); setIntent(i); handle(i) }
 
@@ -278,6 +280,8 @@ class Main : Activity() {
                 go == "ask" -> push(AskPage(this))
                 go == "add" -> push(EditPage(this, null))
                 go == "course" -> push(CoursePage(this))
+                go == "coach" -> push(CoachPage(this))
+                go == "flow" -> { if (stack.lastOrNull() !is FlowPage) push(FlowPage(this)) }
                 go == "course_import" -> push(CourseImportPage(this))
                 go == "memo" -> push(MemoPage(this, ""))
             }
@@ -304,6 +308,16 @@ class Main : Activity() {
     override fun onRequestPermissionsResult(req: Int, perms: Array<out String>, res: IntArray) {
         super.onRequestPermissionsResult(req, perms, res)
         if (req == 5) Background.reschedule(this)
+    }
+    /** 刷任务这种深色全屏页：状态栏、导航栏换成深色，图标变白；off 时恢复 */
+    @Suppress("DEPRECATION")
+    fun immersive(on: Boolean, top: Int = 0, bottom: Int = 0) {
+        if (!on) { chrome(); return }
+        window.statusBarColor = top; window.navigationBarColor = bottom
+        if (Build.VERSION.SDK_INT >= 30) {
+            val f = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+            window.insetsController?.setSystemBarsAppearance(0, f)
+        } else window.decorView.systemUiVisibility = 0
     }
     fun statusColor(c: Int) { window.statusBarColor = if (c == 0) C.bg else c }
     val transparent = Color.TRANSPARENT
