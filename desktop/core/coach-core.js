@@ -150,6 +150,9 @@
     // 正在上课
     var live = (ctx.ranked || []).filter(function (x) { return x.kind === "course" && x.level === "now"; })[0];
     if (live) return mix(base, { mode: "class", top: { kind: "course", key: live.key, title: live.title, reason: live.reason, step: "专心听讲，有作业记得随手记下来" }, say: "正在上「" + live.title + "」，手机先放一放 📚" });
+    // 6.3 正在开会、上晚自习、参加活动（日程里「进行中」的事）：也别催作业
+    var busy = busyNow(ctx.ranked);
+    if (busy) return mix(base, { mode: "class", top: { kind: "course", key: busy.key, title: busy.title, reason: busy.reason, step: "专心把这件事做好，结束了再来" }, say: "正在「" + busy.title + "」，专心一点，结束了再来 📌" });
     // 深夜：只有真的急（已过期 / 几小时内截止）才提，否则劝睡觉
     var cands = (ctx.ranked || []).filter(function (x) {
       if (x.kind !== "item" || x.level === "past") return false;
@@ -193,6 +196,7 @@
       say: say,
     });
   }
+  function busyNow(ranked) { return (ranked || []).filter(function (x) { return x.kind === "item" && x.level === "now" && !doable(x); })[0] || null; }
   function stepFor(x) {
     if (x.exam) return "先花 15 分钟把重点过一遍";
     if (x.type === "作业") return x.level === "late" ? "先补上最简单的那部分，开个番茄 25 分钟" : "先做 25 分钟，开个番茄，做多少算多少";
@@ -257,6 +261,8 @@
     if (h >= 23 || h < 5) return { cards: [], end: "sleep", say: "夜深了，今天不刷了，睡饱了明天效率更高 🌙" };
     var live = (ctx.ranked || []).filter(function (x) { return x.kind === "course" && x.level === "now"; })[0];
     if (live) return { cards: [], end: "class", say: "正在上「" + live.title + "」，下课再来刷 📚" };
+    var busy = busyNow(ctx.ranked);
+    if (busy) return { cards: [], end: "class", say: "正在「" + busy.title + "」，结束了再来刷 📌" };
     var items = (ctx.ranked || []).filter(function (x) { return x.kind === "item" && x.level !== "past" && doable(x) && !(skip[x.key] > now.getTime()); }).slice(0, 3);
     var cards = [], work = 0, sinceBreak = 0;
     var add = function (c) {

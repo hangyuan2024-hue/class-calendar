@@ -26,6 +26,7 @@ object Flow {
         val h = LocalDateTime.ofInstant(Instant.ofEpochMilli(nowMs), T.BJ).hour
         if (h >= 23 || h < 5) return Deck(emptyList(), 0, "sleep", "夜深了，今天不刷了，睡饱了明天效率更高 🌙")
         ranked.firstOrNull { it.kind == "course" && it.level == "now" }?.let { return Deck(emptyList(), 0, "class", "正在上「${it.title}」，下课再来刷 📚") }
+        Coach.busyNow(ranked)?.let { return Deck(emptyList(), 0, "class", "正在「${it.title}」，结束了再来刷 📌") }
         val items = ranked.filter { it.kind == "item" && it.level != "past" && Coach.doable(it) && (skip[it.key] ?: 0L) <= nowMs }.take(3)
         val cards = ArrayList<Card>(); var work = 0; var since = 0
         fun add(c: Card): Boolean {

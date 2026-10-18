@@ -1169,6 +1169,13 @@
   .crs-adj details summary { cursor: pointer; margin-bottom: 4px; }
   @media (max-width: 520px) { .crs-adj .adj-grid { grid-template-columns: 1fr; } .crs-adj .adj-row { flex-wrap: wrap; } .crs-adj .adj-row b { width: 100%; } }
   .cdlg { width: min(860px, calc(100vw - 24px)); }
+  /* 6.3 晚自习设置 */
+  .eve-dlg { width: min(420px, calc(100vw - 24px)); }
+  .eve label { display: block; margin-top: 10px; font-size: 13px; }
+  .eve input[type=time], .eve input[name=name], .eve input[name=location] { width: 100%; box-sizing: border-box; }
+  .eve .row { display: flex; gap: 10px; } .eve .row label { flex: 1; }
+  .eve-days { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 8px; } .eve-days label { margin-top: 0; }
+  .eve .btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
   .cdlg form { max-height: calc(100vh - 60px); overflow: auto; }
   .cdrop { border: 2px dashed var(--line); border-radius: 16px; padding: 22px; text-align: center; cursor: pointer; background: var(--muted-bg); }
   .cdrop.over, .cdrop:focus { border-color: var(--accent); outline: none; }
@@ -1981,13 +1988,15 @@
     <section id="ingestPanel" class="surface hidden">
       <div class="ip-head">✨ 整理群消息 <small id="ipHeadTip">先在本地用规则整理，不花 token；拿不准的再交给 AI</small></div>
       <div id="ipFeatNote" class="meta hidden" style="margin:-4px 0 8px"></div>
-      <textarea id="ingestText" rows="6" placeholder="把班级群里的消息整段粘贴到这里（QQ、微信复制的格式都行），或者点下面「🖼 识别截图」选群聊截图"></textarea>
+      <textarea id="ingestText" rows="6" placeholder="把班级群里的消息整段粘贴到这里（QQ、微信复制的格式都行），或者点下面「🖼 识别截图」选群聊 / 通知 / 表格截图，「📄 导入文档」选 Word 文档"></textarea>
       <div class="ingest-row">
         <label>消息发布日期 <input type="date" id="ingestDate"></label>
         <span class="spacer"></span>
         <span id="ingestStatus"></span>
         <button id="ingestImg" class="small" type="button" title="选群聊截图，自动认出文字再整理（不花 token）">🖼 识别截图</button>
         <input type="file" id="ingestImgFile" accept="image/*" multiple hidden>
+        <button id="ingestDoc" class="small" type="button" title="直接导入 Word 文档（.docx）或文本文件，表格每一行会整理成一件事；全在本机，不上传">📄 导入文档</button>
+        <input type="file" id="ingestDocFile" accept=".docx,.txt,.md,.csv,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" multiple hidden>
         <button id="ingestClose" class="small">收起</button>
         <button id="ingestGo" data-feat="ingest_cloud" class="small" title="整段交给云端 AI 直接发布（会消耗 token，闲聊会先在本地过滤掉）">全部交给云端 AI</button>
         <button id="ingestLocal" data-feat="ingest_local" class="btn ink sm">本地整理</button>
@@ -2655,20 +2664,21 @@
 <script src="config.js"></script>
 <script src="auth.js?v=20261015-v572"></script>
 <script src="org.js?v=20261008-org1"></script>
-<script src="parse.js?v=20261018-v62"></script>
-<script src="memo-core.js?v=20261018-v62"></script>
+<script src="parse.js?v=20261018-v63"></script>
+<script src="memo-core.js?v=20261018-v63"></script>
+<script src="docx-text.js?v=20261018-v63"></script>
 <script src="course-image.js?v=20261014-v540"></script>
-<script src="courses.js?v=20261015-v571"></script>
+<script src="courses.js?v=20261018-v63"></script>
 <script src="farm.js?v=20261009-tz1"></script>
 <script src="metaverse-v3.js?v=20261005-native3"></script>
 <script src="nextclass.js?v=20261017-v590"></script>
-<script src="app.js?v=20261018-v62"></script>
+<script src="app.js?v=20261018-v63"></script>
 <script src="extras.js?v=20261017-v592"></script>
 <script src="campus-tools.js?v=20261006-tools1"></script>
 <script src="workspace-v3.js?v=20261005-native3"></script>
-<script src="island-core.js?v=20261017-v591"></script>
-<script src="island.js?v=20261017-v591"></script>
-<script src="coach-core.js?v=20261018-v62"></script>
+<script src="island-core.js?v=20261018-v63"></script>
+<script src="island.js?v=20261018-v63"></script>
+<script src="coach-core.js?v=20261018-v63"></script>
 <script src="flow-ui.js?v=20261018-v594"></script>
 <script src="coach-ui.js?v=20261018-v594"></script>
 <script src="study.js?v=20261009-kn2"></script>
@@ -2676,8 +2686,8 @@
 <script src="ux.js?v=20261011-kn1"></script>
 <script src="memo.js?v=20261016-v580"></script>
 <script src="memo-ui.js?v=20261018-v62"></script>
-<script src="nextclass-ui.js?v=20261017-v590"></script>
-<script src="hwplus.js?v=20261016-v580"></script>
+<script src="nextclass-ui.js?v=20261018-v63"></script>
+<script src="hwplus.js?v=20261018-v63"></script>
 <script src="teacher.js?v=20261016-v581"></script>
 <script src="work.js?v=20261016-v580"></script>
 <script src="live.js?v=20261009-live1"></script>

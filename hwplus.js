@@ -86,28 +86,31 @@
     const r = mine.find((x) => x.id === k); return r ? { ...r, _key: k, _mine: true } : null;
   }
 
-  // 以前传的图片没有小图：小图片（单块）下载下来现做一张，能写的顺便存回去
+  // 以前传的图片没有小图：下载下来现做一张，能写的顺便存回去
+  // 6.3 图片偶尔加载不出来：原来只试一次（还没显示在页面上就算试过了）、大于 1.6MB 的直接不显示；现在失败了隔一会儿再试（最多 4 次），大图也显示
   let filling = false;
   async function fillOld() {
     if (filling) return; filling = true;
+    let again = false;
     try {
       for (const key of Object.keys(HP.files)) {
         for (const f of HP.files[key]) {
-          if (f._src || f._tried || !/^image\/(jpeg|png|webp|gif)/.test(f.mime) || f.parts > 2 || f.size > 1600000) continue;
-          f._tried = true;
-          if (!document.querySelector(`[data-hwt="${CSS.escape(key)}"]`)) continue;
+          if (f._src || !/^image\/(jpeg|png|webp|gif)/.test(f.mime) || f.size > 15000000 || (f._tries || 0) >= 4) continue;
+          if (!document.querySelector(`[data-hwt="${CSS.escape(key)}"]`)) continue;   // 现在不在页面上：先不拿，下次显示时再拿
+          if (f._next && Date.now() < f._next) { again = true; continue; }
+          f._tries = (f._tries || 0) + 1;
           try {
             const b = await window.exFetchBlob(f.id, f.parts, f.mime);
-            const t = await window.exMakeThumb(b);
-            if (!t) continue;
-            f._src = t;
-            if (f.can_thumb) CCAuth.rpc("file_thumb", { fid: f.id, b64: t }).catch(() => {});
+            let t = ""; try { t = await window.exMakeThumb(b); } catch (e) {}
+            f._src = t || URL.createObjectURL(b);
+            if (t && f.can_thumb) CCAuth.rpc("file_thumb", { fid: f.id, b64: t }).catch(() => {});
             const box = document.querySelector(`[data-hwt="${CSS.escape(key)}"]`);
             if (box) box.innerHTML = thumbHtml(key);
-          } catch (e) { /* 拿不到就还显示图标 */ }
+          } catch (e) { f._next = Date.now() + 4000 * f._tries; again = true; }   // 网不好：过几秒再试
         }
       }
     } finally { filling = false; }
+    if (again) setTimeout(fillOld, 5000);
   }
 
   // ---------- 点小图：看大图 ----------
@@ -160,7 +163,7 @@
     if (!vd.open) vd.showModal();
     try {
       const l = await CCAuth.rpc("item_viewers", { cid, iid: Number(id) });
-      const no = l.filter((x) => !x.seen_at), yes = l.filter((x) => x.seen_at), done = l.filter((x) => x.done), seenNot = yes.filter((x) => !x.done);
+      const no = l.filter((x) => !x.seen_at && !x.done), yes = l.filter((x) => x.seen_at || x.done), done = l.filter((x) => x.done), seenNot = yes.filter((x) => !x.done);   // 6.3 完成了就算看过
       const who = (x) => `<span class="hw-vp${x.done ? " ok" : ""}"><span class="av sm">${esc([...(x.name || "?")][0])}</span>${esc(x.name || x.account)}${x.role === "monitor" ? "<i>班委</i>" : ""}${x.seen_at ? `<small>${esc(when(x.seen_at))}</small>` : ""}${x.done ? "<b>✓</b>" : ""}</span>`;
       const pane = (key, list, empty, copy) => `<div data-vpane="${key}" class="hw-vpane${key === "no" ? "" : " hidden"}">${list.length ? list.map(who).join("") : `<div class="meta">${empty}</div>`}${copy && list.length ? `<div class="hw-vcopy"><button class="small" data-vcopy="${esc(list.map((x) => "@" + (x.name || x.account)).join(" "))}">复制名字（发到群里提醒）</button></div>` : ""}</div>`;
       vd.innerHTML = `<h3>👀 ${esc(r ? r.subject || r.summary || "事项" : "事项")}<small>只有发布人、老师、班委能看到这个名单 · 全班 ${l.length} 人</small></h3>

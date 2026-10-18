@@ -11,6 +11,19 @@ import java.time.temporal.ChronoUnit
 object Island {
     private val WEEK = listOf("日", "一", "二", "三", "四", "五", "六")
     private val EXAM = Regex("考试|测验|测试|小测|期中|期末|月考|考核|答辩")
+    /** 6.3「6:30 之前完成签到」「周五前提交」：钟点是截止时间，不是开始时间（和 island-core.js 的 isDue 同一条规则） */
+    private val DUE_RE = Regex("(之前|以前|前完成|前提交|前上交|前交|前填|前签到|前打卡|前报名|截止|截至|deadline|ddl)", RegexOption.IGNORE_CASE)
+    /** 6.3 晚自习（课程表里设置，跟着账号同步，键 evening_v1；和 island-core.js 的 evening 同一套规则） */
+    fun evening(day: String, ev: org.json.JSONObject? = Kv.get("evening_v1") as? org.json.JSONObject): List<Lesson> {
+        if (ev == null || !ev.optBoolean("on")) return emptyList()
+        val t0 = ev.str("t0"); val t1 = ev.str("t1")
+        if (T.min(t0) == null || T.min(t1) == null || t1 <= t0) return emptyList()
+        val wd = (T.date(day) ?: return emptyList()).dayOfWeek.value - 1
+        val days = ev.optJSONArray("days") ?: return emptyList()
+        if ((0 until days.length()).none { days.optInt(it, -1) == wd }) return emptyList()
+        return listOf(Lesson(ev.str("name").ifBlank { "晚自习" }.take(20), 90, 90, t0, t1, ev.str("location").take(40), "", 0))
+    }
+    fun isDue(type: String, text: String): Boolean = type == "作业" || DUE_RE.containsMatchIn(text)
     val CHIPS = listOf("最急的是什么", "今天有什么课", "这周的作业", "明天有什么安排", "下节课在哪", "我今天打卡了吗")
 
     class In(val key: String, val title: String, val type: String, val day: String, val time: String, val location: String,
@@ -74,7 +87,7 @@ object Island {
                 val mins = epochMin(due) - nowMin; val hours = mins / 60
                 // 会议、活动这类到点开始的事：正在进行就排前面，说「还有多久开始」而不是「还剩」
                 val endMin = T.min(it.endTime)?.takeIf { e -> e > tm }?.let { e -> (e - tm).toDouble() } ?: 60.0
-                val startsAt = it.type != "作业" && it.time.isNotEmpty()
+                val startsAt = it.type != "作业" && it.time.isNotEmpty() && !isDue(it.type, it.title + " " + it.summary)
                 if (startsAt && mins < 0 && -mins < endMin) {
                     score = 125 * w; level = "now"; reason = "进行中 · 还有 ${maxOf(1, Math.round(endMin + mins).toInt())} 分钟结束"
                 } else if (startsAt && mins >= 0) {
@@ -92,6 +105,7 @@ object Island {
                     }
                     score *= w
                     if (it.type != "作业" && mins < -120) score *= 0.2
+                    if (startsAt && mins < 0) score *= 0.1      // 6.3 已经结束的会、活动：不再排在「最该先做」前面
                     reason = leftText(mins)
                 }
             }
@@ -120,7 +134,7 @@ object Island {
         var s = hello(c.now) + name + "！"
         if (list.isEmpty()) return s + "手头没有要赶的事，" + if (c.now.hour >= 21) "早点休息吧 🌙" else "可以安心学点别的 ☕"
         if (late > 0) s += "有 $late 项作业过期了，先补上吧。" else if (todayN > 0) s += "今天有 $todayN 件事。"
-        val top = list[0]
+        val top = list.firstOrNull { it.level != "past" } ?: return s   // 6.3 不挑已经过去的事
         s += if (top.kind == "course") "「${top.title}」${top.reason}" + (if (top.location.isNotEmpty()) "，在 ${top.location}" else "") + "。" else "最该先做的是「${top.title}」（${top.reason}）。"
         return s
     }
@@ -270,7 +284,7 @@ object Island {
             return listReply(r.name + "有 ${itemsOf(c) { it.day.isNotEmpty() && it.day >= r.a && it.day <= r.b }.size} 件事，最急的在前面：", itemsOf(c) { it.day.isNotEmpty() && it.day >= r.a && it.day <= r.b }, r.name + "没有安排 ☕")
         }
         if (Regex("急|先做|优先|接下来|该做|要做什么|做什么|待办|安排|有什么事|忙|任务|干嘛|干啥").containsMatchIn(q)) {
-            val all = rank(c.items, c.courses, now)
+            val all = rank(c.items, c.courses, now).filter { it.level != "past" }
             return listReply(if (all.isNotEmpty()) "按轻重缓急排好了，从上往下做：" else "", all, "现在没有要赶的事，轻松一下吧 ☕")
         }
         val kw = q.replace(Regex("什么时候|什么时间|几点|在哪里?|在哪儿|地点|要带什么|带什么|准备什么|是什么|有没有|吗|呢|呀|啊|吧|的|了|我|请问|告诉我|帮我|查一?下|看看|一下"), "").trim()
@@ -302,7 +316,8 @@ object Island {
         val habits = Growth.habits().map { Triple(it.name, Growth.checked(it.id), Growth.streak(it.id, hl)) }
         val pl = Plan.log()
         val farm = try { if (Farm.on()) Farm.state() else null } catch (_: Exception) { null }
-        return Ctx(now, Store.name(), items, if (hasC) Courses.on(t) else emptyList(), hasC, habits, pl.optInt(t), (0..6).sumOf { pl.optInt(T.addDays(t, -it.toLong())) },
+        val ev = evening(t)   // 6.3 晚自习：当成今天最后一节课，到点「上课中」，教练和捞捞都不打扰
+        return Ctx(now, Store.name(), items, (if (hasC) Courses.on(t) else emptyList()) + ev, hasC || ev.isNotEmpty(), habits, pl.optInt(t), (0..6).sumOf { pl.optInt(T.addDays(t, -it.toLong())) },
             farm?.let { Farm.left() }, farm?.str("name") ?: "", farm?.optInt("level") ?: 0, rankMe?.first ?: 0, rankMe?.second ?: 0)
     }
 }

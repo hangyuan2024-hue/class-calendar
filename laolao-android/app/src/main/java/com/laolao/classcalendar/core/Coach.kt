@@ -150,6 +150,7 @@ object Coach {
     private val DO_RE = Regex("作业|报告(?!会|厅)|习题|练习|论文|ppt|PPT|复习|预习|背诵|背单词|单词|阅读|读书|笔记|整理|提交|上交|打卡|写|填|交|做|改|准备|报名|缴费|打印|签字|看完|刷题|错题")
     private val MEET_RE = Regex("会议|大会|例会|班会|年会|晚会|座谈|讲座|论坛|典礼|仪式|宣讲|培训|比赛|竞赛|演出|集合|面试|答辩|聚餐|聚会|观影|升旗|报告会|报告厅|研讨|沙龙|见面会|分享会|交流会|发布会|招聘会|运动会|开幕|闭幕|彩排|排练|值班|门诊|牙医|体检|活动")
     private val PREP_RE = Regex("作业|习题|论文|ppt|PPT|报名|缴费|提交|上交|填写|填表|材料|讲稿|演讲稿|稿子|复习|预习|背诵")
+    fun busyNow(ranked: List<Island.Row>): Island.Row? = ranked.firstOrNull { it.kind == "item" && it.level == "now" && !doable(it) }
     fun doable(x: Island.Row): Boolean {
         if (x.kind != "item") return false
         if (x.exam || x.type == "作业") return true
@@ -170,6 +171,8 @@ object Coach {
         val focusMin = credible(log).filter { (it.y == "pomo" || it.y == "flow") && nowMs - it.t < 2 * H }.sumOf { if (it.m > 0) it.m else 25 }
         fun sug(mode: String, top: Pick?, say: String, style: String = "", alts: List<Pick> = emptyList()) = Sug(mode, top, say, style, alts, st, g, best, m.sus)
         ranked.firstOrNull { it.kind == "course" && it.level == "now" }?.let { return sug("class", Pick("course", it.key, it.title, reason = it.reason, step = "专心听讲，有作业记得随手记下来"), "正在上「${it.title}」，手机先放一放 📚") }
+        // 6.3 正在开会、上晚自习、参加活动：也别催作业
+        busyNow(ranked)?.let { return sug("class", Pick("course", it.key, it.title, reason = it.reason, step = "专心把这件事做好，结束了再来"), "正在「${it.title}」，专心一点，结束了再来 📌") }
         val cands = ranked.filter { it.kind == "item" && it.level != "past" && doable(it) && (skip[it.key] ?: 0L) <= nowMs }
         if (night && cands.none { it.level == "late" || it.level == "urgent" })
             return sug("sleep", null, if (st.today >= 1) "今天已经完成 ${fmt(st.today)} 件，够了！早点睡，明天接着来 🌙" else "夜深了，明天再做，睡饱了效率更高 🌙")

@@ -180,6 +180,7 @@ object Items {
      */
     fun startIn(r: Item, nowMs: Long = System.currentTimeMillis()): Pair<String, Int>? {
         if (r.hw || r.course || r.done || !r.dated || r.time.isEmpty()) return null
+        if (Island.isDue(r.type, r.title + " " + r.summary + " " + r.original)) return null   // 6.3 「X 点之前完成」：是截止，不是开始
         val st = r.at(); val end = T.min(r.endTime)?.let { T.epoch(r.day, it) }?.takeIf { it > st } ?: (st + 3_600_000L)
         if (nowMs >= end) return null
         if (nowMs >= st) return "进行中" to 3
@@ -200,6 +201,7 @@ object Items {
     fun state(r: Item, nowMs: Long = System.currentTimeMillis()): Pair<String, Int>? {
         if (r.done && !r.course) return "已完成" to -1
         if (!r.dated || r.time.isEmpty() || r.hw) return null
+        if (!r.course && Island.isDue(r.type, r.title + " " + r.summary + " " + r.original)) return null
         val st = r.at()
         val end = T.min(r.endTime)?.let { T.epoch(r.day, it) }?.takeIf { it > st } ?: (st + (if (r.course) 45 else 60) * 60_000L)
         if (nowMs >= end) return (if (r.course) "已上完" else "已结束") to -1

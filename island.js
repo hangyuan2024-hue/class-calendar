@@ -23,7 +23,11 @@ function islandItems() {
   return allItems().filter((r) => !r._plugin && !r._hidden).map((r) => ({ key: r._key, title: r.subject || r.summary || r.msg_type, type: r.msg_type, summary: r.summary || "",
     day: r._p ? r._p.day : "", time: r._p ? r._p.time : "", location: r.location || "", done: !!r._done, needConfirm: !!r.need_confirm, mine: !!r._mine }));
 }
-function islandCourses(k) { try { return ck().data && ck().data.courses.length ? ck().coursesOn(k) : []; } catch (e) { return []; } }
+// 6.3 晚自习（课程表里设置，跟着账号同步）：当成这一天的最后一节课，到点「上课中」，教练和捞捞都不打扰
+function islandCourses(k) {
+  let base = []; try { base = ck().data && ck().data.courses.length ? ck().coursesOn(k) : []; } catch (e) {}
+  try { return IslandCore.withEvening(base, load("evening_v1", null), k); } catch (e) { return base; }
+}
 function islandCtx() {
   const now = new Date(typeof ccNow === "function" ? ccNow() : Date.now()), t = keyOf(now), d = ck().data;
   const weekOf = (k) => { if (!d || !d.week1) return 0; const w = Math.floor((new Date(k + "T00:00:00") - new Date(d.week1 + "T00:00:00")) / 86400000 / 7) + 1; return w >= 1 && w <= 30 ? w : 0; };
@@ -32,7 +36,7 @@ function islandCtx() {
   try { if (farmOn()) { const n = farmNumbers(), s = farmState(); Object.assign(stats, { food: n.left, petName: s.name, petLevel: s.level }); } } catch (e) {}
   if (rankCache && currentClass && rankCache.cid === currentClass.id && rankCache.period === "week") { const me = rankCache.data.rows.find((r) => r.me); if (me) Object.assign(stats, { growth: me.points, rank: me.rank }); }
   return { now, name: currentUser ? currentUser.display_name : "", items: islandItems(), courses: islandCourses(t).map((c) => ({ ...c, day: t })),
-    coursesOn: islandCourses, weekOf, hasCourses: !!(d && d.courses && d.courses.length), stats };
+    coursesOn: islandCourses, weekOf, hasCourses: !!(d && d.courses && d.courses.length) || !!(load("evening_v1", null) || {}).on, stats };
 }
 
 // ---------- 小屏幕上显示什么 ----------

@@ -58,10 +58,13 @@
   }
   // 一件事现在的状态：{ st: "done" | "now" | "soon" | "later" | "past" | "due", text, mins }
   // it：{ type, day, time, end（"HH:MM"，可选）, done }；没写结束时间的按开始后 1 小时算
+  // 6.3「6:30 之前完成签到」「周五前提交」这种：钟点是截止时间，不是开始时间（到点不显示「进行中」，而是「还剩」→ 过期）
+  var DUE_RE = /(之前|以前|前完成|前提交|前上交|前交|前填|前签到|前打卡|前报名|截止|截至|deadline|ddl)/i;
+  function isDue(it) { return !!it && (it.type === "作业" || DUE_RE.test(String(it.text || "") + " " + String(it.title || "") + " " + String(it.summary || ""))); }
   function startInfo(it, now) {
     if (!it || !it.day) return null;
     if (it.done) return { st: "done", text: "已完成", mins: null };
-    if (it.type === "作业" || !it.time) return null;
+    if (it.type === "作业" || !it.time || (it.type !== "课程" && isDue(it))) return null;
     var st = fromKey(it.day), p = it.time.split(":"); st.setHours(+p[0], +p[1], 0, 0);
     var en = new Date(st.getTime() + 3600000);
     if (it.end && /^\d{1,2}:\d{2}$/.test(it.end)) { var q = it.end.split(":"), e2 = fromKey(it.day); e2.setHours(+q[0], +q[1], 0, 0); if (e2 > st) en = e2; }
@@ -69,6 +72,20 @@
     if (toEnd <= 0) return { st: "past", text: "已结束", mins: mins };
     if (mins <= 0) return { st: "now", text: "进行中", mins: mins, left: Math.max(1, Math.round(toEnd)) };
     return { st: mins < 60 ? "soon" : "later", text: startText(mins), mins: mins };
+  }
+
+  // ---------- 6.3 晚自习（课程表里设置；跟着账号同步，键 evening_v1） ----------
+  // ev：{ on: true, name: "晚自习", days: [0..6]（0 = 周一）, t0: "18:30", t1: "21:00", location }
+  // 返回这一天要加进「今天的课」里的那一节（当成课：到点「上课中」，教练和捞捞都不打扰），没有就是 []
+  function evening(ev, k) {
+    if (!ev || !ev.on || !/^\d{1,2}:\d{2}$/.test(ev.t0 || "") || !/^\d{1,2}:\d{2}$/.test(ev.t1 || "") || ev.t1 <= ev.t0) return [];
+    var wd = (fromKey(k).getDay() + 6) % 7;
+    if ((ev.days || []).map(Number).indexOf(wd) < 0) return [];
+    return [{ id: "evening", name: String(ev.name || "晚自习").slice(0, 20), t0: ev.t0, t1: ev.t1, location: String(ev.location || "").slice(0, 40), start: 90, end: 90, teacher: "", evening: true }];
+  }
+  function withEvening(list, ev, k) {
+    var e = evening(ev, k); if (!e.length) return list || [];
+    return (list || []).filter(function (c) { return !c.evening; }).concat(e);
   }
 
   // ---------- 智能排序 ----------
@@ -91,7 +108,7 @@
         if (it.time) { var p = it.time.split(":"); due.setHours(+p[0], +p[1]); } else due.setHours(23, 59);
         mins = due.getTime() / 60000 - nowMin;
         var hours = mins / 60;
-        var si = it.type !== "作业" && it.time ? startInfo({ type: it.type, day: it.day, time: it.time, end: it.end }, now) : null;
+        var si = it.type !== "作业" && it.time ? startInfo({ type: it.type, day: it.day, time: it.time, end: it.end, title: it.title, summary: it.summary }, now) : null;
         if (si && si.st === "now") {            // 正在开的会、正在进行的活动：排最前
           score = 125 * w; level = "now"; reason = "进行中 · 还有 " + si.left + " 分钟结束";
         } else if (si && si.st !== "past") {     // 还没开始：说「还有多久开始」，不说「还剩」
@@ -109,6 +126,7 @@
         }
         score *= w;
         if (it.type !== "作业" && mins < -120) score *= 0.2;      // 开完的会、过去的活动：基本不用管了
+        if (si && si.st === "past") score *= 0.1;                 // 6.3 已经结束的会、活动：不再排在「最该先做」前面
         reason = leftText(mins);
         }
       }
@@ -141,7 +159,8 @@
     var now = ctx.now, list = rank(ctx.items, ctx.courses, now), name = ctx.name ? "，" + ctx.name : "";
     var late = list.filter(function (x) { return x.level === "late"; }).length;
     var todayN = list.filter(function (x) { return x.kind === "item" && x.day === keyOf(now); }).length;
-    var top = list[0], s = hello(now) + name + "！";
+    // 6.3 「最该先做」不挑已经过去的事（开完的会、结束的活动）
+    var top = list.filter(function (x) { return x.level !== "past"; })[0], s = hello(now) + name + "！";
     if (!list.length) return s + "手头没有要赶的事，" + (now.getHours() >= 21 ? "早点休息吧 🌙" : "可以安心学点别的 ☕");
     if (late) s += "有 " + late + " 项作业过期了，先补上吧。";
     else if (todayN) s += "今天有 " + todayN + " 件事。";
@@ -300,7 +319,7 @@
       return listReply(r.name + "有 " + ri.length + " 件事，最急的在前面：", ri, r.name + "没有安排 ☕");
     }
     if (/急|先做|优先|接下来|该做|要做什么|做什么|待办|安排|有什么事|忙|任务|干嘛|干啥/.test(q)) {
-      var all = rank(ctx.items, ctx.courses, now);
+      var all = rank(ctx.items, ctx.courses, now).filter(function (x) { return x.level !== "past"; });   // 6.3 过去的事不算「急」
       return listReply(all.length ? "按轻重缓急排好了，从上往下做：" : "", all, "现在没有要赶的事，轻松一下吧 ☕");
     }
 
@@ -324,5 +343,5 @@
   }
   function fallback() { return { text: "这个我还不太会 😅 我能回答日程、课程、作业、考试、打卡这些，试试问：", chips: CHIPS }; }
 
-  return { rank: rank, startInfo: startInfo, startText: startText, greet: greet, answer: answer, fallback: fallback, hello: hello, parseDay: parseDay, dayName: dayName, leftText: leftText, keyOf: keyOf, CHIPS: CHIPS };
+  return { evening: evening, withEvening: withEvening, isDue: isDue, rank: rank, startInfo: startInfo, startText: startText, greet: greet, answer: answer, fallback: fallback, hello: hello, parseDay: parseDay, dayName: dayName, leftText: leftText, keyOf: keyOf, CHIPS: CHIPS };
 });

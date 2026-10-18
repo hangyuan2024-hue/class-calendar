@@ -310,6 +310,41 @@ class CoursePage(a: Main) : Page(a) {
     private lateinit var tch: EditText
     private lateinit var loc: EditText
 
+    // ---------- 6.3 晚自习：哪几天、几点到几点、在哪（跟着账号同步，键 evening_v1） ----------
+    private fun evening() {
+        val ev0 = com.laolao.classcalendar.core.Kv.get("evening_v1") as? org.json.JSONObject
+        var on = ev0?.optBoolean("on") ?: true
+        var t0 = ev0?.str("t0")?.ifEmpty { null } ?: "18:30"; var t1 = ev0?.str("t1")?.ifEmpty { null } ?: "21:00"
+        val days = mutableSetOf<Int>().apply { val a = ev0?.optJSONArray("days"); if (a == null) addAll(0..4) else for (i in 0 until a.length()) add(a.optInt(i)) }
+        val c = ctx.col().apply { pad(20, 18, 20, 18) }
+        lateinit var dlg: android.app.Dialog
+        c.addView(ctx.text("🌙 晚自习时间", 18f, C.text, BOLD))
+        c.add(ctx.text("设好以后这段时间算「上课中」：首页时间轴会显示，捞捞和今日教练不会催你写作业。网页、电脑、小程序一起生效。", 12.5f, C.sub).apply { setLineSpacing(0f, 1.3f) }, 4)
+        c.add(Toggle(ctx, "开启", "", on) { on = it }, 10)
+        val nameIn = ctx.input("名称", ev0?.str("name")?.ifEmpty { null } ?: "晚自习"); c.add(nameIn, 10)
+        val W = listOf("一", "二", "三", "四", "五", "六", "日")
+        val dr = ctx.row(); c.add(dr, 12)
+        fun paintDays() { dr.removeAllViews(); W.forEachIndexed { i, w -> val sel = i in days
+            dr.addView(ctx.text(w, 14f, if (sel) C.accent else C.sub, SEMI).apply { gravity = Gravity.CENTER; bg(if (sel) C.selected else C.mutedBg, 10, if (sel) C.accent else 0); pad(0, 8)
+                tap { if (i in days) days.remove(i) else days.add(i); paintDays() } }, LinearLayout.LayoutParams(0, WRAP, 1f).apply { rightMargin = dp(4) }) } }
+        paintDays()
+        val tr = ctx.row(); c.add(tr, 12)
+        fun paintT() { tr.removeAllViews()
+            tr.addView(ctx.text("开始 $t0  ⌄", 14.5f, C.text, SEMI).apply { pad(14, 11); bg(C.mutedBg, 12); tap { Dialogs.pickTime(ctx, t0) { t0 = it; paintT() } } }, LinearLayout.LayoutParams(0, WRAP, 1f))
+            tr.addView(ctx.text("结束 $t1  ⌄", 14.5f, C.text, SEMI).apply { pad(14, 11); bg(C.mutedBg, 12); tap { Dialogs.pickTime(ctx, t1) { t1 = it; paintT() } } }, LinearLayout.LayoutParams(0, WRAP, 1f).apply { leftMargin = dp(8) }) }
+        paintT()
+        val locIn = ctx.input("地点（可不填），例如 教二 305", ev0?.str("location") ?: ""); c.add(locIn, 12)
+        c.add(ctx.button("保存") {
+            if (on && days.isEmpty()) { a.toast("至少选一天"); return@button }
+            if (on && t1 <= t0) { a.toast("结束时间要晚于开始时间"); return@button }
+            val v = org.json.JSONObject().put("on", on).put("name", nameIn.text.toString().trim().ifEmpty { "晚自习" }).put("days", org.json.JSONArray(days.sorted()))
+                .put("t0", t0).put("t1", t1).put("location", locIn.text.toString().trim())
+            com.laolao.classcalendar.core.Kv.set("evening_v1", v); com.laolao.classcalendar.core.Bus.emit("data")
+            Dialogs.hideKeyboard(c); dlg.dismiss(); a.toast(if (on) "晚自习时间已保存" else "已关闭晚自习"); render()
+        }, 16)
+        dlg = Dialogs.show(ctx, android.widget.ScrollView(ctx).apply { addView(c) }, bottom = true)
+    }
+
     // ---------- 调课 / 调休 ----------
     private fun adjust(tab0: Int = 0) {
         var tab = tab0
@@ -382,6 +417,7 @@ class CoursePage(a: Main) : Page(a) {
             opts += "📷 拍照导入课表" to { a.push(CourseImportPage(a)) }
             opts += "＋ 添加课程" to { form(null, 0, 1) }
             opts += "🔁 调课 / 调休" to { adjust() }
+            opts += "🌙 晚自习时间" to { evening() }
             opts += "🖼 存成图片 / 分享这周课表" to { shareImage() }
             if (clsId != null && canPublish && Courses.has()) opts += "📤 发布到班级（全班都能看到）" to { publish() }
             opts += "⚙ 作息时间、第 1 周、学期" to { settings() }

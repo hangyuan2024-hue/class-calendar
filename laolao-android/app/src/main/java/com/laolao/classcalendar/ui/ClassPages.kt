@@ -544,7 +544,9 @@ class ViewersPage(a: Main, private val itemId: String, private val title: String
         view; keepScroll(body)
         body.addView(ctx.text(title, 17f, C.text, BOLD, 2))
         val l = all ?: run { body.add(ctx.text(err.ifEmpty { "加载中…" }, 14f, if (err.isNotEmpty()) C.red else C.sub), 14); return }
-        val no = l.filter { it.str("seen_at").isEmpty() }; val seen = l.filter { it.str("seen_at").isNotEmpty() && !it.optBoolean("done") }; val done = l.filter { it.optBoolean("done") }
+        // 6.3 完成了就算看过
+        val no = l.filter { it.str("seen_at").isEmpty() && !it.optBoolean("done") }
+         val seen = l.filter { it.str("seen_at").isNotEmpty() && !it.optBoolean("done") }; val done = l.filter { it.optBoolean("done") }
         body.add(ctx.text("共 ${l.size} 人 · ${l.size - no.size} 人看过", 13f, C.sub), 4)
         body.add(Seg(ctx, listOf("没看 ${no.size}", "看过 ${seen.size}", "完成 ${done.size}"), tab) { tab = it; render() }, 12)
         val cur = listOf(no, seen, done)[tab]
@@ -684,6 +686,8 @@ class IngestPage(a: Main) : Page(a) {
             if (s.isBlank()) a.toast("剪贴板是空的") else inp.setText((inp.text.toString().trim() + "\n\n" + s).trim())
         }, LinearLayout.LayoutParams(0, dp(42), 1f))
         r.addView(ctx.soft(if (busy == "ocr") "识别中…" else "📷 截图识别") { if (busy.isEmpty()) Media.pickImages(a, true) { ocr(it) } }, LinearLayout.LayoutParams(0, dp(42), 1f).apply { leftMargin = dp(10) })
+        // 6.3 直接导入文稿：Word（.docx）/ txt，全在手机上读，表格每一行会整理成一件事
+        r.addView(ctx.soft("📄 文档") { if (busy.isEmpty()) Media.pickDocs(a) { docs(it) } }, LinearLayout.LayoutParams(0, dp(42), 1f).apply { leftMargin = dp(10) })
         body.addView(r)
         if (status.isNotEmpty()) body.add(ctx.text(status, 13.5f, if (bad) C.red else C.accent).apply { bg(if (bad) C.dangerBg else C.selected, 10); pad(12, 8) }, 12)
         if (cloud) body.add(ctx.button(if (busy == "cloud") "AI 正在整理…" else "✨ 交给 AI 整理成班级事项") { cloudRun() }, 14)
@@ -694,6 +698,23 @@ class IngestPage(a: Main) : Page(a) {
         body.add(ctx.text("截图识别要联网，AI 整理大约半分钟到一分钟。整理好的事项会出现在首页和日历里。", 12.5f, C.sub).apply { setLineSpacing(0f, 1.3f) }, 12)
     }
     private fun say(s: String, b: Boolean = false) { status = s; bad = b; render() }
+    private fun docs(us: List<Uri>) {
+        if (us.isEmpty()) return
+        busy = "ocr"; say("正在读文档…")
+        Bg.run {
+            val got = mutableListOf<String>(); var err = ""
+            for (u in us.take(5)) try {
+                val name = Media.nameOf(ctx, u)
+                val t = ctx.contentResolver.openInputStream(u)!!.use { if (Regex("\\.(txt|md|csv)$", RegexOption.IGNORE_CASE).containsMatchIn(name)) it.readBytes().toString(Charsets.UTF_8) else com.laolao.classcalendar.core.DocxText.read(it) }
+                if (t.isNotBlank()) got += t.trim()
+            } catch (e: Exception) { err = e.message ?: "读不了这个文件" }
+            Bg.ui {
+                busy = ""
+                if (got.isEmpty()) say(err.ifEmpty { "文档里没读到文字" }, true)
+                else { input?.setText(((input?.text?.toString()?.trim() ?: "") + "\n\n" + got.joinToString("\n\n")).trim().take(20000)); say("读到 ${got.joinToString("\n").lines().count { it.isNotBlank() }} 行文字，检查一下再整理") }
+            }
+        }
+    }
     private fun ocr(us: List<Uri>) {
         if (us.isEmpty()) return
         busy = "ocr"; say("正在识别 ${us.size} 张截图…")

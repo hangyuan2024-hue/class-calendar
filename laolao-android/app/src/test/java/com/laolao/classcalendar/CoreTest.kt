@@ -170,4 +170,20 @@ class CoreTest {
         assertTrue(M.looksLikeList("□ a\n□ b\n□ c")); assertTrue(!M.looksLikeList("今天去开会\n记得带电脑"))
         assertTrue(M.match("社团例会 带电脑和充电器 A201 打印签到表", "签到 a201")); assertTrue(!M.match("社团例会", "例会 体育馆"))
     }
+
+    /** 6.3：「X 点之前完成」是截止不是开始；晚自习算上课；进行中的会不催作业；Word 表格一行一行（和网页 test/doc.test.js 同样的例子） */
+    @Test fun v63() {
+        assertTrue(Island.isDue("通知", "今天晚上需要上晚自习，并且在6:30之前完成钉钉位置签到"))
+        assertTrue(!Island.isDue("会议", "班会"))
+        val ev = org.json.JSONObject().put("on", true).put("name", "晚自习").put("days", org.json.JSONArray(listOf(0, 1, 2, 3, 4))).put("t0", "18:30").put("t1", "21:00")
+        assertEquals(1, Island.evening("2026-10-19", ev).size)
+        assertEquals(0, Island.evening("2026-10-18", ev).size)
+        val busy = Island.Row("item", "zx", "党课", "活动", "2026-10-18", "19:00", "", "now", false, 125.0, "", "进行中")
+        val hw = Island.Row("item", "hw", "离散数学", "作业", "2026-10-20", "", "", "soon", false, 60.0, "", "还剩 2 天")
+        assertEquals("class", Coach.suggest(listOf(busy, hw), Coach.combine(emptyList()), emptyList(), System.currentTimeMillis(), rnd = 0.9).mode)   // 进行中的会：不催作业（比深夜判断还先）
+        assertEquals("go", Coach.suggest(listOf(hw), Coach.combine(emptyList()), emptyList(), java.time.LocalDateTime.of(2026, 10, 18, 15, 0).atZone(java.time.ZoneId.of("Asia/Shanghai")).toInstant().toEpochMilli(), rnd = 0.9).mode)
+        val xml = "<w:body><w:p><w:r><w:t>表2 安排</w:t></w:r></w:p><w:tbl><w:tr><w:tc><w:p><w:r><w:t>专题</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>授课时间</w:t></w:r></w:p></w:tc></w:tr>" +
+            "<w:tr><w:tc><w:p><w:r><w:t>开班式</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>10月18日</w:t></w:r></w:p><w:p><w:r><w:t>19:30-21:30</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p><w:r><w:t>A &amp; B</w:t></w:r></w:p></w:body>"
+        assertEquals("表2 安排\n专题 授课时间\n开班式 10月18日 19:30-21:30\nA & B", com.laolao.classcalendar.core.DocxText.xmlText(xml))
+    }
 }

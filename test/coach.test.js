@@ -61,6 +61,10 @@ const ok = (s) => console.log("✓ " + s);
   assert.strictEqual(tired.mode, "rest");
   const cls = C.suggest({ now, ranked: [{ kind: "course", key: "c", title: "线代", level: "now", score: 96, reason: "正在上课" }].concat(ranked), model: m, log: [], rnd: 0.9 });
   assert.strictEqual(cls.mode, "class");
+  const busy = C.suggest({ now, ranked: [{ kind: "item", key: "zx", title: "晚自习", type: "通知", time: "18:30", level: "now", score: 125, reason: "进行中" }].concat(ranked), model: m, log: [], rnd: 0.9 });
+  assert.strictEqual(busy.mode, "class"); assert.ok(busy.say.includes("晚自习"));
+  assert.strictEqual(C.deck({ now, ranked: [{ kind: "item", key: "zx", title: "党课", type: "活动", time: "19:00", level: "now", score: 125 }] }).end, "class");
+  ok("6.3 正在上晚自习、开会、参加活动：不催作业，刷任务也不开");
   ok("推荐：最急的先做、换一个、会议讲座不推荐、深夜劝睡、专注太久劝休息、上课时不打扰");
 }
 // 4. 说法会学：哪种提示被接受得多就多用
@@ -142,3 +146,16 @@ const ok = (s) => console.log("✓ " + s);
   ok("随机掉落：第一张必掉、越久越容易掉、保底、每天上限、重复给碎片、碎片兑换、多设备合并");
 }
 console.log("捞捞教练：全部通过");
+
+// 6.3 island-core：「X 点之前完成」是截止不是开始；「最该先做」不挑已经结束的会
+{
+  const I = require("../island-core.js");
+  const at = (h, mi) => new Date(2026, 9, 18, h, mi);
+  assert.strictEqual(I.startInfo({ type: "通知", day: "2026-10-18", time: "18:30", summary: "今天晚上需要上晚自习，并且在6:30之前完成钉钉位置签到" }, at(18, 40)), null);
+  assert.strictEqual(I.startInfo({ type: "会议", day: "2026-10-18", time: "18:30", summary: "班会" }, at(18, 40)).st, "now");
+  const g = I.greet({ now: at(22, 6), name: "杭远", items: [
+    { key: "m", title: "中快三楼开展换届大会", type: "个人", day: "2026-10-18", time: "20:50" },
+    { key: "h", title: "离散数学", type: "作业", day: "2026-10-20", time: "" }], courses: [] });
+  assert.ok(!g.includes("换届大会") && g.includes("离散数学"), g);
+  console.log("✓ 6.3「6:30之前签到」不显示进行中；「最该先做」不挑已经开完的会");
+}

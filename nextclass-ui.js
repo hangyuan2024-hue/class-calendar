@@ -30,12 +30,15 @@
     (date.closest(".row") || date.parentNode).insertAdjacentElement("afterend", box);
     function paint() {
       var c = window.ccNextCtx();
-      var list = c ? CCNext.choices(title.value, c, 6) : [];
+      var list = (c ? CCNext.choices(title.value, c, 6) : []).map(function (n) { return { day: n.day, time: n.time, label: "📚 下次" + n.name.slice(0, 8) + "课前 · " + n.text }; });
+      // 6.3 常用的截止时间：今晚、明天、后天（不是每件事都和上课有关）；都不合适就直接改上面的日期、时间
+      var pad = function (x) { return (x < 10 ? "0" : "") + x; }, kd = function (n) { var d = typeof ccDate === "function" ? ccDate() : new Date(); d.setDate(d.getDate() + n); return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); };
+      list = list.concat([["今晚 23:59", 0, "23:59"], ["明天 08:00", 1, "08:00"], ["明天 23:59", 1, "23:59"], ["后天 23:59", 2, "23:59"]].map(function (q) { return { day: kd(q[1]), time: q[2], label: "🕘 " + q[0], quick: true }; }));
       box.classList.toggle("hidden", !list.length);
       if (!list.length) { box.innerHTML = ""; return; }
       box.innerHTML = '<span class="nc-l">截止：</span>' + list.map(function (n, i) {
         var on = date.value === n.day && time.value === n.time;
-        return '<button type="button" data-i="' + i + '" class="' + (on ? "on" : "") + '">📚 下次' + esc(n.name.slice(0, 8)) + "课前 · " + esc(n.text) + "</button>";
+        return '<button type="button" data-i="' + i + '" class="' + (on ? "on" : "") + '">' + esc(n.label) + "</button>";
       }).join("");
       box._list = list;
     }
@@ -44,7 +47,7 @@
       var n = box._list[+b.dataset.i];
       date.value = n.day; time.value = n.time;
       ["input", "change"].forEach(function (t) { date.dispatchEvent(new Event(t, { bubbles: true })); time.dispatchEvent(new Event(t, { bubbles: true })); });
-      if (setHw) setHw();
+      if (setHw && !n.quick) setHw();
       paint();
     });
     var tmr = 0;
@@ -54,7 +57,7 @@
   }
   function init() {
     hook("modal", "fTitle", "fDate", "fTime", function () { var k = document.getElementById("fKind"); if (k) k.value = "作业"; });
-    hook("cmodal", "cSubject", "cDate", "cTime", function () { var k = document.getElementById("cType"); if (k) k.value = "作业"; });
+    hook("cmodal", "cSubject", "cDate", "cTime", null);   // 6.3 班级事项：不再偷偷把类型改成「作业」（通知、活动也可以有截止时间）
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 })();

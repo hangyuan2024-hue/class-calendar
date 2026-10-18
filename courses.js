@@ -209,6 +209,7 @@ const CourseKit = (() => {
       const b = e.target.closest("button"); if (!b) return;
       if (b.dataset.c === "import") openImport();
       if (b.dataset.c === "adjust") openAdjust();
+      if (b.dataset.c === "evening") openEvening();
       if (b.dataset.c === "shot") shotMine();
       if (b.dataset.c === "src") openSrcView();
       if (b.dataset.c === "class") openClass();
@@ -227,6 +228,7 @@ const CourseKit = (() => {
     const upcoming = (data.adj || []).filter((a) => a.date >= keyOf(ccDate())).length;
     barEl.innerHTML = `<button class="btn ink sm" data-c="import">📷 拍照导入课表</button>
       <button class="btn sm" data-c="adjust" title="学校临时调休、换课、停课、加课">🔁 调课 / 调休${upcoming ? `<em class="cbar-n">${upcoming}</em>` : ""}</button>
+      <button class="btn sm" data-c="evening" title="设置晚自习时间：到点算「上课中」，捞捞和教练不打扰">🌙 晚自习${(load("evening_v1", null) || {}).on ? " · 开" : ""}</button>
       <button class="btn sm" data-c="shot" title="把课程表保存成一张图片">🖼 存为图片</button>
       ${srcRec() ? `<button class="btn sm" data-c="src" title="拍照导入时用的课表图，不用再去相册里找">📷 课表原图</button>` : ""}
       ${clsId() ? `<button class="btn sm" data-c="class" title="老师 / 班委发布的课表，全班都能看到">🏫 班级课表</button>` : ""}
@@ -234,6 +236,33 @@ const CourseKit = (() => {
       <span class="spacer"></span>
       ${currentUser ? `<button class="small" data-c="mail">${mailOn ? "🔔 每晚提醒明天的课：开" : "🔕 每晚提醒明天的课：关"}</button>
       <label class="cbar-ck"><input type="checkbox" id="crsBarIcs" ${load(LS_ICS, true) !== false ? "checked" : ""}>手机日历订阅里带上课程</label>` : ""}`;
+  }
+
+  // ---------- 6.3 晚自习：哪几天、几点到几点、在哪（跟着账号同步，键 evening_v1；规则在 island-core.js 的 evening） ----------
+  function openEvening() {
+    const ev = load("evening_v1", null) || { on: true, name: "晚自习", days: [0, 1, 2, 3, 4], t0: "18:30", t1: "21:00", location: "" };
+    let d = document.getElementById("eveDlg");
+    if (!d) { d = document.createElement("dialog"); d.id = "eveDlg"; d.className = "dlg eve-dlg"; document.body.appendChild(d); }
+    d.innerHTML = `<form method="dialog" class="eve">
+      <h3>🌙 晚自习时间</h3>
+      <p class="muted" style="font-size:12.5px;margin:4px 0 12px">设好以后，这段时间算「上课中」：首页时间轴会显示，捞捞和今日教练不会催你写作业。电脑、手机、小程序一起生效。</p>
+      <label class="check"><input type="checkbox" name="on" ${ev.on ? "checked" : ""}> 开启</label>
+      <label>名称 <input name="name" maxlength="20" value="${esc(ev.name || "晚自习")}"></label>
+      <div class="eve-days">${DAYS.map((t, i) => `<label class="check"><input type="checkbox" name="d${i}" ${(ev.days || []).map(Number).includes(i) ? "checked" : ""}> ${t}</label>`).join("")}</div>
+      <div class="row"><label>开始 <input type="time" name="t0" value="${esc(ev.t0 || "18:30")}" required></label><label>结束 <input type="time" name="t1" value="${esc(ev.t1 || "21:00")}" required></label></div>
+      <label>地点（可不填） <input name="location" maxlength="40" value="${esc(ev.location || "")}" placeholder="例如：教二 305"></label>
+      <div class="err eve-err" style="color:var(--red);font-size:13px"></div>
+      <div class="btns"><button type="button" data-x="cancel">取消</button><button type="submit" class="primary">保存</button></div>
+    </form>`;
+    const f = d.querySelector("form");
+    d.querySelector('[data-x="cancel"]').onclick = () => d.close();
+    f.onsubmit = (e) => {
+      const v = { on: f.on.checked, name: f.name.value.trim() || "晚自习", days: DAYS.map((_, i) => i).filter((i) => f["d" + i].checked), t0: f.t0.value, t1: f.t1.value, location: f.location.value.trim() };
+      if (v.on && (!v.days.length || !(v.t1 > v.t0))) { e.preventDefault(); d.querySelector(".eve-err").textContent = !v.days.length ? "至少选一天" : "结束时间要晚于开始时间"; return; }
+      save("evening_v1", v); renderBar();
+      try { if (typeof renderAll === "function") renderAll(); } catch (err) {}
+    };
+    d.showModal();
   }
 
   // ---------- 班级课表 + 存为图片（后端 5.4.0；画图用 course-image.js，和小程序同一份） ----------

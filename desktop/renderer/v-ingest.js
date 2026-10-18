@@ -15,7 +15,7 @@ App.views.ingest = {
       <div class="vbody ig-body">
         <div class="card ig-in">
           <textarea id="igText" class="input" rows="9" placeholder="把班级群里的消息复制过来，粘贴到这里（Ctrl+V）。可以一次粘贴很多条，闲聊会自动去掉。&#10;&#10;小技巧：在微信、QQ 里复制了作业通知，右下角会弹出提示，点一下就到这里了。"></textarea>
-          <div class="row ig-act"><button class="btn" id="igPaste">${icon("clip")}粘贴剪贴板</button><button class="btn ghost" id="igClear">清空</button><span class="grow"></span>
+          <div class="row ig-act"><button class="btn" id="igPaste">${icon("clip")}粘贴剪贴板</button><button class="btn ghost" id="igClear">清空</button><button class="btn ghost" id="igDoc" title="直接导入 Word 文档（.docx）或文本文件，表格每一行会整理成一件事；全在本机，不上传">📄 导入文档</button><input type="file" id="igDocFile" accept=".docx,.txt,.md,.csv" multiple hidden><span class="grow"></span>
             <span class="ig-st" id="igSt"></span>
             <button class="btn" id="igCloud">☁ 直接交给云端 AI</button><button class="btn primary" id="igGo">✨ 整理（本机规则，不花 token）</button></div>
         </div>
@@ -26,6 +26,18 @@ App.views.ingest = {
     $("#igPub", el).value = todayKey();
     $("#igPaste", el).onclick = async () => { const t = await call("clip:read"); if (!t) return toast("剪贴板里没有文字"); ta.value = (ta.value ? ta.value + "\n" : "") + t; this.st(""); };
     $("#igClear", el).onclick = () => { ta.value = ""; this.parsed = null; this.drawRes(); ta.focus(); };
+    // 6.3 直接导入文稿：Word（.docx）/ 文本文件，全在本机读
+    $("#igDoc", el).onclick = () => $("#igDocFile", el).click();
+    $("#igDocFile", el).onchange = async (e) => {
+      const files = [...e.target.files].slice(0, 5); e.target.value = ""; if (!files.length) return;
+      try {
+        const got = [];
+        for (const f of files) got.push(/\.(txt|md|csv)$/i.test(f.name) ? (await f.text()).trim() : (await DocxText.read(new Uint8Array(await f.arrayBuffer()), DocxText.browserInflate)).trim());
+        const t = got.filter(Boolean).join("\n\n");
+        if (!t) return toast("文档里没读到文字");
+        ta.value = (ta.value.trim() ? ta.value.trim() + "\n\n" : "") + t; this.local();
+      } catch (err) { toast(err.message); }
+    };
     $("#igGo", el).onclick = () => this.local();
     $("#igCloud", el).onclick = () => this.cloud(ta.value.trim(), false);
     ta.onkeydown = (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); this.local(); } };

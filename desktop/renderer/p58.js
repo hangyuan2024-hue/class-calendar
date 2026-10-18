@@ -213,7 +213,7 @@ const HW58 = {
     openOverlay(d);
     try {
       const l = await api("item_viewers", { cid, iid: Number(id) });
-      const no = l.filter((x) => !x.seen_at), yes = l.filter((x) => x.seen_at), done = l.filter((x) => x.done), sn = yes.filter((x) => !x.done);
+      const no = l.filter((x) => !x.seen_at && !x.done), yes = l.filter((x) => x.seen_at || x.done), done = l.filter((x) => x.done), sn = yes.filter((x) => !x.done);   // 6.3 完成了就算看过
       const who = (x) => `<span class="hw58-p${x.done ? " ok" : ""}">${avHtml(x.name || x.account || "?", "sm")}${esc(x.name || x.account)}${x.role === "monitor" ? "<i>班委</i>" : ""}${x.seen_at ? `<small>${esc(ago(x.seen_at))}</small>` : ""}${x.done ? "<b>✓</b>" : ""}</span>`;
       const pane = (k, list, empty, copy) => `<div data-vp="${k}" class="hw58-pane${k === "no" ? "" : " hidden"}">${list.length ? list.map(who).join("") : `<div class="muted">${empty}</div>`}${copy && list.length ? `<div style="width:100%"><button class="btn sm" data-vc="${esc(list.map((x) => "@" + (x.name || x.account)).join(" "))}">复制名字（发到群里提醒）</button></div>` : ""}</div>`;
       $(".dbody", d).innerHTML = `<div class="hw58-sum"><div><b>${yes.length}</b><span>看过</span></div><div><b>${no.length}</b><span>还没看</span></div><div><b>${done.length}</b><span>标记完成</span></div></div>

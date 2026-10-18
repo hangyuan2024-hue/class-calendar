@@ -37,7 +37,7 @@ const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; 
 // ===== 云端同步：登录后，我的事项、完成标记、打卡、规划、外观设置自动存到云端，换浏览器 / 换手机都能看到 =====
 // 每条数据单独同步，带修改时间；两边都改了同一条，以后改的为准。可以在「我的 → 数据」里改成「只存在这台设备」。
 // list：数组，按 id 一条条同步；map：对象，按键同步；map2：两层对象（习惯 → 日期）；one：整体同步
-const SYNC_KINDS = { hw_view_v1: "one", ui_style_v1: "one", compose_mode_v1: "one", compose_reduce_motion_v1: "one", course_rev_v1: "one", course_view_v1: "map", kn_rev_v1: "one", mm_rev_v1: "one", personal_events_v1: "list", personal_marks_v1: "map", done_log_v1: "map", habits_v1: "list", habit_log_v1: "map2",
+const SYNC_KINDS = { evening_v1: "one", hw_view_v1: "one", ui_style_v1: "one", compose_mode_v1: "one", compose_reduce_motion_v1: "one", course_rev_v1: "one", course_view_v1: "map", kn_rev_v1: "one", mm_rev_v1: "one", personal_events_v1: "list", personal_marks_v1: "map", done_log_v1: "map", habits_v1: "list", habit_log_v1: "map2",
   quad_v1: "map", quad_todos_v1: "list", pomo_log_v1: "map", fun_opts_v1: "one", home_layout_v1: "one", ui_skin_v1: "one",
   ui_palette_v1: "one", plugins_enabled_v1: "one", home_quick_tools_v1: "one", plan_notes_v1: "map", profile_v1: "one", mood_log_v1: "map", coach_v1: "map", farm_v1: "one", island_v1: "one" };
 const LS_SYNC = "sync_meta_v1", LS_SYNC_OUT = "sync_outbox_v1", LS_SYNC_MODE = "sync_mode_v1";
@@ -765,7 +765,7 @@ function rowState(r) {
     return si.mins < 24 * 60 ? { st: si.st, text: si.text.replace("开始", "上课") } : null;
   }
   if (r._plugin || r.msg_type === "作业") return null;
-  const si = IslandCore.startInfo({ type: r.msg_type, day: r._p.day, time: r._p.time }, now);
+  const si = IslandCore.startInfo({ type: r.msg_type, day: r._p.day, time: r._p.time, title: r.subject, summary: (r.summary || "") + " " + (r.original || "") }, now);
   if (!si) return null;
   return si.st === "past" ? { st: "done", text: "已结束" } : si;
 }
@@ -1470,6 +1470,26 @@ $("ingestImgFile").onchange = async (e) => {
     else st.textContent = `认出 ${nl} 行文字，检查一下再整理`;
   } catch (err) { st.textContent = err.message; st.className = "err"; }
   finally { btn.disabled = false; }
+};
+// ---- 6.3 直接导入文稿：Word（.docx）/ 文本文件，全在本机读，表格每一行会整理成一件事 ----
+$("ingestDoc").onclick = () => $("ingestDocFile").click();
+$("ingestDocFile").onchange = async (e) => {
+  const files = [...e.target.files].slice(0, 5); e.target.value = "";
+  if (!files.length) return;
+  const st = $("ingestStatus"), ta = $("ingestText"), got = [];
+  st.className = ""; st.textContent = "正在读文档…";
+  try {
+    for (const f of files) {
+      if (/\.(txt|md|csv)$/i.test(f.name) || /^text\//.test(f.type)) got.push((await f.text()).trim());
+      else got.push((await DocxText.read(new Uint8Array(await f.arrayBuffer()), DocxText.browserInflate)).trim());
+    }
+    const text = got.filter(Boolean).join("\n\n").slice(0, 20000);
+    if (!text) { st.textContent = "文档里没读到文字"; st.className = "err"; return; }
+    ta.value = (ta.value.trim() ? ta.value.trim() + "\n\n" : "") + text;
+    const nl = text.split("\n").filter((x) => x.trim()).length;
+    if (feat("ingest_local") && !$("ingestLocal").classList.contains("hidden")) { st.textContent = `读到 ${nl} 行，正在本地整理…`; $("ingestLocal").click(); }
+    else st.textContent = `读到 ${nl} 行文字，检查一下再整理`;
+  } catch (err) { st.textContent = err.message; st.className = "err"; }
 };
 $("ingestGo").onclick = async () => {
   const text = $("ingestText").value.trim(), st = $("ingestStatus");

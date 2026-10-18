@@ -511,11 +511,69 @@
     return { day, time, loc, dt, course, pick, t };
   }
 
+  // ---------- 6.3 文档里的表格（通知、课程安排、日程表）：认表头，一行就是一件事 ----------
+  // 截图识别 / Word 文档导出来的表格是一行一行的字：「专题 主讲内容 主讲人 授课地点 授课时间」下面跟着
+  // 「开班式 党课党史学习教育开班仪式 科教分子 活动中心 10月18日 19:30-21:30」。按表头把每一格对上号：
+  // 时间那一格从右边认（日期 + 时间），地点、人从右往左对，剩下的都归第一、二列（格子里本身有空格也不怕）。
+  const COLS = [
+    ["time", /^(时间|日期|授课时间|上课时间|活动时间|截止时间|截止日期|开始时间|时段|时间安排|日期时间)$/],
+    ["place", /^(地点|授课地点|上课地点|活动地点|教室|场地|地址|会议室|考场)$/],
+    ["who", /^(主讲人|主讲|讲师|老师|教师|负责人|主持人|授课人|联系人|授课教师|参加人员|对象)$/],
+    ["topic", /^(专题|主题|单元|模块|类别|环节|序号|阶段|名称|项目|课程名称|活动名称)$/],
+    ["what", /^(主讲内容|内容|课程|课程内容|活动内容|授课内容|事项|安排|任务|要求|备注)$/],
+  ];
+  function colOf(cell) { for (const [k, re] of COLS) if (re.test(cell)) return k; return ""; }
+  const WHEN_TOK = /^(\d{1,2}月\d{1,2}[日号]?|\d{1,2}[./-]\d{1,2}|\d{4}[年./-]\d{1,2}[月./-]\d{1,2}[日号]?|周[一二三四五六日天]|星期[一二三四五六日天]|[(（]?周?[一二三四五六日天][)）]?|\d{1,2}[:：]\d{2}(\s*[-–~至到]\s*\d{1,2}[:：]\d{2})?|[上下]午|晚上|全天)$/;
+  function tableItems(text, pub) {
+    const lines = String(text || "").split(/\r?\n/);
+    const used = new Set(), items = [];
+    for (let i = 0; i < lines.length; i++) {
+      const head = lines[i].trim().split(/\s+|\t|\|/).filter(Boolean);
+      const kinds = head.map(colOf);
+      if (head.length < 3 || kinds.filter(Boolean).length < 3 || !kinds.includes("time")) continue;
+      // 表格上面一两行的标题（「表2 面授课程教学安排」「三、……安排」）：用来定类型
+      const ctxT = lines.slice(Math.max(0, i - 3), i).join(" ");
+      const typ = /考试|测验|考核/.test(ctxT + head.join("")) ? "通知" : /会议|例会|班会/.test(ctxT) ? "会议" : "活动";
+      used.add(i);
+      for (let j = i + 1; j < lines.length; j++) {
+        const row = lines[j].trim();
+        if (!row) continue;
+        let toks = row.split(/\s+|\t|\|/).filter(Boolean);
+        // 表格里常把两个字隔开写（「结 业」「班 会」）：连着的单个汉字拼回去
+        toks = toks.reduce((a, t) => { if (a.length && /^[\u4e00-\u9fff]$/.test(t) && /^[\u4e00-\u9fff]{1,3}$/.test(a[a.length - 1]) && a._single) { a[a.length - 1] += t; } else { a.push(t); } a._single = /^[\u4e00-\u9fff]$/.test(t); return a; }, []);
+        // 时间格：从右边连着几个像日期 / 时间的
+        let k = toks.length; while (k > 0 && WHEN_TOK.test(toks[k - 1])) k--;
+        const whenTxt = toks.slice(k).join(" ");
+        if (!whenTxt || !/\d/.test(whenTxt)) break;   // 不像表格的一行了：表格结束
+        toks = toks.slice(0, k);
+        const cells = {}, order = kinds.filter((x) => x !== "time");
+        // 时间不在最后一列时（少见）也照样从右往左对：地点、人这种一格一个词
+        for (let c = order.length - 1; c >= 1 && toks.length > 1; c--) { if (order[c] === "place" || order[c] === "who") cells[order[c]] = toks.pop(); }
+        const rest = order.slice(0, order.length).filter((x) => !(x in cells));
+        if (rest.length >= 2 && toks.length >= 2) { cells[rest[0]] = toks[0]; cells[rest[1]] = toks.slice(1).join(""); }
+        else if (rest.length) cells[rest[0]] = toks.join(" ");
+        const day = findDate(whenTxt, pub), tm = findTime(whenTxt);
+        if (!day) break;
+        const topic = (cells.topic || "").replace(/\s+/g, ""), what = cells.what || "";
+        const subject = (topic && what ? topic + "：" + what : topic || what || "表格第 " + items.length + " 行").slice(0, 40);
+        const range = (whenTxt.match(/\d{1,2}[:：]\d{2}\s*[-–~至到]\s*\d{1,2}[:：]\d{2}/) || [""])[0];
+        items.push({ msg_type: typ, subject, summary: [topic, what, cells.who ? "主讲：" + cells.who : "", cells.place ? "地点：" + cells.place : "", whenTxt].filter(Boolean).join(" · ").slice(0, 1000),
+          event_time: day + (tm ? " " + tm : ""), location: (cells.place || "").slice(0, 60), prepare: "", original: (ctxT.trim() ? ctxT.trim().slice(-60) + "\n" : "") + head.join(" ") + "\n" + row,
+          publish_date: pub, need_confirm: false, confidence: 0.9, src_text: row, via: "table", ...(range ? { end: range.split(/[-–~至到]/)[1].trim().replace("：", ":") } : {}) });
+        used.add(j);
+      }
+    }
+    return { items, rest: lines.filter((_, i) => !used.has(i)).join("\n") };
+  }
+
   function parse(text, pubDate, opts) {
     const model = opts && opts.model, force = !!(opts && opts.force);   // force：班委说「这条要记」，不当闲聊
     const pub0 = pubDate || keyOf(new Date());
     const out = { items: [], unsure: [], chatter: [], dupes: 0 };
     const seen = new Set();
+    // 6.3 文档里的表格先按表头整理掉，剩下的照原来的规则
+    const tb = tableItems(text, pub0);
+    if (tb.items.length) { out.items.push(...tb.items); text = tb.rest; }
     for (const msg of splitMessages(text)) {
       const raw = msg.text, pub = msg.date && /^\d{4}-\d{2}-\d{2}$/.test(msg.date) ? msg.date : pub0;
       const norm = raw.replace(/\s+/g, "");
@@ -746,6 +804,6 @@
     })).filter((x) => x.subject || x.summary);
   }
 
-  const api = { parse, splitMessages, isChatter, findDate, findTime, findLocation, extractPrompt, parseJsonItems, createModel, courseOf, version: 2 };
+  const api = { parse, tableItems, splitMessages, isChatter, findDate, findTime, findLocation, extractPrompt, parseJsonItems, createModel, courseOf, version: 2 };
   if (typeof module !== "undefined" && module.exports) module.exports = api; else root.LaoParse = api;
 })(typeof window !== "undefined" ? window : globalThis);

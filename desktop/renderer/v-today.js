@@ -13,7 +13,7 @@ function islandCtx() { return DIsland.ctx(); }
 // 3.3.3 会议、活动这类到点开始的事：一天之内显示「还有多久开始 / 进行中」（规则在 island-core.js，和网页、小程序、App 一样）
 function startTag(x, now) {
   if (!x || x.done || x.type === "作业" || !x.time || !x.day || typeof IslandCore === "undefined" || !IslandCore.startInfo) return "";
-  const si = IslandCore.startInfo({ type: x.type, day: x.day, time: x.time }, now);
+  const si = IslandCore.startInfo({ type: x.type, day: x.day, time: x.time, title: x.title, summary: (x.summary || "") + " " + (x.original || "") }, now);
   if (!si || si.st === "past" || (si.mins != null && si.mins > 24 * 60)) return "";
   return `<span class="td-st st-${si.st}">${esc(si.text)}</span>`;
 }

@@ -46,6 +46,15 @@ object Media {
             }
         }
     }
+    /** 6.3 选文档（Word / txt）：导入文稿用 */
+    fun pickDocs(a: Main, fn: (List<Uri>) -> Unit) {
+        val it = Intent(Intent.ACTION_GET_CONTENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE).putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+            .putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/msword", "text/plain", "application/octet-stream"))
+        a.startForResult(Intent.createChooser(it, "选 Word 文档")) { res, data -> if (res == Activity.RESULT_OK && data != null) fn(uris(data)) }
+    }
+    fun nameOf(ctx: android.content.Context, u: Uri): String = try {
+        ctx.contentResolver.query(u, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c -> if (c.moveToFirst()) c.getString(0) ?: "" else "" } ?: ""
+    } catch (_: Exception) { u.lastPathSegment ?: "" }
     /** 选任意文件（附件用） */
     fun pickFiles(a: Main, fn: (List<Uri>) -> Unit) {
         Dialogs.sheet(a, "", listOf("选文件（PDF、Word、Excel…）", "从相册选图片", "拍照")) { i ->
