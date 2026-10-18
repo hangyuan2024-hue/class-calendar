@@ -151,7 +151,7 @@ class CoreTest {
     }
 
     /** 6.2 备忘录：和网页 test/memo.test.js 同样的例子 */
-    @Test fun memo() {
+    @Test fun memoCore() {
         val M = MemoCore
         assertEquals("2026-10-17", M.nextDay("2026-10-16", "day"))
         assertEquals("2026-10-19", M.nextDay("2026-10-16", "weekday"))
