@@ -40,5 +40,15 @@ const ok = (s) => console.log("✓ " + s);
   assert.strictEqual(sug({ ...ev, study: false }).mode, "class");
   assert.ok(C.deck({ now: at, ranked: I.rank(items, I.withEvening([], ev, "2026-10-20").map((c) => ({ ...c, day: "2026-10-20" })), at) }).cards.length > 0);
   ok("晚自习默认催写作业（作业排前面、刷任务照样能刷），设成「别打扰」就不打扰");
+  // 6.4 群消息里的停课 / 不上晚自习 / 换课 → 课表调整建议（2026-10-18 是周日）
+  const A = (t, o) => P.adjustments(t, "2026-10-18", { eveningName: "晚自习", courseNames: ["高等数学"], ...(o || {}) }).map((a) => [a.type, a.date, a.name || a.from || ""]);
+  assert.deepStrictEqual(A("下周一和周二晚上都不上晚自习，下周一没课班级去参加讲座，下周二晚上有计算机专业认知教育，各班班长负责好考勤"),
+    [["cancel", "2026-10-19", "晚自习"], ["cancel", "2026-10-20", "晚自习"]]);
+  assert.deepStrictEqual(A("10月20日至22日停课").map((x) => x[1]), ["2026-10-20", "2026-10-21", "2026-10-22"]);
+  assert.deepStrictEqual(A("明天放假"), [["off", "2026-10-19", ""]]);
+  assert.deepStrictEqual(A("周三的高等数学不上了"), [["cancel", "2026-10-21", "高等数学"]]);
+  assert.deepStrictEqual(A("下周六上周三的课")[0].slice(0, 2), ["swap", "2026-10-24"]);
+  assert.deepStrictEqual(A("没课的同学去参加讲座，今晚晚自习照常"), []);
+  ok("群消息：不上晚自习、停课、放假、调课都认成课表调整；「没课的班级」「照常」不误删");
   console.log("文档导入 / 晚自习：全部通过");
 })().catch((e) => { console.error("✗", e); process.exit(1); });

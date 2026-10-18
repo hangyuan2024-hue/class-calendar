@@ -71,6 +71,14 @@
           writes[id] = { resolve: resolve, reject: reject, entries: entries, timer: timer };
           post({ cc: "set-batch", requestId: id, entries: entries });
         });
+      },
+      // 6.4 本班名单（只给内置的随机点名器用；要有看成员名单的权限）→ Promise<[姓名]>
+      roster: function () {
+        return new Promise(function (resolve, reject) {
+          var id = "roster-" + (++writeSeq), timer = setTimeout(function () { delete writes[id]; reject(new Error("没拿到名单，检查一下网络")); }, 20000);
+          writes[id] = { resolve: resolve, reject: reject, roster: true, timer: timer };
+          post({ cc: "roster-req", requestId: id });
+        });
       } };
     }
     installShims();
@@ -80,7 +88,11 @@
     function onParentMsg(e) {
       if (e.source !== window.parent || !e.data) return;
       var d = e.data;
-      if (d.cc === "store-result") {
+      if (d.cc === "roster-result") {
+        var r = writes[d.requestId]; if (!r) return;
+        clearTimeout(r.timer); delete writes[d.requestId];
+        if (d.ok) r.resolve(Array.isArray(d.list) ? d.list.map(String) : []); else r.reject(new Error(d.error || "没拿到名单"));
+      } else if (d.cc === "store-result") {
         var w = writes[d.requestId]; if (!w) return;
         clearTimeout(w.timer); delete writes[d.requestId];
         if (!d.ok) { w.reject(new Error(d.error || "保存失败")); return; }

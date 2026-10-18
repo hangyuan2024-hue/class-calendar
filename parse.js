@@ -566,6 +566,52 @@
     return { items, rest: lines.filter((_, i) => !used.has(i)).join("\n") };
   }
 
+  // ---------- 6.4 群消息里的「课表调整」：不上晚自习 / 放假停课 / 某门课不上 / 换课 ----------
+  // 「下周一和周二晚上都不上晚自习」→ 这两天停晚自习；「明天放假」「10月20日至22日停课」→ 放假；「周六上周三的课」→ 换课；
+  // 「周三的高数不上了」（课表里有这门课）→ 只停这门。注意「下周一没课班级去参加讲座」说的是没课的班级，不是停课，不算。
+  // 返回 [{ type: "cancel" | "off" | "swap", date, name?, from?, text }]，界面上让人勾选确认后再写进课程表的「调课 / 调休」
+  const NO_CLASS_WHO = /(没课|无课|没有课)的?(班级|同学|学生|班)/;
+  function adjustments(text, pubDate, opts) {
+    opts = opts || {};
+    const pub = pubDate || keyOf(new Date()), eve = String(opts.eveningName || "晚自习"), names = (opts.courseNames || []).filter((x) => x && x.length >= 2);
+    const eveRe = new RegExp("(不上|没有|取消|暂停|停上?|不用上|免上?|不开)[了]?\\s*" + eve + "|" + eve + "\\s*(取消|暂停|停上?|不上|放假|休息|不用上|没有)");
+    const offRe = /放假|停课|不上课|课程?(全部|都)?取消|全天(停课|休息)|全部停课/;
+    const out = [], seen = new Set();
+    const push = (x) => { const k = x.type + x.date + (x.name || "") + (x.from || ""); if (!seen.has(k) && /^\d{4}-\d{2}-\d{2}$/.test(x.date)) { seen.add(k); out.push(x); } };
+    let prevDays = [];
+    for (const msg of splitMessages(text)) {
+      const pubM = msg.date && /^\d{4}-\d{2}-\d{2}$/.test(msg.date) ? msg.date : pub;
+      for (const raw of String(msg.text || "").split(/[。！!；;\n]/)) {
+        const sent = normalize(raw); if (!sent.trim()) continue;
+        // 一句里可能有好几个分句：「下周一和周二晚上都不上晚自习，下周一没课班级去参加讲座」
+        for (const cl of sent.split(/[，,]/)) {
+          const ms = dateMentions(cl, pubM).sort((a, b) => a.i - b.i);
+          let days = ms.map((m) => m.key);
+          // 「10月20日至22日」「周一到周三」：中间的日子都算
+          if (ms.length === 2 && /至|到|~|～|—|-/.test(cl.slice(ms[0].i + ms[0].len, ms[1].i))) {
+            days = []; for (let k = ms[0].key, g = 0; k <= ms[1].key && g < 31; k = keyOf(new Date(new Date(k + "T00:00:00").getTime() + 86400000)), g++) days.push(k);
+          }
+          if (!days.length) days = prevDays; else prevDays = days;   // 「下周一，晚自习取消」：日子在前一个分句
+          if (!days.length) continue;
+          // 换课：「周六上周三的课」——这里的「上」是「上课」，不是「上周」；按同一周的那天算（写了具体日期就用日期）
+          const sw = cl.match(/上\s*((\d{1,2}月\d{1,2}[日号]?)|(?:周|星期)([一二三四五六日天]))[^，,]{0,6}?的课/);
+          if (sw && ms.length >= 1 && !/不上/.test(cl)) {
+            let from = "";
+            if (sw[2]) { const m2 = dateMentions(sw[2], pubM)[0]; from = m2 ? m2.key : ""; }
+            else { const tgt = new Date(ms[0].key + "T00:00:00"), wd = "一二三四五六日天".indexOf(sw[3]); const mon = new Date(tgt); mon.setDate(tgt.getDate() - (tgt.getDay() + 6) % 7); mon.setDate(mon.getDate() + Math.min(wd, 6)); from = keyOf(mon); }
+            if (from && from !== ms[0].key) { push({ type: "swap", date: ms[0].key, from, text: cl.trim() }); continue; }
+          }
+          if (eveRe.test(cl)) { days.forEach((d) => push({ type: "cancel", date: d, name: eve, text: cl.trim() })); continue; }
+          if (NO_CLASS_WHO.test(cl)) continue;
+          const named = names.filter((n) => cl.includes(n));
+          if (named.length && /停课|不上|取消|暂停|改上|调到|调课/.test(cl)) { days.forEach((d) => named.forEach((n) => push({ type: "cancel", date: d, name: n, text: cl.trim() }))); continue; }
+          if (offRe.test(cl) && !/晚自习/.test(cl)) days.forEach((d) => push({ type: "off", date: d, text: cl.trim() }));
+        }
+      }
+    }
+    return out.sort((a, b) => a.date.localeCompare(b.date));
+  }
+
   function parse(text, pubDate, opts) {
     const model = opts && opts.model, force = !!(opts && opts.force);   // force：班委说「这条要记」，不当闲聊
     const pub0 = pubDate || keyOf(new Date());
@@ -804,6 +850,6 @@
     })).filter((x) => x.subject || x.summary);
   }
 
-  const api = { parse, tableItems, splitMessages, isChatter, findDate, findTime, findLocation, extractPrompt, parseJsonItems, createModel, courseOf, version: 2 };
+  const api = { parse, adjustments, tableItems, splitMessages, isChatter, findDate, findTime, findLocation, extractPrompt, parseJsonItems, createModel, courseOf, version: 2 };
   if (typeof module !== "undefined" && module.exports) module.exports = api; else root.LaoParse = api;
 })(typeof window !== "undefined" ? window : globalThis);

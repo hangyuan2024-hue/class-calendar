@@ -488,6 +488,19 @@ const CourseKit = (() => {
       pv.textContent = "";
     }
   }
+  // 6.4 整理群消息时认出的课表调整（不上晚自习、放假、某门课不上、换课）：确认后一次加进来，已经有的不重复
+  async function addAdj(adds) {
+    const list = (data.adj || []).slice(); let n = 0;
+    for (const a of adds || []) {
+      if (list.some((x) => x.date === a.date && x.type === a.type && (x.name || "") === (a.name || "") && (x.from || "") === (a.from || ""))) continue;
+      if (a.type === "off" && list.some((x) => x.date === a.date && x.type === "off")) continue;
+      list.push({ id: Math.random().toString(36).slice(2, 10), date: a.date, type: a.type, ...(a.name ? { name: a.name } : {}), ...(a.from ? { from: a.from } : {}), note: String(a.note || "群消息").slice(0, 60) }); n++;
+    }
+    data.adj = cleanAdj(list);
+    await write({ [K.adj]: JSON.stringify(data.adj) });
+    renderBar();
+    return n;
+  }
   async function adjSave(list, msg) {
     data.adj = cleanAdj(list);
     await write({ [K.adj]: JSON.stringify(data.adj) });
@@ -1043,6 +1056,6 @@ const CourseKit = (() => {
     try { renderAgenda(); } catch (e) {}   // 首页问候卡的时间轴要用课程：课表读好后重画一次（不然刷新后时间轴上没有课）
   }
 
-  return { openClass, shotMine, dayNote, openAdjust, baseOn, cleanAdj, pull, _nearOCR: (a, b) => nearOCR(a, b), NS, on, read, write, sync, changed, coursesOn, card, askLines, injectBuiltin, loadBuiltin, decorateTab, renderBar, openImport, boot, parseWeeks, weeksText,
+  return { addAdj, mdw: (k) => mdw(k), openClass, shotMine, dayNote, openAdjust, baseOn, cleanAdj, pull, _nearOCR: (a, b) => nearOCR(a, b), NS, on, read, write, sync, changed, coursesOn, card, askLines, injectBuiltin, loadBuiltin, decorateTab, renderBar, openImport, boot, parseWeeks, weeksText,
     get data() { return data; } };
 })();

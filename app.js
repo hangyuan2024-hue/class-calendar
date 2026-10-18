@@ -1617,6 +1617,9 @@ function renderParsed() {
         ${parsed.unsure.map((u, i) => `<div class="ux" title="${esc(u.text)}"><button class="small" data-fillu="${i}" title="放到上面自己填，捞捞会学">我来填</button><em>${esc(u.why)}</em>${esc(u.text)}</div>`).join("")}</div>` : ""}
     ${parsed.chatter.length ? `<details class="ipchat"><summary>被当成闲聊过滤掉的 ${parsed.chatter.length} 条（看看有没有漏掉的）</summary>
         ${parsed.chatter.map((c, i) => `<div class="ux"><button class="small" data-keepc="${i}" title="这条是要记的事，捞捞会学">这条要记</button>${esc(c)}</div>`).join("")}</details>` : ""}
+    ${(parsed.adj || []).length ? `<div class="ip-adj"><h5>📅 认出了课表调整 <small>会改你自己的课程表（课表、首页、教练都跟着变），不会发到班级</small></h5>
+        ${parsed.adj.map((a, i) => `<label class="ux"><input type="checkbox" data-adjon="${i}" ${a.on ? "checked" : ""}> <b>${esc(ck().mdw ? ck().mdw(a.date) : a.date)}</b> ${a.type === "off" ? "放假 / 停课" : a.type === "swap" ? `上 ${esc(ck().mdw ? ck().mdw(a.from) : a.from)} 的课` : `不上「${esc(a.name)}」`}<em>${esc(a.text || "")}</em></label>`).join("")}
+        <button class="btn sm" id="ipAdjApply" ${parsed.adj.some((a) => a.on) ? "" : "disabled"}>应用到我的课程表</button></div>` : ""}
     <div class="ip-actions"><button class="small" id="ipCancel">取消</button>${ingestPersonal() ? "" : `<button class="btn sm" id="ipMine" ${on ? "" : "disabled"} title="不发到班级，只加到你自己的「我的事项」">只保存给自己</button>`}<button class="btn ink sm" id="ipPublish" ${on ? "" : "disabled"}>${ingestPersonal() ? `把选中的 ${on} 条加到我的事项` : `发布选中的 ${on} 条到班级`}</button></div>`;
 }
 const withShown = (x, extra) => ({ ...x, on: true, src: "", ...extra, _shown: slimItem(x) });
@@ -1629,9 +1632,17 @@ $("ingestLocal").onclick = async () => {
   try { model = await ensureLaoModel(); } catch (e) {}
   const r = LaoParse.parse(text, laoPub(), { model });
   parsed = { ...r, items: r.items.map((x) => withShown(x)) };
+  // 6.4 认出课表调整：「下周一和周二晚上都不上晚自习」「明天放假」「周三的高数不上了」
+  try {
+    const ev = load("evening_v1", null), cd = ck().data || {};
+    parsed.adj = (LaoParse.adjustments ? LaoParse.adjustments(text, laoPub(), { eveningName: (ev && ev.name) || "晚自习", courseNames: [...new Set((cd.courses || []).map((c) => c.name))] }) : [])
+      .map((a) => ({ ...a, on: true }));
+  } catch (err) { parsed.adj = []; }
   renderParsed();
 };
 $("ipResult").addEventListener("input", (e) => {
+  const aj = e.target.closest("[data-adjon]");
+  if (aj && parsed && parsed.adj) { parsed.adj[+aj.dataset.adjon].on = aj.checked; renderParsed(); return; }
   const f = e.target.closest("[data-pf]"); if (!f) return;
   const x = parsed.items[+f.closest("[data-pi]").dataset.pi], k = f.dataset.pf;
   if (k === "on") { x.on = f.checked; renderParsed(); return; }
@@ -1653,6 +1664,13 @@ $("ingestPanel").addEventListener("click", async (e) => {
     laoLocal(currentClass.id, []); await ensureLaoModel(true); return;
   }
   if (!parsed) return;
+  if (e.target.closest("#ipAdjApply")) {
+    const adds = (parsed.adj || []).filter((a) => a.on);
+    if (!adds.length || !ck().addAdj) return;
+    try { const n = await ck().addAdj(adds); parsed.adj = []; renderParsed(); renderAll(); st.className = ""; st.textContent = n ? `课程表已更新：${n} 处调整（在「课程表 → 🔁 调课 / 调休」里能看到、能删）` : "这些调整课程表里已经有了"; }
+    catch (err) { st.textContent = "没改上：" + err.message; st.className = "err"; }
+    return;
+  }
   const ni = e.target.closest("[data-notitem]");
   if (ni) {
     const x = parsed.items[+ni.dataset.notitem];
@@ -2665,7 +2683,7 @@ async function openSandbox(key, mode, holder, opts = {}) {
     store, items: classSnapshot(), date: selectedKey, theme: themeSnapshot() });
   rec.wantInit = true;
   frame.addEventListener("load", () => { if (frame.getAttribute("src") || frame.hasAttribute("srcdoc")) rec.init(); });
-  const sandboxUrl = "sandbox.html?v=20261006-tools1";
+  const sandboxUrl = "sandbox.html?v=20261018-v64";
   if (st.meta.bundled) {
     // The isolated frame has an opaque origin and cannot use the parent's service
     // worker directly. Fetch its shell from the parent, retaining the same flags.
@@ -2771,6 +2789,17 @@ window.addEventListener("message", (e) => {
       break;
     }
     case "clear": PFS.clear(f.meta.ns); break;
+    // 6.4 随机点名器要本班名单：只给网站自带的工具，要登录、在班里、有看成员名单的权限（老师 / 有权限的班委）
+    case "roster-req": {
+      const rid = cleanStr(d.requestId, 80), reply = (o) => f.post({ cc: "roster-result", requestId: rid, ...o });
+      if (!(f.meta.bundled || f.meta.channel === "builtin") || f.meta.id !== "random-draw") { reply({ ok: false, error: "这个插件不能读班级名单" }); break; }
+      if (!currentUser || !currentClass) { reply({ ok: false, error: "先登录并加入班级，才能用本班名单" }); break; }
+      CCAuth.rpc("class_roster", { cid: currentClass.id }).then((rows) => {
+        const names = (rows || []).filter((r) => r && r.status === "approved" && r.member_role !== "teacher" && r.name).map((r) => String(r.name).trim()).filter(Boolean);
+        reply(names.length ? { ok: true, list: [...new Set(names)] } : { ok: false, error: "班里还没有同学" });
+      }).catch((err) => reply({ ok: false, error: /权限|42501/.test(err.message || "") ? "只有老师、或者有「查看成员名单」权限的班委能用本班名单" : "没拿到名单：" + err.message }));
+      break;
+    }
     case "h": {
       const h = Math.max(40, Math.min(20000, Number(d.h) || 0));
       if (f.mode !== "bg") f.frame.style.height = h + "px";
@@ -2841,7 +2870,7 @@ function bundledRegistry(list) {
   for (const b of BUNDLED_TOOLS) {
     const i = out.findIndex((p) => p.id === b.id && p.channel === "published");
     if (i >= 0 && verNewer(out[i].version, b.version)) continue;
-    const meta = { ...(i >= 0 ? out[i] : {}), ...b, key: b.id, ns: b.id, channel: "published", bundled: "20261006-tools1", default_on: i >= 0 ? out[i].default_on : false, author_name: "捞捞校园", published_at: "2026-10-06T00:00:00Z" };
+    const meta = { ...(i >= 0 ? out[i] : {}), ...b, key: b.id, ns: b.id, channel: "published", bundled: "20261018-v64", default_on: i >= 0 ? out[i].default_on : false, author_name: "捞捞校园", published_at: "2026-10-06T00:00:00Z" };
     if (i >= 0) out[i] = meta; else out.push(meta);
   }
   return out;

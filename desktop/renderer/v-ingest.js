@@ -109,7 +109,12 @@ App.views.ingest = {
     let model = null; try { model = await this.ensureModel(); } catch (e) {}
     const r = LaoParse.parse(text, this.pub(), { model });
     this.parsed = { ...r, items: r.items.map((x) => ({ ...x, on: true, src: "", _shown: slim(x) })) };
-    this.st(r.items.length ? "" : "没有整理出事项，看看下面拿不准的"); this.drawRes();
+    // 6.4 认出课表调整：「下周一和周二晚上都不上晚自习」「明天放假」「周三的高数不上了」
+    try {
+      const ev = KV("evening_v1"), names = [...new Set(((App.S.courses || {}).courses || []).map((c) => c.name))];
+      this.parsed.adj = (LaoParse.adjustments ? LaoParse.adjustments(text, this.pub(), { eveningName: (ev && ev.name) || "晚自习", courseNames: names }) : []).map((a) => ({ ...a, on: true }));
+    } catch (e) { this.parsed.adj = []; }
+    this.st(r.items.length || this.parsed.adj.length ? "" : "没有整理出事项，看看下面拿不准的"); this.drawRes();
   },
   // ---------- 云端 AI（扣子后端，要花 token） ----------
   async cloud(text, fromUnsure) {
@@ -154,7 +159,10 @@ App.views.ingest = {
     if (!P) { box.innerHTML = ""; return; }
     const on = P.items.filter((x) => x.on).length, personal = this.personal();
     const tsel = (v) => CTYPES.map((t) => `<option${t === v ? " selected" : ""}>${t}</option>`).join("");
-    box.innerHTML = `<div class="card ig-res">
+    const adjHtml = (P.adj || []).length ? `<div class="card ig-res" style="margin-bottom:12px"><div class="ig-sum">📅 认出了课表调整<span class="grow"></span><span class="muted">会改你自己的课程表，不会发到班级</span></div>
+      ${P.adj.map((a, i) => `<label class="row" style="gap:8px;padding:4px 0;align-items:baseline"><input type="checkbox" data-adjon="${i}"${a.on ? " checked" : ""}><b>${esc(M.mdw ? M.mdw(a.date) : a.date)}</b><span>${a.type === "off" ? "放假 / 停课" : a.type === "swap" ? "上 " + esc(M.mdw ? M.mdw(a.from) : a.from) + " 的课" : "不上「" + esc(a.name) + "」"}</span><small class="muted">${esc(a.text || "")}</small></label>`).join("")}
+      <div class="row" style="margin-top:8px"><button class="btn primary sm" data-igadj${P.adj.some((a) => a.on) ? "" : " disabled"}>应用到我的课程表</button></div></div>` : "";
+    box.innerHTML = adjHtml + `<div class="card ig-res">
       <div class="ig-sum">整理出 <b>${P.items.length}</b> 条 · 过滤闲聊 ${P.chatter.length} 条${P.dupes ? ` · 去掉重复 ${P.dupes} 条` : ""}${P.unsure.length ? ` · <b style="color:var(--warn)">拿不准 ${P.unsure.length} 条</b>` : ""}<span class="grow"></span><span class="muted">哪里不对直接改，捞捞会记住</span></div>
       ${P.items.map((x, i) => { const [d, t] = (x.event_time || "").split(" ");
         return `<div class="ig-it${x.on ? "" : " off"}" data-pi="${i}" style="--c:${tc(x.msg_type)}">
@@ -180,6 +188,19 @@ App.views.ingest = {
     if (k === "msg_type" && e.type === "change") this.drawRes();
   },
   async click(e) {
+    // 6.4 课表调整：勾选 / 应用
+    const aj = e.target.closest("[data-adjon]");
+    if (aj && this.parsed && this.parsed.adj) { this.parsed.adj[+aj.dataset.adjon].on = aj.checked; this.drawRes(); return; }
+    if (e.target.closest("[data-igadj]") && this.parsed) {
+      const list = (M.adjOf ? M.adjOf(App.S.courses) : []).slice(); let n = 0;
+      for (const a of (this.parsed.adj || []).filter((x) => x.on)) {
+        if (list.some((x) => x.date === a.date && x.type === a.type && (x.name || "") === (a.name || "") && (x.from || "") === (a.from || ""))) continue;
+        if (a.type === "off" && list.some((x) => x.date === a.date && x.type === "off")) continue;
+        list.push({ id: Math.random().toString(36).slice(2, 10), date: a.date, type: a.type, ...(a.name ? { name: a.name } : {}), ...(a.from ? { from: a.from } : {}), note: "群消息" }); n++;
+      }
+      try { await call("adj:save", list); this.parsed.adj = []; this.drawRes(); toast(n ? `课程表已更新 ${n} 处（在课程表的「调课 / 调休」里能看到、能删）` : "课程表里已经有了"); } catch (err) { toast("没改上：" + cleanErr(err)); }
+      return;
+    }
     const P = this.parsed;
     if (e.target.closest("[data-learn]")) { this.showLearn = !this.showLearn; this.drawLearn(); return; }
     const fg = e.target.closest("[data-forget]"); if (fg) { await this.learn([{ text: "（忘掉）" + fg.dataset.key, pub: this.pub(), chatter: false, source: "forget", items: [{ kind: fg.dataset.forget, key: fg.dataset.key }] }]); return; }

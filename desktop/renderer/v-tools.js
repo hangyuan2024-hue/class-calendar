@@ -183,6 +183,17 @@ window.addEventListener("message", (e) => {
       break;
     }
     case "clear": IDB.kvClear(f.meta.ns); break;
+    // 6.4 随机点名器要本班名单：只给内置的随机点名器，要有看成员名单的权限（老师 / 有权限的班委）
+    case "roster-req": {
+      const rid = String(d.requestId || "").slice(0, 80), reply = (o) => f.post({ cc: "roster-result", requestId: rid, ...o });
+      if (f.meta.id !== "random-draw" || !BUNDLED_TOOLS.some((b) => b.id === f.meta.id)) { reply({ ok: false, error: "这个工具不能读班级名单" }); break; }
+      if (!App.S.cid) { reply({ ok: false, error: "先加入班级，才能用本班名单" }); break; }
+      api("class_roster", { cid: App.S.cid }, true).then((rows) => {
+        const names = (rows || []).filter((r) => r && r.status === "approved" && r.member_role !== "teacher" && r.name).map((r) => String(r.name).trim()).filter(Boolean);
+        reply(names.length ? { ok: true, list: [...new Set(names)] } : { ok: false, error: "班里还没有同学" });
+      }).catch((err) => reply({ ok: false, error: /权限|42501/.test(String(err && err.message)) ? "只有老师、或者有「查看成员名单」权限的班委能用本班名单" : "没拿到名单：" + cleanErr(err) }));
+      break;
+    }
     // 新版工具（内置工具）一次存好几条，图片也在里面：全部存好了才告诉它
     case "set-batch": {
       const entries = d.entries, rid = String(d.requestId || "").slice(0, 80);
