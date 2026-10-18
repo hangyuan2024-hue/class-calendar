@@ -37,6 +37,7 @@ const RPC = new Set([
   "device_touch", "device_alive", "device_list", "device_revoke",
   // 3.3.3（网站 5.9.2）：重要事项弹窗
   "popup_state", "popup_set", "popup_ack",
+  "study_room", "study_ping", "study_leave",   // 3.3.4 班级同步自习
 ]);
 
 // 直接读表（只读，只认这几种写法）

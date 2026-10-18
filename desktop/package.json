@@ -1,7 +1,7 @@
 {
   "name": "laolao-kechengbiao-desktop",
   "productName": "捞捞课程表",
-  "version": "3.3.3",
+  "version": "3.3.4",
   "description": "捞捞课程表 Windows 电脑版：课程表、作业、提醒、课内学习、思维导图、离线 AI 助手",
   "main": "main.js",
   "author": "捞捞课程表",

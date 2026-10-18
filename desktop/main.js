@@ -520,7 +520,7 @@ handle("lan:busy", (b) => { store.lanBusy = b ? Date.now() : 0; if (b) livePingK
 handle("habit", (id, day) => store.toggleHabit(id, day));
 // 3.3.3 捞捞教练：本机记录（界面算建议用）、界面上的「看到了 / 采纳了」
 handle("coach:log", () => (store.data.settings.coach ? store.data.coachLog || [] : []));
-handle("coach:rec", (ev) => store.coachRec(ev && typeof ev === "object" ? { t: Date.now(), e: String(ev.e || "").slice(0, 8), k: String(ev.k || "").slice(0, 80), s: String(ev.s || "").slice(0, 12) } : null));
+handle("coach:rec", (ev) => store.coachRec(ev && typeof ev === "object" ? { t: Date.now(), e: String(ev.e || "").slice(0, 8), k: String(ev.k || "").slice(0, 80), s: String(ev.s || "").slice(0, 12), ...(ev.e === "flow" ? { m: Math.max(0, Math.min(60, +ev.m || 0)) } : {}) } : null));   // 3.3.4 刷任务的卡：分钟数
 handle("coach:clear", () => { store.data.coachLog = []; store.save(); return true; });
 handle("growth", (kind, ref, undo) => store.growth(kind, ref, undo));
 handle("class:switch", (cid) => store.switchClass(cid));

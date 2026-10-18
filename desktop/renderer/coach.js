@@ -14,9 +14,10 @@ const Coach59 = {
   },
   model() {
     const now = App.now(), mine = CoachCore.learn(this.log, now), all = KV("coach_v1") || {}, dev = App.S.dev || "desktop";
+    const bg = this.bag(); if (bg && bg.own) mine.bag = { own: bg.own, n: bg.n || 0 };      // 3.3.4 收藏也跟着账号（只有「有哪几样」）
     // 只有统计数字跟着账号同步；有变化才写
-    const sig = JSON.stringify({ day: mine.day, h: mine.h, sty: mine.sty, sus: mine.sus });
-    if (sig !== this.lastSync && this.log.length) { this.lastSync = sig; kvSet("coach_v1", dev, mine); }
+    const sig = JSON.stringify({ day: mine.day, h: mine.h, sty: mine.sty, sus: mine.sus, bag: mine.bag });
+    if (sig !== this.lastSync && (this.log.length || mine.bag)) { this.lastSync = sig; kvSet("coach_v1", dev, mine); }
     const others = Object.keys(all).filter((k) => k !== dev).map((k) => all[k]).filter((m) => m && m.v === 1 && now - (m.at || 0) < 90 * 86400000);
     return CoachCore.combine([mine].concat(others));
   },
@@ -34,6 +35,14 @@ const Coach59 = {
   },
   accept(key, style) { if (style) call("coach:rec", { e: "acc", k: key, s: style }).then(() => (this.logAt = 0)).catch(() => {}); },
   fmt(x) { return String(Math.round(x * 10) / 10); },
+  bag() { try { return JSON.parse(localStorage.getItem(CoachCore.BAG) || "null"); } catch (e) { return null; } },
+  wear(e) {
+    const bot = document.getElementById("laoBot"); if (!bot) return;
+    let w = bot.querySelector(".lao-wear");
+    if (!e) { if (w) w.remove(); return; }
+    if (!w) { w = document.createElement("em"); w.className = "lao-wear"; w.style.cssText = "position:absolute;left:50%;top:-14px;transform:translateX(-50%);font-size:24px;font-style:normal;pointer-events:none"; bot.appendChild(w); }
+    w.textContent = e;
+  },
 
   // ---------- 首页卡片 ----------
   async render() {
@@ -57,6 +66,7 @@ const Coach59 = {
         <div class="cc-btns"><button class="btn primary sm" data-cc="start" data-k="${esc(top.key)}" data-s="${esc(s.style || "")}" data-t="${esc(top.kind === "pomo" ? "" : top.title)}">▶ 开始 25 分钟</button>
         ${top.kind === "item" ? `<button class="btn sm" data-cc="done" data-k="${esc(top.key)}" data-s="${esc(s.style || "")}">✓ 做完了</button><button class="btn ghost sm" data-cc="skip" data-k="${esc(top.key)}">换一个</button>` : ""}</div>`
         : s.mode === "sleep" ? `<div class="muted" style="margin-top:6px">🌙 明天的事明天再说</div>` : s.mode === "rest" ? `<div class="muted" style="margin-top:6px">🍵 休息也是计划的一部分</div>` : ""}
+      ${s.mode !== "class" && s.mode !== "sleep" && window.FlowUI ? `<button class="cc-flow" data-cc="flow"><b>🔥 刷任务</b><small>一张张小卡，按空格下一张 · 走完有机会掉宝贝</small></button>` : ""}
       <button class="cc-more" data-cc="open">📊 本周复盘 · 你的节奏 ›</button></div>`;
   },
   async onClick(e) {
@@ -68,6 +78,8 @@ const Coach59 = {
     else if (a === "done") { this.accept(k, st); await toggleDone(k, true); }
     else if (a === "skip") { this.skip(k); }
     else if (a === "open") { this.open(); return true; }
+    else if (a === "flow") { await this.refreshLog(true); FlowUI.open(); return true; }
+    else if (a === "book") { closeOverlay(); FlowUI.book(); return true; }
     setTimeout(() => this.render(), 120);
     return true;
   },
@@ -88,12 +100,13 @@ const Coach59 = {
         <div class="cc-bars">${hours.map((x) => `<i class="${r.best.includes(x) ? "b" : ""}" style="height:${Math.max(3, Math.round((m.h[x] / max) * 100))}%"><em>${x % 3 === 0 || r.best.includes(x) ? x : ""}</em></i>`).join("")}</div>
         <div class="cc-li muted">每天的小目标：${g.target} 件（最近每天一般完成 ${this.fmt(g.cap)} 件，只比它高一点点）</div>
         ${m.sus ? `<div class="cc-li muted">🧐 最近有 ${m.sus} 次一口气勾了好几件、或者勾了又马上取消，这些只算了一部分。做完一件勾一件，记录才准。</div>` : ""}` : `<p class="muted">捞捞教练还没打开。</p>`}
+        ${window.FlowUI ? `<button class="cc-more" data-cc="book">🎁 捞捞的收藏 ${CoachCore.owned(CoachCore.mergeBag(this.bag(), [], now))}/${CoachCore.LOOT.length} ›</button>` : ""}
         <div class="cc-sub">设置</div>
         <label class="row" style="gap:8px;padding:4px 0"><input type="checkbox" data-cco="coach"${on ? " checked" : ""}> 打开捞捞教练</label>
         <label class="row" style="gap:8px;padding:4px 0"><input type="checkbox" data-cco="coach_notify"${this.opt("notify", true) ? " checked" : ""}> 到合适的时候用系统通知提醒（一天最多 3 条，23 点到 7 点不打扰）</label>
         <label class="row" style="gap:8px;padding:4px 0"><input type="checkbox" data-cco="coach_lao"${this.opt("lao", true) ? " checked" : ""}> 让捞捞说教练的话</label>
         <div class="cc-sub">数据怎么用</div>
-        <div class="cc-li muted">🔒 几点完成了哪件事这些原始记录只存在这台电脑，最多保留 60 天，不上传。<br>☁ 跟着账号同步的只有统计数字（每个钟点的活跃度、每天完成几件、哪种提醒有用），没有标题和内容。<br>🧠 所有计算都在这台电脑上完成，不用大模型，不发给任何第三方。</div>
+        <div class="cc-li muted">🔒 几点完成了哪件事这些原始记录只存在这台电脑，最多保留 60 天，不上传。<br>☁ 跟着账号同步的只有统计数字（每个钟点的活跃度、每天完成几件、哪种提醒有用），没有标题和内容。<br>👥 「刷任务」时班里只能看到有几个人在专注、全班专注了多少分钟，看不到是谁、在做什么。<br>🧠 所有计算都在这台电脑上完成，不用大模型，不发给任何第三方。</div>
       </div>
       <div class="dfoot"><button type="button" class="btn danger" data-a="clear">清空学到的数据</button><span class="grow"></span><button type="button" class="btn primary" data-a="close">好的</button></div></div>`);
     d.onchange = async (e) => { const k = e.target.dataset.cco; if (!k) return; await call("settings", { [k]: e.target.checked, coach_asked: true }); this.logAt = 0; this.plan(true); this.render(); };
@@ -142,4 +155,19 @@ const Coach59 = {
 document.addEventListener("click", (e) => { if (e.target.closest("[data-cc]")) Coach59.onClick(e); });
 setInterval(() => Coach59.plan(), 30 * 60000);
 setInterval(() => Coach59.laoTick(), 5 * 60000);
+// 3.3.4 刷任务 · 随机掉落 · 班级同步自习（界面和网页共用 flow-ui.js）
+if (window.FlowUI) FlowUI.init({
+  ctx() { const { c, ranked } = Coach59.ranked(); return { now: c.now, ranked, skip: Coach59.skips() }; },
+  record(ev) { call("coach:rec", ev).then(() => (Coach59.logAt = 0)).catch(() => {}); },
+  bag: () => Coach59.bag(),
+  saveBag(b) { try { localStorage.setItem(CoachCore.BAG, JSON.stringify(b)); } catch (e) {} try { Coach59.model(); } catch (e) {} },
+  otherBags() { const all = KV("coach_v1") || {}, dev = App.S.dev || "desktop"; return Object.keys(all).filter((k) => k !== dev).map((k) => all[k] && all[k].bag).filter(Boolean); },
+  rpc: (n, a) => api(n, a, true),
+  cid: () => (App.S && App.S.loggedIn && App.S.cid) || null,
+  done: (k) => toggleDone(k, true),
+  skip: (k) => Coach59.skip(k),
+  wear: (e) => Coach59.wear(e),
+  toast: (m) => toast(m),
+  after: () => Coach59.render(),
+});
 setTimeout(() => Coach59.plan(true), 6000);

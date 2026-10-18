@@ -82,4 +82,53 @@ const ok = (s) => console.log("✓ " + s);
   assert.ok(r.next.some((x) => x.includes("一口气")));
   ok("每周复盘：对比上周、坚持天数、作业拖延、假完成提醒");
 }
+// 7. 刷任务
+{
+  const ranked = [
+    { kind: "item", key: "a", title: "数学作业", type: "作业", level: "soon", score: 90 },
+    { kind: "item", key: "b", title: "英语单词", type: "个人", level: "later", score: 50 },
+    { kind: "item", key: "c", title: "物理小测", type: "个人", exam: true, level: "later", score: 40 },
+    { kind: "item", key: "z", title: "过期的", level: "past", score: 99 },
+  ];
+  const d = C.deck({ now, ranked, skip: { b: now.getTime() + 1000 } });
+  const ks = d.cards.map((c) => c.kind + (c.min || "") + (c.key || "")).join(",");
+  assert.strictEqual(ks, "start2a,work5a,work10a,checka,start2c,work5c,work10c,checkc,break3,start2review,review5review,review10review,end");
+  assert.strictEqual(d.work, 51);
+  assert.ok(d.cards[0].step.includes("第一题"));
+  assert.ok(d.cards[4].step.includes("3 个重点"));
+  assert.strictEqual(C.deck({ now: new Date(2026, 9, 17, 23, 30), ranked }).end, "sleep");
+  assert.strictEqual(C.deck({ now, ranked: [{ kind: "course", level: "now", title: "语文", key: "k" }] }).end, "class");
+  assert.strictEqual(C.awayCredit(5 * 60000, 2 * 60000), 2 * 60000);
+  assert.strictEqual(C.awayCredit(31 * 60000, 2 * 60000), -1);
+  const cr = C.credible([{ t: T(17, 9), e: "flow", m: 5 }, { t: T(17, 9, 10), e: "flow", m: 1 }]);
+  assert.deepStrictEqual(cr.map((r) => r.w), [0.2, 0]);
+  ok("刷任务：先 2 分钟开头、过期和换掉的不出现、25 分钟后插休息、50 分钟一轮、深夜和上课不刷");
+}
+// 8. 随机掉落
+{
+  const seq = (xs) => { let i = 0; return () => xs[i++ % xs.length]; };
+  let r = C.roll(null, 2, now, seq([0.99, 0.5, 0]));             // 今天第一张：必掉；0.5 → 普通；第 0 个
+  assert.strictEqual(r.got.id, "star"); assert.ok(r.first); assert.strictEqual(r.bag.dn, 1);
+  r = C.roll(r.bag, 5, now, seq([0.5]));                          // 第二张 5 分钟：概率 0.4，0.5 没中
+  assert.strictEqual(r.got, null);
+  r = C.roll(r.bag, 10, now, seq([0.1, 0.5, 0]));                 // 10 分钟 0.8：中；普通的第 0 个 → 重复，给 1 片碎片
+  assert.ok(r.dup); assert.strictEqual(r.bag.sh, 1); assert.strictEqual(r.bag.own.star, 2);
+  r = C.roll(r.bag, 10, now, seq([0.1, 0.01, 0.99]));              // 传说
+  assert.strictEqual(r.got.r, 3); assert.strictEqual(r.bag.pity, 0);
+  let b = r.bag; b.pity = 7;
+  r = C.roll(b, 10, now, seq([0.1, 0.9, 0]));                      // 保底：连着 8 次普通 → 稀有
+  assert.strictEqual(r.got.r, 1);
+  b = C.bag({ v: 1, own: {}, sh: 0, day: "2026-10-17", dn: 10 }, now);
+  assert.ok(C.roll(b, 10, now, seq([0])).cap);                     // 一天最多掉 10 个
+  assert.strictEqual(C.bag({ v: 1, day: "2026-10-16", dn: 10 }, now).dn, 0);   // 第二天重新算
+  assert.strictEqual(C.roll(null, 1, now, seq([0])).got, null);    // 不到 2 分钟不掉
+  let rd = C.redeem({ v: 1, own: {}, sh: 12 }, "fox", now);
+  assert.ok(rd.ok); assert.strictEqual(rd.bag.sh, 2);
+  assert.ok(!C.redeem(rd.bag, "crown", now).ok);
+  const mg = C.mergeBag({ v: 1, own: { star: 1 }, sh: 3 }, [{ own: { star: 4, fox: 1 } }], now);
+  assert.deepStrictEqual([mg.own.star, mg.own.fox, mg.sh, C.owned(mg)], [4, 1, 3, 2]);
+  assert.strictEqual(C.LOOT.length, 34);
+  assert.strictEqual(C.roomLine({ now: 7, today_min: 230, streak: 3 }), "班里现在 7 人在专注 · 今天全班 230 分钟 · 班级连续 3 天");
+  ok("随机掉落：第一张必掉、越久越容易掉、保底、每天上限、重复给碎片、碎片兑换、多设备合并");
+}
 console.log("捞捞教练：全部通过");

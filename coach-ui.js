@@ -1,4 +1,4 @@
-/* 5.9.3 捞捞教练（网页）：规则在 coach-core.js（和小程序、电脑版、安卓 App 同一套）。
+/* 5.9.3 捞捞教练（网页；5.9.4 加了刷任务、随机掉落、班级同步自习，界面在 flow-ui.js）：规则在 coach-core.js（和小程序、电脑版、安卓 App 同一套）。
  *   · 要用户自己点「开启」才开始记录；原始记录只存在这台设备（coach_log_v1，60 天），同步到账号的只有统计数字（coach_v1）
  *   · 首页「今日教练」卡片、捞捞偶尔说一句、「我的 → 捞捞教练」里看每周复盘、你的节奏、设置
  *   放在 app.js、island.js 后面加载 */
@@ -23,6 +23,7 @@
     const now = new Date(typeof ccNow === "function" ? ccNow() : Date.now());
     if (dirty || !cache) {
       cache = C.learn(rd(LS_LOG, []), now);
+      const b = rd(C.BAG, null); if (b && b.own) cache.bag = { own: b.own, n: b.n || 0 };   // 收藏也跟着账号（只有「有哪几样」）
       const all = (typeof load === "function" ? load(LS_SYNC, {}) : rd(LS_SYNC, {})) || {};
       all[dev()] = cache;
       if (typeof save === "function") save(LS_SYNC, all); else wr(LS_SYNC, all);     // 只有统计数字跟着账号同步
@@ -104,6 +105,7 @@
         <div class="cc-btns"><button class="btn ink" data-cc="start" data-k="${esc(top.key)}" data-s="${esc(s.style || "")}" data-t="${esc(top.kind === "pomo" ? "" : top.title)}">▶ 开始 25 分钟</button>
           ${top.kind === "item" ? `<button class="small" data-cc="done" data-k="${esc(top.key)}" data-s="${esc(s.style || "")}">✓ 做完了</button><button class="small ghost" data-cc="skip" data-k="${esc(top.key)}">换一个</button>` : ""}</div>`
         : s.mode === "sleep" ? `<div class="cc-note">🌙 明天的事明天再说</div>` : s.mode === "rest" ? `<div class="cc-note">🍵 休息也是计划的一部分</div>` : ""}
+      ${s.mode !== "class" && s.mode !== "sleep" && typeof FlowUI !== "undefined" ? `<button class="cc-flow" data-cc="flow"><b>🔥 刷任务</b><small>一张张小卡，上划下一张 · 走完有机会掉宝贝</small></button>` : ""}
       <button class="cc-more" data-cc="open">📊 本周复盘 · 你的节奏 ›</button></div>`;
   }
   document.addEventListener("click", (e) => {
@@ -120,6 +122,8 @@
       if (btn) btn.click(); else renderCoach();
     } else if (a === "skip") { skip(k); renderCoach(); }
     else if (a === "open") openCoach();
+    else if (a === "flow") FlowUI.open();
+    else if (a === "book") { const d = document.getElementById("coachDlg"); if (d && d.open) d.close(); FlowUI.book(); }
   });
 
   // ---------- 教练页（弹窗）：每周复盘、你的节奏、设置 ----------
@@ -143,11 +147,12 @@
       <div class="cc-bars">${hours.map((h) => `<i class="${r.best.includes(h) ? "b" : ""}" style="height:${Math.max(3, Math.round((m.h[h] / max) * 100))}%" title="${h}:00"><em>${h % 3 === 0 || r.best.includes(h) ? h : ""}</em></i>`).join("")}</div>
       <div class="cc-li meta">每天的小目标：${g.target} 件（最近每天一般完成 ${fmt(g.cap)} 件，只比它高一点点）</div>
       ${m.sus ? `<div class="cc-li meta">🧐 最近有 ${m.sus} 次一口气勾了好几件、或者勾了又马上取消，这些只算了一部分。做完一件勾一件，记录才准。</div>` : ""}` : `<p>捞捞教练还没打开。</p>`}
+      ${typeof FlowUI !== "undefined" ? `<button class="cc-more" data-cc="book">🎁 捞捞的收藏 ${C.owned(C.mergeBag(rd(C.BAG, null), [], now))}/${C.LOOT.length} ›</button>` : ""}
       <div class="cc-sub">设置</div>
       <label class="gi"><span class="ic">🧭</span>打开捞捞教练<input type="checkbox" class="switch" data-cco="on" ${o.on ? "checked" : ""}></label>
       <label class="gi"><span class="ic">💬</span>让捞捞说教练的话<input type="checkbox" class="switch" data-cco="lao" ${o.lao ? "checked" : ""}></label>
       <div class="cc-sub">数据怎么用</div>
-      <div class="cc-li meta">🔒 几点完成了哪件事这些原始记录只存在这台设备，最多保留 60 天，不上传。<br>☁ 跟着账号同步的只有统计数字（每个钟点的活跃度、每天完成几件、哪种提醒有用），没有标题和内容。<br>🧠 所有计算都在你的设备上完成，不用大模型，不发给任何第三方。</div>
+      <div class="cc-li meta">🔒 几点完成了哪件事这些原始记录只存在这台设备，最多保留 60 天，不上传。<br>☁ 跟着账号同步的只有统计数字（每个钟点的活跃度、每天完成几件、哪种提醒有用），没有标题和内容。<br>👥 「刷任务」时班里只能看到有几个人在专注、全班专注了多少分钟，看不到是谁、在做什么。<br>🧠 所有计算都在你的设备上完成，不用大模型，不发给任何第三方。</div>
       <button class="small" data-ccclear style="color:var(--red);margin-top:8px">清空学到的数据</button></div>`;
     d.onchange = (e) => { const k = e.target.dataset.cco; if (!k) return; setOpt("asked", true); setOpt(k, e.target.checked); paint(d); renderCoach(); };
     const cl = d.querySelector("[data-ccclear]");
@@ -167,6 +172,29 @@
       if (["go", "rest", "sleep"].includes(s.mode) && laoOnce("coach|" + (s.top ? s.top.key : s.mode) + "|" + Math.floor(h / 3))) laoSay("🧭 " + s.say, { q: "最急的是什么" });
     } catch (e) {}
   }, 5 * 60000);
+
+  // ---------- 5.9.4 刷任务 · 随机掉落 · 班级同步自习（界面在 flow-ui.js） ----------
+  function wearLao(e) {
+    const bot = document.getElementById("laoBot"); if (!bot) return;
+    let w = bot.querySelector(".lao-wear");
+    if (!e) { if (w) w.remove(); return; }
+    if (!w) { w = document.createElement("em"); w.className = "lao-wear"; w.style.cssText = "position:absolute;left:50%;top:-14px;transform:translateX(-50%);font-size:26px;font-style:normal;pointer-events:none;filter:drop-shadow(0 2px 2px rgba(0,0,0,.25))"; bot.style.position = bot.style.position || "relative"; bot.appendChild(w); }
+    w.textContent = e;
+  }
+  if (typeof FlowUI !== "undefined") FlowUI.init({
+    ctx() { const c = islandCtx(); return { now: c.now, ranked: IslandCore.rank(c.items, c.courses, c.now), skip: skips() }; },
+    record,
+    bag: () => rd(C.BAG, null),
+    saveBag(b) { wr(C.BAG, b); dirty = true; try { model(); } catch (e) {} },
+    otherBags() { const all = (typeof load === "function" ? load(LS_SYNC, {}) : rd(LS_SYNC, {})) || {}; return Object.keys(all).filter((k) => k !== dev()).map((k) => all[k] && all[k].bag).filter(Boolean); },
+    rpc: (n, a) => (typeof CCAuth !== "undefined" && currentUser ? CCAuth.rpc(n, a) : Promise.reject(new Error("off"))),
+    cid: () => (typeof currentClass !== "undefined" && currentClass ? currentClass.id : null),
+    done(k) { const btn = document.querySelector(`.chk[data-act="done"][data-k="${CSS.escape(k)}"]`); if (btn && !btn.classList.contains("on")) btn.click(); },
+    skip,
+    wear: wearLao,
+    toast: (m) => (typeof toast === "function" ? toast(m) : alert(m)),
+    after: () => { try { renderCoach(); } catch (e) {} },
+  });
 
   // 首页每次重画时跟着画；每分钟刷新一次
   if (typeof renderAgenda === "function") { const old = renderAgenda; renderAgenda = function () { const r = old.apply(this, arguments); try { renderCoach(); } catch (e) {} return r; }; }

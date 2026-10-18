@@ -1,4 +1,4 @@
-// 捞捞教练（5.9.3）：在本机学你的节奏，推荐「现在最适合做的事」、定一个够得着的小目标、挑合适的时间提醒、每周复盘。
+// 捞捞教练（5.9.4：加了刷任务、随机掉落、班级同步自习）：在本机学你的节奏，推荐「现在最适合做的事」、定一个够得着的小目标、挑合适的时间提醒、每周复盘。
 // 网页、微信小程序、电脑版共用这一份；安卓 App 是同一套规则的 Kotlin 版（core/Coach.kt），测试用同样的例子。
 //
 // 隐私：
@@ -31,6 +31,8 @@
       var x = sorted[i];
       if (x.e === "pomo") { out.push({ t: x.t, k: x.k || "", y: "pomo", w: (x.m || 0) >= 10 ? Math.min(2, (x.m || 25) / 25) : 0, d: 0, m: x.m || 0 }); continue; }
       if (x.e === "habit") { out.push({ t: x.t, k: x.k || "", y: "habit", w: 0.5, d: 0 }); continue; }
+      // 刷任务的一张卡：真的计时走完才记，按分钟算（25 分钟 = 1 件）
+      if (x.e === "flow") { out.push({ t: x.t, k: x.k || "", y: "flow", w: (x.m || 0) >= 2 ? Math.min(2, x.m / 25) : 0, d: 0, m: x.m || 0 }); continue; }
       if (x.e !== "done") continue;
       var w = 1, why = "";
       // 勾了又在 30 分钟内取消：不算
@@ -40,7 +42,7 @@
       out.push({ t: x.t, k: x.k || "", y: x.y || "", w: w, d: x.d || 0, why: why });
     }
     // 一口气连着勾：90 秒里勾了 4 件以上，前 2 件照算，后面的每件只算 0.3
-    var dones = out.filter(function (r) { return r.y !== "pomo" && r.y !== "habit" && r.w > 0; });
+    var dones = out.filter(function (r) { return r.y !== "pomo" && r.y !== "habit" && r.y !== "flow" && r.w > 0; });
     for (var a = 0; a < dones.length; a++) {
       var n = 0;
       for (var b = a; b < dones.length && dones[b].t - dones[a].t <= 90000; b++) n++;
@@ -124,7 +126,7 @@
     var now = ctx.now, h = now.getHours(), mm = now.getMinutes(), model = ctx.model || combine([]);
     var st = streak(model, now), g = goal(model, now), best = bestHours(model);
     var night = h >= 23 || h < 5, late = h >= 22;
-    var recent = credible(ctx.log || []).filter(function (r) { return r.y === "pomo" && now.getTime() - r.t < 2 * H; });
+    var recent = credible(ctx.log || []).filter(function (r) { return (r.y === "pomo" || r.y === "flow") && now.getTime() - r.t < 2 * H; });
     var focusMin = recent.reduce(function (s, r) { return s + (r.m || 25); }, 0);
     var skip = ctx.skip || {};
     var base = { streak: st, goal: g, best: best, sus: model.sus || 0 };
@@ -229,6 +231,104 @@
     return { thisWeek: thisW, lastWeek: lastW, best: best, lead: leadMed, highlights: hi, next: next, streak: st.days };
   }
 
+  // ---------- 8. 刷任务：把要做的事切成一张张小卡，像刷视频一样一张接一张 ----------
+  // 每张卡都要真的计时走完才算；每轮到 50 分钟就停（明确的终点：刷完了就去玩），中间插休息卡。
+  // 返回 { cards: [{ kind: start|work|check|break|review|end, key, title, min, step }], end: 为什么没有卡（sleep / class）, say }
+  var ROUND = 50;
+  function deck(ctx) {
+    var now = ctx.now, h = now.getHours(), skip = ctx.skip || {};
+    if (h >= 23 || h < 5) return { cards: [], end: "sleep", say: "夜深了，今天不刷了，睡饱了明天效率更高 🌙" };
+    var live = (ctx.ranked || []).filter(function (x) { return x.kind === "course" && x.level === "now"; })[0];
+    if (live) return { cards: [], end: "class", say: "正在上「" + live.title + "」，下课再来刷 📚" };
+    var items = (ctx.ranked || []).filter(function (x) { return x.kind === "item" && x.level !== "past" && !(skip[x.key] > now.getTime()); }).slice(0, 3);
+    var cards = [], work = 0, sinceBreak = 0;
+    var add = function (c) {
+      if (work >= ROUND) return false;
+      if ((c.kind === "work" || c.kind === "start" || c.kind === "review") && sinceBreak >= 25) { cards.push({ kind: "break", key: "", title: "休息一下", min: 3, step: "站起来喝口水，看看远处 👀" }); sinceBreak = 0; }
+      cards.push(c);
+      if (c.kind !== "check" && c.kind !== "break") { work += c.min; sinceBreak += c.min; }
+      return true;
+    };
+    items.forEach(function (x) {
+      add({ kind: "start", key: x.key, title: x.title, min: 2, step: "只做 2 分钟：" + startStep(x) });
+      add({ kind: "work", key: x.key, title: x.title, min: 5, step: "开了头就不难了，接着做 5 分钟" });
+      add({ kind: "work", key: x.key, title: x.title, min: 10, step: "进入状态了，再做 10 分钟" });
+      if (work < ROUND || cards[cards.length - 1].key === x.key) cards.push({ kind: "check", key: x.key, title: x.title, min: 0, step: "「" + x.title + "」做完了吗？" });
+    });
+    var rv = ["挑一门最近吃力的课，翻开课本看 2 分钟", "把今天课上的笔记过一遍", "做几道练习题，错的标出来", "预习明天的课，把看不懂的地方圈出来", "把错题再做一遍"], i = 0;
+    while (work < ROUND && i < 12) { add({ kind: i === 0 ? "start" : "review", key: "review", title: "复习 / 预习", min: i === 0 ? 2 : i < 2 ? 5 : 10, step: rv[i % rv.length] }); i++; }
+    cards.push({ kind: "end", key: "", title: "这一轮刷完了", min: 0, step: "专注了 " + work + " 分钟 🎉 去玩吧，想继续可以再来一轮" });
+    return { cards: cards, work: work, say: items.length ? "从「" + items[0].title + "」开始，先只做 2 分钟" : "没有要赶的事，来一轮复习 / 预习" };
+  }
+  function startStep(x) {
+    if (x.exam) return "翻开课本，列出要考的 3 个重点";
+    if (x.type === "作业") return "把作业拿出来，读完第一题";
+    if (x.type === "会议" || x.type === "活动") return "看看要准备什么，列个清单";
+    return "打开它，看看第一步是什么";
+  }
+  // 「还没做完」：给这件事再加一张 10 分钟的卡
+  function more(card) { return { kind: "work", key: card.key, title: card.title, min: 10, step: "再来 10 分钟，快好了" }; }
+  // 离开 App 的那段时间算不算：30 分钟以内（手机放下做题）算到这张卡剩下的时间为止；离开太久这张重来（返回 -1）
+  function awayCredit(awayMs, remainMs) { return awayMs > 30 * MIN ? -1 : Math.max(0, Math.min(awayMs, remainMs)); }
+
+  // ---------- 9. 随机掉落：每张真的计时走完的卡都有机会掉一样东西，收集成图鉴 ----------
+  // r：0 普通 1 稀有 2 史诗 3 传说；wear：捞捞能戴上的
+  var LOOT = [
+    ["star", "⭐", "小星星", 0], ["clover", "🍀", "四叶草", 0], ["donut", "🍩", "甜甜圈", 0], ["straw", "🍓", "草莓", 0], ["leaf", "🌿", "嫩芽", 0],
+    ["pencil", "✏️", "铅笔头", 0], ["book", "📘", "蓝皮书", 0], ["milk", "🥛", "一杯牛奶", 0], ["sun", "🌤️", "晴天", 0], ["shell", "🐚", "贝壳", 0],
+    ["fish", "🐟", "小鱼干", 0], ["cookie", "🍪", "曲奇", 0], ["bag", "🎒", "小书包", 0, 1], ["cap", "🧢", "鸭舌帽", 0, 1],
+    ["rainbow", "🌈", "彩虹", 1], ["whale", "🐳", "鲸鱼", 1], ["fox", "🦊", "小狐狸", 1], ["panda", "🐼", "熊猫", 1], ["moon", "🌙", "月牙", 1],
+    ["rocket", "🚀", "小火箭", 1], ["bulb", "💡", "灵光一闪", 1], ["glasses", "🕶️", "墨镜", 1, 1], ["phones", "🎧", "耳机", 1, 1], ["scarf", "🧣", "围巾", 1, 1],
+    ["comet", "☄️", "彗星", 2], ["owl", "🦉", "夜猫头鹰", 2], ["dragon", "🐉", "小龙", 2], ["medal", "🏅", "奖牌", 2], ["hat", "🎩", "魔术帽", 2, 1], ["grad", "🎓", "学士帽", 2, 1],
+    ["crown", "👑", "皇冠", 3, 1], ["gem", "💎", "钻石", 3], ["trophy", "🏆", "奖杯", 3], ["halo", "😇", "光环", 3, 1],
+  ].map(function (a) { return { id: a[0], e: a[1], name: a[2], r: a[3], wear: !!a[4] }; });
+  var RARITY = ["普通", "稀有", "史诗", "传说"], SHARD = [1, 2, 4, 8], COST = [5, 10, 20, 40], DAY_CAP = 10;
+  function bag(b, now) {
+    var t = keyOf(now), o = { v: 1, own: {}, sh: 0, pity: 0, day: t, dn: 0, wear: "", n: 0 };
+    if (b && b.v === 1) { for (var k in b.own || {}) o.own[k] = +b.own[k] || 0; o.sh = +b.sh || 0; o.pity = +b.pity || 0; o.wear = b.wear || ""; o.n = +b.n || 0; if (b.day === t) o.dn = +b.dn || 0; }
+    return o;
+  }
+  // min：这张卡走完的分钟数；rnd：返回 0–1 的函数（测试时传固定的）
+  function roll(b0, min, now, rnd) {
+    var r = rnd || Math.random, b = bag(b0, now);
+    if (!(min >= 2)) return { bag: b, got: null };
+    if (b.dn >= DAY_CAP) return { bag: b, got: null, cap: true };
+    var first = b.dn === 0, p = first ? 1 : Math.min(0.85, 0.08 * min);
+    if (r() >= p) return { bag: b, got: null };
+    var x = r(), rar = x < 0.03 ? 3 : x < 0.13 ? 2 : x < 0.4 ? 1 : 0;
+    if (rar === 0 && b.pity >= 7) rar = 1;               // 连着 8 次普通，下一个至少稀有
+    b.pity = rar >= 1 ? 0 : b.pity + 1;
+    var pool = LOOT.filter(function (l) { return l.r === rar; }), got = pool[Math.min(pool.length - 1, Math.floor(r() * pool.length))];
+    var dup = (b.own[got.id] || 0) > 0;
+    if (dup) b.sh += SHARD[rar];
+    b.own[got.id] = (b.own[got.id] || 0) + 1; b.dn++; b.n++;
+    return { bag: b, got: got, dup: dup, first: first, shard: dup ? SHARD[rar] : 0 };
+  }
+  // 用碎片换一个还没有的
+  function redeem(b0, id, now) {
+    var b = bag(b0, now), l = LOOT.filter(function (x) { return x.id === id; })[0];
+    if (!l || (b.own[id] || 0) > 0 || b.sh < COST[l.r]) return { bag: b, ok: false };
+    b.sh -= COST[l.r]; b.own[id] = 1; return { bag: b, ok: true, got: l };
+  }
+  // 几台设备的收藏合在一起（每样取最多的那台）；碎片、戴着什么以这台为准
+  function mergeBag(mine, others, now) {
+    var b = bag(mine, now);
+    (others || []).forEach(function (o) { if (o && o.own) for (var k in o.own) if ((+o.own[k] || 0) > (b.own[k] || 0)) b.own[k] = +o.own[k]; });
+    return b;
+  }
+  function loot(id) { return LOOT.filter(function (x) { return x.id === id; })[0] || null; }
+  function owned(b) { var n = 0; for (var k in (b && b.own) || {}) if (b.own[k] > 0 && loot(k)) n++; return n; }
+
+  // ---------- 10. 班级同步自习：只有人数和分钟数，没有名字 ----------
+  function roomLine(r) {
+    if (!r) return "";
+    var a = [];
+    if (r.now > 0) a.push("班里现在 " + r.now + " 人在专注");
+    if (r.today_min > 0) a.push("今天全班 " + r.today_min + " 分钟");
+    if (r.streak > 0) a.push("班级连续 " + r.streak + " 天");
+    return a.join(" · ") || "你是今天班里第一个开始的 💪";
+  }
+
   // ---------- 小工具 ----------
   function zeros(n) { var a = []; for (var i = 0; i < n; i++) a.push(0); return a; }
   function round1(x) { return Math.round(x * 10) / 10; }
@@ -243,5 +343,7 @@
     return out.length > 3000 ? out.slice(out.length - 3000) : out;
   }
   return { credible: credible, learn: learn, combine: combine, streak: streak, goal: goal, bestHours: bestHours, pickStyle: pickStyle,
-    suggest: suggest, nudges: nudges, weekly: weekly, append: append, STYLES: STYLES, LOG: "coach_log_v1", SYNC: "coach_v1", OPTS: "coach_opts_v1" };
+    suggest: suggest, nudges: nudges, weekly: weekly, append: append, STYLES: STYLES,
+    deck: deck, more: more, awayCredit: awayCredit, ROUND: ROUND, LOOT: LOOT, RARITY: RARITY, COST: COST, DAY_CAP: DAY_CAP,
+    bag: bag, roll: roll, redeem: redeem, mergeBag: mergeBag, loot: loot, owned: owned, roomLine: roomLine, BAG: "coach_bag_v1", LOG: "coach_log_v1", SYNC: "coach_v1", OPTS: "coach_opts_v1" };
 });
