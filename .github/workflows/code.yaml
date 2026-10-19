@@ -140,14 +140,20 @@ jobs:
       - name: 做成安装包（Inno Setup）
         working-directory: coder
         run: |
+          # 用最新的 Inno Setup 6（仓库里带的中文语言文件是 6.5 版的格式）
+          choco upgrade innosetup -y --no-progress | Out-Null
           $iscc = Get-ChildItem "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-          if (-not $iscc) { choco install innosetup -y --no-progress | Out-Null; $iscc = Get-ChildItem "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe" -ErrorAction SilentlyContinue | Select-Object -First 1 }
           if (-not $iscc) { throw "装不上 Inno Setup" }
-          # 简体中文界面：Inno Setup 自带就用自带的，没有就从官方仓库拿
-          $zh = Get-ChildItem (Split-Path $iscc.FullName) -Recurse -Filter ChineseSimplified.isl -ErrorAction SilentlyContinue | Select-Object -First 1
-          if (-not $zh) { curl.exe -L --fail -o installer\ChineseSimplified.isl https://raw.githubusercontent.com/jrsoftware/issrc/main/Files/Languages/Unofficial/ChineseSimplified.isl; $zh = Get-Item installer\ChineseSimplified.isl }
+          (Get-Item $iscc.FullName).VersionInfo.ProductVersion
+          # 简体中文界面：用仓库里带的语言文件（Inno Setup 官方的 ChineseSimplified.isl），不依赖安装的版本带不带、也不用联网下载
+          $zh = Get-Item installer\ChineseSimplified.isl
           $v = "1.0.${{ github.run_number }}"
           & $iscc.FullName "/DAppVersion=$v" "/DSrcDir=$PWD\dist\win-unpacked" "/DZhIsl=$($zh.FullName)" installer\laolao-code.iss
+          if ($LASTEXITCODE -ne 0) {
+            # 中文语言文件和这个版本的 Inno Setup 对不上：先出英文界面的安装包，别让整个打包失败
+            Write-Host "::warning::中文安装界面没打成，改用英文界面"
+            & $iscc.FullName "/DAppVersion=$v" "/DSrcDir=$PWD\dist\win-unpacked" installer\laolao-code.iss
+          }
           if ($LASTEXITCODE -ne 0) { throw "Inno Setup 打包失败" }
           $f = Get-Item dist\LaolaoCode-Setup.exe
           "安装包 {0:N0} MB" -f ($f.Length / 1MB)
