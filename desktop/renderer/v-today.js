@@ -129,7 +129,8 @@ App.views.today = {
   // 左边：接下来最该关注的一件（和捞捞、网页版同一套智能排序）
   nextHtml(ctx) {
     const list = IslandCore.rank(ctx.items, ctx.courses, ctx.now).filter((x) => x.level !== "past");
-    const top = list[0], h = ctx.now.getHours(), night = h >= 23 || h < 5, nowMs = App.now().getTime();
+    // 6.6 正在上课（含早晚自习）：首页这一格固定显示这节课和「还有多久下课」，不被别的事挤掉
+    const top = list.find((x) => x.kind === "course" && x.level === "now") || list[0], h = ctx.now.getHours(), night = h >= 23 || h < 5, nowMs = App.now().getTime();
     const cd = (at, live) => { const [n, u] = leftLabel(at - nowMs); return `<div class="tn-cd"><b class="num">${esc(live ? n : n)}</b><span>${live ? (u ? u.replace("后", "") + "后下课" : "") : u}</span></div>`; };
     const far = top && top.kind !== "course" && top.level === "normal";
     if (!top || (far && this.nextCourse(ctx))) {

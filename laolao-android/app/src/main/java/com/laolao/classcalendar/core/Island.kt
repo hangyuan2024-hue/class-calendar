@@ -145,8 +145,16 @@ object Island {
         var s = hello(c.now) + name + "！"
         if (list.isEmpty()) return s + "手头没有要赶的事，" + if (c.now.hour >= 21) "早点休息吧 🌙" else "可以安心学点别的 ☕"
         if (late > 0) s += "有 $late 项作业过期了，先补上吧。" else if (todayN > 0) s += "今天有 $todayN 件事。"
-        val top = list.firstOrNull { it.level != "past" } ?: return s   // 6.3 不挑已经过去的事
-        s += if (top.kind == "course") "「${top.title}」${top.reason}" + (if (top.location.isNotEmpty()) "，在 ${top.location}" else "") + "。" else "最该先做的是「${top.title}」（${top.reason}）。"
+        // 6.6「最该先做」只说能现在动手做的事；会议、讲座、活动、课这类到点去参加的说「接下来是……」（和 island-core.js 一样）
+        val where = { x: Row -> if (x.location.isNotEmpty()) "，在 ${x.location}" else "" }
+        val live = list.firstOrNull { it.level == "now" }
+        val attend = list.filter { it.level != "past" && it.level != "now" && (it.kind == "course" || !Coach.doable(it)) && it.day.isNotEmpty() && T.dayDiff(it.day) in 0L..2L }
+            .minByOrNull { it.day + " " + it.time.ifEmpty { "99:99" } }
+        val todo = list.firstOrNull { it.level != "past" && Coach.doable(it) }
+        if (live != null) s += "正在" + (if (live.kind == "course") "上" else "") + "「${live.title}」，" + live.reason.replace(Regex("^(正在上课|进行中) · "), "") + "。"
+        else if (attend != null) s += "接下来是「${attend.title}」（${attend.reason}${where(attend)}）。"
+        if (todo != null) s += (if (live != null || attend != null) "要做的事里，" else "") + "最该先做的是「${todo.title}」（${todo.reason}）。"
+        else if (live == null && attend == null) list.firstOrNull { it.level != "past" }?.let { s += "接下来是「${it.title}」（${it.reason}${where(it)}）。" }
         return s
     }
 

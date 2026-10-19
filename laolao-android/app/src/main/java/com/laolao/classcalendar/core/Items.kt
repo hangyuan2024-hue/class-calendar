@@ -264,7 +264,8 @@ object Items {
                 T.epoch(t, if (on) e else s), on, "", on), false)
         }
         cands.sortByDescending { it.score }
-        val top = cands.firstOrNull()
+        // 6.6 正在上课：首页这一格固定显示这节课和「还有多久下课」，不被别的事挤掉
+        val top = cands.firstOrNull { it.n.live } ?: cands.firstOrNull()
         if (top == null || top.far) {
             nextLesson()?.let { (day, c) ->
                 val tm = day != t; val early = night || (tm && now.hour >= 21)

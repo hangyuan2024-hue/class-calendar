@@ -169,16 +169,37 @@
     var h = now.getHours();
     return h < 5 ? "夜深了" : h < 9 ? "早上好" : h < 12 ? "上午好" : h < 14 ? "中午好" : h < 18 ? "下午好" : "晚上好";
   }
+  // 6.6 「最该先做」只说能现在动手做的事（作业、复习、待办）；会议、讲座、活动、课这类到点去参加的，说「接下来是……」
+  //   规则和 coach-core.js 的 doable 一样（两个文件各自独立加载，所以各写一份）
+  var DO_RE = /作业|报告(?!会|厅)|习题|练习|论文|ppt|PPT|复习|预习|背诵|背单词|单词|阅读|读书|笔记|整理|提交|上交|打卡|写|填|交|做|改|准备|报名|缴费|打印|签字|看完|刷题|错题/;
+  var MEET_RE = /会议|大会|例会|班会|年会|晚会|座谈|讲座|论坛|典礼|仪式|宣讲|培训|比赛|竞赛|演出|集合|面试|答辩|聚餐|聚会|观影|升旗|报告会|报告厅|研讨|沙龙|见面会|分享会|交流会|发布会|招聘会|运动会|开幕|闭幕|彩排|排练|值班|门诊|牙医|体检|活动|自习/;
+  var PREP_RE = /作业|习题|论文|ppt|PPT|报名|缴费|提交|上交|填写|填表|材料|讲稿|演讲稿|稿子|复习|预习|背诵/;
+  function doable(x) {
+    if (!x || x.kind !== "item") return false;
+    if (x.exam || x.type === "作业") return true;
+    var t = String(x.title || "") + " " + String(x.summary || "");
+    if (x.type === "会议" || x.type === "活动" || x.type === "课程") return false;
+    if (MEET_RE.test(t) && !PREP_RE.test(t)) return false;
+    if (x.time && !DO_RE.test(t)) return false;
+    return true;
+  }
   function greet(ctx) {
     var now = ctx.now, list = rank(ctx.items, ctx.courses, now), name = ctx.name ? "，" + ctx.name : "";
     var late = list.filter(function (x) { return x.level === "late"; }).length;
     var todayN = list.filter(function (x) { return x.kind === "item" && x.day === keyOf(now); }).length;
-    // 6.3 「最该先做」不挑已经过去的事（开完的会、结束的活动）
-    var top = list.filter(function (x) { return x.level !== "past"; })[0], s = hello(now) + name + "！";
+    var s = hello(now) + name + "！";
     if (!list.length) return s + "手头没有要赶的事，" + (now.getHours() >= 21 ? "早点休息吧 🌙" : "可以安心学点别的 ☕");
     if (late) s += "有 " + late + " 项作业过期了，先补上吧。";
     else if (todayN) s += "今天有 " + todayN + " 件事。";
-    if (top) s += top.kind === "course" ? "「" + top.title + "」" + top.reason + (top.location ? "，在 " + top.location : "") + "。" : "最该先做的是「" + top.title + "」（" + top.reason + "）。";
+    var live = list.filter(function (x) { return x.level === "now"; })[0];                         // 正在上的课、正在开的会
+    var attend = list.filter(function (x) { return x.level !== "past" && x.level !== "now" && (x.kind === "course" || !doable(x)) && x.mins >= 0 && x.mins <= 48 * 60; })
+      .sort(function (a, b) { return a.mins - b.mins; })[0];                                          // 接下来要去参加的（按时间先后）
+    var todo = list.filter(function (x) { return x.level !== "past" && doable(x); })[0];             // 能现在动手做的里最急的
+    var where = function (x) { return x.location ? "，在 " + x.location : ""; };
+    if (live) s += "正在" + (live.kind === "course" ? "上" : "") + "「" + live.title + "」，" + live.reason.replace(/^(正在上课|进行中) · /, "") + "。";
+    else if (attend) s += "接下来是「" + attend.title + "」（" + attend.reason + where(attend) + "）。";
+    if (todo) s += (live || attend ? "要做的事里，" : "") + "最该先做的是「" + todo.title + "」（" + todo.reason + "）。";
+    else if (!live && !attend) { var any = list.filter(function (x) { return x.level !== "past"; })[0]; if (any) s += "接下来是「" + any.title + "」（" + any.reason + where(any) + "）。"; }
     return s;
   }
 
@@ -357,5 +378,5 @@
   }
   function fallback() { return { text: "这个我还不太会 😅 我能回答日程、课程、作业、考试、打卡这些，试试问：", chips: CHIPS }; }
 
-  return { evening: evening, morning: morning, withEvening: withEvening, isDue: isDue, rank: rank, startInfo: startInfo, startText: startText, greet: greet, answer: answer, fallback: fallback, hello: hello, parseDay: parseDay, dayName: dayName, leftText: leftText, keyOf: keyOf, CHIPS: CHIPS };
+  return { evening: evening, morning: morning, withEvening: withEvening, doable: doable, isDue: isDue, rank: rank, startInfo: startInfo, startText: startText, greet: greet, answer: answer, fallback: fallback, hello: hello, parseDay: parseDay, dayName: dayName, leftText: leftText, keyOf: keyOf, CHIPS: CHIPS };
 });

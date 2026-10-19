@@ -66,5 +66,20 @@ const ok = (s) => console.log("✓ " + s);
   const cs = C.suggest({ now: at2, ranked: I.rank(its2, both.map((c) => ({ ...c, day: "2026-10-19" })), at2) });
   assert.notStrictEqual(cs.mode, "class", "早自习（催我写作业）不算上课");
   ok("早自习：排在最前、跟着调休 / 停课、群消息分得清早晚自习、教练照样催作业");
+  // 6.6 一句话里好几件事、干扰信息多：标题像样、日期对、地点完整、去掉「收到请回复」和署名；总结一句一件
+  const msgs = ["下周一和周二晚上都不上晚自习，下周一没课班级去参加讲座，下周二晚上有计算机专业认知教育，各班班长负责好考勤，提前到场，领导们会参会。大家组织好学生",
+    "@全体成员 明天下午2点在教三201开班会，记得带学生证；另外周五前把实验报告交给学委，逾期不收！！收到请回复",
+    "【通知】各位同学：本周四（10月22日）上午9:00-11:00 体测，地点东操场，穿运动鞋；体测结束后10月23日之前在学习通完成心理健康问卷。辅导员 王老师"].join("\n");
+  const pr = P.parse(msgs, "2026-10-18").items, byS = (s) => pr.find((x) => x.subject === s);
+  assert.deepStrictEqual(pr.map((x) => x.subject), ["讲座", "计算机专业认知教育", "班会", "交实验报告", "体测", "心理健康问卷填写"]);
+  assert.strictEqual(byS("计算机专业认知教育").msg_type, "活动");
+  assert.strictEqual(byS("体测").event_time, "2026-10-22 09:00", "括号里的具体日期优先；周日说的「本周四」是接下来那个周四");
+  assert.strictEqual(byS("体测").location, "东操场");
+  assert.ok(!/收到请回复|王老师|@/.test(pr.map((x) => x.summary).join("")), "去掉收到请回复、署名、@");
+  const dg = P.digest(pr, "2026-10-18");
+  assert.ok(/一共 6 件事/.test(dg.text) && dg.lines[0] === "明天：讲座" && dg.lines.includes("10月23日（周五）前：交实验报告"));
+  assert.ok(/最该先做的是「离散数学作业」/.test(I.greet({ now: new Date(2026, 9, 19, 14, 41), items: [{ key: "a", title: "讲座", type: "通知", day: "2026-10-19", time: "19:20" }, { key: "b", title: "离散数学作业", type: "作业", day: "2026-10-21" }], courses: [] })));
+  assert.ok(!/最该先做的是「讲座」/.test(I.greet({ now: new Date(2026, 9, 19, 14, 41), items: [{ key: "a", title: "讲座", type: "通知", day: "2026-10-19", time: "19:20" }], courses: [] })));
+  ok("群消息整理：一句多事、干扰多也能拆对，标题像样、括号日期优先、去掉收到请回复和署名；总结一句一件；讲座不说「最该先做」");
   console.log("文档导入 / 晚自习：全部通过");
 })().catch((e) => { console.error("✗", e); process.exit(1); });

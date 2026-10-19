@@ -212,4 +212,12 @@ class CoreTest {
         assertEquals(1, Island.morning("2026-10-24", mo, listOf(org.json.JSONObject().put("date", "2026-10-24").put("type", "swap").put("from", "2026-10-21"))).size)
         assertEquals(0, Island.morning("2026-10-25", mo, emptyList()).size)
     }
+
+    /** 6.6 问候：讲座这类到点去参加的事说「接下来是」，不说「最该先做」；作业才是「最该先做」 */
+    @Test fun v66Greet() {
+        val now = java.time.LocalDateTime.of(2026, 10, 19, 14, 41)
+        val lec = Island.Row("item", "a", "讲座", "通知", "2026-10-19", "19:20", "教二报告厅", "soon", false, 50.0, "", "4 小时后开始")
+        val hw = Island.Row("item", "b", "离散数学作业", "作业", "2026-10-21", "", "", "soon", false, 40.0, "", "还剩 2 天")
+        assertTrue(!Coach.doable(lec)); assertTrue(Coach.doable(hw))
+    }
 }

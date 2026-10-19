@@ -162,7 +162,10 @@ App.views.ingest = {
     const adjHtml = (P.adj || []).length ? `<div class="card ig-res" style="margin-bottom:12px"><div class="ig-sum">📅 认出了课表调整<span class="grow"></span><span class="muted">会改你自己的课程表，不会发到班级</span></div>
       ${P.adj.map((a, i) => `<label class="row" style="gap:8px;padding:4px 0;align-items:baseline"><input type="checkbox" data-adjon="${i}"${a.on ? " checked" : ""}><b>${esc(M.mdw ? M.mdw(a.date) : a.date)}</b><span>${a.type === "off" ? "放假 / 停课" : a.type === "swap" ? "上 " + esc(M.mdw ? M.mdw(a.from) : a.from) + " 的课" : "不上「" + esc(a.name) + "」"}</span><small class="muted">${esc(a.text || "")}</small></label>`).join("")}
       <div class="row" style="margin-top:8px"><button class="btn primary sm" data-igadj${P.adj.some((a) => a.on) ? "" : " disabled"}>应用到我的课程表</button></div></div>` : "";
-    box.innerHTML = adjHtml + `<div class="card ig-res">
+    // 6.6 总结：这些消息一共说了几件事，一句一件
+    const dg = LaoParse.digest ? LaoParse.digest(P.items.filter((x) => x.on), this.pub()) : null;
+    const digestHtml = dg && dg.lines.length ? `<div class="card ig-res" style="margin-bottom:12px"><div class="ig-sum">📋 总结：${esc(dg.text)}</div><ol style="margin:6px 0 0;padding-left:20px;line-height:1.8" class="muted">${dg.lines.map((l) => `<li>${esc(l)}</li>`).join("")}</ol></div>` : "";
+    box.innerHTML = digestHtml + adjHtml + `<div class="card ig-res">
       <div class="ig-sum">整理出 <b>${P.items.length}</b> 条 · 过滤闲聊 ${P.chatter.length} 条${P.dupes ? ` · 去掉重复 ${P.dupes} 条` : ""}${P.unsure.length ? ` · <b style="color:var(--warn)">拿不准 ${P.unsure.length} 条</b>` : ""}<span class="grow"></span><span class="muted">哪里不对直接改，捞捞会记住</span></div>
       ${P.items.map((x, i) => { const [d, t] = (x.event_time || "").split(" ");
         return `<div class="ig-it${x.on ? "" : " off"}" data-pi="${i}" style="--c:${tc(x.msg_type)}">

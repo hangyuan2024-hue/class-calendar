@@ -56,7 +56,7 @@
     [/开会|班会|会议(?!号|室)|例会|座谈|年级大会|组会|党课|团日|支部大会|班委会|碰个?头|约谈|谈话|短会|小会|全体大会|开个会|[一-龥]{0,6}大会(?!操)/, "会议", 5], [/召开/, "会议", 2],
     // 活动
     [/活动(?!中心|室)/, "活动", 2], [/晚会|运动会|开幕式|志愿|社团|招新|面试|参观|讲座|演出|联欢|观影|看电影|团建|聚餐|聚会|评选|投票|分享会|英语角|读书会|拔河|拉练|植树|献血|升旗|彩排|义务|主题日|宣讲|电脑节|文化节|艺术节|科技节|敬老院|春游|秋游|郊游|素拓|拓展/, "活动", 3],
-    [/培训/, "活动", 2], [/坐大巴|校车|大巴|包车/, "活动", 2], [/(赛|运动会|比赛).{0,20}加油|加油.{0,10}(赛|运动会)|拉拉队|啦啦队/, "活动", 2],
+    [/培训/, "活动", 2], [/(认知|入学|安全|专业|主题|法治|法制|心理健康|爱国主义|思政|国防|消防)教育|宣讲会?|报告会|专题报告/, "活动", 4], [/坐大巴|校车|大巴|包车/, "活动", 2], [/(赛|运动会|比赛).{0,20}加油|加油.{0,10}(赛|运动会)|拉拉队|啦啦队/, "活动", 2],
     [/(比|竞|决|初|复|校|辩论|篮球|足球|排球|羽毛球|乒乓球|歌唱|演讲|知识|技能|选拔|大|联|开|新生)赛|[一-龥A-Za-z]{2,6}杯(?!子)/, "活动", 4], [/报名/, "活动", 3], [/报名.{0,12}截止|截止报名/, "活动", 2], [/(四六级|四级|六级|二级|计算机二级|考试|考研|教资|普通话|补考|重修)报名|计算机二级/, "通知", 4],
     [/答辩会|评议会|述职|评审会|动员会|见面会|交流会|座谈会|小组讨论|研讨|奖学金答辩|评优答辩|竞选/, "会议", 5], [/放映|电影|剧场|音乐会/, "活动", 3],
     [/(报名|资料|材料|班|书|服装|活动|考试)费/, "通知", 8], [/阳光长跑|长跑|跑满|打卡/, "通知", 2], [/答疑|习题课|辅导课/, "通知", 2],
@@ -183,6 +183,7 @@
       else if (p.startsWith("下")) diff += 7;
       else if (p.startsWith("上")) { diff -= 7; past = true; }
       else if (!p && diff < 0) diff += 7;              // 只说「周三」且已经过了，指下周三
+      else if (/^[本这]/.test(p) && diff < 0) { if (dow === 7) diff += 7; else past = true; }   // 6.6 周日说「本周四」多半指接下来这周；平时说的「本周一」已经过去了
       add(m.index, m[0].length, addDays(base, diff), { kind: "week", past });
     });
     scan(/(本|这)?周末/g, (m) => add(m.index, m[0].length, addDays(base, Math.max(0, 6 - dow)), { kind: "week" }));
@@ -209,6 +210,12 @@
       if (/^的?课表/.test(after)) x.ref = true;
       if (/每$/.test(t.slice(Math.max(0, x.i - 1), x.i))) x.ref = x.every = true;
       if (/(原定|原来|原本|本来|之前说的|原计划)[^，。；]{0,3}$/.test(t.slice(Math.max(0, x.i - 7), x.i))) x.ref = true;   // 「原定周三的取消」
+    }
+    // 6.6「本周四（10月22日）」「周五(11.6)」：括号里写了具体日期，就按具体日期
+    for (let k = 1; k < res.length; k++) {
+      const a = res[k - 1], b = res[k];
+      if (a.kind === "week" && b.kind === "abs" && /^\s*[（(]\s*$/.test(t.slice(a.i + a.len, b.i))) a.ref = true;
+      if (a.kind === "abs" && b.kind === "week" && /^\s*[（(]\s*$/.test(t.slice(a.i + a.len, b.i))) b.ref = true;
     }
     for (let k = 1; k < res.length; k++) if (res[k - 1].every && res[k].i - (res[k - 1].i + res[k - 1].len) <= 1 && res[k].kind === "week" && !/^[本这下]/.test(t.slice(res[k].i))) res[k].ref = res[k].every = true;
     return res;
@@ -272,7 +279,7 @@
   // ================= 地点 =================
   const PLACE_TAIL = "东操|西操|南操|北操|看台|研讨间|研讨室|自习室|剧场|之家|主席台前|主席台|校车站|公交站|车站|社区|小区|博物馆|纪念馆|科技馆|美术馆|医务室|校医院|医院|驿站|快递点|报告厅|会议室|活动中心|事务中心|服务中心|计算中心|实训中心|工训中心|训练中心|中心机房|机房|实验室|教室|办公室|体育馆|体育场|田径场|篮球场|足球场|运动场|操场|广场|礼堂|大厅|门口|楼下|楼前|楼门口|大门|北门|南门|东门|西门|正门|侧门|图书馆|食堂|学工办|学工处|教务处|宿管处|处|办|中心|馆|厅|室|楼";
   const PLACE_RE = new RegExp("(" + PLACE_TAIL + ")", "g");
-  const PLACE_EXT = /^([一二三四五六七八九十\d]{1,2}楼|[A-Za-z]?区?\d{2,4}|大厅|门口|报告厅|会议室|多功能厅|演播厅|广场|[一-龥]{1,3}(?:室|厅)|前|下|一楼|二楼|三楼|四楼|东门|西门|南门|北门|机房)/;
+  const PLACE_EXT = /^(场(?!所|景|合|面)|[一二三四五六七八九十\d]{1,2}楼|[A-Za-z]?区?\d{2,4}|大厅|门口|报告厅|会议室|多功能厅|演播厅|广场|[一-龥]{1,3}(?:室|厅)|前|下|一楼|二楼|三楼|四楼|东门|西门|南门|北门|机房)/;
   const PLACE_STOP = /[\s,，。；;！!、:：在到于去点半午晚早天日号周期时分和与及或的了是让请把将被找给由从向往跟就也都还又里报]/;
   const NOT_PLACE = /^(教务系统|群文件|学习通|超星|雨课堂|宿舍|寝室|班级群|群里|处理|办理|举办|开办|创办|主办|承办|协办|楼|馆|厅|室|处|办|中心)$/;
   const ONLINE = /(腾讯会议|钉钉|飞书|zoom|Zoom|ZOOM|腾讯课堂|QQ群课堂|线上会议)(\s*(会议)?(号|ID|id)?\s*[:：]?\s*([\d\s-]{6,16}\d))?/;
@@ -371,20 +378,42 @@
     return "";
   }
   const TITLE_WORDS = /([一-龥]{0,8}大会|年级大会|主题班会|班委会议|班委会|支部大会|班会|党课|团日活动|组会|例会|开会|[一-龥]{0,6}(?:比赛|竞赛|晚会|运动会|讲座|分享会|招新|面试|培训|演练|彩排|开幕式)(?:报名)?|查寝|体测|晨读|跑操|点名|评教|选课|停课|调课|补课|闭馆|考试|测验|缴费|领教材|领取学生证)/;
+  // 6.6 开头的连接词、称呼、语气词：不是事情本身
+  const LEAD_JUNK = /^(另外|还有|然后|同时|并且|此外|以及|另|再|最后|首先|其次|补充一下|补充|提醒一下|提醒|注意|重要|紧急|通知|请|麻烦|各班班长|各班|各位同学|各位|同学们|全体同学|大家|记得|务必|一定要|一定|需要|必须|要|都|就|也|还|先)[，,：:\s]*/;
+  function stripLead(s) { let prev; do { prev = s; s = s.replace(LEAD_JUNK, ""); } while (s !== prev && s); return s; }
   function titleOf(t, type, course, loc) {
-    if (course) return course;      // 科目就写课程名，作业页按它分组
+    if (course && (type === "作业" || /考试|测验|期中|期末|小测|上课|课堂/.test(t))) return course;      // 科目就写课程名，作业页按它分组
     const adm = t.match(/(医保|学费|班费|书费|住宿费|电费|助学金|奖学金|学生证|[一-龥]{0,4}(?:申请表|申报书|统计表|信息表|登记表|材料|回执|名单|照片|请假条|问卷))/);
     if (adm && type === "通知") return adm[1].replace(/^(把|将|的|请|交|填写?)/, "") + (/交|收|提交|上交|缴/.test(t) ? "上交" : /填|登记|完成/.test(t) ? "填写" : /领/.test(t) ? "领取" : "");
     const k = t.match(TITLE_WORDS);
-    if (k) return k[1].replace(/^(召开|举办|举行|开展|组织|参加|进行|有)/, "").slice(0, 14);
+    // 「下周一没课班级去参加讲座」：关键词前面最多带几个修饰字，取最后一个动词后面的部分
+    if (k) { let w = k[1]; const cut = w.match(/^.*(?:参加|参与|去|到|在|开|召开|举办|举行|开展|组织|进行|有|听|观看|看)(?=[一-龥])/); if (cut && cut[0].length < w.length - 1) w = w.slice(cut[0].length); return w.replace(/^(召开|举办|举行|开展|组织|参加|进行|有)/, "").slice(0, 14); }
     let s = t;
     if (loc) s = s.split(loc).join("");
     s = s.replace(/【[^】]*】|^(通知|提醒|注意|重要|紧急|温馨提示)[:：]?|辅导员通知[:：]?/g, "")
       .replace(/(下下|下个?|本|这个?)?(周|星期|礼拜)[一二三四五六日天1-7]|大后天|后天|明天|今天|今晚|明晚|明早|今早|\d{1,2}月\d{1,2}[日号]?|\d{1,2}[.\/]\d{1,2}/g, "")
       .replace(/(上午|下午|晚上|中午|早上|傍晚)?\d{1,2}([:点时]\d{0,2}(半|分)?)?/g, "").replace(/(上午|下午|晚上|中午|早上|傍晚)?[一二两三四五六七八九十]{1,3}[点时](半|一刻|三刻)?/g, "")
+      .replace(/(之前|以前|前|截止|为止|之内|内)(?=[把交提完填做写])/g, "").replace(/(上午|下午|晚上|中午|早上|傍晚|凌晨)/g, "")
       .replace(/^(请|各位|大家|同学们|全体同学)[，,]?/g, "")
       .replace(/[（(]\s*[)）]/g, "").replace(/^[①②③④⑤⑥⑦⑧⑨⑩\d.、\-~—\s]+/, "").replace(/^[，,。:：\s在于到\-~—]+/, "");
-    return (s.split(/[，,。；;！!\n]/)[0] || t).trim().slice(0, 12);
+    let first = stripLead((s.split(/[，,。；;！!\n]/)[0] || t).trim()).replace(/^(有|是|在|于|将|会|需|得)/, "");
+    // 6.6 要动手做的事：「把实验报告交给学委」→「交实验报告」，「在学习通完成心理健康问卷」→「完成心理健康问卷」
+    const ba = first.match(/把(.{2,12}?)(交给?|提交|上交|发给?|填好?|写完?|做完?|完成)/);
+    if (ba) first = ba[2].replace(/[给好完]$/, "").replace(/^发$/, "发") + ba[1];
+    else { const vo = first.match(/(提交|上交|交|完成|填写|填报|填|写完?|做完?|背诵?|预习|复习|准备|领取|缴纳|缴)(?![给到])([^，。；！]{2,12})$/); if (vo && vo.index > 0 && vo.index <= 10) first = vo[1].replace(/完$/, "") + vo[2]; }
+    first = first.replace(/(给|到|在)(学委|班长|课代表|老师|学习委员|辅导员)$/, "").replace(/(吧|啊|哦|呀|哈|啦|了)+$/, "");
+    return (first || t.trim()).slice(0, 16);
+  }
+
+  // 6.6 详细内容：去掉「收到请回复」、@、署名这些不是事情本身的话（内容本身一个字不删，不截断）
+  const NOISE_CLAUSE = /^(收到(请|的)?(回复|接龙|扣1|扣1|回1)?|请?回复收到|收到请回复|收到的?请?扣?[1１]|大家互相转告|互相转告|谢谢(大家|配合)?|辛苦了?|感谢配合|望周知|特此通知|以上|如上)[！!。.~～]*$/;
+  function tidy(seg) {
+    let s = String(seg || "").replace(/@\S+\s?/g, "").replace(/^【[^】]{1,12}】\s*/, "").replace(/^(各位同学|同学们|大家|各位)[，,：:]\s*/, "");
+    s = s.replace(/[，,。\s]*(——|--|－－)?\s*(辅导员|班主任|班长|学委|团支书|老师)?\s*[一-龥]{1,3}(老师|辅导员)\s*$/, "");   // 结尾的署名「辅导员 王老师」
+    const parts = s.match(/[^，,。；;！!]+[，,。；;！!]*|[，,。；;！!]+/g) || [s];
+    s = parts.filter((p) => !NOISE_CLAUSE.test(p.replace(/[，,。；;！!\s]+$/g, "").trim())).join("");
+    s = s.replace(/^[\s，,]*(另外|还有|然后|同时|此外|另)[，,]?\s*/, "").replace(/[！!]{2,}/g, "！").replace(/[，,；;\s]+$/, "");
+    return s.trim() || String(seg || "").trim();
   }
   function clean(t) {
     return normalize(t).replace(/@\S+\s?/g, "").replace(/\[[^\]]{1,8}\]/g, "").replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, "")
@@ -507,7 +536,8 @@
       focus = typeText.split(/(?<=[。；;！!\n])/).find((p) => p.includes(ds)) || null;
     }
     const dt = decideType(typeText, model, focus);
-    const course = courseOf(t, model) || (seg.start ? "" : "") || courseOf(whole, model);
+    // 6.6 这一段没提课名时，才借整条消息里的课名——而且只给作业借（「体测」那段不能借到后面「心理健康问卷」的课名）
+    const course = courseOf(t, model) || (dt.type === "作业" && !TITLE_WORDS.test(t) ? courseOf(whole, model) : "");
     return { day, time, loc, dt, course, pick, t };
   }
 
@@ -618,6 +648,30 @@
     return out.sort((a, b) => a.date.localeCompare(b.date));
   }
 
+  // 6.6 总结：整理出来的事项一句一件，「这几条消息说了什么」一眼看完（本地整理、AI 整理都用这个）
+  const WK = "日一二三四五六";
+  function whenText(et, pub) {
+    if (!et) return "时间待定";
+    const day = et.slice(0, 10), tm = et.slice(11, 16), d = new Date(day + "T00:00:00"), b = new Date((pub || keyOf(new Date())) + "T00:00:00");
+    const diff = Math.round((d - b) / 86400000);
+    const dn = diff === 0 ? "今天" : diff === 1 ? "明天" : diff === 2 ? "后天" : (d.getMonth() + 1) + "月" + d.getDate() + "日（周" + WK[d.getDay()] + "）";
+    return dn + (tm ? " " + tm : "");
+  }
+  function digest(items, pub) {
+    const list = (items || []).filter((x) => x && (x.subject || x.summary));
+    if (!list.length) return { text: "", lines: [] };
+    const sorted = list.slice().sort((a, b) => String(a.event_time || "9").localeCompare(String(b.event_time || "9")));
+    const lines = sorted.map((x) => {
+      const sub = x.subject || String(x.summary).slice(0, 16);
+      const name = x.msg_type === "作业" && !/作业|报告|论文|习题|题|^(交|提交|上交|完成|填|写|做|背|预习|复习)/.test(sub) ? sub + "作业" : sub;
+      const due = x.msg_type === "作业" && x.event_time ? "前" : "";
+      return `${whenText(x.event_time, pub)}${due}：${name}${x.location ? "（" + x.location + "）" : ""}${x.prepare ? "，带" + x.prepare : ""}`;
+    });
+    const n = { 作业: 0, 会议: 0, 活动: 0, 通知: 0 }; for (const x of list) if (n[x.msg_type] != null) n[x.msg_type]++;
+    const kinds = Object.keys(n).filter((k) => n[k]).map((k) => n[k] + " 个" + k).join("、");
+    return { text: `一共 ${list.length} 件事（${kinds}）`, lines };
+  }
+
   function parse(text, pubDate, opts) {
     const model = opts && opts.model, force = !!(opts && opts.force);   // force：班委说「这条要记」，不当闲聊
     const pub0 = pubDate || keyOf(new Date());
@@ -660,7 +714,7 @@
           else { out.unsure.push({ text: raw, sender: msg.sender, why: "看不出是什么事", guess: day ? mk("通知") : null }); continue; }
         }
         function mk(tp) {
-          const summary = segT.slice(0, 1000);   // 6.2 不再截断成「……」，内容要完整
+          const summary = tidy(segT).slice(0, 1000);   // 6.2 不再截断成「……」，内容要完整；6.6 去掉「收到请回复」、署名
           return {
             msg_type: tp, subject: titleOf(segT, tp, course, loc), summary,
             event_time: day ? day + (time ? " " + time : "") : "", location: loc, prepare: findPrepare(segT),
@@ -837,8 +891,9 @@
     const base = new Date(pub + "T00:00:00"), mon = addDays(base, -((base.getDay() + 6) % 7));
     const wk = (o) => "一二三四五六日".split("").map((c, i) => `${o}${c}=${keyOf(addDays(mon, i + (o === "下周" ? 7 : 0)))}`).join("，");
     return `你是班级群消息整理助手。从用户给的群消息里提取需要记下来的事项，只输出 JSON 数组，不要任何解释。
-每个事项字段：msg_type（作业/会议/活动/通知 之一）、subject（科目或标题，12 字以内）、summary（一句话内容）、event_time（"YYYY-MM-DD HH:MM" 或 "YYYY-MM-DD"，不知道就是 ""）、location、prepare（需要带/准备的东西）、original（对应原文）、need_confirm（日期或细节不确定时为 true）。
+每个事项字段：msg_type（作业/会议/活动/通知 之一；讲座、比赛、体测、认知教育算活动）、subject（这件事的名字，4~16 字，用「交实验报告」「计算机专业认知教育」「班会」这种说法，不要截半句原话、不要带日期和「另外」「请」）、summary（第一句一句话总结，后面写要求、注意事项、适用哪些人，不要省略号，去掉「收到请回复」、@、署名）、event_time（"YYYY-MM-DD HH:MM" 或 "YYYY-MM-DD"，不知道就是 ""）、location、prepare（需要带/准备的东西）、original（对应原文）、need_confirm（日期或细节不确定时为 true）。
 消息发布日期是 ${pub}。换算日期请查表：${wk("本周")}；${wk("下周")}。「调到/改到」以后面的时间为准；「晚上12点前」写成 23:59。
+一句话里有好几件事（不同的日子、不同的事）就拆成几条，每条的 original 只放和它有关的句子；同一件事的补充（考勤、提前到场、领导参会）并进那一条，不单独成条。写了「周四（10月22日）」以括号里的日期为准；地点写完整。
 闲聊、收到、表情、同学提问一律忽略；没有需要记录的事项时输出 []。`;
   }
   function parseJsonItems(s, pub) {
@@ -856,6 +911,6 @@
     })).filter((x) => x.subject || x.summary);
   }
 
-  const api = { parse, adjustments, tableItems, splitMessages, isChatter, findDate, findTime, findLocation, extractPrompt, parseJsonItems, createModel, courseOf, version: 2 };
+  const api = { parse, digest, tidy, adjustments, tableItems, splitMessages, isChatter, findDate, findTime, findLocation, extractPrompt, parseJsonItems, createModel, courseOf, version: 2 };
   if (typeof module !== "undefined" && module.exports) module.exports = api; else root.LaoParse = api;
 })(typeof window !== "undefined" ? window : globalThis);

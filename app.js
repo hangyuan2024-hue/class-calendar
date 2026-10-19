@@ -677,7 +677,8 @@ function heroNextCourse(ctx) {
 }
 function heroNextHtml(ctx) {
   const list = IslandCore.rank(ctx.items, ctx.courses, ctx.now).filter((x) => x.level !== "past");
-  const top = list[0], h = ctx.now.getHours(), night = h >= 23 || h < 5;
+  // 6.6 正在上课（含早晚自习）：首页这一格固定显示这节课和「还有多久下课」，不被别的事挤掉
+  const top = list.find((x) => x.kind === "course" && x.level === "now") || list[0], h = ctx.now.getHours(), night = h >= 23 || h < 5;
   // 最靠前的事还远（两天以后、没定日子）：先提醒下一节课（今天晚点的 / 明天的，含调课、加课）
   const far = top && top.kind !== "course" && top.level === "normal";
   if (!top || (far && heroNextCourse(ctx))) {
@@ -1590,6 +1591,12 @@ function ipNextSel(x) {
   if (!x._nx.length) return "";
   return `<select data-pf="next" class="pinx" title="截止时间设成下次上某门课之前"><option value="">📚 下次上课前…</option>${x._nx.map((n, i) => `<option value="${i}">下次${esc(n.name)}课前 · ${esc(n.text)}</option>`).join("")}</select>`;
 }
+// 6.6 总结：这些消息一共说了几件事，一句一件（按时间排），一眼看完再决定发不发
+function digestHtml(items) {
+  if (!LaoParse.digest || !items.length) return "";
+  const d = LaoParse.digest(items, laoPub());
+  return `<div class="ip-digest"><b>📋 总结：${esc(d.text)}</b><ol>${d.lines.map((l) => `<li>${esc(l)}</li>`).join("")}</ol></div>`;
+}
 function renderParsed() {
   const box = $("ipResult");
   if (!parsed) { box.classList.add("hidden"); return; }
@@ -1597,6 +1604,7 @@ function renderParsed() {
   const on = parsed.items.filter((x) => x.on).length;
   const tsel = (v) => ["作业", "会议", "活动", "通知"].map((t) => `<option ${t === v ? "selected" : ""}>${t}</option>`).join("");
   box.innerHTML = `<div class="ip-sum"><span>整理出 <b>${parsed.items.length}</b> 条 · 过滤闲聊 ${parsed.chatter.length} 条${parsed.dupes ? ` · 去掉重复 ${parsed.dupes} 条` : ""}${parsed.unsure.length ? ` · <b style="color:#c27803">拿不准 ${parsed.unsure.length} 条</b>` : ""}</span><span class="spacer"></span><span>哪里不对直接改，捞捞会记住</span></div>
+    ${digestHtml(parsed.items.filter((x) => x.on))}
     ${parsed.items.map((x, i) => { const [d, t] = (x.event_time || "").split(" ");
       return `<div class="pi${x.on ? "" : " off"} t-${esc(x.msg_type)}" data-pi="${i}">
         <input type="checkbox" data-pf="on" ${x.on ? "checked" : ""} aria-label="发布这条">
