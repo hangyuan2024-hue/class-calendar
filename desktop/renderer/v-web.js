@@ -21,22 +21,40 @@ App.views.study = {
 };
 
 // ---------- 思维导图 ----------
+// 6.5 新版（「捞捞学习」learn/mindmap/，队友做的）：整个页面在 iframe 里跑（renderer/web/mindmap/，sync-web 拷来），
+// 它要调 mm_* 接口、问现在是谁，都经过这里（协议见网站 learn/mindmap/js/host-bridge.js）
 App.views.mindmap = {
   title: "思维导图", icon: "mindmap", ownKeys: true,
   mount(el) {
     el.classList.add("web", "mm-view"); el.dataset.view = "mindmap";
-    el.innerHTML = `<header class="vhead mm-head"><button class="btn ghost iconbtn back" data-mm="back" aria-label="返回" title="返回导图列表">${icon("left")}</button><h1 id="mmHeadTitle">捞捞思维导图</h1><input id="mmTitleIn" class="mm-title input hidden" maxlength="80" aria-label="导图名称"><span class="grow"></span><span id="mmSync" class="mm-sync hidden"></span>
-      <button class="btn ghost" data-pop title="单独开一个窗口，可以放到另一块屏幕上">${icon("mini")}单独窗口</button></header>
-      <div class="vbody mm-body"><div id="mmBox" class="mm-box"></div></div>`;
-    if (!$("#mmDlg")) document.body.append(h(`<dialog id="mmDlg" class="dlg kn-dlg mm-dlg web"><div id="mmDlgBody"></div></dialog>`));
-    $("[data-pop]", el).onclick = () => popOut("mindmap");
+    el.innerHTML = `<div class="vbody mm-body" style="padding:0;overflow:hidden"><iframe class="mm-frame" title="捞捞思维导图" style="display:block;width:100%;height:100%;border:0;background:#fbf7f1;position:absolute;inset:0"></iframe></div>`;
+    const f = this.frame = $("iframe", el), post = (o) => { o.mmb = 1; if (f.contentWindow) f.contentWindow.postMessage(o, "*"); };
+    const who = () => { const me = App.S && App.S.loggedIn && App.S.me; return me && me.id ? { id: me.id, name: me.display_name || me.name || me.account || "" } : null; };
+    let lastUid = "";
+    const sendUser = () => { const u = who(); lastUid = u ? u.id : ""; post({ t: "user", user: u, back: false }); };
+    this.post = post;
+    window.addEventListener("message", (ev) => {
+      if (ev.source !== f.contentWindow) return;
+      const d = ev.data || {};
+      if (d.mmb !== 1) return;
+      if (d.t === "hello") { this.ready = true; sendUser(); if (this.wantCreate) { this.wantCreate = false; post({ t: "create" }); } }
+      else if (d.t === "rpc") {
+        const id = String(d.id || "").slice(0, 40);
+        if (!/^mm_(list|get|save|rename|del)$/.test(String(d.fn || ""))) return post({ t: "rpc-r", id, ok: false, error: "不支持的操作" });
+        if (!who()) return post({ t: "rpc-r", id, ok: false, error: "请先登录" });
+        WebShim.scope.CCAuth.rpc(d.fn, d.args || {}).then((r) => post({ t: "rpc-r", id, ok: true, data: r }), (e) => post({ t: "rpc-r", id, ok: false, error: (e && e.message) || "请求失败" }));
+      } else if (d.t === "rev") WebShim.save("mm_rev_v1", { t: Date.now() });   // 记进账号同步：网页、手机上就知道导图改过了
+    });
+    WebShim.scope.Sync.onChange((set) => { if (set && set.has && set.has("mm_rev_v1")) post({ t: "changed" }); });
+    window.cc.on("state", () => setTimeout(() => { const u = who(); if ((u ? u.id : "") !== lastUid) sendUser(); }, 0));
+    f.src = "web/mindmap/index.html?host=desktop";
   },
-  update() { if (webOk("renderMindmap")) window.renderMindmap(); else $("#mmBox", this.el).innerHTML = webMissing("思维导图"); },
+  update() {},
   show(a) {
     this.el.classList.add("on");
-    if (a && a.create && window.Mindmap && typeof window.Mindmap.create === "function") window.Mindmap.create();
+    if (a && a.create) { if (this.ready) this.post({ t: "create" }); else this.wantCreate = true; }
   },
-  leave() { this.el.classList.remove("on"); if (webOk("mmLeave")) window.mmLeave(); },
+  leave() { this.el.classList.remove("on"); if (this.post) this.post({ t: "leave" }); },
 };
 
 // ---------- 云宠农场 ----------

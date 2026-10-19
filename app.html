@@ -28,7 +28,7 @@
 <link rel="stylesheet" href="studio-v2.css?v=20261008-org1">
 <link rel="stylesheet" href="org.css?v=20261008-org1">
 <link rel="stylesheet" href="auth-polish.css?v=20261008-org1">
-<link rel="stylesheet" href="home-v6.css?v=20261015-v560">
+<link rel="stylesheet" href="home-v6.css?v=20261019-v65">
 <style>
   .agree { display: flex; align-items: flex-start; gap: 8px; margin: 14px 2px 0; font-size: 13px; line-height: 1.6; color: var(--sub, #687d97); cursor: pointer; }
   .agree input { flex: none; width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--accent, #3b4ee0); cursor: pointer; }
@@ -82,7 +82,7 @@
 <a class="s-skip" href="#main">跳到主要内容</a>
 <header class="s-header">
   <a class="s-brand" href="app.html" aria-label="捞捞课程表首页"><span class="s-brand-icon"><img src="favicon.svg" alt=""></span><span>捞捞<span class="s-brand-sub">校园学习伙伴</span></span></a>
-  <nav class="s-nav" aria-label="网站导航"><a href="#showcase">作品展映</a><a href="#products">两大板块</a><a href="#team">团队</a><a href="#open">开源共建</a><a href="#get">下载</a></nav>
+  <nav class="s-nav" aria-label="网站导航"><a href="#showcase">作品展映</a><a href="#products">三大板块</a><a href="#team">团队</a><a href="#open">开源共建</a><a href="#get">下载</a></nav>
   <div class="s-header-actions"><button class="s-login-link lang-btn" type="button" data-lang-toggle>EN</button><a class="s-login-link" href="#login" data-login-focus>登录</a><a class="s-button s-button-small" href="index.html?guest=1">进入工作台 <span aria-hidden="true">↗</span></a></div>
 </header>
 <main id="main">
@@ -146,30 +146,45 @@
 </section>
 
 <section class="s-section h6-products" id="products" aria-labelledby="prod-title">
-  <div class="s-section-head"><div><span class="s-kicker">01 / TWO SPACES</span><h2 id="prod-title">一个账号，<br>两个<span>板块。</span></h2></div><p>日常安排交给捞捞课程表，<br>学习思考交给捞捞思维导图。各管各的，数据互通。</p></div>
-  <div class="h6-prod-grid">
+  <div class="s-section-head"><div><span class="s-kicker">01 / THREE SPACES</span><h2 id="prod-title">一个账号，<br>三个<span>板块。</span></h2></div><p>日常安排交给捞捞课程表，学习思考交给捞捞学习，<br>动手写代码交给捞捞编程。同一个账号登录，数据互通。</p></div>
+  <div class="h6-prod-grid h6-prod-3">
     <article class="h6-prod h6-prod-cal">
       <div class="h6-prod-top"><span class="h6-prod-ic">▦</span><div><small>LAOLAO SCHEDULE</small><h3>捞捞课程表</h3></div><span class="h6-badge ok">已上线</span></div>
       <p class="h6-prod-lead">课表、作业、班级消息放在一起，快到时间提醒你。</p>
       <ul class="h6-prod-list">
         <li><b>课程表</b>拍照 / 截图识别，一键发布到班级，保存成图片发群里</li>
-        <li><b>AI 整理</b>粘贴群消息或直接选聊天截图，整理成带时间地点的事项</li>
+        <li><b>AI 整理</b>粘贴群消息、聊天截图或 Word 文档，整理成带时间地点的事项</li>
         <li><b>提醒</b>微信服务通知、手机日历订阅，提醒方式自己选</li>
         <li><b>班级</b>班级墙、班级通知、作业清单，班委和老师一起管</li>
       </ul>
       <div class="h6-prod-act"><a class="s-button" href="index.html?guest=1">打开捞捞课程表 <span aria-hidden="true">↗</span></a><span class="h6-prod-where">网页 · 安卓 · Windows · 微信小程序（测试中）</span></div>
     </article>
-    <article class="h6-prod h6-prod-mm">
-      <div class="h6-prod-top"><span class="h6-prod-ic">✺</span><div><small>LAOLAO MIND MAP</small><h3>捞捞思维导图</h3></div><span class="h6-badge wip">基本功能已完成 · 本地化进行中</span></div>
-      <p class="h6-prod-lead">把一门课、一个问题、一份计划，画成一张清清楚楚的图。</p>
+    <article class="h6-prod h6-prod-mm" id="learn">
+      <div class="h6-prod-top"><span class="h6-prod-ic">✺</span><div><small>LAOLAO LEARN</small><h3>捞捞学习</h3></div><span class="h6-badge ok">新板块</span></div>
+      <p class="h6-prod-lead">把一门课、一个问题、一份计划，理成清清楚楚的一张图。</p>
       <ul class="h6-prod-list">
-        <li><b>快速生成</b>粘贴 AI 回答、Markdown 或缩进笔记，直接变成导图</li>
-        <li><b>三种结构</b>思维导图 / 逻辑图 / 组织结构图，四套主题随手换</li>
-        <li><b>好用的编辑</b>Tab 加子主题、拖动换位置、标记重点和易错、大纲视图</li>
-        <li><b>导出与同步</b>导出图片和 Markdown；登录后多台设备同步</li>
+        <li><b>思维导图</b>节点随手摆、连线自动绕开，粘贴 AI 回答直接生成</li>
+        <li><b>公式</b>节点里写 Markdown 和数学公式，79 个高数、线代补全</li>
+        <li><b>课内学习</b>资料、笔记、考核、错题、知识框架，按课程整理</li>
+        <li><b>同步</b>登录捞捞账号，网页、电脑版都能接着画</li>
       </ul>
       <div class="h6-mm-preview" aria-hidden="true"><span class="r">高等数学</span><svg viewBox="0 0 60 92" preserveAspectRatio="none"><path d="M0 46 C30 46 30 14 60 14 M0 46 H60 M0 46 C30 46 30 78 60 78" fill="none" stroke="#e8d6c3" stroke-width="2" vector-effect="non-scaling-stroke"/></svg><div class="kids"><span class="a">函数与极限</span><span class="b">导数 ⭐</span><span class="c">积分 ⚠️</span></div></div>
-      <div class="h6-prod-act"><a class="s-button s-button-ink" href="index.html?guest=1#mindmap">打开捞捞思维导图 <span aria-hidden="true">↗</span></a><span class="h6-prod-where">正在做：离线可用、数据优先存在你的设备</span></div>
+      <div class="h6-prod-act"><a class="s-button s-button-ink" href="learn/">进入捞捞学习 <span aria-hidden="true">↗</span></a><span class="h6-prod-where">网页 · Windows</span></div>
+    </article>
+    <article class="h6-prod h6-prod-code" id="code">
+      <div class="h6-prod-top"><span class="h6-prod-ic">&lt;/&gt;</span><div><small>LAOLAO CODE</small><h3>捞捞编程</h3></div><span class="h6-badge wip">电脑版 · 测试中</span></div>
+      <p class="h6-prod-lead">不会装编译器？装好捞捞编程，打开就能敲代码。</p>
+      <ul class="h6-prod-list">
+        <li><b>自带编译器</b>C、C++、Python 装好就能用，Java、JavaScript、Go 点一下自动装</li>
+        <li><b>一键运行</b>写完按 F5，输出、报错、输入都在下面的窗口里</li>
+        <li><b>问捞捞</b>看不懂报错、卡住了，问电脑里的本地模型，不联网也能答</li>
+        <li><b>练习题</b>从「Hello World」开始的入门小练习，一步一步来</li>
+      </ul>
+      <div class="h6-code-preview" aria-hidden="true"><i>main.c</i><code><b>#include</b> &lt;stdio.h&gt;
+<b>int</b> main() {
+  printf(<s>"你好，捞捞！\n"</s>);
+}</code><em>▶ 你好，捞捞！</em></div>
+      <div class="h6-prod-act"><a class="s-button s-button-code" href="code/">了解捞捞编程 <span aria-hidden="true">↗</span></a><span class="h6-prod-where">Windows 10 / 11</span></div>
     </article>
   </div>
 </section>
@@ -351,7 +366,7 @@
 <script src="auth.js?v=20261015-v572"></script>
 <script src="org.js?v=20261008-org1"></script>
 <script src="legal-info.js?v=20261010-legal1"></script>
-<script src="login.js?v=20261010-fix1"></script>
+<script src="login.js?v=20261019-v65"></script>
 <script src="get.js?v=20261017-v584"></script>
 <script src="landing-v2.js?v=20261005-studio2"></script>
 <script src="site-config.js?v=20261015-v561"></script>

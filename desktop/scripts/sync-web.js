@@ -43,7 +43,6 @@ for (const f of fs.readdirSync(must(S("fonts")))) copy(S("fonts", f), R("fonts",
 // exports：这个文件里顶层定义的函数，电脑版要调用的（study / mindmap 自己挂在 window 上，不用列）
 const MODS = [
   { src: "study.js", out: "study.js", css: "study.css" },
-  { src: "mindmap.js", out: "mindmap.js", css: "mindmap.css" },
   { src: "farm.js", out: "farm.js", exports: ["renderFarm", "farmNumbers", "farmState", "farmSave", "farmReload", "farmFeed", "farmPick", "farmRename", "petSVG", "petCfg", "petStage", "farmOn", "farmMini", "farmCard"] },
   { src: "metaverse-v3.js", out: "metalab.js", css: "metaverse-v3.css" },
 ];
@@ -61,6 +60,25 @@ for (const m of MODS) {
   if (a < 0) throw new Error("index.html 里找不到「云宠农场」的样式（注释 /* ===== 云宠农场 … */）");
   const rest = html.slice(a + 10), b = rest.search(/\n\s*\/\* =====|<\/style>/);
   write(R("web", "farm.css"), head("index.html 里的云宠农场样式").replace(/^\/\/ /, "/* ").replace(/\n$/, " */\n") + html.slice(a, a + 10 + (b < 0 ? rest.length : b)) + "\n");
+}
+
+// 3.5 思维导图（6.5 换成「捞捞学习」里队友做的新版 learn/mindmap/）：整个页面拷过来，在 iframe 里跑，
+//     账号和同步借电脑版这一层（v-web.js 代为调 mm_* 接口），所以去掉网页登录的那两行脚本
+{
+  const MM = S("learn", "mindmap"), OUT = R("web", "mindmap");
+  fs.rmSync(OUT, { recursive: true, force: true });
+  const skip = /^(tools|server\.js|js\/ai-server\.cjs|js\/ai-summary\.cjs|.*\.md|\.gitignore)$/;
+  const walk = (rel) => {
+    for (const f of fs.readdirSync(path.join(MM, rel))) {
+      const r = rel ? rel + "/" + f : f;
+      if (skip.test(r)) continue;
+      if (fs.statSync(path.join(MM, r)).isDirectory()) walk(r);
+      else if (r === "index.html") write(path.join(OUT, r), read(path.join(MM, r)).split("\n").filter((l) => !/data-web-only/.test(l)).join("\n"));
+      else copy(path.join(MM, r), path.join(OUT, r));
+    }
+  };
+  walk("");
+  for (const old of ["mindmap.js", "mindmap.css"]) fs.rmSync(R("web", old), { force: true });
 }
 
 // 4. 内置工具（在隔离间里运行，和网站同一份）

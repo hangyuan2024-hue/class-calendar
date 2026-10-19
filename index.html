@@ -1920,6 +1920,11 @@
   .anext-btn { display: block; margin: 8px auto 0; padding: 7px 16px; border: 0; border-radius: 999px; background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); font-weight: 700; font-size: 13px; cursor: pointer; white-space: nowrap; }
   .anext-btn:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); }
   .anext-btn.hidden { display: none; }
+/* 6.5 思维导图（新版，iframe）：占满这一页 */
+.view[data-view="mindmap"].on { padding: 0 !important; }
+.mm-host { height: calc(100vh - var(--mm-top, 0px)); height: calc(100dvh - var(--mm-top, 0px)); min-height: 420px; }
+.mm-frame { display: block; width: 100%; height: 100%; border: 0; background: #fbf7f1; }
+@media (max-width: 760px) { .mm-host { height: calc(100dvh - 76px - env(safe-area-inset-bottom)); } }
 </style>
 <link rel="stylesheet" href="fresh.css?v=20261008-org1">
 <link rel="stylesheet" href="campus-ui.css?v=20261008-org1">
@@ -1930,7 +1935,6 @@
 <link rel="stylesheet" href="polish.css?v=20261009-tl2">
 <link rel="stylesheet" href="extras.css?v=20261016-v580">
 <link rel="stylesheet" href="study.css?v=20261009-kn2">
-<link rel="stylesheet" href="mindmap.css?v=20261009-mm1">
 </head>
 <body class="campus-workspace">
 <a class="campus-skip" href="#campus-main">跳到主要内容</a>
@@ -2201,8 +2205,8 @@
   <!-- 工具 -->
   <!-- 捞捞思维导图（工具） -->
   <section class="view" data-view="mindmap">
-    <header class="vhead mm-head"><button class="back" data-mm="back" aria-label="返回">‹</button><h2 id="mmHeadTitle">捞捞思维导图</h2><input id="mmTitleIn" class="mm-title hidden" maxlength="80" aria-label="导图名称"><span class="spacer"></span><span id="mmSync" class="mm-sync hidden"></span></header>
-    <div id="mmBox" class="mm-box"></div>
+    <!-- 6.5 新版思维导图（捞捞学习 learn/mindmap/，队友做的）嵌在这里，账号和同步借网页版这一层，见 mm-host.js -->
+    <div id="mmBox" class="mm-host"></div>
   </section>
 
   <!-- 课内学习（合作队伍「课内」的功能，接入捞捞的账号和数据） -->
@@ -2683,25 +2687,25 @@
 <script src="config.js"></script>
 <script src="auth.js?v=20261015-v572"></script>
 <script src="org.js?v=20261008-org1"></script>
-<script src="parse.js?v=20261018-v63"></script>
+<script src="parse.js?v=20261019-v65"></script>
 <script src="memo-core.js?v=20261018-v63"></script>
 <script src="docx-text.js?v=20261018-v63"></script>
 <script src="course-image.js?v=20261014-v540"></script>
-<script src="courses.js?v=20261018-v64"></script>
+<script src="courses.js?v=20261019-v65"></script>
 <script src="farm.js?v=20261009-tz1"></script>
 <script src="metaverse-v3.js?v=20261005-native3"></script>
 <script src="nextclass.js?v=20261017-v590"></script>
-<script src="app.js?v=20261018-v64"></script>
+<script src="app.js?v=20261019-v65"></script>
 <script src="extras.js?v=20261017-v592"></script>
 <script src="campus-tools.js?v=20261006-tools1"></script>
 <script src="workspace-v3.js?v=20261005-native3"></script>
-<script src="island-core.js?v=20261018-v64"></script>
-<script src="island.js?v=20261018-v64"></script>
-<script src="coach-core.js?v=20261018-v64"></script>
+<script src="island-core.js?v=20261019-v65"></script>
+<script src="island.js?v=20261019-v65"></script>
+<script src="coach-core.js?v=20261019-v65"></script>
 <script src="flow-ui.js?v=20261018-v594"></script>
 <script src="coach-ui.js?v=20261018-v64"></script>
 <script src="study.js?v=20261009-kn2"></script>
-<script src="mindmap.js?v=20261009-mm1"></script>
+<script src="mm-host.js?v=20261019-mm2"></script>
 <script src="ux.js?v=20261011-kn1"></script>
 <script src="memo.js?v=20261016-v580"></script>
 <script src="memo-ui.js?v=20261018-v62"></script>

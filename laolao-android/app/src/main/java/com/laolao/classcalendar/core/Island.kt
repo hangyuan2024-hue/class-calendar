@@ -15,18 +15,23 @@ object Island {
     private val DUE_RE = Regex("(之前|以前|前完成|前提交|前上交|前交|前填|前签到|前打卡|前报名|截止|截至|deadline|ddl)", RegexOption.IGNORE_CASE)
     /** 6.3 晚自习（课程表里设置，跟着账号同步，键 evening_v1；和 island-core.js 的 evening 同一套规则） */
     //   跟着调课 / 调休走：放假那天没有；「这天上周三的课」按周三算；「停课」写了晚自习的名字那天没有
-    fun evening(day: String, ev: org.json.JSONObject? = Kv.get("evening_v1") as? org.json.JSONObject, adj: List<org.json.JSONObject>? = null): List<Lesson> {
+    fun evening(day: String, ev: org.json.JSONObject? = Kv.get("evening_v1") as? org.json.JSONObject, adj: List<org.json.JSONObject>? = null): List<Lesson> =
+        selfStudy(day, ev, adj, "晚自习", 90)
+    /** 6.5 早自习（键 morning_v1）：和晚自习同一套规则，默认叫「早自习」、排在当天最前面 */
+    fun morning(day: String, mo: org.json.JSONObject? = Kv.get("morning_v1") as? org.json.JSONObject, adj: List<org.json.JSONObject>? = null): List<Lesson> =
+        selfStudy(day, mo, adj, "早自习", 0)
+    private fun selfStudy(day: String, ev: org.json.JSONObject?, adj: List<org.json.JSONObject>?, defName: String, start: Int): List<Lesson> {
         if (ev == null || !ev.optBoolean("on")) return emptyList()
         val t0 = ev.str("t0"); val t1 = ev.str("t1")
         if (T.min(t0) == null || T.min(t1) == null || t1 <= t0) return emptyList()
-        val name = ev.str("name").ifBlank { "晚自习" }.take(20)
+        val name = ev.str("name").ifBlank { defName }.take(20)
         val on = (adj ?: try { Courses.adjList() } catch (_: Exception) { emptyList() }).filter { it.str("date") == day }
         if (on.any { it.str("type") == "off" || (it.str("type") == "cancel" && it.str("name").trim() == name) }) return emptyList()
         val sw = on.firstOrNull { it.str("type") == "swap" && Regex("^\\d{4}-\\d{2}-\\d{2}$").matches(it.str("from")) }
         val wd = (T.date(sw?.str("from") ?: day) ?: return emptyList()).dayOfWeek.value - 1
         val days = ev.optJSONArray("days") ?: return emptyList()
         if ((0 until days.length()).none { days.optInt(it, -1) == wd }) return emptyList()
-        return listOf(Lesson(name, 90, 90, t0, t1, ev.str("location").take(40), "", 0, evening = true, study = !ev.has("study") || ev.optBoolean("study", true)))
+        return listOf(Lesson(name, start, start, t0, t1, ev.str("location").take(40), "", 0, evening = true, study = !ev.has("study") || ev.optBoolean("study", true)))
     }
     fun isDue(type: String, text: String): Boolean = type == "作业" || DUE_RE.containsMatchIn(text)
     val CHIPS = listOf("最急的是什么", "今天有什么课", "这周的作业", "明天有什么安排", "下节课在哪", "我今天打卡了吗")
@@ -322,7 +327,7 @@ object Island {
         val habits = Growth.habits().map { Triple(it.name, Growth.checked(it.id), Growth.streak(it.id, hl)) }
         val pl = Plan.log()
         val farm = try { if (Farm.on()) Farm.state() else null } catch (_: Exception) { null }
-        val ev = evening(t)   // 6.3 晚自习：当成今天最后一节课，到点「上课中」（设成「催我写作业」时教练照样推荐）
+        val ev = morning(t) + evening(t)   // 6.3 晚自习 / 6.5 早自习：当成今天最后 / 第一节课，到点「上课中」（设成「催我写作业」时教练照样推荐）
         return Ctx(now, Store.name(), items, (if (hasC) Courses.on(t) else emptyList()) + ev, hasC || ev.isNotEmpty(), habits, pl.optInt(t), (0..6).sumOf { pl.optInt(T.addDays(t, -it.toLong())) },
             farm?.let { Farm.left() }, farm?.str("name") ?: "", farm?.optInt("level") ?: 0, rankMe?.first ?: 0, rankMe?.second ?: 0)
     }

@@ -4,7 +4,8 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const form = $("form");
 let mode = "login";
 const next = new URLSearchParams(location.search).get("next");
-const safeNext = next && /^[a-z0-9_-]+\.html([?#].*)?$/i.test(next) ? next : null;
+// 6.5 也能回到「捞捞学习」里的页面（learn/…，只许站内相对路径）
+const safeNext = next && (/^[a-z0-9_-]+\.html([?#].*)?$/i.test(next) || /^learn\/[a-z0-9_\/-]*(\.html)?([?#].*)?$/i.test(next)) && !/\/\//.test(next) ? next : null;
 const LS_LAST = "login_last_account_v1";
 const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
 

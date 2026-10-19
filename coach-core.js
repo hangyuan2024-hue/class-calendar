@@ -149,7 +149,7 @@
     var base = { streak: st, goal: g, best: best, sus: model.sus || 0 };
     // 正在上课
     var live = (ctx.ranked || []).filter(function (x) { return x.kind === "course" && x.level === "now"; })[0];
-    // 6.3 晚自习（设置成「催我写作业」时）：正好是写作业的时间，不进「上课」模式，下面照样推荐、而且更催作业
+    // 6.3 晚自习 / 6.5 早自习（设置成「催我写作业」时）：正好是写作业的时间，不进「上课」模式，下面照样推荐、而且更催作业
     var study = live && live.evening && live.study ? live : null;
     if (study) live = null;
     if (live) return mix(base, { mode: "class", top: { kind: "course", key: live.key, title: live.title, reason: live.reason, step: "专心听讲，有作业记得随手记下来" }, say: "正在上「" + live.title + "」，手机先放一放 📚" });
@@ -170,7 +170,7 @@
     if (focusMin >= 75 && !cands.some(function (x) { return x.level === "late" || x.level === "now"; })) {
       return mix(base, { mode: "rest", top: null, say: "已经专注 " + focusMin + " 分钟了，起来走走、喝口水，10 分钟后再继续 🍵" });
     }
-    if (!cands.length && study) return mix(base, { mode: "free", top: { kind: "pomo", key: "pomo", title: "专注 25 分钟", reason: "晚自习时间", step: "挑一门最近吃力的课，复习 25 分钟" }, say: "「" + study.title + "」时间，作业都做完了？来一个番茄复习一下 📖" });
+    if (!cands.length && study) return mix(base, { mode: "free", top: { kind: "pomo", key: "pomo", title: "专注 25 分钟", reason: study.title + "时间", step: "挑一门最近吃力的课，复习 25 分钟" }, say: "「" + study.title + "」时间，作业都做完了？来一个番茄复习一下 📖" });
     if (!cands.length) {
       var idle = g.met ? "今天的小目标完成了 🎉 剩下的时间留给自己" : "手头没有要赶的事，来一个番茄，预习或者复习一下？";
       return mix(base, { mode: "free", top: { kind: "pomo", key: "pomo", title: "专注 25 分钟", reason: "没有急事的时候最适合提前学", step: "挑一门最近吃力的课，复习 25 分钟" }, say: idle });

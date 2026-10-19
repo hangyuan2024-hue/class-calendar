@@ -79,20 +79,28 @@
   //   study（默认 true）：晚自习就是写作业的时间，教练照样推荐、还会更催作业；false = 这段时间别打扰
   // adj：课程表的调课 / 调休记录（和课程一样）：放假那天没有；「这天上周三的课」就按周三算；「停课」写了晚自习的名字那天也没有
   // 返回这一天要加进「今天的课」里的那一节（到点「上课中」），没有就是 []
-  function evening(ev, k, adj) {
+  // 6.5 早自习（键 morning_v1）：和晚自习同一套规则，只是默认叫「早自习」、排在当天最前面。
+  //   两种都标 evening: true（= 这是一段自习，教练按自习对待），早自习另外标 morning: true
+  var STUDY = { evening: { name: "晚自习", start: 90 }, morning: { name: "早自习", start: 0 } };
+  function selfStudy(ev, k, adj, kind) {
+    var def = STUDY[kind] || STUDY.evening;
     if (!ev || !ev.on || !/^\d{1,2}:\d{2}$/.test(ev.t0 || "") || !/^\d{1,2}:\d{2}$/.test(ev.t1 || "") || ev.t1 <= ev.t0) return [];
-    var name = String(ev.name || "晚自习").slice(0, 20);
+    var name = String(ev.name || def.name).slice(0, 20);
     var on = (adj || []).filter(function (a) { return a && a.date === k; });
     if (on.some(function (a) { return a.type === "off" || (a.type === "cancel" && String(a.name || "").trim() === name); })) return [];
     var sw = on.filter(function (a) { return a.type === "swap" && /^\d{4}-\d{2}-\d{2}$/.test(a.from || ""); })[0];
     var wd = (fromKey(sw ? sw.from : k).getDay() + 6) % 7;
     if ((ev.days || []).map(Number).indexOf(wd) < 0) return [];
-    return [{ id: "evening", name: name, t0: ev.t0, t1: ev.t1, location: String(ev.location || "").slice(0, 40), start: 90, end: 90, teacher: "", evening: true, study: ev.study !== false }];
+    return [{ id: kind === "morning" ? "morning" : "evening", name: name, t0: ev.t0, t1: ev.t1, location: String(ev.location || "").slice(0, 40), start: def.start, end: def.start, teacher: "", evening: true, morning: kind === "morning", study: ev.study !== false }];
   }
-  function withEvening(list, ev, k, adj) {
-    var e = evening(ev, k, adj); if (!e.length) return list || [];
+  function evening(ev, k, adj) { return selfStudy(ev, k, adj, "evening"); }
+  function morning(mo, k, adj) { return selfStudy(mo, k, adj, "morning"); }
+  // mo：早自习设置（可以不传）
+  function withEvening(list, ev, k, adj, mo) {
+    var e = morning(mo, k, adj).concat(evening(ev, k, adj)); if (!e.length) return list || [];
     return (list || []).filter(function (c) { return !c.evening; }).concat(e);
   }
+
 
   // ---------- 智能排序 ----------
   // items：[{ key, title, type, day, time, end?, location, done, needConfirm, mine, summary }]
@@ -149,7 +157,7 @@
       if (toEnd <= 0) return;
       var on = toStart <= 0, score = on ? 96 : toStart <= 180 ? 110 / (1 + toStart / 60) : 0;
       if (!score) return;
-      out.push({ kind: "course", key: "course:" + c.name + c.t0, title: c.name, type: "课程", day: t, time: c.t0, location: c.location || "", evening: !!c.evening, study: !!c.study,
+      out.push({ kind: "course", key: "course:" + c.name + c.t0, title: c.name, type: "课程", day: t, time: c.t0, location: c.location || "", evening: !!c.evening, morning: !!c.morning, study: !!c.study,
         mins: toStart, level: on ? "now" : toStart <= 20 ? "urgent" : "soon", score: Math.round(score * 10) / 10,
         when: c.t0 + "–" + (c.t1 || ""), reason: on ? "正在上课 · 还有 " + Math.round(toEnd) + " 分钟下课" : Math.round(toStart) + " 分钟后上课" });
     });
@@ -349,5 +357,5 @@
   }
   function fallback() { return { text: "这个我还不太会 😅 我能回答日程、课程、作业、考试、打卡这些，试试问：", chips: CHIPS }; }
 
-  return { evening: evening, withEvening: withEvening, isDue: isDue, rank: rank, startInfo: startInfo, startText: startText, greet: greet, answer: answer, fallback: fallback, hello: hello, parseDay: parseDay, dayName: dayName, leftText: leftText, keyOf: keyOf, CHIPS: CHIPS };
+  return { evening: evening, morning: morning, withEvening: withEvening, isDue: isDue, rank: rank, startInfo: startInfo, startText: startText, greet: greet, answer: answer, fallback: fallback, hello: hello, parseDay: parseDay, dayName: dayName, leftText: leftText, keyOf: keyOf, CHIPS: CHIPS };
 });

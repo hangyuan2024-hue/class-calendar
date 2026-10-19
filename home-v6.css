@@ -202,3 +202,28 @@
   .ha-mm svg path { stroke-dashoffset: 0; }
 }
 html.authed .h6-show { padding-top: 60px; }
+
+/* ===== 6.5 三个板块：课程表 / 学习 / 编程 ===== */
+.h6-prod-grid.h6-prod-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.h6-prod-3 .h6-prod { padding: 28px 26px; }
+.h6-prod-3 .h6-prod-top h3 { font-size: 22px; }
+.h6-prod-3 .h6-badge { margin-left: 0; }
+.h6-prod-3 .h6-prod-top > div { flex: 1; min-width: 0; }
+.h6-prod-code { background: linear-gradient(160deg, #f1f6ff 0%, #fff 55%); }
+.h6-prod-code .h6-prod-ic { background: #dfe9ff; color: #2f5fd0; font: 800 15px/1 ui-monospace, "SFMono-Regular", Consolas, monospace; letter-spacing: -1px; }
+.h6-prod-code .h6-prod-list li::before { background: #2f5fd0; }
+.h6-code-preview { position: relative; display: grid; gap: 6px; margin: 2px 0; padding: 12px 14px 10px; border-radius: 12px; background: #13213b; color: #d8e2f5; font: 12px/1.6 ui-monospace, "SFMono-Regular", Consolas, "Microsoft YaHei", monospace; overflow: hidden; }
+.h6-code-preview i { font-style: normal; font-size: 10.5px; color: #8fa3c8; letter-spacing: .5px; }
+.h6-code-preview code { white-space: pre; font: inherit; }
+.h6-code-preview b { color: #ff9f6b; font-weight: 600; }
+.h6-code-preview s { text-decoration: none; color: #9fe39f; }
+.h6-code-preview em { font-style: normal; padding-top: 6px; border-top: 1px dashed #2c3d60; color: #ffd36a; }
+.s-button.s-button-code { background: #2f5fd0; color: #fff; }
+.s-button.s-button-code:hover { background: #244dae; }
+@media (max-width: 1080px) {
+  .h6-prod-grid.h6-prod-3 { grid-template-columns: 1fr 1fr; }
+  .h6-prod-3 .h6-prod-code { grid-column: 1 / -1; }
+}
+@media (max-width: 760px) {
+  .h6-prod-grid.h6-prod-3 { grid-template-columns: 1fr; }
+}

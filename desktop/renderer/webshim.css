@@ -42,11 +42,9 @@ dialog.dlg .nd-actions { display: flex; gap: 8px; align-items: center; }
 .web .vbody { padding-top: 4px; }
 .web #knBack.hidden { display: none; }
 .view.web .vhead h1#knTitle { font-size: 26px; }
-.mm-view .vbody.mm-body { padding: 0 22px 18px; overflow: hidden; display: flex; flex-direction: column; }
-.mm-view .mm-box { border-radius: var(--r); }
-.mm-view .mm-head h1 { font-size: 22px; }
-.mm-view .mm-title { width: 320px; height: 34px; font-size: 16px; }
-.mm-view .mm-head .back.hidden { display: none; }
+/* 6.5 思维导图：新版在 iframe 里，铺满整页 */
+.mm-view .vbody.mm-body { padding: 0 !important; position: relative; overflow: hidden; }
+.mm-view .mm-frame { position: absolute; inset: 0; }
 .farm-wrap { margin: 0; }
 .farm-toast { bottom: 40px; }
 #metaLab { margin: 8px 0 18px; }

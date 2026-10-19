@@ -229,7 +229,7 @@
   function findDate(t, pub) { const ms = dateMentions(normalize(t), pub); const p = pickDate(normalize(t), ms); return p ? p.key : ""; }
 
   // ================= 时间 =================
-  const PERIOD = /(凌晨|早上|早晨|清晨|上午|中午|下午|傍晚|晚上|晚自习|今晚|明晚|今早|明早|晚|早|夜里)/g;
+  const PERIOD = /(凌晨|早上|早晨|清晨|上午|中午|下午|傍晚|晚上|晚自习|早自习|今晚|明晚|今早|明早|晚|早|夜里)/g;
   function timeMentions(t) {
     const out = []; let m;
     const re = new RegExp("(\\d{1,2}):(\\d{2})|" + NUM + "\\s?[点时](?![间候期段])(半|一刻|三刻|(\\d{1,2})分?)?|早([一二三四五六七八九十]|\\d{1,2})(?![点时一二三四五六七八九十\\d:])", "g");
@@ -566,15 +566,20 @@
     return { items, rest: lines.filter((_, i) => !used.has(i)).join("\n") };
   }
 
-  // ---------- 6.4 群消息里的「课表调整」：不上晚自习 / 放假停课 / 某门课不上 / 换课 ----------
+  // ---------- 6.4 群消息里的「课表调整」：不上晚自习 / 早自习 / 放假停课 / 某门课不上 / 换课 ----------
   // 「下周一和周二晚上都不上晚自习」→ 这两天停晚自习；「明天放假」「10月20日至22日停课」→ 放假；「周六上周三的课」→ 换课；
   // 「周三的高数不上了」（课表里有这门课）→ 只停这门。注意「下周一没课班级去参加讲座」说的是没课的班级，不是停课，不算。
   // 返回 [{ type: "cancel" | "off" | "swap", date, name?, from?, text }]，界面上让人勾选确认后再写进课程表的「调课 / 调休」
   const NO_CLASS_WHO = /(没课|无课|没有课)的?(班级|同学|学生|班)/;
   function adjustments(text, pubDate, opts) {
     opts = opts || {};
-    const pub = pubDate || keyOf(new Date()), eve = String(opts.eveningName || "晚自习"), names = (opts.courseNames || []).filter((x) => x && x.length >= 2);
-    const eveRe = new RegExp("(不上|没有|取消|暂停|停上?|不用上|免上?|不开)[了]?\\s*" + eve + "|" + eve + "\\s*(取消|暂停|停上?|不上|放假|休息|不用上|没有)");
+    const pub = pubDate || keyOf(new Date()), names = (opts.courseNames || []).filter((x) => x && x.length >= 2);
+    // 6.5 自习：晚自习、早自习（名字可以在课程表里改）
+    const reEsc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const studies = [...new Set([String(opts.eveningName || "晚自习"), String(opts.morningName || "早自习")].filter(Boolean))];
+    const studyRe = (n) => new RegExp("(不上|没有|取消|暂停|停上?|不用上|免上?|不开)[了]?\\s*" + reEsc(n) + "|" + reEsc(n) + "\\s*[也都还就]?\\s*(取消|暂停|停上?|不上|放假|休息|不用上|没有)");
+    const studyRes = studies.map((n) => [n, studyRe(n)]);
+    const anyStudy = new RegExp(studies.map(reEsc).join("|") + "|自习");
     const offRe = /放假|停课|不上课|课程?(全部|都)?取消|全天(停课|休息)|全部停课/;
     const out = [], seen = new Set();
     const push = (x) => { const k = x.type + x.date + (x.name || "") + (x.from || ""); if (!seen.has(k) && /^\d{4}-\d{2}-\d{2}$/.test(x.date)) { seen.add(k); out.push(x); } };
@@ -601,11 +606,12 @@
             else { const tgt = new Date(ms[0].key + "T00:00:00"), wd = "一二三四五六日天".indexOf(sw[3]); const mon = new Date(tgt); mon.setDate(tgt.getDate() - (tgt.getDay() + 6) % 7); mon.setDate(mon.getDate() + Math.min(wd, 6)); from = keyOf(mon); }
             if (from && from !== ms[0].key) { push({ type: "swap", date: ms[0].key, from, text: cl.trim() }); continue; }
           }
-          if (eveRe.test(cl)) { days.forEach((d) => push({ type: "cancel", date: d, name: eve, text: cl.trim() })); continue; }
+          const hitStudy = studyRes.filter(([, re]) => re.test(cl));
+          if (hitStudy.length) { days.forEach((d) => hitStudy.forEach(([n]) => push({ type: "cancel", date: d, name: n, text: cl.trim() }))); continue; }
           if (NO_CLASS_WHO.test(cl)) continue;
           const named = names.filter((n) => cl.includes(n));
           if (named.length && /停课|不上|取消|暂停|改上|调到|调课/.test(cl)) { days.forEach((d) => named.forEach((n) => push({ type: "cancel", date: d, name: n, text: cl.trim() }))); continue; }
-          if (offRe.test(cl) && !/晚自习/.test(cl)) days.forEach((d) => push({ type: "off", date: d, text: cl.trim() }));
+          if (offRe.test(cl) && !anyStudy.test(cl)) days.forEach((d) => push({ type: "off", date: d, text: cl.trim() }));
         }
       }
     }
@@ -646,7 +652,7 @@
         if (wholeType && wholeType.type && (!type || dt.score < 2)) type = wholeType.type;     // 分出来的一段太短，看整条消息
         // 没有日期，但说了「下午/晚上」：就是发布当天
         if (!day && /(^|[^明今昨])(上午|下午|晚上|中午|傍晚)|今晚|今早/.test(segT) && timeMentions(segT).length) { day = pub; time = findTime(segT); }
-        else if (!day && /下午第|上午第|晚自习/.test(segT)) day = pub;
+        else if (!day && /下午第|上午第|晚自习|早自习/.test(segT)) day = pub;
         if (!type) {
           // 没有类型关键词：有日期 + 时间/地点的，多半是通知；否则当闲聊或交给 AI
           if ((day && (time || loc || course) && segT.length >= 6) || force) type = "通知";

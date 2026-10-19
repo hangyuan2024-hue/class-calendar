@@ -11,8 +11,8 @@ const DIsland = {
   ctx() {
     const S = App.S, now = App.now(), t = M.dayKey(now), meta = (S.courses || {}).meta || {};
     const items = App.items().filter((x) => !x.hidden).map((x) => ({ key: x.key, title: x.title, type: x.type, summary: x.summary, day: x.day, time: x.time, location: x.location, done: x.done, needConfirm: x.confirm, mine: x.mine }));
-    // 6.3 晚自习（课程表页设置，跟着账号同步）：当成这一天的最后一节课，到点「上课中」，教练和捞捞都不打扰
-    const on = (k) => IslandCore.withEvening(M.coursesOn(S.courses, M.fromKey(k)).map((c) => ({ ...c, t0: c.tStart, t1: c.tEnd })), KV("evening_v1"), k, M.adjOf ? M.adjOf(S.courses) : ((S.courses || {}).meta || {}).adj);
+    // 6.3 晚自习 / 6.5 早自习（课程表页设置，跟着账号同步）：当成这一天的最后 / 第一节课，到点「上课中」，教练和捞捞都不打扰
+    const on = (k) => IslandCore.withEvening(M.coursesOn(S.courses, M.fromKey(k)).map((c) => ({ ...c, t0: c.tStart, t1: c.tEnd })), KV("evening_v1"), k, M.adjOf ? M.adjOf(S.courses) : ((S.courses || {}).meta || {}).adj, KV("morning_v1"));
     const hl = KV("habit_log_v1") || {}, pl = S.pomo || {};
     return { now, name: (S.me || {}).display_name || "", items, courses: on(t).map((c) => ({ ...c, day: t })), coursesOn: on,
       weekOf: (k) => { const w = M.weekOf(meta, M.fromKey(k)); return w >= 1 && w <= 30 ? w : 0; }, hasCourses: !!((S.courses || {}).courses || []).length,

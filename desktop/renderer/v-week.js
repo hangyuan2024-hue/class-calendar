@@ -7,7 +7,7 @@ App.views.week = {
       <div class="vhead"><div><h1>课程表</h1><div class="sub" id="wkSub"></div></div><span class="grow"></span>
         <div class="row"><button class="btn iconbtn" id="wkPrev" title="上一周（←）">${icon("left")}</button><button class="btn" id="wkNow" title="回到本周（T）">本周</button><button class="btn iconbtn" id="wkNext" title="下一周（→）">${icon("right")}</button></div>
         <button class="btn" id="wkAdj" title="学校临时换课、补课、放假、停课、加课">🔁 调课 / 调休<em class="wk-adjn hidden" id="wkAdjN"></em></button>
-        <button class="btn" id="wkEve" title="设置晚自习时间：到点算「上课中」，捞捞和教练不打扰">🌙 晚自习</button>
+        <button class="btn" id="wkMor" title="设置早自习时间：到点算「上课中」，捞捞和教练不打扰">🌅 早自习</button><button class="btn" id="wkEve" title="设置晚自习时间：到点算「上课中」，捞捞和教练不打扰">🌙 晚自习</button>
         <button class="btn" id="wkImport" title="把教务系统的课表截图粘贴进来，自动识别（Ctrl+V）">${icon("image")}截图导入</button>
         <button class="btn" id="wkEdit" title="手动添加、修改课程，设置第 1 周和上课时间">${icon("edit")}编辑课程表</button>
         <button class="btn iconbtn" id="wkMore" title="设成壁纸、导出 PDF、打印">⋯</button></div>
@@ -25,7 +25,8 @@ App.views.week = {
     $("#wkEdit", el).onclick = () => CourseEd.open();
     $("#wkImport", el).onclick = () => CourseEd.importShot();
     $("#wkAdj", el).onclick = () => CourseEd.adjust();
-    $("#wkEve", el).onclick = () => editEvening();
+    $("#wkEve", el).onclick = () => editEvening("evening");
+    $("#wkMor", el).onclick = () => editEvening("morning");
     $("#wkMore", el).onclick = (e) => { const r = e.currentTarget.getBoundingClientRect(); this.moreMenu(r.right - 220, r.bottom + 4); };
     // 在课程表页面直接 Ctrl+V 一张截图：识别导入
     document.addEventListener("paste", (e) => { if (App.view !== "week" || overlayOpen() || e.target.closest("input,textarea")) return; const f = [...(e.clipboardData || {}).files || []].find((x) => /^image\//.test(x.type)); if (f) { e.preventDefault(); CourseEd.importShot(f); } });
@@ -174,23 +175,28 @@ function compactWeeks(wl) {
   return out.join(",");
 }
 
-// ---------- 6.3 晚自习：哪几天、几点到几点、在哪（跟着账号同步，键 evening_v1；规则在 island-core.js 的 evening） ----------
-function editEvening() {
-  const ev = Object.assign({ on: true, name: "晚自习", days: [0, 1, 2, 3, 4], t0: "18:30", t1: "21:00", location: "" }, KV("evening_v1") || {});
+// ---------- 6.3 晚自习 / 6.5 早自习：哪几天、几点到几点、在哪（跟着账号同步，键 evening_v1 / morning_v1；规则在 island-core.js） ----------
+const STUDY_DEF = {
+  evening: { key: "evening_v1", icon: "🌙", name: "晚自习", t0: "18:30", t1: "21:00" },
+  morning: { key: "morning_v1", icon: "🌅", name: "早自习", t0: "07:20", t1: "07:55" },
+};
+function editEvening(kind) {
+  const D0 = STUDY_DEF[kind] || STUDY_DEF.evening;
+  const ev = Object.assign({ on: true, name: D0.name, days: [0, 1, 2, 3, 4], t0: D0.t0, t1: D0.t1, location: "" }, KV(D0.key) || {});
   const W = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
   const d = h(`<form class="dialog" role="dialog">
-    <h3>🌙 晚自习时间</h3>
+    <h3>${D0.icon} ${D0.name}时间</h3>
     <div class="dbody">
-      <div class="muted" style="font-size:12.5px">设好以后，晚自习会显示在今天页的时间轴里，到点算「上课中」。网页、手机、小程序一起生效。</div>
+      <div class="muted" style="font-size:12.5px">设好以后，${D0.name}会显示在今天页的时间轴里，到点算「上课中」。网页、手机、小程序一起生效。</div>
       <label class="ei-local"><input type="checkbox" name="on"${ev.on ? " checked" : ""}><span>开启</span></label>
-      <label class="field">名称<input name="name" maxlength="20" value="${esc(ev.name || "晚自习")}"></label>
+      <label class="field">名称<input name="name" maxlength="20" value="${esc(ev.name || D0.name)}"></label>
       <div class="field">哪几天<div class="row" style="flex-wrap:wrap;gap:4px 12px">${W.map((t, i) => `<label><input type="checkbox" name="d${i}"${(ev.days || []).map(Number).includes(i) ? " checked" : ""}> ${t}</label>`).join("")}</div></div>
       <div class="row"><label class="field" style="flex:1">开始<input type="time" name="t0" value="${esc(ev.t0)}" required></label><label class="field" style="flex:1">结束<input type="time" name="t1" value="${esc(ev.t1)}" required></label></div>
       <label class="field">地点<input name="location" maxlength="40" value="${esc(ev.location || "")}" placeholder="可不填，例如：教二 305"></label>
-      <div class="field">晚自习的时候
-        <label class="ei-local"><input type="radio" name="study" value="1"${ev.study !== false ? " checked" : ""}><span>📚 催我写作业（推荐）<small>教练照样推荐，作业排在最前面</small></span></label>
-        <label class="ei-local"><input type="radio" name="study" value="0"${ev.study === false ? " checked" : ""}><span>🤫 别打扰我<small>当成上课，教练和捞捞都不提醒</small></span></label></div>
-      <div class="muted" style="font-size:12px">放假、调休跟着「🔁 调课 / 调休」走：放假那天没有晚自习；「这天上周三的课」就按周三算。</div>
+      <div class="field">${D0.name}的时候
+        <label class="ei-local"><input type="radio" name="study" value="1"${ev.study !== false ? " checked" : ""}><span>📚 催我写作业 / 复习（推荐）<small>教练照样推荐，作业排在最前面</small></span></label>
+        <label class="ei-local"><input type="radio" name="study" value="0"${ev.study === false ? " checked" : ""}><span>🤫 别打扰我<small>当成上课（比如早读、听力），教练和捞捞都不提醒</small></span></label></div>
+      <div class="muted" style="font-size:12px">放假、调休跟着「🔁 调课 / 调休」走：放假那天没有${D0.name}；「这天上周三的课」就按周三算；群里说「明天不上${D0.name}」，粘贴进「整理群消息」就能自动停掉那天的。</div>
       <div class="muted eve-err" style="color:var(--bad);font-size:12.5px"></div>
     </div>
     <div class="dfoot"><span class="grow"></span><button type="button" class="btn" data-a="cancel">取消</button><button class="btn primary">保存</button></div>
@@ -199,9 +205,9 @@ function editEvening() {
   d.onclick = (e) => { if (e.target.closest('[data-a="cancel"]')) closeOverlay(); };
   d.onsubmit = async (e) => {
     e.preventDefault();
-    const v = { on: f.on.checked, study: d.querySelector('input[name="study"]:checked').value === "1", name: f.name.value.trim() || "晚自习", days: W.map((_, i) => i).filter((i) => f["d" + i].checked), t0: f.t0.value, t1: f.t1.value, location: f.location.value.trim() };
+    const v = { on: f.on.checked, study: d.querySelector('input[name="study"]:checked').value === "1", name: f.name.value.trim() || D0.name, days: W.map((_, i) => i).filter((i) => f["d" + i].checked), t0: f.t0.value, t1: f.t1.value, location: f.location.value.trim() };
     if (v.on && (!v.days.length || !(v.t1 > v.t0))) { $(".eve-err", d).textContent = !v.days.length ? "至少选一天" : "结束时间要晚于开始时间"; return; }
-    await kvSet("evening_v1", "_", v); closeOverlay(); toast(v.on ? "晚自习时间已保存" : "已关闭晚自习");
+    await kvSet(D0.key, "_", v); closeOverlay(); toast(v.on ? D0.name + "时间已保存" : "已关闭" + D0.name);
   };
   openOverlay(d);
 }

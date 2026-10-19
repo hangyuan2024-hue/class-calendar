@@ -199,4 +199,17 @@ class CoreTest {
             "<w:tr><w:tc><w:p><w:r><w:t>开班式</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>10月18日</w:t></w:r></w:p><w:p><w:r><w:t>19:30-21:30</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p><w:r><w:t>A &amp; B</w:t></w:r></w:p></w:body>"
         assertEquals("表2 安排\n专题 授课时间\n开班式 10月18日 19:30-21:30\nA & B", com.laolao.classcalendar.core.DocxText.xmlText(xml))
     }
+
+    /** 6.5 早自习：和晚自习同一套规则；排在当天最前面；停课写了「早自习」那天只停早自习 */
+    @Test fun v65Morning() {
+        val mo = org.json.JSONObject().put("on", true).put("days", org.json.JSONArray(listOf(0, 1, 2, 3, 4))).put("t0", "07:20").put("t1", "07:55")
+        val m = Island.morning("2026-10-19", mo, emptyList())
+        assertEquals(1, m.size); assertEquals("早自习", m[0].name); assertEquals(0, m[0].start); assertTrue(m[0].evening && m[0].study)
+        val ev = org.json.JSONObject().put("on", true).put("days", org.json.JSONArray(listOf(0, 1, 2, 3, 4))).put("t0", "18:30").put("t1", "21:00")
+        val adj = listOf(org.json.JSONObject().put("date", "2026-10-19").put("type", "cancel").put("name", "早自习"))
+        assertEquals(0, Island.morning("2026-10-19", mo, adj).size)
+        assertEquals(1, Island.evening("2026-10-19", ev, adj).size)
+        assertEquals(1, Island.morning("2026-10-24", mo, listOf(org.json.JSONObject().put("date", "2026-10-24").put("type", "swap").put("from", "2026-10-21"))).size)
+        assertEquals(0, Island.morning("2026-10-25", mo, emptyList()).size)
+    }
 }

@@ -112,7 +112,7 @@ App.views.ingest = {
     // 6.4 认出课表调整：「下周一和周二晚上都不上晚自习」「明天放假」「周三的高数不上了」
     try {
       const ev = KV("evening_v1"), names = [...new Set(((App.S.courses || {}).courses || []).map((c) => c.name))];
-      this.parsed.adj = (LaoParse.adjustments ? LaoParse.adjustments(text, this.pub(), { eveningName: (ev && ev.name) || "晚自习", courseNames: names }) : []).map((a) => ({ ...a, on: true }));
+      this.parsed.adj = (LaoParse.adjustments ? LaoParse.adjustments(text, this.pub(), { eveningName: (ev && ev.name) || "晚自习", morningName: ((KV("morning_v1") || {}).name) || "早自习", courseNames: names }) : []).map((a) => ({ ...a, on: true }));
     } catch (e) { this.parsed.adj = []; }
     this.st(r.items.length || this.parsed.adj.length ? "" : "没有整理出事项，看看下面拿不准的"); this.drawRes();
   },

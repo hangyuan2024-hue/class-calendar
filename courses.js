@@ -209,7 +209,8 @@ const CourseKit = (() => {
       const b = e.target.closest("button"); if (!b) return;
       if (b.dataset.c === "import") openImport();
       if (b.dataset.c === "adjust") openAdjust();
-      if (b.dataset.c === "evening") openEvening();
+      if (b.dataset.c === "evening") openEvening("evening");
+      if (b.dataset.c === "morning") openEvening("morning");
       if (b.dataset.c === "shot") shotMine();
       if (b.dataset.c === "src") openSrcView();
       if (b.dataset.c === "class") openClass();
@@ -228,7 +229,8 @@ const CourseKit = (() => {
     const upcoming = (data.adj || []).filter((a) => a.date >= keyOf(ccDate())).length;
     barEl.innerHTML = `<button class="btn ink sm" data-c="import">📷 拍照导入课表</button>
       <button class="btn sm" data-c="adjust" title="学校临时调休、换课、停课、加课">🔁 调课 / 调休${upcoming ? `<em class="cbar-n">${upcoming}</em>` : ""}</button>
-      <button class="btn sm" data-c="evening" title="设置晚自习时间：到点算「上课中」，捞捞和教练不打扰">🌙 晚自习${(load("evening_v1", null) || {}).on ? " · 开" : ""}</button>
+      <button class="btn sm" data-c="morning" title="设置早自习时间：显示在首页安排里，跟着调课调休">🌅 早自习${(load("morning_v1", null) || {}).on ? " · 开" : ""}</button>
+      <button class="btn sm" data-c="evening" title="设置晚自习时间：显示在首页安排里，跟着调课调休">🌙 晚自习${(load("evening_v1", null) || {}).on ? " · 开" : ""}</button>
       <button class="btn sm" data-c="shot" title="把课程表保存成一张图片">🖼 存为图片</button>
       ${srcRec() ? `<button class="btn sm" data-c="src" title="拍照导入时用的课表图，不用再去相册里找">📷 课表原图</button>` : ""}
       ${clsId() ? `<button class="btn sm" data-c="class" title="老师 / 班委发布的课表，全班都能看到">🏫 班级课表</button>` : ""}
@@ -238,33 +240,39 @@ const CourseKit = (() => {
       <label class="cbar-ck"><input type="checkbox" id="crsBarIcs" ${load(LS_ICS, true) !== false ? "checked" : ""}>手机日历订阅里带上课程</label>` : ""}`;
   }
 
-  // ---------- 6.3 晚自习：哪几天、几点到几点、在哪（跟着账号同步，键 evening_v1；规则在 island-core.js 的 evening） ----------
-  function openEvening() {
-    const ev = load("evening_v1", null) || { on: true, name: "晚自习", days: [0, 1, 2, 3, 4], t0: "18:30", t1: "21:00", location: "" };
+  // ---------- 6.3 晚自习 / 6.5 早自习：哪几天、几点到几点、在哪（跟着账号同步，键 evening_v1 / morning_v1；规则在 island-core.js） ----------
+  const STUDY_DEF = {
+    evening: { key: "evening_v1", icon: "🌙", name: "晚自习", t0: "18:30", t1: "21:00" },
+    morning: { key: "morning_v1", icon: "🌅", name: "早自习", t0: "07:20", t1: "07:55" },
+  };
+  function openEvening(kind) {
+    const D0 = STUDY_DEF[kind] || STUDY_DEF.evening;
+    const ev = load(D0.key, null) || { on: true, name: D0.name, days: [0, 1, 2, 3, 4], t0: D0.t0, t1: D0.t1, location: "" };
+    const nm = ev.name || D0.name;
     let d = document.getElementById("eveDlg");
     if (!d) { d = document.createElement("dialog"); d.id = "eveDlg"; d.className = "dlg eve-dlg"; document.body.appendChild(d); }
     d.innerHTML = `<form method="dialog" class="eve">
-      <h3>🌙 晚自习时间</h3>
-      <p class="muted" style="font-size:12.5px;margin:4px 0 12px">设好以后，晚自习会显示在首页「接下来的安排」、时间轴和日历里，到点算「上课中」。电脑、手机、小程序一起生效。</p>
+      <h3>${D0.icon} ${D0.name}时间</h3>
+      <p class="muted" style="font-size:12.5px;margin:4px 0 12px">设好以后，${D0.name}会显示在首页「接下来的安排」、时间轴和日历里，到点算「上课中」。电脑、手机、小程序一起生效。</p>
       <label class="check"><input type="checkbox" name="on" ${ev.on ? "checked" : ""}> 开启</label>
-      <label>名称 <input name="name" maxlength="20" value="${esc(ev.name || "晚自习")}"></label>
+      <label>名称 <input name="name" maxlength="20" value="${esc(nm)}"></label>
       <div class="eve-days">${DAYS.map((t, i) => `<label class="check"><input type="checkbox" name="d${i}" ${(ev.days || []).map(Number).includes(i) ? "checked" : ""}> ${t}</label>`).join("")}</div>
-      <div class="row"><label>开始 <input type="time" name="t0" value="${esc(ev.t0 || "18:30")}" required></label><label>结束 <input type="time" name="t1" value="${esc(ev.t1 || "21:00")}" required></label></div>
+      <div class="row"><label>开始 <input type="time" name="t0" value="${esc(ev.t0 || D0.t0)}" required></label><label>结束 <input type="time" name="t1" value="${esc(ev.t1 || D0.t1)}" required></label></div>
       <label>地点（可不填） <input name="location" maxlength="40" value="${esc(ev.location || "")}" placeholder="例如：教二 305"></label>
-      <div class="eve-mode">晚自习的时候
-        <label class="check"><input type="radio" name="study" value="1" ${ev.study !== false ? "checked" : ""}> 📚 催我写作业（推荐）<small>教练照样推荐，作业排在最前面</small></label>
-        <label class="check"><input type="radio" name="study" value="0" ${ev.study === false ? "checked" : ""}> 🤫 别打扰我<small>当成上课，教练和捞捞都不提醒</small></label>
+      <div class="eve-mode">${D0.name}的时候
+        <label class="check"><input type="radio" name="study" value="1" ${ev.study !== false ? "checked" : ""}> 📚 催我写作业 / 复习（推荐）<small>教练照样推荐，作业排在最前面</small></label>
+        <label class="check"><input type="radio" name="study" value="0" ${ev.study === false ? "checked" : ""}> 🤫 别打扰我<small>当成上课（比如早读、听力），教练和捞捞都不提醒</small></label>
       </div>
-      <p class="muted" style="font-size:12px;margin:6px 0 0">放假、调休跟着「🔁 调课 / 调休」走：放假那天没有晚自习；「这天上周三的课」就按周三算；某一天单独不上：在「🔁 调课 / 调休 → 放假停课」里选「只停「${esc(ev.name || "晚自习")}」」。</p>
+      <p class="muted" style="font-size:12px;margin:6px 0 0">放假、调休跟着「🔁 调课 / 调休」走：放假那天没有${D0.name}；「这天上周三的课」就按周三算；某一天单独不上：在「🔁 调课 / 调休 → 放假停课」里选「只停「${esc(nm)}」」，或者把群里的通知粘贴进「整理群消息」自动识别。</p>
       <div class="err eve-err" style="color:var(--red);font-size:13px"></div>
       <div class="btns"><button type="button" data-x="cancel">取消</button><button type="submit" class="primary">保存</button></div>
     </form>`;
     const f = d.querySelector("form");
     d.querySelector('[data-x="cancel"]').onclick = () => d.close();
     f.onsubmit = (e) => {
-      const v = { on: f.on.checked, study: f.querySelector('input[name="study"]:checked').value === "1", name: f.name.value.trim() || "晚自习", days: DAYS.map((_, i) => i).filter((i) => f["d" + i].checked), t0: f.t0.value, t1: f.t1.value, location: f.location.value.trim() };
+      const v = { on: f.on.checked, study: f.querySelector('input[name="study"]:checked').value === "1", name: f.name.value.trim() || D0.name, days: DAYS.map((_, i) => i).filter((i) => f["d" + i].checked), t0: f.t0.value, t1: f.t1.value, location: f.location.value.trim() };
       if (v.on && (!v.days.length || !(v.t1 > v.t0))) { e.preventDefault(); d.querySelector(".eve-err").textContent = !v.days.length ? "至少选一天" : "结束时间要晚于开始时间"; return; }
-      save("evening_v1", v); renderBar(); try { if (typeof renderCoach === "function") renderCoach(); } catch (err) {}
+      save(D0.key, v); renderBar(); try { if (typeof renderCoach === "function") renderCoach(); } catch (err) {}
       try { if (typeof renderAll === "function") renderAll(); } catch (err) {}
     };
     d.showModal();
@@ -476,9 +484,10 @@ const CourseKit = (() => {
     } else if (adjTab === "off") {
       const D = $q("adjD").value, sel = $q("adjWhich"), cur = sel.value;
       const l = D ? coursesOn(D) : [];
-      const ev = load("evening_v1", null), eveOn = !!(ev && ev.on && typeof IslandCore !== "undefined" && D && IslandCore.evening(ev, D, data.adj).length);
+      // 6.3 晚自习 / 6.5 早自习也能单独停一天
+      const studyOpts = typeof IslandCore === "undefined" || !D ? [] : [...(IslandCore.morning ? IslandCore.morning(load("morning_v1", null), D, data.adj) : []), ...IslandCore.evening(load("evening_v1", null), D, data.adj)];
       sel.innerHTML = `<option value="">整天都不上</option>` + l.filter((c) => !c._add).map((c) => `<option value="${esc(c.name)}|${c.start}">只停「${esc(c.name)}」第${c.start}${c.end > c.start ? "-" + c.end : ""}节</option>`).join("")
-        + (eveOn ? `<option value="${esc(ev.name || "晚自习")}|0">只停「${esc(ev.name || "晚自习")}」</option>` : "");   // 6.3 晚自习也能单独停一天
+        + studyOpts.map((c) => `<option value="${esc(c.name)}|0">只停「${esc(c.name)}」</option>`).join("");
       if ([...sel.options].some((o) => o.value === cur)) sel.value = cur;
       pv.textContent = D ? `${mdw(D)} 原来的课：${l.length ? l.map((c) => c.name).join("、") : "没有课"}` : "";
     } else {
@@ -1056,6 +1065,6 @@ const CourseKit = (() => {
     try { renderAgenda(); } catch (e) {}   // 首页问候卡的时间轴要用课程：课表读好后重画一次（不然刷新后时间轴上没有课）
   }
 
-  return { addAdj, mdw: (k) => mdw(k), openClass, shotMine, dayNote, openAdjust, baseOn, cleanAdj, pull, _nearOCR: (a, b) => nearOCR(a, b), NS, on, read, write, sync, changed, coursesOn, card, askLines, injectBuiltin, loadBuiltin, decorateTab, renderBar, openImport, boot, parseWeeks, weeksText,
+  return { addAdj, mdw: (k) => mdw(k), openStudy: (kind) => openEvening(kind), openClass, shotMine, dayNote, openAdjust, baseOn, cleanAdj, pull, _nearOCR: (a, b) => nearOCR(a, b), NS, on, read, write, sync, changed, coursesOn, card, askLines, injectBuiltin, loadBuiltin, decorateTab, renderBar, openImport, boot, parseWeeks, weeksText,
     get data() { return data; } };
 })();

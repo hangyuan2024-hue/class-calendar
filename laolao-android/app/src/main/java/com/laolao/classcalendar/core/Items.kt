@@ -63,12 +63,15 @@ object Items {
     fun lessonsAsItems(a: String, b: String): List<Item> {
         val hasC = Store.feat("courses") && Courses.has()
         val evOn = (Kv.get("evening_v1") as? JSONObject)?.optBoolean("on") == true
-        if (!hasC && !evOn) return emptyList()
+        val moOn = (Kv.get("morning_v1") as? JSONObject)?.optBoolean("on") == true   // 6.5 早自习
+        if (!hasC && !evOn && !moOn) return emptyList()
         val out = mutableListOf<Item>()
         val adj = try { Courses.adjList() } catch (_: Exception) { emptyList() }
         var k = a; var guard = 0
         while (k <= b && guard++ < 400) {
             // 6.3 晚自习：和课一样显示在「接下来的安排」和日历里，跟着调课 / 调休走
+            if (moOn) for (e in Island.morning(k, adj = adj)) out += Item("mor_$k", "", "课程", "🌅 " + e.name, "${e.t0}-${e.t1}" + (if (e.study) " · 自习时间" else "") + (if (e.location.isNotEmpty()) " · ${e.location}" else ""),
+                k, e.t0, e.location, "", "", "", false, false, false, true, 0xFFF08A24.toInt(), endTime = e.t1)
             if (evOn) for (e in Island.evening(k, adj = adj)) out += Item("eve_$k", "", "课程", "🌙 " + e.name, "${e.t0}-${e.t1}" + (if (e.study) " · 写作业时间" else "") + (if (e.location.isNotEmpty()) " · ${e.location}" else ""),
                 k, e.t0, e.location, "", "", "", false, false, false, true, 0xFF7C5CFF.toInt(), endTime = e.t1)
             if (hasC) for (c in Courses.on(k)) out += Item("crs_${c.name}_${c.start}_$k", "", "课程", c.name + if (c.add) "（加课）" else if (c.from.isNotEmpty()) "（调课）" else "",

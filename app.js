@@ -37,7 +37,7 @@ const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; 
 // ===== 云端同步：登录后，我的事项、完成标记、打卡、规划、外观设置自动存到云端，换浏览器 / 换手机都能看到 =====
 // 每条数据单独同步，带修改时间；两边都改了同一条，以后改的为准。可以在「我的 → 数据」里改成「只存在这台设备」。
 // list：数组，按 id 一条条同步；map：对象，按键同步；map2：两层对象（习惯 → 日期）；one：整体同步
-const SYNC_KINDS = { evening_v1: "one", hw_view_v1: "one", ui_style_v1: "one", compose_mode_v1: "one", compose_reduce_motion_v1: "one", course_rev_v1: "one", course_view_v1: "map", kn_rev_v1: "one", mm_rev_v1: "one", personal_events_v1: "list", personal_marks_v1: "map", done_log_v1: "map", habits_v1: "list", habit_log_v1: "map2",
+const SYNC_KINDS = { evening_v1: "one", morning_v1: "one", hw_view_v1: "one", ui_style_v1: "one", compose_mode_v1: "one", compose_reduce_motion_v1: "one", course_rev_v1: "one", course_view_v1: "map", kn_rev_v1: "one", mm_rev_v1: "one", personal_events_v1: "list", personal_marks_v1: "map", done_log_v1: "map", habits_v1: "list", habit_log_v1: "map2",
   quad_v1: "map", quad_todos_v1: "list", pomo_log_v1: "map", fun_opts_v1: "one", home_layout_v1: "one", ui_skin_v1: "one",
   ui_palette_v1: "one", plugins_enabled_v1: "one", home_quick_tools_v1: "one", plan_notes_v1: "map", profile_v1: "one", mood_log_v1: "map", coach_v1: "map", farm_v1: "one", island_v1: "one" };
 const LS_SYNC = "sync_meta_v1", LS_SYNC_OUT = "sync_outbox_v1", LS_SYNC_MODE = "sync_mode_v1";
@@ -1634,8 +1634,8 @@ $("ingestLocal").onclick = async () => {
   parsed = { ...r, items: r.items.map((x) => withShown(x)) };
   // 6.4 认出课表调整：「下周一和周二晚上都不上晚自习」「明天放假」「周三的高数不上了」
   try {
-    const ev = load("evening_v1", null), cd = ck().data || {};
-    parsed.adj = (LaoParse.adjustments ? LaoParse.adjustments(text, laoPub(), { eveningName: (ev && ev.name) || "晚自习", courseNames: [...new Set((cd.courses || []).map((c) => c.name))] }) : [])
+    const ev = load("evening_v1", null), mo = load("morning_v1", null), cd = ck().data || {};
+    parsed.adj = (LaoParse.adjustments ? LaoParse.adjustments(text, laoPub(), { eveningName: (ev && ev.name) || "晚自习", morningName: (mo && mo.name) || "早自习", courseNames: [...new Set((cd.courses || []).map((c) => c.name))] }) : [])
       .map((a) => ({ ...a, on: true }));
   } catch (err) { parsed.adj = []; }
   renderParsed();
@@ -2707,13 +2707,16 @@ function pluginItems() {
     if (!c || c.range !== range) { if (!f.pending || f.pending !== range) { f.pending = range; f.post({ cc: "items-req", reqId: range, start: s, end: e }); } }
     for (const it of (c && c.range === range ? c.list : [])) out.push(it);
   }
-  // 6.3 晚自习（课程表里设置）：和课一样显示在「接下来的安排」和日历里，跟着调课 / 调休走
+  // 6.3 晚自习 / 6.5 早自习（课程表里设置）：和课一样显示在「接下来的安排」和日历里，跟着调课 / 调休走
   try {
-    const ev = load("evening_v1", null), adj = (typeof CourseKit !== "undefined" && CourseKit.data && CourseKit.data.adj) || [];
+    const ev = load("evening_v1", null), mo = load("morning_v1", null), adj = (typeof CourseKit !== "undefined" && CourseKit.data && CourseKit.data.adj) || [];
     const nx = (k) => { const d = new Date(k + "T00:00:00"); d.setDate(d.getDate() + 1); return keyOf(d); };
-    if (ev && ev.on) for (let k = s, g = 0; k <= e && g < 120; k = nx(k), g++)
+    if ((ev && ev.on) || (mo && mo.on)) for (let k = s, g = 0; k <= e && g < 120; k = nx(k), g++) {
+      for (const c of IslandCore.morning ? IslandCore.morning(mo, k, adj) : []) out.push({ _plugin: "course-schedule", _pluginName: "课程表", _key: "mor_" + k, _color: "#f08a24", msg_type: "插件",
+        subject: "🌅 " + c.name, summary: c.t0 + "-" + c.t1 + (c.study ? " · 自习时间" : ""), location: c.location || "", event_time: k + " " + c.t0 });
       for (const c of IslandCore.evening(ev, k, adj)) out.push({ _plugin: "course-schedule", _pluginName: "课程表", _key: "eve_" + k, _color: "#7c5cff", msg_type: "插件",
         subject: "🌙 " + c.name, summary: c.t0 + "-" + c.t1 + (c.study ? " · 写作业时间" : ""), location: c.location || "", event_time: k + " " + c.t0 });
+    }
   } catch (err) {}
   return out;
 }

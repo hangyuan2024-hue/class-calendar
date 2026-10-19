@@ -17,7 +17,7 @@ const KINDS = {
   personal_events_v1: "list", personal_marks_v1: "map", done_log_v1: "map", pomo_log_v1: "map",
   habits_v1: "list", habit_log_v1: "map2", quad_v1: "map", quad_todos_v1: "list", plan_notes_v1: "map", mood_log_v1: "map", coach_v1: "map",
   profile_v1: "one", fun_opts_v1: "one", plugins_enabled_v1: "one", home_layout_v1: "one", ui_skin_v1: "one", ui_palette_v1: "one", home_quick_tools_v1: "one",
-  island_v1: "one", farm_v1: "one", evening_v1: "one",   // 6.3 晚自习时间（和网页、小程序、App 同名）
+  island_v1: "one", farm_v1: "one", evening_v1: "one", morning_v1: "one",   // 6.3 晚自习时间（和网页、小程序、App 同名）
   countdown_v1: "list", focus_min_v1: "map",          // 电脑版加的：倒数日、每天专注了多少分钟（网页版会原样保留）
 };
 const SYNC_NS = Object.keys(KINDS);
