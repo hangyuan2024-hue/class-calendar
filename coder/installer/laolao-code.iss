@@ -1,4 +1,4 @@
-; 捞捞编程 Windows 安装包（Inno Setup 6）。GitHub Actions 里用：
+﻿; 捞捞编程 Windows 安装包（Inno Setup 6）。GitHub Actions 里用：
 ;   iscc /DAppVersion=1.0.x /DSrcDir=<electron-builder 的 win-unpacked> /DZhIsl=<ChineseSimplified.isl> laolao-code.iss
 ; 安装包里有编译器和本地模型，约 1.5 GB：用 Inno Setup（NSIS 打这么大的包容易出错）。
 ; 装在用户自己的目录（不用管理员权限），不改系统 PATH。
