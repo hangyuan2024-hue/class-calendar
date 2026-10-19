@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com https://*.workers.dev wss://*.workers.dev http://localhost:* http://127.0.0.1:*; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="referrer" content="no-referrer">
-<script src="i18n.js?v=20261019-v67"></script>
+<script src="i18n.js?v=20261019-v68"></script>
 <script src="guard.js?v=20261005-campus1"></script>
 <script src="entry.js?v=4"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -28,7 +28,7 @@
 <link rel="stylesheet" href="studio-v2.css?v=20261008-org1">
 <link rel="stylesheet" href="org.css?v=20261008-org1">
 <link rel="stylesheet" href="auth-polish.css?v=20261008-org1">
-<link rel="stylesheet" href="home-v6.css?v=20261019-v65">
+<link rel="stylesheet" href="home-v6.css?v=20261019-v68">
 <style>
   .agree { display: flex; align-items: flex-start; gap: 8px; margin: 14px 2px 0; font-size: 13px; line-height: 1.6; color: var(--sub, #687d97); cursor: pointer; }
   .agree input { flex: none; width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--accent, #3b4ee0); cursor: pointer; }
@@ -235,7 +235,8 @@
  <div class="s-download-grid">
   <article class="s-download-card"><span class="s-device-icon" aria-hidden="true">▯</span><span class="s-device-tag">ANDROID</span><h3>口袋里的校园伙伴</h3><p>随手查看课程与事项，接收时间提醒。</p><a class="s-button get" id="getApk" data-get="apk" href="download/class-calendar.apk" download><span data-lbl>下载安卓 App</span><span aria-hidden="true">↓</span></a><small class="meta" data-meta="getApk">安卓 7.0 及以上</small><div class="s-qr qr" data-qr hidden><img src="download/qr.svg" alt="安卓客户端下载页面二维码"><span>用手机扫码<br>打开下载页</span></div><p class="after" data-after aria-live="polite"></p></article>
   <article class="s-download-card"><span class="s-device-icon desktop" aria-hidden="true">▣</span><span class="s-device-tag">WINDOWS</span><h3>桌面上的学习空间</h3><p>大屏整理安排，配合桌面提醒与 AI 助手。</p><a class="s-button get" id="getExe" data-get="exe" href="https://github.com/hangyuan2024-hue/class-calendar/releases/latest/download/LaolaoKechengbiao-Setup.exe"><span data-lbl>下载 Windows 电脑版</span><span aria-hidden="true">↓</span></a><small class="meta" data-meta="getExe">Windows 10 / 11 · 64 位</small><p class="after" data-after aria-live="polite"></p></article>
-  <article class="s-download-card s-web-card"><span class="s-device-icon" aria-hidden="true">◎</span><span class="s-device-tag">WEB</span><h3>打开浏览器，就在</h3><p>苹果手机、Mac 或其他设备，都可以使用网页版。</p><a class="s-button s-button-outline" href="index.html?guest=1">打开网页版 <span aria-hidden="true">↗</span></a><small>iPhone 可通过 Safari 添加到主屏幕</small><span class="s-coming"><i></i> 微信小程序测试中，即将全面开放</span></article>
+  <article class="s-download-card s-web-card"><span class="s-device-icon" aria-hidden="true">◎</span><span class="s-device-tag">WEB</span><h3>打开浏览器，就在</h3><p>苹果手机、Mac 或其他设备，都可以使用网页版。</p><a class="s-button s-button-outline" href="index.html?guest=1">打开网页版 <span aria-hidden="true">↗</span></a><small>iPhone 可通过 Safari 添加到主屏幕</small></article>
+  <article class="s-download-card s-mp-card"><span class="s-device-icon" aria-hidden="true">✳</span><span class="s-device-tag">WECHAT</span><h3>微信里随手打开</h3><p>不用下载安装，和网页版同一个账号、数据互通。</p><div class="s-mp-qr"><img src="download/miniapp-code.jpg?v=1" width="132" height="132" alt="捞捞课程表微信小程序码" loading="lazy"><span>微信扫一扫<br>打开小程序</span></div><small>在手机微信里看到这页？长按小程序码即可识别</small></article>
  </div>
 </section>
 
@@ -245,7 +246,7 @@
  <details><summary>苹果手机和 Mac 也可以使用吗？<span aria-hidden="true">+</span></summary><p>可以使用网页版。iPhone 用 Safari 打开后，点击分享，再选择「添加到主屏幕」。目前独立桌面软件支持 Windows，安卓手机有 App。</p></details>
  <details><summary>安卓安装包在微信里无法下载怎么办？<span aria-hidden="true">+</span></summary><p>点击微信右上角「···」，选择「在浏览器打开」，然后下载安卓安装包。安装时如提示未知来源，请按照系统提示选择是否允许安装。</p></details>
  <details><summary>课程和通知的整理结果需要核对吗？<span aria-hidden="true">+</span></summary><p>需要。日程整理用于帮助你提取重要信息，时间、教室和作业要求仍应以老师发布的内容为准，确认后再保存。</p></details>
- <details><summary>微信小程序已经上线了吗？<span aria-hidden="true">+</span></summary><p>小程序正在测试，和网页版用同一个账号、数据互通。全面开放后在微信里搜索「捞捞课程表」就能打开，现在可以先用网页版或安卓 App。</p></details>
+ <details><summary>微信小程序已经上线了吗？<span aria-hidden="true">+</span></summary><p>已经上线了。用微信扫一扫上面「换个屏幕」里的小程序码就能打开（在手机微信里可以长按识别），和网页版用同一个账号、数据互通。</p></details>
  </div></section>
 
 <section class="lgtop s-login-section" id="login" aria-labelledby="stageTitle">

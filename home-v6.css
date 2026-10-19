@@ -227,3 +227,11 @@ html.authed .h6-show { padding-top: 60px; }
 @media (max-width: 760px) {
   .h6-prod-grid.h6-prod-3 { grid-template-columns: 1fr; }
 }
+
+/* 6.8 微信小程序已上线：下载区加一张小程序码卡片（四张一排，窄屏两张、手机一张） */
+.s-download-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.s-mp-qr { display: flex; align-items: center; gap: 14px; }
+.s-mp-qr img { width: 112px; height: 112px; border-radius: 10px; background: #fff; padding: 6px; flex: none; }
+.s-mp-qr span { color: #d1e0dc; font-size: 12px; line-height: 1.7; }
+@media (max-width: 1180px) { .s-download-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .s-download-grid { grid-template-columns: 1fr; } .s-mp-qr img { width: 132px; height: 132px; } }
