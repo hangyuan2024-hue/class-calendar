@@ -1,6 +1,6 @@
 // 离线缓存（Service Worker）：只缓存网页自己的文件，不缓存任何数据接口的内容
 // 2026-10-08：注册时选择学校 / 单位；界面细节打磨（字号、焦点、图标）。
-const CACHE = "cc-static-v79-66";
+const CACHE = "cc-static-v80-67";
 const PAGES = ["./", "index.html", "app.html", "login.html"];
 const EXTRA = [
   "campus-ui.css?v=20261008-org1",
@@ -27,10 +27,10 @@ const EXTRA = [
   "auxiliary-v2.css?v=20261008-org1",
   "embedded-auth-v2.css?v=20261008-org1",
   "landing-v2.js?v=20261005-studio2",
-  "i18n.js?v=20261016-v582",
-  "i18n-en.js?v=20261016-v582",
+  "i18n.js?v=20261019-v67",
+  "i18n-en.js?v=20261019-v67",
   "home-v6.css?v=20261019-v65",
-  "home-v6.js?v=20261015-v561",
+  "home-v6.js?v=20261019-v67",
   "site-config.js?v=20261015-v561",
   "org.css?v=20261008-org1",
   "org.js?v=20261008-org1",

@@ -1,4 +1,4 @@
-// 6.5 板块页（learn/、code/）：显示「已登录 xx / 登录捞捞账号」，和网站同一个账号
+// 6.5 板块页（learn/、code/）：显示「已登录 xx / 登录捞捞调度账号」，和网站同一个账号
 (function () {
   "use strict";
   var el = document.querySelector("[data-who]");
@@ -8,8 +8,8 @@
   var paint = function (me) {
     el.classList.toggle("on", !!me);
     el.innerHTML = me
-      ? '<span class="dot"></span>已登录 <b>' + esc(me.display_name || me.account || "") + "</b> · 三个板块用同一个账号"
-      : '<span class="dot"></span>还没登录 · <a href="../app.html?next=' + encodeURIComponent(here) + '#login">登录捞捞账号</a>，导图、学习记录跟着账号走';
+      ? '<span class="dot"></span>已登录 <b>' + esc(me.display_name || me.account || "") + "</b> · 捞捞调度账号，三个板块通用"
+      : '<span class="dot"></span>还没登录 · <a href="../app.html?next=' + encodeURIComponent(here) + '#login">登录捞捞调度账号</a>，导图、学习记录跟着账号走';
   };
   paint(null);
   window.CCAuth.me().then(function (me) { paint(me && me.id ? me : null); }, function () {});

@@ -81,5 +81,10 @@ const ok = (s) => console.log("✓ " + s);
   assert.ok(/最该先做的是「离散数学作业」/.test(I.greet({ now: new Date(2026, 9, 19, 14, 41), items: [{ key: "a", title: "讲座", type: "通知", day: "2026-10-19", time: "19:20" }, { key: "b", title: "离散数学作业", type: "作业", day: "2026-10-21" }], courses: [] })));
   assert.ok(!/最该先做的是「讲座」/.test(I.greet({ now: new Date(2026, 9, 19, 14, 41), items: [{ key: "a", title: "讲座", type: "通知", day: "2026-10-19", time: "19:20" }], courses: [] })));
   ok("群消息整理：一句多事、干扰多也能拆对，标题像样、括号日期优先、去掉收到请回复和署名；总结一句一件；讲座不说「最该先做」");
+  // 6.7 只说了钟点没说日子：就是发消息这天（提醒核实）；「场务就可以来了」→「场务到场」
+  const cw = P.parse("场务12:05就可以来了 有课的下课抓紧时间来", "2026-10-19").items;
+  assert.deepStrictEqual(cw.map((x) => [x.event_time, x.subject, x.need_confirm]), [["2026-10-19 12:05", "场务到场", true]]);
+  assert.strictEqual(P.parse("这个题12点之前能做完吗", "2026-10-19").items.length, 0, "随口问的不算");
+  ok("只说钟点的通知：算发消息当天、标题「场务到场」");
   console.log("文档导入 / 晚自习：全部通过");
 })().catch((e) => { console.error("✗", e); process.exit(1); });

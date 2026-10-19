@@ -14,7 +14,7 @@
     mindmap: '<div class="ha ha-mm"><svg viewBox="0 0 360 200" aria-hidden="true"><g fill="none" stroke-width="2.5" stroke-linecap="round"><path d="M180 100 C230 100 230 40 280 40" stroke="#4f8df5"/><path d="M180 100 C230 100 230 100 280 100" stroke="#2bb98a"/><path d="M180 100 C230 100 230 160 280 160" stroke="#f2a20c"/><path d="M180 100 C130 100 130 55 80 55" stroke="#8a6cf0"/><path d="M180 100 C130 100 130 145 80 145" stroke="#f2724b"/></g></svg><span class="n r">高等数学</span><span class="n a">函数与极限</span><span class="n b">导数 ⭐</span><span class="n c">积分 ⚠️</span><span class="n d">微分方程</span><span class="n e">级数 ❓</span></div>',
     remind: '<div class="ha ha-remind"><div class="ha-wx"><small>服务通知</small><div class="card"><b>作业快截止</b><p><span>作业名称</span>高数第三章习题</p><p><span>截止时间</span>今天 22:00</p><p><span>备注</span>还剩 3 小时</p></div><div class="card dim"><b>明天的课</b><p><span>课程</span>大学英语 等 3 节</p></div></div></div>',
     wall: '<div class="ha ha-wall"><span>🎉 运动会报名开始啦</span><span>📢 周三停课一次</span><span>📝 实验报告模板</span></div>',
-    team: '<div class="ha ha-team"><div class="ring"><span>🎨</span><span>📱</span><span>🧠</span><span>🛡️</span><b>捞捞</b></div><p>全国高校开发者招募中</p></div>',
+    team: '<div class="ha ha-team"><div class="ring"><span>🎨</span><span>📱</span><span>🧠</span><span>🛡️</span><b>捞捞调度</b></div><p>全国高校开发者招募中</p></div>',
   };
 
   // 视频格式：大多数浏览器放 mp4；放不了 mp4 的（少数安卓 / Linux 浏览器）有 webm 就换 webm
