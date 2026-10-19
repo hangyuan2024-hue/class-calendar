@@ -7,7 +7,7 @@ const { LANGS, byId, langOfFile, locate } = require("./langs");
 const { Session, runOnce } = require("./runner");
 const TC = require("./toolchains");
 const AI = require("./ai");
-const { messages } = require("./tutor");
+const { messages, options: tutorOptions } = require("./tutor");
 const { EX, starter, check } = require("./exercises");
 const { Progress, sync } = require("./account");
 
@@ -220,7 +220,7 @@ function createService(env) {
       if (!c.output && lastRun.file === c.fileFull) c.output = lastRun.output;
       if ((!c.diags || !c.diags.length) && lastRun.file === c.fileFull) c.diags = lastRun.diags;
       const msgs = messages(mode, c, question, history || []);
-      aiReq = AI.chat(msgs, (text) => send("ai", { id, text }));
+      aiReq = AI.chat(msgs, (text) => send("ai", { id, text }), tutorOptions(question ? "free" : mode));
       try { const full = await aiReq; send("ai", { id, text: full, done: true }); return full; }
       catch (e) { send("ai", { id, error: e.message, done: true }); throw e; }
       finally { aiReq = null; }

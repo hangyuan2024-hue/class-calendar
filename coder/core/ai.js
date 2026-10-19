@@ -86,7 +86,7 @@ async function startServer(exe, modelFile, { log, timeoutMs = 120000, port = POR
 function chat(messages, onToken, { temperature = 0.4, maxTokens = 900, port = PORT } = {}) {
   let req = null, stopped = false;
   const p = new Promise((resolve, reject) => {
-    const body = JSON.stringify({ model: MODEL.id, messages, stream: true, temperature, max_tokens: maxTokens, repeat_penalty: 1.08 });
+    const body = JSON.stringify({ model: MODEL.id, messages, stream: true, temperature, max_tokens: maxTokens, repeat_penalty: 1.15, frequency_penalty: 0.3 });
     req = http.request(`http://127.0.0.1:${port}/v1/chat/completions`, { method: "POST", headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) } }, (res) => {
       if (res.statusCode !== 200) { res.resume(); return reject(new Error("本地模型返回 " + res.statusCode)); }
       let buf = "", full = "";

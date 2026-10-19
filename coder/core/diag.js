@@ -2,6 +2,7 @@
 // 返回 [{ line, col, severity: "error"|"warning", message, hint }]，只要「你写的这个文件」里的
 "use strict";
 const path = require("path");
+const fs = require("fs");
 
 // 常见报错 → 中文提示。按顺序匹配，第一个对上的算数
 const HINTS = [
@@ -98,16 +99,25 @@ const same = (a, file) => {
   if (ALIAS && (a === ALIAS || path.basename(a.replace(/\\/g, "/")) === ALIAS)) return true;
   return a === file || path.basename(a.replace(/\\/g, "/")) === b || a.replace(/\\/g, "/").endsWith("/" + b);
 };
-const add = (out, o) => { if (!out.some((x) => x.line === o.line && x.message === o.message)) out.push({ ...o, hint: hintFor(o.message) }); };
+const add = (out, o) => {
+  const old = out.find((x) => x.line === o.line && x.message === o.message);
+  if (old) return old;
+  const d = { ...o, hint: hintFor(o.message) }; out.push(d); return d;
+};
 
 function parseDiags(langId, text, file, alias) {
   const out = [];
   ALIAS = alias && alias !== path.basename(file) ? alias : "";
   const lines = String(text || "").replace(/\r/g, "").split("\n");
+  let last = null;
   if (langId === "c" || langId === "cpp") {
     for (const l of lines) {
       const m = l.match(/^(.*?):(\d+):(\d+): (fatal error|error|warning): (.*)$/);
-      if (m && same(m[1], file)) add(out, { line: +m[2], col: +m[3], severity: m[4] === "warning" ? "warning" : "error", message: m[5] });
+      if (m && same(m[1], file)) last = add(out, { line: +m[2], col: +m[3], severity: m[4] === "warning" ? "warning" : "error", message: m[5] });
+      else if (m) last = null;
+      // 编译器给的改法（-fdiagnostics-parseable-fixits）：fix-it:"a.c":{4:35-4:35}:";"（列是按字节数的）
+      const fx = l.match(/^fix-it:"(.*)":\{(\d+):(\d+)-(\d+):(\d+)\}:"(.*)"$/);
+      if (fx && last && !last.fixRaw && same(fx[1], file)) last.fixRaw = { l1: +fx[2], b1: +fx[3], l2: +fx[4], b2: +fx[5], text: fx[6].replace(/\\"/g, '"').replace(/\\\\/g, "\\") };
       const k = l.match(/(?:^|:\s)(undefined reference to .*)$/);
       if (k && !out.some((x) => x.message === k[1])) add(out, { line: 0, col: 0, severity: "error", message: k[1] });
     }
@@ -123,9 +133,11 @@ function parseDiags(langId, text, file, alias) {
     let rt = null;
     for (const l of lines) {
       const m = l.match(/^(.*\.java):(\d+): (error|warning): (.*)$/);
-      if (m && same(m[1], file)) add(out, { line: +m[2], col: 0, severity: m[3], message: m[4] });
+      if (m && same(m[1], file)) { last = add(out, { line: +m[2], col: 0, severity: m[3], message: m[4] }); continue; }
+      // javac 在报错下面打一行代码、再一行 ^ 指着位置
+      if (last && !last.col && /^\s*\^\s*$/.test(l)) { last.col = l.indexOf("^") + 1; last.caretChars = true; last = null; continue; }
       const x = l.match(/^Exception in thread "\w+" (.*)$|^error: (.*)$/);
-      if (x) rt = { message: x[1] || x[2] };
+      if (x && !/^compilation failed$/.test(x[2] || "")) rt = { message: x[1] || x[2] };
       const at = l.match(/^\s+at .*\((.*\.java):(\d+)\)/);
       if (rt && at && same(at[1], file)) { add(out, { line: +at[2], col: 0, severity: "error", message: rt.message }); rt = null; }
     }
@@ -150,7 +162,66 @@ function parseDiags(langId, text, file, alias) {
     }
     if (panic) add(out, { line: 0, col: 0, severity: "error", message: panic });
   }
+  let src = null;
+  try { src = String(fs.readFileSync(file, "utf8")).replace(/\r/g, "").split("\n"); } catch (e) {}
+  if (src) for (const d of out) { try { refine(langId, d, src); } catch (e) {} }
   return out.slice(0, 50);
+}
+
+// ---------- 把「改法」算准：在哪一行哪一个字后面加 / 改什么，配一句说清楚的中文 ----------
+// d.fix = { line（第几行，从 1 开始）, ch（第几个字，从 0 开始）, endLine, endCh, text（换成什么） }
+const byteToChar = (line, b) => Buffer.from(String(line || ""), "utf8").subarray(0, Math.max(0, b - 1)).toString("utf8").length;
+const codeEnd = (line) => {   // 这一行代码的末尾（去掉行尾空格和 // 注释）
+  let s = String(line || ""), inS = null;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (inS) { if (c === "\\") i++; else if (c === inS) inS = null; continue; }
+    if (c === '"' || c === "'") inS = c;
+    else if (c === "/" && s[i + 1] === "/") { s = s.slice(0, i); break; }
+    else if (c === "#" && false) break;
+  }
+  return s.replace(/\s+$/, "").length;
+};
+function refine(langId, d, src) {
+  if (d.severity === "warning") return;
+  const L = (n) => src[n - 1] == null ? "" : src[n - 1];
+  if (d.fixRaw) {
+    const f = d.fixRaw; delete d.fixRaw;
+    d.fix = { line: f.l1, ch: byteToChar(L(f.l1), f.b1), endLine: f.l2, endCh: byteToChar(L(f.l2), f.b2), text: f.text };
+  }
+  const semi = /expected .*';'|';' expected/.test(d.message);
+  // 编译器没给改法，但说的是「少了分号」：分号该在哪儿自己算
+  if (!d.fix && semi && d.line > 0) {
+    const line = L(d.line), first = line.search(/\S/);
+    if (langId === "java" && d.col > 0) {
+      d.fix = { line: d.line, ch: d.col - 1, endLine: d.line, endCh: d.col - 1, text: ";" };
+    } else if (first >= 0 && (!d.col || d.col <= first + 1)) {
+      // 报错指着这一行开头：分号其实是上一行（往上找第一行有代码的）末尾少的
+      let p = d.line - 1;
+      while (p >= 1 && (!L(p).trim() || /^\s*(\/\/|\/\*|\*)/.test(L(p)))) p--;
+      if (p >= 1) { const e = codeEnd(L(p)); d.fix = { line: p, ch: e, endLine: p, endCh: e, text: ";" }; }
+    } else if (d.col > 0) {
+      d.fix = { line: d.line, ch: d.col - 1, endLine: d.line, endCh: d.col - 1, text: ";" };
+    }
+  }
+  // Python：if / for / while / def … 这一行最后少了冒号
+  if (!d.fix && langId === "python" && /expected ':'/.test(d.message) && d.line > 0) {
+    const e = codeEnd(L(d.line)); if (L(d.line).slice(0, e).trim() && !/:$/.test(L(d.line).slice(0, e))) d.fix = { line: d.line, ch: e, endLine: d.line, endCh: e, text: ":" };
+  }
+  if (!d.fix) return;
+  const f = d.fix, ins = f.line === f.endLine && f.ch === f.endCh;
+  // 报错写在下一行、毛病在上一行：标红的地方挪到真正要改的那一行
+  if (ins && f.line !== d.line) { d.reported = d.line; d.line = f.line; }
+  const before = L(f.line).slice(0, f.ch).trim(), tail = before.length > 24 ? "…" + before.slice(-14) : before;
+  const atEnd = f.ch >= codeEnd(L(f.line));
+  if (ins && f.text === ";") d.hint = atEnd ? `第 ${f.line} 行最后少了一个分号 ;（${({ java: "Java ", cpp: "C++ ", javascript: "JavaScript " })[langId] || "C 语言"}里每句话都要用分号结尾）` : `第 ${f.line} 行${tail ? "「" + tail + "」" : ""}的后面少了一个分号 ;`;
+  else if (ins && f.text === ":") d.hint = `第 ${f.line} 行最后少了冒号 :（if / for / while / def 这一行的末尾都要有）`;
+  else if (ins) d.hint = `第 ${f.line} 行${tail ? "「" + tail + "」后面" : "这里"}少了「${f.text}」`;
+  else {
+    const old = f.line === f.endLine ? L(f.line).slice(f.ch, f.endCh) : "";
+    if (!f.text) d.hint = `把第 ${f.line} 行的「${old}」删掉`;
+    else d.hint = `把第 ${f.line} 行的「${old}」改成「${f.text}」` + (/^std::/.test(f.text) && old && !/::/.test(old) ? "（或者在 #include 下面加一行 using namespace std;，以后就不用每次写 std:: 了）" : "");
+  }
 }
 
 module.exports = { parseDiags, hintFor, HINTS };

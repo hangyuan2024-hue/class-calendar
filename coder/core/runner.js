@@ -58,7 +58,7 @@ function plan(langId, file, opt) {
       fs.copyFileSync(file, src);
       diagName = path.basename(src);
     }
-    const args = [...std, "-g", "-O0", "-Wall", "-fdiagnostics-color=never", "-finput-charset=UTF-8", "-fexec-charset=UTF-8", "-I.",
+    const args = [...std, "-g", "-O0", "-Wall", "-fdiagnostics-color=never", "-fdiagnostics-parseable-fixits", "-finput-charset=UTF-8", "-fexec-charset=UTF-8", "-I.",
       src, unbuf, "-o", out, ...(L.id === "c" ? ["-lm"] : []), ...(WIN ? ["-static"] : [])];
     // 编译器的提示一律用英文（中文 Windows 上可能变成乱码的本地化提示；报错解析和中文提示都按英文写的）
     return { lang: L, tool, compile: { cmd: tool.exe, args, env: { ...env, LANG: "C", LC_ALL: "C", LANGUAGE: "C" } }, run: { cmd: out, args: [], env }, out, diagName };
@@ -120,9 +120,13 @@ class Session {
       this.phase = "compile"; ev.phase("compile");
       let errText = "";
       const swap = p.diagName && p.diagName !== path.basename(file) ? (t) => t.split(p.diagName).join(path.basename(file)) : (t) => t;
-      const c = exec(p.compile, cwd, (s, t) => { errText += t; ev.out("compile", swap(t)); });
+      // 编译器的输出按整行显示，去掉给机器读的 fix-it: 行（改法已经算进标红的提示里了）
+      let pend = "";
+      const show = (t, end) => { pend += t; const parts = pend.split("\n"); pend = end ? "" : parts.pop(); const txt = parts.filter((x) => !/^fix-it:/.test(x)).join("\n"); if (txt || parts.length) ev.out("compile", swap(txt + (parts.length ? "\n" : ""))); };
+      const c = exec(p.compile, cwd, (s, t) => { errText += t; show(t); });
       this.child = c.child;
       const r = await c.done;
+      if (pend) show("", true);
       const diags = parseDiags(p.lang.id, errText, file, p.diagName);
       ev.diags(diags);
       if (this.stopped) return ev.exit({ code: null, stopped: true });
@@ -151,7 +155,8 @@ async function runOnce(langId, file, opt, input, { timeoutMs = 6000 } = {}) {
   if (p.compile) {
     let err = "";
     const r = await exec(p.compile, cwd, (s, t) => (err += t), { timeoutMs: 60000 }).done;
-    if (r.code !== 0) return { compileFailed: true, stderr: p.diagName && p.diagName !== path.basename(file) ? err.split(p.diagName).join(path.basename(file)) : err, diags: parseDiags(p.lang.id, err, file, p.diagName) };
+    const shown = err.split("\n").filter((x) => !/^fix-it:/.test(x)).join("\n");
+    if (r.code !== 0) return { compileFailed: true, stderr: p.diagName && p.diagName !== path.basename(file) ? shown.split(p.diagName).join(path.basename(file)) : shown, diags: parseDiags(p.lang.id, err, file, p.diagName) };
   }
   let out = "", err = "";
   const x = exec(p.run, cwd, (s, t) => (s === "stdout" ? (out += t) : (err += t)), { timeoutMs });

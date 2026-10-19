@@ -236,7 +236,7 @@
       if (m.needInstall) { conState("还没装", "bad"); const L = LANG(m.lang); if (L) offerInstall(L, run); return; }
       if (m.error) { conSys(esc(m.error), "bad"); conState("没运行", "bad"); return; }
       if (m.stopped) { conSys("■ 已停止", ""); conState("已停止"); return; }
-      if (m.compileFailed) { conSys(`✗ 编译没通过${hasDiag ? "：代码里标红的地方就是问题，鼠标放上去看提示" : ""}`, "bad"); conState("编译出错", "bad"); $("#askErrBtn").hidden = false; return; }
+      if (m.compileFailed) { const h = firstErrHint(t); conSys(`✗ 编译没通过${h ? "：" + esc(h) + (t && t.diags.some((x) => x.fix) ? "（代码里点「帮我改好」就行）" : "") : hasDiag ? "：代码里标红的地方就是问题" : ""}`, "bad"); conState("编译出错", "bad"); $("#askErrBtn").hidden = false; return; }
       if (m.tooMuch) conSys("程序输出太多了，已经停掉（是不是写了死循环？）", "bad");
       const ok = m.code === 0 && !hasDiag;
       conSys(`${ok ? "✓" : "✗"} 程序结束${m.code != null ? `（返回值 ${m.code}）` : ""} · 用时 ${(m.ms / 1000).toFixed(2)} 秒`, ok ? "ok" : "bad");
@@ -259,6 +259,17 @@
     t.marks = []; t.diags = [];
     if (tabs[cur] === t) cm.clearGutter("gut-diag");
   }
+  // 「帮我改好」：按编译器给的改法改这一处，标红清掉，提醒再运行一次
+  function applyFix(t, fx) {
+    if (!fx || tabs[cur] !== t) return;
+    const from = { line: fx.line - 1, ch: fx.ch }, to = { line: fx.endLine - 1, ch: fx.endCh };
+    clearDiags(t);
+    t.doc.replaceRange(fx.text, from, to, "+fix");
+    cm.focus(); cm.setCursor({ line: from.line, ch: from.ch + fx.text.length });
+    toast("改好了，按 F5 再运行一次看看 👍");
+  }
+  // 第一处错误的一句话说明（输出区里也写上，不用去找标红的地方）
+  const firstErrHint = (t) => { const d = (t && t.diags || []).find((x) => x.severity !== "warning" && (x.hint || x.message)); return d ? (d.hint || d.message) : ""; };
   function showDiags(t, diags) {
     clearDiags(t);
     t.diags = diags || [];
@@ -272,9 +283,19 @@
       cm.setGutterMarker(ln, "gut-diag", dot);
       if (seen.has(ln) || (warn && t.diags.some((x) => x.line === d.line && x.severity !== "warning"))) continue;
       seen.add(ln);
-      const w = document.createElement("div"); w.className = "diag-widget" + (warn ? " warn" : "");
-      w.innerHTML = `${d.hint ? esc(d.hint) : warn ? "提醒" : "这一行有问题"}${warn ? "" : '<button type="button">问捞捞</button>'}<small>${esc(d.message)}</small>`;
-      const b = w.querySelector("button"); if (b) b.onclick = () => ask("error");
+      // 知道怎么改（少了分号、少了冒号、cout 要写成 std::cout）：在代码里把要加的东西虚着画出来，再给一个「帮我改好」
+      const fx = !warn && d.fix && d.fix.line <= t.doc.lineCount() ? d.fix : null;
+      if (fx) {
+        const from = { line: fx.line - 1, ch: fx.ch }, to = { line: fx.endLine - 1, ch: fx.endCh };
+        if (fx.ch === fx.endCh && fx.line === fx.endLine) {
+          const ghost = document.createElement("span"); ghost.className = "fix-ghost"; ghost.textContent = fx.text; ghost.title = "这里要加上「" + fx.text + "」";
+          t.marks.push(t.doc.setBookmark(from, { widget: ghost, insertLeft: true }));
+        } else t.marks.push(t.doc.markText(from, to, { className: "fix-old", title: "改成「" + fx.text + "」" }));
+      }
+      const w = document.createElement("div"); w.className = "diag-widget" + (warn ? " warn" : "") + (fx ? " has-fix" : "");
+      w.innerHTML = `<span class="dw-t">${d.hint ? esc(d.hint) : warn ? "提醒" : "这一行有问题"}</span>${fx ? '<button type="button" class="fix-btn" data-fix>✔ 帮我改好</button>' : ""}${warn ? "" : '<button type="button" data-ask>问捞捞</button>'}<small>${esc(d.message)}${d.reported && d.reported !== d.line ? `（编译器报在第 ${d.reported} 行，其实是这一行的问题）` : ""}</small>`;
+      const b = w.querySelector("[data-ask]"); if (b) b.onclick = () => ask("error");
+      const fb = w.querySelector("[data-fix]"); if (fb) fb.onclick = () => applyFix(t, fx);
       t.marks.push(cm.addLineWidget(ln, w, { coverGutter: false, noHScroll: true }));
     }
     const first = t.diags.find((d) => d.line && d.severity !== "warning");
@@ -357,7 +378,7 @@
     if (r.needInstall) { offerInstall(L, checkEx); return; }
     if (r.error) { conSys(esc(r.error), "bad"); conState("没检查", "bad"); return; }
     S.progress = r.progress || S.progress; paintExList(); paintExBar(); paintStatus();
-    if (r.compileFailed) { showDiags(t, r.diags || []); conAppend(r.stderr || "", "c"); conSys("✗ 编译没通过：先把标红的地方改好", "bad"); conState("编译出错", "bad"); $("#askErrBtn").hidden = false; return; }
+    if (r.compileFailed) { showDiags(t, r.diags || []); conAppend(r.stderr || "", "c"); conSys("✗ 编译没通过：" + esc(firstErrHint(t) || "先把标红的地方改好"), "bad"); conState("编译出错", "bad"); $("#askErrBtn").hidden = false; return; }
     const ex = S.exercises.find((e) => e.id === t.ex);
     if (r.pass) {
       conSys(`<span class="res pass"><b>🎉 全部 ${ex.tests} 组测试都对了！</b>${r.first ? "<br>又攻下一道题。" + nextTip(ex) : "<br>这道题之前就做对了，再写一遍记得更牢。"}</span>`);

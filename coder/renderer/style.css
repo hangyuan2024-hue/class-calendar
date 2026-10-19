@@ -239,3 +239,10 @@ dialog .err { color: var(--err); font-size: 12.5px; min-height: 1em; }
 .ai-head b { white-space: nowrap; flex: none; }
 .ai-head small { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ai-head .grow { display: none; }
+/* 改法：要加的字虚着画在代码里，要换掉的打波浪线 */
+.fix-ghost { display: inline-block; margin: 0 1px; padding: 0 3px; border-radius: 4px; border: 1.5px dashed var(--err); color: var(--err); font-weight: 700; line-height: 1.25; animation: fixPulse 1.4s ease-in-out infinite; cursor: help; }
+@keyframes fixPulse { 50% { background: var(--err-bg); } }
+.fix-old { text-decoration: underline wavy var(--err); text-underline-offset: 3px; }
+.diag-widget .dw-t { font-weight: 600; }
+.diag-widget .fix-btn { margin-left: 10px; padding: 2px 10px; border-radius: 6px; background: var(--run); color: #fff !important; }
+.diag-widget .fix-btn:hover { background: var(--run-h); }

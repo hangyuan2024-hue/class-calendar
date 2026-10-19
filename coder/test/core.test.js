@@ -53,10 +53,13 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "lcc-"));
   // 5. 提示词：系统说明 + 代码带行号 + 报错 + 练习题；选中的代码只发选中的
   const m = messages("error", { lang: "C", file: "a.c", code: "int main(){\n  int x\n}", diags: [{ line: 2, message: "expected ';'" }], output: "", exercise: { title: "两数之和", desc: "输入两个整数" } }, "", [{ role: "user", content: "x".repeat(5000) }]);
   assert.strictEqual(m[0].role, "system"); const last = m[m.length - 1].content;
-  assert.ok(/  2\|   int x/.test(last) && /第 2 行：expected/.test(last) && /两数之和/.test(last) && /哪里错了/.test(last));
+  assert.ok(/  2\|   int x/.test(last) && /第 2 行：expected/.test(last) && /两数之和/.test(last) && /哪一行错了/.test(last));
   assert.ok(m[1].content.length < 1700, "太长的历史被截短");
   const m2 = messages("explain", { lang: "C", code: "整个文件", selection: "printf(\"hi\");" }, "");
   assert.ok(/选中的代码/.test(m2[1].content) && !/整个文件/.test(m2[1].content));
+  const m3 = messages("error", { lang: "C", code: '#include <stdio.h>\nint main(){\n  printf("hi")\n}', diags: [{ line: 3, message: "expected ';' before '}' token", hint: "第 3 行「printf(\"hi\")」的后面少了一个分号 ;", fix: { line: 3, ch: 14, endLine: 3, endCh: 14, text: ";" } }] }, "");
+  assert.ok(/已经确定的问题和改法[\s\S]*改完这一行是：printf\("hi"\);/.test(m3[1].content), "改法要当成事实告诉模型");
+  assert.strictEqual(require("../core/tutor").options("error").temperature < 0.3, true);
   ok("提示词：带行号的代码、报错、练习题；选中的只发选中部分；长历史截短");
   // 6. 回答渲染：先转义，不执行 HTML
   global.window = {}; require("../renderer/md.js");
