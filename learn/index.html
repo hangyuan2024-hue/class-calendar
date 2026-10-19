@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com https://*.workers.dev; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f6f5f1">
+<title>捞捞学习 · 思维导图与课内学习</title>
+<meta name="description" content="捞捞学习：捞捞思维导图（节点自由摆放、自动绕线、Markdown 和数学公式）、课内学习（资料、笔记、考核、错题、知识框架）。和捞捞课程表同一个账号。">
+<link rel="canonical" href="https://www.laolaokechengbiao.cn/learn/">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../studio-v2.css?v=20261008-org1">
+<link rel="stylesheet" href="../home-v6.css?v=20261019-v65">
+<link rel="stylesheet" href="../board.css?v=20261019-v65">
+</head>
+<body class="studio-public" data-root="../" style="--bd-accent:#e0683a">
+<header class="s-header">
+  <a class="s-brand" href="../app.html" aria-label="捞捞首页"><span class="s-brand-icon"><img src="../favicon.svg" alt=""></span><span>捞捞<span class="s-brand-sub">捞捞学习</span></span></a>
+  <nav class="s-nav" aria-label="板块"><a href="../index.html?guest=1">捞捞课程表</a><a href="./" aria-current="page"><b>捞捞学习</b></a><a href="../code/">捞捞编程</a></nav>
+  <div class="s-header-actions"><a class="s-button s-button-small s-button-ink" href="mindmap/">打开思维导图 <span aria-hidden="true">↗</span></a></div>
+</header>
+<main class="bd-main" id="main">
+  <section class="bd-hero">
+    <div>
+      <span class="s-kicker">LAOLAO LEARN · 捞捞学习</span>
+      <h1>把学过的东西，<br>理成<span>一张图。</span></h1>
+      <p class="lead">一门课、一道题、一份复习计划：先把要点一个个写下来，摆到合适的位置，再用线连起来。节点里能写 Markdown 和数学公式，高数、线代常用写法按 Tab 就能补全。</p>
+      <div class="bd-acts"><a class="s-button s-button-ink" href="mindmap/">打开捞捞思维导图 <span aria-hidden="true">↗</span></a><a class="s-text-link" href="../index.html?guest=1#study">课内学习 →</a></div>
+      <div class="bd-who" data-who="learn/"></div>
+    </div>
+    <div class="bd-mm" aria-hidden="true">
+      <svg viewBox="0 0 480 300" preserveAspectRatio="none"><g fill="none" stroke="#d9c3aa" stroke-width="2"><path d="M100 150 H200 V70 H262"/><path d="M100 150 H262"/><path d="M100 150 H200 V232 H262"/></svg>
+      <span class="n r" style="left:6%;top:50%">高等数学</span>
+      <span class="n" style="left:54.6%;top:23.3%;border-color:#e3b04b">函数与极限<small>lim f(x) = A</small></span>
+      <span class="n" style="left:54.6%;top:50%;border-color:#8fbf5a">导数 ⭐</span>
+      <span class="n" style="left:54.6%;top:77.3%;border-color:#6aa0d8">积分 ⚠️<small>∫ f(x) dx</small></span>
+    </div>
+  </section>
+
+  <section class="bd-sec" aria-labelledby="learn-tools">
+    <span class="s-kicker">01 / TOOLS</span>
+    <h2 id="learn-tools">现在能用的<span>学习工具</span></h2>
+    <div class="bd-grid lr">
+      <a class="bd-card big" href="mindmap/">
+        <span class="tag">新版</span>
+        <span class="ic">✺</span>
+        <h3>捞捞思维导图</h3>
+        <p>节点随手摆，从节点边上的小圆点拖一条线连到另一个节点，线会自动转弯绕开。双击空白新建节点，双击节点写内容。</p>
+        <ul><li>Markdown、表格、代码块、KaTeX 数学公式，边写边预览</li><li>79 个高数、线代补全：<code>int</code>、<code>lim</code>、<code>mat3</code>… 按 Tab 展开、逐项填写</li><li>导出图片、Markdown、TXT、JSON；登录后存到账号，网页、电脑版都能接着画</li></ul>
+        <div class="bd-tab" aria-hidden="true"><code>$int$</code><kbd>Tab</kbd><span>→</span><i>∫<sub>a</sub><sup>b</sup> f(x)&thinsp;dx</i><span class="sep"></span><code>$lim$</code><kbd>Tab</kbd><span>→</span><i>lim<sub>x→0</sub> f(x)</i></div>
+        <span class="go">打开思维导图 ↗</span>
+      </a>
+      <a class="bd-card" href="../index.html?guest=1#study">
+        <span class="ic" style="background:#e6efff;color:#3b5bd6">📖</span>
+        <h3>课内学习</h3>
+        <p>按课程整理资料、笔记、考核、错题和知识框架；考核截止日期自动进日历和提醒。</p>
+        <span class="go">打开课内学习 ↗</span>
+      </a>
+      <a class="bd-card" href="../code/">
+        <span class="ic" style="background:#dfe9ff;color:#2f5fd0;font:800 14px/1 ui-monospace,Consolas,monospace">&lt;/&gt;</span>
+        <h3>学编程？</h3>
+        <p>捞捞编程电脑版自带 C、C++、Python，装好就能写代码，卡住了问本地模型。</p>
+        <span class="go">去捞捞编程 →</span>
+      </a>
+    </div>
+  </section>
+</main>
+<footer class="s-footer"><a class="s-brand" href="../app.html"><span class="s-brand-icon"><img src="../favicon.svg" alt=""></span><span>捞捞<span class="s-brand-sub">认真生活，也自在生长。</span></span></a><p>捞捞思维导图由团队成员开发 · 开源在 <a href="https://github.com/hikingsama/Laolao-mindmap" rel="noopener">Laolao-mindmap</a></p><div><a href="../index.html?guest=1">工作台 ↗</a><a href="../code/">捞捞编程</a><a href="../app.html#login">账号登录</a></div></footer>
+<script src="../config.js"></script>
+<script src="../auth.js?v=20261015-v572"></script>
+<script src="../board.js?v=20261019-v65"></script>
+</body>
+</html>

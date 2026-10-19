@@ -1,0 +1,38 @@
+{
+  "name": "laolao-code",
+  "productName": "捞捞编程",
+  "version": "1.0.0",
+  "description": "捞捞编程：自带 C、C++、Python，Java、JavaScript、Go 一键安装，按 F5 运行，看不懂报错问本地模型",
+  "main": "main.js",
+  "author": "捞捞",
+  "license": "UNLICENSED",
+  "private": true,
+  "repository": { "type": "git", "url": "https://github.com/hangyuan2024-hue/class-calendar.git" },
+  "scripts": {
+    "prepare-app": "node scripts/prepare.js",
+    "prestart": "node scripts/prepare.js",
+    "start": "electron .",
+    "test": "node scripts/prepare.js && node test/runner.test.js && node test/exercises.test.js && node test/core.test.js",
+    "dist": "node scripts/prepare.js && electron-builder --win --x64 --dir --publish never"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "codemirror": "5.65.18",
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "cn.laolaokechengbiao.code",
+    "productName": "捞捞编程",
+    "copyright": "捞捞",
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": ["main.js", "preload.js", "core/**", "renderer/**", "build/*.png", "package.json"],
+    "asar": true,
+    "extraResources": [
+      { "from": "resources/toolchains", "to": "toolchains", "filter": ["**/*"] },
+      { "from": "resources/llama", "to": "llama", "filter": ["**/*"] },
+      { "from": "resources/models", "to": "models", "filter": ["**/*"] }
+    ],
+    "win": { "target": "dir", "icon": "build/icon.png", "executableName": "LaolaoCode" }
+  }
+}

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com https://*.workers.dev; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f6f5f1">
+<title>捞捞编程 · 不用装编译器，打开就能写代码</title>
+<meta name="description" content="捞捞编程 Windows 电脑版：自带 C、C++、Python 编译器和运行环境，Java、JavaScript、Go 一键安装；写完按 F5 运行；看不懂报错就问电脑里的本地模型，不联网也能答。和捞捞课程表同一个账号。">
+<link rel="canonical" href="https://www.laolaokechengbiao.cn/code/">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../studio-v2.css?v=20261008-org1">
+<link rel="stylesheet" href="../home-v6.css?v=20261019-v65">
+<link rel="stylesheet" href="../board.css?v=20261019-v65">
+</head>
+<body class="studio-public" data-root="../" style="--bd-accent:#2f5fd0">
+<header class="s-header">
+  <a class="s-brand" href="../app.html" aria-label="捞捞首页"><span class="s-brand-icon"><img src="../favicon.svg" alt=""></span><span>捞捞<span class="s-brand-sub">捞捞编程</span></span></a>
+  <nav class="s-nav" aria-label="板块"><a href="../index.html?guest=1">捞捞课程表</a><a href="../learn/">捞捞学习</a><a href="./" aria-current="page"><b>捞捞编程</b></a></nav>
+  <div class="s-header-actions"><a class="s-button s-button-small s-button-code" href="#get">下载电脑版 <span aria-hidden="true">↓</span></a></div>
+</header>
+<main class="bd-main" id="main">
+  <section class="bd-hero">
+    <div>
+      <span class="s-kicker">LAOLAO CODE · 捞捞编程</span>
+      <h1>不会装编译器？<br><span>打开就能敲代码。</span></h1>
+      <p class="lead">刚学编程，最难的往往不是代码，是配环境：装 MinGW、配 PATH、装 Python、装 JDK……捞捞编程把这些都装好了。装完打开，选一种语言，写完按 <b>F5</b> 就能运行；看不懂报错，点一下问捞捞，电脑里的本地模型给你讲，不联网也能用。</p>
+      <div class="bd-acts"><a class="s-button s-button-code" id="getCode" href="https://github.com/hangyuan2024-hue/class-calendar/releases/download/laolao-code/LaolaoCode-Setup.exe">下载 Windows 版 <span aria-hidden="true">↓</span></a><small>Windows 10 / 11 · 64 位 · 约 1.5 GB<br>自带编译器和本地模型，所以比较大</small></div>
+      <div class="bd-who" data-who="code/"></div>
+    </div>
+    <div class="bd-ide" aria-hidden="true">
+      <div class="bar"><i></i><i></i><i></i><span style="margin-left:8px">成绩.c — 捞捞编程</span><b>▶ 运行 F5</b></div>
+<pre><span class="k">#include</span> &lt;stdio.h&gt;
+<span class="k">int</span> main() {
+    <span class="k">int</span> score;
+    printf(<span class="s">"输入成绩："</span>);
+    scanf(<span class="s">"%d"</span>, score);   <span class="c">// ← 少了 &amp;</span>
+    printf(<span class="s">"%s\n"</span>, score &gt;= 60 ? <span class="s">"及格"</span> : <span class="s">"加油"</span>);
+}</pre>
+      <div class="out">⚠ 第 5 行：scanf 的第 2 个参数应该是 int *，你给的是 int</div>
+      <div class="ask"><b>🐟 捞捞：</b>scanf 要知道「把读到的数放在哪」，所以要给它变量的<b>地址</b>。试试在 score 前面加一个 <b>&amp;</b>，再按 F5 看看～</div>
+    </div>
+  </section>
+
+  <section class="bd-sec" aria-labelledby="code-langs">
+    <span class="s-kicker">01 / LANGUAGES</span>
+    <h2 id="code-langs">装好就能用的<span>编程语言</span></h2>
+    <div class="bd-langs">
+      <div class="bd-lang in"><b>C</b><small>已内置 · GCC</small></div>
+      <div class="bd-lang in"><b>C++</b><small>已内置 · G++</small></div>
+      <div class="bd-lang in"><b>Python</b><small>已内置 · 3.12</small></div>
+      <div class="bd-lang"><b>Java</b><small>点一下自动装 · JDK 21</small></div>
+      <div class="bd-lang"><b>JavaScript</b><small>点一下自动装 · Node.js</small></div>
+      <div class="bd-lang"><b>Go</b><small>点一下自动装</small></div>
+    </div>
+  </section>
+
+  <section class="bd-sec" aria-labelledby="code-feat">
+    <span class="s-kicker">02 / FOR BEGINNERS</span>
+    <h2 id="code-feat">为<span>第一次写代码</span>的同学准备</h2>
+    <div class="bd-grid">
+      <div class="bd-card"><span class="ic" style="background:#dfe9ff;color:#2f5fd0">▶</span><h3>一键运行</h3><p>按 F5 编译并运行。程序要输入就在下面直接打字，输出、报错都在同一个窗口；报错的那一行在代码里标红。</p></div>
+      <div class="bd-card"><span class="ic" style="background:#fff0dc;color:#c76a14">🐟</span><h3>问捞捞</h3><p>选中代码或者报错，点「问捞捞」：解释报错、讲这段代码、给提示。默认先给思路不直接给答案，自己写出来才记得住。</p></div>
+      <div class="bd-card"><span class="ic" style="background:#dff3e8;color:#1f8a5b">✓</span><h3>入门练习</h3><p>从 Hello World 到循环、数组、函数，每题自带测试，写完点「检查」马上知道对不对。登录捞捞账号，做题进度跟着账号走。</p></div>
+    </div>
+  </section>
+
+  <section class="bd-sec" id="get" aria-labelledby="code-get">
+    <span class="s-kicker">03 / DOWNLOAD</span>
+    <h2 id="code-get">下载<span>捞捞编程</span></h2>
+    <div class="bd-grid">
+      <div class="bd-card big"><span class="ic" style="background:#dfe9ff;color:#2f5fd0">⬇</span><h3>Windows 电脑版</h3>
+        <ul><li>Windows 10 / 11，64 位；硬盘留 4 GB 空间</li><li>本地模型建议 8 GB 内存，4 GB 也能用（会慢一些）</li><li>安装时 Windows 提示「已保护你的电脑」：点「更多信息 → 仍要运行」</li></ul>
+        <div class="bd-acts" style="margin-top:auto"><a class="s-button s-button-code" href="https://github.com/hangyuan2024-hue/class-calendar/releases/download/laolao-code/LaolaoCode-Setup.exe">下载安装包（约 1.5 GB） <span aria-hidden="true">↓</span></a><a class="s-text-link" href="https://github.com/hangyuan2024-hue/class-calendar/releases/tag/laolao-code" rel="noopener">所有版本 →</a></div></div>
+      <div class="bd-card"><span class="ic">🍎</span><h3>苹果、手机？</h3><p>捞捞编程目前只有 Windows 版。苹果电脑、手机可以先用<a href="../learn/">捞捞学习</a>整理知识点。</p></div>
+    </div>
+  </section>
+
+  <section class="bd-sec" aria-labelledby="code-faq">
+    <span class="s-kicker">04 / FAQ</span>
+    <h2 id="code-faq">常见<span>问题</span></h2>
+    <div class="bd-faq">
+      <details><summary>为什么安装包这么大？</summary><p>里面装了 C / C++ 编译器（GCC）、Python，还有一个能在你电脑上运行的 AI 模型（通义千问 Qwen2.5-Coder 1.5B，约 1 GB）。装好以后写代码、问问题都不用联网。</p></details>
+      <details><summary>问捞捞要联网吗？会把我的代码传上去吗？</summary><p>不用联网，也不上传。模型就在你的电脑里运行，代码只存在你自己的电脑上（默认在「文档 / 捞捞编程」文件夹）。</p></details>
+      <details><summary>要登录吗？</summary><p>不登录也能用全部功能。登录捞捞账号（和捞捞课程表、捞捞学习同一个账号）后，练习进度会存到账号里，换电脑也接得上。</p></details>
+      <details><summary>Java、JavaScript、Go 怎么装？</summary><p>在左上角选这门语言，第一次运行时会提示安装，点一下就自动下载装好（优先用国内镜像），以后直接用。不会改你电脑上的其他设置。</p></details>
+      <details><summary>电脑上已经装了别的编译器，会冲突吗？</summary><p>不会。捞捞编程用的是自己带的那一套，不改系统的 PATH，也不影响你装过的 Visual Studio、Dev-C++ 等。</p></details>
+    </div>
+  </section>
+</main>
+<footer class="s-footer"><a class="s-brand" href="../app.html"><span class="s-brand-icon"><img src="../favicon.svg" alt=""></span><span>捞捞<span class="s-brand-sub">认真生活，也自在生长。</span></span></a><p>捞捞编程 · 让第一次写代码少踩坑</p><div><a href="../index.html?guest=1">工作台 ↗</a><a href="../learn/">捞捞学习</a><a href="../app.html#login">账号登录</a></div></footer>
+<script src="../config.js"></script>
+<script src="../auth.js?v=20261015-v572"></script>
+<script src="../board.js?v=20261019-v65"></script>
+</body>
+</html>

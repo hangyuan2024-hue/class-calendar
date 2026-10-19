@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; frame-src 'none'; object-src 'none'">
+<title>捞捞编程</title>
+<link rel="stylesheet" href="vendor/codemirror/lib/codemirror.css">
+<link rel="stylesheet" href="vendor/codemirror/addon/hint/show-hint.css">
+<link rel="stylesheet" href="vendor/codemirror/addon/dialog/dialog.css">
+<link rel="stylesheet" href="vendor/codemirror/theme/idea.css">
+<link rel="stylesheet" href="vendor/codemirror/theme/material-darker.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="logo">&lt;/&gt;</span><b>捞捞编程</b></div>
+  <div class="tabs" id="tabs" role="tablist" aria-label="打开的文件"></div>
+  <span class="grow"></span>
+  <span class="lang-chip" id="langChip" hidden></span>
+  <button class="btn run" id="runBtn" title="编译并运行（F5）" disabled><span class="ic">▶</span>运行<kbd>F5</kbd></button>
+  <button class="btn stop" id="stopBtn" title="停止（Shift+F5）" hidden><span class="ic">■</span>停止</button>
+  <button class="btn check" id="checkBtn" title="跑一遍这道题的测试（F6）" hidden><span class="ic">✓</span>检查<kbd>F6</kbd></button>
+  <button class="btn ghost" id="aiToggle" title="问捞捞（Ctrl+L）"><span class="ic">🐟</span>问捞捞</button>
+  <button class="me-chip" id="meChip" title="捞捞账号"></button>
+</header>
+
+<div class="main" id="main">
+  <aside class="side" id="side">
+    <div class="side-tabs" role="tablist"><button data-side="files" class="on">文件</button><button data-side="ex">练习 <small id="exCount"></small></button></div>
+    <div class="side-body" id="sideFiles">
+      <div class="side-acts">
+        <button class="btn sm pri" id="newFileBtn">＋ 新建</button>
+        <button class="btn sm" id="openFileBtn" title="打开电脑上的代码文件">打开</button>
+        <button class="btn sm ghost" id="moreFilesBtn" title="更多">⋯</button>
+      </div>
+      <div class="ws" id="wsPath" title="代码放在这个文件夹里"></div>
+      <div class="files" id="fileList"></div>
+    </div>
+    <div class="side-body" id="sideEx" hidden>
+      <div class="ex-head"><div id="exStat"></div></div>
+      <div class="ex-list" id="exList"></div>
+    </div>
+  </aside>
+
+  <section class="center">
+    <div class="exbar" id="exBar" hidden>
+      <div class="exbar-top"><span class="exbar-tag">练习</span><b id="exTitle"></b><span class="grow"></span><button class="btn sm ghost" id="exToggle">收起题目</button></div>
+      <pre class="exbar-desc" id="exDesc"></pre>
+    </div>
+    <div class="editor-wrap" id="editorWrap">
+      <div class="welcome" id="welcome"></div>
+    </div>
+    <div class="splitter" id="splitter" title="拖动调整高度"></div>
+    <section class="console" id="console">
+      <div class="con-head"><b>输出</b><span class="con-st" id="conSt">还没运行</span><span class="grow"></span><button class="btn sm ghost" id="askErrBtn" hidden>🐟 问捞捞这个报错</button><button class="btn sm ghost" id="clearBtn">清空</button></div>
+      <div class="con-out" id="conOut" tabindex="0" aria-live="polite"></div>
+      <form class="con-in" id="conIn" autocomplete="off"><span class="prompt">输入 ›</span><input id="stdin" placeholder="程序要你输入的时候，在这里打字，按回车发给程序" disabled><button class="btn sm" id="eofBtn" type="button" title="告诉程序「输入完了」（Ctrl+D）" disabled>输入完了</button></form>
+    </section>
+  </section>
+
+  <aside class="ai" id="ai">
+    <div class="ai-head"><b>🐟 问捞捞</b><small id="aiModel"></small><span class="grow"></span><button class="btn sm ghost" id="aiNew" title="清空对话">新对话</button><button class="ic-btn" id="aiClose" aria-label="收起">✕</button></div>
+    <div class="ai-st" id="aiSt"></div>
+    <div class="ai-quick" id="aiQuick">
+      <button data-ask="error">❓ 哪里错了</button><button data-ask="hint">💡 给我提示</button><button data-ask="explain">📖 讲讲这段代码</button><button data-ask="review">✨ 帮我看看</button>
+    </div>
+    <div class="ai-msgs" id="aiMsgs" role="log" aria-live="polite"></div>
+    <form class="ai-form" id="aiForm"><textarea id="aiInput" rows="3" placeholder="有什么不懂的，直接问。选中一段代码再问，捞捞只看那一段。（Enter 发送，Shift+Enter 换行）"></textarea><div class="ai-form-acts"><small>本地模型 · 不联网 · 代码不上传</small><span class="grow"></span><button class="btn sm" id="aiStop" type="button" hidden>停下</button><button class="btn sm pri" id="aiSend">发送</button></div></form>
+  </aside>
+</div>
+
+<footer class="status" id="status">
+  <span id="stStreak"></span><span id="stToday"></span><span id="stSolved"></span><span class="grow"></span><span id="stLang"></span><span id="stPos"></span><button class="link" id="themeBtn" title="换浅色 / 深色">◐</button><button class="link" id="fontMinus" title="字小一点">A-</button><button class="link" id="fontPlus" title="字大一点">A+</button>
+</footer>
+
+<dialog id="dlg"><form method="dialog" id="dlgBody"></form></dialog>
+<div class="toast" id="toast" role="status"></div>
+
+<script src="vendor/codemirror/lib/codemirror.js"></script>
+<script src="vendor/codemirror/mode/clike/clike.js"></script>
+<script src="vendor/codemirror/mode/python/python.js"></script>
+<script src="vendor/codemirror/mode/javascript/javascript.js"></script>
+<script src="vendor/codemirror/mode/go/go.js"></script>
+<script src="vendor/codemirror/addon/edit/matchbrackets.js"></script>
+<script src="vendor/codemirror/addon/edit/closebrackets.js"></script>
+<script src="vendor/codemirror/addon/selection/active-line.js"></script>
+<script src="vendor/codemirror/addon/comment/comment.js"></script>
+<script src="vendor/codemirror/addon/hint/show-hint.js"></script>
+<script src="vendor/codemirror/addon/hint/anyword-hint.js"></script>
+<script src="vendor/codemirror/addon/dialog/dialog.js"></script>
+<script src="vendor/codemirror/addon/search/searchcursor.js"></script>
+<script src="vendor/codemirror/addon/search/search.js"></script>
+<script src="md.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
