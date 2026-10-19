@@ -14,7 +14,7 @@ const ECHO = {
   go: ["a.go", 'package main\nimport "fmt"\nfunc main(){var a,b int\nfmt.Print("输入两个数：")\nfmt.Scan(&a,&b)\nfmt.Println("和是", a+b)}\n'],
 };
 const BAD = {
-  c: ["b.c", '#include <stdio.h>\nint main(){\n  int n\n  printf("%d", n);\n}\n', 4, /分号/],
+  c: ["b.c", '#include <stdio.h>\nint main(){\n  int n\n  printf("%d", n);\n}\n', 3, /分号/],
   cpp: ["b.cpp", '#include <iostream>\nint main(){\n  cout << x;\n}\n', 3, /没有定义/],
   python: ["b.py", 'x = 1\nprint(y)\n', 2, /「y」没定义/],
   java: ["Main.java", 'public class Main{\n public static void main(String[] a){\n  int x = "hi";\n }\n}\n', 3, /不能当成/],

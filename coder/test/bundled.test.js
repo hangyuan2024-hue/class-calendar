@@ -29,8 +29,11 @@ const ok = (s) => console.log("✓ " + s);
   }
   const bad = path.join(ws, "错.c"); fs.writeFileSync(bad, "#include <stdio.h>\nint main(){\n  int n\n  printf(\"%d\", n);\n}\n");
   const br = await runOnce("c", bad, opt, "");
-  assert.ok(br.compileFailed && br.diags.some((d) => d.line === 4 && /分号/.test(d.hint)), "报错不对：" + JSON.stringify(br));
-  ok("编译器报错是英文、能解析到行、有中文提示");
+  // 少分号：编译器报在第 4 行，其实是第 3 行「int n」后面少了 —— 要标到第 3 行、算出改法
+  const semi = br.diags.find((d) => /分号/.test(d.hint || ""));
+  assert.ok(br.compileFailed && semi && semi.line === 3 && semi.fix && semi.fix.line === 3 && semi.fix.text === ";", "报错不对：" + JSON.stringify(br));
+  assert.ok(!/fix-it:/.test(br.stderr), "给机器读的 fix-it 行不该显示出来");
+  ok("编译器报错是英文、能解析到行、标到真正少分号的那一行、算出改法");
   if (process.env.LC_TEST_AI) {
     const exe = path.join(RES, "llama", process.platform === "win32" ? "llama-server.exe" : "llama-server");
     const model = AI.findModel([path.join(RES, "models")]);
