@@ -611,3 +611,5 @@
 #isSet .row { gap: 8px; }
 .is-opt { display: flex; align-items: center; gap: 8px; padding: 4px 0; cursor: pointer; }
 @media (prefers-reduced-motion: reduce) { .lao-bot, .lao-bot.talk, #isPanel, .lao-line { animation: none; } }
+.ig-self { margin-top: 6px; color: var(--muted); }
+.ig-self b { color: var(--ok, #0f7b4b); }

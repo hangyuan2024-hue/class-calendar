@@ -7,7 +7,7 @@ const CALLS = ["state", "login", "logout", "refresh", "class:reload", "mine:upse
   "attach:pick", "attach:add", "attach:remove", "attach:open", "attach:show", "attach:exists", "backup:now", "backup:list", "backup:open", "backup:restore",
   "badge", "clip:read", "clip:image", "coach:log", "coach:rec", "coach:clear",
   "signup", "api:anon", "item:keep", "autodel:class", "item:override", "extras:reload", "files:count", "adj:save", "courses:reload",
-  "file:save", "popout", "export:csv", "extra:items", "tool:read", "lan:send", "lan:apply", "lan:busy"];
+  "file:save", "popout", "export:csv", "extra:items", "tool:read", "lan:send", "lan:apply", "lan:busy", "sys:idle"];
 const EVENTS = ["state", "nav", "ai-state", "ai-token", "pomo", "pomo-done", "quick-open", "badge", "lan"];
 contextBridge.exposeInMainWorld("cc", {
   call: async (ch, ...args) => {

@@ -78,7 +78,7 @@
   const SCHEDULE = /(课|上机|实验|自习).{0,10}((调|改|换|挪|移)(到|至|成|为)|取消|停|改在|在.{2,14}上)|((调|改|换)(到|至)|改在).{0,10}(上课|上|节)$|停课|调课|补课|课表/;
   const UNSURE_WORDS = /待定|另行通知|具体时间|暂定|可能|大概|左右|或者|还是|看情况|或(早上|上午|中午|下午|晚上|明天|后天|周|下周)/;
   const VAGUE_TIME = /下次课|下节课|下次上课|近期|尽快|另行通知|待定|最近/;
-  const CHANGE = /(调|改|换|挪|移|推迟|延期|提前|顺延)(到|至|成|为|在)|改在|取消(?=[^。]{0,16}(再|照常|重新|补))/;
+  const CHANGE = /(调|改|换|挪|移|推迟|延期|提前|顺延)(到|至|成|为|在)|改在|取消(?=[^。]{0,16}(再|重新|补))/;
 
   // ================= 闲聊识别 =================
   const CHATTER = /^(收到|收到收到|好的?|好滴|好嘞|好哒|嗯+|哦+|噢+|ok|okk+|OK|欧克|1|111+|6+|\+1|＋1|谢谢.{0,6}|多谢.{0,4}|感谢.{0,6}|辛苦了?.{0,4}|了解|明白|知道了|懂了|行|可以|没问题|在|在的|来了|哈+|哈哈.*|嘿嘿|嘻嘻|呜+|啊+|？+|\?+|!+|！+|。+|晚安.{0,4}|早安.{0,4}|大家晚安|明天见|拜拜|好耶|冲+|加油.{0,4}|太好了|绝了|牛+|厉害|笑死.*|已交|已完成|已提交|交了交了|交了|我也是|同上|等下我|稍等|马上|来啦|到|已读|看群公告|群文件里有)[~!！。.、，,\s]*$/i;
@@ -92,8 +92,14 @@
   const DATE_LINE = /^(\d{4}[\/\-年]\d{1,2}[\/\-月]\d{1,2}日?|\d{1,2}月\d{1,2}日|昨天|今天|星期[一二三四五六日天])(\s+(上午|下午|晚上)?\d{1,2}:\d{2})?$/;
   const NOT_NAME = /^(通知|注意|提醒|作业|重要|备注|地点|时间|要求|内容|说明|附|ps|PS|tips|补充|更正|紧急|温馨提示|范围|形式|截止|截止时间|提交方式|会议号|主题|[一二三四五六七八九十\d]+)$/;
   const LIST_LINE = /^\s*(\d{1,2}[.、)）](?!\d)|[（(]\d{1,2}[)）]|[一二三四五六七八九十][、.]|[①②③④⑤⑥⑦⑧⑨⑩])/;
-  const FIELD_LINE = /^(地点|时间|要求|备注|内容|说明|附|截止|截止时间|提交方式|形式|范围|注意事项|会议号|主题|ps|PS)\s*[:：]/;
+  const FIELD_LINE = /^(地点|时间|要求|备注|内容|说明|附|截止|截止时间|截止日期|提交方式|形式|范围|注意事项|会议号|主题|参会人员|参加人员|参会对象|参加对象|对象|报名方式|报名时间|联系人|联系方式|主讲人|主讲|嘉宾|流程|活动时间|活动地点|会议时间|会议地点|考试时间|考试地点|负责人|费用|材料|携带|着装|ps|PS)\s*[:：]/;
 
+  // 6.8 链接、在线文档：链接本身不是一条消息，也不拿来认日期、时间、地点；内容里原样保留
+  const URL_RE = /(?:https?:\/\/|www\.)[A-Za-z0-9\-._~:/?#@!$&'*+,;=%]+/gi;
+  const LINK_TOKEN = " 〔链接〕 ";
+  // 6.8 接着上一条说的行：链接、「截止时间为…」「提交方式」「【金山文档】…」
+  const CONT_LINE = /^((?:https?:\/\/|www\.)|(截止|截至)(时间|日期)?(为|是|到|:)?|(填报|提交|报名|上交)(截止|时间|方式|链接|地址)|(链接|网址|附件|二维码|密码|提取码|会议号)\s*(:|为|如下)|【[^】]{0,14}(文档|表单|问卷|腾讯|金山|WPS|石墨|飞书)[^】]{0,14}】)/i;
+  const NOTICE_TITLE = /^(转发[:：]?)?(关于.{2,50}的?(通知|安排|公告|提醒)[。:：]?|【[^】]{2,20}(通知|公告|安排)】.{0,30}|.{0,24}(通知|公告)[:：]?)$/;
   function stripNoise(t) {
     return String(t || "").replace(/\[[^\]]{1,8}\]/g, "").replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, "").trim();
   }
@@ -119,11 +125,11 @@
   function cleanSender(s) { return String(s || "").replace(/【[^】]*】|\[[^\]]*\]/g, "").replace(/[(（<][^)）>]*[)）>]/g, "").trim(); }
   function splitMessages(text) {
     const lines = normalize(text).replace(/\r/g, "").split("\n");
-    const msgs = []; let cur = null, sawHeader = false;
+    const msgs = []; let cur = null, sawHeader = false, blank = false, held = "";
     const flush = () => { if (cur && cur.lines.length) msgs.push(cur); cur = null; };
     for (const raw of lines) {
       const line = raw.trim();
-      if (!line) { if (!sawHeader) flush(); continue; }
+      if (!line) { if (!sawHeader) flush(); blank = true; continue; }
       let h = line.match(HEADER_QQ);
       if (h) { flush(); sawHeader = true; cur = { sender: cleanSender(h[3]), date: h[1].replace(/\//g, "-").replace(/-(\d)(?=-|$)/g, "-0$1"), lines: [] }; continue; }
       h = line.match(HEADER);
@@ -134,22 +140,29 @@
       }
       if (DATE_LINE.test(line)) continue;
       let body = line, sender = "";
-      const m = line.match(/^([^\s:，。]{1,10})[:]\s*(.+)$/);
+      const m = /^(https?|ftp|www)\b/i.test(line) ? null : line.match(/^([^\s:，。]{1,10})[:]\s*(.+)$/);
       if (m && looksLikeName(m[1])) { sender = cleanSender(m[1]); body = m[2]; }
       if (!sawHeader) {
         // 没有发送人行的复制格式：每一行当作一条消息；「地点：xxx」这类补充说明并到上一条
-        if (FIELD_LINE.test(line) && msgs.length) { msgs[msgs.length - 1].lines.push(line); continue; }
+        if ((FIELD_LINE.test(line) || CONT_LINE.test(line)) && msgs.length) { msgs[msgs.length - 1].lines.push(line); blank = false; continue; }
+        // 6.8 只有会议号的一行（「腾讯会议：123 456 789」）：是下一句话的会议号
+        if (ONLINE.test(line) && !/[一-龥]{2,}/.test(line.replace(ONLINE, ""))) { held = (held ? held + "\n" : "") + line; continue; }
+        if (held) { body = held + "\n" + body; held = ""; }
+        // 6.8「关于……的通知」「【xx通知】」标题下面、空行之前的话都是这条通知的
+        const pv = msgs[msgs.length - 1];
+        if (pv && !blank && NOTICE_TITLE.test(pv.lines[0])) { pv.lines.push(line); continue; }
         // 一条长通知被分成好几行：上一行以冒号结尾、这一行是编号、或是「另外/最后/以上」这类接着说的话，都并到上一条
         const prev = msgs[msgs.length - 1], prevLast = prev ? prev.lines[prev.lines.length - 1] : "";
         if (prev && (/[:：]\s*$/.test(prevLast) || LIST_LINE.test(line) && (LIST_LINE.test(prevLast) || /[:：]\s*$/.test(prev.lines[0]) || prev.lines.length === 1 && prevLast.length <= 12) ||
             /^(另外|此外|还有|其次|最后|首先|以上|收到请回复|请大家|特此通知|[一-龥]{2,8}(办公室|学院|委员会|部)$)/.test(line) && prev.lines.length > 1)) { prev.lines.push(line); continue; }
-        flush(); cur = { sender, date: "", lines: [body] }; flush();
+        flush(); cur = { sender, date: "", lines: [body] }; flush(); blank = false;
       } else {
         if (!cur) cur = { sender: "", date: "", lines: [] };
         cur.lines.push(body);
       }
     }
     flush();
+    if (held) { if (msgs.length) msgs[msgs.length - 1].lines.push(held); else msgs.push({ sender: "", date: "", lines: [held] }); }
     return msgs.map((m) => ({ sender: m.sender, date: m.date || "", text: m.lines.join("\n").trim() })).filter((m) => m.text);
   }
 
@@ -217,6 +230,19 @@
       if (a.kind === "week" && b.kind === "abs" && /^\s*[（(]\s*$/.test(t.slice(a.i + a.len, b.i))) a.ref = true;
       if (a.kind === "abs" && b.kind === "week" && /^\s*[（(]\s*$/.test(t.slice(a.i + a.len, b.i))) b.ref = true;
     }
+    // 6.8「根据上周五工作会议要求」「按照10月8日的通知」：只是引用，不是这件事的日子
+    let rm; const REF = new RegExp(REF_CLAUSE.source, "g");
+    while ((rm = REF.exec(t))) for (const x of res) if (x.i >= rm.index && x.i < rm.index + rm[0].length) x.ref = true;
+    // 6.8 文件名、表格名里的日期（「…学生意见10.16」「名单（10.12版）」后面紧跟链接）：是文件的版本，不是截止日
+    for (const x of res) {
+      const b1 = t.slice(Math.max(0, x.i - 1), x.i), after = t.slice(x.i + x.len, x.i + x.len + 8);
+      if (x.kind === "abs" && (/[表单见总版稿计果览册录]$/.test(b1) || /^\s*(版|稿)/.test(after) || /^\s*〔链接〕/.test(after) && /[一-龥]$/.test(b1))) x.ref = true;
+    }
+    const doc = t.match(/【[^】]{0,20}(文档|表单|问卷|表格)[^】]{0,20}】[^〔\n]{0,90}〔链接〕/);
+    if (doc) for (const x of res) if (x.i >= doc.index && x.i < doc.index + doc[0].length) x.ref = true;
+    // 6.8 发消息以前的具体日期：后面还有将来的日子时，它只是在说以前的事（「上周五开了会」「10.16 汇总」）
+    const pubKey = keyOf(base);
+    if (res.some((x) => !x.past && !x.ref && x.key >= pubKey)) for (const x of res) if (x.key < pubKey) x.past = true;
     for (let k = 1; k < res.length; k++) if (res[k - 1].every && res[k].i - (res[k - 1].i + res[k - 1].len) <= 1 && res[k].kind === "week" && !/^[本这下]/.test(t.slice(res[k].i))) res[k].ref = res[k].every = true;
     return res;
   }
@@ -235,6 +261,7 @@
   }
   function findDate(t, pub) { const ms = dateMentions(normalize(t), pub); const p = pickDate(normalize(t), ms); return p ? p.key : ""; }
 
+  const REF_CLAUSE = /(根据|按照|依据|遵照|按)[^，。,；;!！]{0,24}?(会议|通知|文件|要求|精神|部署|安排|规定)(的?(要求|精神|安排|部署))?[，,]?/;
   // ================= 时间 =================
   const PERIOD = /(凌晨|早上|早晨|清晨|上午|中午|下午|傍晚|晚上|晚自习|早自习|今晚|明晚|今早|明早|晚|早|夜里)/g;
   function timeMentions(t) {
@@ -280,7 +307,7 @@
   const PLACE_TAIL = "东操|西操|南操|北操|看台|研讨间|研讨室|自习室|剧场|之家|主席台前|主席台|校车站|公交站|车站|社区|小区|博物馆|纪念馆|科技馆|美术馆|医务室|校医院|医院|驿站|快递点|报告厅|会议室|活动中心|事务中心|服务中心|计算中心|实训中心|工训中心|训练中心|中心机房|机房|实验室|教室|办公室|体育馆|体育场|田径场|篮球场|足球场|运动场|操场|广场|礼堂|大厅|门口|楼下|楼前|楼门口|大门|北门|南门|东门|西门|正门|侧门|图书馆|食堂|学工办|学工处|教务处|宿管处|处|办|中心|馆|厅|室|楼";
   const PLACE_RE = new RegExp("(" + PLACE_TAIL + ")", "g");
   const PLACE_EXT = /^(场(?!所|景|合|面)|[一二三四五六七八九十\d]{1,2}楼|[A-Za-z]?区?\d{2,4}|大厅|门口|报告厅|会议室|多功能厅|演播厅|广场|[一-龥]{1,3}(?:室|厅)|前|下|一楼|二楼|三楼|四楼|东门|西门|南门|北门|机房)/;
-  const PLACE_STOP = /[\s,，。；;！!、:：在到于去点半午晚早天日号周期时分和与及或的了是让请把将被找给由从向往跟就也都还又里报]/;
+  const PLACE_STOP = /[\s,，。；;！!、:：在到于去点半午晚早天日号周期时分和与及或的了是让请把将被找给由从向往跟就也都还又里报至交前送]/;
   const NOT_PLACE = /^(教务系统|群文件|学习通|超星|雨课堂|宿舍|寝室|班级群|群里|处理|办理|举办|开办|创办|主办|承办|协办|楼|馆|厅|室|处|办|中心)$/;
   const ONLINE = /(腾讯会议|钉钉|飞书|zoom|Zoom|ZOOM|腾讯课堂|QQ群课堂|线上会议)(\s*(会议)?(号|ID|id)?\s*[:：]?\s*([\d\s-]{6,16}\d))?/;
   function roomCodes(t) {
@@ -350,8 +377,17 @@
     return c[0].s.slice(0, 40);
   }
   function findPrepare(t) {
-    const m = normalize(t).match(/(?:带上?|携带|准备好?|需带|需要带|自备|记得带)\s*([^，。,；;！!\n]{1,20})/);
-    return m ? m[1].replace(/^(好|上)/, "").trim() : "";
+    // 6.8「所带班级」「带领」「带队」不是要带的东西
+    const s = normalize(t).replace(URL_RE, " "), re = /(携带|准备好?|需带|需要带|自备|记得带|带上?|穿好?|穿上|着)\s*([^，。,；;！!\n]{1,20})/g;
+    let m;
+    while ((m = re.exec(s))) {
+      const prev = s[m.index - 1] || "", w = m[2];
+      if (/^带/.test(m[1]) && (/[所附领一地纽皮磁热声绷连顺夹]/.test(prev) || /^(领|队|头|班|动|来|着|走|回|过|宽|子|的)/.test(w))) continue;
+      if (/^(穿|着)/.test(m[1]) && !/(鞋|服|装|衣|裤|正装|校服)/.test(w)) continue;
+      if (/^准备/.test(m[1]) && /^(工作|好了|一下|开始|参加|出发|考试|期中|期末)/.test(w)) continue;
+      return w.replace(/^(好|上)/, "").trim();
+    }
+    return "";
   }
 
   // ================= 类型、科目、标题 =================
@@ -364,6 +400,7 @@
     if (admin && !academic && s.会议 < 5 && s.活动 < 3) s.通知 += 3;
     if (SCHEDULE.test(t)) s.通知 += /作业|习题|实验报告|论文/.test(t) ? 2 : 4;
     if (/报名/.test(t) && /截止/.test(t)) s.作业 -= 1;
+    if (s.活动 >= 3 && /集合|签到|报到/.test(t) && !/查寝|点名|跑操|返校/.test(t)) s.通知 -= 2;      // 6.8「9点集合去参观」：集合只是怎么去
     // 只取消不改期的是通知；改到别的时间的，还是原来那件事
     if (/取消(?!资格|评优|成绩|学分|考试资格)/.test(t)) s.通知 += CHANGE.test(t) || s.活动 >= 4 ? 1 : 4;
     if (/^[^:：，。]{0,8}通知[:：]/.test(t) && !/通知[^:：]*通知/.test(t)) s.通知 -= 2;   // 「学生会通知：」只是开头
@@ -377,17 +414,33 @@
     for (const [re, name] of COURSES) if (re.test(t)) return name;
     return "";
   }
-  const TITLE_WORDS = /([一-龥]{0,8}大会|年级大会|主题班会|班委会议|班委会|支部大会|班会|党课|团日活动|组会|例会|开会|[一-龥]{0,6}(?:比赛|竞赛|晚会|运动会|讲座|分享会|招新|面试|培训|演练|彩排|开幕式)(?:报名)?|查寝|体测|晨读|跑操|点名|评教|选课|停课|调课|补课|闭馆|考试|测验|缴费|领教材|领取学生证)/;
+  const TITLE_WORDS = /([一-龥]{0,8}大会|年级大会|主题班会|班委会议|班委会|支部大会|班会|党课|团日活动|组会|例会|开会|[一-龥]{0,6}(?:比赛|竞赛|晚会|运动会|讲座|分享会|招新|面试|培训|演练|彩排|开幕式)(?:报名)?|查寝|体测|晨读|跑操|点名|评教|选课|停课|调课|补课|闭馆|(?:期中|期末)?考试|测验|缴费|领教材|领取学生证)/;
   // 6.6 开头的连接词、称呼、语气词：不是事情本身
-  const LEAD_JUNK = /^(另外|还有|然后|同时|并且|此外|以及|另|再|最后|首先|其次|补充一下|补充|提醒一下|提醒|注意|重要|紧急|通知|请|麻烦|各班班长|各班|各位同学|各位|同学们|全体同学|大家|记得|务必|一定要|一定|需要|必须|要|都|就|也|还|先)[，,：:\s]*/;
+  const LEAD_JUNK = /^(另外|还有|然后|同时|并且|此外|以及|另|再|最后|首先|其次|补充一下|补充|提醒一下|提醒|注意|重要|紧急|通知|请|麻烦|各班班长|各班|各位同学注意|各位同学|各位|同学们|全体同学|同学|大家|记得|务必|一定要|一定|需要|必须|要|都|就|也|还|先)[，,：:\s]*/;
   function stripLead(s) { let prev; do { prev = s; s = s.replace(LEAD_JUNK, ""); } while (s !== prev && s); return s; }
   function titleOf(t, type, course, loc) {
-    if (course && (type === "作业" || /考试|测验|期中|期末|小测|上课|课堂/.test(t))) return course;      // 科目就写课程名，作业页按它分组
-    const adm = t.match(/(医保|学费|班费|书费|住宿费|电费|助学金|奖学金|学生证|[一-龥]{0,4}(?:申请表|申报书|统计表|信息表|登记表|材料|回执|名单|照片|请假条|问卷))/);
-    if (adm && type === "通知") return adm[1].replace(/^(把|将|的|请|交|填写?)/, "") + (/交|收|提交|上交|缴/.test(t) ? "上交" : /填|登记|完成/.test(t) ? "填写" : /领/.test(t) ? "领取" : "");
+    t = String(t || "").replace(/〔链接〕/g, " ");
+    // 6.8 报名类：「四六级考试报名」「计算机二级报名」，不写成课程名
+    const reg = t.match(/(四六级|英语四级|英语六级|四级|六级|计算机二级|二级|教资|普通话|考研|[一-龥]{2,8}(?:比赛|竞赛|大赛|杯))(?:考试)?[^，。；]{0,6}报名/);
+    if (reg) return (reg[1] + "报名").slice(0, 16);
+    if (course && type !== "作业" && (SCHEDULE.test(t) || /(调|改|换|挪|移)(到|至|成|为|在)|停上|不上了?|取消/.test(t))) return (course + "调课").slice(0, 16);
+    if (course && (type === "作业" || /考试|测验|期中|期末|小测|上课|课堂|上机|实验课|在[^，。；]{1,12}上$|第[一二三四五六七八九十\d\-~、]+节/.test(t))) return course;      // 科目就写课程名，作业页按它分组
+    // 6.8 正式通知：「关于期中教学检查工作，请各位老师完成…并填写下方在线电子表格」→「期中教学检查：填写在线电子表格」
+    const off = officialTitle(t);
+    if (off) return off;
+    const adm = t.match(/(医保|学费|班费|书费|住宿费|电费|助学金|奖学金|学生证|[一-龥]{0,6}(?:申请表|申报书|统计表|信息表|登记表|材料|回执|名单|照片|请假条|问卷))/);
+    if (adm && type === "通知") {
+      const name = adm[1].replace(/^.*(前|点|日|号|于|内)(?=[一-龥]{2})/, "").replace(/^(把|将|的|请(?!假)|交|填写?|完成|提交|上交|登录|在|去)+/, "").replace(/^[级届年]/, "");
+      const body = t.replace(NOISE_ALL, " ");
+      return name + (/填|登记/.test(body) && /问卷|表/.test(name) ? "填写" : /交|收齐|收集|提交|上交|缴/.test(body) ? "上交" : /填|登记|完成/.test(body) ? "填写" : /领/.test(body) ? "领取" : "");
+    }
+    const q = t.match(/[“"「《]([^”"」》]{2,16})[”"」》]\s*(专题)?(讲座|报告会?|比赛|竞赛|大赛|分享会|晚会|培训|活动)/);
+    if (q) return (q[1] + q[3]).slice(0, 16);
+    const vis = t.match(/参观|研学|游览|实地考察/);
+    if (vis && loc) return (vis[0] + loc).slice(0, 14);
     const k = t.match(TITLE_WORDS);
     // 「下周一没课班级去参加讲座」：关键词前面最多带几个修饰字，取最后一个动词后面的部分
-    if (k) { let w = k[1]; const cut = w.match(/^.*(?:参加|参与|去|到|在|开|召开|举办|举行|开展|组织|进行|有|听|观看|看)(?=[一-龥])/); if (cut && cut[0].length < w.length - 1) w = w.slice(cut[0].length); return w.replace(/^(召开|举办|举行|开展|组织|参加|进行|有)/, "").slice(0, 14); }
+    if (k) { let w = k[1]; const cut = w.match(/^.*(?:参加|参与|去|到|在|开|召开|举办|举行|开展|组织|进行|有|听|观看|看)(?=[一-龥])/); if (cut && cut[0].length < w.length - 1) w = w.slice(cut[0].length); w = w.replace(/^(召开|举办|举行|开展|组织|参加|进行|有)/, ""); if (/^[级届]/.test(w)) { const yr = t.slice(0, k.index + k[1].indexOf(w)).match(/(\d{2,4})$/); w = yr ? yr[1] + w : w.slice(1); } return w.slice(0, 14); }
     let s = t;
     if (loc) s = s.split(loc).join("");
     s = s.replace(/【[^】]*】|^(通知|提醒|注意|重要|紧急|温馨提示)[:：]?|辅导员通知[:：]?/g, "")
@@ -396,7 +449,7 @@
       .replace(/(之前|以前|前|截止|为止|之内|内)(?=[把交提完填做写])/g, "").replace(/(上午|下午|晚上|中午|早上|傍晚|凌晨)/g, "")
       .replace(/^(请|各位|大家|同学们|全体同学)[，,]?/g, "")
       .replace(/[（(]\s*[)）]/g, "").replace(/^[①②③④⑤⑥⑦⑧⑨⑩\d.、\-~—\s]+/, "").replace(/^[，,。:：\s在于到\-~—]+/, "");
-    let first = stripLead((s.split(/[，,。；;！!\n]|\s+(?=[一-龥])/)[0] || t).trim()).replace(/^(有|是|在|于|将|会|需|得)/, "");
+    let first = stripLead((s.split(/[，,。；;！!\n]|\s+(?=[一-龥])/)[0] || t).trim()).replace(/^(有|是|在|于|将|会|需|得|的)/, "");
     // 6.7「场务就可以来了」「其他人集合」：谁 + 到场
     const come = first.match(/^([一-龥A-Za-z]{1,8}?)(就|都|请|需要|要|先|可以|也)*(可以)?(来了?|过来|到场|到|集合|签到|报到)(了|吧|哦)?$/);
     if (come) first = come[1] + (/集合|签到|报到/.test(come[4]) ? come[4] : "到场");
@@ -408,10 +461,26 @@
     return (first || t.trim()).slice(0, 16);
   }
 
+  const ACT = "完成|填写|填报|提交|上交|报送|参加|报名|做好|确认|核对|上传|登记|签字|领取|缴纳|查看|阅读|学习|观看|准备";
+  function officialTitle(t) {
+    const s = normalize(t).replace(/〔链接〕/g, " ").replace(REF_CLAUSE, "");
+    const tp = s.match(/关于(?:做好|开展|进行|组织|落实|完成|召开|举办)?([^，。,；;:]{2,18}?)(?:的?(?:相关)?(?:工作|事项|事宜|通知|安排)|的?有关)/);
+    const topic = tp ? tp[1].replace(/^(本次|这次|此次|20\d\d年度?|本学期)/, "").trim() : "";
+    let act = "";
+    const rq = s.match(/(?:请|需|须|务必|要求)[^。；;!！]{0,60}/);
+    if (rq) {
+      const re = new RegExp("(" + ACT + ")([^，,。；;:！!并和及以与\\s]{2,24})", "g"); let m, last = null;
+      while ((m = re.exec(rq[0]))) last = m;
+      if (last) act = last[1] + last[2].replace(/^(下方|上方|以下|如下|附件中?|群里|链接中?|相关|好)+的?/, "").replace(/(的?(工作|事宜|任务))$/, "");
+    }
+    if (!topic && !(act && /[表单问卷材料]/.test(act) && tp)) return topic ? topic.slice(0, 20) : "";
+    return (topic && act ? topic + "：" + act : topic || act).slice(0, 22);
+  }
+  const NOISE_ALL = /收到请?(回复|扣1|回1)?|请?回复收到/g;
   // 6.6 详细内容：去掉「收到请回复」、@、署名这些不是事情本身的话（内容本身一个字不删，不截断）
   const NOISE_CLAUSE = /^(收到(请|的)?(回复|接龙|扣1|扣1|回1)?|请?回复收到|收到请回复|收到的?请?扣?[1１]|大家互相转告|互相转告|谢谢(大家|配合)?|辛苦了?|感谢配合|望周知|特此通知|以上|如上)[！!。.~～]*$/;
   function tidy(seg) {
-    let s = String(seg || "").replace(/@\S+\s?/g, "").replace(/^【[^】]{1,12}】\s*/, "").replace(/^(各位同学|同学们|大家|各位)[，,：:]\s*/, "");
+    let s = String(seg || "").replace(/@\S+\s?/g, "").replace(/^【[^】]{1,12}】\s*/, "").replace(/^(提醒|通知|温馨提示|重要通知|紧急通知|重要提醒)\s*[:：]\s*/, "").replace(/^(各位同学|同学们|大家|各位)[，,：:]\s*/, "");
     s = s.replace(/[，,。\s]*(——|--|－－)?\s*(辅导员|班主任|班长|学委|团支书|老师)?\s*[一-龥]{1,3}(老师|辅导员)\s*$/, "");   // 结尾的署名「辅导员 王老师」
     const parts = s.match(/[^，,。；;！!]+[，,。；;！!]*|[，,。；;！!]+/g) || [s];
     s = parts.filter((p) => !NOISE_CLAUSE.test(p.replace(/[，,。；;！!\s]+$/g, "").trim())).join("");
@@ -482,8 +551,9 @@
       const nb = model.neighbor(t);
       if (nb && TYPES4.includes(nb.label)) {
         const top = s[order[0]], margin = top - s[order[1]];
-        if (nb.sim >= 0.6) { s[nb.label] = Math.max(top, 3) + 5; learned = nb; }
-        else if (nb.sim >= 0.45 && (margin <= 1 || top < 3)) { s[nb.label] += 4; learned = nb; }
+        const cf = model.cfg || { hi: 0.6, lo: 0.45 };      // 6.8 两个门槛由闲时自学按本班数据调
+        if (nb.sim >= cf.hi) { s[nb.label] = Math.max(top, 3) + 5; learned = nb; }
+        else if (nb.sim >= cf.lo && (margin <= 1 || top < 3)) { s[nb.label] += 4; learned = nb; }
       }
       if (s[order[0]] < 2 && model.nb) {
         const p = model.nb(t);
@@ -532,7 +602,8 @@
     if (!time && pick && model && model.periodTime) time = model.periodTime(t) || "";
     const loc = findLocation(t, model) || "";
     let typeText = (loc ? t.split(loc).join(" ") : t).replace(/「[^」]{1,30}」|《[^》]{1,40}》|“[^”]{1,30}”/g, " ");
-    typeText = typeText.replace(ONLINE, " ");     // 「报告厅」「活动中心」这些地名不参与判断类型
+    typeText = typeText.replace(ONLINE, " ").replace(new RegExp(REF_CLAUSE.source, "g"), " ").replace(/〔链接〕|【[^】]{0,20}】/g, " ")
+      .replace(/(带好|带上|请带|携带|自备|记得带|需带|需要带)[^，。,；;！!\n]{1,14}/g, " ");      // 6.8「带好身份证」是要带的东西，不说明这是什么事     // 「报告厅」「活动中心」这些地名不参与判断类型
     let focus = null;
     if (pick && typeText.length > 60) {
       const ds = t.substr(pick.i, pick.len);
@@ -667,7 +738,7 @@
     const lines = sorted.map((x) => {
       const sub = x.subject || String(x.summary).slice(0, 16);
       const name = x.msg_type === "作业" && !/作业|报告|论文|习题|题|^(交|提交|上交|完成|填|写|做|背|预习|复习)/.test(sub) ? sub + "作业" : sub;
-      const due = x.msg_type === "作业" && x.event_time ? "前" : "";
+      const due = x.event_time && (x.msg_type === "作业" || /截止|截至|之前|以前|逾期|ddl|([日号天一二三四五六七日点]|[0-9])前|前(交|提交|完成|填|上交|报)/i.test(x.summary || "")) ? "前" : "";
       return `${whenText(x.event_time, pub)}${due}：${name}${x.location ? "（" + x.location + "）" : ""}${x.prepare ? "，带" + x.prepare : ""}`;
     });
     const n = { 作业: 0, 会议: 0, 活动: 0, 通知: 0 }; for (const x of list) if (n[x.msg_type] != null) n[x.msg_type]++;
@@ -688,8 +759,10 @@
       const norm = raw.replace(/\s+/g, "");
       if (seen.has(norm)) { out.dupes++; continue; }
       seen.add(norm);
-      const t = clean(raw);
+      const urls = raw.match(URL_RE) || [];
+      const t = clean(raw.replace(URL_RE, LINK_TOKEN));
       const original = (msg.sender ? msg.sender + ":" : "") + raw;
+      const putLinks = (s) => { let k = 0; s = s.replace(/\s*〔链接〕\s*/g, () => (urls[k] ? " " + urls[k++] + " " : " ")).replace(/ {2,}/g, " ").trim(); if (k < urls.length) s += "\n链接：" + urls.slice(k).join(" "); return s; };
       // 以前纠正过一模一样的消息：直接照学到的来
       const mem = model && model.recall ? model.recall(t) : null;
       if (mem) {
@@ -702,6 +775,22 @@
       const segs = segments(t, pub);
       const events = segs.map((s) => parseEvent(s, t, pub, model, msg.sender));
       const wholeType = events.length > 1 ? decideType(t.replace(ONLINE, " "), model) : null;
+      // 6.8 一条消息分成了几件同类的事（「周三男生1000米，周四女生800米，地点东操」）：名字、地点、要带的东西共用
+      if (events.length > 1) {
+        const wl = findLocation(t, model), wp = findPrepare(t), shared = /地点|统一|均在|都在|均于|均需|都要|地点均/.test(t);
+        for (const ev of events) {
+          if (!ev.loc && wl && shared) ev.loc = wl;
+          if (wp && shared) ev.prep = wp;
+        }
+        const whoOf = (x) => { const m = x.match(/(男生|女生|\d{1,2}班|第[一二三四五六七八九十\d]+(组|批))/); return m ? "（" + m[1] + "）" : ""; };
+        const tp = (ev) => ev.dt.type || "通知";
+        const keyEv = events.find((ev) => TITLE_WORDS.test(ev.t));
+        const weak = keyEv ? events.filter((ev) => ev !== keyEv && !TITLE_WORDS.test(ev.t) && tp(ev) === tp(keyEv) && titleOf(ev.t, tp(ev), ev.course, ev.loc).replace(/[^一-龥]/g, "").length <= 3) : [];
+        if (weak.length) {
+          const base = titleOf(keyEv.t, tp(keyEv), keyEv.course, keyEv.loc);
+          for (const ev of [keyEv].concat(weak)) ev.titleHint = (base + whoOf(ev.t)).slice(0, 16);
+        }
+      }
       for (const ev of events) {
         let { day, time, loc, dt, course } = ev;
         const segT = ev.t;
@@ -719,10 +808,13 @@
           else { out.unsure.push({ text: raw, sender: msg.sender, why: "看不出是什么事", guess: day ? mk("通知") : null }); continue; }
         }
         function mk(tp) {
-          const summary = tidy(segT).slice(0, 1000);   // 6.2 不再截断成「……」，内容要完整；6.6 去掉「收到请回复」、署名
+          let summary = putLinks(tidy(segT));
+          // 6.8 长通知：第一句先说要点（做什么、什么时候前），后面是原文
+          if (summary.length > 80 && day) { const sj = titleOf(segT, tp, course, loc), due = /截止|截至|之前|以前|前(交|提交|完成|填|上交|报)/.test(segT); summary = `要点：${sj}，${whenText(day + (time ? " " + time : ""), pub)}${due ? "前完成" : ""}。` + summary; }
+          summary = summary.slice(0, 1000);   // 6.2 不再截断成「……」，内容要完整；6.6 去掉「收到请回复」、署名
           return {
-            msg_type: tp, subject: titleOf(segT, tp, course, loc), summary,
-            event_time: day ? day + (time ? " " + time : "") : "", location: loc, prepare: findPrepare(segT),
+            msg_type: tp, subject: ev.titleHint || (model && model.subjectFor && model.subjectFor(segT, tp)) || titleOf(segT, tp, course, loc), summary,
+            event_time: day ? day + (time ? " " + time : "") : "", location: loc, prepare: findPrepare(segT) || ev.prep || "",
             original, publish_date: pub, need_confirm: !day || !!ev.guessDay || UNSURE_WORDS.test(segT),
             confidence: Math.min(1, (dt.score || 0) / 6) * (day ? 1 : 0.5) * (dt.margin >= 2 ? 1 : 0.8),
             src_text: raw, ...(dt.learned ? { via: "learned" } : {}),
@@ -779,17 +871,17 @@
     return null;
   }
   function createModel(data) {
-    const st = { v: 2, ex: [], places: {}, notPlaces: {}, aliases: {}, periods: {}, memory: {}, log: [] };
+    const st = { v: 2, ex: [], places: {}, notPlaces: {}, aliases: {}, periods: {}, memory: {}, log: [], cfg: { hi: 0.6, lo: 0.45 } };
     if (data && data.v === 2) Object.assign(st, JSON.parse(JSON.stringify(data)));
     let cache = null;
     const exGrams = () => cache || (cache = st.ex.map((e) => featGrams(e.t, Object.entries(st.aliases).flat().sort((a, b) => b.length - a.length))));
-    function addExample(text, label, src, fix) {
+    function addExample(text, label, src, fix, sj) {
       if (!LABELS.includes(label)) return;
       const t = clean(text).slice(0, 200); if (t.length < 2) return;
       const i = st.ex.findIndex((e) => e.t === t);
       if (i >= 0) st.ex.splice(i, 1);
-      st.ex.push({ t, l: label, s: src || "user", f: fix ? 1 : 0 });
-      if (st.ex.length > 1500) { const j = st.ex.findIndex((e) => e.s === "history"); st.ex.splice(j >= 0 ? j : 0, 1); }
+      st.ex.push({ t, l: label, s: src || "user", f: fix ? 1 : 0, ...(sj ? { sj } : {}) });
+      if (st.ex.length > 1500) { let j = st.ex.findIndex((e) => e.s === "history"); if (j < 0) j = st.ex.findIndex((e) => e.s === "self"); st.ex.splice(j >= 0 ? j : 0, 1); }
       cache = null;
     }
     const model = {
@@ -797,6 +889,8 @@
       get places() { return Object.keys(st.places).sort((a, b) => b.length - a.length); },
       get notPlaces() { return Object.keys(st.notPlaces); },
       get aliases() { return Object.entries(st.aliases).sort((a, b) => b[0].length - a[0].length); },
+      get cfg() { return st.cfg; },
+      setCfg(c) { if (c && c.hi > 0 && c.lo > 0 && c.lo <= c.hi) st.cfg = { hi: c.hi, lo: c.lo }; },
       // 找最像的例子：返回 { label, sim, text }。相似的例子按相似度投票
       neighbor(text) {
         if (!st.ex.length) return null;
@@ -805,7 +899,7 @@
         const gs = exGrams(), vote = {}; let best = null;
         for (let i = 0; i < gs.length; i++) {
           const sim = jaccard(g, gs[i]); if (sim < 0.35) continue;
-          const e = st.ex[i], w = sim * sim * (e.s === "history" ? 0.6 : e.s === "ai" ? 0.8 : 1) * (e.f ? 1.3 : 1);
+          const e = st.ex[i], w = sim * sim * (e.s === "history" ? 0.6 : e.s === "ai" ? 0.8 : e.s === "self" ? 0.9 : 1) * (e.f ? 1.3 : 1);
           vote[e.l] = (vote[e.l] || 0) + w;
           if (!best || sim > best.sim) best = { label: e.l, sim, text: e.t };
         }
@@ -830,6 +924,22 @@
         const top = ks.sort((a, b) => score[b] - score[a])[0];
         return { top, p: 1 / z };
       },
+      // 6.8 标题也学：以前改过标题、说法几乎一样的消息（「周五值班表第3周排好了」→「创客空间值班」），新消息照着起名；
+      // 只在那个标题的字大多能在新消息里找到时才用，免得把上次的细节（第几章、哪个人）抄过来
+      subjectFor(text, type) {
+        if (!st.ex.length) return "";
+        const drop = Object.entries(st.aliases).flat().sort((a, b) => b.length - a.length);
+        const g = featGrams(text, drop); if (g.size < 3) return "";
+        const gs = exGrams(), raw = normalize(text); let best = null;
+        for (let i = 0; i < gs.length; i++) {
+          const e = st.ex[i]; if (!e.sj || e.l !== type) continue;
+          const sim = jaccard(g, gs[i]); if (sim < 0.5 || best && sim <= best.sim) continue;
+          const chars = e.sj.replace(/[^一-龥A-Za-z]/g, ""); let hit = 0;
+          for (const c of chars) if (raw.includes(c)) hit++;
+          if (chars.length && hit / chars.length >= 0.6) best = { sim, sj: e.sj };
+        }
+        return best ? best.sj : "";
+      },
       periodTime(text) { const k = periodKey(text); return k ? st.periods[k] || "" : ""; },
       recall(text) { const r = st.memory[memKey(text)]; return r ? JSON.parse(JSON.stringify(r)) : null; },
       // 从一次整理里学。before = 规则（没学习前）给的结果；items = 班委最后发布的；chatter = 班委说这条是闲聊
@@ -838,7 +948,7 @@
         const src = source || "user", rl = ruleLabel(before);
         const rItem = before && ((before.items && before.items[0]) || (before.unsure && before.unsure[0] && before.unsure[0].guess)) || null;
         if (chatter) addExample(text, "闲聊", src, rl && rl !== "闲聊");
-        else if (items && items.length === 1) addExample(text, items[0].msg_type, src, rl !== items[0].msg_type);
+        else if (items && items.length === 1) addExample(text, items[0].msg_type, src, rl !== items[0].msg_type, rItem && items[0].subject && items[0].subject !== rItem.subject ? items[0].subject : "");
         const nt = normalize(text);
         for (const it of items || []) {
           const ruleLoc = rItem ? rItem.location || "" : findLocation(text);
@@ -858,8 +968,9 @@
           const pk = periodKey(text);
           if (pk && tm && !rtm) st.periods[pk] = tm;
         }
-        if (src === "user") {
-          st.memory[key] = chatter ? { chatter: true } : { pub, items: (items || []).map(({ msg_type, subject, summary, event_time, location, prepare, need_confirm }) => ({ msg_type, subject, summary, event_time, location, prepare, need_confirm })) };
+        // 6.8 闲时自学（self）复习本班发布过的事项：一模一样的消息再来，也按发布时的结果
+        if (src === "user" || src === "self" && items && items.length && items.every((x) => x.summary)) {
+          st.memory[key] = chatter ? { chatter: true } : { pub, items: (items || []).map(({ msg_type, subject, summary, event_time, location, prepare, need_confirm }) => ({ msg_type, subject, summary, event_time, location, prepare: prepare || "", need_confirm: !!need_confirm })) };
           const keys = Object.keys(st.memory); if (keys.length > 400) delete st.memory[keys[0]];
         }
         st.log.push({ at: Date.now(), src, chatter: !!chatter, n: (items || []).length, fix: rl && (chatter ? rl !== "闲聊" : items && items[0] && rl !== items[0].msg_type) ? 1 : 0 });
@@ -870,7 +981,8 @@
       forget(kind, key) { if (st[kind]) { delete st[kind][key]; cache = null; } },
       stats() {
         return { examples: st.ex.length, fixes: st.ex.filter((e) => e.f).length, places: Object.keys(st.places).length, aliases: Object.keys(st.aliases).length,
-          periods: Object.keys(st.periods).length, memory: Object.keys(st.memory).length, history: st.ex.filter((e) => e.s === "history").length };
+          periods: Object.keys(st.periods).length, memory: Object.keys(st.memory).length, history: st.ex.filter((e) => e.s === "history").length,
+          self: st.ex.filter((e) => e.s === "self").length, ai: st.ex.filter((e) => e.s === "ai").length };
       },
       dump() { return { places: Object.keys(st.places), aliases: { ...st.aliases }, periods: { ...st.periods }, notPlaces: Object.keys(st.notPlaces) }; },
       toJSON() { return st; },
@@ -899,6 +1011,7 @@
 每个事项字段：msg_type（作业/会议/活动/通知 之一；讲座、比赛、体测、认知教育算活动）、subject（这件事的名字，4~16 字，用「交实验报告」「计算机专业认知教育」「班会」这种说法，不要截半句原话、不要带日期和「另外」「请」）、summary（第一句一句话总结，后面写要求、注意事项、适用哪些人，不要省略号，去掉「收到请回复」、@、署名）、event_time（"YYYY-MM-DD HH:MM" 或 "YYYY-MM-DD"，不知道就是 ""）、location、prepare（需要带/准备的东西）、original（对应原文）、need_confirm（日期或细节不确定时为 true）。
 消息发布日期是 ${pub}。换算日期请查表：${wk("本周")}；${wk("下周")}。「调到/改到」以后面的时间为准；「晚上12点前」写成 23:59。
 一句话里有好几件事（不同的日子、不同的事）就拆成几条，每条的 original 只放和它有关的句子；同一件事的补充（考勤、提前到场、领导参会）并进那一条，不单独成条。写了「周四（10月22日）」以括号里的日期为准；地点写完整。
+正式通知（「关于××工作，请…填写…」）的 subject 写成「主题：要做的事」，「截止时间为…」就是 event_time；「根据上周五会议要求」里的日期、文件名里的日期（「…意见10.16」）不是 event_time；网址原样留在 summary 末尾；一条通知分成几行（标题、链接、截止时间）仍是一件事。
 闲聊、收到、表情、同学提问一律忽略；没有需要记录的事项时输出 []。`;
   }
   function parseJsonItems(s, pub) {

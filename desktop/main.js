@@ -646,6 +646,8 @@ handle("badge", (dataUrl, n) => {
   if (!win || win.isDestroyed() || !WIN) return;
   try { win.setOverlayIcon(dataUrl ? nativeImage.createFromDataURL(dataUrl) : null, n ? `今天还有 ${n} 件事` : ""); } catch (e) {}
 });
+// 6.8 电脑多久没人用了（秒）：捞捞趁没人用的时候自学
+handle("sys:idle", () => { try { return powerMonitor.getSystemIdleTime(); } catch (e) { return 0; } });
 handle("clip:read", () => { try { return clipboard.readText().slice(0, 20000); } catch (e) { return ""; } });
 handle("clip:image", () => {
   try { const img = clipboard.readImage(); if (img.isEmpty()) return null; return img.toJPEG(90).toString("base64"); } catch (e) { return null; }

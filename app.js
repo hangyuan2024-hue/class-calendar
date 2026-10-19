@@ -1517,7 +1517,7 @@ function meaningfulText(text) {
 }
 // ---- 学习：班委的修改存进数据库（同班班委共享），换设备也能接着用 ----
 const LAO_FB_LS = (cid) => "lao_fb_v1_" + cid;          // 还没传上去的学习记录（没网或没装数据库函数时先存本机）
-let laoModel = null, laoModelFor = "", laoRemoteOk = null, laoShowLearn = false;
+let laoModel = null, laoModelFor = "", laoRemoteOk = null, laoShowLearn = false, laoRows = [];
 const laoPub = () => $("ingestDate").value || keyOf(ccDate());
 const slimItem = (x) => ({ msg_type: x.msg_type, subject: x.subject || "", location: x.location || "", event_time: x.event_time || "" });
 function msgText(original) { const m = LaoParse.splitMessages(original || "")[0]; return m ? m.text : String(original || ""); }
@@ -1535,6 +1535,9 @@ async function ensureLaoModel(rebuild) {
   if (laoRemoteOk && local.length) {           // 以前存在本机的，补传上去
     try { await CCAuth.rpc("parse_feedback_add", { cid, rows: local.slice(0, 60) }); rows = rows.concat(local.slice(0, 60)); local = local.slice(60); laoLocal(cid, local); } catch (e) {}
   }
+  laoRows = rows.concat(local);
+  // 6.8 以前闲时自学学到的（存在这台设备上），先装回去；班委亲手改的在后面，以它为准
+  try { if (window.LaoTrain) LaoTrain.replay(m, laoSelf(cid)); } catch (e) {}
   const forgets = [];
   for (const r of rows.concat(local)) {
     if (r.source === "forget") { forgets.push(...(r.items || [])); continue; }
@@ -1575,6 +1578,7 @@ function renderLaoLearn() {
   const canClear = currentClass.is_teacher || (currentUser && currentUser.role === "admin");
   el.innerHTML = `<div class="ll-sum"><span>🧠 捞捞从本班学到：<b>${s.fixes}</b> 次纠正 · <b>${s.places}</b> 个地名 · <b>${s.aliases}</b> 个课程叫法 · <b>${s.periods}</b> 个上课时间 · 记住 <b>${s.memory}</b> 条消息 · 参考历史事项 ${s.history} 条</span>
       <button class="small" id="ipLearnMore">${laoShowLearn ? "收起" : "查看"}</button></div>
+    ${laoTrainLine()}
     ${laoRemoteOk === false ? `<div class="ll-warn">学习记录暂时只存在这台设备。管理员在扣子终端运行一次 <code>python3 setupaccounts.py</code> 后，全班班委就能共享。</div>` : ""}
     ${laoShowLearn ? `<div class="ll-detail">
       <p>在下面的整理结果里改类型、地点、科目、时间，点「不是事项」或「这条要记」，发布时捞捞都会记下来，下次同样的情况直接整理对。学到的东西本班有整理权限的人共享。</p>
@@ -1583,6 +1587,82 @@ function renderLaoLearn() {
       <div class="ll-row">${canClear ? `<button class="small" id="ipLearnClear">清空本班全部学习记录</button>` : `<span class="ll-none">清空全部学习记录需要本班老师操作</span>`}</div>
     </div>` : ""}`;
 }
+// ===== 6.8 闲时自学：大家都不用的时候，捞捞拿本班发布过的事项自己考自己、学做错的；本地 AI 开着时请它当老师 =====
+const LAO_SELF_LS = (cid) => "lao_self_v1_" + cid, LAO_POOL_LS = (cid) => "lao_pool_v1_" + cid;
+function laoSelf(cid, v) { const k = LAO_SELF_LS(cid); if (v === undefined) return load(k, null); try { save(k, v); } catch (e) { try { v.rows = v.rows.slice(-150); save(k, v); } catch (e2) {} } }
+let laoLastInput = Date.now(), laoJob = null, laoJobFor = "", laoTrainBusy = false, laoTeachBusy = false;
+["pointerdown", "keydown", "wheel", "touchstart"].forEach((ev) => addEventListener(ev, () => { laoLastInput = Date.now(); }, { passive: true, capture: true }));
+const laoQuiet = () => window.LaoTrain && LaoTrain.isQuiet(laoLastInput, Date.now(), document.hidden);
+function laoCanTrain() { return !!(window.LaoTrain && currentClass && currentUser && ingestAllowed() && feat("ingest_local") && !ingestPersonal()); }
+function laoTrainLine() {
+  const cid = currentClass && currentClass.id; if (!cid || !window.LaoTrain) return "";
+  const sv = laoSelf(cid), r = sv && sv.report, pct = (x) => Math.round(x * 100) + "%";
+  const running = laoJob && laoJobFor === cid && laoJob.phase !== "done";
+  const when = r ? new Date(r.at).toLocaleString("zh-CN", { hour12: false, month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
+  return `<div class="ll-self">🌙 闲时自学：${running ? `正在复习本班的消息… ${Math.round(laoJob.progress * 100)}%` : r ? `${esc(when)} 复习了 ${r.samples} 条本班消息，自测准确率 <b>${pct(r.before)} → ${pct(r.after)}</b>，学会 ${r.learned} 处${sv.ai ? ` · 本地 AI 老师教了 ${sv.ai} 条` : ""}` : "大家都不用的时候（页面在后台、几分钟没人操作或夜里），捞捞会自己复习本班发布过的消息，越用越准"}
+    ${running ? "" : `<button class="small" id="ipTrainNow">现在自学一次</button>`}</div>`;
+}
+// 拿不准的消息先记下来，空闲时请本地 AI 当老师
+function laoPoolAdd(list) {
+  if (!currentClass || !list || !list.length) return;
+  const cid = currentClass.id, pool = load(LAO_POOL_LS(cid), []), have = new Set(pool.map((x) => x.text));
+  for (const u of list) if (u.text && u.text.length >= 6 && !have.has(u.text)) { pool.push({ text: u.text, sender: u.sender || "", pub: laoPub() }); have.add(u.text); }
+  try { save(LAO_POOL_LS(cid), pool.slice(-40)); } catch (e) {}
+}
+async function laoTrainTick(force) {
+  if (laoTrainBusy || !laoCanTrain() || (!force && !laoQuiet())) return;
+  const cid = currentClass.id;
+  laoTrainBusy = true;
+  try {
+    const m = await ensureLaoModel(); if (!m || !currentClass || currentClass.id !== cid) return;
+    if (!laoJob || laoJobFor !== cid) {
+      const sv = laoSelf(cid), samples = LaoTrain.corpus(classRecords, laoRows, msgText);
+      if (!force && !LaoTrain.due(sv && sv.report, samples.length)) { await laoTeach(force); return; }
+      laoJob = LaoTrain.job(LaoParse, m, samples); laoJobFor = cid; renderLaoLearn();
+    }
+    // 一小步一小步做：每步十几毫秒，有人一操作就停下，下次空闲接着做
+    while (laoJob && laoJob.phase !== "done") {
+      if (!force && !laoQuiet()) return;
+      if (!currentClass || currentClass.id !== cid || laoModel !== m) { laoJob = null; return; }
+      await new Promise((r) => (window.requestIdleCallback ? requestIdleCallback((d) => { laoJob.step(Math.max(8, Math.min(30, d.timeRemaining()))); r(); }, { timeout: 800 }) : setTimeout(() => { laoJob.step(15); r(); }, 30)));
+      if (laoShowLearn || force) renderLaoLearn();
+    }
+    if (!laoJob) return;
+    const rep = laoJob.report(), old = laoSelf(cid) || {};
+    // 合并以前学的（同一条原文以新的为准），最多留 400 条
+    const byT = new Map(); for (const r of (old.rows || []).concat(laoJob.rows())) byT.set(r.text, r);
+    laoSelf(cid, { v: 1, report: rep, rows: Array.from(byT.values()).slice(-400), cfg: rep.cfg, ai: old.ai || 0 });
+    laoJob = null; renderLaoLearn();
+    await laoTeach(force);
+  } catch (e) { laoJob = null; }
+  finally { laoTrainBusy = false; }
+}
+// 本地 AI 当老师：把攒下的「拿不准」消息交给它，学它的答案（并分享给本班其他班委的捞捞）
+async function laoTeach(force) {
+  if (laoTeachBusy || !currentClass || typeof laiReady !== "function" || !laiReady()) return;
+  const cid = currentClass.id, pool = load(LAO_POOL_LS(cid), []);
+  if (!pool.length) return;
+  laoTeachBusy = true;
+  try {
+    const batch = pool.slice(0, 4), rows = [];
+    for (const u of batch) {
+      if (!force && !laoQuiet()) break;
+      try {
+        const out = await laiChat([{ role: "system", content: LaoParse.extractPrompt(u.pub) + (lai.kind === "ollama" ? '\n输出格式：{"items": [ ... ]}' : "") }, { role: "user", content: (u.sender ? u.sender + "：" : "") + u.text }], { json: true });
+        const got = LaoParse.parseJsonItems(out, u.pub);
+        if (got) rows.push({ text: u.text, pub: u.pub, chatter: !got.length, source: "ai", items: got.map(slimItem) });
+      } catch (e) {}
+      const rest = load(LAO_POOL_LS(cid), []).filter((x) => x.text !== u.text); try { save(LAO_POOL_LS(cid), rest); } catch (e) {}
+    }
+    if (rows.length && currentClass && currentClass.id === cid) {
+      await laoSend(rows);
+      const sv = laoSelf(cid) || { v: 1, rows: [] }; sv.ai = (sv.ai || 0) + rows.length; laoSelf(cid, sv); renderLaoLearn();
+    }
+  } finally { laoTeachBusy = false; }
+}
+setInterval(() => { laoTrainTick(false); }, 30000);
+document.addEventListener("visibilitychange", () => { if (document.hidden) setTimeout(() => laoTrainTick(false), 25000); });
+
 // 5.9.0 作业的截止时间可以直接选「下次××课前」（按课程表算）
 function ipNextSel(x) {
   if (x.msg_type !== "作业" || typeof CCNext === "undefined" || !window.ccNextCtx) return "";
@@ -1640,6 +1720,7 @@ $("ingestLocal").onclick = async () => {
   try { model = await ensureLaoModel(); } catch (e) {}
   const r = LaoParse.parse(text, laoPub(), { model });
   parsed = { ...r, items: r.items.map((x) => withShown(x)) };
+  laoPoolAdd(r.unsure);
   // 6.4 认出课表调整：「下周一和周二晚上都不上晚自习」「明天放假」「周三的高数不上了」
   try {
     const ev = load("evening_v1", null), mo = load("morning_v1", null), cd = ck().data || {};
@@ -1664,12 +1745,13 @@ $("ipResult").addEventListener("input", (e) => {
 $("ingestPanel").addEventListener("click", async (e) => {
   const st = $("ingestStatus");
   if (e.target.closest("#ipLearnMore")) { laoShowLearn = !laoShowLearn; renderLaoLearn(); return; }
+  if (e.target.closest("#ipTrainNow")) { laoTrainTick(true); return; }
   const fg = e.target.closest("[data-forget]");
   if (fg) { await laoSend([{ text: "（忘掉）" + fg.dataset.key, pub: laoPub(), chatter: false, source: "forget", items: [{ kind: fg.dataset.forget, key: fg.dataset.key }] }]); return; }
   if (e.target.closest("#ipLearnClear")) {
     if (!confirm("清空本班全部学习记录？捞捞会忘掉所有学到的地名、课程叫法和纠正。")) return;
     try { await CCAuth.rpc("parse_feedback_clear", { cid: currentClass.id }); } catch (err) { if (laoRemoteOk) { alert("清空失败：" + err.message); return; } }
-    laoLocal(currentClass.id, []); await ensureLaoModel(true); return;
+    laoLocal(currentClass.id, []); try { localStorage.removeItem(LAO_SELF_LS(currentClass.id)); localStorage.removeItem(LAO_POOL_LS(currentClass.id)); } catch (err) {} laoJob = null; await ensureLaoModel(true); return;
   }
   if (!parsed) return;
   if (e.target.closest("#ipAdjApply")) {

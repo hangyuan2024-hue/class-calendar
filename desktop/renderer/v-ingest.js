@@ -69,6 +69,8 @@ App.views.ingest = {
     for (const r of (App.S.items || []).filter((r) => r.original && !/^（由/.test(r.original)).slice(-400)) m.learnExample(msgText(r.original), r.msg_type, "history");
     let rows = [];
     try { rows = (await api("parse_feedback_list", { cid }, true)) || []; this.remoteOk = true; } catch (e) { this.remoteOk = false; }
+    this.rows = rows;
+    try { if (window.LaoTrain) LaoTrain.replay(m, this.selfLoad(cid)); } catch (e) {}     // 6.8 以前闲时自学学到的
     const forgets = [];
     for (const r of rows) {
       if (r.source === "forget") { forgets.push(...(r.items || [])); continue; }
@@ -89,11 +91,73 @@ App.views.ingest = {
     if (this.personal()) return;   // 学生的修改只在自己电脑上生效
     try { await api("parse_feedback_add", { cid: App.S.cid, rows }, true); this.remoteOk = true; } catch (e) { this.remoteOk = false; }
   },
+  // ---------- 6.8 闲时自学：电脑没人用的时候（锁屏、离开、夜里），捞捞拿本班发布过的事项自己考自己，学做错的；
+  //            内置 AI 准备好了的话，再请它把攒下的「拿不准」消息教一遍 ----------
+  selfLoad(cid) { try { return JSON.parse(localStorage.getItem("lao_self_v1_" + cid) || "null"); } catch (e) { return null; } },
+  selfSave(cid, v) { try { localStorage.setItem("lao_self_v1_" + cid, JSON.stringify(v)); } catch (e) { try { v.rows = v.rows.slice(-150); localStorage.setItem("lao_self_v1_" + cid, JSON.stringify(v)); } catch (e2) {} } },
+  poolAdd(list) {
+    const cid = App.S.cid; if (!cid || !list || !list.length) return;
+    let pool = []; try { pool = JSON.parse(localStorage.getItem("lao_pool_v1_" + cid) || "[]"); } catch (e) {}
+    const have = new Set(pool.map((x) => x.text));
+    for (const u of list) if (u.text && u.text.length >= 6 && !have.has(u.text)) { pool.push({ text: u.text, sender: u.sender || "", pub: this.pub() }); have.add(u.text); }
+    try { localStorage.setItem("lao_pool_v1_" + cid, JSON.stringify(pool.slice(-40))); } catch (e) {}
+  },
+  async quiet() {
+    let sys = 0; try { sys = await call("sys:idle"); } catch (e) {}
+    const h = new Date().getHours();
+    return sys >= (h >= 23 || h < 6 ? 30 : 180) || (document.hidden && sys >= 20);
+  },
+  async trainTick(force) {
+    if (this.training || !window.LaoTrain || !App.S.cid || !App.feat("ingest_local")) return;
+    if (!force && !(await this.quiet())) return;
+    const cid = App.S.cid; this.training = true;
+    try {
+      const m = await this.ensureModel(); if (!m || App.S.cid !== cid) return;
+      if (!this.job || this.jobFor !== cid) {
+        const sv = this.selfLoad(cid), msgText = (o) => { const x = LaoParse.splitMessages(o || "")[0]; return x ? x.text : String(o || ""); };
+        const samples = LaoTrain.corpus(App.S.items || [], this.rows || [], msgText);
+        if (!force && !LaoTrain.due(sv && sv.report, samples.length)) { await this.teach(force); return; }
+        this.job = LaoTrain.job(LaoParse, m, samples); this.jobFor = cid; this.drawLearn();
+      }
+      let k = 0;
+      while (this.job && this.job.phase !== "done") {
+        if (App.S.cid !== cid || this.model !== m) { this.job = null; return; }
+        if (!force && ++k % 20 === 0 && !(await this.quiet())) return;     // 有人回来用电脑了：先停，下次接着学
+        this.job.step(25); await new Promise((r) => setTimeout(r, 15));
+        if (k % 10 === 0) this.drawLearn();
+      }
+      if (!this.job) return;
+      const rep = this.job.report(), old = this.selfLoad(cid) || {}, byT = new Map();
+      for (const r of (old.rows || []).concat(this.job.rows())) byT.set(r.text, r);
+      this.selfSave(cid, { v: 1, report: rep, rows: Array.from(byT.values()).slice(-400), cfg: rep.cfg, ai: old.ai || 0 });
+      this.job = null; this.drawLearn();
+      await this.teach(force);
+    } catch (e) { this.job = null; }
+    finally { this.training = false; }
+  },
+  async teach(force) {
+    const cid = App.S.cid, ai = App.S.ai || {}; if (!cid || !ai.ready) return;
+    let pool = []; try { pool = JSON.parse(localStorage.getItem("lao_pool_v1_" + cid) || "[]"); } catch (e) {}
+    const rows = [];
+    for (const u of pool.slice(0, 4)) {
+      if (!force && !(await this.quiet())) break;
+      try { const out = await call("ai:extract", (u.sender ? u.sender + "：" : "") + u.text, u.pub), got = LaoParse.parseJsonItems(out, u.pub); if (got) rows.push({ text: u.text, pub: u.pub, chatter: !got.length, source: "ai", items: got.map(slim) }); } catch (e) {}
+      pool = pool.filter((x) => x.text !== u.text); try { localStorage.setItem("lao_pool_v1_" + cid, JSON.stringify(pool)); } catch (e) {}
+    }
+    if (rows.length && App.S.cid === cid) { await this.learn(rows); const sv = this.selfLoad(cid) || { v: 1, rows: [] }; sv.ai = (sv.ai || 0) + rows.length; this.selfSave(cid, sv); this.drawLearn(); }
+  },
+  trainLine() {
+    const cid = App.S.cid; if (!cid || !window.LaoTrain) return "";
+    const sv = this.selfLoad(cid), r = sv && sv.report, pct = (x) => Math.round(x * 100) + "%", running = this.job && this.jobFor === cid;
+    const when = r ? new Date(r.at).toLocaleString("zh-CN", { hour12: false, month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
+    return `<div class="row ig-self"><span>🌙 闲时自学：${running ? `正在复习本班的消息… ${Math.round(this.job.progress * 100)}%` : r ? `${esc(when)} 复习了 ${r.samples} 条本班消息，自测准确率 <b>${pct(r.before)} → ${pct(r.after)}</b>，学会 ${r.learned} 处${sv.ai ? ` · 内置 AI 老师教了 ${sv.ai} 条` : ""}` : "电脑没人用的时候（离开、锁屏或夜里），捞捞会自己复习本班发布过的消息，越用越准"}</span><span class="grow"></span>${running ? "" : `<button class="btn ghost sm" data-train>现在自学一次</button>`}</div>`;
+  },
   drawLearn() {
     const el = $("#igLearn", this.el); if (!el) return;
     if (!this.model) { el.innerHTML = ""; return; }
     const s = this.model.stats(), d = this.model.dump(), c = App.cls(), canClear = c && (c.is_teacher || App.isAdmin());
     el.innerHTML = `<div class="card ig-learn"><div class="row"><span>🧠 捞捞从本班学到：<b>${s.fixes}</b> 次纠正 · <b>${s.places}</b> 个地名 · <b>${s.aliases}</b> 个课程叫法 · <b>${s.periods}</b> 个上课时间 · 参考历史事项 ${s.history} 条</span><span class="grow"></span><button class="btn ghost sm" data-learn>${this.showLearn ? "收起" : "查看"}</button></div>
+      ${this.trainLine()}
       ${this.remoteOk === false ? `<div class="muted">学习记录暂时只在这台电脑上生效。</div>` : ""}
       ${this.showLearn ? `<div class="ig-ld"><p class="muted">在下面的整理结果里改类型、地点、科目、时间，点「不是事项」或「这条要记」，发布时捞捞都会记下来。学到的东西本班有整理权限的人共享。</p>
         ${[["places", "地名", d.places.map((p) => [p, p])], ["aliases", "课程叫法", Object.entries(d.aliases).map(([a, n]) => [a, `${a} → ${n}`])], ["periods", "上课时间", Object.entries(d.periods).map(([k, v]) => [k, `第${k}节 → ${v}`])], ["notPlaces", "不算地点的词", d.notPlaces.map((p) => [p, p])]]
@@ -109,6 +173,7 @@ App.views.ingest = {
     let model = null; try { model = await this.ensureModel(); } catch (e) {}
     const r = LaoParse.parse(text, this.pub(), { model });
     this.parsed = { ...r, items: r.items.map((x) => ({ ...x, on: true, src: "", _shown: slim(x) })) };
+    this.poolAdd(r.unsure);
     // 6.4 认出课表调整：「下周一和周二晚上都不上晚自习」「明天放假」「周三的高数不上了」
     try {
       const ev = KV("evening_v1"), names = [...new Set(((App.S.courses || {}).courses || []).map((c) => c.name))];
@@ -207,7 +272,8 @@ App.views.ingest = {
     const P = this.parsed;
     if (e.target.closest("[data-learn]")) { this.showLearn = !this.showLearn; this.drawLearn(); return; }
     const fg = e.target.closest("[data-forget]"); if (fg) { await this.learn([{ text: "（忘掉）" + fg.dataset.key, pub: this.pub(), chatter: false, source: "forget", items: [{ kind: fg.dataset.forget, key: fg.dataset.key }] }]); return; }
-    if (e.target.closest("[data-learn-clear]")) { if (!(await confirmBox("清空本班全部学习记录？", "捞捞会忘掉所有学到的地名、课程叫法和纠正。", "清空", true))) return; try { await api("parse_feedback_clear", { cid: App.S.cid }); } catch (err) { return; } await this.ensureModel(true); return; }
+    if (e.target.closest("[data-learn-clear]")) { if (!(await confirmBox("清空本班全部学习记录？", "捞捞会忘掉所有学到的地名、课程叫法和纠正。", "清空", true))) return; try { await api("parse_feedback_clear", { cid: App.S.cid }); } catch (err) { return; } try { localStorage.removeItem("lao_self_v1_" + App.S.cid); localStorage.removeItem("lao_pool_v1_" + App.S.cid); } catch (err) {} this.job = null; await this.ensureModel(true); return; }
+    if (e.target.closest("[data-train]")) { this.trainTick(true); return; }
     if (!P) return;
     const ni = e.target.closest("[data-notitem]");
     if (ni) { const x = P.items[+ni.dataset.notitem]; P.items = P.items.filter((y) => y !== x); if (!P.items.some((y) => y.src_text === x.src_text)) { P.chatter.push(x.src_text); this.learn([{ text: x.src_text, pub: x.publish_date || this.pub(), chatter: true, source: "user", items: [] }]); } this.drawRes(); return; }
@@ -262,3 +328,6 @@ App.views.ingest = {
     } catch (e) { btn.disabled = false; }
   },
 };
+
+// 6.8 每分钟看一眼电脑是不是没人用；没人用就让捞捞自学一会儿
+setInterval(() => { try { App.views.ingest.trainTick(false); } catch (e) {} }, 60000);

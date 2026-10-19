@@ -27,6 +27,7 @@ console.log("从网站同步代码：", SITE);
 
 // 1. 共用的规则和配置
 copy(S("parse.js"), path.join(DESK, "core", "parse.js"));
+copy(S("lao-train.js"), path.join(DESK, "core", "lao-train.js"));   // 6.8 闲时自学
 copy(S("island-core.js"), path.join(DESK, "core", "island-core.js"));
 copy(S("coach-core.js"), path.join(DESK, "core", "coach-core.js"));
 copy(S("memo-core.js"), path.join(DESK, "core", "memo-core.js"));
