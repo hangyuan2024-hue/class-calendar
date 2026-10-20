@@ -188,7 +188,7 @@
       <div class="wl-grid">${S.langs.map((l) => `<button class="wl" data-new="${l.id}"><b>${esc(l.name)}</b><small class="${l.ready ? "ok" : ""}">${l.ready ? "✓ 能直接用" : "点一下自动安装 · " + esc(l.size)}</small></button>`).join("")}</div>
       ${rec.length ? `<div class="wl-sec">最近打开</div><div class="wl-recent">${rec.map((f) => `<button data-open="${esc(f)}"><b>${esc(base(f))}</b><small>${esc(f)}</small></button>`).join("")}</div>` : ""}
       <div class="wl-sec">刚开始学？</div>
-      <div class="wl-tip">左边「练习」里有 ${S.exercises.length} 道入门题，从 Hello World 开始，一道一道来。每道题写完点「检查」，自动帮你跑测试。${p.solved ? `你已经做对了 <b>${p.solved}</b> 道。` : ""}</div>`;
+      <div class="wl-tip">左边「练习」里有 ${S.exercises.length} 道题：入门 15 题从 Hello World 开始，还有计算机二级 C 语言、二级 Python 和经典算法题库。每道题写完点「检查」，自动帮你跑测试。${p.solved ? `你已经做对了 <b>${p.solved}</b> 道。` : ""}</div>`;
   }
   $("#welcome").addEventListener("click", (e) => {
     const n = e.target.closest("[data-new]"); if (n) newFileDialog(n.dataset.new);
@@ -331,23 +331,38 @@
   window.cc.on("install", (p) => { if (install.on) install.on(p); });
 
   // ================= 练习 =================
+  // 6.8 题库：入门 / 计算机二级 C / 二级 Python / 经典算法，上面选，下面列这个题库的题
+  const banks = () => S.banks && S.banks.length ? S.banks : [{ id: "intro", name: "入门", levels: {} }];
+  const curBank = () => { const b = LS.get("exBank", "intro"); return banks().find((x) => x.id === b) || banks()[0]; };
+  const bankEx = (b) => S.exercises.filter((e) => (e.bank || "intro") === b.id);
   function paintExList() {
     const p = S.progress || {}, done = (id) => p.ex && p.ex[id] && p.ex[id].done, tried = (id) => p.ex && p.ex[id] && !p.ex[id].done;
-    const n = S.exercises.filter((e) => done(e.id)).length;
-    $("#exCount").textContent = `${n}/${S.exercises.length}`;
-    $("#exStat").innerHTML = `做对了 <b>${n}</b> / ${S.exercises.length} 道${p.streak ? ` · 🔥 连续 ${p.streak} 天` : ""}<div class="ex-bar"><i style="width:${(n / S.exercises.length) * 100}%"></i></div>`;
-    const t = tabs[cur], LV = { 1: "第一关 · 输入输出和判断", 2: "第二关 · 循环", 3: "第三关 · 数组和字符串" };
+    const all = S.exercises.filter((e) => done(e.id)).length, B = curBank(), list = bankEx(B), n = list.filter((e) => done(e.id)).length;
+    $("#exCount").textContent = `${all}/${S.exercises.length}`;
+    $("#exStat").innerHTML = `<select id="exBank" class="ex-bank" aria-label="题库">${banks().map((b) => { const L = bankEx(b), d = L.filter((e) => done(e.id)).length; return `<option value="${b.id}"${b.id === B.id ? " selected" : ""}>${esc(b.name)}（${d}/${L.length}）</option>`; }).join("")}</select>
+      <div class="ex-note">${esc(B.note || "")}${(B.links || []).length ? `<div class="ex-links">${B.links.map((l) => `<a href="#" data-url="${esc(l[1])}">${esc(l[0])} ↗</a>`).join("")}</div>` : ""}</div>
+      做对了 <b>${n}</b> / ${list.length} 道${p.streak ? ` · 🔥 连续 ${p.streak} 天` : ""}<div class="ex-bar"><i style="width:${list.length ? (n / list.length) * 100 : 0}%"></i></div>`;
+    const t = tabs[cur], LV = B.levels || {};
     let html = "", lv = 0;
-    for (const e of S.exercises) {
+    for (const e of list) {
       if (e.level !== lv) { lv = e.level; html += `<div class="ex-lv">${LV[lv] || "第 " + lv + " 关"}</div>`; }
       html += `<button class="ex${done(e.id) ? " done" : tried(e.id) ? " tried" : ""}${t && t.ex === e.id ? " on" : ""}" data-ex="${e.id}"><span class="st">✓</span><span class="t"><b>${esc(e.title)}</b><small>${esc(e.topic)}</small></span></button>`;
     }
     $("#exList").innerHTML = html;
   }
   $("#exList").addEventListener("click", (e) => { const b = e.target.closest("[data-ex]"); if (b) openExercise(b.dataset.ex); });
+  $("#exStat").addEventListener("change", (e) => { if (e.target.id === "exBank") { LS.set("exBank", e.target.value); paintExList(); $("#exList").scrollTop = 0; } });
+  $("#exStat").addEventListener("click", (e) => { const a = e.target.closest("[data-url]"); if (a) { e.preventDefault(); call("openUrl", a.dataset.url); } });
   function openExercise(id) {
     const ex = S.exercises.find((e) => e.id === id); if (!ex) return;
     const open = tabs.find((t) => t.ex === id); if (open) { switchTab(tabs.indexOf(open)); return; }
+    // 二级 C / 二级 Python：语言是定好的，不用选
+    const fixed = (banks().find((b) => b.id === ex.bank) || {}).lang;
+    if (fixed) {
+      const L = S.langs.find((l) => l.id === fixed);
+      if (L && !L.ready) { conSys(`这个题库要用 ${esc(L.name)}，先装一下`, "warn"); return install(L, () => openExercise(id)); }
+      return (async () => { const f = await call("exOpen", id, fixed); await refreshFiles(); const t = await openFile(f); if (t) { const n = t.doc.lineCount(); for (let i = 0; i < n; i++) if (/在这里写代码/.test(t.doc.getLine(i))) { cm.setCursor(i + 1, 4); break; } } })().catch((e) => conSys("✗ " + esc(e.message), "bad"));
+    }
     let pick = LS.get("exLang", LS.get("lastLang", "c"));
     dialog(`<h3>${esc(ex.title)}</h3><p>用哪种语言做这道题？</p><div class="lang-pick">${S.langs.map((l) => `<button type="button" data-l="${l.id}" class="${l.id === pick ? "on" : ""}">${esc(l.name)}<small>${l.ready ? "能直接用" : "要先安装"}</small></button>`).join("")}</div><div class="acts"><button class="btn" value="cancel">取消</button><button class="btn pri" id="exGo" value="default">开始</button></div>`, (body) => {
       $(".lang-pick", body).addEventListener("click", (e) => { const b = e.target.closest("[data-l]"); if (b) { pick = b.dataset.l; $$(".lang-pick button", body).forEach((x) => x.classList.toggle("on", x === b)); } });
@@ -393,8 +408,8 @@
     }
   }
   function nextTip(ex) {
-    const i = S.exercises.indexOf(ex), nx = S.exercises.slice(i + 1).find((e) => !(S.progress.ex && S.progress.ex[e.id] && S.progress.ex[e.id].done));
-    return nx ? ` 下一道：<b>${esc(nx.title)}</b>（左边「练习」里点开）` : " 全部题目都做完了，太强了！";
+    const same = S.exercises.filter((e) => (e.bank || "intro") === (ex.bank || "intro")), i = same.indexOf(ex), nx = same.slice(i + 1).find((e) => !(S.progress.ex && S.progress.ex[e.id] && S.progress.ex[e.id].done));
+    return nx ? ` 下一道：<b>${esc(nx.title)}</b>（左边「练习」里点开）` : " 这个题库的题都做完了，太强了！换个题库继续？";
   }
   $("#checkBtn").onclick = checkEx;
   function confetti() { if (matchMedia("(prefers-reduced-motion: reduce)").matches) return; const C = ["#2f5fd0", "#1f8a5b", "#e0683a", "#ffd23f", "#ff9db5"]; for (let i = 0; i < 60; i++) { const d = document.createElement("i"); d.className = "confetti"; d.style.left = Math.random() * 100 + "vw"; d.style.background = C[i % C.length]; d.style.animationDelay = Math.random() * .5 + "s"; d.style.animationDuration = 1.2 + Math.random() * 1.2 + "s"; document.body.appendChild(d); setTimeout(() => d.remove(), 3000); } }

@@ -30,7 +30,7 @@ const C = {
 };
 (async () => {
   assert.ok(same("请输入两个数：7\n", "7") && same("Hello, World!  \n\n", "Hello, World!") && !same("8", "7") && !same("17", "7"));
-  for (const ex of EX) {
+  for (const ex of EX.filter((e) => e.bank === "intro")) {
     const f = path.join(dir, ex.id + ".py"); fs.writeFileSync(f, PY[ex.id]);
     const r = await check(ex, (inp) => runOnce("python", f, opt, inp));
     assert.ok(r.pass, ex.title + " 标准答案没过：" + JSON.stringify(r.results.slice(-1)));

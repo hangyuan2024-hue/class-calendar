@@ -4,7 +4,7 @@
 
 - 自带：C / C++（MinGW-w64 GCC）、Python 3.12、llama.cpp + 通义千问 Qwen2.5-Coder 1.5B
 - 一键安装：Java（JDK 21）、JavaScript（Node.js 20）、Go（国内镜像优先，装在 `%APPDATA%\LaolaoCode\toolchains`）
-- 15 道入门练习（任何语言都能做，「检查」自动跑测试），登录捞捞账号后进度同步（`user_kv` 的 `code_progress_v1` / `code_days_v1`）
+- 74 道练习，分 4 个题库：入门 15 题（任何语言）、计算机二级 C（27 题，按 NCRE 考纲原创）、二级 Python（20 题）、经典算法（12 题）；「检查」自动跑测试。题库在 `tools/bank-specs.js`，改完运行 `node tools/build-banks.js` 生成 `core/banks.js`，登录捞捞账号后进度同步（`user_kv` 的 `code_progress_v1` / `code_days_v1`）
 - 代码默认放在「文档\捞捞编程」
 
 ## 目录

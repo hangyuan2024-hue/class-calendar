@@ -8,7 +8,7 @@ const { Session, runOnce } = require("./runner");
 const TC = require("./toolchains");
 const AI = require("./ai");
 const { messages, options: tutorOptions } = require("./tutor");
-const { EX, starter, check } = require("./exercises");
+const { EX, BANKS, starter, check } = require("./exercises");
 const { Progress, sync } = require("./account");
 
 // env：{ dev, res, user, documents, version, platform, send(ch, data), pickDir(), pickFile(exts), trash(f), reveal(f), openPath(d), openExternal(u), siteConfig }
@@ -122,7 +122,7 @@ function createService(env) {
       const ws = workspace();
       return {
         dev: DEV, version: env.version, platform: env.platform || process.platform, workspace: ws, files: listFiles(ws), settings,
-        langs: langStatus(), exercises: EX.map((e) => ({ id: e.id, title: e.title, level: e.level, topic: e.topic, desc: e.desc, tests: e.tests.length, sample: e.tests[0] })),
+        langs: langStatus(), exercises: EX.map((e) => ({ id: e.id, bank: e.bank, title: e.title, level: e.level, topic: e.topic, desc: e.desc, tests: e.tests.length, sample: e.tests[0] })), banks: BANKS,
         progress: progress.summary(), me, ai: aiState, model: AI.MODEL.name,
       };
     },
@@ -236,7 +236,8 @@ function createService(env) {
     },
     async logout() { if (api) await api.signOut(); me = null; return true; },
     async syncNow() { const r = await syncNow(); return { r, progress: progress.summary() }; },
-    openUrl(u) { if (/^https:\/\/(www\.)?laolaokechengbiao\.cn\//.test(String(u))) env.openExternal(u); return true; },
+    // 只打开自己网站和题库里列出的几个知名题库网站
+    openUrl(u) { u = String(u); if (/^https:\/\/(www\.)?laolaokechengbiao\.cn\//.test(u) || BANKS.some((b) => (b.links || []).some((l) => l[1] === u))) env.openExternal(u); return true; },
   };
 
   api = makeApi();

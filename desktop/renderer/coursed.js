@@ -85,7 +85,9 @@ const CourseEd = {
     openOverlay(d);
   },
   // ---------- 截图识别导入 ----------
-  async importShot(file) {
+  // 出错时（图片坏了、剪贴板读不出）要告诉人，不能一点反应都没有
+  async importShot(file) { try { return await this.importShot0(file); } catch (e) { toast("截图导入没成功：" + cleanErr(e)); } },
+  async importShot0(file) {
     let b64 = null;
     if (file) b64 = await this.compress(file);
     else {
@@ -116,7 +118,8 @@ const CourseEd = {
     } catch (e) { st.textContent = "没成功：" + cleanErr(e); st.classList.add("bad"); }
   },
   async compress(file) {
-    const url = URL.createObjectURL(file);
+    // 6.8 修：以前用 blob: 地址读图，被页面的安全策略（只许 data:）拦住，点「截图导入」没反应
+    const url = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error("图片读不出来，请换成 JPG 或 PNG")); r.readAsDataURL(file); });
     try {
       const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("图片打不开，请换成 JPG 或 PNG")); i.src = url; });
       let max = 2200, q = 0.9, out = "";
@@ -129,7 +132,7 @@ const CourseEd = {
         max = Math.round(max * 0.8); q -= 0.08;
       }
       return out;
-    } finally { URL.revokeObjectURL(url); }
+    } finally {}
   },
   review(res, b64) {
     const rows = (res.courses || []).map((c) => ({ on: true, name: c.name, day: c.day, start: c.start, end: c.end, weeks: c.weeks || "", location: c.location || "", teacher: c.teacher || "", conf: c.conf, orig: { name: c.name, location: c.location || "", teacher: c.teacher || "" } }));

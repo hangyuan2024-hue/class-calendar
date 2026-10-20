@@ -12,7 +12,6 @@ const PLAN_METHODS = [
   { id: "pdca", icon: "🔄", name: "PDCA 循环", tag: "计划 → 执行 → 检查 → 改进", intro: "PDCA 循环（戴明环）把一件事分成四步，一轮一轮地做得更好：\nP 计划（Plan）：定目标、想方法；D 执行（Do）：按计划去做；C 检查（Check）：对照目标看效果，找出问题；A 改进（Act）：好的方法保留下来，没解决的问题放进下一轮的计划。\n适合：备考、学一门技能、准备比赛这类需要反复改进的事。" },
   { id: "smart", icon: "🏹", name: "SMART 目标", tag: "把目标定清楚", intro: "SMART 原则帮你把模糊的愿望变成能落地的目标，一个好目标要满足五点：\nS 具体（Specific）：说清楚要做成什么；M 可衡量（Measurable）：用数字判断完成没有；A 可实现（Achievable）：努力一下够得着；R 相关（Relevant）：和你真正想要的东西有关；T 有时限（Time-bound）：有明确的截止日期。\n例子：把「我要学好英语」改成「11 月 30 日前每天背 30 个四级单词，周末自测正确率达到 80%」。" },
   { id: "ivy", icon: "📋", name: "六件事法", tag: "每天只排最重要的 6 件", intro: "六件事法（艾维·李效率法）：\n1. 每天睡前写下明天最重要的 6 件事；2. 按重要程度排好顺序；3. 第二天从第 1 件开始做，做完一件再做下一件；4. 没做完的移到第二天的清单里。\n它的好处是逼自己做取舍、一次只专注一件事，不会被一长串待办吓到。" },
-  { id: "pomo", icon: "🍅", name: "番茄工作法", tag: "专注 25 分钟，休息 5 分钟", intro: "番茄工作法：选一件事，定 25 分钟（一个「番茄」）全神贯注地做，中途不看手机；时间到了休息 5 分钟；每完成 4 个番茄，休息 15~30 分钟。\n小技巧：把大任务拆成几个番茄能做完的小块；被打断就记下来，等番茄结束再处理。" },
 ];
 const PD = [["p", "P", "计划", "目标是什么？打算怎么做？"], ["d", "D", "执行", "实际做了什么？记录过程"], ["c", "C", "检查", "效果怎么样？和目标差多少？问题在哪？"], ["a", "A", "改进", "哪些做法保留？哪些问题放进下一轮？"]];
 const SM = [["s", "S", "具体", "要做成什么样？越具体越好"], ["m", "M", "可衡量", "用什么数字判断完成了？"], ["a", "A", "可实现", "需要什么条件？每天做多少？"], ["r", "R", "相关", "为什么这件事对你重要？"]];
@@ -24,7 +23,7 @@ App.views.plan = {
   cur() { const c = this.notes().cur; return PLAN_METHODS.some((m) => m.id === c) ? c : "quad"; },
   mount(el) {
     el.innerHTML = `
-      <div class="vhead"><div><h1>规划</h1><div class="sub">五种时间管理方法，选一种用起来；和网页版、手机上同步</div></div><span class="grow"></span>
+      <div class="vhead"><div><h1>规划</h1><div class="sub">四种时间管理方法，选一种用起来（番茄钟在「专注计时」里）；和网页版、手机上同步</div></div><span class="grow"></span>
         <div class="seg" id="plTabs"></div></div>
       <div class="vbody"><div id="plIntro"></div><div id="plBody"></div></div>`;
     $("#plTabs", el).onclick = (e) => { const b = e.target.closest("[data-pm]"); if (!b) return; if (b.dataset.pm === "pomo") { App.go("focus"); return; } this.editIntro = false; kvSet("plan_notes_v1", "cur", b.dataset.pm); };

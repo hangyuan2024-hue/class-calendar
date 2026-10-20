@@ -1,7 +1,7 @@
 // 捞捞编程 · 入门练习：每题给输入、看输出，任何语言都能做；写完点「检查」自动跑测试
 "use strict";
 
-const EX = [
+const INTRO = [
   { id: "hello", level: 1, title: "Hello, World!", topic: "输出",
     desc: "让程序输出一行：\n\nHello, World!\n\n（注意大小写、逗号和感叹号都要一样）",
     tests: [{ in: "", out: "Hello, World!" }] },
@@ -49,6 +49,25 @@ const EX = [
     tests: [{ in: "hello world\n", out: "dlrow olleh" }, { in: "abc\n", out: "cba" }, { in: "A man a plan\n", out: "nalp a nam A" }] },
 ];
 
+// 6.8 题库：入门 15 题 + 计算机二级 C / Python（按考纲原创的同类题）+ 经典算法（core/banks.js，由 tools/build-banks.js 生成）
+for (const e of INTRO) e.bank = "intro";
+const BANKS = [
+  { id: "intro", name: "入门 15 题", short: "入门", levels: { 1: "第一关 · 输入输出和判断", 2: "第二关 · 循环", 3: "第三关 · 数组和字符串" },
+    note: "零基础从这里开始，任何语言都能做。" },
+  { id: "ncre-c", name: "计算机二级 · C 语言", short: "二级 C", lang: "c",
+    levels: { 1: "基本运算和选择结构", 2: "循环结构", 3: "数组", 4: "字符串和指针", 5: "函数、结构体和位运算" },
+    note: "按全国计算机等级考试（NCRE）二级 C 语言考试大纲的知识点出的程序设计题，用 C 语言做。是原创的同类题，不是真题原题。",
+    links: [["考试大纲和报名（教育部考试中心）", "https://ncre.neea.edu.cn/"]] },
+  { id: "ncre-py", name: "计算机二级 · Python", short: "二级 Python", lang: "python",
+    levels: { 1: "基本语法和格式化输出", 2: "程序控制结构", 3: "组合数据类型（列表、字典、集合）", 4: "字符串处理和函数" },
+    note: "按 NCRE 二级 Python 考试大纲的知识点出的编程题，用 Python 做（文件读写换成了键盘输入）。是原创的同类题，不是真题原题。",
+    links: [["考试大纲和报名（教育部考试中心）", "https://ncre.neea.edu.cn/"]] },
+  { id: "classic", name: "经典算法题", short: "经典算法", levels: { 1: "枚举", 2: "数组和查找", 3: "递归、栈和字符串", 4: "模拟和回溯" },
+    note: "程序设计课和竞赛入门最常见的题型，任何语言都能做。做完想挑战更多，可以去下面这些知名题库。",
+    links: [["PTA 程序设计类实验辅助教学平台", "https://pintia.cn/problem-sets"], ["洛谷 · 入门题单", "https://www.luogu.com.cn/training/list"], ["力扣 LeetCode 中国", "https://leetcode.cn/problemset/"]] },
+];
+const EX = INTRO.concat(require("./banks"));
+
 // 新开一道题时的代码：只放一个架子，让同学自己写
 const STARTER = {
   c: "#include <stdio.h>\n\nint main(void) {\n    // 在这里写代码\n\n    return 0;\n}\n",
@@ -91,4 +110,4 @@ async function check(ex, run) {
   return { pass: results.length === ex.tests.length && results.every((x) => x.ok), results };
 }
 
-module.exports = { EX, starter, check, same, norm };
+module.exports = { EX, BANKS, starter, check, same, norm };

@@ -111,7 +111,7 @@ function lockNavigation(w) {
   w.webContents.on("will-navigate", (e, url) => { if (!url.startsWith("file:")) { e.preventDefault(); if (/^https?:/i.test(url)) shell.openExternal(url); } });
   // 插件运行在 sandbox.html 隔离间里（不同源的 iframe），只允许它被嵌进来，不允许它打开别的页面
   // 6.8 思维导图也在 iframe 里：只放行本机思维导图服务（core/mm-server.js，127.0.0.1:18097 起）
-  w.webContents.on("will-frame-navigate", (e) => { if (!e.isMainFrame && !/^file:.*\/sandbox\.html$/.test(e.url) && !/^about:/.test(e.url) && !/^http:\/\/127\.0\.0\.1:1(809[7-9]|810[0-2])\//.test(e.url)) e.preventDefault(); });
+  w.webContents.on("will-frame-navigate", (e) => { if (!e.isMainFrame && !/^file:.*\/sandbox\.html$/.test(e.url) && !/^(about|blob):/.test(e.url) && !/^http:\/\/127\.0\.0\.1:1(809[7-9]|810[0-2])\//.test(e.url)) e.preventDefault(); });
 }
 function showMain(view) {
   if (!win || win.isDestroyed()) createMain();
