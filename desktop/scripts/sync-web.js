@@ -68,7 +68,8 @@ for (const m of MODS) {
 {
   const MM = S("learn", "mindmap"), OUT = R("web", "mindmap");
   fs.rmSync(OUT, { recursive: true, force: true });
-  const skip = /^(tools|server\.js|js\/ai-server\.cjs|js\/ai-summary\.cjs|.*\.md|\.gitignore)$/;
+  // 6.8 新版要本机服务：js/*.cjs 要带上（主进程 core/mm-server.js 用）；网页版专用的 sw.js、runtime/ 不要
+  const skip = /^(tools|runtime|sw\.js|server\.js|package\.json|.*\.md|\.gitignore)$/;
   const walk = (rel) => {
     for (const f of fs.readdirSync(path.join(MM, rel))) {
       const r = rel ? rel + "/" + f : f;

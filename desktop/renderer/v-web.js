@@ -21,7 +21,7 @@ App.views.study = {
 };
 
 // ---------- 思维导图 ----------
-// 6.5 新版（「捞捞学习」learn/mindmap/，队友做的）：整个页面在 iframe 里跑（renderer/web/mindmap/，sync-web 拷来），
+// 6.5 新版（「捞捞学习」learn/mindmap/，队友做的）：整个页面在 iframe 里跑（renderer/web/mindmap/，sync-web 拷来；6.8 起由主进程的本机服务提供），
 // 它要调 mm_* 接口、问现在是谁，都经过这里（协议见网站 learn/mindmap/js/host-bridge.js）
 App.views.mindmap = {
   title: "思维导图", icon: "mindmap", ownKeys: true,
@@ -45,9 +45,13 @@ App.views.mindmap = {
         WebShim.scope.CCAuth.rpc(d.fn, d.args || {}).then((r) => post({ t: "rpc-r", id, ok: true, data: r }), (e) => post({ t: "rpc-r", id, ok: false, error: (e && e.message) || "请求失败" }));
       } else if (d.t === "rev") WebShim.save("mm_rev_v1", { t: Date.now() });   // 记进账号同步：网页、手机上就知道导图改过了
     });
-    WebShim.scope.Sync.onChange((set) => { if (set && set.has && set.has("mm_rev_v1")) post({ t: "changed" }); });
+    // 页面架子在 webshim.js 加载之前就搭好了：等它加载完再挂同步（6.8 修：以前这里直接用会报错，iframe 不加载）
+    const hookSync = () => { if (!window.WebShim) return setTimeout(hookSync, 300); try { WebShim.scope.Sync.onChange((set) => { if (set && set.has && set.has("mm_rev_v1")) post({ t: "changed" }); }); } catch (e) {} };
+    hookSync();
     window.cc.on("state", () => setTimeout(() => { const u = who(); if ((u ? u.id : "") !== lastUid) sendUser(); }, 0));
-    f.src = "web/mindmap/index.html?host=desktop";
+    // 6.8 新版思维导图要一个本机服务（导图文件、附件、大模型），由主进程提供（core/mm-server.js）
+    call("mm:port").then((port) => { f.src = "http://127.0.0.1:" + port + "/index.html?host=desktop"; })
+      .catch((e) => { f.srcdoc = "<p style='font:14px sans-serif;padding:24px;color:#a33'>" + esc(e.message || "思维导图打不开") + "</p>"; });
   },
   update() {},
   show(a) {
