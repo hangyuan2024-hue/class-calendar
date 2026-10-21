@@ -263,3 +263,61 @@ button.hw-read{color:var(--accent,#2563eb);padding:0;background:none;border:0;cu
 .w-r .w-n { flex: 1; min-width: 0; } .w-r small { color: var(--sub, #6b7280); font-size: 12px; }
 .w-act { grid-column: 1 / -1; display: flex; gap: 6px; flex-wrap: wrap; }
 @media (max-width: 560px) { .w-home { grid-template-columns: minmax(0, 1fr); } }
+/* 6.9 首页点课程：这门课在课表 / 原图里的位置 */
+.csbox.on { border: 3px solid #ff7a45; background: rgba(255,122,69,.16); box-shadow: 0 0 0 9999px rgba(20,25,35,.28); cursor: default; }
+#crsViewDlg .csrc-in { overflow: hidden; border-radius: 10px; }
+#crsViewDlg .cv-note { display: block; color: var(--muted, #7d898e); margin: 8px 2px; font-size: 12.5px; }
+.wcourse .crow[data-cview] { cursor: pointer; border-radius: 8px; }
+.wcourse .crow[data-cview]:hover { background: rgba(83,102,232,.07); }
+.hx[data-cview] { cursor: pointer; }
+/* 6.9 账号等级 */
+.lv-chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px 1px 7px; border-radius: 999px; background: linear-gradient(90deg, #ffb547, #ff7a45); color: #fff; font-size: 11px; font-weight: 800; line-height: 1.6; vertical-align: 1px; white-space: nowrap; }
+.lv-chip i { font-style: normal; font-weight: 600; opacity: .92; }
+.lv-chip.sm { font-size: 10px; padding: 0 6px; }
+.lv-me { display: block; margin-top: 6px; }
+.lv-wrap { margin: 12px 16px 0; }
+.lv-card { padding: 14px 16px; display: block; }
+.lv-card > b { display: block; margin-bottom: 4px; }
+.lv-card > span { color: var(--sub); font-size: 13px; }
+.lv-top { display: flex; align-items: center; gap: 12px; }
+.lv-top > span:nth-child(2) { flex: 1; display: flex; flex-direction: column; }
+.lv-top small { color: var(--sub); font-size: 12px; }
+.lv-big { font-size: 26px; font-weight: 900; color: #ff7a45; letter-spacing: -.5px; }
+.lv-bar { height: 8px; border-radius: 99px; background: var(--line); margin: 10px 0 4px; overflow: hidden; }
+.lv-bar i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #ffb547, #ff7a45); transition: width .5s; }
+.lv-next { color: var(--sub); font-size: 12px; }
+.lv-rules { margin-top: 8px; font-size: 12.5px; color: var(--sub); }
+.lv-rules ul { margin: 6px 0 0; padding-left: 18px; line-height: 1.8; }
+.lv-toast { position: fixed; left: 50%; bottom: calc(86px + env(safe-area-inset-bottom)); transform: translate(-50%, 20px); opacity: 0; pointer-events: none; z-index: 9999;
+  background: #1d2433; color: #fff; padding: 9px 16px; border-radius: 999px; font-size: 13.5px; font-weight: 700; box-shadow: 0 8px 24px rgba(0,0,0,.18); transition: .25s; max-width: calc(100vw - 32px); text-align: center; }
+.lv-toast.on { opacity: 1; transform: translate(-50%, 0); }
+.lv-toast.bad { background: #b3402a; }
+/* 6.9 位置签到 */
+#ckBanner:empty { display: none; }
+.ck-banner { display: flex; align-items: center; gap: 10px; margin: 10px 16px 0; padding: 12px 14px; border: 1.5px solid #ffb547; background: linear-gradient(90deg, rgba(255,181,71,.12), transparent); }
+.ck-ic { font-size: 22px; }
+.ck-t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ck-t small { color: var(--sub); font-size: 12px; }
+.ck-ok { color: #1f8a5b; font-weight: 800; font-size: 13px; white-space: nowrap; }
+.ck-miss { color: var(--sub); font-size: 12.5px; }
+.ck-dlg { width: min(560px, calc(100vw - 24px)); }
+.ck-dlg h3 small { display: block; color: var(--sub); font-weight: 500; font-size: 12.5px; }
+.ck-dlg .row { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
+.ck-dlg .row input { flex: 1; }
+.ck-opts label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--sub); }
+.ck-new { border: 1px dashed var(--line); border-radius: 12px; padding: 10px 12px; margin: 10px 0; }
+.ck-new summary { font-weight: 800; cursor: pointer; }
+.ck-st { font-size: 12.5px; color: var(--sub); } .ck-st.bad { color: #b3402a; }
+.ck-row { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.ck-row.open .ck-t b::before { content: "● "; color: #ff7a45; }
+.ck-detail h4 { margin: 14px 0 6px; }
+.ck-names { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 6px 0; font-size: 13px; }
+.ck-names > b { width: 100%; }
+.ck-name { padding: 3px 10px; border-radius: 999px; background: var(--muted-bg, #f1f1ee); }
+.ck-name.ok { background: rgba(31,138,91,.12); color: #1f8a5b; }
+.ck-name small { margin-left: 4px; opacity: .7; }
+.ck-foot { font-size: 12px; color: var(--sub); margin-top: 12px; }
+.hplace { flex-shrink: 0; display: inline-flex; align-items: center; gap: 2px; padding: 6px 8px; border-radius: 999px; border: 1.5px dashed var(--line); font-size: 14px; opacity: .65; background: transparent; }
+.hplace.on { opacity: 1; border-style: solid; border-color: #ffb547; }
+.hplace small { font-size: 11px; max-width: 5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#rankBox .lv-card { margin: 0 16px 12px; }

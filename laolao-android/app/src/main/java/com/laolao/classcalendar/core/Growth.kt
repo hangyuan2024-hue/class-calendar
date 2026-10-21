@@ -35,8 +35,16 @@ object Growth {
         if (now) Coach.record(Coach.Ev(System.currentTimeMillis(), "habit", id))
         val c = Store.cls
         if (c != null && !c.optBoolean("is_teacher") && Store.feat("rank")) Bg.run { try { Api.rpc("growth_log", jsonOf("cid" to c.str("id"), "k" to "habit", "r" to "$id|$t", "undo" to !now)) } catch (_: Exception) {} }
+        Level.log("habit", "$id|$t", !now)
         Bus.emit("data")
         return now
+    }
+    /** 6.9 习惯绑的打卡地点 { name, lat, lng, r }（和网页、小程序同一个字段 place） */
+    fun place(id: String): JSONObject? = Kv.arr(HABITS).objs().firstOrNull { it.str("id") == id }?.optJSONObject("place")
+    fun setPlace(id: String, p: JSONObject?) {
+        val list = Kv.arr(HABITS)
+        for (x in list.objs()) if (x.str("id") == id) { if (p == null) x.remove("place") else x.put("place", p) }
+        Kv.set(HABITS, list); Bus.emit("data")
     }
     fun add(name: String, icon: String): Boolean {
         val n = name.trim(); if (n.isEmpty()) return false

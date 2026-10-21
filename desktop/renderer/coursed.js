@@ -135,7 +135,7 @@ const CourseEd = {
     } finally {}
   },
   review(res, b64) {
-    const rows = (res.courses || []).map((c) => ({ on: true, name: c.name, day: c.day, start: c.start, end: c.end, weeks: c.weeks || "", location: c.location || "", teacher: c.teacher || "", conf: c.conf, orig: { name: c.name, location: c.location || "", teacher: c.teacher || "" } }));
+    const rows = (res.courses || []).map((c) => ({ on: true, name: c.name, day: c.day, start: c.start, end: c.end, weeks: c.weeks || "", location: c.location || "", teacher: c.teacher || "", conf: c.conf, box: Array.isArray(c.box) ? c.box : null, orig: { name: c.name, location: c.location || "", teacher: c.teacher || "" } }));
     const guess = Math.max(16, ...rows.flatMap((r) => [...M.parseWeeks(r.weeks || "1-16")]));
     for (const r of rows) if (!r.weeks) { r.weeks = `1-${guess}`; r.wguess = true; }
     const times = res.times || {}, nper = Math.max(res.periods || 0, ...rows.map((r) => r.end || 0)), full = [];
@@ -169,7 +169,10 @@ const CourseEd = {
       const learn = rows.filter((r) => r.on).flatMap((r) => ["name", "location", "teacher"].filter((f) => r.orig[f] && r[f] && r.orig[f] !== r[f]).map((f) => ({ f, w: r.orig[f], r: r[f] })));
       if (learn.length) api("course_learn_submit", { items: learn }, true).catch(() => {});
       if ($("#ciShare", d).checked) api("course_ocr_sample_add", { img: b64, ocr: { courses: res.courses, times: res.times, periods: res.periods }, final: pick.map(({ name, day, start, end, weeks, location, teacher }) => ({ name, day, start, end, weeks, location, teacher })) }, true).catch(() => {});
-      if (await this.save(list, m, `已导入 ${fresh.length} 门课 🎉 网页和手机上也会更新`)) { closeOverlay(); App.go("week"); }
+      if (await this.save(list, m, `已导入 ${fresh.length} 门课 🎉 网页和手机上也会更新`)) {
+        try { CourseView.keep(b64, fresh, pick); } catch (e) {}   // 6.9 原图存到账号里：首页点课程能看
+        closeOverlay(); App.go("week");
+      }
     };
     openOverlay(d);
   },

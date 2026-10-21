@@ -162,6 +162,7 @@ class Store extends EventEmitter {
         await this.loadCourses().catch(() => {});   // 课程表功能关着时会失败，不影响别的
         await this.pull();
         await this.loadExtras().catch(() => {});
+        await this.loadXp();
         await this.flush();
         d.lastRefresh = this.now();
         this.status = { syncing: false, online: true, error: "", lastOk: this.now() };
@@ -469,6 +470,7 @@ class Store extends EventEmitter {
     if (/^c\d+$/.test(key)) {
       this.setMark(key, { done: !!done });
       this.growth("done", key.slice(1), !done);
+      this.xp("done", key.slice(1), !done);
     } else if (/^kn\d+$/.test(key)) {
       this.setMark(key, { done: !!done });   // 课内学习的考核：和网页版一样记在完成标记里
     } else {
@@ -476,7 +478,8 @@ class Store extends EventEmitter {
       // 6.2 重复的事项：勾完成就排到下一次，不会消失
       const roll = done && !it.done ? MemoCore.complete(it, bjDay(this.now())) : null;
       this.upsertMine(roll ? { ...it, ...roll } : { ...it, done: !!done });
-      if (roll) { const log = this.data.ns.done_log_v1; log[key] = bjDay(this.now()); this.record("done_log_v1", key, log[key]); this.changed("done"); return roll; }
+      if (roll) { const log = this.data.ns.done_log_v1; log[key] = bjDay(this.now()); this.record("done_log_v1", key, log[key]); this.xp("mine", key + "@" + bjDay(this.now()), false); this.changed("done"); return roll; }
+      if (!!done !== !!it.done) this.xp("mine", key, !done);
     }
     const log = this.data.ns.done_log_v1;
     if (done) log[key] = bjDay(this.now()); else delete log[key];
@@ -497,6 +500,7 @@ class Store extends EventEmitter {
     this.coachRec({ e: "pomo", m: Math.round(minutes) });      // 番茄钟是真计时，教练最信这个
     this.record("pomo_log_v1", k, pl[k]); this.record("focus_min_v1", k, fm[k]);
     this.growth("pomo", k + "|" + pl[k], false);
+    this.xp("pomo", k + "|" + pl[k], false);
     this.changed("pomo");
   }
   // 习惯打卡（今天打过就取消）
@@ -505,6 +509,7 @@ class Store extends EventEmitter {
     const log = this.data.ns.habit_log_v1, on = !(log[id] && log[id][day]);
     this.kvSet("habit_log_v1", [id, day], on ? true : null);
     this.growth("habit", id + "|" + day, !on);
+    this.xp("habit", id + "|" + day, !on);
     if (on) this.coachRec({ e: "habit", k: id });
     return on;
   }
@@ -513,6 +518,21 @@ class Store extends EventEmitter {
     if (!this.data.cid || this.isTeacher()) return;
     this.api.rpc("growth_log", { cid: this.data.cid, k: kind, r: String(ref), undo: !!undo }).catch(() => {});
   }
+  // 6.9 账号等级：经验跟着账号走，服务器去重（同一件事只算一次，取消完成扣回来）
+  xp(kind, ref, undo) {
+    if (!this.api || !this.data.me) return Promise.resolve(null);
+    return this.api.rpc("xp_log", { k: kind, r: String(ref), undo: !!undo }).then((r) => {
+      if (r && r.level) {
+        const old = this.data.xp && this.data.xp.level ? this.data.xp.level.level : 0;
+        const today = Math.max(0, ((this.data.xp && this.data.xp.today) || 0) + (undo ? 0 : r.points || 0));
+        this.data.xp = { level: r.level, today };
+        this.emit("xp", { points: undo ? 0 : r.points || 0, level: r.level, up: !!(old && r.level.level > old) });
+        this.changed("xp");
+      }
+      return r;
+    }).catch(() => null);
+  }
+  async loadXp() { try { const r = await this.api.rpc("xp_me", {}); if (r && r.level) this.data.xp = { level: r.level, today: r.today || 0 }; } catch (e) {} }
   setSettings(patch) { this.data.settings = { ...this.data.settings, ...patch }; this.changed("settings"); return this.data.settings; }
 
   // 作业附件：本机文件，只记路径
@@ -567,7 +587,7 @@ class Store extends EventEmitter {
       wall: d.wall, features: d.features, courses: d.courses, plugins: d.plugins,
       mine: d.ns.personal_events_v1, marks: d.ns.personal_marks_v1, doneLog: d.ns.done_log_v1, pomo: d.ns.pomo_log_v1, focusMin: d.ns.focus_min_v1,
       kv: d.ns, attach: d.attach, settings: d.settings, status: this.status, lastRefresh: d.lastRefresh, pending: Object.keys(d.outbox).length,
-      extras: d.extras, extraItems: d.extraItems || [], clockOff: this.clockOff, live: !this.pingOff && !!this.pingAt, dev: d.dev, lanOk: !this.pingOff };
+      extras: d.extras, xp: d.xp || null, extraItems: d.extraItems || [], clockOff: this.clockOff, live: !this.pingOff && !!this.pingAt, dev: d.dev, lanOk: !this.pingOff };
   }
 }
 

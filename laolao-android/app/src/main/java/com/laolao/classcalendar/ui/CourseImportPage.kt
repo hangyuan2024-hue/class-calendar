@@ -35,6 +35,7 @@ import java.io.File
 class CourseImportPage(a: Main) : Page(a) {
     private lateinit var body: LinearLayout
     private var rows: MutableList<JSONObject>? = null
+    @Volatile private var lastB64 = ""   // 6.9 识别用的那张图：导入成功后存到账号里，首页点课程能看原图
     private var times: List<String>? = null
     private var week1: String = T.key(Courses.week1())
     private var replace = true
@@ -110,6 +111,7 @@ class CourseImportPage(a: Main) : Page(a) {
         busy = true; status = "正在压缩图片…"; render()
         Bg.load({
             val b64 = compress(ctx, uri)
+            lastB64 = b64
             Bg.ui { status = "上传中…"; render() }
             val job = Api.rpcObj("course_ocr_start", jsonOf("img" to b64)).str("job_id")
             if (job.isEmpty()) throw ApiError(0, "上传失败，请重试")
@@ -135,7 +137,7 @@ class CourseImportPage(a: Main) : Page(a) {
         val list = (res.optJSONArray("courses") ?: JSONArray()).objs().map { o ->
             val st = o.optInt("start", 1).coerceAtLeast(1)
             jsonOf("name" to o.str("name"), "day" to o.optInt("day", 0).coerceIn(0, 6), "start" to st, "end" to o.optInt("end", st).coerceAtLeast(st),
-                "weeks" to o.str("weeks"), "location" to o.str("location"), "teacher" to o.str("teacher"), "_unsure" to (o.has("conf") && o.optDouble("conf", 1.0) < 0.9))
+                "weeks" to o.str("weeks"), "location" to o.str("location"), "teacher" to o.str("teacher"), "_unsure" to (o.has("conf") && o.optDouble("conf", 1.0) < 0.9), "_box" to o.optJSONArray("box"))
         }.filter { it.str("name").isNotBlank() }.toMutableList()
         val maxW = maxOf(16, list.flatMap { Courses.parseWeeks(it.str("weeks").ifBlank { "1-16" }) }.maxOrNull() ?: 16)
         val noWeeks = list.count { it.str("weeks").isBlank() }
@@ -192,6 +194,7 @@ class CourseImportPage(a: Main) : Page(a) {
             busy = false
             if (e != null) { a.toast("保存失败：" + e.message); return@load }
             a.toast("课程表存好了，网页和小程序也能看到 🎉")
+            if (lastB64.isNotEmpty()) com.laolao.classcalendar.core.CourseShot.push(lastB64, chosen)
             close(); a.push(CoursePage(a))
         }
     }

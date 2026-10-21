@@ -37,7 +37,11 @@ object Farm {
         val days = sortedMapOf<String, Day>()
         fun d(k: String) = days.getOrPut(k) { Day() }
         val dl = Kv.obj(Items.DONE_LOG)
-        for (k in dl.keys()) { val day = dl.optString(k); if (!DAY.matches(day)) continue; val x = d(day); x.done++; if (byKey[k]?.hw == true) x.hw++ }
+        // 6.9 修刷经验：养料按「完成过」算（和网页、小程序一样记在 farm_v1.earned），取消完成不扣、再勾上也不重复给
+        val st = state(); val ever = st.optJSONObject("earned") ?: JSONObject(); var grew = false
+        for (k in dl.keys()) { val day = dl.optString(k); if (DAY.matches(day) && !ever.has(k)) { ever.put(k, day); grew = true } }
+        if (grew) { st.put("earned", ever); Kv.set(LS, st) }
+        for (k in ever.keys()) { val day = ever.optString(k); if (!DAY.matches(day)) continue; val x = d(day); x.done++; if (byKey[k]?.hw == true) x.hw++ }
         val hl = Kv.obj("habit_log_v1")
         for (id in hl.keys()) { val h = hl.optJSONObject(id) ?: continue; for (day in h.keys()) if (h.optBoolean(day) && DAY.matches(day)) d(day).habit++ }
         val pl = Kv.obj("pomo_log_v1")

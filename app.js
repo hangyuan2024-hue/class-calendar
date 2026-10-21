@@ -687,7 +687,7 @@ function heroNextHtml(ctx) {
     if (nc) {
       const at = atOf(nc.day, nc.c.t0), isTm = nc.day !== keyOf(ctx.now);
       const early = night || (isTm && h >= 21);
-      return `<div class="hx${early ? " sleep" : ""}">
+      return `<div class="hx${early ? " sleep" : ""}"${nc.c.study ? "" : ` data-cview="${esc(nc.c.name)}" data-cday="${nc.day}" data-cstart="${nc.c.start || ""}"`}>
         <span class="hx-k">${early ? "早点睡" : "下一节"}</span>
         <span class="hx-t"><b>${esc(nc.c.name)}</b><small>${isTm ? "明天 " : ""}${esc(nc.c.t0)}${nc.c.location ? " · 📍 " + esc(nc.c.location) : ""}</small></span>
         <span class="hx-cd" data-at="${at}">${leftLabel(at - ccNow())}</span></div>`;
@@ -702,7 +702,8 @@ function heroNextHtml(ctx) {
   const sleep = night && !hot && !(top.mins != null && top.mins < 6 * 60);   // 深夜里不急的事：先劝睡觉
   const label = sleep ? "早点睡" : isCourse ? (live ? "正在上" : "下一节") : top.level === "late" ? "过期了" : top.exam ? "考试" : top.type === "作业" ? "先做这个" : "接下来";
   const when = at ? `<span class="hx-cd" data-at="${at}" data-end="${live ? 1 : 0}">${live ? "还有 " + leftLabel(at - ccNow()).replace("后", "下课") : leftLabel(at - ccNow())}</span>` : `<span class="hx-cd">${esc(top.reason)}</span>`;
-  return `<div class="hx${hot ? " hot" : sleep ? " sleep" : ""}">
+  const cv = isCourse && !c.study && !top.study ? ` data-cview="${esc(c.name || top.title)}" data-cday="${top.day || keyOf(ctx.now)}" data-cstart="${c.start || ""}"` : "";
+  return `<div class="hx${hot ? " hot" : sleep ? " sleep" : ""}"${cv}>
     <span class="hx-k">${label}</span>
     <span class="hx-t"><b>${esc(top.title)}</b><small>${esc([top.time || (top.day ? IslandCore.dayName(top.day, ctx.now) : ""), top.location ? "📍 " + top.location : ""].filter(Boolean).join(" · "))}</small></span>
     ${when}
@@ -722,7 +723,7 @@ function heroLineHtml(ctx) {
   const pct = (m) => ((Math.max(a, Math.min(z, m)) - a) / (z - a) * 100).toFixed(2);
   const go = courseTool() ? "course" : "calendar";
   const segs = courses.map((c) => { const s = hm2min(c.t0), e = hm2min(c.t1 || "") ?? s + 45, past = !tomorrow && e <= nowMin, on = !tomorrow && s <= nowMin && nowMin < e;
-    return `<button class="tl-c${past ? " past" : ""}${on ? " on" : ""}" style="left:${pct(s)}%;width:${(pct(e) - pct(s)).toFixed(2)}%" data-nxgo="${go}" title="${esc(c.t0 + "–" + (c.t1 || "") + " " + c.name + (c.location ? " · " + c.location : ""))}"><span>${esc(c.name)}</span></button>`; }).join("");
+    return `<button class="tl-c${past ? " past" : ""}${on ? " on" : ""}" style="left:${pct(s)}%;width:${(pct(e) - pct(s)).toFixed(2)}%" data-nxgo="${go}"${c.study ? "" : ` data-cview="${esc(c.name)}" data-cday="${day}" data-cstart="${c.start || ""}"`} title="${esc(c.t0 + "–" + (c.t1 || "") + " " + c.name + (c.location ? " · " + c.location : ""))}"><span>${esc(c.name)}</span></button>`; }).join("");
   const dots = items.map((x) => `<button class="tl-d${x.type === "作业" ? " hw" : ""}" style="left:${pct(hm2min(x.time))}%" data-nxgo="${x.type === "作业" ? "homework" : "calendar"}" title="${esc(x.time + " " + x.title)}"></button>`).join("");
   const ticks = [a, ...[12 * 60, 18 * 60].filter((m) => m > a + 90 && m < z - 90), z].map((m) => `<i style="left:${pct(m)}%">${m / 60}:00</i>`).join("");
   const loose = ctx.items.filter((x) => x.day === day && !x.done && hm2min(x.time) == null).length;
@@ -2091,7 +2092,7 @@ $("askBox").onclick = (e) => { const b = e.target.closest("[data-q]"); if (b) as
 function setMark(k, patch) {
   marks[k] = { ...(marks[k] || {}), ...patch }; save(LS_MARK, marks);
   if ("done" in patch) logDone(k, patch.done);
-  if ("done" in patch && /^c\d+$/.test(k)) growthLog("done", k.slice(1), !patch.done);
+  if ("done" in patch && /^c\d+$/.test(k)) { growthLog("done", k.slice(1), !patch.done); if (window.LaoLevel) LaoLevel.log("done", k.slice(1), !patch.done); }
   renderAll();
   if (patch.done) cheerFor(k);
 }
@@ -2125,8 +2126,9 @@ document.addEventListener("click", (e) => {
     if (act === "done") {
       // 6.2 重复的事项：勾完成就排到下一次，不会消失
       const roll = !mine[i].done ? MemoCore.complete(mine[i], keyOf(ccDate())) : null;
-      if (roll) { Object.assign(mine[i], roll); save(LS_MINE, mine); logDone(k, true); renderAll(); cheerFor(k); memoToast("✓ 已完成，下次是 " + roll.event_time.slice(5, 10).replace("-", "月") + "日"); return; }
+      if (roll) { if (window.LaoLevel) LaoLevel.log("mine", k + "@" + (mine[i].event_time || "").slice(0, 10), false); Object.assign(mine[i], roll); save(LS_MINE, mine); logDone(k, true); renderAll(); cheerFor(k); memoToast("✓ 已完成，下次是 " + roll.event_time.slice(5, 10).replace("-", "月") + "日"); return; }
       mine[i].done = !mine[i].done; save(LS_MINE, mine); logDone(k, mine[i].done); renderAll(); if (mine[i].done) cheerFor(k);
+      if (window.LaoLevel) LaoLevel.log("mine", k, !mine[i].done);
     }
     if (act === "li") {
       mine[i].list = MemoCore.toggleItem(mine[i], +b.dataset.i); save(LS_MINE, mine); renderAll();
@@ -3206,8 +3208,9 @@ function renderUserChip() {
   }
   const role = CCAuth.ROLE_NAMES[currentUser.role] || currentUser.role;
   el.className = "";
-  el.innerHTML = `<span class="av">${initial}</span><span class="who">${esc(name)}<small>${esc(role)}</small></span>`;
-  $("meCard").innerHTML = meCardHtml();
+  el.innerHTML = `<span class="av">${initial}</span><span class="who">${esc(name)}<small>${esc(role)} <span data-lvslot="sm"></span></small></span>`;
+  $("meCard").innerHTML = meCardHtml() + `<span data-lvslot="me" class="lv-me"></span>`;
+  if (window.LaoLevel) LaoLevel.paint();
   const g = myGender();
   document.querySelectorAll(".mavatar, #userChip .av").forEach((a) => { a.style.background = avGrad(g); a.style.color = avGrad(g) ? "#fff" : ""; });
 }
@@ -3426,6 +3429,12 @@ async function loadRank() {
   document.querySelectorAll("#rankPeriod [data-p]").forEach((b) => b.classList.toggle("on", b.dataset.p === rankPeriod));
   if (!currentUser || !currentClass) { box.innerHTML = `<div class="rk-empty surface">加入班级后就能和同学一起攒成长值、上排行榜啦</div>`; return; }
   box.innerHTML = `<div class="rk-empty surface">加载中…</div>`;
+  // 6.9 等级榜：按账号总经验比等级
+  if (rankPeriod === "level") {
+    try { box.innerHTML = LaoLevel.boardHtml(await LaoLevel.board(currentClass.id)); }
+    catch (e) { box.innerHTML = `<div class="rk-empty surface">等级榜暂时打不开：${esc(e.message)}<br><small>（管理员需要在扣子终端运行一次 setupaccounts.py）</small></div>`; }
+    return;
+  }
   let d;
   try { d = await loadRankData(rankPeriod); } catch (e) { box.innerHTML = `<div class="rk-empty surface">排行榜暂时打不开：${esc(e.message)}<br><small>（管理员需要在扣子终端运行一次 setupaccounts.py）</small></div>`; return; }
   renderRank(d);
@@ -3465,6 +3474,7 @@ function renderRank(d) {
     </div>`;
 }
 $("rankPeriod").onclick = (e) => { const b = e.target.closest("[data-p]"); if (!b) return; rankPeriod = b.dataset.p; loadRank(); };
+document.addEventListener("click", (e) => { if (e.target.closest("[data-lvboard]")) rankPeriod = "level"; }, true);   // 成长页「等级榜」按钮
 $("rankBox").addEventListener("click", async (e) => {
   const b = e.target.closest("#rankMode [data-m]"); if (!b) return;
   try { await CCAuth.rpc("rank_set_pref", { cid: currentClass.id, m: b.dataset.m }); rankCache = null; loadRank(); } catch (err) { alert("设置失败：" + err.message); }
@@ -3787,6 +3797,7 @@ function renderHabits() {
     return `<div class="habit"><span class="hi">${esc(h.icon)}</span>
       <div class="hm"><div class="hn">${esc(h.name)}${st ? `<span class="streak">🔥 连续 ${st} 天</span>` : ""}</div>
         <div class="dots" aria-label="最近 14 天打卡情况">${last.map((d) => `<i class="${log[d] ? "on" : ""}${d === t ? " today" : ""}" title="${d}${log[d] ? " 已打卡" : ""}"></i>`).join("")}</div></div>
+      <button class="hplace${h.place ? " on" : ""}" data-hplace="${esc(h.id)}" title="${h.place ? esc(`要在「${h.place.name}」${h.place.r} 米内才能打卡（点一下修改 / 解除）`) : "绑定地点：到了那里才能打卡"}">📍${h.place ? `<small>${esc(h.place.name)}</small>` : ""}</button>
       <button class="hchk${on ? " on" : ""}" data-habit="${esc(h.id)}">${on ? "✓ 已打卡" : "打卡"}</button>
       <button class="hdel" data-hdel="${esc(h.id)}" aria-label="删除这个习惯">×</button></div>`;
   }).join("") : `<div class="aempty">还没有习惯。挑一个下面的建议，或者自己写一个。</div>`;
@@ -3805,13 +3816,19 @@ $("hSugg").onclick = (e) => { const b = e.target.closest("[data-sugg]"); if (b) 
 $("habitList").onclick = (e) => {
   const d = e.target.closest("[data-hdel]");
   if (d) { const h = habits.find((x) => x.id === d.dataset.hdel); if (h && confirm(`删除「${h.name}」和它的打卡记录？`)) { habits = habits.filter((x) => x !== h); delete habitLog[h.id]; save(LS_HABITS, habits); save(LS_HABIT_LOG, habitLog); renderGrowth(); } return; }
+  const pl = e.target.closest("[data-hplace]");
+  if (pl && window.LaoCheckin) { const h = habits.find((x) => x.id === pl.dataset.hplace); if (h) LaoCheckin.bindHabit(h, () => { save(LS_HABITS, habits); renderHabits(); }); return; }
   const b = e.target.closest("[data-habit]"); if (b) toggleHabit(b.dataset.habit);
 };
-function toggleHabit(id) {
+async function toggleHabit(id) {
+  // 6.9 绑了地点的习惯：到了那里才能打卡（取消打卡不用定位）
+  const hh = habits.find((x) => x.id === id), t0 = todayKey();
+  if (hh && hh.place && !(habitLog[id] || {})[t0] && window.LaoCheckin && !(await LaoCheckin.checkHabit(hh))) return;
   const t = todayKey(), log = (habitLog[id] ||= {});
   if (log[t]) delete log[t]; else log[t] = true;
   save(LS_HABIT_LOG, habitLog); renderGrowth(); renderWidgets();
   growthLog("habit", id + "|" + t, !log[t]);
+  if (window.LaoLevel) LaoLevel.log("habit", id + "|" + t, !log[t]);
   if (log[t]) { const h = habits.find((x) => x.id === id); cheer("habit", { name: h.name, streak: streakOf(h) }); }
 }
 
@@ -3825,6 +3842,7 @@ function renderGrowth() {
   v.querySelectorAll(".sec-h")[1].style.display = o.habits ? "" : "none";
   $("habitList").closest(".group").style.display = o.habits ? "" : "none";
   renderHabits();
+  if (window.LaoLevel) LaoLevel.paint();
 }
 
 // 设置：趣味功能
@@ -3873,7 +3891,8 @@ function cheer(kind, info) {
   if (cy && kind !== "preview") t = "▶ " + t;
   $("cheerT").textContent = t; $("cheerS").textContent = sub;
   const food = farmOn() && (kind === "habit" || kind === "pomo" || (info && info.food)) ? { item: 5, homework: 10, allhw: 10, habit: 3, pomo: 2 }[kind] || 0 : 0;   // 云宠农场的养料（和成长值同一套规则）
-  $("cheerX").textContent = [xp && feat("metaverse") ? (cy ? `+${xp} EXP` : `元宇宙经验 +${xp}`) : "", food ? `🐣 养料 +${food}` : ""].filter(Boolean).join(" · ");
+  // 6.9 经验改成账号等级（数据库算，见 level-ui.js），这里不再显示假的「经验 +N」，免得取消再勾看起来能刷
+  $("cheerX").textContent = food ? `🐣 养料 +${food}` : "";
   const st = $("cheerSt");
   st.style.display = o.cheer === "text" ? "none" : "";
   st.innerHTML = o.cheer === "mascot" ? `<svg viewBox="0 0 120 120" aria-hidden="true"><use href="#mascotArt"/></svg>` : STICKERS[Math.floor(Math.random() * STICKERS.length)];
@@ -4483,6 +4502,7 @@ function pomoTick() {
     if (pomo.mode === "focus") {
       const t = todayKey(); pomoLog[t] = (pomoLog[t] || 0) + 1; save(LS_POMO_LOG, pomoLog);
       growthLog("pomo", t + "|" + pomoLog[t], false);
+      if (window.LaoLevel) LaoLevel.log("pomo", t + "|" + pomoLog[t], false);
       pomo = { ...pomo, mode: "break", end: now + 5 * 60000 }; beep(); cheer("pomo");
     } else { pomo = { ...pomo, mode: "idle" }; beep(); }
     savePomo();

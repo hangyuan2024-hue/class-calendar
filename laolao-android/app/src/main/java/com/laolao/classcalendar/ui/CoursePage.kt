@@ -250,6 +250,7 @@ class CoursePage(a: Main) : Page(a) {
         if (l.add) cell("➕", "临时加的课", "")
         if (l.from.isNotEmpty()) cell("🔁", "调课：上 ${T.md(l.from)} 的课", "")
         c.addView(cells)
+        if (src == "mine" && !l.evening) c.add(ctx.text("📷 看课表截图（导入时的原图）", 14f, C.accent, SEMI).apply { gravity = Gravity.CENTER; pad(0, 10); press(0, 10); tap { dlg.dismiss(); CourseView.open(a, d, l) } }, 6)
         if (src == "mine") {
             val br = ctx.row().apply { margins(t = 14) }
             if (rec != null) {
@@ -567,6 +568,8 @@ class WeekGrid(ctx: Context, private val days: List<LocalDate>, private val less
                private val pick: (LocalDate, Lesson) -> Unit, private val addAt: (LocalDate, Int) -> Unit) : View(ctx) {
     var onSwipe: ((Int) -> Unit)? = null
     var forImage = false
+    /** 6.9 首页点课程：标出这门课（名字、第几天、第几节），别的课变淡 */
+    var hl: Triple<String, Int, Int>? = null
     private val p = Paint(Paint.ANTI_ALIAS_FLAG)
     private val tp = TextPaint(Paint.ANTI_ALIAS_FLAG)
     private val d = ctx.resources.displayMetrics.density
@@ -618,7 +621,8 @@ class WeekGrid(ctx: Context, private val days: List<LocalDate>, private val less
                 val isToday = i == ti
                 val now = isToday && (l.m0 ?: 9999) <= nowM && nowM < (l.m1 ?: 0)
                 val past = isToday && (l.m1 ?: 9999) <= nowM || (isCurWeek && !forImage && days[i].isBefore(today))
-                val a = if (past) 0.62f else 1f
+                val hit = hl?.let { h -> h.first == l.name && h.second == i && h.third == l.start } ?: false
+                val a = (if (past) 0.62f else 1f) * (if (hl != null && !hit) 0.38f else 1f)
                 // 立体的小方块：底下一道深一点的「厚度」+ 渐变面 + 顶上一道高光 + 左边一条课程色
                 val lip = RectF(r.left, r.top + 2.5f * s, r.right, r.bottom + 2.5f * s)
                 p.color = C.alpha(C.mix(col, Color.BLACK, if (C.dark) 0.55f else 0.15f), (if (C.dark) 0.9f else 0.55f) * a); c.drawRoundRect(lip, 10 * s, 10 * s, p)
@@ -628,6 +632,7 @@ class WeekGrid(ctx: Context, private val days: List<LocalDate>, private val less
                 c.drawRoundRect(RectF(r.left + 0.5f * s, r.top + 0.5f * s, r.right - 0.5f * s, r.bottom - 0.5f * s), 9.5f * s, 9.5f * s, p); p.style = Paint.Style.FILL
                 p.color = C.alpha(col, a); c.save(); c.clipRect(r.left, r.top, r.left + 3.5f * s, r.bottom); c.drawRoundRect(r, 10 * s, 10 * s, p); c.restore()
                 if (now) { p.style = Paint.Style.STROKE; p.strokeWidth = 2.2f * s; p.color = col; c.drawRoundRect(r, 10 * s, 10 * s, p); p.style = Paint.Style.FILL }
+                if (hit) { p.style = Paint.Style.STROKE; p.strokeWidth = 3f * s; p.color = Color.parseColor("#ff7a45"); c.drawRoundRect(RectF(r.left - 1.5f * s, r.top - 1.5f * s, r.right + 1.5f * s, r.bottom + 1.5f * s), 11 * s, 11 * s, p); p.style = Paint.Style.FILL }
                 val fg = if (C.dark) Color.WHITE else C.mix(col, Color.BLACK, 0.62f)
                 val wText = maxOf(10, (r.width() - 11 * s).toInt())
                 tp.textSize = (if (days.size == 5) 12.5f else 11.5f) * s; tp.color = fg; tp.typeface = BOLD; tp.alpha = (255 * a).toInt()

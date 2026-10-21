@@ -25,6 +25,7 @@ App.views.growth = {
       <div class="vhead"><div><h1>成长</h1><div class="sub">完成事项、习惯打卡、专注番茄都会攒成长值，上面「排行榜」里能看到</div></div><span class="grow"></span>
         <button class="btn" data-go="meta" title="完成作业、打卡、专注攒经验：升级、解锁徽章">${icon("meta")}等级与徽章</button></div>
       <div class="vbody gr-body">
+        <div id="lvCard"></div>
         <div class="gr-top"><div class="card gr-rings" id="grRings"></div><div class="card gr-trend"><div class="card-h">最近 14 天<span class="grow"></span><small id="grLg"></small></div><div id="grTrend"></div></div></div>
         <div class="gr-cols">
           <div class="card gr-habits"><div class="card-h">习惯打卡<span class="grow"></span><small>点「打卡」，每天一次</small></div><div id="grList"></div>
@@ -36,8 +37,10 @@ App.views.growth = {
       const g = e.target.closest("[data-go]"); if (g) return App.go(g.dataset.go);
       const em = e.target.closest("[data-emo]"); if (em) { this.emo = em.dataset.emo; this.drawAdd(); return; }
       const sg = e.target.closest("[data-sugg]"); if (sg) { this.add(sg.dataset.sugg, sg.dataset.se); return; }
-      const hb = e.target.closest("[data-habit]"); if (hb) { const on = await call("habit", hb.dataset.habit); if (on) { const h = KV("habits_v1").find((x) => x.id === hb.dataset.habit); const s = habitStreak(hb.dataset.habit) || 1; cheer("habit", [3, 7, 14, 21, 30].includes(s) ? `「${h.name}」连续 ${s} 天了！` : s > 1 ? `已经连续 ${s} 天` : "明天也来哦"); } return; }
-      const dot = e.target.closest("[data-hd]"); if (dot) { await call("habit", dot.dataset.hid, dot.dataset.hd); return; }
+      if (e.target.closest("[data-lvboard]")) { App.views.rank.period = "level"; return App.go("rank"); }
+      if (e.target.closest("[data-ckpanel]")) return Ck.panel();
+      const hb = e.target.closest("[data-habit]"); if (hb && Ck.habitBlocked(hb.dataset.habit)) return; if (hb) { const on = await call("habit", hb.dataset.habit); if (on) { const h = KV("habits_v1").find((x) => x.id === hb.dataset.habit); const s = habitStreak(hb.dataset.habit) || 1; cheer("habit", [3, 7, 14, 21, 30].includes(s) ? `「${h.name}」连续 ${s} 天了！` : s > 1 ? `已经连续 ${s} 天` : "明天也来哦"); } return; }
+      const dot = e.target.closest("[data-hd]"); if (dot && Ck.habitBlocked(dot.dataset.hid, dot.dataset.hd)) return; if (dot) { await call("habit", dot.dataset.hid, dot.dataset.hd); return; }
       const del = e.target.closest("[data-hdel]");
       if (del) {
         const h = KV("habits_v1").find((x) => x.id === del.dataset.hdel); if (!h) return;
@@ -64,6 +67,7 @@ App.views.growth = {
     $("#grSugg", el).innerHTML = HABIT_SUGG.filter(([, n]) => !habits.some((h) => h.name === n)).map(([e, n]) => `<button class="btn ghost sm" data-sugg="${esc(n)}" data-se="${e}">＋ ${e} ${esc(n)}</button>`).join("");
   },
   update() {
+    try { Lv.paint(); } catch (e) {}
     const el = this.el, w = weekStats(), habits = KV("habits_v1"), log = KV("habit_log_v1") || {}, t = todayKey();
     const cell = (d, a, color, name) => `<div class="gr-ring">${ringSvg(d, a, 92, color)}<div><b>${name}</b><span>${d} / ${a}</span></div></div>`;
     $("#grRings", el).innerHTML = cell(w.hwDone, w.hwAll, "var(--bad)", "本周作业") + cell(w.allDone, w.all, "var(--brand)", "本周事项") + cell(w.hDone, w.hAll, "var(--warn)", "今日打卡");
@@ -80,7 +84,7 @@ App.views.growth = {
     const last = Array.from({ length: 14 }, (_, i) => shiftDay(t, i - 13));
     $("#grList", el).innerHTML = habits.length ? habits.map((hh) => {
       const lg = log[hh.id] || {}, st = habitStreak(hh.id), on = !!lg[t], total = Object.keys(lg).length;
-      return `<div class="hb"><span class="hb-i">${esc(hh.icon || "✅")}</span><div class="hb-m"><b>${esc(hh.name)}${st ? `<span class="streak">🔥 连续 ${st} 天</span>` : ""}</b>
+      return `<div class="hb"><span class="hb-i">${esc(hh.icon || "✅")}</span><div class="hb-m"><b>${esc(hh.name)}${st ? `<span class="streak">🔥 连续 ${st} 天</span>` : ""}${hh.place ? `<span class="hplace" title="要在这里 ${hh.place.r} 米内打卡（电脑上没法定位，请用手机打卡；地点在手机上改）">📍 ${esc(hh.place.name)}</span>` : ""}</b>
           <div class="hb-dots">${last.map((d) => `<i class="${lg[d] ? "on" : ""}${d === t ? " today" : ""}" data-hd="${d}" data-hid="${esc(hh.id)}" title="${d}${lg[d] ? " 已打卡（点一下取消）" : "（点一下补打卡）"}"></i>`).join("")}<small class="muted">共 ${total} 次</small></div></div>
         <button class="btn ${on ? "" : "primary"} hb-go" data-habit="${esc(hh.id)}">${on ? "✓ 已打卡" : "打卡"}</button><button class="btn ghost iconbtn sm" data-hdel="${esc(hh.id)}" title="删除这个习惯">${icon("trash")}</button></div>`;
     }).join("") : `<div class="empty"><b>🌱</b>还没有习惯。挑一个下面的建议，或者自己写一个。</div>`;

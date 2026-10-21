@@ -45,6 +45,8 @@ class GrowthPage(a: Main) : Page(a) {
         keepScroll(body)
         body.addView(ctx.text("每一天都在变好", 11.5f, C.sub, SEMI).apply { letterSpacing = 0.08f })
         body.addView(ctx.text("成长", 26f, C.text, HEAVY).apply { margins(t = 2) })
+        // 6.9 账号等级
+        if (com.laolao.classcalendar.core.Store.me != null) body.addView(LevelUi.card(a))
 
         // 本周进度环
         val green = if (C.dark) C.c("#82bea1") else C.c("#39856a")
@@ -84,6 +86,15 @@ class GrowthPage(a: Main) : Page(a) {
             re.addView(ctx.text("›", 20f, C.mutedText))
             re.press(C.card, 18, C.line); re.springy(); re.tap { a.push(RankPage(a)) }
             body.addView(re)
+            // 6.9 班级位置签到
+            val ck = ctx.card(16, 18).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; margins(t = 12) }
+            ck.addView(ctx.text("📍", 28f))
+            val o = com.laolao.classcalendar.core.Checkin.open
+            ck.addView(ctx.col().apply { addView(ctx.text("班级位置签到", 16f, C.text, BOLD)); addView(ctx.text(if (o != null) (if (o.optJSONObject("mine") != null) "✓ 已签到「" else "🔴 正在签到「") + o.optString("title") + "」· 还剩 " + com.laolao.classcalendar.core.Checkin.leftText(o) else "班委发起，到了现场才能签；签到 +5 经验", 12.5f, if (o != null && o.optJSONObject("mine") == null) C.red else C.sub)) }, LinearLayout.LayoutParams(0, WRAP, 1f).apply { leftMargin = dp(12) })
+            ck.addView(ctx.text("›", 20f, C.mutedText))
+            ck.press(C.card, 18, C.line); ck.tap { a.push(CheckinPage(a)) }
+            body.addView(ck)
+            com.laolao.classcalendar.core.Checkin.peek { render() }
             if (System.currentTimeMillis() - rankAt > 300_000) { rankAt = System.currentTimeMillis()
                 com.laolao.classcalendar.core.Bg.load({ com.laolao.classcalendar.core.Api.rpcObj("growth_board", com.laolao.classcalendar.core.jsonOf("cid" to cls.optString("id"), "period" to "week")) }) { d, _ ->
                     val r = d?.optJSONArray("rows")?.let { arr -> (0 until arr.length()).map { arr.getJSONObject(it) } }?.firstOrNull { it.optBoolean("me") }
@@ -94,7 +105,7 @@ class GrowthPage(a: Main) : Page(a) {
         // 云宠、等级
         val links = mutableListOf<Triple<String, String, () -> Unit>>()
         if (com.laolao.classcalendar.core.Farm.on()) links += Triple("🐣", "云宠 Lv." + com.laolao.classcalendar.core.Farm.state().optInt("level", 1)) { a.push(FarmPage(a)) }
-        links += Triple("🏅", "等级 Lv." + com.laolao.classcalendar.core.Meta.stats().level) { a.push(MetaPage(a)) }
+        links += Triple("🏅", "徽章 Lv." + com.laolao.classcalendar.core.Meta.stats().level) { a.push(MetaPage(a)) }
         val lr = ctx.row().apply { margins(t = 12) }
         links.forEachIndexed { i, (ic, t, go) -> lr.addView(ctx.row().apply { gravity = Gravity.CENTER; pad(6, 12); press(C.card, 16, C.line); tap { go() }; addView(ctx.text(ic, 18f)); addView(ctx.text(" $t", 13.5f, C.text, SEMI, 1)) }, LinearLayout.LayoutParams(0, WRAP, 1f).apply { if (i > 0) leftMargin = dp(8) }) }
         body.addView(lr)
@@ -125,6 +136,7 @@ class GrowthPage(a: Main) : Page(a) {
             nm.addView(ctx.text(h.name, 15f, C.text, BOLD, 1))
             val sk = Growth.streak(h.id, lg2)
             if (sk > 0) nm.addView(ctx.chip("🔥 连续 $sk 天", C.red, C.dangerBg, 11f).apply { margins(l = 0) }, LinearLayout.LayoutParams(WRAP, WRAP).apply { leftMargin = dp(6) })
+            Growth.place(h.id)?.let { pl -> nm.addView(ctx.chip("📍 " + pl.optString("name"), C.c("#d4561e"), C.alpha(C.c("#ff7a45"), 0.13f), 11f), LinearLayout.LayoutParams(WRAP, WRAP).apply { leftMargin = dp(6) }) }
             c.addView(nm)
             val dots = ctx.row().apply { margins(t = 6) }
             Growth.cells(h.id, 14, lg2).forEachIndexed { k, on ->
@@ -136,7 +148,7 @@ class GrowthPage(a: Main) : Page(a) {
             r.addView(ctx.text(if (on) "✓ 已打卡" else "打卡", 13.5f, if (on) Color.WHITE else green, BOLD).apply {
                 gravity = Gravity.CENTER; pad(12, 7)
                 if (on) press(green, 16, ripple = C.alpha(Color.WHITE, 0.3f)) else press(0, 16, green)
-                tap { v -> v.buzz(); if (Growth.toggle(h.id)) Cheer.show(a, "habit", "「${h.name}」连续 ${Growth.streak(h.id)} 天"); render() }
+                tap { v -> v.buzz(); HabitPlace.toggle(a, h.id) { now -> if (now) Cheer.show(a, "habit", "「${h.name}」连续 ${Growth.streak(h.id)} 天"); render() } }
             })
             hc.addView(r)
         }
@@ -194,11 +206,13 @@ class GrowthPage(a: Main) : Page(a) {
     }
 
     private fun more(h: Growth.Habit) {
-        Dialogs.sheet(ctx, h.name, listOf("换个图标", "改名字", "删除这个习惯"), danger = setOf(2)) { i ->
+        val pl = Growth.place(h.id)
+        Dialogs.sheet(ctx, h.name, listOf("换个图标", "改名字", if (pl != null) "📍 打卡地点：${pl.optString("name")}（改 / 解除）" else "📍 绑定打卡地点（到了才能打卡）", "删除这个习惯"), danger = setOf(3)) { i ->
             when (i) {
                 0 -> Dialogs.sheet(ctx, "选一个图标", Growth.EMO) { j -> Growth.update(h.id, icon = Growth.EMO[j]) }
                 1 -> Dialogs.prompt(ctx, "改名字", h.name, "比如：背 30 个单词") { v -> if (v.isNotBlank()) Growth.update(h.id, name = v) }
-                2 -> Dialogs.confirm(ctx, "删除「${h.name}」？", "它的打卡记录也会一起删掉。", "删除", danger = true) { Growth.remove(h.id) }
+                2 -> HabitPlace.menu(a, h)
+                3 -> Dialogs.confirm(ctx, "删除「${h.name}」？", "它的打卡记录也会一起删掉。", "删除", danger = true) { Growth.remove(h.id) }
             }
         }
     }

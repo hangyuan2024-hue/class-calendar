@@ -34,7 +34,8 @@ copy(S("memo-core.js"), path.join(DESK, "core", "memo-core.js"));
 copy(S("docx-text.js"), R("docx-text.js"));                            // 6.3 直接导入 Word 文档（和网页、小程序同一份）     // 6.2 备忘录：清单、重复、置顶、搜索（和网页、小程序同一份）   // 3.3.3 捞捞教练（和网页、小程序同一份）
 copy(S("flow-ui.js"), R("flow-ui.js"));                                // 3.3.4 刷任务界面（和网页同一份）
 copy(S("config.js"), path.join(DESK, "core", "site-config.js"));
-copy(S("memo.js"), R("web", "memo.js"));   // 3.3：导入手机备忘录的拆分规则
+copy(S("memo.js"), R("web", "memo.js"));
+copy(S("course-image.js"), R("web", "course-image.js"));   // 6.9 首页点课程：课表图片里标出这门课（和网页、小程序同一份）   // 3.3：导入手机备忘录的拆分规则
 
 // 2. 字体
 copy(S("fonts.css"), R("fonts.css"));

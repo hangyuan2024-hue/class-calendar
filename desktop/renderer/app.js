@@ -227,6 +227,7 @@ function render() {
   dot.className = "sync" + (st.syncing ? " busy" : !st.online ? " off" : st.error ? " err" : "");
   dot.title = st.syncing ? "正在同步…" : !st.online ? "没联网：改动先存在本机，联网后自动同步" : st.error ? "同步出错：" + st.error
     : `已同步${S.lastRefresh ? "（" + new Date(S.lastRefresh).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }) + "）" : ""}${S.live ? "，实时同步开着：别的设备改了几秒内就过来" : ""}${S.pending ? `，还有 ${S.pending} 条改动等待上传` : ""}`;
+  try { Lv.paint(); Ck.load(); } catch (e) {}
   for (const id of ORDER.concat(EXTRA_VIEWS)) dirty[id] = true;
   if (me.must_change_pw && !App._pwAsked) { App._pwAsked = true; setTimeout(() => App.views.me.changePw(true), 400); }
   if (!mounted[App.view]) App.go(App.view);

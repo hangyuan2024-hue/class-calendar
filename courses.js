@@ -561,7 +561,7 @@ const CourseKit = (() => {
     const k = keyOf((typeof ccDate === "function" ? ccDate() : new Date())), list = coursesOn(k), now = (typeof ccDate === "function" ? ccDate() : new Date()), hm = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
     const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1), tl = coursesOn(keyOf(tomorrow));
     const n = Math.max(2, h * 3);
-    const row = (c, past) => `<div class="crow${past ? " past" : ""}${!past && c.t0 && c.t0 <= hm && hm < c.t1 ? " now" : ""}"><span class="ct">${esc(c.t0 || "第" + c.start + "节")}</span><span class="cn">${esc(c.name)}</span><span class="cl">${esc(c.location || "")}</span></div>`;
+    const row = (c, past) => `<div class="crow${past ? " past" : ""}${!past && c.t0 && c.t0 <= hm && hm < c.t1 ? " now" : ""}" data-cview="${esc(c.name)}" data-cday="${k}" data-cstart="${c.start}" title="看这门课在课表和截图原图里的位置"><span class="ct">${esc(c.t0 || "第" + c.start + "节")}</span><span class="cn">${esc(c.name)}</span><span class="cl">${esc(c.location || "")}</span></div>`;
     let body;
     if (!data.courses.length) body = `<div class="empty">还没有课程。<a href="#" data-cimport="1">📷 拍照导入课表</a></div>`;
     else if (list.length) body = list.slice(0, n).map((c) => row(c, c.t1 && c.t1 <= hm)).join("") + (list.length > n ? `<div class="crow more">还有 ${list.length - n} 节…</div>` : "");
@@ -573,6 +573,13 @@ const CourseKit = (() => {
     const t = pluginTabs.find((x) => x.plugin === NS);
     if (t) showView(t.id);
   }
+  // 6.9 首页点课程（今日课程卡片、顶部「正在上 / 下一节」）：先于卡片本身的跳转处理
+  document.addEventListener("click", (e) => {
+    const v = e.target.closest("[data-cview]");
+    if (!v || document.documentElement.classList.contains("wediting")) return;
+    e.preventDefault(); e.stopPropagation();
+    courseView(v.dataset.cview, v.dataset.cday || keyOf(typeof ccDate === "function" ? ccDate() : new Date()), v.dataset.cstart ? +v.dataset.cstart : null);
+  }, true);
   document.addEventListener("click", (e) => {
     if (e.target.closest("[data-cimport]")) { e.preventDefault(); openImport(); }
     else if (e.target.closest("[data-ctab]") && !document.documentElement.classList.contains("wediting")) { e.preventDefault(); openTab(); }
@@ -772,6 +779,7 @@ const CourseKit = (() => {
           const rec = { img: c.toDataURL("image/jpeg", 0.8), w: c.width, h: c.height, at: Date.now(), items };
           try { localStorage.setItem(LS_SRCIMG, JSON.stringify(rec)); }
           catch (e) { rec.img = c.toDataURL("image/jpeg", 0.55); try { localStorage.setItem(LS_SRCIMG, JSON.stringify(rec)); } catch (e2) { /* 存不下就算了 */ } }
+          srcPush(rec);
           renderBar();
         } catch (e) {}
       };
@@ -779,6 +787,53 @@ const CourseKit = (() => {
     } catch (e) {}
   }
   function srcRec() { try { const r = JSON.parse(localStorage.getItem(LS_SRCIMG) || "null"); return r && r.img ? r : null; } catch (e) { return null; } }
+  // 6.9 原图也存到账号里（course_shot_*）：换手机、换电脑，首页点课程也能看原图
+  let srcMem = null;
+  function srcPush(rec) { if (currentUser && rec && rec.img) CCAuth.rpc("course_shot_set", { d: rec }).catch(() => {}); }
+  async function srcGet() {
+    const local = srcMem || srcRec(); if (local) return local;
+    if (!currentUser) return null;
+    try {
+      const r = await CCAuth.rpc("course_shot_get");
+      if (r && r.img) { srcMem = r; try { localStorage.setItem(LS_SRCIMG, JSON.stringify(r)); } catch (e) {} return r; }
+    } catch (e) {}
+    return null;
+  }
+
+  // 6.9 首页点一门课：弹出这门课在课表里的位置（生成的课表图，这门课标出来）和截图导入时的原图
+  let cvState = null;
+  async function courseView(name, dk, start) {
+    await read();
+    const day = (new Date(dk + "T00:00:00").getDay() + 6) % 7, list = coursesOn(dk);
+    const c = list.find((x) => x.name === name && (start == null || +x.start === +start)) || list.find((x) => x.name === name) || data.courses.find((x) => x.name === name);
+    if (!c) return;
+    const src = await srcGet();
+    const box = src && src.items && (src.items[c.id] || Object.values(src.items).find((m) => m.name === c.name));
+    cvState = { c, dk, day, src, box, tab: cvState && cvState.tab === "src" && src ? "src" : "table" };
+    cvRender();
+  }
+  function cvRender() {
+    const { c, dk, day, src, box, tab } = cvState, d = crsDlg("crsViewDlg");
+    const wk = weekOf(dk), tm = [c.t0, c.t1].filter(Boolean).join("–");
+    const info = [`${DAYS[day]} 第 ${c.start}${+c.end > +c.start ? "–" + c.end : ""} 节${tm ? "（" + tm + "）" : ""}`, c.location ? "📍 " + c.location : "", c.teacher ? "👤 " + c.teacher : "", c.weeks ? "📅 " + weeksText(parseWeeks(c.weeks)) + "周" : ""].filter(Boolean);
+    let body = "";
+    if (tab === "table") {
+      const m = imgModel(data, wk >= 1 ? wk : curWeek(data), "我的课程表"); m.hl = { name: c.name, day, start: c.start };
+      body = `<img class="crs-shot" src="${renderPng(m)}" alt="课程表里的${esc(c.name)}">`;
+    } else if (src) {
+      body = `
+        <div class="csrc-in"><img src="${src.img}" alt="课表原图">${box && box.box ? `<span class="csbox on" style="left:${box.box[0] * 100}%;top:${box.box[1] * 100}%;width:${(box.box[2] - box.box[0]) * 100}%;height:${(box.box[3] - box.box[1]) * 100}%"></span>` : ""}</div>
+        <small class="cv-note">${new Date(src.at || Date.now()).toLocaleDateString("zh-CN")} 截图导入时的原图${box && box.box ? "，框出来的就是这门课" : ""}</small>`;
+    }
+    d.innerHTML = `<h3>${esc(c.name)}<small>${info.map(esc).join(" · ")}</small></h3>
+      <div class="crs-seg"><button class="small ${tab === "table" ? "on" : ""}" data-x="table">在课表里</button><button class="small ${tab === "src" ? "on" : ""}" data-x="src" ${src ? "" : "disabled title=\"用「拍照导入」导入课表后，这里会有教务系统的原图\""}>📷 截图原图</button></div>
+      ${body}
+      ${src ? "" : `<small class="cv-note">还没有截图原图：在课程表里用「📷 拍照导入」导入一次，以后点课程就能对照原图看。</small>`}
+      <div class="row"><span class="spacer"></span><button class="small" data-x="tab">打开课程表</button><button class="btn ink sm" data-x="close">关闭</button></div>`;
+    d.onclick = (e) => { const b = e.target.closest("[data-x]"); if (e.target === d) d.close(); if (!b || b.disabled) return;
+      if (b.dataset.x === "close") d.close(); else if (b.dataset.x === "tab") { d.close(); openTab(); } else { cvState.tab = b.dataset.x; cvRender(); } };
+    if (!d.open) d.showModal();
+  }
   function openSrcView() {
     const r = srcRec(); if (!r) return;
     let d = document.getElementById("crsSrcDlg");
@@ -1065,6 +1120,6 @@ const CourseKit = (() => {
     try { renderAgenda(); } catch (e) {}   // 首页问候卡的时间轴要用课程：课表读好后重画一次（不然刷新后时间轴上没有课）
   }
 
-  return { addAdj, mdw: (k) => mdw(k), openStudy: (kind) => openEvening(kind), openClass, shotMine, dayNote, openAdjust, baseOn, cleanAdj, pull, _nearOCR: (a, b) => nearOCR(a, b), NS, on, read, write, sync, changed, coursesOn, card, askLines, injectBuiltin, loadBuiltin, decorateTab, renderBar, openImport, boot, parseWeeks, weeksText,
+  return { courseView, addAdj, mdw: (k) => mdw(k), openStudy: (kind) => openEvening(kind), openClass, shotMine, dayNote, openAdjust, baseOn, cleanAdj, pull, _nearOCR: (a, b) => nearOCR(a, b), NS, on, read, write, sync, changed, coursesOn, card, askLines, injectBuiltin, loadBuiltin, decorateTab, renderBar, openImport, boot, parseWeeks, weeksText,
     get data() { return data; } };
 })();

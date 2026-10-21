@@ -156,8 +156,9 @@ App.views.week = {
       ${same.length > 1 ? `<div class="insp-s">这门课每周</div>${same.map((x) => `<div class="insp-li">周${"一二三四五六日"[x.day]} 第 ${x.start}${x.end > x.start ? "–" + x.end : ""} 节${x.location ? " · " + esc(x.location) : ""}</div>`).join("")}` : ""}
       <div class="insp-s">相关的作业和事项</div>
       ${rel.length ? rel.map((x) => `<div class="insp-li it" data-k="${esc(x.key)}">${tagHtml(x.type)} ${esc(x.title)} <small class="${overdue(x, App.now()) ? "late" : ""}">${esc(whenText(x, App.now()))}</small></div>`).join("") : `<div class="muted" style="font-size:12px;padding:4px 0">没有标题里写着「${esc(c.name)}」的事项</div>`}
-      <div class="insp-act"><button class="btn sm" id="wkFocus">🍅 专注学这门课</button><button class="btn sm" id="wkCEdit">${icon("edit")}修改</button><button class="btn sm danger" id="wkCDel">${icon("trash")}删除</button></div>`;
+      <div class="insp-act"><button class="btn sm" id="wkShot">📷 课表截图</button><button class="btn sm" id="wkFocus">🍅 专注学这门课</button><button class="btn sm" id="wkCEdit">${icon("edit")}修改</button><button class="btn sm danger" id="wkCDel">${icon("trash")}删除</button></div>`;
     $("#wkCEdit", box).onclick = () => CourseEd.editOne(c);
+    $("#wkShot", box).onclick = () => CourseView.open(c.name, M.dayKey(M.addDays(this.monday(), c.day)), c.start);
     $("#wkCDel", box).onclick = () => CourseEd.del(c);
     $("#wkFocus", box).onclick = () => App.go("focus", { task: c.name });
     $$(".insp-li.it", box).forEach((n) => (n.onclick = () => Insp.open(n.dataset.k)));

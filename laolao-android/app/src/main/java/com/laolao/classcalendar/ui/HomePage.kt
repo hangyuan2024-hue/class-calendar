@@ -81,12 +81,28 @@ class HomePage(a: Main) : Page(a) {
         if (Store.error.isNotEmpty() && Store.itemsAt > 0) body.add(notice("网络不太好，显示的是上次的数据：" + Store.error), 4)
         else if (Store.error.isNotEmpty() && Store.me == null) body.add(notice("连不上服务器：" + Store.error + "。下拉可以重试"), 4)
         hero()
+        checkinBanner()
         CoachCard.build(a, body) { render() }      // 5.9.3 捞捞教练：现在最适合做什么
         val A = Items.agenda()
         agenda(A)
         cards.build(body, A)
     }
     private val cards = HomeCards(this)
+    // 6.9 正在进行的位置签到：首页提醒一下
+    private var lvAt = 0L
+    private fun checkinBanner() {
+        com.laolao.classcalendar.core.Checkin.peek { render() }
+        if (Store.me != null && System.currentTimeMillis() - lvAt > 300_000) { lvAt = System.currentTimeMillis(); com.laolao.classcalendar.core.Level.refresh { com.laolao.classcalendar.core.Bus.emit("xp") } }
+        val o = com.laolao.classcalendar.core.Checkin.open ?: return
+        val mine = o.optJSONObject("mine") != null
+        val c = ctx.row().apply { pad(14, 12); margins(t = 12)
+            background = round(if (mine) C.alpha(C.green, 0.1f) else C.alpha(C.c("#ff7a45"), 0.1f), dp(16).toFloat(), if (mine) C.alpha(C.green, 0.45f) else C.alpha(C.c("#ff7a45"), 0.5f), dp(1)) }
+        c.addView(ctx.text("📍", 22f))
+        c.addView(ctx.col().apply { pad(10, 0); addView(ctx.text(o.str("title").ifEmpty { "位置签到" }, 15f, C.text, BOLD, 1)); addView(ctx.text(o.str("place") + " · 还剩 " + com.laolao.classcalendar.core.Checkin.leftText(o), 12.5f, C.sub, lines = 1)) }, LinearLayout.LayoutParams(0, WRAP, 1f))
+        c.addView(ctx.text(if (mine) "✓ 已签到" else "去签到 ›", 13.5f, if (mine) C.green else C.c("#d4561e"), BOLD))
+        c.tap { a.push(CheckinPage(a)) }
+        body.addView(c)
+    }
     private var shown = 0; private var capped = false
 
 
@@ -102,6 +118,7 @@ class HomePage(a: Main) : Page(a) {
         s.setSpan(android.text.style.ForegroundColorSpan(C.accent), s.length - 1, s.length, 0)
         t.text = s
         c.addView(t.apply { margins(t = 4) })
+        com.laolao.classcalendar.core.Level.me()?.let { l -> c.addView(LevelUi.chip(ctx, l.level).apply { tap { a.selectTab(2) } }, LinearLayout.LayoutParams(WRAP, WRAP).apply { topMargin = dp(4) }) }   // 6.9 账号等级
         r.addView(c, LinearLayout.LayoutParams(0, WRAP, 1f))
         val name = Store.name()
         val av = ctx.text(name.take(1).ifEmpty { "?" }, 15f, Color.WHITE, BOLD).apply {
@@ -203,7 +220,7 @@ class HomePage(a: Main) : Page(a) {
                 tap { v -> v.buzz(); Items.find(n.key)?.let { a.toggle(it) } }
             }, LinearLayout.LayoutParams(dp(32), dp(32)).apply { gravity = Gravity.CENTER_VERTICAL })
             c.tap { a.push(ItemPage(a, n.key)) }
-        } else c.tap { a.push(CoursePage(a)) }
+        } else c.tap { if (n.cday.isNotEmpty()) CourseView.open(a, n.cday, n.title, n.cstart) else a.push(CoursePage(a)) }
         return c
     }
 
@@ -224,7 +241,7 @@ class HomePage(a: Main) : Page(a) {
         val sub = listOf(if (lessons.isNotEmpty()) "${lessons.size} 节课" else "", if (its.isNotEmpty()) "${its.size} 件有时间点的事" else "", if (loose > 0) "$loose 件全天的事" else "").filter { it.isNotEmpty() }.joinToString(" · ")
         hr.addView(ctx.text(sub.ifEmpty { "没有课，也没有要做的事" }, 12f, C.alpha(C.heroText, 0.68f)).apply { pad(8, 0, 0, 0) })
         box.addView(hr)
-        box.add(Timeline(ctx, lessons, its, if (tomorrow) -1 else nowMin) { go -> if (go == "course") a.push(CoursePage(a)) else a.push(CalendarPage(a, pushed = true)) }, 10)
+        box.add(Timeline(ctx, lessons, its, if (tomorrow) -1 else nowMin, { l -> if (l.evening) a.push(CoursePage(a)) else CourseView.open(a, T.date(day)!!, l) }) { go -> if (go == "course") a.push(CoursePage(a)) else a.push(CalendarPage(a, pushed = true)) }, 10)
         return box
     }
 
@@ -390,7 +407,8 @@ class HeroBox(ctx: Context) : LinearLayout(ctx) {
 }
 
 /** 时间轴：课是一段段的条，有时间点的事是小圆点，竖线是「现在」 */
-class Timeline(ctx: Context, private val lessons: List<Lesson>, private val items: List<Item>, private val nowMin: Int, private val go: (String) -> Unit) : View(ctx) {
+class Timeline(ctx: Context, private val lessons: List<Lesson>, private val items: List<Item>, private val nowMin: Int, private val onLesson: ((Lesson) -> Unit)? = null, private val go: (String) -> Unit) : View(ctx) {
+    private var downX = -1f
     private val p = Paint(Paint.ANTI_ALIAS_FLAG)
     private val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = ctx.dp(10).toFloat(); typeface = BOLD }
     private val a: Int; private val z: Int
@@ -399,7 +417,13 @@ class Timeline(ctx: Context, private val lessons: List<Lesson>, private val item
         a = (listOf(8 * 60) + pts.map { it / 60 * 60 }).min()
         z = (listOf(22 * 60) + pts.map { (it + 59) / 60 * 60 }).max()
         minimumHeight = ctx.dp(52)
-        setOnClickListener { go(if (lessons.isNotEmpty()) "course" else "calendar") }
+        // 6.9 点到哪节课就看哪节课的课表截图；点空白处照旧
+        setOnTouchListener { _, e -> if (e.actionMasked == android.view.MotionEvent.ACTION_DOWN) downX = e.x; false }
+        setOnClickListener {
+            val d = context.resources.displayMetrics.density
+            val hit = if (downX >= 0) lessons.firstOrNull { l -> val s = l.m0 ?: return@firstOrNull false; val e = l.m1 ?: (s + 45); downX >= x(s) - 4 * d && downX <= maxOf(x(e), x(s) + 6 * d) + 4 * d } else null
+            if (hit != null && onLesson != null) onLesson.invoke(hit) else go(if (lessons.isNotEmpty()) "course" else "calendar")
+        }
     }
     override fun onMeasure(w: Int, h: Int) { setMeasuredDimension(MeasureSpec.getSize(w), context.dp(52)) }
     private fun x(m: Int): Float = (maxOf(a, minOf(z, m)) - a).toFloat() / (z - a) * width

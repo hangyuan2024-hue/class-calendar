@@ -28,6 +28,7 @@ App.views.today = {
         <button class="btn primary" id="tdNew">${icon("plus")}记一件事</button></div>
       <div class="vbody td-body">
         <section class="td-band" id="tdBand"></section>
+        <div id="tdCk"></div>
         <div id="tdCoach"></div>
         <div class="td-quick"><span>✍️</span><input id="tdQuick" placeholder="一句话记事：明天下午3点交实验报告 @B302　按 Enter 记下，按 / 随时回到这里" spellcheck="false"><span class="td-qp" id="tdParse"></span></div>
         <div class="td-cols">
@@ -51,7 +52,9 @@ App.views.today = {
       if (e.target.closest("[data-enc-next]")) { this.shift = (this.shift || 0) + 1; return this.enc(); }
       const md = e.target.closest("[data-mood]"); if (md) { const t = todayKey(), cur = (KV("mood_log_v1") || {})[t]; kvSet("mood_log_v1", t, cur === md.dataset.mood ? null : md.dataset.mood); return; }
       if (e.target.closest("[data-mood-redo]")) { kvSet("mood_log_v1", todayKey(), null); return; }
-      const hb = e.target.closest("[data-hb]"); if (hb) { const on = await call("habit", hb.dataset.hb); if (on) cheer("habit"); return; }
+      if (e.target.closest("[data-ckpanel]")) return Ck.panel();
+      const cv = e.target.closest("[data-cview]"); if (cv) return CourseView.open(cv.dataset.cview, cv.dataset.cday, cv.dataset.cstart ? +cv.dataset.cstart : null);
+      const hb = e.target.closest("[data-hb]"); if (hb && Ck.habitBlocked(hb.dataset.hb)) return; if (hb) { const on = await call("habit", hb.dataset.hb); if (on) cheer("habit"); return; }
       if (e.target.closest("[data-cd]")) return App.go("countdown");
       if (e.target.closest("[data-nx=pomo]")) return call("pomo:start", App.S.settings.pomoFocus, "");
       const c = e.target.closest(".chk[data-k]"); if (c) { e.stopPropagation(); const x = App.find(c.dataset.k); if (x) toggleDone(x.key, !x.done); return; }
@@ -137,7 +140,7 @@ App.views.today = {
       const nc = this.nextCourse(ctx);
       if (nc) {
         const at = atOf(nc.day, nc.c.t0), isTm = nc.day !== M.dayKey(ctx.now), early = night || (isTm && h >= 21);
-        return `<div class="tn${early ? " sleep" : ""}" style="--c:${nc.c.color}"><span class="tn-k">${early ? "早点睡" : "下一节"}</span>
+        return `<div class="tn${early ? " sleep" : ""}" style="--c:${nc.c.color}"${nc.c.start && !nc.c.evening ? ` data-cview="${esc(nc.c.name)}" data-cday="${nc.day}" data-cstart="${nc.c.start}" title="点一下看课程表截图"` : ""}><span class="tn-k">${early ? "早点睡" : "下一节"}</span>
           <div class="tn-t"><b>${esc(nc.c.name)}</b><small>${isTm ? "明天 " : ""}${esc(nc.c.t0)}${nc.c.location ? " · " + esc(nc.c.location) : ""}${nc.c.teacher ? " · " + esc(nc.c.teacher) : ""}</small></div>${cd(at)}</div>`;
       }
       if (night) return `<div class="tn sleep"><span class="tn-k">早点睡</span><div class="tn-t"><b>明天没有要赶的事</b><small>睡饱了脑子才转得快</small></div></div>`;
@@ -150,7 +153,7 @@ App.views.today = {
     const sleep = night && !hot && !(top.mins != null && top.mins < 6 * 60);
     const label = sleep ? "早点睡" : isCourse ? (live ? "正在上" : "下一节") : live ? "进行中" : top.level === "late" ? "过期了" : top.exam ? "考试" : top.type === "作业" ? "先做这个" : "接下来";
     const sub = [top.time || (top.day ? IslandCore.dayName(top.day, ctx.now) : ""), top.location ? "📍 " + top.location : ""].filter(Boolean).join(" · ");
-    return `<div class="tn${hot ? " hot" : sleep ? " sleep" : ""}${isCourse ? " course" : ""}"${c && c.color ? ` style="--c:${c.color}"` : ""}${isCourse ? "" : ` data-k="${esc(top.key)}"`}>
+    return `<div class="tn${hot ? " hot" : sleep ? " sleep" : ""}${isCourse ? " course" : ""}"${c && c.color ? ` style="--c:${c.color}"` : ""}${isCourse ? (c.start && !c.evening ? ` data-cview="${esc(c.name)}" data-cday="${top.day}" data-cstart="${c.start}" title="点一下看课程表截图"` : "") : ` data-k="${esc(top.key)}"`}>
       <span class="tn-k">${label}</span>
       <div class="tn-t"><b>${esc(top.title)}</b><small>${esc(sub)}</small></div>
       ${at && at > nowMs ? cd(at, live) : `<div class="tn-cd"><span>${esc(top.reason || "")}</span></div>`}
@@ -172,7 +175,7 @@ App.views.today = {
     // 上面一条是课（色块），下面是有时间点的事（小卡片：时间 + 名字）。挨得近的事自动错开放到下一行，靠右的往左展开，不会被切掉
     const segs = courses.map((c) => {
       const s = hm2m(c.t0), e = hm2m(c.t1 || "") ?? s + 45, past = live && e <= nm, on = live && s <= nm && nm < e;
-      return `<div class="tb-c${past ? " past" : ""}${on ? " on" : ""}" data-day="${day}" style="--c:${c.color};left:${pct(s)}%;width:${(pct(e) - pct(s)).toFixed(2)}%" title="${esc(c.t0 + "–" + (c.t1 || "") + " " + c.name + (c.location ? " · " + c.location : ""))}">
+      return `<div class="tb-c${past ? " past" : ""}${on ? " on" : ""}" data-day="${day}"${c.start && !c.evening ? ` data-cview="${esc(c.name)}" data-cday="${day}" data-cstart="${c.start}"` : ""} style="--c:${c.color};left:${pct(s)}%;width:${(pct(e) - pct(s)).toFixed(2)}%" title="${esc(c.t0 + "–" + (c.t1 || "") + " " + c.name + (c.location ? " · " + c.location : ""))}">
         <b>${esc(c.name)}</b><small>${esc(c.t0)}${c.location ? " · " + esc(c.location) : ""}</small>${on ? `<i style="width:${(((nm - s) / (e - s)) * 100).toFixed(1)}%"></i>` : ""}</div>`;
     }).join("");
     // 每张卡片大约占时间轴的 22%：靠左的往右占，靠右的往左占；和同一行已有的卡片重叠就放到下一行（最多 3 行）

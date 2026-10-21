@@ -229,7 +229,8 @@ object Items {
         .sortedWith(compareBy<Item>({ if (it.dated) 0 else 1 }, { it.day }, { it.time.ifEmpty { "99" } }))
 
     // ---------- 「现在最该做的事」：首页卡片、小组件 ----------
-    class Next(val label: String, val title: String, val sub: String, val at: Long, val hot: Boolean, val key: String, val live: Boolean)
+    /** cday / cstart：是课的话，哪天第几节（6.9 首页点课程看课表截图） */
+    class Next(val label: String, val title: String, val sub: String, val at: Long, val hot: Boolean, val key: String, val live: Boolean, val cday: String = "", val cstart: Int = 0)
     fun next(): Next? {
         val now = T.now(); val t = T.todayKey(); val nowMs = System.currentTimeMillis(); val nowMin = now.hour * 60 + now.minute
         val night = now.hour >= 23 || now.hour < 5
@@ -261,7 +262,7 @@ object Items {
             val score = if (on) 96.0 else if (toStart <= 180) 110.0 / (1 + toStart / 60.0) else 0.0
             if (score <= 0) continue
             cands += C(score, Next(if (on) "正在上" else "下一节", c.name, c.t0 + "-" + c.t1 + if (c.location.isNotEmpty()) " · 📍 " + c.location else "",
-                T.epoch(t, if (on) e else s), on, "", on), false)
+                T.epoch(t, if (on) e else s), on, "", on, if (c.evening) "" else t, c.start), false)
         }
         cands.sortByDescending { it.score }
         // 6.6 正在上课：首页这一格固定显示这节课和「还有多久下课」，不被别的事挤掉
@@ -269,7 +270,7 @@ object Items {
         if (top == null || top.far) {
             nextLesson()?.let { (day, c) ->
                 val tm = day != t; val early = night || (tm && now.hour >= 21)
-                return Next(if (early) "早点睡" else "下一节", c.name, (if (tm) "明天 " else "") + c.t0 + if (c.location.isNotEmpty()) " · 📍 " + c.location else "", T.epoch(day, c.m0 ?: 0), false, "", false)
+                return Next(if (early) "早点睡" else "下一节", c.name, (if (tm) "明天 " else "") + c.t0 + if (c.location.isNotEmpty()) " · 📍 " + c.location else "", T.epoch(day, c.m0 ?: 0), false, "", false, if (c.evening) "" else day, c.start)
             }
             if (top == null) return null
         }
@@ -300,6 +301,7 @@ object Items {
             val mk = marks(); val m = mk.optJSONObject(key) ?: JSONObject()
             on = !m.optBoolean("done"); m.put("done", on); mk.put(key, m); Kv.set(MARK, mk)
             growth(key.substring(1), !on)
+            Level.log("done", key.substring(1), !on)
         } else {
             val list = Kv.arr(MINE); var hit = false; var v = false; var roll: JSONObject? = null
             for (x in list.objs()) if (x.str("id") == key) {
@@ -311,6 +313,8 @@ object Items {
             if (!hit) return false
             on = v; Kv.set(MINE, list)
             if (roll != null) lastRoll = roll.str("event_time").take(10)
+            // 6.9 账号经验：重复的事项每次完成单独算（同一天只算一次）
+            if (roll != null) Level.log("mine", key + "@" + T.todayKey(), false) else Level.log("mine", key, !on)
         }
         val log = Kv.obj(DONE_LOG); if (on) log.put(key, T.todayKey()) else log.remove(key); Kv.set(DONE_LOG, log)
         // 捞捞教练：记下几点完成的（只存在这台手机），用来学你的节奏、判断是不是一口气乱勾

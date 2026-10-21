@@ -684,6 +684,7 @@ app.whenReady().then(() => {
   nativeTheme.themeSource = store.data.settings.theme === "meta" ? "dark" : store.data.settings.theme || "system";
   nativeTheme.on("updated", () => { for (const w of [win, ...pops.values()]) if (w && !w.isDestroyed()) w.setTitleBarOverlay({ ...themeColors(), height: 44 }); });
   store.on("change", pushState); store.on("status", pushState);
+  store.on("xp", (p) => { if (win && !win.isDestroyed()) win.webContents.send("xp", p); });
   store.on("lan", (p) => { if (win && !win.isDestroyed()) win.webContents.send("lan", p); });
   // 3.3.3：只有令牌真的换不到了（api.js 已经清掉登录）才回到登录页；不在这里直接删登录信息
   store.on("auth-expired", async () => { try { if (sessionStore.load()) await api.session(true); } catch (e) {} pushState(); });

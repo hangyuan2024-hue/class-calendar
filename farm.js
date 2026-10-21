@@ -32,7 +32,11 @@ function farmLedger() {
   const byKey = new Map(allItems().map((r) => [r._key, r]));
   const days = {}, D = (d) => (days[d] ||= { done: 0, hw: 0, habit: 0, pomo: 0, food: 0, bonus: 0 });
   const isDay = (d) => /^\d{4}-\d{2}-\d{2}$/.test(d || "");
-  for (const [k, d] of Object.entries(doneLog)) {
+  // 6.9 修刷经验：养料按「完成过」算，取消完成不扣、再勾上也不重复给（以前取消再勾会多出养料，喂了又能再刷）
+  const st = farmState(), ever = { ...(st.earned || {}) }; let grew = false;
+  for (const [k, d] of Object.entries(doneLog)) if (isDay(d) && !ever[k]) { ever[k] = d; grew = true; }
+  if (grew) { farmCache = { ...st, earned: ever }; save(LS_FARM, farmCache); }
+  for (const [k, d] of Object.entries(ever)) {
     if (!isDay(d)) continue;
     const r = byKey.get(k), x = D(d); x.done++;
     if (r && r.msg_type === "作业") x.hw++;

@@ -104,10 +104,10 @@ class MailPage(a: Main) : Page(a) {
 
 // =====================================================================
 /** 班级成长排行榜：本周 / 本月 / 总榜，领奖台，我的名次，实名 / 匿名 / 不参加 */
-class RankPage(a: Main) : Page(a) {
+class RankPage(a: Main, level: Boolean = false) : Page(a) {
     private lateinit var body: LinearLayout
-    private var period = 0; private var d: JSONObject? = null; private var err = ""; private var synced = false
-    private val PER = listOf("week", "month", "all")
+    private var period = if (level) 3 else 0; private var d: JSONObject? = null; private var err = ""; private var synced = false
+    private val PER = listOf("week", "month", "all", "level")
     override fun build(): View = scaffold("排行榜", pull = { done -> load { done() } }) { body = it }
     override fun onShow() { load() }
     private fun load(done: (() -> Unit)? = null) {
@@ -119,8 +119,10 @@ class RankPage(a: Main) : Page(a) {
                 val ids = Store.items.filter { mk.optJSONObject("c" + it.opt("id"))?.optBoolean("done") == true }.map { it.opt("id") }
                 if (ids.isNotEmpty()) try { Api.rpc("growth_sync_done", jsonOf("cid" to c.str("id"), "ids" to JSONArray(ids))) } catch (_: Exception) {}
             }
-            Api.rpcObj("growth_board", jsonOf("cid" to c.str("id"), "period" to p))
-        }) { r, e -> done?.invoke(); if (r == null) err = e?.message ?: "加载失败" else { d = r; err = "" }; render() }
+            // 6.9 等级榜：账号总经验
+            if (p == "level") com.laolao.classcalendar.core.Level.board(c.str("id")).put("_p", p)
+            else Api.rpcObj("growth_board", jsonOf("cid" to c.str("id"), "period" to p)).put("_p", p)
+        }) { r, e -> done?.invoke(); if (r == null) err = e?.message?.let { if (p == "level" && Regex("xp_board|PGRST202|Could not find").containsMatchIn(it)) "服务器还没升级（需要执行 level.sql）" else it } ?: "加载失败" else if (r.str("_p") == PER[period]) { d = r; err = "" }; render() }
     }
     private fun stat(r: JSONObject) = listOf(if (r.optInt("hw") > 0) "✓ 作业 ${r.optInt("hw")}" else "", if (r.optInt("done") - r.optInt("hw") > 0) "✓ 其它 ${r.optInt("done") - r.optInt("hw")}" else "",
         if (r.optInt("habits") > 0) "🔥 打卡 ${r.optInt("habits")}" else "", if (r.optInt("pomos") > 0) "🍅 ${r.optInt("pomos")}" else "").filter { it.isNotEmpty() }.joinToString(" · ").ifEmpty { "刚刚起步" }
@@ -128,8 +130,9 @@ class RankPage(a: Main) : Page(a) {
         view; keepScroll(body)
         if (CK.gate(this, body)) return
         if (!Store.feat("rank")) { body.addView(ctx.empty("⏸", "排行榜现在关闭了")); return }
-        body.addView(Seg(ctx, listOf("本周", "本月", "总榜"), period) { period = it; load() })
-        val x = d ?: run { body.add(ctx.text(err.ifEmpty { "加载中…" }, 14f, if (err.isNotEmpty()) C.red else C.sub), 14); return }
+        body.addView(Seg(ctx, listOf("本周", "本月", "总榜", "⭐ 等级"), period) { period = it; d = null; err = ""; render(); load() })
+        val x = d?.takeIf { it.str("_p") == PER[period] } ?: run { body.add(ctx.text(err.ifEmpty { "加载中…" }, 14f, if (err.isNotEmpty()) C.red else C.sub), 14); return }
+        if (PER[period] == "level") { LevelUi.board(a, body, x); return }
         val rows = x.optJSONArray("rows")?.objs() ?: emptyList(); val cl = x.optJSONObject("class") ?: JSONObject()
         val P = listOf("本周", "本月", "总共")[period]
         // 班级概况

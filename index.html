@@ -1939,7 +1939,7 @@
 <link rel="stylesheet" href="campus-tools.css?v=20261008-org1">
 <link rel="stylesheet" href="org.css?v=20261008-org1">
 <link rel="stylesheet" href="polish.css?v=20261009-tl2">
-<link rel="stylesheet" href="extras.css?v=20261016-v580">
+<link rel="stylesheet" href="extras.css?v=20261021-v69">
 <link rel="stylesheet" href="study.css?v=20261009-kn2">
 </head>
 <body class="campus-workspace">
@@ -1975,10 +1975,11 @@
       <div class="cb-badge" id="cbBadge">班</div>
       <div class="cb-main">
         <div class="cb-line"><span id="className"></span><select id="classSel" class="hidden" aria-label="切换班级"></select><span id="classNick" class="cb-nick hidden"></span></div>
-        <div class="cb-sub"><span id="classRole" class="tag"></span><span id="classMotto" class="cb-motto hidden"></span><button id="cbNameBtn" class="cb-edit hidden" title="给班级起名字、写口号">✏️ 起名</button><button class="cb-edit" data-tab="people">👥 成员</button><a href="class.html">班级管理</a></div>
+        <div class="cb-sub"><span id="classRole" class="tag"></span><span id="classMotto" class="cb-motto hidden"></span><button id="cbNameBtn" class="cb-edit hidden" title="给班级起名字、写口号">✏️ 起名</button><button id="cbCheckin" class="cb-edit hidden" title="位置签到：班委发起，同学在范围内签到">📍 签到</button><button class="cb-edit" data-tab="people">👥 成员</button><a href="class.html">班级管理</a></div>
       </div>
     </div>
     <div id="notice" class="surface hidden"></div>
+    <div id="ckBanner"></div>
     <div id="coachCard"></div>
     <div class="studio-focus-grid">
       <div class="studio-welcome-wrap"><div id="hero"></div></div>
@@ -2133,6 +2134,7 @@
   <section class="view" data-view="growth">
     <header class="vhead"><button class="back" data-tab="home" aria-label="返回首页">‹</button><h2>成长</h2></header>
     <div class="surface" style="margin:0 16px"><div class="rings" id="gRings"></div></div>
+    <div id="lvCard" class="lv-wrap"></div>
     <button class="rank-entry surface farm-entry hidden" data-tab="farm" id="farmEntry" aria-label="云宠农场"></button>
     <button class="rank-entry surface" data-tab="rank" data-feat="rank" id="rankEntry"><span class="re-i">🏆</span><span><b>班级成长排行榜</b><small id="rankEntrySub">完成作业、打卡、番茄钟都能攒成长值</small></span><span class="re-go">›</span></button>
     <div class="sec-h"><b>最近 14 天</b><span>每天完成了多少事、打了多少卡</span></div>
@@ -2389,7 +2391,7 @@
   <!-- 班级成长排行榜 -->
   <section class="view" data-view="rank">
     <header class="vhead"><button class="back" data-tab="growth" aria-label="返回">‹</button><h2>排行榜</h2><span class="spacer"></span>
-      <div class="rk-seg" id="rankPeriod"><button data-p="week" class="on">本周</button><button data-p="month">本月</button><button data-p="all">总榜</button></div></header>
+      <div class="rk-seg" id="rankPeriod"><button data-p="week" class="on">本周</button><button data-p="month">本月</button><button data-p="all">总榜</button><button data-p="level">等级</button></div></header>
     <div id="rankBox"></div>
   </section>
 
@@ -2697,12 +2699,14 @@
 <script src="lao-train.js?v=20261019-v68"></script>
 <script src="memo-core.js?v=20261018-v63"></script>
 <script src="docx-text.js?v=20261018-v63"></script>
-<script src="course-image.js?v=20261014-v540"></script>
-<script src="courses.js?v=20261019-v65"></script>
-<script src="farm.js?v=20261009-tz1"></script>
+<script src="course-image.js?v=20261021-v69"></script>
+<script src="courses.js?v=20261021-v69"></script>
+<script src="farm.js?v=20261021-v69"></script>
 <script src="metaverse-v3.js?v=20261005-native3"></script>
 <script src="nextclass.js?v=20261017-v590"></script>
-<script src="app.js?v=20261020-v681"></script>
+<script src="app.js?v=20261021-v69"></script>
+<script src="level-ui.js?v=20261021-v69"></script>
+<script src="checkin-ui.js?v=20261021-v69"></script>
 <script src="extras.js?v=20261017-v592"></script>
 <script src="campus-tools.js?v=20261006-tools1"></script>
 <script src="workspace-v3.js?v=20261005-native3"></script>

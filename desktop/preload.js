@@ -8,7 +8,7 @@ const CALLS = ["state", "login", "logout", "refresh", "class:reload", "mine:upse
   "badge", "clip:read", "clip:image", "coach:log", "coach:rec", "coach:clear",
   "signup", "api:anon", "item:keep", "autodel:class", "item:override", "extras:reload", "files:count", "adj:save", "courses:reload",
   "file:save", "popout", "export:csv", "extra:items", "tool:read", "lan:send", "lan:apply", "lan:busy", "sys:idle", "mm:port"];
-const EVENTS = ["state", "nav", "ai-state", "ai-token", "pomo", "pomo-done", "quick-open", "badge", "lan"];
+const EVENTS = ["state", "nav", "ai-state", "ai-token", "pomo", "pomo-done", "quick-open", "badge", "lan", "xp"];
 contextBridge.exposeInMainWorld("cc", {
   call: async (ch, ...args) => {
     if (!CALLS.includes(ch)) throw new Error("不支持：" + ch);

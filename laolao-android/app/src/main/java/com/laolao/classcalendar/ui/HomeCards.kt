@@ -455,7 +455,7 @@ class HomeCards(private val p: Page) {
             val r = ctx.row().apply { pad(0, 6) }
             r.addView(ctx.text(h.icon + " " + h.name, 13.5f, C.text, lines = 1), LinearLayout.LayoutParams(0, WRAP, 1f))
             r.addView(ctx.text(if (on) "✓" else "打卡", 12f, if (on) Color.WHITE else C.accent, BOLD).apply { gravity = Gravity.CENTER; pad(10, 4); bg(if (on) C.green else C.selected, 12)
-                tap { v -> v.buzz(); val now = Growth.toggle(h.id); if (now) Cheer.show(a, "habit", "连续 ${Growth.streak(h.id)} 天"); p.render() } })
+                tap { v -> v.buzz(); HabitPlace.toggle(a, h.id) { now -> if (now) Cheer.show(a, "habit", "连续 ${Growth.streak(h.id)} 天"); p.render() } } })
             c.addView(r)
         }
         return c
@@ -503,7 +503,8 @@ class HomeCards(private val p: Page) {
             c.addView(ctx.row().apply { pad(8, 4); if (on) bg(C.selected, 8)
                 addView(View(ctx).apply { bg(Courses.color(x.name), 2) }, LinearLayout.LayoutParams(dp(3), dp(16)))
                 addView(ctx.text(x.name, 13f, if (past) C.mutedText else C.text, if (on) BOLD else null, 1).apply { pad(8, 0) }, LinearLayout.LayoutParams(0, WRAP, 1f))
-                addView(ctx.text(x.t0, 11.5f, C.sub)) })
+                addView(ctx.text(x.t0, 11.5f, C.sub))
+                if (!x.evening) { press(if (on) C.selected else 0, 8); tap { CourseView.open(a, T.today(), x) } } })   // 6.9 点课程看课表截图
         }
         return c
     }

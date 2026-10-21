@@ -61,6 +61,8 @@ class Main : Activity() {
         Api.onLost = { why -> toast(if (why == "revoked") "这台手机已在其他设备上被退出登录" else "登录已过期，请重新登录"); showLogin() }
         Bus.on(this) { what -> if (what == "user" && !Api.loggedIn) showLogin() else schedule() }
         Net.probe()
+        // 6.9 账号经验：+N / 升级的提示
+        com.laolao.classcalendar.core.Level.onXp = { pts, l, up -> toast(if (up) "🎉 升级了！Lv.${l.level} ${l.title}" else "⭐ 经验 +$pts · Lv.${l.level} ${l.xp}/${l.to}") }
         com.laolao.classcalendar.work.Notify.channels(this)
         // 从旧版（6.x）升级上来：清掉旧版留下的后台任务和通知分类
         val ap = getSharedPreferences("app", MODE_PRIVATE)
@@ -308,6 +310,22 @@ class Main : Activity() {
     override fun onRequestPermissionsResult(req: Int, perms: Array<out String>, res: IntArray) {
         super.onRequestPermissionsResult(req, perms, res)
         if (req == 5) Background.reschedule(this)
+        if (req == 6) { val f = locFn; locFn = null; f?.invoke(res.any { it == PackageManager.PERMISSION_GRANTED }) }
+    }
+    // ---------- 6.9 定位权限：位置签到、习惯到地点打卡（只在点按钮那一下定位） ----------
+    private var locFn: ((Boolean) -> Unit)? = null
+    fun needLocation(fn: (Boolean) -> Unit) {
+        val fine = Manifest.permission.ACCESS_FINE_LOCATION; val coarse = Manifest.permission.ACCESS_COARSE_LOCATION
+        if (checkSelfPermission(fine) == PackageManager.PERMISSION_GRANTED || checkSelfPermission(coarse) == PackageManager.PERMISSION_GRANTED) { fn(true); return }
+        locFn = fn; requestPermissions(arrayOf(fine, coarse), 6)
+    }
+    /** 定位一次（会先要权限）；失败时直接提示 */
+    fun locate(fn: (com.laolao.classcalendar.core.Geo.Pos) -> Unit) {
+        needLocation { ok ->
+            if (!ok) { Dialogs.alert(this, "需要位置权限", "签到 / 打卡要确认你在现场。请在系统设置里允许「捞捞课程表」使用位置信息（只在你点按钮那一下定位，不会一直跟踪）。"); return@needLocation }
+            toast("正在定位…")
+            com.laolao.classcalendar.core.Geo.once(this) { p, why -> if (p == null) Dialogs.alert(this, "没定位到", why) else fn(p) }
+        }
     }
     /** 刷任务这种深色全屏页：状态栏、导航栏换成深色，图标变白；off 时恢复 */
     @Suppress("DEPRECATION")

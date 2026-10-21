@@ -39,6 +39,7 @@ object Plan {
                 Coach.record(Coach.Ev(now, "pomo", p.task ?: "", m = p.len))     // 番茄钟是真计时，教练最信这个
                 val c = Store.cls
                 if (c != null && !c.optBoolean("is_teacher") && Store.feat("rank")) Bg.run { try { Api.rpc("growth_log", jsonOf("cid" to c.str("id"), "k" to "pomo", "r" to "$t|${l.optInt(t)}", "undo" to false)) } catch (_: Exception) {} }
+                Level.log("pomo", "$t|${l.optInt(t)}", false)
                 save(Pomo(p.len, "break", p.end + BREAK_MIN * 60_000L, 0, p.task))
                 Bus.emit("data"); return "focus"
             }

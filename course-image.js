@@ -22,6 +22,7 @@
     return {
       title: String(o.title || "课程表").slice(0, 30), sub: String(o.sub || "").slice(0, 60), foot: String(o.foot || "").slice(0, 60),
       times: times, nper: nper, ndays: ndays, dates: o.dates || [], today: o.today == null ? -1 : o.today,
+      hl: o.hl || null,   // 6.9 要标出来的那门课 { name, day, start }：首页点课程时用
       courses: courses.filter(function (c) { return +c.day < ndays; }),
     };
   }
@@ -102,6 +103,9 @@
       var col = q.c.color || { bg: "#e6eefc", fg: "#2e5fa8", bar: "#5b8def" };
       var x = gx + q.day * cw + 6 + q.lane * (cw - 12) / n, w = (cw - 12) / n - (n > 1 ? 4 : 0);
       var y0 = gy + (q.start - 1) * ROW + 5, h = (q.end - q.start + 1) * ROW - 10;
+      var hit = m.hl && q.c.name === m.hl.name && +q.c.day === +m.hl.day && (m.hl.start == null || +q.c.start === +m.hl.start);
+      ctx.globalAlpha = m.hl && !hit ? 0.45 : 1;
+      if (hit) { ctx.fillStyle = "#ff7a45"; rr(ctx, x - 6, y0 - 6, w + 12, h + 12, 20); ctx.fill(); }
       ctx.fillStyle = col.bg; rr(ctx, x, y0, w, h, 16); ctx.fill();
       ctx.fillStyle = col.bar; rr(ctx, x, y0, 7, h, 3.5); ctx.fill();
       ctx.textAlign = "left";
@@ -109,7 +113,7 @@
       ctx.fillStyle = col.fg; font(ctx, n > 1 ? 22 : 25, true);
       var nameLines = wrap(ctx, q.c.name, inner, Math.min(3, lines));
       nameLines.forEach(function (l) { ctx.fillText(l, x + 16, yy); yy += lh; });
-      font(ctx, n > 1 ? 18 : 20); ctx.fillStyle = col.fg; ctx.globalAlpha = 0.78;
+      font(ctx, n > 1 ? 18 : 20); ctx.fillStyle = col.fg; ctx.globalAlpha = m.hl && !hit ? 0.35 : 0.78;
       [q.c.location ? "@" + q.c.location : "", q.c.teacher || "", q.c.weeks || ""].filter(Boolean).forEach(function (s) {
         if (yy - y0 > h - 8) return;
         var ls = wrap(ctx, s, inner, 1); if (ls[0]) { ctx.fillText(ls[0], x + 16, yy - 4); yy += 26; }

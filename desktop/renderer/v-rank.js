@@ -5,7 +5,7 @@ App.views.rank = {
   mount(el) {
     el.innerHTML = `
       <div class="vhead"><div><h1>班级排行榜</h1><div class="sub" id="rkSub">完成作业、打卡、专注都能攒成长值</div></div><span class="grow"></span>
-        <div class="seg" id="rkPer"><button data-p="week" class="on">本周</button><button data-p="month">本月</button><button data-p="all">总共</button></div>
+        <div class="seg" id="rkPer"><button data-p="week" class="on">本周</button><button data-p="month">本月</button><button data-p="all">总共</button><button data-p="level">⭐ 等级</button></div>
         <button class="btn" id="rkRe">${icon("sync")}刷新</button></div>
       <div class="vbody"><div class="rk-wrap" id="rkBox"></div></div>`;
     $("#rkPer", el).onclick = (e) => { const b = e.target.closest("[data-p]"); if (!b) return; this.period = b.dataset.p; $$("#rkPer button", el).forEach((x) => x.classList.toggle("on", x === b)); this.load(); };
@@ -15,7 +15,7 @@ App.views.rank = {
       const u = e.target.closest("[data-user]"); if (u && u.dataset.user) App.go("people", { uid: u.dataset.user });
     });
   },
-  show() { this.load(); },
+  show() { $$("#rkPer button", this.el).forEach((x) => x.classList.toggle("on", x.dataset.p === this.period)); this.load(); },
   update() { if (this.data && this.data.cid !== App.S.cid) { this.data = null; if (App.view === "rank") this.load(); } this.draw(); },
   async load() {
     const S = App.S, cid = S.cid, box = $("#rkBox", this.el);
@@ -28,8 +28,9 @@ App.views.rank = {
         const ids = (S.items || []).filter((r) => ((S.marks || {})["c" + r.id] || {}).done).map((r) => r.id);
         if (ids.length) await api("growth_sync_done", { cid, ids }, true).catch(() => {});
       }
-      const d = await api("growth_board", { cid, period: this.period }, true);
-      this.data = { cid, d };
+      // 6.9 等级榜：账号总经验，按等级比
+      const d = this.period === "level" ? await api("xp_board", { cid }, true) : await api("growth_board", { cid, period: this.period }, true);
+      this.data = { cid, d, p: this.period };
     } catch (e) { box.innerHTML = `<div class="empty"><b>🏆</b>排行榜暂时打不开：${esc(cleanErr(e))}</div>`; return; }
     this.draw();
   },
@@ -38,6 +39,11 @@ App.views.rank = {
     const box = $("#rkBox", el), S = App.S;
     if (!S.cid) { box.innerHTML = `<div class="empty"><b>🏆</b>加入班级后就能和同学一起攒成长值、上排行榜</div>`; return; }
     if (!this.data) return;
+    if (this.data.p !== this.period) return;   // 换了一栏，新的还在加载
+    if (this.period === "level") {
+      $("#rkSub", el).textContent = `${(App.cls() && (App.cls().nickname || App.cls().name)) || ""} · 账号等级`;
+      box.innerHTML = Lv.boardHtml(this.data.d); return;
+    }
     const d = this.data.d, rows = d.rows || [], c = d.class || {}, P = { week: "本周", month: "本月", all: "总共" }[this.period];
     const cls = App.cls(), cname = (cls && (cls.nickname || cls.name)) || "", top = rows.length ? rows[0].points : 1, me = rows.find((r) => r.me);
     const av = (r, size) => `<span class="av ${size}" style="background:${r.anon && !d.teacher && !r.me ? "#9aa5b5" : avColor(r.name)}"${r.id && !r.anon ? ` data-user="${esc(r.id)}"` : ""}>${esc([...(r.name || "?")][0])}</span>`;

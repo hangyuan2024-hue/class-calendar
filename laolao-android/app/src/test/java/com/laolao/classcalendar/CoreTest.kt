@@ -1,6 +1,9 @@
 package com.laolao.classcalendar
 
 import com.laolao.classcalendar.core.Coach
+import com.laolao.classcalendar.core.Geo
+import com.laolao.classcalendar.core.Level
+import com.laolao.classcalendar.core.CourseShot
 import com.laolao.classcalendar.core.Courses
 import com.laolao.classcalendar.core.Flow
 import com.laolao.classcalendar.core.Island
@@ -219,5 +222,16 @@ class CoreTest {
         val lec = Island.Row("item", "a", "讲座", "通知", "2026-10-19", "19:20", "教二报告厅", "soon", false, 50.0, "", "4 小时后开始")
         val hw = Island.Row("item", "b", "离散数学作业", "作业", "2026-10-21", "", "", "soon", false, 40.0, "", "还剩 2 天")
         assertTrue(!Coach.doable(lec)); assertTrue(Coach.doable(hw))
+    }
+
+    // 6.9 账号等级：称号、进度；签到距离；原图里按名字找框
+    @Test fun levelAndGeo() {
+        assertEquals("新同学", Level.title(1)); assertEquals("行动派", Level.title(7)); assertEquals("卷王", Level.title(12)); assertEquals("传说", Level.title(30))
+        val l = Level.parse(org.json.JSONObject("""{"level":3,"xp":160,"from":140,"to":330}"""))!!
+        assertEquals(10, l.pct); assertEquals(170, l.need); assertEquals("见习生", l.title)
+        val d = Geo.dist(30.0, 120.0, 30.001, 120.0)
+        assertTrue("1/1000 度纬度约 111 米：$d", Math.abs(d - 111.2) < 1)
+        val rec = org.json.JSONObject("""{"img":"data:image/jpeg;base64,/9j/","items":{"x1":{"box":[0.1,0.2,0.3,0.4],"name":"高等数学"},"x2":{"box":[0.5,0.5,0.6,0.6],"name":"英语"}}}""")
+        assertEquals(0.3, CourseShot.boxOf(rec, "高等数学")!![2], 1e-9); assertTrue(CourseShot.boxOf(rec, "物理") == null)
     }
 }
