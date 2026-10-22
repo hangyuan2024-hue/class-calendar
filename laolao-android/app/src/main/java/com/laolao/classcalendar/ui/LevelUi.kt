@@ -291,12 +291,12 @@ class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: S
                 val oid = o.optLong("id")
                 fun chip(t: String, ok: Boolean, fn: (() -> Unit)?, long: (() -> Unit)?) = ctx.text(t, 13.5f, if (ok) C.green else C.text).apply {
                     pad(10, 5); bg(if (ok) C.alpha(C.green, 0.12f) else C.mutedBg, 14, if (fn != null) C.alpha(ORANGE, 0.6f) else 0)
-                    if (fn != null) tap { fn() }; if (long != null) setOnLongClickListener { long(); true } }
+                    if (fn != null) tap { fn() } else if (long != null) tap { long() } }
                 fun mark(uid: String, n: String, on: Boolean) = Dialogs.confirm(ctx, if (on) "给「$n」补签？" else "撤销「$n」的签到？", if (on) "没带手机、定位不准、请假都可以补。" else "签错人、代签时用。", if (on) "补签" else "撤销", danger = !on) {
                     Bg.load({ Checkin.mark(oid, uid, on) }) { _, e -> a.toast(if (e != null) e.message ?: "没成功" else if (on) "已补签" else "已撤销"); openOne(oid) } }
                 nb.addView(ctx.text("已签 ${sg.size} 人", 14f, C.text, BOLD))
                 val f1 = FlowRow(ctx, dp(6), dp(6))
-                sg.forEach { s -> val uid = s.str("uid"); f1.addView(chip(s.str("name") + " " + Checkin.hm(s.str("at")).takeLast(5) + (if (s.str("via") == "manual") " 补签" else if (s.str("via") == "code") " 码" else if (!s.isNull("dist")) " ${s.optInt("dist")}米" else ""), true, null,
+                sg.forEach { s -> val uid = s.str("uid"); f1.addView(chip(s.str("name") + " " + Checkin.hm(s.str("at")).takeLast(5) + (if (s.str("via") == "manual") " 补签" else if (s.str("via") == "code") " 码" else if (!s.isNull("dist")) " ${s.optInt("dist")}米" else "") + (if (mu != null && uid.isNotEmpty()) " ×" else ""), true, null,
                     if (mu != null && uid.isNotEmpty()) ({ mark(uid, s.str("name"), false) }) else null)) }
                 if (sg.isEmpty()) f1.addView(ctx.text("还没有", 13.5f, C.sub))
                 nb.add(f1, 6)
@@ -306,7 +306,7 @@ class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: S
                 else ms.forEach { f2.addView(chip(it, false, null, null)) }
                 if (ms.isEmpty()) f2.addView(ctx.text("全到了 🎉", 13.5f, C.sub))
                 nb.add(f2, 6)
-                if (mu != null) nb.add(ctx.text("长按已签的名字可以撤销（签错人、代签时用）", 12f, C.sub), 8)
+                if (mu != null) nb.add(ctx.text("点已签的名字可以撤销（补签补错了、签错人、代签时用）", 12f, C.sub), 8)
                 val br = ctx.row().apply { margins(t = 10) }
                 if (ms.isNotEmpty()) br.addView(ctx.soft("复制没签的名单") { (ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("没签到", ms.joinToString("、"))); a.toast("已复制") }, LinearLayout.LayoutParams(WRAP, WRAP).apply { rightMargin = dp(8) })
                 if (open) br.addView(ctx.soft("结束签到", C.dangerBg, C.red) { Dialogs.confirm(ctx, "结束这次签到？", "结束后同学就不能再签了。", "结束", danger = true) { Bg.load({ Checkin.close(o.optLong("id")) }) { _, e -> a.toast(if (e != null) e.message ?: "没结束成功" else "已结束"); openOne(o.optLong("id")) } } })

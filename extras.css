@@ -360,5 +360,5 @@ dialog.ck-dlg { width: min(660px, calc(100vw - 24px)); padding: 20px 22px 16px; 
 /* 6.9.6 补签 */
 button.ck-name.mk { border: 1px dashed rgba(255,122,69,.6); cursor: pointer; font: inherit; color: inherit; }
 button.ck-name.mk:hover { background: rgba(255,122,69,.12); }
-.ck-name .ck-x { border: 0; background: none; color: inherit; opacity: .45; cursor: pointer; padding: 0 0 0 4px; font-size: 14px; line-height: 1; }
+.ck-name .ck-x { border: 0; background: none; color: inherit; opacity: .7; cursor: pointer; padding: 0 0 0 4px; font-size: 14px; line-height: 1; }
 .ck-name .ck-x:hover { opacity: 1; color: #c0392b; }

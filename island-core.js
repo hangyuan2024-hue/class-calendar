@@ -378,5 +378,5 @@
   }
   function fallback() { return { text: "这个我还不太会 😅 我能回答日程、课程、作业、考试、打卡这些，试试问：", chips: CHIPS }; }
 
-  return { evening: evening, morning: morning, withEvening: withEvening, doable: doable, isDue: isDue, rank: rank, startInfo: startInfo, startText: startText, greet: greet, answer: answer, fallback: fallback, hello: hello, parseDay: parseDay, dayName: dayName, leftText: leftText, keyOf: keyOf, CHIPS: CHIPS };
+  return { EXAM: EXAM, evening: evening, morning: morning, withEvening: withEvening, doable: doable, isDue: isDue, rank: rank, startInfo: startInfo, startText: startText, greet: greet, answer: answer, fallback: fallback, hello: hello, parseDay: parseDay, dayName: dayName, leftText: leftText, keyOf: keyOf, CHIPS: CHIPS };
 });
