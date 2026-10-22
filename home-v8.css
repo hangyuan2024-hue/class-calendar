@@ -1,0 +1,175 @@
+/* =========================================================================
+ * 6.10 介绍页（app.html）打磨：放在 home-v7.css 后面，只做覆盖，不改原来的样式
+ *   · 首屏：大屏上「群消息 → 课表」演示放大一点，左右更平衡
+ *   · 作品展映：视频放不出来时露出封面图，不再空白一片
+ *   · 三个板块：捞捞课程表卡片补一张小预览；三张卡片的按钮底边对齐
+ *   · 换个屏幕：四个设备换成线条图标
+ *   · 手机：示例工作台、轮播、板块卡片更紧凑
+ * ========================================================================= */
+
+/* ---------- 首屏 ---------- */
+@media (min-width: 1180px) {
+  .v7-machine { transform: scale(1.08); transform-origin: 100% 50%; }
+}
+@media (min-width: 1440px) {
+  .v7-machine { transform: scale(1.14); }
+}
+
+/* ---------- 作品展映：视频底下垫封面图 ---------- */
+.h6-slide.is-video .h6-media { background-color: #f5f3ee; background-size: cover; background-position: center; background-repeat: no-repeat; }
+.h6-slide.is-video .h6-video { background: transparent; }
+
+/* ---------- 三个板块 ---------- */
+.h6-prod-3 .h6-prod-act { flex-direction: column; align-items: flex-start; gap: 10px; }
+.h6-prod-3 .h6-prod-where { padding-left: 2px; }
+
+.h8-cal-preview { display: grid; gap: 8px; margin: 2px 0; }
+.h8-cal-preview .r { display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px;
+  background: #f5f7ff; border: 1px solid #e6eafb; font-size: 12.5px; }
+.h8-cal-preview .r b { font: 700 12px/1 var(--numeric, inherit); color: #5266e8; text-align: center; }
+.h8-cal-preview .r span { min-width: 0; font-weight: 700; color: var(--ink, #14213d); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.h8-cal-preview .r small { display: block; margin-top: 3px; font-weight: 400; font-size: 11px; color: #7b8794; overflow: hidden; text-overflow: ellipsis; }
+.h8-cal-preview .r em { font-style: normal; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: #e7ebff; color: #4b5fe0; white-space: nowrap; }
+.h8-cal-preview .r.now { background: #eef8f3; border-color: #d7efe3; }
+.h8-cal-preview .r.now b { color: #1f9d6b; }
+.h8-cal-preview .r.now em { background: #d9f3e6; color: #198a5d; }
+.h8-cal-preview .r.hw { background: #fff6ef; border-color: #fbe6d6; }
+.h8-cal-preview .r.hw b { color: #e0683a; }
+.h8-cal-preview .r.hw em { background: #ffe7d6; color: #c95a2c; }
+.h8-cal-preview .r.wx b { font-size: 15px; }
+
+/* ---------- 换个屏幕：线条图标 ---------- */
+.s-download-card .s-device-icon { width: 54px; height: 54px; display: grid; place-items: center; border-radius: 16px; margin-bottom: 22px;
+  background: rgba(124, 147, 255, .14); color: #b9c5ff; box-shadow: inset 0 0 0 1px rgba(160, 178, 255, .18); }
+.s-download-card .s-device-icon svg { width: 28px; height: 28px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.s-download-card .s-device-icon svg circle[r=".5"] { fill: currentColor; }
+.s-download-card.s-mp-card .s-device-icon { background: rgba(43, 185, 138, .14); color: #8fe3c2; box-shadow: inset 0 0 0 1px rgba(43, 185, 138, .22); }
+
+/* ---------- 手机 ---------- */
+@media (max-width: 720px) {
+  /* 示例工作台：左边的竖栏太占地方，去掉；课表横着滑 */
+  .v7-try .s-product-rail { display: none; }
+  .v7-try .s-week { overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
+  .v7-try .s-week-day { min-width: 88px; scroll-snap-align: start; }
+  /* 轮播：封面图按比例显示 */
+  .h6-slide.is-video .h6-media { aspect-ratio: 16 / 9; background-size: contain; background-color: #f5f3ee; }
+  .h8-cal-preview .r { grid-template-columns: 40px minmax(0, 1fr) auto; padding: 9px 10px; }
+  .s-download-card .s-device-icon { width: 46px; height: 46px; margin-bottom: 16px; }
+  .s-download-card .s-device-icon svg { width: 24px; height: 24px; }
+}
+
+/* =========================================================================
+ * 6.10 顶栏账号（site-account.js）：登录后显示头像 + 名字，点开「账号管理」；不会一点就退出
+ * ========================================================================= */
+.v8-acct-btn { display: inline-flex; align-items: center; gap: 8px; max-width: 168px; min-width: 0; height: 38px; padding: 0 12px 0 4px; border-radius: 999px;
+  border: 1px solid rgba(184, 195, 230, .28); background: rgba(255, 255, 255, .06); color: #e6ebff; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.v8-acct-btn:hover { background: rgba(255, 255, 255, .12); color: #fff; }
+.v8-acct-btn[hidden], [data-acct-login][hidden], [data-acct-open][hidden] { display: none !important; }
+.v8-av { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 14px; font-weight: 800; color: #fff;
+  background: linear-gradient(135deg, #6d83ff, #a77bff); }
+.v8-av.big { width: 56px; height: 56px; border-radius: 18px; font-size: 24px; }
+.v8-an { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.v8-acct-dlg { border: 0; padding: 0; background: transparent; width: min(420px, calc(100vw - 32px)); max-height: calc(100vh - 32px); color: var(--ink, #0e1a3a); }
+.v8-acct-dlg::backdrop { background: rgba(8, 14, 36, .55); backdrop-filter: blur(3px); }
+.v8-acct-card { position: relative; padding: 26px 24px 22px; border-radius: 22px; background: #fff; box-shadow: 0 30px 80px -30px rgba(8, 14, 36, .55); }
+.v8-acct-x { position: absolute; top: 14px; right: 14px; width: 34px; height: 34px; border: 0; border-radius: 50%; background: #f1f4fb; color: #5b6a8a; font-size: 14px; cursor: pointer; }
+.v8-acct-me { display: flex; align-items: center; gap: 14px; padding-right: 34px; }
+.v8-acct-me h2 { margin: 0; font-size: 19px; line-height: 1.3; overflow-wrap: anywhere; }
+.v8-acct-me p { margin: 3px 0 0; font-size: 13px; color: var(--muted, #5b6a8a); }
+.v8-acct-tip { margin: 14px 0 10px; padding: 8px 12px; border-radius: 10px; background: #f3f6fc; color: var(--muted, #5b6a8a); font-size: 12.5px; }
+.v8-acct-list { display: grid; gap: 4px; }
+.v8-acct-list a, .v8-acct-list button { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: 12px; width: 100%; padding: 10px 10px; border: 0; border-radius: 14px;
+  background: none; color: inherit; font: inherit; text-align: left; text-decoration: none; cursor: pointer; }
+.v8-acct-list a:hover, .v8-acct-list button:hover, .v8-acct-list button.on { background: #f3f6fc; }
+.v8-acct-list .ic { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; background: #eef1ff; color: #4c6fff; font-size: 16px; }
+.v8-acct-list b { display: block; font-size: 14.5px; }
+.v8-acct-list small { display: block; margin-top: 2px; color: var(--muted, #5b6a8a); font-size: 12px; }
+.v8-acct-list em { font-style: normal; color: #9aa6c0; }
+.v8-acct-list .out .ic { background: #fff0ec; color: #d9480f; }
+.v8-acct-list .out b { color: #c2410c; }
+.v8-acct-ask { margin-top: 12px; padding: 14px; border-radius: 14px; background: #fff7ed; border: 1px solid #fde2c8; }
+.v8-acct-ask b { display: block; font-size: 14.5px; }
+.v8-acct-ask span { display: block; margin-top: 4px; color: #8a5a3a; font-size: 12.5px; }
+.v8-acct-ask div { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.v8-acct-ask button { padding: 9px 16px; border-radius: 10px; border: 1px solid #e4e8f2; background: #fff; color: inherit; font: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer; }
+.v8-acct-ask button.danger { border-color: #e8590c; background: #e8590c; color: #fff; }
+.v8-acct-ask button[disabled] { opacity: .7; }
+
+/* 手机菜单里：语言、登录 / 账号管理（顶栏太挤，放不下的都在这） */
+.v8-nav-extra { display: none; }
+@media (max-width: 980px) {
+  .s-header.nav-open .v8-nav-extra { display: flex; gap: 10px; align-items: center; padding: 14px 4px 6px; border-top: 1px solid rgba(140, 165, 255, .16); margin-top: 6px; }
+  .v8-nav-extra .lang-btn, .v8-nav-extra a, .v8-nav-extra button { padding: 9px 14px; border-radius: 10px; border: 1px solid rgba(184, 195, 230, .3); background: none; color: #e6ebff; font: inherit; font-size: 14px; font-weight: 600; text-decoration: none; cursor: pointer; }
+}
+@media (max-width: 720px) {
+  .v8-acct-btn { padding: 0; width: 38px; height: 38px; justify-content: center; border-radius: 50%; }
+  .v8-acct-btn .v8-an { display: none; }
+}
+
+/* =========================================================================
+ * 6.10 「捞捞学习」「捞捞编程」两个板块页：和介绍页同一套样子（深色首屏 + 展示字体标题 + 浅色内容区）
+ *   板块自己的颜色（学习 = 橙、编程 = 蓝）只用在强调的地方
+ * ========================================================================= */
+body.v8-board { background: var(--paper, #f3f6fc); }
+.v8-board .bd-main { max-width: 1320px; padding: 0 max(24px, calc((100% - 1320px) / 2)) 80px; }
+.v8-board .bd-hero { position: relative; margin: 0 calc(50% - 50vw); padding: clamp(48px, 9vh, 96px) max(24px, calc(50vw - 660px)) clamp(48px, 8vh, 88px); gap: clamp(28px, 5vw, 72px);
+  background: radial-gradient(120% 90% at 85% 10%, #1b2d6b 0%, var(--night, #0a1433) 55%) var(--night, #0a1433); color: #e9eeff; overflow: hidden; }
+.v8-board .bd-hero::before { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background-image: linear-gradient(var(--night-line, rgba(140,165,255,.09)) 1px, transparent 1px), linear-gradient(90deg, var(--night-line, rgba(140,165,255,.09)) 1px, transparent 1px);
+  background-size: calc(100% / 10) 64px, calc(100% / 10) 64px;
+  -webkit-mask-image: radial-gradient(90% 80% at 60% 45%, #000 30%, transparent 85%); mask-image: radial-gradient(90% 80% at 60% 45%, #000 30%, transparent 85%); }
+.v8-board .bd-hero > * { position: relative; }
+.v8-board .bd-hero .s-kicker { color: #8fa2e6; }
+.v8-board .bd-hero h1 { font-family: var(--head); font-weight: 400; letter-spacing: .01em; color: #fff; font-size: clamp(40px, 5.4vw, 72px); line-height: 1.12; }
+.v8-board .bd-hero h1 span { color: var(--bd-hi, var(--bd-accent)); }
+.v8-board .bd-hero p.lead { color: #b8c3e6; }
+.v8-board .bd-hero p.lead b { color: #fff; }
+.v8-board .bd-acts small { color: #8a97bf; }
+.v8-board .bd-acts .s-text-link { color: #dbe3ff; }
+.v8-board .bd-acts .s-button-ink { background: #fff; color: var(--night, #0a1433); }
+.v8-board .bd-who { color: #b8c3e6; }
+.v8-board .bd-who b { color: #fff; }
+.v8-board .bd-who a { color: #9fb2ff; }
+.v8-board .bd-who .dot { background: #4a5680; }
+.v8-board .bd-who.on .dot { background: var(--mint-hi, #2fd4a7); }
+.v8-board .bd-mm { border-color: rgba(140, 165, 255, .2); box-shadow: 0 40px 80px -40px rgba(0, 0, 0, .6); }
+.v8-board .bd-ide { box-shadow: 0 40px 80px -36px rgba(0, 0, 0, .7); border: 1px solid rgba(140, 165, 255, .16); }
+.v8-board .bd-sec { padding-top: clamp(56px, 8vh, 96px); }
+.v8-board .bd-sec > h2 { font-family: var(--head); font-weight: 400; letter-spacing: .01em; font-size: clamp(32px, 3.6vw, 48px); line-height: 1.2; margin: 8px 0 28px; }
+.v8-board .bd-sec > h2 span { color: var(--bd-accent); }
+.v8-board .bd-card, .v8-board .bd-lang, .v8-board .bd-faq details { border-color: var(--edge, #dfe5f1); }
+.v8-board .bd-card { border-radius: 22px; }
+.v8-board a.bd-card:hover { border-color: #c9d3ea; box-shadow: 0 24px 50px -30px rgba(14, 26, 58, .4); }
+.v8-board .bd-faq details[open] summary { color: var(--bd-accent); }
+.v8-board .s-footer { margin-top: 40px; }
+@media (max-width: 900px) {
+  .v8-board .bd-hero { padding-top: 40px; padding-bottom: 48px; }
+}
+
+/* =========================================================================
+ * 6.10 下载区：先选板块（课程表 / 编程），捞捞学习不用下载，直接去网页
+ * ========================================================================= */
+.v8-get-tabs { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 22px; }
+.v8-get-tabs button, .v8-get-learn { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 12px 18px 12px 12px; border-radius: 16px;
+  border: 1px solid rgba(160, 178, 255, .2); background: rgba(255, 255, 255, .04); color: #dbe3ff; font: inherit; text-align: left; text-decoration: none; cursor: pointer; }
+.v8-get-tabs button:hover, .v8-get-learn:hover { background: rgba(255, 255, 255, .08); }
+.v8-get-tabs button[aria-selected="true"] { background: #fff; color: var(--ink, #0e1a3a); border-color: #fff; box-shadow: 0 16px 36px -20px rgba(0, 0, 0, .6); }
+.v8-get-tabs b { display: block; font-size: 15px; }
+.v8-get-tabs small { display: block; margin-top: 2px; font-size: 12px; opacity: .75; }
+.v8-get-tabs .v7-mi { flex: none; }
+.v8-get-learn { margin-left: auto; border-style: dashed; }
+.v8-get-code { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 18px; align-items: stretch; }
+.v8-get-code[hidden] { display: none; }
+.v8-code-card .s-button { align-self: flex-start; }
+.v8-code-side { padding: 28px; border-radius: 20px; border: 1px dashed rgba(160, 178, 255, .28); color: #b8c3e6; display: flex; flex-direction: column; gap: 10px; justify-content: center; }
+.v8-code-side b { color: #fff; font-size: 17px; }
+.v8-code-side p { margin: 0; font-size: 13.5px; line-height: 1.8; }
+.v8-code-side .s-button { align-self: flex-start; margin-top: 6px; }
+@media (max-width: 760px) {
+  .v8-get-tabs button, .v8-get-learn { flex: 1 1 100%; }
+  .v8-get-learn { margin-left: 0; }
+  .v8-get-code { grid-template-columns: 1fr; }
+}
+.v8-board .bd-who { display: block; line-height: 1.8; }
+.v8-board .bd-who .dot { display: inline-block; margin-right: 8px; vertical-align: middle; }

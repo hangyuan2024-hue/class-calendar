@@ -36,7 +36,8 @@
         ? '<video class="h6-video" muted playsinline preload="' + (i ? "none" : "metadata") + '" data-src="' + esc(pickSrc(x)) + '"' + (safeUrl(x.poster) ? ' poster="' + esc(safeUrl(x.poster)) + '"' : "") + '></video>' + (x.sound === false ? "" : '<button class="h6-sound" type="button" aria-label="打开声音">🔇</button>')
         : ART[x.art];
       return '<figure class="h6-slide' + (x.type === "video" ? " is-video" : "") + '" role="group" aria-roledescription="作品" aria-label="' + (i + 1) + ' / ' + list.length + '" data-i="' + i + '">' +
-        '<div class="h6-media">' + media + '</div>' +
+        // 6.10 视频放不出来（浏览器不支持、微信里被拦、网络慢）时，底下垫着封面图，不会空白一片
+        '<div class="h6-media"' + (x.type === "video" && safeUrl(x.poster) ? ' style="background-image:url(\'' + esc(safeUrl(x.poster)) + '\')"' : "") + '>' + media + '</div>' +
         '<figcaption><span class="h6-tag">' + esc(x.tag || (x.type === "video" ? "视频" : "功能")) + '</span><h3>' + esc(x.title) + '</h3><p>' + esc(x.desc) + '</p></figcaption></figure>';
     }).join("");
     dotsBox.innerHTML = list.map(function (x, i) { return '<button type="button" role="tab" aria-label="' + esc(x.title) + '" data-i="' + i + '"><i></i></button>'; }).join("");

@@ -5032,6 +5032,7 @@ async function handleHash() {
   } else if (location.hash === "#intro") { history.replaceState(null, "", location.pathname); showView("intro"); }
   else if (location.hash.startsWith("#cal=")) { const k = location.hash.slice(5); history.replaceState(null, "", location.pathname); if (/^\d{4}-\d{2}-\d{2}$/.test(k)) $("jumpDate").onchange({ target: { value: k } }); }
   else if (location.hash === "#people") { history.replaceState(null, "", location.pathname); showView("people"); }
+  else if (location.hash === "#me") { history.replaceState(null, "", location.pathname); showView("me"); }   // 6.10 介绍页「账号管理 → 账号与安全」
   else if (location.hash === "#mindmap" || location.hash === "#study") { const v = location.hash.slice(1); history.replaceState(null, "", location.pathname); showView(v); }   // 首页「捞捞思维导图」板块直达
 }
 window.addEventListener("hashchange", handleHash);

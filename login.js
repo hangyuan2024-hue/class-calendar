@@ -364,13 +364,14 @@ if (!document.body.classList.contains("studio-public")) setTimeout(() => ($("acc
   $("alreadyHi").textContent = `欢迎回来，${me.display_name}`;
   $("alreadyName").textContent = `${CCAuth.ROLE_NAMES[me.role] || me.role} · @${me.account || ""}`;
   $("already").classList.remove("hidden"); $("loginBox").classList.add("hidden");
-  // 介绍页（app.html）顶部：已经登录就显示名字，「进入工作台」直接进自己的账号
-  const hl = document.querySelector(".s-header-actions .s-login-link");
-  if (hl) { hl.textContent = "👤 " + (me.display_name || me.account || "我"); hl.href = "index.html"; hl.removeAttribute("data-login-focus"); }
+  // 介绍页（app.html）顶栏的账号按钮、「进入工作台」改成直达自己的账号：都在 site-account.js 里（6.10）
   document.querySelectorAll('a[href="index.html?guest=1"]').forEach((a) => { a.href = "index.html"; });
 })();
 $("continueBtn").onclick = () => afterLogin(false);
+// 6.10 介绍页上不再一点就退出：打开「账号管理」面板，切换账号 / 退出登录都要再确认一次
 $("switchBtn").onclick = async () => {
+  if (window.SiteAcct) { window.SiteAcct.open(); return; }
+  if (!confirm("退出这个账号，换别的账号登录？")) return;
   await CCAuth.signOut();
   $("already").classList.add("hidden"); $("loginBox").classList.remove("hidden");
 };

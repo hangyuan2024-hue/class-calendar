@@ -8,7 +8,7 @@
  * ========================================================================= */
 (function () {
   "use strict";
-  var LS = "cc_lang", VER = "20261019-v68";
+  var LS = "cc_lang", VER = "20261023-v700";
   function pick() {
     try {
       var q = (location.search.match(/[?&]lang=(en|zh)\b/) || [])[1];
@@ -51,7 +51,9 @@
   document.head.appendChild(hide);
   var reveal = function () { if (hide.parentNode) hide.parentNode.removeChild(hide); };
   setTimeout(reveal, 1500);
-  document.write('<script src="i18n-en.js?v=' + VER + '"><\/script>');
+  // 词典和 i18n.js 放在同一个文件夹（learn/、code/ 这些子目录的页面也能找到）
+  var self = document.currentScript, dir = self && self.src ? self.src.replace(/[^\/]*$/, "") : "";
+  document.write('<script src="' + dir + 'i18n-en.js?v=' + VER + '"><\/script>');
 
   var CJK = /[一-鿿]/;
   var X = null, P = null, cache = new Map();
