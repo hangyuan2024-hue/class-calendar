@@ -1,0 +1,138 @@
+# 安卓 App 7.0（全新重做，代码在 laolao-android 文件夹）：打包 → 发布到 Releases → 更新官网下载（download/app-version.json）
+# 签名用仓库里的 android/release.jks 和 Secrets 里的 KEYSTORE_PASSWORD（和以前同一个签名，老用户可以直接覆盖安装）。
+# 版本号：versionCode = 700 + 第几次运行（一定比 6.x 大），版本名 7.0.第几次运行。
+name: 安卓 App
+
+on:
+  push:
+    branches: [main, master]
+    paths: ["laolao-android/**", ".github/workflows/android.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-app
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "17", cache: gradle }
+
+      - name: 版本号
+        id: ver
+        run: |
+          echo "code=$((700 + ${{ github.run_number }}))" >> "$GITHUB_OUTPUT"
+          echo "name=7.0.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+      - name: 检查正式签名
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          test -f android/release.jks || { echo "::error::仓库里缺少 android/release.jks（签名文件），不能生成能覆盖旧版的正式安装包。"; exit 1; }
+          test -n "$KEYSTORE_PASSWORD" || { echo "::error::缺少 KEYSTORE_PASSWORD。请在 Settings → Secrets and variables → Actions 里添加。"; exit 1; }
+
+      - name: 测试并打包
+        working-directory: laolao-android
+        env:
+          APP_VERSION_CODE: ${{ steps.ver.outputs.code }}
+          APP_VERSION_NAME: ${{ steps.ver.outputs.name }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          chmod +x gradlew
+          ./gradlew testReleaseUnitTest assembleRelease --no-daemon --stacktrace
+
+      - name: 检查签名和版本
+        run: |
+          APK=laolao-android/app/build/outputs/apk/release/app-release.apk
+          test -f "$APK" || { echo "::error::没有生成安装包"; exit 1; }
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BT/apksigner" verify --print-certs "$APK" | head -3
+          "$BT/aapt2" dump badging "$APK" | head -2
+
+      - name: 保存安装包（Actions 里也能直接下载）
+        uses: actions/upload-artifact@v4
+        with:
+          name: 捞捞课程表-安卓-${{ steps.ver.outputs.name }}
+          path: laolao-android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+
+      - name: 发布到 Releases
+        id: rel
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VNAME: ${{ steps.ver.outputs.name }}
+        run: |
+          set -euo pipefail
+          TAG="android-v${VNAME}"
+          DIR="${RUNNER_TEMP}/android-release"
+          mkdir -p "$DIR"
+          cp laolao-android/app/build/outputs/apk/release/app-release.apk "$DIR/class-calendar.apk"
+          cat > "$DIR/notes.md" <<NOTES
+          捞捞课程表 安卓版 ${VNAME}
+
+          7.0：全新重做的原生安卓 App，界面和用法跟微信小程序一样（首页问候卡、下一节课、今天的时间轴、接下来的安排、作业、日历、我的）。
+          国内、海外都能秒开：两条线路同时试，谁快用谁，不会再卡在「连接超时」。
+          桌面小组件（今天的课和事、下节课倒计时、作业清单、一键记事）；App 关着也会按时提醒上课和作业截止，通知上直接点「完成」；
+          老师一发布，极光推送马上通知；一句话记事、从备忘录导入、拍课表识别。
+          正式签名，可以直接覆盖安装旧版，账号数据都在云端，不会丢。
+          NOTES
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$DIR/class-calendar.apk" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            # 不能抢占 latest：电脑版的下载地址用的是 releases/latest
+            gh release create "$TAG" "$DIR/class-calendar.apk" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --latest=false --title "捞捞课程表 安卓版 ${VNAME}" --notes-file "$DIR/notes.md"
+          fi
+          echo "url=https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/class-calendar.apk" >> "$GITHUB_OUTPUT"
+
+      - name: 更新官网下载（配了国内存储就先传一份过去；推送后刷新 jsDelivr 加速）
+        env:
+          VCODE: ${{ steps.ver.outputs.code }}
+          VNAME: ${{ steps.ver.outputs.name }}
+          URL: ${{ steps.rel.outputs.url }}
+          BRANCH: ${{ github.ref_name }}
+          CN_S3_ENDPOINT: ${{ secrets.CN_S3_ENDPOINT }}
+          CN_S3_REGION: ${{ secrets.CN_S3_REGION }}
+          CN_S3_BUCKET: ${{ secrets.CN_S3_BUCKET }}
+          CN_S3_KEY_ID: ${{ secrets.CN_S3_KEY_ID }}
+          CN_S3_SECRET: ${{ secrets.CN_S3_SECRET }}
+          CN_DL_BASE: ${{ secrets.CN_DL_BASE }}
+        run: |
+          set -euo pipefail
+          SRC="${GITHUB_WORKSPACE}/laolao-android/app/build/outputs/apk/release/app-release.apk"
+          SHA=$(sha256sum "$SRC" | cut -d' ' -f1)
+          CN=$(bash .github/scripts/cn-upload.sh "$SRC" "android/class-calendar-${VNAME}.apk")
+          # jsDelivr 加速（国内比 GitHub 快）：按仓库分支取 download/class-calendar.apk，推送后刷新它的缓存
+          JSD="https://cdn.jsdelivr.net/gh/${GITHUB_REPOSITORY}@${BRANCH}/download/class-calendar.apk"
+          PUB="${RUNNER_TEMP}/android-publish"
+          git fetch --no-tags origin "$BRANCH"
+          git worktree add --detach "$PUB" FETCH_HEAD
+          git -C "$PUB" config user.name "github-actions[bot]"
+          git -C "$PUB" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for ATTEMPT in 1 2 3; do
+            if [ "$ATTEMPT" -gt 1 ]; then git fetch --no-tags origin "$BRANCH"; git -C "$PUB" reset --hard FETCH_HEAD; fi
+            mkdir -p "$PUB/download"
+            cp "$SRC" "$PUB/download/class-calendar.apk"
+            echo "{\"versionCode\": ${VCODE}, \"versionName\": \"${VNAME}\", \"url\": \"${URL}\", \"cn\": \"${CN}\", \"jsd\": \"${JSD}\", \"fallbackUrl\": \"download/class-calendar.apk\", \"size\": $(stat -c %s "$SRC"), \"sha256\": \"${SHA}\", \"signed\": true, \"at\": \"$(date -u +%FT%TZ)\"}" > "$PUB/download/app-version.json"
+            cat "$PUB/download/app-version.json"
+            git -C "$PUB" add -- download/class-calendar.apk download/app-version.json
+            if git -C "$PUB" diff --cached --quiet; then echo "已经是最新"; exit 0; fi
+            git -C "$PUB" commit -m "安卓 App ${VNAME}"
+            if git -C "$PUB" push origin "HEAD:${BRANCH}"; then
+              curl -fsS -m 30 "https://purge.jsdelivr.net/gh/${GITHUB_REPOSITORY}@${BRANCH}/download/class-calendar.apk" >/dev/null || echo "::warning::jsDelivr 缓存没刷新上，最多 12 小时后自动更新"
+              exit 0
+            fi
+          done
+          echo "::error::安装包已经发布到 Releases，但更新官网下载目录失败"
+          exit 1
