@@ -124,7 +124,7 @@
     if (!d.open) d.showModal();
   }
   // 一条签到：信息、地图、签到；班委 / 老师：投屏二维码 + 名单
-  async function openOne(id, code) {
+  async function openOne(id, code, scan) {
     if (!logged()) { pendingScan = { i: id, k: code }; location.href = "login.html?next=" + encodeURIComponent("index.html#ck=" + id + (code ? "&k=" + code : "")); return; }
     const d = dlg();
     let x;
@@ -140,8 +140,8 @@
       <div class="lv-bar"><i style="width:${pct}%"></i></div>
       ${needGeo(x) && x.lat != null ? `<div class="ck-mapline"><span>📍 签到点：${esc(x.place || "签到点")}（半径 ${x.radius} 米）</span><a class="small btn-like" href="${amap(x)}" target="_blank" rel="noopener">在高德地图里看 ›</a></div>` : ""}
       ${x.is_teacher === false && x.can_manage && x.is_creator === false && !x.mine && x.open ? `<p class="meta">你也是这个班的同学：先在下面签到，再帮班里投屏 / 看名单。</p>` : ""}
-      ${x.can_manage && x.open && needCode(x) ? `<div class="ck-proj" id="ckProj"><div class="ck-qrbox" id="ckQr"></div><div class="ck-proj-r"><div class="ck-proj-t" id="ckQrT">微信扫一扫签到</div><div class="ck-code" id="ckCode">····</div>
-          <div class="meta" id="ckLeft">每 20 秒换一次码</div><div class="meta">没带手机扫码的同学：打开捞捞「签到」，输入这 4 位码</div>
+      ${x.can_manage && x.open ? `<div class="ck-proj" id="ckProj"><div class="ck-qrbox" id="ckQr"></div><div class="ck-proj-r"><div class="ck-proj-t" id="ckQrT">${needCode(x) ? "微信扫一扫签到" : "微信扫一扫，打开签到页"}</div>${needCode(x) ? `<div class="ck-code" id="ckCode">····</div>
+          <div class="meta" id="ckLeft">每 20 秒换一次码</div><div class="meta">没带手机扫码的同学：打开捞捞「签到」，输入这 4 位码</div>` : `<div class="meta" id="ckLeft">已签 ${x.signed} / ${x.members}</div><div class="meta">同学扫码后会自动定位，在 ${x.radius} 米内就签上了。这张码整场不变，可以截图发到班级群。</div>`}
           <button class="small" id="ckFull">⛶ 全屏投屏</button></div></div>` : ""}
       ${signable(x) || x.mine ? `<div class="ck-me">${x.mine ? `<div class="ck-ok big">✓ 你 ${hhmm(x.mine.at)} 签到了${x.mine.dist != null ? `（离签到点 ${x.mine.dist} 米）` : ""}</div>`
         : x.open ? `<div class="row">${needCode(x) ? `<input id="ckCodeIn" class="ck-quick big" inputmode="numeric" maxlength="4" placeholder="4 位签到码" value="${esc(code || "")}">` : ""}<button class="btn ink" id="ckSignOne">${needGeo(x) ? "📍 我到了，签到" : "✓ 签到"}</button></div>
@@ -152,16 +152,24 @@
     clearInterval(codeTimer); lastCode = "";
     if (x.can_manage) {
       detail(x.id);
-      if (x.open && needCode(x)) { tickCode(); codeTimer = setInterval(tickCode, 2500); }
+      // 动态码每 20 秒换；6.9.6 位置签到整场一张码，只刷新人数
+      if (x.open) { tickCode(); codeTimer = setInterval(tickCode, needCode(x) ? 2500 : 5000); }
     }
-    // 扫码进来带着码：直接签
-    if (code && x.open && !x.mine && signable(x)) sign(x, code, $("ckSignOne"));
+    // 扫码进来：带着码的直接签；位置签到的码只带编号，直接定位签到
+    if (x.open && !x.mine && signable(x) && (code || (scan && !needCode(x)))) sign(x, code, $("ckSignOne"));
   }
   let tn = 0;
   async function tickCode() {
     if (!one || !$("ckQr")) { clearInterval(codeTimer); return; }
     try {
       const r = await CCAuth.rpc("checkin_code", { id: one.id });
+      if (r && r.geo) {   // 6.9.6 位置签到：码只带编号
+        const key = r.img ? "mg" : "ug";
+        if (key !== lastCode) { lastCode = key; $("ckQr").innerHTML = r.img ? `<img src="${r.img}" alt="签到小程序码">` : QRLite.svg(SITE + "?i=" + one.id, { level: "M" }); $("ckQrT").textContent = r.img ? "微信扫一扫，打开签到页" : "手机扫码打开签到页"; }
+        $("ckLeft").textContent = `已签 ${r.signed} / ${one.members}`;
+        if (++tn % 3 === 0) detail(one.id);
+        return;
+      }
       if (!r || !r.code) return;
       // 有小程序码就投小程序码（微信扫一扫直接进小程序签到）；还没生成好 / 后端没配好就先用普通二维码
       const key = (r.img ? "m" : "u") + r.code;
@@ -191,16 +199,25 @@
     try {
       const r = await CCAuth.rpc("checkin_detail", { id: +id });
       if (!$("ckDetail")) return;
-      el.innerHTML = `<div class="ck-names"><b>已签 ${r.signed.length} 人</b>${r.signed.map((s) => `<span class="ck-name ok" title="${hm(s.at)}">${esc(s.name)}<small>${hhmm(s.at)} ${s.via === "code" ? "码" : s.dist != null ? s.dist + " 米" : ""}</small></span>`).join("") || `<span class="meta">还没有人签</span>`}</div>
-        <div class="ck-names"><b>没签 ${r.missing.length} 人</b>${r.missing.map((n) => `<span class="ck-name">${esc(n)}</span>`).join("") || `<span class="meta">全部签到了 🎉</span>`}</div>
-        ${r.missing.length ? `<button class="small" data-ckcopy="${id}">复制没签的名单</button>` : ""}`;
-      el.dataset.missing = r.missing.join("、");
+      // 6.9.6 补签：点没签的名字补签，点已签名字后面的 × 撤销（老服务器没有 missing_u，只能看）
+      const mk = Array.isArray(r.missing_u), miss = mk ? r.missing_u : r.missing.map((n) => ({ name: n }));
+      el.innerHTML = `<div class="ck-names"><b>已签 ${r.signed.length} 人</b>${r.signed.map((s) => `<span class="ck-name ok" title="${hm(s.at)}">${esc(s.name)}<small>${hhmm(s.at)} ${s.via === "manual" ? "补签" + (s.by ? "·" + esc(s.by) : "") : s.via === "code" ? "码" : s.dist != null ? s.dist + " 米" : ""}</small>${mk && s.uid ? `<button class="ck-x" data-ckun="${esc(s.uid)}" data-n="${esc(s.name)}" title="撤销这个人的签到">×</button>` : ""}</span>`).join("") || `<span class="meta">还没有人签</span>`}</div>
+        <div class="ck-names"><b>没签 ${miss.length} 人</b>${miss.map((m) => mk ? `<button class="ck-name mk" data-ckmk="${esc(m.uid)}" data-n="${esc(m.name)}" title="点一下补签">${esc(m.name)}<small>补签</small></button>` : `<span class="ck-name">${esc(m.name)}</span>`).join("") || `<span class="meta">全部签到了 🎉</span>`}</div>
+        ${miss.length ? `<button class="small" data-ckcopy="${id}">复制没签的名单</button>` : ""}${mk ? `<span class="meta">　点没签的名字补签（没带手机、定位不准、请假）。</span>` : ""}`;
+      el.dataset.missing = miss.map((m) => m.name).join("、");
     } catch (e) { el.innerHTML = `<div class="meta">名单打不开：${esc(e.message)}</div>`; }
   }
   document.addEventListener("click", async (e) => {
     const t = e.target;
     const o = t.closest("[data-ckone]"); if (o) { e.preventDefault(); openOne(+o.dataset.ckone); return; }
     const cl = t.closest("[data-ckclose]"); if (cl) { if (!confirm("提前结束这个签到？结束后同学就签不了了。")) return; try { await CCAuth.rpc("checkin_close", { id: +cl.dataset.ckclose }); await load(); openOne(+cl.dataset.ckclose); } catch (err) { say(err.message, "bad"); } return; }
+    const mk = t.closest("[data-ckmk],[data-ckun]");
+    if (mk && one) {
+      const on = !!mk.dataset.ckmk, uid = mk.dataset.ckmk || mk.dataset.ckun;
+      if (!confirm(on ? `给「${mk.dataset.n}」补签？` : `撤销「${mk.dataset.n}」的签到？`)) return;
+      try { await CCAuth.rpc("checkin_mark", { id: one.id, uid, signed: on }); say(on ? "已补签" : "已撤销", "ok"); detail(one.id); } catch (err) { say(err.message, "bad"); }
+      return;
+    }
     const cp = t.closest("[data-ckcopy]"); if (cp) { const m = $("ckDetail").dataset.missing || ""; try { await navigator.clipboard.writeText(m); say("已复制：" + (m || "（没有）"), "ok"); } catch (err) { prompt("复制下面的名单", m); } return; }
     if (t.closest("#ckCreate")) { create(); return; }
     if (t.closest("#ckSignOne")) { sign(one, ($("ckCodeIn") || {}).value, t.closest("#ckSignOne")); return; }
@@ -225,7 +242,7 @@
   }
   const scanned = fromHash();
   if (scanned) {
-    const go = () => { if (logged()) openOne(scanned.i, scanned.k); else if (Date.now() - t0 < 15000) setTimeout(go, 400); else openOne(scanned.i, scanned.k); };
+    const go = () => { if (logged()) openOne(scanned.i, scanned.k, true); else if (Date.now() - t0 < 15000) setTimeout(go, 400); else openOne(scanned.i, scanned.k, true); };
     const t0 = Date.now(); setTimeout(go, 600);
   }
   void pendingScan;

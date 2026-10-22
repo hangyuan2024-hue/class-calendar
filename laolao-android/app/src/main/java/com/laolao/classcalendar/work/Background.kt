@@ -164,6 +164,14 @@ object Background {
     /** 刷新完：班级新消息提醒、重排闹钟、更新小组件 */
     fun afterRefresh(ctx: Context) {
         try { news(ctx) } catch (_: Exception) {}
+        // 6.9.6 顺手让服务器检查有没有要发的微信提醒（服务器没有定时任务时靠客户端；5 分钟最多一次，服务器自己也限 1 分钟一次）
+        try {
+            val sp = ctx.getSharedPreferences("app", Context.MODE_PRIVATE)
+            if (Store.me != null && System.currentTimeMillis() - sp.getLong("wx_tick_at", 0) > 300_000L) {
+                sp.edit().putLong("wx_tick_at", System.currentTimeMillis()).apply()
+                com.laolao.classcalendar.core.Bg.run { try { com.laolao.classcalendar.core.Api.rpc("wx_push_tick") } catch (_: Exception) {} }
+            }
+        } catch (_: Exception) {}
         reschedule(ctx)
         startJob(ctx)
         Widgets.update(ctx)

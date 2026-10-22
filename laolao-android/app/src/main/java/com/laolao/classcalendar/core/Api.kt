@@ -109,7 +109,7 @@ object Api {
         while (true) {
             val r = Net.request("/rest/v1/$path", method, body?.toString(), tk, headers, hedge)
             if (r.status in 200..299) return parseJson(r.body)
-            if ((r.status == 502 || r.status == 503 || r.status == 504 || r.status == 429) && hedge && tries < 2) { tries++; Thread.sleep(700L * tries); continue }
+            if ((r.status == 502 || r.status == 503 || r.status == 504 || r.status == 429) && hedge && tries < 2) { tries++; Thread.sleep(700L * tries + (Math.random() * 600).toLong()); continue }   // 6.9.6 加一点随机：几十人同时重试时错开
             if (Net.isRevoked(r.body)) { drop(); lost("revoked"); throw ApiError(401, "这台设备已在其他设备上被退出登录", true) }
             if (r.status == 401 && tk != null) { drop(); lost("expired") }
             throw ApiError(r.status, Net.human(r.body, r.status))

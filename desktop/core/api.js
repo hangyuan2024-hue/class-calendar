@@ -171,7 +171,8 @@ class Api {
       return this.call(this.base + "/rest/v1/" + p, opts, s2.access_token);
     }
   }
-  rpc(fn, args, opts = {}) { return this.rest("rpc/" + fn, { method: "POST", body: JSON.stringify(args || {}), ...opts }); }
+  // 6.9.6 签到相关的服务器忙时自动重试（几十人同时扫码；重复签到只会返回「已经签过」，所以签到本身也能重试）
+  rpc(fn, args, opts = {}) { return this.rest("rpc/" + fn, { method: "POST", body: JSON.stringify(args || {}), ...opts, retry: opts.retry || /^(checkin_|xp_me$|manage_classes$|teacher_overview$)/.test(fn) }); }
 }
 
 module.exports = { Api, loadSiteConfig, ROLE_NAMES, ACCOUNT_RE, humanError };

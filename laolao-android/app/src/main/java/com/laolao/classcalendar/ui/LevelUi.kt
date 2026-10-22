@@ -138,13 +138,13 @@ object HabitPlace {
  *  · 📍 位置签到：到了现场范围内才能签；🔢 动态码：班委投屏二维码 / 4 位码（每 20 秒换），扫码或输码签；📍+🔢 两个都要
  *  · 打开方式：成长页、首页提醒；手机相机扫投屏二维码选「用捞捞打开」（openId / openCode 带进来，直接签）
  */
-class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: String = "", private val cidArg: String = "") : Page(a) {
+class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: String = "", private val cidArg: String = "", private val scanned: Boolean = false) : Page(a) {
     private val cid get() = cidArg.ifEmpty { Store.cls?.str("id") ?: "" }
     private lateinit var body: LinearLayout
     private var list: List<JSONObject>? = null; private var err = ""; private var busy = false
     private var one: JSONObject? = null; private var names: JSONObject? = null; private var code: JSONObject? = null
     private var input = ""; private var autoTried = false
-    private val tick = object : Runnable { override fun run() { val o = one; if (o != null && o.optBoolean("can_manage") && o.optBoolean("open") && Checkin.needCode(o)) loadCode(); Bg.main.postDelayed(this, 3000) } }
+    private val tick = object : Runnable { override fun run() { val o = one; if (o != null && o.optBoolean("can_manage") && o.optBoolean("open") && (Checkin.needCode(o) || code?.str("img").isNullOrEmpty())) loadCode(); Bg.main.postDelayed(this, 3000) } }
     override fun build(): View = scaffold("签到", pull = { done -> if (one != null) openOne(one!!.optLong("id")) { done() } else load { done() } }) { body = it }
     override fun onShow() { if (openId > 0 && one == null && !autoTried) { input = openCode; openOne(openId) } else if (one != null) openOne(one!!.optLong("id")) else load(); Bg.main.removeCallbacks(tick); Bg.main.postDelayed(tick, 3000) }
     override fun onHide() { Bg.main.removeCallbacks(tick) }
@@ -158,15 +158,15 @@ class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: S
             done?.invoke()
             if (r == null) { a.toast("签到打不开：" + (e?.message ?: "")); return@load }
             one = r; render()
-            if (r.optBoolean("can_manage")) { loadNames(); if (r.optBoolean("open") && Checkin.needCode(r)) loadCode() }
-            // 扫码进来带着码：直接签
-            if (!autoTried && openCode.isNotEmpty() && r.optBoolean("open") && r.optJSONObject("mine") == null && Checkin.signable(r)) { autoTried = true; sign() }
+            if (r.optBoolean("can_manage")) { loadNames(); if (r.optBoolean("open")) loadCode() }
+            // 扫码进来：带着码的直接签；6.9.6 位置签到的码只带编号，直接定位签到
+            if (!autoTried && (openCode.isNotEmpty() || (scanned && !Checkin.needCode(r))) && r.optBoolean("open") && r.optJSONObject("mine") == null && Checkin.signable(r)) { autoTried = true; sign() }
         }
     }
     private fun loadNames() { val o = one ?: return; Bg.load({ Checkin.detail(o.optLong("id")) }) { r, _ -> if (r != null && one === o) { names = r; render() } } }
     private fun loadCode() {
         val o = one ?: return
-        Bg.load({ Checkin.code(o.optLong("id")) }) { r, _ -> if (r != null && one === o && (r.str("code") != code?.str("code") || r.str("img").isNotEmpty() != (code?.str("img")?.isNotEmpty() ?: false))) { code = r; o.put("signed", r.optInt("signed", o.optInt("signed"))); render() } }
+        Bg.load({ Checkin.code(o.optLong("id")) }) { r, _ -> if (r != null && one === o && (code == null || r.str("code") != code?.str("code") || r.str("img").isNotEmpty() != (code?.str("img")?.isNotEmpty() ?: false))) { code = r; o.put("signed", r.optInt("signed", o.optInt("signed"))); render() } }
     }
     override fun render() {
         view; keepScroll(body)
@@ -232,7 +232,16 @@ class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: S
             mc.tap { try { a.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(Checkin.amap(o)))) } catch (_: Exception) { a.toast("没有能打开地图的应用") } }
             body.addView(mc)
         }
-        // 班委 / 老师：投屏用的大号 4 位码
+        // 班委 / 老师：投屏用的大号 4 位码；6.9.6 位置签到也有码（只带编号，扫了打开签到页再定位）
+        if (mgr && open && !Checkin.needCode(o)) {
+            val qc = ctx.card(18, 18).apply { margins(t = 12); gravity = Gravity.CENTER_HORIZONTAL }
+            val bm = code?.str("img")?.takeIf { it.startsWith("data:image/") }?.let { im -> try { val b = Base64.decode(im.substringAfter(","), Base64.DEFAULT); BitmapFactory.decodeByteArray(b, 0, b.size) } catch (_: Exception) { null } }
+            qc.addView(ctx.text("微信扫一扫，打开签到页", 15f, C.text, BOLD).apply { gravity = Gravity.CENTER })
+            if (bm != null) qc.addView(ImageView(ctx).apply { setImageBitmap(bm) ; adjustViewBounds = true }, LinearLayout.LayoutParams(dp(240), dp(240)).apply { topMargin = dp(8); bottomMargin = dp(6) })
+            else qc.add(ctx.text(if (code == null) "正在生成小程序码…" else "小程序码还没生成好（后台没配好时用网页或电脑版投屏，会显示普通二维码）", 13f, C.sub).apply { gravity = Gravity.CENTER }, 8)
+            qc.add(ctx.text("同学扫码后会自动定位，在 ${o.optInt("radius")} 米内就签上了。这张码整场不变，长按截图发到班级群也行。", 12.5f, C.sub).apply { gravity = Gravity.CENTER }, 6)
+            body.addView(qc)
+        }
         if (mgr && open && Checkin.needCode(o)) {
             val qc = ctx.card(18, 18).apply { margins(t = 12); gravity = Gravity.CENTER_HORIZONTAL }
             // 小程序码：微信扫一扫直接进小程序签到（扣子后端生成；还没生成好就只显示 4 位码）
@@ -275,9 +284,29 @@ class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: S
             val d = names
             if (d == null) nb.addView(ctx.text("加载名单…", 13.5f, C.sub))
             else {
-                val sg = d.optJSONArray("signed")?.objs() ?: emptyList(); val ms = d.optJSONArray("missing")?.let { m -> (0 until m.length()).map { m.optString(it) } } ?: emptyList()
-                nb.addView(ctx.text("已签 ${sg.size} 人：" + sg.joinToString("、") { s -> s.str("name") + "（" + Checkin.hm(s.str("at")).takeLast(5) + (if (s.str("via") == "code") " 码" else if (!s.isNull("dist")) " ${s.optInt("dist")}米" else "") + "）" }.ifEmpty { "还没有" }, 13.5f, C.text))
-                nb.add(ctx.text("没签 ${ms.size} 人：" + ms.joinToString("、").ifEmpty { "全到了 🎉" }, 13.5f, C.text), 8)
+                val sg = d.optJSONArray("signed")?.objs() ?: emptyList()
+                // 6.9.6 没签的人带编号（missing_u）：点名字补签；长按已签的名字撤销。老服务器只有名字
+                val mu = d.optJSONArray("missing_u")?.objs()
+                val ms = mu?.map { it.str("name") } ?: d.optJSONArray("missing")?.let { m -> (0 until m.length()).map { m.optString(it) } } ?: emptyList()
+                val oid = o.optLong("id")
+                fun chip(t: String, ok: Boolean, fn: (() -> Unit)?, long: (() -> Unit)?) = ctx.text(t, 13.5f, if (ok) C.green else C.text).apply {
+                    pad(10, 5); bg(if (ok) C.alpha(C.green, 0.12f) else C.mutedBg, 14, if (fn != null) C.alpha(ORANGE, 0.6f) else 0)
+                    if (fn != null) tap { fn() }; if (long != null) setOnLongClickListener { long(); true } }
+                fun mark(uid: String, n: String, on: Boolean) = Dialogs.confirm(ctx, if (on) "给「$n」补签？" else "撤销「$n」的签到？", if (on) "没带手机、定位不准、请假都可以补。" else "签错人、代签时用。", if (on) "补签" else "撤销", danger = !on) {
+                    Bg.load({ Checkin.mark(oid, uid, on) }) { _, e -> a.toast(if (e != null) e.message ?: "没成功" else if (on) "已补签" else "已撤销"); openOne(oid) } }
+                nb.addView(ctx.text("已签 ${sg.size} 人", 14f, C.text, BOLD))
+                val f1 = FlowRow(ctx, dp(6), dp(6))
+                sg.forEach { s -> val uid = s.str("uid"); f1.addView(chip(s.str("name") + " " + Checkin.hm(s.str("at")).takeLast(5) + (if (s.str("via") == "manual") " 补签" else if (s.str("via") == "code") " 码" else if (!s.isNull("dist")) " ${s.optInt("dist")}米" else ""), true, null,
+                    if (mu != null && uid.isNotEmpty()) ({ mark(uid, s.str("name"), false) }) else null)) }
+                if (sg.isEmpty()) f1.addView(ctx.text("还没有", 13.5f, C.sub))
+                nb.add(f1, 6)
+                nb.add(ctx.text("没签 ${ms.size} 人" + if (mu != null && ms.isNotEmpty()) "（点名字补签）" else "", 14f, C.text, BOLD), 12)
+                val f2 = FlowRow(ctx, dp(6), dp(6))
+                if (mu != null) mu.forEach { m -> f2.addView(chip(m.str("name") + " ＋", false, { mark(m.str("uid"), m.str("name"), true) }, null)) }
+                else ms.forEach { f2.addView(chip(it, false, null, null)) }
+                if (ms.isEmpty()) f2.addView(ctx.text("全到了 🎉", 13.5f, C.sub))
+                nb.add(f2, 6)
+                if (mu != null) nb.add(ctx.text("长按已签的名字可以撤销（签错人、代签时用）", 12f, C.sub), 8)
                 val br = ctx.row().apply { margins(t = 10) }
                 if (ms.isNotEmpty()) br.addView(ctx.soft("复制没签的名单") { (ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("没签到", ms.joinToString("、"))); a.toast("已复制") }, LinearLayout.LayoutParams(WRAP, WRAP).apply { rightMargin = dp(8) })
                 if (open) br.addView(ctx.soft("结束签到", C.dangerBg, C.red) { Dialogs.confirm(ctx, "结束这次签到？", "结束后同学就不能再签了。", "结束", danger = true) { Bg.load({ Checkin.close(o.optLong("id")) }) { _, e -> a.toast(if (e != null) e.message ?: "没结束成功" else "已结束"); openOne(o.optLong("id")) } } })

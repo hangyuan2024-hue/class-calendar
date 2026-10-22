@@ -263,7 +263,7 @@ class Main : Activity() {
         if (i.action == Intent.ACTION_VIEW && u != null && (u.path ?: "").startsWith("/ck")) {
             i.data = null
             val id = u.getQueryParameter("i")?.toLongOrNull()
-            if (id != null) { val k = (u.getQueryParameter("k") ?: "").filter { it.isDigit() }.take(4); Bg.main.post { push(CheckinPage(this, id, k)) } }
+            if (id != null) { val k = (u.getQueryParameter("k") ?: "").filter { it.isDigit() }.take(4); Bg.main.post { push(CheckinPage(this, id, k, scanned = true)) } }
             return
         }
         val key = i.getStringExtra("item")

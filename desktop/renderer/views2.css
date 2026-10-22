@@ -690,3 +690,8 @@
 .upd-card .upd-b { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
 #stUpd { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 28px; }
 .t58-chip.on .t58-ck { background: rgba(255,255,255,.9); color: #e8590c; }
+/* 6.9.6 补签 */
+button.ck-nm.mk { border: 1px dashed rgba(255, 122, 69, .6); cursor: pointer; font: inherit; font-size: 13px; color: inherit; margin-bottom: 4px; }
+button.ck-nm.mk:hover { background: rgba(255, 122, 69, .12); }
+.ck-nm .ck-x { border: 0; background: none; color: inherit; opacity: .45; cursor: pointer; padding: 0 0 0 4px; }
+.ck-nm .ck-x:hover { opacity: 1; color: #c0392b; }

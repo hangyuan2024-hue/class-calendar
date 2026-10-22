@@ -12,7 +12,7 @@ const RPC = new Set([
   "wall_post", "wall_post_group", "wall_edit", "wall_delete", "wall_pin", "wall_moderate", "wall_report", "wall_my_reports", "wall_report_list",
   "wall_comments_get", "wall_comment_add", "wall_comment_delete",
   // 成长、排行榜
-  "growth_log", "growth_board", "xp_log", "xp_me", "xp_board", "checkin_list", "checkin_detail", "checkin_close", "checkin_create", "checkin_get", "checkin_code", "checkin_sign", "course_shot_get", "course_shot_set", "growth_sync_done", "rank_set_pref",
+  "growth_log", "growth_board", "xp_log", "xp_me", "xp_board", "checkin_list", "checkin_detail", "checkin_close", "checkin_create", "checkin_get", "checkin_code", "checkin_sign", "checkin_mark", "course_shot_get", "course_shot_set", "growth_sync_done", "rank_set_pref",
   // 个人资料、账号
   "user_page", "profile_update", "account_security", "pw_change", "pw_reset_by_staff",
   "mail_my", "mail_bind_start", "mail_bind_confirm", "mail_test", "mail_unbind", "mail_set_prefs", "mail_tick",

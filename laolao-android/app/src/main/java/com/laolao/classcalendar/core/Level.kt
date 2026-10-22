@@ -115,6 +115,8 @@ object Checkin {
     fun amap(x: JSONObject) = "https://uri.amap.com/marker?position=${x.optDouble("lng")},${x.optDouble("lat")}&name=${java.net.URLEncoder.encode(x.str("place").ifEmpty { x.str("title") }, "UTF-8")}&coordinate=wgs84&callnative=1"
     fun detail(id: Long): JSONObject = Api.rpcObj("checkin_detail", jsonOf("id" to id))
     fun close(id: Long) { Api.rpc("checkin_close", jsonOf("id" to id)) }
+    /** 6.9.6 补签 / 撤销（发起人、班委、老师） */
+    fun mark(id: Long, uid: String, signed: Boolean) { Api.rpc("checkin_mark", jsonOf("id" to id, "uid" to uid, "signed" to signed)) }
     /** 能发起签到：老师（建班的）或有发布 / AI 整理权限的班委；cid 为空就看当前班 */
     fun mgr(cid: String = ""): Boolean {
         val c = (if (cid.isEmpty()) Store.cls else Store.classes.firstOrNull { it.str("id") == cid }) ?: return false

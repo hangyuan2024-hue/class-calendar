@@ -49,7 +49,7 @@
 
   // 人多的时候：读数据的请求遇到「服务器忙 / 网络抖动」会自动重试（等一小会儿、每人错开时间），
   // 写数据的请求不重试（避免重复提交）。每个请求最多等 20 秒。
-  const SAFE_RPC = /\/rpc\/(app_bootstrap2?|class_ctx|class_groups_get|class_item_history|my_classes|my_perms|feature_state|mail_my|growth_board|wall_my_reports|wall_report_list|credit_list|class_roster|parse_feedback_list|ingest_job_status|class_features_get|admin_features|ics_my_feed|udata_pull|udata_push|device_alive|device_list|class_schedule_get|courses_get)$/;
+  const SAFE_RPC = /\/rpc\/(app_bootstrap2?|class_ctx|class_groups_get|class_item_history|my_classes|my_perms|feature_state|mail_my|growth_board|wall_my_reports|wall_report_list|credit_list|class_roster|parse_feedback_list|ingest_job_status|class_features_get|admin_features|ics_my_feed|udata_pull|udata_push|device_alive|device_list|class_schedule_get|courses_get|checkin_list|checkin_get|checkin_code|checkin_detail|checkin_sign|checkin_mark|xp_me|manage_classes|teacher_overview)$/;   // 6.9.6 签到相关也重试：几十人同时扫码时服务器偶尔忙；重复签到只会返回「已经签过」
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   async function call(url, opts, token) {
     const method = (opts.method || "GET").toUpperCase();

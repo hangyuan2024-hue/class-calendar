@@ -357,3 +357,8 @@ dialog.ck-dlg { width: min(660px, calc(100vw - 24px)); padding: 20px 22px 16px; 
 .ck-qrbox img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .t-chip .t-ck { font-style: normal; font-size: 11px; color: #d4561e; background: rgba(255,122,69,.14); padding: 0 6px; border-radius: 99px; margin-left: 4px; }
 .t-chip.on .t-ck { background: rgba(255,255,255,.9); color: #e8590c; }
+/* 6.9.6 补签 */
+button.ck-name.mk { border: 1px dashed rgba(255,122,69,.6); cursor: pointer; font: inherit; color: inherit; }
+button.ck-name.mk:hover { background: rgba(255,122,69,.12); }
+.ck-name .ck-x { border: 0; background: none; color: inherit; opacity: .45; cursor: pointer; padding: 0 0 0 4px; font-size: 14px; line-height: 1; }
+.ck-name .ck-x:hover { opacity: 1; color: #c0392b; }

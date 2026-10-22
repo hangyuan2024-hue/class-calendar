@@ -738,6 +738,8 @@ app.whenReady().then(() => {
   setInterval(checkReminders, 30 * 1000); setTimeout(checkReminders, 5000);
   setInterval(clipCheck, 1500);
   setInterval(() => { if (sessionStore.load() && store.data.cid) store.api.rpc("mail_tick", {}).catch(() => {}); }, (10 + Math.random() * 5) * 60 * 1000);   // 帮服务器把该发的邮件提醒发出去
+  // 6.9.6 微信提醒：服务器没有定时任务时，靠开着的客户端每几分钟提醒它查一次（服务器自己限制 1 分钟最多跑一次）。电脑版常驻托盘，最适合干这个
+  setInterval(() => { if (sessionStore.load()) store.api.rpc("wx_push_tick", {}).catch(() => {}); }, (4 + Math.random() * 2) * 60 * 1000);
   powerMonitor.on("resume", () => { if (sessionStore.load()) store.refresh(); openBrief(false); });
   powerMonitor.on("unlock-screen", () => openBrief(false));
   try { clipLast = clipboard.readText(); } catch (e) {}                                 // 打开软件之前就在剪贴板里的不算
