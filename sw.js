@@ -1,6 +1,6 @@
 // 离线缓存（Service Worker）：只缓存网页自己的文件，不缓存任何数据接口的内容
 // 2026-10-08：注册时选择学校 / 单位；界面细节打磨（字号、焦点、图标）。
-const CACHE = "cc-static-v89-697";
+const CACHE = "cc-static-v90-697";
 const PAGES = ["./", "index.html", "app.html", "login.html"];
 const EXTRA = [
   "campus-ui.css?v=20261008-org1",
@@ -88,15 +88,19 @@ self.addEventListener("fetch", (e) => {
   const req = e.request, url = new URL(req.url);
   if (req.method !== "GET" || url.origin !== self.location.origin) return;
   if (/\/(rest|auth|storage|functions)\/v1\//.test(url.pathname) || url.pathname.endsWith("/sw.js") || url.pathname.includes("/download/")) return;
+  // 6.10 打开网页：先从网上拿最新版（4 秒内拿到就用新的，网站更新后第一次打开就是新版）；
+  //      断网、网太慢才用这台设备上存着的那份。以前是先给旧的、后台再更新，每次更新都要刷新两遍
   if (req.mode === "navigate") {
     const key = pageKey(url);
     e.respondWith((async () => {
-      const hit = await caches.match(key);
       const net = fetch(url.href, { cache: "no-cache", credentials: "same-origin" });
-      if (hit) {
-        e.waitUntil(net.then((res) => (res.ok && res.type === "basic" ? notifyIfChanged(key, res) : null)).catch(() => {}));
-        return hit;
-      }
+      try {
+        const res = await withTimeout(net, 4000);
+        if (res.ok && res.type === "basic") { e.waitUntil(put(key, res.clone())); return res; }
+        if (res.status < 500) return res;
+      } catch (err) {}
+      const hit = await caches.match(key);
+      if (hit) { e.waitUntil(net.then((res) => (res.ok && res.type === "basic" ? notifyIfChanged(key, res) : null)).catch(() => {})); return hit; }
       try { return await put(key, await withTimeout(net, 15000)); }
       catch (err) { return (await caches.match(url.origin + "/index.html")) || (await caches.match(url.origin + "/")) || Response.error(); }
     })());
