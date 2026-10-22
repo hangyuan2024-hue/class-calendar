@@ -24,3 +24,23 @@
     io.observe(m);
   } else setTimeout(play, 600);
 })();
+
+// 顶栏下拉菜单（三大板块、下载）+ 手机上的菜单按钮
+(function () {
+  "use strict";
+  var head = document.querySelector(".s-header"); if (!head) return;
+  var dds = Array.prototype.slice.call(head.querySelectorAll(".v7-dd"));
+  function closeAll(except) { dds.forEach(function (d) { if (d !== except) { d.classList.remove("open"); d.querySelector(".v7-dd-btn").setAttribute("aria-expanded", "false"); } }); }
+  dds.forEach(function (d) {
+    var b = d.querySelector(".v7-dd-btn");
+    b.addEventListener("click", function (e) { e.stopPropagation(); var on = !d.classList.contains("open"); closeAll(d); d.classList.toggle("open", on); b.setAttribute("aria-expanded", String(on)); if (on) { var f = d.querySelector(".v7-menu a"); if (f && e.detail === 0) f.focus(); } });
+    d.addEventListener("keydown", function (e) { if (e.key === "Escape") { closeAll(); b.focus(); } });
+  });
+  var burger = head.querySelector(".v7-burger");
+  if (burger) burger.addEventListener("click", function (e) { e.stopPropagation(); var on = !head.classList.contains("nav-open"); head.classList.toggle("nav-open", on); burger.setAttribute("aria-expanded", String(on)); if (!on) closeAll(); });
+  document.addEventListener("click", function (e) {
+    if (!head.contains(e.target)) { closeAll(); head.classList.remove("nav-open"); if (burger) burger.setAttribute("aria-expanded", "false"); return; }
+    if (e.target.closest(".s-nav a")) { closeAll(); head.classList.remove("nav-open"); if (burger) burger.setAttribute("aria-expanded", "false"); }   // 点了菜单里的链接：收起
+  });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") { closeAll(); head.classList.remove("nav-open"); } });
+})();

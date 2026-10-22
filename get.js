@@ -64,6 +64,7 @@
   }
 
   function showAlternative(a, kind) {
+    if (a.closest(".v7-menu")) return;   // 顶栏下拉菜单里的下载链接：不加「换一条线路」提示
     let hint = alternatives.get(a);
     const visible = (kind === "apk" && apk !== backupApk) || (kind === "exe" && (altOk || EXE !== EXE_GH));
     if (!hint && visible) {

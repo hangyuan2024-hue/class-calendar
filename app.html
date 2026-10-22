@@ -30,7 +30,7 @@
 <link rel="stylesheet" href="auth-polish.css?v=20261008-org1">
 <link rel="stylesheet" href="home-v6.css?v=20261019-v68">
 <link rel="stylesheet" href="fonts.css?v=20261023-v698">
-<link rel="stylesheet" href="home-v7.css?v=20261023-v698">
+<link rel="stylesheet" href="home-v7.css?v=20261023-v699">
 <style>
   .agree { display: flex; align-items: flex-start; gap: 8px; margin: 14px 2px 0; font-size: 13px; line-height: 1.6; color: var(--sub, #687d97); cursor: pointer; }
   .agree input { flex: none; width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--accent, #3b4ee0); cursor: pointer; }
@@ -84,7 +84,27 @@
 <a class="s-skip" href="#main">跳到主要内容</a>
 <header class="s-header">
   <a class="s-brand" href="app.html" aria-label="捞捞调度首页"><span class="s-brand-icon"><img src="favicon.svg" alt=""></span><span>捞捞调度<span class="s-brand-sub">校园学习伙伴</span></span></a>
-  <nav class="s-nav" aria-label="网站导航"><a href="#showcase">作品展映</a><a href="#products">三大板块</a><a href="#team">团队</a><a href="#open">开源共建</a><a href="#get">下载</a></nav>
+  <button class="v7-burger" type="button" aria-expanded="false" aria-controls="siteNav" aria-label="打开菜单"><i></i><i></i><i></i></button>
+  <nav class="s-nav" id="siteNav" aria-label="网站导航"><a href="#showcase">作品展映</a>
+    <div class="v7-dd"><button type="button" class="v7-dd-btn" aria-expanded="false" aria-controls="ddProd">三大板块</button>
+      <div class="v7-menu" id="ddProd">
+        <a href="index.html?guest=1"><span class="v7-mi cal">▦</span><span><b>捞捞课程表</b><small>课表、作业、班级消息、签到和提醒</small></span></a>
+        <a href="learn/"><span class="v7-mi learn">✺</span><span><b>捞捞学习</b><small>思维导图、课内学习、错题和公式</small></span></a>
+        <a href="code/"><span class="v7-mi code">&lt;/&gt;</span><span><b>捞捞编程</b><small>自带编译器，按 F5 运行，不懂就问本地模型</small></span></a>
+        <a class="v7-mfoot" href="#products">三个板块的详细介绍</a>
+      </div></div>
+    <a href="#team">团队</a><a href="#open">开源共建</a>
+    <div class="v7-dd"><button type="button" class="v7-dd-btn" aria-expanded="false" aria-controls="ddGet">下载</button>
+      <div class="v7-menu v7-menu-get" id="ddGet">
+        <div class="v7-mg"><span class="v7-mh">捞捞课程表</span>
+          <a data-get="apk" href="download/class-calendar.apk"><span class="v7-mi cal">▯</span><span><b>安卓 App</b><small>约 6 MB</small></span></a>
+          <a data-get="exe" href="https://github.com/hangyuan2024-hue/class-calendar/releases/latest/download/LaolaoKechengbiao-Setup.exe"><span class="v7-mi cal">▣</span><span><b>Windows 电脑版</b><small>约 100 MB · Win10 / 11</small></span></a>
+          <a href="#get"><span class="v7-mi cal">✳</span><span><b>微信小程序 · 网页版</b><small>扫码打开，或者直接在浏览器用</small></span></a></div>
+        <div class="v7-mg"><span class="v7-mh">捞捞编程</span>
+          <a data-get="code" href="https://github.com/hangyuan2024-hue/class-calendar/releases/download/laolao-code/LaolaoCode-Setup.exe"><span class="v7-mi code">&lt;/&gt;</span><span><b>Windows 版</b><small>约 1.5 GB · 自带编译器和本地模型</small></span></a>
+          <a href="code/"><span class="v7-mi code">?</span><span><b>先了解一下</b><small>能做什么、怎么装</small></span></a></div>
+      </div></div>
+  </nav>
   <div class="s-header-actions"><button class="s-login-link lang-btn" type="button" data-lang-toggle>EN</button><a class="s-login-link" href="#login" data-login-focus>登录</a><a class="s-button s-button-small" href="index.html?guest=1">进入工作台 <span aria-hidden="true">↗</span></a></div>
 </header>
 <main id="main">
@@ -391,10 +411,10 @@
 <script src="org.js?v=20261008-org1"></script>
 <script src="legal-info.js?v=20261010-legal1"></script>
 <script src="login.js?v=20261019-v65"></script>
-<script src="get.js?v=20261023-v698"></script>
+<script src="get.js?v=20261023-v699"></script>
 <script src="landing-v2.js?v=20261005-studio2"></script>
 <script src="site-config.js?v=20261015-v561"></script>
 <script src="home-v6.js?v=20261019-v67"></script>
-<script src="home-v7.js?v=20261023-v698"></script>
+<script src="home-v7.js?v=20261023-v699"></script>
 </body>
 </html>
