@@ -253,3 +253,11 @@ dialog .err { color: var(--err); font-size: 12.5px; min-height: 1em; }
 .ex-links { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 4px; }
 .ex-links a { color: var(--accent, #2f5fd0); text-decoration: none; }
 .ex-links a:hover { text-decoration: underline; }
+
+/* 1.1 检查更新 */
+.upd-card { position: fixed; left: 12px; bottom: 40px; z-index: 50; width: 300px; max-width: calc(100vw - 24px); background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 32px rgba(0, 0, 0, .18); padding: 12px 14px; font-size: 13px; }
+.upd-card .upd-h { line-height: 1.5; }
+.upd-card .upd-bar { height: 6px; border-radius: 3px; background: var(--accent-bg); margin-top: 8px; overflow: hidden; }
+.upd-card .upd-bar i { display: block; height: 100%; background: var(--accent); transition: width .3s; }
+.upd-card .upd-b { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
+.about-upd { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-height: 30px; }

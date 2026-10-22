@@ -60,8 +60,19 @@ Name: "{autodesktop}\捞捞编程"; Filename: "{app}\LaolaoCode.exe"; Tasks: des
 
 [Run]
 Filename: "{app}\LaolaoCode.exe"; Description: "打开捞捞编程"; Flags: nowait postinstall skipifsilent
+; 软件里点「立即更新」：静默安装（/VERYSILENT /RELAUNCH），装完自动重新打开
+Filename: "{app}\LaolaoCode.exe"; Flags: nowait runasoriginaluser; Check: ShouldRelaunch
 
 [UninstallDelete]
 ; 编译出来的临时程序、下载到一半的东西（你写的代码在「文档\捞捞编程」，不会删）
 Type: filesandordirs; Name: "{userappdata}\LaolaoCode\build"
 Type: filesandordirs; Name: "{userappdata}\LaolaoCode\toolchains\.downloads"
+
+[Code]
+function ShouldRelaunch: Boolean;
+var i: Integer;
+begin
+  Result := False;
+  for i := 1 to ParamCount do
+    if CompareText(ParamStr(i), '/RELAUNCH') = 0 then Result := True;
+end;

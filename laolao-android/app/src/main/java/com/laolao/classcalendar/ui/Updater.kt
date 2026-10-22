@@ -97,10 +97,29 @@ object Updater {
         d = Dialogs.show(ctx, c)
     }
 
+    /** 6.9.8 国内加速：下载线路（按顺序试）= 国内存储 → jsDelivr（几个节点）→ 官网 → GitHub 加速镜像 → GitHub；
+     *  镜像清单在官网 download/mirrors.json，挂了改那个文件就行；下完对大小和 sha256，镜像被改过也装不上 */
+    private fun sources(j: JSONObject): List<String> {
+        var gh = listOf("https://ghfast.top/", "https://gh-proxy.com/"); var jsd = listOf("https://fastly.jsdelivr.net/", "https://gcore.jsdelivr.net/", "https://cdn.jsdelivr.net/")
+        try {
+            val c = URL(Cfg.SITE + "download/mirrors.json?t=" + System.currentTimeMillis()).openConnection() as HttpURLConnection
+            c.connectTimeout = 4000; c.readTimeout = 4000
+            val m = try { JSONObject(c.inputStream.bufferedReader().readText()) } finally { c.disconnect() }
+            m.optJSONArray("gh")?.let { a -> gh = (0 until a.length()).map { a.optString(it) }.filter { it.startsWith("https://") } }
+            m.optJSONArray("jsd")?.let { a -> jsd = (0 until a.length()).map { a.optString(it) }.filter { it.startsWith("https://") } }
+        } catch (_: Exception) {}
+        val out = mutableListOf<String>()
+        j.str("cn").takeIf { it.startsWith("https://") }?.let { out.add(it) }
+        j.str("jsd").takeIf { it.startsWith("https://cdn.jsdelivr.net/") }?.let { u -> jsd.forEach { out.add(it + u.removePrefix("https://cdn.jsdelivr.net/")) } }
+        j.str("fallbackUrl").takeIf { it.isNotEmpty() }?.let { out.add(if (it.startsWith("http")) it else Cfg.SITE + it.removePrefix("/")) }
+        j.str("url").takeIf { it.startsWith("https://github.com/") }?.let { u -> gh.forEach { out.add(it + u) }; out.add(u) }
+        return out.distinct()
+    }
+
     private fun download(a: Main, j: JSONObject, prog: (Float) -> Unit, done: (File?, String?) -> Unit) {
-        val urls = listOf(j.str("fallbackUrl"), j.str("url")).filter { it.isNotEmpty() }.map { if (it.startsWith("http")) it else Cfg.SITE + it.removePrefix("/") }.distinct()
-        val want = j.optLong("size")
+        val want = j.optLong("size"); val sha = j.str("sha256").lowercase()
         Bg.load({
+            val urls = sources(j)
             val dir = File(a.cacheDir, "att").apply { mkdirs() }
             val f = File(dir, "update.apk")
             var last: Exception? = null
@@ -110,29 +129,33 @@ object Updater {
                     var hops = 0
                     while (true) {   // GitHub 会跳到别的域名，HttpURLConnection 不跟着跨协议跳，自己跟
                         c = URL(url).openConnection() as HttpURLConnection
-                        c.connectTimeout = 10000; c.readTimeout = 20000; c.instanceFollowRedirects = false; c.useCaches = false
+                        c.connectTimeout = 8000; c.readTimeout = 15000; c.instanceFollowRedirects = false; c.useCaches = false
                         val rc = c.responseCode
                         if (rc in 300..399 && hops++ < 6) { url = URL(URL(url), c.getHeaderField("Location")).toString(); c.disconnect(); continue }
                         if (rc != 200) { c.disconnect(); throw Exception("HTTP $rc") }
                         break
                     }
                     val total = c.contentLengthLong.takeIf { it > 0 } ?: want
-                    var got = 0L; var lastP = 0L
+                    var got = 0L; var lastP = 0L; val t0 = System.currentTimeMillis()
+                    val md = java.security.MessageDigest.getInstance("SHA-256")
                     try {
                         c.inputStream.use { ins -> f.outputStream().use { out ->
                             val buf = ByteArray(64 * 1024)
                             while (true) {
                                 val n = ins.read(buf); if (n < 0) break
-                                out.write(buf, 0, n); got += n
+                                out.write(buf, 0, n); md.update(buf, 0, n); got += n
+                                // 太慢的线路（20 秒还不到 1/5）直接换下一条
+                                if (System.currentTimeMillis() - t0 > 20_000 && total > 0 && got < total / 5) throw Exception("太慢了，换一条线路")
                                 if (total > 0 && System.currentTimeMillis() - lastP > 250) { lastP = System.currentTimeMillis(); prog(minOf(0.99f, got.toFloat() / total)) }
                             }
                         } }
                     } finally { c.disconnect() }
-                    if (want > 0 && got != want && u == urls.first()) throw Exception("文件不完整")
+                    if (want > 0 && got != want) throw Exception("文件不完整")
                     if (got < 512 * 1024) throw Exception("文件不完整")
+                    if (sha.length == 64 && md.digest().joinToString("") { "%02x".format(it) } != sha) throw Exception("文件校验没通过")
                     prog(1f)
                     return@load f
-                } catch (e: Exception) { last = e; f.delete() }
+                } catch (e: Exception) { last = e; f.delete(); prog(0f) }
             }
             throw last ?: Exception("下载失败")
         }) { f, e -> done(f, e?.message) }

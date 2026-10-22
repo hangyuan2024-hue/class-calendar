@@ -19,7 +19,7 @@ const Upd = {
   ver() { return (this.st && this.st.latest && this.st.latest.version) || ""; },
   line() {
     const s = this.st; if (!s) return "";
-    if (s.state === "downloading") return `正在下载新版本 ${esc(this.ver())}… ${Math.round((s.progress || 0) * 100)}%`;
+    if (s.state === "downloading") return `正在下载新版本 ${esc(this.ver())}… ${Math.round((s.progress || 0) * 100)}%${s.speed ? " · " + (s.speed >= 1024 ? (s.speed / 1024).toFixed(1) + " MB/s" : s.speed + " KB/s") : ""}${s.via ? " · " + esc(s.via) : ""}`;
     if (s.state === "ready") return `新版本 ${esc(this.ver())} 下载好了，重启一下就装好`;
     if (s.state === "available") return s.error ? esc(s.error) : `有新版本 ${esc(this.ver())}（你现在是 ${esc(s.current)}）`;
     if (s.state === "latest") return `已经是最新版本`;

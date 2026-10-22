@@ -1,0 +1,5 @@
+{
+  "note": "GitHub 下载加速镜像（国内用）。镜像挂了就改这里，电脑版、捞捞编程、网页下载页都读这个文件，不用发新版。软件里下载完会对 sha256，镜像被改过也装不上。",
+  "gh": ["https://ghfast.top/", "https://gh-proxy.com/", "https://ghproxy.net/"],
+  "jsd": ["https://fastly.jsdelivr.net/", "https://gcore.jsdelivr.net/", "https://cdn.jsdelivr.net/"]
+}

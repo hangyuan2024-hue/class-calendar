@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com https://*.workers.dev; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com https://*.workers.dev https://ghfast.top https://gh-proxy.com https://ghproxy.net https://*.jsdelivr.net https://*.myqcloud.com https://*.aliyuncs.com https://*.volces.com; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#f6f5f1">
 <title>捞捞编程 · 不用装编译器，打开就能写代码</title>
@@ -25,7 +25,7 @@
       <span class="s-kicker">LAOLAO CODE · 捞捞编程</span>
       <h1>不会装编译器？<br><span>打开就能敲代码。</span></h1>
       <p class="lead">刚学编程，最难的往往不是代码，是配环境：装 MinGW、配 PATH、装 Python、装 JDK……捞捞编程把这些都装好了。装完打开，选一种语言，写完按 <b>F5</b> 就能运行；看不懂报错，点一下问捞捞，电脑里的本地模型给你讲，不联网也能用。</p>
-      <div class="bd-acts"><a class="s-button s-button-code" id="getCode" href="https://github.com/hangyuan2024-hue/class-calendar/releases/download/laolao-code/LaolaoCode-Setup.exe">下载 Windows 版 <span aria-hidden="true">↓</span></a><small>Windows 10 / 11 · 64 位 · 约 1.5 GB<br>自带编译器和本地模型，所以比较大</small></div>
+      <div class="bd-acts"><a class="s-button s-button-code" id="getCode" data-get="code" href="https://github.com/hangyuan2024-hue/class-calendar/releases/download/laolao-code/LaolaoCode-Setup.exe">下载 Windows 版 <span aria-hidden="true">↓</span></a><small>Windows 10 / 11 · 64 位 · 约 1.5 GB<br>自带编译器和本地模型，所以比较大</small></div>
       <div class="bd-who" data-who="code/"></div>
     </div>
     <div class="bd-ide" aria-hidden="true">
@@ -92,5 +92,6 @@
 <script src="../config.js"></script>
 <script src="../auth.js?v=20261022-v696"></script>
 <script src="../board.js?v=20261019-v65"></script>
+<script src="../get.js?v=20261023-v698"></script>
 </body>
 </html>

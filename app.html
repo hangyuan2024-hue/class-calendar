@@ -2,13 +2,13 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com https://*.workers.dev wss://*.workers.dev http://localhost:* http://127.0.0.1:*; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com https://*.workers.dev wss://*.workers.dev http://localhost:* http://127.0.0.1:* https://ghfast.top https://gh-proxy.com https://ghproxy.net https://*.jsdelivr.net https://*.myqcloud.com https://*.aliyuncs.com https://*.volces.com; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="referrer" content="no-referrer">
 <script src="i18n.js?v=20261019-v68"></script>
 <script src="guard.js?v=20261005-campus1"></script>
 <script src="entry.js?v=4"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#f6f5f1">
+<meta name="theme-color" content="#0a1433">
 <title>捞捞课程表 · 让校园生活有自己的节奏</title>
 <meta name="description" content="捞捞课程表：把班级群里的作业、通知、班会自动整理进日历，快到时间提醒你。有课程表、作业清单、班级墙、番茄钟和 AI 问答。免费，支持安卓 App、Windows 电脑版和网页版。">
 <meta name="keywords" content="捞捞课程表,课程表,班级群,作业提醒,大学生课程表,课表App,班级通知,日程管理,番茄钟,学习计划">
@@ -29,6 +29,8 @@
 <link rel="stylesheet" href="org.css?v=20261008-org1">
 <link rel="stylesheet" href="auth-polish.css?v=20261008-org1">
 <link rel="stylesheet" href="home-v6.css?v=20261019-v68">
+<link rel="stylesheet" href="fonts.css?v=20261023-v698">
+<link rel="stylesheet" href="home-v7.css?v=20261023-v698">
 <style>
   .agree { display: flex; align-items: flex-start; gap: 8px; margin: 14px 2px 0; font-size: 13px; line-height: 1.6; color: var(--sub, #687d97); cursor: pointer; }
   .agree input { flex: none; width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--accent, #3b4ee0); cursor: pointer; }
@@ -86,18 +88,43 @@
   <div class="s-header-actions"><button class="s-login-link lang-btn" type="button" data-lang-toggle>EN</button><a class="s-login-link" href="#login" data-login-focus>登录</a><a class="s-button s-button-small" href="index.html?guest=1">进入工作台 <span aria-hidden="true">↗</span></a></div>
 </header>
 <main id="main">
-<section class="s-hero" aria-labelledby="hero-title">
-  <div class="s-hero-copy">
-    <div class="s-eyebrow"><span class="s-dot"></span> LAOLAO SCHEDULER <span class="s-eyebrow-line"></span> 把日子，过得有条理</div>
-    <h1 id="hero-title">校园的每一天，<br>都有<span class="s-underline">自己的节奏<svg viewBox="0 0 420 16" preserveAspectRatio="none" aria-hidden="true"><path d="M4 11 Q180 -2 415 8" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round"/></svg></span>。</h1>
-    <p class="s-hero-lead"><b>捞捞课程表</b>管好课表、作业和班级消息，<b>捞捞思维导图</b>理清每一门课。<br>让重要的事井井有条，把更多时间留给热爱。</p>
-    <div class="s-hero-actions"><a class="s-button" href="index.html?guest=1">开始我的校园日常 <span aria-hidden="true">↗</span></a><a class="s-text-link" href="#features">认识一下捞捞 <span aria-hidden="true">↓</span></a></div>
-    <div class="s-hero-notes"><span><svg aria-hidden="true" viewBox="0 0 16 16"><path d="m3 8 3 3 7-7"/></svg>免登录也能先体验</span><span><svg aria-hidden="true" viewBox="0 0 16 16"><path d="m3 8 3 3 7-7"/></svg>手机和电脑都能用</span></div>
-    <div class="s-hero-bottom"><span class="s-mini-avatar"><svg viewBox="0 0 120 120" aria-hidden="true"><use href="#mascotArt"/></svg></span><p>嗨，我是捞捞。<br><b>今天，也陪你认真生活。</b></p><svg class="s-hand-arrow" viewBox="0 0 80 48" aria-hidden="true"><path d="M4 9 Q40 3 51 35 Q58 47 73 29 M58 28l16 0-4 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+<section class="v7-hero" aria-labelledby="hero-title">
+  <div class="v7-grid" aria-hidden="true"></div>
+  <div class="v7-hero-in">
+    <div class="v7-copy">
+      <h1 id="hero-title">把班级群，<br>变成你的课表。</h1>
+      <p class="v7-lead">作业、通知、签到、上课时间——捞捞从群消息和课表截图里整理出来，到点提醒你。网页、安卓、Windows、微信小程序，同一个账号。</p>
+      <div class="v7-acts"><a class="v7-btn" href="index.html?guest=1">免登录先试试</a><a class="v7-btn ghost" href="#get">下载 App</a></div>
+      <ul class="v7-plat" aria-label="能在哪些设备上用"><li>网页版</li><li>安卓 App</li><li>Windows 电脑版</li><li>微信小程序</li></ul>
+    </div>
+    <div class="v7-machine" id="v7Machine" aria-label="示意：一条群消息被整理成课表里的三件事">
+      <div class="v7-chat">
+        <div class="v7-chat-top"><span class="v7-av">班</span><b>计科 2501 班级群</b><small>今天 21:40</small></div>
+        <p class="v7-msg" id="v7Msg"><span data-k="0">明天<mark>周三 14:00</mark>在 <mark>B302</mark> 开班会，</span><span data-k="1">高数第三章习题<mark>周四 22:00</mark>前交，</span><span data-k="2">周五早上 <mark>7:30</mark> 操场集合签到。</span></p>
+        <div class="v7-scan" aria-hidden="true"></div>
+      </div>
+      <div class="v7-flow" aria-hidden="true"><i></i><i></i><i></i></div>
+      <div class="v7-week" role="img" aria-label="周三 14:00 班会 B302；周四 22:00 高数作业截止；周五 7:30 操场签到">
+        <div class="v7-wh"><span></span><b>一</b><b>二</b><b class="on">三</b><b>四</b><b>五</b></div>
+        <div class="v7-wb">
+          <div class="v7-hours"><span>08</span><span>10</span><span>14</span><span>16</span><span>22</span></div>
+          <div class="v7-cols"><i></i><i></i><i></i><i></i><i></i>
+            <div class="v7-c base" style="--d:0;--t:0;--h:1">高数</div>
+            <div class="v7-c base" style="--d:1;--t:1;--h:1">英语</div>
+            <div class="v7-c base" style="--d:3;--t:0;--h:1">线代</div>
+            <div class="v7-c ev meet" data-k="0" style="--d:2;--t:2;--h:1"><b>班会</b><small>B302</small></div>
+            <div class="v7-c ev hw" data-k="1" style="--d:3;--t:4;--h:1"><b>交作业</b><small>22:00</small></div>
+            <div class="v7-c ev ck" data-k="2" style="--d:4;--t:0;--h:1"><b>签到</b><small>7:30</small></div>
+          </div>
+        </div>
+        <div class="v7-toast" id="v7Toast">已整理 3 件事，到点提醒你</div>
+      </div>
+    </div>
   </div>
-  <div class="s-hero-visual">
-    <span class="s-spark" aria-hidden="true">✷</span>
-    <div class="s-preview-label"><span></span> 看看你的学习空间 <small>功能界面示意</small></div>
+</section>
+
+<section class="v7-try" id="try" aria-labelledby="try-title">
+  <div class="v7-try-copy"><h2 id="try-title">在这里点一点</h2><p>切换上面的标签：一周课表、勾掉待办、开一个番茄钟。这是示意，真实的工作台免登录就能打开。</p><a class="v7-btn" href="index.html?guest=1">打开真实工作台</a></div>
     <div class="s-product" id="landing-demo">
       <aside class="s-product-rail" aria-hidden="true"><img src="favicon.svg" alt=""><span class="on">⌂</span><span>▦</span><span>✓</span><span>◷</span><i></i><span>◉</span></aside>
       <div class="s-product-main">
@@ -128,11 +155,7 @@
         <div class="s-product-foot"><span><i></i> 点击上方标签，体验不同功能</span><a href="index.html?guest=1">打开真实工作台 ↗</a></div>
       </div>
     </div>
-    <div class="s-note-card"><span class="s-note-mark" aria-hidden="true">✦</span><div><small>给生活一点留白</small><b>有计划，也有小惊喜。</b></div><span class="s-note-check" aria-hidden="true">✓</span></div>
-    <div class="s-visual-caption"><span>LESS CHAOS.</span><b>MORE CAMPUS LIFE.</b></div>
-  </div>
 </section>
-<div class="s-platform-strip"><span>你的校园日常，随时接得上</span><div><span>◉ 网页版</span><span>▯ 安卓 App</span><span>▣ Windows 电脑版</span></div><a href="#get">选择适合你的方式 <span aria-hidden="true">↗</span></a></div>
 
 <!-- ===== 5.6.0 首页：作品展映 / 两大板块 / 团队 / 开源共建（内容在 site-config.js 里改） ===== -->
 <section class="h6-show" id="showcase" aria-labelledby="show-title">
@@ -368,9 +391,10 @@
 <script src="org.js?v=20261008-org1"></script>
 <script src="legal-info.js?v=20261010-legal1"></script>
 <script src="login.js?v=20261019-v65"></script>
-<script src="get.js?v=20261017-v584"></script>
+<script src="get.js?v=20261023-v698"></script>
 <script src="landing-v2.js?v=20261005-studio2"></script>
 <script src="site-config.js?v=20261015-v561"></script>
 <script src="home-v6.js?v=20261019-v67"></script>
+<script src="home-v7.js?v=20261023-v698"></script>
 </body>
 </html>

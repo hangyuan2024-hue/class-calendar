@@ -29,6 +29,28 @@
     try { const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; return !!tz && !/^Asia\/(Shanghai|Chongqing|Chungking|Harbin|Urumqi|Kashgar|Hong_Kong|Macau|Taipei)$/.test(tz) && !/^PRC$/.test(tz); } catch (e) { return false; }
   })();
   let altOk = false, EXE = EXE_GH;
+  // 6.9.8 国内下载加速：配了国内对象存储就用它；没配就用 GitHub 加速镜像（download/mirrors.json，挂了改那个文件就行）
+  const CODE_GH = "https://github.com/hangyuan2024-hue/class-calendar/releases/download/laolao-code/LaolaoCode-Setup.exe";
+  let MIR = { gh: ["https://ghfast.top/", "https://gh-proxy.com/", "https://ghproxy.net/"] };
+  let CODE = CODE_GH, exeHow = "", codeHow = "";
+  // 能不能连上（不跨域读内容，只看通不通）；几条线路同时试，谁先通用谁
+  const reach = (u, ms) => new Promise((ok) => {
+    const ctl = new AbortController(), t = setTimeout(() => { ctl.abort(); ok(false); }, ms || 4000);
+    fetch(u, { method: "HEAD", mode: "no-cors", cache: "no-store", signal: ctl.signal }).then(() => { clearTimeout(t); ok(true); }, () => { clearTimeout(t); ok(false); });
+  });
+  const firstOk = (list) => new Promise((done) => {
+    let left = list.length; if (!left) { done(null); return; }
+    list.forEach((u) => reach(u).then((ok) => { if (ok) { done(u); done = () => {}; } else if (--left === 0) done(null); }));
+  });
+  const getJson = async (u) => { try { const r = await fetch(new URL(u + "?t=" + Date.now(), root), { cache: "no-store" }); return r.ok ? await r.json() : null; } catch (e) { return null; } };
+  // 国内线路：国内存储 → 加速镜像（GitHub 原地址前面加镜像前缀）
+  async function cnPick(info, gh) {
+    const pinned = (info && info.url) || gh, list = [];
+    if (info && /^https:\/\//.test(info.cn || "")) list.push(info.cn);
+    (MIR.gh || []).forEach((m) => { if (/^https:\/\//.test(m)) list.push(m.replace(/\/?$/, "/") + pinned); });
+    const u = await firstOk(list);
+    return u ? { url: u, how: info && u === info.cn ? "国内线路" : "国内加速" } : null;
+  }
   const web = new URL("index.html", root).href;
   const originalApk = new URL("download/class-calendar.apk", root).href;
   let apk = originalApk, backupApk = originalApk, ver = null;
@@ -43,7 +65,7 @@
 
   function showAlternative(a, kind) {
     let hint = alternatives.get(a);
-    const visible = (kind === "apk" && apk !== backupApk) || (kind === "exe" && altOk);
+    const visible = (kind === "apk" && apk !== backupApk) || (kind === "exe" && (altOk || EXE !== EXE_GH));
     if (!hint && visible) {
       hint = document.createElement("p"); hint.className = "after";
       hint.append(kind === "exe" ? "下载慢或下到一半断了？" : "下载慢或打不开？");
@@ -57,7 +79,10 @@
     if (hint) {
       hint.hidden = !visible;
       const l = hint.querySelector("a");
-      if (kind === "exe") { l.href = EXE === EXE_ALT ? EXE_GH : EXE_ALT; l.textContent = EXE === EXE_ALT ? "换用 GitHub 下载" : "换用海外线路下载"; l.dataset.kind = "exe"; l.removeAttribute("download"); }
+      if (kind === "exe") {
+        const mirror = EXE !== EXE_GH && EXE !== EXE_ALT;   // 现在用的是国内存储 / 加速镜像
+        l.href = mirror || EXE === EXE_ALT ? EXE_GH : EXE_ALT; l.textContent = mirror || EXE === EXE_ALT ? "换用 GitHub 官方下载" : "换用海外线路下载"; l.dataset.kind = "exe"; l.removeAttribute("download");
+      }
       else useDownload(l, backupApk);
     }
   }
@@ -66,6 +91,7 @@
   const kindOf = (a) => {
     const k = a.dataset.get || "apk";
     if (k === "exe") return "exe";
+    if (k === "code") return "code";
     if (k === "apk") return plat.ios || plat.app ? "web" : "apk";
     if (plat.app || plat.ios) return "web";
     if (plat.windows) return "exe";
@@ -74,13 +100,15 @@
   };
   const TEXT = {
     apk: () => ["下载安卓 App", ver ? `${ver.versionName} 版，${mb(ver.size)}` : ""],
-    exe: () => ["下载 Windows 电脑版", "约 100 MB，Win10 / Win11"],
+    exe: () => ["下载 Windows 电脑版", "约 100 MB，Win10 / Win11" + (exeHow ? " · " + exeHow : "")],
+    code: () => ["下载 Windows 版", "约 1.5 GB" + (codeHow ? " · " + codeHow : "")],
     web: () => [plat.app ? "你已经装好了，回到 App" : "苹果手机用网页版", ""],
     pick: () => ["选择你的设备下载", ""],
   };
   const META = {
     apk: () => `免费，安卓 7.0 及以上都能装。${ver && day(ver.at) ? day(ver.at) + "更新" : ""}`,
     exe: () => "免费，Windows 10 / 11（64 位）都能装，账号和手机通用",
+    code: () => "Windows 10 / 11 · 64 位，自带编译器和本地模型，所以比较大",
     web: () => "账号和数据在手机、电脑上自动同步",
     pick: () => "有安卓 App 和 Windows 电脑版，苹果电脑可以直接用网页版",
   };
@@ -95,6 +123,7 @@
       a.dataset.kind = k;
       if (k === "apk") useDownload(a, apk);
       else if (k === "exe") { a.href = EXE; a.removeAttribute("download"); }
+      else if (k === "code") { a.href = CODE; a.removeAttribute("download"); }
       else if (k === "web") { a.href = web; a.removeAttribute("download"); }
       else { a.href = "#get"; a.removeAttribute("download"); }
       if (!a.classList.contains("done")) setLabel(a, ...TEXT[k]());
@@ -131,6 +160,18 @@
     finally { clearTimeout(timeout); }
   })();
   window.CCGet = { plat, info };
+  // 6.9.8 国内：电脑版、捞捞编程走国内存储 / 加速镜像；安卓走国内存储或官网自己的副本（不走 GitHub）
+  if (!overseas) (async () => {
+    const m = await getJson("download/mirrors.json"); if (m && Array.isArray(m.gh) && m.gh.length) MIR = m;
+    const [dv, cv] = await Promise.all([getJson("download/desktop-version.json"), getJson("download/code-version.json")]);
+    const [pe, pc] = await Promise.all([(plat.desktop || plat.windows) && $$('[data-get="exe"], [data-get="auto"]').length ? cnPick(dv, EXE_GH) : null, $$('[data-get="code"]').length ? cnPick(cv, CODE_GH) : null]);
+    if (pe) { EXE = pe.url; exeHow = pe.how; }
+    if (pc) { CODE = pc.url; codeHow = pc.how; }
+    const v = await info.ready;
+    if (v && /^https:\/\//.test(v.cn || "")) { apk = v.cn; }
+    else if (v && apk !== backupApk) { apk = backupApk; backupApk = v.url ? new URL(v.url, root).href : originalApk; }   // 国内用官网副本，GitHub 当备用线路
+    apply();
+  })();
   // 海外线路能不能下载安装包（中转还没更新时这里会失败，就一直用 GitHub）
   if (plat.desktop || plat.windows) (async () => {
     const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 6000);

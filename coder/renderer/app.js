@@ -549,6 +549,40 @@
   // 关窗口前把没保存的存了
   window.cc.on("before-close", async () => { try { await saveAll(); } catch (e) {} window.cc.closingOk(); });
 
+  // ================= 检查更新（1.1） =================
+  // 有新版本：右下角一张卡片「立即更新」→ 软件里下载（国内存储 / 加速镜像 / GitHub 测速挑最快、断了接着下）→ 重启装好
+  let upd = null, updHide = "";
+  const updLine = (u) => !u ? "" : u.state === "downloading" ? `正在下载 ${esc(u.latest && u.latest.version)}… ${Math.round((u.progress || 0) * 100)}%${u.speed ? " · " + (u.speed >= 1024 ? (u.speed / 1024).toFixed(1) + " MB/s" : u.speed + " KB/s") : ""}${u.via ? " · " + esc(u.via) : ""}`
+    : u.state === "ready" ? `新版本 ${esc(u.latest.version)} 下载好了，重启一下就装好` : u.state === "available" ? (u.error ? esc(u.error) : `有新版本 ${esc(u.latest.version)}（现在是 ${esc(u.current)}）`)
+    : u.state === "latest" ? `已经是最新版本 ${esc(u.current)}` : u.state === "error" ? esc(u.error || "检查更新失败") : "";
+  const updBtns = (u, big) => !u ? "" : u.state === "downloading" ? `<button class="btn sm" data-upd="cancel">取消</button>`
+    : u.state === "ready" ? `<button class="btn sm pri" data-upd="install">重启并更新</button>`
+    : u.state === "available" ? `<button class="btn sm pri" data-upd="download">${u.error ? "再试一次" : "立即更新"}</button>${u.error ? `<button class="btn sm" data-upd="page">去官网下载</button>` : ""}${big ? "" : `<button class="btn sm ghost" data-upd="later">以后</button>`}` : "";
+  function paintUpd() {
+    let el = $("#updCard");
+    const show = upd && ["available", "downloading", "ready"].includes(upd.state) && (upd.state !== "available" || updHide !== (upd.latest && upd.latest.version));
+    if (!show) { if (el) el.remove(); } else {
+      if (!el) { el = document.createElement("div"); el.id = "updCard"; el.className = "upd-card"; document.body.appendChild(el); }
+      el.innerHTML = `<div class="upd-h">⬆️ <b>${updLine(upd)}</b></div>${upd.state === "downloading" ? `<div class="upd-bar"><i style="width:${Math.round((upd.progress || 0) * 100)}%"></i></div>` : ""}<div class="upd-b">${updBtns(upd)}</div>`;
+    }
+    const ab = $("#aboutUpd"); if (ab) ab.innerHTML = `<span>${updLine(upd)}</span> ${updBtns(upd, true) || `<button class="btn sm" data-upd="check">检查更新</button>`}`;
+  }
+  window.cc.on("update", (u) => { upd = u; paintUpd(); });
+  window.cc.upd("state").then((u) => { if (u) { upd = u; paintUpd(); } }).catch(() => {});
+  document.addEventListener("click", async (e) => {
+    const b = e.target.closest("[data-upd]"); if (!b) return;
+    const a = b.dataset.upd;
+    if (a === "later") { updHide = upd && upd.latest ? upd.latest.version : ""; paintUpd(); return; }
+    if (a === "check") { b.disabled = true; b.textContent = "检查中…"; }
+    if (a === "install") await saveAll().catch(() => {});
+    try { const r = await window.cc.upd(a); if (r && typeof r === "object") { upd = r; paintUpd(); if (a === "check" && r.state === "latest") toast("已经是最新版本 " + r.current); } } catch (err) { toast(String(err.message || err)); }
+  });
+  // 点左上角的 logo：关于、检查更新
+  $(".brand").style.cursor = "pointer";
+  $(".brand").title = "关于捞捞编程 / 检查更新";
+  $(".brand").addEventListener("click", () => dialog(`<h3>捞捞编程 ${esc(S && S.version || "")}</h3><p>自带 C、C++、Python 和本地模型；Java、JavaScript、Go 在软件里一键安装。有新版本时右下角会提示，点「立即更新」就行。</p>
+    <p class="about-upd" id="aboutUpd"></p><div class="acts"><button class="btn pri" value="ok">好</button></div>`, () => paintUpd()));
+
   // ================= 启动 =================
   (async function boot() {
     S = await call("state");
