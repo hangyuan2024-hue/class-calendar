@@ -95,9 +95,24 @@ object Geo {
 /** 6.9 班级位置签到：班委 / 老师发起，同学到了现场（范围内）才能签；距离由服务器算 */
 object Checkin {
     fun list(cid: String): List<JSONObject> = (Api.rpc("checkin_list", jsonOf("cid" to cid)) as? JSONArray)?.objs() ?: emptyList()
-    fun create(cid: String, title: String, place: String, p: Geo.Pos, radius: Int, minutes: Int): Any? =
-        Api.rpc("checkin_create", jsonOf("cid" to cid, "title" to title, "place" to place, "lat" to Math.round(p.lat * 1e6) / 1e6, "lng" to Math.round(p.lng * 1e6) / 1e6, "radius" to radius, "minutes" to minutes))
-    fun sign(id: Long, p: Geo.Pos): JSONObject = Api.rpcObj("checkin_sign", jsonOf("id" to id, "lat" to p.lat, "lng" to p.lng, "accuracy" to p.acc))
+    /** mode：geo 位置 / code 动态码（不用定位）/ both 两个都要 */
+    fun create(cid: String, title: String, place: String, p: Geo.Pos?, radius: Int, minutes: Int, mode: String = "geo"): JSONObject {
+        val a = jsonOf("cid" to cid, "title" to title, "place" to place, "radius" to radius, "minutes" to minutes, "mode" to mode)
+        if (p != null) { a.put("lat", Math.round(p.lat * 1e6) / 1e6); a.put("lng", Math.round(p.lng * 1e6) / 1e6) }
+        return Api.rpcObj("checkin_create", a)
+    }
+    fun sign(id: Long, p: Geo.Pos?, code: String? = null): JSONObject {
+        val a = jsonOf("id" to id)
+        if (p != null) { a.put("lat", p.lat); a.put("lng", p.lng); a.put("accuracy", p.acc) }
+        if (!code.isNullOrBlank()) a.put("code", code)
+        return Api.rpcObj("checkin_sign", a)
+    }
+    fun get(id: Long): JSONObject = Api.rpcObj("checkin_get", jsonOf("id" to id))
+    fun code(id: Long): JSONObject = Api.rpcObj("checkin_code", jsonOf("id" to id))
+    fun needCode(x: JSONObject) = x.str("mode") == "code" || x.str("mode") == "both"
+    fun needGeo(x: JSONObject) = x.str("mode") != "code"
+    fun modeText(x: JSONObject) = when (x.str("mode")) { "code" -> "🔢 动态码签到"; "both" -> "📍 位置 + 🔢 动态码"; else -> "📍 位置签到" }
+    fun amap(x: JSONObject) = "https://uri.amap.com/marker?position=${x.optDouble("lng")},${x.optDouble("lat")}&name=${java.net.URLEncoder.encode(x.str("place").ifEmpty { x.str("title") }, "UTF-8")}&coordinate=wgs84&callnative=1"
     fun detail(id: Long): JSONObject = Api.rpcObj("checkin_detail", jsonOf("id" to id))
     fun close(id: Long) { Api.rpc("checkin_close", jsonOf("id" to id)) }
     fun mgr(): Boolean { val c = Store.cls ?: return false; return c.optBoolean("is_teacher") || c.optBoolean("can_edit") || c.optBoolean("can_ingest") }

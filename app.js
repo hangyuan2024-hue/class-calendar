@@ -781,7 +781,10 @@ function agendaRow(r, forceOpen) {
   const time = r._p ? (r._p.time ? r._p.time + (due ? " 截止" : "") : "全天") : "待定";
   const open = forceOpen === true || agendaOpen.has(r._key);
   const rs = rowState(r), ended = rs && rs.st === "done" && !r._done;
-  return `<div class="arow t-${esc(r.msg_type)}${r._done ? " done" : ""}${ended ? " ended" : ""}${open ? " open" : ""}" data-row="${k}"${rs ? ` data-st="${rs.st}"` : ""}${style}>
+  // 6.9 课程行：点一下看课表里的这门课 / 截图原图（早晚自习除外）
+  const cvm = isCourseItem(r) && r._p && !/^(mor|eve)_/.test(r._key) && /第\s*(\d+)/.exec(r.summary || "");
+  const cv = cvm ? ` data-cview="${esc(String(r.subject || "").replace(/（(加课|调课)）$/, ""))}" data-cday="${esc(r._p.day)}" data-cstart="${cvm[1]}"` : "";
+  return `<div class="arow t-${esc(r.msg_type)}${r._done ? " done" : ""}${ended ? " ended" : ""}${open ? " open" : ""}" data-row="${k}"${rs ? ` data-st="${rs.st}"` : ""}${style}${cv}>
     ${r._plugin ? `<span class="adot"></span>` : `<button class="chk" data-act="done" data-k="${k}" title="${r._done ? "标记为未完成" : "标记为完成"}">${r._done ? "✓" : ""}</button>`}
     <div class="abody">
       <div class="atitle">${r.need_confirm ? "⚠ " : ""}${pinMark(r)}${esc(title)}${typeof exFilesTag === "function" ? exFilesTag(r) : ""}</div>

@@ -100,7 +100,7 @@ class HomePage(a: Main) : Page(a) {
         c.addView(ctx.text("📍", 22f))
         c.addView(ctx.col().apply { pad(10, 0); addView(ctx.text(o.str("title").ifEmpty { "位置签到" }, 15f, C.text, BOLD, 1)); addView(ctx.text(o.str("place") + " · 还剩 " + com.laolao.classcalendar.core.Checkin.leftText(o), 12.5f, C.sub, lines = 1)) }, LinearLayout.LayoutParams(0, WRAP, 1f))
         c.addView(ctx.text(if (mine) "✓ 已签到" else "去签到 ›", 13.5f, if (mine) C.green else C.c("#d4561e"), BOLD))
-        c.tap { a.push(CheckinPage(a)) }
+        c.tap { a.push(CheckinPage(a, o.optLong("id"))) }
         body.addView(c)
     }
     private var shown = 0; private var capped = false

@@ -262,6 +262,14 @@ class Main : Activity() {
             }
             return
         }
+        // 6.9.1 扫签到二维码打开的：https://www.laolaokechengbiao.cn/ck/?i=编号&k=码
+        val u = i.data
+        if (i.action == Intent.ACTION_VIEW && u != null && (u.path ?: "").startsWith("/ck")) {
+            i.data = null
+            val id = u.getQueryParameter("i")?.toLongOrNull()
+            if (id != null) { val k = (u.getQueryParameter("k") ?: "").filter { it.isDigit() }.take(4); Bg.main.post { push(CheckinPage(this, id, k)) } }
+            return
+        }
         val key = i.getStringExtra("item")
         // 点极光推送打开的：看它带的 route
         val jp = i.getStringExtra("cn.jpush.android.EXTRA")?.let { try { org.json.JSONObject(it).optString("route") } catch (_: Exception) { "" } } ?: ""

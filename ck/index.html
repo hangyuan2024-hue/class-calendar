@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>捞捞签到</title>
+<style>
+  :root { --bg: #f6f5f1; --card: #fff; --text: #1d2433; --sub: #7d898e; --accent: #5366e8; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #14161c; --card: #1e2129; --text: #eef0f4; --sub: #9aa3ad; --accent: #8c9bff; } }
+  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--bg); color: var(--text);
+    font: 16px/1.6 -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; padding: 16px; box-sizing: border-box; }
+  .c { background: var(--card); border-radius: 20px; padding: 28px 24px; max-width: 360px; width: 100%; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,.08); }
+  h1 { font-size: 20px; margin: 8px 0; } p { color: var(--sub); font-size: 14px; margin: 6px 0; }
+  a { display: inline-block; margin-top: 14px; background: var(--accent); color: #fff; text-decoration: none; padding: 10px 22px; border-radius: 99px; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="c">
+  <div style="font-size:40px">📋</div>
+  <h1>正在打开签到…</h1>
+  <p id="t">马上跳到捞捞课程表帮你签到</p>
+  <p>第一次用要先登录捞捞账号，之后扫码就直接签上</p>
+  <a id="go" href="../index.html">打开捞捞签到</a>
+</div>
+<script>
+  // 投屏的二维码：https://www.laolaokechengbiao.cn/ck/?i=签到编号&k=4位码
+  //   · 微信扫一扫：小程序后台配了「扫普通链接二维码打开小程序」就直接进小程序签到页（不会到这里）
+  //   · 手机相机 / 浏览器扫：到这里，跳到网站首页带上签到编号和码，登录后直接签
+  (function () {
+    var q = new URLSearchParams(location.search), i = (q.get("i") || "").replace(/\D/g, ""), k = (q.get("k") || "").replace(/\D/g, "").slice(0, 4);
+    var url = "../index.html" + (i ? "#ck=" + i + (k ? "&k=" + k : "") : "");
+    document.getElementById("go").href = url;
+    if (i) setTimeout(function () { location.replace(url); }, 300);
+    else document.getElementById("t").textContent = "这个签到链接不完整，请重新扫一下投屏上的二维码";
+  })();
+</script>
+</body>
+</html>

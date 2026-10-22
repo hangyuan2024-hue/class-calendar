@@ -53,6 +53,7 @@ App.views.today = {
       const md = e.target.closest("[data-mood]"); if (md) { const t = todayKey(), cur = (KV("mood_log_v1") || {})[t]; kvSet("mood_log_v1", t, cur === md.dataset.mood ? null : md.dataset.mood); return; }
       if (e.target.closest("[data-mood-redo]")) { kvSet("mood_log_v1", todayKey(), null); return; }
       if (e.target.closest("[data-ckpanel]")) return Ck.panel();
+      const ck1 = e.target.closest("[data-ckone]"); if (ck1) return Ck.openOne(+ck1.dataset.ckone);
       const cv = e.target.closest("[data-cview]"); if (cv) return CourseView.open(cv.dataset.cview, cv.dataset.cday, cv.dataset.cstart ? +cv.dataset.cstart : null);
       const hb = e.target.closest("[data-hb]"); if (hb && Ck.habitBlocked(hb.dataset.hb)) return; if (hb) { const on = await call("habit", hb.dataset.hb); if (on) cheer("habit"); return; }
       if (e.target.closest("[data-cd]")) return App.go("countdown");

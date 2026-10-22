@@ -63,6 +63,13 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="image/*" />
             </intent-filter>
+            <!-- 6.9.1 签到二维码 https://www.laolaokechengbiao.cn/ck/?i=编号&k=码：手机相机扫了可以选「用捞捞打开」直接签 -->
+            <intent-filter android:label="用捞捞签到">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="www.laolaokechengbiao.cn" android:pathPrefix="/ck" />
+            </intent-filter>
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity>
 

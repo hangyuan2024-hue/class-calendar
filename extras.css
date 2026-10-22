@@ -321,3 +321,37 @@ button.hw-read{color:var(--accent,#2563eb);padding:0;background:none;border:0;cu
 .hplace.on { opacity: 1; border-style: solid; border-color: #ffb547; }
 .hplace small { font-size: 11px; max-width: 5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #rankBox .lv-card { margin: 0 16px 12px; }
+
+/* 6.9.1 签到：方式、详情、投屏二维码 */
+.ck-modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 8px 0; }
+.ck-mode { display: flex; flex-direction: column; gap: 2px; padding: 10px; border: 1.5px solid var(--line, #e3e6ea); border-radius: 12px; cursor: pointer; font-size: 14px; }
+.ck-mode input { position: absolute; opacity: 0; pointer-events: none; }
+.ck-mode small { color: var(--muted, #7d898e); font-size: 12px; line-height: 1.4; }
+.ck-mode:has(input:checked) { border-color: #ff7a45; background: rgba(255, 122, 69, .08); }
+.ck-row[data-ckone] { cursor: pointer; } .ck-row[data-ckone]:hover { background: rgba(127, 127, 127, .06); }
+.ck-go { color: var(--brand, #5366e8); font-weight: 600; font-size: 14px; white-space: nowrap; }
+.ck-banner[data-ckone] { cursor: pointer; }
+.ck-info { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; margin: 6px 0 10px; }
+.ck-info div { display: flex; flex-direction: column; } .ck-info span { font-size: 12px; color: var(--muted, #7d898e); } .ck-info b { font-size: 14.5px; }
+.ck-mapline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 12px 0; padding: 10px 12px; border-radius: 12px; background: rgba(255, 122, 69, .08); font-size: 14px; }
+.ck-mapline span { flex: 1; min-width: 0; }
+.btn-like { text-decoration: none; }
+.ck-proj { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; margin: 12px 0; padding: 16px; border-radius: 16px; background: #fff; color: #1d2433; border: 1px solid rgba(0, 0, 0, .08); }
+.ck-qrbox { width: 220px; height: 220px; flex-shrink: 0; } .ck-qrbox svg { width: 100%; height: 100%; display: block; }
+.ck-proj-r { flex: 1; min-width: 180px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.ck-proj-t { font-size: 18px; font-weight: 700; }
+.ck-code { font: 900 56px/1.1 ui-monospace, Menlo, Consolas, monospace; letter-spacing: 10px; color: #ff7a45; }
+.ck-proj .meta { color: #6d7a80; }
+.ck-proj:fullscreen, .ck-proj.max { position: fixed; inset: 0; z-index: 9999; margin: 0; border-radius: 0; justify-content: center; gap: 6vw; background: #fff; }
+.ck-proj:fullscreen .ck-qrbox, .ck-proj.max .ck-qrbox { width: min(70vh, 48vw); height: min(70vh, 48vw); }
+.ck-proj:fullscreen .ck-code, .ck-proj.max .ck-code { font-size: min(14vh, 9vw); }
+.ck-proj:fullscreen .ck-proj-t, .ck-proj.max .ck-proj-t { font-size: 4vh; }
+.ck-proj:fullscreen .meta, .ck-proj.max .meta { font-size: 2.4vh; }
+.ck-me { margin: 10px 0; } .ck-ok.big { font-size: 17px; padding: 8px 0; }
+.ck-quick { width: 170px; letter-spacing: 4px; font-weight: 700; }
+.ck-quick.big { font-size: 22px; text-align: center; width: 150px; }
+@media (max-width: 520px) { .ck-modes { grid-template-columns: 1fr; } .ck-qrbox { width: 100%; height: auto; aspect-ratio: 1; } }
+dialog.ck-dlg { width: min(660px, calc(100vw - 24px)); padding: 20px 22px 16px; max-height: 92vh; overflow: auto; box-sizing: border-box; }
+.ck-dlg h3 { margin: 0 0 10px; }
+.ck-quick:placeholder-shown { letter-spacing: 0; font-weight: 400; }
+.ck-qrbox img { width: 100%; height: 100%; object-fit: contain; display: block; }
