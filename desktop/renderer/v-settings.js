@@ -100,7 +100,9 @@ App.views.settings = {
         <div class="st-me"><span class="av lg">${esc((me.display_name || me.account || "我").slice(-1))}</span><div><b>${esc(me.display_name || "")}</b><small>账号 ${esc(me.account || "")}${me.role === "teacher" ? " · 老师" : ""}</small></div><span class="grow"></span><button class="btn danger" data-a="logout">退出登录</button></div>
         ${row("当前班级", cls.length > 1 ? "有多个班级时可以在这里切换" : "", cls.length ? `<select class="input st-sel" id="stClass">${cls.map((c) => `<option value="${esc(c.id)}"${c.id === S.cid ? " selected" : ""}>${esc(c.name)}</option>`).join("")}</select>` : `<button class="btn" data-go-cl>加入班级</button>`)}
       </section>
-      <p class="st-ver muted">捞捞课程表 电脑版 ${esc(S.version || "")} · <a data-ext="https://www.laolaokechengbiao.cn/">网站</a></p>`;
+      <p class="st-ver muted">捞捞课程表 电脑版 ${esc(S.version || "")} · <a data-ext="https://www.laolaokechengbiao.cn/">网站</a></p>
+      <p class="st-ver muted" id="stUpd"></p>`;
+    if (typeof Upd !== "undefined") Upd.paintSettings();
     // 左边的目录：点一下跳到那一组，滚动时高亮当前这一组
     const idx = $("#stIdx", this.el), body = el.parentElement;
     idx.innerHTML = $$("[data-st]", el).map((x) => `<button data-st-go="${x.id}">${esc(x.dataset.st)}</button>`).join("");

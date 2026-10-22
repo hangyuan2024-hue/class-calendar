@@ -677,3 +677,16 @@
 .ck-nm { display: inline-block; margin: 0 4px 0 0; padding: 0 10px; border-radius: 99px; background: rgba(127, 127, 127, .1); font-size: 13px; line-height: 24px; }
 .ck-nm.ok { background: rgba(23, 194, 154, .12); color: #138a6e; } .ck-nm small { color: var(--muted); }
 .ck-qrbox img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.t58-chip .t58-ck { font-style: normal; font-size: 11px; color: #d4561e; background: rgba(255,122,69,.14); padding: 0 6px; border-radius: 99px; margin-left: 4px; }
+.ckv { display: flex; flex-direction: column; gap: 10px; } .ckv .ck-row { display: flex; gap: 12px; padding: 14px 16px; } .ckv .ck-row > div { flex: 1; }
+.ck-cls { width: auto; display: inline-block; margin-left: 8px; font-size: 13px; padding: 2px 8px; height: auto; }
+
+/* 3.4 更新提示卡片 */
+.upd-card { position: fixed; right: 18px; bottom: 18px; z-index: 900; width: 320px; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow-lg); padding: 12px 14px; font-size: 13px; animation: toastIn .2s ease-out; }
+.upd-card .upd-h { line-height: 1.45; }
+.upd-card .upd-notes { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.upd-card .upd-bar { height: 6px; border-radius: 3px; background: var(--brand-soft); margin-top: 8px; overflow: hidden; }
+.upd-card .upd-bar i { display: block; height: 100%; background: var(--brand); transition: width .3s; }
+.upd-card .upd-b { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
+#stUpd { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 28px; }
+.t58-chip.on .t58-ck { background: rgba(255,255,255,.9); color: #e8590c; }

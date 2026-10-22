@@ -138,7 +138,8 @@ object HabitPlace {
  *  · 📍 位置签到：到了现场范围内才能签；🔢 动态码：班委投屏二维码 / 4 位码（每 20 秒换），扫码或输码签；📍+🔢 两个都要
  *  · 打开方式：成长页、首页提醒；手机相机扫投屏二维码选「用捞捞打开」（openId / openCode 带进来，直接签）
  */
-class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: String = "") : Page(a) {
+class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: String = "", private val cidArg: String = "") : Page(a) {
+    private val cid get() = cidArg.ifEmpty { Store.cls?.str("id") ?: "" }
     private lateinit var body: LinearLayout
     private var list: List<JSONObject>? = null; private var err = ""; private var busy = false
     private var one: JSONObject? = null; private var names: JSONObject? = null; private var code: JSONObject? = null
@@ -149,8 +150,8 @@ class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: S
     override fun onHide() { Bg.main.removeCallbacks(tick) }
     override fun onBack(): Boolean { if (one != null && openId == 0L) { one = null; names = null; code = null; load(); return true }; return false }
     private fun load(done: (() -> Unit)? = null) {
-        val c = Store.cls ?: run { render(); done?.invoke(); return }
-        Bg.load({ Checkin.list(c.str("id")) }) { r, e -> done?.invoke(); if (r == null) err = e?.message?.let { if (Regex("checkin_|PGRST202|Could not find").containsMatchIn(it)) "服务器还没升级（需要执行 level.sql）" else it } ?: "加载失败" else { list = r; err = "" }; render() }
+        val cc = cid.ifEmpty { render(); done?.invoke(); return }
+        Bg.load({ Checkin.list(cc) }) { r, e -> done?.invoke(); if (r == null) err = e?.message?.let { if (Regex("checkin_|PGRST202|Could not find").containsMatchIn(it)) "服务器还没升级（需要执行 level.sql）" else it } ?: "加载失败" else { list = r; err = "" }; render() }
     }
     private fun openOne(id: Long, done: (() -> Unit)? = null) {
         Bg.load({ Checkin.get(id) }) { r, e ->
@@ -159,7 +160,7 @@ class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: S
             one = r; render()
             if (r.optBoolean("can_manage")) { loadNames(); if (r.optBoolean("open") && Checkin.needCode(r)) loadCode() }
             // 扫码进来带着码：直接签
-            if (!autoTried && openCode.isNotEmpty() && r.optBoolean("open") && r.optJSONObject("mine") == null && !r.optBoolean("can_manage")) { autoTried = true; sign() }
+            if (!autoTried && openCode.isNotEmpty() && r.optBoolean("open") && r.optJSONObject("mine") == null && Checkin.signable(r)) { autoTried = true; sign() }
         }
     }
     private fun loadNames() { val o = one ?: return; Bg.load({ Checkin.detail(o.optLong("id")) }) { r, _ -> if (r != null && one === o) { names = r; render() } } }
@@ -171,8 +172,9 @@ class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: S
         view; keepScroll(body)
         val o = one
         if (o != null) { renderOne(o); return }
-        if (CK.gate(this, body)) return
-        if (Checkin.mgr()) {
+        if (cidArg.isEmpty() && CK.gate(this, body)) return
+        Store.classes.firstOrNull { it.str("id") == cid }?.let { c -> if (cidArg.isNotEmpty() || Store.classes.size > 1) body.addView(ctx.text("📋 " + c.str("name"), 14f, C.sub, SEMI).apply { pad(4, 6) }) }
+        if (Checkin.mgr(cid)) {
             val nc = ctx.card(16, 18).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; margins(t = 12) }
             nc.addView(ctx.text("＋", 24f, ORANGE, BOLD).apply { gravity = Gravity.CENTER; bg(C.alpha(ORANGE, 0.14f), 20) }, LinearLayout.LayoutParams(dp(40), dp(40)))
             nc.addView(ctx.col().apply { pad(12, 0); addView(ctx.text("发起签到", 16f, C.text, BOLD)); addView(ctx.text("动态码（投屏 4 位码）、位置签到，或者两个都要", 12.5f, C.sub)) }, LinearLayout.LayoutParams(0, WRAP, 1f))
@@ -190,7 +192,7 @@ class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: S
         }, LinearLayout.LayoutParams(WRAP, WRAP).apply { leftMargin = dp(8) })
         body.addView(qc)
         val l = list ?: run { body.add(ctx.text(err.ifEmpty { "加载中…" }, 14f, if (err.isNotEmpty()) C.red else C.sub), 14); return }
-        if (l.isEmpty()) body.addView(ctx.empty("📋", "班里最近 7 天没有签到", if (Checkin.mgr()) "点上面「发起签到」" else "班委或老师发起后，这里会出现"))
+        if (l.isEmpty()) body.addView(ctx.empty("📋", "班里最近 7 天没有签到", if (Checkin.mgr(cid)) "点上面「发起签到」" else "班委或老师发起后，这里会出现"))
         for (x in l) {
             val open = x.optBoolean("open"); val mine = x.optJSONObject("mine")
             val c = ctx.card(16, 18).apply { margins(t = 12) }
@@ -249,7 +251,8 @@ class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: S
             body.addView(qc)
         }
         // 我签到
-        if (!mgr || mine != null) {
+        if (Checkin.signable(o) || mine != null) {
+            if (mgr && mine == null && open) body.add(ctx.text("你也是这个班的同学：先在下面签到，再看码和名单", 12.5f, C.sub), 10)
             val sc = ctx.card(16, 18).apply { margins(t = 12) }
             when {
                 mine != null -> sc.addView(ctx.text("✓ 你 ${Checkin.hm(mine.str("at")).takeLast(5)} 签到了" + (if (!mine.isNull("dist")) "（离签到点 ${mine.optInt("dist")} 米）" else ""), 16f, C.green, BOLD).apply { gravity = Gravity.CENTER; pad(0, 8) })
@@ -303,7 +306,7 @@ class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: S
         if (Checkin.needGeo(o)) a.locate { pos -> go(pos) } else go(null)
     }
     private fun create() {
-        val cid = Store.cls?.str("id") ?: return
+        val ccid = cid.ifEmpty { return }
         val modes = listOf("code", "geo", "both")
         Dialogs.sheet(ctx, "怎么签到？", listOf("🔢 动态码：投屏 4 位码，不用定位", "📍 位置：到了现场范围内才能签", "📍+🔢 都要：最严格")) { mi ->
             val mode = modes[mi]
@@ -313,7 +316,7 @@ class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: S
                 val doIt = { ri: Int ->
                     Dialogs.sheet(ctx, "签到开多久？", ms.map { if (it >= 60) "${it / 60} 小时" else "$it 分钟" }) { mm ->
                         val send = { pos: com.laolao.classcalendar.core.Geo.Pos? ->
-                            Bg.load({ Checkin.create(cid, place.ifBlank { "课堂" } + "签到", place, pos, rs[ri], ms[mm], mode) }) { r, e ->
+                            Bg.load({ Checkin.create(ccid, place.ifBlank { "课堂" } + "签到", place, pos, rs[ri], ms[mm], mode) }) { r, e ->
                                 if (r == null) Dialogs.alert(ctx, "没发起成功", e?.message ?: "") else { a.toast("已发起"); openOne(r.optLong("id")) }
                             }
                         }

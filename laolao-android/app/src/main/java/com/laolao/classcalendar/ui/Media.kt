@@ -19,7 +19,7 @@ import java.io.File
 
 /** 选图片 / 文件、压缩、显示 data:image 图片、打开下载好的附件 */
 object Media {
-    private val MIME = mapOf("jpg" to "image/jpeg", "jpeg" to "image/jpeg", "png" to "image/png", "gif" to "image/gif", "webp" to "image/webp", "heic" to "image/heic",
+    private val MIME = mapOf("apk" to "application/vnd.android.package-archive", "jpg" to "image/jpeg", "jpeg" to "image/jpeg", "png" to "image/png", "gif" to "image/gif", "webp" to "image/webp", "heic" to "image/heic",
         "pdf" to "application/pdf", "doc" to "application/msword", "docx" to "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "xls" to "application/vnd.ms-excel", "xlsx" to "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "ppt" to "application/vnd.ms-powerpoint",
         "pptx" to "application/vnd.openxmlformats-officedocument.presentationml.presentation", "txt" to "text/plain", "zip" to "application/zip", "ics" to "text/calendar", "json" to "application/json")

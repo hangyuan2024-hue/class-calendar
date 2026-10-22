@@ -277,7 +277,8 @@ let GROUPS_OK = false, classGroups = [], classOpts = {};
 // 5.8.0 老师模式（身份是老师：首页换成教学工作台、多一个「班级情况」，不显示宠物农场这些学生用的）、职场模式（单位类型选了职场人员：班级→团队、作业→任务…）
 const teacherMode = () => !!currentUser && currentUser.role === "teacher";
 // 不是老师身份、但自己建了班（管理员、班委建的班）：也能看「班级情况」，首页不变
-const overviewMode = () => teacherMode() || (!!currentUser && (myClasses || []).some((c) => c.is_teacher));
+// 6.9.2 班委（能发布事项 / AI 整理 / 看成员名单）也有「班级情况」
+const overviewMode = () => teacherMode() || (!!currentUser && (myClasses || []).some((c) => c.is_teacher || (c.member_role === "monitor" && c.status === "approved" && (c.can_edit || c.can_ingest || c.can_view_members))));
 const workMode = () => !!currentUser && currentUser.org_type === "work" && !teacherMode();
 let CLASS_KINDS = load("class_kinds_v1", {}) || {};
 const kindOf = (c) => (c && (c.kind || CLASS_KINDS[c.id])) || "class";
@@ -3268,6 +3269,9 @@ const ICONS = {
   class: ['<path d="M2.5 9 12 4l9.5 5-9.5 5z M6.5 11.2V16c0 1.6 2.5 3 5.5 3s5.5-1.4 5.5-3v-4.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>', ""],
   growth: ['<path d="M4 20V10m8 10V4m8 16v-8M3 7l6-4 5 5 7-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>', '<rect x="3" y="10" width="3" height="11" rx="1.5" fill="currentColor"/><rect x="10.5" y="4" width="3" height="17" rx="1.5" fill="currentColor"/><rect x="18" y="12" width="3" height="9" rx="1.5" fill="currentColor"/>'],
 };
+// 6.9.2 签到：一个对勾的夹板
+ICONS.checkin = ['<rect x="5" y="4" width="14" height="17" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9 3h6v3H9z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="m8.5 13 2.4 2.4 4.6-4.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+  '<rect x="4.5" y="3.5" width="15" height="18" rx="2.8" fill="currentColor"/><path d="m8.5 13 2.4 2.4 4.6-4.8" fill="none" stroke="var(--bg2, #fff)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>'];
 ICONS.study = ['<path d="M4 5.5C6.5 4 9.5 4 12 6c2.5-2 5.5-2 8-.5V19c-2.5-1.5-5.5-1.5-8 .5-2.5-2-5.5-2-8-.5z M12 6v13.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
   '<path d="M3.5 5.2C6.2 3.6 9.3 3.7 11.2 5.4v14.4c-2.2-1.6-5-1.7-7.7-.3z M12.8 5.4c1.9-1.7 5-1.8 7.7-.2v14.3c-2.7-1.4-5.5-1.3-7.7.3z" fill="currentColor"/>'];
 const icon = (k) => `<svg viewBox="0 0 24 24" class="o" aria-hidden="true">${ICONS[k][0]}</svg>` + (ICONS[k][1] ? `<svg viewBox="0 0 24 24" class="f" aria-hidden="true">${ICONS[k][1]}</svg>` : "");
@@ -3291,6 +3295,7 @@ function renderTabs() {
     return id === "tools" ? button.replace('data-tab="tools">', `data-tab="tools" data-tools-nav title="工具（再点一次或长按：快捷打开）">`).replace("</button>", `<kbd class="nav-kbd" aria-hidden="true">${/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K"}</kbd></button>`) + `<button type="button" id="navToolPicker" class="nav-tool-picker-x" data-quick-open aria-label="快捷选择工具" tabindex="-1" hidden></button>` : button;
   }).join("")
     + railPins().map((t) => `<button class="nav pin desk${t.view === cur ? " on" : ""}" data-tab="${esc(t.view)}"><span class="emo">${esc(t.icon)}</span><span>${esc(t.name)}</span></button>`).join("")
+    + (currentUser && (myClasses || []).length ? `<button class="nav desk" data-ckpanel="1" title="班级签到：投屏动态码、位置签到、看谁没签">${icon("checkin")}<span>签到</span></button>` : "")
     + `<a class="nav desk" href="class.html">${icon("class")}<span>${cyName("班级")}</span></a>`;
 }
 // 快捷打开工具：工具页上再点「工具」、长按「工具」、Ctrl/⌘+K

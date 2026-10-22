@@ -355,3 +355,5 @@ dialog.ck-dlg { width: min(660px, calc(100vw - 24px)); padding: 20px 22px 16px; 
 .ck-dlg h3 { margin: 0 0 10px; }
 .ck-quick:placeholder-shown { letter-spacing: 0; font-weight: 400; }
 .ck-qrbox img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.t-chip .t-ck { font-style: normal; font-size: 11px; color: #d4561e; background: rgba(255,122,69,.14); padding: 0 6px; border-radius: 99px; margin-left: 4px; }
+.t-chip.on .t-ck { background: rgba(255,255,255,.9); color: #e8590c; }

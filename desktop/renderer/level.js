@@ -49,7 +49,13 @@ const CK_MODE = { geo: "📍 位置签到", code: "🔢 动态码签到", both: 
 const CK_SITE = "https://www.laolaokechengbiao.cn/ck/";
 const Ck = {
   list: [], cid: "", at: 0, one: null, timer: 0, code: "",
-  mgr() { const c = (App.S.classes || []).find((x) => x.id === App.S.cid); return !!(c && (c.is_teacher || c.can_edit || c.can_ingest)); },
+  // 能发起签到：老师（建班的）或有发布 / AI 整理权限的班委
+  canMgr(c) { return !!(c && (c.is_teacher || (c.member_role === "monitor" && (c.can_edit || c.can_ingest)))); },
+  clsOf(id) { return (App.S.classes || []).find((x) => x.id === id) || null; },
+  mgr(cid) { return this.canMgr(this.clsOf(cid || this.pcid || App.S.cid)); },
+  // 能不能签：班里的同学（班委也要签）；老师不用签。老的服务器没有 can_sign 时按以前的规则
+  signable(x) { return x.can_sign != null ? x.can_sign && !x.is_teacher : !x.can_manage; },
+  pcid: null,
   needCode: (x) => x.mode === "code" || x.mode === "both",
   needGeo: (x) => x.mode !== "code",
   hhmm(iso) { const d = new Date(iso); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); },
@@ -70,24 +76,29 @@ const Ck = {
       <em>${x.mine ? "✓ 已签到" : x.can_manage ? (this.needCode(x) ? "投屏二维码 ›" : "看名单 ›") : this.needGeo(x) ? "📱 用手机签到" : "输入签到码 ›"}</em></div>`).join("");
     if (b._h !== html) { b.innerHTML = html; b._h = html; }
   },
-  close() { clearInterval(this.timer); this.one = null; this.code = ""; },
+  close() { clearInterval(this.timer); this.one = null; this.code = ""; if (App.view === "checkin" && App.views.checkin.el) setTimeout(() => App.views.checkin.load(), 50); },
   // 列表 + 发起
-  async panel() {
+  async panel(cid) {
     this.close();
-    await this.load(true);
-    const mgr = this.mgr();
-    const d = h(`<div class="dialog wide ck-dlg" role="dialog"><h3>📋 班级签到</h3><div class="dbody">
-      ${mgr ? `<details class="ck-new card" ${this.list.some((x) => x.open) ? "" : "open"}><summary>＋ 发起动态码签到（投屏二维码）</summary>
+    if (cid !== undefined) this.pcid = cid && cid !== App.S.cid ? cid : null;
+    const pc = this.pcid || App.S.cid;
+    if (this.pcid) { try { const r = await api("checkin_list", { cid: pc }, true); this.plist = Array.isArray(r) ? r : []; } catch (e) { this.plist = []; } }
+    else await this.load(true);
+    const list = this.pcid ? this.plist : this.list;
+    const mgr = this.mgr(pc);
+    const mine = (App.S.classes || []).filter((x) => x.is_teacher || x.status === "approved" || !x.status);
+    const d = h(`<div class="dialog wide ck-dlg" role="dialog"><h3>📋 班级签到 ${mine.length > 1 ? `<select class="input ck-cls" id="ckCls">${mine.map((x) => `<option value="${esc(x.id)}"${x.id === pc ? " selected" : ""}>${esc(x.nickname || x.name)}${x.is_teacher ? "（我带的）" : x.member_role === "monitor" ? "（班委）" : ""}</option>`).join("")}</select>` : ""}</h3><div class="dbody">
+      ${mgr ? `<details class="ck-new card" ${list.some((x) => x.open) ? "" : "open"}><summary>＋ 发起动态码签到（投屏二维码）</summary>
         <div class="ck-form"><input class="input" id="ckT" maxlength="40" placeholder="名称，比如：周三高数课签到" value="${esc(new Date().getMonth() + 1 + "月" + new Date().getDate() + "日签到")}">
           <input class="input" id="ckP" maxlength="60" placeholder="地点（选填），比如：B302">
           <select class="input" id="ckM"><option value="5">5 分钟</option><option value="10" selected>10 分钟</option><option value="15">15 分钟</option><option value="30">30 分钟</option><option value="60">1 小时</option><option value="120">2 小时</option></select>
           <button class="btn primary" id="ckGo">发起并投屏</button></div>
         <div class="muted">二维码每 20 秒换一次，同学用微信「扫一扫」就签上了；没带手机扫的可以输入屏幕上的 4 位码。要按位置签到（到了现场才算），请用手机上的捞捞发起。</div></details>` : ""}
-      <div id="ckList">${this.list.length ? this.list.map((x) => `<div class="ck-row${x.open ? " open" : ""}" data-ckone="${x.id}">
+      <div id="ckList">${list.length ? list.map((x) => `<div class="ck-row${x.open ? " open" : ""}" data-ckone="${x.id}">
           <div><b>${esc(x.title || "签到")}</b> ${x.open ? `<span class="tag" style="--c:#ff7a45">进行中 · 还剩 ${this.left(x)}</span>` : `<span class="tag" style="--c:#9aa5b5">已结束</span>`}
           <div class="muted">${esc(CK_MODE[x.mode] || CK_MODE.geo)}${x.place ? " · " + esc(x.place) : ""} · ${this.hhmm(x.starts_at)} · ${esc(x.by || "")}发起 · 已签 ${x.signed}/${x.members}</div>
           <div class="muted">${x.mine ? `✓ 我 ${this.hhmm(x.mine.at)} 签到了` : x.open ? "我还没签到" : "我没签到"}</div></div>
-          <span class="ck-go">${x.can_manage ? (x.open && this.needCode(x) ? "投屏" : "名单") : "查看"} ›</span></div>`).join("")
+          <span class="ck-go">${this.signable(x) && x.open && !x.mine ? "签到" : x.can_manage ? (x.open && this.needCode(x) ? "投屏" : "名单") : "查看"} ›</span></div>`).join("")
         : `<div class="empty"><b>📋</b>班里最近 7 天没有签到。${mgr ? "点上面「发起动态码签到」，把二维码投到屏幕上就行。" : ""}</div>`}</div></div>
       <div class="dfoot"><span class="grow"></span><button class="btn" data-a="re">刷新</button><button class="btn primary" data-a="no">关闭</button></div></div>`);
     d.addEventListener("click", async (e) => {
@@ -98,11 +109,12 @@ const Ck = {
       if (e.target.closest("#ckGo")) {
         const b = e.target.closest("#ckGo"); b.disabled = true;
         try {
-          const r = await api("checkin_create", { cid: App.S.cid, title: $("#ckT", d).value.trim() || "签到", place: $("#ckP", d).value.trim(), minutes: +$("#ckM", d).value, mode: "code" });
+          const r = await api("checkin_create", { cid: pc, title: $("#ckT", d).value.trim() || "签到", place: $("#ckP", d).value.trim(), minutes: +$("#ckM", d).value, mode: "code" });
           await this.load(true); this.openOne(r.id);
         } catch (err) { b.disabled = false; }
       }
     });
+    const sel = $("#ckCls", d); if (sel) sel.onchange = () => this.panel(sel.value);
     openOverlay(d, () => this.close());
   },
   // 一条签到：信息、地图、投屏二维码、名单 / 输码签到
@@ -120,7 +132,7 @@ const Ck = {
       ${amap ? `<div class="ck-mapline">📍 签到点：${esc(x.place || "签到点")}（半径 ${x.radius} 米）<span class="grow"></span><button class="btn sm" data-ext="${esc(amap)}">在高德地图里看</button></div>` : ""}
       ${proj ? `<div class="ck-proj" id="ckProj"><div class="ck-qrbox" id="ckQr"></div><div class="ck-proj-r"><div class="ck-proj-t" id="ckQrT">微信扫一扫签到</div><div class="ck-code" id="ckCode">····</div>
         <div class="muted" id="ckLeft">每 20 秒换一次码</div><div class="muted">没带手机扫码的同学：打开捞捞「签到」，输入这 4 位码</div><button class="btn sm" id="ckFull">⛶ 全屏投屏</button></div></div>` : ""}
-      ${!x.can_manage || x.mine ? `<div class="ck-me">${x.mine ? `<b class="ck-ok">✓ 你 ${this.hhmm(x.mine.at)} 签到了</b>` : !x.open ? `<span class="muted">签到已经结束了</span>`
+      ${this.signable(x) || x.mine ? `<div class="ck-me">${x.mine ? `<b class="ck-ok">✓ 你 ${this.hhmm(x.mine.at)} 签到了</b>` : !x.open ? `<span class="muted">签到已经结束了</span>`
         : this.needGeo(x) ? `<span class="muted">📱 这是位置签到，要到现场用手机上的捞捞签（网页、小程序、安卓都行）</span>`
         : `<input class="input ck-in" id="ckIn" maxlength="4" inputmode="numeric" placeholder="4 位签到码"><button class="btn primary" id="ckSign">签到</button>`}</div>` : ""}
       ${x.can_manage ? `<div class="ck-names" id="ckNames"><span class="muted">加载名单…</span></div>` : ""}</div>
@@ -128,7 +140,7 @@ const Ck = {
     d.addEventListener("click", async (e) => {
       const a = e.target.closest("[data-a]");
       if (a && a.dataset.a === "no") return closeOverlay();
-      if (a && a.dataset.a === "list") return this.panel();
+      if (a && a.dataset.a === "list") return this.panel(x.class_id || undefined);
       const ext = e.target.closest("[data-ext]"); if (ext) return call("open:external", ext.dataset.ext).catch(() => window.open(ext.dataset.ext));
       if (e.target.closest("#ckFull")) { const p = $("#ckProj", d); if (document.fullscreenElement) document.exitFullscreen(); else p.requestFullscreen().catch(() => p.classList.toggle("max")); return; }
       if (e.target.closest("#ckClose")) {
@@ -257,5 +269,45 @@ const CourseView = {
       } catch (e) {}
     };
     img.src = "data:image/jpeg;base64," + b64;
+  },
+};
+
+// ---------- 6.9.2 侧栏「签到」：所有人都能找到（同学签到、老师 / 班委发起和投屏） ----------
+App.views.checkin = {
+  title: "签到", icon: "checkin", cid: null, data: null,
+  count() { const n = (Ck.list || []).filter((x) => x.open && !x.mine && Ck.signable(x)).length; return n ? { n, hot: true } : null; },
+  mount(el) {
+    el.innerHTML = `<div class="vhead"><div><h1>签到</h1><div class="sub">课堂动态码签到、位置签到；老师和班委能发起、投屏二维码、看谁没签</div></div><span class="grow"></span>
+      <select class="input" id="ckvCls" style="width:auto"></select><button class="btn" id="ckvRe">${icon("sync")}刷新</button><button class="btn primary" id="ckvNew">＋ 发起签到</button></div>
+      <div class="vbody"><div class="ckv" id="ckvBody"></div></div>`;
+    $("#ckvRe", el).onclick = () => this.load();
+    $("#ckvNew", el).onclick = () => Ck.panel(this.cid);
+    $("#ckvCls", el).onchange = (e) => { this.cid = e.target.value; this.load(); };
+    el.addEventListener("click", (e) => { const o = e.target.closest("[data-ckone]"); if (o) Ck.openOne(+o.dataset.ckone); });
+  },
+  show() { this.load(); },
+  update() { this.draw(); },
+  async load() {
+    const mine = (App.S.classes || []).filter((x) => x.is_teacher || x.status === "approved" || !x.status);
+    if (!this.cid || !mine.some((x) => x.id === this.cid)) this.cid = mine.some((x) => x.id === App.S.cid) ? App.S.cid : (mine[0] && mine[0].id) || null;
+    const sel = $("#ckvCls", this.el);
+    if (sel) { sel.innerHTML = mine.map((x) => `<option value="${esc(x.id)}"${x.id === this.cid ? " selected" : ""}>${esc(x.nickname || x.name)}${x.is_teacher ? "（我带的）" : x.member_role === "monitor" ? "（班委）" : ""}</option>`).join(""); sel.classList.toggle("hidden", mine.length < 2); }
+    if (!this.cid) { this.data = { list: [] }; return this.draw(); }
+    try { const r = await api("checkin_list", { cid: this.cid }, true); this.data = { cid: this.cid, list: Array.isArray(r) ? r : [] }; }
+    catch (e) { this.data = { cid: this.cid, list: [], err: notFound(e) ? "服务器还没升级（需要在扣子执行 level.sql）" : cleanErr(e) }; }
+    this.draw();
+  },
+  draw() {
+    const box = this.el && $("#ckvBody", this.el); if (!box) return;
+    $("#ckvNew", this.el).classList.toggle("hidden", !Ck.mgr(this.cid));
+    if (!this.cid) { box.innerHTML = `<div class="empty"><b>📋</b>先加入一个班级，才能签到</div>`; return; }
+    const d = this.data; if (!d) { box.innerHTML = `<div class="empty">加载中…</div>`; return; }
+    if (d.err) { box.innerHTML = `<div class="empty"><b>📋</b>${esc(d.err)}</div>`; return; }
+    box.innerHTML = d.list.length ? d.list.map((x) => `<div class="card ck-row${x.open ? " open" : ""}" data-ckone="${x.id}">
+        <div><b>${esc(x.title || "签到")}</b> ${x.open ? `<span class="tag" style="--c:#ff7a45">进行中 · 还剩 ${Ck.left(x)}</span>` : `<span class="tag" style="--c:#9aa5b5">已结束</span>`}
+        <div class="muted">${esc(CK_MODE[x.mode] || CK_MODE.geo)}${x.place ? " · " + esc(x.place) : ""} · ${Ck.hhmm(x.starts_at)} · ${esc(x.by || "")}发起 · 已签 ${x.signed}/${x.members}</div>
+        <div class="muted">${x.mine ? `✓ 我 ${Ck.hhmm(x.mine.at)} 签到了` : !Ck.signable(x) ? "" : x.open ? "<b style='color:#d4561e'>我还没签到</b>" : "我没签到"}</div></div>
+        <span class="ck-go">${Ck.signable(x) && x.open && !x.mine ? "签到" : x.can_manage ? (x.open && Ck.needCode(x) ? "投屏 / 名单" : "名单") : "查看"} ›</span></div>`).join("")
+      : `<div class="empty"><b>📋</b>最近 7 天没有签到。${Ck.mgr(this.cid) ? "点右上角「发起签到」，课堂上投屏动态码，同学微信一扫就签上。" : "老师或班委发起后会出现在这里。"}</div>`;
   },
 };

@@ -123,19 +123,5 @@ class MePage(a: Main) : Page(a) {
     private fun code(): Long = try { val p = a.packageManager.getPackageInfo(a.packageName, 0); if (android.os.Build.VERSION.SDK_INT >= 28) p.longVersionCode else p.versionCode.toLong() } catch (e: Exception) { 0 }
 
     /** 看官网有没有新版 */
-    fun checkUpdate(manual: Boolean) {
-        if (manual) a.toast("正在检查…")
-        Bg.load({
-            val c = URL(Cfg.VERSION_JSON + "?t=" + System.currentTimeMillis()).openConnection() as HttpURLConnection
-            c.connectTimeout = 8000; c.readTimeout = 10000
-            try { JSONObject(c.inputStream.bufferedReader().readText()) } finally { c.disconnect() }
-        }) { j, e ->
-            if (j == null) { if (manual) a.toast("检查失败：" + (e?.message ?: "网络不好")); return@load }
-            val vc = j.optLong("versionCode"); val vn = j.str("versionName")
-            if (vc <= code()) { if (manual) a.toast("已经是最新版"); return@load }
-            Dialogs.confirm(ctx, "有新版本 $vn", "下载后点安装就能覆盖升级，数据不会丢。", "去下载") {
-                a.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Cfg.SITE + "download/")))
-            }
-        }
-    }
+    fun checkUpdate(manual: Boolean) = Updater.check(a, manual)   // 7.x：在 App 里下载、直接安装（ui/Updater.kt）
 }

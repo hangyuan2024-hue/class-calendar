@@ -115,7 +115,13 @@ object Checkin {
     fun amap(x: JSONObject) = "https://uri.amap.com/marker?position=${x.optDouble("lng")},${x.optDouble("lat")}&name=${java.net.URLEncoder.encode(x.str("place").ifEmpty { x.str("title") }, "UTF-8")}&coordinate=wgs84&callnative=1"
     fun detail(id: Long): JSONObject = Api.rpcObj("checkin_detail", jsonOf("id" to id))
     fun close(id: Long) { Api.rpc("checkin_close", jsonOf("id" to id)) }
-    fun mgr(): Boolean { val c = Store.cls ?: return false; return c.optBoolean("is_teacher") || c.optBoolean("can_edit") || c.optBoolean("can_ingest") }
+    /** 能发起签到：老师（建班的）或有发布 / AI 整理权限的班委；cid 为空就看当前班 */
+    fun mgr(cid: String = ""): Boolean {
+        val c = (if (cid.isEmpty()) Store.cls else Store.classes.firstOrNull { it.str("id") == cid }) ?: return false
+        return c.optBoolean("is_teacher") || (c.str("member_role") == "monitor" && (c.optBoolean("can_edit") || c.optBoolean("can_ingest")))
+    }
+    /** 6.9.2 能不能签：班里的同学（班委也要签）；老师不用签。老服务器没有 can_sign 就按以前的规则 */
+    fun signable(x: JSONObject): Boolean = if (x.has("can_sign")) x.optBoolean("can_sign") && !x.optBoolean("is_teacher") else !x.optBoolean("can_manage")
     fun leftText(x: JSONObject): String {
         val end = try { java.time.OffsetDateTime.parse(x.str("ends_at")).toInstant().toEpochMilli() } catch (_: Exception) { 0L }
         val m = maxOf(0L, (end - System.currentTimeMillis()) / 60000)

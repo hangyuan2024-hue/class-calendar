@@ -12,6 +12,8 @@ const P58 = {
   me: () => (App.S && App.S.me) || {},
   teacher() { return this.me().role === "teacher"; },
   owner() { return this.teacher() || ((App.S && App.S.classes) || []).some((c) => c.is_teacher); },
+  // 6.9.2 班委（能发布事项 / AI 整理 / 看成员名单）也能看「班级情况」
+  monitor() { return ((App.S && App.S.classes) || []).some((c) => c.member_role === "monitor" && c.status === "approved" && (c.can_edit || c.can_ingest || c.can_view_members)); },
   work() { return this.me().org_type === "work" && !this.teacher(); },
   noDb: (e) => notFound(e),
 };
@@ -248,7 +250,7 @@ const HW58 = {
 const KIND58 = { staff: "教师组", team: "团队" };
 App.views.teach = {
   title: "班级情况", icon: "teach", cid: null, days: 14, tab: "stu", filter: "all", ov: null, classes: null, at: 0, err: "",
-  navOn() { return P58.owner(); },
+  navOn() { return P58.owner() || P58.monitor(); },
   mount(el) {
     el.innerHTML = `<div class="vhead"><div><h1>班级情况</h1><div class="sub">谁还没看、谁还没完成，一眼看清；只统计你管理的班</div></div><span class="grow"></span>
       <select id="tDays" class="t58-days"><option value="7">最近 7 天</option><option value="14" selected>最近 14 天</option><option value="30">最近 30 天</option></select><button class="btn" id="tRef">↻ 刷新</button></div>
@@ -258,7 +260,9 @@ App.views.teach = {
     el.addEventListener("click", (e) => {
       const q = (s) => e.target.closest(s); let b;
       if ((b = q("[data-tc]"))) { this.cid = b.dataset.tc; this.filter = "all"; this.load(false); }
-      else if ((b = q("[data-tt]"))) { this.tab = b.dataset.tt; this.draw(); }
+      else if ((b = q("[data-tt]"))) { this.tab = b.dataset.tt; if (this.tab === "ck") this.ck = null; this.draw(); }
+      else if ((b = q("[data-ckone]"))) Ck.openOne(+b.dataset.ckone);
+      else if ((b = q("[data-ckpanel]"))) Ck.panel(b.dataset.ckpanel);
       else if ((b = q("[data-tf]"))) { this.filter = b.dataset.tf; this.draw(); }
       else if ((b = q("[data-tv]"))) HW58.viewers(b.dataset.tv, b.dataset.t, this.cid);
       else if ((b = q("[data-tcopy]"))) navigator.clipboard.writeText(b.dataset.tcopy).then(() => toast("已复制")).catch(() => {});
@@ -269,9 +273,20 @@ App.views.teach = {
   },
   show() { this.load(false); },
   update() { this.draw(); },
+  async loadCk() {
+    const cid = this.cid; if (!cid || this.ckBusy === cid) return;
+    this.ckBusy = cid;
+    try { this.ck = { cid, list: (await api("checkin_list", { cid }, true)) || [] }; } catch (e) { this.ck = { cid, list: [] }; }
+    this.ckBusy = null; if (this.cid === cid) this.draw();
+  },
   async load(force) {
     if (force || !this.classes || Date.now() - this.at > 60000) {
-      try { this.classes = await api("teacher_classes", {}, true); this.at = Date.now(); this.err = ""; }
+      // 6.9.2 manage_classes = 我带的班 + 我是班委的班（老的服务器没有就退回 teacher_classes）
+      try {
+        try { this.classes = await api("manage_classes", {}, true); }
+        catch (e0) { if (!notFound(e0)) throw e0; this.classes = ((await api("teacher_classes", {}, true)) || []).map((c) => ({ ...c, role: "teacher" })); }
+        this.at = Date.now(); this.err = "";
+      }
       catch (e) { this.classes = this.classes || []; this.err = notFound(e) ? "数据库还没升级到 5.8.0，请先在扣子执行 5.8.0 的 SQL" : cleanErr(e); }
     }
     const cl = this.classes.filter((c) => c.kind !== "staff");
@@ -286,7 +301,7 @@ App.views.teach = {
     const box = this.el && $("#tBody", this.el); if (!box) return;
     const cl = (this.classes || []).filter((c) => c.kind !== "staff"), o = this.ov && this.ov.class && this.ov.class.id === this.cid ? this.ov : null;
     const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0), since = (t) => (t ? Math.floor((Date.now() - new Date(t).getTime()) / 86400000) : null);
-    let html = `<div class="t58-cls">${cl.map((c) => `<button class="t58-chip${c.id === this.cid ? " on" : ""}" data-tc="${esc(c.id)}">${KIND58[c.kind] ? KIND58[c.kind] + " · " : ""}${esc(c.name)}${c.pending ? `<em>${c.pending}</em>` : ""}<small>${c.total} 人</small></button>`).join("")}<button class="t58-chip add" data-tpend>＋ 建班 / 管理</button></div>`;
+    let html = `<div class="t58-cls">${cl.map((c) => `<button class="t58-chip${c.id === this.cid ? " on" : ""}" data-tc="${esc(c.id)}">${KIND58[c.kind] ? KIND58[c.kind] + " · " : ""}${esc(c.name)}${c.role === "monitor" ? "（班委）" : ""}${c.ck_open ? ' <i class="t58-ck">签到中</i>' : ""}${c.pending ? `<em>${c.pending}</em>` : ""}<small>${c.total} 人</small></button>`).join("")}${cl.some((c) => c.role !== "monitor") ? `<button class="t58-chip add" data-tpend>＋ 建班 / 管理</button>` : ""}</div>`;
     if (!this.classes) html += `<div class="card empty">加载中…</div>`;
     else if (this.err && !o) html += `<div class="card empty">${esc(this.err)}</div>`;
     else if (!cl.length) html += `<div class="card empty">你还没有自己管理的班。到「班级」页创建一个，把班级码发给同学。</div>`;
@@ -296,7 +311,7 @@ App.views.teach = {
       const list = this.filter === "lazy" ? lazy : this.filter === "quiet" ? quiet : st;
       html += `<div class="card t58-ov"><div class="t58-ovh"><b>${esc(o.class.name)}</b>${o.class.code ? `<button class="btn ghost sm" data-tcopy="${esc(o.class.code)}">班级码 ${esc(o.class.code)} ⧉</button>` : ""}${this.loading ? `<span class="muted">更新中…</span>` : ""}</div>
         <div class="t58-kpi"><div><b>${o.total}</b><span>学生</span></div><div><b>${hwN}</b><span>已到期作业</span></div><div><b>${hwN && st.length ? pct(sum, hwN * st.length) + "%" : "–"}</b><span>作业完成率</span></div><button data-tpend class="${o.pending ? "warn" : ""}"><b>${o.pending}</b><span>待审批 ›</span></button></div></div>
-        <div class="seg t58-tabs"><button data-tt="stu" class="${this.tab === "stu" ? "on" : ""}">👥 每个同学</button><button data-tt="items" class="${this.tab === "items" ? "on" : ""}">📋 发布的事项（谁看了）</button><button data-tt="staff" class="${this.tab === "staff" ? "on" : ""}">🧑‍🏫 教师组</button></div>`;
+        <div class="seg t58-tabs"><button data-tt="stu" class="${this.tab === "stu" ? "on" : ""}">👥 每个同学</button><button data-tt="items" class="${this.tab === "items" ? "on" : ""}">📋 发布的事项（谁看了）</button><button data-tt="ck" class="${this.tab === "ck" ? "on" : ""}">📋 签到</button>${P58.owner() ? `<button data-tt="staff" class="${this.tab === "staff" ? "on" : ""}">🧑‍🏫 教师组</button>` : ""}</div>`;
       if (this.tab === "stu") {
         html += `<div class="row t58-filter"><div class="seg"><button data-tf="all" class="${this.filter === "all" ? "on" : ""}">全部 ${st.length}</button><button data-tf="lazy" class="${this.filter === "lazy" ? "on" : ""}">作业没做完 ${lazy.length}</button><button data-tf="quiet" class="${this.filter === "quiet" ? "on" : ""}">7 天没打开 ${quiet.length}</button></div><span class="grow"></span>
           ${list.length && this.filter !== "all" ? `<button class="btn sm" data-tcopy="${esc(list.map((s) => "@" + (s.name || s.account)).join(" "))}">复制名字（发到群里提醒）</button>` : ""}</div>
@@ -314,7 +329,17 @@ App.views.teach = {
           : `<div class="muted" style="padding:14px 0">最近 ${o.days} 天没有事项</div>`}</div>`;
       }
     }
-    if (this.tab === "staff" || !o) html += this.staffHtml();
+    // 6.9.2 签到：这个班最近的签到
+    if (this.tab === "ck" && this.cid) {
+      const ck = this.ck && this.ck.cid === this.cid ? this.ck.list : null;
+      if (!ck) this.loadCk();
+      html += `<div class="card t58-stu"><div class="t58-ovh"><b>📋 签到</b><span class="grow"></span><button class="btn primary sm" data-ckpanel="${esc(this.cid)}">＋ 发起签到 / 投屏</button></div>
+        ${!ck ? `<div class="muted">加载中…</div>` : ck.length ? ck.map((x) => `<div class="t58-it" data-ckone="${x.id}" style="cursor:pointer"><div class="t58-ith"><span class="tag" style="--c:${x.open ? "#ff7a45" : "#9aa5b5"}">${x.open ? "进行中" : "已结束"}</span><b>${esc(x.title)}</b><span class="grow"></span><button class="btn ghost sm" data-ckone="${x.id}">名单 ›</button></div>
+            <div class="muted" style="font-size:12px">${esc(CK_MODE[x.mode] || CK_MODE.geo)} · ${Ck.hhmm(x.starts_at)} · ${esc(x.by || "")}发起${x.place ? " · " + esc(x.place) : ""}</div>
+            <div class="t58-ib"><span>已签</span><div class="t58-bar"><i class="ok" style="width:${x.members ? Math.round(100 * x.signed / x.members) : 0}%"></i></div><small>${x.signed}/${x.members}</small></div></div>`).join("")
+          : `<div class="muted" style="padding:14px 0">最近 7 天没有签到。点「发起签到」，课堂上投屏动态码，同学微信一扫就签上。</div>`}</div>`;
+    }
+    if ((this.tab === "staff" && P58.owner()) || (!o && this.tab !== "ck" && P58.owner())) html += this.staffHtml();
     box.innerHTML = html;
   },
   staffHtml() {

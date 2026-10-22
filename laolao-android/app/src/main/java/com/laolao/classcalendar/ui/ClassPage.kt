@@ -66,6 +66,13 @@ class ClassPage(a: Main) : Page(a) {
                 lc.addView(ctx.cell(if (cur) "✅" else "🏫", c.str("name"), desc, if (cur) "当前" else "›") { more(c) })
             }
             body.addView(lc)
+            // 6.9.2 签到 + 班级情况入口（老师、班委都能进；以前只有首页横幅能进签到）
+            val mgr = Store.classes.any { it.optBoolean("is_teacher") || (it.str("member_role") == "monitor" && (it.optBoolean("can_edit") || it.optBoolean("can_ingest") || it.optBoolean("can_view_members"))) }
+            body.addView(ctx.section("班级工具", if (mgr) "老师、班委能发起签到、看全班情况" else ""))
+            val tc = ctx.card(4, 18)
+            tc.addView(ctx.cell("📋", "签到", if (mgr) "发起位置 / 动态码签到，投屏，看谁没签" else "参加老师 / 班委发起的签到", "›") { a.push(CheckinPage(a)) })
+            if (mgr) { tc.addView(ctx.hline()); tc.addView(ctx.cell("📊", "班级情况", "谁作业没做完、谁好久没打开、事项谁看了", "›") { a.push(OverviewPage(a)) }) }
+            body.addView(tc)
         }
 
         if (Store.me?.str("role") == "teacher" || Store.me?.str("role") == "admin" || Store.classes.any { it.optBoolean("is_teacher") }) {

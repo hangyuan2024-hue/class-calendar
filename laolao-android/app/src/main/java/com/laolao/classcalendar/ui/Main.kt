@@ -129,12 +129,8 @@ class Main : Activity() {
         if (System.currentTimeMillis() - Store.bootAt > 15_000) refreshSoon(force = true) else { lastRefresh = System.currentTimeMillis(); Background.afterRefresh(this) }
         askNotifications()
         Push.start(this)
-        // 一天看一次有没有新版本
-        val ap = getSharedPreferences("app", MODE_PRIVATE)
-        if (System.currentTimeMillis() - ap.getLong("upd_at", 0) > 86400_000L) {
-            ap.edit().putLong("upd_at", System.currentTimeMillis()).apply()
-            Bg.later(4000) { (tabs.lastOrNull() as? MePage)?.checkUpdate(false) }
-        }
+        // 有没有新版本：12 小时最多问一次，有就弹窗「立即更新」（ui/Updater.kt）
+        Bg.later(4000) { Updater.auto(this) }
     }
     fun selectTab(i: Int) {
         if (i == cur) { (tabs[i] as? HomePage)?.scrollTop(); return }

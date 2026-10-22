@@ -6,7 +6,8 @@ const { app, BrowserWindow, Tray, Menu, Notification, globalShortcut, ipcMain, n
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
-const { execFile } = require("child_process");
+const { execFile, spawn } = require("child_process");
+const updater = require("./core/updater");
 const { Api, loadSiteConfig } = require("./core/api");
 const { Store, KINDS } = require("./core/store");
 const remote = require("./core/remote");
@@ -548,6 +549,14 @@ handle("quick:add", (text) => {
 });
 handle("quick:hide", () => quickWin && !quickWin.isDestroyed() && quickWin.hide());
 handle("open:main", (view) => showMain(view));
+// 3.4 更新：检查 / 下载 / 安装（core/updater.js）
+let upd = null;
+handle("update:check", () => upd ? upd.check(true) : null);
+handle("update:download", () => { if (!upd) return null; upd.download(); return upd.state(); });
+handle("update:cancel", () => { upd && upd.cancel(); return upd && upd.state(); });
+handle("update:install", () => upd.install(() => { quitting = true; app.quit(); }));
+handle("update:state", () => upd ? upd.state() : null);
+handle("update:page", () => { shell.openExternal(upd ? upd.page : "https://www.laolaokechengbiao.cn/download/"); });
 handle("open:external", (url) => { if (/^https:\/\//.test(url)) shell.openExternal(url); });
 handle("mini:toggle", () => toggleMini());
 handle("brief:open", () => openBrief(true));
@@ -732,6 +741,20 @@ app.whenReady().then(() => {
   powerMonitor.on("resume", () => { if (sessionStore.load()) store.refresh(); openBrief(false); });
   powerMonitor.on("unlock-screen", () => openBrief(false));
   try { clipLast = clipboard.readText(); } catch (e) {}                                 // 打开软件之前就在剪贴板里的不算
+  // 3.4 自动检查更新：开机 20 秒后一次，之后每 6 小时；发现新版本系统通知一次（同一个版本只通知一次）
+  const { net } = require("electron");
+  upd = updater.create({ app, fetch: (u, o) => net.fetch(u, o), tmpDir: path.join(app.getPath("temp"), "laolao-update"), alt: cfg.SUPABASE_URL_ALT,
+    spawn, log: (...a) => console.warn(...a),
+    send: (st) => { if (win && !win.isDestroyed()) win.webContents.send("update", st); } });
+  const autoCheck = async () => {
+    if (!app.isPackaged) return;
+    const st = await upd.check(false).catch(() => null);
+    if (st && st.state === "available" && store.data.updNotified !== st.latest.version) {
+      store.data.updNotified = st.latest.version; store.save();
+      notify("捞捞课程表有新版本 " + st.latest.version, "打开软件，点顶上的「立即更新」，下载完自动装好重新打开");
+    }
+  };
+  setTimeout(autoCheck, 20000); setInterval(autoCheck, 6 * 3600 * 1000);
   if (ai.modelOk(modelFile())) aiPrepare();                                              // 下载过模型：开机就把 AI 准备好
 });
 app.on("window-all-closed", (e) => { /* 托盘常驻，不退出 */ });

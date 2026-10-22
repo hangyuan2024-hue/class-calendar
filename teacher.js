@@ -12,7 +12,12 @@
 
   async function loadClasses(force) {
     if (!force && T.classes && Date.now() - T.at < 60000) return T.classes;
-    try { T.classes = await CCAuth.rpc("teacher_classes"); T.at = Date.now(); T.err = ""; }
+    // 6.9.2 manage_classes = 我带的班 + 我是班委的班（老的服务器没有就退回 teacher_classes）
+    try {
+      try { T.classes = await CCAuth.rpc("manage_classes"); }
+      catch (e0) { if (!/manage_classes|PGRST202|Could not find/i.test(e0.message)) throw e0; T.classes = ((await CCAuth.rpc("teacher_classes")) || []).map((c) => ({ ...c, role: "teacher" })); }
+      T.at = Date.now(); T.err = "";
+    }
     catch (e) { T.classes = T.classes || []; T.err = /teacher_classes|function|schema/i.test(e.message) ? "数据库还没升级到 5.8.0，请先执行 5.8.0 的 SQL" : e.message; }
     return T.classes;
   }
@@ -45,7 +50,7 @@
     }
     const draw = () => {
       const cl = teachClasses();
-      box.innerHTML = `<div class="t-home-h"><b>${own ? "📊 我管理的班级" : "👩‍🏫 我的班级"}</b><span class="spacer"></span><button class="small" data-tgo="">班级情况 ›</button></div>
+      box.innerHTML = `<div class="t-home-h"><b>${own ? "📊 我管理的班级" : "👩‍🏫 我的班级"}</b><span class="spacer"></span><button class="small" data-ckpanel="1">📋 签到</button><button class="small" data-tgo="">班级情况 ›</button></div>
         ${T.err ? `<div class="meta">${esc(T.err)}</div>` : !T.classes ? `<div class="meta">加载中…</div>`
         : cl.length ? `<div class="t-home-l">${cl.map((c) => `<button class="t-hc" data-tgo="${esc(c.id)}"><b>${esc(c.name)}</b>
             <span>${c.total} 人${c.pending ? ` · <em>${c.pending} 人待审批</em>` : ""}</span><small>近 7 天完成作业 ${c.done7} 次 · 这两周作业 ${c.hw} 项</small></button>`).join("")}</div>`
@@ -74,13 +79,19 @@
     paint();
   }
   window.renderTeach = () => render(false);
+  async function loadCk() {
+    const cid = T.cid; if (!cid || T.ckBusy === cid) return;
+    T.ckBusy = cid;
+    try { T.ck = { cid, list: (await CCAuth.rpc("checkin_list", { cid })) || [] }; } catch (e) { T.ck = { cid, list: [] }; }
+    T.ckBusy = null; if (T.cid === cid) paint();
+  }
 
   function paint() {
     const box = $t("teachView"); if (!box) return;
     const cl = teachClasses(), o = T.ov && T.ov.class && T.ov.class.id === T.cid ? T.ov : null;
     let html = "";
     if (T.err && !o) html += `<div class="aempty surface">${esc(T.err)}</div>`;
-    html += `<div class="t-cls">${cl.map((c) => `<button class="t-chip${c.id === T.cid ? " on" : ""}" data-tcid="${esc(c.id)}">${KIND_NAME[c.kind] ? esc(KIND_NAME[c.kind]) + " · " : ""}${esc(c.name)}${c.pending ? `<em>${c.pending}</em>` : ""}</button>`).join("")}
+    html += `<div class="t-cls">${cl.map((c) => `<button class="t-chip${c.id === T.cid ? " on" : ""}" data-tcid="${esc(c.id)}">${KIND_NAME[c.kind] ? esc(KIND_NAME[c.kind]) + " · " : ""}${esc(c.name)}${c.role === "monitor" ? "（班委）" : ""}${c.ck_open ? ` <i class="t-ck">签到中</i>` : ""}${c.pending ? `<em>${c.pending}</em>` : ""}</button>`).join("")}
       <a class="t-chip add" href="class.html">＋ 建班</a></div>`;
     if (!cl.length && !T.err) html += `<div class="aempty surface">你还没有自己带的班。<a href="class.html">创建班级 →</a></div>`;
     if (o) {
@@ -99,7 +110,7 @@
         </div>
         ${T.loading ? `<div class="meta">更新中…</div>` : ""}
       </div>
-      <div class="t-tabs"><button data-ttab="stu" class="${T.tab === "stu" ? "on" : ""}">👥 每个同学</button><button data-ttab="items" class="${T.tab === "items" ? "on" : ""}">📋 发布的事项（谁看了）</button><button data-ttab="staff" class="${T.tab === "staff" ? "on" : ""}">🧑‍🏫 教师组</button></div>`;
+      <div class="t-tabs"><button data-ttab="stu" class="${T.tab === "stu" ? "on" : ""}">👥 每个同学</button><button data-ttab="items" class="${T.tab === "items" ? "on" : ""}">📋 发布的事项（谁看了）</button><button data-ttab="ck" class="${T.tab === "ck" ? "on" : ""}">📋 签到</button>${teacherMode() ? `<button data-ttab="staff" class="${T.tab === "staff" ? "on" : ""}">🧑‍🏫 教师组</button>` : ""}</div>`;
       if (T.tab === "stu") {
         html += `<div class="t-filter"><button data-tf="all" class="${T.filter === "all" ? "on" : ""}">全部 ${st.length}</button><button data-tf="lazy" class="${T.filter === "lazy" ? "on" : ""}">作业没做完 ${lazy.length}</button><button data-tf="quiet" class="${T.filter === "quiet" ? "on" : ""}">7 天没打开 ${quiet.length}</button>
           <span class="spacer"></span>${list.length && T.filter !== "all" ? `<button class="small" data-tnames="${esc(list.map((s) => "@" + (s.name || s.account)).join(" "))}">复制名字</button>` : ""}</div>
@@ -118,7 +129,17 @@
           : `<div class="meta">最近 ${o.days} 天没有事项。去首页「发布事项」或「AI 整理」发一条吧。</div>`}</div>`;
       }
     }
-    if (T.tab === "staff" || !o) html += staffHtml();
+    // 6.9.2 签到：这个班最近的签到（发起、投屏、名单都在签到面板里）
+    if (T.tab === "ck" && T.cid) {
+      const ck = T.ck && T.ck.cid === T.cid ? T.ck.list : null;
+      if (!ck) loadCk();
+      html += `<div class="t-items surface"><div class="t-home-h"><b>📋 签到</b><span class="spacer"></span><button class="btn ink sm" data-ckpanel="1" data-ckcid="${esc(T.cid)}">＋ 发起签到 / 投屏</button></div>
+        ${!ck ? `<div class="meta">加载中…</div>` : ck.length ? ck.map((x) => `<div class="t-it" data-ckone="${x.id}" style="cursor:pointer"><div class="t-it-h"><span class="tag">${x.mode === "code" ? "🔢 动态码" : x.mode === "both" ? "📍+🔢" : "📍 位置"}</span><b>${esc(x.title)}</b><span class="spacer"></span><small>${x.open ? "进行中" : "已结束"}</small></div>
+            <div class="t-it-m"><span>${(() => { const d = new Date(x.starts_at); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; })()} · ${esc(x.by || "")}发起${x.place ? " · " + esc(x.place) : ""}</span><span class="spacer"></span><button class="link" data-ckone="${x.id}">名单 ›</button></div>
+            <div class="t-it-b"><span>已签</span><span class="bar"><i class="ok" style="width:${pct(x.signed, x.members)}%"></i></span><small>${x.signed}/${x.members}</small></div></div>`).join("")
+          : `<div class="meta">最近 7 天没有签到。点右上角「发起签到」，课堂上投屏动态码，同学微信一扫就签上。</div>`}</div>`;
+    }
+    if ((T.tab === "staff" && teacherMode()) || (!o && T.tab !== "ck" && teacherMode())) html += staffHtml();
     html += `<div class="t-work surface"><div class="t-home-h"><b>🗂 我自己的工作</b></div>
       <div class="t-work-b"><button class="small" data-twork="mine">✏️ 记一件事</button><button class="small" data-twork="pub">📣 发布班级事项</button><button class="small" data-twork="ai">✨ AI 整理群消息</button><button class="small" data-twork="course">📚 我的课表</button><button class="small" data-twork="cal">📅 日历</button></div>
       <small class="meta">自己记的事项只有你能看到；课表可以拍照导入，也能发布给全班。</small></div>`;
@@ -156,7 +177,7 @@
     const q = (s) => e.target.closest(s);
     let b;
     if ((b = q("[data-tcid]"))) { T.cid = b.dataset.tcid; T.filter = "all"; render(false); }
-    else if ((b = q("[data-ttab]"))) { T.tab = b.dataset.ttab; paint(); }
+    else if ((b = q("[data-ttab]"))) { T.tab = b.dataset.ttab; if (T.tab === "ck") T.ck = null; paint(); }
     else if ((b = q("[data-tf]"))) { T.filter = b.dataset.tf; paint(); }
     else if ((b = q("[data-tview]"))) { if (window.hwOpenViewers) window.hwOpenViewers(b.dataset.tview, T.cid, b.dataset.ttitle); }
     else if ((b = q("[data-tnames]")) || (b = q("[data-tcopy]"))) {

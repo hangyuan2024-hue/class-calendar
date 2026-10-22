@@ -6,9 +6,15 @@
 (function () {
   "use strict";
   const $ = (id) => document.getElementById(id);
-  let list = [], listFor = "", timer = 0;
-  const cls = () => (typeof currentClass !== "undefined" ? currentClass : null);
-  const mgr = () => { const c = cls(); return !!(c && (c.is_teacher || c.can_edit || c.can_ingest)); };
+  let list = [], listFor = "", timer = 0, panelCls = null;
+  const cur = () => (typeof currentClass !== "undefined" ? currentClass : null);
+  // 签到面板看的是哪个班：默认当前班；「班级情况」里点某个班的签到时换成那个班
+  const cls = () => panelCls || cur();
+  const byId = (id) => (typeof myClasses !== "undefined" ? (myClasses || []).find((c) => c.id === id) : null);
+  const canMgr = (c) => !!(c && (c.is_teacher || (c.member_role === "monitor" && (c.can_edit || c.can_ingest))));
+  const mgr = () => canMgr(cls());
+  // 能不能签：班里的同学（班委也要签）；老师不用签。老的服务器没有 can_sign 时按以前的规则
+  const signable = (x) => (x.can_sign != null ? x.can_sign && !x.is_teacher : !x.can_manage);
   const logged = () => typeof currentUser !== "undefined" && !!currentUser;
 
   // ---------- 定位 ----------
@@ -41,19 +47,19 @@
   let one = null, codeTimer = 0, lastCode = "", pendingScan = null;
 
   async function load() {
-    const c = cls();
+    const c = cur();
     if (!logged() || !c) { list = []; listFor = ""; paint(); return; }
     try { list = (await CCAuth.rpc("checkin_list", { cid: c.id })) || []; listFor = c.id; } catch (e) { list = []; listFor = c.id; }
     paint();
   }
   // 首页顶上：正在进行的签到（点一下打开）
   function paint() {
-    const b = $("ckBanner"), btn = $("cbCheckin"), c = cls();
+    const b = $("ckBanner"), btn = $("cbCheckin"), c = cur();
     if (btn) btn.classList.toggle("hidden", !c || !logged());
     if (!b) return;
     const open = c && listFor === c.id ? list.filter((x) => x.open && (!x.mine || mgr())) : [];
     b.innerHTML = open.map((x) => `<div class="ck-banner surface" data-ckone="${x.id}"><span class="ck-ic">${needCode(x) ? "🔢" : "📍"}</span><span class="ck-t"><b>${esc(x.title)}</b><small>${esc(MODE[x.mode] || MODE.geo)}${x.place ? " · " + esc(x.place) : ""} · ${left(x.ends_at)}${x.can_manage ? ` · 已签 ${x.signed}/${x.members}` : ""}</small></span>
-      ${x.mine ? `<span class="ck-ok">✓ 已签到</span>` : `<button class="btn ink sm" data-ckone="${x.id}">${x.can_manage ? "投屏 / 名单" : "签到"}</button>`}</div>`).join("");
+      ${x.mine ? `<span class="ck-ok">✓ 已签到</span>` : `<button class="btn ink sm" data-ckone="${x.id}">${signable(x) ? "签到" : "投屏 / 名单"}</button>`}</div>`).join("");
   }
   async function sign(x, code, btn) {
     if (btn) { btn.disabled = true; btn.textContent = needGeo(x) ? "定位中…" : "签到中…"; }
@@ -86,13 +92,17 @@
     return d;
   }
   // 签到列表：所有人能看最近 7 天的签到；班委 / 老师能发起
-  async function openPanel() {
-    const c = cls(); if (!c) return;
+  async function openPanel(cid) {
     if (!logged()) { location.href = "login.html?next=index.html"; return; }
+    if (cid !== undefined) panelCls = cid && (!cur() || cid !== cur().id) ? (byId(cid) || { id: cid, name: "", is_teacher: false }) : null;
+    const c = cls();
+    if (!c) { say("先加入一个班级，才能签到", "bad"); return; }
     one = null; clearInterval(codeTimer);
     const d = dlg();
-    if (listFor !== c.id) await load();
-    d.innerHTML = `<h3>📋 签到<small>${esc(c.nickname || c.name)}</small></h3>
+    if (panelCls) { try { list = (await CCAuth.rpc("checkin_list", { cid: c.id })) || []; } catch (e) { list = []; } listFor = c.id; }
+    else if (listFor !== c.id) await load();
+    const others = (typeof myClasses !== "undefined" ? myClasses || [] : []).filter((x) => x.status === "approved" || x.is_teacher);
+    d.innerHTML = `<h3>📋 签到<small>${others.length > 1 ? `<select id="ckCls" aria-label="哪个班">${others.map((x) => `<option value="${esc(x.id)}"${x.id === c.id ? " selected" : ""}>${esc(x.nickname || x.name)}${x.is_teacher ? "（我带的）" : x.member_role === "monitor" ? "（班委）" : ""}</option>`).join("")}</select>` : esc(c.nickname || c.name)}</small></h3>
       ${mgr() ? `<details class="ck-new" ${list.some((x) => x.open) ? "" : "open"}><summary>＋ 发起签到</summary>
         <div class="ck-modes">${[["code", "🔢 动态码", "投屏二维码，扫一扫就签，不用定位"], ["geo", "📍 位置", "到了现场范围内才能签"], ["both", "📍+🔢 都要", "扫码 + 在现场，最严格"]].map(([k, t, dd], i) =>
           `<label class="ck-mode"><input type="radio" name="ckMode" value="${k}"${i ? "" : " checked"}><b>${t}</b><small>${dd}</small></label>`).join("")}</div>
@@ -110,6 +120,7 @@
       <div class="row"><input id="ckCodeQuick" inputmode="numeric" maxlength="4" placeholder="有 4 位签到码？输在这里" class="ck-quick"><button class="small" id="ckQuickGo">签到</button><span class="spacer"></span><button class="small" data-ckx="close">关闭</button></div>`;
     const syncMode = () => { const m = (d.querySelector("input[name=ckMode]:checked") || {}).value; d.querySelectorAll(".ck-geo-only").forEach((el) => el.classList.toggle("hidden", m === "code")); };
     d.querySelectorAll("input[name=ckMode]").forEach((r) => r.addEventListener("change", syncMode)); syncMode();
+    const sel = d.querySelector("#ckCls"); if (sel) sel.onchange = () => openPanel(sel.value);
     if (!d.open) d.showModal();
   }
   // 一条签到：信息、地图、签到；班委 / 老师：投屏二维码 + 名单
@@ -128,10 +139,11 @@
       </div>
       <div class="lv-bar"><i style="width:${pct}%"></i></div>
       ${needGeo(x) && x.lat != null ? `<div class="ck-mapline"><span>📍 签到点：${esc(x.place || "签到点")}（半径 ${x.radius} 米）</span><a class="small btn-like" href="${amap(x)}" target="_blank" rel="noopener">在高德地图里看 ›</a></div>` : ""}
+      ${x.is_teacher === false && x.can_manage && x.is_creator === false && !x.mine && x.open ? `<p class="meta">你也是这个班的同学：先在下面签到，再帮班里投屏 / 看名单。</p>` : ""}
       ${x.can_manage && x.open && needCode(x) ? `<div class="ck-proj" id="ckProj"><div class="ck-qrbox" id="ckQr"></div><div class="ck-proj-r"><div class="ck-proj-t" id="ckQrT">微信扫一扫签到</div><div class="ck-code" id="ckCode">····</div>
           <div class="meta" id="ckLeft">每 20 秒换一次码</div><div class="meta">没带手机扫码的同学：打开捞捞「签到」，输入这 4 位码</div>
           <button class="small" id="ckFull">⛶ 全屏投屏</button></div></div>` : ""}
-      ${!x.can_manage || x.mine ? `<div class="ck-me">${x.mine ? `<div class="ck-ok big">✓ 你 ${hhmm(x.mine.at)} 签到了${x.mine.dist != null ? `（离签到点 ${x.mine.dist} 米）` : ""}</div>`
+      ${signable(x) || x.mine ? `<div class="ck-me">${x.mine ? `<div class="ck-ok big">✓ 你 ${hhmm(x.mine.at)} 签到了${x.mine.dist != null ? `（离签到点 ${x.mine.dist} 米）` : ""}</div>`
         : x.open ? `<div class="row">${needCode(x) ? `<input id="ckCodeIn" class="ck-quick big" inputmode="numeric" maxlength="4" placeholder="4 位签到码" value="${esc(code || "")}">` : ""}<button class="btn ink" id="ckSignOne">${needGeo(x) ? "📍 我到了，签到" : "✓ 签到"}</button></div>
           <p class="meta">${needCode(x) ? "手机上用微信扫投屏的二维码最快。" : ""}${needGeo(x) ? "签到时会定位一次，确认你在范围里（电脑一般定位不准，请用手机）。" : ""}</p>` : `<p class="meta">签到已经结束了。</p>`}</div>` : ""}
       ${x.can_manage ? `<div class="ck-detail" id="ckDetail"><div class="meta">加载名单…</div></div>` : ""}
@@ -143,7 +155,7 @@
       if (x.open && needCode(x)) { tickCode(); codeTimer = setInterval(tickCode, 2500); }
     }
     // 扫码进来带着码：直接签
-    if (code && x.open && !x.mine && !x.can_manage) sign(x, code, $("ckSignOne"));
+    if (code && x.open && !x.mine && signable(x)) sign(x, code, $("ckSignOne"));
   }
   let tn = 0;
   async function tickCode() {
@@ -163,13 +175,15 @@
     } catch (e) {}
   }
   async function create() {
-    const c = cls(), st = $("ckSt"), b = $("ckCreate"), mode = ($("ckDlg").querySelector("input[name=ckMode]:checked") || {}).value || "code";
+    const c = cls(); if (!canMgr(c)) { say("只有老师和班委能发起签到", "bad"); return; }
+    const st = $("ckSt"), b = $("ckCreate"), mode = ($("ckDlg").querySelector("input[name=ckMode]:checked") || {}).value || "code";
     b.disabled = true; st.className = "ck-st"; st.textContent = mode === "code" ? "正在发起…" : "正在定位…";
     try {
       const a = { cid: c.id, title: $("ckTitle").value.trim() || "签到", place: $("ckPlace").value.trim(), radius: +$("ckR").value, minutes: +$("ckM").value, mode };
       if (mode !== "code") { const p = await getPos(); if (p.acc > 200) st.textContent = `定位精度只有 ${p.acc} 米，可能不太准…`; a.lat = p.lat; a.lng = p.lng; }
       const r = await CCAuth.rpc("checkin_create", a);
-      await load(); openOne(r.id); say(mode === "code" ? "签到已发起：把二维码投到屏幕上，同学微信一扫就签上" : "签到已发起，同学们首页顶上会出现「签到」", "ok");
+      if (panelCls) list = (await CCAuth.rpc("checkin_list", { cid: c.id })) || []; else await load();
+      openOne(r.id); say(mode === "code" ? "签到已发起：把二维码投到屏幕上，同学微信一扫就签上" : "签到已发起，同学们首页顶上会出现「签到」", "ok");
     } catch (e) { st.className = "ck-st bad"; st.textContent = "没发起成功：" + e.message; b.disabled = false; }
   }
   async function detail(id) {
@@ -199,7 +213,8 @@
     }
     if (t.closest("[data-ckx=list]")) { openPanel(); return; }
     if (t.closest("[data-ckx=close]")) { $("ckDlg").close(); return; }
-    if (t.closest("#cbCheckin")) { openPanel(); return; }
+    if (t.closest("#cbCheckin")) { openPanel(null); return; }
+    const pn = t.closest("[data-ckpanel]"); if (pn) { e.preventDefault(); openPanel(pn.dataset.ckcid || null); return; }
   });
   // 扫码进来：https://www.laolaokechengbiao.cn/ck/?i=编号&k=码 会跳到 index.html#ck=编号&k=码
   function fromHash() {
