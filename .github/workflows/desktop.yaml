@@ -95,7 +95,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          npm version "3.3.${{ github.run_number }}" --no-git-tag-version --allow-same-version
+          npm version "3.4.${{ github.run_number }}" --no-git-tag-version --allow-same-version
           npm install --no-audit --no-fund
           npx electron-builder --win nsis --x64 --publish never
           Get-ChildItem dist
@@ -105,6 +105,36 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $v = "3.3.${{ github.run_number }}"
-          $notes = "捞捞课程表 Windows 电脑版 $v`n`n3.3：海外也能用（国内连不上自动走海外线路）；登录设备管理（设置 → 登录设备，可以踢出不认识的设备）；侧栏精简（规划与专注合并、成长里切换每周报告 / 排行榜 / 云宠农场，元宇宙改名「等级与徽章」挪进工具）；导入手机备忘录；作业页显示已读人数和名单、图片附件直接看小图；老师和自己建了班的人有「班级情况」页和教师组；职场人员界面换成团队 / 任务的说法。`n`n3.2：配色和网站同一套（16 套 + 自己调，网站上换了电脑版跟着变）；侧栏名字和网站一致（首页、日历、学习、问答、成长、工具……）；首页时间轴重做（课一条、事错开成几行、过去的时间灰掉）；修好点开时间轴上的事后右边详情栏按钮点不动、一直闪。`n`n3.1 新加：局域网互传（「只存在这台设备」的事项不上传云端，同一个 Wi-Fi 里的手机、电脑、网页之间直接传）；界面风格可以在「设置 → 外观」里切换成和网站一样的「网页风格」；侧栏重新分组、可以收起；设置页加了目录。`n`n3.0 全新界面：标题栏下面的课铃线、今日页的课铃时间带、右侧详情栏，深色模式重新配色。`n`n和网站对齐：课内学习、思维导图、云宠农场、元宇宙工具箱、随机抽签器、错题记录本；调课 / 调休；事项云端附件；过期两周自动删除；编辑（仅自己）；自己记的作业；学校 / 单位；注册、找回密码；实时同步（几秒内）；按北京时间并用服务器校准时钟。`n`n电脑版独有：任意页面单独开窗口（放到第二块屏幕）、导出 Excel 表格、单条事项加到日历、把文件拖到事项上传附件，以及原来的托盘提醒、快速记事、桌面小窗、离线 AI、课表壁纸、导出 PDF、自动备份、早安简报、专注和白噪音。`n`n安装时如果 Windows 提示「已保护你的电脑」，点「更多信息 → 仍要运行」。"
+          $v = "3.4.${{ github.run_number }}"
+          $notes = "捞捞课程表 Windows 电脑版 $v`n`n3.4：自动检查更新，点「立即更新」在软件里下载、装完自动重新打开；签到（位置 / 动态码 / 投屏小程序码），老师和班委都能发起、班委也能看「班级情况」；等级和经验；首页点课程看课表截图。`n`n3.3：海外也能用（国内连不上自动走海外线路）；登录设备管理（设置 → 登录设备，可以踢出不认识的设备）；侧栏精简（规划与专注合并、成长里切换每周报告 / 排行榜 / 云宠农场，元宇宙改名「等级与徽章」挪进工具）；导入手机备忘录；作业页显示已读人数和名单、图片附件直接看小图；老师和自己建了班的人有「班级情况」页和教师组；职场人员界面换成团队 / 任务的说法。`n`n3.2：配色和网站同一套（16 套 + 自己调，网站上换了电脑版跟着变）；侧栏名字和网站一致（首页、日历、学习、问答、成长、工具……）；首页时间轴重做（课一条、事错开成几行、过去的时间灰掉）；修好点开时间轴上的事后右边详情栏按钮点不动、一直闪。`n`n3.1 新加：局域网互传（「只存在这台设备」的事项不上传云端，同一个 Wi-Fi 里的手机、电脑、网页之间直接传）；界面风格可以在「设置 → 外观」里切换成和网站一样的「网页风格」；侧栏重新分组、可以收起；设置页加了目录。`n`n3.0 全新界面：标题栏下面的课铃线、今日页的课铃时间带、右侧详情栏，深色模式重新配色。`n`n和网站对齐：课内学习、思维导图、云宠农场、元宇宙工具箱、随机抽签器、错题记录本；调课 / 调休；事项云端附件；过期两周自动删除；编辑（仅自己）；自己记的作业；学校 / 单位；注册、找回密码；实时同步（几秒内）；按北京时间并用服务器校准时钟。`n`n电脑版独有：任意页面单独开窗口（放到第二块屏幕）、导出 Excel 表格、单条事项加到日历、把文件拖到事项上传附件，以及原来的托盘提醒、快速记事、桌面小窗、离线 AI、课表壁纸、导出 PDF、自动备份、早安简报、专注和白噪音。`n`n安装时如果 Windows 提示「已保护你的电脑」，点「更多信息 → 仍要运行」。"
           gh release create "desktop-v$v" "desktop/dist/LaolaoKechengbiao-Setup.exe" --title "捞捞课程表 电脑版 $v" --notes $notes --latest
+
+      # 3.4：写官网的 download/desktop-version.json，电脑版（3.4 起）每 6 小时看一次，有新版本就提示「立即更新」
+      - name: 更新官网的电脑版版本号
+        shell: bash
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          V="3.4.${{ github.run_number }}"
+          SRC="${GITHUB_WORKSPACE}/desktop/dist/LaolaoKechengbiao-Setup.exe"
+          SIZE=$(stat -c %s "$SRC" 2>/dev/null || wc -c < "$SRC")
+          SHA=$(sha256sum "$SRC" | cut -d' ' -f1)
+          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/desktop-v${V}/LaolaoKechengbiao-Setup.exe"
+          PUB="${RUNNER_TEMP}/desktop-publish"
+          git fetch --no-tags origin "$BRANCH"
+          git worktree add --detach "$PUB" FETCH_HEAD
+          git -C "$PUB" config user.name "github-actions[bot]"
+          git -C "$PUB" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for ATTEMPT in 1 2 3; do
+            if [ "$ATTEMPT" -gt 1 ]; then git fetch --no-tags origin "$BRANCH"; git -C "$PUB" reset --hard FETCH_HEAD; fi
+            mkdir -p "$PUB/download"
+            echo "{\"version\": \"${V}\", \"url\": \"${URL}\", \"size\": ${SIZE}, \"sha256\": \"${SHA}\", \"notes\": \"自动更新；签到老师和班委都能发起；班委能看班级情况；等级和经验\", \"at\": \"$(date -u +%FT%TZ)\"}" > "$PUB/download/desktop-version.json"
+            cat "$PUB/download/desktop-version.json"
+            git -C "$PUB" add -- download/desktop-version.json
+            if git -C "$PUB" diff --cached --quiet; then echo "已经是最新"; exit 0; fi
+            git -C "$PUB" commit -m "电脑版 ${V}"
+            if git -C "$PUB" push origin "HEAD:${BRANCH}"; then exit 0; fi
+          done
+          echo "::error::安装包已经发布到 Releases，但更新官网版本号失败"
+          exit 1
