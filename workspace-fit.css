@@ -1,0 +1,38 @@
+/* =========================================================================
+ * 6.12 工作台适配不同比例的电脑屏幕（放在所有样式最后）
+ *   · 右边「校园速览」只在够宽（≥ 1520）时出现。以前 1241～1519 宽的电脑（3:2、16:10 笔记本缩放后正好在这里）
+ *     中间只剩 700 多像素，卡片挤成细长一条，页面拉得特别长；比 1240 以下的屏幕还窄
+ *     （左侧导航收起来时空间够，右栏照样显示）
+ *   · 「接下来的安排」的框跟着屏幕高度变高：高屏幕一眼看到更多件事，不再固定只露两三条
+ *   · 右栏比屏幕高时能滚（以前滚动条藏起来了，底下的「这周的作业」像被截掉了一样）
+ * ========================================================================= */
+@media (min-width: 1001px) and (max-width: 1519px) {
+  html:not(.sidebar-collapsed)[data-skin=fresh] .shell { grid-template-columns: 216px minmax(0, 1fr); padding-right: 32px; }
+  html:not(.sidebar-collapsed)[data-skin=fresh] .siderail { display: none; }
+  html:not(.sidebar-collapsed)[data-skin=cyber] .shell { grid-template-columns: 216px minmax(0, 1fr); padding-right: 28px; }
+  html:not(.sidebar-collapsed)[data-skin=cyber] .siderail { display: none; }
+}
+/* 很宽的屏幕：中间别拉得太散 */
+@media (min-width: 1520px) {
+  [data-skin=fresh] .shell { grid-template-columns: 216px minmax(0, 1fr) 300px; }
+}
+
+/* 「接下来的安排」：屏幕越高框越高（330～480） */
+@media (min-width: 1001px) {
+  [data-skin=fresh] .studio-agenda-panel { height: clamp(330px, calc(100vh - 480px), 480px); }
+}
+
+/* 右栏：放不下时显示细滚动条 */
+[data-skin] .siderail { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+[data-skin] .siderail:hover { scrollbar-color: var(--line, #d9dde7) transparent; }
+[data-skin] .siderail::-webkit-scrollbar { display: block; width: 6px; }
+[data-skin] .siderail:hover::-webkit-scrollbar-thumb { background: var(--line, #d9dde7); border-radius: 3px; }
+
+/* 「上午好」卡片：右边的安排变高时，它也跟着变高；多出来的空间放在中间，今天的时间轴贴底（以前全堆在卡片底下空着） */
+@media (min-width: 1001px) {
+  [data-skin=fresh] .studio-focus-grid #hero, [data-skin=fresh] .studio-focus-grid #hero > .hero { height: 100%; }
+  [data-skin=fresh] .studio-focus-grid #hero > .hero { display: flex; flex-direction: column; align-items: flex-start; box-sizing: border-box; }
+  [data-skin=fresh] .studio-focus-grid #hero > .hero > .hx, [data-skin=fresh] .studio-focus-grid #hero > .hero > .tl { align-self: stretch; }
+  [data-skin=fresh] .studio-focus-grid #hero > .hero > .hx { margin-top: auto; margin-bottom: auto; }
+  [data-skin=fresh] .studio-focus-grid #hero > .hero > .tl { margin-top: 0; }
+}
