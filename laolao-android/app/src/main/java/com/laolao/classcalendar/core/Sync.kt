@@ -14,6 +14,7 @@ object Sync {
         "course_rev_v1" to "one", "hw_view_v1" to "one", "evening_v1" to "one", "morning_v1" to "one",   // 6.3 晚自习时间
         "habits_v1" to "list", "habit_log_v1" to "map2", "quad_v1" to "map", "pomo_log_v1" to "map", "plan_notes_v1" to "map", "fun_opts_v1" to "one", "course_view_v1" to "map", "ui_palette_v1" to "one",
         "farm_v1" to "one", "profile_v1" to "one", "home_layout_v1" to "one", "home_quick_tools_v1" to "one", "mood_log_v1" to "map", "coach_v1" to "map",
+        "coach_opts_v1" to "map", "coach_bag_v1" to "map",   // 7.0.55 捞捞教练的开关、收藏也跟着账号（和网页、小程序一样）
     )
     private const val META = "sync_meta_v1"
     private const val OUT = "sync_outbox_v1"
@@ -178,6 +179,9 @@ object Sync {
                 val recs = LinkedHashMap<String, Any>(); val hk = sub(m.getJSONObject("h"), k); val tk = sub(m.getJSONObject("t"), k)
                 for ((r, row) in c) { tk.put(r, row.optLong("t")); val v = row.opt("v"); if (v != null && v != JSONObject.NULL) { recs[r] = v; hk.put(r, hash(str(v))) } }
                 for ((r, v) in local) if (!c.containsKey(r)) { recs[r] = v; hk.put(r, hash(str(v))); tk.put(r, now); o.put(k + SEP + r, jsonOf("ns" to k, "k" to r, "v" to v, "t" to now)) }
+                // 两边都有的：开关「开着」、收藏「有的」不能被另一台设备的旧值盖掉
+                for ((r, v) in local) { val cv = c[r]?.opt("v"); if (cv == null || cv == JSONObject.NULL) continue; val p = firstPick(k, r, v, cv) ?: continue
+                    if (str(p) != str(cv)) { recs[r] = p; hk.put(r, hash(str(p))); tk.put(r, now); o.put(k + SEP + r, jsonOf("ns" to k, "k" to r, "v" to p, "t" to now)) } }
                 val next = implode(k, recs, cur)
                 applying = true; Kv.setQuiet(k, if (next is JSONArray && next.length() == 0 && cur == null) null else next); applying = false
             }
@@ -204,6 +208,14 @@ object Sync {
     }
     fun stop() { uid = null; state = "off" }
     private fun sig() = KINDS.keys.sorted().joinToString(",")
+    private fun firstPick(k: String, r: String, a: Any, b: Any): Any? {
+        if (k == "coach_opts_v1" && (r == "on" || r == "asked")) return if (a == true || b == true) true else null
+        if (k == "coach_bag_v1") {
+            if (r == "own" && a is JSONObject && b is JSONObject) { val o = JSONObject(b.toString()); a.keys().forEach { x -> o.put(x, maxOf(a.optInt(x), o.optInt(x))) }; return o }
+            if (r == "sh" || r == "n") return maxOf((a as? Number)?.toInt() ?: 0, (b as? Number)?.toInt() ?: 0)
+        }
+        return null
+    }
     /** 退出登录前：把没传的传完 */
     fun finish() { scan(); flush() }
     fun pending(): Int = Kv.obj(OUT).length()

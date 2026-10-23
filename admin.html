@@ -26,6 +26,7 @@
     <button class="nav" data-view="users"><span class="ic">👥</span>用户</button>
     <button class="nav" data-view="import"><span class="ic">⇪</span>批量建号</button>
     <button class="nav" data-view="audit"><span class="ic">🧾</span>操作日志</button>
+    <button class="nav admin-only" data-view="sec"><span class="ic">🛡</span>安全</button>
     <span class="sp"></span>
     <div class="me"><b id="meName"></b><span id="meRole"></span></div>
     <div class="links"><a href="index.html">回到网站</a><a href="dev.html">插件后台</a></div>
@@ -122,6 +123,17 @@
     </section>
 
     <!-- 操作日志 -->
+    <!-- 6.15 安全：服务器自动挡下的异常登录、刷接口 -->
+    <section id="v-sec" class="view hidden">
+      <div class="ph"><div><h1>安全</h1><p>服务器自动处理的异常：凭证被盗用（自动退出）、刷接口（暂时封禁）。需要先执行 6.15 的 SQL</p></div><span class="sp"></span>
+        <button class="btn" id="secUnblockAll">解除全部封禁</button><button class="btn" id="secRefresh">↻ 刷新</button></div>
+      <div class="panel pad" id="secHook"></div>
+      <div class="panel"><h3 style="padding:14px 16px 0">正在封禁</h3>
+        <div class="tw"><table class="t"><thead><tr><th>对象</th><th>原因</th><th>到期</th><th>次数</th><th></th></tr></thead><tbody id="secBlocks"></tbody></table></div></div>
+      <div class="panel"><h3 style="padding:14px 16px 0">最近事件</h3>
+        <div class="tw"><table class="t"><thead><tr><th>时间</th><th>账号</th><th>类型</th><th>IP</th><th>详情</th></tr></thead><tbody id="secRows"></tbody></table></div></div>
+    </section>
+
     <section id="v-audit" class="view hidden">
       <div class="ph"><div><h1>操作日志</h1><p>后台每一次改动都记在这里：谁、什么时候、对谁、做了什么</p></div><span class="sp"></span><button class="btn" id="aExport">⇩ 导出本页</button></div>
       <div class="panel">
@@ -144,7 +156,7 @@
 <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
 <script src="config.js"></script>
-<script src="auth.js?v=20261022-v696"></script>
-<script src="admin.js?v=20261010-adm1"></script>
+<script src="auth.js?v=20261023-v715"></script>
+<script src="admin.js?v=20261023-v716"></script>
 </body>
 </html>

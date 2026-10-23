@@ -56,14 +56,14 @@
   }
 
   // ---------- 路由 ----------
-  const VIEWS = ["ov", "users", "import", "audit"];
+  const VIEWS = ["ov", "users", "import", "audit", "sec"];
   let loaded = {};
   function show(v) {
     if (!VIEWS.includes(v)) v = "ov";
     document.querySelectorAll(".view").forEach((s) => s.classList.toggle("hidden", s.id !== "v-" + v));
     document.querySelectorAll(".nav").forEach((b) => b.classList.toggle("on", b.dataset.view === v));
     $("bulk").classList.toggle("hidden", v !== "users" || !sel.size);
-    if (!loaded[v]) { loaded[v] = true; ({ ov: loadOv, users: loadUsers, import: () => {}, audit: loadAudit })[v](); }
+    if (!loaded[v]) { loaded[v] = true; ({ ov: loadOv, users: loadUsers, import: () => {}, audit: loadAudit, sec: loadSec })[v](); }
   }
   document.querySelectorAll(".nav").forEach((b) => b.onclick = () => { location.hash = b.dataset.view; });
   addEventListener("hashchange", () => show(location.hash.slice(1)));
@@ -569,6 +569,27 @@
   $("aNext").onclick = () => { A.page++; loadAudit(); };
   $("aRows").addEventListener("click", (e) => { const tr = e.target.closest("tr[data-id]"); if (tr && tr.dataset.id) openUser(tr.dataset.id); });
   $("aExport").onclick = () => download(`操作日志_${stamp()}.csv`, csv([["时间", "操作人", "动作", "对象", "详情"], ...aRows.map((l) => [fmt(l.at), l.actor, ACT_NAMES[l.action] || l.action, l.target_acct || "", detailText(l.action, l.detail)])]));
+
+  // ================= 安全（6.15） =================
+  const SEC_KIND = { ua_change: "凭证换了设备系统 → 已退出", ip_hop: "凭证在很多网络上用 → 已退出", rate_user: "账号请求太多 → 暂时封禁", rate_ip: "IP 请求太多 → 暂时封禁", rate_api: "敏感接口调用太多 → 限流", banned: "账号停用 → 所有登录已退出", client_auto: "被自动化工具控制（只记录）" };
+  async function loadSec() {
+    let r; try { r = await rpc("sec_admin_events", { p_limit: 200 }); }
+    catch (e) { $("secRows").innerHTML = `<tr><td colspan="5" class="empty">${esc(/sec_admin_events|PGRST202|Could not find/i.test(e.message) ? "服务器还没执行 6.15 的 SQL" : e.message)}</td></tr>`; return; }
+    const hook = String(r.hook || ""), guard = String(r.guard || "");
+    $("secHook").innerHTML = hook === "on" ? "✅ 请求拦截已开启：每个请求都会先检查（防刷、异常自动退出实时生效）"
+      : /^on/.test(guard) ? `✅ 数据库不让开请求拦截，已改成在每个接口函数开头检查（${esc(guard.replace(/^on:\s*/, ""))}）：防刷、异常自动退出实时生效`
+      : `⚠ 请求拦截没开成（${esc(hook || "未知")}）：请执行 6.15.1 的 SQL；现在只能靠客户端每 3 分钟报一次平安`;
+    const bl = r.blocks || [];
+    $("secBlocks").innerHTML = bl.map((b) => `<tr><td class="acc">${esc(b.k)}</td><td>${esc(SEC_KIND[b.reason] || b.reason)}</td><td class="num muted">${esc(fmt(b.until))}</td><td class="num">${n(b.hits)}</td><td><button class="btn sm" data-unblock="${esc(b.k)}">解除</button></td></tr>`).join("") || `<tr><td colspan="5" class="empty">没有</td></tr>`;
+    const ev = r.events || [];
+    $("secRows").innerHTML = ev.map((x) => `<tr${x.user_id ? ` data-id="${esc(x.user_id)}"` : ""}><td class="num muted" style="white-space:nowrap">${esc(fmt(x.at))}</td><td class="acc">${esc(x.account ? x.display_name + " @" + x.account : "（没登录）")}</td>
+      <td><span class="tag ${/rate/.test(x.kind) ? "warn" : x.kind === "client_auto" ? "" : "red"}">${esc(SEC_KIND[x.kind] || x.kind)}</span></td><td class="num">${esc(x.ip || "")}</td>
+      <td class="muted">${esc(x.detail && x.detail.from ? x.detail.from + " → " + x.detail.to : x.detail && x.detail.nets ? (x.detail.nets.length + " 个网段") : x.detail && x.detail.key ? x.detail.key : "")}</td></tr>`).join("") || `<tr><td colspan="5" class="empty">没有记录</td></tr>`;
+  }
+  $("secRefresh").onclick = loadSec;
+  $("secRows").addEventListener("click", (e) => { const tr = e.target.closest("tr[data-id]"); if (tr) openUser(tr.dataset.id); });
+  $("secBlocks").addEventListener("click", async (e) => { const b = e.target.closest("[data-unblock]"); if (!b) return; try { await rpc("sec_admin_unblock", { p_key: b.dataset.unblock }); } catch (x) { alert(x.message); } loadSec(); });
+  $("secUnblockAll").onclick = async () => { if (!confirm("解除全部封禁？")) return; try { await rpc("sec_admin_unblock", { p_key: "*" }); } catch (x) { alert(x.message); } loadSec(); };
 
   // ================= 启动 =================
   (async () => {

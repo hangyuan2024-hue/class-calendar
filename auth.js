@@ -74,7 +74,10 @@
       }
       // 只有真的连通了才记住这条线路（换过去也失败的，不会把以后的请求都带偏）
       if (res && (!routeKnown || switched)) { const i = ROUTES.findIndex((b) => url.startsWith(b)); if (i >= 0 && (i !== routeI || !routeKnown)) setRoute(i); }
-      const busy = netErr || (res && [429, 502, 503, 504].includes(res.status));
+      // 6.15 服务器的防刷限制（rate_limited）：不是「忙」，重试只会更糟，直接告诉用户
+      let limited = false;
+      if (res && res.status === 429) { try { limited = /rate_limited/.test(await res.clone().text()); } catch {} }
+      const busy = netErr || (res && !limited && [429, 502, 503, 504].includes(res.status));
       // 服务器忙：最多重试 3 次；连不上网：只重试 1 次（断网时别让人干等）
       const maxTry = netErr ? (navigator.onLine === false ? 0 : 1) : 3;
       if (busy && retryable && attempt < maxTry) {
@@ -87,6 +90,7 @@
       let body = null;
       try { body = text ? JSON.parse(text) : null; } catch { body = { message: text }; }
       if (!res.ok) {
+        if (limited) { const err = new Error("操作太频繁，已被暂时限制，请过几分钟再试"); err.status = 429; err.limited = true; throw err; }
         if ([429, 502, 503, 504].includes(res.status)) throw new Error("现在用的人太多了，请过一会儿再试");
         // 数据库（PostgREST）的错误都带 code；403 却没有 code，说明是网关（大小限制 / 安全规则）在门口就拦下了，根本没到数据库
         const fromDb = body && typeof body === "object" && (body.code != null || body.msg != null || body.error != null);
@@ -94,7 +98,7 @@
           const err = new Error("服务器网关拦下了这次请求（403），可能是内容太大或触发了安全规则"); err.status = 403; err.gateway = true; throw err;
         }
         // 后端 5.4.0：这台设备已在其他设备上被踢出（服务器作废了这张凭证）
-        if (body && /device_revoked/.test(String(body.message || body.hint || ""))) { const err = new Error("这台设备已在其他设备上被退出登录"); err.status = 401; err.revoked = true; throw err; }
+        if (body && /device_revoked/.test(String(body.message || body.hint || ""))) { const err = new Error("这台设备已在其他设备上被退出登录"); err.status = 401; err.revoked = true; err.reason = String(body.details || "").slice(0, 120); throw err; }
         const err = new Error(humanError(body || {}, res.status)); err.status = res.status; throw err;
       }
       return body;
@@ -122,7 +126,7 @@
         { method: "POST", body: JSON.stringify({ refresh_token: s.refresh_token }) })
         .then(keep)
         // 只有服务器明确说「登录已失效」才退出；网络不好、服务器忙时保留登录，下次再续
-        .catch((e) => { if (e && (e.status === 400 || e.status === 401)) { store(null); meCache = null; lost(e.revoked ? "revoked" : "expired"); return null; } return s; })
+        .catch((e) => { if (e && (e.status === 400 || e.status === 401)) { store(null); meCache = null; lost(e.revoked ? "revoked" : "expired", e.reason); return null; } return s; })
         .finally(() => { refreshing = null; });
     }
     return refreshing;
@@ -174,22 +178,29 @@
     try { return await call(base() + "/rest/v1/" + path, opts, s && s.access_token); }
     catch (e) {
       // 凭证被服务器作废（被别的设备踢出 / 改了密码）：清掉登录，通知页面
-      if (e && e.status === 401 && s) { store(null); meCache = null; lost(e.revoked ? "revoked" : "expired"); }
+      if (e && e.status === 401 && s) { store(null); meCache = null; lost(e.revoked ? "revoked" : "expired", e.reason); }
       throw e;
     }
   }
   // 登录失效：发 cc-auth-lost 事件（首页 app.js 会接住，自己处理）；没人接的页面：被踢出就提示并回登录页
   let lostOnce = false;
-  function lost(why) {
+  function lost(why, reason) {
     if (lostOnce) return; lostOnce = true;
     setTimeout(() => { lostOnce = false; }, 3000);
     let handled = false;
-    try { handled = !window.dispatchEvent(new CustomEvent("cc-auth-lost", { detail: { why }, cancelable: true })); } catch {}
+    try { handled = !window.dispatchEvent(new CustomEvent("cc-auth-lost", { detail: { why, reason: reason || "" }, cancelable: true })); } catch {}
     if (handled || why !== "revoked") return;
     try { localStorage.removeItem("cc_device_id_v1"); } catch {}
     if (/login\.html$/.test(location.pathname)) return;   // 已经在登录页：不用再跳
-    alert("这台设备已在其他设备上被退出登录。本机记录仍然保留，请重新登录；如果不是你本人操作，请登录后立刻修改密码。");
+    alert(kickText(reason));
     location.replace("login.html?next=" + encodeURIComponent(location.pathname.split("/").pop() || "index.html"));
+  }
+  // 6.15 被服务器退出登录时给用户看的话（服务器会说明原因：被踢出 / 账号异常 / 被停用）
+  function kickText(reason) {
+    const r = String(reason || "");
+    if (/停用/.test(r)) return r + "。本机记录仍然保留；如有疑问请联系老师或管理员。";
+    if (/异常/.test(r)) return "检测到你的账号登录环境异常（同一个登录突然在别的设备、或在很多不同网络上使用），为了安全已自动退出。本机记录仍然保留，请重新登录；如果不是你本人在用，登录后请立刻修改密码。";
+    return "这台设备已在其他设备上被退出登录。本机记录仍然保留，请重新登录；如果不是你本人操作，请登录后立刻修改密码。";
   }
   async function rpc(fn, args) {
     return rest("rpc/" + fn, { method: "POST", body: JSON.stringify(args || {}) });

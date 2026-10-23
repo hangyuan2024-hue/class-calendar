@@ -39,7 +39,8 @@ const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; 
 // list：数组，按 id 一条条同步；map：对象，按键同步；map2：两层对象（习惯 → 日期）；one：整体同步
 const SYNC_KINDS = { evening_v1: "one", morning_v1: "one", hw_view_v1: "one", ui_style_v1: "one", compose_mode_v1: "one", compose_reduce_motion_v1: "one", course_rev_v1: "one", course_view_v1: "map", kn_rev_v1: "one", mm_rev_v1: "one", personal_events_v1: "list", personal_marks_v1: "map", done_log_v1: "map", habits_v1: "list", habit_log_v1: "map2",
   quad_v1: "map", quad_todos_v1: "list", pomo_log_v1: "map", fun_opts_v1: "one", home_layout_v1: "one", ui_skin_v1: "one",
-  ui_palette_v1: "one", plugins_enabled_v1: "one", home_quick_tools_v1: "one", plan_notes_v1: "map", profile_v1: "one", mood_log_v1: "map", coach_v1: "map", farm_v1: "one", island_v1: "one" };
+  ui_palette_v1: "one", plugins_enabled_v1: "one", home_quick_tools_v1: "one", plan_notes_v1: "map", profile_v1: "one", mood_log_v1: "map", coach_v1: "map", farm_v1: "one", island_v1: "one",
+  coach_opts_v1: "map", coach_bag_v1: "map" };   // 6.15 捞捞教练的开关、收藏也跟着账号（以前各端各存各的：小程序开了网页还显示没开）
 const LS_SYNC = "sync_meta_v1", LS_SYNC_OUT = "sync_outbox_v1", LS_SYNC_MODE = "sync_mode_v1";
 const Sync = (() => {
   const SEP = "\u0001";
@@ -186,6 +187,16 @@ const Sync = (() => {
   const changeCbs = [];
   function emitChanged(set) { changeCbs.forEach((f) => { try { f(set); } catch (e) { console.warn(e); } }); }
 
+  // 6.15 新版本多同步了几种数据：重新对一遍（和安卓一样）
+  const kindSig = () => Object.keys(SYNC_KINDS).sort().join(",");
+  function firstPick(k, r, a, b) {
+    if (k === "coach_opts_v1" && (r === "on" || r === "asked")) return a === true || b === true ? true : undefined;
+    if (k === "coach_bag_v1") {
+      if (r === "own" && a && b && typeof a === "object" && typeof b === "object") { const o = { ...b }; for (const x in a) o[x] = Math.max(+a[x] || 0, +o[x] || 0); return o; }
+      if (r === "sh" || r === "n") return Math.max(+a || 0, +b || 0);
+    }
+    return undefined;
+  }
   // 第一次在这台设备上开启同步：先拉云端全部，再把云端没有的本机数据传上去（云端已有的以云端为准）
   async function firstMerge() {
     const m = M();
@@ -203,10 +214,12 @@ const Sync = (() => {
       const cur = raw(k), local = explode(k, cur), c = cloud[k] || {}, recs = {}, h = (m.h[k] = {}), t = (m.t[k] = {});
       for (const r in c) { t[r] = c[r].t; if (c[r].v != null) { recs[r] = c[r].v; h[r] = hash(JSON.stringify(c[r].v)); } }
       for (const r in local) if (!(r in c)) { recs[r] = local[r]; h[r] = hash(JSON.stringify(local[r])); t[r] = now; o[k + SEP + r] = { ns: k, k: r, v: local[r], t: now }; }
+      // 6.15 两边都有的：开关「开着」、收藏「有的」不能被另一台设备的旧值盖掉
+      for (const r in local) if (r in c && c[r].v != null) { const v = firstPick(k, r, local[r], c[r].v); if (v !== undefined && JSON.stringify(v) !== JSON.stringify(c[r].v)) { recs[r] = v; h[r] = hash(JSON.stringify(v)); t[r] = now; o[k + SEP + r] = { ns: k, k: r, v, t: now }; } }
       const next = implode(k, recs, cur);
       if (JSON.stringify(next) !== JSON.stringify(cur ?? null) && !(next == null && cur == null)) { applying = true; put(k, next); applying = false; changed.add(k); }
     }
-    m.owner = uid; m.mode = "cloud";
+    m.owner = uid; m.mode = "cloud"; m.kinds = kindSig();
     saveMeta(); saveOut();
     if (changed.size) emitChanged(changed);
     await flush();
@@ -233,7 +246,7 @@ const Sync = (() => {
     switchOwner();
     if (!active()) { setState("off"); return; }
     try {
-      if (M().owner !== uid || M().mode !== "cloud") await firstMerge();
+      if (M().owner !== uid || M().mode !== "cloud" || M().kinds !== kindSig()) await firstMerge();
       else { await pull(); }
     } catch (e) { setState("error", e.message); }
     if (dirty.size) scan();
@@ -1981,7 +1994,7 @@ async function laiAutoFinish(model) {
   lai.kind = "ollama"; lai.base = "http://localhost:11434";
   let models = await laiModels();
   if (!models.length) {
-    setSteps([["done", "Ollama 已装好并能连上"], ["now", `正在下载中文模型 ${model}`, "可以先去用别的功能，下载好会自动连上"], ["", "完成"]]);
+    setSteps([["done", "Ollama 已装好并能连上"], ["now", `正在下载中文模型 ${esc(model)}`, "可以先去用别的功能，下载好会自动连上"], ["", "完成"]]);
     $("laiProg").classList.remove("hidden");
     await laiPull(model, (d) => {
       const pct = d.total ? Math.round((d.completed || 0) / d.total * 100) : null;
@@ -1994,7 +2007,7 @@ async function laiAutoFinish(model) {
   const pick = models.find((m) => m.startsWith(model)) || models.find((m) => /qwen/i.test(m)) || models[0];
   lai.model = pick; lai.ok = true; saveLai(); syncLaiUI(); showOneClick();
   $("laiModel").innerHTML = models.map((m) => `<option ${m === pick ? "selected" : ""}>${esc(m)}</option>`).join(""); $("laiModelRow").style.display = "";
-  setSteps([["done", "Ollama 已装好"], ["done", `模型 ${pick} 已就绪`], ["done", "已连上！左侧导航里出现了「问答」"]]);
+  setSteps([["done", "Ollama 已装好"], ["done", `模型 ${esc(pick)} 已就绪`], ["done", "已连上！左侧导航里出现了「问答」"]]);
   $("laiCmdBox").classList.add("hidden");
   cheer("lai");
 }
@@ -5680,6 +5693,17 @@ async function devTouch(force) {
     devHook = !!(r && r.hook);
     devAliveLoop();
   } catch (e) { /* 后台未开通或网络不好：不影响使用（被踢出由 cc-auth-lost 统一处理） */ }
+  secPing();
+}
+// 6.15 环境监测：报一次平安。服务器发现这个登录在别的系统 / 很多网络上被用、或账号被停用，就让这里退出登录
+let secOff = false, secT = 0;
+async function secPing() {
+  if (secOff || !currentUser || devKicking) return;
+  try {
+    const r = await CCAuth.rpc("sec_ping", { p_env: { auto: navigator.webdriver === true, w: screen.width, h: screen.height } });
+    if (r && r.revoked) { devKicked("revoked", r.reason); return; }
+  } catch (e) { if (/sec_ping|PGRST202|Could not find/i.test((e && e.message) || "")) secOff = true; }   // 服务器还没装 6.15
+  clearInterval(secT); if (!secOff) secT = setInterval(() => { if (!document.hidden) secPing(); }, 180000);
 }
 function devAliveLoop() {
   clearTimeout(devAliveT);
@@ -5690,16 +5714,22 @@ function devAliveLoop() {
     devAliveLoop();
   }, 10000);
 }
-async function devKicked(why) {
-  if (devKicking) return; devKicking = true; clearTimeout(devAliveT);
+async function devKicked(why, reason) {
+  if (devKicking) return; devKicking = true; clearTimeout(devAliveT); clearInterval(secT);
   if (why === "revoked") { try { localStorage.removeItem(DEV_KEY); } catch (e) {} }
   try { await CCAuth.signOut(); } catch (e) {}
   try { localStorage.removeItem("cc_session_v1"); } catch (e) {}
-  if (why === "revoked") alert("这台设备已在其他设备上被退出登录。本机记录仍然保留，请重新登录；如果不是你本人操作，请登录后立刻修改密码。");
+  if (why === "revoked") alert(kickText(reason));
   else alert("登录已过期，请重新登录。");
   location.replace("login.html?next=index.html");
 }
-window.addEventListener("cc-auth-lost", (e) => { if (!currentUser) return; e.preventDefault(); devKicked(e.detail && e.detail.why); });
+function kickText(reason) {
+  const r = String(reason || "");
+  if (/停用/.test(r)) return r + "。本机记录仍然保留；如有疑问请联系老师或管理员。";
+  if (/异常/.test(r)) return "检测到你的账号登录环境异常（同一个登录突然在别的设备、或在很多不同网络上使用），为了安全已自动退出。本机记录仍然保留，请重新登录；如果不是你本人在用，登录后请立刻修改密码。";
+  return "这台设备已在其他设备上被退出登录。本机记录仍然保留，请重新登录；如果不是你本人操作，请登录后立刻修改密码。";
+}
+window.addEventListener("cc-auth-lost", (e) => { if (!currentUser) return; e.preventDefault(); devKicked(e.detail && e.detail.why, e.detail && e.detail.reason); });
 setTimeout(() => devTouch(true), 2500);
 document.addEventListener("visibilitychange", () => { if (document.hidden) clearTimeout(devAliveT); else { devTouch(false); devAliveLoop(); } });
 async function loadDevices() {
@@ -5712,6 +5742,12 @@ async function loadDevices() {
     (devErr ? `<div class="gi sec-row"><span class="ic">⚠️</span><span class="sx"><small>${esc(devErr)}</small></span></div>` : "") +
     devList.map((d) => `<div class="gi sec-row"><span class="ic">${ic[d.platform] || "📱"}</span><span class="sx"><span class="sxt">${esc(d.name)}${d.current ? " · 本机" : ""}</span><small>最近使用 ${ago(d.last_seen)}</small></span>${d.current ? "" : `<button class="btn sm" data-devkick="${esc(d.id)}">踢出</button>`}</div>`).join("") +
     (devList.length > 1 ? `<button class="gi" id="devKickAll"><span class="ic">🚪</span>退出其他所有设备</button>` : "");
+  // 6.15 最近的安全提醒（服务器自动挡下的异常登录）
+  let ev = [];
+  try { ev = (await CCAuth.rpc("sec_my_events")) || []; } catch (e) { ev = []; }
+  const SEC_KIND = { ua_change: "同一个登录突然在另一种设备上使用，已自动退出", ip_hop: "同一个登录短时间内在很多不同网络上使用，已自动退出", rate_user: "短时间内请求太多，暂时限制了一会儿", banned: "账号被管理员停用" };
+  if (ev.length) box.insertAdjacentHTML("beforeend", `<div class="gi sec-row"><span class="ic">🛡️</span><span class="sx"><span class="sxt">最近的安全提醒</span><small>不是你本人的话，请立刻修改密码</small></span></div>` +
+    ev.slice(0, 5).map((x) => `<div class="gi sec-row"><span class="ic">⚠️</span><span class="sx"><span class="sxt">${esc(SEC_KIND[x.kind] || x.kind)}</span><small>${esc(ago(x.at))}${x.ip ? " · " + esc(x.ip) : ""}</small></span></div>`).join(""));
 }
 document.addEventListener("click", async (e) => {
   const k = e.target.closest("[data-devkick]"), all = e.target.closest("#devKickAll");

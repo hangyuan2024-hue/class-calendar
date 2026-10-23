@@ -9,7 +9,7 @@
   const rd = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
   const wr = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
   const opts = () => ({ on: false, asked: false, lao: true, ...rd(LS_OPTS, {}) });
-  const setOpt = (k, v) => { const o = opts(); o[k] = v; wr(LS_OPTS, o); };
+  const setOpt = (k, v) => { const o = opts(); o[k] = v; if (typeof save === "function") save(LS_OPTS, o); else wr(LS_OPTS, o); };   // 6.15 开关跟着账号同步
   const on = () => opts().on === true;
   const dev = () => (typeof devId === "function" ? devId() : "web");
   let dirty = true, cache = null;
@@ -187,7 +187,7 @@
     ctx() { const c = islandCtx(); return { now: c.now, ranked: IslandCore.rank(c.items, c.courses, c.now), skip: skips() }; },
     record,
     bag: () => rd(C.BAG, null),
-    saveBag(b) { wr(C.BAG, b); dirty = true; try { model(); } catch (e) {} },
+    saveBag(b) { if (typeof save === "function") save(C.BAG, b); else wr(C.BAG, b); dirty = true; try { model(); } catch (e) {} },
     otherBags() { const all = (typeof load === "function" ? load(LS_SYNC, {}) : rd(LS_SYNC, {})) || {}; return Object.keys(all).filter((k) => k !== dev()).map((k) => all[k] && all[k].bag).filter(Boolean); },
     rpc: (n, a) => (typeof CCAuth !== "undefined" && currentUser ? CCAuth.rpc(n, a) : Promise.reject(new Error("off"))),
     cid: () => (typeof currentClass !== "undefined" && currentClass ? currentClass.id : null),

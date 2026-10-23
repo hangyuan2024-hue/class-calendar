@@ -132,7 +132,7 @@ object Flow {
         val all = Kv.obj(Coach.SYNC); val dev = Store.deviceId()
         return mergeBag(myBag(), all.keys().asSequence().filter { it != dev }.mapNotNull { all.optJSONObject(it)?.optJSONObject("bag") }.toList())
     }
-    fun save(b: Bag) { Kv.setQuiet(BAG, b.json()); Coach.touch(); try { Coach.model() } catch (_: Exception) {} }
+    fun save(b: Bag) { Kv.set(BAG, b.json()); Coach.touch(); try { Coach.model() } catch (_: Exception) {} }
     fun wearEmoji(): String = loot(Kv.obj(BAG).optString("wear"))?.e ?: ""
     fun deckNow(): Deck { val c = Island.ctx(); return deck(Island.rank(c.items, c.courses, c.now), System.currentTimeMillis(), Coach.skips()) }
 }
