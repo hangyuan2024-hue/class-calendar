@@ -36,3 +36,13 @@
   [data-skin=fresh] .studio-focus-grid #hero > .hero > .hx { margin-top: auto; margin-bottom: auto; }
   [data-skin=fresh] .studio-focus-grid #hero > .hero > .tl { margin-top: 0; }
 }
+
+/* 6.14 左上角 logo 点了回官网首页；「我的」最上面也有入口（手机上看不到 logo） */
+.rail a.brand { color: inherit; text-decoration: none; cursor: pointer; }
+.rail a.brand:hover .bname { opacity: .8; }
+.me-site { margin-top: 12px; }
+.me-site .gi > span[aria-hidden] { margin-left: auto; color: var(--sub, #8a93a6); font-size: 20px; }
+.me-site .gi { display: flex; align-items: center; gap: 12px; text-decoration: none; color: inherit; }
+.me-site .gi .sx { display: flex; flex-direction: column; align-items: flex-start; text-align: left; gap: 2px; flex: 1; min-width: 0; }
+.me-site .gi .sxt { font-weight: 600; }
+.me-site .gi small { margin: 0; padding: 0; display: block; }

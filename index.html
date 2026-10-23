@@ -1941,7 +1941,7 @@
 <link rel="stylesheet" href="polish.css?v=20261009-tl2">
 <link rel="stylesheet" href="extras.css?v=20261022-v697">
 <link rel="stylesheet" href="study.css?v=20261009-kn2">
-<link rel="stylesheet" href="workspace-fit.css?v=20261023-v712">
+<link rel="stylesheet" href="workspace-fit.css?v=20261023-v714">
 </head>
 <body class="campus-workspace">
 <a class="campus-skip" href="#campus-main">跳到主要内容</a>
@@ -1950,9 +1950,9 @@
 
 <!-- ========== 左侧导航（手机上变成底部标签栏） ========== -->
 <aside class="rail">
-  <div class="brand">
+  <a class="brand" href="app.html" title="回到捞捞官网首页">
     <svg viewBox="0 0 120 120" aria-hidden="true"><use href="#mascotArt"/></svg><span class="bname">捞捞课程表</span>
-  </div>
+  </a>
 
   <nav id="tabs" aria-label="主导航"></nav>
   <button id="addBtn" data-feat="mine" title="添加只自己可见的事项"><span class="plus">＋</span><span class="lbl">记一件事</span></button>
@@ -2239,6 +2239,10 @@
     <header class="vhead"><h2>我的</h2></header>
     <div id="meCard" class="me-card surface"></div>
     <div id="featNotice" class="feat-notice surface hidden"></div>
+    <!-- 6.14 手机上没有别的地方能回到宣传页：放在「我的」最上面 -->
+    <div class="group surface me-site">
+      <a class="gi" href="app.html"><span class="ic">🏠</span><span class="sx"><span class="sxt">捞捞官网首页</span><small>产品介绍、下载 App、捞捞学习和捞捞编程</small></span><span aria-hidden="true">›</span></a>
+    </div>
 
     <div class="sec-h"><b>我的数据</b><span>存在哪里，你说了算</span></div>
     <div class="group surface">
