@@ -1457,7 +1457,7 @@ async function ingestOcrOne(file, say) {
       if (!st.result || typeof st.result.text !== "string") throw new Error("扣子后端还没更新到 5.6.0：请把新的 calendar_routes.py 换上并重新部署");
       return st.result.text;
     }
-    if (st.status === "failed") throw new Error(st.message || "识别失败");
+    if (st.status === "failed") throw new Error(/表头|课表|课程表/.test(st.message || "") ? "服务器把这张截图当成课程表识别了（后台的截图识别设置被重置了，请管理员执行 fix_6_16_ocr.sql）。现在可以先复制文字粘贴进来整理" : st.message || "识别失败");   // 6.16
     say(st.progress || 0);
     if (Date.now() - t0 > 150000) throw new Error("识别超时了，请稍后再试");
   }
