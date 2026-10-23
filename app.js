@@ -3286,7 +3286,8 @@ function renderTabs() {
   if (cur.startsWith("p_") && !pinned) cur = "tools";
   document.body.classList.toggle("is-teacher", teacherMode());
   document.body.classList.toggle("is-work", workMode());
-  const nav = teacherMode() ? NAV.filter(([id]) => id !== "growth").flatMap((x) => x[0] === "home" ? [x, ["teach", "班级情况"]] : [x])
+  // 1.17.2 / 6.13：老师也保留「成长」（签到、排行榜、打卡、云宠都在那），另外多一个「班级情况」
+  const nav = teacherMode() ? NAV.flatMap((x) => x[0] === "home" ? [x, ["teach", "班级情况"]] : [x])
     : overviewMode() ? NAV.flatMap((x) => x[0] === "wall" ? [x, ["teach", "班级情况"]] : [x]) : NAV;
   $("tabs").innerHTML = nav.map(([id, t]) => {
     const unavailable = (id === "plan" && !funOpts().plan) || (id === "ask" && (!laiReady() || !feat("ask"))) || !viewOn(id);
