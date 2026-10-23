@@ -79,7 +79,7 @@
     [/报一下|报给|报到|人数|统计一下/, "通知", 2], [/上课|上机|实验课|(课|节).{0,12}在.{0,14}上$|在.{2,14}上课/, "通知", 2],
     [/注意|提醒|务必|全体|请各位|请大家|各位同学|同学们/, "通知", 1],
     [/(发|交|报|传)(给|到)(学委|班长|课代表|老师|辅导员|团支书|生活委员|组长|我)/, "作业", 2], [/留一下|留下来|开个会|聚一下|碰一下/, "会议", 4],
-    [/拍.{0,4}照|毕业照|合影|集体照/, "活动", 4], [/听课|督导|(不要|别|不得|禁止)迟到/, "通知", 3], [/实习|实训|社会实践|研学|调研|采风/, "活动", 3], [/(考试|考|测验|小测).{0,12}复习|复习.{0,8}(考试|期中|期末|小测|测验)/, "通知", 3],
+    [/拍.{0,4}照|毕业照|合影|集体照/, "活动", 4], [/听课|督导/, "通知", 3], [/(不要|别|不得|禁止)迟到/, "通知", 1], [/实习|实训|社会实践|研学|调研|采风/, "活动", 3], [/(考试|考|测验|小测).{0,12}复习|复习.{0,8}(考试|期中|期末|小测|测验)/, "通知", 3],
     // 6.16 考试周、随堂考；不排课 / 放假；「记得带…」；「下周起每周…」这类安排变化
     [/期中周|期末周|考试周|随堂考|随堂测|(各科|各门).{0,6}(考|测)/, "通知", 5], [/不排课|不上课|没有课|无课/, "通知", 4],
     [/(记得|别忘了?|不要忘了?|千万|一定要?)[^，。！!；;]{0,8}带|带好|带上/, "通知", 3], [/(下周|本周|下个?月|从.{1,10})(起|开始)|以后每|今后/, "通知", 3],
@@ -111,7 +111,7 @@
   const CONT_LINE = /^((?:https?:\/\/|www\.)|(截止|截至)(时间|日期)?(为|是|到|:)?|(填报|提交|报名|上交)(截止|时间|方式|链接|地址)|(链接|网址|附件|二维码|密码|提取码|会议号)\s*(:|为|如下)|【[^】]{0,14}(文档|表单|问卷|腾讯|金山|WPS|石墨|飞书)[^】]{0,14}】)/i;
   const NOTICE_TITLE = /^(转发[:：]?)?(关于.{2,50}的?(通知|安排|公告|提醒)[。:：]?|【[^】]{2,20}(通知|公告|安排)】.{0,30}|.{0,24}(通知|公告)[:：]?)$/;
   function stripNoise(t) {
-    return String(t || "").replace(/\[[^\]]{1,8}\]/g, "").replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, "").trim();
+    return String(t || "").replace(/\[[^\]]{1,8}\]/g, "").replace(/[\u{1F000}-\u{1FAFF}\u{2300}-\u{23FF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]/gu, "").trim();
   }
   function isChatter(t) {
     const raw = String(t || "").trim(), s = stripNoise(raw).replace(/^@\S+\s*/g, "").trim();
@@ -133,8 +133,16 @@
     return true;
   }
   function cleanSender(s) { return String(s || "").replace(/【[^】]*】|\[[^\]]*\]/g, "").replace(/[(（<][^)）>]*[)）>]/g, "").trim(); }
+  // 6.16 海报式通知：「⏰时间：…」「📍地点：…」「📖主题：…」一行一项，前面常带表情符号
+  const lineCore = (l) => String(l || "").trim().replace(/^[^一-龥A-Za-z0-9【\[（(“"《]+/, "");
   function splitMessages(text) {
     const lines = normalize(text).replace(/\r/g, "").split("\n");
+    // 整段没有「发送人 时间」行，又有两项以上「时间：」「地点：」「主题：」，而且只写了一个时间：整段就是一条通知，不按行拆
+    if (!lines.some((l) => HEADER_QQ.test(l.trim()) || HEADER.test(l.trim()))) {
+      const fields = lines.filter((l) => FIELD_LINE.test(lineCore(l)));
+      const times = fields.filter((l) => /^(时间|日期|活动时间|会议时间|考试时间|报名时间|截止|截止时间|截止日期)\s*[:：]/.test(lineCore(l)));
+      if (fields.length >= 2 && times.length <= 1) return [{ sender: "", date: "", text: lines.map((l) => l.trim()).filter(Boolean).join("\n") }];
+    }
     const msgs = []; let cur = null, sawHeader = false, blank = false, held = "";
     const flush = () => { if (cur && cur.lines.length) msgs.push(cur); cur = null; };
     for (const raw of lines) {
@@ -154,7 +162,7 @@
       if (m && looksLikeName(m[1])) { sender = cleanSender(m[1]); body = m[2]; }
       if (!sawHeader) {
         // 没有发送人行的复制格式：每一行当作一条消息；「地点：xxx」这类补充说明并到上一条
-        if ((FIELD_LINE.test(line) || CONT_LINE.test(line)) && msgs.length) { msgs[msgs.length - 1].lines.push(line); blank = false; continue; }
+        if ((FIELD_LINE.test(lineCore(line)) || CONT_LINE.test(lineCore(line))) && msgs.length) { msgs[msgs.length - 1].lines.push(line); blank = false; continue; }
         // 6.8 只有会议号的一行（「腾讯会议：123 456 789」）：是下一句话的会议号
         if (ONLINE.test(line) && !/[一-龥]{2,}/.test(line.replace(ONLINE, ""))) { held = (held ? held + "\n" : "") + line; continue; }
         if (held) { body = held + "\n" + body; held = ""; }
@@ -453,7 +461,7 @@
     for (const [re, name] of COURSES) if (re.test(t)) return name;
     return "";
   }
-  const TITLE_WORDS = /([一-龥]{0,8}大会|年级大会|主题班会|班委会议|班委会|支部大会|班会|党课|团日活动|组会|例会|开会|[一-龥]{0,6}(?:比赛|竞赛|晚会|运动会|讲座|分享会|招新|面试|培训|演练|彩排|开幕式)(?:报名)?|查寝|体测|晨读|跑操|点名|评教|选课|停课|调课|补课|闭馆|读书会|英语角|聚餐|观影|团建|社会实践(?!报告|心得|总结)|实习(?!报告|心得|总结)|课设|课程设计|毕业照|升旗|献血|返校|离校|(?:(?![周天日月号点午晚早今明后有在是])[一-龥]){0,4}考试|测验|缴费|领教材|领取学生证)/;
+  const TITLE_WORDS = /([一-龥]{0,8}大会|年级大会|主题班会|班委会议|班委会|支部大会|班会|党课|团日活动|组会|例会|开会|[一-龥]{0,6}(?:比赛|竞赛|晚会|运动会|讲座|分享会|报告会|宣讲会|交流会|论坛|沙龙|招新|面试|培训|演练|彩排|开幕式)(?:报名)?|查寝|体测|晨读|跑操|点名|评教|选课|停课|调课|补课|闭馆|读书会|英语角|聚餐|观影|团建|社会实践(?!报告|心得|总结)|实习(?!报告|心得|总结)|课设|课程设计|毕业照|升旗|献血|返校|离校|(?:(?![周天日月号点午晚早今明后有在是])[一-龥]){0,4}考试|测验|缴费|领教材|领取学生证)/;
   // 6.6 开头的连接词、称呼、语气词：不是事情本身
   const LEAD_JUNK = /^(截至|截止到?|之前|以前|每个人|每人|所有人|另外|还有|然后|同时|并且|此外|以及|另|再|最后|首先|其次|补充一下|补充|提醒一下|提醒|注意|重要|紧急|通知|请|麻烦|各班班长|各班|各位同学注意|各位同学|各位|同学们|全体同学|同学|大家|记得|务必|一定要|一定|需要|必须|要|都|就|也|还|先)[，,：:\s]*/;
   function stripLead(s) { let prev; do { prev = s; s = s.replace(LEAD_JUNK, ""); } while (s !== prev && s); return s; }
@@ -482,7 +490,9 @@
     let k = t.match(TITLE_WORDS);
     if (k && /(不能|无法|不得|不可|才能|才可以|方可|否则)(参加|进入|报名)?$/.test(t.slice(0, k.index + k[1].length).replace(/(考试|测验)$/, ""))) k = null;   // 6.16「…将不能参加考试」
     // 「下周一没课班级去参加讲座」：关键词前面最多带几个修饰字，取最后一个动词后面的部分
-    if (k) { let w = k[1]; const cut = w.match(/^.*(?:参加|参与|去|到|在|开|召开|举办|举行|开展|组织|进行|有|听|观看|看)(?=[一-龥])/); if (cut && cut[0].length < w.length - 1) w = w.slice(cut[0].length); w = w.replace(/^(召开|举办|举行|开展|组织|参加|进行|有)/, ""); if (/^[级届]/.test(w)) { const yr = t.slice(0, k.index + k[1].indexOf(w)).match(/(\d{2,4})$/); w = yr ? yr[1] + w : w.slice(1); } return w.slice(0, 14); }
+    if (k) { let w = k[1].replace(/^[第]?[一二三四五六七八九十百\d]*期/, "");
+      const th = t.match(/主题\s*[:：]\s*([^\s，。；;！!]{2,40})/);
+      if (th && /(会|讲座|论坛|沙龙|培训|活动|比赛|竞赛)$/.test(w) && w.length >= 3) return (w + "：" + th[1].replace(/[“”"「」《》]/g, "").trim()).slice(0, 32); const cut = w.match(/^.*(?:参加|参与|去|到|在|开|召开|举办|举行|开展|组织|进行|有|听|观看|看)(?=[一-龥])/); if (cut && cut[0].length < w.length - 1) w = w.slice(cut[0].length); w = w.replace(/^(召开|举办|举行|开展|组织|参加|进行|有)/, ""); if (/^[级届]/.test(w)) { const yr = t.slice(0, k.index + k[1].indexOf(w)).match(/(\d{2,4})$/); w = yr ? yr[1] + w : w.slice(1); } return w.slice(0, 14); }
     let s = t;
     if (loc) s = s.split(loc).join("");
     s = s.replace(/【[^】]*】|^(通知|提醒|注意|重要|紧急|温馨提示)[:：]?|辅导员通知[:：]?/g, "")
@@ -532,7 +542,7 @@
   // 6.6 详细内容：去掉「收到请回复」、@、署名这些不是事情本身的话（内容本身一个字不删，不截断）
   const NOISE_CLAUSE = /^(收到(请|的)?(回复|接龙|扣1|扣1|回1)?|请?回复收到|收到请回复|收到的?请?扣?[1１]|大家互相转告|互相转告|谢谢(大家|配合)?|辛苦了?|感谢配合|望周知|特此通知|以上|如上)[！!。.~～]*$/;
   function tidy(seg) {
-    let s = String(seg || "").replace(/@\S+\s?/g, "").replace(/^【[^】]{1,12}】\s*/, "").replace(/^(提醒|通知|温馨提示|重要通知|紧急通知|重要提醒)\s*[:：]\s*/, "").replace(/^(各位同学|同学们|大家|各位)[，,：:]\s*/, "");
+    let s = String(seg || "").replace(/@\S+\s?/g, "").replace(/^【[^】]{1,12}】\s*/, "").replace(/^(提醒|通知|温馨提示|重要通知|紧急通知|重要提醒)\s*[:：]\s*/, "").replace(/^(各位同学|同学们|大家|各位)[，,：:]\s*/, "").replace(/^(大家好|你们好|大家晚上好|大家下午好|大家上午好)[！!，,。\s]*/, "");
     s = s.replace(/[，,。\s]*(——|--|－－)?\s*(辅导员|班主任|班长|学委|团支书|老师)?\s*[一-龥]{1,3}(老师|辅导员)\s*$/, "");   // 结尾的署名「辅导员 王老师」
     const parts = s.match(/[^，,。；;！!]+[，,。；;！!]*|[，,。；;！!]+/g) || [s];
     s = parts.filter((p) => !NOISE_CLAUSE.test(p.replace(/[，,。；;！!\s]+$/g, "").trim())).join("");
@@ -540,7 +550,7 @@
     return s.trim() || String(seg || "").trim();
   }
   function clean(t) {
-    return normalize(t).replace(/@\S+\s?/g, "").replace(/\[[^\]]{1,8}\]/g, "").replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, "")
+    return normalize(t).replace(/@\S+\s?/g, "").replace(/\[[^\]]{1,8}\]/g, "").replace(/[\u{1F000}-\u{1FAFF}\u{2300}-\u{23FF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]/gu, "")
       .replace(/^\s*(\d{1,2}[.、)）](?!\d)|[①②③④⑤⑥⑦⑧⑨⑩]|[-*•·#])\s*/, "").replace(/\s+/g, " ").trim();
   }
 
@@ -671,7 +681,8 @@
     typeText = typeText.replace(ONLINE, " ").replace(new RegExp(REF_CLAUSE.source, "g"), " ").replace(/〔链接〕|【[^】]{0,20}】/g, " ")
       .replace(/(带好|带上|请带|携带|自备|记得带|需带|需要带)[^，。,；;！!\n]{1,14}/g, " ");      // 6.8「带好身份证」是要带的东西，不说明这是什么事     // 「报告厅」「活动中心」这些地名不参与判断类型
     let focus = null;
-    if (pick && typeText.length > 60) {
+    const poster = (t.match(/(时间|地点|主题|内容|对象|形式)\s*[:：]/g) || []).length >= 2;     // 6.16 海报式通知：标题行最要紧，不能只看时间那一行
+    if (pick && typeText.length > 60 && !poster) {
       const ds = t.substr(pick.i, pick.len);
       focus = splitAfter(typeText, /([。；;！!\n])/g).find((p) => p.includes(ds)) || null;
     }
@@ -875,8 +886,11 @@
         }
         function mk(tp) {
           let summary = putLinks(tidy(segT));
+          // 6.16 海报式通知（一行一项）：内容保留原来的分行，去掉表情符号，看起来和原通知一样清楚
+          const rawLines = raw.split("\n").map((l) => l.replace(/[\u{1F000}-\u{1FAFF}\u{2300}-\u{23FF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]/gu, "").trim()).filter(Boolean);
+          if (events.length === 1 && rawLines.filter((l) => FIELD_LINE.test(lineCore(l))).length >= 2) summary = putLinks(rawLines.filter((l, i) => !(i === 0 && /^(各位同学|同学们|大家|各位)?[，,]?\s*(大家好|你们好)?[！!，,。]*$/.test(l))).join("\n"));
           // 6.8 长通知：第一句先说要点（做什么、什么时候前），后面是原文
-          if (summary.length > 80 && day) { const sj = titleOf(segT, tp, course, loc), due = /截止|截至|之前|以前|前(交|提交|完成|填|上交|报)/.test(segT); summary = `要点：${sj}，${whenText(day + (time ? " " + time : ""), pub)}${due ? "前完成" : ""}。` + summary; }
+          if (summary.length > 80 && day) { const sj = titleOf(segT, tp, course, loc), due = /截止|截至|之前|以前|前(交|提交|完成|填|上交|报)/.test(segT); summary = `要点：${sj}，${whenText(day + (time ? " " + time : ""), pub)}${due ? "前完成" : ""}。` + (summary.includes("\n") ? "\n" : "") + summary; }
           summary = summary.slice(0, 1000);   // 6.2 不再截断成「……」，内容要完整；6.6 去掉「收到请回复」、署名
           return {
             msg_type: tp, subject: ev.titleHint || (model && model.subjectFor && model.subjectFor(segT, tp)) || titleOf(segT, tp, course, loc), summary,
