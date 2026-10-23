@@ -12,7 +12,7 @@
   .v7-machine { transform: scale(1.08); transform-origin: 100% 50%; }
 }
 @media (min-width: 1440px) {
-  .v7-machine { transform: scale(1.14); }
+  .v7-machine { transform: scale(1.08); }
 }
 
 /* ---------- 作品展映：视频底下垫封面图 ---------- */
@@ -173,3 +173,99 @@ body.v8-board { background: var(--paper, #f3f6fc); }
 }
 .v8-board .bd-who { display: block; line-height: 1.8; }
 .v8-board .bd-who .dot { display: inline-block; margin-right: 8px; vertical-align: middle; }
+
+/* =========================================================================
+ * 6.11 首屏：「群消息瀑布 → 立体课表」
+ *   背景是三列一直往上刷的班级群消息（远近三层），中间一条扫描带；重要的消息经过时被「捞」出来亮起薄荷绿。
+ *   右边的周课表立起来、边缘发光，跟着鼠标轻轻转；底部一道地平线光边过渡到下面的浅色区域。
+ * ========================================================================= */
+.v7-hero { --px: 0; --py: 0; background: radial-gradient(70% 70% at 78% 30%, #1f3285 0%, rgba(31, 50, 133, 0) 60%), radial-gradient(60% 60% at 10% 100%, #13235e 0%, rgba(19, 35, 94, 0) 70%), #070d24; isolation: isolate; }
+.v7-hero-in { z-index: 2; }
+
+/* 标题：整句一束光，从白到冷蓝 */
+.v7-copy h1 { font-size: clamp(46px, 5.6vw, 92px); line-height: 1.06; background: linear-gradient(180deg, #ffffff 30%, #a9b9ff 115%); -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 10px 40px rgba(76, 111, 255, .35)); }
+.v7-lead { color: #c1cbef; max-width: 30em; }
+
+/* ---------- 群消息瀑布 ---------- */
+.v9-river { position: absolute; inset: 0 0 0 40%; display: grid; grid-template-columns: 1fr 1.15fr 1fr; gap: clamp(12px, 2vw, 28px); padding: 0 clamp(12px, 3vw, 48px); z-index: 0; pointer-events: none; overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 22%, #000 100%), linear-gradient(180deg, transparent 0, #000 16%, #000 84%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 22%, #000 100%), linear-gradient(180deg, transparent 0, #000 16%, #000 84%, transparent 100%);
+  -webkit-mask-composite: source-in; mask-composite: intersect; }
+.v9-col { position: relative; overflow: hidden; }
+.v9-track { display: flex; flex-direction: column; gap: 14px; animation: v9up 46s linear infinite; will-change: transform; }
+.v9-col:nth-child(1) .v9-track { animation-duration: 58s; }
+.v9-col:nth-child(3) .v9-track { animation-duration: 40s; animation-delay: -12s; }
+.v9-col:nth-child(1) { opacity: .5; filter: blur(.6px); transform: scale(.88); transform-origin: top center; }
+.v9-col:nth-child(2) { opacity: .78; }
+.v9-col:nth-child(3) { opacity: .42; filter: blur(1.2px); transform: scale(.8); transform-origin: top center; }
+@keyframes v9up { to { transform: translateY(-50%); } }
+.v7-hero.v9-pause .v9-track { animation-play-state: paused; }
+.v9-b { position: relative; align-self: flex-start; max-width: 100%; margin: 0; padding: 8px 12px; border-radius: 4px 14px 14px 14px; font-size: 13px; line-height: 1.55; color: rgba(214, 222, 255, .7);
+  background: rgba(130, 150, 230, .1); border: 1px solid rgba(140, 165, 255, .12); transition: background .35s, color .35s, border-color .35s, box-shadow .35s, transform .35s; }
+.v9-b:nth-child(3n) { align-self: flex-end; border-radius: 14px 4px 14px 14px; }
+.v9-b b { display: block; font-size: 11px; font-weight: 600; color: rgba(165, 180, 240, .7); margin-bottom: 2px; }
+.v9-b i { position: absolute; right: 10px; top: -10px; font-style: normal; font-size: 10.5px; font-weight: 800; padding: 2px 8px; border-radius: 99px; background: var(--mint-hi, #2fd4a7); color: #04261c; opacity: 0; transform: translateY(4px); transition: opacity .3s, transform .3s; }
+.v9-b.key.hit { color: #eafff8; background: rgba(47, 212, 167, .16); border-color: rgba(47, 212, 167, .65); box-shadow: 0 0 0 1px rgba(47, 212, 167, .25), 0 0 34px -6px rgba(47, 212, 167, .7); transform: scale(1.03); }
+.v9-b.key.hit b { color: #8ff0d2; }
+.v9-b.key.hit i { opacity: 1; transform: none; }
+/* 扫描带 */
+.v9-band { position: absolute; left: 0; right: 0; top: 19%; height: 64px; pointer-events: none;
+  background: linear-gradient(180deg, transparent, rgba(76, 111, 255, .12) 45%, rgba(47, 212, 167, .14) 55%, transparent); }
+.v9-band::before, .v9-band::after { content: ""; position: absolute; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, rgba(124, 150, 255, .9) 30%, rgba(47, 212, 167, .9) 70%, transparent); }
+.v9-band::before { top: 0; } .v9-band::after { bottom: 0; opacity: .5; }
+.v9-band span { position: absolute; left: 24%; top: -13px; padding: 4px 12px; border-radius: 99px; font-size: 11px; letter-spacing: .08em; color: #8ff0d2; background: rgba(7, 13, 36, .92); border: 1px solid rgba(47, 212, 167, .45); box-shadow: 0 0 20px -4px rgba(47, 212, 167, .6); }
+.v9-band span::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: var(--mint-hi, #2fd4a7); box-shadow: 0 0 10px var(--mint-hi, #2fd4a7); animation: v9blink 1.6s ease-in-out infinite; vertical-align: 1px; }
+@keyframes v9blink { 50% { opacity: .3; } }
+
+/* ---------- 地平线：首屏底部一道光边 ---------- */
+.v9-horizon { position: absolute; left: 0; right: 0; bottom: 0; height: 160px; z-index: 1; pointer-events: none;
+  background: radial-gradient(60% 100% at 60% 100%, rgba(76, 111, 255, .35), transparent 70%); }
+.v9-horizon::after { content: ""; position: absolute; left: 8%; right: 8%; bottom: 0; height: 1px; background: linear-gradient(90deg, transparent, #7d96ff 25%, #2fd4a7 60%, transparent); box-shadow: 0 0 18px 1px rgba(125, 150, 255, .6); }
+
+/* ---------- 立体课表、消息卡片、光束 ---------- */
+@media (min-width: 981px) {
+  .v7-machine { perspective: 1400px; }
+  .v7-week { transform-style: preserve-3d; transform: rotateY(calc(-16deg + var(--px) * 7deg)) rotateX(calc(9deg - var(--py) * 6deg)) translateZ(0);
+    transition: transform .25s ease-out; background: linear-gradient(160deg, rgba(40, 58, 140, .55), rgba(10, 18, 52, .75)); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    border-color: rgba(140, 165, 255, .32); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12), 0 0 0 1px rgba(76, 111, 255, .12), 0 50px 100px -30px rgba(0, 0, 0, .7), 0 0 80px -20px rgba(76, 111, 255, .55); }
+  .v7-week::after { content: ""; position: absolute; left: 10%; right: 10%; bottom: -46px; height: 40px; border-radius: 50%; background: radial-gradient(closest-side, rgba(76, 111, 255, .45), transparent); filter: blur(6px); pointer-events: none; }
+  .v7-chat { transform: rotateY(calc(10deg + var(--px) * 5deg)) rotateX(calc(4deg - var(--py) * 4deg)) translateZ(30px); transition: transform .25s ease-out;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, .5), 0 30px 70px -24px rgba(0, 0, 0, .75), 0 0 60px -20px rgba(125, 150, 255, .6); }
+  .v7-c.ev { box-shadow: 0 10px 24px -8px rgba(0, 0, 0, .55), 0 0 22px -4px currentColor; }
+  .v7-c.meet { color: #1a1240; box-shadow: 0 10px 24px -8px rgba(0, 0, 0, .55), 0 0 26px -2px rgba(185, 167, 255, .8); }
+  .v7-c.hw { box-shadow: 0 10px 24px -8px rgba(0, 0, 0, .55), 0 0 26px -2px rgba(255, 154, 98, .8); }
+  .v7-c.ck { box-shadow: 0 10px 24px -8px rgba(0, 0, 0, .55), 0 0 26px -2px rgba(47, 212, 167, .8); }
+  /* 消息卡片 → 课表：一道光束，光点沿着它跑 */
+  .v7-flow { position: relative; height: 4px; display: block; }
+  .v7-flow::before { content: ""; position: absolute; left: -14px; right: -14px; top: 1px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, rgba(125, 150, 255, .2), rgba(125, 150, 255, .9), rgba(47, 212, 167, .9)); box-shadow: 0 0 12px rgba(125, 150, 255, .8); }
+  .v7-flow i { position: absolute; top: -2px; left: -14px; width: 8px; height: 8px; border-radius: 50%; background: #fff; box-shadow: 0 0 12px 3px rgba(125, 150, 255, .9); animation: v9packet 1.8s linear infinite; }
+  .v7-flow i:nth-child(2) { animation-delay: .6s; } .v7-flow i:nth-child(3) { animation-delay: 1.2s; }
+  .v7-machine.play .v7-flow i, .v7-machine.done .v7-flow i { animation: v9packet 1.8s linear infinite; background: #fff; }
+  .v7-machine.play .v7-flow i:nth-child(2), .v7-machine.done .v7-flow i:nth-child(2) { animation-delay: .6s; }
+  .v7-machine.play .v7-flow i:nth-child(3), .v7-machine.done .v7-flow i:nth-child(3) { animation-delay: 1.2s; }
+  @keyframes v9packet { 0% { transform: translateX(0) scale(.6); opacity: 0; } 15% { opacity: 1; } 85% { opacity: 1; } 100% { transform: translateX(54px) scale(1); opacity: 0; } }
+}
+
+/* ---------- 手机、平板：瀑布铺满整个首屏背景，淡一些；不转、不放大 ---------- */
+@media (max-width: 980px) {
+  .v9-river { inset: 0; grid-template-columns: 1fr 1fr; opacity: .5; -webkit-mask-image: linear-gradient(180deg, transparent 0, transparent 46%, #000 58%, #000 88%, transparent 100%); mask-image: linear-gradient(180deg, transparent 0, transparent 46%, #000 58%, #000 88%, transparent 100%); }
+  .v9-col:nth-child(3) { display: none; }
+  .v9-band { top: 54%; }
+  .v9-band span { left: auto; right: 16px; }
+  .v7-week { background: rgba(10, 18, 52, .92); }
+  .v7-copy h1 { font-size: clamp(40px, 11vw, 58px); }
+}
+/* 减少动态效果：瀑布停住，几条重要消息直接亮着 */
+.v7-hero.v9-still .v9-track { animation: none; }
+.v7-hero.v9-still .v9-b.key { color: #eafff8; background: rgba(47, 212, 167, .14); border-color: rgba(47, 212, 167, .5); }
+@media (prefers-reduced-motion: reduce) {
+  .v9-track, .v7-flow i, .v9-band span::before { animation: none !important; }
+  .v7-week, .v7-chat { transition: none; }
+}
+
+/* 6.11 首屏下面的浅色区域：铺一层很淡的课表网格（和首屏背景同一个网格），整页是一套东西 */
+body.studio-public:not(.v8-board) #main { background-image: linear-gradient(rgba(76, 111, 255, .055) 1px, transparent 1px), linear-gradient(90deg, rgba(76, 111, 255, .055) 1px, transparent 1px);
+  background-size: 100% 64px, calc(100% / 10) 64px; background-position: 0 0, 0 0; }
+body.v8-board .bd-main { background-image: linear-gradient(rgba(76, 111, 255, .055) 1px, transparent 1px), linear-gradient(90deg, rgba(76, 111, 255, .055) 1px, transparent 1px);
+  background-size: 100% 64px, calc(100% / 10) 64px; }
