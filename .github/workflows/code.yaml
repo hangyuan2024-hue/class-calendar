@@ -170,3 +170,33 @@ jobs:
           } else {
             gh release create laolao-code coder\dist\LaolaoCode-Setup.exe --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "捞捞编程 Windows 版 $v" --notes $notes --latest=false
           }
+
+      # 6.16：写官网的 download/code-version.json —— 捞捞编程「检查更新」读的就是这个文件（以前没写，所以显示 404）
+      - name: 更新官网的捞捞编程版本号
+        shell: bash
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          V="1.0.${{ github.run_number }}"
+          SRC="${GITHUB_WORKSPACE}/coder/dist/LaolaoCode-Setup.exe"
+          SIZE=$(stat -c %s "$SRC" 2>/dev/null || wc -c < "$SRC")
+          SHA=$(sha256sum "$SRC" | cut -d' ' -f1)
+          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/laolao-code/LaolaoCode-Setup.exe"
+          PUB="${RUNNER_TEMP}/code-publish"
+          git fetch --no-tags origin "$BRANCH"
+          git worktree add --detach "$PUB" FETCH_HEAD
+          git -C "$PUB" config user.name "github-actions[bot]"
+          git -C "$PUB" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for ATTEMPT in 1 2 3; do
+            if [ "$ATTEMPT" -gt 1 ]; then git fetch --no-tags origin "$BRANCH"; git -C "$PUB" reset --hard FETCH_HEAD; fi
+            mkdir -p "$PUB/download"
+            echo "{\"version\": \"${V}\", \"url\": \"${URL}\", \"size\": ${SIZE}, \"sha256\": \"${SHA}\", \"notes\": \"捞捞编程 ${V}\", \"at\": \"$(date -u +%FT%TZ)\"}" > "$PUB/download/code-version.json"
+            cat "$PUB/download/code-version.json"
+            git -C "$PUB" add -- download/code-version.json
+            if git -C "$PUB" diff --cached --quiet; then echo "已经是最新"; exit 0; fi
+            git -C "$PUB" commit -m "捞捞编程 ${V}"
+            if git -C "$PUB" push origin "HEAD:${BRANCH}"; then exit 0; fi
+          done
+          echo "::error::安装包已经发布到 Releases，但更新官网版本号失败"
+          exit 1
