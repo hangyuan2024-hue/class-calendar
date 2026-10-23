@@ -1,5 +1,6 @@
 # 安卓 App 7.0（全新重做，代码在 laolao-android 文件夹）：打包 → 发布到 Releases → 更新官网下载（download/app-version.json）
-# 签名用仓库里的 android/release.jks 和 Secrets 里的 KEYSTORE_PASSWORD（和以前同一个签名，老用户可以直接覆盖安装）。
+# 签名文件放在 Secrets 里的 KEYSTORE_BASE64（release.jks 的 base64），密码在 KEYSTORE_PASSWORD；打包时临时还原成 android/release.jks，
+# 用完就删，不再放在公开仓库里（和以前同一个签名，老用户可以直接覆盖安装）。没设 KEYSTORE_BASE64 时退回用仓库里的旧文件。
 # 版本号：versionCode = 700 + 第几次运行（一定比 6.x 大），版本名 7.0.第几次运行。
 name: 安卓 App
 
@@ -34,11 +35,23 @@ jobs:
           echo "code=$((700 + ${{ github.run_number }}))" >> "$GITHUB_OUTPUT"
           echo "name=7.0.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
 
+      - name: 还原签名文件（从 Secrets）
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            mkdir -p android
+            printf '%s' "$KEYSTORE_BASE64" | tr -d ' \r\n' | base64 -d > android/release.jks
+            echo "已从 Secrets 还原签名文件（$(wc -c < android/release.jks) 字节）"
+          else
+            echo "::warning::没设 KEYSTORE_BASE64，用仓库里的 android/release.jks。签名文件放在公开仓库不安全，请尽快改用 Secrets。"
+          fi
+
       - name: 检查正式签名
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: |
-          test -f android/release.jks || { echo "::error::仓库里缺少 android/release.jks（签名文件），不能生成能覆盖旧版的正式安装包。"; exit 1; }
+          test -f android/release.jks || { echo "::error::缺少签名文件：请在 Settings → Secrets and variables → Actions 里添加 KEYSTORE_BASE64（release.jks 的 base64）。"; exit 1; }
           test -n "$KEYSTORE_PASSWORD" || { echo "::error::缺少 KEYSTORE_PASSWORD。请在 Settings → Secrets and variables → Actions 里添加。"; exit 1; }
 
       - name: 测试并打包
