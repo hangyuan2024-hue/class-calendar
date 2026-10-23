@@ -35,7 +35,7 @@
       var media = x.type === "video"
         ? '<video class="h6-video" muted playsinline preload="' + (i ? "none" : "metadata") + '" data-src="' + esc(pickSrc(x)) + '"' + (safeUrl(x.poster) ? ' poster="' + esc(safeUrl(x.poster)) + '"' : "") + '></video>' + (x.sound === false ? "" : '<button class="h6-sound" type="button" aria-label="打开声音">🔇</button>')
         : ART[x.art];
-      return '<figure class="h6-slide' + (x.type === "video" ? " is-video" : "") + '" role="group" aria-roledescription="作品" aria-label="' + (i + 1) + ' / ' + list.length + '" data-i="' + i + '">' +
+      return '<figure class="h6-slide' + (x.type === "video" ? " is-video" : "") + (i === 0 ? " on" : "") + '" role="group" aria-roledescription="作品" aria-label="' + (i + 1) + ' / ' + list.length + '" data-i="' + i + '">' +
         // 6.10 视频放不出来（浏览器不支持、微信里被拦、网络慢）时，底下垫着封面图，不会空白一片
         '<div class="h6-media"' + (x.type === "video" && safeUrl(x.poster) ? ' style="background-image:url(\'' + esc(safeUrl(x.poster)) + '\')"' : "") + '>' + media + '</div>' +
         '<figcaption><span class="h6-tag">' + esc(x.tag || (x.type === "video" ? "视频" : "功能")) + '</span><h3>' + esc(x.title) + '</h3><p>' + esc(x.desc) + '</p></figcaption></figure>';
@@ -80,6 +80,9 @@
       var d = dots[cur]; if (d) { d.classList.remove("on"); void d.offsetWidth; d.classList.add("on"); }
       if (!paused && !hover && visible) timer = setTimeout(function () { go(cur + 1); }, DUR);
     }
+    // 6.16 先把第一张亮出来，后面绑事件哪一步出错（老浏览器、网络慢导致的异常）也不会整块空白
+    try { go(0, true); } catch (e) {}
+    try {
     $("h6Prev").onclick = function () { go(cur - 1, true); };
     $("h6Next").onclick = function () { go(cur + 1, true); };
     dotsBox.onclick = function (e) { var b = e.target.closest("button"); if (b) go(+b.getAttribute("data-i"), true); };
@@ -106,7 +109,8 @@
       visible = es[0].isIntersecting && !document.hidden; var v = vidOf(cur); if (v && !visible) v.pause(); schedule();
     }, { threshold: 0.25 }).observe(stage);
     if (reduce) { pb.textContent = "▶"; pb.setAttribute("aria-label", "继续自动播放"); }
-    go(0, true);
+    } catch (e) {}
+    if (cur < 0) try { go(0, true); } catch (e) {}
   })();
 
   // ---------- 团队 ----------

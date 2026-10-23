@@ -269,3 +269,6 @@ body.studio-public:not(.v8-board) #main { background-image: linear-gradient(rgba
   background-size: 100% 64px, calc(100% / 10) 64px; background-position: 0 0, 0 0; }
 body.v8-board .bd-main { background-image: linear-gradient(rgba(76, 111, 255, .055) 1px, transparent 1px), linear-gradient(90deg, rgba(76, 111, 255, .055) 1px, transparent 1px);
   background-size: 100% 64px, calc(100% / 10) 64px; }
+
+/* 6.16 脚本没加载出来（网络差）时，不留一块空白的展映区 */
+#showcase:has(.h6-track:empty) { display: none; }
