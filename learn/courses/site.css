@@ -58,3 +58,8 @@ html[data-tone=dark] { color-scheme: dark; }
 input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]), textarea, select { background-color: var(--kc-ffffff, #fff); color: var(--lb-ink); border-color: var(--lb-line); }
 input::placeholder, textarea::placeholder { color: var(--kc-8a93a5, #8a93a5); }
 html[data-tone=dark] .learn-sync-chip { background: color-mix(in srgb, var(--lb-bg) 92%, transparent) !important; color: var(--lb-sub) !important; border-color: var(--lb-line) !important; }
+
+/* ---------- 嵌在捞捞课程表里：顶栏只留「从课表导入」，没东西时整条不占地方 ---------- */
+html.learn-in-app .learn-bar { padding: 4px 12px; border-bottom: 0; background: transparent; }
+html.learn-in-app .learn-bar:not(:has(#learnImport:not([hidden]))) { display: none; }
+@media (min-width: 900px) { html.learn-in-app body > div[id$="Page"] > .header { border-radius: 0 0 14px 14px; } }

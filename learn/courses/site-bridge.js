@@ -37,8 +37,11 @@
       '<span class="lb-sp"></span><button type="button" id="learnImport" hidden>' + svg("imp") + '从课表导入课程</button>' +
       '<button type="button" class="lb-tone" id="learnTone" title="切换深浅色（和网站的外观设置是同一份）"></button>';
     document.body.prepend(b);
+    // 嵌在捞捞课程表的「学习」页里（?host=app）：离开本页的链接和深浅色按钮都不要，外观跟着课程表走
+    if (/[?&]host=app\b/.test(location.search)) { document.documentElement.classList.add("learn-in-app"); b.querySelectorAll("a, .lb-sep, #learnTone").forEach(function (n) { n.remove(); }); }
     $("learnImport").onclick = importTimetable;
     var tone = function () { var st = window.LearnTheme ? LearnTheme.state() : { dark: false }; $("learnTone").innerHTML = svg(st.dark ? "sun" : "moon") + (st.dark ? "浅色" : "深色"); };
+    if (!$("learnTone")) return;
     $("learnTone").onclick = function () { if (window.LearnTheme) LearnTheme.toggle(); tone(); };
     window.addEventListener("learn-theme", tone);
     tone();
