@@ -7,7 +7,7 @@
   "use strict";
   if (window.LearnSync) return;
   var API = new URL("api/__sync/", location.href).href;            // 当前工具目录下的 api/__sync/（同一个 Service Worker）
-  var BIG = 5 * 1024 * 1024;                                        // 单个文件超过 5MB 只留在本机
+  var SMALL = 5 * 1024 * 1024, PART = 4 * 1024 * 1024, BIG = 50 * 1024 * 1024;   // ≤5MB 一次传；更大的分 4MB 一块传；超过 50MB 只留在本机
   var auth = function () { return window.MM_CCAUTH || window.CCAuth || null; };
   var listeners = [], running = null, again = false, timer = 0, lastOk = 0, lastErr = "", state = "idle", skipped = 0, firstDone;
   var ready = new Promise(function (r) { firstDone = r; });
@@ -74,7 +74,13 @@
       while (j < downs.length && (batch.length === 0 || (batch.length < 20 && size + (R[downs[j]].size || 0) < 8 * 1024 * 1024))) { size += R[downs[j]].size || 0; batch.push(downs[j++]); }
       var got = (await A.rpc("learn_fs_get", { p_paths: batch })) || [];
       for (var k = 0; k < got.length; k++) {
-        await swFetch("file?p=" + encodeURIComponent(got[k].p), { method: "PUT", body: unb64(got[k].data || "") });
+        var bytes;
+        if (got[k].parts > 0) {   // 大文件：一块块取回来再拼
+          var chunks = [], total = 0;
+          for (var q = 0; q < got[k].parts; q++) { var part = await A.rpc("learn_fs_get_part", { p_path: got[k].p, p_idx: q }); var u8 = unb64(part && part.data || ""); chunks.push(u8); total += u8.length; }
+          bytes = new Uint8Array(total); var off = 0; chunks.forEach(function (c) { bytes.set(c, off); off += c.length; });
+        } else bytes = unb64(got[k].data || "");
+        await swFetch("file?p=" + encodeURIComponent(got[k].p), { method: "PUT", body: bytes });
         base[got[k].p] = got[k].sha; changedLocal = true;
       }
       saveBase(id, base);
@@ -88,7 +94,17 @@
       if (L[p1].size > BIG) { skipped++; continue; }
       var buf = await (await swFetch("file?p=" + encodeURIComponent(p1))).arrayBuffer();
       var sha = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", buf)), function (x) { return (x < 16 ? "0" : "") + x.toString(16); }).join("");
-      await A.rpc("learn_fs_put", { p_path: p1, p_sha: sha, p_data: b64(buf) });
+      if (buf.byteLength <= SMALL) await A.rpc("learn_fs_put", { p_path: p1, p_sha: sha, p_data: b64(buf) });
+      else {
+        try {
+          var n = Math.ceil(buf.byteLength / PART);
+          for (var q2 = 0; q2 < n; q2++) await A.rpc("learn_fs_put_part", { p_path: p1, p_sha: sha, p_idx: q2, p_data: b64(buf.slice(q2 * PART, (q2 + 1) * PART)) });
+          await A.rpc("learn_fs_commit", { p_path: p1, p_sha: sha, p_size: buf.byteLength, p_parts: n });
+        } catch (e) {
+          if (/learn_fs_put_part|PGRST202|does not exist/.test(e && e.message || "")) { skipped++; continue; }   // 服务器还没升级：大文件先留在本机
+          throw e;
+        }
+      }
       base[p1] = sha; saveBase(id, base);
     }
     lastOk = Date.now(); lastErr = ""; state = "ok";
@@ -126,7 +142,7 @@
     var t = state === "guest" ? "未登录：只存在本机 · 点此登录自动备份"
       : state === "busy" ? "☁ 正在同步到账号…"
       : state === "error" ? "⚠ 没同步上：" + lastErr + " · 点此重试"
-      : state === "ok" ? "☁ 已备份到账号 · " + ago(lastOk) + (skipped ? "（" + skipped + " 个大于 5MB 的文件只留在本机）" : "")
+      : state === "ok" ? "☁ 已备份到账号 · " + ago(lastOk) + (skipped ? "（" + skipped + " 个大文件只留在本机）" : "")
       : "☁ 账号备份";
     chip.textContent = t; chip.title = t;
     chip.style.color = state === "error" ? "#b3261e" : "#556";

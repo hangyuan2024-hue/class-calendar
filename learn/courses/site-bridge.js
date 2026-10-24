@@ -20,15 +20,53 @@
   async function loggedIn() { try { var s = A() && await A().session(); return s && s.user_id ? s.user_id : null; } catch (e) { return null; } }
 
   // ---------- 1. 顶部导航 ----------
+  // 自己画的几个线性图标（不用系统表情）
+  var ICON = {
+    back: "M15 5.5 8.5 12l6.5 6.5", brain: "M9.3 4.3A3 3 0 0 0 5.7 7a3.2 3.2 0 0 0-1.3 5.4 3.3 3.3 0 0 0 2.4 5 3 3 0 0 0 5.2 1.8V5.6a2.6 2.6 0 0 0-2.7-1.3zM14.7 4.3A3 3 0 0 1 18.3 7a3.2 3.2 0 0 1 1.3 5.4 3.3 3.3 0 0 1-2.4 5 3 3 0 0 1-5.2 1.8",
+    cal: "M4.5 6h15v14h-15zM4.5 10h15M8.5 3.8v3.6M15.5 3.8v3.6", imp: "M12 4v11M7.5 10.8 12 15.3l4.5-4.5M5 19.5h14",
+    moon: "M19.6 14.6A8 8 0 0 1 9.4 4.4a8 8 0 1 0 10.2 10.2z", sun: "M12 16.2a4.2 4.2 0 1 0 0-8.4 4.2 4.2 0 0 0 0 8.4zM12 2.8v1.8M12 19.4v1.8M2.8 12h1.8M19.4 12h1.8M5.5 5.5l1.3 1.3M17.2 17.2l1.3 1.3M5.5 18.5l1.3-1.3M17.2 6.8l1.3-1.3",
+    pin: "M9 4h6l-1 5 3 3v1.5H7V12l3-3zM12 13.5V20", unpin: "M9 4h6l-1 5 3 3v1.5H7V12l3-3zM12 13.5V20M4.5 4.5l15 15", trash: "M5 7h14M10 7V4.8h4V7M7 7l.8 12.5h8.4L17 7M10.3 10.5v6M13.7 10.5v6",
+  };
+  var svg = function (n) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + ICON[n] + '"/></svg>'; };
+  window.LearnIcon = svg;
   function bar() {
     if ($("learnBar")) return;
     var b = document.createElement("nav"); b.id = "learnBar"; b.className = "learn-bar";
-    b.innerHTML = '<a class="lb-home" href="../">‹ 捞捞学习</a><span class="lb-sep"></span>' +
-      '<a href="../mindmap/">🧠 思维导图</a><a href="../../index.html">📅 捞捞课程表</a>' +
-      '<span class="lb-sp"></span><button type="button" id="learnImport" hidden>⇣ 从课表导入课程</button>';
+    b.innerHTML = '<a class="lb-home" href="../">' + svg("back") + '捞捞学习</a><span class="lb-sep"></span>' +
+      '<a href="../mindmap/">' + svg("brain") + '思维导图</a><a href="../../index.html">' + svg("cal") + '捞捞课程表</a>' +
+      '<span class="lb-sp"></span><button type="button" id="learnImport" hidden>' + svg("imp") + '从课表导入课程</button>' +
+      '<button type="button" class="lb-tone" id="learnTone" title="切换深浅色（和网站的外观设置是同一份）"></button>';
     document.body.prepend(b);
     $("learnImport").onclick = importTimetable;
+    var tone = function () { var st = window.LearnTheme ? LearnTheme.state() : { dark: false }; $("learnTone").innerHTML = svg(st.dark ? "sun" : "moon") + (st.dark ? "浅色" : "深色"); };
+    $("learnTone").onclick = function () { if (window.LearnTheme) LearnTheme.toggle(); tone(); };
+    window.addEventListener("learn-theme", tone);
+    tone();
   }
+  // 课程卡片：加一个首字母徽章、按课程名配一种颜色，置顶 / 删除换成小图标
+  var PALETTE = ["#4a6cf7", "#e07a3f", "#2e9b74", "#c2457a", "#7a5af0", "#c9962a", "#2f8fbf", "#d0563e"];
+  function decorateCourses() {
+    var list = $("courseList"); if (!list) return;
+    list.querySelectorAll(".course-item:not([data-lc])").forEach(function (it) {
+      it.dataset.lc = "1";
+      var nameEl = it.querySelector(".course-name"); if (!nameEl) return;
+      var name = nameEl.textContent.replace("📌", "").trim(), hash = 0;
+      for (var i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+      it.style.setProperty("--cc", PALETTE[hash % PALETTE.length]);
+      var pinned = it.classList.contains("pinned");
+      nameEl.textContent = name;               // 双击改名读的是这里的文字，徽章放在外面
+      var top = document.createElement("div"); top.className = "lc-top";
+      top.innerHTML = '<span class="lc-badge" aria-hidden="true">' + esc1(Array.from(name)[0] || "课") + "</span>";
+      it.insertBefore(top, nameEl); top.appendChild(nameEl);
+      top.querySelector(".lc-badge").onclick = function () { nameEl.click(); };
+      if (pinned) { var p = document.createElement("span"); p.className = "lc-pin"; p.title = "已置顶"; p.innerHTML = svg("pin"); it.appendChild(p); }
+      var pb = it.querySelector(".actions .pin"), db = it.querySelector(".actions .del");
+      if (pb) { pb.innerHTML = svg(pinned ? "unpin" : "pin") + (pinned ? "取消置顶" : "置顶"); }
+      if (db) { db.innerHTML = svg("trash") + "删除"; }
+      it.addEventListener("click", function (e) { if (!e.target.closest(".actions") && e.target !== nameEl && !nameEl.contains(e.target)) nameEl.click(); });
+    });
+  }
+  function esc1(t) { return String(t).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
 
   // ---------- 2. 识别 ----------
   window.ocrWebAvailable = function () { return true; };
@@ -69,6 +107,48 @@
       if (onProgress && st) onProgress("云端识别中…" + (st.progress ? st.progress + "%" : ""));
       if (Date.now() - t0 > 150000) throw new Error("识别超时了，请稍后再试");
     }
+  };
+
+  // ---------- 2b. 课内的 AI：本机版连 127.0.0.1:3002 的 Python 服务；网站版经数据库转给扣子后端（learn_ai.sql、learn_ai_routes.py） ----------
+  var AI_RE = /\/api\/ai\/(test|classify|answer-draft|review-suggestion|review-mode-advice|material-draft|review-feedback|outline-polish|assessment-chart|platform-status)\/?$/;
+  var rawFetch = window.fetch.bind(window);
+  var jsonRes = function (status, obj, headers) { return new Response(JSON.stringify(obj), { status: status, headers: Object.assign({ "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }, headers || {}) }); };
+  var aborted = function () { return Object.assign(new Error("已取消"), { name: "AbortError" }); };
+  async function aiRelay(path, method, init) {
+    var signal = init && init.signal;
+    if (path === "platform-status") {
+      if (!(await loggedIn())) return jsonRes(200, { available: false, provider: "platform", error: "PLATFORM_AI_UNAVAILABLE" });
+      try { return jsonRes(200, await A().rpc("learn_ai_platform")); } catch (e) { return jsonRes(200, { available: false, provider: "platform", error: "PLATFORM_AI_UNAVAILABLE" }); }
+    }
+    if (!(await loggedIn())) return jsonRes(401, { error: "AI_LOGIN_REQUIRED" });
+    var body = {}; try { body = JSON.parse(typeof init.body === "string" ? init.body : "{}") || {}; } catch (e) { return jsonRes(400, { error: "INVALID_INPUT" }); }
+    var started;
+    try { started = await A().rpc("learn_ai_start", { p_path: path, p_body: body }); }
+    catch (e) { return jsonRes(/频繁|次数|用完/.test(e.message || "") ? 429 : 503, { error: /频繁|次数|用完/.test(e.message || "") ? "AI_RATE_LIMITED" : "AI_SERVICE_UNAVAILABLE", message: e.message || "" }); }
+    var t0 = Date.now();
+    for (;;) {
+      if (signal && signal.aborted) throw aborted();
+      await new Promise(function (r) { setTimeout(r, Date.now() - t0 < 6000 ? 900 : 1600); });
+      if (signal && signal.aborted) throw aborted();
+      var st = null; try { st = await A().rpc("learn_ai_status", { jid: started.job_id }); } catch (e) { st = null; }
+      if (st && st.status !== "running") {
+        var r = st.result || {}, b = r.b || { error: "AI_UNAVAILABLE" };
+        return jsonRes(st.http || 502, b, r.h || {});
+      }
+      if (Date.now() - t0 > 160000) return jsonRes(504, { error: "AI_TIMEOUT" });
+    }
+  }
+  window.fetch = function (input, init) {
+    try {
+      var url = new URL(typeof input === "string" ? input : input && input.url || "", location.href);
+      var m = url.origin === location.origin && AI_RE.exec(url.pathname);
+      if (m) {
+        init = init || {};
+        if (typeof input !== "string" && input && input.method && !init.method) init.method = input.method;
+        return aiRelay(m[1], (init.method || "GET").toUpperCase(), init);
+      }
+    } catch (e) {}
+    return rawFetch(input, init);
   };
 
   // ---------- 3. 从课程表导入 ----------
@@ -210,6 +290,7 @@
     }
     if (navigator.serviceWorker) navigator.serviceWorker.addEventListener("message", function (e) { if (e.data && e.data.learnSync === "dirty") scheduleDue(6000); });
     refreshImportBtn();
+    if ($("courseList")) { decorateCourses(); new MutationObserver(decorateCourses).observe($("courseList"), { childList: true }); }
     openFromHash();
     window.addEventListener("hashchange", openFromHash);
   }

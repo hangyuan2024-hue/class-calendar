@@ -41,7 +41,7 @@ function normalizeMistakeAiAnalysis(value) {
 function mistakeAiError(code, status = 0) {
   const messages = {
     AI_AUTH_NOT_CONFIGURED: 'AI 服务尚未接入网站授权，暂不可用，请等待管理员完成联调。',
-    AI_API_NOT_CONFIGURED: '网站版 AI 即将开通。',
+    AI_API_NOT_CONFIGURED: 'AI 服务暂时连不上，请稍后再试。',
     LOCAL_MOCK_UNAVAILABLE: '无法连接本地 AI mock。请确认 FastAPI 在 3002 端口运行，启动后点击“重新获取 / 重试”；输入和已保存选择仍保留。',
     AI_BUSY: 'AI 服务繁忙，请稍后重试。',
     AI_DNS_FAKE_IP: '代理 DNS 返回了虚拟 IP，尚未连接模型。请关闭 TUN/Fake-IP，或将该服务商域名加入 Fake-IP 排除列表后重试。',
@@ -76,8 +76,8 @@ function mistakeAiError(code, status = 0) {
     AI_AUTH_FAILED: 'API Key 无效或已失效，请检查服务商控制台；不会回退 Mock。',
     AI_BALANCE_UNAVAILABLE: 'AI 服务账户余额不足或不可用，请检查服务商账户。',
     AI_UPSTREAM_RATE_LIMITED: 'AI 服务暂时限流，请稍后手动重试。',
-    LOCAL_AI_UNAVAILABLE: '网站版 AI 即将开通。现在可以先手动整理；需要 AI 时可以用电脑上的课内本机版。',
-    AI_LOCAL_ONLY: '网站版 AI 即将开通。',
+    LOCAL_AI_UNAVAILABLE: 'AI 服务暂时连不上，请稍后再试。', AI_LOGIN_REQUIRED: '网站版的 AI 要先登录捞捞账号（左下角「点此登录」）。', AI_RATE_LIMITED: 'AI 用得太频繁了，或者今天的平台 AI 次数用完了；可以稍后再试，或在 AI 设置里填自己的 Key。', AI_SERVICE_UNAVAILABLE: 'AI 服务暂时用不了，请稍后再试。', AI_SERVICE_NOT_DEPLOYED: '网站的 AI 服务还没部署好，请联系管理员。', AI_SERVICE_AUTH: '网站的 AI 服务口令失效了，请联系管理员。',
+    AI_LOCAL_ONLY: 'AI 服务暂时连不上，请稍后再试。',
     AI_TEMP_KEY_ORIGIN: '页面与 AI 接口地址不一致。localhost 与 127.0.0.1、不同端口均属于不同来源；请从同一网站入口使用。'
   };
   const message = messages[code] || (status === 401 ? '请先登录后再使用 AI 分类。'

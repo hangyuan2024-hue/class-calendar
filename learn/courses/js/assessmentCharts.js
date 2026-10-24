@@ -283,7 +283,7 @@ function assessmentChartAiErrorMessage(error) {
     AI_BALANCE_UNAVAILABLE: 'API 余额或额度不可用。',
     AI_UPSTREAM_RATE_LIMITED: 'AI 服务请求过于频繁，请稍后再试。',
     BODY_TOO_LARGE: '本次来源文字过长，请缩短后重试。',
-    LOCAL_AI_UNAVAILABLE: '网站版 AI 即将开通，现在可以先手动填写图表数据。',
+    LOCAL_AI_UNAVAILABLE: 'AI 服务暂时连不上，可以先手动填写图表数据。',
     AI_TIMEOUT: 'AI 请求超时，图表草稿保持不变。',
   };
   return messages[error?.message] || error?.message || 'AI 请求失败，请重试。';
