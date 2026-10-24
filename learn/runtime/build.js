@@ -1,0 +1,111 @@
+#!/usr/bin/env node
+// 捞捞学习 · 网页版打包脚本
+//   1) 把「课内」courses_app 的前端复制到 learn/courses/，打上网站版的补丁（接口地址、账号同步、云端识别……）
+//   2) 把课内后端（back/server.js）和思维导图的本机服务（learn/mindmap/js/*.cjs）一起打成 learn/sw.js
+// 用法（在网站根目录）：
+//   node learn/runtime/build.js --courses <courses_app 仓库目录>      # 课内仓库更新后：重新复制前端 + 打包
+//   node learn/runtime/build.js                                      # 只重新打包 sw.js（用上次复制好的后端源码）
+// 需要 esbuild：环境变量 ESBUILD 指向 esbuild 可执行文件，或者 PATH 里有 esbuild。
+"use strict";
+const fs = require("fs"), path = require("path"), os = require("os"), cp = require("child_process");
+const LEARN = path.resolve(__dirname, ".."), RT = __dirname;
+const OUT = path.join(LEARN, "courses");
+const SERVER_SRC = path.join(RT, "courses-server");      // 课内后端源码（打过补丁的副本，只用来打包，不会被网页加载）
+const arg = (k) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : null; };
+const COURSES = arg("--courses");
+const ESBUILD = process.env.ESBUILD || "esbuild";
+const V = new Date().toISOString().slice(0, 10).replace(/-/g, "") + "-learn1";
+
+function rm(p) { fs.rmSync(p, { recursive: true, force: true }); }
+function copyDir(src, dst, skip) {
+  fs.mkdirSync(dst, { recursive: true });
+  for (const e of fs.readdirSync(src, { withFileTypes: true })) {
+    const s = path.join(src, e.name), d = path.join(dst, e.name);
+    if (skip && skip(s, e)) continue;
+    if (e.isDirectory()) copyDir(s, d, skip); else fs.copyFileSync(s, d);
+  }
+}
+// 打补丁：找不到要替换的原文就报错（课内仓库改了这一段，需要人工看一下补丁还对不对）
+function patch(file, pairs) {
+  let s = fs.readFileSync(file, "utf8");
+  for (const [from, to] of pairs) {
+    if (from instanceof RegExp) { if (!from.test(s)) throw new Error(`补丁没对上：${path.relative(LEARN, file)} 里找不到 ${from}`); s = s.replace(from, to); }
+    else { if (!s.includes(from)) throw new Error(`补丁没对上：${path.relative(LEARN, file)} 里找不到「${from.slice(0, 60)}」`); s = s.split(from).join(to); }
+  }
+  fs.writeFileSync(file, s);
+}
+
+if (COURSES) {
+  const back = path.join(COURSES, "back"), front = path.join(COURSES, "fronted");
+  if (!fs.existsSync(path.join(back, "server.js")) || !fs.existsSync(path.join(front, "index.html"))) throw new Error("找不到 courses_app 的 back/server.js 或 fronted/index.html：" + COURSES);
+  const rev = (() => { try { return cp.execSync("git rev-parse --short HEAD", { cwd: COURSES }).toString().trim(); } catch (e) { return "?"; } })();
+
+  // ---------- 后端源码 ----------
+  rm(SERVER_SRC);
+  copyDir(back, SERVER_SRC, (s, e) => /(^|[\\/])(node_modules|uploads|data|\.env.*|officePreview|ocr)$/.test(s) || /localAiGateway\.js$/.test(s) || /\.(db|log)$/.test(e.name));
+  patch(path.join(SERVER_SRC, "server.js"), [
+    ["require('./ocr/service')", "require('../stubs/ocrService.js')"],
+    ["require('./localAiGateway')", "require('../stubs/localAiGateway.js')"],
+    ["require('./officePreview')", "require('../stubs/officePreview.js')"],
+    [/const handoffs = new Map\(\);[^\n]*/, "const handoffs = require('../stubs/handoffs.js'); // 网页版：存进虚拟磁盘（Service Worker 会被浏览器随时停掉）"],
+  ]);
+  // 建表 / 升级：本机版 require 时跑一遍；网页版从账号下载了别的设备的数据库后还要再跑，所以收进一个函数。网站上不放演示课程
+  {
+    const f = path.join(SERVER_SRC, "db/schema.js");
+    let s = fs.readFileSync(f, "utf8");
+    const calls = [];
+    s = s.replace(/^(migrate[A-Za-z0-9]*)\(\);[ \t]*$/gm, (m, name) => { calls.push(name); return "// " + m + "（网页版：移到文件末尾的 __runAll）"; });
+    if (calls.length < 5 || calls[0] !== "migrate") throw new Error("补丁没对上：db/schema.js 的建表调用和预想的不一样");
+    if (/module\.exports/.test(s)) throw new Error("补丁没对上：db/schema.js 已经有 module.exports");
+    s += `\n// 网页版：按原来的顺序依次执行\nfunction __runAll() {\n${calls.map((c) => "  " + c + "();").join("\n")}\n}\n__runAll();\nmodule.exports = { __runAll };\n`;
+    fs.writeFileSync(f, s);
+    patch(f, [[/(function seedCourses\(\) \{)/, "$1\n  return; // 网页版：不放演示课程"]]);
+  }
+  fs.appendFileSync(path.join(SERVER_SRC, "server.js"), "\n// 网页版：Service Worker 直接调用 app（runtime/courses-part.js）\nmodule.exports = app;\n");
+  fs.writeFileSync(path.join(SERVER_SRC, "VERSION.txt"), `courses_app ${rev}（${new Date().toISOString().slice(0, 10)} 复制，已打网页版补丁，见 learn/runtime/build.js）\n`);
+
+  // ---------- 前端 ----------
+  const keep = {};
+  for (const k of ["vendor/sqljs", "vendor/office"]) { const p = path.join(OUT, k); if (fs.existsSync(p)) { keep[k] = path.join(os.tmpdir(), "learn-keep-" + k.replace("/", "-")); rm(keep[k]); copyDir(p, keep[k]); } }
+  rm(OUT);
+  copyDir(front, OUT, (s, e) => /\.lnk$/.test(e.name) || e.name === "ocr-check.html" || /[\\/]vendor[\\/]ocr$/.test(s));
+  for (const [k, tmp] of Object.entries(keep)) { copyDir(tmp, path.join(OUT, k)); rm(tmp); }
+  for (const f of ["site-pre.js", "site-bridge.js", "site.css"]) fs.copyFileSync(path.join(RT, "courses-site", f), path.join(OUT, f));
+  if (!fs.existsSync(path.join(OUT, "vendor/sqljs/sql-wasm.wasm")) || !fs.existsSync(path.join(OUT, "vendor/office/fflate.min.js"))) {
+    copyDir(path.join(RT, "courses-site", "vendor"), path.join(OUT, "vendor"));
+  }
+  patch(path.join(OUT, "index.html"), [
+    ["<h1>课内</h1>", "<h1>课内学习</h1>"],
+    [/<title>[^<]*<\/title>/, "<title>课内学习 · 捞捞学习</title>\n  <link rel=\"icon\" href=\"../../favicon.svg\" type=\"image/svg+xml\">"],
+    [/(<link rel="stylesheet" href="style\.css[^"]*" \/>)/, `$1\n  <link rel="stylesheet" href="site.css?v=${V}" />\n  <script src="../../config.js"></script>\n  <script src="../../auth.js"></script>\n  <script src="site-pre.js?v=${V}"></script>`],
+    ['<script src="app.js"></script>', `<script src="site-bridge.js?v=${V}"></script>\n  <script src="../learn-sync.js?v=${V}"></script>\n  <script src="app.js"></script>`],
+  ]);
+  // 后端不在 3000 端口：自检横条里「连不上后端」的说法改成网页版的
+  patch(path.join(OUT, "index.html"), [["banner('✗ 连不上后端：请在 back 目录执行 npm start，确认 3000 端口在跑。');", "banner('✗ 课内学习的本地服务没启动：请刷新页面；无痕模式或禁用了网站数据时用不了。');"]]);
+  patch(path.join(OUT, "js/ai.js"), [
+    [/LOCAL_AI_UNAVAILABLE: '[^']*'/, "LOCAL_AI_UNAVAILABLE: '网站版 AI 即将开通。现在可以先手动整理；需要 AI 时可以用电脑上的课内本机版。'"],
+    [/AI_LOCAL_ONLY: '[^']*'/, "AI_LOCAL_ONLY: '网站版 AI 即将开通。'"],
+    [/AI_API_NOT_CONFIGURED: '[^']*'/, "AI_API_NOT_CONFIGURED: '网站版 AI 即将开通。'"],
+  ]);
+  patch(path.join(OUT, "js/assessmentCharts.js"), [[/LOCAL_AI_UNAVAILABLE: '[^']*'/, "LOCAL_AI_UNAVAILABLE: '网站版 AI 即将开通，现在可以先手动填写图表数据。'"]]);
+  patch(path.join(OUT, "js/attachmentPreview.js"), [[/CONVERTER_UNAVAILABLE:'[^']*'/, "CONVERTER_UNAVAILABLE:'网站版暂不支持在线预览 Word / PPT，请点「下载附件」查看；文字内容可以在正文里查看。'"]]);
+  patch(path.join(OUT, "js/officeText.js"), [[/hint: \(legacy \? '[^']*' : ''\)/, "hint: (legacy ? '网站版不能转换旧版 .doc / .ppt，请另存为 .docx / .pptx 后再试。' : '')"]]);
+  fs.writeFileSync(path.join(OUT, "VERSION.txt"), `courses_app ${rev}（前端，${new Date().toISOString().slice(0, 10)} 复制，网页版补丁见 learn/runtime/build.js）\n`);
+  console.log("已复制课内前端和后端源码：", rev);
+}
+
+// ---------- 打包 learn/sw.js ----------
+if (!fs.existsSync(path.join(SERVER_SRC, "server.js"))) throw new Error("还没有课内后端源码：先运行一次  node learn/runtime/build.js --courses <courses_app 目录>");
+// 思维导图的提示词模板（本机版从 prompts/*.md 读文件）
+const prompts = {};
+for (const f of fs.readdirSync(path.join(LEARN, "mindmap/prompts"))) if (f.endsWith(".md")) prompts["/app/prompts/" + f] = fs.readFileSync(path.join(LEARN, "mindmap/prompts", f), "utf8");
+fs.writeFileSync(path.join(RT, "prompts-data.js"), "// 打包时生成（learn/runtime/build.js）\nmodule.exports=" + JSON.stringify(prompts) + ";\n");
+fs.writeFileSync(path.join(RT, "server-app.js"), "// 打包入口：课内后端的 Express app\nmodule.exports = require(\"./courses-server/server.js\");\n");
+const A = (k, v) => [`--alias:${k}=./runtime/${v}`, `--alias:node:${k}=./runtime/${v}`];
+const args = ["runtime/sw-entry.js", "--bundle", "--format=iife", "--platform=browser", "--target=chrome90,safari15",
+  ...A("fs", "memfs.js"), ...A("fs/promises", "fs-promises.js"), ...A("path", "path.js"), ...A("crypto", "crypto.js"),
+  ...A("os", "stubs/os.js"), ...A("url", "stubs/url.js"), ...A("child_process", "stubs/child_process.js"),
+  "--alias:node:sqlite=./runtime/sqlite.js", "--alias:express=./runtime/express.js", "--alias:multer=./runtime/multer.js", "--alias:cors=./runtime/stubs/cors.js",
+  "--inject:./runtime/inject.js", "--define:__dirname=\"/app/back\"", "--legal-comments=none", "--log-level=warning", "--outfile=sw.js"];
+cp.execFileSync(ESBUILD, args, { cwd: LEARN, stdio: "inherit" });
+console.log("已生成 learn/sw.js", (fs.statSync(path.join(LEARN, "sw.js")).size / 1024).toFixed(0) + "KB");
