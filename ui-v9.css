@@ -301,3 +301,11 @@ html:has(.view[data-view=study].on) #lao { display: none !important; }
   .rv-row { grid-template-columns: 1fr 1fr; } .rv-row .rv-c { grid-column: 1 / -1; }
   .dp-d { width: 100%; }
 }
+
+/* ---------- 电脑上：左边导航有的页面，不再重复页面标题和返回键 ---------- */
+@media (min-width: 701px) {
+  .view.v9-inrail > .vhead > h2, .view.v9-inrail > .vhead > .back, .view.v9-inrail > .vhead > .mavatar { display: none !important; }
+  .view.v9-inrail > .vhead.v9-vhead-off { display: none !important; }
+  .view.v9-inrail .hw-head > h2, .view.v9-inrail .hw-head > .range { display: none !important; }
+  .view.v9-inrail .hw-head:not(:has(> :not(h2):not(.range):not(.spacer))) { display: none !important; }
+}

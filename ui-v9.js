@@ -198,6 +198,33 @@
     Object.keys(FLOAT).forEach(function (id) { if (FLOAT[id].el.classList.contains("on") && floatOn()) { orig("home"); openFloat(id); } });
   }
 
+  // ---------------- 电脑上：左边导航已经标出了在哪一页，页面里不再重复标题、返回键 ----------------
+  // 只对左边导航里有的页面生效；左边没有的二级页面（大作业拆解、感谢名单……）照旧留着标题和返回
+  var KEEP = { home: 1 };
+  function markRail() {
+    var inRail = {};
+    document.querySelectorAll(".rail .nav[data-tab]").forEach(function (n) { if (n.offsetParent !== null) inRail[n.dataset.tab] = 1; });
+    var desk = window.innerWidth > 700;
+    document.querySelectorAll(".view[data-view]").forEach(function (v) {
+      var on = desk && !!inRail[v.dataset.view] && !KEEP[v.dataset.view];
+      if (v.classList.contains("v9-inrail") !== on) v.classList.toggle("v9-inrail", on);
+      var h = v.querySelector(":scope > .vhead");
+      if (!h) return;
+      var rest = on && Array.prototype.some.call(h.children, function (c) {
+        if (c.matches("h2, .back, .mavatar, .spacer")) return false;
+        if (c.classList.contains("hidden") || c.hidden) return false;
+        return c.tagName !== "SPAN" || c.textContent.trim() !== "";
+      });
+      var off = on && !rest; if (h.classList.contains("v9-vhead-off") !== off) h.classList.toggle("v9-vhead-off", off);
+    });
+  }
+  var mt = 0, kick = function () { clearTimeout(mt); mt = setTimeout(markRail, 60); };
+  var railEl = document.querySelector(".rail");
+  if (railEl) new MutationObserver(kick).observe(railEl, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
+  document.querySelectorAll(".view[data-view] > .vhead").forEach(function (h) { new MutationObserver(kick).observe(h, { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "hidden"] }); });
+  window.addEventListener("resize", kick);
+  markRail();
+
   // ---------------- 成长页 ----------------
   var g = document.querySelector('[data-view="growth"]');
   if (g) {
