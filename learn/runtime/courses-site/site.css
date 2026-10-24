@@ -1,12 +1,60 @@
-/* 课内学习 · 网站版补充样式（捞捞学习板块） */
-.learn-bar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:7px 14px;background:rgba(255,255,255,.94);border-bottom:1px solid rgba(20,30,60,.08);backdrop-filter:blur(8px);font:13px/1.4 system-ui,"PingFang SC","Microsoft YaHei",sans-serif}
-.learn-bar a,.learn-bar button{color:#4a5070;text-decoration:none;padding:4px 10px;border-radius:999px;border:0;background:none;font:inherit;cursor:pointer}
-.learn-bar a:hover,.learn-bar button:hover{background:rgba(83,102,232,.08);color:#3d4fd8}
-.learn-bar .lb-home{font-weight:700;color:#2b3150}
-.learn-bar .lb-sep{width:1px;height:16px;background:rgba(20,30,60,.12);margin:0 4px}
-.learn-bar .lb-sp{flex:1}
-.learn-bar #learnImport{background:rgba(83,102,232,.1);color:#3d4fd8;font-weight:600}
-.learn-bar #learnImport[hidden]{display:none}
-.learn-fatal{padding:12px 16px;background:#fff4e5;color:#8a4b00;border-bottom:1px solid #f0c48a;font:14px/1.6 system-ui,sans-serif;text-align:center}
-.learn-moving{position:fixed;left:50%;top:56px;transform:translateX(-50%);z-index:9500;max-width:min(560px,92vw);padding:10px 16px;border-radius:12px;background:#2b3150;color:#fff;font:13px/1.6 system-ui,"PingFang SC","Microsoft YaHei",sans-serif;box-shadow:0 10px 30px rgba(20,30,60,.25)}
-@media (max-width:560px){.learn-bar{padding:6px 8px;font-size:12px}.learn-bar a,.learn-bar button{padding:4px 7px}}
+/* 课内学习 · 网站版补充样式（捞捞学习板块）
+ * 颜色跟着网站外观走（theme.css 自动生成）；这里只管排版：宽屏居中、课程变成卡片墙、少浪费空间 */
+:root { --lb-bg: var(--kc-ffffff, #fff); --lb-ink: var(--kc-232a3d, #232a3d); --lb-sub: var(--kc-667187, #667187); --lb-line: var(--kc-dce1eb, #dce1eb); --lb-accent: var(--kc-4a6cf7, #4a6cf7); --lb-hover: var(--kc-f3f4f8, #f3f4f8); }
+body { background: var(--kc-f5f5f5, #f5f5f5); color: var(--lb-ink); }
+html[data-look=paper] h1, html[data-look=paper] h2, html[data-look=paper] .header h1 { font-family: "Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong, SimSun, serif; letter-spacing: .5px; }
+
+/* ---------- 顶部导航条（不吸顶，省地方；下面课内自己的标题栏照旧吸顶） ---------- */
+.learn-bar { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; padding: 6px 14px; background: var(--lb-bg); border-bottom: 1px solid var(--lb-line); font: 13px/1.4 system-ui, "PingFang SC", "Microsoft YaHei", sans-serif; }
+.learn-bar a, .learn-bar button { display: inline-flex; align-items: center; gap: 6px; color: var(--lb-sub); text-decoration: none; padding: 5px 10px; border-radius: 8px; border: 0; background: none; font: inherit; cursor: pointer; min-height: 0; line-height: 1.4; }
+.learn-bar a:hover, .learn-bar button:hover { background: var(--lb-hover); color: var(--lb-ink); }
+.learn-bar .lb-home { font-weight: 700; color: var(--lb-ink); }
+.learn-bar .lb-sep { width: 1px; height: 16px; background: var(--lb-line); margin: 0 4px; }
+.learn-bar .lb-sp { flex: 1; }
+.learn-bar svg { width: 16px; height: 16px; flex: none; }
+.learn-bar #learnImport { color: var(--lb-accent); font-weight: 650; background: color-mix(in srgb, var(--lb-accent) 10%, transparent); }
+.learn-bar #learnImport[hidden] { display: none; }
+.learn-bar .lb-tone { border: 1px solid var(--lb-line); }
+.learn-fatal { padding: 12px 16px; background: #fff4e5; color: #8a4b00; border-bottom: 1px solid #f0c48a; font: 14px/1.6 system-ui, sans-serif; text-align: center; }
+.learn-moving { position: fixed; left: 50%; top: 56px; transform: translateX(-50%); z-index: 9500; max-width: min(560px, 92vw); padding: 10px 16px; border-radius: 12px; background: #2b3150; color: #fff; font: 13px/1.6 system-ui, "PingFang SC", "Microsoft YaHei", sans-serif; box-shadow: 0 10px 30px rgba(20, 30, 60, .25); }
+
+/* ---------- 宽屏：内容居中，不拉成一长条 ---------- */
+@media (min-width: 900px) {
+  body > div[id$="Page"] { max-width: 1180px; margin-left: auto; margin-right: auto; }
+  body > div[id$="Page"] > .header { border-radius: 0 0 14px 14px; }
+}
+
+/* ---------- 课程列表：卡片墙 ---------- */
+#listPage .search-bar { padding: 12px 12px 4px; }
+#listPage .search-bar input { border-radius: 12px; }
+.course-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; align-items: stretch; }
+.course-list > .empty, .course-list > .loading-tip { grid-column: 1 / -1; }
+.course-item { position: relative; margin: 0 !important; min-height: 112px; padding: 16px 16px 12px 16px !important; display: flex !important; flex-direction: column; align-items: stretch !important; justify-content: space-between !important; gap: 10px; border: 1px solid var(--lb-line); border-radius: 16px !important; overflow: hidden; transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
+.course-item::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--cc, var(--lb-accent)); }
+.course-item:hover { transform: translateY(-2px); box-shadow: 0 12px 28px -14px rgba(20, 30, 60, .3); border-color: color-mix(in srgb, var(--cc, var(--lb-accent)) 45%, var(--lb-line)); }
+.course-item .lc-top { display: flex; align-items: center; gap: 12px; padding-right: 18px; }
+.course-item .course-name { font-size: 16px; font-weight: 650; line-height: 1.35; cursor: pointer; overflow-wrap: anywhere; }
+.course-item .lc-badge { cursor: pointer; }
+.course-item .lc-badge { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; flex: none; font-weight: 750; font-size: 17px; color: var(--cc, var(--lb-accent)); background: color-mix(in srgb, var(--cc, var(--lb-accent)) 13%, transparent); }
+.course-item .lc-pin { position: absolute; top: 10px; right: 12px; color: var(--cc, var(--lb-accent)); width: 16px; height: 16px; }
+.course-item .actions { display: flex; justify-content: flex-end; gap: 2px; opacity: .55; transition: opacity .15s; }
+.course-item:hover .actions, .course-item:focus-within .actions { opacity: 1; }
+.course-item .actions button { display: inline-flex; align-items: center; gap: 4px; margin: 0 !important; padding: 4px 8px !important; font-size: 12.5px !important; border-radius: 8px !important; color: var(--lb-sub) !important; min-height: 0; }
+.course-item .actions button:hover { background: var(--lb-hover) !important; color: var(--lb-ink) !important; }
+.course-item .actions button.del:hover { color: #d9483b !important; }
+.course-item .actions svg { width: 15px; height: 15px; }
+@media (max-width: 560px) { .course-list { grid-template-columns: 1fr 1fr; gap: 10px; } .course-item { min-height: 96px; padding: 12px !important; } .course-item .lc-badge { width: 34px; height: 34px; font-size: 15px; } .course-item .course-name { font-size: 14.5px; } .course-item .lc-top { gap: 9px; } .course-item .actions { opacity: 1; } }
+
+/* ---------- 课程详情：标签栏和列表更紧凑 ---------- */
+.detail-tabs .dtab { padding: 11px 8px !important; font-weight: 550; color: var(--lb-sub); }
+.detail-tabs .dtab.active { color: var(--lb-ink); }
+@media (min-width: 900px) {
+  .tab-pane[id^="pane-"] .item-row { margin-bottom: 8px; border: 1px solid var(--lb-line); }
+}
+.item-row { border-radius: 12px !important; }
+
+/* ---------- 深色：输入框、下拉框、复选框也跟着变深 ---------- */
+html[data-tone=dark] { color-scheme: dark; }
+input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]), textarea, select { background-color: var(--kc-ffffff, #fff); color: var(--lb-ink); border-color: var(--lb-line); }
+input::placeholder, textarea::placeholder { color: var(--kc-8a93a5, #8a93a5); }
+html[data-tone=dark] .learn-sync-chip { background: color-mix(in srgb, var(--lb-bg) 92%, transparent) !important; color: var(--lb-sub) !important; border-color: var(--lb-line) !important; }

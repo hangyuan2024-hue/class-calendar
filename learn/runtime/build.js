@@ -70,7 +70,7 @@ if (COURSES) {
   rm(OUT);
   copyDir(front, OUT, (s, e) => /\.lnk$/.test(e.name) || e.name === "ocr-check.html" || /[\\/]vendor[\\/]ocr$/.test(s));
   for (const [k, tmp] of Object.entries(keep)) { copyDir(tmp, path.join(OUT, k)); rm(tmp); }
-  for (const f of ["site-pre.js", "site-bridge.js", "site.css"]) fs.copyFileSync(path.join(RT, "courses-site", f), path.join(OUT, f));
+  for (const f of ["site-pre.js", "site-bridge.js", "office-preview.js", "theme.js", "site.css"]) fs.copyFileSync(path.join(RT, "courses-site", f), path.join(OUT, f));
   if (!fs.existsSync(path.join(OUT, "vendor/sqljs/sql-wasm.wasm")) || !fs.existsSync(path.join(OUT, "vendor/office/fflate.min.js"))) {
     copyDir(path.join(RT, "courses-site", "vendor"), path.join(OUT, "vendor"));
   }
@@ -78,18 +78,27 @@ if (COURSES) {
     ["<h1>课内</h1>", "<h1>课内学习</h1>"],
     [/<title>[^<]*<\/title>/, "<title>课内学习 · 捞捞学习</title>\n  <link rel=\"icon\" href=\"../../favicon.svg\" type=\"image/svg+xml\">"],
     [/(<link rel="stylesheet" href="style\.css[^"]*" \/>)/, `$1\n  <link rel="stylesheet" href="site.css?v=${V}" />\n  <script src="../../config.js"></script>\n  <script src="../../auth.js"></script>\n  <script src="site-pre.js?v=${V}"></script>`],
-    ['<script src="app.js"></script>', `<script src="site-bridge.js?v=${V}"></script>\n  <script src="../learn-sync.js?v=${V}"></script>\n  <script src="app.js"></script>`],
+    ['<script src="app.js"></script>', `<script src="site-bridge.js?v=${V}"></script>\n  <script src="office-preview.js?v=${V}"></script>\n  <script src="../learn-sync.js?v=${V}"></script>\n  <script src="app.js"></script>`],
   ]);
   // 后端不在 3000 端口：自检横条里「连不上后端」的说法改成网页版的
   patch(path.join(OUT, "index.html"), [["banner('✗ 连不上后端：请在 back 目录执行 npm start，确认 3000 端口在跑。');", "banner('✗ 课内学习的本地服务没启动：请刷新页面；无痕模式或禁用了网站数据时用不了。');"]]);
   patch(path.join(OUT, "js/ai.js"), [
-    [/LOCAL_AI_UNAVAILABLE: '[^']*'/, "LOCAL_AI_UNAVAILABLE: '网站版 AI 即将开通。现在可以先手动整理；需要 AI 时可以用电脑上的课内本机版。'"],
-    [/AI_LOCAL_ONLY: '[^']*'/, "AI_LOCAL_ONLY: '网站版 AI 即将开通。'"],
-    [/AI_API_NOT_CONFIGURED: '[^']*'/, "AI_API_NOT_CONFIGURED: '网站版 AI 即将开通。'"],
+    [/LOCAL_AI_UNAVAILABLE: '[^']*'/, "LOCAL_AI_UNAVAILABLE: 'AI 服务暂时连不上，请稍后再试。', AI_LOGIN_REQUIRED: '网站版的 AI 要先登录捞捞账号（左下角「点此登录」）。', AI_RATE_LIMITED: 'AI 用得太频繁了，或者今天的平台 AI 次数用完了；可以稍后再试，或在 AI 设置里填自己的 Key。', AI_SERVICE_UNAVAILABLE: 'AI 服务暂时用不了，请稍后再试。', AI_SERVICE_NOT_DEPLOYED: '网站的 AI 服务还没部署好，请联系管理员。', AI_SERVICE_AUTH: '网站的 AI 服务口令失效了，请联系管理员。'"],
+    [/AI_LOCAL_ONLY: '[^']*'/, "AI_LOCAL_ONLY: 'AI 服务暂时连不上，请稍后再试。'"],
+    [/AI_API_NOT_CONFIGURED: '[^']*'/, "AI_API_NOT_CONFIGURED: 'AI 服务暂时连不上，请稍后再试。'"],
   ]);
-  patch(path.join(OUT, "js/assessmentCharts.js"), [[/LOCAL_AI_UNAVAILABLE: '[^']*'/, "LOCAL_AI_UNAVAILABLE: '网站版 AI 即将开通，现在可以先手动填写图表数据。'"]]);
+  patch(path.join(OUT, "js/assessmentCharts.js"), [[/LOCAL_AI_UNAVAILABLE: '[^']*'/, "LOCAL_AI_UNAVAILABLE: 'AI 服务暂时连不上，可以先手动填写图表数据。'"]]);
   patch(path.join(OUT, "js/attachmentPreview.js"), [[/CONVERTER_UNAVAILABLE:'[^']*'/, "CONVERTER_UNAVAILABLE:'网站版暂不支持在线预览 Word / PPT，请点「下载附件」查看；文字内容可以在正文里查看。'"]]);
   patch(path.join(OUT, "js/officeText.js"), [[/hint: \(legacy \? '[^']*' : ''\)/, "hint: (legacy ? '网站版不能转换旧版 .doc / .ppt，请另存为 .docx / .pptx 后再试。' : '')"]]);
+  // 跟着网站外观换色：样式里的颜色换成变量，生成 theme.css（见 theme-gen.js）
+  {
+    const tg = require("./theme-gen.js");
+    const r = tg.tokenize(fs.readFileSync(path.join(OUT, "style.css"), "utf8"));
+    fs.writeFileSync(path.join(OUT, "style.css"), r.css);
+    fs.writeFileSync(path.join(OUT, "theme.css"), tg.themeCss(r.colors));
+    patch(path.join(OUT, "index.html"), [[/(<link rel="stylesheet" href="style\.css[^"]*" \/>)/, `<script src="theme.js?v=${V}"></script>\n  $1\n  <link rel="stylesheet" href="theme.css?v=${V}" />`]]);
+    console.log("外观：", r.colors.length, "种颜色换成了变量");
+  }
   fs.writeFileSync(path.join(OUT, "VERSION.txt"), `courses_app ${rev}（前端，${new Date().toISOString().slice(0, 10)} 复制，网页版补丁见 learn/runtime/build.js）\n`);
   console.log("已复制课内前端和后端源码：", rev);
 }
