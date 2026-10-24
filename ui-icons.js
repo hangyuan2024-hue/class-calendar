@@ -94,7 +94,7 @@
   var leadRe = /^\s*([←-⯿　-〿＋]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|\uD83E[\uDD00-\uDFFF])️?\s*/;
   function fix(root) {
     (root || document).querySelectorAll(SLOT).forEach(function (el) {
-      if (el.dataset.icon && !el.dataset.iconDone) { el.innerHTML = svg(el.dataset.icon); el.dataset.iconDone = "1"; return; }
+      if (el.dataset.icon && !el.dataset.iconDone) { el.innerHTML = svg(el.dataset.icon); el.dataset.iconDone = "1"; el.classList.add("cc-islot"); return; }
       if (el.children.length) return;
       var n = E[el.textContent.trim()];
       if (n) { el.innerHTML = svg(n); el.dataset.iconDone = "1"; el.classList.add("cc-islot"); }
@@ -118,6 +118,7 @@
   var css = document.createElement("style");
   css.textContent = ".cc-i{width:1.25em;height:1.25em;display:inline-block;vertical-align:-.25em;flex:none}" +
     ".cc-islot{display:inline-grid!important;place-items:center;color:var(--accent,#5366e8)}.cc-islot .cc-i{width:58%;height:58%;min-width:16px;min-height:16px}" +
+    "[data-skin=fresh] .qbtn .qi.cc-islot,[data-skin=fresh] .ic.cc-islot,[data-skin=fresh] .ti.cc-islot,[data-skin=fresh] .pi.cc-islot{color:var(--accent,#157568)!important;opacity:1!important}.cc-islot .cc-i{stroke-width:2}" +
     ".cc-lead{display:inline-flex;margin-right:.3em;color:var(--accent,#5366e8)}.cc-lead .cc-i{width:1.1em;height:1.1em}";
   document.head.appendChild(css);
 })();

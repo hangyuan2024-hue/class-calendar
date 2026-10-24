@@ -1,6 +1,6 @@
 /* study-link.js —— 课程表里的「学习」搬到了捞捞学习（learn/courses/，合作队伍「课内」的最新版）
  * 这里只留两件事：
- *   1. 点「学习」/「课内学习」直接去捞捞学习的课内学习
+ *   1. 点「学习」/「课内学习」在本页里打开捞捞学习的课内学习（iframe，不跳出去）
  *   2. 课内学习里有截止日期的考核，照旧出现在首页、日历和作业提醒里（课内学习同步到账号的 /meta/due.json）
  * 依赖 app.js 里的 currentUser、renderAll、load、save（和原来的 study.js 一样）。 */
 (function () {
@@ -18,8 +18,26 @@
         subject: (a.course ? a.course + " · " : "") + a.title, summary: a.requirement || "", event_time: String(a.deadline).slice(0, 10), location: "", _studyCourse: a.course || "" };
     });
   };
-  window.openStudyItem = function (ref) { location.href = URL_COURSES + (/^\d+:\d+$/.test(String(ref || "")) ? "#open=assessment:" + ref : ""); };
-  window.renderStudy = function () { location.href = URL_COURSES; };
+  // 课内学习嵌在「学习」这一页里（iframe，和思维导图一样），不再跳出去
+  var SRC = URL_COURSES + "index.html?host=app", frame = null, wantHash = "";
+  function ensure() {
+    var box = document.getElementById("studyBox"); if (!box) return null;
+    if (!frame) {
+      frame = document.createElement("iframe");
+      frame.className = "study-frame"; frame.title = "课内学习";
+      frame.setAttribute("allow", "clipboard-read; clipboard-write; camera");
+      frame.src = SRC + (wantHash ? "#" + wantHash : ""); wantHash = "";
+      box.innerHTML = ""; box.appendChild(frame);
+    }
+    return frame;
+  }
+  window.openStudyItem = function (ref) {
+    var h = /^\d+:\d+$/.test(String(ref || "")) ? "open=assessment:" + ref : "";
+    if (frame && h) { try { frame.contentWindow.location.hash = h; } catch (e) { frame.src = SRC + "#" + h; } }
+    else if (!frame) wantHash = h;
+    if (typeof showView === "function") showView("study"); else ensure();
+  };
+  window.renderStudy = function () { ensure(); };
 
   async function refresh() {
     var u = me(); if (!u || loading || typeof CCAuth === "undefined") return;

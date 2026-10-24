@@ -18,9 +18,9 @@
   html.v9-rail-hidden .v9-rail-tab { display: flex; }
   html.v9-rail-off .siderail { display: none !important; }
   /* 窄一些的屏幕：从右边拉出来盖在上面 */
-  html.v9-rail-drawer .siderail { display: flex !important; position: fixed !important; top: 0; right: 0; bottom: 0; width: 340px; max-width: 92vw; z-index: 80; padding: 22px 20px !important; overflow: auto; background: var(--bg, #f6f5f1); box-shadow: -18px 0 40px rgba(20, 30, 60, .16); animation: v9in .18s ease-out; }
+  html.v9-rail-drawer .siderail { display: flex !important; flex-direction: column; position: fixed !important; top: 16px; right: 16px; bottom: auto; max-height: calc(100vh - 32px); width: 340px; max-width: calc(100vw - 32px); z-index: 80; padding: 18px 18px 14px !important; overflow: auto; background: var(--bg, #f6f5f1); border: 1px solid var(--line, #e3e6ee); border-radius: 20px; box-shadow: 0 24px 60px -16px rgba(20, 30, 60, .35); animation: v9in .18s ease-out; box-sizing: border-box; }
   html.v9-rail-drawer .v9-rail-tab { display: none; }
-  html.v9-rail-drawer::after { content: ""; position: fixed; inset: 0; z-index: 79; background: rgba(15, 20, 40, .18); }
+  html.v9-rail-drawer::after { content: ""; position: fixed; inset: 0; z-index: 79; background: rgba(15, 20, 40, .08); }
 }
 @keyframes v9in { from { transform: translateX(24px); opacity: .4; } to { transform: none; opacity: 1; } }
 
@@ -188,3 +188,31 @@
 .v9-acct-modes button .cc-i { width: 15px; height: 15px; }
 .v9-acct-modes button.on { background: var(--hl, #5366e8); color: var(--hl-text, #fff); }
 .v9-acct-note { display: block; color: var(--sub); font-size: 11px; margin-top: 6px; text-align: center; }
+
+.v9-rail-tab .d .cc-i { width: 15px; height: 15px; color: var(--accent, #5366e8); }
+html.v9-rail-drawer .siderail .studio-side-heading { padding-top: 0 !important; margin-top: 0 !important; }
+html.v9-rail-drawer .siderail .v9-rail-x .cc-i { width: 15px; height: 15px; }
+
+/* ---------- 设置：电脑上是悬浮窗 ---------- */
+.v9-set-veil, .v9-set-x { display: none; }
+@media (min-width: 701px) {
+  html.v9-set-open .v9-set-veil { display: block; position: fixed; inset: 0; z-index: 90; background: rgba(12, 18, 36, .32); backdrop-filter: blur(2px); animation: v9fade .15s ease-out; }
+  html.v9-set-open { overflow: hidden; }
+  .view[data-view=settings].v9-float { display: grid !important; grid-template-columns: 170px minmax(0, 1fr); column-gap: 22px; align-items: start; position: fixed !important; z-index: 91; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(920px, calc(100vw - 48px)); height: min(760px, calc(100vh - 48px)); max-width: none !important; margin: 0 !important; padding: 0 26px 26px !important; overflow-y: auto; overscroll-behavior: contain; background: var(--bg, #f6f5f1); border: 1px solid var(--line, #e3e6ee); border-radius: 22px; box-shadow: 0 30px 80px -20px rgba(10, 20, 50, .45); box-sizing: border-box; animation: v9pop .18s ease-out; }
+  .view[data-view=settings].v9-float > .vhead { grid-column: 1 / -1; position: sticky; top: 0; z-index: 2; margin: 0 -26px 10px !important; padding: 16px 20px 12px 26px !important; background: var(--bg, #f6f5f1); border-bottom: 1px solid var(--line, #e3e6ee); }
+  .view[data-view=settings].v9-float > .vhead .back { display: none !important; }
+  .view[data-view=settings].v9-float .v9-set-x { display: inline-grid; place-items: center; margin-left: auto; width: 34px; height: 34px; border: 0; border-radius: 10px; background: transparent; color: var(--sub, #667); cursor: pointer; }
+  .view[data-view=settings].v9-float .v9-set-x:hover { background: color-mix(in srgb, var(--accent, #5366e8) 10%, transparent); color: var(--ink, #222); }
+  .view[data-view=settings].v9-float .v9-set-x .cc-i { width: 18px; height: 18px; }
+  .view[data-view=settings].v9-float .v9-set-nav { position: sticky; top: 76px; display: flex; flex-direction: column; padding: 4px 0 0; gap: 2px; overflow: visible; }
+  .view[data-view=settings].v9-float .v9-set-nav a { border: 0; background: transparent; border-radius: 10px; padding: 9px 12px; font-size: 14px; }
+  .view[data-view=settings].v9-float .v9-set-nav a.on { background: color-mix(in srgb, var(--accent, #5366e8) 10%, transparent); font-weight: 650; }
+  .view[data-view=settings].v9-float .v9-set-body { min-width: 0; }
+  .view[data-view=settings].v9-float .v9-set-body > .sec-h:first-child { margin-top: 0; }
+  .view[data-view=settings].v9-float .v9-set-body > .group, .view[data-view=settings].v9-float .v9-set-body > .sec-h { margin-left: 0 !important; margin-right: 0 !important; }
+}
+@keyframes v9fade { from { opacity: 0; } }
+@keyframes v9pop { from { opacity: 0; transform: translate(-50%, -48%) scale(.98); } }
+[data-skin=cyber] .view[data-view=settings].v9-float, [data-skin=cyber] .view[data-view=settings].v9-float > .vhead { background: var(--panel, #0d1528); }
+/* 学习页（课内学习）右下角有它自己的「AI 设置」，捞捞助手先让开 */
+html:has(.view[data-view=study].on) #lao { display: none !important; }

@@ -3366,8 +3366,6 @@ document.addEventListener("click", (e) => {
   e.preventDefault(); showView(b.dataset.tab);
 });
 function showView(id) {
-  // 课内学习搬到了「捞捞学习」（learn/courses/）
-  if (id === "study") { location.href = "learn/courses/"; return; }
   let scrollStore = false;
   if (id === "store") { id = "tools"; scrollStore = true; }
   if (id === "tools") { refreshRegistry(); setTimeout(toolsTip, 600); }

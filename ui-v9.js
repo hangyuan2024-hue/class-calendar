@@ -11,61 +11,41 @@
   var rd = function (k, d) { try { var v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
   var wr = function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
 
-  // ---------------- 右栏 ----------------
+  // ---------------- 右栏「校园速览」：电脑上默认收起，点右边的小标签以悬浮面板展开 ----------------
   var rail = document.querySelector(".siderail"), shell = document.querySelector(".shell");
-  var RK = "ui_rail_off_v1";
   var tab = document.createElement("button");
-  tab.type = "button"; tab.className = "v9-rail-tab"; tab.title = "展开校园速览：日历、今天的课、这周的作业";
-  tab.innerHTML = '<span class="d">📅</span>校园速览';
+  tab.type = "button"; tab.className = "v9-rail-tab"; tab.title = "校园速览：日历、今天的课、这周的作业";
+  tab.innerHTML = '<span class="d">' + (window.ccIcon ? ccIcon("calendar") : "") + "</span>校园速览";
   document.body.appendChild(tab);
-  function railShownByCss() {
-    // 不加任何收起时，这个宽度下右栏本来显示不显示
-    if (!rail) return false;
-    var off = root.classList.contains("v9-rail-off"), dr = root.classList.contains("v9-rail-drawer");
-    root.classList.remove("v9-rail-off", "v9-rail-drawer");
-    var shown = getComputedStyle(rail).display !== "none";
-    if (off) root.classList.add("v9-rail-off"); if (dr) root.classList.add("v9-rail-drawer");
-    return shown;
-  }
   function layout() {
     if (!rail || !shell) return;
     var desk = window.innerWidth > 1000;
     shell.style.removeProperty("grid-template-columns");
-    var natural = railShownByCss();
-    var off = desk && natural && rd(RK, false);
-    if (off) {
-      // 把右栏那一列去掉，中间那列吃掉多出来的宽度
-      root.classList.remove("v9-rail-off");
+    root.classList.remove("v9-rail-off");
+    if (desk && getComputedStyle(rail).display !== "none") {
+      // 去掉右栏那一列，中间吃掉多出来的宽度
       var cols = getComputedStyle(shell).gridTemplateColumns.split(" ").filter(Boolean);
-      root.classList.add("v9-rail-off");
-      var sb = cols.length >= 3 ? cols[0] + " " : "";
-      shell.style.setProperty("grid-template-columns", sb + "minmax(0, 1fr)", "important");
-    } else root.classList.remove("v9-rail-off");
-    root.classList.toggle("v9-rail-hidden", desk && (!natural || off));
+      shell.style.setProperty("grid-template-columns", (cols.length >= 3 ? cols[0] + " " : "") + "minmax(0, 1fr)", "important");
+    }
+    root.classList.toggle("v9-rail-off", desk);
+    root.classList.toggle("v9-rail-hidden", desk);
     if (!desk) root.classList.remove("v9-rail-drawer");
   }
   if (rail) {
     var head = rail.querySelector(".studio-side-heading");
     if (head && !head.querySelector(".v9-rail-x")) {
       var x = document.createElement("button");
-      x.type = "button"; x.className = "v9-rail-x"; x.title = "收起校园速览"; x.setAttribute("aria-label", "收起校园速览"); x.textContent = "›";
+      x.type = "button"; x.className = "v9-rail-x"; x.title = "收起"; x.setAttribute("aria-label", "收起校园速览"); x.innerHTML = window.ccIcon ? ccIcon("x") : "×";
       head.appendChild(x);
-      x.onclick = function () {
-        if (root.classList.contains("v9-rail-drawer")) { root.classList.remove("v9-rail-drawer"); return; }
-        wr(RK, true); layout();
-      };
+      x.onclick = function () { root.classList.remove("v9-rail-drawer"); };
     }
-    tab.onclick = function () {
-      if (railShownByCss()) { wr(RK, false); layout(); }
-      else root.classList.add("v9-rail-drawer");
-    };
+    tab.onclick = function (e) { e.stopPropagation(); root.classList.toggle("v9-rail-drawer"); };
     document.addEventListener("click", function (e) {
-      if (root.classList.contains("v9-rail-drawer") && !e.target.closest(".siderail") && !e.target.closest(".v9-rail-tab")) root.classList.remove("v9-rail-drawer");
-      else if (root.classList.contains("v9-rail-drawer") && e.target.closest(".siderail [data-tab]")) root.classList.remove("v9-rail-drawer");
+      if (!root.classList.contains("v9-rail-drawer")) return;
+      if (!e.target.closest(".siderail") || e.target.closest(".siderail [data-tab]")) root.classList.remove("v9-rail-drawer");
     });
     document.addEventListener("keydown", function (e) { if (e.key === "Escape") root.classList.remove("v9-rail-drawer"); });
     var t = 0; window.addEventListener("resize", function () { clearTimeout(t); t = setTimeout(layout, 80); });
-    // 换风格、收起左侧导航时重新算（只看这两样，自己改的 class 不算，免得来回触发）
     var sig = function () { return (root.getAttribute("data-skin") || "") + "|" + root.classList.contains("sidebar-collapsed"); }, last = sig();
     new MutationObserver(function () { var s = sig(); if (s !== last) { last = s; clearTimeout(t); t = setTimeout(layout, 30); } }).observe(root, { attributes: true, attributeFilter: ["data-skin", "class"] });
     layout();
@@ -157,6 +137,47 @@
     }, { passive: true });
     new MutationObserver(function () { if (set.classList.contains("on")) buildNav(); }).observe(set, { attributes: true, attributeFilter: ["class"] });
     buildNav();
+  }
+
+  // ---------------- 设置：电脑上以悬浮窗打开，不离开当前页面 ----------------
+  if (set && typeof window.showView === "function") {
+    var orig = window.showView, back = set.querySelector(".vhead .back"), xbtn = document.createElement("button");
+    xbtn.type = "button"; xbtn.className = "v9-set-x"; xbtn.title = "关闭（Esc）"; xbtn.setAttribute("aria-label", "关闭设置");
+    xbtn.innerHTML = window.ccIcon ? ccIcon("x") : "×";
+    var vh = set.querySelector(".vhead"); if (vh) vh.appendChild(xbtn);
+    var veil = document.createElement("div"); veil.className = "v9-set-veil"; document.body.appendChild(veil);
+    var floatOn = function () { return window.innerWidth > 700; };
+    var home = { parent: set.parentNode, next: set.nextSibling };
+    var openSet = function () {
+      // 挪到 body 下面：不受中间那一栏的层级和模糊影响
+      if (set.parentNode !== document.body) { home = { parent: set.parentNode, next: set.nextSibling }; document.body.appendChild(set); }
+      root.classList.add("v9-set-open"); set.classList.add("v9-float");
+      buildNav(); set.scrollTop = 0;
+      try { loadSecurity(); } catch (e) {}
+      try { if (typeof renderSyncUI === "function") renderSyncUI(); } catch (e) {}
+    };
+    var closeSet = function () {
+      root.classList.remove("v9-set-open"); set.classList.remove("v9-float");
+      if (set.parentNode === document.body && home.parent) home.parent.insertBefore(set, home.next && home.next.parentNode === home.parent ? home.next : null);
+    };
+    window.ccCloseSettings = closeSet;
+    window.showView = function (id) {
+      if (id === "settings" && floatOn()) { root.classList.remove("v9-rail-drawer"); openSet(); return; }
+      if (root.classList.contains("v9-set-open")) closeSet();
+      return orig.apply(this, arguments);
+    };
+    try { showView = window.showView; } catch (e) {}
+    xbtn.onclick = closeSet; veil.onclick = closeSet;
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape" && root.classList.contains("v9-set-open")) closeSet(); });
+    window.addEventListener("resize", function () { if (!floatOn() && root.classList.contains("v9-set-open")) { closeSet(); orig("settings"); } });
+    set.addEventListener("scroll", function () {
+      if (!set.classList.contains("v9-float")) return;
+      var top = set.getBoundingClientRect().top, cur = null;
+      nav.querySelectorAll("a[data-sec]").forEach(function (a) { var el = $(a.dataset.sec); if (el && el.getBoundingClientRect().top - top < 120) cur = a; });
+      nav.querySelectorAll("a").forEach(function (x) { x.classList.toggle("on", x === (cur || nav.firstElementChild)); });
+    }, { passive: true });
+    // 地址带 #settings 打开的：页面先停在首页，设置浮在上面
+    if (set.classList.contains("on") && floatOn()) { orig("home"); openSet(); }
   }
 
   // ---------------- 成长页 ----------------
