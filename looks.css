@@ -1,0 +1,108 @@
+/* =========================================================================
+ * 6.17 外观：清爽 / 简约 / 书页 / 捞捞元宇宙，每个外观都有自己的浅色和深色
+ *   布局都用清爽那一套（data-skin=fresh），简约和书页只换颜色和字体（data-look）；元宇宙是自己的布局（data-skin=cyber）
+ *   深色：清爽 / 简约 / 书页用 data-mode=dark；元宇宙默认深色，浅色时 data-tone=light
+ *   放在 fresh.css、campus-ui.css、workspace-v2.css 之后
+ * ========================================================================= */
+
+/* ---------- 简约：黑白灰，少边框，强调色是墨黑 ---------- */
+[data-skin=fresh][data-look=clean] {
+  --bg: #f6f6f7; --bg2: #f6f6f7; --card: #ffffff; --text: #18181b; --ink: #18181b; --sub: #686871;
+  --accent: #18181b; --blue: #18181b; --green: #2f7d57; --today: #d4483f; --red: #d4483f;
+  --line: #e6e6e9; --border: #e6e6e9; --hover: #f1f1f3; --selected: #ececef; --muted-bg: #f3f3f5;
+  --hl: #18181b; --hl-text: #ffffff; --hl-shadow: none; --nav-on-bg: #ececef; --nav-on-shadow: none;
+  --hero: #f1f1f3; --shadow: 0 1px 2px rgba(0, 0, 0, .04); --tile-a: #f3f3f5; --tile-b: #eef0f2; --tile-text: #18181b; --add-bg: #18181b;
+}
+[data-skin=fresh][data-look=clean][data-mode=dark] {
+  --bg: #121214; --bg2: #121214; --card: #1b1b1e; --text: #ececee; --ink: #ececee; --sub: #9d9da6;
+  --accent: #ececee; --blue: #ececee; --green: #6cc49a; --today: #ff7a6e; --red: #ff7a6e;
+  --line: #2b2b30; --border: #2b2b30; --hover: #232327; --selected: #29292e; --muted-bg: #202024;
+  --hl: #ececee; --hl-text: #121214; --nav-on-bg: #29292e; --hero: #1f1f23; --tile-a: #222226; --tile-b: #1f2224; --tile-text: #ececee; --add-bg: #ececee;
+}
+[data-look=clean] .surface, [data-look=clean] .widget { box-shadow: none !important; }
+
+/* ---------- 书页（新）：米色纸面、墨色文字、朱砂红点缀，标题用宋体 ---------- */
+[data-skin=fresh][data-look=paper] {
+  --bg: #f3eee3; --bg2: #f3eee3; --card: #fbf8f1; --text: #2b2620; --ink: #2b2620; --sub: #7a6f62;
+  --accent: #b2432a; --blue: #b2432a; --green: #4f7a52; --today: #b2432a; --red: #b2432a;
+  --line: #e3dac8; --border: #e3dac8; --hover: #efe7d7; --selected: #ebdfca; --muted-bg: #f1eadc;
+  --hl: #b2432a; --hl-text: #fffaf2; --hl-shadow: none; --nav-on-bg: #ebdfca; --nav-on-shadow: none;
+  --hero: linear-gradient(160deg, #efe3cd 0%, #f6efe2 100%); --shadow: 0 10px 26px -18px rgba(70, 45, 20, .35);
+  --tile-a: #f2e2cc; --tile-b: #e5e8da; --tile-text: #2b2620; --add-bg: #b2432a;
+  --fd: "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", "SimSun", serif;
+}
+[data-skin=fresh][data-look=paper][data-mode=dark] {
+  --bg: #1b1916; --bg2: #1b1916; --card: #24211d; --text: #ebe2d3; --ink: #ebe2d3; --sub: #a79a88;
+  --accent: #e2866b; --blue: #e2866b; --green: #8fb98f; --today: #e2866b; --red: #e2866b;
+  --line: #39342d; --border: #39342d; --hover: #2c2823; --selected: #3a2f27; --muted-bg: #292520;
+  --hl: #c4583e; --hl-text: #fff6ec; --nav-on-bg: #3a2f27; --hero: linear-gradient(160deg, #2e2720 0%, #24211d 100%);
+  --tile-a: #33291f; --tile-b: #262b23; --tile-text: #ebe2d3; --add-bg: #c4583e;
+}
+[data-look=paper] body { background-image: radial-gradient(rgba(120, 90, 50, .05) 1px, transparent 1px); background-size: 4px 4px; }
+[data-look=paper][data-mode=dark] body { background-image: radial-gradient(rgba(255, 240, 210, .025) 1px, transparent 1px); }
+[data-look=paper] h1, [data-look=paper] h2, [data-look=paper] h3, [data-look=paper] .vhead h2, [data-look=paper] .brand .bname,
+[data-look=paper] .studio-page-title h2, [data-look=paper] .sec-h b { font-family: var(--fd) !important; letter-spacing: .5px; }
+[data-look=paper] .hero, [data-look=paper] [data-mode=dark] .hero { color: var(--text) !important; }
+[data-look=paper] .surface { border-color: var(--line) !important; }
+
+/* 两个新外观在深色下沿用清爽深色的「上午好」卡片写法，但别用清爽的蓝色 */
+[data-skin=fresh][data-look=clean][data-mode=dark] .hero, [data-skin=fresh][data-look=paper][data-mode=dark] .hero { color: var(--text); }
+
+/* ---------- 捞捞元宇宙 · 浅色（白昼） ---------- */
+[data-skin=cyber][data-tone=light] {
+  --bg: #edf2fb; --bg2: #edf2fb; --card: #ffffff; --text: #0f1b33; --sub: #50607e; --line: #d2dcee; --border: #d2dcee;
+  --accent: #0a9fae; --ink: #4a55e8; --ink-text: #ffffff; --today: #0a9fae;
+  --hero: linear-gradient(120deg, #e2eaff, #dcf5f7); --tile-a: linear-gradient(120deg, #e8e5ff, #fde3f2); --tile-b: linear-gradient(120deg, #dcf5f7, #e2eeff);
+  --shadow: 0 12px 30px -18px rgba(30, 60, 120, .35); --hover: #e6edf9; --muted-bg: #f2f6fd; --selected: #e2ebfb;
+}
+[data-skin=cyber][data-tone=light] body { background-color: var(--bg) !important; color: var(--text); }
+[data-skin=cyber][data-tone=light] body::before, [data-skin=cyber][data-tone=light] body::after { opacity: .18 !important; filter: invert(1) hue-rotate(180deg); }
+
+/* ---------- 外观选择里的小预览 ---------- */
+.pv.paper { background: linear-gradient(160deg, #f6efe2, #ead9bd) !important; }
+.pv.paper i { background: #2b2620 !important; }
+.pv.paper em { background: #b2432a !important; }
+.pv.clean { background: #ffffff !important; border: 1px solid #e6e6e9; }
+.pv.clean i { background: #18181b !important; }
+.pv.clean em { background: #e6e6e9 !important; }
+
+/* ---------- 深浅色三段开关 ---------- */
+.v9-mode-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.v9-mode-row .sx { flex: 1; min-width: 160px; }
+.v9-seg { display: inline-flex; padding: 3px; border-radius: 11px; background: var(--muted-bg, #f1f2f6); border: 1px solid var(--line, #e3e6ee); gap: 2px; flex: none; }
+.v9-seg button { border: 0; background: transparent; color: var(--sub); font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
+.v9-seg button.on { background: var(--card, #fff); color: var(--text); font-weight: 650; box-shadow: 0 1px 3px rgba(0, 0, 0, .1); }
+
+/* ---------- 左侧导航跟着外观走（清爽保留原来的深色侧栏） ---------- */
+@media (min-width: 701px) {
+  [data-skin=fresh][data-look=clean] { --studio-rail: #ffffff; --rail-ink: #18181b; --rail-sub: #6d6d76; --rail-hover: #f1f1f3; --rail-line: #e6e6e9; }
+  [data-skin=fresh][data-look=clean][data-mode=dark] { --studio-rail: #17171a; --rail-ink: #ececee; --rail-sub: #9d9da6; --rail-hover: #232327; --rail-line: #2b2b30; }
+  [data-skin=fresh][data-look=paper] { --studio-rail: #ebe3d3; --rail-ink: #2b2620; --rail-sub: #6f6457; --rail-hover: #e2d8c4; --rail-line: #d9cdb6; }
+  [data-skin=fresh][data-look=paper][data-mode=dark] { --studio-rail: #171512; --rail-ink: #ebe2d3; --rail-sub: #a3968a; --rail-hover: #26221d; --rail-line: #332e28; }
+  [data-look=clean] .rail, [data-look=paper] .rail { color: var(--rail-ink) !important; border-right: 1px solid var(--rail-line) !important; }
+  [data-look=clean] .brand, [data-look=paper] .brand { color: var(--rail-ink) !important; }
+  [data-look=clean] .nav, [data-look=paper] .nav { color: var(--rail-sub) !important; }
+  [data-look=clean] .nav:hover, [data-look=paper] .nav:hover { background: var(--rail-hover) !important; color: var(--rail-ink) !important; }
+  [data-look=clean] .nav.on, [data-look=paper] .nav.on { background: var(--hl) !important; color: var(--hl-text, #fff) !important; box-shadow: none !important; }
+  [data-look=clean] #addBtn, [data-look=paper] #addBtn { color: var(--rail-ink) !important; background: transparent !important; border-color: var(--rail-line) !important; }
+  [data-look=clean] #addBtn:hover, [data-look=paper] #addBtn:hover { background: var(--rail-hover) !important; }
+  [data-look=clean] .studio-rail-note, [data-look=paper] .studio-rail-note { border-color: var(--rail-line) !important; }
+  [data-look=clean] .studio-rail-note b, [data-look=paper] .studio-rail-note b { color: var(--rail-ink) !important; }
+  [data-look=clean] .studio-rail-note small, [data-look=paper] .studio-rail-note small, [data-look=clean] .studio-rail-caption, [data-look=paper] .studio-rail-caption { color: var(--rail-sub) !important; }
+  [data-look=clean] .studio-note-icon, [data-look=paper] .studio-note-icon { color: var(--accent) !important; }
+  [data-look=clean] #userChip, [data-look=paper] #userChip, [data-look=clean] #userChip *, [data-look=paper] #userChip * { color: var(--rail-ink); }
+  [data-look=clean] .rail .nav .badge, [data-look=paper] .rail .nav .badge { background: var(--accent) !important; color: var(--hl-text, #fff) !important; }
+}
+/* 简约 · 深色：按钮上是白字，强调色不能是白的，换成低饱和的靛蓝 */
+[data-skin=fresh][data-look=clean][data-mode=dark] { --accent: #8f9cff; --blue: #8f9cff; --hl: #4f5bd5; --hl-text: #ffffff; --add-bg: #4f5bd5; }
+
+/* ---------- 捞捞元宇宙 · 浅色：原来按深色背景写的白字、发光字改成深色 ---------- */
+[data-skin=cyber][data-tone=light] :is(h1, h2, h3, h4, .studio-page-title h2, .hero h3, .hero .hi, .bname, .brand) { color: var(--text) !important; text-shadow: none !important; -webkit-text-fill-color: currentColor !important; background-image: none !important; }
+[data-skin=cyber][data-tone=light] .rail { background: #ffffff !important; border-right: 1px solid var(--line) !important; }
+[data-skin=cyber][data-tone=light] .nav { color: var(--sub) !important; }
+[data-skin=cyber][data-tone=light] .nav.on { color: var(--accent) !important; }
+[data-skin=cyber][data-tone=light] .hero, [data-skin=cyber][data-tone=light] .surface, [data-skin=cyber][data-tone=light] .widget { color: var(--text) !important; }
+
+/* 外观选择卡片：深色下文字看得清 */
+#skinPick .skin { background: var(--card) !important; color: var(--text) !important; }
+#skinPick .skin.on { border-color: var(--accent) !important; }

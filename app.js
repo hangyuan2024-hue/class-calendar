@@ -37,7 +37,7 @@ const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; 
 // ===== 云端同步：登录后，我的事项、完成标记、打卡、规划、外观设置自动存到云端，换浏览器 / 换手机都能看到 =====
 // 每条数据单独同步，带修改时间；两边都改了同一条，以后改的为准。可以在「我的 → 数据」里改成「只存在这台设备」。
 // list：数组，按 id 一条条同步；map：对象，按键同步；map2：两层对象（习惯 → 日期）；one：整体同步
-const SYNC_KINDS = { evening_v1: "one", morning_v1: "one", hw_view_v1: "one", ui_style_v1: "one", compose_mode_v1: "one", compose_reduce_motion_v1: "one", course_rev_v1: "one", course_view_v1: "map", kn_rev_v1: "one", mm_rev_v1: "one", personal_events_v1: "list", personal_marks_v1: "map", done_log_v1: "map", habits_v1: "list", habit_log_v1: "map2",
+const SYNC_KINDS = { evening_v1: "one", morning_v1: "one", hw_view_v1: "one", ui_style_v1: "one", compose_mode_v1: "one", ui_mode_v1: "one", compose_reduce_motion_v1: "one", course_rev_v1: "one", course_view_v1: "map", kn_rev_v1: "one", mm_rev_v1: "one", personal_events_v1: "list", personal_marks_v1: "map", done_log_v1: "map", habits_v1: "list", habit_log_v1: "map2",
   quad_v1: "map", quad_todos_v1: "list", pomo_log_v1: "map", fun_opts_v1: "one", home_layout_v1: "one", ui_skin_v1: "one",
   ui_palette_v1: "one", plugins_enabled_v1: "one", home_quick_tools_v1: "one", plan_notes_v1: "map", profile_v1: "one", mood_log_v1: "map", coach_v1: "map", farm_v1: "one", island_v1: "one",
   coach_opts_v1: "map", coach_bag_v1: "map" };   // 6.15 捞捞教练的开关、收藏也跟着账号（以前各端各存各的：小程序开了网页还显示没开）
@@ -536,24 +536,22 @@ const AGENDA_DAYS = 14;
 const agendaOpen = new Set();
 
 // ===== 外观：风格 + 自定义背景（只存在这台设备上） =====
-const LS_SKIN = "ui_skin_v1", LS_BG = "ui_bg_v1", LS_BG_OPTS = "ui_bg_opts_v1";
-const SKIN_COLOR = { fresh: "#cdeeff", vivid: "#cdeeff", clean: "#ffffff", dark: "#000000", cyber: "#07060f" };
+const LS_SKIN = "ui_skin_v1", LS_MODE = "ui_mode_v1", LS_BG = "ui_bg_v1", LS_BG_OPTS = "ui_bg_opts_v1";
+// 浏览器顶栏颜色：[浅色, 深色]
+const SKIN_COLOR = { fresh: ["#f5f6f2", "#131e21"], clean: ["#f7f7f8", "#141416"], paper: ["#f4efe4", "#1c1a17"], cyber: ["#eef3fb", "#07060f"] };
+const LOOK_NAME = { fresh: "清爽", clean: "简约", paper: "书页", cyber: "捞捞元宇宙" };
 const darkMQ = window.matchMedia ? matchMedia("(prefers-color-scheme: dark)") : null;
 // 「跟随系统」：系统切到深色时，清爽外观也跟着变深
-if (darkMQ) (darkMQ.addEventListener ? darkMQ.addEventListener("change", () => { if (load(LS_SKIN, "fresh") === "auto") applyLook(); }) : 0);
+if (darkMQ) (darkMQ.addEventListener ? darkMQ.addEventListener("change", () => { if (window.ccLookState && ccLookState().mode === "system") applyLook(); }) : 0);
 // 元宇宙里的叫法
 const CYBER_NAMES = { 排行榜: "战力榜", 感谢名单: "荣誉殿堂", 首页: "主控台", 作业: "任务清单", 班级墙: "广播频道", 日历: "时间线", 规划: "作战室", 规划与专注: "作战室", 工具: "模组库", 元宇宙空间: "元宇宙空间", 我的: "身份档案", 问答: "AI 终端", 成长: "成长数据", 班级: "班级节点", 捞捞课程表: "捞捞元宇宙" };
 const cyName = (t) => (document.documentElement.dataset.skin === "cyber" && CYBER_NAMES[t]) || t;
 function applyLook() {
   const root = document.documentElement;
   root.classList.toggle("reduce-motion",load("compose_reduce_motion_v1",false) === true);
-  const phoneMode = load("compose_mode_v1", "");
-  const selected = load(LS_SKIN, "fresh");
-  const want = phoneMode === "dark" ? (selected === "cyber" ? "cyber" : "dark") : phoneMode === "light" ? (["fresh","vivid","clean"].includes(selected) ? selected : "fresh") : phoneMode === "system" ? "auto" : selected, skin = want === "auto" ? "fresh" : want;
-  root.dataset.skin = SKIN_COLOR[skin] ? skin : "fresh";
-  const dark = want === "auto" && darkMQ && darkMQ.matches;
-  if (dark) root.dataset.mode = "dark"; else delete root.dataset.mode;
-  document.querySelector('meta[name="theme-color"]').content = dark ? "#0d1424" : SKIN_COLOR[root.dataset.skin];
+  const st = window.ccApplyLook ? ccApplyLook() : { skin: "fresh", look: "fresh", mode: "light", dark: false };
+  const dark = st.dark;
+  document.querySelector('meta[name="theme-color"]').content = (SKIN_COLOR[st.look] || SKIN_COLOR.fresh)[dark ? 1 : 0];
   document.querySelectorAll(".vhead h2, .brand .bname").forEach((h) => { h.dataset.t ||= h.textContent; h.textContent = cyName(h.dataset.t); });
   if (typeof renderTabs === "function" && document.getElementById("tabs").childElementCount) renderTabs();
   let bg = null; try { bg = localStorage.getItem(LS_BG); } catch (e) {}
@@ -566,7 +564,9 @@ function applyLook() {
     root.style.setProperty("--bg-dim", dim / 100);
     root.style.setProperty("--bg-blur", blur + "px");
   } else root.style.removeProperty("--bg-img");
-  document.querySelectorAll("#skinPick .skin").forEach((b) => b.classList.toggle("on", b.dataset.skin === (want === "auto" ? "auto" : root.dataset.skin)));
+  document.querySelectorAll("#skinPick .skin").forEach((b) => b.classList.toggle("on", b.dataset.skin === st.look));
+  document.querySelectorAll("#modePick [data-mode]").forEach((b) => b.classList.toggle("on", b.dataset.mode === st.mode));
+  if ($("modeLook")) $("modeLook").textContent = "「" + (LOOK_NAME[st.look] || "") + "」的深浅色";
   if (typeof applyPalette === "function") applyPalette();
   if (typeof appBars === "function") appBars();
   $("bgThumb").style.backgroundImage = bg ? `url("${bg}")` : "";
@@ -576,7 +576,14 @@ function applyLook() {
   $("bgDim").value = dim; $("bgBlur").value = blur;
 }
 $("skinPick").onclick = (e) => { const b = e.target.closest("[data-skin]"); if (!b) return; if (b.dataset.skin === "cyber") enterMeta(); else setSkin(b.dataset.skin); };
-function setSkin(k) { save("compose_mode_v1", k === "dark" || k === "cyber" ? "dark" : k === "auto" ? "system" : "light"); save(LS_SKIN, k); applyLook(); try { renderAll(); } catch (e) {} }
+function setSkin(k) { save(LS_SKIN, k); applyLook(); try { renderAll(); } catch (e) {} }
+// 每个外观各自的深浅色：浅色 / 深色 / 跟随系统（手机 App 读 compose_mode_v1，顺手同步过去）
+function setLookMode(m) {
+  const st = window.ccLookState ? ccLookState() : { look: "fresh" };
+  const modes = Object.assign({}, load(LS_MODE, {}) || {}); modes[st.look] = m;
+  save(LS_MODE, modes); save("compose_mode_v1", m); applyLook(); try { renderAll(); } catch (e) {}
+}
+if ($("modePick")) $("modePick").onclick = (e) => { const b = e.target.closest("[data-mode]"); if (b) setLookMode(b.dataset.mode); };
 // ===== 配色（以前是「个性化主题」插件，现在合并进外观设置） =====
 const LS_PALETTE = "ui_palette_v1";
 const PALETTES = [
@@ -601,15 +608,16 @@ function currentPalette() { const v = load(LS_PALETTE, null); return v && /^#[0-
 function applyPalette() {
   const skin = document.documentElement.dataset.skin;
   const pal = currentPalette();
-  const v = window.ccPalette ? window.ccPalette.apply(pal, document.documentElement.dataset.mode === "dark" ? "fresh-dark" : skin) : null;
-  if (v && v.bg && (skin === "vivid" || skin === "fresh") && document.documentElement.dataset.mode !== "dark") document.querySelector('meta[name="theme-color"]').content = v.bg;
+  const st = window.ccLookState ? ccLookState() : { skin: skin, look: skin, dark: false };
+  const v = window.ccPalette ? window.ccPalette.apply(pal, window.ccPalSkin ? ccPalSkin(st) : skin) : null;
+  if (v && v.bg && st.look === "fresh" && !st.dark) document.querySelector('meta[name="theme-color"]').content = v.bg;
   const cur = pal ? pal.id : "sky";
   $("palPick").innerHTML = PALETTES.map((x) => `<button class="pal${x.id === cur ? " on" : ""}" data-pal="${x.id}" style="--s:${x.s}">
       <span class="dot" style="background:linear-gradient(135deg, ${window.ccPalette ? window.ccPalette.mix(x.p, "#ffffff", 0.35) : x.p}, ${x.p})"></span>${esc(x.name)}</button>`).join("")
     + (pal && pal.id === "custom" ? `<button class="pal on" data-pal="custom" style="--s:${pal.s}"><span class="dot" style="background:${pal.p}"></span>我的配色</button>` : "");
   $("palP").value = pal ? pal.p : "#1ea0ff"; $("palS").value = pal ? pal.s : "#ff7b2e";
   $("palBox").classList.toggle("off", skin === "cyber");
-  $("palNote").textContent = skin === "cyber" ? "捞捞元宇宙有自己的霓虹配色，回到其他风格后配色会恢复" : "选一套喜欢的颜色，元气、简约、夜间风格都能用";
+  $("palNote").textContent = skin === "cyber" ? "捞捞元宇宙有自己的霓虹配色，回到其他风格后配色会恢复" : "选一套喜欢的颜色：清爽会整体换色，简约和书页只换强调色";
 }
 function setPalette(p) {
   if (!p || p.id === "sky") { try { localStorage.removeItem(LS_PALETTE); } catch (e) {} Sync.note(LS_PALETTE); }

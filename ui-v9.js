@@ -167,3 +167,70 @@
     if (hs[1]) hs[1].classList.add("v9-g2");
   }
 })();
+
+/* ---------------- 6.17 左下角账号菜单（个人中心、设置、外观、帮助、退出），像常见的桌面应用一样 ----------------
+ * 电脑上左侧导航不再放「我的」「设置」，点左下角自己的头像打开这个菜单；手机底部栏照旧有「我的」 */
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var chip = $("userChip"); if (!chip) return;
+  var I = function (n) { return window.ccIcon ? ccIcon(n) : ""; };
+  var LOOKS = [["fresh", "清爽"], ["clean", "简约"], ["paper", "书页"], ["cyber", "捞捞元宇宙"]];
+  var MODES = [["light", "浅色", "sun"], ["dark", "深色", "moon"], ["system", "跟随系统", "monitor"]];
+  var menu = document.createElement("div"); menu.id = "acctMenu"; menu.className = "v9-acct"; menu.hidden = true; menu.setAttribute("role", "menu");
+  document.body.appendChild(menu);
+  function me() { return typeof currentUser !== "undefined" && currentUser ? currentUser : null; }
+  function render() {
+    var u = me(), st = window.ccLookState ? ccLookState() : { look: "fresh", mode: "light" };
+    var name = u ? (u.display_name || u.account || "我") : "";
+    var role = u && window.CCAuth && CCAuth.ROLE_NAMES ? (CCAuth.ROLE_NAMES[u.role] || "") : "";
+    var lookName = (LOOKS.find(function (x) { return x[0] === st.look; }) || LOOKS[0])[1];
+    var modeName = (MODES.find(function (x) { return x[0] === st.mode; }) || MODES[0])[1];
+    menu.innerHTML =
+      '<div class="v9-acct-h"><span class="av">' + (name ? esc1([...name][0]) : "?") + '</span><span class="t"><b>' + esc1(name) + "</b><small>" + esc1(role + (u && u.account ? " · @" + u.account : "")) + "</small></span></div>" +
+      '<button role="menuitem" data-go="me">' + I("user") + "<span>个人中心</span><small>资料、成长、常用入口</small></button>" +
+      '<button role="menuitem" data-go="settings">' + I("settings") + "<span>设置</span><small>同步、通知、安全</small></button>" +
+      '<button role="menuitem" class="sub" data-sub="look">' + I("palette") + "<span>外观</span><small>" + lookName + " · " + modeName + "</small>" + I("chevron", "chev") + "</button>" +
+      '<div class="v9-acct-sub" hidden>' +
+        '<div class="v9-acct-looks">' + LOOKS.map(function (x) { return '<button data-look="' + x[0] + '" class="' + (x[0] === st.look ? "on" : "") + '"><i class="pv ' + x[0] + '"></i>' + x[1] + "</button>"; }).join("") + "</div>" +
+        '<div class="v9-acct-modes">' + MODES.map(function (x) { return '<button data-mode="' + x[0] + '" class="' + (x[0] === st.mode ? "on" : "") + '">' + I(x[2]) + x[1] + "</button>"; }).join("") + "</div>" +
+        '<small class="v9-acct-note">深浅色每个外观各记各的</small></div>' +
+      '<div class="sep"></div>' +
+      '<button role="menuitem" data-go="intro">' + I("help") + "<span>帮助与功能介绍</span></button>" +
+      '<a role="menuitem" href="app.html">' + I("home") + "<span>捞捞官网</span><small>下载 App、捞捞学习</small></a>" +
+      '<div class="sep"></div>' +
+      '<button role="menuitem" class="danger" data-act="logout">' + I("logout") + "<span>退出登录</span></button>";
+  }
+  function esc1(s) { return String(s || "").replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function place() {
+    var r = chip.getBoundingClientRect(), w = Math.max(260, Math.min(300, window.innerWidth - 24));
+    menu.style.width = w + "px";
+    menu.style.left = Math.max(12, Math.min(r.left, window.innerWidth - w - 12)) + "px";
+    menu.style.bottom = Math.max(12, window.innerHeight - r.top + 8) + "px";
+  }
+  function open() { render(); menu.hidden = false; place(); chip.setAttribute("aria-expanded", "true"); }
+  function close() { menu.hidden = true; chip.setAttribute("aria-expanded", "false"); }
+  chip.setAttribute("aria-haspopup", "menu");
+  chip.addEventListener("click", function (e) {
+    if (!me()) return;                       // 没登录：照旧去登录
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (menu.hidden) open(); else close();
+  }, true);
+  menu.addEventListener("click", function (e) {
+    e.stopPropagation();                     // 菜单内容会重画，别让下面「点外面关菜单」误判
+    var b = e.target.closest("button, a"); if (!b) return;
+    if (b.dataset.sub) { var sub = menu.querySelector(".v9-acct-sub"); sub.hidden = !sub.hidden; b.classList.toggle("open", !sub.hidden); place(); return; }
+    if (b.dataset.look) {
+      if (b.dataset.look === "cyber" && typeof enterMeta === "function") { close(); enterMeta(); return; }
+      if (typeof setSkin === "function") setSkin(b.dataset.look);
+      render(); menu.querySelector(".v9-acct-sub").hidden = false; return;
+    }
+    if (b.dataset.mode) { if (typeof setLookMode === "function") setLookMode(b.dataset.mode); render(); menu.querySelector(".v9-acct-sub").hidden = false; return; }
+    if (b.dataset.go) { close(); if (typeof showView === "function") showView(b.dataset.go); return; }
+    if (b.dataset.act === "logout") { close(); var lb = $("logoutBtn"); if (lb) lb.click(); return; }
+    close();
+  });
+  document.addEventListener("click", function (e) { if (!menu.hidden && !menu.contains(e.target) && !chip.contains(e.target)) close(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !menu.hidden) { close(); chip.focus(); } });
+  window.addEventListener("resize", function () { if (!menu.hidden) place(); });
+})();

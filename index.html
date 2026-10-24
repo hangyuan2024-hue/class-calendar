@@ -5,7 +5,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-4Ss7P6DROgF1wQ/X/Rt8C1DejNzksSTArGXdKWYrVt0=' 'sha256-LKJ+mo2uVpzerEJ1LtGu0a/v9/GSgtPMEsCqpUoIvAQ=' 'sha256-KsOFcNldfNSqeBoBNlB2wJo9zdEO1MOn6bmIN6p/6RI=' 'sha256-VSJgs2BX8TFGDzSpHfZjJ6nxbk3Wa+LBOu/bdk7KvCc='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com https://*.workers.dev wss://*.workers.dev http://localhost:* http://127.0.0.1:*; frame-src 'self'; media-src 'self' data: blob:; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; manifest-src 'self'">
 <meta name="referrer" content="no-referrer">
 <script src="i18n.js?v=20261023-v700"></script>
-<script src="guard.js?v=20261005-campus1"></script>
+<script src="guard.js?v=20261024-v9b"></script>
 <script src="first.js?v=20261004c"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -26,7 +26,7 @@
 <meta property="og:description" content="捞捞课程表：把班级群里的作业、通知、班会自动整理进日历，快到时间提醒你。有课程表、作业清单、班级墙、番茄钟和 AI 问答。免费，支持安卓 App、Windows 电脑版和网页版。">
 <meta property="og:url" content="https://www.laolaokechengbiao.cn/">
 <meta property="og:image" content="https://www.laolaokechengbiao.cn/icon-512.png">
-<script src="boot.js?v=20261004r"></script>
+<script src="boot.js?v=20261024-v9b"></script>
 <link rel="preconnect" href="https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com" crossorigin>
 <link rel="preload" href="fonts/fd-00.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="fonts.css?v=1">
@@ -1941,7 +1941,8 @@
 <link rel="stylesheet" href="polish.css?v=20261009-tl2">
 <link rel="stylesheet" href="extras.css?v=20261022-v697">
 <link rel="stylesheet" href="workspace-fit.css?v=20261023-v714">
-<link rel="stylesheet" href="ui-v9.css?v=20261024-v9a">
+<link rel="stylesheet" href="looks.css?v=20261024-v9b">
+<link rel="stylesheet" href="ui-v9.css?v=20261024-v9b">
 </head>
 <body class="campus-workspace">
 <a class="campus-skip" href="#campus-main">跳到主要内容</a>
@@ -2301,12 +2302,13 @@
       <div class="gx">
         <div class="skins" id="skinPick">
           <button class="skin" data-skin="fresh"><div class="pv fresh"><i></i><em></em></div>清爽</button>
-          <button class="skin" data-skin="auto"><div class="pv auto"><i></i><em></em></div>跟随系统</button>
-          <button class="skin" data-skin="vivid"><div class="pv vivid"><i></i><em></em></div>元气</button>
           <button class="skin" data-skin="clean"><div class="pv clean"><i></i><em></em></div>简约</button>
-          <button class="skin" data-skin="dark"><div class="pv dark"><i></i><em></em></div>夜间</button>
+          <button class="skin" data-skin="paper"><div class="pv paper"><i></i><em></em></div>书页</button>
           <button class="skin" data-skin="cyber" data-feat="metaverse"><div class="pv cyber"><i></i><em></em></div>捞捞元宇宙</button>
         </div>
+      </div>
+      <div class="gi v9-mode-row"><span class="ic" data-icon="moon"></span><span class="sx"><span class="sxt" id="modeLook">深浅色</span><small>每个外观各记各的：比如清爽用浅色、元宇宙用深色</small></span>
+        <span class="v9-seg" id="modePick" role="group" aria-label="深浅色"><button type="button" data-mode="light">浅色</button><button type="button" data-mode="dark">深色</button><button type="button" data-mode="system">跟随系统</button></span>
       </div>
       <label class="gi" id="langRow"><span class="ic">🌐</span><span class="sx"><span class="sxt">语言 / Language</span><small>默认跟着浏览器；切换后这台设备记住</small></span>
         <select class="gsel" id="optLang" data-noi18n><option value="zh">中文</option><option value="en">English</option></select></label>
@@ -2729,7 +2731,7 @@
 <script src="farm.js?v=20261021-v69"></script>
 <script src="metaverse-v3.js?v=20261005-native3"></script>
 <script src="nextclass.js?v=20261017-v590"></script>
-<script src="app.js?v=20261024-v720"></script>
+<script src="app.js?v=20261024-v721"></script>
 <script src="level-ui.js?v=20261021-v69"></script>
 <script src="qr-lite.js?v=20261022-v697"></script>
 <script src="checkin-ui.js?v=20261022-v697"></script>
@@ -2751,6 +2753,7 @@
 <script src="teacher.js?v=20261022-v697"></script>
 <script src="work.js?v=20261016-v580"></script>
 <script src="live.js?v=20261009-live1"></script>
-<script src="ui-v9.js?v=20261024-v9a"></script>
+<script src="ui-icons.js?v=20261024-v9b"></script>
+<script src="ui-v9.js?v=20261024-v9b"></script>
 </body>
 </html>

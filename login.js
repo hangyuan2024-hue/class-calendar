@@ -218,7 +218,7 @@ const OB = {
     done: "初始化完成！", doneLead: "装备已就绪，开始这个学期的第一个任务吧 ⚡",
   },
 };
-const SKINS = [["fresh", "清爽", "linear-gradient(135deg,#cdeeff 55%,#1e8cff 55%)"], ["vivid", "元气", "linear-gradient(135deg,#cdeeff,#ffffff)"], ["clean", "简约", "linear-gradient(135deg,#ffffff,#eef1f5)"], ["dark", "夜间", "linear-gradient(135deg,#111,#2a2a2e)"], ["cyber", "元宇宙", "linear-gradient(135deg,#7a1cff,#00e5ff)"]];
+const SKINS = [["fresh", "清爽", "linear-gradient(135deg,#e5f0e8 55%,#157568 55%)"], ["clean", "简约", "linear-gradient(135deg,#ffffff,#eef1f5)"], ["paper", "书页", "linear-gradient(135deg,#f6efe2,#e3cfae)"], ["cyber", "元宇宙", "linear-gradient(135deg,#7a1cff,#00e5ff)"]];
 let ob = null;
 async function onboard(me) {
   const s = await CCAuth.session();
@@ -244,7 +244,7 @@ function renderOb() {
     h = `<h3>${g === "f" ? "挑一套喜欢的颜色" : "选择你的主题"}</h3><p class="lead">已经帮你选好了默认的，换一个也行，以后在「我的 → 外观」里随时改。</p>
       <div class="skinrow">${SKINS.map(([id, n, bg]) => `<button data-skin="${id}" class="${ob.skin === id ? "on" : ""}"><div class="pv" style="background:${bg}"></div>${n}${cfg.rec === id && id !== cfg.skin ? '<span class="rec">试试</span>' : ""}</button>`).join("")}</div>
       <div class="pals${ob.skin === "cyber" ? " hidden" : ""}">${cfg.pals.map((id) => `<button data-pal="${id}" class="${ob.pal === id ? "on" : ""}"><span class="dot" style="background:linear-gradient(135deg,${PALS[id][1]},${PALS[id][2]})"></span>${PALS[id][0]}</button>`).join("")}</div>
-      <div class="preview" style="background:${ob.skin === "cyber" ? "#0c0a20" : ob.skin === "dark" ? "#1a1a1e" : "#fff"}">
+      <div class="preview" style="background:${ob.skin === "cyber" ? "#0c0a20" : ob.skin === "paper" ? "#fbf8f1" : "#fff"}">
         <div class="pvh" style="background:${ob.skin === "cyber" ? "linear-gradient(135deg,#7a1cff,#00e5ff)" : `linear-gradient(135deg,${p[1]},${p[2]})`}">${ob.skin === "cyber" ? "▶ 捞捞元宇宙" : "今天有 3 件事"}</div>
         <div class="pvb" style="background:${ob.skin === "cyber" ? "#ff2bd6" : p[1]}">＋</div></div>
       <div class="ob-nav"><button class="ghost" data-ob="back">上一步</button><button class="go" data-ob="next">就这个 →</button></div>`;

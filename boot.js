@@ -51,13 +51,9 @@
   window.ccPalette = { derive: derive, apply: apply, mix: mix, readable: readable };
 
   try {
-    var s = JSON.parse(localStorage.getItem("ui_skin_v1") || '"fresh"');
-    if (["fresh", "auto", "vivid", "clean", "dark", "cyber"].indexOf(s) < 0) s = "fresh";
-    var dark = s === "auto" && window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches;
-    if (s === "auto") s = "fresh";
-    document.documentElement.dataset.skin = s;
-    if (dark) document.documentElement.dataset.mode = "dark";
-    apply(JSON.parse(localStorage.getItem("ui_palette_v1") || "null"), dark ? "fresh-dark" : s);
+    // 外观和深浅色：规则在 guard.js 的 ccLookState（各页面共用）
+    var st = window.ccApplyLook ? window.ccApplyLook() : { skin: "fresh", look: "fresh", dark: false };
+    apply(JSON.parse(localStorage.getItem("ui_palette_v1") || "null"), window.ccPalSkin ? window.ccPalSkin(st) : "fresh");
     var bg = localStorage.getItem("ui_bg_v1");
     if (bg) {
       var o = JSON.parse(localStorage.getItem("ui_bg_opts_v1") || "{}");

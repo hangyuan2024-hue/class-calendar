@@ -19,7 +19,29 @@
     }
   }, true);
 
-  var VALID_SKINS = { fresh: 1, auto: 1, vivid: 1, clean: 1, dark: 1, cyber: 1 };
+  // 6.17 外观：清爽 / 简约 / 书页 / 捞捞元宇宙，每个外观各自记一个「浅色 / 深色 / 跟随系统」
+  //   ui_skin_v1：选的外观（旧值 vivid → 清爽，dark → 清爽 + 深色，auto → 清爽 + 跟随系统）
+  //   ui_mode_v1：{ 外观: "light" | "dark" | "system" }
+  //   页面上：data-skin（布局：fresh 或 cyber）+ data-look（外观）+ data-mode="dark"（深色时）+ data-tone（dark / light）
+  var LOOKS = { fresh: 1, clean: 1, paper: 1, cyber: 1 };
+  function lookState() {
+    var s = readJSON("ui_skin_v1", "fresh"), legacy = "";
+    if (s === "vivid") s = "fresh"; else if (s === "dark") { s = "fresh"; legacy = "dark"; } else if (s === "auto") { s = "fresh"; legacy = "system"; }
+    if (!LOOKS[s]) s = "fresh";
+    var modes = readJSON("ui_mode_v1", {}) || {}, pm = readJSON("compose_mode_v1", "");
+    var mode = modes[s] || legacy || (/^(dark|light|system)$/.test(pm) && s !== "cyber" ? pm : "") || (s === "cyber" ? "dark" : "light");
+    var sys = !!(window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches);
+    var dark = mode === "dark" || (mode === "system" && sys);
+    return { look: s, mode: mode, dark: dark, skin: s === "cyber" ? "cyber" : "fresh" };
+  }
+  function applyLookAttrs(st) {
+    var root = document.documentElement;
+    root.dataset.skin = st.skin; root.dataset.look = st.look; root.dataset.tone = st.dark ? "dark" : "light";
+    if (st.dark && st.skin !== "cyber") root.dataset.mode = "dark"; else delete root.dataset.mode;
+  }
+  window.ccLookState = lookState;
+  window.ccApplyLook = function () { var st = lookState(); applyLookAttrs(st); return st; };
+  window.ccPalSkin = function (st) { return st.skin === "cyber" ? "cyber" : st.dark ? "fresh-dark" : st.look === "fresh" ? "fresh" : "clean"; };
 
   // 「深空蓝」保留上一版的高饱和蓝 + 暖橙组合。
   // 内部仍通过主站现有“自定义配色”入口保存，确保云同步照常工作。
@@ -53,24 +75,13 @@
       String(p.s || "").toLowerCase() === DEEP_SPACE.s;
   }
 
-  function currentSkin() {
-    var want = readJSON("ui_skin_v1", "fresh");
-    if (!VALID_SKINS[want]) want = "fresh";
-    var dark = want === "auto" && window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches;
-    return { want: want, skin: want === "auto" ? "fresh" : want, dark: !!dark };
-  }
-
   function stabilizeAppearance() {
     try {
-      var s = currentSkin();
-      var root = document.documentElement;
-      root.dataset.skin = s.skin;
-      if (s.want === "auto" && s.dark) root.dataset.mode = "dark";
-      else delete root.dataset.mode;
-
-      // 有其他配色时重新应用；默认(null)时清掉行内配色，回到清爽原始柔和配色。
+      var st = lookState();
+      applyLookAttrs(st);
+      // 有其他配色时重新应用；默认(null)时清掉行内配色，回到外观原始配色。
       if (window.ccPalette && typeof window.ccPalette.apply === "function") {
-        window.ccPalette.apply(currentPalette(), s.dark ? "fresh-dark" : s.skin);
+        window.ccPalette.apply(currentPalette(), window.ccPalSkin(st));
       }
     } catch (e) { /* 外观保护不能阻断页面 */ }
   }
@@ -205,7 +216,7 @@
   try {
     var mq = window.matchMedia && matchMedia("(prefers-color-scheme: dark)");
     if (mq && mq.addEventListener) mq.addEventListener("change", function () {
-      if (readJSON("ui_skin_v1", "fresh") === "auto") setTimeout(stabilizeAppearance, 0);
+      if (lookState().mode === "system") setTimeout(stabilizeAppearance, 0);
     });
   } catch (e) {}
 
