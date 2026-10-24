@@ -3,7 +3,7 @@
 // 替换原来的 mindmap.js：外面要用的 renderMindmap / mmLeave / Mindmap.create 名字不变。
 (function () {
   "use strict";
-  var SRC = "learn/mindmap/index.html?host=app&v=20261020-mm3";
+  var SRC = "learn/mindmap/index.html?host=app&v=20261024-learn1";
   var ALLOW = /^mm_(list|get|save|rename|del)$/;
   var frame = null, lastUid = "", backTo = "tools", pendingCreate = false;
   function box() { return document.getElementById("mmBox"); }
