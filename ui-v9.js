@@ -42,7 +42,10 @@
     tab.onclick = function (e) { e.stopPropagation(); root.classList.toggle("v9-rail-drawer"); };
     document.addEventListener("click", function (e) {
       if (!root.classList.contains("v9-rail-drawer")) return;
-      if (!e.target.closest(".siderail") || e.target.closest(".siderail [data-tab]")) root.classList.remove("v9-rail-drawer");
+      // 用事件刚发生时的路径判断：日历点一下会重画，点到的元素可能已经不在页面上了
+      var path = e.composedPath ? e.composedPath() : [e.target], inRail = false, nav = false;
+      for (var i = 0; i < path.length; i++) { var n = path[i]; if (!n || !n.classList) continue; if (n.classList.contains("siderail")) inRail = true; if (n.hasAttribute && n.hasAttribute("data-tab") && !inRail) nav = true; if (n.classList.contains("v9-rail-tab")) return; }
+      if (!inRail || nav) root.classList.remove("v9-rail-drawer");
     });
     document.addEventListener("keydown", function (e) { if (e.key === "Escape") root.classList.remove("v9-rail-drawer"); });
     var t = 0; window.addEventListener("resize", function () { clearTimeout(t); t = setTimeout(layout, 80); });
@@ -139,45 +142,60 @@
     buildNav();
   }
 
-  // ---------------- 设置：电脑上以悬浮窗打开，不离开当前页面 ----------------
-  if (set && typeof window.showView === "function") {
-    var orig = window.showView, back = set.querySelector(".vhead .back"), xbtn = document.createElement("button");
-    xbtn.type = "button"; xbtn.className = "v9-set-x"; xbtn.title = "关闭（Esc）"; xbtn.setAttribute("aria-label", "关闭设置");
-    xbtn.innerHTML = window.ccIcon ? ccIcon("x") : "×";
-    var vh = set.querySelector(".vhead"); if (vh) vh.appendChild(xbtn);
+  // ---------------- 设置、个人中心：电脑上以悬浮窗打开，不离开当前页面 ----------------
+  if (typeof window.showView === "function") {
+    var orig = window.showView;
+    var FLOAT = {};
+    ["settings", "me"].forEach(function (id) { var el = document.querySelector('.view[data-view="' + id + '"]'); if (el) FLOAT[id] = { el: el, home: null }; });
     var veil = document.createElement("div"); veil.className = "v9-set-veil"; document.body.appendChild(veil);
     var floatOn = function () { return window.innerWidth > 700; };
-    var home = { parent: set.parentNode, next: set.nextSibling };
-    var openSet = function () {
-      // 挪到 body 下面：不受中间那一栏的层级和模糊影响
-      if (set.parentNode !== document.body) { home = { parent: set.parentNode, next: set.nextSibling }; document.body.appendChild(set); }
-      root.classList.add("v9-set-open"); set.classList.add("v9-float");
-      buildNav(); set.scrollTop = 0;
+    var openId = "";
+    Object.keys(FLOAT).forEach(function (id) {
+      var el = FLOAT[id].el, vh = el.querySelector(".vhead"); if (!vh) return;
+      var xb = document.createElement("button");
+      xb.type = "button"; xb.className = "v9-set-x"; xb.title = "关闭（Esc）"; xb.setAttribute("aria-label", "关闭");
+      xb.innerHTML = window.ccIcon ? ccIcon("x") : "×";
+      xb.onclick = function () { closeFloat(); };
+      vh.appendChild(xb);
+    });
+    var closeFloat = function () {
+      if (!openId) return;
+      var f = FLOAT[openId]; openId = "";
+      root.classList.remove("v9-set-open"); f.el.classList.remove("v9-float");
+      // 放回原来的位置
+      if (f.home && f.home.parent) f.home.parent.insertBefore(f.el, f.home.next && f.home.next.parentNode === f.home.parent ? f.home.next : null);
+    };
+    var openFloat = function (id) {
+      if (openId === id) return;
+      closeFloat();
+      var f = FLOAT[id], el = f.el;
+      // 挪到 body 下面：不受中间那一栏的层级影响
+      if (el.parentNode !== document.body) { f.home = { parent: el.parentNode, next: el.nextSibling }; document.body.appendChild(el); }
+      openId = id; root.classList.add("v9-set-open"); el.classList.add("v9-float"); el.scrollTop = 0;
+      if (id === "settings") buildNav();
       try { loadSecurity(); } catch (e) {}
-      try { if (typeof renderSyncUI === "function") renderSyncUI(); } catch (e) {}
+      try { if (id === "settings" && typeof renderSyncUI === "function") renderSyncUI(); } catch (e) {}
+      try { if (id === "me" && typeof renderAll === "function") renderAll(); } catch (e) {}
     };
-    var closeSet = function () {
-      root.classList.remove("v9-set-open"); set.classList.remove("v9-float");
-      if (set.parentNode === document.body && home.parent) home.parent.insertBefore(set, home.next && home.next.parentNode === home.parent ? home.next : null);
-    };
-    window.ccCloseSettings = closeSet;
+    window.ccCloseSettings = closeFloat;
     window.showView = function (id) {
-      if (id === "settings" && floatOn()) { root.classList.remove("v9-rail-drawer"); openSet(); return; }
-      if (root.classList.contains("v9-set-open")) closeSet();
+      root.classList.remove("v9-rail-drawer");
+      if (FLOAT[id] && floatOn()) { openFloat(id); return; }
+      closeFloat();
       return orig.apply(this, arguments);
     };
     try { showView = window.showView; } catch (e) {}
-    xbtn.onclick = closeSet; veil.onclick = closeSet;
-    document.addEventListener("keydown", function (e) { if (e.key === "Escape" && root.classList.contains("v9-set-open")) closeSet(); });
-    window.addEventListener("resize", function () { if (!floatOn() && root.classList.contains("v9-set-open")) { closeSet(); orig("settings"); } });
-    set.addEventListener("scroll", function () {
+    veil.onclick = closeFloat;
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape" && openId) closeFloat(); });
+    window.addEventListener("resize", function () { if (!floatOn() && openId) { var id = openId; closeFloat(); orig(id); } });
+    if (set && nav) set.addEventListener("scroll", function () {
       if (!set.classList.contains("v9-float")) return;
       var top = set.getBoundingClientRect().top, cur = null;
       nav.querySelectorAll("a[data-sec]").forEach(function (a) { var el = $(a.dataset.sec); if (el && el.getBoundingClientRect().top - top < 120) cur = a; });
       nav.querySelectorAll("a").forEach(function (x) { x.classList.toggle("on", x === (cur || nav.firstElementChild)); });
     }, { passive: true });
-    // 地址带 #settings 打开的：页面先停在首页，设置浮在上面
-    if (set.classList.contains("on") && floatOn()) { orig("home"); openSet(); }
+    // 地址带 #settings / #me 打开的：页面先停在首页，窗口浮在上面
+    Object.keys(FLOAT).forEach(function (id) { if (FLOAT[id].el.classList.contains("on") && floatOn()) { orig("home"); openFloat(id); } });
   }
 
   // ---------------- 成长页 ----------------

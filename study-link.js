@@ -31,6 +31,9 @@
     }
     return frame;
   }
+  // 7.1 期末复习排期用：课内学习里每门课的知识点和没复习的错题数
+  window.studyCourses = function () { return mine() ? (cache.courses || []) : []; };
+  window.studyRefresh = function () { lastFetch = 0; return refresh(); };
   window.openStudyItem = function (ref) {
     var h = /^\d+:\d+$/.test(String(ref || "")) ? "open=assessment:" + ref : "";
     if (frame && h) { try { frame.contentWindow.location.hash = h; } catch (e) { frame.src = SRC + "#" + h; } }
@@ -50,7 +53,7 @@
         for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
         data = JSON.parse(new TextDecoder().decode(bytes)) || { items: [] };
       }
-      var next = { uid: u.id, at: Date.now(), items: Array.isArray(data.items) ? data.items : [] };
+      var next = { uid: u.id, at: Date.now(), items: Array.isArray(data.items) ? data.items : [], courses: Array.isArray(data.courses) ? data.courses : [] };
       var changed = !cache || cache.uid !== next.uid || JSON.stringify(cache.items) !== JSON.stringify(next.items);
       cache = next; lastFetch = Date.now();
       try { localStorage.setItem(LS, JSON.stringify(cache)); } catch (e) {}

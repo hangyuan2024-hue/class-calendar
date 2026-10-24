@@ -9,6 +9,8 @@
     ['qIcs','🔥','打卡成长','习惯与成长记录',()=>funOpts().habits,'growth'],
     ['qFarm','🐣','云宠农场','养料与陪伴',()=>farmOn(),'farm'],
     ['qPomo','🍅','番茄专注','开始一个专注时段',()=>funOpts().plan],
+    ['qProject','🪜','大作业拆解','拆成几步倒排进日程',()=>true,'project'],
+    ['qReview','🎓','复习排期','按考试日期排每天复习',()=>true,'review'],
     ['qCourse','📚','课程表','查看自己的课程',()=>!!courseTool()],
     ['qPeople','👥','班级成员','找到同学与老师',()=>!!(currentUser&&currentClass),'people'],
     ['qCal','📲','加到日历','导出或订阅系统日历',()=>true],
@@ -21,7 +23,16 @@
     const covered = new Set([...out.map(t=>t.view).filter(Boolean),...(courseTool()?[courseTool().view]:[])]);
     return out.concat(toolList().filter(t=>!covered.has(t.view)).map(t=>({...t,id:t.id})));
   }
-  function selected() { const saved=load(KEY,null); return new Set(Array.isArray(saved)?saved:base.map(x=>x[0])); }
+  // 7.1 新加的快捷工具：以前自己选过首页工具的人也默认显示一次（可以再去掉）
+  const NEW_IDS=['qProject','qReview'], SEEN='home_quick_seen_v1';
+  function selected() {
+    const saved=load(KEY,null); if(!Array.isArray(saved)) return new Set(base.map(x=>x[0]));
+    let seen=[]; try{seen=JSON.parse(localStorage.getItem(SEEN)||'[]')||[];}catch(e){}
+    const add=NEW_IDS.filter(id=>!seen.includes(id)&&!saved.includes(id));
+    if(add.length){ saved.push(...add); save(KEY,saved); }
+    if(NEW_IDS.some(id=>!seen.includes(id))) try{localStorage.setItem(SEEN,JSON.stringify([...new Set(seen.concat(NEW_IDS))]));}catch(e){}
+    return new Set(saved);
+  }
   function render() {
     const picks=selected(), q=document.getElementById('quickPart');
     for(const [id,,,,available] of base) document.getElementById(id)?.classList.toggle('hidden',!available()||!picks.has(id));

@@ -67,6 +67,8 @@
     check: "M5 12.5l4.3 4.3L19 7.2",
     plus: "M12 5v14M5 12h14",
     x: "M6 6l12 12M18 6 6 18",
+    steps: "M4 19.5h4.5V15H13v-4.5h4.5V6H21M4 19.5V21M3 21h18",
+    grad: "M2.5 9 12 4.5 21.5 9 12 13.5zM6.5 11v4.5c0 1.6 2.5 3 5.5 3s5.5-1.4 5.5-3V11M21.5 9v5",
     arrow: "M5 12h13M13 7l5 5-5 5",
     chevron: "M9 5.5l6.5 6.5L9 18.5",
     info: "M12 20.5a8.5 8.5 0 1 0 0-17 8.5 8.5 0 0 0 0 17zM12 11v5.5M12 7.8h.01",
@@ -79,7 +81,7 @@
     "☁️": "cloud", "☁": "cloud", "📶": "wifi", "⟳": "refresh", "↻": "refresh", "🌐": "globe", "🖼": "image", "🖼️": "image", "🎉": "party", "🧭": "compass", "✨": "sparkle", "⭕": "ring", "🔥": "flame",
     "🤖": "robot", "🗂️": "folder", "🗂": "folder", "🏫": "school", "🛡️": "shield", "🛡": "shield", "🔑": "key", "🔒": "lock", "📄": "doc", "📝": "note", "💛": "heart", "📧": "mail", "✉️": "mail", "🔔": "bell",
     "📅": "calendar", "🗓️": "calendar", "📲": "calplus", "⤓": "download", "⤒": "upload", "👁": "eye", "👁️": "eye", "📱": "phone", "💻": "laptop", "✏️": "pencil", "📍": "pin", "📋": "clipboard",
-    "🍅": "timer", "⏳": "hourglass", "📣": "megaphone", "📰": "news", "💰": "coin", "🎲": "dice", "🌈": "rainbow", "🚀": "rocket", "＋": "plus", "➕": "plus", "🔮": "sparkle", "📮": "mail", "📌": "pin", "⬇️": "download", "⬇": "download" };
+    "🍅": "timer", "⏳": "hourglass", "📣": "megaphone", "📰": "news", "💰": "coin", "🎲": "dice", "🌈": "rainbow", "🚀": "rocket", "🪜": "steps", "🎓": "grad", "＋": "plus", "➕": "plus", "🔮": "sparkle", "📮": "mail", "📌": "pin", "⬇️": "download", "⬇": "download" };
   function svg(name, cls) {
     var d = P[name]; if (!d) return "";
     return '<svg class="cc-i' + (cls ? " " + cls : "") + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + d + '"/></svg>';

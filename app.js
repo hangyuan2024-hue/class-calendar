@@ -40,7 +40,7 @@ const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; 
 const SYNC_KINDS = { evening_v1: "one", morning_v1: "one", hw_view_v1: "one", ui_style_v1: "one", compose_mode_v1: "one", ui_mode_v1: "one", compose_reduce_motion_v1: "one", course_rev_v1: "one", course_view_v1: "map", kn_rev_v1: "one", mm_rev_v1: "one", personal_events_v1: "list", personal_marks_v1: "map", done_log_v1: "map", habits_v1: "list", habit_log_v1: "map2",
   quad_v1: "map", quad_todos_v1: "list", pomo_log_v1: "map", fun_opts_v1: "one", home_layout_v1: "one", ui_skin_v1: "one",
   ui_palette_v1: "one", plugins_enabled_v1: "one", home_quick_tools_v1: "one", plan_notes_v1: "map", profile_v1: "one", mood_log_v1: "map", coach_v1: "map", farm_v1: "one", island_v1: "one",
-  coach_opts_v1: "map", coach_bag_v1: "map" };   // 6.15 捞捞教练的开关、收藏也跟着账号（以前各端各存各的：小程序开了网页还显示没开）
+  coach_opts_v1: "map", coach_bag_v1: "map", deadline_plans_v1: "map" };   // 6.15 捞捞教练的开关、收藏也跟着账号（以前各端各存各的：小程序开了网页还显示没开）
 const LS_SYNC = "sync_meta_v1", LS_SYNC_OUT = "sync_outbox_v1", LS_SYNC_MODE = "sync_mode_v1";
 const Sync = (() => {
   const SEP = "\u0001";
@@ -1721,6 +1721,7 @@ function renderParsed() {
         ${ipNextSel(x)}
         <input data-pf="summary" value="${esc(x.summary)}" class="pis" placeholder="内容">
         <input data-pf="location" value="${esc(x.location || "")}" class="piloc" placeholder="📍 地点（没有就空着）">
+        ${srcHtml(x)}
         <div class="pim">${x.src ? `<span class="src">${esc(x.src)}</span>` : ""}${x.via === "memory" ? `<span class="lrn">🧠 按上次的修改</span>` : x.via === "learned" ? `<span class="lrn">🧠 参考了本班以前的修改</span>` : ""}${x.prepare ? `<span>🎒 ${esc(x.prepare)}</span>` : ""}${x.need_confirm ? `<span class="warn">⚠ 信息不完整，会提醒同学核实</span>` : ""}
           <span class="spacer"></span>${x.src_text ? `<button class="small" data-notitem="${i}" title="这条其实是闲聊，以后别再整理出来">🚫 不是事项</button>` : ""}</div>
       </div>`; }).join("") || `<div class="empty">没有整理出事项。</div>`}
@@ -1736,6 +1737,34 @@ function renderParsed() {
         <button class="btn sm" id="ipAdjApply" ${parsed.adj.some((a) => a.on) ? "" : "disabled"}>应用到我的课程表</button></div>` : ""}
     <div class="ip-actions"><button class="small" id="ipCancel">取消</button>${ingestPersonal() ? "" : `<button class="btn sm" id="ipMine" ${on ? "" : "disabled"} title="不发到班级，只加到你自己的「我的事项」">只保存给自己</button>`}<button class="btn ink sm" id="ipPublish" ${on ? "" : "disabled"}>${ingestPersonal() ? `把选中的 ${on} 条加到我的事项` : `发布选中的 ${on} 条到班级`}</button></div>`;
 }
+// 7.1 原文对照：每条事项下面放出它来自的那句原话，日期、时间、地点、截止这些词标颜色；
+// 原话里没写、是捞捞推测出来的，直接说出来，核对只要扫一眼
+const SRC_T = /(?:大?后天|明天|明早|明晚|今天|今晚|今早|(?:下下|下|这|本)?(?:周|星期|礼拜)[一二三四五六日天末]|\d{4}[-/.年]\d{1,2}[-/.月]\d{1,2}[日号]?|\d{1,2}\s*月\s*\d{1,2}\s*[日号]?|(?<![\d.])\d{1,2}[./]\d{1,2}(?![\d./])|(?:上午|早上|中午|下午|傍晚|晚上|晚)?\s*\d{1,2}[:：]\d{2}|(?:上午|早上|中午|下午|傍晚|晚上|晚)?\s*[\d一二三四五六七八九十两]{1,3}\s*[点时](?:半|一刻|三刻|\d{1,2}分?)?)/g;
+const SRC_K = /截止|之前|以前|前交|前提交|ddl|deadline|务必|必须|带上|携带/gi;
+function srcHtml(x) {
+  const src = String(x.src_text || origOf(x) || "").trim();
+  if (!src) return "";
+  const marks = [];
+  const add = (re, cls) => { re.lastIndex = 0; let m; while ((m = re.exec(src))) { if (!m[0]) { re.lastIndex++; continue; } marks.push([m.index, m.index + m[0].length, cls]); } };
+  add(SRC_T, "t"); add(SRC_K, "k");
+  const loc = String(x.location || "").replace(/^📍\s*/, "").trim();
+  if (loc && loc.length >= 2) { let i = src.indexOf(loc); while (i >= 0) { marks.push([i, i + loc.length, "l"]); i = src.indexOf(loc, i + loc.length); } }
+  marks.sort((a, b) => a[0] - b[0] || b[1] - a[1]);
+  let html = "", at = 0, hasT = false;
+  for (const [s0, e0, c] of marks) { if (s0 < at) continue; html += esc(src.slice(at, s0)) + `<mark class="hl-${c}">${esc(src.slice(s0, e0))}</mark>`; at = e0; if (c === "t") hasT = true; }
+  html += esc(src.slice(at));
+  const notes = [];
+  if (x.event_time && !hasT) notes.push("原文没写时间，日期是捞捞推测的");
+  if (loc && !src.includes(loc)) notes.push("地点是按以前的说法推测的");
+  // 原文写了「周三」，日期却不是周三（比如「明天周三」其实明天是周日）：提醒核对
+  const wd = /(?:周|星期|礼拜)([一二三四五六日天])/.exec(src), day = String(x.event_time || "").slice(0, 10);
+  if (wd && /^\d{4}-\d{2}-\d{2}$/.test(day)) {
+    const want = "一二三四五六日".indexOf(wd[1] === "天" ? "日" : wd[1]) + 1, got = ((new Date(day + "T12:00:00").getDay() + 6) % 7) + 1;
+    if (want && want !== got) notes.push(`原文写的是周${wd[1]}，但这个日期是周${"一二三四五六日"[got - 1]}，请核对`);
+  }
+  return `<div class="pi-src" title="点一下展开 / 收起"><b>原文</b><span class="pi-src-t">${html}</span>${notes.length ? `<em>⚠ ${esc(notes.join("；"))}</em>` : ""}</div>`;
+}
+$("ipResult") && $("ipResult").addEventListener("click", (e) => { const s = e.target.closest(".pi-src"); if (s && !e.target.closest("button, input, select")) s.classList.toggle("open"); });
 const withShown = (x, extra) => ({ ...x, on: true, src: "", ...extra, _shown: slimItem(x) });
 $("ingestLocal").onclick = async () => {
   const text = $("ingestText").value.trim(), st = $("ingestStatus");
@@ -2526,7 +2555,7 @@ $("nextBtn").onclick = () => { if (++viewMonth > 11) { viewMonth = 0; viewYear++
 $("todayBtn").onclick = () => { viewYear = today.getFullYear(); viewMonth = today.getMonth(); selectedKey = keyOf(today); renderAll(); };
 // 右下角「＋」（电脑上是侧栏的按钮）：每个页面做不同的事
 //   只有一个动作时直接做；手机上有多个动作时弹出菜单；电脑上直接做第一个（页面里本来就有其他按钮）
-const FAB_HIDE = ["me", "user", "intro", "credits", "rank", "people", "meta", "ask", "study", "mindmap"];   // 课内学习、思维导图有自己的「＋」
+const FAB_HIDE = ["me", "user", "intro", "credits", "rank", "people", "meta", "ask", "study", "mindmap", "project", "review"];   // 课内学习、思维导图有自己的「＋」
 const mdOf = (k) => { const d = new Date(k + "T00:00:00"); return `${d.getMonth() + 1}月${d.getDate()}日`; };
 function fabItems(view) {
   view = view || currentView();

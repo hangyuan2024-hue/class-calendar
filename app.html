@@ -9,14 +9,14 @@
 <script src="entry.js?v=4"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0a1433">
-<title>捞捞课程表 · 让校园生活有自己的节奏</title>
-<meta name="description" content="捞捞课程表：把班级群里的作业、通知、班会自动整理进日历，快到时间提醒你。有课程表、作业清单、班级墙、番茄钟和 AI 问答。免费，支持安卓 App、Windows 电脑版和网页版。">
-<meta name="keywords" content="捞捞课程表,课程表,班级群,作业提醒,大学生课程表,课表App,班级通知,日程管理,番茄钟,学习计划">
+<title>捞捞调度 · 大学生活的调度台</title>
+<meta name="description" content="捞捞调度：一个账号三个板块。捞捞课程表把群消息、大作业、期末复习排进每一天；捞捞学习整理课内资料、错题和思维导图；捞捞编程装好就能写代码。免费，支持安卓 App、Windows、微信小程序和网页版。">
+<meta name="keywords" content="捞捞调度,捞捞课程表,捞捞学习,捞捞编程,大作业拆解,期末复习计划,课程表,班级群,作业提醒,大学生课程表,课表App,班级通知,日程管理,番茄钟,学习计划">
 <link rel="canonical" href="https://www.laolaokechengbiao.cn/app.html">
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="捞捞课程表">
-<meta property="og:title" content="捞捞课程表 · 让校园生活有自己的节奏">
-<meta property="og:description" content="捞捞课程表：把班级群里的作业、通知、班会自动整理进日历，快到时间提醒你。有课程表、作业清单、班级墙、番茄钟和 AI 问答。免费，支持安卓 App、Windows 电脑版和网页版。">
+<meta property="og:site_name" content="捞捞调度">
+<meta property="og:title" content="捞捞调度 · 大学生活的调度台">
+<meta property="og:description" content="捞捞调度：一个账号三个板块。捞捞课程表把群消息、大作业、期末复习排进每一天；捞捞学习整理课内资料、错题和思维导图；捞捞编程装好就能写代码。">
 <meta property="og:url" content="https://www.laolaokechengbiao.cn/app.html">
 <meta property="og:image" content="https://www.laolaokechengbiao.cn/icon-512.png">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
@@ -32,6 +32,7 @@
 <link rel="stylesheet" href="fonts.css?v=20261023-v698">
 <link rel="stylesheet" href="home-v7.css?v=20261023-v699">
 <link rel="stylesheet" href="home-v8.css?v=20261023-v716">
+<link rel="stylesheet" href="landing-v10.css?v=20261025-v10">
 <style>
   .agree { display: flex; align-items: flex-start; gap: 8px; margin: 14px 2px 0; font-size: 13px; line-height: 1.6; color: var(--sub, #687d97); cursor: pointer; }
   .agree input { flex: none; width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--accent, #3b4ee0); cursor: pointer; }
@@ -116,10 +117,11 @@
   <div class="v9-horizon" aria-hidden="true"></div>
   <div class="v7-hero-in">
     <div class="v7-copy">
-      <h1 id="hero-title">把班级群，<br>变成你的课表。</h1>
-      <p class="v7-lead">作业、通知、签到、上课时间——捞捞从群消息和课表截图里整理出来，到点提醒你。网页、安卓、Windows、微信小程序，同一个账号。</p>
-      <div class="v7-acts"><a class="v7-btn" href="index.html?guest=1">免登录先试试</a><a class="v7-btn ghost" href="#get">下载 App</a></div>
-      <ul class="v7-plat" aria-label="能在哪些设备上用"><li>网页版</li><li>安卓 App</li><li>Windows 电脑版</li><li>微信小程序</li></ul>
+      <span class="v10-brand">捞捞调度 · LAOLAO DISPATCH</span>
+      <h1 id="hero-title">群里的通知、手上的大作业、<br>要考的试，捞捞替你排进每一天。</h1>
+      <p class="v7-lead">一个账号，三个板块：<b>捞捞课程表</b>管日常安排，<b>捞捞学习</b>管课内知识，<b>捞捞编程</b>陪你写代码。群消息不用复制粘贴，大作业自动拆好倒排，期末复习按你的错题排好——你只管照着做。</p>
+      <div class="v7-acts"><a class="v7-btn" href="index.html?guest=1">免登录先试试</a><a class="v7-btn ghost" href="#why">它和备忘录有什么不同</a></div>
+      <ul class="v7-plat" aria-label="三个板块"><li>捞捞课程表</li><li>捞捞学习</li><li>捞捞编程</li><li>网页 · 安卓 · Windows · 微信小程序</li></ul>
     </div>
     <div class="v7-machine" id="v7Machine" aria-label="示意：一条群消息被整理成课表里的三件事">
       <div class="v7-chat" data-noi18n>
@@ -144,6 +146,39 @@
         <div class="v7-toast" id="v7Toast">已整理 3 件事，到点提醒你</div>
       </div>
     </div>
+  </div>
+</section>
+
+<!-- 7.1 为什么不是又一个备忘录：直接回答「我已经有自己的方法了」 -->
+<section class="v10-why" id="why" aria-labelledby="why-title">
+  <div class="v10-why-head"><span class="v10-kick">WHY LAOLAO · 为什么不是又一个备忘录</span><h2 id="why-title">已经有自己的方法了？<br><span>捞捞做的，是你的方法做不到的。</span></h2>
+    <p>我们问过不少同学，最常听到这几句。每一句，我们都做了一个功能来回答。</p></div>
+  <div class="v10-why-grid">
+    <article class="v10-q"><p class="v10-said">“复制粘贴给 AI，还不如我自己看一眼记下来。”</p>
+      <h3>不用复制，也不用粘贴。</h3>
+      <p>安卓 App 打开「群消息自动收集」，微信、QQ 群里来了作业、截止、考试、签到的消息，捞捞在你手机上认出来，攒成一张待确认清单。点一下「记下」就好。</p>
+      <div class="v10-demo v10-inbox" aria-hidden="true"><div class="r"><i>微信</i><b>计科2605班</b><span>学委：高数第三章习题<mark>周四 22:00</mark>前交</span><em>✓ 记下</em></div><div class="r"><i>QQ</i><b>数据库课程群</b><span>课设报告<mark>11月8日</mark>截止，<mark>B302</mark>答辩</span><em>✓ 记下</em></div></div>
+      <small>🔒 只在你的手机上识别：消息不上传、不进账号同步，随时能关。</small></article>
+    <article class="v10-q"><p class="v10-said">“AI 整理的我不放心，还得自己再过一遍。”</p>
+      <h3>每一条都贴着原话，扫一眼就核对完。</h3>
+      <p>整理出的每件事下面放着它来自的那句话，时间、地点、“截止”这些词标了颜色。原话里没写、是捞捞推测的，直接告诉你；“明天周三”这种自相矛盾的，会提醒你核对。</p>
+      <div class="v10-demo v10-src" aria-hidden="true"><b>原文</b><span><mark class="t">明天</mark><mark class="t">周三</mark><mark class="t">下午2点</mark>在<mark class="l">B302</mark>开班会，<mark class="k">务必</mark>准时</span><em>⚠ 原文写的是周三，但明天是周日，请核对</em></div></article>
+    <article class="v10-q"><p class="v10-said">“手机自带的待办也会提醒啊。”</p>
+      <h3>待办只记“几号交”，捞捞替你排“每天做多少”。</h3>
+      <p>把老师发的大作业要求粘贴进来，捞捞拆成几步，倒着排进截止前的每一天。哪天没做完不用改计划，下次打开会自动顺延，绝不越过截止。</p>
+      <div class="v10-demo v10-steps" aria-hidden="true"><div><b>10月25日</b><span>读懂要求 · 小组分工</span></div><div><b>10月26日</b><span>设计表结构</span></div><div class="moved"><b>10月28日</b><span>实现核心功能 <i>顺延</i></span></div><div class="due"><b>11月8日</b><span>截止 23:59</span></div></div></article>
+    <article class="v10-q"><p class="v10-said">“复习计划在我脑子里。”</p>
+      <h3>脑子里的计划，不会自己挪。</h3>
+      <p>填上几门课的考试日期，捞捞按你在课内学习里整理的知识框架和没复习的错题，把几门课交错排到考前；考前一天只回顾。哪天落下了，后面自动补上。</p>
+      <div class="v10-demo v10-review" aria-hidden="true"><span>高数：中值定理、洛必达</span><span>英语：做一套往年题</span><span>高数：错题 12 道</span><span class="due">考试 · 高等数学</span></div></article>
+    <article class="v10-q wide"><p class="v10-said">“大家都有自己的一套，不想换习惯。”</p>
+      <h3>不用换：捞捞往你已经在用的地方送。</h3>
+      <div class="v10-pts">
+        <div><b>手机自带日历</b><span>订阅一次，课、作业、复习计划都出现在系统日历里，提醒还是系统原生的弹窗。</span></div>
+        <div><b>班委发一次，全班收到</b><span>班委整理一遍发布，同学什么都不用做，作业和通知就进了自己的日程。</span></div>
+        <div><b>桌面小组件</b><span>今天的课、快截止的作业、一句话记事，不用打开 App。</span></div>
+        <div><b>四个端一个账号</b><span>网页、安卓、Windows、微信小程序，在哪改都同步。</span></div>
+      </div></article>
   </div>
 </section>
 
@@ -201,6 +236,7 @@
       <ul class="h6-prod-list">
         <li><b>课程表</b>拍照 / 截图识别，一键发布到班级，保存成图片发群里</li>
         <li><b>AI 整理</b>粘贴群消息、聊天截图或 Word 文档，整理成带时间地点的事项</li>
+        <li><b>大作业 · 期末</b>大作业拆成几步倒排进日程，期末复习按错题排好，没做完自动顺延</li>
         <li><b>提醒</b>微信服务通知、手机日历订阅，提醒方式自己选</li>
         <li><b>班级</b>班级墙、班级通知、作业清单，班委和老师一起管</li>
       </ul>
