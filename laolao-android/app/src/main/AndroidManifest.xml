@@ -137,6 +137,15 @@
             android:theme="@style/AppTheme.Invisible" />
         <service android:name=".work.SyncJob" android:exported="false" android:permission="android.permission.BIND_JOB_SERVICE" />
 
+        <!-- 7.1 群消息自动收集：用户自己在系统设置里授权「通知使用权」，只看微信 / QQ 的通知，只在本机识别 -->
+        <service
+            android:name=".work.CollectService"
+            android:exported="true"
+            android:label="捞捞 · 群消息收集"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter><action android:name="android.service.notification.NotificationListenerService" /></intent-filter>
+        </service>
+
         <!-- 下拉通知栏的快捷开关 -->
         <service
             android:name=".ui.QuickTile"

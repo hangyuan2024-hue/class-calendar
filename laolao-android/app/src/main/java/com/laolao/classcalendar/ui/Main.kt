@@ -290,6 +290,7 @@ class Main : Activity() {
                 go == "flow" -> { if (stack.lastOrNull() !is FlowPage) push(FlowPage(this)) }
                 go == "course_import" -> push(CourseImportPage(this))
                 go == "memo" -> push(MemoPage(this, ""))
+                go == "collect" -> { if (stack.lastOrNull() !is CollectPage) push(CollectPage(this)) }
             }
         }
     }
