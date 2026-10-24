@@ -1941,6 +1941,7 @@
 <link rel="stylesheet" href="polish.css?v=20261009-tl2">
 <link rel="stylesheet" href="extras.css?v=20261022-v697">
 <link rel="stylesheet" href="workspace-fit.css?v=20261023-v714">
+<link rel="stylesheet" href="ui-v9.css?v=20261024-v9a">
 </head>
 <body class="campus-workspace">
 <a class="campus-skip" href="#campus-main">跳到主要内容</a>
@@ -2235,14 +2236,57 @@
 
   <!-- 我的 -->
   <section class="view" data-view="me">
-    <header class="vhead"><h2>我的</h2></header>
+    <header class="vhead"><h2>我的</h2><span class="spacer"></span><button class="btn sm v9-set-btn" data-tab="settings" aria-label="设置">⚙️ 设置</button></header>
     <div id="meCard" class="me-card surface"></div>
     <div id="featNotice" class="feat-notice surface hidden"></div>
+    <div class="sec-h"><b>常用</b><span>成长、学习、工具都在这里</span></div>
+    <div class="v9-quick surface" id="meQuick">
+      <button data-tab="growth" data-feat="growth"><span class="ic">📈</span><b>成长</b><small>进度环、趋势、打卡</small></button>
+      <button data-tab="farm" data-feat="growth"><span class="ic">🐣</span><b>云宠农场</b><small>完成任务喂云宠</small></button>
+      <button data-tab="rank" data-feat="rank"><span class="ic">🏆</span><b>排行榜</b><small>班级成长值</small></button>
+      <button data-tab="plan" data-feat="plan"><span class="ic">🎯</span><b>规划与专注</b><small>四象限、番茄钟</small></button>
+      <a href="learn/"><span class="ic">📚</span><b>捞捞学习</b><small>思维导图、课内学习</small></a>
+      <button data-tab="tools"><span class="ic">🧩</span><b>工具</b><small>课程表、日记、插件</small></button>
+      <button data-tab="settings"><span class="ic">⚙️</span><b>设置</b><small>同步、外观、通知、安全</small></button>
+    </div>
+
     <!-- 6.14 手机上没有别的地方能回到宣传页：放在「我的」最上面 -->
     <div class="group surface me-site">
       <a class="gi" href="app.html"><span class="ic">🏠</span><span class="sx"><span class="sxt">捞捞官网首页</span><small>产品介绍、下载 App、捞捞学习和捞捞编程</small></span><span aria-hidden="true">›</span></a>
     </div>
 
+    <div class="sec-h hidden" id="appSec"><b id="appSecT">下载</b><span id="appSecS">手机 App 和电脑版，同一个账号，数据自动同步</span></div>
+    <div class="group surface" id="appBox"></div>
+
+    <div class="sec-h"><b>班级与账号</b></div>
+    <div class="group surface">
+      <button class="gi" data-tab="people"><span class="ic">👥</span>班级成员<small>点头像进入 TA 的主页</small></button>
+      <a class="gi" href="class.html"><span class="ic">🏫</span>班级管理<small>加入班级、审批同学</small></a>
+      <a class="gi hidden" id="menuClassFeat" href="class.html#features"><span class="ic">🎛️</span>本班功能开关<small>决定学生、班委能用哪些功能</small></a>
+      <a class="gi hidden" id="menuAdmin" href="admin.html"><span class="ic">🛡️</span>管理后台<small>用户管理、批量建号、操作日志</small></a>
+      <a class="gi hidden" id="menuSiteFeat" href="dev.html#features"><span class="ic">⚙️</span>全站功能开关<small>管理员：一键暂停有问题的功能</small></a>
+      <button class="gi" data-tab="tools"><span class="ic">🧩</span>工具与插件<small>课程表、日记等</small></button>
+      <a class="gi hidden" id="menuDev" href="dev.html"><span class="ic">🧩</span>插件后台</a>
+      <a class="gi" id="menuLogin" href="login.html?next=index.html"><span class="ic">🔑</span>登录 / 注册</a>
+      <button class="gi danger hidden" id="logoutBtn"><span class="ic">⎋</span>退出登录</button>
+    </div>
+
+    <div class="sec-h"><b>关于</b></div>
+    <div class="group surface">
+      <button class="gi" data-tab="intro"><span class="ic">📖</span>功能介绍<small>每个功能怎么用</small></button>
+      <button class="gi" data-tab="credits"><span class="ic">💛</span>感谢名单<small>为本网站做出贡献的人</small></button>
+      <a class="gi" href="privacy.html" target="_blank" rel="noopener"><span class="ic">🔒</span>隐私政策<small>收集哪些信息、怎么保护</small></a>
+      <a class="gi" href="terms.html" target="_blank" rel="noopener"><span class="ic">📄</span>用户协议<small>使用规范和账号说明</small></a>
+    </div>
+
+    <div class="afoot" data-sync-note="班级事项由班委统一整理。「我的事项」、完成标记、打卡、规划和外观已同步到你的账号；背景图片只保存在这台设备上。" data-local-note="班级事项由班委统一整理。「我的事项」、完成标记和背景图只保存在这台设备上，不会上传。"></div>
+  </section>
+
+  <!-- 设置（从「我的」拆出来：「我的」只放个人信息和常用入口） -->
+  <section class="view" data-view="settings">
+    <header class="vhead"><button class="back" data-tab="me" aria-label="返回我的">‹</button><h2>设置</h2></header>
+    <nav class="v9-set-nav" id="setNav" aria-label="设置分类"></nav>
+    <div class="v9-set-body">
     <div class="sec-h"><b>我的数据</b><span>存在哪里，你说了算</span></div>
     <div class="group surface">
       <label class="gi sync-row"><span class="ic">☁️</span><span class="sx"><span class="sxt">保存位置 <i class="sdot off" id="syncDot"></i></span><small id="syncSt"></small></span>
@@ -2312,6 +2356,12 @@
       <button class="gi" data-tab="plan" id="meToPlan"><span class="ic">🗂️</span>打开规划页<small>四象限、PDCA、SMART、六件事、番茄钟</small></button>
     </div>
 
+    <div class="sec-h" data-feat="mail"><b>邮箱通知</b><span>重要的事发到邮箱，不怕漏看群消息</span></div>
+    <div class="group surface mail-box" id="mailBox" data-feat="mail"></div>
+
+    <div class="sec-h"><b>账号安全</b><span>忘记密码时怎么找回</span></div>
+    <div class="group surface" id="secBox"></div>
+
     <div class="sec-h desk-only" data-feat="local_ai"><b>本地 AI</b><span>电脑上装了本地模型，整理消息和问答都不花 token</span></div>
     <div class="group surface desk-only" id="laiBox" data-feat="local_ai">
       <div class="gx lai-one" id="laiOne">
@@ -2350,36 +2400,6 @@
       </div>
     </div>
 
-    <div class="sec-h hidden" id="appSec"><b id="appSecT">下载</b><span id="appSecS">手机 App 和电脑版，同一个账号，数据自动同步</span></div>
-    <div class="group surface" id="appBox"></div>
-
-    <div class="sec-h" data-feat="mail"><b>邮箱通知</b><span>重要的事发到邮箱，不怕漏看群消息</span></div>
-    <div class="group surface mail-box" id="mailBox" data-feat="mail"></div>
-
-    <div class="sec-h"><b>账号安全</b><span>忘记密码时怎么找回</span></div>
-    <div class="group surface" id="secBox"></div>
-
-    <div class="sec-h"><b>班级与账号</b></div>
-    <div class="group surface">
-      <button class="gi" data-tab="people"><span class="ic">👥</span>班级成员<small>点头像进入 TA 的主页</small></button>
-      <a class="gi" href="class.html"><span class="ic">🏫</span>班级管理<small>加入班级、审批同学</small></a>
-      <a class="gi hidden" id="menuClassFeat" href="class.html#features"><span class="ic">🎛️</span>本班功能开关<small>决定学生、班委能用哪些功能</small></a>
-      <a class="gi hidden" id="menuAdmin" href="admin.html"><span class="ic">🛡️</span>管理后台<small>用户管理、批量建号、操作日志</small></a>
-      <a class="gi hidden" id="menuSiteFeat" href="dev.html#features"><span class="ic">⚙️</span>全站功能开关<small>管理员：一键暂停有问题的功能</small></a>
-      <button class="gi" data-tab="tools"><span class="ic">🧩</span>工具与插件<small>课程表、日记等</small></button>
-      <a class="gi hidden" id="menuDev" href="dev.html"><span class="ic">🧩</span>插件后台</a>
-      <a class="gi" id="menuLogin" href="login.html?next=index.html"><span class="ic">🔑</span>登录 / 注册</a>
-      <button class="gi danger hidden" id="logoutBtn"><span class="ic">⎋</span>退出登录</button>
-    </div>
-
-    <div class="sec-h"><b>关于</b></div>
-    <div class="group surface">
-      <button class="gi" data-tab="intro"><span class="ic">📖</span>功能介绍<small>每个功能怎么用</small></button>
-      <button class="gi" data-tab="credits"><span class="ic">💛</span>感谢名单<small>为本网站做出贡献的人</small></button>
-      <a class="gi" href="privacy.html" target="_blank" rel="noopener"><span class="ic">🔒</span>隐私政策<small>收集哪些信息、怎么保护</small></a>
-      <a class="gi" href="terms.html" target="_blank" rel="noopener"><span class="ic">📄</span>用户协议<small>使用规范和账号说明</small></a>
-    </div>
-
     <div class="sec-h"><b>数据</b><span id="updated"></span></div>
     <div class="group surface">
       <button class="gi" id="refreshBtn"><span class="ic">↻</span>刷新班级数据</button>
@@ -2389,7 +2409,8 @@
       <input type="file" id="importFile" accept=".json,application/json" hidden>
       <label class="gi"><span class="ic">👁</span>显示已隐藏的事项<input type="checkbox" id="showHidden" class="switch"></label>
     </div>
-    <div class="afoot" data-sync-note="班级事项由班委统一整理。「我的事项」、完成标记、打卡、规划和外观已同步到你的账号；背景图片只保存在这台设备上。" data-local-note="班级事项由班委统一整理。「我的事项」、完成标记和背景图只保存在这台设备上，不会上传。"></div>
+    <div class="afoot" data-sync-note="「我的事项」、完成标记、打卡、规划和外观已同步到你的账号；背景图片只保存在这台设备。" data-local-note="现在所有数据只保存在这台设备上，换设备看不到。"></div>
+    </div>
   </section>
 
   <!-- 班级成长排行榜 -->
@@ -2708,7 +2729,7 @@
 <script src="farm.js?v=20261021-v69"></script>
 <script src="metaverse-v3.js?v=20261005-native3"></script>
 <script src="nextclass.js?v=20261017-v590"></script>
-<script src="app.js?v=20261024-v719"></script>
+<script src="app.js?v=20261024-v720"></script>
 <script src="level-ui.js?v=20261021-v69"></script>
 <script src="qr-lite.js?v=20261022-v697"></script>
 <script src="checkin-ui.js?v=20261022-v697"></script>
@@ -2730,5 +2751,6 @@
 <script src="teacher.js?v=20261022-v697"></script>
 <script src="work.js?v=20261016-v580"></script>
 <script src="live.js?v=20261009-live1"></script>
+<script src="ui-v9.js?v=20261024-v9a"></script>
 </body>
 </html>

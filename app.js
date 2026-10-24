@@ -3285,10 +3285,12 @@ const ICONS = {
 // 6.9.2 签到：一个对勾的夹板
 ICONS.checkin = ['<rect x="5" y="4" width="14" height="17" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9 3h6v3H9z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="m8.5 13 2.4 2.4 4.6-4.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
   '<rect x="4.5" y="3.5" width="15" height="18" rx="2.8" fill="currentColor"/><path d="m8.5 13 2.4 2.4 4.6-4.8" fill="none" stroke="var(--bg2, #fff)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>'];
+ICONS.settings = ['<circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2.8l1.6 2.3 2.7-.7.7 2.7 2.3 1.6-1.2 2.5 1.2 2.5-2.3 1.6-.7 2.7-2.7-.7L12 21.2l-1.6-2.3-2.7.7-.7-2.7-2.3-1.6 1.2-2.5-1.2-2.5 2.3-1.6.7-2.7 2.7.7z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
+  '<path fill-rule="evenodd" d="M12 2.8l1.6 2.3 2.7-.7.7 2.7 2.3 1.6-1.2 2.5 1.2 2.5-2.3 1.6-.7 2.7-2.7-.7L12 21.2l-1.6-2.3-2.7.7-.7-2.7-2.3-1.6 1.2-2.5-1.2-2.5 2.3-1.6.7-2.7 2.7.7zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z" fill="currentColor"/>'];
 ICONS.study = ['<path d="M4 5.5C6.5 4 9.5 4 12 6c2.5-2 5.5-2 8-.5V19c-2.5-1.5-5.5-1.5-8 .5-2.5-2-5.5-2-8-.5z M12 6v13.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
   '<path d="M3.5 5.2C6.2 3.6 9.3 3.7 11.2 5.4v14.4c-2.2-1.6-5-1.7-7.7-.3z M12.8 5.4c1.9-1.7 5-1.8 7.7-.2v14.3c-2.7-1.4-5.5-1.3-7.7.3z" fill="currentColor"/>'];
 const icon = (k) => `<svg viewBox="0 0 24 24" class="o" aria-hidden="true">${ICONS[k][0]}</svg>` + (ICONS[k][1] ? `<svg viewBox="0 0 24 24" class="f" aria-hidden="true">${ICONS[k][1]}</svg>` : "");
-const NAV = [["home", "首页"], ["homework", "作业"], ["wall", "班级墙"], ["calendar", "日历"], ["plan", "规划与专注"], ["study", "学习"], ["ask", "问答"], ["growth", "成长"], ["tools", "工具"], ["me", "我的"]];
+const NAV = [["home", "首页"], ["homework", "作业"], ["wall", "班级墙"], ["calendar", "日历"], ["plan", "规划与专注"], ["study", "学习"], ["ask", "问答"], ["growth", "成长"], ["tools", "工具"], ["me", "我的"], ["settings", "设置"]];
 let hwBadge = 0;
 
 function currentView() { return document.querySelector(".view.on[data-view]")?.dataset.view || "home"; }
@@ -3304,7 +3306,7 @@ function renderTabs() {
     : overviewMode() ? NAV.flatMap((x) => x[0] === "wall" ? [x, ["teach", "班级情况"]] : [x]) : NAV;
   $("tabs").innerHTML = nav.map(([id, t]) => {
     const unavailable = (id === "plan" && !funOpts().plan) || (id === "ask" && (!laiReady() || !feat("ask"))) || !viewOn(id);
-    const button = `<button class="nav${id === cur ? " on" : ""}${["wall", "calendar", "plan", "ask", "study"].includes(id) || (id === "teach" && !teacherMode()) ? " desk" : ""}${unavailable ? " hidden" : ""}" data-tab="${id}">${icon(id)}<span>${cyName(t)}</span>${id === "homework" && hwBadge ? `<em class="badge">${hwBadge}</em>` : ""}</button>`;
+    const button = `<button class="nav${id === cur ? " on" : ""}${["wall", "calendar", "plan", "ask", "study", "settings"].includes(id) || (id === "teach" && !teacherMode()) ? " desk" : ""}${unavailable ? " hidden" : ""}" data-tab="${id}">${icon(id)}<span>${cyName(t)}</span>${id === "homework" && hwBadge ? `<em class="badge">${hwBadge}</em>` : ""}</button>`;
     // 工具：不再在旁边放一个箭头按钮。在工具页再点一次「工具」、长按「工具」或按 Ctrl/⌘+K 都能快捷打开任意工具；电脑上鼠标移上去会在这一行里提示快捷键
     return id === "tools" ? button.replace('data-tab="tools">', `data-tab="tools" data-tools-nav title="工具（再点一次或长按：快捷打开）">`).replace("</button>", `<kbd class="nav-kbd" aria-hidden="true">${/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K"}</kbd></button>`) + `<button type="button" id="navToolPicker" class="nav-tool-picker-x" data-quick-open aria-label="快捷选择工具" tabindex="-1" hidden></button>` : button;
   }).join("")
@@ -3378,7 +3380,8 @@ function showView(id) {
   if (id === "farm") renderFarm();
   if (id === "plan") renderPlan();
   if (id === "meta") renderMeta();
-  if (id === "me") loadSecurity();
+  if (id === "me" || id === "settings") loadSecurity();
+  if (id === "settings" && typeof renderSyncUI === "function") renderSyncUI();
   if (id === "people") loadPeople();
   if (id === "intro") loadIntro();
   if (id === "ask") renderAsk();
@@ -5048,7 +5051,8 @@ async function handleHash() {
   } else if (location.hash === "#intro") { history.replaceState(null, "", location.pathname); showView("intro"); }
   else if (location.hash.startsWith("#cal=")) { const k = location.hash.slice(5); history.replaceState(null, "", location.pathname); if (/^\d{4}-\d{2}-\d{2}$/.test(k)) $("jumpDate").onchange({ target: { value: k } }); }
   else if (location.hash === "#people") { history.replaceState(null, "", location.pathname); showView("people"); }
-  else if (location.hash === "#me") { history.replaceState(null, "", location.pathname); showView("me"); }   // 6.10 介绍页「账号管理 → 账号与安全」
+  else if (location.hash === "#me") { history.replaceState(null, "", location.pathname); showView("me"); }
+  else if (location.hash === "#settings") { history.replaceState(null, "", location.pathname); showView("settings"); }   // 6.10 介绍页「账号管理 → 账号与安全」
   else if (location.hash === "#mindmap" || location.hash === "#study") { const v = location.hash.slice(1); history.replaceState(null, "", location.pathname); showView(v); }   // 首页「捞捞思维导图」板块直达
 }
 window.addEventListener("hashchange", handleHash);
@@ -5616,7 +5620,7 @@ function renderSyncUI() {
   $("fLocalWrap").classList.toggle("hidden", !(on && m === "cloud"));
 }
 Sync.onState(renderSyncUI);
-setInterval(() => { if (!document.hidden && currentView() === "me") renderSyncUI(); }, 15000);
+setInterval(() => { if (!document.hidden && ["me", "settings"].includes(currentView())) renderSyncUI(); }, 15000);
 $("syncMode").onchange = async (e) => {
   const v = e.target.value;
   if (v === "local") {
