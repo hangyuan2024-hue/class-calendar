@@ -1,0 +1,1317 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>课内学习 · 捞捞学习</title>
+  <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css?v=20261024-review-preview-center-50" />
+  <link rel="stylesheet" href="site.css?v=20261024-learn1" />
+  <script src="../../config.js"></script>
+  <script src="../../auth.js"></script>
+  <script src="site-pre.js?v=20261024-learn1"></script>
+</head>
+<body>
+
+  <!--
+    ============================================================
+    ★ 启动自检（排查用，正常时不显示任何东西）
+    出问题时会在页面顶部弹一条红色横条，写明是哪个文件、哪一行、什么错。
+    它是"内联"的，所以就算 js/ 目录整个没加载，它也能工作。
+    以后不需要了，把这一整段 <script> 删掉即可，删掉不影响功能。
+    ============================================================
+  -->
+  <script>
+  (function () {
+    function banner(text) {
+      try {
+        var box = document.getElementById('bootErrorBox');
+        if (!box) {
+          box = document.createElement('div');
+          box.id = 'bootErrorBox';
+          box.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;background:#c0392b;' +
+            'color:#fff;font:13px/1.7 Consolas,monospace;padding:10px 44px 10px 14px;' +
+            'white-space:pre-wrap;word-break:break-all;box-shadow:0 2px 10px rgba(0,0,0,.3)';
+          var close = document.createElement('button');
+          close.textContent = '×';
+          close.style.cssText = 'position:absolute;right:10px;top:6px;background:transparent;' +
+            'border:0;color:#fff;font-size:20px;cursor:pointer;line-height:1';
+          close.onclick = function () { box.remove(); };
+          box.appendChild(close);
+          (document.body || document.documentElement).appendChild(box);
+        }
+        var line = document.createElement('div');
+        line.textContent = text;
+        box.appendChild(line);
+        console.error('[启动自检] ' + text);
+      } catch (e) { console.error('[启动自检] 连错误都显示不出来：', e, text); }
+    }
+
+    // 1) 脚本加载失败 / 运行时报错
+    window.addEventListener('error', function (e) {
+      var t = e.target;
+      if (t && t.tagName === 'SCRIPT') {
+        banner('✗ 脚本加载失败：' + (t.src || '（未知路径）') +
+          '\n    多半是文件不在 js/ 目录里，或者文件名对不上。');
+      } else if (e.message) {
+        banner('✗ JS 报错：' + e.message + '\n    位置：' + (e.filename || '?') +
+          '  第 ' + e.lineno + ' 行');
+      }
+    }, true);
+
+    // 2) Promise 里没被接住的错误
+    window.addEventListener('unhandledrejection', function (e) {
+      var r = e.reason;
+      banner('✗ 未处理的错误：' + (r && r.message ? r.message : String(r)));
+    });
+
+    // 3) 所有脚本都加载完之后：点名 + 检查列表到底有没有内容
+    window.addEventListener('load', function () {
+      var need = ['loadCourses', 'filterCourses', 'openCourseModal', 'addCourse',
+        'openCourse', 'backToList', 'switchTab', 'loadMaterials', 'loadNotes',
+        'loadAssessments', 'loadMistakes', 'openManualModal', 'openTagPicker',
+        'confirmTagPicker', 'showPageOnly', 'loadTree', 'renderTree', 'toggleSortMode'];
+      var missing = need.filter(function (n) { return typeof window[n] !== 'function'; });
+      if (missing.length) {
+        banner('✗ 这些函数没加载出来：' + missing.join('、') +
+          '\n    → 说明对应的 js 文件没成功加载（404 / 路径不对 / 文件有语法错误）。');
+      }
+
+      var box = document.getElementById('courseList');
+      if (!box) {
+        banner('✗ 页面上找不到 #courseList（课程列表容器），index.html 可能不是配套的那一份。');
+      } else if (!box.innerHTML.trim()) {
+        banner('✗ 课程列表区域是空的：loadCourses() 没有成功执行。' +
+          '\n    正常情况这里应该是课程列表，或至少显示"还没有课程，点右上角＋添加"。');
+      } else if (box.textContent.indexOf('无法连接课程服务') >= 0) {
+        banner('✗ 课内学习的本地服务没启动：请刷新页面；无痕模式或禁用了网站数据时用不了。');
+      }
+    });
+  })();
+  </script>
+
+  <!-- 课程列表页 -->
+  <div id="listPage">
+    <div class="header">
+      <h1>课内学习</h1>
+      <button class="add-btn" type="button" aria-label="添加课程" title="添加课程" onclick="openCourseModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg></button>
+    </div>
+    <!-- 👇 新增：搜索框 -->
+    <div class="search-bar">
+      <input type="text" id="searchInput" placeholder="搜索课程名称..." oninput="filterCourses()" />
+    </div>
+    <!-- 👆 -->
+    <div class="course-list" id="courseList"></div>
+  </div>
+
+  <!-- 课程详情页 -->
+<div id="detailPage">
+  <div class="header">
+    <div class="header-left">
+      <button class="back-btn" onclick="backToList()">←</button>
+      <h1 id="detailTitle">课程</h1>
+    </div>
+    <div class="course-header-actions">
+      <button class="course-search-entry" id="totalReviewOpen" type="button" onclick="openTotalReview()">复习</button>
+      <button class="course-search-entry" id="courseSearchOpen" type="button" onclick="openCourseSearch()">搜索本课程</button>
+      <button class="add-btn" type="button" aria-label="添加内容" id="treeBtn" onclick="event.stopPropagation();openAddMenu(null, event)" style="display:none;" title="添加内容"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg></button>
+    </div>
+  </div>
+
+  <div class="detail-tabs">
+    <div class="dtab active" onclick="switchTab('materials', this)">资料</div>
+    <div class="dtab" onclick="switchTab('notes', this)">笔记</div>
+    <div class="dtab" onclick="switchTab('mistakes', this)">错题</div>
+    <div class="dtab" onclick="switchTab('reviewPlans', this)">复习</div>
+    <div class="dtab" onclick="switchTab('assessments', this)">考核</div>
+    <div class="dtab" onclick="switchTab('knowledge', this)">知识框架</div>
+  </div>
+
+  <div class="tab-content">
+    <div class="tab-pane active" id="pane-materials">
+      <input type="file" id="materialFile" style="display:none" onchange="uploadMaterial()" />
+      <div class="entry-btns">
+        <button class="upload-btn" onclick="openResourceCreate('material')">＋ 添加资料</button>
+      </div>
+      <div class="material-review-entry" style="display:none;"><button type="button" onclick="openMaterialReviewPicker()">开始复习</button><button id="materialReviewResume" type="button" onclick="resumeMaterialReview()" style="display:none;">继续上次复习</button></div>
+      <div id="materialsBrowseFilters" class="reading-browse-filters"></div>
+      <div id="materialList"></div>
+    </div>
+
+    <div class="tab-pane" id="pane-notes">
+      <input type="file" id="noteFile" style="display:none" onchange="uploadNote()" />
+      <div class="entry-btns">
+        <button class="upload-btn" onclick="openResourceCreate('note')">＋ 添加笔记</button>
+      </div>
+      <div class="material-review-entry" style="display:none;"><button type="button" onclick="openNoteReviewPicker()">开始复习</button><button id="noteReviewResume" type="button" onclick="resumeNoteReview()" style="display:none;">继续上次复习</button></div>
+      <div id="notesBrowseFilters" class="reading-browse-filters"></div>
+      <div id="noteList"></div>
+    </div>
+
+    <div class="tab-pane" id="pane-assessments">
+      <button class="upload-btn" onclick="openAssessmentModal()">＋ 添加考核</button>
+      <div id="assessmentList"></div>
+    </div>
+
+    <div class="tab-pane" id="pane-mistakes">
+      <!-- 不限制文件类型：题目的扫描件 / PDF 也能直接上传 -->
+      <input type="file" id="mistakeFile" style="display:none" onchange="uploadMistake()" />
+      <!-- 上传 / 手动输入：只在「错题」大页出现；进了四个分类的详情页会由 renderMistakeCategories() 隐藏 -->
+      <div class="entry-btns" id="mistakeEntryBtns">
+        <button class="upload-btn" onclick="openMistakeCreate()">＋ 添加错题</button>
+      </div>
+      <div id="mistakeHomeReview" class="mistake-home-review" style="display:none;">
+        <div class="mistake-home-review-copy"><strong>错题复习</strong><p>选择复习分类，可快速全选或进入分类筛选题目。</p></div>
+        <button id="mistakeHomeReviewStart" type="button" onclick="enterMistakeReviewFromHome()">开始复习</button>
+        <button id="mistakeHomeReviewResume" type="button" onclick="resumeMistakeQueue()" style="display:none;">继续上次复习</button>
+      </div>
+      <div id="mistakeCategories" class="mistake-categories"></div>
+      <div id="mistakeFilters" class="reading-browse-filters" style="display:none;">
+        <div class="mistake-toolbar">
+          <button type="button" onclick="mistakeSelectionCurrent() && mistakeSelection.mixed ? returnToMistakeReviewPicker() : openMistakeCategory(null)">← 错题分类</button>
+          <h2 id="mistakeCategoryTitle"></h2>
+        </div>
+        <form class="reading-browse-controls" onsubmit="event.preventDefault();applyMistakeFilters();">
+          <input id="mistakeSearch" type="search" maxlength="500" aria-label="搜索标题或正文" placeholder="搜索标题或正文" oninput="applyMistakeFilters()" />
+          <label><input id="mistakeFavoriteFilter" type="checkbox" onchange="applyMistakeFilters()" />收藏</label>
+          <select id="mistakeStatusFilter" aria-label="复习状态" onchange="applyMistakeFilters()"><option value="">全部复习状态</option><option value="reviewed">已复习</option><option value="unreviewed">未复习</option></select>
+        </form>
+        <details><summary>知识点标签（可多选）</summary><div id="mistakeFilterTags" class="reading-browse-tags"></div></details>
+      </div>
+      <div id="mistakeSelectionHeader" class="mistake-toolbar" style="display:none;"></div>
+      <div id="mistakeList"></div>
+    </div>
+
+    <div class="tab-pane" id="pane-knowledge">
+      <div id="treeContainer"></div>
+    </div>
+    <div class="tab-pane" id="pane-reviewPlans">
+      <div class="review-center-panels">
+        <section class="review-center-panel" aria-labelledby="reviewPlansHeading">
+          <header class="review-panel-heading">
+            <div class="review-panel-title"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 11h18m-13 4h2m4 0h2"/></svg><div><h2 id="reviewPlansHeading">复习计划</h2><p>管理考前安排与每日任务</p></div></div>
+            <button type="button" class="review-panel-action" onclick="openReviewPlanCreate()">＋ 创建计划</button>
+          </header>
+          <div id="reviewPlanList"></div>
+        </section>
+        <section class="review-center-panel" aria-labelledby="reviewRecentHeading">
+          <header class="review-panel-heading">
+            <div class="review-panel-title"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 11a9 9 0 1 1 2.5 7M3 4v7h7m2-4v6l4 2"/></svg><div><h2 id="reviewRecentHeading">最近复习</h2><p>继续未完成的复习，或回顾历史</p></div></div>
+            <button type="button" class="review-panel-action" onclick="openReviewHistory()">查看全部</button>
+          </header>
+          <div id="reviewRecentList"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+
+  <!-- 课程内统一搜索：复用原有详情页，返回时恢复本页状态。 -->
+  <div id="courseSearchPage">
+    <div class="header">
+      <div class="header-left">
+        <button class="back-btn" type="button" onclick="backFromDetail()" aria-label="返回课程">←</button>
+        <h1>搜索本课程</h1>
+      </div>
+      <span id="courseSearchCourse" class="course-search-course"></span>
+    </div>
+    <div class="course-search-content">
+      <form class="course-search-controls" onsubmit="event.preventDefault();requestCourseSearch()">
+        <div class="course-search-input-row">
+          <input id="courseSearchQuery" type="search" maxlength="500" autocomplete="off" placeholder="搜索资料、笔记和错题"
+            aria-label="搜索本课程的关键词" oninput="changeCourseSearchQuery(this.value,event.isComposing)" />
+          <button class="course-search-submit" type="submit">搜索</button>
+        </div>
+        <fieldset class="course-search-types">
+          <legend>内容类型</legend>
+          <label><input type="checkbox" value="materials" checked onchange="changeCourseSearchType(this.value,this.checked)" />资料</label>
+          <label><input type="checkbox" value="notes" checked onchange="changeCourseSearchType(this.value,this.checked)" />笔记</label>
+          <label><input type="checkbox" value="mistakes" checked onchange="changeCourseSearchType(this.value,this.checked)" />错题</label>
+        </fieldset>
+      </form>
+      <div id="courseSearchCount" class="course-search-count" role="status" aria-live="polite"></div>
+      <div id="courseSearchError" class="course-search-error" role="alert"></div>
+      <button id="courseSearchRetry" class="course-search-secondary" type="button" onclick="retryCourseSearch()" hidden>重试搜索</button>
+      <div id="courseSearchResults" class="course-search-results"></div>
+      <button id="courseSearchMore" class="course-search-more" type="button" onclick="requestCourseSearch(true)" hidden>加载更多</button>
+    </div>
+  </div>
+
+  <!-- 节点详情页（folder / knowledge 通用） -->
+  <div id="nodeDetailPage">
+    <div class="header">
+      <div class="header-left">
+        <button class="back-btn" onclick="backFromDetail()">←</button>
+        <h1 id="nodeDetailTitle">节点详情</h1>
+      </div>
+    </div>
+    <div class="tab-content">
+      <div class="detail-card">
+        <div class="detail-name" id="nodeDetailName"></div>
+        <div class="detail-type" id="nodeDetailType"></div>
+        <div class="detail-course" id="nodeDetailCourse"></div>
+        <div class="detail-path" id="nodeDetailPath"></div>
+      </div>
+      <div class="detail-section-title" id="nodeDetailMistakeTitle">关联错题</div>
+      <div id="nodeDetailMistakeList"></div>
+      <div class="detail-section-title" id="nodeDetailMaterialTitle">关联资料</div>
+      <div id="nodeDetailMaterialList"></div>
+      <div class="detail-section-title" id="nodeDetailNoteTitle">关联笔记</div>
+      <div id="nodeDetailNoteList"></div>
+    </div>
+  </div>
+
+  <!-- 错题详情页 -->
+  <div id="mistakeDetailPage">
+    <div class="header">
+      <div class="header-left">
+        <button class="back-btn" onclick="backFromDetail()">←</button>
+        <h1 id="mistakeDetailTitle">错题详情</h1>
+      </div>
+    </div>
+    <div class="tab-content">
+      <div id="mistakeDetailBody">
+      <div id="mistakeQueueBanner" class="mistake-workspace" style="display:none;" aria-live="polite"></div>
+      <div class="detail-card">
+        <div class="detail-name" id="mistakeDetailName"></div>
+        <div class="detail-meta" id="mistakeDetailMeta"></div>
+        <div id="mistakeDetailFormat"></div>
+        <div id="mistakeDetailPreparation"></div>
+        <div id="mistakeAiSavedDetail"></div>
+        <div class="mistake-tags" id="mistakeDetailTags"></div>
+      </div>
+      <div class="detail-section-title" id="mistakeDetailSectionTitle">错题图片</div>
+      <img id="mistakeDetailImage" class="mistake-detail-image" alt="错题图片" />
+      <div id="mistakeDetailImageError" class="empty" style="display:none;">图片不存在或已丢失</div>
+      <div id="mistakeDetailContent" class="detail-content"></div>
+      <!-- 上传的不是图片时（PDF 扫描件等），这里显示一个打开文件的入口 -->
+      <div id="mistakeDetailFile" class="detail-actions" style="display:none;"></div>
+      <div class="mistake-toolbar" id="mistakeReviewToolbar" style="display:none;">
+        <button id="mistakeReviewToggle" type="button" onclick="toggleMistakeReviewMode()">进入复习</button>
+      </div>
+      <div id="mistakeReviewPanel" class="mistake-workspace" style="display:none;" aria-live="polite"></div>
+      <div id="mistakeReadPanel" class="mistake-workspace">
+        <h2>参考答案</h2><div id="mistakeAnswerText" class="detail-content"></div>
+        <div id="mistakeDetailAnswerFile" class="detail-actions" style="display:none;"></div>
+        <h2>解析 / 错误原因</h2><div id="mistakeExplanationText" class="detail-content"></div>
+        <div class="mistake-toolbar">
+          <button type="button" onclick="openMistakeEdit()">编辑</button>
+          <button id="mistakeAiToggle" type="button" aria-expanded="false" aria-controls="mistakeAiPanel" onclick="toggleMistakeAi()">AI 复习建议</button>
+        </div>
+        <span id="mistakeAiHome" hidden></span>
+        <section id="mistakeAiPanel" class="mistake-ai-panel" aria-labelledby="mistakeAiTitle" hidden>
+          <h2 id="mistakeAiTitle">AI 分类 · 复习方式建议</h2>
+          <p class="mistake-ai-note">使用共用 AI 设置；也可明确选择 DeepSeek 官方并填写本次 Key。结果需人工复核，不会自动修改原错题分类。只发送下方文字，不上传附件；请勿填写个人敏感信息。</p>
+          <form id="mistakeAiForm" class="edit-card" onsubmit="event.preventDefault();requestMistakeAi()">
+            <h3 class="tag-sheet-section-title">题目信息</h3>
+            <fieldset id="mistakeAiInputs">
+              <label for="mistakeAiProvider">本次 AI 来源</label>
+              <button type="button" onclick="coursesAiSettings.open()">打开共用 AI 设置</button>
+              <select id="mistakeAiProvider" onchange="changeMistakeAiProvider('mistakeAi')"><option value="shared">共用 AI 设置（右下角可配置）</option><option value="deepseek">DeepSeek 官方（临时 Key）</option></select>
+              <div id="mistakeAiKeySettings" class="mistake-ai-key-settings" hidden>
+                <label for="mistakeAiApiKey">本次 API Key（不保存）</label>
+                <input id="mistakeAiApiKey" type="password" autocomplete="off" spellcheck="false" maxlength="512">
+                <label for="mistakeAiModel">DeepSeek 模型</label>
+                <select id="mistakeAiModel"><option>deepseek-flash</option><option>deepseek-v4-pro</option></select>
+                <label><input id="mistakeAiCost" type="checkbox">同意本次将下方文字发送至 DeepSeek 官方，知晓可能产生费用。</label>
+                <p class="mistake-ai-note">Key 经过本网站后端，仅用于本次请求，发送后清空；重试需重新填写并确认。不自动重试或回退 Mock。不保证浏览器插件不会保存输入。</p>
+              </div>
+              <label for="mistakeAiQuestion">题目文字（必填；图片题请补充文字）</label>
+              <textarea id="mistakeAiQuestion" maxlength="4000" required rows="3"></textarea>
+              <label for="mistakeAiStudentAnswer">学生作答（必填，不是参考答案）</label>
+              <textarea id="mistakeAiStudentAnswer" maxlength="4000" required rows="2"></textarea>
+              <label for="mistakeAiSteps">解题过程（可选；不清楚也可以留空）</label>
+              <textarea id="mistakeAiSteps" maxlength="4000" rows="3" placeholder="写下当时怎么想、怎么算，帮助 AI 区分候选错因"></textarea>
+              <label for="mistakeAiErrorType">我认为的错误原因（可选线索，不是诊断结论）</label>
+              <select id="mistakeAiErrorType">
+                <option value="">不确定，请 AI 辅助分析</option>
+                <option value="knowledge_gap">知识缺漏</option><option value="reasoning_gap">推理障碍</option>
+                <option value="careless">粗心失误</option><option value="other">其他 / 尚不明确</option>
+              </select>
+              <label for="mistakeAiCorrectAnswer">参考答案（可选）</label>
+              <textarea id="mistakeAiCorrectAnswer" maxlength="4000" rows="2"></textarea>
+              <label for="mistakeAiContext">补充说明（可选）</label>
+              <textarea id="mistakeAiContext" maxlength="4000" rows="2"></textarea>
+            </fieldset>
+          </form>
+          <p id="mistakeAiStatus" role="status" aria-live="polite"></p>
+          <p id="mistakeAiError" class="mistake-inline-error" role="alert"></p>
+          <div id="mistakeAiResult" class="edit-card" hidden>
+            <h3 class="tag-sheet-section-title">AI 建议结果</h3>
+            <p id="mistakeAiSuggested"></p>
+            <p id="mistakeAiReason" class="detail-content"></p>
+            <section id="mistakeAiAnalysis" class="mistake-ai-analysis" aria-label="AI 学习分析" hidden></section>
+            <label for="mistakeAiMethod">人工复核：可修改建议</label>
+            <select id="mistakeAiMethod" onchange="changeMistakeAiSuggestion()">
+              <option value="" disabled selected>请选择复习模式</option>
+              <option value="standard">标准复习</option>
+              <option value="cloze">挖空回忆</option><option value="self_explain">自述讲解</option>
+              <option value="reading">阅读标记</option><option value="contrast">对比辨析</option>
+              <option value="retry">重新作答</option>
+            </select>
+            <p class="mistake-ai-note">这里只保存复习建议；进入复习或计划后可使用，专属材料仍需另行准备和确认，不自动评分。</p>
+            <p class="mistake-ai-note">确认后的复习方式保存在本浏览器，刷新后重新打开 AI 面板可恢复；清除浏览器数据后会丢失，不跨浏览器同步。输入和 AI 理由不保存。如需修改原错题分类，请使用上方“编辑”。</p>
+          </div>
+          <span id="mistakeAiActionsHome" hidden></span>
+          <div id="mistakeAiActions">
+            <p class="mistake-ai-note">确认操作 · 仅保存复习方式到本浏览器</p>
+            <p id="mistakeAiConfirmation" role="status"></p>
+            <div class="modal-actions">
+              <button type="button" class="btn-cancel mistake-ai-dialog-only" onclick="resetMistakeAi()">取消</button>
+              <button id="mistakeAiSubmit" type="submit" form="mistakeAiForm" class="btn-cancel">获取 AI 建议</button>
+              <button id="mistakeAiConfirm" type="button" class="btn-confirm" onclick="confirmMistakeAiSuggestion()" disabled>确认并保存到本浏览器</button>
+            </div>
+          </div>
+        </section>
+      </div>
+      </div><!-- mistakeDetailBody -->
+    </div>
+  </div>
+
+  <!-- 资源详情页（资料 / 笔记通用） -->
+  <div id="resourceDetailPage">
+    <div class="header">
+      <div class="header-left">
+        <button class="back-btn" onclick="backFromDetail()">←</button>
+        <h1 id="resourceDetailTitle">资源详情</h1>
+      </div>
+    </div>
+    <div class="tab-content">
+      <div class="detail-card">
+        <div class="detail-name" id="resourceDetailName"></div>
+        <div class="detail-type" id="resourceDetailType"></div>
+        <div class="detail-meta" id="resourceDetailMeta"></div>
+        <div class="mistake-tags" id="resourceDetailTags"></div>
+      </div>
+      <div class="detail-section-title" id="resourceDetailSectionTitle">文件</div>
+      <div id="resourceDetailPreview"></div>
+      <section id="resourceDetailContentSection" hidden aria-labelledby="resourceDetailContentTitle">
+        <div class="detail-section-title" id="resourceDetailContentTitle">正文</div>
+        <div class="detail-content" id="resourceDetailContent"></div>
+      </section>
+      <section id="resourceDetailOutlineSection" class="resource-detail-topic" style="display:none;">
+        <div class="detail-section-title">重点总结 / 大纲</div>
+        <pre id="resourceDetailOutlineText" class="resource-detail-outline-text"></pre>
+      </section>
+      <section id="resourceDetailMindmapSection" class="resource-detail-topic" style="display:none;">
+        <div class="detail-section-title">思维导图
+          <button type="button" class="edit-mini-btn" onclick="openOutlineFullscreen()">全屏查看</button>
+        </div>
+        <div id="resourceDetailMindmapActions" class="mindmap-generation-actions"></div>
+        <p id="resourceDetailMindmapAiNote" class="mindmap-generation-note" role="status"></p>
+        <div id="resourceDetailOutlineMap" class="outline-map"></div>
+      </section>
+      <div class="detail-actions">
+        <a id="resourceDetailOpen" class="detail-link" href="#" target="_blank">打开文件</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- 思维导图全屏 -->
+  <div class="modal-mask outline-fullscreen" id="outlineFullscreen">
+    <div class="outline-fullscreen-panel">
+      <div class="outline-fullscreen-head">
+        <b>思维导图</b>
+        <button type="button" class="edit-mini-btn" onclick="closeOutlineFullscreen()">关闭</button>
+      </div>
+      <div class="outline-fullscreen-body" id="outlineFullscreenBody"></div>
+    </div>
+  </div>
+
+  <!-- 添加课程弹窗 -->
+  <div class="modal-mask" id="courseModal">
+    <div class="modal">
+      <h3>添加课程</h3>
+      <input id="courseNameInput" placeholder="输入课程名称" />
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeCourseModal()">取消</button>
+        <button class="btn-confirm" onclick="addCourse()">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 添加考核弹窗 -->
+  <div class="modal-mask" id="assessmentModal">
+    <div class="modal">
+      <h3 id="assessModalTitle">添加考核</h3>
+      <label for="assessTitle">考核名称</label><input id="assessTitle" maxlength="200" placeholder="考核名称，如期中考试" />
+      <label for="assessDeadline">截止日期（可选）</label><input id="assessDeadline" type="date" />
+      <label for="assessReq">考核要求（可选）</label><textarea id="assessReq" maxlength="20000" placeholder="考核要求（可选）"></textarea>
+      <button type="button" id="assessBodyToChartReference" class="assessment-reference-button">把考核正文传入图表的 AI 提取来源</button>
+      <div id="assessAttachment" class="assessment-attachment-editor">
+        <input type="file" id="assessFile" style="display:none"
+               onchange="showPickedFile('assessFile', 'assessFileName');assessmentFileChanged()" />
+        <button type="button" class="file-pick-btn" id="assessFilePick" onclick="document.getElementById('assessFile').click()">📎 选择附件（可选）</button>
+        <button type="button" id="assessFileRemove" class="assessment-file-remove" hidden>删除现有附件</button>
+        <div class="file-name-tip" id="assessFileName">未选择附件</div>
+        <div class="assessment-existing-file" id="assessExistingAttachment" hidden></div>
+      </div>
+      <section class="assessment-ocr-box">
+        <div class="assessment-ocr-head"><div><strong>附件识别内容</strong><small>识别后请校对；不会自动修改考核正文。</small></div><button type="button" id="assessOcrScan">识别当前附件</button></div>
+        <textarea id="assessOcrText" rows="6" maxlength="20000" placeholder="识别结果会显示在这里，也可以手动修改"></textarea>
+        <p id="assessOcrStatus" class="assessment-ocr-status" role="status" aria-live="polite"></p>
+        <div class="assessment-ocr-body-actions">
+          <button type="button" id="assessOcrAppend">追加到考核正文</button>
+          <button type="button" id="assessOcrReplace">替换考核正文</button>
+        </div>
+        <button type="button" id="assessOcrToChartReference" class="assessment-reference-button">把附件识别内容传入图表的 AI 提取来源</button>
+      </section>
+      <p id="assessChartTransferStatus" class="assessment-reference-status" role="status" aria-live="polite"></p>
+      <p id="assessError" class="mistake-inline-error" role="alert"></p>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeAssessmentModal()">取消</button>
+        <button class="btn-confirm" onclick="addAssessment()">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 考核构成图表：查看状态只读，所有修改在独立编辑器中完成。 -->
+  <dialog id="assessmentChartEditor" class="assessment-chart-editor" aria-labelledby="assessmentChartEditorTitle">
+    <header class="assessment-chart-editor-head">
+      <div><h2 id="assessmentChartEditorTitle">编辑考核构成图</h2><p>手动编辑始终可用；AI 功能需要配置真实 API。</p></div>
+      <button type="button" id="assessmentChartClose" aria-label="关闭图表编辑器">×</button>
+    </header>
+    <div class="assessment-chart-editor-body">
+      <section class="assessment-chart-fields" aria-label="图表数据">
+        <label class="assessment-chart-title-field">图表标题<input id="assessmentChartTitle" maxlength="120" placeholder="如：期末总评构成" /></label>
+        <div class="assessment-chart-rows-head"><h3>考核部分</h3><button type="button" id="assessmentChartAddRow">＋ 添加部分</button></div>
+        <div id="assessmentChartRows"></div>
+        <p id="assessmentChartSum" class="assessment-chart-sum" role="status" aria-live="polite"></p>
+
+        <details class="assessment-chart-source">
+          <summary>AI 提取与考核正文</summary>
+          <p class="ai-help">AI 只读取下方文字或已上传附件识别出的文字；不会直接修改正文或保存图表。</p>
+          <label>提取来源文字<textarea id="assessmentChartSource" rows="7" maxlength="20000" placeholder="可粘贴考核正文，或从已上传附件识别"></textarea></label>
+          <label>可选编辑要求<input id="assessmentChartInstruction" maxlength="500" placeholder="如：保留已有占比，只精简内容说明" /></label>
+          <p id="assessmentChartAiState" class="ai-help"></p>
+          <div class="assessment-chart-ai-actions">
+            <button type="button" id="assessmentChartAiBody">AI 从以上文字提取</button>
+            <button type="button" id="assessmentChartAiFile">AI 读取附件并生成</button>
+            <button type="button" id="assessmentChartAiEdit">AI 整理当前图表</button>
+          </div>
+          <p id="assessmentChartAiStatus" class="assessment-chart-status" role="status" aria-live="polite"></p>
+          <div id="assessmentChartBodyApply" class="assessment-chart-body-apply" hidden>
+            <p>识别文字已填入上方，但不会自动修改考核正文。</p>
+            <button type="button" id="assessmentChartBodyReplace">替换考核正文</button>
+            <button type="button" id="assessmentChartBodyAppend">追加到考核正文</button>
+          </div>
+        </details>
+      </section>
+      <section class="assessment-chart-preview" aria-label="图表预览">
+        <h3 id="assessmentChartPreviewTitle">图表预览</h3>
+        <div class="assessment-chart-visual">
+          <canvas id="assessmentChartEditorCanvas" role="img" aria-label="考核构成饼图预览"></canvas>
+          <div class="assessment-chart-tooltip" role="status" aria-live="polite"></div>
+        </div>
+        <ul id="assessmentChartPreviewDetails" class="assessment-chart-details"></ul>
+      </section>
+    </div>
+    <footer class="assessment-chart-editor-foot">
+      <p id="assessmentChartError" class="mistake-inline-error" role="alert"></p>
+      <div><button type="button" class="btn-cancel" id="assessmentChartCancel">取消</button><button type="button" class="btn-confirm" id="assessmentChartSave">保存图表</button></div>
+    </footer>
+  </dialog>
+
+  <!-- 手动输入弹窗（资料 / 笔记 / 错题共用，标题和提示词按类型变） -->
+  <div class="modal-mask" id="manualModal">
+    <div class="modal">
+      <h3 id="manualModalTitle">手动输入</h3>
+      <input id="manualTitle" placeholder="标题" />
+      <textarea id="manualContent" placeholder="内容"></textarea>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeManualModal()">取消</button>
+        <button class="btn-confirm" onclick="confirmManualModal()">下一步：选择标签</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 通用确认弹窗 -->
+  <dialog class="confirm-dialog" id="confirmModal" aria-labelledby="confirmTitle" aria-describedby="confirmMsg">
+    <div class="modal">
+      <h3 id="confirmTitle">确认操作</h3>
+      <p id="confirmMsg"></p >
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" autofocus onclick="closeConfirm(false)">取消</button>
+        <button type="button" class="btn-confirm" onclick="closeConfirm(true)">确定</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Toast 容器 -->
+  <div id="materialReviewPage" style="display:none;">
+    <div class="header"><div class="header-left"><button class="back-btn" onclick="pauseMaterialReview()">←</button><h1 id="readingReviewHeading">资料复习</h1></div></div>
+    <div class="tab-content">
+      <div id="materialReviewProgress" class="material-review-progress"></div>
+      <div id="materialReviewItem">
+        <h2 id="materialReviewTitle"></h2><p id="materialReviewStatus" class="detail-meta"></p>
+        <div id="materialReviewContent" class="material-review-content"></div>
+        <div id="materialReviewPreview"></div><a id="materialReviewOpenFile" target="_blank" rel="noopener" style="display:none;">打开附件</a>
+      </div>
+      <div id="materialReviewActions" class="material-review-actions"></div>
+      <div id="materialReviewError" class="material-review-error" role="alert"></div>
+      <div id="materialReviewComplete" style="display:none;"></div>
+    </div>
+  </div>
+  <div id="materialReviewPicker" class="modal-mask" onclick="if(event.target===this)closeMaterialReviewPicker()" onkeydown="if(event.key==='Escape')closeMaterialReviewPicker()">
+    <div class="modal material-review-picker" role="dialog" aria-modal="true" aria-labelledby="materialReviewPickerTitle">
+      <div class="material-review-picker-head"><h3 id="materialReviewPickerTitle" tabindex="-1">选择复习资料</h3><button onclick="closeMaterialReviewPicker()" aria-label="关闭">×</button></div>
+      <div class="material-review-picker-body">
+        <label><span id="readingReviewSearchLabel">搜索资料</span><input id="materialReviewSearch" type="search" placeholder="标题或正文" oninput="filterMaterialReview(this.value)" /></label>
+        <label class="reading-review-tag"><input type="checkbox" id="materialReviewFavoriteFilter" onchange="filterReadingReviewFavorite(this.checked)" />收藏</label>
+        <label class="reading-review-status">复习状态<select id="materialReviewStatusFilter" onchange="filterReadingReviewStatus(this.value)"><option value="">全部</option><option value="reviewed">已复习</option><option value="unreviewed">未复习</option></select></label>
+        <details class="reading-review-tags"><summary>知识点标签（匹配任一所选标签）</summary><div id="materialReviewTags"></div></details>
+        <label class="material-review-all"><input id="materialReviewSelectAll" type="checkbox" onchange="selectAllMaterialReview(this.checked)" />全选当前筛选结果</label>
+        <div id="materialReviewSelectionList"></div>
+        <div id="materialReviewSelectionError" class="material-review-error" role="alert"></div>
+      </div>
+      <div class="material-review-picker-foot"><span>已选择 <strong id="materialReviewSelectedCount">0</strong> 条</span><button onclick="clearMaterialReviewSelection()">清空选择</button><button id="materialReviewStart" onclick="startMaterialReview()" disabled>开始复习</button></div>
+    </div>
+  </div>
+
+  <div id="toastBox"></div>
+
+  <div id="mistakeReviewPicker" class="modal-mask" onclick="if(event.target===this)closeMistakeReviewPicker()" onkeydown="if(event.key==='Escape'){event.preventDefault();closeMistakeReviewPicker()}">
+    <div class="modal modal-wide mistake-review-picker" role="dialog" aria-modal="true" aria-labelledby="mistakeReviewPickerTitle">
+      <div class="mistake-review-picker-head">
+        <button id="mistakeReviewPickerBack" type="button" onclick="returnToMistakeReviewPicker()" style="display:none;">← 返回分类选择</button>
+        <h3 id="mistakeReviewPickerTitle" tabindex="-1">选择复习分类</h3>
+        <button type="button" onclick="closeMistakeReviewPicker()" aria-label="关闭复习选择">×</button>
+      </div>
+      <div id="mistakeReviewPickerBody" class="mistake-review-picker-body">
+        <div id="mistakeReviewPickerCategories"><p class="detail-meta">点击分类名称筛选题目；右侧勾选该分类全部可复习错题。</p><div id="mistakeReviewPickerRows"></div></div>
+        <div id="mistakeReviewPickerDetail" style="display:none;"></div>
+      </div>
+      <div class="mistake-review-picker-foot">
+      <div id="mistakeReviewPickerError" class="mistake-inline-error" role="alert"></div>
+      <div class="modal-actions">
+        <span>已选择 <strong id="mistakeReviewPickerCount">0</strong> 道题</span>
+        <button type="button" onclick="clearMistakeSelection()">清空选择</button>
+        <button type="button" onclick="closeMistakeReviewPicker()">关闭</button>
+        <button id="mistakeReviewPickerStart" type="button" class="btn-confirm" onclick="startMistakeQueue()" disabled>开始复习</button>
+      </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 复习完成弹窗：复习全部完成后出现；全部通过时飘彩带 -->
+  <div id="mistakeCompleteModal" class="modal-mask" onclick="if(event.target===this)cancelReviewComplete()" onkeydown="if(event.key==='Escape'){event.preventDefault();cancelReviewComplete()}">
+    <!-- 彩带分两层，都在弹窗卡片后面：库可用时用 canvas-confetti，否则退回自绘 CSS 版 -->
+    <div id="mistakeLibConfetti" class="mistake-confetti" style="display:none" aria-hidden="true">
+      <canvas id="mistakeConfettiCanvas"></canvas>
+    </div>
+    <div id="mistakeCompleteConfetti" class="mistake-confetti" aria-hidden="true"></div>
+    <div class="modal mistake-complete" role="dialog" aria-modal="true" aria-labelledby="mistakeCompleteTitle">
+      <button type="button" class="tag-sheet-close" id="reviewCompleteClose" onclick="cancelReviewComplete()" title="关闭" aria-label="关闭复习完成弹窗">×</button>
+      <h3 id="mistakeCompleteTitle" tabindex="-1"></h3>
+      <p id="mistakeCompleteText"></p>
+      <div class="modal-actions">
+        <button type="button" id="reviewCompleteReplay" onclick="replayReviewComplete()">再来一遍</button>
+        <button type="button" id="mistakeCompletePreview" onclick="openReviewCompletePreview()" hidden>查看作答预览</button>
+        <button type="button" class="btn-primary" onclick="startNewReviewComplete()">开始新复习</button>
+      </div>
+    </div>
+  </div>
+
+  <dialog id="reviewAnswersPreviewDialog" class="review-answers-preview" aria-labelledby="reviewAnswersPreviewTitle" oncancel="event.preventDefault();closeReviewAnswersPreview()">
+    <header>
+      <div><h2 id="reviewAnswersPreviewTitle" tabindex="-1">本轮作答预览</h2><p>只读展示本轮最新已保存结果。</p></div>
+      <button type="button" class="tag-sheet-close" onclick="closeReviewAnswersPreview()" aria-label="关闭作答预览">×</button>
+    </header>
+    <div id="reviewAnswersPreviewBody" class="review-answers-preview-body"></div>
+    <footer><button type="button" id="reviewAnswersPreviewRefresh" onclick="refreshReviewAnswersPreview()">刷新</button><button type="button" class="btn-primary" onclick="closeReviewAnswersPreview()">关闭</button></footer>
+  </dialog>
+
+  <!-- 编辑错题弹窗：一块一块来 —— 名称与分类 / 标签 / 题目 / 答案 / 错因
+       每块一张卡片，卡片之间留白；改过的块右上角亮起「已改」，一眼看得出改了哪儿。
+       题目和答案都只有一个输入框：想打字就打字，想传文件就点「上传新内容」。 -->
+  <div class="modal-mask" id="mistakeEditModal">
+    <div class="modal modal-wide tag-sheet" role="dialog" aria-modal="true" aria-labelledby="mistakeEditModalTitle">
+      <div class="tag-sheet-grip" aria-hidden="true"></div>
+      <div class="tag-sheet-head">
+        <h3 id="mistakeEditModalTitle">编辑错题</h3>
+        <button type="button" class="tag-sheet-close" onclick="closeMistakeEdit()" title="关闭" aria-label="关闭">×</button>
+      </div>
+
+      <div class="tag-sheet-body" id="mistakeEditBody">
+        <section class="edit-card">
+          <div class="edit-card-head">
+            <span class="edit-card-icon">🏷️</span>
+            <div class="edit-card-titles">
+              <b>名称与分类</b>
+              <small>列表显示的标题；分类决定它归属哪一类。文件后缀由附件决定，不可修改</small>
+            </div>
+            <span class="edit-flag" id="mistakeEditFlagName">已改</span>
+          </div>
+          <div class="edit-card-body edit-card-row">
+            <div class="edit-name-field">
+              <input id="mistakeEditTitle" placeholder="名称" aria-label="名称" oninput="refreshMistakeEditDirty()" />
+              <span class="name-ext" id="mistakeEditNameExt" style="display:none;"></span>
+            </div>
+            <select id="mistakeEditType" aria-label="分类" onchange="refreshMistakeEditDirty()">
+              <option value="knowledge">知识类</option><option value="thinking">思维类</option><option value="execution">执行类</option><option value="unclassified">待分类</option>
+            </select>
+          </div>
+        </section>
+
+        <section id="mistakeEditReviewModeHost" class="edit-card review-method-card"></section>
+
+        <section class="edit-card">
+          <div class="edit-card-head">
+            <span class="edit-card-icon">🔖</span>
+            <div class="edit-card-titles">
+              <b>标签</b>
+              <small>勾选知识框架中的分类或知识点；保存时一并生效</small>
+            </div>
+            <span class="edit-flag" id="mistakeEditFlagTags">已改</span>
+          </div>
+          <div class="edit-card-body">
+            <div class="mistake-tags" id="mistakeEditTags"></div>
+            <input class="edit-tag-search" id="mistakeEditTagSearch" type="search" maxlength="100" autocomplete="off"
+              placeholder="搜索分类 / 知识点" aria-label="搜索分类 / 知识点" oninput="searchMistakeEditTags(this.value)" />
+            <div class="edit-tag-tools">
+              <span class="edit-tag-count" id="mistakeEditTagCount">已选 0 项</span>
+            </div>
+            <div class="edit-tag-tree" id="mistakeEditTagTree"></div>
+          </div>
+        </section>
+
+        <section class="edit-card">
+          <div class="edit-card-head">
+            <span class="edit-card-icon">📄</span>
+            <div class="edit-card-titles">
+              <b>题目</b>
+              <small>可上传图片或 PDF 附件，也可直接录入题目文字</small>
+            </div>
+            <span class="edit-flag" id="mistakeEditFlagQuestion">已改</span>
+          </div>
+          <div class="edit-card-body">
+            <div class="edit-file-preview" id="mistakeEditQuestionFile" style="display:none;"></div>
+            <div class="edit-file-actions">
+              <button type="button" class="edit-btn edit-btn-danger" id="mistakeEditQuestionRemove" style="display:none;" onclick="removeMistakeEditQuestionFile()"><span class="edit-btn-icon">🗑</span>删除原题</button>
+              <button type="button" class="edit-btn" id="mistakeEditQuestionUploadBtn" onclick="document.getElementById('mistakeEditQuestionUpload').click()"><span class="edit-btn-icon">⬆</span><span id="mistakeEditQuestionUploadLabel">上传新内容</span></button>
+              <button type="button" class="edit-btn" id="mistakeEditQuestionOcrBtn" style="display:none;" onclick="recognizeMistakeEditFile('question')">识别文字</button>
+            </div>
+            <input type="file" id="mistakeEditQuestionUpload" style="display:none" onchange="chooseMistakeEditQuestionFile(this)" />
+            <textarea id="mistakeEditContent" rows="4" placeholder="题目内容" oninput="refreshMistakeEditDirty()"></textarea>
+            <section id="mistakeEditQuestionOcrPanel" class="mistake-ocr-panel" style="display:none;">
+              <div class="mistake-ocr-head"><b>识别结果</b><span>先人工校对，再填入</span></div>
+              <textarea id="mistakeEditQuestionOcrText" rows="5"></textarea>
+              <div class="mistake-ocr-actions">
+                <button type="button" onclick="applyMistakeEditOcr('content','replace')">替换题干</button>
+                <button type="button" onclick="applyMistakeEditOcr('content','append')">追加题干</button>
+                <button type="button" id="mistakeEditOcrToOptions" onclick="applyMistakeEditOcr('options')">填入选项</button>
+                <button type="button" class="btn-cancel" onclick="closeMistakeEditOcr('question')">放弃</button>
+              </div>
+              <small id="mistakeEditQuestionOcrMeta"></small>
+            </section>
+            <div class="edit-choice-config">
+              <label class="mistake-create-field">题型
+                <select id="mistakeEditFormat" onchange="markMistakeFormatSelected();toggleMistakeChoiceFields('Edit');refreshMistakeEditDirty()">
+                  <option value="open">主观题 / 非选择题</option>
+                  <option value="choice">选择题</option>
+                </select>
+              </label>
+              <label class="mistake-format-confirm"><input type="checkbox" id="mistakeEditFormatConfirmed" onchange="refreshMistakeEditDirty()" /><span>已确认此题型</span></label>
+              <small class="edit-format-hint">改变题型、选项或答案会按原规则重新开始本题复习；历史评分和复习记录保留。仅确认原题型不影响复习进度。</small>
+              <div id="mistakeEditChoiceFields" class="edit-choice-fields" style="display:none;">
+                <label class="mistake-create-field">选择方式
+                  <select id="mistakeEditChoiceType" onchange="changeMistakeChoiceType('Edit');refreshMistakeEditDirty()">
+                    <option value="single">单选题</option>
+                    <option value="multiple">多选题</option>
+                  </select>
+                </label>
+                <div class="choice-option-editor">
+                  <div class="choice-option-list" id="mistakeEditOptionsList"></div>
+                  <button type="button" class="choice-add-option" onclick="addMistakeChoiceOption('Edit')">＋ 添加选项</button>
+                </div>
+                <small>系统自动用 A/B/C… 编号；正确答案在下方「答案」卡片里选择。</small>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="edit-card">
+          <div class="edit-card-head">
+            <span class="edit-card-icon">✅</span>
+            <div class="edit-card-titles">
+              <b>答案</b>
+              <small id="mistakeEditAnswerHint">可填写答案文字或上传答案附件；填写后方可进入复习</small>
+            </div>
+            <span class="edit-flag" id="mistakeEditFlagAnswer">已改</span>
+          </div>
+          <div class="edit-card-body">
+            <div id="mistakeEditChoiceAnswerField" class="choice-answer-field" style="display:none;">
+              <div class="choice-answer-label">正确答案</div>
+              <div id="mistakeEditAnswerOptions" class="choice-answer-options"></div>
+              <small>只能从已添加的选项里选；多选题可多选。</small>
+            </div>
+            <div id="mistakeEditOpenAnswerFields" class="edit-open-answer-fields">
+              <div class="edit-file-preview" id="mistakeEditAnswerFile" style="display:none;"></div>
+              <div class="edit-file-actions">
+                <button type="button" class="edit-btn edit-btn-danger" id="mistakeEditAnswerRemove" style="display:none;" onclick="removeMistakeEditAnswerFile()"><span class="edit-btn-icon">🗑</span>删除原答案</button>
+                <button type="button" class="edit-btn" id="mistakeEditAnswerUploadBtn" onclick="document.getElementById('mistakeEditAnswerUpload').click()"><span class="edit-btn-icon">⬆</span><span id="mistakeEditAnswerUploadLabel">上传新内容</span></button>
+                <button type="button" class="edit-btn" id="mistakeEditAnswerOcrBtn" style="display:none;" onclick="recognizeMistakeEditFile('answer')">识别答案文字</button>
+              </div>
+              <input type="file" id="mistakeEditAnswerUpload" style="display:none" onchange="chooseMistakeEditAnswerFile(this)" />
+              <textarea id="mistakeEditAnswer" rows="4" placeholder="参考答案" oninput="refreshMistakeEditDirty()"></textarea>
+              <section id="mistakeEditAnswerOcrPanel" class="mistake-ocr-panel" style="display:none;">
+                <div class="mistake-ocr-head"><b>答案识别结果</b><span>校对后填入答案</span></div>
+                <textarea id="mistakeEditAnswerOcrText" rows="5"></textarea>
+                <div class="mistake-ocr-actions">
+                  <button type="button" onclick="applyMistakeEditOcr('answer')">填入答案</button>
+                  <button type="button" class="btn-cancel" onclick="closeMistakeEditOcr('answer')">放弃</button>
+                </div>
+                <small id="mistakeEditAnswerOcrMeta"></small>
+              </section>
+            </div>
+          </div>
+        </section>
+
+        <section class="edit-card">
+          <div class="edit-card-head">
+            <span class="edit-card-icon">💡</span>
+            <div class="edit-card-titles">
+              <b>错因</b>
+              <small>选填：解析或错误原因</small>
+            </div>
+            <span class="edit-flag" id="mistakeEditFlagExplanation">已改</span>
+          </div>
+          <div class="edit-card-body">
+            <textarea id="mistakeEditExplanation" rows="3" placeholder="解析 / 错误原因" oninput="refreshMistakeEditDirty()"></textarea>
+            <button type="button" class="btn-cancel" data-answer-ai-toggle onclick="toggleMistakeAnswerAi('Edit')">AI 生成答案与解析（可选）</button>
+            <section id="mistakeEditAnswerAiHost" class="mistake-answer-ai" hidden></section>
+          </div>
+        </section>
+      </div>
+
+      <div class="tag-sheet-foot">
+        <div class="edit-foot-note">修改题目、答案、解析、分类或附件后，本题将重置为「未复习」</div>
+        <div class="modal-actions">
+          <button class="btn-cancel" type="button" onclick="closeMistakeEdit()">取消</button>
+          <button class="btn-confirm" id="mistakeEditSave" type="button" onclick="saveMistakeDetail()">保存修改</button>
+        </div>
+        <div id="mistakeEditError" class="mistake-inline-error" role="alert"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 知识点选择器（错题标签，上传新错题 / 编辑已有错题共用）
+       结构分三段：固定的头部（标题 + 关闭）/ 中间整体滚动的内容区 / 固定的底部（已选 + 按钮）。
+       这样内容再多也只在中间滚，标题和按钮永远在看得见的地方，不会再被挤出屏幕。
+       窄屏（≤640px）会自动变成从底部升起的抽屉，样式见 style.css 里的 .tag-sheet。 -->
+  <div class="modal-mask" id="tagPickerModal">
+    <div class="modal modal-wide tag-sheet" role="dialog" aria-modal="true" aria-labelledby="tagPickerTitle">
+      <div class="tag-sheet-grip" aria-hidden="true"></div>
+
+      <div class="tag-sheet-head">
+        <h3 id="tagPickerTitle">选择错题标签</h3>
+        <button type="button" class="tag-sheet-close" onclick="closeTagPicker()" title="关闭" aria-label="关闭">×</button>
+      </div>
+
+      <div class="tag-sheet-body" id="tagPickerBody">
+        <!-- 上传 / 编辑时显示：名字随便改，但文件后缀固定，不能改 -->
+        <div class="tag-picker-name" id="tagPickerNameRow" style="display:none;">
+          <div id="tagPickerNameHeading" class="edit-card-head" style="display:none;">
+            <span class="edit-card-icon">🏷️</span>
+            <div class="edit-card-titles"><b>名称与分类</b><small>列表显示的标题；分类决定它归属哪一类。文件后缀由附件决定，不可修改</small></div>
+          </div>
+          <div class="tag-picker-name-fields">
+            <div class="tag-picker-name-field">
+              <label class="tag-picker-name-label" for="tagPickerName">名称</label>
+              <div class="name-field">
+                <input id="tagPickerName" aria-label="名称" placeholder="给这条内容起个名字"
+                       onkeydown="if(event.key==='Enter'){event.preventDefault();confirmTagPicker();}" />
+                <span class="name-ext" id="tagPickerNameExt"></span>
+              </div>
+              <div class="name-tip" id="tagPickerNameTip">后缀由文件决定，不能修改</div>
+            </div>
+            <label class="tag-picker-category" id="tagPickerMistakeTypeField" style="display:none;">
+              <span class="tag-picker-category-label">分类</span>
+              <select id="mistakeCreateType" aria-label="分类"><option value="" disabled hidden>请选择类型</option><option value="knowledge">知识类</option><option value="thinking">思维类</option><option value="execution">执行类</option><option value="unclassified">待分类</option></select>
+            </label>
+          </div>
+        </div>
+        <section id="tagPickerResourceFields" class="edit-card" style="display:none;">
+          <div class="edit-card-head">
+            <span class="edit-card-icon">📄</span>
+            <div class="edit-card-titles"><b id="tagPickerResourceTitle">资料</b><small>可上传附件，也可直接录入正文；两者至少填一个</small></div>
+            <button type="button" class="edit-mini-btn" id="tagPickerResourceClear" style="display:none;" onclick="clearPickerResourceContent()">清空</button>
+          </div>
+          <div class="edit-card-body">
+            <div id="tagPickerResourceFileSummary" class="mistake-create-file" style="display:none;"></div>
+            <div class="edit-file-actions">
+              <button type="button" class="edit-btn" onclick="document.getElementById('tagPickerResourceUpload').click()">上传附件</button>
+              <button type="button" class="edit-btn" id="tagPickerResourceOcrBtn" style="display:none;" onclick="recognizePickerResourceFile()">识别文字</button>
+              <button type="button" class="edit-btn edit-btn-danger" id="tagPickerResourceRemove" style="display:none;" onclick="clearPickerResourceFile()">移除附件</button>
+            </div>
+            <input type="file" id="tagPickerResourceUpload" style="display:none" onchange="choosePickerResourceFile(this)" />
+            <textarea id="tagPickerResourceContent" rows="5" placeholder="正文 / 重点内容（可只上传附件）" oninput="updatePickerResourceClear()"></textarea>
+            <section id="tagPickerResourceOcrPanel" class="mistake-ocr-panel" style="display:none;">
+              <div class="mistake-ocr-head"><b>识别结果</b><span>先校对，再填入正文</span></div>
+              <textarea id="tagPickerResourceOcrText" rows="5"></textarea>
+              <div class="mistake-ocr-actions">
+                <button type="button" onclick="applyPickerResourceOcr('replace')">替换正文</button>
+                <button type="button" onclick="applyPickerResourceOcr('append')">追加正文</button>
+                <button type="button" class="btn-cancel" onclick="closePickerResourceOcr()">放弃</button>
+              </div>
+              <small id="tagPickerResourceOcrMeta"></small>
+            </section>
+          </div>
+        </section>
+        <section id="tagPickerOutlineBlock" class="edit-card" style="display:none;">
+          <div class="edit-card-head">
+            <span class="edit-card-icon">🧭</span>
+            <div class="edit-card-titles"><b>重点总结 / 大纲</b><small>一行一条，缩进两格表示下一级；用来生成结构图</small></div>
+            <button type="button" class="edit-mini-btn" onclick="clearPickerOutline()">清空</button>
+          </div>
+          <div class="edit-card-body">
+            <div class="outline-ai-actions">
+            <button type="button" class="edit-mini-btn" id="tagPickerOutlineGen" onclick="generatePickerOutline()">AI 一键生成大纲</button>
+            <button type="button" class="edit-mini-btn" onclick="coursesAiSettings.open()">AI 设置</button>
+            </div>
+            <p id="tagPickerOutlineStatus" class="muted" role="status" aria-live="polite">使用共用 AI 设置，根据正文生成；可能计费，生成后可修改。</p>
+            <textarea id="tagPickerOutline" rows="6" placeholder="- 第一章&#10;  - 1.1 极限&#10;  - 1.2 连续"></textarea>
+          </div>
+        </section>
+        <section id="tagPickerReviewModeHost" class="edit-card review-method-card" style="display:none;"></section>
+        <section id="tagPickerMindmapBlock" class="edit-card" style="display:none;">
+          <div class="edit-card-head">
+            <span class="edit-card-icon">🗺️</span>
+            <div class="edit-card-titles"><b>思维导图</b><small>可以导入导图功能导出的 JSON，也可以直接用上面的大纲生成</small></div>
+          </div>
+          <div class="edit-card-body">
+            <div class="edit-file-actions mindmap-generation-actions">
+              <button type="button" class="edit-btn" onclick="document.getElementById('tagPickerMindmapFile').click()">上传导图</button>
+              <button type="button" class="edit-btn" data-mindmap-generate="basic" id="tagPickerMindmapBasic" onclick="generatePickerMindmap('basic')">基础生成</button>
+              <button type="button" class="edit-btn" data-mindmap-generate="ai" id="tagPickerMindmapAi" onclick="generatePickerMindmap('ai')" disabled>AI 润色生成</button>
+              <button type="button" class="edit-btn edit-btn-danger" id="tagPickerMindmapClear" style="display:none;" onclick="clearPickerMindmap()">删除导图</button>
+            </div>
+            <p id="tagPickerMindmapAiNote" class="mindmap-generation-note" role="status"></p>
+            <p id="tagPickerMindmapStatus" class="mindmap-generation-note" role="status" aria-live="polite"></p>
+            <label class="mistake-create-field" style="margin-top:8px;">中心主题
+              <input id="tagPickerMindmapTitle" maxlength="40" placeholder="默认使用资料名称" oninput="updatePickerMindmapTitle()" />
+            </label>
+            <input type="file" id="tagPickerMindmapFile" accept=".json,application/json,image/*" style="display:none" onchange="uploadPickerMindmap(this)" />
+            <div id="tagPickerMindmapPreview" style="display:none;max-height:190px;overflow:hidden;border:1px solid #e5e9f1;border-radius:10px;background:#fbfcff;"></div>
+            <div id="tagPickerMindmapSummary" class="mistake-create-file" style="display:none;"></div>
+          </div>
+        </section>
+        <section id="tagPickerTagBlock" class="tag-picker-tag-block">
+          <div id="tagPickerTagHeading" class="edit-card-head" style="display:none;">
+            <span class="edit-card-icon">🔖</span>
+            <div class="edit-card-titles"><b>标签</b><small>勾选知识框架中的分类或知识点；保存时一并生效</small></div>
+          </div>
+          <!-- 分类 / 知识点一多，光靠翻很累：给个搜索框，只过滤显示，不动已选 -->
+          <div class="tag-picker-search" id="tagPickerSearchRow" style="display:none;">
+            <input id="tagPickerSearch" type="search" maxlength="100" autocomplete="off"
+                   placeholder="搜索分类 / 知识点"
+                   oninput="onTagSearchInput(this.value)"
+                   onkeydown="if(event.key==='Escape'){event.stopPropagation();this.value='';onTagSearchInput('');}" />
+          </div>
+
+          <div class="tag-picker-tree" id="tagPickerTree"></div>
+        </section>
+
+        <div id="tagPickerMistakeFields" class="mistake-create-cards" style="display:none;">
+          <section class="edit-card">
+            <div class="edit-card-head">
+              <span class="edit-card-icon">🧩</span>
+              <div class="edit-card-titles"><b>题型</b><small>先选题型，再填写题干、选项和答案</small></div>
+            </div>
+            <div class="edit-card-body">
+              <label class="mistake-create-field">题型
+                <select id="mistakeCreateFormat" onchange="toggleMistakeChoiceFields('Create')">
+                  <option value="open">主观题 / 非选择题</option>
+                  <option value="choice">选择题</option>
+                </select>
+              </label>
+            </div>
+          </section>
+          <section class="edit-card">
+            <div class="edit-card-head">
+              <span class="edit-card-icon">📄</span>
+              <div class="edit-card-titles"><b id="mistakeCreateQuestionTitle">题目</b><small id="mistakeCreateQuestionHint">可上传题目附件，也可直接录入题目内容</small></div>
+              <button type="button" class="edit-mini-btn" id="mistakeCreateContentClear" style="display:none;" onclick="clearMistakeCreateContent()">清空</button>
+            </div>
+            <div class="edit-card-body">
+              <div id="mistakeCreateFileSummary" class="mistake-create-file" style="display:none;"></div>
+              <div class="edit-file-actions">
+                <button type="button" class="edit-btn" onclick="document.getElementById('mistakeCreateQuestionUpload').click()"><span class="edit-btn-icon">⬆</span>上传题目附件</button>
+                <button type="button" class="edit-btn" id="mistakeCreateOcrBtn" style="display:none;" onclick="recognizeMistakeCreateFile()">识别文字</button>
+                <button type="button" class="edit-btn edit-btn-danger" id="mistakeCreateQuestionRemove" style="display:none;" onclick="clearMistakeCreateFile()"><span class="edit-btn-icon">🗑</span>移除附件</button>
+              </div>
+              <input type="file" id="mistakeCreateQuestionUpload" style="display:none" onchange="chooseMistakeCreateFile(this)" />
+              <textarea id="mistakeCreateContent" rows="4" placeholder="题目 / 题干内容（也可以只上传附件）" oninput="updateMistakeCreateContentClear()"></textarea>
+              <section id="mistakeCreateOcrPanel" class="mistake-ocr-panel" style="display:none;">
+                <div class="mistake-ocr-head"><b>识别结果</b><span>请先人工校对，再填入对应字段</span></div>
+                <textarea id="mistakeCreateOcrText" rows="6"></textarea>
+                <div class="mistake-ocr-actions">
+                  <button type="button" onclick="applyMistakeOcr('question','replace')">替换题干</button>
+                  <button type="button" onclick="applyMistakeOcr('question','append')">追加题干</button>
+                  <button type="button" id="mistakeCreateOcrToOptions" onclick="applyMistakeOcr('options')">填入选项</button>
+                  <button type="button" class="btn-cancel" onclick="closeMistakeOcr()">放弃</button>
+                </div>
+                <small id="mistakeCreateOcrMeta"></small>
+              </section>
+            </div>
+          </section>
+          <section id="mistakeCreateChoiceFields" class="edit-card" style="display:none;">
+            <div class="edit-card-head">
+              <span class="edit-card-icon">🔤</span>
+              <div class="edit-card-titles"><b>选项</b><small>系统自动编号；点加号继续追加</small></div>
+            </div>
+            <div class="edit-card-body">
+              <label class="mistake-create-field">选择方式
+                <select id="mistakeCreateChoiceType" onchange="changeMistakeChoiceType('Create')">
+                  <option value="single">单选题</option>
+                  <option value="multiple">多选题</option>
+                </select>
+              </label>
+              <div class="choice-option-editor">
+                <div class="choice-option-list" id="mistakeCreateOptionsList"></div>
+                <button type="button" class="choice-add-option" onclick="addMistakeChoiceOption('Create')">＋ 添加选项</button>
+              </div>
+              <small>系统自动用 A/B/C… 编号；正确答案在下方「答案」卡片里选择。</small>
+            </div>
+          </section>
+          <section class="edit-card">
+            <div class="edit-card-head">
+              <span class="edit-card-icon">✅</span>
+              <div class="edit-card-titles"><b>答案</b><small id="mistakeCreateAnswerHint">可后补；补齐后才能复习</small></div>
+              <button type="button" class="edit-mini-btn" id="mistakeCreateAnswerClear" style="display:none;" onclick="clearMistakeCreateAnswer()">清空</button>
+            </div>
+            <div class="edit-card-body">
+              <div id="mistakeCreateChoiceAnswerField" class="choice-answer-field" style="display:none;">
+                <div class="choice-answer-label">正确答案</div>
+                <div id="mistakeCreateAnswerOptions" class="choice-answer-options"></div>
+                <small>只能从已添加的选项里选；多选题可多选。</small>
+              </div>
+              <div id="mistakeCreateAnswerFileSummary" class="mistake-create-file" style="display:none;"></div>
+              <div class="edit-file-actions">
+                <button type="button" class="edit-btn" onclick="document.getElementById('mistakeCreateAnswerUpload').click()">上传答案附件</button>
+                <button type="button" class="edit-btn" id="mistakeCreateAnswerOcrBtn" style="display:none;" onclick="recognizeMistakeAnswerFile()">识别答案文字</button>
+                <button type="button" class="edit-btn edit-btn-danger" id="mistakeCreateAnswerRemove" style="display:none;" onclick="clearMistakeAnswerFile()">移除附件</button>
+              </div>
+              <input type="file" id="mistakeCreateAnswerUpload" style="display:none" onchange="chooseMistakeAnswerFile(this)" />
+              <section id="mistakeCreateAnswerOcrPanel" class="mistake-ocr-panel" style="display:none;">
+                <div class="mistake-ocr-head"><b>答案识别结果</b><span>校对后点“填入答案”</span></div>
+                <textarea id="mistakeCreateAnswerOcrText" rows="5"></textarea>
+                <div class="mistake-ocr-actions">
+                  <button type="button" onclick="applyMistakeAnswerOcr()">填入答案</button>
+                  <button type="button" class="btn-cancel" onclick="closeMistakeAnswerOcr()">放弃</button>
+                </div>
+                <small id="mistakeCreateAnswerOcrMeta"></small>
+              </section>
+              <div id="mistakeCreateOpenAnswerFields" class="edit-open-answer-fields">
+                <textarea id="mistakeCreateAnswer" rows="3" placeholder="参考答案" oninput="updateMistakeCreateAnswerClear()"></textarea>
+              </div>
+            </div>
+          </section>
+          <section class="edit-card">
+            <div class="edit-card-head">
+              <span class="edit-card-icon">💡</span>
+              <div class="edit-card-titles"><b>解析 / 错因</b><small>选填：解析或错误原因</small></div>
+              <button type="button" class="edit-mini-btn" id="mistakeCreateExplanationClear" style="display:none;" onclick="clearMistakeCreateExplanation()">清空</button>
+            </div>
+            <div class="edit-card-body">
+              <textarea id="mistakeCreateExplanation" rows="2" placeholder="解析 / 错误原因" oninput="updateMistakeCreateExplanationClear()"></textarea>
+              <button type="button" class="btn-cancel" data-answer-ai-toggle onclick="toggleMistakeAnswerAi('Create')">AI 生成答案与解析（可选）</button>
+              <section id="mistakeCreateAnswerAiHost" class="mistake-answer-ai" hidden></section>
+            </div>
+          </section>
+          <details id="mistakeCreateAiPanel" class="mistake-create-ai">
+            <summary>AI 复习建议（可选）</summary>
+            <p class="mistake-ai-note">不使用也可以直接添加错题。仅主动获取时请求 AI；本地 mock 返回演示结果。选择复习方式不会改变错题分类或实际复习流程。</p>
+            <fieldset id="mistakeCreateAiFields" class="edit-card-body">
+              <label for="mistakeCreateAiProvider">本次 AI 来源</label>
+              <button type="button" onclick="coursesAiSettings.open()">打开共用 AI 设置</button>
+              <select id="mistakeCreateAiProvider" onchange="changeMistakeAiProvider('mistakeCreateAi')"><option value="shared">共用 AI 设置（右下角可配置）</option><option value="deepseek">DeepSeek 官方（临时 Key）</option></select>
+              <div id="mistakeCreateAiKeySettings" class="mistake-ai-key-settings" hidden>
+                <label for="mistakeCreateAiApiKey">本次 API Key（不保存）</label>
+                <input id="mistakeCreateAiApiKey" type="password" autocomplete="off" spellcheck="false" maxlength="512">
+                <label for="mistakeCreateAiModel">DeepSeek 模型</label>
+                <select id="mistakeCreateAiModel"><option>deepseek-flash</option><option>deepseek-v4-pro</option></select>
+                <label><input id="mistakeCreateAiCost" type="checkbox">同意本次将题目和作答发送至 DeepSeek 官方，知晓可能产生费用。</label>
+                <p class="mistake-ai-note">Key 仅本次使用，发送后清空；取消或关闭也会清空。不保存、不自动重试或回退 Mock。</p>
+              </div>
+              <label for="mistakeCreateAiStudentAnswer">学生作答（仅获取建议时填写）</label>
+              <textarea id="mistakeCreateAiStudentAnswer" rows="2" placeholder="填写当时的实际作答，不要填参考答案"></textarea>
+              <label for="mistakeCreateAiSteps">解题过程（可选）</label>
+              <textarea id="mistakeCreateAiSteps" maxlength="4000" rows="3" placeholder="不知道原因时，可以补充当时的计算或思考过程"></textarea>
+              <label for="mistakeCreateAiErrorType">我认为的错误原因（可选线索）</label>
+              <select id="mistakeCreateAiErrorType">
+                <option value="">不确定，请 AI 辅助分析</option>
+                <option value="knowledge_gap">知识点不熟</option>
+                <option value="reasoning_gap">推理过程有误</option>
+                <option value="careless">粗心失误</option>
+                <option value="other">其他 / 暂不明确</option>
+              </select>
+              <div class="modal-actions"><button type="button" class="btn-cancel" id="mistakeCreateAiGet" onclick="requestMistakeCreateAi()">获取 AI 建议</button></div>
+              <div id="mistakeCreateAiResult" hidden>
+                <p id="mistakeCreateAiSuggested"></p>
+                <p id="mistakeCreateAiReason" class="mistake-ai-note"></p>
+                <section id="mistakeCreateAiAnalysis" class="mistake-ai-analysis" aria-label="AI 学习分析" hidden></section>
+                <button type="button" class="btn-cancel" id="mistakeCreateAiAdopt" onclick="adoptMistakeCreateAi()" disabled>采用建议</button>
+              </div>
+              <label for="mistakeCreateAiMethod">最终复习方式</label>
+              <select id="mistakeCreateAiMethod" onchange="changeMistakeCreateAiMethod()"><option value="">不选择</option></select>
+              <small class="mistake-ai-note">只有采用建议或手动选择后，点击底部“保存”才会在错题创建成功后保存到本浏览器。需要专属材料的模式仍须准备并确认材料后使用。</small>
+            </fieldset>
+            <p id="mistakeCreateAiStatus" class="mistake-ai-note" role="status"></p>
+            <p id="mistakeCreateAiError" class="mistake-inline-error" role="alert"></p>
+          </details>
+        </div>
+      </div>
+
+      <div class="tag-sheet-foot">
+        <div class="tag-picker-selected" id="tagPickerSelected"></div>
+        <div class="modal-actions">
+          <button class="btn-cancel" onclick="closeTagPicker()">取消</button>
+          <button class="btn-confirm" id="tagPickerConfirm" onclick="confirmTagPicker()">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 知识框架：添加内容的二选一菜单（课程顶部 ＋ 和分类的 ＋ 共用） -->
+  <div class="add-menu" id="addMenu">
+    <div class="add-menu-item" onclick="chooseAddType('folder')">新建分类</div>
+    <div class="add-menu-item" onclick="chooseAddType('knowledge')">新建知识点</div>
+  </div>
+
+  <!-- 知识框架：排序模式下每个节点的移动菜单（触屏 / 键盘替代拖拽） -->
+  <div class="add-menu" id="moveMenu">
+    <div class="add-menu-item" onclick="moveNodeUp()">上移</div>
+    <div class="add-menu-item" onclick="moveNodeDown()">下移</div>
+    <div class="add-menu-item" onclick="openMoveTargetPicker()">移动到…</div>
+  </div>
+
+  <!-- 知识框架：选择“移动到”的目标位置 -->
+  <div class="modal-mask" id="moveTargetModal">
+    <div class="modal modal-wide">
+      <h3>移动到…</h3>
+      <div class="move-target-list" id="moveTargetList"></div>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeMoveTargetPicker()">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!--
+    脚本按顺序加载（普通 <script>，不打包、不需要构建工具）。
+    顺序有讲究：先放"基础设施"（配置 / 状态 / 工具 / 标签），再放各页面，
+    最后放入口 app.js —— 因为它一加载就会去调用前面那些函数。
+
+    ★ 以后新增一个 js 文件，记得在这里按位置补一行，漏了就会出现
+      "xxx is not defined"（而且只在点某个按钮时才报错，不容易发现）。
+  -->
+
+  <div id="reviewPlanDetailPage" style="display:none;">
+    <div class="header"><div class="header-left"><button class="back-btn" onclick="backToReviewPlans()">←</button><h1 id="reviewPlanDetailTitle">考前复习计划</h1></div></div>
+    <div id="reviewPlanDetailBody" class="tab-content"></div>
+  </div>
+  <div id="reviewPlanModal" class="modal-mask review-picker" onclick="if(event.target===this){if(reviewPlanCreate?.preview)closeReviewPlanPreview();else closeReviewPlanCreate()}" onkeydown="handleReviewPlanPickerKey(event)">
+    <form id="reviewPlanForm" class="modal total-review-dialog" role="dialog" aria-modal="true" aria-labelledby="reviewPlanCreateTitle" onsubmit="event.preventDefault();if(!reviewPlanCreate?.preview)createReviewPlan()">
+      <div id="reviewPlanSelector" class="total-review-selector">
+        <header class="total-review-head"><h3 id="reviewPlanCreateTitle" tabindex="-1">创建考前复习计划</h3><button type="button" class="total-review-close" onclick="closeReviewPlanCreate()" aria-label="关闭创建计划">×</button></header>
+        <div id="reviewPlanBody" class="total-review-body" onscroll="rememberReviewPlanScroll()">
+        <fieldset class="review-plan-info"><legend class="sr-only">计划信息</legend>
+          <label for="reviewPlanName">计划名称<input id="reviewPlanName" required maxlength="100" placeholder="例如：期末考试复习" oninput="renderReviewPlanPreview()" /></label>
+          <div class="review-plan-dates"><label for="reviewPlanStart">开始日期<input id="reviewPlanStart" type="date" required oninput="renderReviewPlanPreview()" onchange="renderReviewPlanPreview()" /></label><label for="reviewPlanExam">考试日期<input id="reviewPlanExam" type="date" required oninput="renderReviewPlanPreview()" onchange="renderReviewPlanPreview()" /></label></div>
+          <p id="reviewPlanValidation" class="review-picker-hint" aria-live="polite"></p>
+        </fieldset>
+        <h4 class="review-plan-selection-title">选择复习内容</h4>
+        <div id="reviewPlanModules" class="total-review-tabs" role="tablist" aria-label="计划内容模块">
+          <button id="reviewPlanTab-material" type="button" role="tab" aria-controls="reviewPlanPanel" aria-selected="true" onclick="switchReviewPlanTab('material')">资料</button>
+          <button id="reviewPlanTab-note" type="button" role="tab" aria-controls="reviewPlanPanel" aria-selected="false" tabindex="-1" onclick="switchReviewPlanTab('note')">笔记</button>
+          <button id="reviewPlanTab-mistake" type="button" role="tab" aria-controls="reviewPlanPanel" aria-selected="false" tabindex="-1" onclick="switchReviewPlanTab('mistake')">错题</button>
+        </div>
+        <section id="reviewPlanPanel" class="total-review-panel" role="tabpanel" aria-labelledby="reviewPlanTab-material">
+          <div class="total-review-search"><input id="reviewPlanSearch" type="search" maxlength="500" placeholder="搜索标题或正文" aria-label="搜索计划内容" oninput="renderReviewPlanSelection()" /><label><input id="reviewPlanFavorite" type="checkbox" onchange="renderReviewPlanSelection()" />只看收藏</label></div>
+          <div class="total-review-filters">
+            <select id="reviewPlanStatus" aria-label="内容复习状态" onchange="renderReviewPlanSelection()"><option value="">全部复习状态</option><option value="unreviewed">未复习</option><option value="reviewed">已复习</option></select>
+            <select id="reviewPlanMistakeType" aria-label="错题分类" hidden onchange="renderReviewPlanSelection()"><option value="">全部错题分类</option><option value="knowledge">知识类</option><option value="thinking">思维类</option><option value="execution">执行类</option><option value="unclassified">待分类</option></select>
+            <button id="reviewPlanTagsToggle" type="button" aria-expanded="false" aria-controls="reviewPlanTags" onclick="toggleReviewPlanTags()"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 3h8l10 10-8 8L3 11V3Z"/><circle cx="7.5" cy="7.5" r="1"/></svg><span>知识点标签</span></button>
+          </div>
+          <div id="reviewPlanTags" class="reading-browse-tags total-review-tags" aria-label="知识点标签多选" hidden></div>
+          <section class="total-review-list-region" aria-labelledby="reviewPlanListTitle">
+            <div class="total-review-list-head"><h4 id="reviewPlanListTitle">资料列表</h4></div>
+            <div class="review-plan-select-row"><label class="total-review-select-all"><input id="reviewPlanSelectAll" type="checkbox" onchange="selectAllReviewPlanItems(this.checked)" />全选当前筛选结果</label><button type="button" class="total-review-text" onclick="clearReviewPlanItems()">清空已选</button></div>
+            <div id="reviewPlanCandidates" class="total-review-list" onscroll="rememberReviewPlanScroll()"></div>
+          </section>
+        </section>
+        </div>
+        <footer class="total-review-footer">
+          <div class="total-review-summary" role="status" aria-live="polite"><strong id="reviewPlanCount">已选择 0 项</strong><small id="reviewPlanCounts">资料 0 · 笔记 0 · 错题 0</small></div>
+          <div class="modal-actions"><button type="button" class="btn-cancel" onclick="closeReviewPlanCreate()">取消</button><button id="reviewPlanGenerate" type="submit" class="btn-confirm" disabled>创建计划</button></div>
+          <p id="reviewPlanPreview" class="review-picker-hint"></p><div id="reviewPlanCreateError" class="material-review-error review-picker-error" role="alert"></div>
+        </footer>
+      </div>
+      <section id="reviewPlanContentPreview" class="total-review-preview" role="region" aria-labelledby="reviewPlanContentPreviewTitle" hidden>
+        <header class="total-review-head"><h3 id="reviewPlanContentPreviewTitle" tabindex="-1">内容预览</h3><button type="button" class="total-review-close" onclick="closeReviewPlanPreview()" aria-label="关闭预览，返回创建计划">×</button></header>
+        <div id="reviewPlanContentPreviewBody" class="total-review-preview-body"></div>
+        <footer class="total-review-preview-foot"><button type="button" class="btn-cancel" onclick="closeReviewPlanPreview()">返回创建计划</button></footer>
+      </section>
+    </form>
+  </div>
+
+  <!-- 排期日历：点某一天弹出的当天任务 -->
+  <div id="reviewPlanDayModal" class="modal-mask" onclick="if(event.target===this)closePlanScheduleDayFromMask()" onkeydown="if(event.key==='Escape'){event.preventDefault();closePlanScheduleDay()}">
+    <div class="modal review-day-dialog" role="dialog" aria-modal="true" aria-labelledby="reviewPlanDayTitle">
+      <header class="review-day-head"><h3 id="reviewPlanDayTitle" tabindex="-1"></h3><button type="button" class="review-day-close" onclick="closePlanScheduleDay()" aria-label="关闭">×</button></header>
+      <div id="reviewPlanDayBody" class="review-day-body"></div>
+      <footer class="modal-actions"><button type="button" class="btn-cancel" onclick="closePlanScheduleDay()">关闭</button></footer>
+    </div>
+  </div>
+
+  <div id="reviewHistoryPage" style="display:none"><div class="header"><div class="header-left"><button class="back-btn" onclick="backToReviewPlans()">←</button><h1>全部复习记录</h1></div></div><div class="tab-content">
+    <div class="reading-browse-controls"><select id="reviewHistoryStatus" aria-label="记录状态" onchange="loadReviewHistory()"><option value="all">全部状态</option><option value="ongoing">进行中</option><option value="completed">已完成</option></select><select id="reviewHistorySource" aria-label="复习来源" onchange="loadReviewHistory()"><option value="all">全部来源</option><option value="plan">考前计划</option><option value="total">复习</option><option value="material">资料</option><option value="note">笔记</option><option value="mistake">错题</option></select></div>
+    <div id="reviewHistoryList"></div><button id="reviewHistoryMore" type="button" onclick="loadReviewHistory(true)" hidden>加载更多</button>
+  </div></div>
+  <div id="reviewSessionDetailPage" style="display:none"><div class="header"><div class="header-left"><button class="back-btn" onclick="openReviewHistory()">←</button><h1>复习记录详情</h1></div></div><div id="reviewSessionDetailBody" class="tab-content"></div></div>
+  <div id="centerReviewToolbar" class="review-session-bar" style="display:none"></div>
+  <div id="totalReviewModal" class="modal-mask review-picker" onclick="if(event.target===this){if(totalReviewState?.preview)closeTotalReviewPreview();else closeTotalReview()}" onkeydown="handleTotalReviewKey(event)">
+    <form class="modal total-review-dialog" role="dialog" aria-modal="true" aria-labelledby="totalReviewTitle" onsubmit="event.preventDefault();if(!totalReviewState?.preview)startTotalReview()">
+      <div id="totalReviewSelector" class="total-review-selector">
+        <header class="total-review-head"><h3 id="totalReviewTitle" tabindex="-1">复习 · 当前课程</h3><button type="button" class="total-review-close" onclick="closeTotalReview()" aria-label="关闭复习">×</button></header>
+        <div id="totalReviewModules" class="total-review-tabs" role="tablist" aria-label="复习模块">
+          <button id="totalReviewTab-material" type="button" role="tab" aria-controls="totalReviewPanel" aria-selected="true" onclick="switchTotalReviewTab('material')">资料</button>
+          <button id="totalReviewTab-note" type="button" role="tab" aria-controls="totalReviewPanel" aria-selected="false" tabindex="-1" onclick="switchTotalReviewTab('note')">笔记</button>
+          <button id="totalReviewTab-mistake" type="button" role="tab" aria-controls="totalReviewPanel" aria-selected="false" tabindex="-1" onclick="switchTotalReviewTab('mistake')">错题</button>
+        </div>
+        <section id="totalReviewPanel" class="total-review-panel" role="tabpanel" aria-labelledby="totalReviewTab-material">
+          <div class="total-review-search"><input id="totalReviewSearch" type="search" maxlength="500" placeholder="搜索标题或正文" aria-label="搜索标题或正文" oninput="renderTotalReview()" /><label><input id="totalReviewFavorite" type="checkbox" onchange="renderTotalReview()" />只看收藏</label></div>
+          <div class="total-review-filters">
+            <select id="totalReviewStatus" aria-label="复习状态" onchange="renderTotalReview()"><option value="">全部复习状态</option><option value="unreviewed">未复习</option><option value="reviewed">已复习</option></select>
+            <select id="totalReviewMistakeType" aria-label="错题分类" hidden onchange="renderTotalReview()"><option value="">全部错题分类</option><option value="knowledge">知识类</option><option value="thinking">思维类</option><option value="execution">执行类</option><option value="unclassified">待分类</option></select>
+            <button id="totalReviewTagsToggle" type="button" aria-expanded="false" aria-controls="totalReviewTags" onclick="toggleTotalReviewTags()"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 3h8l10 10-8 8L3 11V3Z"/><circle cx="7.5" cy="7.5" r="1"/></svg><span>知识点标签</span></button>
+          </div>
+          <div id="totalReviewTags" class="reading-browse-tags total-review-tags" aria-label="知识点标签多选" hidden></div>
+          <section class="total-review-list-region" aria-labelledby="totalReviewListTitle">
+            <div class="total-review-list-head"><h4 id="totalReviewListTitle">资料列表</h4><button type="button" class="total-review-text" onclick="selectTotalReviewCourse()">全选本课程</button></div>
+            <label class="total-review-select-all"><input id="totalReviewSelectAll" type="checkbox" onchange="selectTotalReviewVisible(this.checked)" />全选当前筛选结果</label>
+            <div id="totalReviewCandidates" class="total-review-list" onscroll="rememberTotalReviewScroll()"></div>
+          </section>
+        </section>
+        <footer class="total-review-footer">
+          <div class="total-review-summary" role="status" aria-live="polite"><strong id="totalReviewCount">已选择 0 项</strong><small id="totalReviewCounts">资料 0 · 笔记 0 · 错题 0</small></div>
+          <button type="button" class="total-review-text total-review-clear" onclick="clearTotalReviewSelection()">清空已选</button>
+          <div class="modal-actions"><button type="button" class="btn-cancel" onclick="closeTotalReview()">取消</button><button id="totalReviewStart" type="submit" class="btn-confirm" disabled>开始复习</button></div>
+          <div id="totalReviewError" class="material-review-error" role="alert"></div>
+        </footer>
+      </div>
+      <section id="totalReviewPreview" class="total-review-preview" role="region" aria-labelledby="totalReviewPreviewTitle" hidden>
+        <header class="total-review-head"><h3 id="totalReviewPreviewTitle" tabindex="-1">内容预览</h3><button type="button" class="total-review-close" onclick="closeTotalReviewPreview()" aria-label="关闭预览，返回列表">×</button></header>
+        <div id="totalReviewPreviewBody" class="total-review-preview-body"></div>
+        <footer class="total-review-preview-foot"><button type="button" class="btn-cancel" onclick="closeTotalReviewPreview()">返回列表</button></footer>
+      </section>
+    </form>
+  </div>
+
+  <!-- 基础设施 -->
+  <!-- 第三方：canvas-confetti（已本地化，断网可用；MIT，见 vendor/canvas-confetti/LICENSE） -->
+  <script src="vendor/canvas-confetti/confetti.browser.js"></script>
+  <!-- 第三方：Chart.js 4.4.9（已本地化，MIT，见 vendor/chartjs/LICENSE.md） -->
+  <script src="vendor/chartjs/chart.umd.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/utils.js?v=20261024-merged-attachment-review-31"></script>
+  <script src="js/ai.js?v=20261024-platform-ai-52"></script>
+  <script src="js/aiSettings.js?v=20261024-platform-ai-52"></script>
+
+  <script src="js/attachmentPreview.js?v=20261024-office-preview-40"></script>
+
+  <!-- 课程 -->
+  <script src="js/courses.js"></script>
+  <script src="js/courseDetail.js?v=20261024-header-add-23"></script>
+
+  <!-- 四类资源（列表页） -->
+  <script src="js/tags.js"></script>
+  <script src="js/readingBrowse.js"></script>
+  <script src="js/materials.js?v=20261024-merged-attachment-review-31"></script>
+  <script src="js/notes.js?v=20261024-merged-attachment-review-31"></script>
+  <script src="js/assessments.js?v=20261024-merged-attachment-review-31"></script>
+  <script src="js/assessmentCharts.js?v=20261024-assessment-chart-1"></script>
+  <script src="js/ocrBrowser.js?v=20261024-merged-attachment-review-31"></script>
+  <script src="js/outlineMap.js?v=20261024-outline-draft-37"></script>
+  <script src="js/officeText.js?v=20261024-legacy-office-text-41"></script>
+  <script src="js/mistakes.js?v=20261024-merged-attachment-review-31"></script>
+
+  <!-- 录入流程：手动输入 + 选标签 -->
+  <script src="js/manualEntry.js?v=20261024-outline-save-39"></script>
+  <script src="js/tagPicker.js?v=20261024-legacy-office-text-41"></script>
+  <script src="js/tagPickerView.js?v=20261024-tree-root-collapse-34"></script>
+
+  <!-- 详情页 -->
+  <script src="js/page.js?v=20261024-merged-attachment-review-31"></script>
+  <script src="js/itemReviewHistory.js?v=20261024-empty-review-43"></script>
+  <script src="js/nodeDetail.js"></script>
+  <script src="js/resourceDetail.js?v=20261024-office-preview-40"></script>
+  <script src="js/resourceText.js?v=20261024-merged-attachment-review-31"></script>
+  <script src="js/materialReview.js?v=20261024-review-flow-merge-46"></script>
+  <script src="js/noteReview.js"></script>
+  <script src="js/mistakeDetail.js?v=20261024-empty-answer-read-48"></script>
+  <script src="js/mistakeAi.js?v=20261024-merged-attachment-review-31"></script>
+  <script src="js/mistakeAnswerAi.js?v=20261023-adoption-confirm-19"></script>
+  <script src="js/resourceAi.js?v=20261024-merged-attachment-review-31"></script>
+  <script src="js/reviewMethodChoice.js?v=20261024-manual-review-47"></script>
+  <script src="js/clozeEditor.js?v=20261024-merged-attachment-review-31"></script>
+  <script src="js/reviewWorkbench.js?v=20261024-empty-answer-read-48"></script>
+  <script src="js/reviewFeedback.js?v=20261024-review-flow-merge-46"></script>
+  <script src="js/reviewMaterialAi.js?v=20261024-merged-attachment-review-31"></script>
+  <dialog id="mistakeAiDialog" aria-labelledby="mistakeAiDialogTitle" oncancel="event.preventDefault();resetMistakeAi()" onclick="if(event.target===this)resetMistakeAi()">
+    <header class="mistake-ai-dialog-head"><div><h2 id="mistakeAiDialogTitle" tabindex="-1">AI 复习建议</h2><p id="mistakeAiDialogQuestionTitle" class="mistake-ai-note"></p></div><button type="button" class="tag-sheet-close" onclick="resetMistakeAi()" aria-label="关闭 AI 复习建议">×</button></header>
+    <div id="mistakeAiDialogBody" class="tag-sheet-body"></div>
+    <footer id="mistakeAiDialogFoot" class="tag-sheet-foot"></footer>
+  </dialog>
+  <dialog id="creationModeAdviceDialog" class="creation-mode-advice-dialog" aria-labelledby="creationModeAdviceHeading" oncancel="event.preventDefault();closeCreationReviewSuggestion()" onclick="if(event.target===this)closeCreationReviewSuggestion()">
+    <header class="mistake-ai-dialog-head"><div><h2 id="creationModeAdviceHeading" tabindex="-1">AI 建议复习方式</h2><p class="mistake-ai-note">点击本入口即表示允许读取当前正文和附件，并发送给 AI；不会自动保存 OCR 或采用建议。</p></div><button type="button" class="tag-sheet-close" onclick="closeCreationReviewSuggestion()" aria-label="关闭 AI 建议">×</button></header>
+    <div class="tag-sheet-body creation-mode-advice-body">
+      <p id="creationModeAdviceStatus" role="status" aria-live="polite"></p>
+      <progress id="creationModeAdviceProgress" aria-label="正在读取和分析"></progress>
+      <div class="creation-mode-advice-context">
+        <label>你的复习目标
+          <select id="creationModeAdviceGoal" onchange="invalidateCreationAdviceResult()">
+            <option value="">暂时不确定</option>
+            <option value="remember">记住事实和细节</option>
+            <option value="understand">理解并讲清</option>
+            <option value="compare">辨析易混内容</option>
+            <option value="practice">独立练习</option>
+            <option value="read">只想阅读熟悉</option>
+          </select>
+        </label>
+        <label>补充说明（可选）
+          <textarea id="creationModeAdviceExtra" rows="3" maxlength="2000" oninput="invalidateCreationAdviceResult()" placeholder="例如：我总把这两个概念混淆；老师要求能举例；我只想快速看一遍……"></textarea>
+        </label>
+        <p class="mistake-ai-note">AI 会综合当前内容、你的目标和补充说明判断模式；错题还会参考题型、分类、答案解析和错因。</p>
+      </div>
+      <section id="creationModeAdviceResult" class="creation-mode-advice-result" hidden>
+        <h3 id="creationModeAdviceTitle"></h3>
+        <p id="creationModeAdviceReason"></p>
+        <p id="creationModeAdviceSource" class="mistake-ai-note"></p>
+      </section>
+    </div>
+    <footer class="tag-sheet-foot">
+      <div class="modal-actions"><button type="button" class="btn-cancel" onclick="closeCreationReviewSuggestion()">关闭</button><button type="button" id="creationModeAdviceRetry" onclick="retryCreationReviewSuggestion()" hidden>重新读取</button><button type="button" class="btn-primary" id="creationModeAdviceAnalyze" onclick="analyzeCreationReviewAdvice()" hidden>分析复习方式</button><button type="button" class="btn-primary" id="creationModeAdviceAdopt" onclick="adoptCreationReviewSuggestion()" hidden>采用建议</button></div>
+    </footer>
+  </dialog>
+  <script src="js/mistakeQueue.js?v=20261024-empty-answer-read-48"></script>
+  <script src="js/courseSearch.js"></script>
+  <script src="js/reviewPicker.js?v=20261024-attachment-preview-24"></script>
+  <script src="js/reviewPlans.js?v=20261024-review-flow-merge-46"></script>
+  <script src="js/reviewCenter.js?v=20261024-review-resume-complete-51"></script>
+
+  <!-- 知识框架 -->
+  <script src="js/knowledgeTree.js"></script>
+  <script src="js/treeNodeActions.js"></script>
+  <script src="js/treeView.js"></script>
+  <script src="js/treeMenus.js"></script>
+  <script src="js/dropPreview.js"></script>
+  <script src="js/knowledgeSort.js"></script>
+
+  <!-- 入口：放最后，它负责绑定事件并启动 -->
+  <script src="site-bridge.js?v=20261024-learn1"></script>
+  <script src="../learn-sync.js?v=20261024-learn1"></script>
+  <script src="app.js"></script>
+</body>
+</html>

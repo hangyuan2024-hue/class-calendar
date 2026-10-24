@@ -1,0 +1,219 @@
+/*
+ * resourceDetail.js
+ * 资料 / 笔记详情页（含文件预览）
+ *
+ * 这个文件是由 app.js 按职责拆分出来的，只搬了位置，逻辑没有改动。
+ * 加载顺序见 index.html 底部的 <script> 列表；本文件依赖前面已加载的文件。
+ */
+
+/* ========== 资源详情（资料 / 笔记通用，不复制两套页面） ========== */
+let resourceDetailRequest = 0;
+
+async function openResourceDetail(resourceType, resourceId) {
+  navStack.push(currentView);
+  currentView = { type: 'resource', resourceType: resourceType, id: resourceId };
+  await renderResourceDetailPage(resourceType, resourceId);
+}
+
+async function renderResourceDetailPage(resourceType, resourceId) {
+  if(typeof resetResourceAi==='function')resetResourceAi();
+  const request = ++resourceDetailRequest;
+  const courseId = currentCourseId;
+  const isCurrent = () => request === resourceDetailRequest && currentCourseId === courseId
+    && currentView.type === 'resource' && currentView.resourceType === resourceType && currentView.id === resourceId;
+  showPageOnly('resourceDetailPage');
+
+  const label = resourceType === 'note' ? '笔记' : '资料';
+  document.getElementById('resourceDetailTitle').textContent = label + '详情';
+  document.getElementById('resourceDetailName').textContent = '加载中…';
+  document.getElementById('resourceDetailType').textContent = '';
+  document.getElementById('resourceDetailMeta').textContent = '';
+  document.getElementById('resourceDetailTags').innerHTML = '';
+  document.getElementById('resourceDetailPreview').innerHTML = '';
+  document.getElementById('resourceDetailContentSection').hidden = true;
+  document.getElementById('resourceDetailContent').textContent = '';
+  document.getElementById('resourceDetailOpen').href = '#';
+
+  try {
+    // 详情页的数据一律按 id 独立重新加载，不依赖列表缓存
+    const res = await fetch(`${API}/${resourceType === 'note' ? 'notes' : 'materials'}/${resourceId}`);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.message || ('找不到' + label));
+    }
+    const row = await res.json();
+    if (!isCurrent()) return;
+    if (row.course_id !== courseId) throw new Error('这条内容不属于当前课程');
+    renderResourceDetail(resourceType, row);
+    if(typeof mountReviewPreparation==='function')mountReviewPreparation(document.getElementById('resourceDetailTags'),resourceType,row);
+    if(globalThis.COURSES_SHOW_LEGACY_RESOURCE_AI===true&&typeof mountResourceAi==='function')mountResourceAi(document.getElementById('resourceDetailPreview').parentElement,resourceType,row);
+    if(typeof mountItemReviewHistory==='function')mountItemReviewHistory(document.getElementById('resourceDetailPreview').parentElement,resourceType,row.id);
+  } catch (err) {
+    if (!isCurrent()) return;
+    console.warn('加载资源详情失败:', err.message);
+    showToast(err.message || ('加载' + label + '详情失败'));
+    await backFromDetail(); // 资源可能已被删掉，退回来源页
+  }
+}
+
+function renderResourceDetail(resourceType, item) {
+  const label = resourceType === 'note' ? '笔记' : '资料';
+  const hasFile = !!item.file_url;
+  const url = attachmentUrl(item.file_url||'');
+
+  document.getElementById('resourceDetailTitle').textContent = label + '详情';
+  document.getElementById('resourceDetailName').textContent = item.title || '（无标题）';
+  if (window.__mindmapTarget?.courseId === currentCourseId
+    && window.__mindmapTarget.resourceType === (resourceType === 'note' ? 'note' : 'material')
+    && window.__mindmapTarget.id === item.id) {
+    window.__mindmapTarget.baseline = {
+      mindmap_json: item.mindmap_json || '',
+      mindmap_image: item.mindmap_image || '',
+      outline: item.outline || ''
+    };
+  }
+
+  const typeEl = document.getElementById('resourceDetailType');
+  typeEl.textContent = label;
+  typeEl.className = 'detail-type' + (resourceType === 'note' ? ' tag-knowledge' : ' tag-folder');
+
+  const parts = [
+    hasFile ? '文件类型：' + (item.file_type || '未知') : '✍ 手动输入',
+    '创建时间：' + (item.created_at || '—')
+  ];
+  if (resourceType === 'note') parts.splice(1, 0, '来源：' + (item.source || '—'));
+  document.getElementById('resourceDetailMeta').textContent = parts.join(' · ');
+
+  const nodes = Array.isArray(item.nodes) ? item.nodes : [];
+  document.getElementById('resourceDetailTags').innerHTML = nodes.length
+    ? nodes.map(k => tagChipHtml({ id: k.id, name: k.name, type: k.type }, false, true)).join('')
+    : '<span class="tag-none">暂无标签</span>';
+
+  // 有文件才是“文件”区；手动输入的显示“内容”区
+  document.getElementById('resourceDetailSectionTitle').textContent = hasFile ? '文件' : '内容';
+
+  const openEl = document.getElementById('resourceDetailOpen');
+  if (hasFile) {
+    openEl.style.display = 'none';
+    openEl.href = url;
+    renderResourcePreview(item.file_type, url);
+  } else {
+    openEl.style.display = 'none';
+    document.getElementById('resourceDetailPreview').innerHTML = item.content
+      ? '<div class="detail-content">' + escapeHtml(item.content) + '</div>'
+      : '<div class="empty">这条' + label + '是手动输入的，但没有填内容。</div>';
+  }
+
+  // 附件和正文可以同时存在；不能因为有附件而跳过已经保存的正文。
+  const content = String(item.content || '');
+  const contentSection = document.getElementById('resourceDetailContentSection');
+  const contentBox = document.getElementById('resourceDetailContent');
+  contentSection.hidden = !hasFile || !content.trim();
+  contentBox.textContent = hasFile ? content : '';
+  if (typeof mountResourceTextAction === 'function') mountResourceTextAction(resourceType, item);
+
+  // 「重点总结 / 大纲」是文本输入，「思维导图」是独立产物，两者分开显示。
+  const outlineSection = document.getElementById('resourceDetailOutlineSection');
+  const mindmapSection = document.getElementById('resourceDetailMindmapSection');
+  const savedOutline = String(item.outline || '').trim();
+  OUTLINE_MAP.currentTitle = item.title || '';
+  if (outlineSection) outlineSection.style.display = '';
+  const outlineText = document.getElementById('resourceDetailOutlineText');
+  if (outlineText) {
+    outlineText.textContent = savedOutline || '还没有填写重点总结或大纲。';
+    outlineText.classList.toggle('is-empty', !savedOutline);
+  }
+
+  let mindmapText = '';
+  if (item.mindmap_json) {
+    try { mindmapText = mindmapToOutline(JSON.parse(item.mindmap_json)); } catch { mindmapText = ''; }
+  }
+  if (mindmapSection) mindmapSection.style.display = '';
+  const hasMindmap = renderOutlineMap(document.getElementById('resourceDetailOutlineMap'), mindmapText, { rootTitle: item.title || '' });
+  const mapBox = document.getElementById('resourceDetailOutlineMap');
+  if (mapBox && item.mindmap_image) {
+    mapBox.innerHTML = `<img src="${item.mindmap_image}" alt="思维导图" style="max-width:100%;border-radius:10px;display:block;" />`;
+  }
+  if (!hasMindmap && !item.mindmap_image) {
+    if (mapBox) mapBox.innerHTML = '<div class="empty">还没有思维导图。可以先填写上方大纲，再使用基础生成或 AI 润色。</div>';
+  }
+  // 导图入口：基础规则始终可用；AI 润色只有真实 API 可用时才能点击。
+  const actionHost = document.getElementById('resourceDetailMindmapActions');
+  if (actionHost) {
+    const sourceOutline = savedOutline;
+    const makeButton = (className, text) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `edit-btn ${className}`;
+      button.textContent = text;
+      button.dataset.mindmapGenerate = className.startsWith('ai-') ? 'ai' : 'basic';
+      return button;
+    };
+    const basic = makeButton('open-mindmap-btn', '基础生成');
+    basic.disabled = !sourceOutline;
+    basic.title = sourceOutline ? '按固定规则切成适合导图的层级，不调用 AI' : '请先填写大纲';
+    const ai = makeButton('ai-mindmap-btn', 'AI 润色生成');
+    const editExisting = item.mindmap_json
+      ? Object.assign(document.createElement('button'), {
+          type: 'button',
+          className: 'edit-btn edit-existing-mindmap-btn',
+          textContent: '继续编辑',
+        })
+      : null;
+    const back = Object.assign(document.createElement('button'), {
+      type: 'button',
+      className: 'edit-btn reupload-mindmap-btn',
+      textContent: '上传导图',
+    });
+    actionHost.replaceChildren(basic, ai, ...(editExisting ? [editExisting] : []), back);
+
+    window.__mindmapTarget = {
+      courseId: currentCourseId,
+      resourceType,
+      id: item.id,
+      label: item.title || '',
+      baseline: {mindmap_json:item.mindmap_json||'',mindmap_image:item.mindmap_image||'',outline:item.outline||''}
+    };
+    const openGenerated = async (mode, button) => {
+      if (!sourceOutline) { showToast('请先填写大纲'); return; }
+      const original = button.textContent;
+      let editorWindow = null;
+      try { editorWindow = window.open('', '_blank'); } catch {}
+      button.textContent = mode === 'ai' ? 'AI 润色中…' : '切分中…';
+      setMindmapGenerationBusy(true);
+      try {
+        const generated = await generateMindmapOutline(sourceOutline, item.title || '', mode);
+        await openMindmapEditor(item.mindmap_json, generated.title || item.title || '', generated.outline,
+          { startNew: true, targetWindow: editorWindow });
+      } catch (err) {
+        try { if (editorWindow && !editorWindow.closed) editorWindow.close(); } catch {}
+        showToast(err.message);
+      } finally {
+        button.textContent = original;
+        setMindmapGenerationBusy(false);
+      }
+    };
+    basic.onclick = () => void openGenerated('basic', basic);
+    ai.onclick = () => void openGenerated('ai', ai);
+    if (editExisting) editExisting.onclick = () => void openMindmapEditor(item.mindmap_json, item.title, item.outline);
+    back.onclick = () => reuploadMindmap(resourceType, item.id);
+  }
+  refreshMindmapAiAvailability();
+}
+
+// 文件预览独立于正文：图片缩略图、PDF 预览入口，其它格式提供下载。
+function renderResourcePreview(fileType, value, target = null) {
+  const box=target||document.getElementById('resourceDetailPreview'),url=attachmentUrl(value),kind=attachmentKind(fileType,value);
+  box.replaceChildren();
+  if(!url){box.innerHTML='<p class="empty">附件地址不可用。</p>';return;}
+  if(kind==='image'){
+    const button=document.createElement('button');button.type='button';button.className='attachment-image-button';button.setAttribute('aria-label','放大查看图片');
+    const img=document.createElement('img');img.className='mistake-detail-image';img.alt='附件图片预览';img.loading='lazy';img.src=url;
+    img.onerror=()=>{button.replaceChildren(document.createTextNode('图片加载失败，可尝试下载原图。'));};button.append(img);button.onclick=()=>void openAttachmentPreview(url,fileType||'image/unknown','图片附件');box.append(button);
+  }else if(kind==='pdf'){
+    const card=document.createElement('div');card.className='attachment-pdf-card';card.textContent='PDF 文档 · 支持站内翻页和缩放';box.append(card);
+  }else if(kind==='office'){
+    const card=document.createElement('div');card.className='attachment-pdf-card';card.textContent='Word / PPT 文档 · 支持站内翻页和缩放，首次预览需准备';box.append(card);
+  }
+  box.insertAdjacentHTML('beforeend',attachmentActionsHtml(url,fileType,kind==='pdf'?'PDF':kind==='image'?'图片':'附件'));
+}
