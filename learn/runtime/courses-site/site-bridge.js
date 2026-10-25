@@ -37,8 +37,11 @@
       '<span class="lb-sp"></span><button type="button" id="learnImport" hidden>' + svg("imp") + '从课表导入课程</button>' +
       '<button type="button" class="lb-tone" id="learnTone" title="切换深浅色（和网站的外观设置是同一份）"></button>';
     document.body.prepend(b);
+    // 嵌在捞捞课程表的「学习」页里（?host=app）：离开本页的链接和深浅色按钮都不要，外观跟着课程表走
+    if (/[?&]host=app\b/.test(location.search)) { document.documentElement.classList.add("learn-in-app"); b.querySelectorAll("a, .lb-sep, #learnTone").forEach(function (n) { n.remove(); }); }
     $("learnImport").onclick = importTimetable;
     var tone = function () { var st = window.LearnTheme ? LearnTheme.state() : { dark: false }; $("learnTone").innerHTML = svg(st.dark ? "sun" : "moon") + (st.dark ? "浅色" : "深色"); };
+    if (!$("learnTone")) return;
     $("learnTone").onclick = function () { if (window.LearnTheme) LearnTheme.toggle(); tone(); };
     window.addEventListener("learn-theme", tone);
     tone();
@@ -250,17 +253,25 @@
   try { lastDue = localStorage.getItem("learn_due_sig_v1") || ""; } catch (e) {}
   async function pushDue() {
     var uid = await loggedIn(); if (!uid || !window.LearnSync || window.LearnSync.state().state !== "ok") return;
-    var courses = await api("/courses"), out = [];
+    var courses = await api("/courses"), out = [], outline = [];
     for (var i = 0; i < courses.length; i++) {
+      // 7.1 期末复习排期要用：每门课的知识点（按知识框架的顺序）、还没复习的错题数
+      var topics = [], mis = 0;
+      try {
+        var walk = function (nodes, depth) { (nodes || []).forEach(function (n) { if (!n.is_system && n.name && topics.length < 60) topics.push({ t: String(n.name).slice(0, 40), d: depth, k: n.type === "knowledge" ? 1 : 0 }); walk(n.children, depth + 1); }); };
+        walk(await api("/courses/" + courses[i].id + "/knowledge-tree"), 0);
+      } catch (e) {}
+      try { var ml = await api("/courses/" + courses[i].id + "/mistakes?reviewStatus=unreviewed"); mis = (Array.isArray(ml) ? ml : ml.items || []).length; } catch (e) {}
+      outline.push({ id: courses[i].id, name: courses[i].name, topics: topics, mistakes: mis });
       var list = []; try { list = await api("/courses/" + courses[i].id + "/assessments"); } catch (e) { continue; }
       (Array.isArray(list) ? list : list.items || []).forEach(function (a) {
         if (!a.deadline || a.archived || a.completed_at) return;
-        out.push({ id: a.id, course_id: courses[i].id, course: courses[i].name, title: a.title, deadline: String(a.deadline).slice(0, 10), requirement: String(a.requirement || "").slice(0, 300) });
+        out.push({ id: a.id, course_id: courses[i].id, course: courses[i].name, title: a.title, deadline: String(a.deadline).slice(0, 10), requirement: String(a.requirement || "").slice(0, 300), type: a.type || a.kind || "" });
       });
     }
-    var sig = uid + JSON.stringify(out);
+    var sig = uid + JSON.stringify(out) + JSON.stringify(outline);
     if (sig === lastDue) return;
-    await window.LearnSync.putMeta("due.json", { at: Date.now(), items: out });
+    await window.LearnSync.putMeta("due.json", { at: Date.now(), items: out, courses: outline });
     lastDue = sig; try { localStorage.setItem("learn_due_sig_v1", sig); } catch (e) {}
   }
   function scheduleDue(ms) { clearTimeout(dueTimer); dueTimer = setTimeout(function () { pushDue().catch(function (e) { console.warn("[learn] 考核同步失败", e); }); }, ms); }
