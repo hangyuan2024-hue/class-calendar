@@ -48,7 +48,8 @@
       // 这个单元最晚能排到哪一天
       var lim = days.length - 1; while (lim > 0 && diff(days[lim], u.before) <= 0) lim--;
       while (r > 0) {
-        if (di > lim) { di = lim; left = Math.max(left, r); tight = true; }
+        // 最后一天也放不下：剩下的都挤在这一天（以前这里 left 变成 0 后会死循环，页面卡死）
+        if (di > lim || (di === lim && left < r)) { di = lim; left = Math.max(left, r); tight = true; }
         var take = Math.min(r, left);
         if (take < 15 && r > take && di < lim) { di++; left = cap; continue; }
         parts.push({ day: days[di], min: take });
