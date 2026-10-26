@@ -245,7 +245,7 @@
   }
   const CH = 600 * 1024;
   // 把文件传到某条事项上（附件对话框、记一件事 / 发布表单共用）。say(文字) 报进度；返回传好的个数
-  async function uploadTo(cid, item, files, say) {
+  async function uploadTo(cid, item, files, say, out) {
     let ok = 0;
     for (const f0 of files) {
       if (f0.size > 20 * 1024 * 1024) { say(`「${f0.name}」太大了（单个最多 20MB）`); continue; }
@@ -261,6 +261,7 @@
           say(`正在上传「${f.name}」… ${Math.round(((i + 1) / parts) * 100)}%`);
         }
         await CCAuth.rpc("file_end", { fid: id });
+        if (out) out.push(id);
         if (/^image\//.test(f.type)) { const t = await makeThumb(f); if (t) await CCAuth.rpc("file_thumb", { fid: id, b64: t }).catch(() => {}); }
         if (window.hwPlusReset) window.hwPlusReset(cid ? "c" + item : item);
         ok++; say(`「${f.name}」上传好了 ✓`);
@@ -268,6 +269,7 @@
     }
     return ok;
   }
+  window.exUploadTo = uploadTo;   // 7.2 全屏备忘录里的图片、手写也传成附件
   async function upload(files) {
     const st = dlg.querySelector("#xfSt");
     await uploadTo(cur.cid, cur.item, files, (t) => { st.textContent = t; });

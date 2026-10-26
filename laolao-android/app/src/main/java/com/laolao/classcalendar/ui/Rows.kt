@@ -38,7 +38,7 @@ fun Main.itemRow(r: Item, showDate: Boolean = false, dueTag: Boolean = false): V
     if (r.done) title.paintFlags = title.paintFlags or Paint.STRIKE_THRU_TEXT_FLAG
     body.addView(title)
     val meta = row().apply { margins(t = 4) }
-    val tn = if (r.course) "课程" else if (r.mine && !r.hw) "我的" else typeName(r.type)
+    val tn = if (r.course) "课程" else if (r.mine && !r.hw) (if (r.type in Items.MINE_KINDS) "我的" + typeName(r.type) else "我的") else typeName(r.type)
     meta.addView(chip(tn, C.type(r.type), if (r.hw) C.dangerBg else if (r.type == "会议") C.selected else C.mutedBg))
     // 6.2 清单进度、重复
     if (r.list.isNotEmpty()) meta.addView(chip("☑ " + com.laolao.classcalendar.core.MemoCore.statText(r.list), if (r.list.all { it.d }) C.green else C.sub, C.mutedBg), LinearLayout.LayoutParams(WRAP, WRAP).apply { leftMargin = dp(6) })

@@ -1940,7 +1940,7 @@
 <link rel="stylesheet" href="campus-tools.css?v=20261008-org1">
 <link rel="stylesheet" href="org.css?v=20261008-org1">
 <link rel="stylesheet" href="polish.css?v=20261009-tl2">
-<link rel="stylesheet" href="extras.css?v=20261022-v697">
+<link rel="stylesheet" href="extras.css?v=20261026-v72">
 <link rel="stylesheet" href="workspace-fit.css?v=20261023-v714">
 <link rel="stylesheet" href="looks.css?v=20261024-v9b">
 <link rel="stylesheet" href="ui-v9.css?v=20261025-v9e">
@@ -2012,6 +2012,7 @@
       <button class="qbtn hidden" id="qPeople" data-tab="people"><span class="qi">👥</span>班级成员</button>
       <button class="qbtn" id="qStudy" data-tab="study"><span class="qi">📖</span>课内学习</button>
       <button class="qbtn" id="qCal"><span class="qi">📲</span>加到日历</button>
+      <button class="qbtn" id="qNote"><span class="qi">🗒</span>备忘录</button>
       <button class="qbtn" id="qProject" data-tab="project"><span class="qi">🪜</span>大作业拆解</button>
       <button class="qbtn" id="qReview" data-tab="review"><span class="qi">🎓</span>复习排期</button>
       <button class="qbtn" id="qTools" data-tab="tools"><span class="qi">🧩</span>全部工具</button>
@@ -2643,11 +2644,12 @@
 
 <div id="modal">
   <form id="form">
-    <div class="form-h"><h3 id="formTitle">记一件事</h3><button type="button" class="small memo-open" id="fMemo" title="把手机备忘录里的待办一次导入">📝 从备忘录导入</button></div>
+    <div class="form-h"><h3 id="formTitle">记一件事</h3><span class="fhbtns"><button type="button" class="small hidden" id="fFull" title="换成全屏备忘录：格式、清单、图片、手写">🗒 全屏写</button><button type="button" class="small memo-open" id="fMemo" title="把手机备忘录里的待办一次导入">📝 从备忘录导入</button></span></div>
+    <div class="meta hidden" id="fRichTip">这条在全屏备忘录里有格式或图片：在这里改备注 / 清单的文字，格式会按新文字重排（图片不会丢）。想保留格式请点「🗒 全屏写」。</div>
     <input type="hidden" id="fId"><input type="hidden" id="fFrom">
     <div class="ftip hidden" id="fFromTip">这是班级事项，班级里只有老师和班委能改。你在这里改的只对自己生效：保存后显示你的版本，班级原来那条会替你隐藏；在「我的事项」里删掉这条就恢复原样。</div>
     <div class="row">
-      <div style="flex:0 0 34%"><label title="选「作业」会显示在作业页">类型 <select id="fKind"><option value="">普通事项</option><option value="作业">作业</option></select></label></div>
+      <div style="flex:0 0 34%"><label title="选「作业」会显示在作业页">类型 <select id="fKind"><option value="">普通事项</option><option value="作业">作业</option><option value="会议">会议</option><option value="活动">活动</option><option value="通知">通知</option></select></label></div>
       <div><label>标题 <input id="fTitle" required maxlength="60" placeholder="例如：社团例会"></label></div>
     </div>
     <div class="row">
@@ -2737,18 +2739,21 @@
 <script src="parse.js?v=20261023-v717"></script>
 <script src="lao-train.js?v=20261019-v68"></script>
 <script src="memo-core.js?v=20261018-v63"></script>
+<script src="note-core.js?v=20261026-v72"></script>
 <script src="docx-text.js?v=20261018-v63"></script>
 <script src="course-image.js?v=20261021-v69"></script>
 <script src="courses.js?v=20261021-v69"></script>
 <script src="farm.js?v=20261021-v69"></script>
 <script src="metaverse-v3.js?v=20261005-native3"></script>
 <script src="nextclass.js?v=20261017-v590"></script>
-<script src="app.js?v=20261025-v723"></script>
+<script src="app.js?v=20261026-v72"></script>
 <script src="level-ui.js?v=20261021-v69"></script>
 <script src="qr-lite.js?v=20261022-v697"></script>
 <script src="checkin-ui.js?v=20261022-v697"></script>
-<script src="extras.js?v=20261017-v592"></script>
-<script src="campus-tools.js?v=20261025-tools2"></script>
+<script src="extras.js?v=20261026-v72"></script>
+<script src="note-ui.js?v=20261026-v72"></script>
+<script src="form-ui.js?v=20261026-v72"></script>
+<script src="campus-tools.js?v=20261026-v72"></script>
 <script src="workspace-v3.js?v=20261005-native3"></script>
 <script src="island-core.js?v=20261019-v66"></script>
 <script src="island.js?v=20261019-v65"></script>

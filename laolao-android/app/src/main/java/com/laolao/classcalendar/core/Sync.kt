@@ -15,6 +15,7 @@ object Sync {
         "habits_v1" to "list", "habit_log_v1" to "map2", "quad_v1" to "map", "pomo_log_v1" to "map", "plan_notes_v1" to "map", "fun_opts_v1" to "one", "course_view_v1" to "map", "ui_palette_v1" to "one",
         "farm_v1" to "one", "profile_v1" to "one", "home_layout_v1" to "one", "home_quick_tools_v1" to "one", "mood_log_v1" to "map", "coach_v1" to "map",
         "coach_opts_v1" to "map", "coach_bag_v1" to "map",   // 7.0.55 捞捞教练的开关、收藏也跟着账号（和网页、小程序一样）
+        "deadline_plans_v1" to "map",   // 7.1 大作业倒排拆解、期末复习排期（和网页、小程序一样）
     )
     private const val META = "sync_meta_v1"
     private const val OUT = "sync_outbox_v1"

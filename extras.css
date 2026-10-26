@@ -362,3 +362,8 @@ button.ck-name.mk { border: 1px dashed rgba(255,122,69,.6); cursor: pointer; fon
 button.ck-name.mk:hover { background: rgba(255,122,69,.12); }
 .ck-name .ck-x { border: 0; background: none; color: inherit; opacity: .7; cursor: pointer; padding: 0 0 0 4px; font-size: 14px; line-height: 1; }
 .ck-name .ck-x:hover { opacity: 1; color: #c0392b; }
+
+/* 7.2 全屏备忘录入口 */
+#form .fhbtns { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+button.mtag { border: 0; font: inherit; cursor: pointer; }
+#fRichTip { margin: 4px 0 8px; color: var(--sub); }

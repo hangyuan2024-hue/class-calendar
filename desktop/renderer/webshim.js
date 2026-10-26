@@ -61,7 +61,7 @@
 
   // 网站格式的事项（_key、_p、_done、msg_type、subject……），农场、课内学习算养料、截止用
   function webItems() {
-    return App.items().map((x) => ({ ...(x.raw || {}), _key: x.key, id: x.mine ? x.key : x.id, _mine: !!x.mine, _study: x.study ? x.studyId : undefined, msg_type: x.mine && x.type !== "作业" ? "个人" : x.type,
+    return App.items().map((x) => ({ ...(x.raw || {}), _key: x.key, id: x.mine ? x.key : x.id, _mine: !!x.mine, _study: x.study ? x.studyId : undefined, msg_type: x.type,
       subject: x.title, summary: x.summary, location: x.location, event_time: x.day ? x.day + (x.time ? " " + x.time : "") : "", _p: x.day ? { day: x.day, time: x.time } : null,
       _done: !!x.done, _hidden: !!x.hidden, _note: x.note, kind: x.kind || undefined, need_confirm: !!x.confirm }));
   }

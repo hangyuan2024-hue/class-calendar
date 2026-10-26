@@ -417,8 +417,8 @@ class Store extends EventEmitter {
     const li = MemoCore.listOf(rec); if (li.length) rec.list = li; else delete rec.list;
     if (!MemoCore.repName(rec.rep)) delete rec.rep;
     if (rec.pin) rec.pin = true; else delete rec.pin;
-    // kind：作业 / 普通；from：改的是哪条班级事项；keep：推迟自动删除到哪天（这几个和网页版同名）
-    if (rec.kind !== "作业") delete rec.kind;
+    // kind：普通（不写）/ 作业 / 会议 / 活动 / 通知（7.1 起和网页、小程序、安卓一样）；from：改的是哪条班级事项；keep：推迟自动删除到哪天（这几个和网页版同名）
+    if (!["作业", "会议", "活动", "通知"].includes(rec.kind)) delete rec.kind;
     if (!/^c\d+$/.test(String(rec.from || ""))) delete rec.from;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(String(rec.keep || ""))) delete rec.keep;
     if (rec.local) rec.local = true; else delete rec.local;   // 只存在这台设备（和网页版同名）

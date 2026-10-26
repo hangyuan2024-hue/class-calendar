@@ -9,6 +9,7 @@
     ['qIcs','🔥','打卡成长','习惯与成长记录',()=>funOpts().habits,'growth'],
     ['qFarm','🐣','云宠农场','养料与陪伴',()=>farmOn(),'farm'],
     ['qPomo','🍅','番茄专注','开始一个专注时段',()=>funOpts().plan],
+    ['qNote','🗒','备忘录','格式、清单、图片、手写',()=>feat('mine')],
     ['qProject','🪜','大作业拆解','拆成几步倒排进日程',()=>true,'project'],
     ['qReview','🎓','复习排期','按考试日期排每天复习',()=>true,'review'],
     ['qCourse','📚','课程表','查看自己的课程',()=>!!courseTool()],
@@ -24,7 +25,7 @@
     return out.concat(toolList().filter(t=>!covered.has(t.view)).map(t=>({...t,id:t.id})));
   }
   // 7.1 新加的快捷工具：以前自己选过首页工具的人也默认显示一次（可以再去掉）
-  const NEW_IDS=['qProject','qReview'], SEEN='home_quick_seen_v1';
+  const NEW_IDS=['qProject','qReview','qNote'], SEEN='home_quick_seen_v1';
   function selected() {
     const saved=load(KEY,null); if(!Array.isArray(saved)) return new Set(base.map(x=>x[0]));
     let seen=[]; try{seen=JSON.parse(localStorage.getItem(SEEN)||'[]')||[];}catch(e){}

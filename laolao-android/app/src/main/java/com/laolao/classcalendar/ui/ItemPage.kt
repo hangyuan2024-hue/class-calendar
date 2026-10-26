@@ -34,7 +34,7 @@ class ItemPage(a: Main, private val key: String) : Page(a) {
         }
         val c = ctx.card(20, 22)
         val tr = ctx.row()
-        tr.addView(ctx.chip(if (r.mine && !r.hw) "我的" else typeName(r.type), C.type(r.type), if (r.hw) C.dangerBg else C.mutedBg, 12.5f).apply { pad(8, 2) })
+        tr.addView(ctx.chip(if (r.mine && !r.hw) (if (r.type in Items.MINE_KINDS) "我的" + typeName(r.type) else "我的") else typeName(r.type), C.type(r.type), if (r.hw) C.dangerBg else C.mutedBg, 12.5f).apply { pad(8, 2) })
         tr.addView(ctx.text(if (r.mine) (if (r.local) "🔒 只存在这台手机" else "仅自己可见") else (Store.cls?.str("name") ?: "班级"), 12.5f, C.sub).apply { pad(8, 0) })
         c.addView(tr)
         c.add(ctx.text((if (r.pin && !r.done) "📌 " else "") + r.title, 21f, C.text, HEAVY).apply { setTextIsSelectable(true) }, 10)
@@ -73,6 +73,10 @@ class ItemPage(a: Main, private val key: String) : Page(a) {
         val ops = ctx.card(4, 18).apply { margins(t = 14) }
         if (r.mine) {
             ops.addView(ctx.cell("✏️", "编辑") { a.push(EditPage(a, r.key)) })
+            // 7.2 全屏备忘录：格式、清单、图片、手写
+            val nr = Items.mineRecord(r.id)
+            val ni = com.laolao.classcalendar.core.NoteStore.imgCount(nr)
+            ops.addView(ctx.cell("🗒", "全屏备忘录", if (ni > 0) "有 $ni 张图片 / 手写" else if (com.laolao.classcalendar.core.NoteStore.hasRich(nr)) "有格式，在这里看" else "加格式、清单、图片、手写") { a.push(NotePage(a, r.id)) })
             ops.addView(ctx.cell("📌", if (r.pin) "取消置顶" else "置顶", "一直显示在首页最上面") { a.toast(if (Items.togglePin(r.id)) "已置顶" else "已取消置顶"); render() })
             ops.addView(ctx.cell("🗑", "删除") { Dialogs.confirm(ctx, "删除「${r.title}」？", "", "删除", danger = true) { Items.deleteMine(r.id); a.toast("已删除"); close() } })
         } else {
@@ -100,9 +104,18 @@ class ItemPage(a: Main, private val key: String) : Page(a) {
         })
         body.addView(ops)
 
-        if (r.original.isNotBlank() && !r.original.startsWith("（由")) {
-            body.addView(ctx.section("原文", if (showOrig) "点这里收起" else "老师 / 群里的原话，点这里展开").apply { tap { showOrig = !showOrig; render() } })
-            if (showOrig) body.addView(ctx.text(r.original, 14f, C.sub).apply { bg(C.card, 14, C.line); pad(14, 12); setTextIsSelectable(true) })
+        // 7.1 原文对照（和网页、小程序一样）：日期时间蓝色、地点绿色、「截止 / 必须 / 带上」橙色；推测出来的地方给 ⚠ 提示
+        val sc = com.laolao.classcalendar.core.SrcCheck.check("", r.original, r.location, if (r.dated) r.day + (if (r.time.isNotEmpty()) " " + r.time else "") else "")
+        if (sc != null) {
+            val long = r.original.length > 160
+            body.addView(ctx.section("原文", if (long && !showOrig) "老师 / 群里的原话，点这里看全部" else "核对一下：时间、地点、要求都标了颜色").apply { if (long) tap { showOrig = !showOrig; render() } })
+            val box = ctx.col().apply { bg(C.card, 14, C.line); pad(14, 12) }
+            box.addView(ctx.text("", 14.5f, C.text).apply {
+                text = srcSpan(sc); setLineSpacing(0f, 1.3f); setTextIsSelectable(true)
+                if (long && !showOrig) { maxLines = 4; ellipsize = android.text.TextUtils.TruncateAt.END }
+            })
+            if (sc.notes.isNotEmpty()) box.add(ctx.text("⚠ " + sc.note, 12.5f, Color.parseColor("#b26a00")).apply { bg(Color.parseColor("#1Ff5a524"), 10); pad(10, 6) }, 10)
+            body.addView(box)
         }
     }
 
@@ -119,4 +132,17 @@ class ItemPage(a: Main, private val key: String) : Page(a) {
         }
         try { a.startActivity(i) } catch (e: Exception) { a.toast("没找到手机日历") }
     }
+}
+
+/** 7.1 原文对照：把分好的段拼成带颜色的文字 */
+internal fun srcSpan(sc: com.laolao.classcalendar.core.SrcCheck.Result): CharSequence {
+    val sb = android.text.SpannableStringBuilder()
+    for (g in sc.segs) {
+        val st = sb.length; sb.append(g.t); if (g.c.isEmpty()) continue
+        val (fg, bgc) = when (g.c) { "t" -> "#3e63dd" to "#1A3e63dd"; "l" -> "#2b8a3e" to "#1A2f9e44"; else -> "#e2551f" to "#1Aff6a3d" }
+        sb.setSpan(android.text.style.ForegroundColorSpan(Color.parseColor(fg)), st, sb.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        sb.setSpan(android.text.style.BackgroundColorSpan(Color.parseColor(bgc)), st, sb.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        sb.setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), st, sb.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+    }
+    return sb
 }

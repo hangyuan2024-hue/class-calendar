@@ -21,6 +21,16 @@ class OverviewPage(a: Main) : Page(a) {
     private lateinit var body: LinearLayout
     private var classes: List<JSONObject>? = null; private var cid = ""; private var ov: JSONObject? = null
     private var err = ""; private var tab = 0; private var filter = 0; private var days = 14; private var loading = false
+    // 7.2 找人、排序（完成率低的在前 / 最近打开 / 名字），和小程序 1.18 一样
+    private var q = ""; private var sort = 0
+    private val qBox by lazy { ctx.input("搜名字", "").apply { addTextChangedListener(object : android.text.TextWatcher {
+        override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+        override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+        override fun afterTextChanged(s: android.text.Editable?) { q = s?.toString()?.trim()?.lowercase() ?: ""; listBox?.let { paintList(it) } }
+    }) } }
+    private var listBox: LinearLayout? = null
+    private var rowsSrc: List<JSONObject> = emptyList(); private var hwNow = 0
+    private val since = { t: String -> try { ((System.currentTimeMillis() - java.time.OffsetDateTime.parse(t).toInstant().toEpochMilli()) / 86_400_000L).toInt() } catch (_: Exception) { -1 } }
     override fun build(): View = scaffold("班级情况", pull = { done -> load(true) { done() } }) { body = it }
     override fun onShow() { load(false) }
 
@@ -77,31 +87,35 @@ class OverviewPage(a: Main) : Page(a) {
         kc.addView(kpi(rate, "作业完成率"), LinearLayout.LayoutParams(0, WRAP, 1f))
         kc.addView(kpi("${o.optInt("pending")}", "待审批"), LinearLayout.LayoutParams(0, WRAP, 1f))
         body.addView(kc)
+        val lazy = st.filter { hwN > 0 && it.optInt("hw_done") < hwN }
+        val quiet = st.filter { val d = since(it.str("last_active")); d < 0 || d >= 7 }
+        // 7.2 需要关注：作业没做完、7 天没打开的同学，点一下只看他们
+        if (lazy.isNotEmpty() || quiet.isNotEmpty()) {
+            val ac = ctx.card(4, 18).apply { margins(t = 12) }
+            ac.addView(ctx.text("需要关注", 13f, C.sub, SEMI).apply { pad(14, 10, 14, 2) })
+            fun line(ic: String, t: String, who: List<JSONObject>, f: Int) {
+                if (who.isEmpty()) return
+                val names = who.take(5).joinToString("、") { it.str("name").ifEmpty { it.str("account") } } + if (who.size > 5) " 等" else ""
+                ac.addView(ctx.cell(ic, "$t · ${who.size} 人", names, "只看他们 ›") { filter = f; tab = 0; render() })
+            }
+            line("📝", "作业没做完", lazy, 1); line("💤", "7 天没打开", quiet, 2)
+            body.addView(ac)
+        }
         body.add(Seg(ctx, listOf("👥 每个同学", "📋 谁看了"), tab) { tab = it; render() }, 12)
-        val since = { t: String -> try { ((System.currentTimeMillis() - java.time.OffsetDateTime.parse(t).toInstant().toEpochMilli()) / 86_400_000L).toInt() } catch (_: Exception) { -1 } }
         if (tab == 0) {
-            val lazy = st.filter { hwN > 0 && it.optInt("hw_done") < hwN }
-            val quiet = st.filter { val d = since(it.str("last_active")); d < 0 || d >= 7 }
             body.add(Seg(ctx, listOf("全部 ${st.size}", "作业没做完 ${lazy.size}", "7 天没打开 ${quiet.size}"), filter) { filter = it; render() }, 10)
             val list = when (filter) { 1 -> lazy; 2 -> quiet; else -> st }
             if (filter > 0 && list.isNotEmpty()) body.add(ctx.soft("复制这些名字（发到群里提醒）") {
                 (ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("名字", list.joinToString(" ") { "@" + it.str("name").ifEmpty { it.str("account") } })); a.toast("已复制")
             }, 10)
-            val lc = ctx.card(4, 18).apply { margins(t = 10) }
-            if (list.isEmpty()) lc.addView(ctx.text(if (filter == 0) "还没有同学加入" else "没有 🎉", 13.5f, C.sub).apply { pad(14, 14) })
-            list.forEachIndexed { i, s ->
-                if (i > 0) lc.addView(ctx.hline())
-                val r = ctx.row().apply { pad(14, 10) }
-                val nm = s.str("name").ifEmpty { s.str("account") }
-                r.addView(CK.avatar(ctx, nm, 34), LinearLayout.LayoutParams(dp(34), dp(34)))
-                val d = since(s.str("last_active"))
-                r.addView(ctx.col().apply { pad(10, 0)
-                    addView(ctx.text(nm + if (s.str("role") == "monitor") "（班委）" else "", 14.5f, C.text, SEMI, 1))
-                    addView(ctx.text((if (d < 0) "还没打开过" else if (d == 0) "今天打开过" else "$d 天前打开过") + " · 看过 ${s.optInt("seen")} 条", 12f, C.sub, lines = 1)) }, LinearLayout.LayoutParams(0, WRAP, 1f))
-                val p = if (hwN > 0) minOf(s.optInt("hw_done"), hwN) * 100 / hwN else 0
-                r.addView(ctx.text("作业 ${s.optInt("hw_done")}" + (if (hwN > 0) "/$hwN" else ""), 13f, if (p >= 80) C.green else if (p < 40 && hwN > 0) C.red else C.text, BOLD))
-                lc.addView(r)
+            if (st.size > 6) {
+                (qBox.parent as? android.view.ViewGroup)?.removeView(qBox)
+                body.add(qBox, 10)
+                body.add(Seg(ctx, listOf("完成率低的在前", "最近打开", "名字"), sort) { sort = it; listBox?.let { b -> paintList(b) } }, 8)
             }
+            rowsSrc = list; hwNow = hwN
+            val lc = ctx.card(4, 18).apply { margins(t = 10) }
+            listBox = lc; paintList(lc)
             body.addView(lc)
             body.add(ctx.text("「作业」= 最近 ${o.optInt("days")} 天到期的作业里，同学自己勾了完成的项数；「看过」= 打开过作业页或点开过事项。", 12f, C.sub), 10)
         } else {
@@ -121,6 +135,35 @@ class OverviewPage(a: Main) : Page(a) {
                 lc.addView(c)
             }
             body.addView(lc)
+        }
+    }
+
+    private fun paintList(lc: LinearLayout) {
+        lc.removeAllViews()
+        val hwN = hwNow
+        val zh = java.text.Collator.getInstance(java.util.Locale.CHINA)
+        val nm0 = { x: JSONObject -> x.str("name").ifEmpty { x.str("account") } }
+        val pOf = { x: JSONObject -> if (hwN > 0) minOf(x.optInt("hw_done"), hwN) * 100 / hwN else 0 }
+        val dOf = { x: JSONObject -> since(x.str("last_active")).let { if (it < 0) 9999 else it } }
+        val byName = Comparator<JSONObject> { x, y -> zh.compare(nm0(x), nm0(y)) }
+        val list = rowsSrc.filter { q.isEmpty() || nm0(it).lowercase().contains(q) }.sortedWith(when (sort) {
+            1 -> compareBy<JSONObject> { dOf(it) }.then(byName)
+            2 -> byName
+            else -> compareBy<JSONObject> { pOf(it) }.thenByDescending { dOf(it) }.then(byName)
+        })
+        if (list.isEmpty()) lc.addView(ctx.text(if (q.isNotEmpty()) "没有找到「$q」" else if (filter == 0) "还没有同学加入" else "没有 🎉", 13.5f, C.sub).apply { pad(14, 14) })
+        list.forEachIndexed { i, s ->
+            if (i > 0) lc.addView(ctx.hline())
+            val r = ctx.row().apply { pad(14, 10) }
+            val nm = s.str("name").ifEmpty { s.str("account") }
+            r.addView(CK.avatar(ctx, nm, 34), LinearLayout.LayoutParams(dp(34), dp(34)))
+            val d = since(s.str("last_active"))
+            r.addView(ctx.col().apply { pad(10, 0)
+                addView(ctx.text(nm + if (s.str("role") == "monitor") "（班委）" else "", 14.5f, C.text, SEMI, 1))
+                addView(ctx.text((if (d < 0) "还没打开过" else if (d == 0) "今天打开过" else "$d 天前打开过") + " · 看过 ${s.optInt("seen")} 条", 12f, C.sub, lines = 1)) }, LinearLayout.LayoutParams(0, WRAP, 1f))
+            val p = if (hwN > 0) minOf(s.optInt("hw_done"), hwN) * 100 / hwN else 0
+            r.addView(ctx.text("作业 ${s.optInt("hw_done")}" + (if (hwN > 0) "/$hwN" else ""), 13f, if (p >= 80) C.green else if (p < 40 && hwN > 0) C.red else C.text, BOLD))
+            lc.addView(r)
         }
     }
 }

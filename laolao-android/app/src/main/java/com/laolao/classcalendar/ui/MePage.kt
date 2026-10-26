@@ -46,6 +46,11 @@ class MePage(a: Main) : Page(a) {
         pcc.addView(ctx.text(name.ifEmpty { "加载中…" }, 19f, C.text, HEAVY))
         val roleName = when (me?.str("role")) { "teacher" -> "老师"; "admin" -> "管理员"; "developer" -> "开发者"; else -> if (Store.work()) "职场" else "学生" }
         pcc.addView(ctx.text("账号 " + (me?.str("account") ?: "") + " · " + roleName + (me?.str("org_name")?.takeIf { it.isNotBlank() }?.let { " · $it" } ?: ""), 12.5f, C.sub, lines = 2).apply { margins(t = 3) })
+        // 7.2 我的等级、在班里的身份（和小程序 1.18 一样放在账号卡里）
+        val lv = ctx.row().apply { margins(t = 6) }
+        com.laolao.classcalendar.core.Level.me()?.let { l -> lv.addView(LevelUi.chip(ctx, l.level).apply { tap { a.selectTab(2) } }) }
+        Store.role().takeIf { it.isNotEmpty() && it != "学生" }?.let { r -> lv.addView(ctx.chip(if (r == "班委") "🎖 班委" else r, C.accent, C.selected, 12f).apply { pad(8, 2) }, LinearLayout.LayoutParams(WRAP, WRAP).apply { leftMargin = dp(6) }) }
+        if (lv.childCount > 0) pcc.addView(lv)
         pc.addView(pcc, LinearLayout.LayoutParams(0, WRAP, 1f).apply { leftMargin = dp(14) })
         body.addView(pc)
         val pr = ctx.row().apply { margins(t = 10) }

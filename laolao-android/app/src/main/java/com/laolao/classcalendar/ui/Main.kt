@@ -226,6 +226,8 @@ class Main : Activity() {
         Bg.load({ if (Store.me == null || !Store.ready) Store.boot() else Store.refresh() }) { ok, _ ->
             if (ok == false && Store.error.isNotEmpty() && force) toast(Store.error)
             Background.afterRefresh(this)
+            // 7.1 大作业 / 复习排期：过期没勾掉的步骤往后顺延（同步拉完之后再做，免得和网页、小程序重复排）
+            Bg.load({ com.laolao.classcalendar.core.Dplan.replanAll() }) { m, _ -> if (!m.isNullOrEmpty()) toast(m) }
             done?.invoke()
         }
     }

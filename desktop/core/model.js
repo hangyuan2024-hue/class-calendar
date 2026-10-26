@@ -16,6 +16,7 @@
   const nowMs = () => Date.now() + clockOff + shiftMs();          // 北京钟面的时刻
   const now = () => new Date(nowMs());
   const realMs = (t) => t - clockOff - shiftMs();                  // 北京钟面 → 本机真实时刻（定时器、系统通知用）
+  const MINE_KINDS = ["作业", "会议", "活动", "通知"];
   const TYPES = ["作业", "通知", "会议", "活动", "个人", "考核"];
 
   function parseTime(t) {
@@ -43,7 +44,8 @@
     const own = (s.mine || []).filter((r) => r && r.id).map((r) => {
       const p = parseTime(r.event_time);
       // kind = "作业"：自己记的作业（和网页版一样，会出现在作业页）；from：改的是哪条班级事项（「编辑（仅自己）」）
-      return { key: r.id, id: r.id, mine: true, type: r.kind === "作业" ? "作业" : "个人", kind: r.kind === "作业" ? "作业" : "", from: r.from || "", keep: r.keep || "",
+      const k = MINE_KINDS.indexOf(r.kind) >= 0 ? r.kind : "";   // 1.18 我的事项类型：作业 / 会议 / 活动 / 通知（三端一样）
+      return { key: r.id, id: r.id, mine: true, type: k || "个人", kind: k, from: r.from || "", keep: r.keep || "",
         title: r.subject || "（无标题）", summary: "", day: p ? p.day : "", time: p ? p.time : "",
         location: r.location || "", prepare: "", original: "", publish: "", confirm: false, done: !!r.done, hidden: false, local: !!r.local,
         note: r.from && CUT_RE.test(r.note || "") && byKey[r.from] ? fullNote(byKey[r.from]) : r.note || "",

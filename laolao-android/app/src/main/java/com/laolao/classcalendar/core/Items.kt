@@ -29,6 +29,8 @@ class Day(val key: String, val label: String, val sub: String, val items: List<I
 
 object Items {
     const val MINE = "personal_events_v1"
+    /** 7.1 我的事项可以选的类型（和网页、小程序一样）；没选就是「个人」 */
+    val MINE_KINDS = listOf("作业", "会议", "活动", "通知")
     const val MARK = "personal_marks_v1"
     const val DONE_LOG = "done_log_v1"
     val TYPES = listOf("作业", "会议", "活动", "通知")
@@ -56,7 +58,7 @@ object Items {
         val w = When.of(r.str("event_time"))
         val src = cls[r.str("from")]
         val note = if (src != null && CUT_RE.containsMatchIn(r.str("note"))) fullNote(src) else r.str("note")
-        return Item(r.str("id"), r.str("id"), if (r.str("kind") == "作业") "作业" else "个人", r.str("subject").ifBlank { "（没写标题）" }, "",
+        return Item(r.str("id"), r.str("id"), r.str("kind").takeIf { it in MINE_KINDS } ?: "个人", r.str("subject").ifBlank { "（没写标题）" }, "",
             w?.day ?: "", w?.time ?: "", r.str("location"), "", "", note, r.optBoolean("done"), false, true, false, local = r.optBoolean("local"),
             list = MemoCore.listOf(r), rep = MemoCore.repName(r.str("rep")).let { if (it.isEmpty()) "" else r.str("rep") }, reps = r.optInt("reps", 0), pin = r.optBoolean("pin"))
     }
@@ -379,10 +381,10 @@ object Items {
 
     // ---------- 班级事项：发布 / 修改 / 删除（班委、老师） ----------
     /** 返回这条事项的 id（新发布的从服务器拿） */
-    fun publish(id: String?, type: String, title: String, summary: String, day: String, time: String, location: String, prepare: String): String? {
+    fun publish(id: String?, type: String, title: String, summary: String, day: String, time: String, location: String, prepare: String, unsure: Boolean = false): String? {
         val c = Store.cls ?: throw ApiError(0, "还没有班级")
         val rec = jsonOf("msg_type" to type, "subject" to title.trim(), "summary" to summary.trim(), "event_time" to if (day.isEmpty()) "" else day + if (time.isNotEmpty()) " $time" else "",
-            "location" to location.trim(), "prepare" to prepare.trim(), "need_confirm" to day.isEmpty())
+            "location" to location.trim(), "prepare" to prepare.trim(), "need_confirm" to (day.isEmpty() || unsure))
         val h = mapOf("Prefer" to "return=representation")
         if (id != null) {
             val res = Api.rest("class_info?id=eq.$id", "PATCH", rec, h, hedge = true) as? JSONArray

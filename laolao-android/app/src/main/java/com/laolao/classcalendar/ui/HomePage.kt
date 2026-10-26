@@ -154,15 +154,30 @@ class HomePage(a: Main) : Page(a) {
         if (Store.classes.size > 1) tl.addView(ctx.text(" ⇅", 13f, C.sub))
         if (Store.classes.size > 1) tl.tap { switchClass() }
         c.addView(tl)
-        val meta = ctx.row().apply { margins(t = 4) }
-        meta.addView(ctx.chip(Store.role(), C.sub, C.hover, 11.5f).apply { pad(8, 2) })
-        if (cls.str("nickname").isNotEmpty()) meta.addView(ctx.text("「${cls.str("nickname")}」", 12.5f, C.sub, lines = 1))
-        meta.addView(ctx.text("👥 成员", 12.5f, C.sub, SEMI).apply { pad(8, 2); tap { a.push(PeoplePage(a)) } })
-        meta.addView(ctx.text(if (Store.work()) "团队管理" else "班级管理", 12.5f, C.accent, SEMI).apply { pad(6, 2); tap { a.push(if (Store.isTeacher) ClassManagePage(a, cls.str("id")) else ClassPage(a)) } })
-        c.addView(meta)
+        // 7.2 首页的班级条只放「班级是谁」：身份放到「我的」，成员、班级管理在「我的 → 班级与账号」（和小程序 1.18 一样）
+        if (cls.str("nickname").isNotEmpty()) c.addView(ctx.text("「${cls.str("nickname")}」", 12.5f, C.sub, lines = 1).apply { margins(t = 2) })
         if (cls.str("motto").isNotEmpty()) c.addView(ctx.text("“${cls.str("motto")}”", 12.5f, C.sub, lines = 1).apply { margins(t = 4) })
         r.addView(c, LinearLayout.LayoutParams(0, WRAP, 1f).apply { leftMargin = dp(12) })
-        body.addView(r)
+        val wrap = ctx.col().apply { margins(t = 2, b = 16) }
+        r.margins(t = 0, b = 0)
+        wrap.addView(r)
+        // 一眼看到：第几周、今天几节课、几项作业没交
+        val gl = ctx.row().apply { margins(t = 10) }
+        fun g(t: String, hot: Boolean, fn: () -> Unit) = gl.addView(ctx.text(t, 12.5f, if (hot) C.red else C.text, SEMI).apply {
+            bg(if (hot) C.dangerBg else C.card, 12, if (hot) 0 else C.line); pad(10, 5); tap { fn() }
+        }, LinearLayout.LayoutParams(WRAP, WRAP).apply { rightMargin = dp(8) })
+        try {
+            if (com.laolao.classcalendar.core.Courses.has()) {
+                val wk = com.laolao.classcalendar.core.Courses.weekNow()
+                if (wk > 0) g("📅 第 $wk 周", false) { a.push(CalendarPage(a, pushed = true)) }
+                val n = com.laolao.classcalendar.core.Courses.on(T.todayKey()).size
+                g(if (n > 0) "📚 今天 $n 节课" else "📚 今天没课", false) { a.push(CoursePage(a)) }
+            }
+        } catch (_: Exception) {}
+        if (Store.feat("homework")) { val hw = try { Items.pendingHomework().count { !it.dated || it.day >= T.todayKey() } } catch (_: Exception) { 0 }
+            g(if (hw > 0) "📝 $hw 项作业没交" else "📝 作业都交了", hw > 0) { a.selectTab(1) } }
+        if (gl.childCount > 0) wrap.addView(android.widget.HorizontalScrollView(ctx).apply { isHorizontalScrollBarEnabled = false; addView(gl) })
+        body.addView(wrap)
     }
     private fun switchClass() {
         val list = Store.classes

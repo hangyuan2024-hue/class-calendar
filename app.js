@@ -31,6 +31,9 @@ const WEEK = ["日", "一", "二", "三", "四", "五", "六"];
 
 // ===== 本地存储（登录后自动同步到云端，见下面的 Sync） =====
 const LS_MINE = "personal_events_v1";
+// 1.18 我的事项的类型（小程序、安卓同一套）："" 普通 / 作业 / 会议 / 活动 / 通知
+const MINE_KINDS = ["作业", "会议", "活动", "通知"];
+const mineType = (r) => (MINE_KINDS.includes(r.kind) && r.kind !== "作业" ? "我的" + r.kind : "我的");
 const LS_MARK = "personal_marks_v1";
 const LS_CACHE = "class_cache_v1";
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
@@ -374,7 +377,8 @@ function fullNote(src) { return src ? [src.subject && fullText(src) ? fullText(s
 function allItems() {
   const cls = classRecords.map((r) => ({ ...r, summary: fullText(r), _key: "c" + r.id, _mine: false }));
   const byKey = {}; cls.forEach((r) => { byKey[r._key] = r; });
-  const own = mine.map((r) => ({ ...r, msg_type: r.kind === "作业" ? "作业" : "个人", _key: r.id, _mine: true,
+  // 1.18 我的事项可以选类型（作业 / 会议 / 活动 / 通知），和小程序、安卓一样；没选就是「个人」
+  const own = mine.map((r) => ({ ...r, msg_type: MINE_KINDS.includes(r.kind) ? r.kind : "个人", _key: r.id, _mine: true,
     ...(r.from && CUT_RE.test(r.note || "") && byKey[r.from] ? { note: fullNote(byKey[r.from]) } : {}) }));
   const ext = pluginItems();
   const study = typeof studyItems === "function" ? studyItems() : [];   // 课内学习里有截止日期的考核（study.js）
@@ -464,7 +468,7 @@ function itemHtml(r, showDate) {
   if (r.msg_type === "作业" && r._p) when += " 截止";
   const title = r.subject || r.summary || r.msg_type;
   return `<div class="item b-${esc(r.msg_type)}${r._done ? " done" : ""}">
-    <div class="ihead"><span class="atype">${r._mine ? "我的" : esc(r.msg_type)}</span><span class="iwhen">${esc(when)}</span>
+    <div class="ihead"><span class="atype">${r._mine ? mineType(r) : esc(r.msg_type)}</span><span class="iwhen">${esc(when)}</span>
       <span class="spacer"></span><span class="iscope">${r._mine ? (r.local ? "🔒 仅本机" : "仅自己可见") : groupOf(r.group_id) ? "👥 " + esc(groupOf(r.group_id).name) : "班级"}</span></div>
     <div class="title">${pinMark(r)}${esc(title)}${typeof exFilesTag === "function" ? exFilesTag(r) : ""}</div>
     ${r.subject && r.summary ? `<div class="sum">${esc(r.summary)}</div>` : ""}${memoTags(r) ? `<div class="sum">${memoTags(r)}</div>` : ""}
@@ -483,6 +487,8 @@ function memoTags(r) {
   const st = MemoCore.listStat(r), t = [];
   if (st.n) t.push(`<span class="mtag${st.all ? " ok" : ""}">☑ ${st.text}</span>`);
   if (r.rep) t.push(`<span class="mtag">🔁 ${esc(MemoCore.repName(r.rep))}</span>`);
+  // 7.2 全屏备忘录里写的图片、手写、格式：点一下打开
+  if (window.NoteCore && window.NoteUI && NoteCore.hasRich(r)) { const n = NoteCore.imgCount(r); t.push(`<button type="button" class="mtag" data-act="full" data-k="${esc(r._key)}">${n ? "🖼 " + n + " 张图" : "✍ 有格式"}</button>`); }
   return t.join("");
 }
 const pinMark = (r) => (r._mine && r.pin && !r._done ? "📌 " : "");
@@ -500,7 +506,8 @@ function detailHtml(r) {
        <button class="link" data-act="study" data-k="${k}">📖 在课内学习里打开</button>`
     : r._mine
     ? `<button class="link" data-act="done" data-k="${k}">${r._done ? "取消完成" : "✓ 完成"}</button>
-       <button class="link" data-act="edit" data-k="${k}">编辑</button>
+       <button class="link" data-act="edit" data-k="${k}">编辑</button>${window.NoteUI ? `
+       <button class="link" data-act="full" data-k="${k}" title="全屏写：格式、清单、图片、手写">🗒 全屏</button>` : ""}
        <button class="link" data-act="pin" data-k="${k}">${r.pin ? "取消置顶" : "📌 置顶"}</button>
        <button class="link" data-act="del" data-k="${k}">删除</button>${r._p ? `
        <button class="link" data-act="ics" data-k="${k}">📅 加到日历</button>` : ""}`
@@ -798,7 +805,7 @@ function agendaRow(r, forceOpen) {
   const style = r._plugin && r._color ? ` style="--c:${esc(r._color)}"` : "";
   const title = r.subject || r.summary || r.msg_type;
   const sub = r.subject && r.summary ? r.summary : "";
-  const typeName = r._plugin ? r._pluginName : r._mine ? "我的" : r.msg_type;
+  const typeName = r._plugin ? r._pluginName : r._mine ? mineType(r) : r.msg_type;
   const due = r.msg_type === "作业" && r._p && r._p.time;
   const time = r._p ? (r._p.time ? r._p.time + (due ? " 截止" : "") : "全天") : "待定";
   const open = forceOpen === true || agendaOpen.has(r._key);
@@ -2088,7 +2095,7 @@ function askContext() {
     .sort((a, b) => ((a._p ? a._p.day + a._p.time : "9") > (b._p ? b._p.day + b._p.time : "9") ? 1 : -1));
   for (const r of items.slice(0, 120)) {
     const when = r._p ? `${r._p.day}（周${WEEK[new Date(r._p.day + "T00:00:00").getDay()]}）${r._p.time ? " " + r._p.time : ""}` : "时间待定";
-    lines.push(`- [${r._mine ? "我的" : r.msg_type}] ${r.subject || ""}${r.summary ? "：" + r.summary : ""} | ${r.msg_type === "作业" ? "截止 " : ""}${when}${r.location ? " | 地点 " + r.location : ""}${r.prepare ? " | 需准备 " + r.prepare : ""}${r._done ? " | 已完成" : ""}${r.need_confirm ? " | 待核实" : ""}`);
+    lines.push(`- [${r._mine ? mineType(r) : r.msg_type}] ${r.subject || ""}${r.summary ? "：" + r.summary : ""} | ${r.msg_type === "作业" ? "截止 " : ""}${when}${r.location ? " | 地点 " + r.location : ""}${r.prepare ? " | 需准备 " + r.prepare : ""}${r._done ? " | 已完成" : ""}${r.need_confirm ? " | 待核实" : ""}`);
   }
   const crs = ck().askLines();
   const hab = crs + (habits.length ? "\n我的习惯打卡：" + habits.map((h) => `${h.name}（今天${(habitLog[h.id] || {})[todayKey()] ? "已打卡" : "未打卡"}，连续 ${streakOf(h)} 天）`).join("、") : "");
@@ -2192,6 +2199,7 @@ document.addEventListener("click", (e) => {
     if (act === "pin") { mine[i].pin = !mine[i].pin || undefined; if (!mine[i].pin) delete mine[i].pin; save(LS_MINE, mine); renderAll(); }
     if (act === "del" && confirm(mine[i].from ? `删除你改过的「${mine[i].subject || "这条事项"}」，恢复显示班级原来的那条？` : `删除「${mine[i].subject || "这条事项"}」？`)) { if (mine[i].from) setMark(mine[i].from, { hidden: false }); delete quadMap[k]; mine.splice(i, 1); save(LS_MINE, mine); save(LS_QUAD, quadMap); renderAll(); }
     if (act === "edit") openForm(mine[i]);
+    if (act === "full" && window.NoteUI) NoteUI.open(mine[i].id);
   }
 });
 
@@ -2225,8 +2233,11 @@ function openForm(r, opt) {
   $("fRep").value = r && !opt.from ? r.rep || "" : "";
   $("fPin").checked = !!(r && !opt.from && r.pin);
   $("fLocal").checked = !!(r && r.local);
-  $("fKind").value = opt.kind != null ? opt.kind : r ? (opt.from ? (r.msg_type === "作业" ? "作业" : "") : (r.kind || "")) : (currentView() === "homework" ? "作业" : "");
+  $("fKind").value = opt.kind != null ? opt.kind : r ? (opt.from ? (MINE_KINDS.includes(r.msg_type) ? r.msg_type : "") : (MINE_KINDS.includes(r.kind) ? r.kind : "")) : (currentView() === "homework" ? "作业" : "");
   if (window.exFormFiles) exFormFiles("f", r && !opt.from ? r.id : null);
+  // 7.2 全屏备忘录：编辑班级事项的副本时不给切；有格式 / 图片的提醒一下在这里改文字会按新文字重排
+  if ($("fFull")) $("fFull").classList.toggle("hidden", !window.NoteUI || !!opt.from);
+  if ($("fRichTip")) $("fRichTip").classList.toggle("hidden", !(r && !opt.from && window.NoteCore && NoteCore.hasRich(r)));
   $("modal").classList.add("open");
   setTimeout(() => $("fTitle").focus(), 50);
 }
@@ -2262,6 +2273,15 @@ $("form").onsubmit = (e) => {
   if (window.exFormUpload) exFormUpload("f", null, rec.id, rec.local);
 };
 $("cancelBtn").onclick = () => $("modal").classList.remove("open");
+// 7.2 「记一件事」↔ 全屏备忘录：写了的先存好，再换成全屏
+if ($("fFull")) $("fFull").onclick = () => {
+  if (!window.NoteUI) return;
+  let id = $("fId").value;
+  const has = $("fTitle").value.trim() || $("fNote").value.trim() || $("fList").value.trim();
+  if (!id && has) { id = "p" + Date.now(); $("fId").value = id; }
+  if (id && has) $("form").requestSubmit(); else $("modal").classList.remove("open");
+  if (id && mine.some((x) => x.id === id)) NoteUI.open(id); else NoteUI.open(null, { kind: $("fKind").value });
+};
 $("modal").onclick = (e) => { if (e.target === $("modal")) $("modal").classList.remove("open"); };
 
 // ===== 备份 / 恢复 =====
@@ -2564,7 +2584,7 @@ function fabItems(view) {
   const ing = ingestAllowed() ? [["ingest", "✨", "AI 整理群消息"]] : [];
   if (view === "calendar") {
     const d = selectedKey === keyOf(ccDate()) ? "今天" : mdOf(selectedKey);
-    if (mineOn) list.push(["mineDay", "✏️", `在${d}记一件事`], ["memo", "📝", "导入手机备忘录"]);
+    if (mineOn) list.push(["mineDay", "✏️", `在${d}记一件事`], ["note", "🗒", "写备忘录"], ["memo", "📝", "导入手机备忘录"]);
     list.push(...pub(`发布到${d}`), ...ing);
   } else if (view === "homework") {
     if (mineOn) list.push(["mineHw", "✏️", "记一项自己的作业"]);
@@ -2586,7 +2606,7 @@ function fabItems(view) {
   } else if (view === "farm") {
     if (mineOn) list.push(["mine", "✏️", "记一件事（完成就有养料）"]);
   } else {
-    if (mineOn) list.push(["mine", "✏️", "记一件事"], ["memo", "📝", "导入手机备忘录"]);
+    if (mineOn) list.push(["mine", "✏️", "记一件事"], ["note", "🗒", "写备忘录"], ["memo", "📝", "导入手机备忘录"]);
     list.push(...ing, ...pub("发布班级事项"));
     if (o.habits) list.push(["habit", "🔥", "今日打卡"]);
     if (o.plan) list.push(["pomo", "🍅", "开始专注"]);
@@ -2596,6 +2616,7 @@ function fabItems(view) {
 function fabRun(k) {
   if (k === "mine") openForm(null);
   if (k === "memo" && window.openMemo) window.openMemo();
+  if (k === "note" && window.NoteUI) NoteUI.open(null);
   if (k === "mineDay") openForm(null, { day: selectedKey });
   if (k === "mineHw") openForm(null, { title: "", hint: "比如：高数习题 3.2" });
   if (k === "quad") openForm(null, { quad: "1" });
@@ -3731,6 +3752,7 @@ $("miniCal").onclick = (e) => { const b = e.target.closest("button[data-day]"); 
 window.addEventListener("scroll", () => document.querySelectorAll(".vhead").forEach((h) => h.classList.toggle("stuck", window.scrollY > 8)), { passive: true });
 
 $("qMine").onclick = () => { if (feat("mine")) openForm(null); };
+if ($("qNote")) $("qNote").onclick = () => { if (feat("mine") && window.NoteUI) NoteUI.list(); };
 
 // ===== 成长：完成记录、习惯打卡、进度环、趋势图、完成鼓励（都只存在这台设备上） =====
 const LS_DONE_LOG = "done_log_v1", LS_HABITS = "habits_v1", LS_HABIT_LOG = "habit_log_v1", LS_FUN = "fun_opts_v1";

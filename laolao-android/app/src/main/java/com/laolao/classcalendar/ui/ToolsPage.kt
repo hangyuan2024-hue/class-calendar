@@ -28,10 +28,16 @@ class ToolsPage(a: Main) : Page(a) {
         if (Store.feat("courses")) learn += Tool("📚", "课程表", if (Courses.has()) "${Courses.list().size} 门课" + (if (wk > 0) " · 第 $wk 周" else "") else "拍一张课表截图就能导入") { a.push(CoursePage(a)) }
         learn += Tool("📅", "日历", "月历看所有安排") { a.push(CalendarPage(a, pushed = true)) }
         if (Store.feat("plan")) learn += Tool("🎯", "规划与专注", "今天 ${com.laolao.classcalendar.core.Plan.today()} 个番茄 · 四象限、PDCA、SMART") { a.push(PlanPage(a)) }
+        // 7.1 大作业倒排拆解、期末复习排期（和网页、小程序一样；排出来的是普通的我的事项，没做完自动顺延）
+        val dps = com.laolao.classcalendar.core.Dplan.projects()
+        learn += Tool("🪜", "大作业拆解", if (dps.isNotEmpty()) "${dps.size} 个进行中 · 没做完自动顺延" else "拆成几步，倒排进截止前的每一天") { a.push(DplanPage(a, "project")) }
+        learn += Tool("🎓", "期末复习排期", com.laolao.classcalendar.core.Dplan.currentReview()?.let { "复习计划进行中" } ?: "填考试日期，排出每天复习什么") { a.push(DplanPage(a, "review")) }
         learn += Tool("⏳", "考试倒计时", exams.firstOrNull()?.let { "${it.optString("subject")} · 还剩 ${T.dayDiff(it.optString("date"))} 天" } ?: "考试科目、日期，自动倒计时") { a.push(CountdownPage(a)) }
         learn += Tool("📕", "错题本", (try { com.laolao.classcalendar.core.ErrBook.notes().count { !it.optBoolean("mastered") } } catch (e: Exception) { 0 }).let { if (it > 0) "$it 道待复习" else "按学科整理错题，拍照收录" }) { a.push(ErrBookPage(a)) }
         learn += Tool("📖", "单词搭子", "七本词书，间隔复习、小测") { a.push(WordsPage(a)) }
         learn += Tool("🐸", "时间管理大师", (try { com.laolao.classcalendar.core.TimeMaster.frogs(T.todayKey(), false).filter { it.optString("title").isNotEmpty() } } catch (e: Exception) { emptyList() }).let { f -> if (f.isEmpty()) "今天的三只青蛙还没写" else "今天的青蛙 ${f.count { it.optBoolean("done") }}/${f.size} 只" }) { a.push(TimeMasterPage(a)) }
+        // 7.2 全屏备忘录（格式、清单、图片、手写；和小程序、网页同一份）
+        learn += Tool("🗒", "备忘录", com.laolao.classcalendar.core.NoteStore.memos().size.let { if (it > 0) "$it 条 · 格式、清单、图片、手写" else "格式、清单、图片、手写，三端同步" }) { a.push(NoteListPage(a)) }
         learn += Tool("📋", "导入备忘录 / 作业", "一段文字拆成一条条待办") { a.push(MemoPage(a, "")) }
         learn += Tool("📥", "群消息自动收集", com.laolao.classcalendar.core.Collect.count().let { n -> if (n > 0) "$n 条待确认" else if (com.laolao.classcalendar.core.Collect.on(a)) "开着 · 群里有作业、通知会收进来" else "微信 / QQ 群的作业通知自动收进来，不用粘贴" }) { a.push(CollectPage(a)) }
         val cls = mutableListOf<Tool>()
