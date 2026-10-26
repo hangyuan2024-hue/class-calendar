@@ -3753,6 +3753,7 @@ window.addEventListener("scroll", () => document.querySelectorAll(".vhead").forE
 
 $("qMine").onclick = () => { if (feat("mine")) openForm(null); };
 if ($("qNote")) $("qNote").onclick = () => { if (feat("mine") && window.NoteUI) NoteUI.list(); };
+if ($("ntEntry")) $("ntEntry").onclick = () => { if (!window.NoteUI) return; if (!feat("mine")) { showBanner("「我的事项」暂时用不了"); setTimeout(() => showBanner(""), 3000); return; } NoteUI.list(); };
 
 // ===== 成长：完成记录、习惯打卡、进度环、趋势图、完成鼓励（都只存在这台设备上） =====
 const LS_DONE_LOG = "done_log_v1", LS_HABITS = "habits_v1", LS_HABIT_LOG = "habit_log_v1", LS_FUN = "fun_opts_v1";
