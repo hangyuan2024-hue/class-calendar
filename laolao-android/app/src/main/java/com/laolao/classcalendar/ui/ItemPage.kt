@@ -76,7 +76,7 @@ class ItemPage(a: Main, private val key: String) : Page(a) {
             // 7.2 全屏备忘录：格式、清单、图片、手写
             val nr = Items.mineRecord(r.id)
             val ni = com.laolao.classcalendar.core.NoteStore.imgCount(nr)
-            ops.addView(ctx.cell("🗒", "全屏备忘录", if (ni > 0) "有 $ni 张图片 / 手写" else if (com.laolao.classcalendar.core.NoteStore.hasRich(nr)) "有格式，在这里看" else "加格式、清单、图片、手写") { a.push(NotePage(a, r.id)) })
+            ops.addView(ctx.cell("📒", "全屏备忘录", if (ni > 0) "有 $ni 张图片 / 手写" else if (com.laolao.classcalendar.core.NoteStore.hasRich(nr)) "有格式，在这里看" else "加格式、清单、图片、手写") { a.push(NotePage(a, r.id)) })
             ops.addView(ctx.cell("📌", if (r.pin) "取消置顶" else "置顶", "一直显示在首页最上面") { a.toast(if (Items.togglePin(r.id)) "已置顶" else "已取消置顶"); render() })
             ops.addView(ctx.cell("🗑", "删除") { Dialogs.confirm(ctx, "删除「${r.title}」？", "", "删除", danger = true) { Items.deleteMine(r.id); a.toast("已删除"); close() } })
         } else {

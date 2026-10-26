@@ -507,7 +507,7 @@ function detailHtml(r) {
     : r._mine
     ? `<button class="link" data-act="done" data-k="${k}">${r._done ? "取消完成" : "✓ 完成"}</button>
        <button class="link" data-act="edit" data-k="${k}">编辑</button>${window.NoteUI ? `
-       <button class="link" data-act="full" data-k="${k}" title="全屏写：格式、清单、图片、手写">🗒 全屏</button>` : ""}
+       <button class="link" data-act="full" data-k="${k}" title="全屏写：格式、清单、图片、手写">📒 全屏</button>` : ""}
        <button class="link" data-act="pin" data-k="${k}">${r.pin ? "取消置顶" : "📌 置顶"}</button>
        <button class="link" data-act="del" data-k="${k}">删除</button>${r._p ? `
        <button class="link" data-act="ics" data-k="${k}">📅 加到日历</button>` : ""}`
@@ -900,11 +900,13 @@ function renderAgenda() {
   const tools = doneCount ? `<div class="atools"><label class="hd-sw"><input type="checkbox" data-hidedone ${hideDone ? "checked" : ""}> 隐藏已完成（${doneCount}）</label>
     ${doneMine ? `<button class="small" data-cleardone>🗑 清理我已完成的 ${doneMine} 项</button>` : ""}</div>` : "";
   const pins = allItems().filter((r) => r._mine && r.pin && !r._done);
+  // 7.2 没定日期的事、备忘录：紧跟在「今天」后面（以前放在两周之后，翻到底才看得到）；做完的不占位置，去备忘录里看
+  const undOpen = undatedMine.filter((r) => !r._done && !r.pin).sort((a, b) => (+b.upd || 0) - (+a.upd || 0)), undDone = undatedMine.filter((r) => r._done).length;
+  const undatedBlock = undOpen.length || undDone ? `<div class="aday"><div class="aday-h"><b>待办 · 备忘</b><span>没定日期的事 · ${undOpen.length} 项${window.NoteUI ? ` · <a href="#" data-notelist>全部备忘录 ›</a>` : ""}</span></div>${undOpen.length ? `<div class="acard surface">${undOpen.map(agendaRow).join("")}</div>` : `<div class="aempty surface">都做完了${undDone ? `（${undDone} 条已完成）` : ""}</div>`}</div>` : "";
   box.innerHTML = `${tools}
     ${pins.length ? `<div class="aday apin"><div class="aday-h"><b>📌 置顶</b><span>${pins.length} 项</span></div><div class="acard surface">${pins.map(agendaRow).join("")}</div></div>` : ""}
     ${overdue.length ? `<div class="aday"><div class="aday-h overdue"><b>已过期</b><span>还没标记完成的作业</span></div><div class="acard surface">${overdue.map(agendaRow).join("")}</div></div>` : ""}
-    ${sections.join("")}
-    ${undatedMine.length ? `<div class="aday"><div class="aday-h"><b>待办</b><span>没定日期的事 · ${undatedMine.filter((r) => !r._done).length} 项</span></div><div class="acard surface">${undatedMine.map(agendaRow).join("")}</div></div>` : ""}
+    ${sections[0] || ""}${undatedBlock}${sections.slice(1).join("")}
     ${undatedCls.length ? `<div class="aday"><div class="aday-h"><b>时间待定</b><span>请去群里核实</span></div><div class="acard surface">${undatedCls.map(agendaRow).join("")}</div></div>` : ""}
     <div class="afoot">只显示今天起两周内的安排，更早或更晚的去「日历」里看</div>`;
   agendaFocus();
@@ -2584,7 +2586,7 @@ function fabItems(view) {
   const ing = ingestAllowed() ? [["ingest", "✨", "AI 整理群消息"]] : [];
   if (view === "calendar") {
     const d = selectedKey === keyOf(ccDate()) ? "今天" : mdOf(selectedKey);
-    if (mineOn) list.push(["mineDay", "✏️", `在${d}记一件事`], ["note", "🗒", "写备忘录"], ["memo", "📝", "导入手机备忘录"]);
+    if (mineOn) list.push(["mineDay", "✏️", `在${d}记一件事`], ["note", "📒", "写备忘录"], ["memo", "📝", "导入手机备忘录"]);
     list.push(...pub(`发布到${d}`), ...ing);
   } else if (view === "homework") {
     if (mineOn) list.push(["mineHw", "✏️", "记一项自己的作业"]);
@@ -2606,7 +2608,7 @@ function fabItems(view) {
   } else if (view === "farm") {
     if (mineOn) list.push(["mine", "✏️", "记一件事（完成就有养料）"]);
   } else {
-    if (mineOn) list.push(["mine", "✏️", "记一件事"], ["note", "🗒", "写备忘录"], ["memo", "📝", "导入手机备忘录"]);
+    if (mineOn) list.push(["mine", "✏️", "记一件事"], ["note", "📒", "写备忘录"], ["memo", "📝", "导入手机备忘录"]);
     list.push(...ing, ...pub("发布班级事项"));
     if (o.habits) list.push(["habit", "🔥", "今日打卡"]);
     if (o.plan) list.push(["pomo", "🍅", "开始专注"]);
@@ -3753,6 +3755,7 @@ window.addEventListener("scroll", () => document.querySelectorAll(".vhead").forE
 
 $("qMine").onclick = () => { if (feat("mine")) openForm(null); };
 if ($("qNote")) $("qNote").onclick = () => { if (feat("mine") && window.NoteUI) NoteUI.list(); };
+document.addEventListener("click", (e) => { const a = e.target.closest("[data-notelist]"); if (a && window.NoteUI) { e.preventDefault(); NoteUI.list(); } });
 if ($("ntEntry")) $("ntEntry").onclick = () => { if (!window.NoteUI) return; if (!feat("mine")) { showBanner("「我的事项」暂时用不了"); setTimeout(() => showBanner(""), 3000); return; } NoteUI.list(); };
 
 // ===== 成长：完成记录、习惯打卡、进度环、趋势图、完成鼓励（都只存在这台设备上） =====

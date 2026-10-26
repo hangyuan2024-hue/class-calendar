@@ -71,7 +71,7 @@ class NoteListPage(a: Main) : Page(a) {
         val all = NoteStore.memos()
         val rows = all.filter { r -> q.isEmpty() || (r.str("subject") + "\n" + r.str("note") + "\n" + MC.listOf(r).joinToString("\n") { it.t }).lowercase().contains(q) }
             .sortedWith(compareByDescending<JSONObject> { it.optBoolean("pin") }.thenByDescending { NoteStore.madeAt(it) })
-        if (rows.isEmpty()) { listBox.addView(ctx.empty("🗒", if (q.isNotEmpty()) "没有找到" else "还没有备忘", if (q.isEmpty()) "点右上角「＋ 新备忘」写一条：格式、清单、图片、手写都可以" else "")); return }
+        if (rows.isEmpty()) { listBox.addView(ctx.empty("📒", if (q.isNotEmpty()) "没有找到" else "还没有备忘", if (q.isEmpty()) "点右上角「＋ 新备忘」写一条：格式、清单、图片、手写都可以" else "")); return }
         val c = ctx.card(4, 18)
         rows.forEachIndexed { i, r ->
             if (i > 0) c.addView(ctx.hline())

@@ -109,7 +109,7 @@ class EditPage(a: Main, private val key: String?, private val homework: Boolean 
                 // 7.2 换成全屏备忘录（格式、清单、图片、手写）；有格式的提醒一下在这里改文字会按新文字重排
                 val nr = editingId?.let { Items.mineRecord(it) }
                 if (nr != null && com.laolao.classcalendar.core.NoteStore.hasRich(nr)) b.addView(ctx.text("这条在全屏备忘录里有格式或图片：在这里改备注 / 清单的文字，格式会按新文字重排（图片不会丢）", 12.5f, C.sub).apply { pad(2, 0, 2, 6) })
-                if (copyOf == null) b.addView(ctx.text("🗒 换成全屏备忘录：格式、图片、手写 ›", 13.5f, C.accent, SEMI).apply { pad(2, 2, 2, 8); tap { toNote() } })
+                if (copyOf == null) b.addView(ctx.text("📒 换成全屏备忘录：格式、图片、手写 ›", 13.5f, C.accent, SEMI).apply { pad(2, 2, 2, 8); tap { toNote() } })
                 // 6.2 改成我自己的版本：带上完整内容，不再只抄被截断的摘要
                 note = ctx.input("想写多少写多少（最多 5000 字）", key?.let { Items.mineRecord(src?.id ?: "")?.str("note") } ?: (if (copyOf != null) src?.full ?: "" else ""), multi = true).apply {
                     filters = arrayOf<android.text.InputFilter>(android.text.InputFilter.LengthFilter(5000)) }

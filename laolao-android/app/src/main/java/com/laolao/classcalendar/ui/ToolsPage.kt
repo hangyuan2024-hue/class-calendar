@@ -37,7 +37,7 @@ class ToolsPage(a: Main) : Page(a) {
         learn += Tool("📖", "单词搭子", "七本词书，间隔复习、小测") { a.push(WordsPage(a)) }
         learn += Tool("🐸", "时间管理大师", (try { com.laolao.classcalendar.core.TimeMaster.frogs(T.todayKey(), false).filter { it.optString("title").isNotEmpty() } } catch (e: Exception) { emptyList() }).let { f -> if (f.isEmpty()) "今天的三只青蛙还没写" else "今天的青蛙 ${f.count { it.optBoolean("done") }}/${f.size} 只" }) { a.push(TimeMasterPage(a)) }
         // 7.2 全屏备忘录（格式、清单、图片、手写；和小程序、网页同一份）
-        learn += Tool("🗒", "备忘录", com.laolao.classcalendar.core.NoteStore.memos().size.let { if (it > 0) "$it 条 · 格式、清单、图片、手写" else "格式、清单、图片、手写，三端同步" }) { a.push(NoteListPage(a)) }
+        learn += Tool("📒", "备忘录", com.laolao.classcalendar.core.NoteStore.memos().size.let { if (it > 0) "$it 条 · 格式、清单、图片、手写" else "格式、清单、图片、手写，三端同步" }) { a.push(NoteListPage(a)) }
         learn += Tool("📋", "导入备忘录 / 作业", "一段文字拆成一条条待办") { a.push(MemoPage(a, "")) }
         learn += Tool("📥", "群消息自动收集", com.laolao.classcalendar.core.Collect.count().let { n -> if (n > 0) "$n 条待确认" else if (com.laolao.classcalendar.core.Collect.on(a)) "开着 · 群里有作业、通知会收进来" else "微信 / QQ 群的作业通知自动收进来，不用粘贴" }) { a.push(CollectPage(a)) }
         val cls = mutableListOf<Tool>()

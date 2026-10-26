@@ -42,22 +42,34 @@
 
   // ---------- 样式 ----------
   const css = `
-  .nt-ov{position:fixed;inset:0;z-index:2000;background:var(--card,#fff);color:var(--text,#0f1419);display:none;flex-direction:column}
+  .nt-ov{position:fixed;inset:0;z-index:2000;background:var(--bg2,#f6f8fa);color:var(--text,#0f1419);display:none;flex-direction:column}
   .nt-ov.open{display:flex}
-  .nt-top{display:flex;align-items:center;gap:8px;padding:10px max(16px,calc(50% - 400px)) 6px;border-bottom:1px solid var(--line,#eee)}
+  .nt-top{display:flex;align-items:center;gap:8px;padding:10px 20px;background:var(--card,#fff);border-bottom:1px solid var(--line,#eee);flex:none}
   .nt-top .sp{flex:1}
+  .nt-h{font-size:18px;font-weight:800;margin:0 4px 0 6px;white-space:nowrap}
+  .nt-main{flex:1;display:flex;min-height:0}
+  .nt-side{width:340px;flex:none;display:flex;flex-direction:column;min-height:0;background:var(--card,#fff);border-right:1px solid var(--line,#eee)}
+  .nt-side .nt-q{margin:14px 14px 6px;width:calc(100% - 28px)}
+  .nt-cnt{font-size:12px;color:var(--sub,#778);padding:0 18px 6px}
+  .nt-rows{flex:1;overflow:auto;padding:0 10px 30px}
+  .nt-grp{font-size:12px;font-weight:700;color:var(--sub,#778);padding:12px 8px 6px}
+  .nt-pane{flex:1;min-width:0;overflow:auto;position:relative}
+  .nt-blank{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--sub,#778);font-size:14px;text-align:center;padding:24px}
+  .nt-blank .big{font-size:56px;line-height:1}
+  .nt-blank b{font-size:18px;color:var(--text,#111)}
+  .nt-ov.editing .nt-blank{display:none}
+  .nt-ov:not(.editing) .nt-wrap{display:none}
   .nt-btn{border:0;background:var(--muted-bg,#f5f7f9);color:inherit;border-radius:999px;padding:6px 12px;font-size:14px;cursor:pointer;white-space:nowrap}
   .nt-btn:hover{background:var(--hover,#eef)}
   .nt-btn.pri{background:var(--accent,#1d9bf0);color:#fff}
   .nt-btn.dang{color:var(--red,#e5484d)}
   .nt-saved{font-size:12px;color:var(--sub,#667)}
-  .nt-ov.lst .nt-top .nt-saved{font-size:17px;font-weight:700;color:inherit}
-  .nt-wrap{flex:1;overflow:auto;padding:0 max(16px,calc(50% - 400px)) 40vh}
-  .nt-title{width:100%;border:0;outline:0;background:transparent;color:inherit;font-size:24px;font-weight:700;padding:16px 0 4px}
+  .nt-wrap{max-width:860px;margin:28px auto 40vh;background:var(--card,#fff);border:1px solid var(--line,#eee);border-radius:22px;box-shadow:0 18px 50px -28px rgba(15,30,60,.35);padding:10px 44px 48px;box-sizing:border-box;width:calc(100% - 56px);min-height:calc(100% - 56px)}
+  .nt-title{width:100%;border:0;outline:0;background:transparent;color:inherit;font-size:28px;font-weight:800;padding:22px 0 6px}
   .nt-meta{font-size:12px;color:var(--sub,#667);display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding-bottom:8px}
   .nt-chip{border:1px solid var(--line,#e3e3e3);background:transparent;color:inherit;border-radius:999px;padding:2px 10px;font-size:12px;cursor:pointer}
   .nt-chip.on{border-color:var(--accent,#1d9bf0);color:var(--accent,#1d9bf0)}
-  .nt-bar{position:sticky;top:0;z-index:2;background:var(--card,#fff);display:flex;gap:2px;flex-wrap:wrap;align-items:center;padding:6px 0;border-bottom:1px solid var(--line,#eee)}
+  .nt-bar{position:sticky;top:0;z-index:2;background:var(--card,#fff);display:flex;gap:2px;flex-wrap:wrap;align-items:center;padding:8px 0;border-bottom:1px solid var(--line,#eee);margin:0 -8px;padding-left:8px;padding-right:8px}
   .nt-bar button{border:0;background:transparent;color:inherit;min-width:34px;height:34px;border-radius:8px;font-size:15px;cursor:pointer;padding:0 6px;position:relative}
   .nt-bar button:hover{background:var(--hover,#eef)}
   .nt-bar button.on{background:var(--selected,#e8f5fd);color:var(--accent,#1d9bf0)}
@@ -66,7 +78,7 @@
   .nt-pop{display:none;gap:6px;flex-wrap:wrap;align-items:center;padding:8px 0;font-size:13px;border-bottom:1px solid var(--line,#eee)}
   .nt-pop.open{display:flex}
   .nt-sw{width:26px;height:26px;border-radius:50%;border:2px solid var(--line,#ddd);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:11px;background:var(--card,#fff);color:inherit}
-  .nt-ed{outline:0;min-height:50vh;font-size:16px;line-height:1.75;padding:12px 0;word-break:break-word}
+  .nt-ed{outline:0;min-height:50vh;font-size:16.5px;line-height:1.8;padding:16px 0;word-break:break-word}
   .nt-ed:focus,.nt-ed:focus-visible,.nt-title:focus,.nt-title:focus-visible{outline:0!important;box-shadow:none!important}
   .nt-ed>div{position:relative;min-height:1.75em}
   .nt-ed>div[data-h="1"]{font-size:1.5em;font-weight:700;line-height:1.5}
@@ -86,13 +98,18 @@
   .nt-ed>div[data-hr] hr{border:0;border-top:1px solid var(--line,#ddd);margin:0}
   .nt-ed img.nt-img{max-width:100%;border-radius:10px;display:block;margin:6px 0;cursor:default}
   .nt-ed img.nt-img.miss{min-height:60px;width:100%;background:var(--muted-bg,#f3f3f3);font-size:13px;color:var(--sub,#778)}
-  .nt-list{padding:8px max(16px,calc(50% - 400px)) 80px;overflow:auto;flex:1}
-  .nt-q{width:100%;box-sizing:border-box;border:1px solid var(--line,#ddd);border-radius:999px;padding:9px 14px;font-size:15px;background:var(--muted-bg,#f7f9f9);color:inherit;outline:0;margin:6px 0 10px}
-  .nt-row{display:block;width:100%;text-align:left;border:0;background:transparent;color:inherit;padding:12px 4px;border-bottom:1px solid var(--line,#eee);cursor:pointer}
-  .nt-row:hover{background:var(--hover,#f7f9f9)}
-  .nt-row b{display:block;font-size:15px;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .nt-row .s{font-size:13px;color:var(--sub,#667);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .nt-row .m{font-size:12px;color:var(--sub,#889);margin-top:3px}
+  .nt-q{width:100%;box-sizing:border-box;border:1px solid var(--line,#ddd);border-radius:12px;padding:9px 14px 9px 34px;font-size:14.5px;background:var(--muted-bg,#f7f9f9) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b98a5' stroke-width='2.4' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-4-4'/%3E%3C/svg%3E") 12px center/15px no-repeat;color:inherit;outline:0}
+  .nt-q:focus{border-color:var(--accent,#1d9bf0)}
+  .nt-row{display:block;width:100%;text-align:left;border:0;background:transparent;color:inherit;padding:11px 12px;border-radius:14px;cursor:pointer;margin-bottom:2px;position:relative}
+  .nt-row:hover{background:var(--hover,#f4f6f8)}
+  .nt-row.on{background:var(--selected,#e8f5fd)}
+  .nt-row.on::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:3px;border-radius:3px;background:var(--accent,#1d9bf0)}
+  .nt-row b{display:block;font-size:15px;margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .nt-row.dn b{color:var(--sub,#778);text-decoration:line-through;text-decoration-color:rgba(0,0,0,.25)}
+  .nt-row .s{font-size:13px;color:var(--sub,#667);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.45}
+  .nt-row .m{font-size:11.5px;color:var(--sub,#889);margin-top:5px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .nt-row .kd{font-weight:700;border-radius:6px;padding:0 6px;background:var(--muted-bg,#f0f2f4)}
+  .nt-row .kd.k1{color:var(--red,#e5484d)}.nt-row .kd.k2{color:var(--accent,#1d9bf0)}.nt-row .kd.k3{color:var(--green,#2f9e44)}.nt-row .kd.k4{color:var(--purple,#8e4ec6)}
   .nt-empty{color:var(--sub,#778);text-align:center;padding:48px 0;font-size:14px}
   .nt-draw{position:fixed;inset:0;z-index:2100;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center}
   .nt-draw.open{display:flex}
@@ -103,7 +120,13 @@
   .nt-cv{position:relative;border-radius:10px;overflow:hidden;border:1px solid var(--line,#ddd);touch-action:none;background:${PAPER_BG}}
   .nt-cv canvas{display:block;width:100%;touch-action:none}
   .nt-cv canvas.bg{position:absolute;inset:0;pointer-events:none}
-  @media (max-width:640px){.nt-title{font-size:20px}.nt-bar{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.nt-bar::-webkit-scrollbar{display:none}.nt-bar button{min-width:34px;height:34px;font-size:14px;flex:none}.nt-bar .sep{flex:none}}
+  @media (max-width:899px){
+    .nt-side{width:100%;border:0}.nt-ov.editing .nt-side{display:none}.nt-ov:not(.editing) .nt-pane{display:none}
+    .nt-pane{background:var(--card,#fff)}
+    .nt-wrap{width:auto;max-width:none;margin:0 0 40vh;border:0;border-radius:0;box-shadow:none;padding:0 16px;min-height:0}
+    .nt-h{display:none}.nt-ov:not(.editing) .nt-h{display:inline}.nt-top{padding:10px 12px}
+  }
+  @media (max-width:640px){.nt-title{font-size:21px}.nt-bar{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.nt-bar::-webkit-scrollbar{display:none}.nt-bar button{min-width:34px;height:34px;font-size:14px;flex:none}.nt-bar .sep{flex:none}}
   `;
 
   let ov, ed, titleEl, metaEl, savedEl, barEl, popEl, listEl, qEl, drawEl;
@@ -116,12 +139,15 @@
     ov.innerHTML = `
       <div class="nt-top">
         <button class="nt-btn" data-n="back">‹ 返回</button>
-        <span class="nt-saved"></span><span class="sp"></span>
+        <span class="nt-h">📒 备忘录</span><span class="nt-saved"></span><span class="sp"></span>
         <button class="nt-btn" data-n="quick" title="换成「记一件事」的表单：改日期、提醒、重复、地点">⚡ 快速记</button>
         <button class="nt-btn dang" data-n="del" title="删除这条备忘">删除</button>
         <button class="nt-btn pri" data-n="new">＋ 新备忘</button>
       </div>
-      <div class="nt-list"><input class="nt-q" placeholder="搜索备忘录" type="search"><div class="nt-rows"></div></div>
+      <div class="nt-main">
+      <aside class="nt-side"><input class="nt-q" placeholder="搜索标题、内容、清单" type="search"><div class="nt-cnt"></div><div class="nt-rows"></div></aside>
+      <section class="nt-pane">
+      <div class="nt-blank"><div class="big">📒</div><b>选一条备忘，或者新写一条</b><div>格式、清单、图片、手写都可以；网页、小程序、安卓 App 同一份</div><button class="nt-btn pri" data-n2="new">＋ 新备忘</button></div>
       <div class="nt-wrap">
         <input class="nt-title" maxlength="60" placeholder="标题（不写就用第一行）">
         <div class="nt-meta"></div>
@@ -141,17 +167,20 @@
         <div class="nt-pop"></div>
         <div class="nt-ed" contenteditable="true" spellcheck="false"></div>
       </div>
+      </section>
+      </div>
       <input type="file" accept="image/*" multiple hidden class="nt-file">`;
     document.body.appendChild(ov);
     ed = ov.querySelector(".nt-ed"); titleEl = ov.querySelector(".nt-title"); metaEl = ov.querySelector(".nt-meta");
     savedEl = ov.querySelector(".nt-saved"); barEl = ov.querySelector(".nt-bar"); popEl = ov.querySelector(".nt-pop");
-    listEl = ov.querySelector(".nt-list"); qEl = ov.querySelector(".nt-q");
+    listEl = ov.querySelector(".nt-side"); qEl = ov.querySelector(".nt-q");
+    ov.querySelector(".nt-blank").onclick = (e) => { if (e.target.closest("[data-n2]")) open(null); };
     try { document.execCommand("defaultParagraphSeparator", false, "div"); } catch (e) {}
 
     ov.querySelector(".nt-top").onclick = (e) => {
       const b = e.target.closest("[data-n]"); if (!b) return;
       const n = b.dataset.n;
-      if (n === "back") { if (S.mode === "edit" && S.from === "list") { flush(); showList(); } else close(); }
+      if (n === "back") { if (S.mode === "edit" && S.from === "list" && !wide()) { flush(); showList(); } else close(); }
       if (n === "new") open(null);
       if (n === "del") delNote();
       if (n === "quick") toQuick();
@@ -200,25 +229,33 @@
     build(); flushIfEdit();
     S.mode = "list"; S.id = ""; showList();
   }
+  const wide = () => matchMedia("(min-width: 900px)").matches;
   function showList() {
     S.mode = "list"; S.id = "";
-    ov.classList.add("open", "lst"); document.body.style.overflow = "hidden";
-    ov.querySelector(".nt-wrap").style.display = "none"; listEl.style.display = "";
+    ov.classList.add("open"); ov.classList.remove("editing"); document.body.style.overflow = "hidden";
     ov.querySelector('[data-n="del"]').style.display = "none"; ov.querySelector('[data-n="quick"]').style.display = "none";
-    ov.querySelector('[data-n="new"]').style.display = ""; savedEl.textContent = "备忘录";
+    savedEl.textContent = "";
     renderList();
   }
   function renderList() {
     const q = qEl.value.trim().toLowerCase();
     const all = mineArr().filter((r) => r && !r.dplan);
     const hit = (r) => !q || (String(r.subject || "") + "\n" + String(r.note || "") + "\n" + MC.listOf(r).map((x) => x.t).join("\n")).toLowerCase().indexOf(q) >= 0;
-    const rows = all.filter(hit).sort((a, b) => (!!b.pin - !!a.pin) || (madeAt(b) - madeAt(a)));
-    ov.querySelector(".nt-rows").innerHTML = rows.length ? rows.map((r) => {
-      const ls = MC.listStat(r), body = String(r.note || "").split("\n").map((s) => s.trim()).filter((s) => s && s !== r.subject)[0] || (ls.n ? MC.listOf(r).map((x) => (x.d ? "✓ " : "○ ") + x.t).slice(0, 2).join("  ") : "");
-      const et = String(r.event_time || ""), m = [et ? (+et.slice(5, 7)) + "月" + (+et.slice(8, 10)) + "日" : whenOf(madeAt(r))];
-      if (ls.n) m.push("☑ " + ls.text); const ni = NC.imgCount(r); if (ni) m.push("🖼 " + ni); if (r.kind) m.push(r.kind); if (r.done) m.push("已完成");
-      return `<button class="nt-row" data-id="${h(r.id)}"><b>${r.pin ? "📌 " : ""}${h(r.subject || "无标题备忘")}</b>${body ? `<div class="s">${h(body.slice(0, 80))}</div>` : ""}<div class="m">${h(m.join(" · "))}</div></button>`;
-    }).join("") : `<div class="nt-empty">${q ? "没有找到" : "还没有备忘。点右上角「＋ 新备忘」写一条"}</div>`;
+    const rows = all.filter(hit).sort((a, b) => (!!b.pin - !!a.pin) || (!!a.done - !!b.done) || (madeAt(b) - madeAt(a)));
+    const wk = Date.now() - 7 * 864e5;
+    const grp = (r) => r.pin && !r.done ? "📌 置顶" : r.done ? "已完成" : madeAt(r) >= wk ? "最近 7 天" : "更早";
+    let last = "";
+    const row = (r) => {
+      const ls = MC.listStat(r), lines = String(r.note || "").split("\n").map((s) => s.trim()).filter((s) => s && s !== r.subject && s !== "[图片]");
+      const body = lines.slice(0, 2).join(" ") || (ls.n ? MC.listOf(r).map((x) => (x.d ? "✓ " : "○ ") + x.t).slice(0, 3).join("  ") : "");
+      const et = String(r.event_time || ""), m = [et ? "📅 " + (+et.slice(5, 7)) + "月" + (+et.slice(8, 10)) + "日" : whenOf(madeAt(r))];
+      if (ls.n) m.push("☑ " + ls.text); const ni = NC.imgCount(r); if (ni) m.push("🖼 " + ni);
+      const ki = KINDS.indexOf(r.kind || "");
+      const g = grp(r), head = g !== last ? `<div class="nt-grp">${g}</div>` : ""; last = g;
+      return `${head}<button class="nt-row${r.id === S.id ? " on" : ""}${r.done ? " dn" : ""}" data-id="${h(r.id)}"><b>${h(r.subject || "无标题备忘")}</b>${body ? `<div class="s">${h(body.slice(0, 120))}</div>` : ""}<div class="m">${ki > 0 ? `<span class="kd k${ki}">${h(KIND_N[ki])}</span>` : ""}<span>${h(m.join(" · "))}</span></div></button>`;
+    };
+    ov.querySelector(".nt-rows").innerHTML = rows.length ? rows.map(row).join("") : `<div class="nt-empty">${q ? "没有找到「" + h(q) + "」" : "还没有备忘。点右上角「＋ 新备忘」写一条"}</div>`;
+    ov.querySelector(".nt-cnt").textContent = q ? `找到 ${rows.length} 条` : `共 ${all.length} 条 · ${all.filter((r) => !r.done).length} 条没做完`;
   }
 
   // ================= 编辑 =================
@@ -230,10 +267,10 @@
     S.id = id || "p" + Date.now(); S.isNew = !rec; S.fmap = Object.assign({}, (rec && rec.rich && rec.rich.f) || {});
     S.kind = rec ? rec.kind || "" : KINDS.indexOf(opt.kind || "") > 0 ? opt.kind : "";
     S.from = opt.from || (S.mode === "list" ? "list" : ""); S.mode = "edit"; S.dirty = false; S.undo = []; S.redo = []; S.files = null;
-    ov.classList.add("open"); ov.classList.remove("lst"); document.body.style.overflow = "hidden";
-    ov.querySelector(".nt-wrap").style.display = ""; listEl.style.display = "none";
+    ov.classList.add("open", "editing"); document.body.style.overflow = "hidden";
     ov.querySelector('[data-n="del"]').style.display = rec ? "" : "none"; ov.querySelector('[data-n="quick"]').style.display = "";
-    ov.querySelector('[data-n="new"]').style.display = "none";
+    renderList();
+    ov.querySelector(".nt-pane").scrollTop = 0;
     titleEl.value = rec && !rec.tAuto ? rec.subject || "" : (opt.title || "");
     savedEl.textContent = ""; closePop();
     const L = NC.load(rec || {});
@@ -292,6 +329,7 @@
     savedEl.textContent = "已保存";
     ov.querySelector('[data-n="del"]').style.display = "";
     meta();
+    if (wide()) renderList();
   }
   function delNote() {
     const r = recOf(S.id);
@@ -300,7 +338,7 @@
     const i = mine.indexOf(r); if (i >= 0) mine.splice(i, 1);
     try { delete quadMap[r.id]; save(LS_QUAD, quadMap); } catch (e) {}
     save(LS_MINE, mine); S.dirty = false;
-    if (S.from === "list") showList(); else close();
+    if (S.from === "list" || wide()) showList(); else close();
   }
   // 换成「记一件事」表单（日期、提醒、重复、地点在那里改）
   function toQuick() {
@@ -564,9 +602,19 @@
   // ---------- 工具栏 ----------
   function syncBar() {
     const on = (c, v) => { const b = barEl.querySelector(`[data-c="${c}"]`); if (b) b.classList.toggle("on", !!v); };
-    let st = {};
-    try { st = { bold: document.queryCommandState("bold"), italic: document.queryCommandState("italic"), underline: document.queryCommandState("underline"), strike: document.queryCommandState("strikeThrough") }; } catch (e) {}
-    const b = curBlock(), d = (b && b.dataset) || {};
+    // 只看光标所在文字自己的格式（标题本来就粗、勾过的清单本来就有删除线，不算）
+    const b = curBlock(), d = (b && b.dataset) || {}, st = {};
+    const sel = getSelection();
+    let n = sel.rangeCount && ed.contains(sel.anchorNode) ? sel.anchorNode : null;
+    if (n && n.nodeType === 3) n = n.parentNode;
+    while (n && n !== b && n !== ed) {
+      const tg = n.tagName, ss = n.style || {}, td = String(ss.textDecoration || ss.textDecorationLine || "");
+      if (tg === "B" || tg === "STRONG" || ss.fontWeight === "bold" || +ss.fontWeight >= 600) st.bold = true;
+      if (tg === "I" || tg === "EM" || ss.fontStyle === "italic") st.italic = true;
+      if (tg === "U" || td.indexOf("underline") >= 0) st.underline = true;
+      if (tg === "S" || tg === "STRIKE" || tg === "DEL" || td.indexOf("line-through") >= 0) st.strike = true;
+      n = n.parentNode;
+    }
     on("bold", st.bold); on("italic", st.italic); on("underline", st.underline); on("strike", st.strike);
     on("h1", d.h === "1"); on("h2", d.h === "2"); on("bullet", d.list === "bullet"); on("ordered", d.list === "ordered");
     on("check", d.list === "checked" || d.list === "unchecked");

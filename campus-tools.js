@@ -9,7 +9,7 @@
     ['qIcs','🔥','打卡成长','习惯与成长记录',()=>funOpts().habits,'growth'],
     ['qFarm','🐣','云宠农场','养料与陪伴',()=>farmOn(),'farm'],
     ['qPomo','🍅','番茄专注','开始一个专注时段',()=>funOpts().plan],
-    ['qNote','🗒','备忘录','格式、清单、图片、手写',()=>feat('mine')],
+    ['qNote','📒','备忘录','格式、清单、图片、手写',()=>feat('mine')],
     ['qProject','🪜','大作业拆解','拆成几步倒排进日程',()=>true,'project'],
     ['qReview','🎓','复习排期','按考试日期排每天复习',()=>true,'review'],
     ['qCourse','📚','课程表','查看自己的课程',()=>!!courseTool()],
