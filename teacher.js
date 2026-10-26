@@ -91,7 +91,9 @@
     const cl = teachClasses(), o = T.ov && T.ov.class && T.ov.class.id === T.cid ? T.ov : null;
     let html = "";
     if (T.err && !o) html += `<div class="aempty surface">${esc(T.err)}</div>`;
-    html += `<div class="t-cls">${cl.map((c) => `<button class="t-chip${c.id === T.cid ? " on" : ""}" data-tcid="${esc(c.id)}">${KIND_NAME[c.kind] ? esc(KIND_NAME[c.kind]) + " · " : ""}${esc(c.name)}${c.role === "monitor" ? "（班委）" : ""}${c.ck_open ? ` <i class="t-ck">签到中</i>` : ""}${c.pending ? `<em>${c.pending}</em>` : ""}</button>`).join("")}
+    // 7.3 一次发几个班、发布记录（收到情况）、院系
+    html += `<div class="t-acts"><button class="btn ink sm" data-rcgo="pub">📣 发到几个班 / 整个院系</button><button class="small" data-rcgo="sent">📮 发布记录 · 收到情况</button><a class="small btnlike" href="class.html#dept">🏛 院系</a></div>`;
+    html += `<div class="t-cls">${cl.map((c) => `<button class="t-chip${c.id === T.cid ? " on" : ""}" data-tcid="${esc(c.id)}">${KIND_NAME[c.kind] ? esc(KIND_NAME[c.kind]) + " · " : ""}${c.dept && c.role === "dept" ? "🏛 " : ""}${esc(c.name)}${c.role === "monitor" ? "（班委）" : ""}${c.ck_open ? ` <i class="t-ck">签到中</i>` : ""}${c.pending ? `<em>${c.pending}</em>` : ""}</button>`).join("")}
       <a class="t-chip add" href="class.html">＋ 建班</a></div>`;
     if (!cl.length && !T.err) html += `<div class="aempty surface">你还没有自己带的班。<a href="class.html">创建班级 →</a></div>`;
     if (o) {
@@ -124,8 +126,9 @@
         html += `<div class="t-items surface">${it.length ? it.map((x) => { const hw = x.type === "作业";
           return `<div class="t-it"><div class="t-it-h"><span class="tag t-${esc(x.type)}">${esc(x.type)}</span><b>${esc(x.subject || x.summary || x.type)}</b></div>
             <div class="t-it-m"><span>${esc(fmtDay(x.time))}${x.by ? " · " + esc(x.by) + " 发布" : ""}</span><span class="spacer"></span><button class="link" data-tview="${esc(x.id)}" data-ttitle="${esc(x.subject || x.summary || x.type)}">名单 ›</button></div>
-            <div class="t-it-b"><span>已读</span><span class="bar"><i style="width:${pct(x.views, o.total)}%"></i></span><small>${x.views}/${o.total}</small></div>
-            ${hw ? `<div class="t-it-b"><span>完成</span><span class="bar"><i class="ok" style="width:${pct(x.done, o.total)}%"></i></span><small>${x.done}/${o.total}</small></div>` : ""}</div>`; }).join("")
+            ${x.scope ? `<div class="t-it-m"><span>🎯 ${esc(x.scope)}（${x.aud} 人）</span></div>` : ""}
+            <div class="t-it-b"><span>已读</span><span class="bar"><i style="width:${pct(x.views, x.aud != null ? x.aud : o.total)}%"></i></span><small>${x.views}/${x.aud != null ? x.aud : o.total}</small></div>
+            ${hw ? `<div class="t-it-b"><span>完成</span><span class="bar"><i class="ok" style="width:${pct(x.done, x.aud != null ? x.aud : o.total)}%"></i></span><small>${x.done}/${x.aud != null ? x.aud : o.total}</small></div>` : ""}</div>`; }).join("")
           : `<div class="meta">最近 ${o.days} 天没有事项。去首页「发布事项」或「AI 整理」发一条吧。</div>`}</div>`;
       }
     }
@@ -134,7 +137,7 @@
       const ck = T.ck && T.ck.cid === T.cid ? T.ck.list : null;
       if (!ck) loadCk();
       html += `<div class="t-items surface"><div class="t-home-h"><b>📋 签到</b><span class="spacer"></span><button class="btn ink sm" data-ckpanel="1" data-ckcid="${esc(T.cid)}">＋ 发起签到 / 投屏</button></div>
-        ${!ck ? `<div class="meta">加载中…</div>` : ck.length ? ck.map((x) => `<div class="t-it" data-ckone="${x.id}" style="cursor:pointer"><div class="t-it-h"><span class="tag">${x.mode === "code" ? "🔢 动态码" : x.mode === "both" ? "📍+🔢" : "📍 位置"}</span><b>${esc(x.title)}</b><span class="spacer"></span><small>${x.open ? "进行中" : "已结束"}</small></div>
+        ${!ck ? `<div class="meta">加载中…</div>` : ck.length ? ck.map((x) => `<div class="t-it" data-ckone="${x.id}" style="cursor:pointer"><div class="t-it-h"><span class="tag">${x.mode === "photo" ? "📷 拍照" : x.mode === "code" ? "🔢 动态码" : x.mode === "both" ? "📍+🔢" : "📍 位置"}${x.need_photo && x.mode !== "photo" ? "+📷" : ""}</span><b>${esc(x.title)}</b><span class="spacer"></span><small>${x.open ? "进行中" : "已结束"}</small></div>
             <div class="t-it-m"><span>${(() => { const d = new Date(x.starts_at); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; })()} · ${esc(x.by || "")}发起${x.place ? " · " + esc(x.place) : ""}</span><span class="spacer"></span><button class="link" data-ckone="${x.id}">名单 ›</button></div>
             <div class="t-it-b"><span>已签</span><span class="bar"><i class="ok" style="width:${pct(x.signed, x.members)}%"></i></span><small>${x.signed}/${x.members}</small></div></div>`).join("")
           : `<div class="meta">最近 7 天没有签到。点右上角「发起签到」，课堂上投屏动态码，同学微信一扫就签上。</div>`}</div>`;
@@ -176,7 +179,8 @@
     if (!box || !box.contains(e.target)) return;
     const q = (s) => e.target.closest(s);
     let b;
-    if ((b = q("[data-tcid]"))) { T.cid = b.dataset.tcid; T.filter = "all"; render(false); }
+    if ((b = q("[data-rcgo]"))) { if (b.dataset.rcgo === "sent" && window.openSent) openSent(); if (b.dataset.rcgo === "pub" && window.openReachForm) openReachForm(); }
+    else if ((b = q("[data-tcid]"))) { T.cid = b.dataset.tcid; T.filter = "all"; render(false); }
     else if ((b = q("[data-ttab]"))) { T.tab = b.dataset.ttab; if (T.tab === "ck") T.ck = null; paint(); }
     else if ((b = q("[data-tf]"))) { T.filter = b.dataset.tf; paint(); }
     else if ((b = q("[data-tview]"))) { if (window.hwOpenViewers) window.hwOpenViewers(b.dataset.tview, T.cid, b.dataset.ttitle); }

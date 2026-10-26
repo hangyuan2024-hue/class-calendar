@@ -67,6 +67,8 @@ class OverviewPage(a: Main) : Page(a) {
             }, LinearLayout.LayoutParams(WRAP, WRAP).apply { rightMargin = dp(8) })
         }
         body.add(HorizontalScrollView(ctx).apply { isHorizontalScrollBarEnabled = false; addView(chips) }, 8)
+        // 7.3 发布记录（收到情况）：我发的 / 整个院系的
+        body.add(ctx.cell("📮", "发布记录 · 收到情况", "每条几个人看了、完成了；同一次发给几个班的合在一起看") { a.push(SentPage(a)) }.apply { bg(C.card, 18) }, 12)
         // 签到入口：一直在上面，最常用
         val ck = ctx.card(14, 18).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; margins(t = 12) }
         ck.addView(ctx.text("📋", 24f))
@@ -127,11 +129,13 @@ class OverviewPage(a: Main) : Page(a) {
                 val c = ctx.col().apply { pad(14, 10) }
                 c.addView(ctx.text("[${x.str("type")}] " + x.str("subject").ifEmpty { x.str("summary") }, 14.5f, C.text, SEMI, 2))
                 c.addView(ctx.text(x.str("time").take(16) + (if (x.str("by").isNotEmpty()) " · ${x.str("by")} 发布" else ""), 12f, C.sub))
-                c.addView(ctx.text("已读 ${x.optInt("views")}/${o.optInt("total")}" + if (x.str("type") == "作业") " · 完成 ${x.optInt("done")}/${o.optInt("total")}" else "", 12.5f, C.accent, SEMI))
+                val tot = if (x.has("aud") && !x.isNull("aud")) x.optInt("aud") else o.optInt("total")   // 7.3 定向的：分母是收件人数
+                if (x.str("scope").isNotEmpty()) c.addView(ctx.text("🎯 " + x.str("scope") + "（$tot 人）", 12f, C.accent))
+                c.addView(ctx.text("已读 ${x.optInt("views")}/$tot" + if (x.str("type") == "作业") " · 完成 ${x.optInt("done")}/$tot" else "", 12.5f, C.accent, SEMI))
                 val bar = FrameLayout(ctx).apply { bg(C.mutedBg, 3) }
                 bar.addView(View(ctx).apply { bg(C.accent, 3) }, FrameLayout.LayoutParams(0, MATCH))
                 c.addView(bar, LinearLayout.LayoutParams(MATCH, dp(5)).apply { topMargin = dp(4) })
-                bar.post { bar.getChildAt(0).layoutParams = bar.getChildAt(0).layoutParams.apply { width = maxOf(dp(3), bar.width * x.optInt("views") / total) }; bar.requestLayout() }
+                bar.post { bar.getChildAt(0).layoutParams = bar.getChildAt(0).layoutParams.apply { width = maxOf(dp(3), bar.width * x.optInt("views") / maxOf(1, tot)) }; bar.requestLayout() }
                 lc.addView(c)
             }
             body.addView(lc)

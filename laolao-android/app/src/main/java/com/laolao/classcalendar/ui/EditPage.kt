@@ -7,7 +7,10 @@ import android.view.View
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.laolao.classcalendar.core.Api
 import com.laolao.classcalendar.core.Bg
+import com.laolao.classcalendar.core.objs
+import org.json.JSONObject
 import com.laolao.classcalendar.core.Items
 import com.laolao.classcalendar.core.Popup
 import com.laolao.classcalendar.core.Memo
@@ -31,6 +34,11 @@ class EditPage(a: Main, private val key: String?, private val homework: Boolean 
     private var fPopup = false; private var popup0 = false
     // 7.2 发布班级事项：每种类型的提示不一样，下面实时显示「同学们看到的样子」（和小程序 1.18、网页一样）
     private var fUnsure = false
+    // 7.3 发到几个班、发给谁（全班 / 只发班委 / 指定的人）
+    private var rcCids = mutableListOf<String>(); private var rcNames = mutableListOf<String>()
+    private var rcCls: List<JSONObject> = emptyList(); private var rcAud = 0
+    private var rcUids = listOf<String>(); private var rcUnames = listOf<String>()
+    private var rcBox: LinearLayout? = null
     private var pv: LinearLayout? = null
     private var dayLabel: TextView? = null
     private class CT(val n: String, val ic: String, val ph: String, val sph: String, val wh: String, val lph: String, val pph: String)
@@ -68,6 +76,7 @@ class EditPage(a: Main, private val key: String?, private val homework: Boolean 
                 b.addView(label("发什么"))
                 typeSeg = Seg(ctx, Items.TYPES.map { t -> (CTS.firstOrNull { it.n == t }?.ic?.plus(" ") ?: "") + typeName(t) }, fType) { fType = it; classHints(); paintPreview() }
                 b.addView(typeSeg)
+                if (key == null) { rcBox = ctx.col(); b.addView(rcBox); rcInit() }
             }
             b.addView(label(if (classMode) "科目 / 标题" else "什么事"))
             title = ctx.input(if (classMode) "比如：数学作业" else "比如：明天下午3点交数学作业", src?.title?.removePrefix("⚠ ") ?: "")
@@ -144,6 +153,54 @@ class EditPage(a: Main, private val key: String?, private val homework: Boolean 
         if (opt) addView(ctx.text("选填", 11.5f, C.mutedText).apply { pad(6, 0) })
     }
 
+    private fun rcInit() {
+        Store.cls?.let { rcCids = mutableListOf(it.str("id")); rcNames = mutableListOf(it.str("name")) }
+        paintRc()
+        Bg.load({ (Api.rpc("manage_classes") as? org.json.JSONArray)?.objs()?.filter { it.str("kind") != "staff" } ?: emptyList() }) { l, _ -> if (l != null) { rcCls = l; paintRc() } }
+    }
+    private fun paintRc() {
+        val box = rcBox ?: return
+        box.removeAllViews()
+        if (rcCls.size > 1) {
+            box.addView(label("发到"))
+            val r = ctx.row()
+            r.addView(ctx.text(if (rcCids.size > 1) "${rcCids.size} 个班：" + rcNames.take(3).joinToString("、") + (if (rcNames.size > 3) " 等" else "") else rcNames.firstOrNull() ?: "本班", 14.5f, C.text, SEMI).apply { press(C.card, 12, C.line); pad(14, 11) }.also { it.tap { pickClasses() } }, LinearLayout.LayoutParams(0, WRAP, 1f))
+            r.addView(ctx.soft("选几个班 ›") { pickClasses() }, LinearLayout.LayoutParams(WRAP, WRAP).apply { leftMargin = dp(8) })
+            box.addView(r)
+        }
+        box.addView(label("发给"))
+        box.addView(Seg(ctx, listOf("全班", "只发班委", "指定的人"), rcAud) { i -> rcAud = i; if (i == 2 && rcUids.isEmpty()) pickPeople() else paintRc(); paintPreview() })
+        if (rcAud == 2) box.add(ctx.text(if (rcUids.isEmpty()) "还没选人 · 点这里选" else "已选 ${rcUids.size} 人：" + rcUnames.take(6).joinToString("、") + (if (rcUnames.size > 6) " 等" else "") + " · 改", 13.5f, C.accent, SEMI).apply { pad(2, 8); tap { pickPeople() } }, 4)
+        if (rcAud > 0) box.add(ctx.text(if (rcAud == 1) "只有班委（和老师）看得到，提醒也只发给他们" else "只有选中的人（和老师、你自己）看得到，别的同学看不到这条", 12.5f, C.sub), 4)
+    }
+    private fun pickClasses() {
+        if (rcCls.isEmpty()) { a.toast("没拿到你管理的班级"); return }
+        val names = rcCls.map { it.str("name") + (if (it.str("dept").isNotEmpty()) " · " + it.str("dept") else "") + if (it.str("role") == "monitor") "（班委）" else "" }.toTypedArray()
+        val on = BooleanArray(rcCls.size) { rcCids.contains(rcCls[it].str("id")) }
+        android.app.AlertDialog.Builder(ctx).setTitle("发到哪几个班").setMultiChoiceItems(names, on) { _, i, v -> on[i] = v }
+            .setPositiveButton("确定") { _, _ ->
+                val sel = rcCls.filterIndexed { i, _ -> on[i] }
+                if (sel.isEmpty()) { a.toast("至少选一个班"); return@setPositiveButton }
+                rcCids = sel.map { it.str("id") }.toMutableList(); rcNames = sel.map { it.str("name") }.toMutableList(); rcUids = emptyList(); rcUnames = emptyList()
+                paintRc(); paintPreview()
+            }.setNeutralButton("全选") { _, _ -> rcCids = rcCls.map { it.str("id") }.toMutableList(); rcNames = rcCls.map { it.str("name") }.toMutableList(); rcUids = emptyList(); rcUnames = emptyList(); paintRc(); paintPreview() }
+            .setNegativeButton("取消", null).show()
+    }
+    private fun pickPeople() {
+        a.toast("正在加载名单…")
+        Bg.load({ (Api.rpc("class_pick_people", jsonOf("cids" to org.json.JSONArray(rcCids))) as? org.json.JSONArray)?.objs() ?: emptyList() }) { g, e ->
+            if (g == null) { a.toast(if (Regex("class_pick_people|PGRST202|Could not find").containsMatchIn(e?.message ?: "")) "数据库还没执行 7.3 的 SQL，现在只能发给全班" else e?.message ?: "加载失败"); rcAud = 0; paintRc(); return@load }
+            if (g.isEmpty()) { a.toast("你在这些班里不能定向发送"); rcAud = 0; paintRc(); return@load }
+            val ppl = g.flatMap { c -> (c.optJSONArray("people")?.objs() ?: emptyList()).map { p -> Triple(p.str("id"), p.str("name").ifEmpty { p.str("account") } + (if (p.str("role") == "monitor") "（班委）" else "") + if (g.size > 1) " · " + c.str("cname") else "", p.str("name")) } }
+            val on = BooleanArray(ppl.size) { rcUids.contains(ppl[it].first) }
+            android.app.AlertDialog.Builder(ctx).setTitle("发给谁").setMultiChoiceItems(ppl.map { it.second }.toTypedArray(), on) { _, i, v -> on[i] = v }
+                .setPositiveButton("确定") { _, _ ->
+                    val sel = ppl.filterIndexed { i, _ -> on[i] }.distinctBy { it.first }
+                    if (sel.isEmpty()) { a.toast("至少选一个人"); if (rcUids.isEmpty()) rcAud = 0 } else { rcUids = sel.map { it.first }; rcUnames = sel.map { it.third } }
+                    paintRc(); paintPreview()
+                }.setNegativeButton("取消") { _, _ -> if (rcUids.isEmpty()) { rcAud = 0; paintRc() } }.show()
+        }
+    }
     private fun classHints() {
         if (!classMode) return
         val t = ct()
@@ -156,6 +213,7 @@ class EditPage(a: Main, private val key: String?, private val homework: Boolean 
         val t = ct(); val col = C.type(t.n); val unsure = fUnsure || fDay.isEmpty()
         val r = ctx.row()
         r.addView(ctx.chip(typeName(t.n), col, C.alpha(col, 0.14f), 12f))
+        if (rcCids.size > 1 || rcAud > 0) r.addView(ctx.text("🎯 " + listOfNotNull(if (rcCids.size > 1) "${rcCids.size} 个班" else null, if (rcAud == 1) "班委" else if (rcAud == 2) "${rcUids.size} 人" else null).joinToString(" · "), 11.5f, C.accent, SEMI).apply { pad(6, 0) })
         if (fPopup) r.addView(ctx.text("📣 弹窗提醒", 11.5f, C.red, SEMI).apply { pad(6, 0) })
         r.addView(View(ctx), LinearLayout.LayoutParams(0, 1, 1f))
         r.addView(ctx.text(if (fDay.isEmpty()) "时间待定" else (if (t.wh.isNotEmpty()) t.wh + " " else "") + T.md(fDay) + (if (fTime.isNotEmpty()) " $fTime" else ""), 12.5f, C.sub))
@@ -241,6 +299,25 @@ class EditPage(a: Main, private val key: String?, private val homework: Boolean 
         var t = title.text.toString().trim()
         if (t.isEmpty()) { a.toast("写一下是什么事"); title.requestFocus(); return }
         Dialogs.hideKeyboard(title)
+        if (classMode && key == null && (rcCids.size > 1 || rcAud > 0 || (rcCids.isNotEmpty() && rcCids[0] != Store.cls?.str("id")))) {
+            if (rcAud == 2 && rcUids.isEmpty()) { pickPeople(); return }
+            busy = true
+            val aud = when (rcAud) { 1 -> jsonOf("kind" to "staff"); 2 -> jsonOf("kind" to "people", "uids" to org.json.JSONArray(rcUids)); else -> jsonOf("kind" to "all") }
+            val want = fPopup; val cids = rcCids.toList()
+            Bg.load({
+                val r = Items.sendMany(cids, Items.TYPES[fType], t, summary.text.toString(), fDay, fTime, place.text.toString(), prep.text.toString(), fUnsure, aud)
+                if (want) for (it in r.optJSONArray("items")?.objs() ?: emptyList()) try { Popup.set(it.str("cid"), it.opt("id").toString(), true) } catch (_: Exception) {}
+                r
+            }) { r, e ->
+                busy = false
+                if (r == null) { a.toast(e?.message ?: "发布失败"); return@load }
+                val n = r.optJSONArray("items")?.length() ?: 0; val sk = r.optJSONArray("skipped")?.objs() ?: emptyList()
+                val who = when (rcAud) { 1 -> "班委"; 2 -> "选中的 ${rcUids.size} 人"; else -> "全班" }
+                if (sk.isEmpty()) { a.toast("已发到 $n 个班（发给$who）"); close() }
+                else Dialogs.confirm(ctx, "已发到 $n 个班", "这些班没发：\n" + sk.joinToString("\n") { "· " + it.str("name").ifEmpty { "某个班" } + "：" + it.str("why") }, "知道了", cancel = null) { close() }
+            }
+            return
+        }
         if (classMode) {
             busy = true
             val id = key?.let { Items.find(it)?.id }

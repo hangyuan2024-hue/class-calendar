@@ -531,13 +531,13 @@ class HeatMap(ctx: Context, private val days: JSONObject) : View(ctx) {
 
 // =====================================================================
 /** 已读名单：谁看过、谁还没看、谁完成了（发布人、老师、班委能看） */
-class ViewersPage(a: Main, private val itemId: String, private val title: String) : Page(a) {
+class ViewersPage(a: Main, private val itemId: String, private val title: String, private val cidArg: String = "") : Page(a) {
     private lateinit var body: LinearLayout
     private var all: List<JSONObject>? = null; private var err = ""; private var tab = 0
     override fun build(): View = scaffold("已读名单", pull = { done -> load { done() } }) { body = it }
     override fun onShow() { if (all == null) load() }
     private fun load(done: (() -> Unit)? = null) {
-        val cid = Store.cls?.str("id") ?: return
+        val cid = cidArg.ifEmpty { Store.cls?.str("id") ?: "" }.ifEmpty { return }   // 7.3 发布记录里点进来：别的班的
         Bg.load({ (Api.rpc("item_viewers", jsonOf("cid" to cid, "iid" to itemId.toLong())) as? JSONArray)?.objs() ?: emptyList() }) { l, e -> done?.invoke(); if (l == null) err = e?.message ?: "加载失败" else all = l; render() }
     }
     override fun render() {

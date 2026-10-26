@@ -269,7 +269,8 @@
     }
     return ok;
   }
-  window.exUploadTo = uploadTo;   // 7.2 全屏备忘录里的图片、手写也传成附件
+  window.exUploadTo = uploadTo;
+  window.exFormTake = (w) => { const f = pend[w] || []; pend[w] = []; try { drawPend(w); } catch (e) {} return f; };   // 7.3 一次发多个班：同样的附件传到每个班的那条   // 7.2 全屏备忘录里的图片、手写也传成附件
   async function upload(files) {
     const st = dlg.querySelector("#xfSt");
     await uploadTo(cur.cid, cur.item, files, (t) => { st.textContent = t; });

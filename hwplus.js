@@ -15,7 +15,7 @@
     if (!r._mine && currentClass && HP.counts && HP.cid === currentClass.id) {
       const c = HP.counts, id = String(r.id), v = (c.views && c.views[id]) || 0, d = (c.done && c.done[id]) || 0;
       const canList = c.can_list || (c.mine || []).map(String).includes(id);
-      const t = `👀 已读 ${v}/${c.total}${d ? ` · ✓ 完成 ${d}` : ""}`;
+      const t = `👀 已读 ${v}/${(c.aud && c.aud[id]) || c.total}${d ? ` · ✓ 完成 ${d}` : ""}`;   // 7.3 发给某个组 / 定向的：分母是收件人数
       read = canList ? `<button class="hw-read link" data-viewers="${esc(id)}" title="看看谁看过、谁还没看">${t} ›</button>` : `<span class="hw-read">${t}</span>`;
     }
     const n = (typeof EX !== "undefined" && EX.files[r._key]) || 0;
@@ -166,10 +166,10 @@
       const no = l.filter((x) => !x.seen_at && !x.done), yes = l.filter((x) => x.seen_at || x.done), done = l.filter((x) => x.done), seenNot = yes.filter((x) => !x.done);   // 6.3 完成了就算看过
       const who = (x) => `<span class="hw-vp${x.done ? " ok" : ""}"><span class="av sm">${esc([...(x.name || "?")][0])}</span>${esc(x.name || x.account)}${x.role === "monitor" ? "<i>班委</i>" : ""}${x.seen_at ? `<small>${esc(when(x.seen_at))}</small>` : ""}${x.done ? "<b>✓</b>" : ""}</span>`;
       const pane = (key, list, empty, copy) => `<div data-vpane="${key}" class="hw-vpane${key === "no" ? "" : " hidden"}">${list.length ? list.map(who).join("") : `<div class="meta">${empty}</div>`}${copy && list.length ? `<div class="hw-vcopy"><button class="small" data-vcopy="${esc(list.map((x) => "@" + (x.name || x.account)).join(" "))}">复制名字（发到群里提醒）</button></div>` : ""}</div>`;
-      vd.innerHTML = `<h3>👀 ${esc(r ? r.subject || r.summary || "事项" : "事项")}<small>只有发布人、老师、班委能看到这个名单 · 全班 ${l.length} 人</small></h3>
+      vd.innerHTML = `<h3>👀 ${esc(r ? r.subject || r.summary || "事项" : "事项")}<small>只有发布人、老师、班委能看到这个名单 · 发给了 ${l.length} 人</small></h3>
         <div class="hw-vsum"><div><b>${yes.length}</b><span>看过</span></div><div><b>${no.length}</b><span>还没看</span></div><div><b>${done.length}</b><span>标记完成</span></div></div>
         <div class="hw-vtabs"><button class="on" data-vtab="no">还没看（${no.length}）</button><button data-vtab="seen">看过没完成（${seenNot.length}）</button><button data-vtab="done">已完成（${done.length}）</button></div>
-        ${pane("no", no, "全班都看过了 🎉", true)}${pane("seen", seenNot, "没有", true)}${pane("done", done, "还没有人标记完成")}
+        ${pane("no", no, "都看过了 🎉", true)}${pane("seen", seenNot, "没有", true)}${pane("done", done, "还没有人标记完成")}
         <p class="meta">「看过」= 打开过作业页或点开过这条；老师自己看不算。「完成」= 同学自己勾了完成。</p>
         <div class="nd-actions"><span class="spacer"></span><button class="small" data-vx>关闭</button></div>`;
     } catch (e) { vd.innerHTML = `<h3>👀 已读名单</h3><div class="meta">${esc(e.message)}</div><div class="nd-actions"><span class="spacer"></span><button class="small" data-vx>关闭</button></div>`; }

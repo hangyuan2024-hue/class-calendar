@@ -77,12 +77,13 @@
     let cls = ""; try { cls = (typeof currentClass !== "undefined" && currentClass && currentClass.name) || ""; } catch (e) {}
     const g = $("cGroup"), gName = g && !$("cGroupRow").classList.contains("hidden") && g.value ? g.options[g.selectedIndex].text.replace(/^👥\s*/, "") : "";
     const ai = !$("cId").value && typeof ingestAllowed === "function" && ingestAllowed();
-    to.innerHTML = `<span>👥 ${esc(gName || (cls || "本班") + " · 全班同学都会看到")}</span><span class="sp"></span>${ai ? `<button type="button" class="small" data-ai>✨ 从群消息整理</button>` : ""}`;
+    const sc = window.rcScope ? window.rcScope() : "";   // 7.3 发到几个班 / 发给谁
+    to.innerHTML = `<span>👥 ${esc(sc ? "发到 " + sc : gName || (cls || "本班") + " · 全班同学都会看到")}</span><span class="sp"></span>${ai ? `<button type="button" class="small" data-ai>✨ 从群消息整理</button>` : ""}`;
     const day = $("cDate").value, tm = $("cTime").value, unsure = $("cConfirm").checked || !day;
     const sub = $("cSubject").value.trim(), sum = $("cSummary").value.trim(), loc = $("cLoc").value.trim(), prep = $("cPrep").value.trim();
     pv.style.setProperty("--cfc", t.c); tbox.style.setProperty("--cfc", t.c);
     pv.innerHTML = `<div class="cf-bar"></div><div class="f1">
-      <span class="tg">${t.n}</span>${$("cPopup").checked ? `<span class="pop">📣 弹窗提醒</span>` : ""}<span class="wh">${day ? (t.when ? t.when + " " : "") + md(day) + (tm ? " " + tm : "") : "时间待定"}</span>
+      <span class="tg">${t.n}</span>${sc ? `<span class="pop" style="color:var(--accent)">🎯 ${esc(sc)}</span>` : ""}${$("cPopup").checked ? `<span class="pop">📣 弹窗提醒</span>` : ""}<span class="wh">${day ? (t.when ? t.when + " " : "") + md(day) + (tm ? " " + tm : "") : "时间待定"}</span>
       <div class="tt">${unsure ? "⚠ " : ""}${sub ? esc(sub) : `<span class="ph">${esc(t.ph)}</span>`}</div>
       ${sum ? `<div class="ss">${esc(sum)}</div>` : ""}${loc || prep ? `<div class="ss">${loc ? "📍 " + esc(loc) : ""}${loc && prep ? "　" : ""}${prep ? "🎒 " + esc(prep) : ""}</div>` : ""}
       ${unsure ? `<div class="ss" style="color:var(--red)">⚠ 信息不完整，建议去群里核实${!day ? "（没填日期会自动标上）" : ""}</div>` : ""}</div>`;

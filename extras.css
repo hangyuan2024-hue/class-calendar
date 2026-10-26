@@ -367,3 +367,12 @@ button.ck-name.mk:hover { background: rgba(255,122,69,.12); }
 #form .fhbtns { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 button.mtag { border: 0; font: inherit; cursor: pointer; }
 #fRichTip { margin: 4px 0 8px; color: var(--sub); }
+
+/* 7.3 班级情况页：一次发几个班、发布记录、院系 */
+.t-acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+.t-acts .btnlike { text-decoration: none; }
+.ck-photo-opt { display: flex; gap: 6px; align-items: center; font-size: 13px; margin: 6px 0; }
+.ck-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; max-height: 65vh; overflow: auto; margin: 8px 0; }
+.ck-photos figure { margin: 0; }
+.ck-photos img { width: 100%; border-radius: 10px; display: block; }
+.ck-photos figcaption { font-size: 12px; color: var(--sub); margin-top: 3px; }

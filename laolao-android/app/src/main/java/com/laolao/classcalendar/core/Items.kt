@@ -399,6 +399,18 @@ object Items {
         Store.loadItems()
         return id
     }
+    /** 7.3 一次发给几个班；发给 全班 / 班委 / 指定的人（aud = {kind: all|staff|people, uids}）。返回 {items:[{cid,id}], skipped:[{name,why}]} */
+    fun sendMany(cids: List<String>, type: String, title: String, summary: String, day: String, time: String, location: String, prepare: String, unsure: Boolean, aud: JSONObject): JSONObject {
+        val rec = jsonOf("msg_type" to type, "subject" to title.trim(), "summary" to summary.trim(), "event_time" to if (day.isEmpty()) "" else day + if (time.isNotEmpty()) " $time" else "",
+            "location" to location.trim(), "prepare" to prepare.trim(), "need_confirm" to (day.isEmpty() || unsure), "publish_date" to T.todayKey(),
+            "original" to "（由" + (Store.me?.str("display_name")?.ifBlank { null } ?: "老师") + "手动发布）")
+        val r = try { Api.rpcObj("class_item_send", jsonOf("cids" to JSONArray(cids), "rec" to rec, "aud" to aud)) } catch (e: Exception) {
+            if (Regex("class_item_send|PGRST202|Could not find", RegexOption.IGNORE_CASE).containsMatchIn(e.message ?: "")) throw ApiError(0, "数据库还没执行 7.3 的 SQL：现在只能发给当前班级的全班")
+            throw e
+        }
+        Store.loadItems()
+        return r
+    }
     fun deleteClassItem(id: String) {
         val res = Api.rest("class_info?id=eq.$id", "DELETE", null, mapOf("Prefer" to "return=representation")) as? JSONArray
         if (res == null || res.length() == 0) throw ApiError(403, "没有删除权限")

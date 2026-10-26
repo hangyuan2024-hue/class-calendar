@@ -24,6 +24,7 @@ async function load() {
   await renderTeaching();
   if (location.hash === "#features" && !load._scrolled) { load._scrolled = true; const h = document.querySelector("[id^=feat_]"); if (h) h.scrollIntoView(); }
   if (me.role === "admin") renderAdmin().catch((e) => toast(e.message, true));
+  if (window.DEPT) DEPT.load();   // 7.3 院系
 }
 
 // ---------- 学生视角 ----------
@@ -121,6 +122,7 @@ async function renderTeaching() {
         <button class="small" data-act="copy" data-code="${esc(c.code)}" data-name="${esc(c.name)}">复制邀请语</button>
         <button class="small" data-act="regen" data-id="${esc(c.id)}">重置班级码</button>
         <button class="small" data-act="rename" data-id="${esc(c.id)}" data-name="${esc(c.name)}">改名</button></div>
+      <div class="deptbox" data-deptbox="${esc(c.id)}"></div>
       ${pend.length ? `<h3>待批准</h3>` + pend.map((m) => `<div class="item"><div class="grow">${esc(m.name)} <span class="meta">${esc(m.account)} · ${fmt(m.joined_at)} 申请</span></div>
           <button class="small primary" data-act="approve" data-cid="${esc(c.id)}" data-uid="${esc(m.user_id)}">批准</button>
           <button class="small danger" data-act="reject" data-cid="${esc(c.id)}" data-uid="${esc(m.user_id)}">拒绝</button></div>`).join("") : ""}

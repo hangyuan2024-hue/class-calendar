@@ -96,22 +96,32 @@ object Geo {
 object Checkin {
     fun list(cid: String): List<JSONObject> = (Api.rpc("checkin_list", jsonOf("cid" to cid)) as? JSONArray)?.objs() ?: emptyList()
     /** mode：geo 位置 / code 动态码（不用定位）/ both 两个都要 */
-    fun create(cid: String, title: String, place: String, p: Geo.Pos?, radius: Int, minutes: Int, mode: String = "geo"): JSONObject {
+    /** 7.3 photo：拍照签到（拍一张现场照片就签）；photo = true：位置 / 动态码之外还要拍照 */
+    fun create(cid: String, title: String, place: String, p: Geo.Pos?, radius: Int, minutes: Int, mode: String = "geo", photo: Boolean = false): JSONObject {
         val a = jsonOf("cid" to cid, "title" to title, "place" to place, "radius" to radius, "minutes" to minutes, "mode" to mode)
         if (p != null) { a.put("lat", Math.round(p.lat * 1e6) / 1e6); a.put("lng", Math.round(p.lng * 1e6) / 1e6) }
-        return Api.rpcObj("checkin_create", a)
+        if (photo && mode != "photo") a.put("photo", true)   // 老服务器没有这个参数：只在要拍照时带上
+        return try { Api.rpcObj("checkin_create", a) } catch (e: Exception) {
+            if ((mode == "photo" || photo) && Regex("photo|check constraint|签到方式不对|Could not find", RegexOption.IGNORE_CASE).containsMatchIn(e.message ?: "")) throw ApiError(0, "拍照签到要先在数据库执行 7.3 的 SQL")
+            throw e
+        }
     }
-    fun sign(id: Long, p: Geo.Pos?, code: String? = null): JSONObject {
+    fun sign(id: Long, p: Geo.Pos?, code: String? = null, photo: String? = null): JSONObject {
         val a = jsonOf("id" to id)
         if (p != null) { a.put("lat", p.lat); a.put("lng", p.lng); a.put("accuracy", p.acc) }
         if (!code.isNullOrBlank()) a.put("code", code)
+        if (!photo.isNullOrEmpty()) a.put("photo", photo)
         return Api.rpcObj("checkin_sign", a)
     }
+    /** 签到照片（发起人、班委、老师看）；uid 为空 = 全部 */
+    fun photos(id: Long, uid: String? = null): List<JSONObject> = (Api.rpc("checkin_photos", jsonOf("id" to id, "uid" to uid)) as? JSONArray)?.objs() ?: emptyList()
+    fun needPhoto(x: JSONObject) = x.optBoolean("need_photo")
     fun get(id: Long): JSONObject = Api.rpcObj("checkin_get", jsonOf("id" to id))
     fun code(id: Long): JSONObject = Api.rpcObj("checkin_code", jsonOf("id" to id))
     fun needCode(x: JSONObject) = x.str("mode") == "code" || x.str("mode") == "both"
-    fun needGeo(x: JSONObject) = x.str("mode") != "code"
-    fun modeText(x: JSONObject) = when (x.str("mode")) { "code" -> "🔢 动态码签到"; "both" -> "📍 位置 + 🔢 动态码"; else -> "📍 位置签到" }
+    fun needGeo(x: JSONObject) = x.str("mode").let { it.isEmpty() || it == "geo" || it == "both" }
+    fun modeText(x: JSONObject) = when (x.str("mode")) { "code" -> "🔢 动态码签到"; "both" -> "📍 位置 + 🔢 动态码"; "photo" -> "📷 拍照签到"; else -> "📍 位置签到" } +
+        if (x.optBoolean("need_photo") && x.str("mode") != "photo") " + 📷 拍照" else ""
     fun amap(x: JSONObject) = "https://uri.amap.com/marker?position=${x.optDouble("lng")},${x.optDouble("lat")}&name=${java.net.URLEncoder.encode(x.str("place").ifEmpty { x.str("title") }, "UTF-8")}&coordinate=wgs84&callnative=1"
     fun detail(id: Long): JSONObject = Api.rpcObj("checkin_detail", jsonOf("id" to id))
     fun close(id: Long) { Api.rpc("checkin_close", jsonOf("id" to id)) }
