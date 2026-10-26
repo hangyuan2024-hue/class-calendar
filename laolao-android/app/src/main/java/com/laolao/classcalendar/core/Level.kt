@@ -106,12 +106,26 @@ object Checkin {
             throw e
         }
     }
-    fun sign(id: Long, p: Geo.Pos?, code: String? = null, photo: String? = null): JSONObject {
+    /** 7.4 thumb：缩略图（照片墙用）；数据库还没执行 7.4（没有 thumb 参数）就不带缩略图再签一次 */
+    fun sign(id: Long, p: Geo.Pos?, code: String? = null, photo: String? = null, thumb: String? = null): JSONObject {
         val a = jsonOf("id" to id)
         if (p != null) { a.put("lat", p.lat); a.put("lng", p.lng); a.put("accuracy", p.acc) }
         if (!code.isNullOrBlank()) a.put("code", code)
         if (!photo.isNullOrEmpty()) a.put("photo", photo)
-        return Api.rpcObj("checkin_sign", a)
+        if (!photo.isNullOrEmpty() && !thumb.isNullOrEmpty()) a.put("thumb", thumb)
+        return try { Api.rpcObj("checkin_sign", a) } catch (e: ApiError) {
+            if (a.has("thumb") && Regex("thumb|Could not find|PGRST202|schema cache", RegexOption.IGNORE_CASE).containsMatchIn(e.message ?: "")) { a.remove("thumb"); Api.rpcObj("checkin_sign", a) } else throw e
+        }
+    }
+    /** 7.4 照片墙缩略图：since = 上次拉到的最后一张的时间（只拉新签的）；一次最多 60 张，不够接着拉 */
+    fun thumbs(id: Long, since: String?): List<JSONObject> {
+        val out = ArrayList<JSONObject>(); var s = since
+        for (page in 0 until 10) {
+            val l = (Api.rpc("checkin_thumbs", jsonOf("id" to id, "since" to s)) as? JSONArray)?.objs() ?: emptyList()
+            out.addAll(l); if (l.isNotEmpty()) s = l.last().str("at")
+            if (l.size < 60) break
+        }
+        return out
     }
     /** 签到照片（发起人、班委、老师看）；uid 为空 = 全部 */
     fun photos(id: Long, uid: String? = null): List<JSONObject> = (Api.rpc("checkin_photos", jsonOf("id" to id, "uid" to uid)) as? JSONArray)?.objs() ?: emptyList()

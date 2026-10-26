@@ -144,8 +144,19 @@ class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: S
     private var list: List<JSONObject>? = null; private var err = ""; private var busy = false
     private var one: JSONObject? = null; private var names: JSONObject? = null; private var code: JSONObject? = null
     private var input = ""; private var autoTried = false
-    private var photo: String? = null   // 7.3 拍照签到：拍好的照片
-    private val tick = object : Runnable { override fun run() { val o = one; if (o != null && o.optBoolean("can_manage") && o.optBoolean("open") && (Checkin.needCode(o) || code?.str("img").isNullOrEmpty())) loadCode(); Bg.main.postDelayed(this, 3000) } }
+    // 7.3 拍照签到：拍好的照片（原图, 缩略图）；7.4 没传上去就留着，再点直接重传，不用重拍
+    private var photo: Pair<String, String>? = null; private var photoFor = 0L
+    // 7.4 照片墙：缩略图拉过的记在这里（只拉新签的）
+    private var wallTab = "wall"; private var wallId = 0L; private var wallSince: String? = null; private var wallOld = false; private var thumbsBusy = false; private var tn = 0
+    private val wallBm = HashMap<String, android.graphics.Bitmap?>(); private val wallAt = HashMap<String, String>()
+    private val tick = object : Runnable { override fun run() {
+        val o = one
+        // 7.4.1 小程序码还没做好时每秒问一次（做好了马上换上），平时 3 秒一次
+        val waiting = o != null && o.optBoolean("can_manage") && o.optBoolean("open") && code?.str("img").isNullOrEmpty() != false
+        if (o != null && o.optBoolean("can_manage") && o.optBoolean("open") && (Checkin.needCode(o) || code?.str("img").isNullOrEmpty())) loadCode()
+        if (o != null && o.optBoolean("can_manage") && Checkin.needPhoto(o) && o.optBoolean("open") && System.currentTimeMillis() - namesAt > 15000) { namesAt = System.currentTimeMillis(); loadNames() }   // 拍照签到：15 秒刷新一次照片墙
+        Bg.main.postDelayed(this, if (waiting) 1000 else 3000) } }
+    private var namesAt = 0L
     override fun build(): View = scaffold("签到", pull = { done -> if (one != null) openOne(one!!.optLong("id")) { done() } else load { done() } }) { body = it }
     override fun onShow() { if (openId > 0 && one == null && !autoTried) { input = openCode; openOne(openId) } else if (one != null) openOne(one!!.optLong("id")) else load(); Bg.main.removeCallbacks(tick); Bg.main.postDelayed(tick, 3000) }
     override fun onHide() { Bg.main.removeCallbacks(tick) }
@@ -164,7 +175,24 @@ class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: S
             if (!autoTried && !Checkin.needPhoto(r) && (openCode.isNotEmpty() || (scanned && !Checkin.needCode(r))) && r.optBoolean("open") && r.optJSONObject("mine") == null && Checkin.signable(r)) { autoTried = true; sign() }
         }
     }
-    private fun loadNames() { val o = one ?: return; Bg.load({ Checkin.detail(o.optLong("id")) }) { r, _ -> if (r != null && one === o) { names = r; render() } } }
+    private fun loadNames() { val o = one ?: return; Bg.load({ Checkin.detail(o.optLong("id")) }) { r, _ -> if (r != null && one === o) { names = r; render(); if (Checkin.needPhoto(o)) loadThumbs(o.optLong("id"), r) } } }
+    /** 7.4 有新签上的（或者重签换了照片）才去拉缩略图 */
+    private fun loadThumbs(id: Long, d: JSONObject) {
+        if (wallId != id) { wallId = id; wallSince = null; wallBm.clear(); wallAt.clear(); wallOld = false; wallTab = "wall" }
+        val sg = d.optJSONArray("signed")?.objs() ?: return
+        fun ms(t: String) = try { java.time.OffsetDateTime.parse(t).toInstant().toEpochMilli() } catch (_: Exception) { 0L }
+        val stale = sg.any { it.optBoolean("photo") && (!wallBm.containsKey(it.str("uid")) || (it.str("photo_until").isNotEmpty() && wallAt[it.str("uid")] != null && Math.abs(ms(it.str("photo_until")) - 86400000L - ms(wallAt[it.str("uid")]!!)) > 2000)) }
+        if (!stale || wallOld || thumbsBusy) return
+        thumbsBusy = true
+        Bg.load({ Checkin.thumbs(id, wallSince).map { x -> Triple(x.str("uid"), x.str("at"), try { val b = Base64.decode(x.str("thumb").substringAfter(","), Base64.DEFAULT); if (b.isEmpty()) null else BitmapFactory.decodeByteArray(b, 0, b.size) } catch (_: Exception) { null }) } }) { l, e ->
+            thumbsBusy = false
+            if (l == null) { if (Regex("checkin_thumbs|Could not find|PGRST202").containsMatchIn(e?.message ?: "")) wallOld = true; return@load }
+            if (wallId != id) return@load
+            l.forEach { (u, at, bm) -> wallBm[u] = bm; wallAt[u] = at }
+            if (l.isNotEmpty()) wallSince = l.last().second
+            render()
+        }
+    }
     private fun loadCode() {
         val o = one ?: return
         Bg.load({ Checkin.code(o.optLong("id")) }) { r, _ -> if (r != null && one === o && (code == null || r.str("code") != code?.str("code") || r.str("img").isNotEmpty() != (code?.str("img")?.isNotEmpty() ?: false))) { code = r; o.put("signed", r.optInt("signed", o.optInt("signed"))); render() } }
@@ -273,9 +301,9 @@ class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: S
                         ci.addTextChangedListener(object : android.text.TextWatcher { override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}; override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}; override fun afterTextChanged(s: android.text.Editable?) { input = s.toString() } })
                         sc.addView(ci)
                     }
-                    sc.add(ctx.button(if (Checkin.needPhoto(o)) "📷 拍照签到" else if (Checkin.needGeo(o)) "📍 我到了，签到" else "✓ 签到") { sign() }, 10)
+                    sc.add(ctx.button(if (Checkin.needPhoto(o)) (if (photo != null && photoFor == o.optLong("id")) "⟳ 重新上传照片签到" else "📷 拍照签到") else if (Checkin.needGeo(o)) "📍 我到了，签到" else "✓ 签到") { sign() }, 10)
                     sc.add(ctx.text(listOfNotNull(if (Checkin.needCode(o)) "码在投屏上，每 20 秒换一次；用手机相机扫投屏二维码、选「用捞捞打开」也能直接签" else null, if (Checkin.needGeo(o)) "签到时会定位一次，确认你在范围里" else null,
-                        if (Checkin.needPhoto(o)) "要拍一张现场照片（会打开相机），发起签到的同学和老师能看到，照片保留 30 天" else null).joinToString("；"), 12f, C.sub), 8)
+                        if (Checkin.needPhoto(o)) "要拍一张现场照片（会打开相机），发起签到的同学和老师能看到，照片 24 小时后自动删除" else null).joinToString("；"), 12f, C.sub), 8)
                 }
             }
             body.addView(sc)
@@ -296,6 +324,69 @@ class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: S
                     if (fn != null) tap { fn() } else if (long != null) tap { long() } }
                 fun mark(uid: String, n: String, on: Boolean) = Dialogs.confirm(ctx, if (on) "给「$n」补签？" else "撤销「$n」的签到？", if (on) "没带手机、定位不准、请假都可以补。" else "签错人、代签时用。", if (on) "补签" else "撤销", danger = !on) {
                     Bg.load({ Checkin.mark(oid, uid, on) }) { _, e -> a.toast(if (e != null) e.message ?: "没成功" else if (on) "已补签" else "已撤销"); openOne(oid) } }
+                if (Checkin.needPhoto(o)) {
+                    // 7.4 拍照签到照片墙：已签 / 还没签 / 照片数，照片墙 ↔ 名单，三列竖图（名字和时间压在照片底部，最新签的在最前）
+                    val nPh = sg.count { it.optBoolean("photo") }
+                    val st = ctx.row().apply { gravity = Gravity.BOTTOM }
+                    fun num(n: Int, l: String, c: Int) = ctx.col().apply { addView(ctx.text("$n", 22f, c, BOLD)); addView(ctx.text(l, 11.5f, C.sub)) }
+                    st.addView(num(sg.size, "已签", C.green), LinearLayout.LayoutParams(WRAP, WRAP).apply { rightMargin = dp(22) })
+                    st.addView(num(ms.size, "还没签", if (ms.isEmpty()) C.text else ORANGE), LinearLayout.LayoutParams(WRAP, WRAP).apply { rightMargin = dp(22) })
+                    st.addView(num(nPh, "照片", C.text))
+                    st.addView(View(ctx), LinearLayout.LayoutParams(0, 1, 1f))
+                    if (open) st.addView(ctx.soft("结束签到", C.dangerBg, C.red) { Dialogs.confirm(ctx, "结束这次签到？", "结束后同学就不能再签了。", "结束", danger = true) { Bg.load({ Checkin.close(oid) }) { _, e -> a.toast(if (e != null) e.message ?: "没结束成功" else "已结束"); openOne(oid) } } })
+                    nb.addView(st)
+                    val seg = ctx.row().apply { bg(C.mutedBg, 10); pad(3, 3) }
+                    for ((k, t) in listOf("wall" to "▦ 照片墙", "list" to "☰ 名单")) seg.addView(ctx.text(t, 13.5f, if (wallTab == k) C.text else C.sub, if (wallTab == k) BOLD else null).apply {
+                        gravity = Gravity.CENTER; pad(0, 7); if (wallTab == k) bg(C.card, 8); tap { wallTab = k; render() } }, LinearLayout.LayoutParams(0, WRAP, 1f))
+                    nb.add(seg, 12)
+                    if (ms.isNotEmpty()) {
+                        val mb = ctx.col().apply { bg(C.alpha(ORANGE, 0.08f), 12); pad(12, 8) }
+                        mb.addView(ctx.row().apply {
+                            addView(ctx.text("还没签 ${ms.size} 人" + if (mu != null) " · 点名字补签" else "", 13f, ORANGE), LinearLayout.LayoutParams(0, WRAP, 1f))
+                            addView(ctx.text("复制", 13f, C.accent, SEMI).apply { pad(8, 2); tap { (ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("没签到", ms.joinToString("、"))); a.toast("已复制") } }) })
+                        val fm = FlowRow(ctx, dp(6), dp(6))
+                        if (mu != null) mu.forEach { m -> fm.addView(chip(m.str("name"), false, { mark(m.str("uid"), m.str("name"), true) }, null)) } else ms.forEach { fm.addView(chip(it, false, null, null)) }
+                        mb.add(fm, 6)
+                        nb.add(mb, 10)
+                    }
+                    if (wallTab == "wall") {
+                        val tiles = sg.reversed()
+                        if (tiles.isEmpty()) nb.add(ctx.text(if (open) "还没有人签到，签上的同学的照片会出现在这里" else "没有人签到", 13.5f, C.sub).apply { gravity = Gravity.CENTER; pad(0, 24) }, 4)
+                        // 7.4.1 四列小方图，名字和时间在照片下面
+                        val gap = dp(8); val w = ((if (body.width > 0) body.width else ctx.resources.displayMetrics.widthPixels) - dp(16) * 2 - dp(16) * 2 - gap * 3) / 4
+                        val now = System.currentTimeMillis()
+                        fun tms(t: String) = try { java.time.OffsetDateTime.parse(t).toInstant().toEpochMilli() } catch (_: Exception) { 0L }
+                        tiles.chunked(4).forEach { rowL ->
+                            val r = ctx.row().apply { gravity = Gravity.TOP }
+                            rowL.forEachIndexed { i, s1 ->
+                                val uid = s1.str("uid"); val hasPh = s1.optBoolean("photo"); val bm = if (hasPh) wallBm[uid] else null; val fresh = now - tms(s1.str("at")) < 90000
+                                val ph = FrameLayout(ctx).apply { background = GradientDrawable().apply { cornerRadius = dp(10).toFloat(); setColor(C.mutedBg); if (fresh) setStroke(dp(2), C.green) }; clipToOutline = true }
+                                if (bm != null) ph.addView(ImageView(ctx).apply { setImageBitmap(bm); scaleType = ImageView.ScaleType.CENTER_CROP }, FrameLayout.LayoutParams(MATCH, MATCH))
+                                else ph.addView(ctx.text(if (hasPh) "📷" else "✓", 18f, C.sub).apply { gravity = Gravity.CENTER }, FrameLayout.LayoutParams(MATCH, MATCH))
+                                if (fresh) ph.addView(View(ctx).apply { background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(C.green); setStroke(dp(2), Color.WHITE) } }, FrameLayout.LayoutParams(dp(10), dp(10), Gravity.END or Gravity.TOP).apply { topMargin = dp(5); rightMargin = dp(5) })
+                                else if (s1.str("via") == "manual") ph.addView(ctx.text("补签", 10f, Color.WHITE).apply { gravity = Gravity.CENTER; setBackgroundColor(0x6B000000) }, FrameLayout.LayoutParams(MATCH, WRAP, Gravity.BOTTOM))
+                                val t = ctx.col().apply {
+                                    addView(ph, LinearLayout.LayoutParams(w, w))
+                                    addView(ctx.text(s1.str("name"), 12.5f, C.text, SEMI, 1).apply { gravity = Gravity.CENTER; ellipsize = android.text.TextUtils.TruncateAt.END }, LinearLayout.LayoutParams(w, WRAP).apply { topMargin = dp(4) })
+                                    addView(ctx.text(Checkin.hm(s1.str("at")).takeLast(5), 10.5f, C.sub).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(w, WRAP))
+                                }
+                                t.tap { if (hasPh) viewPhoto(oid, tiles.filter { it.optBoolean("photo") }, uid, mu != null) else if (mu != null && uid.isNotEmpty()) mark(uid, s1.str("name"), false) }
+                                if (mu != null && uid.isNotEmpty()) t.setOnLongClickListener { mark(uid, s1.str("name"), false); true }
+                                r.addView(t, LinearLayout.LayoutParams(w, WRAP).apply { if (i > 0) leftMargin = gap })
+                            }
+                            nb.add(r, 10)
+                        }
+                        nb.add(ctx.text("🕒 照片 24 小时后自动删除 · 点照片看大图，长按可撤销签到", 12f, C.sub).apply { gravity = Gravity.CENTER }, 10)
+                    } else {
+                        val f1 = FlowRow(ctx, dp(6), dp(6))
+                        sg.forEach { s1 -> val uid = s1.str("uid"); f1.addView(chip(s1.str("name") + " " + Checkin.hm(s1.str("at")).takeLast(5) + (if (s1.str("via") == "manual") " 补签" else "") + (if (mu != null && uid.isNotEmpty()) " ×" else ""), true, null,
+                            if (mu != null && uid.isNotEmpty()) ({ mark(uid, s1.str("name"), false) }) else null)) }
+                        if (sg.isEmpty()) f1.addView(ctx.text("还没有", 13.5f, C.sub))
+                        nb.add(f1, 10)
+                    }
+                    body.addView(nb)
+                    return
+                }
                 nb.addView(ctx.text("已签 ${sg.size} 人", 14f, C.text, BOLD))
                 // 7.3 拍照签到：看照片
                 val nPh = sg.count { it.optBoolean("photo") }
@@ -339,31 +430,73 @@ class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: S
             d.setContentView(root); d.window?.setLayout(MATCH, MATCH); d.show()
         }
     }
-    /** 7.3 拍照：打开相机，压成长边约 1080 的 JPEG，转成 data:image/jpeg;base64,… */
-    private fun takePhoto(done: (String) -> Unit) {
+    /** 7.4 看大图：点开的是原图，左右翻看全班的 */
+    private fun viewPhoto(id: Long, list: List<JSONObject>, uid: String, canMark: Boolean) {
+        var k = list.indexOfFirst { it.str("uid") == uid }.coerceAtLeast(0)
+        val d = android.app.Dialog(ctx, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+        val root = ctx.col().apply { setBackgroundColor(0xFF111111.toInt()) }
+        val img = ImageView(ctx).apply { scaleType = ImageView.ScaleType.FIT_CENTER }
+        val cap = ctx.text("", 14f, Color.WHITE)
+        val prev = ctx.text("‹", 30f, Color.WHITE).apply { gravity = Gravity.CENTER; bg(0x24FFFFFF, 10) }
+        val next = ctx.text("›", 30f, Color.WHITE).apply { gravity = Gravity.CENTER; bg(0x24FFFFFF, 10) }
+        fun show() {
+            val s1 = list[k]; val u = s1.str("uid")
+            cap.text = s1.str("name") + " · " + Checkin.hm(s1.str("at")).takeLast(5) + " 签到　${k + 1} / ${list.size}"
+            prev.alpha = if (k > 0) 1f else 0.25f; next.alpha = if (k < list.size - 1) 1f else 0.25f
+            img.setImageBitmap(wallBm[u])
+            Bg.load({ Checkin.photos(id, u).firstOrNull()?.let { p -> val b = Base64.decode(p.str("img").substringAfter(","), Base64.DEFAULT); BitmapFactory.decodeByteArray(b, 0, b.size) } }) { bm, e ->
+                if (list[k].str("uid") != u || !d.isShowing) return@load
+                if (bm != null) img.setImageBitmap(bm) else a.toast(e?.message ?: "照片已经删了（签到照片只保留 24 小时）")
+            }
+        }
+        prev.tap { if (k > 0) { k--; show() } }; next.tap { if (k < list.size - 1) { k++; show() } }
+        val mid = FrameLayout(ctx).apply {
+            addView(img, FrameLayout.LayoutParams(MATCH, MATCH))
+            addView(prev, FrameLayout.LayoutParams(dp(44), dp(64), Gravity.START or Gravity.CENTER_VERTICAL).apply { leftMargin = dp(8) })
+            addView(next, FrameLayout.LayoutParams(dp(44), dp(64), Gravity.END or Gravity.CENTER_VERTICAL).apply { rightMargin = dp(8) })
+        }
+        root.addView(mid, LinearLayout.LayoutParams(MATCH, 0, 1f))
+        root.addView(ctx.row().apply {
+            pad(14, 10); setBackgroundColor(0xFF1B1B1B.toInt())
+            addView(cap, LinearLayout.LayoutParams(0, WRAP, 1f))
+            if (canMark) addView(ctx.soft("撤销签到", 0x24FFFFFF, Color.WHITE) { val s1 = list[k]; d.dismiss(); Dialogs.confirm(ctx, "撤销「${s1.str("name")}」的签到？", "签错人、代签时用。", "撤销", danger = true) { Bg.load({ Checkin.mark(id, s1.str("uid"), false) }) { _, e -> a.toast(if (e != null) e.message ?: "没成功" else "已撤销"); openOne(id) } } }, LinearLayout.LayoutParams(WRAP, WRAP).apply { rightMargin = dp(8) })
+            addView(ctx.soft("关闭", 0x24FFFFFF, Color.WHITE) { d.dismiss() })
+        })
+        d.setContentView(root); d.show(); show()
+    }
+    /** 7.3 拍照：打开相机，压成 JPEG，转成 data:image/jpeg;base64,…
+     *  7.4 原图不超过 20 万字（全班同时上传也不卡）+ 长边 300 的缩略图（照片墙用） */
+    private fun takePhoto(done: (Pair<String, String>) -> Unit) {
         Media.camera(a) { u ->
             Bg.load({
                 var out = ""
-                for ((side, q) in listOf(1080 to 70, 900 to 60, 720 to 50, 560 to 45)) {
+                for ((side, q) in listOf(1080 to 62, 900 to 55, 720 to 50, 560 to 45)) {
                     val s = "data:image/jpeg;base64," + Base64.encodeToString(Media.jpeg(ctx, u, side, q), Base64.NO_WRAP)
-                    if (s.length < 380000) { out = s; break }
+                    if (s.length < 200000) { out = s; break }
                 }
-                out
-            }) { s, e -> if (s.isNullOrEmpty()) a.toast(e?.message ?: "照片太大了，再拍一张试试") else done(s) }
+                var th = ""
+                for ((side, q) in listOf(300 to 55, 220 to 40)) {
+                    val s = try { "data:image/jpeg;base64," + Base64.encodeToString(Media.jpeg(ctx, u, side, q), Base64.NO_WRAP) } catch (_: Exception) { "" }
+                    if (s.isNotEmpty() && s.length < 58000) { th = s; break }
+                }
+                if (out.isEmpty()) null else out to th
+            }) { s, e -> if (s == null) a.toast(e?.message ?: "照片太大了，再拍一张试试") else done(s) }
         }
     }
     private fun sign() {
         val o = one ?: return; if (busy) return
         val c = input.trim()
         if (Checkin.needCode(o) && !Regex("^\\d{4}$").matches(c)) { a.toast("输入 4 位签到码"); return }
-        if (Checkin.needPhoto(o) && photo == null) { takePhoto { p -> photo = p; sign() }; return }
-        val ph = photo; photo = null
+        if (photoFor != o.optLong("id")) photo = null
+        if (Checkin.needPhoto(o) && photo == null) { takePhoto { p -> photo = p; photoFor = o.optLong("id"); sign() }; return }
+        val ph = photo
         val go = { p: com.laolao.classcalendar.core.Geo.Pos? ->
             busy = true
-            Bg.load({ Checkin.sign(o.optLong("id"), p, if (Checkin.needCode(o)) c else null, ph) }) { r, e ->
+            Bg.load({ Checkin.sign(o.optLong("id"), p, if (Checkin.needCode(o)) c else null, ph?.first, ph?.second) }) { r, e ->
                 busy = false
+                if (r != null && (r.optBoolean("ok") || r.optBoolean("already"))) photo = null
                 when {
-                    r == null -> Dialogs.alert(ctx, "没签上", e?.message ?: "")
+                    r == null -> Dialogs.alert(ctx, "没签上", (e?.message ?: "") + if (ph != null) "\n\n照片已经拍好了，再点一次「签到」会直接用这张重新上传，不用重拍。" else "")
                     !r.optBoolean("ok", true) -> Dialogs.alert(ctx, "还不能签到", r.str("why").ifEmpty { "没签上" })
                     r.optBoolean("already") -> a.toast("你已经签过了")
                     else -> { a.toast("✓ 签到成功" + (if (!r.isNull("dist") && r.has("dist")) "，离签到点 ${r.optInt("dist")} 米" else "") + if (r.optInt("points") > 0) "，经验 +${r.optInt("points")}" else ""); Level.refresh { com.laolao.classcalendar.core.Bus.emit("xp") } }

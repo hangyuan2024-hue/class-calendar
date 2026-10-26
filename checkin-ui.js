@@ -211,24 +211,29 @@
     if (x.can_manage) {
       detail(x.id);
       // 动态码每 20 秒换；6.9.6 位置签到整场一张码，只刷新人数
-      if (x.open) { tickCode(); codeTimer = setInterval(tickCode, needCode(x) ? 2500 : 5000); }
+      // 7.4.1 位置 / 拍照签到的码只带编号：先画普通二维码，不等服务器；小程序码没做好时每秒问一次，做好了 2.5 / 5 秒问一次
+      if (x.open && !needCode(x) && $("ckQr")) { $("ckQr").innerHTML = QRLite.svg(SITE + "?i=" + x.id, { level: "M" }); lastCode = "ug"; }
+      if (x.open) { qrAt = 0; qrImg = false; detAt = 0; tn = 0; tickCode(); codeTimer = setInterval(() => { if (Date.now() - qrAt >= (qrImg ? (needCode(x) ? 2500 : 5000) : 1000)) tickCode(); }, 500); }
     }
     // 扫码进来：带着码的直接签；位置签到的码只带编号，直接定位签到
     if (x.open && !x.mine && signable(x) && !x.need_photo && (code || (scan && !needCode(x)))) sign(x, code, $("ckSignOne"));   // 要拍照的得自己点一下（浏览器只让点按钮时开相机）
   }
-  let tn = 0;
+  let tn = 0, qrAt = 0, qrImg = false, detAt = 0;
   async function tickCode() {
     if (!one || !$("ckQr")) { clearInterval(codeTimer); return; }
+    qrAt = Date.now();
+    if (Date.now() - detAt > 15000) { detAt = Date.now(); if (tn++) detail(one.id); }   // 名单 15 秒刷新一次（第一次打开时已经拉过）
     try {
       const r = await CCAuth.rpc("checkin_code", { id: one.id });
       if (r && r.geo) {   // 6.9.6 位置签到：码只带编号
         const key = r.img ? "mg" : "ug";
+        qrImg = !!r.img;
         if (key !== lastCode) { lastCode = key; $("ckQr").innerHTML = r.img ? `<img src="${r.img}" alt="签到小程序码">` : QRLite.svg(SITE + "?i=" + one.id, { level: "M" }); $("ckQrT").textContent = r.img ? "微信扫一扫，打开签到页" : "手机扫码打开签到页"; }
         $("ckLeft").textContent = `已签 ${r.signed} / ${one.members}`;
-        if (++tn % 3 === 0) detail(one.id);
         return;
       }
       if (!r || !r.code) return;
+      qrImg = !!r.img;
       // 有小程序码就投小程序码（微信扫一扫直接进小程序签到）；还没生成好 / 后端没配好就先用普通二维码
       const key = (r.img ? "m" : "u") + r.code;
       if (key !== lastCode) {
@@ -237,7 +242,6 @@
         $("ckQrT").textContent = r.img ? "微信扫一扫签到" : "手机扫码签到";
       }
       $("ckLeft").textContent = `${r.left} 秒后换码 · 已签 ${r.signed} / ${one.members}`;
-      if (++tn % 6 === 0) detail(one.id);
     } catch (e) {}
   }
   async function create() {
@@ -297,9 +301,9 @@
         <div class="cw-miss-l">${miss.map((m) => mk ? `<button class="cw-chip" data-ckmk="${esc(m.uid)}" data-n="${esc(m.name)}">${esc(m.name)}</button>` : `<span class="cw-chip">${esc(m.name)}</span>`).join("")}</div></div>` : ""}
       ${wallTab === "wall" ? (w.tiles.length ? `<div class="cw-grid">${w.tiles.map((s, i) => {
           const src = s.photo ? w.src[s.uid] : "", fresh = now - Date.parse(s.at) < 9e4;
-          return `<button class="cw-tile${fresh ? " fresh" : ""}" data-cwi="${i}" title="${esc(s.name)} ${hhmm(s.at)}${s.photo ? " · 点开看大图" : ""}">
-            ${src ? `<img src="${src}" alt="${esc(s.name)} 的签到照片" loading="lazy">` : `<span class="cw-none"><i>${s.photo ? "📷" : "✓"}</i>${s.photo ? "点开看" : "没有照片"}</span>`}
-            <span class="cw-cap"><b>${esc(s.name)}</b><small>${hhmm(s.at)}</small></span>${fresh ? `<em class="cw-new">刚签</em>` : s.via === "manual" ? `<em class="cw-new gray">补签</em>` : ""}</button>`; }).join("")}</div>`
+          return `<button class="cw-tile" data-cwi="${i}" title="${esc(s.name)} ${hhmm(s.at)}${s.photo ? " · 点开看大图" : s.via === "manual" ? " · 补签" : ""}">
+            <span class="cw-ph${fresh ? " fresh" : ""}">${src ? `<img src="${src}" alt="${esc(s.name)} 的签到照片" loading="lazy">` : `<span class="cw-none">${s.photo ? "📷" : "✓"}</span>`}${fresh ? `<i class="cw-dot" title="刚签"></i>` : s.via === "manual" ? `<i class="cw-tag">补签</i>` : ""}</span>
+            <b class="cw-n">${esc(s.name)}</b><small class="cw-t">${hhmm(s.at)}</small></button>`; }).join("")}</div>`
           : `<div class="meta cw-empty">${one && one.open ? "还没有人签到，签上的同学的照片会出现在这里" : "没有人签到"}</div>`)
         + `<div class="meta cw-foot">🕒 照片 24 小时后自动删除${w.tiles.length ? `（还剩约 ${keep} 小时）` : ""} · 点照片看大图，可以用 ← → 翻看</div>`
       : `<div class="ck-names"><b>已签 ${r.signed.length} 人</b>${r.signed.map((s) => `<span class="ck-name ok" title="${hm(s.at)}">${esc(s.name)}<small>${hhmm(s.at)} ${s.via === "manual" ? "补签" + (s.by ? "·" + esc(s.by) : "") : ""}</small>${mk && s.uid ? `<button class="ck-x" data-ckun="${esc(s.uid)}" data-n="${esc(s.name)}" title="撤销这个人的签到">×</button>` : ""}</span>`).join("") || `<span class="meta">还没有人签</span>`}</div>`}`;
