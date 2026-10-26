@@ -46,6 +46,8 @@
   const amap = (x) => `https://uri.amap.com/marker?position=${x.lng},${x.lat}&name=${encodeURIComponent(x.place || x.title)}&coordinate=wgs84&callnative=1`;
   const hhmm = (iso) => { const d = new Date(iso); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
   let one = null, codeTimer = 0, lastCode = "", pendingScan = null;
+  // 7.4 照片墙：拉过的缩略图记在这里（只拉新签的）；pending = 拍了但没传上去的照片（再点直接重传，不用重拍）
+  let wall = null, wallTab = "wall", pending = null;
 
   async function load() {
     const c = cur();
@@ -67,18 +69,29 @@
     try {
       const a = { id: +x.id };
       if (needCode(x)) { a.code = String(code || "").trim(); if (!/^\d{4}$/.test(a.code)) throw new Error("输入 4 位签到码（投屏上那 4 个数字），或者用手机扫二维码"); }
-      if (x.need_photo) { if (btn) btn.textContent = "拍照中…"; a.photo = await takePhoto(); if (btn) btn.textContent = needGeo(x) ? "定位中…" : "签到中…"; }
+      if (x.need_photo) {
+        if (!(pending && pending.id === x.id)) { if (btn) btn.textContent = "拍照中…"; pending = { id: x.id, p: await takePhoto() }; }
+        a.photo = pending.p.photo; if (pending.p.thumb) a.thumb = pending.p.thumb;
+        if (btn) btn.textContent = needGeo(x) ? "定位中…" : "上传照片…";
+      }
       if (needGeo(x)) { const p = await getPos(); a.lat = p.lat; a.lng = p.lng; a.accuracy = p.acc; if (btn) btn.textContent = "签到中…"; }
-      const r = await CCAuth.rpc("checkin_sign", a);
+      let r;
+      try { r = await CCAuth.rpc("checkin_sign", a); }
+      catch (e) {
+        if (a.thumb && /thumb|Could not find|PGRST202|schema cache/i.test(e.message)) { delete a.thumb; r = await CCAuth.rpc("checkin_sign", a); }   // 数据库还没执行 7.4
+        else throw e;
+      }
+      if (r && (r.ok || r.already)) pending = null;
       if (r && r.ok) {
         say(r.already ? "已经签过了" : `✓ 签到成功${r.dist != null ? `（离签到点 ${r.dist} 米）` : ""}${r.points ? "，经验 +" + r.points : ""}`, "ok");
         if (r.points && window.LaoLevel) LaoLevel.refresh();
         await load(); if (one && one.id === x.id) openOne(x.id);
       } else say(r && r.need === "photo" && !x.need_photo ? "这次签到要拍照：请刷新一下再签" : (r && r.why) || "签到没成功", "bad");
-    } catch (e) { say(e.message, "bad"); }
-    finally { if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = x.need_photo ? "📷 拍照签到" : "签到"; } }
+    } catch (e) { say(e.message + (pending && pending.id === x.id ? "。照片已经拍好了，再点一次会直接重新上传" : ""), "bad"); }
+    finally { if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = x.need_photo ? (pending && pending.id === x.id ? "⟳ 重新上传照片签到" : "📷 拍照签到") : "签到"; } }
   }
-  // 7.3 拍照签到：打开相机（手机）/ 选一张照片（电脑），压成长边 1080 的 JPEG（不超过 30 万字）
+  // 7.3 拍照签到：打开相机（手机）/ 选一张照片（电脑），压成 JPEG
+  // 7.4 原图不超过 20 万字（全班同时上传也不卡）+ 一张长边 300 的缩略图（照片墙用）；返回 { photo, thumb }
   function takePhoto() {
     return new Promise((ok, no) => {
       const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*"; inp.setAttribute("capture", "environment");
@@ -89,13 +102,17 @@
         if (!f) { no(new Error("没拍照，签到取消了")); return; }
         try {
           const bmp = await createImageBitmap(f);
-          for (const [side, q] of [[1080, 0.7], [900, 0.6], [720, 0.5], [560, 0.45]]) {
+          const jpg = (side, q) => {
             const s = Math.min(1, side / Math.max(bmp.width, bmp.height)), c = document.createElement("canvas");
             c.width = Math.round(bmp.width * s); c.height = Math.round(bmp.height * s);
             const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(bmp, 0, 0, c.width, c.height);
-            const u = c.toDataURL("image/jpeg", q); if (u.length < 380000) { ok(u); return; }
-          }
-          no(new Error("照片太大了，换一张试试"));
+            return c.toDataURL("image/jpeg", q);
+          };
+          let photo = "";
+          for (const [side, q] of [[1080, 0.62], [900, 0.55], [720, 0.5], [560, 0.45]]) { const u = jpg(side, q); if (u.length < 200000) { photo = u; break; } }
+          if (!photo) { no(new Error("照片太大了，换一张试试")); return; }
+          let thumb = jpg(300, 0.55); if (thumb.length > 58000) thumb = jpg(220, 0.4); if (thumb.length > 58000) thumb = "";
+          ok({ photo, thumb });
         } catch (e) { no(new Error("这张照片读不了，换一张试试")); }
       };
       window.addEventListener("focus", () => setTimeout(() => { if (!done && !inp.files.length) { inp.remove(); no(new Error("没拍照，签到取消了")); } }, 1200), { once: true });
@@ -110,7 +127,7 @@
     if (!v.open) v.showModal();
     try {
       const l = (await CCAuth.rpc("checkin_photos", { id: +id, uid: uid || null })) || [];
-      v.innerHTML = `<h3>📷 ${esc(name || "签到照片")}<small>${l.length} 张 · 照片保留 30 天</small></h3>
+      v.innerHTML = `<h3>📷 ${esc(name || "签到照片")}<small>${l.length} 张 · 照片 24 小时后自动删除</small></h3>
         <div class="ck-photos">${l.map((p) => `<figure><img src="${p.img}" alt="${esc(p.name)}" loading="lazy"><figcaption>${esc(p.name)} · ${hhmm(p.at)}</figcaption></figure>`).join("") || `<div class="meta">还没有照片</div>`}</div>
         <div class="row"><span class="spacer"></span><button class="small" data-phx>关闭</button></div>`;
     } catch (e) { v.innerHTML = `<h3>📷 签到照片</h3><div class="meta">${esc(e.message)}</div><div class="row"><span class="spacer"></span><button class="small" data-phx>关闭</button></div>`; }
@@ -170,6 +187,7 @@
     let x;
     try { x = await CCAuth.rpc("checkin_get", { id: +id }); } catch (e) { say("签到打不开：" + e.message, "bad"); return; }
     one = x;
+    if (!wall || wall.id !== x.id) { wall = { id: x.id, since: null, src: {}, at: {}, full: {} }; wallTab = "wall"; }
     const pct = x.members ? Math.round(x.signed * 100 / x.members) : 0;
     d.innerHTML = `<h3>${x.mode === "photo" ? "📷" : needCode(x) ? "🔢" : "📍"} ${esc(x.title)}<small>${x.open ? "进行中" : "已结束"}</small></h3>
       <div class="ck-info">
@@ -184,8 +202,8 @@
           <div class="meta" id="ckLeft">每 20 秒换一次码</div><div class="meta">没带手机扫码的同学：打开捞捞「签到」，输入这 4 位码</div>` : `<div class="meta" id="ckLeft">已签 ${x.signed} / ${x.members}</div><div class="meta">${needGeo(x) ? `同学扫码后会自动定位，在 ${x.radius} 米内就签上了。` : "同学扫码打开签到页，拍一张现场照片就签上了。"}这张码整场不变，可以截图发到班级群。</div>`}
           <button class="small" id="ckFull">⛶ 全屏投屏</button></div></div>` : ""}
       ${signable(x) || x.mine ? `<div class="ck-me">${x.mine ? `<div class="ck-ok big">✓ 你 ${hhmm(x.mine.at)} 签到了${x.mine.dist != null ? `（离签到点 ${x.mine.dist} 米）` : ""}${x.mine.photo ? " · 📷 照片已交" : ""}</div>`
-        : x.open ? `<div class="row">${needCode(x) ? `<input id="ckCodeIn" class="ck-quick big" inputmode="numeric" maxlength="4" placeholder="4 位签到码" value="${esc(code || "")}">` : ""}<button class="btn ink" id="ckSignOne">${x.need_photo ? "📷 拍照签到" : needGeo(x) ? "📍 我到了，签到" : "✓ 签到"}</button></div>
-          <p class="meta">${needCode(x) ? "手机上用微信扫投屏的二维码最快。" : ""}${needGeo(x) ? "签到时会定位一次，确认你在范围里（电脑一般定位不准，请用手机）。" : ""}${x.need_photo ? "要拍一张现场照片（手机会打开相机），发起签到的同学和老师能看到。" : ""}</p>` : `<p class="meta">签到已经结束了。</p>`}</div>` : ""}
+        : x.open ? `<div class="row">${needCode(x) ? `<input id="ckCodeIn" class="ck-quick big" inputmode="numeric" maxlength="4" placeholder="4 位签到码" value="${esc(code || "")}">` : ""}<button class="btn ink" id="ckSignOne">${x.need_photo ? (pending && pending.id === x.id ? "⟳ 重新上传照片签到" : "📷 拍照签到") : needGeo(x) ? "📍 我到了，签到" : "✓ 签到"}</button></div>
+          <p class="meta">${needCode(x) ? "手机上用微信扫投屏的二维码最快。" : ""}${needGeo(x) ? "签到时会定位一次，确认你在范围里（电脑一般定位不准，请用手机）。" : ""}${x.need_photo ? "要拍一张现场照片（手机会打开相机），发起签到的同学和老师能看到，24 小时后自动删除。" : ""}</p>` : `<p class="meta">签到已经结束了。</p>`}</div>` : ""}
       ${x.can_manage ? `<div class="ck-detail" id="ckDetail"><div class="meta">加载名单…</div></div>` : ""}
       <div class="row">${x.can_manage && x.open ? `<button class="small" data-ckclose="${x.id}">结束签到</button>` : ""}<span class="spacer"></span><button class="small" data-ckx="list">‹ 全部签到</button><button class="small" data-ckx="close">关闭</button></div>`;
     if (!d.open) d.showModal();
@@ -244,14 +262,84 @@
       // 6.9.6 补签：点没签的名字补签，点已签名字后面的 × 撤销（老服务器没有 missing_u，只能看）
       const mk = Array.isArray(r.missing_u), miss = mk ? r.missing_u : r.missing.map((n) => ({ name: n }));
       const ph = r.signed.filter((s) => s.photo).length;
+      el.dataset.missing = miss.map((m) => m.name).join("、");
+      if (one && one.need_photo && one.id === +id) { await paintWall(el, r, miss, mk); return; }
       el.innerHTML = `${ph ? `<div class="row"><button class="small" data-ckph="${id}">📷 看全部签到照片（${ph} 张）</button></div>` : ""}<div class="ck-names"><b>已签 ${r.signed.length} 人</b>${r.signed.map((s) => `<span class="ck-name ok" title="${hm(s.at)}">${esc(s.name)}<small>${hhmm(s.at)} ${s.via === "manual" ? "补签" + (s.by ? "·" + esc(s.by) : "") : s.via === "code" ? "码" : s.dist != null ? s.dist + " 米" : ""}</small>${s.photo ? `<button class="ck-x" data-ckph="${id}" data-uid="${esc(s.uid)}" data-n="${esc(s.name)}" title="看照片">📷</button>` : ""}${mk && s.uid ? `<button class="ck-x" data-ckun="${esc(s.uid)}" data-n="${esc(s.name)}" title="撤销这个人的签到">×</button>` : ""}</span>`).join("") || `<span class="meta">还没有人签</span>`}</div>
         <div class="ck-names"><b>没签 ${miss.length} 人</b>${miss.map((m) => mk ? `<button class="ck-name mk" data-ckmk="${esc(m.uid)}" data-n="${esc(m.name)}" title="点一下补签">${esc(m.name)}<small>补签</small></button>` : `<span class="ck-name">${esc(m.name)}</span>`).join("") || `<span class="meta">全部签到了 🎉</span>`}</div>
         ${miss.length ? `<button class="small" data-ckcopy="${id}">复制没签的名单</button>` : ""}${mk ? `<span class="meta">　点没签的名字补签（没带手机、定位不准、请假）；补错了点已签名字后面的 × 撤销。</span>` : ""}`;
       el.dataset.missing = miss.map((m) => m.name).join("、");
     } catch (e) { el.innerHTML = `<div class="meta">名单打不开：${esc(e.message)}</div>`; }
   }
+  // ---------- 7.4 拍照签到照片墙 ----------
+  async function paintWall(el, r, miss, mk) {
+    const w = wall, id = w.id;
+    const stale = (s) => s.photo && (!(s.uid in w.src) || (s.photo_until && w.at[s.uid] && Math.abs(Date.parse(s.photo_until) - 864e5 - Date.parse(w.at[s.uid])) > 2000));
+    if (r.signed.some(stale) && !w.old) {
+      try {
+        for (let page = 0; page < 10; page++) {
+          const l = (await CCAuth.rpc("checkin_thumbs", { id, since: w.since })) || [];
+          l.forEach((x) => { w.src[x.uid] = x.thumb || ""; w.at[x.uid] = x.at; delete w.full[x.uid]; });
+          if (l.length) w.since = l[l.length - 1].at;
+          if (l.length < 60) break;
+        }
+      } catch (e) { if (/checkin_thumbs|Could not find|PGRST202/.test(e.message)) w.old = true; }
+    }
+    if (!$("ckDetail")) return;
+    const now = Date.now(); let until = 0;
+    w.tiles = r.signed.slice().reverse().map((s) => { if (s.photo_until) until = Math.max(until, Date.parse(s.photo_until)); return s; });
+    // 名单和照片都没变就不重画（每 15 秒刷新一次，避免照片闪）
+    const key = wallTab + "|" + r.signed.map((s) => s.uid + s.at + (s.photo ? 1 : 0) + (w.src[s.uid] ? 1 : 0)).join() + "|" + miss.map((m) => m.name).join() + "|" + Math.floor(now / 6e4);
+    if (el._cw === key) return; el._cw = key;
+    const nPh = r.signed.filter((s) => s.photo).length, keep = until ? Math.max(0, Math.ceil((until - now) / 36e5)) : 24;
+    el.innerHTML = `<div class="cw-top"><div class="cw-num ok"><b>${r.signed.length}</b><span>已签</span></div><div class="cw-num${miss.length ? " warn" : ""}"><b>${miss.length}</b><span>还没签</span></div><div class="cw-num"><b>${nPh}</b><span>照片</span></div>
+        <span class="spacer"></span><div class="cw-seg" role="tablist"><button role="tab" aria-selected="${wallTab === "wall"}" class="${wallTab === "wall" ? "on" : ""}" data-cwtab="wall">▦ 照片墙</button><button role="tab" aria-selected="${wallTab === "list"}" class="${wallTab === "list" ? "on" : ""}" data-cwtab="list">☰ 名单</button></div></div>
+      ${miss.length ? `<div class="cw-miss"><div class="cw-miss-h">还没签 ${miss.length} 人${mk ? " · 点名字补签" : ""}<span class="spacer"></span><button class="small" data-ckcopy="${id}">复制名单</button></div>
+        <div class="cw-miss-l">${miss.map((m) => mk ? `<button class="cw-chip" data-ckmk="${esc(m.uid)}" data-n="${esc(m.name)}">${esc(m.name)}</button>` : `<span class="cw-chip">${esc(m.name)}</span>`).join("")}</div></div>` : ""}
+      ${wallTab === "wall" ? (w.tiles.length ? `<div class="cw-grid">${w.tiles.map((s, i) => {
+          const src = s.photo ? w.src[s.uid] : "", fresh = now - Date.parse(s.at) < 9e4;
+          return `<button class="cw-tile${fresh ? " fresh" : ""}" data-cwi="${i}" title="${esc(s.name)} ${hhmm(s.at)}${s.photo ? " · 点开看大图" : ""}">
+            ${src ? `<img src="${src}" alt="${esc(s.name)} 的签到照片" loading="lazy">` : `<span class="cw-none"><i>${s.photo ? "📷" : "✓"}</i>${s.photo ? "点开看" : "没有照片"}</span>`}
+            <span class="cw-cap"><b>${esc(s.name)}</b><small>${hhmm(s.at)}</small></span>${fresh ? `<em class="cw-new">刚签</em>` : s.via === "manual" ? `<em class="cw-new gray">补签</em>` : ""}</button>`; }).join("")}</div>`
+          : `<div class="meta cw-empty">${one && one.open ? "还没有人签到，签上的同学的照片会出现在这里" : "没有人签到"}</div>`)
+        + `<div class="meta cw-foot">🕒 照片 24 小时后自动删除${w.tiles.length ? `（还剩约 ${keep} 小时）` : ""} · 点照片看大图，可以用 ← → 翻看</div>`
+      : `<div class="ck-names"><b>已签 ${r.signed.length} 人</b>${r.signed.map((s) => `<span class="ck-name ok" title="${hm(s.at)}">${esc(s.name)}<small>${hhmm(s.at)} ${s.via === "manual" ? "补签" + (s.by ? "·" + esc(s.by) : "") : ""}</small>${mk && s.uid ? `<button class="ck-x" data-ckun="${esc(s.uid)}" data-n="${esc(s.name)}" title="撤销这个人的签到">×</button>` : ""}</span>`).join("") || `<span class="meta">还没有人签</span>`}</div>`}`;
+    w.mk = mk;
+  }
+  // 大图：点开是原图（拉一次记住），← → 翻看全班的
+  async function openTile(i) {
+    const w = wall; if (!w || !w.tiles) return;
+    const list = w.tiles.filter((s) => s.photo); const s0 = w.tiles[i]; if (!s0) return;
+    if (!s0.photo) { if (w.mk && confirm(`「${s0.name}」没有照片（${s0.via === "manual" ? "补签的" : "老版本签的"}）。撤销他的签到？`)) mark(s0.uid, false); return; }
+    let lb = $("ckLb");
+    if (!lb) {
+      lb = document.createElement("dialog"); lb.id = "ckLb"; lb.className = "ck-lb"; document.body.appendChild(lb);
+      lb.addEventListener("click", (e) => { if (e.target === lb || e.target.closest("[data-lbx]")) lb.close(); else if (e.target.closest("[data-lbgo]")) show(lb._k + +e.target.closest("[data-lbgo]").dataset.lbgo); else if (e.target.closest("[data-lbun]")) { const s = lb._l[lb._k]; if (confirm(`撤销「${s.name}」的签到？`)) { lb.close(); mark(s.uid, false); } } });
+      lb.addEventListener("keydown", (e) => { if (e.key === "ArrowLeft") show(lb._k - 1); if (e.key === "ArrowRight") show(lb._k + 1); });
+    }
+    async function show(k) {
+      const l = lb._l; if (k < 0 || k >= l.length) return; lb._k = k; const s = l[k];
+      lb.innerHTML = `<figure><div class="ck-lb-img">${w.full[s.uid] || w.src[s.uid] ? `<img src="${w.full[s.uid] || w.src[s.uid]}" alt="${esc(s.name)} 的签到照片">` : `<span class="meta">加载中…</span>`}</div>
+        <figcaption><b>${esc(s.name)}</b> · ${hhmm(s.at)} 签到<span class="meta">　${k + 1} / ${l.length}</span><span class="spacer"></span>${w.mk ? `<button class="small" data-lbun>撤销签到</button>` : ""}<button class="small" data-lbx>关闭</button></figcaption></figure>
+        <button class="ck-lb-go l" data-lbgo="-1" aria-label="上一张" ${k ? "" : "disabled"}>‹</button><button class="ck-lb-go r" data-lbgo="1" aria-label="下一张" ${k < l.length - 1 ? "" : "disabled"}>›</button>`;
+      if (!w.full[s.uid]) {
+        try {
+          const r = (await CCAuth.rpc("checkin_photos", { id: w.id, uid: s.uid })) || [];
+          if (r[0]) { w.full[s.uid] = r[0].img; if (lb._k === k && lb.open) { const box = lb.querySelector(".ck-lb-img"); box.innerHTML = `<img src="${r[0].img}" alt="${esc(s.name)} 的签到照片">`; } }
+          else if (lb._k === k) lb.querySelector(".ck-lb-img").innerHTML = `<span class="meta">照片已经删了（签到照片只保留 24 小时）</span>`;
+        } catch (e) { if (lb._k === k) lb.querySelector(".ck-lb-img").innerHTML = `<span class="meta">${esc(e.message)}</span>`; }
+      }
+    }
+    lb._l = list;
+    if (!lb.open) lb.showModal();
+    show(list.indexOf(s0));
+  }
+  async function mark(uid, on) {
+    try { await CCAuth.rpc("checkin_mark", { id: one.id, uid, signed: on }); say(on ? "已补签" : "已撤销", "ok"); detail(one.id); } catch (err) { say(err.message, "bad"); }
+  }
   document.addEventListener("click", async (e) => {
     const t = e.target;
+    const cwt = t.closest("[data-cwtab]"); if (cwt && one) { wallTab = cwt.dataset.cwtab; detail(one.id); return; }
+    const cwi = t.closest("[data-cwi]"); if (cwi) { openTile(+cwi.dataset.cwi); return; }
     const o = t.closest("[data-ckone]"); if (o) { e.preventDefault(); openOne(+o.dataset.ckone); return; }
     const cl = t.closest("[data-ckclose]"); if (cl) { if (!confirm("提前结束这个签到？结束后同学就签不了了。")) return; try { await CCAuth.rpc("checkin_close", { id: +cl.dataset.ckclose }); await load(); openOne(+cl.dataset.ckclose); } catch (err) { say(err.message, "bad"); } return; }
     const mk = t.closest("[data-ckmk],[data-ckun]");
