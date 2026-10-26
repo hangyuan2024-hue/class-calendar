@@ -2853,15 +2853,9 @@ async function openSandbox(key, mode, holder, opts = {}) {
   rec.wantInit = true;
   frame.addEventListener("load", () => { if (frame.getAttribute("src") || frame.hasAttribute("srcdoc")) rec.init(); });
   const sandboxUrl = "sandbox.html?v=20261018-v64";
-  if (st.meta.bundled) {
-    // The isolated frame has an opaque origin and cannot use the parent's service
-    // worker directly. Fetch its shell from the parent, retaining the same flags.
-    try {
-      const response = await fetch(sandboxUrl);
-      if (!response.ok) throw new Error("工具页面暂时无法读取");
-      frame.srcdoc = await response.text();
-    } catch (e) { frame.src = sandboxUrl; }
-  } else frame.src = sandboxUrl;
+  // 7.2 内置工具（随机抽签器、错题本）以前用 srcdoc 加载：srcdoc 会继承网站自己的安全策略（CSP 只放行几段固定脚本），
+  // 隔离间里的脚本全被浏览器拦掉，工具打不开。和其他工具一样直接加载 sandbox.html（它有自己的安全策略，离线时由 sw.js 缓存）
+  frame.src = sandboxUrl;
   return frame;
 }
 
