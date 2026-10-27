@@ -1,0 +1,77 @@
+# 本地启动课程网站（Windows）
+
+课程网页、API 和集成思维导图由同一个 Node 服务提供，入口为 http://127.0.0.1:3000/ 。不需要另启 8794 或 8796。课程 Python AI 服务使用本机 3003 端口；导图 AI 复用课程顶栏保存的模型配置。
+
+## 首次安装
+
+安装 Node.js 24（含 npm）后，在项目根目录打开 PowerShell：
+
+```powershell
+npm ci --prefix back
+npm ci --prefix ../mindmap
+```
+
+安装依赖会联网下载包。node_modules 不随代码仓库分发，不能省略导图目录的依赖安装。SQLite 使用 Node 内置模块，不需要另外安装数据库或 C++ 编译器。
+
+## 启动、停止与重启
+
+双击“start-courses.bat”。脚本检查环境、启动服务并打开网页，随后保留服务管理菜单：
+
+| 选项 | 操作 |
+| --- | --- |
+| 1 | 打开网站 |
+| 2 | 停止本项目网站及 AI 服务 |
+| 3 | 重新启动本项目服务 |
+| 4 | 查看服务状态 |
+| 0 | 关闭管理窗口，保留服务运行 |
+
+也可双击“stop-courses.bat”。脚本核对项目标识和进程信息，仅停止本项目服务；遇到端口被其他程序占用时会明确提示。
+
+启动脚本本身不会下载依赖。根目录 local-backend.*.log、local-ai.*.log 是本机诊断日志，不提交到仓库。
+
+## 可选：课程 Python AI
+
+安装 Python 3.11 或更新版本。推荐使用已与依赖验证兼容的 Python 3.11–3.13；启动器会检查可用解释器，不会仅凭版本号认定可用。需要手动指定时可设置 COURSES_AI_PYTHON 指向解释器完整路径。
+
+使用选定的解释器安装项目内依赖，例如：
+
+```powershell
+python -m pip install -r ai-fastapi/requirements.txt --target .local-ai-deps
+```
+
+如果 python 不是需要的版本，请将其替换为对应解释器的完整路径。依赖未就绪时，网站仍可启动，依赖该服务的课程 AI 功能暂不可用。
+
+打开网页后，通过顶栏“AI 设置”选择服务与模型并保存配置。课程和导图共用设置，无需在导图内再次输入 Key。配置在本机项目中加密保存；GET 接口不返回原始密钥。真实模型调用可能产生费用。
+
+## 可选：本地附件文字提取和 OCR
+
+需要浏览器端 OCR、PDF / Word / PPT 文字提取时：
+
+```powershell
+npm ci --prefix ocr-trial
+node tools/prepare-ocr-web.cjs
+node tools/prepare-office-text.cjs
+```
+
+OCR 准备脚本首次会下载模型。模型、安装依赖及生成的 fronted/vendor/ocr/、fronted/vendor/office/ 不提交到仓库。缺少浏览器 OCR 时会尝试已配置的服务端 OCR；两者均不可用时会提示真实错误。
+
+## 可选：Word / PPT 在线预览
+
+安装 LibreOffice 后重启网站。非默认安装位置可通过 OFFICE_PREVIEW_CONVERTER 指定 soffice.com 的完整路径。
+
+缺少 LibreOffice 时，Word/PPT 在线预览和旧版 doc/ppt 提取不可用，附件保存、下载及已准备好的 docx/pptx 文字提取仍可使用。详见 [Office 预览说明](back/officePreview/README.md)。
+
+## 数据与备份
+
+- 数据库：back/data/app.db。
+- 课程附件：back/uploads/。
+- 导图、媒体、草稿和后台任务：back/data/mindmap/。
+- 本机加密 AI 配置：back/data/local-ai/。
+
+这些目录运行后生成，不随代码提交。迁移个人数据时应另行备份数据库、附件和导图数据。当前为本地使用版本，服务器账号体系尚未实现。
+
+## 验证
+
+node tests/mindmap-integration.cjs 在临时项目和随机端口运行导图与公式集成测试，使用模拟模型，不读取个人密钥或调用真实 AI。完整项目原有测试入口为 npm test --prefix back。
+
+导图更新与接入说明见 [COURSES-INTEGRATION.md](../mindmap/COURSES-INTEGRATION.md)。
