@@ -1,0 +1,1 @@
+思维导图模块：courses_app/modules/mindmap（2026-10-27 导入，改成相对路径并加了网站版启动，见 learn/runtime/import-mindmap.js）

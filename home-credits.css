@@ -1,0 +1,12 @@
+/* 7.5 首页感谢名单（在「认识一下，捞捞团队」下面） */
+.h6-thanks { margin-top: 30px; padding: 26px 28px 28px; border-radius: 22px; background: linear-gradient(135deg, #fff8ea 0%, #fff 60%); border: 1px solid #f0e2c4; }
+.h6-thanks[hidden] { display: none; }
+.h6-thanks-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
+.h6-thanks-head h3 { margin: 0; font-size: 18px; letter-spacing: .02em; }
+.h6-thanks-head p { margin: 0; font-size: 13px; color: var(--muted, #6b7c80); }
+.h6-thanks-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.h6-thx { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: 16px; background: #fff; border: 1px solid #efe6d2; }
+.h6-thx-av { flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 15px; color: #8a5a00; background: #ffe9b8; }
+.h6-thx b { display: block; font-size: 14.5px; line-height: 1.4; }
+.h6-thx p { margin: 3px 0 0; font-size: 12.5px; line-height: 1.7; color: #4b5d62; }
+@media (max-width: 640px) { .h6-thanks { padding: 20px 16px 18px; } .h6-thanks-list { grid-template-columns: 1fr; } }

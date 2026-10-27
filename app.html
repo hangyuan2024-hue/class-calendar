@@ -33,6 +33,7 @@
 <link rel="stylesheet" href="home-v7.css?v=20261023-v699">
 <link rel="stylesheet" href="home-v8.css?v=20261023-v716">
 <link rel="stylesheet" href="landing-v10.css?v=20261025-v10">
+<link rel="stylesheet" href="home-credits.css?v=20261027-v75">
 <style>
   .agree { display: flex; align-items: flex-start; gap: 8px; margin: 14px 2px 0; font-size: 13px; line-height: 1.6; color: var(--sub, #687d97); cursor: pointer; }
   .agree input { flex: none; width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--accent, #3b4ee0); cursor: pointer; }
@@ -306,6 +307,11 @@
     </div>
     <div class="h6-team-cards" id="h6TeamCards"></div>
   </div>
+  <!-- 7.5 感谢名单：读后台的 credit_list（App「我的 → 感谢名单」里管理员维护的同一份），没有内容就不显示 -->
+  <div class="h6-thanks" id="h6Thanks" hidden>
+    <div class="h6-thanks-head"><h3 id="thanks-title"><span aria-hidden="true">💛</span> 感谢名单</h3><p>捞捞能一点点长大，离不开这些人的帮忙。谢谢你们。</p></div>
+    <ul class="h6-thanks-list" id="h6ThanksList" aria-labelledby="thanks-title"></ul>
+  </div>
 </section>
 
 <section class="h6-open" id="open" aria-labelledby="open-title">
@@ -476,5 +482,6 @@
 <script src="site-config.js?v=20261023-v700"></script>
 <script src="home-v6.js?v=20261023-v716"></script>
 <script src="home-v7.js?v=20261023-v699"></script>
+<script src="home-credits.js?v=20261027-v75"></script>
 </body>
 </html>

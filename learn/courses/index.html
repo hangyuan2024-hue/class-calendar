@@ -5,13 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>课内学习 · 捞捞学习</title>
   <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
-  <script src="theme.js?v=20261024-learn3"></script>
-  <link rel="stylesheet" href="style.css?v=20261024-review-preview-center-50" />
-  <link rel="stylesheet" href="theme.css?v=20261024-learn3" />
-  <link rel="stylesheet" href="site.css?v=20261024-learn3" />
+  <script src="theme.js?v=20261027-learn3"></script>
+  <link rel="stylesheet" href="style.css?v=20261026-mindmap-2" />
+  <link rel="stylesheet" href="theme.css?v=20261027-learn3" />
+  <link rel="stylesheet" href="site.css?v=20261027-learn3" />
   <script src="../../config.js"></script>
   <script src="../../auth.js"></script>
-  <script src="site-pre.js?v=20261024-learn3"></script>
+  <script src="site-pre.js?v=20261027-learn3"></script>
+<link rel="stylesheet" href="../mindmap/vendor/katex/katex.min.css">
+<link rel="stylesheet" href="../mindmap/css/node-content.css">
+<link rel="stylesheet" href="css/resource-rich-text.css?v=20261026-rich-1">
 </head>
 <body>
 
@@ -122,7 +125,7 @@
 
   <div class="detail-tabs">
     <div class="dtab active" onclick="switchTab('materials', this)">资料</div>
-    <div class="dtab" onclick="switchTab('notes', this)">笔记</div>
+
     <div class="dtab" onclick="switchTab('mistakes', this)">错题</div>
     <div class="dtab" onclick="switchTab('reviewPlans', this)">复习</div>
     <div class="dtab" onclick="switchTab('assessments', this)">考核</div>
@@ -227,7 +230,7 @@
         <fieldset class="course-search-types">
           <legend>内容类型</legend>
           <label><input type="checkbox" value="materials" checked onchange="changeCourseSearchType(this.value,this.checked)" />资料</label>
-          <label><input type="checkbox" value="notes" checked onchange="changeCourseSearchType(this.value,this.checked)" />笔记</label>
+          <label hidden><input type="checkbox" value="notes" checked onchange="changeCourseSearchType(this.value,this.checked)" />笔记</label>
           <label><input type="checkbox" value="mistakes" checked onchange="changeCourseSearchType(this.value,this.checked)" />错题</label>
         </fieldset>
       </form>
@@ -258,8 +261,8 @@
       <div id="nodeDetailMistakeList"></div>
       <div class="detail-section-title" id="nodeDetailMaterialTitle">关联资料</div>
       <div id="nodeDetailMaterialList"></div>
-      <div class="detail-section-title" id="nodeDetailNoteTitle">关联笔记</div>
-      <div id="nodeDetailNoteList"></div>
+      <div class="detail-section-title" id="nodeDetailNoteTitle" hidden>关联笔记</div>
+      <div id="nodeDetailNoteList" hidden></div>
     </div>
   </div>
 
@@ -309,7 +312,7 @@
             <fieldset id="mistakeAiInputs">
               <label for="mistakeAiProvider">本次 AI 来源</label>
               <button type="button" onclick="coursesAiSettings.open()">打开共用 AI 设置</button>
-              <select id="mistakeAiProvider" onchange="changeMistakeAiProvider('mistakeAi')"><option value="shared">共用 AI 设置（右下角可配置）</option><option value="deepseek">DeepSeek 官方（临时 Key）</option></select>
+              <select id="mistakeAiProvider" onchange="changeMistakeAiProvider('mistakeAi')"><option value="shared">共用 AI 设置（顶栏可配置）</option></select>
               <div id="mistakeAiKeySettings" class="mistake-ai-key-settings" hidden>
                 <label for="mistakeAiApiKey">本次 API Key（不保存）</label>
                 <input id="mistakeAiApiKey" type="password" autocomplete="off" spellcheck="false" maxlength="512">
@@ -371,12 +374,13 @@
   </div>
 
   <!-- 资源详情页（资料 / 笔记通用） -->
-  <div id="resourceDetailPage">
+  <div id="resourceDetailPage" class="resource-detail-page">
     <div class="header">
       <div class="header-left">
         <button class="back-btn" onclick="backFromDetail()">←</button>
         <h1 id="resourceDetailTitle">资源详情</h1>
       </div>
+      <button type="button" id="resourceDetailEdit" class="edit-btn" onclick="openResourceDetailEditor('body')" disabled>编辑内容</button>
     </div>
     <div class="tab-content">
       <div class="detail-card">
@@ -384,18 +388,28 @@
         <div class="detail-type" id="resourceDetailType"></div>
         <div class="detail-meta" id="resourceDetailMeta"></div>
         <div class="mistake-tags" id="resourceDetailTags"></div>
+        <div id="resourceDetailReviewActions" class="resource-review-actions"></div>
       </div>
-      <div class="detail-section-title" id="resourceDetailSectionTitle">文件</div>
-      <div id="resourceDetailPreview"></div>
-      <section id="resourceDetailContentSection" hidden aria-labelledby="resourceDetailContentTitle">
-        <div class="detail-section-title" id="resourceDetailContentTitle">正文</div>
+      <section id="resourceDetailFileSection" class="resource-detail-topic resource-section" hidden>
+        <div class="resource-section-head"><h2 class="detail-section-title" id="resourceDetailSectionTitle">附件</h2></div>
+        <div id="resourceDetailPreview"></div>
+      </section>
+      <section id="resourceDetailContentSection" class="resource-detail-topic resource-section" hidden aria-labelledby="resourceDetailContentTitle">
+        <div class="resource-section-head">
+          <div><h2 class="detail-section-title" id="resourceDetailContentTitle">正文</h2><p class="resource-section-hint">保存的文字内容，可手动编辑或从附件识别后补充。</p></div>
+          <div id="resourceDetailContentActions" class="resource-section-actions"></div>
+        </div>
         <div class="detail-content" id="resourceDetailContent"></div>
       </section>
-      <section id="resourceDetailOutlineSection" class="resource-detail-topic" style="display:none;">
-        <div class="detail-section-title">重点总结 / 大纲</div>
-        <pre id="resourceDetailOutlineText" class="resource-detail-outline-text"></pre>
+      <section id="resourceDetailOutlineSection" class="resource-detail-topic resource-section" style="display:none;">
+        <div class="resource-section-head">
+          <div><h2 class="detail-section-title">重点总结 / 大纲</h2><p class="resource-section-hint">从正文或附件生成，核对后保存；与正文分别管理。</p></div>
+          <div id="resourceDetailOutlineActions" class="resource-section-actions"></div>
+        </div>
+        <p id="resourceDetailOutlineStatus" class="resource-section-hint" role="status"></p>
+        <div id="resourceDetailOutlineText" class="resource-detail-outline-text"></div>
       </section>
-      <section id="resourceDetailMindmapSection" class="resource-detail-topic" style="display:none;">
+      <section id="resourceDetailMindmapSection" class="resource-detail-topic resource-section" style="display:none;">
         <div class="detail-section-title">思维导图
           <button type="button" class="edit-mini-btn" onclick="openOutlineFullscreen()">全屏查看</button>
         </div>
@@ -403,6 +417,7 @@
         <p id="resourceDetailMindmapAiNote" class="mindmap-generation-note" role="status"></p>
         <div id="resourceDetailOutlineMap" class="outline-map"></div>
       </section>
+      <div id="resourceDetailHistory"></div>
       <div class="detail-actions">
         <a id="resourceDetailOpen" class="detail-link" href="#" target="_blank">打开文件</a>
       </div>
@@ -694,6 +709,7 @@
               <button type="button" class="edit-btn" id="mistakeEditQuestionOcrBtn" style="display:none;" onclick="recognizeMistakeEditFile('question')">识别文字</button>
             </div>
             <input type="file" id="mistakeEditQuestionUpload" style="display:none" onchange="chooseMistakeEditQuestionFile(this)" />
+            <div data-mistake-recognition data-method-id="mistakeEditQuestionRecognitionMethod" data-button-id="mistakeEditQuestionOcrBtn"></div>
             <textarea id="mistakeEditContent" rows="4" placeholder="题目内容" oninput="refreshMistakeEditDirty()"></textarea>
             <section id="mistakeEditQuestionOcrPanel" class="mistake-ocr-panel" style="display:none;">
               <div class="mistake-ocr-head"><b>识别结果</b><span>先人工校对，再填入</span></div>
@@ -755,6 +771,7 @@
                 <button type="button" class="edit-btn" id="mistakeEditAnswerOcrBtn" style="display:none;" onclick="recognizeMistakeEditFile('answer')">识别答案文字</button>
               </div>
               <input type="file" id="mistakeEditAnswerUpload" style="display:none" onchange="chooseMistakeEditAnswerFile(this)" />
+              <div data-mistake-recognition data-method-id="mistakeEditAnswerRecognitionMethod" data-button-id="mistakeEditAnswerOcrBtn"></div>
               <textarea id="mistakeEditAnswer" rows="4" placeholder="参考答案" oninput="refreshMistakeEditDirty()"></textarea>
               <section id="mistakeEditAnswerOcrPanel" class="mistake-ocr-panel" style="display:none;">
                 <div class="mistake-ocr-head"><b>答案识别结果</b><span>校对后填入答案</span></div>
@@ -836,18 +853,28 @@
         <section id="tagPickerResourceFields" class="edit-card" style="display:none;">
           <div class="edit-card-head">
             <span class="edit-card-icon">📄</span>
-            <div class="edit-card-titles"><b id="tagPickerResourceTitle">资料</b><small>可上传附件，也可直接录入正文；两者至少填一个</small></div>
-            <button type="button" class="edit-mini-btn" id="tagPickerResourceClear" style="display:none;" onclick="clearPickerResourceContent()">清空</button>
+            <div class="edit-card-titles"><b id="tagPickerResourceTitle">正文与附件</b><small>先整理正文，再生成大纲；正文和附件至少保留一项</small></div>
           </div>
           <div class="edit-card-body">
-            <div id="tagPickerResourceFileSummary" class="mistake-create-file" style="display:none;"></div>
-            <div class="edit-file-actions">
-              <button type="button" class="edit-btn" onclick="document.getElementById('tagPickerResourceUpload').click()">上传附件</button>
-              <button type="button" class="edit-btn" id="tagPickerResourceOcrBtn" style="display:none;" onclick="recognizePickerResourceFile()">识别文字</button>
-              <button type="button" class="edit-btn edit-btn-danger" id="tagPickerResourceRemove" style="display:none;" onclick="clearPickerResourceFile()">移除附件</button>
+            <div class="resource-form-attachment">
+              <div class="resource-field-head"><label>附件</label><span class="resource-field-hint">用于预览、下载和提取文字</span></div>
+              <div id="tagPickerResourceFileSummary" class="mistake-create-file" style="display:none;"></div>
+              <div class="edit-file-actions">
+                <button type="button" class="edit-btn" id="tagPickerResourceUploadBtn" onclick="document.getElementById('tagPickerResourceUpload').click()">上传附件</button>
+                <button type="button" class="edit-btn edit-btn-danger" id="tagPickerResourceRemove" style="display:none;" onclick="clearPickerResourceFile()">移除附件</button>
+              </div>
             </div>
             <input type="file" id="tagPickerResourceUpload" style="display:none" onchange="choosePickerResourceFile(this)" />
-            <textarea id="tagPickerResourceContent" rows="5" placeholder="正文 / 重点内容（可只上传附件）" oninput="updatePickerResourceClear()"></textarea>
+            <div class="resource-field-head resource-body-heading">
+              <label for="tagPickerResourceContent">正文</label>
+              <div class="resource-section-actions">
+                <button type="button" class="edit-mini-btn" id="tagPickerResourceOcrBtn" style="display:none;" onclick="recognizePickerResourceFile()">从附件识别文字</button>
+                <button type="button" class="edit-mini-btn" id="tagPickerResourceClear" style="display:none;" onclick="clearPickerResourceContent()">清空正文</button>
+              </div>
+            </div>
+            <p class="resource-field-hint">直接编辑下方正文；附件识别结果需校对并选择替换或追加，保存后生效。</p>
+            <div id="tagPickerRecognitionOptions"></div>
+            <textarea id="tagPickerResourceContent" rows="7" placeholder="输入或整理正文，也可以从上方附件识别后填入" oninput="updatePickerResourceClear()"></textarea>
             <section id="tagPickerResourceOcrPanel" class="mistake-ocr-panel" style="display:none;">
               <div class="mistake-ocr-head"><b>识别结果</b><span>先校对，再填入正文</span></div>
               <textarea id="tagPickerResourceOcrText" rows="5"></textarea>
@@ -868,25 +895,27 @@
           </div>
           <div class="edit-card-body">
             <div class="outline-ai-actions">
-            <button type="button" class="edit-mini-btn" id="tagPickerOutlineGen" onclick="generatePickerOutline()">AI 一键生成大纲</button>
+            <button type="button" class="edit-mini-btn ai-primary" id="tagPickerOutlineGen" onclick="generatePickerOutline()">AI 根据正文生成</button>
+            <button type="button" class="edit-mini-btn" id="tagPickerOutlineFileGen" onclick="generatePickerOutline('attachment')">AI 从附件生成</button>
             <button type="button" class="edit-mini-btn" onclick="coursesAiSettings.open()">AI 设置</button>
             </div>
-            <p id="tagPickerOutlineStatus" class="muted" role="status" aria-live="polite">使用共用 AI 设置，根据正文生成；可能计费，生成后可修改。</p>
-            <textarea id="tagPickerOutline" rows="6" placeholder="- 第一章&#10;  - 1.1 极限&#10;  - 1.2 连续"></textarea>
+            <p id="tagPickerOutlineStatus" class="resource-field-hint" role="status" aria-live="polite">可根据正文生成，或先识别附件再生成；可能计费，核对后保存。</p>
+            <label class="resource-field-label" for="tagPickerOutline">大纲内容</label>
+            <textarea id="tagPickerOutline" rows="10" placeholder="- 第一章&#10;  - 1.1 极限&#10;  - 1.2 连续"></textarea>
           </div>
         </section>
         <section id="tagPickerReviewModeHost" class="edit-card review-method-card" style="display:none;"></section>
         <section id="tagPickerMindmapBlock" class="edit-card" style="display:none;">
           <div class="edit-card-head">
             <span class="edit-card-icon">🗺️</span>
-            <div class="edit-card-titles"><b>思维导图</b><small>可以导入导图功能导出的 JSON，也可以直接用上面的大纲生成</small></div>
+            <div class="edit-card-titles"><b>思维导图</b><small>在导图工作台生成、分组和编辑，保存后关联到本资料</small></div>
           </div>
           <div class="edit-card-body">
             <div class="edit-file-actions mindmap-generation-actions">
               <button type="button" class="edit-btn" onclick="document.getElementById('tagPickerMindmapFile').click()">上传导图</button>
-              <button type="button" class="edit-btn" data-mindmap-generate="basic" id="tagPickerMindmapBasic" onclick="generatePickerMindmap('basic')">基础生成</button>
-              <button type="button" class="edit-btn" data-mindmap-generate="ai" id="tagPickerMindmapAi" onclick="generatePickerMindmap('ai')" disabled>AI 润色生成</button>
-              <button type="button" class="edit-btn edit-btn-danger" id="tagPickerMindmapClear" style="display:none;" onclick="clearPickerMindmap()">删除导图</button>
+              <button type="button" class="edit-btn" id="tagPickerMindmapWorkspace" onclick="generatePickerMindmap()">打开导图工作台</button>
+              <button type="button" class="edit-btn" id="tagPickerMindmapRegenerate" hidden onclick="generatePickerMindmap(true)">重新生成</button>
+              <button type="button" class="edit-btn edit-btn-danger" id="tagPickerMindmapClear" style="display:none;" onclick="clearPickerMindmap()">移除导图</button>
             </div>
             <p id="tagPickerMindmapAiNote" class="mindmap-generation-note" role="status"></p>
             <p id="tagPickerMindmapStatus" class="mindmap-generation-note" role="status" aria-live="polite"></p>
@@ -943,6 +972,7 @@
                 <button type="button" class="edit-btn edit-btn-danger" id="mistakeCreateQuestionRemove" style="display:none;" onclick="clearMistakeCreateFile()"><span class="edit-btn-icon">🗑</span>移除附件</button>
               </div>
               <input type="file" id="mistakeCreateQuestionUpload" style="display:none" onchange="chooseMistakeCreateFile(this)" />
+              <div data-mistake-recognition data-method-id="mistakeCreateQuestionRecognitionMethod" data-button-id="mistakeCreateOcrBtn"></div>
               <textarea id="mistakeCreateContent" rows="4" placeholder="题目 / 题干内容（也可以只上传附件）" oninput="updateMistakeCreateContentClear()"></textarea>
               <section id="mistakeCreateOcrPanel" class="mistake-ocr-panel" style="display:none;">
                 <div class="mistake-ocr-head"><b>识别结果</b><span>请先人工校对，再填入对应字段</span></div>
@@ -995,6 +1025,7 @@
                 <button type="button" class="edit-btn edit-btn-danger" id="mistakeCreateAnswerRemove" style="display:none;" onclick="clearMistakeAnswerFile()">移除附件</button>
               </div>
               <input type="file" id="mistakeCreateAnswerUpload" style="display:none" onchange="chooseMistakeAnswerFile(this)" />
+              <div data-mistake-recognition data-method-id="mistakeCreateAnswerRecognitionMethod" data-button-id="mistakeCreateAnswerOcrBtn"></div>
               <section id="mistakeCreateAnswerOcrPanel" class="mistake-ocr-panel" style="display:none;">
                 <div class="mistake-ocr-head"><b>答案识别结果</b><span>校对后点“填入答案”</span></div>
                 <textarea id="mistakeCreateAnswerOcrText" rows="5"></textarea>
@@ -1027,7 +1058,7 @@
             <fieldset id="mistakeCreateAiFields" class="edit-card-body">
               <label for="mistakeCreateAiProvider">本次 AI 来源</label>
               <button type="button" onclick="coursesAiSettings.open()">打开共用 AI 设置</button>
-              <select id="mistakeCreateAiProvider" onchange="changeMistakeAiProvider('mistakeCreateAi')"><option value="shared">共用 AI 设置（右下角可配置）</option><option value="deepseek">DeepSeek 官方（临时 Key）</option></select>
+              <select id="mistakeCreateAiProvider" onchange="changeMistakeAiProvider('mistakeCreateAi')"><option value="shared">共用 AI 设置（顶栏可配置）</option></select>
               <div id="mistakeCreateAiKeySettings" class="mistake-ai-key-settings" hidden>
                 <label for="mistakeCreateAiApiKey">本次 API Key（不保存）</label>
                 <input id="mistakeCreateAiApiKey" type="password" autocomplete="off" spellcheck="false" maxlength="512">
@@ -1125,7 +1156,7 @@
         <h4 class="review-plan-selection-title">选择复习内容</h4>
         <div id="reviewPlanModules" class="total-review-tabs" role="tablist" aria-label="计划内容模块">
           <button id="reviewPlanTab-material" type="button" role="tab" aria-controls="reviewPlanPanel" aria-selected="true" onclick="switchReviewPlanTab('material')">资料</button>
-          <button id="reviewPlanTab-note" type="button" role="tab" aria-controls="reviewPlanPanel" aria-selected="false" tabindex="-1" onclick="switchReviewPlanTab('note')">笔记</button>
+          <button hidden id="reviewPlanTab-note" type="button" role="tab" aria-controls="reviewPlanPanel" aria-selected="false" tabindex="-1" onclick="switchReviewPlanTab('note')">笔记</button>
           <button id="reviewPlanTab-mistake" type="button" role="tab" aria-controls="reviewPlanPanel" aria-selected="false" tabindex="-1" onclick="switchReviewPlanTab('mistake')">错题</button>
         </div>
         <section id="reviewPlanPanel" class="total-review-panel" role="tabpanel" aria-labelledby="reviewPlanTab-material">
@@ -1178,7 +1209,7 @@
         <header class="total-review-head"><h3 id="totalReviewTitle" tabindex="-1">复习 · 当前课程</h3><button type="button" class="total-review-close" onclick="closeTotalReview()" aria-label="关闭复习">×</button></header>
         <div id="totalReviewModules" class="total-review-tabs" role="tablist" aria-label="复习模块">
           <button id="totalReviewTab-material" type="button" role="tab" aria-controls="totalReviewPanel" aria-selected="true" onclick="switchTotalReviewTab('material')">资料</button>
-          <button id="totalReviewTab-note" type="button" role="tab" aria-controls="totalReviewPanel" aria-selected="false" tabindex="-1" onclick="switchTotalReviewTab('note')">笔记</button>
+          <button hidden id="totalReviewTab-note" type="button" role="tab" aria-controls="totalReviewPanel" aria-selected="false" tabindex="-1" onclick="switchTotalReviewTab('note')">笔记</button>
           <button id="totalReviewTab-mistake" type="button" role="tab" aria-controls="totalReviewPanel" aria-selected="false" tabindex="-1" onclick="switchTotalReviewTab('mistake')">错题</button>
         </div>
         <section id="totalReviewPanel" class="total-review-panel" role="tabpanel" aria-labelledby="totalReviewTab-material">
@@ -1217,50 +1248,53 @@
   <script src="vendor/chartjs/chart.umd.js"></script>
   <script src="js/config.js"></script>
   <script src="js/state.js"></script>
-  <script src="js/utils.js?v=20261024-merged-attachment-review-31"></script>
-  <script src="js/ai.js?v=20261024-platform-ai-52"></script>
-  <script src="js/aiSettings.js?v=20261024-platform-ai-52"></script>
+  <script src="js/utils.js?v=20261026-unified-1"></script>
+  <script src="js/ai.js?v=20261026-unified-1"></script>
+  <script src="js/aiSettings.js?v=20261027-connected-ai-1"></script>
 
-  <script src="js/attachmentPreview.js?v=20261024-office-preview-40"></script>
+  <script src="js/attachmentPreview.js?v=20261026-unified-1"></script>
 
   <!-- 课程 -->
   <script src="js/courses.js"></script>
-  <script src="js/courseDetail.js?v=20261024-header-add-23"></script>
+  <script src="js/courseDetail.js?v=20261026-unified-1"></script>
 
   <!-- 四类资源（列表页） -->
   <script src="js/tags.js"></script>
   <script src="js/readingBrowse.js"></script>
-  <script src="js/materials.js?v=20261024-merged-attachment-review-31"></script>
-  <script src="js/notes.js?v=20261024-merged-attachment-review-31"></script>
-  <script src="js/assessments.js?v=20261024-merged-attachment-review-31"></script>
-  <script src="js/assessmentCharts.js?v=20261024-assessment-chart-1"></script>
-  <script src="js/ocrBrowser.js?v=20261024-merged-attachment-review-31"></script>
-  <script src="js/outlineMap.js?v=20261024-outline-draft-37"></script>
-  <script src="js/officeText.js?v=20261024-legacy-office-text-41"></script>
-  <script src="js/mistakes.js?v=20261024-merged-attachment-review-31"></script>
+  <script src="js/resourceTypes.js?v=20261026-unified-1"></script>
+  <script src="js/materials.js?v=20261026-unified-1"></script>
+  <script src="js/notes.js?v=20261026-unified-1"></script>
+  <script src="js/assessments.js?v=20261026-unified-1"></script>
+  <script src="js/assessmentCharts.js?v=20261026-unified-1"></script>
+  <script src="js/ocrBrowser.js?v=20261026-unified-1"></script>
+  <script src="js/visionOcr.js?v=20261027-mistake-rich-1"></script>
+  <script src="js/mindmapEmbed.js?v=20261026-mindmap-2"></script>
+  <script src="js/outlineMap.js?v=20261026-mindmap-2"></script>
+  <script src="js/officeText.js?v=20261026-unified-1"></script>
+  <script src="js/mistakes.js?v=20261027-mistake-rich-1"></script>
 
   <!-- 录入流程：手动输入 + 选标签 -->
-  <script src="js/manualEntry.js?v=20261024-outline-save-39"></script>
-  <script src="js/tagPicker.js?v=20261024-legacy-office-text-41"></script>
-  <script src="js/tagPickerView.js?v=20261024-tree-root-collapse-34"></script>
+  <script src="js/manualEntry.js?v=20261026-unified-1"></script>
+  <script src="js/tagPicker.js?v=20261026-rich-1"></script>
+  <script src="js/tagPickerView.js?v=20261026-unified-1"></script>
 
   <!-- 详情页 -->
-  <script src="js/page.js?v=20261024-merged-attachment-review-31"></script>
-  <script src="js/itemReviewHistory.js?v=20261024-empty-review-43"></script>
+  <script src="js/page.js?v=20261026-header-service-2"></script>
+  <script src="js/itemReviewHistory.js?v=20261026-unified-1"></script>
   <script src="js/nodeDetail.js"></script>
-  <script src="js/resourceDetail.js?v=20261024-office-preview-40"></script>
-  <script src="js/resourceText.js?v=20261024-merged-attachment-review-31"></script>
-  <script src="js/materialReview.js?v=20261024-review-flow-merge-46"></script>
+  <script src="js/resourceDetail.js?v=20261026-rich-1"></script>
+  <script src="js/resourceText.js?v=20261026-unified-1"></script>
+  <script src="js/materialReview.js?v=20261026-unified-1"></script>
   <script src="js/noteReview.js"></script>
-  <script src="js/mistakeDetail.js?v=20261024-empty-answer-read-48"></script>
-  <script src="js/mistakeAi.js?v=20261024-merged-attachment-review-31"></script>
-  <script src="js/mistakeAnswerAi.js?v=20261023-adoption-confirm-19"></script>
-  <script src="js/resourceAi.js?v=20261024-merged-attachment-review-31"></script>
-  <script src="js/reviewMethodChoice.js?v=20261024-manual-review-47"></script>
-  <script src="js/clozeEditor.js?v=20261024-merged-attachment-review-31"></script>
-  <script src="js/reviewWorkbench.js?v=20261024-empty-answer-read-48"></script>
-  <script src="js/reviewFeedback.js?v=20261024-review-flow-merge-46"></script>
-  <script src="js/reviewMaterialAi.js?v=20261024-merged-attachment-review-31"></script>
+  <script src="js/mistakeDetail.js?v=20261027-mistake-rich-1"></script>
+  <script src="js/mistakeAi.js?v=20261026-unified-1"></script>
+  <script src="js/mistakeAnswerAi.js?v=20261027-mistake-rich-1"></script>
+  <script src="js/resourceAi.js?v=20261026-unified-1"></script>
+  <script src="js/reviewMethodChoice.js?v=20261027-connected-ai-1"></script>
+  <script src="js/clozeEditor.js?v=20261026-unified-1"></script>
+  <script src="js/reviewWorkbench.js?v=20261027-standard-original-1"></script>
+  <script src="js/reviewFeedback.js?v=20261026-unified-1"></script>
+  <script src="js/reviewMaterialAi.js?v=20261026-unified-1"></script>
   <dialog id="mistakeAiDialog" aria-labelledby="mistakeAiDialogTitle" oncancel="event.preventDefault();resetMistakeAi()" onclick="if(event.target===this)resetMistakeAi()">
     <header class="mistake-ai-dialog-head"><div><h2 id="mistakeAiDialogTitle" tabindex="-1">AI 复习建议</h2><p id="mistakeAiDialogQuestionTitle" class="mistake-ai-note"></p></div><button type="button" class="tag-sheet-close" onclick="resetMistakeAi()" aria-label="关闭 AI 复习建议">×</button></header>
     <div id="mistakeAiDialogBody" class="tag-sheet-body"></div>
@@ -1297,11 +1331,11 @@
       <div class="modal-actions"><button type="button" class="btn-cancel" onclick="closeCreationReviewSuggestion()">关闭</button><button type="button" id="creationModeAdviceRetry" onclick="retryCreationReviewSuggestion()" hidden>重新读取</button><button type="button" class="btn-primary" id="creationModeAdviceAnalyze" onclick="analyzeCreationReviewAdvice()" hidden>分析复习方式</button><button type="button" class="btn-primary" id="creationModeAdviceAdopt" onclick="adoptCreationReviewSuggestion()" hidden>采用建议</button></div>
     </footer>
   </dialog>
-  <script src="js/mistakeQueue.js?v=20261024-empty-answer-read-48"></script>
+  <script src="js/mistakeQueue.js?v=20261026-unified-1"></script>
   <script src="js/courseSearch.js"></script>
-  <script src="js/reviewPicker.js?v=20261024-attachment-preview-24"></script>
-  <script src="js/reviewPlans.js?v=20261024-review-flow-merge-46"></script>
-  <script src="js/reviewCenter.js?v=20261024-review-resume-complete-51"></script>
+  <script src="js/reviewPicker.js?v=20261026-unified-1"></script>
+  <script src="js/reviewPlans.js?v=20261026-unified-1"></script>
+  <script src="js/reviewCenter.js?v=20261026-unified-1"></script>
 
   <!-- 知识框架 -->
   <script src="js/knowledgeTree.js"></script>
@@ -1311,10 +1345,15 @@
   <script src="js/dropPreview.js"></script>
   <script src="js/knowledgeSort.js"></script>
 
+  <script src="../mindmap/vendor/markdown-it/markdown-it.min.js"></script>
+  <script src="../mindmap/vendor/katex/katex.min.js"></script>
+  <script src="../mindmap/js/math-completion.js"></script>
+  <script src="../mindmap/js/node-content.js"></script>
+  <script src="js/resourceRichText.js?v=20261027-mistake-rich-1"></script>
   <!-- 入口：放最后，它负责绑定事件并启动 -->
-  <script src="site-bridge.js?v=20261024-learn3"></script>
-  <script src="office-preview.js?v=20261024-learn3"></script>
-  <script src="../learn-sync.js?v=20261024-learn3"></script>
+  <script src="site-bridge.js?v=20261027-learn3"></script>
+  <script src="office-preview.js?v=20261027-learn3"></script>
+  <script src="../learn-sync.js?v=20261027-learn3"></script>
   <script src="app.js"></script>
 </body>
 </html>

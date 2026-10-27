@@ -14,12 +14,12 @@
 | 作品 | 队伍 | 代码位置 | 评审导览 |
 |---|---|---|---|
 | 班级信息整理助手（捞捞课程表） | 信息捞捞队 | 仓库根目录、`laolao-android/`、`desktop/`、`code/` | 本文件下面的「评审快速导览」 |
-| 捞捞学习：AI 思维导图与课内学习平台 | 学习捞捞队 | `learn/`（上游：[Laolao-mindmap](https://github.com/hikingsama/Laolao-mindmap)、[courses_app](https://github.com/RainyyyyDay/courses_app)） | [`learn/README.md`](learn/README.md) |
+| 捞捞学习：AI 思维导图与课内学习平台 | 学习捞捞队 | `learn/`（源码已并入本仓库：`learn/mindmap/`、`learn/courses_app/`；最初开发于 [Laolao-mindmap](https://github.com/hikingsama/Laolao-mindmap)、[courses_app](https://github.com/RainyyyyDay/courses_app)） | [`learn/README.md`](learn/README.md) |
 
 ### 两队的合作关系
 
 - **捞捞调度平台**由信息捞捞队搭建和维护：网站、账号体系、云端备份都由信息捞捞队负责，捞捞学习以独立板块接入这个平台。
-- **捞捞思维导图和课内学习**由学习捞捞队设计开发（代码在 `learn/`，上游是学习捞捞队成员自己的仓库）。
+- **捞捞思维导图和课内学习**由学习捞捞队设计开发（代码在 `learn/`；2026-10-27 起源码正式并入本仓库维护，思维导图在 `learn/mindmap/`，课内学习的源码在 `learn/courses_app/`）。
 - **两边的对接**由信息捞捞队负责（`mm-host.js`、`study-link.js` 等）：课内学习的考核截止日期同步进课程表，课程表里的「学习」入口直接打开课内学习，期末复习排期读取课内学习里的知识点和错题。
 - 两个作品之间只通过账号和公开接口互通，功能代码互不依赖。两队**分别参赛**，各自的材料只把本队开发的部分算作成果。
 

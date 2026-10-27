@@ -1,1 +1,1 @@
-courses_app 8415d4d（前端，2026-10-24 复制，网页版补丁见 learn/runtime/build.js）
+learn/courses_app（前端，2026-10-27 复制，网页版补丁见 learn/runtime/build.js）

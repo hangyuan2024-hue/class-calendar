@@ -99,16 +99,17 @@ function showToast(msg, duration = 2000, kind = 'info') {
 function notifyTextRecognitionSuccess(result, panel) {
   const extracted = result?.provider === 'office-browser' || (result?.textPages > 0 && result?.scannedPages === 0);
   const pages = Number.isInteger(result?.totalPages) && result.pages > 0 ? `，已处理 ${result.pages} 页` : '';
-  const message = `${extracted ? '提取成功' : '识别成功'}${pages}！请校对下方结果，再选择填入正文或答案。`;
+  const message = result?.partial ? `部分识别完成${pages}，未完成的页码见下方说明；已成功结果保留，请校对后填入。`
+    : `${extracted ? '提取成功' : '识别成功'}${pages}！请校对下方结果，再选择填入正文或答案。`;
   if (panel) {
     let notice = panel.querySelector('.recognition-success');
     if (!notice) {
       notice = document.createElement('div'); notice.className = 'recognition-success'; notice.setAttribute('role', 'note'); panel.prepend(notice);
     }
-    notice.textContent = `✓ ${message}`;
+    notice.textContent = `${result?.partial ? '⚠' : '✓'} ${message}`;
     notice.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'nearest' });
   }
-  showToast(`✓ ${message}`, 4500, 'success');
+  showToast(`${result?.partial ? '⚠' : '✓'} ${message}`, 4500, result?.partial ? 'info' : 'success');
 }
 // 取扩展名：'/uploads/12-34.pdf' → '.pdf'，没有就是空字符串
 function extname(name) {

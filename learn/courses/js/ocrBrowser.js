@@ -177,12 +177,14 @@ function createPdfOcrDialog(controller, options = {}) {
       dialog.querySelector('fieldset').disabled = false;
       const button = dialog.querySelector('[data-pdf-start]');
       button.disabled = false;
+      if (options.startText) button.textContent = options.startText;
       return new Promise((resolve, reject) => {
         rejectSelection = reject;
         button.onclick = () => {
           try {
             const pages = dialog.querySelector('input[value="all"]').checked
               ? Array.from({ length: total }, (_, i) => i + 1) : parsePdfPageRange(range.value, total);
+            if (options.maxPages && pages.length > options.maxPages) throw new Error(`每次最多 ${options.maxPages} 页，请选择“指定页码”缩小范围。`);
             dialog.querySelector('fieldset').disabled = true;
             button.disabled = true;
             button.textContent = options.label ? '提取中…' : '识别中…';
@@ -199,6 +201,7 @@ function createPdfOcrDialog(controller, options = {}) {
       const bar = dialog.querySelector('progress');
       bar.hidden = false; bar.max = total; bar.value = done;
     },
+    stage(message) { const bar=dialog.querySelector('progress');bar.hidden=false;bar.removeAttribute('value');dialog.querySelector('[data-pdf-progress]').textContent=message; },
     close() { controller.signal.removeEventListener('abort', abortSelection); dialog.close(); dialog.remove(); },
   };
 }

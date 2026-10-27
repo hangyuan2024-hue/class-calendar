@@ -1,5 +1,5 @@
 // 考前计划只负责选择、排期展示和调度；不读取知识框架，不实现复习步骤。
-const PLAN_TYPE_LABELS = {mistake:'错题',material:'资料',note:'笔记'};
+const PLAN_TYPE_LABELS = {mistake:'错题',material:'资料',note:'资料'};
 let reviewPlanCreate = null;
 let reviewPlanDetail = null;
 let reviewPlanRequest = 0;
@@ -164,8 +164,8 @@ function openPlanScheduleDay(date) {
   const allPassed = source.length > 0 && passed === source.length;
   const allProcessed = source.length > 0 && source.every(item => item.status === 'completed');
   const hasProgress = passed + failed + skipped > 0;
-  const taskHeading = [['material','份资料'],['note','篇笔记'],['mistake','道错题']]
-    .map(([type,unit])=>{const count=source.filter(item=>item.type===type).length;return count?`${count} ${unit}`:'';})
+  const taskHeading = [['material','份资料'],['mistake','道错题']]
+    .map(([type,unit])=>{const count=source.filter(item=>item.type===type||type==='material'&&item.type==='note').length;return count?`${count} ${unit}`:'';})
     .filter(Boolean).join(' · ');
   // 全部任务按资料 → 笔记 → 错题进入同一个会话；完成状态优先于“继续”。
   const label = allPassed ? '再来一次' : hasProgress ? '继续' : '复习';
@@ -320,6 +320,7 @@ function rememberReviewPlanScroll() {
   }
 }
 function switchReviewPlanTab(type) {
+  if(type==='note')type='material';
   const s=reviewPlanCreate;if(!s || s.busy || s.preview || !Object.hasOwn(s.filters,type) || s.tab===type)return;
   saveReviewPlanFilters();rememberReviewPlanScroll();s.tab=type;restoreReviewPlanFilters();renderReviewPlanSelection();
   const panel=document.getElementById('reviewPlanPanel');panel.classList.remove('tab-enter');void panel.offsetWidth;panel.classList.add('tab-enter');
@@ -329,7 +330,7 @@ function changeReviewPlanTag(id,checked) {const s=reviewPlanCreate;if(!s || s.bu
 function filteredReviewPlanCandidates() {
   const s=reviewPlanCreate;if(!s)return [];saveReviewPlanFilters();
   const f=s.filters[s.tab],q=f.q.trim().toLowerCase();
-  return s.rows.filter(row=>row.type===s.tab && (!f.category || row.type!=='mistake' || row.mistake_type===f.category)
+  return s.rows.filter(row=>(row.type===s.tab||s.tab==='material'&&row.type==='note') && (!f.category || row.type!=='mistake' || row.mistake_type===f.category)
     && (!f.status || row.review_status===f.status) && (!f.favorite || !!row.favorite)
     && (!q || `${row.title}\n${row.content}\n${row.ocr_text || ''}`.toLowerCase().includes(q))
     && (!f.tags.size || row.nodes.some(tag=>f.tags.has(tag.id))));
@@ -337,8 +338,8 @@ function filteredReviewPlanCandidates() {
 function renderReviewPlanSelection() {
   const s=reviewPlanCreate;if(!s)return;
   const rows=filteredReviewPlanCandidates(),list=document.getElementById('reviewPlanCandidates'),scroll=s.filters[s.tab].scroll,focused=document.activeElement?.dataset.planChoice;
-  document.querySelectorAll('#reviewPlanModules [role=tab]').forEach(button=>{const selected=button.id==='reviewPlanTab-'+s.tab;button.setAttribute('aria-selected',String(selected));button.tabIndex=selected ? 0 : -1;button.disabled=s.busy;});
-  document.getElementById('reviewPlanModules').style.setProperty('--tab-index',['material','note','mistake'].indexOf(s.tab));
+  document.querySelectorAll('#reviewPlanModules [role=tab]:not([hidden])').forEach(button=>{const selected=button.id==='reviewPlanTab-'+s.tab;button.setAttribute('aria-selected',String(selected));button.tabIndex=selected ? 0 : -1;button.disabled=s.busy;});
+  document.getElementById('reviewPlanModules').style.setProperty('--tab-index',['material','mistake'].indexOf(s.tab));
   document.getElementById('reviewPlanPanel').setAttribute('aria-labelledby','reviewPlanTab-'+s.tab);
   document.getElementById('reviewPlanListTitle').textContent=PLAN_TYPE_LABELS[s.tab]+'列表';
   renderReviewPickerTags(s,'reviewPlan','changeReviewPlanTag');
@@ -348,7 +349,7 @@ function renderReviewPlanSelection() {
   const eligible=rows.filter(row=>row.reviewable),count=eligible.filter(row=>s.ids.has(row.type+':'+row.id)).length,all=document.getElementById('reviewPlanSelectAll');
   all.checked=!!eligible.length && count===eligible.length;all.indeterminate=count>0 && count<eligible.length;all.disabled=s.loading || s.busy || !eligible.length;
   document.getElementById('reviewPlanCount').textContent=`已选择 ${s.ids.size} 项`;
-  document.getElementById('reviewPlanCounts').textContent=['material','note','mistake'].map(type=>`${PLAN_TYPE_LABELS[type]} ${[...s.ids].filter(key=>key.startsWith(type+':')).length}`).join(' · ');
+  document.getElementById('reviewPlanCounts').textContent=['material','mistake'].map(type=>`${PLAN_TYPE_LABELS[type]} ${[...s.ids].filter(key=>key.startsWith(type+':')||type==='material'&&key.startsWith('note:')).length}`).join(' · ');
   for(const id of ['reviewPlanName','reviewPlanStart','reviewPlanExam','reviewPlanSearch','reviewPlanFavorite','reviewPlanStatus','reviewPlanMistakeType','reviewPlanTagsToggle'])document.getElementById(id).disabled=s.busy;
   renderReviewPlanPreview();
 }
@@ -393,7 +394,7 @@ function handleReviewPlanPickerKey(event) {
   if(event.key==='Escape'){event.preventDefault();event.stopPropagation();if(s.preview)closeReviewPlanPreview();else closeReviewPlanCreate();return;}
   const tabs=[...document.querySelectorAll('#reviewPlanModules [role=tab]')],index=tabs.indexOf(event.target);
   if(index>=0 && !s.busy && ['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){
-    event.preventDefault();const next=event.key==='Home' ? 0 : event.key==='End' ? 2 : (index+(event.key==='ArrowRight' ? 1 : 2))%3;
+    event.preventDefault();const next=event.key==='Home' ? 0 : event.key==='End' ? tabs.length-1 : (index+(event.key==='ArrowRight' ? 1 : tabs.length-1))%tabs.length;
     switchReviewPlanTab(['material','note','mistake'][next]);tabs[next].focus();
   }
   trapReviewPickerFocus(event,'reviewPlanModal');
@@ -437,7 +438,7 @@ function renderReviewPlanDetail() {
   const todayText = !today.total ? '今日没有安排复习任务' : today.pending ? `今日 ${today.pending} 项待复习` : today.completed ? '今日复习已完成' : '今日任务均已跳过';
   document.getElementById('reviewPlanDetailBody').innerHTML = `<section class="detail-card"><h2>${escapeHtml(plan.name)}</h2><p>考试日期：${plan.exam_date} · 剩余 ${plan.remainingDays} 天${plan.status==='archived' ? ' · 已归档' : ''}</p>
     ${planProgressHtml(plan)}<p>${todayText}</p><div class="mistake-toolbar"><button id="reviewPlanTodayStart" onclick="startReviewPlanDay(${plan.id},'${plan.today}')" ${!today.pending || plan.status!=='active' ? 'disabled' : ''}>开始今日复习</button>${reviewPlanCompletedPreview?.courseId===currentCourseId&&reviewPlanCompletedPreview.planId===plan.id?'<button type="button" onclick="openReviewPlanCompletedAnswers()">查看本轮作答预览</button>':''}</div>
-    <p class="detail-meta">错题 → 资料 → 笔记，按类型使用原有复习页面；点日历上的日期可以查看当天安排并开始复习。跳过阅读仍保留待完成任务。</p>
+    <p class="detail-meta">错题和资料使用对应复习页面；点日历上的日期可以查看当天安排并开始复习。跳过阅读仍保留待完成任务。</p>
     <details class="plan-settings"><summary>管理计划</summary><label>计划名称<input id="reviewPlanRename" maxlength="100" value="${escapeHtml(plan.name)}" /></label><div class="mistake-toolbar"><button onclick="saveReviewPlanName()">保存名称</button><button onclick="changeReviewPlanStatus()">${plan.status==='active' ? '归档计划' : '恢复计划'}</button><button onclick="deleteCurrentReviewPlan()">删除计划</button></div><p class="detail-meta">日期和复习范围创建后固定；需要调整时请重新生成计划。</p></details></section>
     ${planScheduleHtml(state.schedule)}`;
   bindPlanCalendarClicks();

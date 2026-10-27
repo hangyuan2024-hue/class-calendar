@@ -533,7 +533,7 @@ async function recognizeMistakeAnswerFile() {
   try {
     const result = await recognizeUploadedFile(pendingAnswerFile, (message) => {
       if (button) button.textContent = message;
-    });
+    }, { recognitionMethod: recognitionMethodFor('mistakeCreateAnswerOcrBtn') });
     const text = document.getElementById('mistakeCreateAnswerOcrText');
     const panel = document.getElementById('mistakeCreateAnswerOcrPanel');
     const meta = document.getElementById('mistakeCreateAnswerOcrMeta');
@@ -556,6 +556,7 @@ async function recognizeMistakeAnswerFile() {
     showToast(err.message);
   } finally {
     if (button) { button.disabled = false; button.textContent = original; }
+    refreshVisionOcrOptions();
   }
 }
 
@@ -572,6 +573,7 @@ function updateMistakeCreateContentClear() {
 function clearMistakeCreateContent() {
   const content = document.getElementById('mistakeCreateContent');
   if (content) content.value = '';
+  if (typeof courseRichText !== 'undefined') courseRichText.refresh('mistakeCreateContent');
   updateMistakeCreateContentClear();
 }
 function updateMistakeCreateAnswerClear() {
@@ -590,6 +592,7 @@ function clearMistakeCreateAnswer() {
     const answer = document.getElementById('mistakeCreateAnswer');
     if (answer) answer.value = '';
   }
+  if (typeof courseRichText !== 'undefined') courseRichText.refresh('mistakeCreateAnswer');
   updateMistakeCreateAnswerClear();
 }
 function updateMistakeCreateExplanationClear() {
@@ -620,6 +623,7 @@ function closeMistakeOcr() {
 }
 // 浏览器端优先；图片不可用时回退服务端，PDF 保留所选页码语义。
 async function recognizeUploadedFile(file, onProgress, options = {}) {
+  if (options.recognitionMethod === 'vision') return recognizeVisionText(file, onProgress, { interactive: true, ...options });
   if (typeof officeFileKind === 'function' && officeFileKind(file)) {
     return recognizeOfficeText(file, onProgress, { interactive: true, ...options });
   }
@@ -652,6 +656,7 @@ async function recognizeUploadedFile(file, onProgress, options = {}) {
 }
 
 function ocrProviderLabel(provider) {
+  if (provider === 'vision') return '共用大模型（公式 / LaTeX）';
   if (provider === 'browser') return '浏览器端';
   if (provider === 'office-browser') return '浏览器端文字提取';
   if (provider === 'paddle') return '服务端';
@@ -667,7 +672,7 @@ async function recognizeMistakeCreateFile() {
   try {
     const result = await recognizeUploadedFile(pendingUploadFile, (message) => {
       if (button) button.textContent = message;
-    });
+    }, { recognitionMethod: recognitionMethodFor('mistakeCreateOcrBtn') });
     const text = document.getElementById('mistakeCreateOcrText');
     const panel = document.getElementById('mistakeCreateOcrPanel');
     const meta = document.getElementById('mistakeCreateOcrMeta');
@@ -691,6 +696,7 @@ async function recognizeMistakeCreateFile() {
     showToast(err.message);
   } finally {
     if (button) { button.disabled = false; button.textContent = original; }
+    refreshVisionOcrOptions();
   }
 }
 // OCR 出来的是整页文字，塞进答案栏前先切出“答案：…”那一段。
@@ -716,6 +722,7 @@ function applyMistakeOcr(target, mode = 'replace') {
     const content = document.getElementById('mistakeCreateContent');
     if (!content) return;
     content.value = mode === 'append' && content.value.trim() ? `${content.value.trim()}\n\n${text}` : text;
+    if (typeof courseRichText !== 'undefined') courseRichText.refresh('mistakeCreateContent');
     updateMistakeCreateContentClear();
     showToast(mode === 'append' ? '已追加到题干' : '已替换题干');
     return;
@@ -756,6 +763,7 @@ function fillMistakeAnswerFromOcr(text) {
   } else {
     const answer = document.getElementById('mistakeCreateAnswer');
     if (answer) answer.value = payload;
+    if (typeof courseRichText !== 'undefined') courseRichText.refresh('mistakeCreateAnswer');
     updateMistakeCreateAnswerClear();
     showToast(answerText ? '已填入答案（只取“答案：”之后的内容）' : '没有找到“答案：”标记，已填入整段识别文字');
   }
