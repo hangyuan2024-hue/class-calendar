@@ -109,15 +109,24 @@ jobs:
           fi
           echo "url=https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/class-calendar.apk" >> "$GITHUB_OUTPUT"
 
-      - name: 更新官网下载
+      - name: 更新官网下载（配了国内存储就先传一份过去：国内下载走国内，不再从海外慢慢下）
         env:
           VCODE: ${{ steps.ver.outputs.code }}
           VNAME: ${{ steps.ver.outputs.name }}
           URL: ${{ steps.rel.outputs.url }}
           BRANCH: ${{ github.ref_name }}
+          CN_S3_ENDPOINT: ${{ secrets.CN_S3_ENDPOINT }}
+          CN_S3_REGION: ${{ secrets.CN_S3_REGION }}
+          CN_S3_BUCKET: ${{ secrets.CN_S3_BUCKET }}
+          CN_S3_KEY_ID: ${{ secrets.CN_S3_KEY_ID }}
+          CN_S3_SECRET: ${{ secrets.CN_S3_SECRET }}
+          CN_DL_BASE: ${{ secrets.CN_DL_BASE }}
         run: |
           set -euo pipefail
           SRC="${GITHUB_WORKSPACE}/laolao-android/app/build/outputs/apk/release/app-release.apk"
+          SHA=$(sha256sum "$SRC" | cut -d' ' -f1)
+          CN=$(bash .github/workflows/cn-upload.sh "$SRC" "android/class-calendar-${VNAME}.apk")
+          echo "国内地址：${CN:-（没配国内存储）}"
           PUB="${RUNNER_TEMP}/android-publish"
           git fetch --no-tags origin "$BRANCH"
           git worktree add --detach "$PUB" FETCH_HEAD
@@ -127,7 +136,7 @@ jobs:
             if [ "$ATTEMPT" -gt 1 ]; then git fetch --no-tags origin "$BRANCH"; git -C "$PUB" reset --hard FETCH_HEAD; fi
             mkdir -p "$PUB/download"
             cp "$SRC" "$PUB/download/class-calendar.apk"
-            echo "{\"versionCode\": ${VCODE}, \"versionName\": \"${VNAME}\", \"url\": \"${URL}\", \"fallbackUrl\": \"download/class-calendar.apk\", \"size\": $(stat -c %s "$SRC"), \"signed\": true, \"at\": \"$(date -u +%FT%TZ)\"}" > "$PUB/download/app-version.json"
+            echo "{\"versionCode\": ${VCODE}, \"versionName\": \"${VNAME}\", \"url\": \"${URL}\", \"cn\": \"${CN}\", \"fallbackUrl\": \"download/class-calendar.apk\", \"size\": $(stat -c %s "$SRC"), \"sha256\": \"${SHA}\", \"signed\": true, \"at\": \"$(date -u +%FT%TZ)\"}" > "$PUB/download/app-version.json"
             cat "$PUB/download/app-version.json"
             git -C "$PUB" add -- download/class-calendar.apk download/app-version.json
             if git -C "$PUB" diff --cached --quiet; then echo "已经是最新"; exit 0; fi

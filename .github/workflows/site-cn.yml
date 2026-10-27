@@ -1,0 +1,79 @@
+# 7.6.5 网站国内加速：每次网站有更新，把网页文件同步一份到腾讯云 COS（静态网站），国内用户的域名解析指过去，海外照旧走 GitHub Pages。
+# 域名没有备案：桶放在「中国香港」地域（不用备案就能绑自己的域名），国内访问香港比访问 GitHub 快很多。
+# 没配 Secrets（CN_SITE_BUCKET 等）就跳过，不影响别的。
+# 需要的 Secrets（Settings → Secrets and variables → Actions）：
+#   CN_S3_ENDPOINT / CN_S3_REGION / CN_S3_KEY_ID / CN_S3_SECRET   和安装包用的同一套（见 .github/workflows/cn-upload.sh）
+#   CN_SITE_BUCKET   放网站的存储桶（单独建一个，比如 laolao-site-1250000000，访问权限「公有读私有写」，开「静态网站」）
+#   CN_SITE_ENDPOINT / CN_SITE_REGION  网站桶和安装包桶不在一个地域时填（域名没备案：网站桶放「中国香港」，填 https://cos.ap-hongkong.myqcloud.com 和 ap-hongkong）
+# 缓存：网页（.html）、版本文件（.json）、sw.js 每次都向服务器确认有没有新的；其他文件缓存 10 分钟（和 GitHub Pages 一样）。
+# CDN 的缓存配置要选「遵循源站」，不然网站更新后国内要等 CDN 自己过期。
+name: 网站国内加速
+
+on:
+  push:
+    branches: [main, master]
+    paths-ignore:
+      - "android/**"
+      - "laolao-android/**"
+      - "desktop/**"
+      - "coder/**"
+      - "test/**"
+      - "**.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: site-cn
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CN_S3_ENDPOINT: ${{ secrets.CN_SITE_ENDPOINT || secrets.CN_S3_ENDPOINT }}
+      CN_S3_REGION: ${{ secrets.CN_SITE_REGION || secrets.CN_S3_REGION }}
+      CN_S3_KEY_ID: ${{ secrets.CN_S3_KEY_ID }}
+      CN_S3_SECRET: ${{ secrets.CN_S3_SECRET }}
+      CN_SITE_BUCKET: ${{ secrets.CN_SITE_BUCKET }}
+    steps:
+      - name: 没配国内网站存储就跳过
+        id: chk
+        run: |
+          if [ -z "$CN_SITE_BUCKET" ] || [ -z "$CN_S3_KEY_ID" ] || [ -z "$CN_S3_SECRET" ] || [ -z "$CN_S3_ENDPOINT" ]; then
+            echo "没配 CN_SITE_BUCKET 等，跳过"; echo "skip=1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.chk.outputs.skip != '1'
+
+      - name: 同步到国内存储
+        if: steps.chk.outputs.skip != '1'
+        run: |
+          set -euo pipefail
+          export AWS_ACCESS_KEY_ID="$CN_S3_KEY_ID" AWS_SECRET_ACCESS_KEY="$CN_S3_SECRET" AWS_DEFAULT_REGION="${CN_S3_REGION:-us-east-1}" AWS_EC2_METADATA_DISABLED=true
+          export AWS_REQUEST_CHECKSUM_CALCULATION=when_required AWS_RESPONSE_CHECKSUM_VALIDATION=when_required
+          aws configure set default.s3.addressing_style virtual
+          aws configure set default.s3.max_concurrent_requests 16
+          S3="s3://$CN_SITE_BUCKET"; EP="--endpoint-url $CN_S3_ENDPOINT"
+          # 不放到网站上的：源代码、安卓 / 电脑版 / 捞捞编程的工程、测试、说明文档
+          SKIP=(--exclude ".git*" --exclude ".github/*" --exclude "android/*" --exclude "laolao-android/*" --exclude "desktop/*" --exclude "coder/*"
+                --exclude "test/*" --exclude "*.md" --exclude "learn/courses_app/*" --exclude "learn/runtime/*" --exclude "*/node_modules/*")
+          # 文件类型要写对：模块脚本（.mjs）、wasm 类型不对浏览器会拒绝加载
+          TYPED=(--exclude "*.mjs" --exclude "*.wasm" --exclude "*.webmanifest" --exclude "*.woff2" --exclude "*.woff")
+          FRESH=(--exclude "*.html" --exclude "*.json" --exclude "sw.js" --exclude "*/sw.js")
+          # 1. 普通文件：缓存 10 分钟
+          aws s3 sync . "$S3" $EP "${SKIP[@]}" "${TYPED[@]}" "${FRESH[@]}" --cache-control "public, max-age=600" --only-show-errors
+          # 2. 需要指定类型的文件
+          for pair in "mjs:text/javascript" "wasm:application/wasm" "webmanifest:application/manifest+json" "woff2:font/woff2" "woff:font/woff"; do
+            ext="${pair%%:*}"; ct="${pair#*:}"
+            aws s3 sync . "$S3" $EP "${SKIP[@]}" --exclude "*" --include "*.$ext" --content-type "$ct" --cache-control "public, max-age=600" --only-show-errors
+          done
+          # 3. 网页、版本文件、sw.js：每次都确认（网站一更新，国内马上看到新版）
+          aws s3 sync . "$S3" $EP "${SKIP[@]}" --exclude "*" --include "*.html" --include "*.json" --include "sw.js" --include "*/sw.js" \
+            --cache-control "no-cache" --only-show-errors
+          # 4. 删掉仓库里已经没有的文件（放在最后：新文件都传完了才删旧的，访问不会断）
+          aws s3 sync . "$S3" $EP "${SKIP[@]}" --delete --size-only --only-show-errors
+          echo "已同步到国内存储：$CN_SITE_BUCKET"

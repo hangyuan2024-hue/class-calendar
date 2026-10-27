@@ -110,10 +110,16 @@ jobs:
           gh release create "desktop-v$v" "desktop/dist/LaolaoKechengbiao-Setup.exe" --title "捞捞课程表 电脑版 $v" --notes $notes --latest
 
       # 3.4：写官网的 download/desktop-version.json，电脑版（3.4 起）每 6 小时看一次，有新版本就提示「立即更新」
-      - name: 更新官网的电脑版版本号
+      - name: 更新官网的电脑版版本号（配了国内存储就先传一份过去）
         shell: bash
         env:
           BRANCH: ${{ github.ref_name }}
+          CN_S3_ENDPOINT: ${{ secrets.CN_S3_ENDPOINT }}
+          CN_S3_REGION: ${{ secrets.CN_S3_REGION }}
+          CN_S3_BUCKET: ${{ secrets.CN_S3_BUCKET }}
+          CN_S3_KEY_ID: ${{ secrets.CN_S3_KEY_ID }}
+          CN_S3_SECRET: ${{ secrets.CN_S3_SECRET }}
+          CN_DL_BASE: ${{ secrets.CN_DL_BASE }}
         run: |
           set -euo pipefail
           V="3.4.${{ github.run_number }}"
@@ -121,6 +127,8 @@ jobs:
           SIZE=$(stat -c %s "$SRC" 2>/dev/null || wc -c < "$SRC")
           SHA=$(sha256sum "$SRC" | cut -d' ' -f1)
           URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/desktop-v${V}/LaolaoKechengbiao-Setup.exe"
+          CN=$(bash .github/workflows/cn-upload.sh "$SRC" "desktop/LaolaoKechengbiao-Setup-${V}.exe")
+          echo "国内地址：${CN:-（没配国内存储）}"
           PUB="${RUNNER_TEMP}/desktop-publish"
           git fetch --no-tags origin "$BRANCH"
           git worktree add --detach "$PUB" FETCH_HEAD
@@ -129,7 +137,7 @@ jobs:
           for ATTEMPT in 1 2 3; do
             if [ "$ATTEMPT" -gt 1 ]; then git fetch --no-tags origin "$BRANCH"; git -C "$PUB" reset --hard FETCH_HEAD; fi
             mkdir -p "$PUB/download"
-            echo "{\"version\": \"${V}\", \"url\": \"${URL}\", \"size\": ${SIZE}, \"sha256\": \"${SHA}\", \"notes\": \"自动更新；签到老师和班委都能发起；班委能看班级情况；等级和经验\", \"at\": \"$(date -u +%FT%TZ)\"}" > "$PUB/download/desktop-version.json"
+            echo "{\"version\": \"${V}\", \"url\": \"${URL}\", \"cn\": \"${CN}\", \"size\": ${SIZE}, \"sha256\": \"${SHA}\", \"notes\": \"自动更新；签到老师和班委都能发起；班委能看班级情况；等级和经验\", \"at\": \"$(date -u +%FT%TZ)\"}" > "$PUB/download/desktop-version.json"
             cat "$PUB/download/desktop-version.json"
             git -C "$PUB" add -- download/desktop-version.json
             if git -C "$PUB" diff --cached --quiet; then echo "已经是最新"; exit 0; fi
