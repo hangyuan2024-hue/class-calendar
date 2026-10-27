@@ -14,6 +14,10 @@ set -uo pipefail
 # 捞捞编程约 1.5GB：只留最新 1 个版本（其他留 3 个）
 KEEP=3; case "$2" in code/*) KEEP=1;; esac
 F="$1"; KEY="$2"
+# 复制粘贴密钥时常带上空格、换行：全部去掉
+for v in CN_S3_ENDPOINT CN_S3_REGION CN_S3_BUCKET CN_S3_KEY_ID CN_S3_SECRET CN_DL_BASE CN_SITE_BUCKET; do
+  eval "$v=\"\$(printf '%s' \"\${$v:-}\" | tr -d '[:space:]')\""
+done
 if [ -z "${CN_S3_BUCKET:-}" ] || [ -z "${CN_S3_KEY_ID:-}" ] || [ -z "${CN_S3_SECRET:-}" ] || [ -z "${CN_S3_ENDPOINT:-}" ] || [ -z "${CN_DL_BASE:-}" ]; then
   echo "没配国内存储（CN_S3_*），跳过" >&2; echo ""; exit 0
 fi

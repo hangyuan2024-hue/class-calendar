@@ -42,6 +42,10 @@ jobs:
       - name: 没配国内网站存储就跳过
         id: chk
         run: |
+          # 复制粘贴密钥时常带上空格、换行：全部去掉
+          for v in CN_S3_ENDPOINT CN_S3_REGION CN_S3_BUCKET CN_S3_KEY_ID CN_S3_SECRET CN_DL_BASE CN_SITE_BUCKET; do
+            eval "$v=\"\$(printf '%s' \"\${$v:-}\" | tr -d '[:space:]')\""
+          done
           if [ -z "$CN_SITE_BUCKET" ] || [ -z "$CN_S3_KEY_ID" ] || [ -z "$CN_S3_SECRET" ] || [ -z "$CN_S3_ENDPOINT" ]; then
             echo "没配 CN_SITE_BUCKET 等，跳过"; echo "skip=1" >> "$GITHUB_OUTPUT"
           fi
@@ -53,6 +57,10 @@ jobs:
         if: steps.chk.outputs.skip != '1'
         run: |
           set -euo pipefail
+          # 复制粘贴密钥时常带上空格、换行：全部去掉
+          for v in CN_S3_ENDPOINT CN_S3_REGION CN_S3_BUCKET CN_S3_KEY_ID CN_S3_SECRET CN_DL_BASE CN_SITE_BUCKET; do
+            eval "$v=\"\$(printf '%s' \"\${$v:-}\" | tr -d '[:space:]')\""
+          done
           export AWS_ACCESS_KEY_ID="$CN_S3_KEY_ID" AWS_SECRET_ACCESS_KEY="$CN_S3_SECRET" AWS_DEFAULT_REGION="${CN_S3_REGION:-us-east-1}" AWS_EC2_METADATA_DISABLED=true
           export AWS_REQUEST_CHECKSUM_CALCULATION=when_required AWS_RESPONSE_CHECKSUM_VALIDATION=when_required
           aws configure set default.s3.addressing_style virtual
