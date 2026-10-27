@@ -132,7 +132,7 @@ function create({ app, fetch, tmpDir, send, alt, spawn, log, opt }) {
     dl = { ctl: new AbortController() };
     fs.mkdirSync(tmpDir, { recursive: true });
     const file = path.join(tmpDir, opt.fileName + "-" + String(st.latest.version).replace(/[^\w.]/g, "") + ".exe"), part = file + ".part";
-    const want = +st.latest.size || 0, sha = String(st.latest.sha256 || "").toLowerCase();
+    const want = +st.latest.size || 0, sha = String(st.latest.sha256 || "").toLowerCase().replace(/[^0-9a-f]/g, "");   // 7.6.5 以前的版本文件里 sha256 前面多了个「\」，去掉
     // 之前下完了就不用再下
     try { if (want && fs.statSync(file).size === want && (!sha || (await sha256File(file)) === sha)) { st.file = file; st.state = "ready"; st.progress = 1; push(); return st; } } catch (e) {}
     let err = null, offset = 0;
