@@ -15,7 +15,7 @@ const SERVER_SRC = path.join(RT, "courses-server");      // 课内后端源码�
 const arg = (k) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : null; };
 const COURSES = process.argv.includes("--sw-only") ? null : arg("--courses") || path.join(LEARN, "courses_app");
 const ESBUILD = process.env.ESBUILD || "esbuild";
-const V = new Date().toISOString().slice(0, 10).replace(/-/g, "") + "-learn5";
+const V = new Date().toISOString().slice(0, 10).replace(/-/g, "") + "-learn6";
 
 function rm(p) { fs.rmSync(p, { recursive: true, force: true }); }
 function copyDir(src, dst, skip) {
