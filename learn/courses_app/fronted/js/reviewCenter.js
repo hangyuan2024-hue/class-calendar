@@ -1,0 +1,573 @@
+// 课程复习中心：历史、复习选择与薄调度层。内容呈现和判断复用原控制器。
+const REVIEW_SOURCE_LABELS={plan:'考前计划复习',total:'复习',material:'资料复习',note:'资料复习',mistake:'错题复习'};
+let reviewHistoryState=null;
+let reviewSessionDetail=null;
+let totalReviewState=null;
+let centerReview=null;
+let reviewCenterRequest=0;
+let reviewRecordBusy=false;
+let reviewRenameState=null;
+function closeReviewRename(){
+  if(reviewRenameState?.busy)return;
+  const focus=reviewRenameState?.focus;reviewRenameState=null;document.getElementById('reviewRenameDialog')?.close();
+  if(focus?.isConnected)focus.focus({preventScroll:true});
+}
+async function openReviewRename(id){
+  if(reviewRenameState?.busy)return;
+  const s={id,courseId:currentCourseId,focus:document.activeElement,busy:false};reviewRenameState=s;
+  try{
+    const row=await(await requestApi(reviewSessionApi(id,s.courseId))).json();
+    if(reviewRenameState!==s||currentCourseId!==s.courseId)return;
+    s.original=row.name;
+    let dialog=document.getElementById('reviewRenameDialog');
+    if(!dialog){
+      dialog=document.createElement('dialog');dialog.id='reviewRenameDialog';dialog.className='review-rename-dialog';dialog.setAttribute('aria-labelledby','reviewRenameTitle');
+      dialog.innerHTML='<form id="reviewRenameForm"><h2 id="reviewRenameTitle">重命名复习记录</h2><p>只修改名称，不影响复习内容、评分和进度。</p><label for="reviewRenameInput">记录名称</label><input id="reviewRenameInput" maxlength="100" required autocomplete="off"><p id="reviewRenameError" role="alert"></p><div class="modal-actions"><button type="button" id="reviewRenameCancel" onclick="closeReviewRename()">取消</button><button type="submit" id="reviewRenameSave">保存</button></div></form>';
+      document.body.append(dialog);dialog.addEventListener('cancel',event=>{event.preventDefault();closeReviewRename();});
+      document.getElementById('reviewRenameForm').addEventListener('submit',event=>{event.preventDefault();void saveReviewRename();});
+    }
+    document.getElementById('reviewRenameInput').value=row.name;document.getElementById('reviewRenameError').textContent='';
+    if(!dialog.open)dialog.showModal();document.getElementById('reviewRenameInput').focus();document.getElementById('reviewRenameInput').select();
+  }catch(err){if(reviewRenameState===s){reviewRenameState=null;showToast(err.message);}}
+}
+async function saveReviewRename(){
+  const s=reviewRenameState;if(!s||s.busy||s.courseId!==currentCourseId)return;
+  const input=document.getElementById('reviewRenameInput'),error=document.getElementById('reviewRenameError'),name=input.value.trim();error.textContent='';
+  if(!name||name.length>100){error.textContent='请输入 1 到 100 个字符的名称';return;}
+  if(name===s.original){closeReviewRename();return;}
+  s.busy=true;for(const id of ['reviewRenameInput','reviewRenameSave','reviewRenameCancel'])document.getElementById(id).disabled=true;
+  try{
+    const row=await(await requestApi(reviewSessionApi(s.id,s.courseId)+'/name',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,expectedName:s.original})})).json();
+    if(reviewRenameState!==s||currentCourseId!==s.courseId)return;
+    for(const article of document.querySelectorAll('[data-review-session="'+s.id+'"]')){const heading=article.querySelector('h3');if(heading?.firstChild)heading.firstChild.nodeValue=row.name+' ';}
+    if(reviewHistoryState?.courseId===s.courseId)for(const item of reviewHistoryState.rows)if(item.id===s.id)item.name=row.name;
+    if(reviewSessionDetail?.id===s.id)reviewSessionDetail.name=row.name;
+    if(centerReview?.session?.id===s.id){centerReview.session.name=row.name;renderCenterReviewToolbar();}
+    s.busy=false;closeReviewRename();showToast('重命名成功');
+  }catch(err){if(reviewRenameState===s)error.textContent=err.message+'；输入已保留。';}
+  finally{s.busy=false;for(const id of ['reviewRenameInput','reviewRenameSave','reviewRenameCancel'])document.getElementById(id).disabled=false;}
+}
+function reviewSessionApi(id='',courseId=currentCourseId) {return `${API}/courses/${courseId}/review-sessions${id ? '/'+id : ''}`;}
+function reviewRequestId() {return typeof crypto.randomUUID==='function' ? crypto.randomUUID() : Date.now()+'-'+Math.random().toString(36).slice(2);}
+async function reviewSessionRequest(id,body={},courseId=currentCourseId) {
+  const response=await requestApi(reviewSessionApi(id,courseId),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  return response.json();
+}
+async function createReviewRecord(sourceType,selectedItems,options={}) {
+  return reviewSessionRequest('',{sourceType,selectedItems,requestId:options.requestId || reviewRequestId(),
+    ...(options.planId ? {sourceId:options.planId,scheduledDate:options.date} : {})});
+}
+function reviewSessionMap(session) {return Object.fromEntries(session.items.map(item=>[item.item_id,item.id]));}
+async function recordedReviewAction(id,action,body={}) {return reviewSessionRequest(id+'/'+action,body);}
+async function resumeRecordedReview(id) {
+  const response=await requestApi(reviewSessionApi(id)),row=await response.json();
+  if(row.status==='paused')await recordedReviewAction(id,'resume');
+}
+function reviewTime(value) {return value ? new Date(value).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'}) : '尚未完成';}
+// 只有全部项目都顺利通过复习模式才算「已完成」；有未通过或跳过只算「过了一遍」。
+function reviewSessionBadge(row) {
+  if (!row.total) return row.deleted ? '内容已删除' : '无可复习内容';
+  if (row.status==='completed') {
+    if(row.exposed===row.total)return '已阅读（仅曝光）';
+    if (row.skipped===row.total) return '全部跳过';
+    if ((row.passed || 0)===row.total) return '已完成';
+    return '未全部通过';
+  }
+  return {active:'进行中',paused:'已暂停，可继续'}[row.status] || row.status;
+}
+function reviewSessionCountText(row) {
+  return `成功复习 ${row.passed || 0} / ${row.total || 0} · 未通过 ${row.failed || 0} · 仅曝光 ${row.exposed || 0} · 跳过 ${row.skipped || 0} · 待处理 ${row.pending || 0}${row.deleted ? ` · 已删除 ${row.deleted}` : ''}`;
+}
+// 进度条拆三段：蓝色=已通过，橙色=未通过，灰色=跳过，空白=待处理。
+function reviewProgressHtml(row) {
+  const total = Math.max(1, Number(row.total) || 0);
+  const width = value => Math.min(100, Math.round((Number(value) || 0) / total * 100));
+  return `<div class="review-progress-split" role="img" aria-label="${reviewSessionCountText(row)}"><span class="is-done" style="width:${width(row.passed)}%"></span><span class="is-failed" style="width:${width(row.failed)}%"></span><span class="is-skipped" style="width:${width(row.exposed)}%"></span><span class="is-skipped" style="width:${width(row.skipped)}%"></span></div>`;
+}
+function reviewRecordCard(row) {return addReviewRenameAction(reviewRecordCardContent(row),row);}
+function addReviewRenameAction(html,row){return html.replace(/<\/div><\/article>$/,`<button type="button" data-review-rename="${row.id}" onclick="openReviewRename(${row.id})">重命名</button></div></article>`);}
+function reviewRecordCardContent(row) {
+  return `<article class="detail-card review-record" data-review-session="${row.id}"><h3>${escapeHtml(row.name)} <span class="material-review-badge">${reviewSessionBadge(row)}</span></h3><p>${REVIEW_SOURCE_LABELS[row.source_type]} · ${row.types.length ? [...new Set(row.types.map(type=>PLAN_TYPE_LABELS[type]))].join(' + ') : '无可复习内容'}</p><p class="detail-meta">开始：${escapeHtml(reviewTime(row.started_at))}<br>最近活动：${escapeHtml(reviewTime(row.updated_at))}</p><p>${reviewSessionCountText(row)}</p>${reviewProgressHtml(row)}<div class="mistake-toolbar">${row.status==='completed' ? `<button onclick="repeatReviewRecord(${row.id})">再次复习</button>` : `<button onclick="resumeReviewRecord(${row.id})">继续复习</button>`}<button onclick="openReviewSessionDetail(${row.id})">查看详情</button></div></article>`;
+}
+// 首页使用紧凑列表，历史页和记录详情继续保留原有卡片。
+function reviewRecentRecord(row) {return addReviewRenameAction(reviewRecentRecordContent(row),row);}
+function reviewRecentRecordContent(row) {
+  return `<article class="review-recent-record" data-review-session="${row.id}"><div class="review-recent-main"><div class="review-recent-title"><h3>${escapeHtml(row.name)}</h3><span class="review-recent-state">${reviewSessionBadge(row)}</span></div><div class="review-recent-meta"><span>${REVIEW_SOURCE_LABELS[row.source_type]} · ${row.types.length ? [...new Set(row.types.map(type=>PLAN_TYPE_LABELS[type]))].join(' + ') : '无可复习内容'}</span><span>最近活动：${escapeHtml(reviewTime(row.updated_at || row.started_at))}</span></div><div class="review-recent-progress">${reviewProgressHtml(row)}<span>${reviewSessionCountText(row)}</span></div></div><div class="review-recent-actions">${row.status==='completed' ? `<button type="button" onclick="repeatReviewRecord(${row.id})">再次复习</button>` : `<button type="button" onclick="resumeReviewRecord(${row.id})">继续复习</button>`}<button type="button" onclick="openReviewSessionDetail(${row.id})">查看详情</button></div></article>`;
+}
+async function loadRecentReviews() {
+  const courseId=currentCourseId,box=document.getElementById('reviewRecentList');if(!box)return;
+  box.textContent='加载中…';
+  try {
+    const response=await requestApi(reviewSessionApi('',courseId)+'?limit=5');
+    const data=await response.json();if(courseId!==currentCourseId)return;
+    box.innerHTML=(data.results.length ? data.results.map(reviewRecentRecord).join('') : '<div class="review-center-empty"><p>暂无复习记录，开始一次复习吧</p><span>复习记录会显示在这里，方便继续或回顾。</span></div>')+legacyReviewResumeHtml();
+  } catch(err) {if(courseId===currentCourseId)box.innerHTML=`<p class="material-review-error">${escapeHtml(err.message)}</p><button onclick="loadRecentReviews()">重试</button>`;}
+}
+function openReviewHistory() {
+  clearCenterReviewUi();
+  currentView={type:'reviewHistory'};showPageOnly('reviewHistoryPage');rememberReviewCenterLocation({type:'history'});
+  return loadReviewHistory();
+}
+async function loadReviewHistory(append=false) {
+  const courseId=currentCourseId,request=++reviewCenterRequest,box=document.getElementById('reviewHistoryList');
+  const status=document.getElementById('reviewHistoryStatus').value,sourceType=document.getElementById('reviewHistorySource').value;
+  const offset=append && reviewHistoryState?.courseId===courseId ? reviewHistoryState.rows.length : 0;
+  if(!append)box.textContent='加载中…';
+  document.getElementById('reviewHistoryMore').disabled=true;
+  try {
+    const response=await requestApi(reviewSessionApi()+`?status=${status}&sourceType=${sourceType}&limit=20&offset=${offset}`),data=await response.json();
+    if(courseId!==currentCourseId || request!==reviewCenterRequest)return;
+    const rows=append ? [...reviewHistoryState.rows,...data.results] : data.results;
+    reviewHistoryState={courseId,rows,total:data.total};
+    box.innerHTML=rows.length ? rows.map(reviewRecordCard).join('') : '<p class="empty">暂无复习记录，开始一次复习吧</p>';
+    document.getElementById('reviewHistoryMore').hidden=rows.length>=data.total;
+  } catch(err) {if(courseId===currentCourseId && request===reviewCenterRequest)box.innerHTML=`<p class="material-review-error">${escapeHtml(err.message)}</p><button onclick="loadReviewHistory()">重试</button>`;}
+  finally {document.getElementById('reviewHistoryMore').disabled=false;}
+}
+let reviewAnswersPreviewState=null;
+function reviewPreviewValue(value){
+  if(value===null||value===undefined||value==='')return '（未填写）';
+  if(typeof value==='string'){
+    try{const parsed=JSON.parse(value);if(parsed&&typeof parsed==='object')return JSON.stringify(parsed,null,2);}catch{}
+    return value;
+  }
+  return JSON.stringify(value,null,2);
+}
+function reviewPreviewStatus(item){
+  if(item.sourceDeleted)return {label:'内容已删除',className:'is-deleted'};
+  if(item.exposureOnly)return {label:'仅阅读曝光',className:'is-exposed'};
+  if(item.status==='completed'&&item.result==='failed')return {label:'未通过',className:'is-wrong'};
+  if(item.status==='completed'&&item.result==='passed')return {label:'通过',className:'is-correct'};
+  if(item.status==='skipped')return {label:'已跳过',className:'is-skipped'};
+  return {label:'待处理',className:'is-pending'};
+}
+function reviewPreviewAnswer(item){
+  const material=item.material||{},grade=Number.isInteger(item.grade)?['','未掌握','基本掌握','已掌握','熟练掌握'][item.grade]||'':null;
+  const fields=[];
+  fields.push(`<div class="review-answer-preview-field"><h4>题目 / 阅读内容</h4><pre>${escapeHtml(reviewPreviewValue(material.prompt))}</pre></div>`);
+  if(item.modeId==='cloze'){
+    const resultMap=new Map((item.resultDetail?.results||[]).map(row=>[row.id,!!row.correct]));
+    const blanks=(material.blanks||[]).map(blank=>{
+      const submitted=item.firstAnswer&&typeof item.firstAnswer==='object'?item.firstAnswer[blank.id]:null;
+      const correct=resultMap.has(blank.id)?resultMap.get(blank.id):null;
+      return `<div class="review-answer-preview-blank ${correct===true?'is-correct':correct===false?'is-wrong':''}"><span>${escapeHtml(blank.id)}</span><p>你的作答：${escapeHtml(reviewPreviewValue(submitted))}</p><p>答案：${escapeHtml(blank.answer||'')}</p>${blank.hint?`<small>提示：${escapeHtml(blank.hint)}</small>`:''}</div>`;
+    }).join('');
+    fields.push(`<div class="review-answer-preview-field"><h4>各空位作答</h4><div class="review-answer-preview-blanks">${blanks||'<p>没有可用空位记录。</p>'}</div></div>`);
+  }else{
+    fields.push(`<div class="review-answer-preview-field"><h4>首次作答</h4><pre>${escapeHtml(reviewPreviewValue(item.firstAnswer))}</pre></div>`);
+    if(item.modeId==='choice_reproduction'&&(material.options||[]).length){
+      fields.push(`<div class="review-answer-preview-field"><h4>选项</h4><ul class="review-answer-preview-options">${material.options.map(option=>`<li>${escapeHtml(option.id)}：${escapeHtml(option.text||'')}</li>`).join('')}</ul><p>正确选项：${escapeHtml(reviewPreviewValue(material.correctOption))}</p></div>`);
+    }
+    if(material.reference)fields.push(`<div class="review-answer-preview-field"><h4>参考答案 / 要点</h4><pre>${escapeHtml(material.reference)}</pre></div>`);
+    if(material.rubric)fields.push(`<div class="review-answer-preview-field"><h4>评分量规 / 解析</h4><pre>${escapeHtml(material.rubric)}</pre></div>`);
+  }
+  return `${fields.join('')}<p class="review-answer-preview-meta">${grade?`评分：${grade} · `:''}${item.durationMs?`耗时：${(item.durationMs/1000).toFixed(1)} 秒`:'耗时：未记录'}</p>`;
+}
+function renderReviewAnswersPreview(data){
+  const body=document.getElementById('reviewAnswersPreviewBody');if(!body)return;
+  const items=data.items||[];
+  body.innerHTML=`<div class="review-answers-preview-summary"><strong>成功复习 ${data.passed||0} / ${data.total||0}</strong><span>未通过 ${data.failed||0} · 仅曝光 ${data.exposed||0} · 已处理 ${items.length} 项</span></div>${items.map((item,index)=>{const status=reviewPreviewStatus(item);return `<details class="review-answer-preview-item"><summary><span>${index+1}. ${PLAN_TYPE_LABELS[item.item_type]||item.item_type} · ${escapeHtml(item.title||'')}</span><span class="review-preview-status ${status.className}">${status.label}</span></summary><div class="review-answer-preview-content">${reviewPreviewAnswer(item)}</div></details>`;}).join('')}`;
+}
+async function loadReviewAnswersPreview(){
+  const state=reviewAnswersPreviewState,body=document.getElementById('reviewAnswersPreviewBody'),refresh=document.getElementById('reviewAnswersPreviewRefresh');
+  if(!state)return;
+  body.textContent='正在读取最新作答…';refresh.disabled=true;
+  try{
+    const endpoint=state.kind==='plan-day'
+      ? reviewPlanApi(state.planId)+'/days/'+encodeURIComponent(state.date)+'/answers'
+      : reviewSessionApi(state.sessionId)+'/answers'+(state.itemType?`?itemType=${encodeURIComponent(state.itemType)}`:'');
+    const response=await requestApi(endpoint),data=await response.json();
+    if(reviewAnswersPreviewState!==state)return;
+    if(data.course_id!==state.courseId)throw new Error('复习记录不属于当前课程');
+    renderReviewAnswersPreview(data);
+  }catch(err){if(reviewAnswersPreviewState===state)body.innerHTML=`<p class="material-review-error">${escapeHtml(err.message)}</p>`;}
+  finally{if(reviewAnswersPreviewState===state)refresh.disabled=false;}
+}
+async function openReviewAnswersPreview(sessionId,itemType=null){
+  if(!Number.isSafeInteger(sessionId)||sessionId<1)return;
+  const dialog=document.getElementById('reviewAnswersPreviewDialog');if(!dialog)return;
+  reviewAnswersPreviewState={kind:'session',courseId:currentCourseId,sessionId,itemType,returnFocus:document.activeElement};
+  document.getElementById('reviewAnswersPreviewTitle').textContent=itemType?`${PLAN_TYPE_LABELS[itemType]||''}作答预览`:'本轮作答预览';
+  if(!dialog.open)dialog.showModal();
+  document.getElementById('reviewAnswersPreviewTitle').focus({preventScroll:true});
+  await loadReviewAnswersPreview();
+}
+async function openPlanDayAnswersPreview(planId,date){
+  if(!Number.isSafeInteger(planId)||planId<1||!/^\d{4}-\d{2}-\d{2}$/.test(String(date||'')))return;
+  const dialog=document.getElementById('reviewAnswersPreviewDialog');if(!dialog)return;
+  reviewAnswersPreviewState={kind:'plan-day',courseId:currentCourseId,planId,date,returnFocus:document.activeElement};
+  document.getElementById('reviewAnswersPreviewTitle').textContent=`${date} · 当天作答预览`;
+  if(!dialog.open)dialog.showModal();
+  document.getElementById('reviewAnswersPreviewTitle').focus({preventScroll:true});
+  await loadReviewAnswersPreview();
+}
+function closeReviewAnswersPreview(){
+  const state=reviewAnswersPreviewState;reviewAnswersPreviewState=null;
+  const dialog=document.getElementById('reviewAnswersPreviewDialog');if(dialog?.open)dialog.close();
+  document.getElementById('reviewAnswersPreviewBody').replaceChildren();
+  if(state?.returnFocus?.isConnected)state.returnFocus.focus({preventScroll:true});
+}
+function refreshReviewAnswersPreview(){return loadReviewAnswersPreview();}
+function configureReviewCompletePreview(session,options={}){
+  const button=document.getElementById('mistakeCompletePreview');if(!button)return;
+  const visible=!!session&&session.status==='completed'&&Number(session.total)>0&&Number(session.skipped||0)===0;
+  button.hidden=!visible;button.disabled=false;
+  button.dataset.previewKind=options.type==='plan'?'plan-day':'session';
+  button.dataset.sessionId=visible?String(session.id):'';
+  button.dataset.planId=visible&&options.planId?String(options.planId):'';
+  button.dataset.date=visible&&options.date?options.date:'';
+}
+function openReviewCompletePreview(){
+  const button=document.getElementById('mistakeCompletePreview');
+  if(button?.dataset.previewKind==='plan-day'){
+    return openPlanDayAnswersPreview(Number(button.dataset.planId),button.dataset.date);
+  }
+  const sessionId=Number(button?.dataset.sessionId||reviewCompleteState?.sessionId);
+  return openReviewAnswersPreview(sessionId);
+}
+async function openReviewSessionDetail(id) {
+  clearCenterReviewUi();
+  const courseId=currentCourseId,request=++reviewCenterRequest;
+  currentView={type:'reviewSessionDetail',id};showPageOnly('reviewSessionDetailPage');rememberReviewCenterLocation({type:'detail',id});
+  const box=document.getElementById('reviewSessionDetailBody');box.textContent='加载中…';
+  try {
+    const response=await requestApi(reviewSessionApi(id)),row=await response.json();
+    if(courseId!==currentCourseId || request!==reviewCenterRequest)return;
+    reviewSessionDetail=row;
+    const preview=row.status==='completed'&&row.total>0&&row.skipped===0
+      ? `<button type="button" onclick="openReviewAnswersPreview(${row.id})">查看每道题作答</button>` : '';
+    box.innerHTML=reviewRecordCard(row)+`<p class="detail-meta">完成时间：${escapeHtml(row.completed_at || '尚未完成')}。只有顺利通过复习模式才算成功；已删除内容保留历史身份，但不计入成功数和有效任务总数。进度条蓝色=成功、橙色=未通过、灰色=跳过。</p>${preview?`<div class="mistake-toolbar">${preview}</div>`:''}<section class="detail-card">${row.items.map(item=>{const state=item.source_deleted ? {icon:'⊘',label:'已删除，不计入有效任务'} : item.exposure_only ? {icon:'◉',label:'已阅读（仅曝光，不评分）'} : item.status==='completed' ? (item.result==='failed' ? {icon:'✗',label:'未通过'} : {icon:'✓',label:'已通过'}) : item.status==='skipped' ? {icon:'—',label:'已跳过'} : {icon:'○',label:'待处理'};return `<div class="plan-task"><span>${state.icon} ${PLAN_TYPE_LABELS[item.item_type]} · ${escapeHtml(item.title_snapshot)}</span><small>${state.label}</small></div>`;}).join('')}</section>`;
+  } catch(err) {if(courseId===currentCourseId)box.innerHTML=`<p class="material-review-error">${escapeHtml(err.message)}</p><button onclick="openReviewHistory()">返回记录列表</button>`;}
+}
+function rememberReviewCenterLocation(location) {
+  localStorage.setItem('currentTab','reviewPlans');localStorage.setItem('courseTimeStamp',Date.now());
+  mistakeStorageSet('review-center-location:'+currentCourseId,location);
+}
+function clearCenterReviewUi() {
+  if(typeof reviewWorkbench!=='undefined'&&reviewWorkbench?.inline)closeReviewWorkbench(false);
+  const bar=document.getElementById('centerReviewToolbar');if(bar)bar.style.display='none';
+  for(const id of ['mistakeReviewPanel','materialReviewActions','materialReviewContent','materialReviewPreview']){const panel=document.getElementById(id);if(panel)panel.hidden=false;}
+}
+
+// v13 前没有可信的开始时间/完整事件，旧浏览器队列只备份导航，不伪造历史。
+function preserveLegacyReviewQueue(key,type) {
+  const queue=mistakeStorageGet(key);
+  if(!queue || queue.courseId!==currentCourseId || queue.sessionId || queue.finished || queue.legacyBackupId || !Array.isArray(queue.ids) || !queue.ids.length)return;
+  const storageKey='legacy-review-backups:'+currentCourseId,entries=mistakeStorageGet(storageKey) || [],fingerprint=JSON.stringify(queue);
+  if(entries.some(entry=>entry.fingerprint===fingerprint))return;
+  const id=reviewRequestId();entries.push({id,type,fingerprint,queue:{...queue,legacyBackupId:id}});mistakeStorageSet(storageKey,entries);
+}
+function updateLegacyReviewBackup(queue,remove=false) {
+  if(!queue?.legacyBackupId)return;
+  const key='legacy-review-backups:'+queue.courseId,entries=mistakeStorageGet(key) || [];
+  mistakeStorageSet(key,entries.filter(entry=>!(entry.id===queue.legacyBackupId && (remove || queue.finished))).map(entry=>entry.id===queue.legacyBackupId ? {...entry,queue} : entry));
+}
+function legacyReviewResumeHtml() {
+  const entries=[...(mistakeStorageGet('legacy-review-backups:'+currentCourseId) || [])];
+  for(const type of ['material','note','mistake']) {
+    const key=(type==='mistake' ? 'mistake-queue:' : type+'-review-queue:')+currentCourseId,queue=mistakeStorageGet(key);
+    if(queue && queue.courseId===currentCourseId && !queue.sessionId && !queue.finished && !queue.legacyBackupId && Array.isArray(queue.ids) && queue.ids.length
+      && !entries.some(entry=>entry.fingerprint===JSON.stringify(queue)))entries.push({id:'head:'+type,type,queue});
+  }
+  return entries.length ? `<div class="detail-card"><p>还有升级前保存在本浏览器的复习，可继续原队列；不会补造历史记录。</p><div class="mistake-toolbar">${entries.map(entry=>`<button onclick="resumeLegacyReview('${entry.id}')">继续旧${PLAN_TYPE_LABELS[entry.type]}复习（${entry.queue.ids.length} 项）</button>`).join('')}</div></div>` : '';
+}
+async function resumeLegacyReview(id) {
+  const entries=mistakeStorageGet('legacy-review-backups:'+currentCourseId) || [],entry=entries.find(row=>row.id===id);
+  const type=entry?.type || (id.startsWith('head:') ? id.slice(5) : null);if(!Object.hasOwn(PLAN_TYPE_LABELS,type))return;
+  const key=(type==='mistake' ? 'mistake-queue:' : type+'-review-queue:')+currentCourseId;
+  if(entry){preserveLegacyReviewQueue(key,type);mistakeStorageSet(key,entry.queue);}
+  try {
+    switchTab(type==='material' ? 'materials' : type==='note' ? 'notes' : 'mistakes');
+    if(type==='material')await resumeMaterialReview();else if(type==='note')await resumeNoteReview();else await resumeMistakeQueue();
+  }catch(err){showToast(err.message);}
+}
+
+async function openTotalReview() {
+  if(totalReviewState?.busy)return;
+  const filters=createReviewPickerFilters();
+  // Match only the current large tab, never inherit its search/category/item selection.
+  const tab=currentView.type==='course'&&currentView.tab==='mistakes'?'mistake':'material';
+  totalReviewState={courseId:currentCourseId,rows:[],ids:new Set(),tab,filters,loading:true,busy:false,preview:null,returnFocus:document.activeElement,requestId:reviewRequestId()};
+  restoreTotalReviewFilters();document.getElementById('totalReviewError').textContent='';
+  document.getElementById('totalReviewSelector').hidden=false;document.getElementById('totalReviewPreview').hidden=true;
+  document.getElementById('totalReviewModal').classList.add('show');document.body.classList.add('plan-modal-open');document.getElementById('totalReviewTitle').focus();
+  renderTotalReview();return loadTotalReviewCandidates();
+}
+async function loadTotalReviewCandidates() {
+  const s=totalReviewState;if(!s)return;s.loading=true;renderTotalReview();
+  try {
+    const rows=await requestList(reviewSessionApi('candidates'));if(totalReviewState!==s || s.courseId!==currentCourseId)return;
+    s.rows=rows;s.loading=false;document.getElementById('totalReviewError').textContent='';
+    renderTotalReview();
+  } catch(err) {if(totalReviewState===s){s.loading=false;renderTotalReview();document.getElementById('totalReviewError').innerHTML=`${escapeHtml(err.message)}<button type="button" onclick="loadTotalReviewCandidates()">重试</button>`;}}
+}
+function closeTotalReview() {
+  if(totalReviewState?.busy)return;
+  const focus=totalReviewState?.returnFocus;totalReviewState=null;
+  document.getElementById('totalReviewPreviewBody').replaceChildren();
+  document.getElementById('totalReviewModal').classList.remove('show');document.body.classList.remove('plan-modal-open');
+  if(focus?.isConnected)focus.focus({preventScroll:true});
+}
+function saveTotalReviewFilters() {
+  const s=totalReviewState;if(!s)return;
+  Object.assign(s.filters[s.tab],{q:document.getElementById('totalReviewSearch').value,favorite:document.getElementById('totalReviewFavorite').checked,
+    status:document.getElementById('totalReviewStatus').value,category:document.getElementById('totalReviewMistakeType').value});
+}
+function restoreTotalReviewFilters() {
+  const s=totalReviewState,f=s.filters[s.tab];
+  document.getElementById('totalReviewSearch').value=f.q;document.getElementById('totalReviewFavorite').checked=f.favorite;
+  document.getElementById('totalReviewStatus').value=f.status;document.getElementById('totalReviewMistakeType').value=f.category;
+  document.getElementById('totalReviewMistakeType').hidden=s.tab!=='mistake';
+}
+function rememberTotalReviewScroll() {
+  const s=totalReviewState;if(s && !s.preview)s.filters[s.tab].scroll=document.getElementById('totalReviewCandidates').scrollTop;
+}
+function switchTotalReviewTab(type) {
+  if(type==='note')type='material';
+  const s=totalReviewState;if(!s || s.busy || s.preview || !Object.hasOwn(s.filters,type) || s.tab===type)return;
+  saveTotalReviewFilters();rememberTotalReviewScroll();s.tab=type;restoreTotalReviewFilters();renderTotalReview();
+}
+function toggleTotalReviewTags() {
+  const s=totalReviewState;if(!s || s.busy)return;
+  const f=s.filters[s.tab];f.tagsOpen=!f.tagsOpen;renderTotalReviewTags();
+}
+function renderTotalReviewTags() {
+  if(totalReviewState)renderReviewPickerTags(totalReviewState,'totalReview','changeTotalReviewTag');
+}
+function filteredTotalReview() {
+  const s=totalReviewState;if(!s)return [];
+  saveTotalReviewFilters();const f=s.filters[s.tab],{favorite,status,category}=f,q=f.q.trim().toLowerCase();
+  return s.rows.filter(row=>(row.type===s.tab||s.tab==='material'&&row.type==='note') && (!q || `${row.title}\n${row.content}\n${row.ocr_text || ''}`.toLowerCase().includes(q))
+    && (!favorite || !!row.favorite) && (!status || row.review_status===status) && (!category || row.type!=='mistake' || row.mistake_type===category)
+    && (!f.tags.size || row.nodes.some(tag=>f.tags.has(tag.id))));
+}
+function renderTotalReview() {
+  const s=totalReviewState;if(!s)return;
+  const rows=filteredTotalReview();
+  document.querySelectorAll('#totalReviewModules [role=tab]:not([hidden])').forEach(button=>{const selected=button.id==='totalReviewTab-'+s.tab;button.setAttribute('aria-selected',String(selected));button.tabIndex=selected ? 0 : -1;button.disabled=s.busy;});
+  document.getElementById('totalReviewPanel').setAttribute('aria-labelledby','totalReviewTab-'+s.tab);
+  document.getElementById('totalReviewListTitle').textContent=PLAN_TYPE_LABELS[s.tab]+'列表';renderTotalReviewTags();
+  const list=document.getElementById('totalReviewCandidates'),scroll=s.filters[s.tab].scroll,focused=document.activeElement?.dataset.totalChoice;
+  list.innerHTML=s.loading ? '<p class="loading-tip">加载中…</p>' : rows.length ? rows.map(row=>{
+    const key=row.type+':'+row.id;
+    return reviewPickerCard(row,s.ids.has(key),s.busy,'data-total-choice','selectTotalReviewItem','openTotalReviewPreview',s.courseId);
+  }).join('') : '<p class="empty">暂无匹配内容</p>';
+  list.scrollTop=scroll;
+  if(focused)list.querySelector(`[data-total-choice="${focused}"]`)?.focus({preventScroll:true});
+  const eligible=rows.filter(row=>row.reviewable),count=eligible.filter(row=>s.ids.has(row.type+':'+row.id)).length,all=document.getElementById('totalReviewSelectAll');
+  all.checked=!!eligible.length && count===eligible.length;all.indeterminate=count>0 && count<eligible.length;all.disabled=s.loading || s.busy || !eligible.length;
+  const counts=['material','mistake'].map(type=>`${PLAN_TYPE_LABELS[type]} ${[...s.ids].filter(key=>key.startsWith(type+':')||type==='material'&&key.startsWith('note:')).length}`);
+  document.getElementById('totalReviewCount').textContent=`已选择 ${s.ids.size} 项`;document.getElementById('totalReviewCounts').textContent=counts.join(' · ');
+  document.getElementById('totalReviewStart').disabled=s.loading || s.busy || !s.ids.size;
+}
+function selectTotalReviewItem(key,checked) {const s=totalReviewState;if(!s || s.busy || s.loading || !s.rows.some(row=>row.type+':'+row.id===key && row.reviewable))return;rememberTotalReviewScroll();if(checked)s.ids.add(key);else s.ids.delete(key);renderTotalReview();}
+function selectTotalReviewVisible(checked) {const s=totalReviewState;if(!s || s.busy || s.loading)return;for(const row of filteredTotalReview().filter(row=>row.reviewable)){const key=row.type+':'+row.id;if(checked)s.ids.add(key);else s.ids.delete(key);}renderTotalReview();}
+function selectTotalReviewCourse() {const s=totalReviewState;if(!s || s.busy || s.loading)return;for(const row of s.rows.filter(row=>row.reviewable))s.ids.add(row.type+':'+row.id);renderTotalReview();}
+function clearTotalReviewSelection() {if(totalReviewState && !totalReviewState.busy){totalReviewState.ids.clear();renderTotalReview();}}
+function changeTotalReviewTag(id,checked) {const s=totalReviewState;if(!s || s.busy)return;const tags=s.filters[s.tab].tags;if(checked)tags.add(id);else tags.delete(id);renderTotalReview();}
+// 两个弹窗共用只读预览器；导航与复习执行状态不受影响。
+async function openTotalReviewPreview(key,trigger=document.activeElement) {
+  const s=totalReviewState;if(!s || s.busy || s.loading)return;
+  const candidate=s.rows.find(row=>row.type+':'+row.id===key);if(!candidate)return;
+  saveTotalReviewFilters();rememberTotalReviewScroll();
+  return openReviewPickerPreview(s,candidate,trigger,REVIEW_PICKER_PREVIEWS.total,()=>totalReviewState===s,'openTotalReviewPreview');
+}
+function closeTotalReviewPreview() {
+  if(totalReviewState)closeReviewPickerPreview(totalReviewState,REVIEW_PICKER_PREVIEWS.total,'totalReviewTab-'+totalReviewState.tab);
+}
+function handleTotalReviewKey(event) {
+  if(!totalReviewState)return;
+  if(event.key==='Escape'){event.preventDefault();event.stopPropagation();if(totalReviewState.preview)closeTotalReviewPreview();else closeTotalReview();return;}
+  const tabs=[...document.querySelectorAll('#totalReviewModules [role=tab]')],index=tabs.indexOf(event.target);
+  if(index>=0 && ['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){
+    event.preventDefault();const next=event.key==='Home' ? 0 : event.key==='End' ? tabs.length-1 : (index+(event.key==='ArrowRight' ? 1 : tabs.length-1))%tabs.length;
+    switchTotalReviewTab(['material','note','mistake'][next]);tabs[next].focus();
+  }
+  trapReviewPickerFocus(event,'totalReviewModal');
+}
+async function startTotalReview() {
+  const s=totalReviewState;if(!s || s.busy || s.loading || !s.ids.size)return;s.busy=true;renderTotalReview();
+  try {
+    const items=[...s.ids].map(key=>{const [type,id]=key.split(':');return {type,id:Number(id)};});
+    const session=await createReviewRecord('total',items,{requestId:s.requestId});if(s.courseId!==currentCourseId || s!==totalReviewState)return;
+    s.busy=false;closeTotalReview();await enterCenterReview(session);
+  } catch(err) {if(totalReviewState===s)document.getElementById('totalReviewError').textContent=err.message;}
+  finally {s.busy=false;renderTotalReview();}
+}
+async function resumeReviewRecord(id) {
+  if(reviewRecordBusy || mistakeReviewBusy || activeReadingReview.busy)return;reviewRecordBusy=true;
+  try {const session=await recordedReviewAction(id,'resume');await enterCenterReview(session);}
+  catch(err){showToast(err.message);}finally{reviewRecordBusy=false;}
+}
+async function repeatReviewRecord(id) {
+  if(reviewRecordBusy)return;reviewRecordBusy=true;
+  const key=mistakeStorageGet('review-repeat-request:'+id) || reviewRequestId();mistakeStorageSet('review-repeat-request:'+id,key);
+  try {
+    const session=await reviewSessionRequest(id+'/repeat',{requestId:key});mistakeStorageSet('review-repeat-request:'+id,null);
+    if(session.excluded.length)showToast(`已排除 ${session.excluded.length} 项已删除或无法复习的内容`);
+    await enterCenterReview(session);
+  } catch(err){showToast(err.message);}finally{reviewRecordBusy=false;}
+}
+async function enterCenterReview(session) {
+  if(session.course_id!==currentCourseId)return;
+  if(session.status==='completed'){await openReviewSessionDetail(session.id);return;}
+  centerReview={session,position:session.current_position,busy:false};
+  rememberReviewCenterLocation({type:'running',id:session.id});return renderCenterReviewItem();
+}
+function currentCenterItem() {return centerReview?.session.course_id===currentCourseId ? centerReview.session.items[centerReview.position] : null;}
+function centerReviewHasPendingSave() {
+  const item=currentCenterItem();if(!item)return false;
+  return !!(currentView.type==='readingReview' && activeReadingReview.queue?.sessionId===centerReview.session.id && activeReadingReview.queue.pending)
+    || !!(mistakeDetailState?.sessionItemId===item.id && (mistakeStorageGet(mistakePendingKey(mistakeDetailState)) || mistakeDetailState.pending));
+}
+async function renderCenterReviewItem() {
+  const s=centerReview,item=currentCenterItem();if(!item)return;
+  s.quickMode=null;
+  clearCenterReviewUi();
+  if(mistakeQueue?.centerContext)mistakeQueue=null;
+  if(item.source_deleted || !item.reviewable) {
+    currentView={type:'sessionUnavailable'};showPageOnly('materialReviewPage');
+    document.getElementById('readingReviewHeading').textContent='复习';document.getElementById('materialReviewTitle').textContent=item.title_snapshot;
+    document.getElementById('materialReviewItem').style.display='block';document.getElementById('materialReviewComplete').style.display='none';
+    document.getElementById('materialReviewContent').textContent=item.source_deleted ? '内容已删除，本题不计入有效任务和成功复习数量。' : '题目或答案不完整，请先补齐内容，或跳过此项。';
+    for(const id of ['materialReviewPreview','materialReviewActions','materialReviewError','materialReviewStatus','materialReviewProgress'])document.getElementById(id).textContent='';
+    document.getElementById('materialReviewOpenFile').style.display='none';renderCenterReviewToolbar();return;
+  }
+  if(item.item_type==='mistake') {
+    const storageKey=`review-session-queue:${s.session.id}:${item.position}`;
+    const saved=readMistakeQueue(storageKey);
+    mistakeQueue={courseId:currentCourseId,type:'mixed',ids:[item.item_id],types:{[item.item_id]:item.mistake_type},index:0,rounds:saved?.rounds || {},finished:false,
+      storageKey,sessionId:s.session.id,sessionItems:{[item.item_id]:item.id},centerContext:true};
+    saveMistakeQueue();await openMistakeDetail(item.item_id,item.status==='pending');
+  } else {
+    const storageKey=`review-session-queue:${s.session.id}:${item.position}`;
+    const controller=createReadingReview(item.item_type==='material' ? 'materials' : 'notes',PLAN_TYPE_LABELS[item.item_type],null,
+      {storageKey,sessionId:s.session.id,sessionItems:{[item.item_id]:item.id},
+        readOnly:item.status!=='pending',onFinish:centerReviewItemFinished,onExit:pauseCenterReview});
+    const saved=mistakeStorageGet(storageKey);
+    if(item.status==='pending' && !saved?.finished && saved?.ids?.length===1 && saved.ids[0]===item.item_id)await controller.resume();
+    else await controller.startItems([item.item_id]);
+  }
+  if(centerReview===s){
+    if(centerReview!==s)return;
+    renderCenterReviewToolbar();
+    await routeCenterReviewMode(item,s.session);
+  }
+}
+function renderCenterReviewToolbar() {
+  const item=currentCenterItem(),bar=document.getElementById('centerReviewToolbar');if(!item || !bar)return;
+  const host=document.querySelector((currentView.type==='mistake' ? '#mistakeDetailPage' : '#materialReviewPage')+' .tab-content');host.prepend(bar);bar.style.display='block';
+  const s=centerReview,busy=s.busy || mistakeReviewBusy || activeReadingReview.busy || reviewWorkbench?.busy,blocked=busy || centerReviewHasPendingSave();
+  if(item.source_deleted){
+    let nextPosition=-1;
+    for(let i=s.position+1;i<s.session.items.length;i++){
+      if(s.session.items[i]?.status==='pending'&&!s.session.items[i].source_deleted){nextPosition=i;break;}
+    }
+    if(nextPosition<0)for(let i=0;i<s.position;i++){
+      if(s.session.items[i]?.status==='pending'&&!s.session.items[i].source_deleted){nextPosition=i;break;}
+    }
+    bar.innerHTML=`<strong>${escapeHtml(s.session.name)} · 内容已删除</strong><p>这项内容已从有效任务中移除，不计入成功复习 ${s.session.passed||0} / ${s.session.total||0}。这里没有可作答的内容。</p><div class="mistake-toolbar"><button onclick="moveCenterReviewTo(${nextPosition})" ${blocked||nextPosition<0?'disabled':''}>下一项</button></div>`;
+    return;
+  }
+  const activeItems=s.session.items.filter(row=>!row.source_deleted),activePosition=activeItems.findIndex(row=>row.id===item.id);
+  const context=centerWorkbenchContext(item,s.session),selection=workbenchSelection(context),activeSelection=readReviewActive(context);
+  const displayedMode=activeSelection?.mode||selection.mode;
+  const processed=activeItems.filter(row=>row.status!=='pending').length,shownPosition=Math.max(0,activePosition)+1;
+  bar.innerHTML=`<strong>${escapeHtml(s.session.name)} · 第 ${shownPosition} / ${s.session.total} 项</strong><p>成功复习 ${s.session.passed || 0} / ${s.session.total} · 未通过 ${s.session.failed || 0} · 仅曝光 ${s.session.exposed || 0} · 跳过 ${s.session.skipped}${s.session.deleted?` · 已删除 ${s.session.deleted}`:''}</p><p class="review-current-mode">第 ${shownPosition} / ${s.session.total} 条 · 已处理 ${processed} 条 · ${PLAN_TYPE_LABELS[item.item_type]} · ${AI_REVIEW_METHODS[displayedMode]}</p><div class="mistake-toolbar"><button onclick="moveCenterReview(-1)" ${blocked || s.position===0 ? 'disabled' : ''}>上一项</button><button onclick="moveCenterReview(1)" ${blocked ? 'disabled' : ''}>下一项</button><button onclick="skipCenterReviewItem()" ${blocked || item.status!=='pending' ? 'disabled' : ''}>跳过</button><button onclick="pauseCenterReview()" ${busy ? 'disabled' : ''}>暂停，稍后继续</button></div>`;
+  const active=activeSelection;
+  const workbenchActive=item.status==='pending'&&!!active?.mode;
+  const inlineVisible=!!(reviewWorkbench?.inline&&reviewWorkbench.sessionItemId===item.id&&!wb('Inline')?.hidden);
+  const nativePanel=document.getElementById(item.item_type==='mistake'?'mistakeReviewPanel':'materialReviewActions');
+  const nativeFlow=item.item_type==='mistake'?['standard','retry','choice_reproduction'].includes(displayedMode):['standard','reading'].includes(displayedMode);
+  if(nativePanel)nativePanel.hidden=inlineVisible||workbenchActive||!nativeFlow;
+  const requiresAi=typeof reviewMethodRequiresRealAi==='function'&&reviewMethodRequiresRealAi(displayedMode)
+    &&!(typeof reviewMethodIsAvailable==='function'&&reviewMethodIsAvailable(displayedMode));
+  if(requiresAi&&item.status==='pending'){
+    bar.insertAdjacentHTML('beforeend',`<div class="review-mode-requirement" role="status"><p>${escapeHtml(AI_REVIEW_METHODS[displayedMode])}需要接入可用的真实 AI API。</p><button type="button" onclick="coursesAiSettings.open()" ${busy?'disabled':''}>去接入 AI API</button><button type="button" onclick="renderCenterReviewItem()" ${busy?'disabled':''}>重新检查</button><button type="button" class="btn-cancel" onclick="useCenterStandardReviewMode()" ${busy?'disabled':''}>改用标准复习</button></div>`);
+  }
+  const aiPanel=document.getElementById('resourceAiPanel');if(aiPanel)aiPanel.hidden=inlineVisible||workbenchActive;
+  if(item.item_type!=='mistake')for(const id of ['materialReviewContent','materialReviewPreview']){const original=document.getElementById(id);if(original)original.hidden=inlineVisible||workbenchActive;}
+  if(workbenchActive){
+    bar.insertAdjacentHTML('afterbegin',`<p>当前实际执行：${escapeHtml(AI_REVIEW_METHODS[active.mode])} · 在本页直接作答</p>`);
+    if(item.item_type==='mistake'&&mistakeDetailState?.progress){const p=mistakeDetailState.progress;document.getElementById('mistakeDetailMeta').textContent=`${MISTAKE_TYPES[p.mistakeType]} · ${AI_REVIEW_METHODS[active.mode]} · ${mistakeStatusText(p.reviewStatus)}`;}
+  }
+}
+async function useCenterStandardReviewMode() {
+  const item=currentCenterItem(),s=centerReview;
+  if(!item||!s||s.busy||reviewWorkbench?.busy)return;
+  const context=centerWorkbenchContext(item,s.session);
+  if(typeof saveStoredReviewMethod!=='function'||!saveStoredReviewMethod(item.item_type,item.item_id,'standard')){
+    showToast('未能保存标准复习模式，请重试。');return;
+  }
+  if(typeof rememberReviewSelection==='function')rememberReviewSelection(context,'standard');
+  if(typeof writeReviewActive==='function')writeReviewActive(context,null);
+  s.quickMode=null;
+  await renderCenterReviewItem();
+}
+async function moveCenterReview(delta) {
+  const s=centerReview;if(!s || s.busy || mistakeReviewBusy || activeReadingReview.busy || centerReviewHasPendingSave())return;
+  const next=s.position+delta;if(next<0 || next>=s.session.items.length){showToast('请完成或跳过待处理项目');return;}
+  s.busy=true;
+  try {s.session=await recordedReviewAction(s.session.id,'position',{position:next});s.position=next;await renderCenterReviewItem();}
+  catch(err){showToast(err.message);}finally{s.busy=false;renderCenterReviewToolbar();}
+}
+async function moveCenterReviewTo(next) {
+  const s=centerReview;
+  if(!s||s.busy||mistakeReviewBusy||activeReadingReview.busy||centerReviewHasPendingSave()||!Number.isInteger(next)||next<0||next>=s.session.items.length)return;
+  s.busy=true;
+  try{s.session=await recordedReviewAction(s.session.id,'position',{position:next});s.position=next;await renderCenterReviewItem();}
+  catch(err){showToast(err.message);}
+  finally{s.busy=false;renderCenterReviewToolbar();}
+}
+async function centerReviewItemFinished() {
+  const s=centerReview;if(!s)return;
+  try {
+    const response=await requestApi(reviewSessionApi(s.session.id));s.session=await response.json();
+    if(s.session.status==='completed') {
+      const planId=s.session.source_type==='plan' ? s.session.source_id : null;
+      centerReview=null;if(mistakeQueue?.centerContext)mistakeQueue=null;activeReadingReview=materialReadingReview;
+      clearCenterReviewUi();
+      // 计划来源只有“当天全部成功”才弹完成页；失败/跳过只回当天任务卡继续。
+      if(planId && typeof openReviewPlan==='function'){
+        if(typeof showCompletedPlanDay==='function')await showCompletedPlanDay(planId,s.session.source_date,s.session);
+        else await openReviewPlan(planId);
+        return;
+      }
+      if(typeof openReviewCompleteModal==='function') {
+        if(typeof backToReviewPlans==='function') backToReviewPlans();
+        await openReviewCompleteModal(s.session);
+        return;
+      }
+      await openReviewSessionDetail(s.session.id);return;
+    }
+    s.position=s.session.current_position;await renderCenterReviewItem();
+  } catch(err){showToast(err.message);}
+}
+async function skipCenterReviewItem() {
+  const s=centerReview,item=currentCenterItem();if(!item || s.busy || mistakeReviewBusy || activeReadingReview.busy || centerReviewHasPendingSave() || item.status!=='pending')return;
+  s.busy=true;
+  try {await recordedReviewAction(`${s.session.id}/items/${item.id}`,'skip');await centerReviewItemFinished();}
+  catch(err){showToast(err.message);}finally{s.busy=false;renderCenterReviewToolbar();}
+}
+async function pauseCenterReview() {
+  const s=centerReview;if(!s || s.busy || mistakeReviewBusy || activeReadingReview.busy)return;
+  s.busy=true;
+  try {
+    await recordedReviewAction(s.session.id,'pause');centerReview=null;
+    if(mistakeQueue?.centerContext)mistakeQueue=null;activeReadingReview=materialReadingReview;
+    const planId=s.session.source_type==='plan' ? s.session.source_id : null;
+    clearCenterReviewUi();
+    if(planId && typeof openReviewPlan==='function'){await openReviewPlan(planId);return;}
+    await openReviewSessionDetail(s.session.id);
+  } catch(err){showToast(err.message);}finally{s.busy=false;}
+}
+async function restoreReviewCenterLocation(courseId) {
+  const saved=mistakeStorageGet('review-center-location:'+courseId);
+  if(!saved || courseId!==currentCourseId)return false;
+  if(saved.type==='history'){await openReviewHistory();return true;}
+  if(Number.isSafeInteger(saved.id) && saved.id>0) {
+    if(saved.type==='running')await resumeReviewRecord(saved.id);else await openReviewSessionDetail(saved.id);
+    return true;
+  }
+  return false;
+}
