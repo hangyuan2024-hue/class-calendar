@@ -8,7 +8,7 @@
 const { db } = require('./connection');
 
 // ===== 当前程序支持的数据库版本 =====
-const CURRENT_DB_VERSION = 26;
+const CURRENT_DB_VERSION = 27;
 
 // 判断某张表是否已经存在
 function tableExists(name) {
@@ -728,6 +728,19 @@ function migrateAssessmentCharts() {
 }
 // migrateAssessmentCharts();（网页版：移到文件末尾的 __runAll）
 
+// v26 -> v27: assessment attachment editing and chart-source transfer release.
+// Some development databases already contain the former optional chart_reference
+// column; it is intentionally preserved and ignored so upgrades are non-destructive.
+function migrateAssessmentAttachmentEditing() {
+  if (getUserVersion() !== 26) return;
+  db.exec('BEGIN');
+  try {
+    setUserVersion(27);
+    db.exec('COMMIT');
+  } catch (err) { db.exec('ROLLBACK'); throw err; }
+}
+// migrateAssessmentAttachmentEditing();（网页版：移到文件末尾的 __runAll）
+
 // ===== 建表：Phase 0 的基础结构（version 1）=====
 // 每一张“子表”都用 course_id 指向 courses(id)，
 // 并带上 ON DELETE CASCADE：课程被删掉时，它下面的数据自动跟着删掉
@@ -916,6 +929,7 @@ function __runAll() {
   migrateReviewHistory();
   migrateAssessmentCompletion();
   migrateAssessmentCharts();
+  migrateAssessmentAttachmentEditing();
 }
 __runAll();
 module.exports = { __runAll };

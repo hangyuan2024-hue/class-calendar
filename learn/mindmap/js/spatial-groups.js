@@ -80,8 +80,9 @@
       frame.style.cssText=`left:${g.x}px;top:${g.y}px;width:${g.w}px;height:${g.h}px;--group-color:${colorOf(g)};--group-fill:${colorOf(g)}${Math.round(opacityOf(g)*2.55).toString(16).padStart(2,"0")};--group-width:${widthOf(g)}px;--group-hit:${12/k}px;--group-grip:${7/k}px`;
       frame.innerHTML=["n","s","e","w","nw","ne","sw","se"].map(dir=>`<i class="mm-group-handle ${dir}" data-group="${esc(g.id)}" data-group-resize="${dir}"></i>`).join("");
       backgrounds.appendChild(frame);
-      const label=document.createElement("button");label.className="mm-group-label"+(g.id===selected?" selected":"");label.type="button";label.dataset.groupLabel=g.id;label.textContent=(Number.isInteger(g.moduleOrder)?String(g.moduleOrder).padStart(2,"0")+" · ":"")+(g.title || "未命名组");label.title="拖动标签移动整组 · 双击改名 · 右键修改样式";
-      label.style.cssText=`left:${g.x}px;top:${g.y-36}px;max-width:${g.w}px;--group-color:${colorOf(g)}`;stage.appendChild(label);
+      const label=document.createElement("button");label.className="mm-group-label"+(g.id===selected?" selected":"");label.type="button";label.dataset.groupLabel=g.id;label.textContent=(Number.isInteger(g.moduleOrder)?String(g.moduleOrder).padStart(2,"0")+" · ":"")+(g.title || "未命名组");label.title=label.textContent+(window.COURSES_MAP_READONLY?"":" · 拖动标签移动整组 · 双击改名 · 右键修改样式");
+      // Keep the anchor in map coordinates and the title's size in screen pixels.
+      label.style.cssText=`left:${g.x}px;top:${g.y}px;max-width:clamp(120px,calc(${g.w}px * var(--mm-view-scale,1)),320px);--group-color:${colorOf(g)}`;stage.appendChild(label);
     }
     stage.prepend(backgrounds);
     if(!$("mmView").dataset.groupBound)bind();

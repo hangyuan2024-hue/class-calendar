@@ -6,7 +6,9 @@
 const fs = require("node:fs");
 const { Buffer } = require("./buffer.js");
 const mapFiles = require("../mindmap/js/map-files.cjs");
-const ai = require("../mindmap/js/ai-server.cjs");
+// 7.5 新版导图服务默认读课内后端的「课程共用 AI 设置」（本机课内服务里用）；网站上课内学习用的是平台 AI，没有 Key，
+// 所以网页版的导图（独立版和课内嵌入的工作台）都用导图自己的「大模型 API 接入」（ai-config.cjs，存在本浏览器里）。
+const ai = { handle: require("../mindmap/js/ai-server.cjs").createHandler({ settings: require("../mindmap/js/ai-config.cjs").createService() }) };
 const library = require("../mindmap/js/map-library.cjs");
 const PROMPTS = require("./prompts-data.js");         // 提示词模板（本机版从 prompts/*.md 读，网页版打包进来）
 const PORT = 8794;

@@ -87,5 +87,5 @@
  window.addEventListener('resize',()=>{if(mode==='overview')overview();});
  // Overview is a read-only projection, so canvas keyboard shortcuts must not edit hidden nodes.
  document.addEventListener('keydown',e=>{if(mode!=='overview' || !overlay?.isConnected || e.target.closest('textarea,input,dialog,#mmAI,.mm-module-learning'))return;if((e.ctrlKey||e.metaKey)&&['+','=','-','0'].includes(e.key)){e.preventDefault();e.stopImmediatePropagation();if(e.key==='0')fitView();else zoomBy(e.key==='-'?1/1.2:1.2);return;}if(e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();setMode('detail');return;}if((e.ctrlKey || e.metaKey) && e.key.toLowerCase()==='s')return;e.stopImmediatePropagation();if(['Delete','Backspace'].includes(e.key) || (e.ctrlKey || e.metaKey) && ['z','y','v','x','d','b'].includes(e.key.toLowerCase()))e.preventDefault();},true);
- window.MMTopicUI={render,setMode,openModule,refreshNumbers,zoomBy,fitView,get viewport(){return camera()?{...camera()}:null;},get mode(){return mode;}};
+ window.MMTopicUI={render,setMode,openModule,refreshNumbers,zoomBy,panBy,fitView,get viewport(){return camera()?{...camera()}:null;},get mode(){return mode;}};
 })();

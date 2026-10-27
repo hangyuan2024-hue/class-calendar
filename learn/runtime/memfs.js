@@ -81,9 +81,31 @@ const fs = {
     for (const d of [...dirs]) if (d === a || d.startsWith(pre)) { const to = b + d.slice(a.length); dirs.delete(d); mark(d, null); dirs.add(to); mark(to, { dir: 1 }); }
   },
   copyFileSync(a, b) { a = norm(a); b = norm(b); const f = files.get(a); if (!f) throw err("ENOENT", "no such file or directory", a); if (!dirs.has(parent(b))) throw err("ENOENT", "no such file or directory", b); const rec = { data: Buffer.from(f.data), mtime: Date.now() }; files.set(b, rec); mark(b, rec); },
-  openSync(p) { p = norm(p); if (!files.has(p)) throw err("ENOENT", "no such file or directory", p); return { p }; },
+  // 7.5 写文件（思维导图后台任务上传 PDF / 图片用）：openSync(路径, "w" / "wx") → writeSync 追加 → closeSync 时一次写进去
+  openSync(p, flags) {
+    p = norm(p); flags = String(flags || "r");
+    if (/[wa]/.test(flags)) {
+      if (/x/.test(flags) && (files.has(p) || dirs.has(p))) throw err("EEXIST", "file already exists", p);
+      if (dirs.has(p)) throw err("EISDIR", "illegal operation on a directory", p);
+      if (!dirs.has(parent(p))) throw err("ENOENT", "no such file or directory", p);
+      const base = /a/.test(flags) && files.has(p) ? [Buffer.from(files.get(p).data)] : [];
+      const fd = { p, w: true, chunks: base };
+      fs.writeFileSync(p, Buffer.concat(base));   // 和 Node 一样，打开时就建好文件
+      return fd;
+    }
+    if (!files.has(p)) throw err("ENOENT", "no such file or directory", p);
+    return { p };
+  },
+  writeSync(fd, data, off, len) {
+    if (!fd || !fd.w) throw err("EBADF", "bad file descriptor", fd && fd.p);
+    let b = typeof data === "string" ? Buffer.from(data) : Buffer.from(data);
+    if (typeof off === "number") b = b.subarray(off, typeof len === "number" ? off + len : undefined);
+    fd.chunks.push(b); return b.length;
+  },
+  fsyncSync() {},
   readSync(fd, buf, off, len, pos) { const f = files.get(fd.p); if (!f) return 0; const part = f.data.subarray(pos || 0, (pos || 0) + len); buf.set(part, off); return part.length; },
-  closeSync() {},
+  closeSync(fd) { if (fd && fd.w && !fd.closed) { fd.closed = true; if (files.has(fd.p)) { const rec = { data: Buffer.concat(fd.chunks), mtime: Date.now() }; files.set(fd.p, rec); mark(fd.p, rec); } } },
+  realpathSync(p) { p = norm(p); if (!files.has(p) && !dirs.has(p)) throw err("ENOENT", "no such file or directory", p); return p; },
   createReadStream(p, opt) {
     p = norm(p); const handlers = {};
     const st = { on(ev, fn) { handlers[ev] = fn; return st; }, pipe(res) {
