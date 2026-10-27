@@ -1,5 +1,6 @@
 # 安卓 App 7.0（全新重做，代码在 laolao-android 文件夹）：打包 → 发布到 Releases → 更新官网下载（download/app-version.json）
-# 签名用仓库里的 android/release.jks 和 Secrets 里的 KEYSTORE_PASSWORD（和以前同一个签名，老用户可以直接覆盖安装）。
+# 签名文件放在 Secrets 里的 KEYSTORE_BASE64（release.jks 的 base64），密码在 KEYSTORE_PASSWORD；打包时临时还原成 android/release.jks，
+# 用完就删，不再放在公开仓库里（和以前同一个签名，老用户可以直接覆盖安装）。没设 KEYSTORE_BASE64 时退回用仓库里的旧文件。
 # 版本号：versionCode = 700 + 第几次运行（一定比 6.x 大），版本名 7.0.第几次运行。
 name: 安卓 App
 
@@ -34,11 +35,23 @@ jobs:
           echo "code=$((700 + ${{ github.run_number }}))" >> "$GITHUB_OUTPUT"
           echo "name=7.0.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
 
+      - name: 还原签名文件（从 Secrets）
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            mkdir -p android
+            printf '%s' "$KEYSTORE_BASE64" | tr -d ' \r\n' | base64 -d > android/release.jks
+            echo "已从 Secrets 还原签名文件（$(wc -c < android/release.jks) 字节）"
+          else
+            echo "::warning::没设 KEYSTORE_BASE64，用仓库里的 android/release.jks。签名文件放在公开仓库不安全，请尽快改用 Secrets。"
+          fi
+
       - name: 检查正式签名
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: |
-          test -f android/release.jks || { echo "::error::仓库里缺少 android/release.jks（签名文件），不能生成能覆盖旧版的正式安装包。"; exit 1; }
+          test -f android/release.jks || { echo "::error::缺少签名文件：请在 Settings → Secrets and variables → Actions 里添加 KEYSTORE_BASE64（release.jks 的 base64）。"; exit 1; }
           test -n "$KEYSTORE_PASSWORD" || { echo "::error::缺少 KEYSTORE_PASSWORD。请在 Settings → Secrets and variables → Actions 里添加。"; exit 1; }
 
       - name: 测试并打包
@@ -96,7 +109,7 @@ jobs:
           fi
           echo "url=https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/class-calendar.apk" >> "$GITHUB_OUTPUT"
 
-      - name: 更新官网下载（配了国内存储就先传一份过去；推送后刷新 jsDelivr 加速）
+      - name: 更新官网下载（配了国内存储就先传一份过去：国内下载走国内，不再从海外慢慢下）
         env:
           VCODE: ${{ steps.ver.outputs.code }}
           VNAME: ${{ steps.ver.outputs.name }}
@@ -113,8 +126,7 @@ jobs:
           SRC="${GITHUB_WORKSPACE}/laolao-android/app/build/outputs/apk/release/app-release.apk"
           SHA=$(sha256sum "$SRC" | cut -d' ' -f1)
           CN=$(bash .github/scripts/cn-upload.sh "$SRC" "android/class-calendar-${VNAME}.apk")
-          # jsDelivr 加速（国内比 GitHub 快）：按仓库分支取 download/class-calendar.apk，推送后刷新它的缓存
-          JSD="https://cdn.jsdelivr.net/gh/${GITHUB_REPOSITORY}@${BRANCH}/download/class-calendar.apk"
+          echo "国内地址：${CN:-（没配国内存储）}"
           PUB="${RUNNER_TEMP}/android-publish"
           git fetch --no-tags origin "$BRANCH"
           git worktree add --detach "$PUB" FETCH_HEAD
@@ -124,15 +136,12 @@ jobs:
             if [ "$ATTEMPT" -gt 1 ]; then git fetch --no-tags origin "$BRANCH"; git -C "$PUB" reset --hard FETCH_HEAD; fi
             mkdir -p "$PUB/download"
             cp "$SRC" "$PUB/download/class-calendar.apk"
-            echo "{\"versionCode\": ${VCODE}, \"versionName\": \"${VNAME}\", \"url\": \"${URL}\", \"cn\": \"${CN}\", \"jsd\": \"${JSD}\", \"fallbackUrl\": \"download/class-calendar.apk\", \"size\": $(stat -c %s "$SRC"), \"sha256\": \"${SHA}\", \"signed\": true, \"at\": \"$(date -u +%FT%TZ)\"}" > "$PUB/download/app-version.json"
+            echo "{\"versionCode\": ${VCODE}, \"versionName\": \"${VNAME}\", \"url\": \"${URL}\", \"cn\": \"${CN}\", \"fallbackUrl\": \"download/class-calendar.apk\", \"size\": $(stat -c %s "$SRC"), \"sha256\": \"${SHA}\", \"signed\": true, \"at\": \"$(date -u +%FT%TZ)\"}" > "$PUB/download/app-version.json"
             cat "$PUB/download/app-version.json"
             git -C "$PUB" add -- download/class-calendar.apk download/app-version.json
             if git -C "$PUB" diff --cached --quiet; then echo "已经是最新"; exit 0; fi
             git -C "$PUB" commit -m "安卓 App ${VNAME}"
-            if git -C "$PUB" push origin "HEAD:${BRANCH}"; then
-              curl -fsS -m 30 "https://purge.jsdelivr.net/gh/${GITHUB_REPOSITORY}@${BRANCH}/download/class-calendar.apk" >/dev/null || echo "::warning::jsDelivr 缓存没刷新上，最多 12 小时后自动更新"
-              exit 0
-            fi
+            if git -C "$PUB" push origin "HEAD:${BRANCH}"; then exit 0; fi
           done
           echo "::error::安装包已经发布到 Releases，但更新官网下载目录失败"
           exit 1

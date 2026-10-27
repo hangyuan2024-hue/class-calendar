@@ -128,7 +128,7 @@ jobs:
           SHA=$(sha256sum "$SRC" | cut -d' ' -f1)
           URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/desktop-v${V}/LaolaoKechengbiao-Setup.exe"
           CN=$(bash .github/scripts/cn-upload.sh "$SRC" "desktop/LaolaoKechengbiao-Setup-${V}.exe")
-          echo "国内地址：${CN:-（没配）}"
+          echo "国内地址：${CN:-（没配国内存储）}"
           PUB="${RUNNER_TEMP}/desktop-publish"
           git fetch --no-tags origin "$BRANCH"
           git worktree add --detach "$PUB" FETCH_HEAD
