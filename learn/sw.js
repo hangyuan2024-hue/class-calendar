@@ -16165,6 +16165,30 @@ ${row.content || ""}`.toLowerCase().includes(q)) && (!filters.favorite || !!row.
     else if (!path.startsWith(base) && /^\/(api|uploads)\//.test(path)) {
       h = courses.route(url, "", true);
     }
-    if (h) event.respondWith(h(event.request));
+    if (h) {
+      event.respondWith(h(event.request));
+      return;
+    }
+    if (event.request.method === "GET" && path.startsWith(base) && (event.request.mode === "navigate" || STATIC_RE.test(path))) {
+      event.respondWith(netFirst(event.request, event.request.mode === "navigate" ? 8e3 : 5e3));
+    }
   });
+  var STATIC_CACHE = "learn-static-v1";
+  var STATIC_RE = /\.(?:js|mjs|cjs|css|wasm|woff2?|ttf|otf|png|jpe?g|gif|svg|webp|ico|json|html)$/i;
+  async function netFirst(req, ms) {
+    let cache = null;
+    try {
+      cache = await caches.open(STATIC_CACHE);
+    } catch (e) {
+      return fetch(req);
+    }
+    const net = fetch(req).then((r) => {
+      if (r && r.ok && r.type === "basic") cache.put(req, r.clone()).catch(() => {
+      });
+      return r;
+    });
+    const hit = await cache.match(req, { ignoreVary: true }).catch(() => null);
+    if (!hit) return net;
+    return Promise.race([net.catch(() => hit), new Promise((res) => setTimeout(() => res(hit), ms))]);
+  }
 })();

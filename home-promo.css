@@ -77,35 +77,38 @@
   .pm-head, .pm-body { padding-left: 16px; padding-right: 16px; }
 }
 
-/* ---------- 7.6 首页第一屏：全屏宣传视频 ---------- */
-.ph { position: relative; isolation: isolate; overflow: hidden; color: #fff; background: #05080f;
-  height: calc(100svh / var(--z, 1)); min-height: 520px; margin-top: calc(-1 * var(--hh, 60px)); display: flex; align-items: flex-end; }
-.ph-bg, .ph-v { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -2; }
-.ph-bg { background: #05080f center / cover no-repeat; transform: scale(1.02); }
-.ph-v { object-fit: cover; opacity: 0; transition: opacity 1.2s ease; }
-.ph.is-playing .ph-v { opacity: 1; }
+/* ---------- 7.6.1 首页第一屏：影院式宣传视频 ----------
+   视频完整显示（不裁切、不叠字），两边是模糊放大的封面；标题和「观看」在视频下面一条 */
+.ph { position: relative; isolation: isolate; overflow: hidden; color: #fff; background: #070b16;
+  height: calc(100svh / var(--z, 1)); min-height: 560px; margin-top: calc(-1 * var(--hh, 60px));
+  display: grid; grid-template-rows: var(--hh, 60px) minmax(0, 1fr) auto; }
+.ph-bg { position: absolute; inset: -60px; z-index: -2; background: #070b16 center / cover no-repeat; filter: blur(48px) saturate(1.25) brightness(.55); transform: scale(1.1); }
 .ph-shade { position: absolute; inset: 0; z-index: -1; pointer-events: none;
-  background: linear-gradient(180deg, rgba(0, 0, 0, .5) 0%, rgba(0, 0, 0, 0) 22%, rgba(0, 0, 0, 0) 45%, rgba(0, 0, 0, .55) 78%, rgba(0, 0, 0, .82) 100%),
-              linear-gradient(90deg, rgba(0, 0, 0, .45) 0%, rgba(0, 0, 0, 0) 55%); }
-.ph-in { width: 100%; box-sizing: border-box; padding: 0 max(24px, calc((100% - 1320px) / 2)) clamp(64px, 13vh, 150px); display: grid; justify-items: start; gap: 0; }
-.ph-kick { margin: 0 0 14px; font: 500 clamp(13px, 1.1vw, 17px) / 1.4 ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace; letter-spacing: .14em; text-transform: uppercase; color: #f1f3f6; }
-.ph-kick:empty, .ph-kick span:empty { display: none; }
-.ph-t { margin: 0; max-width: 18em; font-family: -apple-system, "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", "Bricolage", sans-serif; font-weight: 800;
-  font-size: clamp(40px, 5.6vw, 92px); line-height: 1.04; letter-spacing: -.02em; text-transform: uppercase; text-wrap: balance; text-shadow: 0 2px 30px rgba(0, 0, 0, .35); }
-.ph-d { margin: 18px 0 0; max-width: 36em; font-size: clamp(14px, 1.1vw, 17px); line-height: 1.8; color: #dfe4ea; text-shadow: 0 1px 12px rgba(0, 0, 0, .5); }
-.ph-watch { margin-top: clamp(28px, 4.5vh, 52px); display: inline-flex; align-items: center; gap: 14px; padding: 0 22px; height: 56px; min-width: 122px;
-  border: 1px solid rgba(255, 255, 255, .78); border-radius: 0; background: rgba(0, 0, 0, .18); color: #fff; cursor: pointer;
-  font: 600 13px/1 -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; letter-spacing: .14em; text-transform: uppercase; transition: background .25s, color .25s; }
+  background: radial-gradient(120% 80% at 50% 40%, rgba(7, 11, 22, 0) 0%, rgba(7, 11, 22, .55) 70%, rgba(7, 11, 22, .85) 100%),
+              linear-gradient(180deg, rgba(7, 11, 22, .6) 0%, rgba(7, 11, 22, 0) 14%, rgba(7, 11, 22, 0) 70%, rgba(7, 11, 22, .9) 100%); }
+.ph-stage { grid-row: 2; min-height: 0; display: flex; align-items: center; justify-content: center; padding: clamp(10px, 2.2vh, 28px) max(16px, calc((100% - 1560px) / 2)) 0; }
+.ph-frame { position: relative; aspect-ratio: 16 / 9; width: 100%; max-height: 100%; max-width: 100%; border-radius: 14px; overflow: hidden; background: #000;
+  box-shadow: 0 40px 90px -40px rgba(0, 0, 0, .9), 0 0 0 1px rgba(255, 255, 255, .08); }
+.ph-v { display: block; width: 100%; height: 100%; object-fit: contain; background: transparent; }
+.ph-cap { grid-row: 3; display: flex; align-items: flex-end; justify-content: space-between; gap: 32px;
+  padding: clamp(18px, 3vh, 34px) max(24px, calc((100% - 1320px) / 2)) clamp(22px, 4.2vh, 46px); }
+.ph-txt { min-width: 0; }
+.ph-kick { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0 0 8px; font: 500 12.5px / 1.4 ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace; letter-spacing: .16em; text-transform: uppercase; color: rgba(236, 241, 255, .72); }
+.ph-kick span:empty { display: none; }
+.ph-kick span + span::before { content: ""; display: inline-block; width: 18px; height: 1px; margin-right: 18px; vertical-align: middle; background: rgba(236, 241, 255, .45); }
+.ph-t { margin: 0; font-family: -apple-system, "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", "Bricolage", sans-serif; font-weight: 800;
+  font-size: clamp(26px, 2.9vw, 46px); line-height: 1.15; letter-spacing: -.01em; text-wrap: balance; }
+.ph-d { margin: 8px 0 0; max-width: 40em; font-size: clamp(13.5px, 1vw, 15.5px); line-height: 1.75; color: rgba(225, 232, 245, .78); }
+.ph-watch { flex: none; display: inline-flex; align-items: center; gap: 14px; padding: 0 24px; height: 54px;
+  border: 1px solid rgba(255, 255, 255, .8); border-radius: 0; background: transparent; color: #fff; cursor: pointer;
+  font: 600 13px/1 -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; letter-spacing: .12em; transition: background .25s, color .25s; }
 .ph-watch svg { transition: transform .25s; }
-.ph-watch:hover, .ph-watch:focus-visible { background: #fff; color: #05080f; outline: none; }
+.ph-watch:hover, .ph-watch:focus-visible { background: #fff; color: #070b16; outline: none; }
 .ph-watch:hover svg { transform: translateX(3px); }
-.ph-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255, 255, 255, .12); opacity: 0; transition: opacity .3s; }
+.ph-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255, 255, 255, .14); opacity: 0; transition: opacity .3s; }
 .ph-bar.on { opacity: 1; }
 .ph-bar i { display: block; height: 100%; width: 0; background: #fff; transition: width .3s; }
-.ph-down { position: absolute; left: 50%; bottom: 22px; width: 26px; height: 42px; margin-left: -13px; border: 1.5px solid rgba(255, 255, 255, .6); border-radius: 14px; }
-.ph-down span { position: absolute; left: 50%; top: 8px; width: 3px; height: 8px; margin-left: -1.5px; border-radius: 2px; background: #fff; animation: phDot 1.8s ease-in-out infinite; }
-@keyframes phDot { 0% { transform: translateY(0); opacity: 1; } 70% { transform: translateY(12px); opacity: 0; } 100% { transform: translateY(0); opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .ph-down span { animation: none; } .ph-v { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .ph-watch svg { transition: none; } }
 
 /* 停在第一屏时，顶栏透明盖在视频上（往下滚恢复原样） */
 html.has-ph.ph-top .s-header { background: linear-gradient(180deg, rgba(0, 0, 0, .55), rgba(0, 0, 0, 0)) border-box no-repeat; border-bottom: 1px solid transparent; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; }
@@ -124,9 +127,11 @@ html.has-ph.ph-top .s-header .s-nav a, html.has-ph.ph-top .s-header .s-login-lin
 .ph-pload p { margin: 0; font-size: 13px; color: #c9d0d8; }
 
 @media (max-width: 760px) {
-  .ph { height: calc(100svh - 0px); min-height: 480px; }
-  .ph-in { padding: 0 16px 92px; }
-  .ph-t { font-size: clamp(32px, 10.5vw, 48px); }
-  .ph-watch { height: 50px; }
-  .ph-shade { background: linear-gradient(180deg, rgba(0, 0, 0, .55) 0%, rgba(0, 0, 0, 0) 25%, rgba(0, 0, 0, .1) 45%, rgba(0, 0, 0, .7) 75%, rgba(0, 0, 0, .88) 100%); }
+  .ph { height: auto; min-height: 0; grid-template-rows: var(--hh, 56px) auto auto; }
+  .ph-stage { padding: 14px 0 0; }
+  .ph-frame { height: auto; width: 100%; border-radius: 0; box-shadow: none; }
+  .ph-cap { flex-direction: column; align-items: stretch; gap: 18px; padding: 20px 16px 30px; }
+  .ph-t { font-size: clamp(24px, 7.2vw, 32px); }
+  .ph-watch { justify-content: center; height: 50px; }
 }
+

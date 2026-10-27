@@ -138,26 +138,34 @@
     if (!main) return;
     if (!sec) { sec = document.createElement("section"); sec.id = "promoHero"; sec.className = "ph"; main.insertBefore(sec, main.firstChild); }
     sec.setAttribute("aria-label", x.title || "宣传视频");
+    // 7.6.1 影院式：视频完整显示在中间（宣传片里常有字幕、界面录屏，铺满裁切或者叠字都会挡住），
+    // 两边用模糊放大的封面填满；标题、日期、「观看」放在视频下面的一条，不压在画面上
     sec.innerHTML =
       '<div class="ph-bg"' + (poster ? ' style="background-image:url(\'' + esc(poster) + '\')"' : "") + '></div>' +
-      '<video class="ph-v" muted loop playsinline preload="none" aria-hidden="true" tabindex="-1"></video>' +
       '<div class="ph-shade" aria-hidden="true"></div>' +
-      '<div class="ph-in">' +
-        '<p class="ph-kick"><span>' + esc(dateText(x.at)) + '</span></p>' +
+      '<div class="ph-stage"><div class="ph-frame"' + (x.width && x.height ? ' style="aspect-ratio:' + (+x.width) + ' / ' + (+x.height) + '"' : "") + '>' +
+        '<video class="ph-v" muted loop playsinline preload="none" aria-hidden="true" tabindex="-1"' + (poster ? ' poster="' + esc(poster) + '"' : "") + '></video>' +
+        '<div class="ph-bar" aria-hidden="true"><i></i></div></div></div>' +
+      '<div class="ph-cap"><div class="ph-txt">' +
+        '<p class="ph-kick"><span>' + esc(dateText(x.at)) + '</span><span>' + esc(x.tag || "宣传视频") + '</span></p>' +
         '<h2 class="ph-t">' + esc(x.title || "宣传视频") + '</h2>' +
         (x.desc ? '<p class="ph-d">' + esc(x.desc) + '</p>' : "") +
-        '<button type="button" class="ph-watch"><span>观看</span>' + ARROW + '</button>' +
-      '</div>' +
-      '<div class="ph-bar" aria-hidden="true"><i></i></div>' +
-      '<a class="ph-down" href="#hero-title" aria-label="往下看"><span></span></a>';
+      '</div><button type="button" class="ph-watch"><span>观看完整视频</span>' + ARROW + '</button></div>';
     document.documentElement.classList.add("has-ph");
     topWatch();
     H = { x: x, sec: sec, v: sec.querySelector(".ph-v"), st: "" };
-    sec.querySelector(".ph-watch").onclick = function () { watch(x); };
-    sec.querySelector(".ph-down").onclick = function (e) {
-      e.preventDefault();
-      var nx = sec.nextElementSibling; if (nx) window.scrollTo({ top: nx.getBoundingClientRect().top + window.scrollY - (parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--hh")) || 60), behavior: reduceMotion ? "auto" : "smooth" });
+    // 视频框按中间那块的大小等比放到最大（宽屏横着顶满，窄高的屏竖着顶满）
+    var frame = sec.querySelector(".ph-frame"), stage = sec.querySelector(".ph-stage"), ratio = x.width && x.height ? x.width / x.height : 16 / 9;
+    var fit = function () {
+      if (!frame.isConnected) { window.removeEventListener("resize", fit); return; }
+      if (window.innerWidth <= 760) { frame.style.width = frame.style.height = ""; return; }
+      var cs = getComputedStyle(stage);
+      var W = stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), Hh = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+      var w = Math.max(0, Math.min(W, Hh * ratio));
+      frame.style.width = w + "px"; frame.style.height = w / ratio + "px";
     };
+    fit(); window.addEventListener("resize", fit);
+    sec.querySelector(".ph-watch").onclick = function () { watch(x); };
     // 背景视频：看得见才下载 / 播放；省流量、减少动画时只放封面
     if (reduceMotion || (lowData() && !window.LaoPromo.cached(x))) return;
     var h = H;

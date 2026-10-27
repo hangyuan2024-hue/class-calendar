@@ -37,5 +37,23 @@ self.addEventListener("fetch", (event) => {
     // 网站根目录的 /api、/uploads：只有 /learn/ 下的页面发出的请求才会到这里（课内前端有几处写死了根路径；导图交接也走根路径）
     h = courses.route(url, "", true);
   }
-  if (h) event.respondWith(h(event.request));
+  if (h) { event.respondWith(h(event.request)); return; }
+  // 7.6.2 网站在海外，国内有时连得很慢：页面和静态文件先上网拿最新的，5 秒（页面 8 秒）没回来就用上次存下的
+  if (event.request.method === "GET" && path.startsWith(base) && (event.request.mode === "navigate" || STATIC_RE.test(path))) {
+    event.respondWith(netFirst(event.request, event.request.mode === "navigate" ? 8000 : 5000));
+  }
 });
+
+const STATIC_CACHE = "learn-static-v1";
+const STATIC_RE = /\.(?:js|mjs|cjs|css|wasm|woff2?|ttf|otf|png|jpe?g|gif|svg|webp|ico|json|html)$/i;
+async function netFirst(req, ms) {
+  let cache = null;
+  try { cache = await caches.open(STATIC_CACHE); } catch (e) { return fetch(req); }
+  const net = fetch(req).then((r) => {
+    if (r && r.ok && r.type === "basic") cache.put(req, r.clone()).catch(() => {});
+    return r;
+  });
+  const hit = await cache.match(req, { ignoreVary: true }).catch(() => null);
+  if (!hit) return net;
+  return Promise.race([net.catch(() => hit), new Promise((res) => setTimeout(() => res(hit), ms))]);
+}
