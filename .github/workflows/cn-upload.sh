@@ -25,13 +25,18 @@ export AWS_ACCESS_KEY_ID="$CN_S3_KEY_ID" AWS_SECRET_ACCESS_KEY="$CN_S3_SECRET" A
 # 新版 aws 命令默认加 CRC 校验头，国内几家的 S3 接口不认：只在必须时才加
 export AWS_REQUEST_CHECKSUM_CALCULATION=when_required AWS_RESPONSE_CHECKSUM_VALIDATION=when_required
 aws configure set default.s3.addressing_style virtual
-aws configure set default.s3.multipart_chunksize 64MB
-aws configure set default.s3.max_concurrent_requests 8
+# 从 GitHub（在美国）传到国内很慢、延迟高：切成 8MB 的小块、同时传 24 块，比一块一块传快好几倍
+aws configure set default.s3.multipart_threshold 8MB
+aws configure set default.s3.multipart_chunksize 8MB
+aws configure set default.s3.max_concurrent_requests 24
 ok=""
+T0=$(date +%s)
+echo "开始传到国内存储：$KEY（$(( $(wc -c < "$F") / 1048576 )) MB）" >&2
 for i in 1 2 3; do
   if aws s3 cp "$F" "s3://$CN_S3_BUCKET/$KEY" --endpoint-url "$CN_S3_ENDPOINT" --content-type application/octet-stream --only-show-errors >&2; then ok=1; break; fi
   echo "上传失败，10 秒后重试（第 $i 次）" >&2; sleep 10
 done
+echo "用了 $(( $(date +%s) - T0 )) 秒" >&2
 if [ -z "$ok" ]; then echo "::warning::上传到国内存储失败，这次只能从 GitHub 下载" >&2; echo ""; exit 0; fi
 # 清理：同一个文件夹里按时间只留最新 3 个
 DIR="${KEY%/*}/"
