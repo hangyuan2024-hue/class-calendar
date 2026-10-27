@@ -124,7 +124,7 @@ jobs:
         run: |
           set -euo pipefail
           SRC="${GITHUB_WORKSPACE}/laolao-android/app/build/outputs/apk/release/app-release.apk"
-          SHA=$(sha256sum "$SRC" | cut -d' ' -f1)
+          SHA=$(sha256sum < "$SRC" | cut -d' ' -f1)   # 从标准输入读：Windows 上路径里有反斜杠时 sha256sum 会在结果前加「\」
           CN=$(bash .github/workflows/cn-upload.sh "$SRC" "android/class-calendar-${VNAME}.apk")
           echo "国内地址：${CN:-（没配国内存储）}"
           PUB="${RUNNER_TEMP}/android-publish"
