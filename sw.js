@@ -1,6 +1,6 @@
 // 离线缓存（Service Worker）：只缓存网页自己的文件，不缓存任何数据接口的内容
 // 2026-10-08：注册时选择学校 / 单位；界面细节打磨（字号、焦点、图标）。
-const CACHE = "cc-static-v97-head";
+const CACHE = "cc-static-v98-promo";   // 7.6：首页宣传视频的缓存（laolao-promo-*）由 home-promo.js 自己管，这里不删
 const PAGES = ["./", "index.html", "app.html", "login.html"];
 const EXTRA = [
   "campus-ui.css?v=20261008-org1",
@@ -62,7 +62,7 @@ async function precache() {
 
 self.addEventListener("install", (e) => { e.waitUntil(precache().then(() => self.skipWaiting())); });
 self.addEventListener("activate", (e) => {
-  e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE && !k.startsWith("laolao-promo")).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
 
 const STATIC = /\.(?:html|js|css|woff2?|png|jpe?g|svg|webp|ico|webmanifest)$/i;

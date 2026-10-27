@@ -26,26 +26,45 @@
   }
 
   // ---------- 作品展映 ----------
+  // 7.6 除了 site-config.js 里写好的，还有 hangyuan 账号在网站上传的宣传视频（home-promo.js 读到后调用 window.H6Show.setPromo 放到最前面）
   (function showcase() {
-    var track = $("h6Track"), dotsBox = $("h6Dots"), stage = $("h6Stage");
+    var track = $("h6Track"), dotsBox = $("h6Dots"), stage = $("h6Stage"), sec = $("showcase");
     if (!track) return;
-    var list = (Array.isArray(C.showcase) ? C.showcase : []).filter(function (x) { return x && (x.type === "video" ? safeUrl(x.src) : ART[x.art]); });
-    if (!list.length) { var sec = $("showcase"); if (sec) sec.hidden = true; return; }
-    track.innerHTML = list.map(function (x, i) {
-      var media = x.type === "video"
-        ? '<video class="h6-video" muted playsinline preload="' + (i ? "none" : "metadata") + '" data-src="' + esc(pickSrc(x)) + '"' + (safeUrl(x.poster) ? ' poster="' + esc(safeUrl(x.poster)) + '"' : "") + '></video>' + (x.sound === false ? "" : '<button class="h6-sound" type="button" aria-label="打开声音">🔇</button>')
-        : ART[x.art];
-      return '<figure class="h6-slide' + (x.type === "video" ? " is-video" : "") + (i === 0 ? " on" : "") + '" role="group" aria-roledescription="作品" aria-label="' + (i + 1) + ' / ' + list.length + '" data-i="' + i + '">' +
-        // 6.10 视频放不出来（浏览器不支持、微信里被拦、网络慢）时，底下垫着封面图，不会空白一片
-        '<div class="h6-media"' + (x.type === "video" && safeUrl(x.poster) ? ' style="background-image:url(\'' + esc(safeUrl(x.poster)) + '\')"' : "") + '>' + media + '</div>' +
-        '<figcaption><span class="h6-tag">' + esc(x.tag || (x.type === "video" ? "视频" : "功能")) + '</span><h3>' + esc(x.title) + '</h3><p>' + esc(x.desc) + '</p></figcaption></figure>';
-    }).join("");
-    dotsBox.innerHTML = list.map(function (x, i) { return '<button type="button" role="tab" aria-label="' + esc(x.title) + '" data-i="' + i + '"><i></i></button>'; }).join("");
-    var slides = track.children, dots = dotsBox.children, cur = -1, timer = 0, paused = reduce, hover = false, visible = true;
+    var base = (Array.isArray(C.showcase) ? C.showcase : []).filter(function (x) { return x && (x.type === "video" ? safeUrl(x.src) : ART[x.art]); });
+    var list = [], slides = track.children, dots = dotsBox.children, cur = -1, timer = 0, paused = reduce, hover = false;
+    // 7.6 滚到这里之前算「看不见」：上传的视频等看得见了再下载（不支持检测的老浏览器当作看得见）
+    var visible = !("IntersectionObserver" in window);
     var DUR = 6500;
+    var mb = function (n) { return n >= 1048576 ? (n / 1048576).toFixed(n >= 104857600 ? 0 : 1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB"; };
+    // 流量少 / 网速慢（省流量模式、2G / 3G）：上传的视频不自动下载，点一下再看
+    var lowData = function () { var c = navigator.connection; return !!(c && (c.saveData || /(^|-)2g|3g/.test(c.effectiveType || ""))); };
+
+    function render() {
+      if (!list.length) { if (sec) sec.hidden = true; return; }
+      if (sec) sec.hidden = false;
+      track.innerHTML = list.map(function (x, i) {
+        var promo = x.type === "promo", poster = promo ? (/^data:image\/(jpeg|png|webp);base64,/.test(x.poster || "") ? x.poster : "") : safeUrl(x.poster);
+        var isVid = x.type === "video" || promo;
+        var media = x.type === "video"
+          ? '<video class="h6-video" muted playsinline preload="' + (i ? "none" : "metadata") + '" data-src="' + esc(pickSrc(x)) + '"' + (poster ? ' poster="' + esc(poster) + '"' : "") + '></video>' + (x.sound === false ? "" : '<button class="h6-sound" type="button" aria-label="打开声音">🔇</button>')
+          : promo
+            ? '<video class="h6-video" muted playsinline preload="none" data-promo="' + (+x.id) + '"' + (poster ? ' poster="' + esc(poster) + '"' : "") + '></video>' + (x.sound === false ? "" : '<button class="h6-sound" type="button" aria-label="打开声音">🔇</button>') +
+              '<div class="h6-load" hidden><button type="button" class="h6-load-go">▶ 播放视频<small>' + esc(mb(x.size || 0)) + '</small></button><div class="h6-load-bar"><i></i></div><span class="h6-load-t"></span></div>'
+            : ART[x.art];
+        return '<figure class="h6-slide' + (isVid ? " is-video" : "") + (i === 0 ? " on" : "") + '" role="group" aria-roledescription="作品" aria-label="' + (i + 1) + ' / ' + list.length + '" data-i="' + i + '">' +
+          // 6.10 视频放不出来（浏览器不支持、微信里被拦、网络慢）时，底下垫着封面图，不会空白一片
+          '<div class="h6-media"' + (isVid && poster ? ' style="background-image:url(\'' + esc(poster) + '\')"' : "") + '>' + media + '</div>' +
+          '<figcaption><span class="h6-tag">' + esc(x.tag || (isVid ? "视频" : "功能")) + '</span><h3>' + esc(x.title) + '</h3><p>' + esc(x.desc) + '</p></figcaption></figure>';
+      }).join("");
+      dotsBox.innerHTML = list.map(function (x, i) { return '<button type="button" role="tab" aria-label="' + esc(x.title || "视频") + '" data-i="' + i + '"><i></i></button>'; }).join("");
+      cur = -1;
+    }
 
     function vidOf(i) { return slides[i] && slides[i].querySelector("video"); }
+    var touched = false;
     function go(i, user) {
+      if (!list.length) return;
+      if (user && cur >= 0) touched = true;
       i = (i + list.length) % list.length;
       if (i === cur && !user) return;
       var old = vidOf(cur); if (old) try { old.pause(); } catch (e) {}
@@ -57,22 +76,54 @@
         dots[k].classList.toggle("on", k === i);
       }
       track.style.transform = "translateX(" + (-100 * i) + "%)";
-      schedule();
+      schedule(user);
     }
-    function schedule() {
+    // 7.6 上传的视频：轮到它时才一块一块下载（看过的存在浏览器里，下次直接放）
+    function loadPromo(v, user) {
+      var box = v.parentNode.querySelector(".h6-load"), id = +v.getAttribute("data-promo");
+      var item = list.filter(function (x) { return x.type === "promo" && +x.id === id; })[0];
+      if (!box || !item || !window.LaoPromo) return false;
+      if (v._st === "ready") return false;
+      box.hidden = false;
+      if (v._st === "loading") return true;
+      if (v._st !== "go" && !user && lowData() && !window.LaoPromo.cached(item)) { box.className = "h6-load ask"; return true; }
+      v._st = "loading"; box.className = "h6-load ing";
+      var bar = box.querySelector(".h6-load-bar i"), t = box.querySelector(".h6-load-t");
+      t.textContent = "正在加载视频…";
+      window.LaoPromo.url(item, function (got, all) {
+        var pc = all ? Math.min(100, Math.round(got * 100 / all)) : 0;
+        bar.style.width = pc + "%"; t.textContent = "正在加载视频 " + pc + "%（" + mb(got) + " / " + mb(all) + "）";
+      }).then(function (u) {
+        v._st = "ready"; box.hidden = true; v.src = u;
+        if (vidOf(cur) === v) schedule();
+      }, function () {
+        v._st = "err"; box.className = "h6-load err"; t.textContent = "视频没加载出来，点一下重试";
+        if (vidOf(cur) === v && !paused && !hover) { clearTimeout(timer); timer = setTimeout(function () { go(cur + 1); }, 4000); }
+      });
+      return true;
+    }
+    function schedule(user) {
       clearTimeout(timer);
       stage.classList.toggle("is-paused", paused);
       dotsBox.style.setProperty("--dur", DUR + "ms");
       var v = vidOf(cur);
       if (v) {
+        stage.classList.add("on-video");
+        if (v.hasAttribute("data-promo") && !v.src) {
+          // 首页还没滚到这里：先不下载
+          if (!visible && !user) return;
+          // 还在加载：先停在这一页（最多 90 秒），加载好了自动播放
+          var waiting = loadPromo(v, user);
+          if (!paused && !hover && visible) timer = setTimeout(function () { go(cur + 1); }, waiting && v._st === "loading" ? 90000 : DUR + 4000);
+          return;
+        }
         if (!v.src) v.src = v.getAttribute("data-src");
         if (!paused && visible) { v.currentTime = 0; var p = v.play(); if (p && p.catch) p.catch(function () {}); }
-        // 视频：播完再换下一个（太长的最多放 60 秒）
-        if (!paused && !hover && visible) timer = setTimeout(function () { go(cur + 1); }, 60000);
+        // 视频：播完再换下一个（太长的最多放 60 秒；上传的宣传视频放完为止，最多 5 分钟）
+        if (!paused && !hover && visible) timer = setTimeout(function () { go(cur + 1); }, v.hasAttribute("data-promo") ? 300000 : 60000);
         v.onended = function () { if (!paused && !hover) go(cur + 1); };
         // 放不了（浏览器不支持、网络断了）：3 秒后跳到下一个，不卡住轮播
         v.onerror = function () { if (vidOf(cur) === v) { clearTimeout(timer); timer = setTimeout(function () { go(cur + 1); }, 3000); } };
-        stage.classList.add("on-video");
         return;
       }
       stage.classList.remove("on-video");
@@ -80,16 +131,35 @@
       var d = dots[cur]; if (d) { d.classList.remove("on"); void d.offsetWidth; d.classList.add("on"); }
       if (!paused && !hover && visible) timer = setTimeout(function () { go(cur + 1); }, DUR);
     }
+    list = base.slice(); render();
     // 6.16 先把第一张亮出来，后面绑事件哪一步出错（老浏览器、网络慢导致的异常）也不会整块空白
     try { go(0, true); } catch (e) {}
+    // 7.6 放上传的宣传视频（排在最前面）。重复调用会整体换掉
+    window.H6Show = {
+      setPromo: function (items) {
+        var pv = (Array.isArray(items) ? items : []).filter(function (x) { return x && x.id && x.parts; }).map(function (x) {
+          return { type: "promo", id: x.id, size: x.size, parts: x.parts, mime: x.mime, poster: x.poster, sound: x.sound, title: x.title || "宣传视频", desc: x.desc || "", tag: x.tag || "宣传视频" };
+        });
+        var keep = touched && cur >= 0 && list[cur] ? list[cur] : null;   // 还没人动过轮播：直接从宣传视频开始
+        clearTimeout(timer);
+        var old = vidOf(cur); if (old) try { old.pause(); } catch (e) {}
+        list = pv.concat(base); render();
+        // 正在看（自己点过 / 滑过）的那一张还在：停在它上面；不然从第一张开始
+        var at = 0;
+        if (keep) list.forEach(function (x, i) { if (x === keep || (keep.type === "promo" && x.type === "promo" && +x.id === +keep.id)) at = i; });
+        try { go(at, false); } catch (e) {}
+      },
+    };
     try {
     $("h6Prev").onclick = function () { go(cur - 1, true); };
     $("h6Next").onclick = function () { go(cur + 1, true); };
     dotsBox.onclick = function (e) { var b = e.target.closest("button"); if (b) go(+b.getAttribute("data-i"), true); };
     var pb = $("h6Pause");
-    function setPaused(p) { paused = p; pb.textContent = p ? "▶" : "❚❚"; pb.setAttribute("aria-label", p ? "继续自动播放" : "暂停自动播放"); var v = vidOf(cur); if (v) try { p ? v.pause() : v.play().catch(function () {}); } catch (e) {} schedule(); }
+    function setPaused(p) { paused = p; pb.textContent = p ? "▶" : "❚❚"; pb.setAttribute("aria-label", p ? "继续自动播放" : "暂停自动播放"); var v = vidOf(cur); if (v && v.src) try { p ? v.pause() : v.play().catch(function () {}); } catch (e) {} schedule(); }
     pb.onclick = function () { setPaused(!paused); };
     track.addEventListener("click", function (e) {
+      var g = e.target.closest(".h6-load");
+      if (g) { var gv = g.parentNode.querySelector("video"); if (gv && gv._st !== "loading") { gv._st = "go"; if (vidOf(cur) === gv) schedule(true); } return; }
       var s = e.target.closest(".h6-sound"); if (!s) return;
       var v = s.parentNode.querySelector("video"); v.muted = !v.muted; s.textContent = v.muted ? "🔇" : "🔊"; s.setAttribute("aria-label", v.muted ? "打开声音" : "关闭声音");
     });
