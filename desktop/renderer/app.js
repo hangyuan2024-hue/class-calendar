@@ -8,7 +8,7 @@ const NAV = [
   ["", "main", ["today", "week", "homework", "tasks", "month"]],
   ["学习与规划", "study", ["ai", "plan", "study", "mindmap"]],
   ["班级", "class", ["wall", "checkin", "teach", "ingest", "people", "classes"]],
-  ["", "grow", ["growth", "tools"]],
+  ["", "grow", ["growth", "tools", "mail"]],
 ];
 // 合并的页面：key = 侧栏上那一项；值 = 页面顶上切换的几页
 const MERGE = {

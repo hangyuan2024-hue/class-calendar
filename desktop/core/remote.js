@@ -38,6 +38,9 @@ const RPC = new Set([
   // 3.3.3（网站 5.9.2）：重要事项弹窗
   "popup_state", "popup_set", "popup_ack",
   "study_room", "study_ping", "study_leave",   // 3.3.4 班级同步自习
+  // 7.7 信箱（网站 7.7）：站内信、写信给捞捞团队、举报、拉黑；管理员审核
+  "letter_send", "letter_list", "letter_get", "letter_unread", "letter_delete", "letter_report", "letter_settings", "letter_settings_set",
+  "letter_block", "letter_admin_act", "letter_words", "letter_admin_switch", "wall_mode_set",
 ]);
 
 // 直接读表（只读，只认这几种写法）

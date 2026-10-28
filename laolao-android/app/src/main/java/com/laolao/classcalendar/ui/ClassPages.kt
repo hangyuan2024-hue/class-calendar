@@ -187,7 +187,7 @@ class WallPage(a: Main, private val focus: Long = 0) : Page(a) {
         c.addView(hr)
         val folded = p.optInt("report_count") >= 3 && !p.optBoolean("reviewed") && !mineP && !mod && id !in unfold
         if (folded) { c.add(ctx.text("这条被多位同学举报，等老师处理中。点这里仍然查看", 13f, C.sub).apply { bg(C.mutedBg, 10); pad(12, 8); tap { unfold += id; render() } }, 10); return c }
-        if (p.optBoolean("hidden")) c.add(ctx.text(if (mod) "已被隐藏，只有你们能看到" else "已被老师隐藏，只有你能看到", 12.5f, C.red).apply { bg(C.dangerBg, 8); pad(10, 5) }, 10)
+        if (p.optBoolean("hidden")) c.add(ctx.text(if (!p.optBoolean("reviewed")) (if (mod) "审核中：点「恢复显示」通过，全班才看得到" else "审核中，老师通过后全班可见") else if (mod) "已被隐藏，只有你们能看到" else "已被老师隐藏，只有你能看到", 12.5f, C.red).apply { bg(C.dangerBg, 8); pad(10, 5) }, 10)
         if (p.str("title").isNotEmpty()) c.add(ctx.text(p.str("title"), 17f, C.text, HEAVY), 10)
         val bodyT = p.str("body"); val long = bodyT.length > 280 || bodyT.lines().size > 7
         val shortT = long && id !in expand

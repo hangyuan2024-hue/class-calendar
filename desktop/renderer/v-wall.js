@@ -119,7 +119,7 @@ App.views.wall = {
     const role = ROLE_CN[p.author_role] && p.author_role !== "student" ? `<span class="tag" style="--c:${p.author_role === "teacher" ? "var(--t-会议)" : "var(--brand)"}">${ROLE_CN[p.author_role]}</span>` : "";
     const g = App.group(p.group_id);
     const flags = [p.pinned_at && !p.hidden ? `<span class="tag" style="--c:var(--warn)">📌 置顶</span>` : "", p.is_notice ? `<span class="tag" style="--c:var(--bad)">📢 通知</span>` : "",
-      p.group_id ? `<span class="tag" style="--c:var(--ok)">👥 ${esc(g ? g.name : "分组")}</span>` : "", p.hidden ? `<span class="tag" style="--c:var(--muted)">已隐藏，只有你${mod ? "们" : ""}能看到</span>` : "",
+      p.group_id ? `<span class="tag" style="--c:var(--ok)">👥 ${esc(g ? g.name : "分组")}</span>` : "", p.hidden ? `<span class="tag" style="--c:var(--muted)">${!p.reviewed ? (mod ? "审核中：点「恢复显示」通过" : "审核中，老师通过后全班可见") : `已隐藏，只有你${mod ? "们" : ""}能看到`}</span>` : "",
       mod && p.report_count > 0 ? `<span class="tag" style="--c:var(--bad)">${p.report_count} 人举报</span>` : ""].join("");
     const ops = [];
     const cs = this.comments[p.id] || [];

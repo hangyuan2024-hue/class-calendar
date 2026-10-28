@@ -1,0 +1,57 @@
+/* 7.7.5 悬浮窗：窗框（标题栏 + 调整大小的把手）和内容是两个固定定位的元素，叠在同一个位置 */
+.fw-frame { position: fixed; z-index: 800; pointer-events: none; border-radius: 18px; opacity: 0; transform: translateY(10px) scale(.98); transition: opacity .16s, transform .16s;
+  --fw-line: color-mix(in srgb, var(--text, #13243a) 12%, transparent); }
+.fw-frame.on { opacity: 1; transform: none; }
+.fw-frame::after { content: ""; position: absolute; inset: 0; border-radius: inherit; border: 1px solid var(--fw-line); pointer-events: none; }
+.fw-frame.top::after { border-color: color-mix(in srgb, var(--accent, #4f63e7) 45%, transparent); }
+.fw-frame.max, .fw-frame.max + * { border-radius: 14px; }
+.fw-head { pointer-events: auto; position: absolute; left: 0; right: 0; top: 0; height: 42px; display: flex; align-items: center; gap: 6px; padding: 0 8px 0 14px; cursor: grab;
+  border-radius: 18px 18px 0 0; color: var(--text, #13243a); background: var(--card, #fff); border-bottom: 1px solid var(--fw-line); user-select: none; touch-action: none; }
+.fw-head:active { cursor: grabbing; }
+.fw-frame:not(.top) .fw-head { background: color-mix(in srgb, var(--card, #fff) 92%, var(--text, #13243a)); }
+.fw-ic { display: grid; place-items: center; color: var(--accent, #4f63e7); }
+.fw-ic svg, .fw-b svg, .tpop svg, .fw-popbtn svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.fw-t { font-size: 14px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fw-sp { flex: 1; }
+.fw-b { display: grid; place-items: center; width: 32px; height: 30px; border: 0; border-radius: 9px; background: none; color: var(--sub, #64748b); cursor: pointer; }
+.fw-b:hover { background: color-mix(in srgb, var(--text, #13243a) 8%, transparent); color: var(--text, #13243a); }
+.fw-b.fw-x:hover { background: #ef4444; color: #fff; }
+.fw-rz { pointer-events: auto; position: absolute; z-index: 2; }
+.fw-rz[data-rz=n] { left: 12px; right: 12px; top: -4px; height: 8px; cursor: ns-resize; }
+.fw-rz[data-rz=s] { left: 12px; right: 12px; bottom: -4px; height: 8px; cursor: ns-resize; }
+.fw-rz[data-rz=e] { top: 12px; bottom: 12px; right: -4px; width: 8px; cursor: ew-resize; }
+.fw-rz[data-rz=w] { top: 12px; bottom: 12px; left: -4px; width: 8px; cursor: ew-resize; }
+.fw-rz[data-rz=ne] { right: -5px; top: -5px; width: 16px; height: 16px; cursor: nesw-resize; }
+.fw-rz[data-rz=sw] { left: -5px; bottom: -5px; width: 16px; height: 16px; cursor: nesw-resize; }
+.fw-rz[data-rz=nw] { left: -5px; top: -5px; width: 16px; height: 16px; cursor: nwse-resize; }
+.fw-rz[data-rz=se] { right: -5px; bottom: -5px; width: 18px; height: 18px; cursor: nwse-resize; }
+.fw-frame.max .fw-rz { display: none; }
+
+/* 内容：自己滚动；顶上空出标题栏的高度 */
+.fw-body { position: fixed !important; z-index: 799; margin: 0 !important; box-sizing: border-box; overflow: auto; overscroll-behavior: contain;
+  padding: 54px 16px 16px !important; border-radius: 18px; background: var(--bg2, var(--bg, #f5f7fb)) !important;
+  box-shadow: 0 28px 70px -24px rgba(15, 23, 42, .42), 0 8px 22px -10px rgba(15, 23, 42, .18); opacity: 0; transition: opacity .16s; max-width: none !important; }
+.fw-body.fw-on { opacity: 1; }
+.view.fw-body { display: block !important; animation: none !important; transform: none !important; }
+.view.fw-body > .vhead { position: static !important; }
+.view.fw-body > .vhead .back, .view.fw-body > .vhead .fw-popbtn { display: none !important; }
+.view.fw-body .plugin-body iframe { max-width: 100%; }
+html.fw-dragging, html.fw-dragging * { user-select: none !important; }
+html.fw-dragging iframe { pointer-events: none !important; }
+
+/* 吸附参考线 */
+.fw-guide { position: fixed; z-index: 2000; display: none; pointer-events: none; background: var(--accent, #4f63e7); opacity: .7; }
+.fw-guide.v { top: 0; bottom: 0; width: 2px; margin-left: -1px; }
+.fw-guide.h { left: 0; right: 0; height: 2px; margin-top: -1px; }
+
+/* 「在悬浮窗打开」按钮：工具格子右上角、工具页标题栏 */
+#toolGrid > .tool { position: relative; }
+.tpop { position: absolute; left: 6px; top: 6px; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 9px; border: 1px solid var(--line, #e3edf6);
+  background: var(--card, #fff); color: var(--sub, #64748b); cursor: pointer; opacity: 0; transition: opacity .15s; }
+#toolGrid > .tool:hover .tpop, .tpop:focus-visible { opacity: 1; }
+.tpop:hover { color: var(--accent, #4f63e7); }
+.fw-popbtn { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; height: 32px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line, #e3edf6);
+  background: var(--card, #fff); color: var(--sub, #64748b); font: inherit; font-size: 13px; cursor: pointer; }
+.vhead .spacer ~ .fw-popbtn { margin-left: 0; }
+.fw-popbtn:hover { color: var(--accent, #4f63e7); border-color: color-mix(in srgb, var(--accent, #4f63e7) 40%, transparent); }
+@media (max-width: 860px) { .tpop, .fw-popbtn, .fw-frame { display: none !important; } }

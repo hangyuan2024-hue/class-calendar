@@ -1,5 +1,6 @@
 /* 7.7 信箱：把 mailbox-ui.js 接到网站（index.html）里
- * - 「我的 → 信箱」和电脑侧栏「信箱」（带未读数）进入
+ * - 电脑：侧栏用户头像右边的信箱按钮（有新信标红），点开是悬浮窗（float-wm.js：可拖动、调大小、和别的窗口拼接）
+ * - 手机：「我的 → 信箱」进入单独一页
  * - 网址直达：index.html#mail（打开信箱）、index.html#mail-compose=team&kind=report（直接写信给网站团队）
  *   kind: report 举报 / suggest 建议 / opensource 开源共建 / security 安全漏洞 / other 其他
  */
@@ -22,10 +23,16 @@
     return v;
   }
 
+  // 信箱内容只有一份（#mailRoot），电脑上放进悬浮窗，手机上放回「信箱」页，写到一半的信不会丢
+  function rootEl() {
+    var r = $("mailRoot");
+    if (!r) { r = document.createElement("div"); r.id = "mailRoot"; ensureView().appendChild(r); }
+    return r;
+  }
   function mountUI() {
     if (ui) return ui;
     ensureView();
-    var root = $("mailRoot");
+    var root = rootEl();
     if (!user()) {
       root.innerHTML = '<div class="mbx"><p class="mbx-empty">登录后才能使用信箱<br><a class="mbx-btn pri" href="login.html?next=' + encodeURIComponent("index.html#mail") + '">登录 / 注册</a></p></div>';
       return null;
@@ -34,6 +41,7 @@
     ui = window.MailboxUI.mount(root, {
       rpc: function (fn, args) { return window.CCAuth.rpc(fn, args || {}); },
       openBindEmail: function () {
+        closeFloat();
         showView("settings");
         setTimeout(function () { var b = $("mailBox"); if (b) b.scrollIntoView({ behavior: "smooth", block: "center" }); }, 120);
       },
@@ -46,8 +54,9 @@
   function badge() {
     var n = total(), t = n > 99 ? "99+" : String(n);
     document.querySelectorAll("[data-mail-badge]").forEach(function (e) { e.textContent = t; e.hidden = !n; });
+    var rb = $("railMail"); if (rb) { rb.classList.toggle("has-new", !!n); rb.title = n ? "信箱：" + n + " 封新信" : "信箱"; }
     var meNav = document.querySelector('#tabs [data-tab="me"]');
-    if (meNav) {
+    if (meNav && !isDesk()) {
       var d = meNav.querySelector(".mail-dot");
       if (n && !d) { d = document.createElement("em"); d.className = "badge mail-dot"; meNav.appendChild(d); }
       if (d) { if (n) d.textContent = t; else d.remove(); }
@@ -69,34 +78,44 @@
     if (!people) return;
     var b = document.createElement("button");
     b.className = "gi"; b.id = "menuMail"; b.dataset.tab = "mail";
-    b.innerHTML = '<span class="ic">✉️</span><span class="sx"><span class="sxt">信箱 <em class="badge" data-mail-badge hidden></em></span><small>写信给捞捞团队：举报、建议、开源合作、安全问题</small></span>';
+    b.innerHTML = '<span class="ic">' + window.MailboxUI.icon("mail") + '</span><span class="sx"><span class="sxt">信箱 <em class="badge" data-mail-badge hidden></em></span><small>写信给捞捞团队：举报、建议、开源合作、安全问题</small></span>';
     people.parentNode.insertBefore(b, people);
   }
 
-  // 电脑侧栏：在「设置」前面加「信箱」
-  var MAIL_ICON = '<svg viewBox="0 0 24 24" class="o" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="m4 7 8 6 8-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>' +
-    '<svg viewBox="0 0 24 24" class="f" aria-hidden="true"><path d="M5.5 4.5h13A2.5 2.5 0 0 1 21 7v.4l-9 6.4-9-6.4V7a2.5 2.5 0 0 1 2.5-2.5z M3 9.8l9 6.4 9-6.4V17a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17z" fill="currentColor"/></svg>';
+  // ---------- 电脑：用户头像右边的信箱按钮 + 悬浮窗（float-wm.js，可拖动、调大小、和别的窗口拼接）----------
+  var mailWin = null;
+  function isDesk() { return !!(window.FloatWM && window.FloatWM.enabled()); }
   function railBtn() {
-    var tabs = $("tabs"); if (!tabs || !user()) return;
-    var cur = document.querySelector(".view.on[data-view]");
-    var on = cur && cur.dataset.view === "mail";
-    var set = tabs.querySelector('[data-tab="settings"]');
+    if ($("railMail")) return;
+    var chip = $("userChip"); if (!chip || !chip.parentNode) return;
+    var row = document.createElement("div"); row.className = "rail-me-row";
+    chip.parentNode.insertBefore(row, chip); row.appendChild(chip);
     var b = document.createElement("button");
-    b.className = "nav desk" + (on ? " on" : ""); b.dataset.tab = "mail";
-    b.innerHTML = MAIL_ICON + "<span>信箱</span>" + '<em class="badge" data-mail-badge hidden></em>';
-    tabs.insertBefore(b, set || null);
-    if (on) { var me = tabs.querySelector('[data-tab="me"]'); if (me) me.classList.remove("on"); }
+    b.type = "button"; b.id = "railMail"; b.className = "rail-mail"; b.title = "信箱"; b.setAttribute("aria-label", "信箱");
+    b.innerHTML = window.MailboxUI.icon("mail") + '<em class="rm-n" data-mail-badge hidden></em>';
+    b.addEventListener("click", function () { if (window.FloatWM && window.FloatWM.isOpen("mail")) closeFloat(); else openFloat(); });
+    row.appendChild(b);
     badge();
   }
-
-  if (typeof window.renderTabs === "function") {
-    var rt = window.renderTabs;
-    window.renderTabs = function () { var r = rt.apply(this, arguments); try { railBtn(); } catch (e) {} return r; };
+  function openFloat(o) {
+    if (!mailWin) { mailWin = document.createElement("div"); mailWin.className = "mbx-win"; document.body.appendChild(mailWin); }
+    var root = rootEl();
+    if (root.parentNode !== mailWin) mailWin.appendChild(root);
+    window.FloatWM.open({ id: "mail", title: "信箱", icon: window.MailboxUI.icon("mail"), el: mailWin, w: 980, h: 720, minW: 600, minH: 420,
+      onClose: function () { var b = $("railMail"); if (b) b.classList.remove("on"); } });
+    var b = $("railMail"); if (b) b.classList.add("on");
+    var u = mountUI();
+    if (u) { if (o && o.tab) u.open(o); else u.refresh(); }
   }
+  function closeFloat() { if (window.FloatWM) window.FloatWM.close("mail"); }
+  // 换成窄屏（手机布局）时，内容放回「信箱」页
+  addEventListener("resize", function () { if (!isDesk()) { var v = ensureView(), r = $("mailRoot"); if (r && r.parentNode !== v) v.appendChild(r); } });
+
   if (typeof window.showView === "function") {
     var sv = window.showView;
     window.showView = function (id) {
-      if (id === "mail") ensureView();
+      if (id === "mail" && isDesk()) { var p = pending; pending = null; openFloat(p); return; }   // 电脑上：悬浮窗，不切换页面
+      if (id === "mail") { ensureView(); var rt = rootEl(), vw = ensureView(); if (rt.parentNode !== vw) vw.appendChild(rt); closeFloat(); }
       var r = sv.apply(this, arguments);
       if (id === "mail") {
         var u = mountUI();
@@ -128,13 +147,12 @@
   window.addEventListener("hashchange", route);
 
   function boot() {
-    ensureView(); addEntry(); badge();
-    try { renderTabs(); } catch (e) {}
+    ensureView(); addEntry(); railBtn(); badge();
     route();
     setTimeout(poll, 3000);
     setInterval(poll, 60000);
     document.addEventListener("visibilitychange", function () { if (!document.hidden) poll(); });
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
-  window.MailboxWeb = { open: function (o) { pending = o || null; showView("mail"); }, poll: poll };
+  window.MailboxWeb = { open: function (o) { pending = o || null; showView("mail"); }, close: closeFloat, poll: poll };
 })();

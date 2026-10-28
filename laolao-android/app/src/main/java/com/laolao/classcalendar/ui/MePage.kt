@@ -104,6 +104,7 @@ class MePage(a: Main) : Page(a) {
             row("🏫", if (Store.work()) "我的团队" else "我的班级", cls?.let { it.str("name") + " · " + Store.role() + if (Store.classes.size > 1) " · 共 ${Store.classes.size} 个" else "" } ?: if (Store.pending.isNotEmpty()) "等老师批准中" else "还没加入，点这里输入班级码") { a.push(ClassPage(a)) },
             row("📚", "课程表", if (Courses.has()) "${Courses.list().size} 门课" + (if (wk > 0) " · 现在是第 $wk 周" else "") else "拍一张课表截图就能导入") { a.push(CoursePage(a)) },
             if (cls != null) row("👥", "班级成员", "点头像进入 TA 的主页") { a.push(PeoplePage(a)) } else null,
+            row("✉️", "信箱", "写信给捞捞团队：举报、建议、开源合作、安全问题") { a.push(LetterBoxPage(a)) },
             if (cls != null && Store.isTeacher) row("🎛️", "班级管理 · 本班功能开关", "审批同学、任命班委、决定学生和班委能用哪些功能") { a.push(ClassManagePage(a, cls.str("id"))) } else null,
             if (me?.str("role") in setOf("admin", "developer")) row("⚙️", "管理后台", "全站功能开关、身份与权限（在网页里打开）") { open(Cfg.SITE + "admin.html") } else null,
             row("🧰", "工具与插件", "课程表、错题本、单词、记账…") { a.selectTab(3) })
