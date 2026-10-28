@@ -137,7 +137,7 @@ jobs:
           for ATTEMPT in 1 2 3; do
             if [ "$ATTEMPT" -gt 1 ]; then git fetch --no-tags origin "$BRANCH"; git -C "$PUB" reset --hard FETCH_HEAD; fi
             mkdir -p "$PUB/download"
-            echo "{\"version\": \"${V}\", \"url\": \"${URL}\", \"cn\": \"${CN}\", \"size\": ${SIZE}, \"sha256\": \"${SHA}\", \"notes\": \"自动更新；签到老师和班委都能发起；班委能看班级情况；等级和经验\", \"at\": \"$(date -u +%FT%TZ)\"}" > "$PUB/download/desktop-version.json"
+            echo "{\"version\": \"${V}\", \"url\": \"${URL}\", \"cn\": \"${CN}\", \"size\": ${SIZE}, \"sha256\": \"${SHA}\", \"notes\": \"新增信箱：站内信，写信给捞捞团队（举报、建议、开源合作、安全问题）\", \"at\": \"$(date -u +%FT%TZ)\"}" > "$PUB/download/desktop-version.json"
             cat "$PUB/download/desktop-version.json"
             git -C "$PUB" add -- download/desktop-version.json
             if git -C "$PUB" diff --cached --quiet; then echo "已经是最新"; exit 0; fi
