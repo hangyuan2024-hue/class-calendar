@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- 捞捞调度 网站 / App 图标：蓝底白色 L + 橙色光标（小尺寸下也看得清） -->
+  <rect width="64" height="64" rx="15" fill="#3D4FE0"/>
+  <path d="M20 17V44H29" fill="none" stroke="#FFFFFF" stroke-width="8.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="42" y="31" width="8.5" height="17" rx="2.5" fill="#FF7A2F"/>
+</svg>
