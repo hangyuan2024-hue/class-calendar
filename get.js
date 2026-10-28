@@ -24,9 +24,11 @@
   // 在海外（时区不是国内，或者这台设备已经在用海外线路）而且海外线路能下载时，按钮直接用海外线路；另一条放在按钮下面「换一条线路」
   const ALT = ((window.APP_CONFIG && window.APP_CONFIG.SUPABASE_URL_ALT) || "https://laolao-relay.hangyuan2024.workers.dev").replace(/\/+$/, "");
   const EXE_ALT = ALT + "/dl/windows";
+  // 7.6.5 只看电脑 / 手机的时区：以前「这台设备在用海外线路」也算海外，可开过代理的国内用户会被记住 3 天，下载就一直走海外线路
   const overseas = (() => {
+    try { const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; if (tz) return !/^Asia\/(Shanghai|Chongqing|Chungking|Harbin|Urumqi|Kashgar|Hong_Kong|Macau|Taipei)$/.test(tz) && !/^PRC$/.test(tz); } catch (e) {}
     try { if (window.CCAuth && CCAuth.route && CCAuth.route() === 1) return true; } catch (e) {}
-    try { const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; return !!tz && !/^Asia\/(Shanghai|Chongqing|Chungking|Harbin|Urumqi|Kashgar|Hong_Kong|Macau|Taipei)$/.test(tz) && !/^PRC$/.test(tz); } catch (e) { return false; }
+    return false;
   })();
   let altOk = false, EXE = EXE_GH;
   // 6.9.8 国内下载加速：配了国内对象存储就用它；没配就用 GitHub 加速镜像（download/mirrors.json，挂了改那个文件就行）
@@ -163,7 +165,24 @@
   })();
   window.CCGet = { plat, info };
   // 6.9.8 国内：电脑版、捞捞编程走国内存储 / 加速镜像；安卓走国内存储或官网自己的副本（不走 GitHub）
-  if (!overseas) (async () => {
+  // 7.6.5 国内存储还是海外：先比一比这台设备连「国内存储」和「GitHub」哪个快（时区不可靠：有人电脑设的是海外时区，
+  // 也有人开过代理）。时区在国内的偏向国内存储，时区在海外的要国内存储明显不慢才用。
+  let cnChosen = false;
+  const timeTo = (u, ms) => new Promise((ok) => {
+    const t0 = performance.now(), ctl = new AbortController(), t = setTimeout(() => { ctl.abort(); ok(Infinity); }, ms || 5000);
+    fetch(u, { method: "HEAD", mode: "no-cors", cache: "no-store", signal: ctl.signal }).then(() => { clearTimeout(t); ok(performance.now() - t0); }, () => { clearTimeout(t); ok(Infinity); });
+  });
+  async function nearCn(cnUrl) {
+    if (!/^https:\/\//.test(cnUrl || "")) return !overseas;
+    const [a, b] = await Promise.all([timeTo(cnUrl), timeTo("https://github.githubassets.com/favicons/favicon.png?t=" + Date.now())]);
+    if (a === Infinity) return false;
+    if (b === Infinity) return true;
+    return overseas ? a <= b * 1.3 : a <= b * 3;
+  }
+  (async () => {
+    const dv0 = await getJson("download/desktop-version.json");
+    if (!(await nearCn(dv0 && dv0.cn))) return;
+    cnChosen = true;
     const m = await getJson("download/mirrors.json"); if (m && Array.isArray(m.gh) && m.gh.length) MIR = m;
     const [dv, cv] = await Promise.all([getJson("download/desktop-version.json"), getJson("download/code-version.json")]);
     const [pe, pc] = await Promise.all([(plat.desktop || plat.windows) && $$('[data-get="exe"], [data-get="auto"]').length ? cnPick(dv, EXE_GH) : null, $$('[data-get="code"]').length ? cnPick(cv, CODE_GH) : null]);
@@ -181,7 +200,7 @@
       const r = await fetch(EXE_ALT, { method: "HEAD", signal: ctl.signal, cache: "no-store" });
       altOk = r.ok && /octet|exe|download|application/i.test(r.headers.get("content-type") || "application/octet-stream");
     } catch (e) { altOk = false; } finally { clearTimeout(t); }
-    if (altOk && overseas) EXE = EXE_ALT;
+    if (altOk && overseas && !cnChosen) EXE = EXE_ALT;
     if (altOk) apply();
   })();
 
