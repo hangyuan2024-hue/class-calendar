@@ -33,7 +33,7 @@ window.LAOLAO_SITE = {
       { icon: "🛡️", t: "后端与安全", d: "云同步、设备管理、权限控制，数据丢了能找回来" },
     ],
   },
-  repo: "",                 // 例如 "https://github.com/你的组织/laolao"；留空 = 显示「即将开放」
+  repo: "https://github.com/hangyuan2024-hue/class-calendar",   // 例如 "https://github.com/你的组织/laolao"；留空 = 显示「即将开放」
   contact: {
     email: "",              // 例如 "dev@laolaokechengbiao.cn"
     qq: "",                 // QQ 群号

@@ -4679,7 +4679,7 @@ function postHtml(p) {
   if (p.pinned_at) flags.push(`<span class="pflag pin">📌 置顶</span>`);
   if (p.group_id) { const g = groupOf(p.group_id); flags.push(`<span class="pflag grp">👥 ${esc(g ? g.name : "分组")}</span>`); }
   if (p.is_notice) flags.push(`<span class="pflag notice">📢 通知</span>`);
-  if (p.hidden) flags.push(`<span class="pflag hid">已被老师隐藏，只有你${canModerate() ? "们" : ""}能看到</span>`);
+  if (p.hidden) flags.push(`<span class="pflag hid">${!p.reviewed ? (canModerate() ? "审核中：点「恢复显示」通过，全班才看得到" : "审核中，老师通过后全班可见") : `已被老师隐藏，只有你${canModerate() ? "们" : ""}能看到`}</span>`);
   if (canModerate() && p.report_count > 0) flags.push(`<span class="pflag hid">${p.report_count} 人举报</span>`);
   const ops = [];
   if (canPin() && !p.hidden) ops.push(`<button data-w="pin" data-id="${p.id}">${p.pinned_at ? "取消置顶" : "📌 置顶"}</button>`);
@@ -4742,7 +4742,7 @@ function renderWall() {
     || `<div class="aempty surface">${wallFilter === "all" ? "还没有人发言，来发第一条吧 ✍️" : wallFilter === "notice" ? "还没有通知" : "你还没发过内容"}</div>`;
   $("wFilter").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.f === wallFilter));
   // 老师：举报处理
-  $("wReports").innerHTML = canModerate() && wallReports.length ? `<div class="reports surface"><h4>🚩 待处理的举报（${wallReports.length}）</h4>
+  $("wReports").innerHTML = canModerate() && wallReports.length ? `<div class="reports surface"><h4>🚩 待处理：举报和待审核（${wallReports.length}）</h4>
     ${wallReports.map((x) => `<div class="rep">
       <b>${esc(x.author_name)}</b> 发的${x.title ? "「" + esc(x.title) + "」" : "内容"}${x.hidden ? "（已隐藏）" : ""}
       <div class="ex">${esc(x.body)}</div>

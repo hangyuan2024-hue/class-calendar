@@ -1,0 +1,93 @@
+/* 7.7 信箱（网页、电脑版共用）。颜色尽量跟着外面的主题：文字用 inherit，底色用半透明 */
+.mbx { --mbx-brand: var(--brand, var(--accent, #3b82f6)); --mbx-line: rgba(127, 127, 127, .22); --mbx-soft: rgba(127, 127, 127, .08); --mbx-mute: rgba(127, 127, 127, 1);
+  position: relative; display: grid; gap: 14px; font-size: 14px; line-height: 1.6; color: inherit; }
+.mbx * { box-sizing: border-box; }
+.mbx-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.mbx-tabs { display: flex; gap: 4px; flex-wrap: wrap; flex: 1; min-width: 0; }
+.mbx-tabs button { position: relative; border: 1px solid transparent; background: none; color: inherit; font: inherit; padding: 7px 12px; border-radius: 999px; cursor: pointer; opacity: .75; }
+.mbx-tabs button.on { background: var(--mbx-soft); border-color: var(--mbx-line); opacity: 1; font-weight: 700; }
+.mbx-tabs em { font-style: normal; display: inline-block; min-width: 18px; margin-left: 6px; padding: 0 5px; border-radius: 999px; background: #ef4444; color: #fff; font-size: 11px; line-height: 18px; text-align: center; font-weight: 700; }
+.mbx-btn { border: 1px solid var(--mbx-line); background: transparent; color: inherit; font: inherit; font-size: 13px; font-weight: 600; padding: 7px 14px; border-radius: 10px; cursor: pointer; white-space: nowrap; }
+.mbx-btn:hover { background: var(--mbx-soft); }
+.mbx-btn.pri { background: var(--mbx-brand); border-color: transparent; color: #fff; }
+.mbx-btn.pri:hover { filter: brightness(1.06); }
+.mbx-btn.danger { color: #dc2626; border-color: rgba(220, 38, 38, .35); }
+.mbx-btn:disabled { opacity: .55; cursor: default; }
+.mbx-main { min-height: 200px; }
+.mbx-empty { padding: 36px 12px; text-align: center; opacity: .7; line-height: 2.2; }
+.mbx-empty.bad { color: #dc2626; opacity: 1; }
+.mbx-tip { margin: 0 0 10px; font-size: 13px; opacity: .78; }
+.mbx-fine { margin: 10px 0 0; font-size: 12px; line-height: 1.7; opacity: .65; }
+.mbx-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.mbx-item { width: 100%; display: flex; gap: 12px; align-items: flex-start; text-align: left; padding: 12px; border-radius: 14px; border: 1px solid var(--mbx-line); background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.mbx-item:hover { background: var(--mbx-soft); }
+.mbx-item.unread { border-color: color-mix(in srgb, var(--mbx-brand) 55%, transparent); }
+.mbx-item.unread .mbx-l1 b::after { content: ""; display: inline-block; width: 7px; height: 7px; margin-left: 6px; border-radius: 50%; background: #ef4444; vertical-align: middle; }
+.mbx-av { flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; color: #fff; background: var(--mbx-brand); }
+.mbx-it { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.mbx-l1 { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.mbx-l1 b { font-size: 14px; }
+.mbx-l1 time, .mbx-letter time { margin-left: auto; font-size: 12px; opacity: .6; white-space: nowrap; }
+.mbx-sub { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mbx-snip { font-size: 13px; opacity: .65; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mbx-k { display: inline-block; font-size: 11px; font-weight: 700; line-height: 18px; padding: 0 7px; border-radius: 999px; background: var(--mbx-soft); border: 1px solid var(--mbx-line); }
+.mbx-k.k-report, .mbx-k.k-removed { color: #dc2626; border-color: rgba(220, 38, 38, .35); }
+.mbx-k.k-held, .mbx-k.k-flag { color: #b45309; border-color: rgba(180, 83, 9, .35); }
+.mbx-k.k-done { color: #15803d; border-color: rgba(21, 128, 61, .35); }
+.mbx-k.k-security { color: #7c3aed; border-color: rgba(124, 58, 237, .35); }
+.mbx-more { justify-self: center; margin-top: 10px; display: block; margin-inline: auto; }
+.mbx-back { border: 0; background: none; color: inherit; font: inherit; font-size: 14px; padding: 4px 0; margin-bottom: 8px; cursor: pointer; opacity: .75; }
+.mbx-letter { border: 1px solid var(--mbx-line); border-radius: 14px; padding: 14px 16px; margin-bottom: 10px; opacity: .78; }
+.mbx-letter.cur { opacity: 1; border-color: color-mix(in srgb, var(--mbx-brand) 45%, var(--mbx-line)); }
+.mbx-letter header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.mbx-to { font-size: 12px; opacity: .65; }
+.mbx-letter h3 { margin: 4px 0 8px; font-size: 17px; }
+.mbx-body { white-space: pre-wrap; word-break: break-word; font-size: 14.5px; line-height: 1.8; }
+.mbx-reason { margin: 8px 0 0; font-size: 13px; color: #dc2626; }
+.mbx-acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.mbx-form { display: grid; gap: 12px; max-width: 720px; }
+.mbx-seg { display: flex; gap: 8px; flex-wrap: wrap; }
+.mbx-seg label { display: flex; align-items: center; gap: 6px; padding: 8px 14px; border: 1px solid var(--mbx-line); border-radius: 999px; cursor: pointer; }
+.mbx-seg label:has(input:checked) { border-color: var(--mbx-brand); background: color-mix(in srgb, var(--mbx-brand) 10%, transparent); font-weight: 700; }
+.mbx-f { display: grid; gap: 4px; font-size: 13px; font-weight: 600; position: relative; }
+.mbx-f input, .mbx-f select, .mbx-f textarea, .mbx-wordadd input, .mbx-wordadd select, .mbx-ask input { width: 100%; font: inherit; font-size: 14px; font-weight: 400; color: inherit; background: var(--mbx-soft); border: 1px solid var(--mbx-line); border-radius: 10px; padding: 9px 11px; }
+.mbx-f textarea { resize: vertical; min-height: 140px; line-height: 1.7; }
+.mbx-f input:focus, .mbx-f select:focus, .mbx-f textarea:focus { outline: 2px solid color-mix(in srgb, var(--mbx-brand) 55%, transparent); outline-offset: 0; }
+.mbx-count { justify-self: end; font-weight: 400; opacity: .55; font-size: 12px; }
+.mbx-sec { border: 1px solid var(--mbx-line); border-radius: 14px; padding: 14px 16px; margin-bottom: 12px; }
+.mbx-sec h3 { margin: 0 0 8px; font-size: 15px; }
+.mbx-sec h4 { margin: 14px 0 4px; font-size: 14px; }
+.mbx-sec p { margin: 6px 0; }
+.mbx-opt { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; cursor: pointer; }
+.mbx-opt input { margin-top: 4px; }
+.mbx-opt span { display: grid; }
+.mbx-opt small { opacity: .65; font-size: 12px; }
+.mbx-blocks { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.mbx-blocks li { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.mbx-blocks small { margin-left: 8px; opacity: .6; }
+.mbx-wordadd { display: flex; gap: 8px; margin: 8px 0; flex-wrap: wrap; }
+.mbx-wordadd input { flex: 1; min-width: 140px; }
+.mbx-wordadd select { width: auto; }
+.mbx-words { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; flex-wrap: wrap; }
+.mbx-words li { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; border-radius: 999px; border: 1px solid var(--mbx-line); font-size: 13px; }
+.mbx-words li.lv-block { border-color: rgba(220, 38, 38, .4); }
+.mbx-words small { opacity: .55; font-size: 11px; }
+.mbx-words button { border: 0; background: none; color: inherit; cursor: pointer; font-size: 15px; line-height: 1; padding: 2px 6px; opacity: .6; }
+.mbx-toast { position: fixed; left: 50%; bottom: 28px; transform: translate(-50%, 20px); opacity: 0; pointer-events: none; z-index: 9999; max-width: min(92vw, 520px);
+  padding: 10px 16px; border-radius: 12px; background: #1d2a3a; color: #fff; font-size: 13.5px; box-shadow: 0 10px 30px -10px rgba(0, 0, 0, .4); transition: opacity .2s, transform .2s; }
+.mbx-toast.on { opacity: 1; transform: translate(-50%, 0); }
+.mbx-toast.bad { background: #b91c1c; }
+.mbx-ask { position: fixed; inset: 0; z-index: 9998; display: grid; place-items: center; padding: 16px; background: rgba(10, 16, 28, .45); }
+.mbx-ask-c { width: min(420px, 100%); padding: 18px; border-radius: 16px; background: var(--card, var(--surface, #fff)); color: var(--ink, #1d2a3a); box-shadow: 0 20px 50px -20px rgba(0, 0, 0, .5); }
+.mbx-ask-c p { margin: 0 0 10px; line-height: 1.7; }
+@media (max-width: 640px) {
+  .mbx-top { flex-direction: column-reverse; align-items: stretch; }
+  .mbx-top > .mbx-btn { align-self: flex-start; }
+  .mbx-tabs { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
+  .mbx-tabs button { flex: none; }
+  .mbx-item { padding: 10px; }
+  .mbx-letter { padding: 12px; }
+}
+[data-mail-badge][hidden] { display: none !important; }
+#menuMail .badge { display: inline-block; font-style: normal; min-width: 18px; padding: 0 6px; margin-left: 4px; border-radius: 999px; background: #ef4444; color: #fff; font-size: 11px; line-height: 18px; text-align: center; vertical-align: 1px; }
+.view[data-view="mail"] .mbx { padding: 4px 2px 24px; }

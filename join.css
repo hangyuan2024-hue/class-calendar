@@ -93,3 +93,14 @@
   .jn-apply { padding: 26px 18px; border-radius: 20px; }
   .jn .s-nav { display: none; }
 }
+/* 7.7 开源规则 */
+.jn-rules { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 22px; }
+.jn-rules article { padding: 22px; border-radius: 18px; background: #fff; border: 1px solid var(--edge); }
+.jn-rules span { font-size: 26px; }
+.jn-rules h3 { margin: 10px 0 6px; font-size: 16px; }
+.jn-rules p { margin: 0; font-size: 13.5px; line-height: 1.85; color: var(--muted); }
+.jn-rules a, .jn-rules-more a { color: var(--blue); }
+.jn-rules code, .jn-steps code { font: 12.5px ui-monospace, Menlo, Consolas, monospace; background: #f1f4f8; padding: 1px 5px; border-radius: 5px; }
+.jn-rules-more { margin: 16px 0 0; font-size: 13.5px; line-height: 1.9; color: var(--muted); }
+@media (max-width: 980px) { .jn-rules { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 560px) { .jn-rules { grid-template-columns: 1fr; } }

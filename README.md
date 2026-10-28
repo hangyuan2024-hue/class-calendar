@@ -88,6 +88,12 @@ test/            测试
 
 ## 说明
 
-- 「课内学习」功能来自合作队伍的开源项目 courses_app（原始代码保存在 `partners/courses_app/`），在本项目中改为统一的界面和账号体系；课程表插件由团队组员开发（`plugins/course-schedule/`）。
+- 「课内学习」「思维导图」由合作队伍学习捞捞队开发（源码在 `learn/`），不在本仓库的开源许可范围内；课程表插件由团队组员开发（`plugins/course-schedule/`）。
 - Windows 电脑版的历史更新记录见 `CHANGELOG-windows.md` 和 `desktop/README.md`。
-- 项目计划逐步开源共建，欢迎各高校开发者参与（官网「开源共建」栏目）。
+- 开源共建：欢迎各高校开发者参与（官网「开源共建」栏目、`join.html`）。
+
+## 许可证
+
+本仓库按 [GNU AGPL-3.0](LICENSE) 开放，例外（捞捞学习、名称和形象、第三方组件）见 [NOTICE](NOTICE)。
+参与方式见 [CONTRIBUTING.md](CONTRIBUTING.md)，行为准则见 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)，
+安全漏洞请按 [SECURITY.md](SECURITY.md) 私下报告（网站「我的 → 信箱 → 写给捞捞团队」，类型选「安全问题」）。
