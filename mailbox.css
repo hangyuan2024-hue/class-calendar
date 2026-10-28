@@ -257,20 +257,21 @@
 #menuMail .badge { display: inline-block; font-style: normal; min-width: 18px; padding: 0 6px; margin-left: 4px; border-radius: 999px; background: #ef4444; color: #fff; font-size: 11px; line-height: 18px; text-align: center; vertical-align: 1px; }
 .view[data-view="mail"] .mbx { padding: 4px 0 28px; }
 
-/* ---------- 电脑：用户头像右边的信箱按钮 ---------- */
-.rail-me-row { display: flex; align-items: center; gap: 8px; }
-.rail-me-row > #userChip { flex: 1; min-width: 0; }
-.rail-mail { position: relative; flex: none; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; cursor: pointer; color: inherit;
-  background: transparent; border: 1px solid color-mix(in srgb, currentColor 16%, transparent); transition: background .15s, border-color .15s, color .15s; }
-.rail-mail:hover, .rail-mail.on { background: color-mix(in srgb, currentColor 10%, transparent); }
-.rail-mail .mbx-svg { width: 20px; height: 20px; }
-.rail-mail .rm-n { position: absolute; right: -6px; top: -6px; font-style: normal; min-width: 19px; padding: 0 5px; border-radius: 999px; background: #ef4444; color: #fff;
-  font-size: 11px; line-height: 19px; text-align: center; font-weight: 700; box-shadow: 0 0 0 2px var(--rail-bg, #1d2a3a); }
-.rail-mail.has-new { color: #f87171; border-color: rgba(239, 68, 68, .6); background: rgba(239, 68, 68, .1); }
+/* ---------- 电脑：信箱按钮放在用户框里面的右侧 ---------- */
+.rail-me-row { position: relative; }
+.rail-me-row > #userChip { width: 100%; padding-right: 50px !important; }
+.rail-mail { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 10px;
+  cursor: pointer; color: inherit; opacity: .78; background: transparent; transition: background .15s, opacity .15s, color .15s; }
+.rail-mail:hover, .rail-mail.on { opacity: 1; background: color-mix(in srgb, currentColor 12%, transparent); }
+.rail-mail .mbx-svg { width: 19px; height: 19px; }
+.rail-mail .rm-n { position: absolute; right: -4px; top: -3px; font-style: normal; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 999px; background: #ef4444; color: #fff;
+  font-size: 10.5px; line-height: 17px; text-align: center; font-weight: 700; box-shadow: 0 0 0 2px var(--rail-bg, #1d2a3a); }
+.rail-mail.has-new { opacity: 1; color: #f87171; }
 .rail-mail.has-new .rm-n { animation: mbx-ping 2s ease-out infinite; }
-@keyframes mbx-ping { 0% { box-shadow: 0 0 0 2px var(--rail-bg, #1d2a3a), 0 0 0 2px rgba(239, 68, 68, .55); } 70%, 100% { box-shadow: 0 0 0 2px var(--rail-bg, #1d2a3a), 0 0 0 9px rgba(239, 68, 68, 0); } }
-html.sidebar-collapsed .rail-me-row { flex-direction: column; }
-@media (max-width: 860px) { .rail-mail { display: none !important; } .rail-me-row { display: contents; } }
+@keyframes mbx-ping { 0% { box-shadow: 0 0 0 2px var(--rail-bg, #1d2a3a), 0 0 0 2px rgba(239, 68, 68, .55); } 70%, 100% { box-shadow: 0 0 0 2px var(--rail-bg, #1d2a3a), 0 0 0 8px rgba(239, 68, 68, 0); } }
+html.sidebar-collapsed .rail-me-row > #userChip { padding-right: 0 !important; }
+html.sidebar-collapsed .rail-mail { position: static; transform: none; margin: 6px auto 0; }
+@media (max-width: 860px) { .rail-mail { display: none !important; } .rail-me-row { display: contents; } .rail-me-row > #userChip { padding-right: revert !important; } }
 
 /* 信箱放进悬浮窗时 */
 .mbx-win { display: none; }
