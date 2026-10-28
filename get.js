@@ -44,12 +44,13 @@
   });
   const getJson = async (u) => { try { const r = await fetch(new URL(u + "?t=" + Date.now(), root), { cache: "no-store" }); return r.ok ? await r.json() : null; } catch (e) { return null; } };
   // 国内线路：国内存储 → 加速镜像（GitHub 原地址前面加镜像前缀）
+  // 7.6.5 有国内存储就一定先用它（以前和加速镜像一起比谁先连通，常常选到只有几 KB/s 的免费镜像）
   async function cnPick(info, gh) {
     const pinned = (info && info.url) || gh, list = [];
-    if (info && /^https:\/\//.test(info.cn || "")) list.push(info.cn);
+    if (info && /^https:\/\//.test(info.cn || "") && await reach(info.cn, 6000)) return { url: info.cn, how: "国内线路" };
     (MIR.gh || []).forEach((m) => { if (/^https:\/\//.test(m)) list.push(m.replace(/\/?$/, "/") + pinned); });
     const u = await firstOk(list);
-    return u ? { url: u, how: info && u === info.cn ? "国内线路" : "国内加速" } : null;
+    return u ? { url: u, how: "国内加速" } : null;
   }
   const web = new URL("index.html", root).href;
   const originalApk = new URL("download/class-calendar.apk", root).href;
