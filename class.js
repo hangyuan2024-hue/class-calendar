@@ -1,6 +1,21 @@
 const { rest, rpc, esc, PERM_NAMES } = CCAuth;
 const $ = (id) => document.getElementById(id);
 let me = null, mine = [];
+// 1.22 扫班级二维码进来：class.html?join=K7M2QX（没登录会先去登录，登录完回到这页，所以先记下来）
+(function () {
+  try {
+    const m = /[?&#]join=([A-Za-z0-9]{6})/.exec(location.search + location.hash);
+    if (m) { localStorage.setItem("cc_join_code", m[1].toUpperCase()); history.replaceState(null, "", location.pathname); }
+  } catch (e) {}
+})();
+function fillJoin() {
+  try {
+    const jc = localStorage.getItem("cc_join_code"); if (!jc) return;
+    localStorage.removeItem("cc_join_code");
+    $("joinCode").value = jc; $("joinCard").scrollIntoView({ block: "center" }); $("joinCode").focus();
+    toast("班级码 " + jc + " 已经填好，点「申请加入」");
+  } catch (e) {}
+}
 
 function toast(msg, err) {
   const t = $("toast"); t.textContent = msg; t.className = "show" + (err ? " err" : "");
@@ -24,7 +39,6 @@ async function load() {
   await renderTeaching();
   if (location.hash === "#features" && !load._scrolled) { load._scrolled = true; const h = document.querySelector("[id^=feat_]"); if (h) h.scrollIntoView(); }
   if (me.role === "admin") renderAdmin().catch((e) => toast(e.message, true));
-  if (window.DEPT) DEPT.load();   // 7.3 院系
 }
 
 // ---------- 学生视角 ----------
@@ -122,7 +136,6 @@ async function renderTeaching() {
         <button class="small" data-act="copy" data-code="${esc(c.code)}" data-name="${esc(c.name)}">复制邀请语</button>
         <button class="small" data-act="regen" data-id="${esc(c.id)}">重置班级码</button>
         <button class="small" data-act="rename" data-id="${esc(c.id)}" data-name="${esc(c.name)}">改名</button></div>
-      <div class="deptbox" data-deptbox="${esc(c.id)}"></div>
       ${pend.length ? `<h3>待批准</h3>` + pend.map((m) => `<div class="item"><div class="grow">${esc(m.name)} <span class="meta">${esc(m.account)} · ${fmt(m.joined_at)} 申请</span></div>
           <button class="small primary" data-act="approve" data-cid="${esc(c.id)}" data-uid="${esc(m.user_id)}">批准</button>
           <button class="small danger" data-act="reject" data-cid="${esc(c.id)}" data-uid="${esc(m.user_id)}">拒绝</button></div>`).join("") : ""}
@@ -297,4 +310,5 @@ $("logout").onclick = async () => { await CCAuth.signOut(); location.href = "log
     $("myCard").querySelector("h2").textContent = "我的团队";
   }
   try { await load(); } catch (e) { toast(e.message, true); }
+  fillJoin();
 })();
