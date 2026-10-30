@@ -202,6 +202,17 @@
     if (/异常/.test(r)) return "检测到你的账号登录环境异常（同一个登录突然在别的设备、或在很多不同网络上使用），为了安全已自动退出。本机记录仍然保留，请重新登录；如果不是你本人在用，登录后请立刻修改密码。";
     return "这台设备已在其他设备上被退出登录。本机记录仍然保留，请重新登录；如果不是你本人操作，请登录后立刻修改密码。";
   }
+  // 7.17 微信扫码登录：数据库给的是一张续期令牌，换成正式登录凭证（和账号密码登录出来的一样）；换不了就用兜底的 2 小时凭证
+  async function adoptSession(r) {
+    if (r && r.refresh_token) {
+      try {
+        const j = await call(base() + "/auth/v1/token?grant_type=refresh_token", { method: "POST", body: JSON.stringify({ refresh_token: r.refresh_token }) });
+        meCache = null; return keep(j);
+      } catch (e) { if (!r.access_token) throw new Error("扫码登录暂时用不了（" + e.message + "），请先用账号密码登录"); }
+    }
+    if (r && r.access_token) { meCache = null; return keep({ ...r, refresh_token: "" }); }
+    throw new Error("登录没成功，请再试一次");
+  }
   async function rpc(fn, args) {
     return rest("rpc/" + fn, { method: "POST", body: JSON.stringify(args || {}) });
   }
@@ -234,5 +245,5 @@
   }
 
   const can = (user, perm) => !!(user && user.perms && user.perms.includes(perm));
-  window.CCAuth = { base, routes: () => ROUTES.slice(), route: () => routeI, setRoute, primeMe, signIn, signUp, signOut, session, rest, rpc, me, esc, can, ROLE_NAMES, STAFF, STAFF_PERMS, PERM_NAMES, ACCOUNT_RE };
+  window.CCAuth = { adoptSession, base, routes: () => ROUTES.slice(), route: () => routeI, setRoute, primeMe, signIn, signUp, signOut, session, rest, rpc, me, esc, can, ROLE_NAMES, STAFF, STAFF_PERMS, PERM_NAMES, ACCOUNT_RE };
 })();

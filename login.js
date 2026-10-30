@@ -48,6 +48,7 @@ function setMode(m) {
   const g = document.querySelector("input[name=gender]:checked");
   setGender(m === "signup" && g ? g.value : "");
   checkAccount(); checkPw();
+  $("loginBox").classList.toggle("signup-mode", m === "signup");
   if (m === "signup" && typeof orgPick !== "undefined" && orgPick) orgPick.preload();   // 切到注册时提前把学校名单拉下来
 }
 $("tabs").onclick = (e) => { const b = e.target.closest("button[data-mode]"); if (b) setMode(b.dataset.mode); };
@@ -197,6 +198,57 @@ form.onsubmit = async (e) => {
     $("go").disabled = false;
   }
 };
+
+// ---------- 7.17 微信扫码登录（个体主体的小程序也能用：网页显示小程序码，手机扫码后在小程序里确认） ----------
+const wxs = { gen: 0, id: 0, key: "", t0: 0 };
+function uaLabel() {
+  const u = navigator.userAgent || "";
+  const os = /iPhone/.test(u) ? "iPhone" : /iPad/.test(u) ? "iPad" : /Android/.test(u) ? "安卓" : /Windows/.test(u) ? "Windows 电脑" : /Mac OS X/.test(u) ? "Mac 电脑" : /Linux/.test(u) ? "Linux 电脑" : "电脑";
+  const br = /MicroMessenger/.test(u) ? "微信" : /Edg\//.test(u) ? "Edge" : /QQBrowser/.test(u) ? "QQ 浏览器" : /360SE|360EE/.test(u) ? "360 浏览器" : /Firefox\//.test(u) ? "Firefox" : /Chrome\//.test(u) ? "Chrome" : /Safari\//.test(u) ? "Safari" : "浏览器";
+  return os + " · " + br;
+}
+function wxsSet(st, cls) { $("wxsSt").textContent = st; $("wxsSt").className = "wxs-st" + (cls ? " " + cls : ""); }
+function wxsShow(on) {
+  $("loginBox").classList.toggle("wxs-on", on);
+  $("wxsBox").classList.toggle("hidden", !on);
+  $("msg").textContent = "";
+  if (on) wxsStart(); else wxs.gen++;
+}
+async function wxsStart() {
+  const g = ++wxs.gen;
+  $("wxsRe").classList.add("hidden");
+  $("wxsQr").className = "wxs-qr"; $("wxsQr").innerHTML = '<div class="wxs-spin"></div>';
+  wxsSet("正在生成二维码…");
+  let r;
+  try { r = await CCAuth.rpc("web_login_new", { ua: uaLabel() }); }
+  catch (e) { if (g !== wxs.gen) return; wxsSet(/web_login_new|Could not find|PGRST202/i.test(e.message) ? "扫码登录还没开通，先用账号密码登录吧" : e.message, "err"); $("wxsRe").classList.remove("hidden"); return; }
+  if (g !== wxs.gen) return;
+  wxs.id = r.id; wxs.key = r.key; wxs.t0 = Date.now();
+  let shown = false;
+  for (;;) {
+    await new Promise((ok) => setTimeout(ok, shown ? 1500 : 1000));
+    if (g !== wxs.gen) return;
+    let p;
+    try { p = await CCAuth.rpc("web_login_poll", { id: wxs.id, key: wxs.key }); }
+    catch (e) { if (Date.now() - wxs.t0 > 180000) break; continue; }   // 网络抖一下：继续等
+    if (g !== wxs.gen) return;
+    if (p.ok) {
+      wxsSet("登录成功，正在进入…");
+      try { await CCAuth.adoptSession(p.session); agreeSave(); await afterLogin(false); }
+      catch (e) { wxsSet(e.message, "err"); $("wxsRe").classList.remove("hidden"); }
+      return;
+    }
+    if (p.expired) { wxsSet("二维码过期了，点「刷新二维码」再扫"); break; }
+    if (p.cancelled) { wxsSet("已在手机上取消，可以刷新后重新扫"); break; }
+    if (p.img && !shown) { shown = true; $("wxsQr").innerHTML = '<img alt="登录小程序码" src="' + p.img + '">'; wxsSet("用微信扫一扫登录"); }
+    if (p.scanned) { $("wxsQr").className = "wxs-qr dim"; if (!$("wxsQr").querySelector(".wxs-ok")) $("wxsQr").insertAdjacentHTML("beforeend", '<div class="wxs-ok">✓</div>'); wxsSet("已扫码，请在手机上点「确认登录」"); }
+    if (!shown && (p.err || Date.now() - wxs.t0 > 25000)) { wxsSet("二维码没生成出来" + (p.err ? "（" + p.err + "）" : "") + "，先用账号密码登录吧", "err"); break; }
+  }
+  if (g === wxs.gen) { $("wxsQr").className = "wxs-qr dim"; $("wxsRe").classList.remove("hidden"); }
+}
+$("wxsBtn").onclick = () => wxsShow(true);
+$("wxsBack").onclick = () => wxsShow(false);
+$("wxsRe").onclick = () => wxsStart();
 
 // ---------- 注册后的新手引导 ----------
 const PALS = {
