@@ -48,7 +48,7 @@ function setMode(m) {
   const g = document.querySelector("input[name=gender]:checked");
   setGender(m === "signup" && g ? g.value : "");
   checkAccount(); checkPw();
-  $("loginBox").classList.toggle("signup-mode", m === "signup");
+  if ($("loginBox")) $("loginBox").classList.toggle("signup-mode", m === "signup");
   if (m === "signup" && typeof orgPick !== "undefined" && orgPick) orgPick.preload();   // 切到注册时提前把学校名单拉下来
 }
 $("tabs").onclick = (e) => { const b = e.target.closest("button[data-mode]"); if (b) setMode(b.dataset.mode); };
@@ -246,9 +246,11 @@ async function wxsStart() {
   }
   if (g === wxs.gen) { $("wxsQr").className = "wxs-qr dim"; $("wxsRe").classList.remove("hidden"); }
 }
-$("wxsBtn").onclick = () => wxsShow(true);
-$("wxsBack").onclick = () => wxsShow(false);
-$("wxsRe").onclick = () => wxsStart();
+if ($("wxsBtn")) {   // 页面上有扫码登录（login.html / app.html）才接上
+  $("wxsBtn").onclick = () => wxsShow(true);
+  $("wxsBack").onclick = () => wxsShow(false);
+  $("wxsRe").onclick = () => wxsStart();
+}
 
 // ---------- 注册后的新手引导 ----------
 const PALS = {

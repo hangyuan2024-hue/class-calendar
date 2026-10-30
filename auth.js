@@ -204,6 +204,19 @@
   }
   // 7.17 微信扫码登录：数据库给的是一张续期令牌，换成正式登录凭证（和账号密码登录出来的一样）；换不了就用兜底的 2 小时凭证
   async function adoptSession(r) {
+    if (r && r.grant) {   // 一次性登录票：等数据库从登录服务拿到票据，再换成正式凭证
+      const t0 = Date.now();
+      for (;;) {
+        const g = await call(base() + "/rest/v1/rpc/wx_grant_poll", { method: "POST", body: JSON.stringify({ id: r.grant, gk: r.gk }) });
+        if (g && g.token_hash) {
+          const j = await call(base() + "/auth/v1/verify", { method: "POST", body: JSON.stringify({ type: g.type || "magiclink", token_hash: g.token_hash }) });
+          if (!j || !j.access_token) throw new Error("登录没成功，请再试一次");
+          meCache = null; return keep(j);
+        }
+        if (Date.now() - t0 > 20000) throw new Error("登录服务太慢了，请再试一次");
+        await new Promise((ok) => setTimeout(ok, Date.now() - t0 < 3000 ? 300 : 800));
+      }
+    }
     if (r && r.refresh_token) {
       try {
         const j = await call(base() + "/auth/v1/token?grant_type=refresh_token", { method: "POST", body: JSON.stringify({ refresh_token: r.refresh_token }) });
