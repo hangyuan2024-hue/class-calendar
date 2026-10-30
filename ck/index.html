@@ -71,7 +71,15 @@
         rpc("ck_pass_poll", { n: r.n, p: r.p }).then(function (p) {
           if (p.expired) { fail("小程序码过期了，请重新扫投屏上的二维码"); return; }
           if (p.used) { $("tip").innerHTML = "✓ 已签到"; $("tip").className = "tip ok"; $("wxS").textContent = "可以关掉这个页面了"; return; }
-          if (p.img && !shown) { shown = true; $("qr").innerHTML = '<img alt="签到小程序码" src="' + p.img + '">'; $("tip").textContent = "👆 长按上面的码 → 识别小程序码"; }
+          if (p.img && !shown) {
+            shown = true;
+            // 微信只认「网址图片」能长按识别（data: 图片长按只能保存）：用扣子后端把同一张码当 png 发出来；加载不了再退回 data 图片
+            var src = r.img_base ? r.img_base + "/api/ckimg?n=" + r.n + "&p=" + r.p + "&k=" + encodeURIComponent(C.SUPABASE_ANON_KEY) : p.img;
+            var im = new Image(); im.alt = "签到小程序码"; im.src = src;
+            im.onerror = function () { if (im.src !== p.img) im.src = p.img; };
+            $("qr").innerHTML = ""; $("qr").appendChild(im);
+            $("tip").textContent = "👆 长按上面的码 → 识别小程序码";
+          }
           if (!shown && (p.err || Date.now() - t0 > 25000)) { fail("小程序码没生成出来，用账号在网页签到吧"); return; }
           setTimeout(poll, shown ? 2000 : 1000);
         }).catch(function () { if (Date.now() - t0 < 60000) setTimeout(poll, 1500); else fail("网络不太好，用账号在网页签到吧"); });
