@@ -5,33 +5,78 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>捞捞签到</title>
 <style>
-  :root { --bg: #f6f5f1; --card: #fff; --text: #1d2433; --sub: #7d898e; --accent: #5366e8; }
-  @media (prefers-color-scheme: dark) { :root { --bg: #14161c; --card: #1e2129; --text: #eef0f4; --sub: #9aa3ad; --accent: #8c9bff; } }
+  :root { --bg: #f6f5f1; --card: #fff; --text: #1d2433; --sub: #7d898e; --accent: #5366e8; --line: #e8e6df; --ok: #07a35a; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #14161c; --card: #1e2129; --text: #eef0f4; --sub: #9aa3ad; --accent: #8c9bff; --line: #2c303a; } }
   body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--bg); color: var(--text);
     font: 16px/1.6 -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; padding: 16px; box-sizing: border-box; }
   .c { background: var(--card); border-radius: 20px; padding: 28px 24px; max-width: 360px; width: 100%; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,.08); }
   h1 { font-size: 20px; margin: 8px 0; } p { color: var(--sub); font-size: 14px; margin: 6px 0; }
-  a { display: inline-block; margin-top: 14px; background: var(--accent); color: #fff; text-decoration: none; padding: 10px 22px; border-radius: 99px; font-weight: 600; }
+  a.go { display: inline-block; margin-top: 14px; background: var(--accent); color: #fff; text-decoration: none; padding: 10px 22px; border-radius: 99px; font-weight: 600; }
+  a.alt { display: inline-block; margin-top: 16px; color: var(--accent); font-size: 14px; text-decoration: none; }
+  .qr { width: 220px; height: 220px; margin: 14px auto 6px; border-radius: 18px; background: #fff; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
+  .qr img { width: 200px; height: 200px; display: block; -webkit-touch-callout: default; }
+  .spin { width: 28px; height: 28px; border: 3px solid #e5e5e5; border-top-color: #07c160; border-radius: 50%; animation: s .8s linear infinite; }
+  @keyframes s { to { transform: rotate(360deg); } }
+  .tip { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; padding: 6px 14px; border-radius: 99px; background: rgba(7, 193, 96, .1); color: #07a35a; font-weight: 700; font-size: 15px; }
+  .ok { color: var(--ok); }
+  .hide { display: none; }
 </style>
 </head>
 <body>
 <div class="c">
-  <div style="font-size:40px">📋</div>
-  <h1>正在打开签到…</h1>
-  <p id="t">马上跳到捞捞课程表帮你签到</p>
-  <p>第一次用要先登录捞捞账号，之后扫码就直接签上</p>
-  <a id="go" href="../index.html">打开捞捞签到</a>
+  <!-- 普通浏览器：跳到网站签到 -->
+  <div id="web">
+    <div style="font-size:40px">📋</div>
+    <h1>正在打开签到…</h1>
+    <p id="t">马上跳到捞捞课程表帮你签到</p>
+    <p>第一次用要先登录捞捞账号，之后扫码就直接签上</p>
+    <a class="go" id="go" href="../index.html">打开捞捞签到</a>
+  </div>
+  <!-- 7.21 微信里打开：换成带「通行码」的小程序码，长按识别 → 进小程序（微信自动登录）直接签上 -->
+  <div id="wx" class="hide">
+    <h1 id="wxT">长按识别，一秒签到</h1>
+    <div class="qr" id="qr"><div class="spin"></div></div>
+    <div class="tip" id="tip">正在生成签到小程序码…</div>
+    <p id="wxS">长按上面的小程序码 →「识别小程序码」<br>会打开捞捞小程序，用微信自动登录并签上</p>
+    <a class="alt" id="alt" href="../index.html">用账号在网页签到 ›</a>
+  </div>
 </div>
+<script src="../config.js"></script>
 <script>
   // 投屏的二维码：https://www.laolaokechengbiao.cn/ck/?i=签到编号&k=4位码
-  //   · 微信扫一扫：小程序后台配了「扫普通链接二维码打开小程序」就直接进小程序签到页（不会到这里）
   //   · 手机相机 / 浏览器扫：到这里，跳到网站首页带上签到编号和码，登录后直接签
+  //   · 7.21 微信扫一扫（小程序码还没生成好时投屏显示的是这个普通码）：在微信里打开这里，
+  //     当场验证码 → 换一个带「通行码」的小程序码，长按识别就进小程序直接签（不用在网页登录）
   (function () {
     var q = new URLSearchParams(location.search), i = (q.get("i") || "").replace(/\D/g, ""), k = (q.get("k") || "").replace(/\D/g, "").slice(0, 4);
     var url = "../index.html" + (i ? "#ck=" + i + (k ? "&k=" + k : "") : "");
-    document.getElementById("go").href = url;
-    if (i) setTimeout(function () { location.replace(url); }, 300);
-    else document.getElementById("t").textContent = "这个签到链接不完整，请重新扫一下投屏上的二维码";
+    var $ = function (id) { return document.getElementById(id); };
+    $("go").href = url; $("alt").href = url;
+    if (!i) { $("t").textContent = "这个签到链接不完整，请重新扫一下投屏上的二维码"; return; }
+    var inWx = /MicroMessenger/i.test(navigator.userAgent), C = window.APP_CONFIG || {};
+    if (!inWx || !C.SUPABASE_URL || !C.SUPABASE_ANON_KEY) { setTimeout(function () { location.replace(url); }, 300); return; }
+
+    $("web").className = "hide"; $("wx").className = "";
+    var base = C.SUPABASE_URL.replace(/\/+$/, "");
+    function rpc(fn, args) {
+      return fetch(base + "/rest/v1/rpc/" + fn, { method: "POST", headers: { apikey: C.SUPABASE_ANON_KEY, Authorization: "Bearer " + C.SUPABASE_ANON_KEY, "Content-Type": "application/json" }, body: JSON.stringify(args) })
+        .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error((j && (j.message || j.msg)) || "请求失败"); return j; }); });
+    }
+    function fail(msg) { $("tip").textContent = msg; $("tip").style.background = "rgba(229,72,77,.1)"; $("tip").style.color = "#d93a3f"; $("qr").innerHTML = '<div style="font-size:40px">📋</div>'; $("wxS").textContent = "可以用下面的方式在网页签到"; }
+    rpc("ck_pass_new", { i: +i, k: k }).then(function (r) {
+      if (!r || !r.ok) { fail((r && r.why) || "这个二维码用不了了"); return; }
+      if (r.title) $("wxT").textContent = "「" + r.title + "」长按识别签到";
+      var t0 = Date.now(), shown = false;
+      (function poll() {
+        rpc("ck_pass_poll", { n: r.n, p: r.p }).then(function (p) {
+          if (p.expired) { fail("小程序码过期了，请重新扫投屏上的二维码"); return; }
+          if (p.used) { $("tip").innerHTML = "✓ 已签到"; $("tip").className = "tip ok"; $("wxS").textContent = "可以关掉这个页面了"; return; }
+          if (p.img && !shown) { shown = true; $("qr").innerHTML = '<img alt="签到小程序码" src="' + p.img + '">'; $("tip").textContent = "👆 长按上面的码 → 识别小程序码"; }
+          if (!shown && (p.err || Date.now() - t0 > 25000)) { fail("小程序码没生成出来，用账号在网页签到吧"); return; }
+          setTimeout(poll, shown ? 2000 : 1000);
+        }).catch(function () { if (Date.now() - t0 < 60000) setTimeout(poll, 1500); else fail("网络不太好，用账号在网页签到吧"); });
+      })();
+    }).catch(function (e) { fail(e.message || "网络不太好"); });
   })();
 </script>
 </body>
