@@ -87,8 +87,8 @@
     }
     const c = (T.classes || []).find((x) => x.id === sel.id) || allDepts().flatMap((d) => d.classes || []).find((x) => x.id === sel.id);
     if (!c) { sel = null; return renderPane(); }
-    pane.innerHTML = head(clsTitle(c), (c.teacher ? esc(c.teacher) + " · " : "") + c.total + " 人") + tabsHtml(["班级", "作业审核"]);
-    bindPane(pane, (i) => { const tp = $("tp"); if (i === 0) classInfo(tp, c); else hwReview(tp, c); });
+    pane.innerHTML = head(clsTitle(c), (c.teacher ? esc(c.teacher) + " · " : "") + c.total + " 人") + tabsHtml(["班级", "学情", "课堂互动", "作业审核"]);
+    bindPane(pane, (i) => { const tp = $("tp"); clearTimeout(actT); if (i === 0) classInfo(tp, c); else if (i === 1) learning(tp, c, 30); else if (i === 2) classAct(tp, c); else hwReview(tp, c); });
   }
 
   function codeBox(label, code, hint) {
@@ -183,7 +183,7 @@
       fileMap = {};
       (r.rows || []).forEach((x) => (x.files || []).forEach((f) => { fileMap[f.id] = f; }));
       tp.innerHTML = `<section class="card"><div class="row"><button class="small" data-up>‹ 全部作业</button><b>${esc(r.title)}</b><span class="spacer"></span>${pend.length > 1 ? `<button class="primary small" data-all>全部通过（${pend.length}）</button>` : ""}</div>
-        ${(r.rows || []).map((x) => `<div class="sub-r"><div class="row"><b>${esc(x.name)}</b><span class="${ST[x.status][1]}">${ST[x.status][0]}</span>${x.note ? `<span class="pill">「${esc(x.note)}」</span>` : ""}<span class="spacer"></span>
+        ${(r.rows || []).map((x) => `<div class="sub-r"><div class="row"><b>${esc(x.name)}</b><span class="${ST[x.status][1]}">${ST[x.status][0]}</span>${x.late ? `<span class="st-r">迟交</span>` : ""}${x.note ? `<span class="pill">「${esc(x.note)}」</span>` : ""}<span class="spacer"></span>
             <button class="small" data-no="${x.id}">${x.status === "rejected" ? "改退回原因" : "退回"}</button>${x.status !== "approved" ? `<button class="small primary" data-ok="${x.id}">通过</button>` : ""}</div>
           ${x.review_note ? `<div class="pill">退回原因：${esc(x.review_note)}</div>` : ""}
           <div class="thumbs">${(x.files || []).map((f) => f.thumb ? `<img src="data:image/jpeg;base64,${f.thumb}" data-f="${f.id}" title="${esc(f.name)}" alt="">` : `<div class="f" data-f="${f.id}">📄 ${esc(f.name)}</div>`).join("") || `<span class="pill">文件已过期删除</span>`}</div></div>`).join("") || `<div class="empty">还没有同学交</div>`}
@@ -195,6 +195,91 @@
       act(tp, "[data-all]", async () => { if (!confirm("把 " + pend.length + " 份待审核的全部通过？")) return; await review(pend.map((x) => x.id), true, null); });
       tp.querySelectorAll("[data-f]").forEach((el) => (el.onclick = () => openFile(fileMap[el.dataset.f])));
     } catch (e) { tp.innerHTML = `<section class="card"><div class="empty">${/hw_review|PGRST202|Could not find/.test(e.message) ? "作业审核暂未开通（要先执行 7.35 SQL）" : esc(e.message)}</div></section>`; }
+  }
+  // ---------- 7.40 学情 + 随机点名（参照学习通）----------
+  async function learning(tp, c, days) {
+    tp.innerHTML = `<section class="card"><div class="empty">加载中…</div></section>`;
+    let r; try { r = await rpc("class_learning", { p_cid: c.id, p_days: days }); }
+    catch (e) { tp.innerHTML = `<section class="card"><div class="empty">${/class_learning|PGRST202|Could not find/.test(e.message) ? "学情暂未开通（要先执行 7.40 SQL）" : esc(e.message)}</div></section>`; return; }
+    const ago = (t) => { if (!t) return "没用过"; const d = Math.floor((Date.now() - Date.parse(t)) / 864e5); return d <= 0 ? "今天" : d === 1 ? "昨天" : d + " 天前"; };
+    const rows = r.rows || [], warn = rows.filter((x) => x.warn), hasScore = rows.some((x) => x.score != null), W = r.weights;
+    const WK = [["hw", "作业"], ["ck", "签到"], ["rush", "抢答"], ["peer", "互评"], ["growth", "成长值"]];
+    tp.innerHTML = `<section class="card"><div class="row">${[7, 30, 90].map((d) => `<button class="small${d === days ? " primary" : ""}" data-days="${d}">最近 ${d} 天</button>`).join("")}<span class="spacer"></span>
+        <button class="small" data-report>📋 课堂报告</button><button class="small" data-roll>🎲 随机点名</button><b data-pick style="min-width:80px;text-align:center"></b></div>
+      <div data-rep></div>
+      ${W ? `<div class="row" style="flex-wrap:wrap;gap:6px;margin:6px 0"><span class="pill">平时成绩 =</span>${WK.map(([k, t]) => `<label class="pill">${t} <input data-w="${k}" type="number" min="0" max="100" step="5" value="${W[k] || 0}" style="width:52px">%</label>`).join("")}<button class="small" data-wsave>保存权重</button></div>` : ""}
+      <div class="stats"><div class="stat"><b>${rows.length}</b><span>同学</span></div><div class="stat"><b style="color:${warn.length ? "var(--orange)" : "inherit"}">${warn.length}</b><span>需要关注</span></div><div class="stat"><b>${r.hw}</b><span>到期作业</span></div><div class="stat"><b>${r.ck}</b><span>签到</span></div></div>
+      <div class="tbl-wrap"><table class="st"><thead><tr><th>同学</th><th>作业完成</th><th>签到</th><th>请假</th><th>最近用过</th><th>成长值</th>${hasScore ? "<th>抢答</th><th>互评</th><th>平时成绩</th>" : ""}</tr></thead><tbody>
+      ${rows.map((x) => `<tr><td>${esc(x.name)}${x.role === "monitor" ? ` <span class="badge">班委</span>` : x.role === "creator" ? ` <span class="badge">班主任</span>` : ""}${x.warn ? ` <span class="badge wait">需要关注</span>` : ""}</td>
+        <td style="color:${x.hw_rate != null && x.hw_rate < 60 ? "var(--red)" : "inherit"}">${x.hw_rate == null ? "—" : x.hw_rate + "%"}</td><td style="color:${x.ck_rate != null && x.ck_rate < 80 ? "var(--red)" : "inherit"}">${x.ck_rate == null ? "—" : x.ck_rate + "%"}</td>
+        <td>${x.leaves || 0}</td><td>${ago(x.seen)}</td><td>${x.points || 0}</td>${hasScore ? `<td>${x.rush_n || 0}</td><td>${x.peer_avg ? x.peer_avg + " ★" : "—"}</td><td style="font-weight:700;color:${x.score < 60 ? "var(--red)" : "inherit"}">${x.score == null ? "—" : Math.round(x.score)}</td>` : ""}</tr>`).join("") || `<tr><td colspan="9" class="empty">班里还没有同学</td></tr>`}</tbody></table></div>
+      <div class="pill" style="margin-top:6px">作业按这段时间里已经截止的算，交了或打勾都算完成；签到按已经结束的算。作业低于 60%、签到低于 80%、或 7 天没打开，标「需要关注」。</div></section>`;
+    tp.querySelectorAll("[data-days]").forEach((b) => (b.onclick = () => learning(tp, c, +b.dataset.days)));
+    const ws = tp.querySelector("[data-wsave]");
+    if (ws) ws.onclick = async () => {
+      const v = {}; tp.querySelectorAll("[data-w]").forEach((el) => (v[el.dataset.w] = Math.max(0, +el.value || 0)));
+      const sum = v.hw + v.ck + v.rush + v.peer + v.growth; if (sum !== 100) { toast("各项加起来要等于 100%，现在是 " + sum + "%"); return; }
+      try { await rpc("grade_cfg_set", { p_cid: c.id, p_hw: v.hw, p_ck: v.ck, p_rush: v.rush, p_peer: v.peer, p_growth: v.growth }); toast("已保存"); learning(tp, c, days); } catch (e) { toast(e.message); }
+    };
+    tp.querySelector("[data-report]").onclick = () => report(tp.querySelector("[data-rep]"), c, "");
+    tp.querySelector("[data-roll]").onclick = () => {
+      if (!rows.length) return; const out = tp.querySelector("[data-pick]"); let n = 0; const total = 14 + Math.floor(Math.random() * 6);
+      const step = () => { out.textContent = rows[Math.floor(Math.random() * rows.length)].name; if (++n < total) setTimeout(step, 40 + n * 12); };
+      step();
+    };
+  }
+  // ---------- 7.41 课堂报告 ----------
+  async function report(box, c, day) {
+    let r; try { r = await rpc("class_report", { p_cid: c.id, p_day: day || null }); } catch (e) { box.innerHTML = `<div class="empty">${/class_report|PGRST202|Could not find/.test(e.message) ? "课堂报告暂未开通（要先执行 7.41 SQL）" : esc(e.message)}</div>`; return; }
+    const L = [];
+    (r.checkins || []).forEach((x) => L.push(`签到「${x.title || "签到"}」：${x.signed}/${r.people} 人${x.leave ? "，请假 " + x.leave : ""}`));
+    (r.rush || []).forEach((x) => L.push(`抢答「${x.title}」：${x.n} 人抢，第一名 ${x.first || "—"}`));
+    (r.hw_due || []).forEach((x) => L.push(`作业「${x.title}」到期：${x.done}/${r.people} 人完成`));
+    (r.notices || []).forEach((x) => L.push(`${x.type || "通知"}「${x.title}」：${x.read}/${r.people} 人已读`));
+    if (r.leaves) L.push(`这天请假 ${r.leaves} 人`);
+    const text = `【课堂报告 ${r.day}】全班 ${r.people} 人\n` + (L.length ? L.join("\n") : "这一天没有签到、抢答和到期作业");
+    box.innerHTML = `<div class="card" style="margin:8px 0;padding:12px"><div class="row"><b>课堂报告</b><input type="date" data-rd value="${esc(r.day)}" style="margin-left:8px"><span class="spacer"></span><button class="small" data-rc>复制发群</button><button class="small" data-rx>收起</button></div>
+      ${L.map((x) => `<div class="desc" style="padding:4px 0;border-bottom:1px solid var(--line)">${esc(x)}</div>`).join("") || `<div class="empty">这一天没有签到、抢答和到期作业</div>`}</div>`;
+    box.querySelector("[data-rd]").onchange = (e) => report(box, c, e.target.value);
+    box.querySelector("[data-rc]").onclick = () => navigator.clipboard.writeText(text).then(() => toast("已复制，发到班群就行"), () => toast("复制失败"));
+    box.querySelector("[data-rx]").onclick = () => (box.innerHTML = "");
+  }
+  // ---------- 7.41 课堂互动：抢答（可以投屏看名次、加分）、小组互评（发起、看结果）----------
+  var actT = 0;
+  async function classAct(tp, c) {
+    clearTimeout(actT);
+    let rs, peers;
+    try { [rs, peers] = await Promise.all([rpc("rush_state", { p_cid: c.id }), rpc("peer_todo", { p_cid: c.id })]); }
+    catch (e) { tp.innerHTML = `<section class="card"><div class="empty">${/rush_|peer_|PGRST202|Could not find/.test(e.message) ? "课堂互动暂未开通（要先执行 7.41 SQL）" : esc(e.message)}</div></section>`; return; }
+    if (!tp.isConnected) return;
+    const R = rs && !rs.none ? rs : null, open = R && R.open && Date.parse(R.ends_at) > Date.now(), staff = !!(rs && rs.staff);
+    const left = open ? Math.ceil((Date.parse(R.ends_at) - Date.now()) / 1000) : 0;
+    tp.innerHTML = `<section class="card"><h3 style="margin:0 0 8px">⚡ 抢答</h3>
+      ${open ? `<div class="row"><b style="font-size:20px">${esc(R.title)}</b><span class="pill">还剩 ${left} 秒 · 前 ${R.top_n} 名</span><span class="spacer"></span>${staff ? `<button class="small" data-rstop="${R.id}">提前结束</button>` : ""}</div>`
+        : staff ? `<div class="row" style="flex-wrap:wrap;gap:6px"><input data-rt placeholder="题目（选填）" maxlength="40" style="flex:1;min-width:160px"><select data-rs><option value="30">30 秒</option><option value="60" selected>1 分钟</option><option value="120">2 分钟</option><option value="300">5 分钟</option></select>
+          <select data-rn><option value="1">前 1 名</option><option value="3" selected>前 3 名</option><option value="5">前 5 名</option><option value="10">前 10 名</option></select><button class="primary small" data-rgo>开始抢答</button></div><div class="desc">发起后同学手机上会弹出「抢答开始」，在小程序里点「抢」。</div>` : `<div class="empty">现在没有抢答</div>`}
+      ${R && (R.rows || []).length ? `<div class="desc" style="margin-top:8px">${open ? "名次" : "上一次：" + esc(R.title)}${staff ? " · 点「加分」给成长值" : ""}</div>
+        <div class="tbl-wrap"><table class="st"><tbody>${R.rows.map((x, i) => `<tr><td style="width:40px;font-weight:800;color:${i < R.top_n ? "var(--accent)" : "inherit"}">${i + 1}</td><td>${esc(x.name)}</td><td>${(x.ms / 1000).toFixed(1)} 秒</td><td>${x.points ? `<b style="color:var(--orange)">+${x.points}</b>` : ""}</td>
+          <td>${staff ? `<select data-aw="${esc(x.uid)}"><option value="">加分</option>${[0, 1, 2, 3, 5, 10].map((n) => `<option value="${n}">${n ? "+" + n : "不加"}</option>`).join("")}</select>` : ""}</td></tr>`).join("")}</tbody></table></div>` : ""}
+      </section>
+      <section class="card"><div class="row"><h3 style="margin:0">👥 小组互评</h3><span class="spacer"></span>${staff ? `<select data-pk><option value="in">组内互评</option><option value="cross">组间互评</option></select><input data-pt placeholder="互评名称" maxlength="40" style="width:140px"><select data-pd><option value="1">1 天</option><option value="3" selected>3 天</option><option value="7">7 天</option></select><button class="small primary" data-pgo>发起</button>` : ""}</div>
+        <div class="desc">按班级分组来：组内互评是给同组的组员打分，组间互评是给别的小组打分，1~5 星 + 一句话。同学在小程序「班级 → 抢答 · 互评」里评。</div>
+        ${(peers || []).map((p) => `<div class="kv" style="margin-top:6px"><div style="flex:1"><b>${esc(p.title)}</b> <span class="pill">${p.kind === "cross" ? "组间" : "组内"}</span> <span class="desc">${p.open ? new Date(p.ends_at).toLocaleDateString() + " 截止" : "已结束"}</span></div>${staff ? `<button class="small" data-pr="${p.id}">看结果</button>` : ""}</div><div data-prbox="${p.id}"></div>`).join("") || `<div class="empty">最近没有小组互评</div>`}
+      </section>`;
+    const q = (k) => tp.querySelector(k);
+    if (q("[data-rgo]")) q("[data-rgo]").onclick = async () => { try { await rpc("rush_start", { p_cid: c.id, p_title: q("[data-rt]").value || null, p_secs: +q("[data-rs]").value, p_top: +q("[data-rn]").value }); classAct(tp, c); } catch (e) { toast(e.message); } };
+    if (q("[data-rstop]")) q("[data-rstop]").onclick = async () => { try { await rpc("rush_close", { p_id: R.id }); classAct(tp, c); } catch (e) { toast(e.message); } };
+    tp.querySelectorAll("[data-aw]").forEach((el) => (el.onchange = async () => { if (el.value === "") return; try { await rpc("rush_award", { p_id: R.id, p_uid: el.dataset.aw, p_points: +el.value }); classAct(tp, c); } catch (e) { toast(e.message); } }));
+    if (q("[data-pgo]")) q("[data-pgo]").onclick = async () => { try { await rpc("peer_start", { p_cid: c.id, p_title: q("[data-pt]").value || "小组互评", p_kind: q("[data-pk]").value, p_days: +q("[data-pd]").value }); toast("已发起"); classAct(tp, c); } catch (e) { toast(e.message); } };
+    tp.querySelectorAll("[data-pr]").forEach((b) => (b.onclick = async () => {
+      const box = tp.querySelector(`[data-prbox="${b.dataset.pr}"]`);
+      try { const r = await rpc("peer_result", { p_rid: +b.dataset.pr });
+        box.innerHTML = `<div class="tbl-wrap"><table class="st"><thead><tr><th>${r.kind === "cross" ? "小组" : "同学"}</th><th>平均</th><th>几人评</th><th>评语</th></tr></thead><tbody>${(r.rows || []).map((x) => `<tr><td>${esc(x.name || "（已退出）")}</td><td><b>${x.avg}</b> ★</td><td>${x.n}</td><td class="desc">${esc((x.comments || []).filter(Boolean).join("；"))}</td></tr>`).join("") || `<tr><td colspan="4" class="empty">还没有人评</td></tr>`}</tbody></table></div><div class="desc">${r.raters} 人参与</div>`;
+      } catch (e) { toast(e.message); }
+    }));
+    // 进行中：1.5 秒刷一次名次（正在输入、或者打开着互评结果时先不刷）
+    const tick = () => { if (!tp.isConnected) return; if (!tp.querySelector("input:focus, select:focus") && ![...tp.querySelectorAll("[data-prbox]")].some((x) => x.innerHTML)) classAct(tp, c); else actT = setTimeout(tick, 1500); };
+    if (open) actT = setTimeout(tick, 1500);   // 进行中：1.5 秒刷一次名次
   }
   async function openFile(f) {
     if (!f) return;
