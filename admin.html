@@ -8,7 +8,7 @@
 <script src="guard.js?v=20261024-v9b"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
-<title>管理后台 · 捞捞课程表</title>
+<title>站长后台 · 捞捞课程表</title>
 <link rel="stylesheet" href="admin.css?v=20261010-adm1">
 </head>
 <body>
@@ -21,15 +21,17 @@
 
 <div id="app" class="shell hidden">
   <aside class="side">
-    <a class="brand" href="index.html"><i>捞</i><span>捞捞课程表<small>管理后台</small></span></a>
+    <a class="brand" href="index.html"><i>捞</i><span>捞捞课程表<small>站长后台</small></span></a>
     <button class="nav" data-view="ov"><span class="ic">◧</span>概览</button>
     <button class="nav" data-view="users"><span class="ic">👥</span>用户</button>
     <button class="nav" data-view="import"><span class="ic">⇪</span>批量建号</button>
     <button class="nav" data-view="audit"><span class="ic">🧾</span>操作日志</button>
     <button class="nav admin-only" data-view="sec"><span class="ic">🛡</span>安全</button>
+    <button class="nav admin-only" data-view="school"><span class="ic">🏫</span>学校</button>
+    <button class="nav admin-only" data-view="tune"><span class="ic">⚙</span>全站设置</button>
     <span class="sp"></span>
     <div class="me"><b id="meName"></b><span id="meRole"></span></div>
-    <div class="links"><a href="index.html">回到网站</a><a href="dev.html">插件后台</a></div>
+    <div class="links"><a href="index.html">回到网站</a><a href="manage.html">管理中心</a><a href="dev.html">插件后台</a></div>
   </aside>
 
   <main>
@@ -145,6 +147,9 @@
         <div class="pager"><span id="aInfo"></span><span class="sp"></span><button class="btn sm" id="aPrev">‹ 上一页</button><button class="btn sm" id="aNext">下一页 ›</button></div>
       </div>
     </section>
+    <!-- 7.36 站长：学校、全站设置（site.js） -->
+    <section id="v-school" class="view hidden"></section>
+    <section id="v-tune" class="view hidden"></section>
   </main>
 </div>
 
@@ -157,6 +162,7 @@
 
 <script src="config.js"></script>
 <script src="auth.js?v=20261023-v715"></script>
-<script src="admin.js?v=20261023-v716"></script>
+<script src="site.js?v=20261101-v736"></script>
+<script src="admin.js?v=20261101-v736"></script>
 </body>
 </html>

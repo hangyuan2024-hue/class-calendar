@@ -241,7 +241,10 @@
     myDepts.forEach((d) => bindDept(document.querySelector(`[data-did="${d.id}"]`), d));
   }
 
+  // 7.36 管理中心（manage.html）直接用这里的统计 / 作息 / 功能 / 作业审核面板
+  window.CCOrg = { showStats, showSched, showFeat, showHw, shrink };
   (async () => {
+    if (document.body.dataset.embed) return;
     const s = await CCAuth.session();
     if (!s) { location.href = "login.html?next=school.html"; return; }
     const me = await CCAuth.me().catch(() => null);

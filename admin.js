@@ -56,14 +56,15 @@
   }
 
   // ---------- 路由 ----------
-  const VIEWS = ["ov", "users", "import", "audit", "sec"];
+  const VIEWS = ["ov", "users", "import", "audit", "sec", "school", "tune"];
   let loaded = {};
   function show(v) {
     if (!VIEWS.includes(v)) v = "ov";
     document.querySelectorAll(".view").forEach((s) => s.classList.toggle("hidden", s.id !== "v-" + v));
     document.querySelectorAll(".nav").forEach((b) => b.classList.toggle("on", b.dataset.view === v));
     $("bulk").classList.toggle("hidden", v !== "users" || !sel.size);
-    if (!loaded[v]) { loaded[v] = true; ({ ov: loadOv, users: loadUsers, import: () => {}, audit: loadAudit, sec: loadSec })[v](); }
+    if (!loaded[v]) { loaded[v] = true; ({ ov: loadOv, users: loadUsers, import: () => {}, audit: loadAudit, sec: loadSec,
+      school: () => window.CCSite && CCSite.school($("v-school")), tune: () => window.CCSite && CCSite.tune($("v-tune")) })[v](); }   // 7.36 站长后台
   }
   document.querySelectorAll(".nav").forEach((b) => b.onclick = () => { location.hash = b.dataset.view; });
   addEventListener("hashchange", () => show(location.hash.slice(1)));
