@@ -14,6 +14,8 @@
   const canMgr = (c) => !!(c && (c.is_teacher || (c.member_role === "monitor" && (c.can_edit || c.can_ingest))));
   const mgr = () => canMgr(cls());
   // 能不能签：班里的同学（班委也要签）；老师不用签。老的服务器没有 can_sign 时按以前的规则
+  // 1.24.7（7.29 SQL）：签到码、投屏小程序码只给发起人和他指定的人；服务器没给 can_ctl 时只认发起人
+  const ctl = (x) => (x.can_ctl != null ? !!x.can_ctl : !!x.is_creator);
   const signable = (x) => (x.can_sign != null ? x.can_sign && !x.is_teacher : !x.can_manage);
   const logged = () => typeof currentUser !== "undefined" && !!currentUser;
 
@@ -172,7 +174,7 @@
         <div class="ck-st" id="ckSt"></div></details>` : ""}
       <div class="ck-list">${list.length ? list.map((x) => `<div class="ck-row${x.open ? " open" : ""}" data-ckone="${x.id}" tabindex="0">
           <span class="ck-t"><b>${esc(x.title)}</b><small>${esc(modeName(x))}${x.place ? " · " + esc(x.place) : ""} · ${x.open ? left(x.ends_at) : "已结束 · " + hm(x.starts_at)} · ${esc(x.by || "")}发起 · 已签 ${x.signed}/${x.members}</small></span>
-          ${x.mine ? `<span class="ck-ok">✓ 已签</span>` : x.open ? `<span class="ck-go">${x.can_manage ? "投屏" : "签到"} ›</span>` : `<span class="ck-miss">未签</span>`}</div>`).join("")
+          ${x.mine ? `<span class="ck-ok">✓ 已签</span>` : x.open ? `<span class="ck-go">${ctl(x) ? "投屏" : "签到"} ›</span>` : `<span class="ck-miss">未签</span>`}</div>`).join("")
         : `<div class="empty">最近 7 天没有签到。${mgr() ? "点上面「发起签到」试试。" : "班委发起签到后，这里和首页顶上都会出现。"}</div>`}</div>
       <div class="row"><input id="ckCodeQuick" inputmode="numeric" maxlength="4" placeholder="有 4 位签到码？输在这里" class="ck-quick"><button class="small" id="ckQuickGo">签到</button><span class="spacer"></span><button class="small" data-ckx="close">关闭</button></div>`;
     const syncMode = () => { const m = (d.querySelector("input[name=ckMode]:checked") || {}).value; d.querySelectorAll(".ck-geo-only").forEach((el) => el.classList.toggle("hidden", m === "code" || m === "photo")); const po = d.querySelector(".ck-photo-opt"); if (po) po.classList.toggle("hidden", m === "photo"); };
@@ -197,8 +199,8 @@
       </div>
       <div class="lv-bar"><i style="width:${pct}%"></i></div>
       ${needGeo(x) && x.lat != null ? `<div class="ck-mapline"><span>📍 签到点：${esc(x.place || "签到点")}（半径 ${x.radius} 米）</span><a class="small btn-like" href="${amap(x)}" target="_blank" rel="noopener">在高德地图里看 ›</a></div>` : ""}
-      ${x.is_teacher === false && x.can_manage && x.is_creator === false && !x.mine && x.open ? `<p class="meta">你也是这个班的同学：先在下面签到，再帮班里投屏 / 看名单。</p>` : ""}
-      ${x.can_manage && x.open ? `<div class="ck-proj" id="ckProj"><div class="ck-qrbox" id="ckQr"></div><div class="ck-proj-r"><div class="ck-proj-t" id="ckQrT">${needCode(x) ? "微信扫一扫签到" : "微信扫一扫，打开签到页"}</div>${needCode(x) ? `<div class="ck-code" id="ckCode">····</div>
+      ${x.is_teacher === false && ctl(x) && x.is_creator === false && !x.mine && x.open ? `<p class="meta">你也是这个班的同学：先在下面签到，再帮班里投屏 / 看名单。</p>` : ""}
+      ${ctl(x) && x.open ? `<div class="ck-proj" id="ckProj"><div class="ck-qrbox" id="ckQr"></div><div class="ck-proj-r"><div class="ck-proj-t" id="ckQrT">${needCode(x) ? "微信扫一扫签到" : "微信扫一扫，打开签到页"}</div>${needCode(x) ? `<div class="ck-code" id="ckCode">····</div>
           <div class="meta" id="ckLeft">每 20 秒换一次码</div><div class="meta">没带手机扫码的同学：打开捞捞「签到」，输入这 4 位码</div>` : `<div class="meta" id="ckLeft">已签 ${x.signed} / ${x.members}</div><div class="meta">${needGeo(x) ? `同学扫码后会自动定位，在 ${x.radius} 米内就签上了。` : "同学扫码打开签到页，拍一张现场照片就签上了。"}这张码整场不变，可以截图发到班级群。</div>`}
           <button class="small" id="ckFull">⛶ 全屏投屏</button></div></div>` : ""}
       ${signable(x) || x.mine ? `<div class="ck-me">${x.mine ? `<div class="ck-ok big">✓ 你 ${hhmm(x.mine.at)} 签到了${x.mine.dist != null ? `（离签到点 ${x.mine.dist} 米）` : ""}${x.mine.photo ? " · 📷 照片已交" : ""}</div>`
@@ -208,17 +210,19 @@
       <div class="row">${x.can_manage && x.open ? `<button class="small" data-ckclose="${x.id}">结束签到</button>` : ""}<span class="spacer"></span><button class="small" data-ckx="list">‹ 全部签到</button><button class="small" data-ckx="close">关闭</button></div>`;
     if (!d.open) d.showModal();
     clearInterval(codeTimer); lastCode = "";
-    if (x.can_manage) {
-      detail(x.id);
+    if (x.can_manage) detail(x.id);
+    if (ctl(x)) {
       // 动态码每 20 秒换；6.9.6 位置签到整场一张码，只刷新人数
       // 7.4.1 位置 / 拍照签到的码只带编号：先画普通二维码，不等服务器；小程序码没做好时每秒问一次，做好了 2.5 / 5 秒问一次
-      if (x.open && !needCode(x) && $("ckQr")) { $("ckQr").innerHTML = QRLite.svg(SITE + "?i=" + x.id, { level: "M" }); lastCode = "ug"; }
+      // 1.24.7 只投小程序码：还没生成好先显示「正在生成」，生成失败或 8 秒还没有才用普通二维码
+      if (x.open && $("ckQr")) { $("ckQr").innerHTML = WAIT; lastCode = "w"; qrT0 = Date.now(); }
       if (x.open) { qrAt = 0; qrImg = false; detAt = 0; tn = 0; tickCode(); codeTimer = setInterval(() => { if (Date.now() - qrAt >= (qrImg ? (needCode(x) ? 2500 : 5000) : 1000)) tickCode(); }, 500); }
     }
     // 扫码进来：带着码的直接签；位置签到的码只带编号，直接定位签到
     if (x.open && !x.mine && signable(x) && !x.need_photo && (code || (scan && !needCode(x)))) sign(x, code, $("ckSignOne"));   // 要拍照的得自己点一下（浏览器只让点按钮时开相机）
   }
-  let tn = 0, qrAt = 0, qrImg = false, detAt = 0;
+  let tn = 0, qrAt = 0, qrImg = false, detAt = 0, qrT0 = 0;
+  const WAIT = `<div class="ck-qrwait">正在生成小程序码…</div>`;
   async function tickCode() {
     if (!one || !$("ckQr")) { clearInterval(codeTimer); return; }
     qrAt = Date.now();
@@ -226,20 +230,21 @@
     try {
       const r = await CCAuth.rpc("checkin_code", { id: one.id });
       if (r && r.geo) {   // 6.9.6 位置签到：码只带编号
-        const key = r.img ? "mg" : "ug";
+        const fb = !r.img && (r.img_err || Date.now() - qrT0 > 8000), key = r.img ? "mg" : fb ? "ug" : "w";
         qrImg = !!r.img;
-        if (key !== lastCode) { lastCode = key; $("ckQr").innerHTML = r.img ? `<img src="${r.img}" alt="签到小程序码">` : QRLite.svg(SITE + "?i=" + one.id, { level: "M" }); $("ckQrT").textContent = r.img ? "微信扫一扫，打开签到页" : "手机扫码打开签到页"; }
+        if (key !== lastCode) { lastCode = key; $("ckQr").innerHTML = r.img ? `<img src="${r.img}" alt="签到小程序码">` : fb ? QRLite.svg(SITE + "?i=" + one.id, { level: "M" }) : WAIT; $("ckQrT").textContent = r.img || !fb ? "微信扫一扫，打开签到页" : "手机扫码打开签到页"; }
         $("ckLeft").textContent = `已签 ${r.signed} / ${one.members}`;
         return;
       }
       if (!r || !r.code) return;
       qrImg = !!r.img;
       // 有小程序码就投小程序码（微信扫一扫直接进小程序签到）；还没生成好 / 后端没配好就先用普通二维码
-      const key = (r.img ? "m" : "u") + r.code;
+      const fb = !r.img && (r.img_err || Date.now() - qrT0 > 8000), key = (r.img ? "m" : fb ? "u" : "w") + r.code;
+      $("ckCode").textContent = r.code;
       if (key !== lastCode) {
-        lastCode = key; $("ckCode").textContent = r.code;
-        $("ckQr").innerHTML = r.img ? `<img src="${r.img}" alt="签到小程序码">` : QRLite.svg(SITE + "?i=" + one.id + "&k=" + r.code, { level: "M" });
-        $("ckQrT").textContent = r.img ? "微信扫一扫签到" : "手机扫码签到";
+        lastCode = key;
+        $("ckQr").innerHTML = r.img ? `<img src="${r.img}" alt="签到小程序码">` : fb ? QRLite.svg(SITE + "?i=" + one.id + "&k=" + r.code, { level: "M" }) : WAIT;
+        $("ckQrT").textContent = r.img || !fb ? "微信扫一扫签到" : "手机扫码签到";
       }
       $("ckLeft").textContent = `${r.left} 秒后换码 · 已签 ${r.signed} / ${one.members}`;
     } catch (e) {}
