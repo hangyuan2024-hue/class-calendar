@@ -263,7 +263,7 @@
           <td>${staff ? `<select data-aw="${esc(x.uid)}"><option value="">加分</option>${[0, 1, 2, 3, 5, 10].map((n) => `<option value="${n}">${n ? "+" + n : "不加"}</option>`).join("")}</select>` : ""}</td></tr>`).join("")}</tbody></table></div>` : ""}
       </section>
       <section class="card"><div class="row"><h3 style="margin:0">👥 小组互评</h3><span class="spacer"></span>${staff ? `<select data-pk><option value="in">组内互评</option><option value="cross">组间互评</option></select><input data-pt placeholder="互评名称" maxlength="40" style="width:140px"><select data-pd><option value="1">1 天</option><option value="3" selected>3 天</option><option value="7">7 天</option></select><button class="small primary" data-pgo>发起</button>` : ""}</div>
-        <div class="desc">按班级分组来：组内互评是给同组的组员打分，组间互评是给别的小组打分，1~5 星 + 一句话。同学在小程序「班级 → 抢答 · 互评」里评。</div>
+        <div class="desc">按班级分组来：组内互评是给同组的组员打分，组间互评是给别的小组打分，1~5 星 + 一句话。同学在小程序「成长 → 课堂互动」里评。</div>
         ${(peers || []).map((p) => `<div class="kv" style="margin-top:6px"><div style="flex:1"><b>${esc(p.title)}</b> <span class="pill">${p.kind === "cross" ? "组间" : "组内"}</span> <span class="desc">${p.open ? new Date(p.ends_at).toLocaleDateString() + " 截止" : "已结束"}</span></div>${staff ? `<button class="small" data-pr="${p.id}">看结果</button>` : ""}</div><div data-prbox="${p.id}"></div>`).join("") || `<div class="empty">最近没有小组互评</div>`}
       </section>`;
     const q = (k) => tp.querySelector(k);

@@ -112,7 +112,10 @@
   async function showFeat(box, scope, id) {
     box.innerHTML = `<div class="empty">加载中…</div>`;
     let list; try { list = (await rpc("org_features_get", { p_scope: scope, p_id: id })) || []; } catch (e) { box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
-    box.innerHTML = `<div class="desc">关掉后，${scope === "school" ? "全校" : "本院系"}所有班的老师、班委、学生都用不了这个功能（${scope === "school" ? "学校" : "院系"}管理员自己不受影响）。班级里还可以再单独关。</div>
+    const RK = ["rank", "rank_dept", "rank_school"], ord = (k) => { const i = RK.indexOf(k); return i < 0 ? 9 : i; };   // 7.42 排行榜开关放最前
+    list = list.slice().sort((a, b) => ord(a.key) - ord(b.key));
+    const noRank = !list.some((f) => f.key === "rank_school");
+    box.innerHTML = `<div class="desc">关掉后，${scope === "school" ? "全校" : "本院系"}所有班的老师、班委、学生都用不了这个功能（${scope === "school" ? "学校" : "院系"}管理员自己不受影响）。班级里还可以再单独关。</div>${noRank ? `<div class="desc" style="color:var(--orange)">还没有「院系排行榜」「全校排行榜」开关：数据库要先执行 7.42 SQL。</div>` : ""}
       <table class="feat"><thead><tr><th>功能</th><th>开启</th></tr></thead><tbody>
       ${list.map((f) => `<tr><td><b>${esc(f.name)}</b><div class="pill">${esc(f.descr || "")}${f.site_off ? " · 全站已暂停" : ""}${f.school_off ? " · 学校已关闭" : ""}</div></td>
         <td><input type="checkbox" data-fk="${esc(f.key)}"${f.on ? " checked" : ""}${f.school_off ? " disabled" : ""}></td></tr>`).join("")}</tbody></table>`;
