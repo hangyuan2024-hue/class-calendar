@@ -44,7 +44,7 @@
   const MODE = { geo: "📍 位置签到", code: "🔢 动态码签到", both: "📍 位置 + 🔢 动态码", photo: "📷 拍照签到" };   // 7.3 photo：拍一张现场照片就签
   const modeName = (x) => (MODE[x.mode] || MODE.geo) + (x.need_photo && x.mode !== "photo" ? " + 📷 拍照" : "");
   const SITE = "https://www.laolaokechengbiao.cn/ck/";
-  const needCode = (x) => (x.mode === "code" || x.mode === "both") && !x.gesture, needGes = (x) => !!x.gesture, needGeo = (x) => x.mode === "geo" || x.mode === "both" || !x.mode;
+  const needCode = (x) => x.mode === "code" || x.mode === "both", needGes = (x) => !!x.gesture, needGeo = (x) => x.mode === "geo" || x.mode === "both" || !x.mode;
   const amap = (x) => `https://uri.amap.com/marker?position=${x.lng},${x.lat}&name=${encodeURIComponent(x.place || x.title)}&coordinate=wgs84&callnative=1`;
   const hhmm = (iso) => { const d = new Date(iso); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
   let one = null, codeTimer = 0, lastCode = "", pendingScan = null;
@@ -70,8 +70,8 @@
     if (btn) { btn.disabled = true; btn.textContent = needGeo(x) ? "定位中…" : "签到中…"; }
     try {
       const a = { id: +x.id };
-      if (needCode(x)) { a.code = String(code || "").trim(); if (!/^\d{4}$/.test(a.code)) throw new Error("输入 4 位签到码（投屏上那 4 个数字），或者用手机扫二维码"); }
-      if (needGes(x)) { a.code = String(code || ""); if (a.code.length < 4) throw new Error("先在九宫格里画出投屏上的手势"); }   // 7.41 手势签到
+      if (needGes(x)) { a.code = String(code || "").trim(); if (a.code.length < 4) throw new Error("输入 4 位签到码，或者在九宫格里画出投屏上的手势"); }   // 7.43 手势签到：码和手势都能签
+      else if (needCode(x)) { a.code = String(code || "").trim(); if (!/^\d{4}$/.test(a.code)) throw new Error("输入 4 位签到码（投屏上那 4 个数字），或者用手机扫二维码"); }
       if (x.need_photo) {
         if (!(pending && pending.id === x.id)) { if (btn) btn.textContent = "拍照中…"; pending = { id: x.id, p: await takePhoto() }; }
         a.photo = pending.p.photo; if (pending.p.thumb) a.thumb = pending.p.thumb;
@@ -163,7 +163,7 @@
     const others = (typeof myClasses !== "undefined" ? myClasses || [] : []).filter((x) => x.status === "approved" || x.is_teacher);
     d.innerHTML = `<h3>📋 签到<small>${others.length > 1 ? `<select id="ckCls" aria-label="哪个班">${others.map((x) => `<option value="${esc(x.id)}"${x.id === c.id ? " selected" : ""}>${esc(x.nickname || x.name)}${x.is_teacher ? "（我带的）" : x.member_role === "monitor" ? "（班委）" : ""}</option>`).join("")}</select>` : esc(c.nickname || c.name)}</small></h3>
       ${mgr() ? `<details class="ck-new" ${list.some((x) => x.open) ? "" : "open"}><summary>＋ 发起签到</summary>
-        <div class="ck-modes">${[["code", "🔢 动态码", "投屏二维码，扫一扫就签，不用定位"], ["geo", "📍 位置", "到了现场范围内才能签"], ["both", "📍+🔢 都要", "扫码 + 在现场，最严格"], ["photo", "📷 拍照", "拍一张现场照片就签，你能看到每张照片"], ["gesture", "✍️ 手势", "投屏一个九宫格手势，同学照着画"]].map(([k, t, dd], i) =>
+        <div class="ck-modes">${[["code", "🔢 动态码", "投屏二维码，扫一扫就签，不用定位"], ["geo", "📍 位置", "到了现场范围内才能签"], ["both", "📍+🔢 都要", "扫码 + 在现场，最严格"], ["photo", "📷 拍照", "拍一张现场照片就签，你能看到每张照片"], ["gesture", "🔢+✍️ 码或手势", "动态码照样能签，也可以照投屏的手势画"]].map(([k, t, dd], i) =>
           `<label class="ck-mode"><input type="radio" name="ckMode" value="${k}"${i ? "" : " checked"}><b>${t}</b><small>${dd}</small></label>`).join("")}</div>
         <label class="ck-photo-opt"><input type="checkbox" id="ckPhoto"> 📷 同时要拍一张现场照片（签到时拍照，你能看到每个人的照片）</label>
         <div class="row"><input id="ckTitle" maxlength="40" placeholder="名称，比如：周三高数课签到" value="${esc(new Date().getMonth() + 1 + "月" + new Date().getDate() + "日签到")}"></div>
@@ -185,7 +185,7 @@
   }
   // 一条签到：信息、地图、签到；班委 / 老师：投屏二维码 + 名单
   // 7.41 手势签到：九宫格（数字 1~9），按住拖动连线；只认点的中间，斜着划过去不会误碰
-  let gesCode = "";
+  let gesCode = "", showGes = true;
   try { const st = document.createElement("style"); st.textContent = `.ck-gp{display:grid;grid-template-columns:repeat(3,1fr);width:240px;height:240px;margin:10px auto;border-radius:16px;background:rgba(127,127,127,.08);touch-action:none;user-select:none}
 .ck-gp i{display:flex;align-items:center;justify-content:center;font-style:normal;font-weight:800;color:#fff;position:relative}
 .ck-gp i::before{content:"";position:absolute;width:22px;height:22px;border-radius:50%;border:2px solid rgba(127,127,127,.45);z-index:-1}
@@ -210,6 +210,7 @@
     const d = dlg();
     let x;
     try { x = await CCAuth.rpc("checkin_get", { id: +id }); } catch (e) { say("签到打不开：" + e.message, "bad"); return; }
+    if (!one || one.id !== x.id) showGes = true;   // 换了一场签到：默认展示手势
     one = x;
     if (!wall || wall.id !== x.id) { wall = { id: x.id, since: null, src: {}, at: {}, full: {} }; wallTab = "wall"; }
     const pct = x.members ? Math.round(x.signed * 100 / x.members) : 0;
@@ -222,23 +223,25 @@
       <div class="lv-bar"><i style="width:${pct}%"></i></div>
       ${needGeo(x) && x.lat != null ? `<div class="ck-mapline"><span>📍 签到点：${esc(x.place || "签到点")}（半径 ${x.radius} 米）</span><a class="small btn-like" href="${amap(x)}" target="_blank" rel="noopener">在高德地图里看 ›</a></div>` : ""}
       ${x.is_teacher === false && ctl(x) && x.is_creator === false && !x.mine && x.open ? `<p class="meta">你也是这个班的同学：先在下面签到，再帮班里投屏 / 看名单。</p>` : ""}
-      ${ctl(x) && x.open && needGes(x) ? `<div class="ck-proj" id="ckProj"><div class="ck-gp show">${gcells(x.gesture_pat).map((n) => `<i class="${n ? "on" : ""}">${n || ""}</i>`).join("")}</div><div class="ck-proj-r"><div class="ck-proj-t">照着画这个手势签到</div>
-          <div class="meta">从 1 连到 ${String(x.gesture_pat || "").length}，同学在捞捞「签到」里画一遍就签上了。</div><div class="meta">已签 ${x.signed} / ${x.members}</div><button class="small" id="ckRegest">换一个手势</button> <button class="small" id="ckFull">⛶ 全屏投屏</button></div></div>`
+      ${ctl(x) && x.open && needGes(x) && showGes ? `<div class="ck-proj" id="ckProj"><div class="ck-gp show">${gcells(x.gesture_pat).map((n) => `<i class="${n ? "on" : ""}">${n || ""}</i>`).join("")}</div><div class="ck-proj-r"><div class="ck-proj-t">照着画这个手势签到</div>
+          <div class="meta">从 1 连到 ${String(x.gesture_pat || "").length}，同学在捞捞「签到」里画一遍就签上了。</div><div class="meta">已签 ${x.signed} / ${x.members}</div><button class="small" id="ckRegest">换一个手势</button> <button class="small" id="ckShowCode">展示签到码</button> <button class="small" id="ckFull">⛶ 全屏投屏</button></div></div>`
       : ctl(x) && x.open ? `<div class="ck-proj" id="ckProj"><div class="ck-qrbox" id="ckQr"></div><div class="ck-proj-r"><div class="ck-proj-t" id="ckQrT">${needCode(x) ? "微信扫一扫签到" : "微信扫一扫，打开签到页"}</div>${needCode(x) ? `<div class="ck-code" id="ckCode">····</div>
           <div class="meta" id="ckLeft">每 20 秒换一次码</div><div class="meta">没带手机扫码的同学：打开捞捞「签到」，输入这 4 位码</div>` : `<div class="meta" id="ckLeft">已签 ${x.signed} / ${x.members}</div><div class="meta">${needGeo(x) ? `同学扫码后会自动定位，在 ${x.radius} 米内就签上了。` : "同学扫码打开签到页，拍一张现场照片就签上了。"}这张码整场不变，可以截图发到班级群。</div>`}
-          <button class="small" id="ckFull">⛶ 全屏投屏</button></div></div>` : ""}
+          ${needGes(x) ? `<button class="small" id="ckShowGes">展示手势</button> ` : ""}<button class="small" id="ckFull">⛶ 全屏投屏</button></div></div>` : ""}
       ${signable(x) || x.mine ? `<div class="ck-me">${x.mine ? `<div class="ck-ok big">✓ 你 ${hhmm(x.mine.at)} 签到了${x.mine.dist != null ? `（离签到点 ${x.mine.dist} 米）` : ""}${x.mine.photo ? " · 📷 照片已交" : ""}</div>`
-        : x.open ? `${needGes(x) ? `<p class="meta">照投屏上的手势，在下面九宫格里一笔连起来（按住拖动）${x.need_photo || needGeo(x) ? "，再点按钮" : "，松开就签到"}</p><div class="ck-gp" id="ckGp">${"<i></i>".repeat(9)}</div>` : ""}<div class="row">${needCode(x) ? `<input id="ckCodeIn" class="ck-quick big" inputmode="numeric" maxlength="4" placeholder="4 位签到码" value="${esc(code || "")}">` : ""}<button class="btn ink" id="ckSignOne">${x.need_photo ? (pending && pending.id === x.id ? "⟳ 重新上传照片签到" : "📷 拍照签到") : needGeo(x) ? "📍 我到了，签到" : "✓ 签到"}</button></div>
+        : x.open ? `${needGes(x) ? `<p class="meta">输签到码，或者照投屏上的手势在下面九宫格里一笔连起来（按住拖动）${x.need_photo || needGeo(x) ? "，再点按钮" : "，松开就签到"}</p><div class="ck-gp" id="ckGp">${"<i></i>".repeat(9)}</div>` : ""}<div class="row">${needCode(x) ? `<input id="ckCodeIn" class="ck-quick big" inputmode="numeric" maxlength="4" placeholder="4 位签到码" value="${esc(code || "")}">` : ""}<button class="btn ink" id="ckSignOne">${x.need_photo ? (pending && pending.id === x.id ? "⟳ 重新上传照片签到" : "📷 拍照签到") : needGeo(x) ? "📍 我到了，签到" : "✓ 签到"}</button></div>
           <p class="meta">${needCode(x) ? "手机上用微信扫投屏的二维码最快。" : ""}${needGeo(x) ? "签到时会定位一次，确认你在范围里（电脑一般定位不准，请用手机）。" : ""}${x.need_photo ? "要拍一张现场照片（手机会打开相机），发起签到的同学和老师能看到，24 小时后自动删除。" : ""}</p>` : `<p class="meta">签到已经结束了。</p>`}</div>` : ""}
       ${x.can_manage ? `<div class="ck-detail" id="ckDetail"><div class="meta">加载名单…</div></div>` : ""}
       <div class="row">${x.can_manage && x.open ? `<button class="small" data-ckclose="${x.id}">结束签到</button>` : ""}<span class="spacer"></span><button class="small" data-ckx="list">‹ 全部签到</button><button class="small" data-ckx="close">关闭</button></div>`;
     if (!d.open) d.showModal();
     clearInterval(codeTimer); lastCode = "";
-    if (needGes(x)) {   // 7.41 手势签到
+    if (needGes(x)) {   // 7.41 手势签到（7.43 码和手势都能签；投屏时发起人选展示哪个）
+      gesCode = "";
       gesPad($("ckGp"), (pat) => { gesCode = pat; if (!x.need_photo && !needGeo(x)) sign(x, pat, $("ckSignOne")); });
       if ($("ckRegest")) $("ckRegest").onclick = async () => { try { await CCAuth.rpc("checkin_set_gesture", { p_id: x.id, p_pat: randGes() }); openOne(x.id); } catch (e) { say(e.message, "bad"); } };
-      if (x.can_manage) detail(x.id);
-      return;
+      if ($("ckShowCode")) $("ckShowCode").onclick = () => { showGes = false; openOne(x.id); };
+      if ($("ckShowGes")) $("ckShowGes").onclick = () => { showGes = true; openOne(x.id); };
+      if (showGes && ctl(x)) { if (x.can_manage) detail(x.id); return; }
     }
     if (x.can_manage) detail(x.id);
     if (ctl(x)) {
@@ -392,7 +395,7 @@
     const ph = t.closest("[data-ckph]"); if (ph) { e.preventDefault(); showPhotos(ph.dataset.ckph, ph.dataset.uid, ph.dataset.n ? ph.dataset.n + " 的签到照片" : ""); return; }
     const cp = t.closest("[data-ckcopy]"); if (cp) { const m = $("ckDetail").dataset.missing || ""; try { await navigator.clipboard.writeText(m); say("已复制：" + (m || "（没有）"), "ok"); } catch (err) { prompt("复制下面的名单", m); } return; }
     if (t.closest("#ckCreate")) { create(); return; }
-    if (t.closest("#ckSignOne")) { sign(one, needGes(one) ? gesCode : ($("ckCodeIn") || {}).value, t.closest("#ckSignOne")); return; }
+    if (t.closest("#ckSignOne")) { sign(one, needGes(one) && !/^\d{4}$/.test(($("ckCodeIn") || {}).value || "") ? gesCode : ($("ckCodeIn") || {}).value, t.closest("#ckSignOne")); return; }
     if (t.closest("#ckFull")) { const p = $("ckProj"); if (document.fullscreenElement) document.exitFullscreen(); else if (p && p.requestFullscreen) p.requestFullscreen().catch(() => p.classList.toggle("max")); else if (p) p.classList.toggle("max"); return; }
     if (t.closest("#ckQuickGo")) {   // 列表下面直接输码：在进行中的「动态码」签到里找
       const v = ($("ckCodeQuick").value || "").trim(), cand = list.filter((x) => x.open && !x.mine && needCode(x));
