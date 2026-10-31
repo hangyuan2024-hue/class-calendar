@@ -1940,10 +1940,12 @@
 <link rel="stylesheet" href="campus-tools.css?v=20261008-org1">
 <link rel="stylesheet" href="org.css?v=20261008-org1">
 <link rel="stylesheet" href="polish.css?v=20261009-tl2">
-<link rel="stylesheet" href="extras.css?v=20261022-v697">
+<link rel="stylesheet" href="extras.css?v=20261027-v74b">
 <link rel="stylesheet" href="workspace-fit.css?v=20261023-v714">
 <link rel="stylesheet" href="looks.css?v=20261024-v9b">
 <link rel="stylesheet" href="ui-v9.css?v=20261025-v9e">
+<link rel="stylesheet" href="float-wm.css?v=20261028-v775">
+<link rel="stylesheet" href="mailbox.css?v=20261028-v776">
 </head>
 <body class="campus-workspace">
 <a class="campus-skip" href="#campus-main">跳到主要内容</a>
@@ -2012,6 +2014,7 @@
       <button class="qbtn hidden" id="qPeople" data-tab="people"><span class="qi">👥</span>班级成员</button>
       <button class="qbtn" id="qStudy" data-tab="study"><span class="qi">📖</span>课内学习</button>
       <button class="qbtn" id="qCal"><span class="qi">📲</span>加到日历</button>
+      <button class="qbtn" id="qNote"><span class="qi">📒</span>备忘录</button>
       <button class="qbtn" id="qProject" data-tab="project"><span class="qi">🪜</span>大作业拆解</button>
       <button class="qbtn" id="qReview" data-tab="review"><span class="qi">🎓</span>复习排期</button>
       <button class="qbtn" id="qTools" data-tab="tools"><span class="qi">🧩</span>全部工具</button>
@@ -2240,6 +2243,7 @@
     <button class="kn-entry surface" data-tab="mindmap"><span class="kn-ei">🧠</span><span class="kn-et"><b>捞捞思维导图</b><small>把知识点、问题、计划画成一张图；粘贴 AI 回答直接生成</small></span><span class="kn-ego">打开 ›</span></button>
     <button class="kn-entry surface" data-tab="project"><span class="kn-ei">🪜</span><span class="kn-et"><b>大作业拆解</b><small>粘贴作业要求，拆成几步倒排进截止前的每一天；没做完自动顺延</small></span><span class="kn-ego">打开 ›</span></button>
     <button class="kn-entry surface" data-tab="review"><span class="kn-ei">🎓</span><span class="kn-et"><b>期末复习排期</b><small>填考试日期，按课内学习的知识点和错题排出每天复习什么</small></span><span class="kn-ego">打开 ›</span></button>
+    <button class="kn-entry surface" type="button" id="ntEntry"><span class="kn-ei">📒</span><span class="kn-et"><b>备忘录</b><small>加格式、清单、图片、手写；和小程序、安卓 App 同一份</small></span><span class="kn-ego">打开 ›</span></button>
     <button class="kn-entry surface" data-tab="study"><span class="kn-ei">📖</span><span class="kn-et"><b>课内学习</b><small>资料 · 笔记 · 错题 · 复习计划 · 考核 · 知识框架，登录后自动备份</small></span><span class="kn-ego">打开 ›</span></button>
     <div class="sec-h" style="margin-top:6px"><b>我的工具</b><span>添加过的工具都在这里，点「⋯」可以放到首页或侧栏</span></div>
     <div id="toolGrid" class="tool-grid"></div>
@@ -2643,11 +2647,12 @@
 
 <div id="modal">
   <form id="form">
-    <div class="form-h"><h3 id="formTitle">记一件事</h3><button type="button" class="small memo-open" id="fMemo" title="把手机备忘录里的待办一次导入">📝 从备忘录导入</button></div>
+    <div class="form-h"><h3 id="formTitle">记一件事</h3><span class="fhbtns"><button type="button" class="small hidden" id="fFull" title="换成全屏备忘录：格式、清单、图片、手写">📒 全屏写</button><button type="button" class="small memo-open" id="fMemo" title="把手机备忘录里的待办一次导入">📝 从备忘录导入</button></span></div>
+    <div class="meta hidden" id="fRichTip">这条在全屏备忘录里有格式或图片：在这里改备注 / 清单的文字，格式会按新文字重排（图片不会丢）。想保留格式请点「📒 全屏写」。</div>
     <input type="hidden" id="fId"><input type="hidden" id="fFrom">
     <div class="ftip hidden" id="fFromTip">这是班级事项，班级里只有老师和班委能改。你在这里改的只对自己生效：保存后显示你的版本，班级原来那条会替你隐藏；在「我的事项」里删掉这条就恢复原样。</div>
     <div class="row">
-      <div style="flex:0 0 34%"><label title="选「作业」会显示在作业页">类型 <select id="fKind"><option value="">普通事项</option><option value="作业">作业</option></select></label></div>
+      <div style="flex:0 0 34%"><label title="选「作业」会显示在作业页">类型 <select id="fKind"><option value="">普通事项</option><option value="作业">作业</option><option value="会议">会议</option><option value="活动">活动</option><option value="通知">通知</option></select></label></div>
       <div><label>标题 <input id="fTitle" required maxlength="60" placeholder="例如：社团例会"></label></div>
     </div>
     <div class="row">
@@ -2737,18 +2742,22 @@
 <script src="parse.js?v=20261023-v717"></script>
 <script src="lao-train.js?v=20261019-v68"></script>
 <script src="memo-core.js?v=20261018-v63"></script>
+<script src="note-core.js?v=20261026-v72"></script>
 <script src="docx-text.js?v=20261018-v63"></script>
 <script src="course-image.js?v=20261021-v69"></script>
 <script src="courses.js?v=20261021-v69"></script>
 <script src="farm.js?v=20261021-v69"></script>
 <script src="metaverse-v3.js?v=20261005-native3"></script>
 <script src="nextclass.js?v=20261017-v590"></script>
-<script src="app.js?v=20261025-v723"></script>
+<script src="app.js?v=20261028-v772"></script>
 <script src="level-ui.js?v=20261021-v69"></script>
 <script src="qr-lite.js?v=20261022-v697"></script>
-<script src="checkin-ui.js?v=20261022-v697"></script>
-<script src="extras.js?v=20261017-v592"></script>
-<script src="campus-tools.js?v=20261025-tools2"></script>
+<script src="checkin-ui.js?v=20261027-v741"></script>
+<script src="extras.js?v=20261026-v73"></script>
+<script src="note-ui.js?v=20261026-v72c"></script>
+<script src="form-ui.js?v=20261026-v73"></script>
+<script src="reach.js?v=20261026-v73"></script>
+<script src="campus-tools.js?v=20261026-v72c"></script>
 <script src="workspace-v3.js?v=20261005-native3"></script>
 <script src="island-core.js?v=20261019-v66"></script>
 <script src="island.js?v=20261019-v65"></script>
@@ -2762,11 +2771,14 @@
 <script src="memo.js?v=20261016-v580"></script>
 <script src="memo-ui.js?v=20261018-v62"></script>
 <script src="nextclass-ui.js?v=20261018-v63"></script>
-<script src="hwplus.js?v=20261018-v63"></script>
-<script src="teacher.js?v=20261022-v697"></script>
+<script src="hwplus.js?v=20261026-v73"></script>
+<script src="teacher.js?v=20261026-v73"></script>
 <script src="work.js?v=20261016-v580"></script>
 <script src="live.js?v=20261009-live1"></script>
 <script src="ui-icons.js?v=20261025-v9d"></script>
 <script src="ui-v9.js?v=20261025-v9e"></script>
+<script src="float-wm.js?v=20261028-v775"></script>
+<script src="mailbox-ui.js?v=20261028-v775"></script>
+<script src="mailbox.js?v=20261028-v775"></script>
 </body>
 </html>

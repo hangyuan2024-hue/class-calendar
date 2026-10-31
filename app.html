@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com https://*.workers.dev wss://*.workers.dev http://localhost:* http://127.0.0.1:* https://ghfast.top https://gh-proxy.com https://ghproxy.net https://*.jsdelivr.net https://*.myqcloud.com https://*.aliyuncs.com https://*.volces.com; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com https://*.workers.dev wss://*.workers.dev http://localhost:* http://127.0.0.1:* https://github.githubassets.com https://ghfast.top https://gh-proxy.com https://ghproxy.net https://*.jsdelivr.net https://*.myqcloud.com https://*.aliyuncs.com https://*.volces.com; frame-src 'none'; media-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="referrer" content="no-referrer">
 <script src="i18n.js?v=20261030-v717"></script>
 <script src="guard.js?v=20261024-v9b"></script>
@@ -18,9 +18,10 @@
 <meta property="og:title" content="捞捞调度 · 大学生活的调度台">
 <meta property="og:description" content="捞捞调度：一个账号三个板块。捞捞课程表把群消息、大作业、期末复习排进每一天；捞捞学习整理课内资料、错题和思维导图；捞捞编程装好就能写代码。">
 <meta property="og:url" content="https://www.laolaokechengbiao.cn/app.html">
-<meta property="og:image" content="https://www.laolaokechengbiao.cn/icon-512.png">
-<link rel="icon" href="favicon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta property="og:image" content="https://www.laolaokechengbiao.cn/brand/laolao-icon-512.png">
+<link rel="icon" href="brand/laolao-icon.svg" type="image/svg+xml">
+<link rel="alternate icon" href="brand/laolao-icon-32.png" type="image/png">
+<link rel="apple-touch-icon" href="brand/laolao-icon-180.png">
 <link rel="preconnect" href="https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com" crossorigin>
 <link rel="stylesheet" href="embedded-auth-v2.css?v=20261008-org1">
 
@@ -33,6 +34,8 @@
 <link rel="stylesheet" href="home-v7.css?v=20261023-v699">
 <link rel="stylesheet" href="home-v8.css?v=20261023-v716">
 <link rel="stylesheet" href="landing-v10.css?v=20261025-v10">
+<link rel="stylesheet" href="home-credits.css?v=20261027-v75">
+<link rel="stylesheet" href="home-promo.css?v=20261027-v761">
 <style>
   .agree { display: flex; align-items: flex-start; gap: 8px; margin: 14px 2px 0; font-size: 13px; line-height: 1.6; color: var(--sub, #687d97); cursor: pointer; }
   .agree input { flex: none; width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--accent, #3b4ee0); cursor: pointer; }
@@ -105,7 +108,7 @@
 
 <a class="s-skip" href="#main">跳到主要内容</a>
 <header class="s-header">
-  <a class="s-brand" href="app.html" aria-label="捞捞调度首页"><span class="s-brand-icon"><img src="favicon.svg" alt=""></span><span>捞捞调度<span class="s-brand-sub">校园学习伙伴</span></span></a>
+  <a class="s-brand" href="app.html" aria-label="捞捞调度首页"><span class="s-brand-icon"><img src="brand/laolao-mark.svg" alt=""></span><span>捞捞调度<span class="s-brand-sub">校园学习伙伴</span></span></a>
   <button class="v7-burger" type="button" aria-expanded="false" aria-controls="siteNav" aria-label="打开菜单"><i></i><i></i><i></i></button>
   <nav class="s-nav" id="siteNav" aria-label="网站导航"><a href="#showcase">作品展映</a>
     <div class="v7-dd"><button type="button" class="v7-dd-btn" aria-expanded="false" aria-controls="ddProd">三大板块</button>
@@ -137,7 +140,7 @@
   <div class="v9-horizon" aria-hidden="true"></div>
   <div class="v7-hero-in">
     <div class="v7-copy">
-      <span class="v10-brand">捞捞调度 · LAOLAO DISPATCH</span>
+      <span class="v10-brand">捞捞调度 · LAOLAO SCHEDULER</span>
       <h1 id="hero-title">群里的通知、手上的大作业、<br>要考的试，捞捞替你排进每一天。</h1>
       <p class="v7-lead">一个账号，三个板块：<b>捞捞课程表</b>管日常安排，<b>捞捞学习</b>管课内知识，<b>捞捞编程</b>陪你写代码。群消息不用复制粘贴，大作业自动拆好倒排，期末复习按你的错题排好——你只管照着做。</p>
       <div class="v7-acts"><a class="v7-btn" href="index.html?guest=1">免登录先试试</a><a class="v7-btn ghost" href="#why">它和备忘录有什么不同</a></div>
@@ -326,12 +329,17 @@
     </div>
     <div class="h6-team-cards" id="h6TeamCards"></div>
   </div>
+  <!-- 7.5 感谢名单：读后台的 credit_list（App「我的 → 感谢名单」里管理员维护的同一份），没有内容就不显示 -->
+  <div class="h6-thanks" id="h6Thanks" hidden>
+    <div class="h6-thanks-head"><h3 id="thanks-title"><span aria-hidden="true">💛</span> 感谢名单</h3><p>捞捞能一点点长大，离不开这些人的帮忙。谢谢你们。</p></div>
+    <ul class="h6-thanks-list" id="h6ThanksList" aria-labelledby="thanks-title"></ul>
+  </div>
 </section>
 
 <section class="h6-open" id="open" aria-labelledby="open-title">
   <div class="h6-open-copy"><span class="s-kicker">05 / OPEN SOURCE</span><h2 id="open-title">开源共建，<br>欢迎<span>各高校开发者</span>加入。</h2>
-    <p>捞捞会逐步开放源代码。不论你会写代码、做设计、写文档，还是只是有个好点子——都欢迎来一起把它做得更好。贡献者会在项目里署名。</p>
-    <div class="h6-open-act"><a class="s-button" href="join.html">我想参加 <span aria-hidden="true">↗</span></a><a class="s-text-link h6-repo" id="h6Repo" href="join.html#repo">开源仓库 · 即将开放</a></div>
+    <p>捞捞课程表的源代码按 AGPL-3.0 开放：可以学习、修改、再发布，改过的版本放到网上也要同样开源、保留署名。不论你会写代码、做设计、写文档，还是只是有个好点子——都欢迎来一起把它做得更好，贡献者会在项目里署名。</p>
+    <div class="h6-open-act"><a class="s-button" href="join.html">我想参加 <span aria-hidden="true">↗</span></a><a class="s-text-link h6-repo" id="h6Repo" href="join.html#repo">开源仓库 · 即将开放</a><a class="s-text-link" href="index.html#mail-compose=team&amp;kind=opensource">写信给团队 <span aria-hidden="true">↗</span></a></div>
   </div>
   <ul class="h6-open-tags" aria-label="正在招募的方向"><li>思维导图本地化</li><li>微信小程序</li><li>课表 / 截图识别</li><li>群消息整理规则</li><li>界面与插画</li><li>测试与校园推广</li></ul>
 </section>
@@ -478,7 +486,7 @@
 </div>
 </section>
 </main>
-<footer class="s-footer"><a class="s-brand" href="app.html"><span class="s-brand-icon"><img src="favicon.svg" alt=""></span><span>捞捞调度<span class="s-brand-sub">认真生活，也自在生长。</span></span></a><p>LAOLAO SCHEDULER · 你的校园学习伙伴</p><div><a href="index.html?guest=1">工作台 ↗</a><a href="#get">下载客户端</a><a href="join.html">开发者招募</a><a href="#login" data-login-focus>账号登录</a></div></footer>
+<footer class="s-footer"><a class="s-brand" href="app.html"><span class="s-brand-icon"><img src="brand/laolao-mark.svg" alt=""></span><span>捞捞调度<span class="s-brand-sub">认真生活，也自在生长。</span></span></a><p>LAOLAO SCHEDULER · 你的校园学习伙伴</p><div><a href="index.html?guest=1">工作台 ↗</a><a href="#get">下载客户端</a><a href="join.html">开发者招募</a><a href="#login" data-login-focus>账号登录</a></div></footer>
 <div id="wx" role="dialog" aria-modal="true" aria-label="请在浏览器打开"><button class="s-wx-close" type="button">关闭提示 ×</button>
   <svg viewBox="0 0 120 120" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M20 110 C 40 60, 70 40, 104 16"/><path d="M84 14 L106 14 L100 36"/></svg>
   <p>微信里不能直接下载<br>点右上角 <b>···</b><br>选 <b>在浏览器打开</b></p>
@@ -497,14 +505,16 @@
 <script src="config.js"></script>
 <script src="auth.js?v=20261030-v717"></script>
 <script src="org.js?v=20261008-org1"></script>
-<script src="legal-info.js?v=20261010-legal1"></script>
-<script src="login.js?v=20261030-v717b"></script>
+<script src="legal-info.js?v=20261028-v77"></script>
+<script src="login.js?v=20261031-v717c"></script>
 <script src="site-account.js?v=20261023-v700"></script>
 <script src="home-v8.js?v=20261023-v711"></script>
-<script src="get.js?v=20261023-v699"></script>
+<script src="get.js?v=20261028-v765c"></script>
 <script src="landing-v2.js?v=20261005-studio2"></script>
-<script src="site-config.js?v=20261023-v700"></script>
-<script src="home-v6.js?v=20261023-v716"></script>
+<script src="site-config.js?v=20261028-v77"></script>
+<script src="home-v6.js?v=20261027-v76"></script>
 <script src="home-v7.js?v=20261023-v699"></script>
+<script src="home-credits.js?v=20261027-v75"></script>
+<script src="home-promo.js?v=20261027-v761"></script>
 </body>
 </html>
