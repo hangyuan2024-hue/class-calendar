@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com https://*.workers.dev wss://*.workers.dev http://localhost:* http://127.0.0.1:*; frame-src 'self'; media-src 'self' data: blob:; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; manifest-src 'self'">
+<meta name="referrer" content="no-referrer">
+<script src="guard.js?v=20261024-v9b"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
+<link rel="icon" href="favicon-16.png" sizes="16x16" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<title>学校管理 · 捞捞课程表</title>
+<style>
+  :root { --bg:#f5f5f7; --card:#fff; --line:#e5e5ea; --text:#1d1d1f; --sub:#86868b; --accent:#007aff;
+    --red:#ff3b30; --green:#34c759; --orange:#ff9500; --muted:#fafafa; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#000; --card:#1c1c1e; --line:#38383a; --text:#f2f2f7; --sub:#98989f; --muted:#141416; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; font-size:14px; }
+  header { position:sticky; top:0; z-index:5; display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:12px 16px;
+    background:var(--card); border-bottom:1px solid var(--line); }
+  header h1 { font-size:18px; margin:0; }
+  .spacer { flex:1; }
+  .who { color:var(--sub); font-size:13px; }
+  main { max-width:900px; margin:0 auto; padding:16px; }
+  section.card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:16px; }
+  section.card h2 { font-size:16px; margin:0 0 4px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .desc { color:var(--sub); font-size:12px; margin-bottom:12px; }
+  button, .btn { font:inherit; border:1px solid var(--line); background:var(--card); color:var(--text); border-radius:8px; padding:6px 12px;
+    cursor:pointer; text-decoration:none; display:inline-block; white-space:nowrap; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.danger { color:var(--red); }
+  button.small { padding:3px 9px; font-size:12px; }
+  button:disabled { opacity:.5; cursor:wait; }
+  input, select { font:inherit; padding:7px 10px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--text); }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .badge { display:inline-block; font-size:11px; padding:1px 7px; border-radius:10px; border:1px solid var(--line); color:var(--sub); white-space:nowrap; font-weight:normal; }
+  .badge.ok { color:var(--green); border-color:var(--green); }
+  .badge.wait { color:var(--orange); border-color:var(--orange); }
+  .badge.mon { color:var(--accent); border-color:var(--accent); }
+  .code { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:22px; letter-spacing:4px; font-weight:700; }
+  .codebox { display:flex; align-items:center; gap:10px; flex-wrap:wrap; background:var(--muted); border:1px dashed var(--line); border-radius:10px; padding:10px 12px; margin:10px 0; }
+  .item { border-top:1px solid var(--line); padding:10px 0; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .item .grow { flex:1; min-width:140px; }
+  .item .meta { color:var(--sub); font-size:12px; }
+  .item a.ulink { color:inherit; font-weight:600; text-decoration:none; border-bottom:1px dashed var(--sub); } .item a.ulink:hover { color:var(--accent); border-color:var(--accent); }
+  .perms { display:flex; gap:10px; flex-wrap:wrap; font-size:12px; color:var(--sub); }
+  .perms label { display:flex; align-items:center; gap:3px; }
+  table.feat { width:100%; border-collapse:collapse; font-size:14px; }
+  table.feat th { text-align:left; font-size:12px; color:var(--sub); font-weight:600; padding:6px 8px; border-bottom:1px solid var(--line); }
+  table.feat td { padding:8px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  table.feat td:nth-child(2), table.feat td:nth-child(3), table.feat th:nth-child(2), table.feat th:nth-child(3) { text-align:center; width:64px; }
+  table.feat input[type=checkbox] { width:18px; height:18px; }
+  .empty { color:var(--sub); padding:6px 0; }
+  details.cls { border-top:1px solid var(--line); padding-top:10px; margin-top:10px; }
+  details.cls > summary { cursor:pointer; list-style:none; display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-weight:600; font-size:15px; }
+  details.cls > summary::-webkit-details-marker { display:none; }
+  details.cls > summary::before { content:"▸"; color:var(--sub); }
+  details.cls[open] > summary::before { content:"▾"; }
+  h3 { font-size:13px; color:var(--sub); margin:14px 0 4px; font-weight:600; }
+  #toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:#1d1d1f; color:#fff; padding:10px 16px; border-radius:10px;
+    font-size:13px; opacity:0; transition:opacity .2s; pointer-events:none; max-width:90vw; z-index:50; }
+  #toast.show { opacity:.92; } #toast.err { background:var(--red); }
+  .hidden { display:none !important; }
+  .gtitle { margin-top:10px; font-weight:600; font-size:13px; } .gtitle .meta { font-weight:400; }
+  .groups { display:flex; flex-direction:column; gap:8px; margin-top:6px; align-items:flex-start; }
+  .grp { width:100%; background:var(--muted); border:1px solid var(--line); border-radius:10px; padding:8px 10px; }
+  .grp .row { gap:6px; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; align-items:center; }
+  .chip { display:inline-flex; align-items:center; gap:4px; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:2px 4px 2px 10px; font-size:12px; }
+  .chip.lead { border-color:var(--accent); }
+  .chip b { color:var(--accent); font-size:11px; font-weight:600; }
+  .chip button { border:none; background:none; padding:1px 5px; font-size:11px; color:var(--sub); }
+  .chip button:hover { color:var(--accent); }
+  .chips select { font-size:12px; padding:3px 6px; }
+  label.mce { display:flex; gap:6px; align-items:center; margin-top:10px; flex-wrap:wrap; }
+</style>
+<style>
+  .stats { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:10px; margin:10px 0; }
+  .stat { background:var(--muted); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  .stat b { display:block; font-size:22px; } .stat span { color:var(--sub); font-size:12px; }
+  table.st { width:100%; border-collapse:collapse; font-size:13px; } table.st th, table.st td { padding:7px 8px; border-bottom:1px solid var(--line); text-align:right; white-space:nowrap; }
+  table.st th:first-child, table.st td:first-child { text-align:left; } table.st th { color:var(--sub); font-weight:600; font-size:12px; }
+  .tbl-wrap { overflow-x:auto; }
+  textarea { font:inherit; width:100%; min-height:110px; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--text); font-family:ui-monospace,Menlo,Consolas,monospace; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; } @media (max-width:640px) { .grid2 { grid-template-columns:1fr; } }
+  .proof { max-width:220px; max-height:160px; border-radius:8px; border:1px solid var(--line); cursor:zoom-in; }
+  .tabs { display:flex; gap:6px; flex-wrap:wrap; margin:6px 0 10px; } .tabs button.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .pill { font-size:12px; color:var(--sub); }
+  .tabs button.on, .tabs button.on:hover { background:var(--accent) !important; border-color:var(--accent) !important; color:#fff !important; }
+</style>
+<link rel="stylesheet" href="campus-ui.css?v=20261008-org1">
+<link rel="stylesheet" href="auxiliary-v2.css?v=20261008-org1">
+</head>
+<body class="campus-admin studio-admin studio-class">
+<header>
+  <a class="admin-brand" href="index.html">捞捞课程表</a>
+  <span class="admin-header-label">学校管理</span>
+  <span class="spacer"></span>
+  <span class="who" id="who">加载中…</span>
+  <a class="btn" href="class.html">我的班级</a>
+  <a class="btn" href="index.html">返回日历</a>
+</header>
+<main id="adminMain">
+  <div id="root"><section class="card"><div class="empty">加载中…</div></section></div>
+</main>
+<div id="toast"></div>
+<script src="config.js"></script>
+<script src="auth.js?v=20261030-v717"></script>
+<script src="school.js?v=20261031-v730"></script>
+</body>
+</html>

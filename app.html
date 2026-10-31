@@ -48,6 +48,21 @@
 <style>
 /* 7.17 微信扫码登录 */
   .wxs-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; margin: 4px 0 0; padding: 12px; border: 0; border-radius: 16px; background: #07c160; color: #fff; font-weight: 800; font-size: 15.5px; cursor: pointer; box-shadow: 0 12px 24px -14px #07c160; transition: filter .2s, transform .15s; }
+  /* 7.31 邮箱验证码登录 */
+  .em-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; margin: 10px 0 0; padding: 11px; border: 1px solid var(--line, #e5e5ea); border-radius: 16px; background: transparent; color: inherit; font-weight: 700; font-size: 15px; cursor: pointer; }
+  .em-btn:hover { border-color: var(--accent, #5366e8); color: var(--accent, #5366e8); }
+  .em { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+  .em-l { font-size: 13px; font-weight: 600; opacity: .8; }
+  .em-i { width: 100%; box-sizing: border-box; font: inherit; font-size: 16px; padding: 12px 14px; border: 1px solid var(--line, #e5e5ea); border-radius: 14px; background: transparent; color: inherit; }
+  .em-i:focus { outline: none; border-color: var(--accent, #5366e8); }
+  .em-row { display: flex; gap: 8px; align-items: stretch; } .em-row .em-i { flex: 1 1 auto; min-width: 0; letter-spacing: 4px; }
+  .em-row .ghost { flex: 0 0 auto; width: auto !important; margin: 0 !important; padding: 0 16px !important; white-space: nowrap; }
+  .em-role { display: flex; gap: 18px; font-size: 14px; }
+  #emNew:not(.hidden) { display: flex; flex-direction: column; gap: 8px; }
+  .em-msg { min-height: 18px; font-size: 13px; color: #e5484d; }
+  .em-msg.ok { color: #07a35a; }
+  #loginBox.em-on #tabs, #loginBox.em-on #form, #loginBox.em-on #note, #loginBox.em-on #orLine, #loginBox.em-on #wxsBtn, #loginBox.em-on #emBtn { display: none; }
+  #loginBox.signup-mode #emBtn, #loginBox.wxs-on #emBtn { display: none; }
   .wxs-btn:hover { filter: brightness(1.05); } .wxs-btn:active { transform: scale(.98); }
   .wxs-ic svg { width: 20px; height: 20px; display: block; }
   .or-line { display: flex; align-items: center; gap: 12px; margin: 16px 0 14px; color: var(--sub); font-size: 12.5px; }
@@ -401,6 +416,21 @@
         <button type="button" class="ghost hidden" id="wxsRe">刷新二维码</button>
         <button type="button" class="ghost" id="wxsBack">用账号密码登录</button>
       </div>
+      <button type="button" class="em-btn" id="emBtn"><span aria-hidden="true">✉️</span>邮箱验证码登录</button>
+      <div id="emBox" class="em hidden">
+        <label class="em-l" for="emAddr">邮箱</label>
+        <input class="em-i" id="emAddr" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" maxlength="100" placeholder="比如 name@qq.com">
+        <div class="em-row"><input class="em-i" id="emCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 位验证码"><button type="button" class="ghost" id="emSend">获取验证码</button></div>
+        <div class="hidden" id="emNew">
+          <label class="em-l" for="emName">第一次用这个邮箱：填写真实姓名，直接注册</label>
+          <input class="em-i" id="emName" maxlength="30" placeholder="真实姓名">
+          <div class="em-role"><label><input type="radio" name="emRole" value="student" checked> 我是学生</label><label><input type="radio" name="emRole" value="teacher"> 我是老师</label></div>
+        </div>
+        <button type="button" class="go" id="emGo"><span class="spin"></span><span>登录</span></button>
+        <div class="em-msg" id="emMsg" role="alert"></div>
+        <div class="wxs-sub">登录即表示同意<a href="terms.html" target="_blank" rel="noopener">《用户协议》</a>和<a href="privacy.html" target="_blank" rel="noopener">《隐私政策》</a></div>
+        <button type="button" class="ghost" id="emBack">用账号密码登录</button>
+      </div>
       <div class="or-line" id="orLine"><span>或用账号登录</span></div>
       <div class="tabs" id="tabs" role="tablist">
         <span class="ind"></span>
@@ -410,7 +440,7 @@
       <form id="form" autocomplete="on" novalidate>
         <div class="fld">
           <label for="account">账号</label>
-          <div class="inp"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.5" r="3.6"/><path d="M5 19.5c1.4-3.3 4-5 7-5s5.6 1.7 7 5"/></svg></span><input id="account" aria-describedby="accHint" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="20" placeholder="学号或自己起的账号" required><span class="ok hidden" id="accOk">✓</span></div>
+          <div class="inp"><span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.5" r="3.6"/><path d="M5 19.5c1.4-3.3 4-5 7-5s5.6 1.7 7 5"/></svg></span><input id="account" aria-describedby="accHint" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="100" placeholder="学号、账号或已绑定的邮箱" required><span class="ok hidden" id="accOk">✓</span></div>
           <div class="hint" id="accHint"></div>
         </div>
         <div class="signup-only">
@@ -506,7 +536,7 @@
 <script src="auth.js?v=20261030-v717"></script>
 <script src="org.js?v=20261008-org1"></script>
 <script src="legal-info.js?v=20261028-v77"></script>
-<script src="login.js?v=20261031-v717c"></script>
+<script src="login.js?v=20261031-v731"></script>
 <script src="site-account.js?v=20261023-v700"></script>
 <script src="home-v8.js?v=20261023-v711"></script>
 <script src="get.js?v=20261028-v765c"></script>

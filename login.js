@@ -187,6 +187,11 @@ form.onsubmit = async (e) => {
   $("go").disabled = true;
   try {
     if (mode === "signup") await CCAuth.signUp(account, password, $("name").value, (document.querySelector("input[name=role]:checked") || {}).value, gender, orgPick ? orgPick.value() : null);
+    else if (/@/.test(account) && !/@calendar\.test$/i.test(account.trim())) {   // 7.31 用已绑定的邮箱当账号，配原来的密码
+      const r = await CCAuth.rpc("email_pw_login", { p_email: account.trim(), p_password: password });
+      if (!r || r.ok === false) throw new Error((r && r.why) || "邮箱或密码不对");
+      await CCAuth.adoptSession(r);
+    }
     else await CCAuth.signIn(account, password);
     try { localStorage.setItem(LS_LAST, account.trim().toLowerCase()); } catch (e2) {}
     agreeSave();
@@ -451,3 +456,51 @@ $("switchBtn").onclick = async () => {
       window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); });
   } catch (e) {}
 })();
+
+
+// ---------- 7.31 邮箱验证码登录：输入邮箱 → 收验证码 → 填上就登录；新邮箱填姓名直接注册 ----------
+if ($("emBtn")) {
+  const em = { t: 0 };
+  const emMsg = (t, ok) => { $("emMsg").textContent = t || ""; $("emMsg").className = "em-msg" + (ok ? " ok" : ""); };
+  const emShow = (on) => { $("loginBox").classList.toggle("em-on", on); $("emBox").classList.toggle("hidden", !on); if (on) setTimeout(() => $("emAddr").focus(), 50); };
+  $("emBtn").onclick = () => { emShow(true); try { const a = $("account").value.trim(); if (/@/.test(a)) $("emAddr").value = a; } catch (e) {} };
+  $("emBack").onclick = () => { emShow(false); emMsg(""); };
+  const tick = () => {
+    const left = Math.max(0, 60 - Math.round((Date.now() - em.t) / 1000));
+    $("emSend").disabled = left > 0; $("emSend").textContent = left > 0 ? left + " 秒后重发" : "获取验证码";
+    if (left > 0) setTimeout(tick, 1000);
+  };
+  $("emSend").onclick = async () => {
+    const addr = $("emAddr").value.trim();
+    if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(addr)) { emMsg("请填写正确的邮箱"); $("emAddr").focus(); return; }
+    $("emSend").disabled = true; emMsg("");
+    try {
+      await CCAuth.rpc("email_login_start", { p_email: addr });
+      em.t = Date.now(); tick(); emMsg("验证码已发到 " + addr + "，10 分钟内有效（没收到看看垃圾邮件）", true);
+      $("emCode").focus();
+    } catch (e) { $("emSend").disabled = false; emMsg(e.message || "发送失败"); }
+  };
+  const go = async () => {
+    emMsg("");   // 面板里写着「登录即表示同意」，和微信扫码登录一样
+    const addr = $("emAddr").value.trim(), code = $("emCode").value.replace(/\D/g, "");
+    if (!addr) { emMsg("请填写邮箱"); return; }
+    if (code.length !== 6) { emMsg("请填写 6 位验证码"); $("emCode").focus(); return; }
+    const needName = !$("emNew").classList.contains("hidden"), name = $("emName").value.trim();
+    if (needName && !name) { emMsg("请填写真实姓名"); $("emName").focus(); return; }
+    $("emGo").disabled = true;
+    try {
+      const r = await CCAuth.rpc("email_login_verify", { p_email: addr, p_code: code, p_name: needName ? name : null,
+        p_role: (document.querySelector("input[name=emRole]:checked") || {}).value || "student" });
+      if (r && r.need_name) { $("emNew").classList.remove("hidden"); emMsg("这个邮箱还没有账号，填写姓名就能直接注册", true); $("emName").focus(); return; }
+      if (!r || r.ok === false) { emMsg((r && r.why) || "没登录上"); return; }
+      await CCAuth.adoptSession(r);
+      agreeSave();
+      await afterLogin(!!r.new);
+    } catch (e) { emMsg(e.message || "没登录上"); }
+    finally { $("emGo").disabled = false; }
+  };
+  $("emGo").onclick = go;
+  $("emCode").addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
+  $("emName").addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
+  if (/[?&]email=1/.test(location.search)) emShow(true);
+}
