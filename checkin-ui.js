@@ -192,7 +192,20 @@
 .ck-gp i.on::before{width:44px;height:44px;background:var(--accent,#3a7afe);border-color:var(--accent,#3a7afe)}
 .ck-gp i{z-index:1}.ck-gp.show{width:210px;height:210px;flex-shrink:0}:fullscreen .ck-gp.show{width:60vh;height:60vh;font-size:5vh}`; document.head.appendChild(st); } catch (e) {}
   const gcells = (p) => { const a = []; for (let i = 1; i <= 9; i++) { const k = String(p || "").indexOf(String(i)); a.push(k >= 0 ? k + 1 : 0); } return a; };
-  const randGes = () => { const d = [1, 2, 3, 4, 5, 6, 7, 8, 9]; for (let i = 8; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [d[i], d[j]] = [d[j], d[i]]; } return d.slice(0, 5).join(""); };
+  function randGes() {
+    // 7.44 连线经过中间的点会被一起算上（比如 1→9 会经过 5），所以只生成画得出来的手势：跨过的中间点必须已经连过
+    const mid = (a, b) => { const ra = Math.floor((a - 1) / 3), ca = (a - 1) % 3, rb = Math.floor((b - 1) / 3), cb = (b - 1) % 3; return (ra + rb) % 2 === 0 && (ca + cb) % 2 === 0 ? ((ra + rb) / 2) * 3 + (ca + cb) / 2 + 1 : 0; };
+    for (;;) {
+      const seq = [1 + Math.floor(Math.random() * 9)];
+      while (seq.length < 5) {
+        const last = seq[seq.length - 1], ok = [];
+        for (let n = 1; n <= 9; n++) { if (seq.indexOf(n) >= 0) continue; const m = mid(last, n); if (!m || seq.indexOf(m) >= 0) ok.push(n); }
+        if (!ok.length) break;
+        seq.push(ok[Math.floor(Math.random() * ok.length)]);
+      }
+      if (seq.length === 5) return seq.join("");
+    }
+  }
   function gesPad(el, done) {
     if (!el) return;
     let seq = "", down = false;

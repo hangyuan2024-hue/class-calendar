@@ -2167,7 +2167,30 @@ $("askInput").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey && !e.is
 $("askBox").onclick = (e) => { const b = e.target.closest("[data-q]"); if (b) askSend(b.dataset.q); };
 
 // ===== 操作 =====
+// 7.44 作业要交证明（7.35 SQL）：网页上也拦住，交了（待审核 / 已通过）才能打勾
+//   谁要交：同学、班委；自己建班、身份不是「老师」的人（学委建班当班主任）也要交
+const hwpMust = () => !!currentUser && currentUser.role !== "teacher" && !!currentClass && (!currentClass.is_teacher || currentClass.member_role === "teacher");
+let hwpC = null;
+async function hwpGet() {
+  const cid = currentClass && currentClass.id; if (!cid) return null;
+  if (hwpC && hwpC.cid === cid && Date.now() - hwpC.at < 90000) return hwpC;
+  try { const r = (await CCAuth.rpc("hw_my", { p_cid: cid })) || {}; hwpC = { cid, at: Date.now(), mode: r.mode || "off", subs: r.subs || {} }; }
+  catch (e) { hwpC = { cid, at: Date.now(), mode: "off", subs: {} }; }   // 服务器还没有 7.35：当作没开
+  return hwpC;
+}
 function setMark(k, patch) {
+  if (patch.done === true && /^c\d+$/.test(k) && !patch._hwOk) {
+    const r = classRecords.find((x) => "c" + x.id === k);
+    if (r && r.msg_type === "作业" && hwpMust()) {
+      hwpGet().then((c) => {
+        const sub = c && (c.subs || {})[k.slice(1)];
+        if (!c || c.mode === "off" || (sub && (sub.status === "pending" || sub.status === "approved"))) { setMark(k, { ...patch, _hwOk: true }); return; }
+        alert(`这个班的作业要${c.mode === "photo" ? "拍照" : "交照片或文件"}，老师审核通过后才算完成。${sub && sub.status === "rejected" ? "\n\n上次交的被退回了" + (sub.review_note ? "：" + sub.review_note : "") + "。" : ""}\n\n请用微信打开「捞捞课程表」小程序，点开这项作业提交。`);
+      });
+      return;
+    }
+  }
+  patch = { ...patch }; delete patch._hwOk;
   marks[k] = { ...(marks[k] || {}), ...patch }; save(LS_MARK, marks);
   if ("done" in patch) logDone(k, patch.done);
   if ("done" in patch && /^c\d+$/.test(k)) { growthLog("done", k.slice(1), !patch.done); if (window.LaoLevel) LaoLevel.log("done", k.slice(1), !patch.done); }
@@ -3499,7 +3522,7 @@ $("nameForm").onsubmit = async (e) => {
 // ===== 班级成长排行榜 =====
 // 完成班级事项、习惯打卡、番茄钟会记到数据库里攒成长值（老师不参加排名）
 function growthLog(kind, ref, undo) {
-  if (!currentUser || !currentClass || currentClass.is_teacher || !feat("rank")) return;
+  if (!currentUser || !currentClass || !hwpMust() || !feat("rank")) return;   // 7.44 学委建班当班主任也记；老师身份不记
   CCAuth.rpc("growth_log", { cid: currentClass.id, k: kind, r: String(ref), undo: !!undo }).then(() => { rankCache = null; }).catch(() => {});
 }
 let rankCache = null, rankPeriod = "week", rankSynced = {};
