@@ -3503,22 +3503,86 @@ async function loadRankData(period) {
 const AV_COLORS = ["#ff8a5b", "#4f9dff", "#34c38f", "#a66cff", "#ff5d8f", "#f5a623", "#22b8cf", "#7c8cff"];
 const avColor = (name) => AV_COLORS[[...String(name)].reduce((a, c) => a + c.codePointAt(0), 0) % AV_COLORS.length];
 const PERIOD_NAME = { week: "本周", month: "本月", all: "总共" };
+// 7.33 院系榜 / 校榜：先看这个班有没有加入院系、学校（1 小时内不重复问）
+let rankScope = "class", rankProbe = {};
+async function rankProbeGet(cid) {
+  const c = rankProbe[cid];
+  if (c && Date.now() - c.at < 3600000) return c.p;
+  let p = {};
+  try { p = (await CCAuth.rpc("org_board", { p_cid: cid, p_scope: "probe" })) || {}; } catch (e) { p = c ? c.p : {}; }   // 服务器还没升级：只有本班榜
+  rankProbe[cid] = { p, at: Date.now() };
+  return p;
+}
+function rankScopeBar(p) {
+  const sc = [["class", "本班"]];
+  if (p.dept && p.dept.on) sc.push(["dept", "院系榜"]);
+  if (p.school && p.school.on) sc.push(["school", "校榜"]);   // 关掉的榜直接不显示
+  if (!sc.some(([k]) => k === rankScope)) rankScope = "class";
+  return sc.length > 1 ? `<div class="rk-scope"><div class="rk-seg" id="rankScope">${sc.map(([k, t]) => `<button data-s="${k}" class="${rankScope === k ? "on" : ""}">${t}</button>`).join("")}</div></div>` : "";
+}
 async function loadRank() {
   const box = $("rankBox");
-  document.querySelectorAll("#rankPeriod [data-p]").forEach((b) => b.classList.toggle("on", b.dataset.p === rankPeriod));
   if (!currentUser || !currentClass) { box.innerHTML = `<div class="rk-empty surface">加入班级后就能和同学一起攒成长值、上排行榜啦</div>`; return; }
-  box.innerHTML = `<div class="rk-empty surface">加载中…</div>`;
+  const cid0 = currentClass.id, bar = rankScopeBar(await rankProbeGet(cid0));
+  if (!currentClass || currentClass.id !== cid0) return;
+  if (rankScope !== "class" && rankPeriod === "level") rankPeriod = "week";
+  document.querySelectorAll("#rankPeriod [data-p]").forEach((b) => { b.classList.toggle("on", b.dataset.p === rankPeriod); if (b.dataset.p === "level") b.hidden = rankScope !== "class"; });
+  box.innerHTML = bar + `<div class="rk-empty surface">加载中…</div>`;
+  if (rankScope !== "class") return loadOrgRank(bar);
   // 6.9 等级榜：按账号总经验比等级
   if (rankPeriod === "level") {
-    try { box.innerHTML = LaoLevel.boardHtml(await LaoLevel.board(currentClass.id)); }
+    try { box.innerHTML = bar + LaoLevel.boardHtml(await LaoLevel.board(currentClass.id)); }
     catch (e) { box.innerHTML = `<div class="rk-empty surface">等级榜暂时打不开：${esc(e.message)}<br><small>（管理员需要在扣子终端运行一次 setupaccounts.py）</small></div>`; }
     return;
   }
   let d;
   try { d = await loadRankData(rankPeriod); } catch (e) { box.innerHTML = `<div class="rk-empty surface">排行榜暂时打不开：${esc(e.message)}<br><small>（管理员需要在扣子终端运行一次 setupaccounts.py）</small></div>`; return; }
-  renderRank(d);
+  renderRank(d, bar);
 }
-function renderRank(d) {
+async function loadOrgRank(bar) {
+  const box = $("rankBox"), cid = currentClass.id, scope = rankScope, period = rankPeriod;
+  let d;
+  try { d = await CCAuth.rpc("org_board", { p_cid: cid, p_scope: scope, p_period: period }); }
+  catch (e) { box.innerHTML = bar + `<div class="rk-empty surface">${/org_board|PGRST202|Could not find/.test(e.message) ? "服务器还没升级，暂时只能看本班榜" : "排行榜暂时打不开：" + esc(e.message)}</div>`; return; }
+  if (!currentClass || currentClass.id !== cid || rankScope !== scope || rankPeriod !== period) return;
+  if (!d || d.none || d.off) { box.innerHTML = bar + `<div class="rk-empty surface">${esc((d && d.why) || "暂时不能看")}</div>`; return; }
+  const P = PERIOD_NAME[period], unit = scope === "dept" ? "本系" : "全校", my = d.my || {};
+  const mx = (a, k) => Math.max(1, ...a.map((x) => +x[k] || 0));
+  const cls = d.classes || [], deps = d.depts || [], top = d.top || [];
+  let shown = cls.slice(0, 30); const myC = cls.find((x) => x.me); if (myC && !shown.includes(myC)) shown = shown.concat([myC]);
+  const tag = (t) => `<span class="rk-tag">${t}</span>`;
+  const orgRows = (a, top1, tagT, sub) => `<div class="rk-list surface">${a.map((x) => `<div class="rk-row org${x.me ? " mine" : ""}"><div class="rr">${x.rank}</div>
+      <div style="min-width:0"><div class="rn">${esc(x.name)}${x.me ? tag(tagT) : ""}</div><div class="rs">${esc(sub(x))}</div><div class="rbar"><i style="width:${Math.max(4, Math.round(100 * x.avg / top1))}%"></i></div></div>
+      <div class="rpts">${x.avg}<small>人均</small></div></div>`).join("")}</div>`;
+  const meTxt = !my.member ? "你不是这些班的学生，不参加排名" : my.off ? `你选择了不参加排行，所以不在${unit}榜上`
+    : my.rank ? `<span>我在${unit}：<b>第 ${my.rank} 名</b> · ${my.pts} 成长值</span><span class="meta">共 ${d.people} 人上榜${my.anon ? " · 你是匿名上榜" : ""}</span>`
+    : `你${P}还没有成长值，完成一项作业就能上${unit}榜`;
+  const pTop = mx(top, "pts");
+  box.innerHTML = bar + `
+    <div class="rk-class surface">
+      <div class="rc-top"><b>${scope === "school" ? "🎓" : "🏛"} ${esc(d.name)}</b><span class="meta">${P}${unit}一共获得</span><span class="rc-num">${d.points || 0}<small>成长值</small></span></div>
+      <div class="rc-sub"><span>${d.people || 0}/${d.members || 0} 位同学上榜</span>${my.cls_rank ? `<span>我们班人均 <b>${my.cls_avg}</b>，在${unit}排 <b>第 ${my.cls_rank} / ${d.nclasses || cls.length}</b></span>` : ""}${my.dept_rank ? `<span>我们院系在全校排 <b>第 ${my.dept_rank} / ${deps.length}</b></span>` : ""}</div>
+    </div>
+    <div class="rk-me surface">${meTxt}</div>
+    ${deps.length ? `<div class="rk-h">院系排名 · 按人均成长值</div>` + orgRows(deps, mx(deps, "avg"), "我们", (x) => `${x.classes} 个班 · ${x.n} 人 · ${x.act} 人在努力`) : ""}
+    <div class="rk-h">班级排名 · 按人均成长值（人多人少都公平）</div>
+    ${shown.length ? orgRows(shown, mx(cls, "avg"), "我们班", (x) => (scope === "school" && x.dept ? x.dept + " · " : "") + `${x.n} 人 · ${x.act} 人在努力`) : ""}
+    ${cls.length > shown.length ? `<div class="rk-h" style="font-weight:400">只显示前 30 个班</div>` : ""}
+    <div class="rk-h">个人前 50 名</div>
+    ${top.length ? `<div class="rk-list surface">${top.map((r) => `<div class="rk-row${r.me ? " me" : ""}"><div class="rr">${["🥇", "🥈", "🥉"][r.rank - 1] || r.rank}</div>
+        <div class="rav" style="background:${r.anon && !r.me ? "#9aa5b5" : avColor(r.name)}">${esc([...r.name][0] || "?")}</div>
+        <div style="min-width:0"><div class="rn">${esc(r.name)}</div>${r.cls || r.anon ? `<div class="rs">${esc(r.cls || "匿名上榜")}</div>` : ""}<div class="rbar"><i style="width:${Math.max(4, Math.round(100 * r.pts / pTop))}%"></i></div></div>
+        <div class="rpts">${r.pts}<small>成长值</small></div></div>`).join("")}</div>`
+      : `<div class="rk-empty surface">${P}${unit}还没有人上榜。<br>完成一项作业就能上榜！</div>`}
+    <div class="rk-opts surface">
+      <div>在本班选了「匿名」，这里也只显示「匿名同学」、不显示班级；选了「不参加」就不上榜。榜单每 10 分钟更新一次。</div>
+      <details><summary>成长值怎么算？</summary><ul>
+        <li>完成一项班级作业 <b>+10</b>，其它班级事项 <b>+5</b></li>
+        <li>习惯打卡一次 <b>+3</b>（每天最多 5 次），番茄钟 <b>+2</b>（每天最多 12 个）</li>
+        <li>班级、院系按「全班成长值 ÷ 人数」排，人多人少都公平</li></ul></details>
+    </div>`;
+}
+function renderRank(d, bar) {
   const box = $("rankBox"), rows = d.rows, c = d.class, P = PERIOD_NAME[rankPeriod];
   const cname = currentClass.nickname || currentClass.name, top = rows.length ? rows[0].points : 1;
   const av = (r, cls) => `<div class="${cls}" style="background:${r.anon && !d.teacher && !r.me ? "#9aa5b5" : avColor(r.name)}">${esc([...r.name][0] || "?")}`;
@@ -3527,7 +3591,7 @@ function renderRank(d) {
   const stat = (r) => [r.hw ? `✓ 作业 ${r.hw}` : "", r.done - r.hw > 0 ? `✓ 其它 ${r.done - r.hw}` : "", r.habits ? `🔥 打卡 ${r.habits}` : "", r.pomos ? `🍅 ${r.pomos}` : ""].filter(Boolean).join(" · ") || "刚刚起步";
   const me = rows.find((r) => r.me);
   const rate = c.hw_rate;
-  box.innerHTML = `
+  box.innerHTML = (bar || "") + `
     <div class="rk-class surface">
       <div class="rc-top"><b>🏫 ${esc(cname)}</b><span class="meta">${P}全班一起攒了</span><span class="rc-num">${c.points}<small>成长值</small></span></div>
       ${rate != null ? `<div class="rk-bar"><i style="width:${Math.min(100, rate)}%"></i></div>
@@ -3555,6 +3619,8 @@ function renderRank(d) {
 $("rankPeriod").onclick = (e) => { const b = e.target.closest("[data-p]"); if (!b) return; rankPeriod = b.dataset.p; loadRank(); };
 document.addEventListener("click", (e) => { if (e.target.closest("[data-lvboard]")) rankPeriod = "level"; }, true);   // 成长页「等级榜」按钮
 $("rankBox").addEventListener("click", async (e) => {
+  const sb = e.target.closest("#rankScope [data-s]");
+  if (sb) { if (sb.dataset.s !== rankScope) { rankScope = sb.dataset.s; loadRank(); } return; }
   const b = e.target.closest("#rankMode [data-m]"); if (!b) return;
   try { await CCAuth.rpc("rank_set_pref", { cid: currentClass.id, m: b.dataset.m }); rankCache = null; loadRank(); } catch (err) { alert("设置失败：" + err.message); }
 });

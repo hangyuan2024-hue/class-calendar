@@ -972,6 +972,14 @@
   .rk-opts ul { margin: 6px 0 0; padding-left: 18px; line-height: 1.8; }
   .rk-empty { margin: 18px 16px 0; padding: 26px 18px; text-align: center; color: var(--sub); }
   .rk-empty svg { width: 84px; height: 84px; display: block; margin: 0 auto 8px; }
+  /* 7.33 院系榜 / 校榜 */
+  .rk-scope { display: flex; justify-content: center; margin: 0 16px 12px; }
+  .rk-h { margin: 18px 20px 0; font-size: 13px; font-weight: 700; color: var(--sub); }
+  .rk-h + .rk-list { margin-top: 8px; }
+  .rk-row.org { grid-template-columns: 32px 1fr auto; }
+  .rk-row.mine { background: color-mix(in srgb, var(--accent) 9%, transparent); }
+  .rk-tag { margin-left: 6px; font-size: 11px; padding: 0 6px; border-radius: 999px; background: var(--accent); color: #fff; vertical-align: 2px; font-weight: 700; }
+  #rankPeriod button[hidden] { display: none; }
   .wrank .wr-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 14px; }
   .wrank .wr-row b { margin-left: auto; }
   [data-skin=cyber] .pod .block { background: linear-gradient(180deg, rgba(0,240,255,.5), rgba(255,43,214,.35)) !important; border: 1px solid #00f0ff; }
@@ -2750,7 +2758,7 @@
 <script src="farm.js?v=20261021-v69"></script>
 <script src="metaverse-v3.js?v=20261005-native3"></script>
 <script src="nextclass.js?v=20261017-v590"></script>
-<script src="app.js?v=20261028-v772"></script>
+<script src="app.js?v=20261031-v733"></script>
 <script src="level-ui.js?v=20261021-v69"></script>
 <script src="qr-lite.js?v=20261022-v697"></script>
 <script src="checkin-ui.js?v=20261031-v747"></script>

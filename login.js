@@ -470,15 +470,30 @@ if ($("emBtn")) {
     $("emSend").disabled = left > 0; $("emSend").textContent = left > 0 ? left + " 秒后重发" : "获取验证码";
     if (left > 0) setTimeout(tick, 1000);
   };
+  // 服务器给的英文 / 技术报错翻成大家能看懂的话
+  const emErr = (e, what) => {
+    const m = String((e && e.message) || "");
+    if (/email_login_(start|verify)|email_pw_login|PGRST202|Could not find the function|schema cache/i.test(m)) return "邮箱登录暂未开通，请先用账号密码或微信扫码登录";
+    if (/太慢|timeout|超时/i.test(m)) return "服务器响应太慢，请稍后再试";
+    return m || what;
+  };
+  // 最多等 25 秒，不让按钮一直卡着没反应
+  const within = (p) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("服务器响应太慢，请稍后再试")), 25000))]);
+  let sending = false;
   $("emSend").onclick = async () => {
+    if (sending) return;
     const addr = $("emAddr").value.trim();
-    if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(addr)) { emMsg("请填写正确的邮箱"); $("emAddr").focus(); return; }
-    $("emSend").disabled = true; emMsg("");
+    if (!addr) { emMsg("请先填写邮箱"); $("emAddr").focus(); return; }
+    if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(addr)) { emMsg("邮箱格式不对，比如 name@qq.com"); $("emAddr").focus(); return; }
+    sending = true;
+    $("emSend").disabled = true; $("emSend").textContent = "发送中…"; emMsg("正在发送验证码…", true);
     try {
-      await CCAuth.rpc("email_login_start", { p_email: addr });
+      const r = await within(CCAuth.rpc("email_login_start", { p_email: addr }));
+      if (r && r.ok === false) throw new Error(r.why || "发送失败");
       em.t = Date.now(); tick(); emMsg("验证码已发到 " + addr + "，10 分钟内有效（没收到看看垃圾邮件）", true);
       $("emCode").focus();
-    } catch (e) { $("emSend").disabled = false; emMsg(e.message || "发送失败"); }
+    } catch (e) { $("emSend").disabled = false; $("emSend").textContent = "获取验证码"; emMsg(emErr(e, "发送失败，请再试一次")); }
+    finally { sending = false; try { $("emMsg").scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (e2) {} }
   };
   const go = async () => {
     emMsg("");   // 面板里写着「登录即表示同意」，和微信扫码登录一样
@@ -496,8 +511,8 @@ if ($("emBtn")) {
       await CCAuth.adoptSession(r);
       agreeSave();
       await afterLogin(!!r.new);
-    } catch (e) { emMsg(e.message || "没登录上"); }
-    finally { $("emGo").disabled = false; }
+    } catch (e) { emMsg(emErr(e, "没登录上，请再试一次")); }
+    finally { $("emGo").disabled = false; try { $("emMsg").scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (e2) {} }
   };
   $("emGo").onclick = go;
   $("emCode").addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
