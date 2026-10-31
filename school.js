@@ -89,6 +89,26 @@
     }));
   }
 
+  // ---------- 7.35 作业审核：给本系的班打开「作业要交证明」（默认关闭） ----------
+  async function showHw(box, did) {
+    box.innerHTML = `<div class="empty">加载中…</div>`;
+    let list; try { list = (await rpc("dept_hw_proof", { p_did: did })) || []; }
+    catch (e) { box.innerHTML = `<div class="empty">${/dept_hw_proof|PGRST202|Could not find/.test(e.message) ? "作业审核暂未开通，请联系管理员" : esc(e.message)}</div>`; return; }
+    const M = [["off", "关闭"], ["photo", "要拍照"], ["file", "要交文件"]];
+    box.innerHTML = `<div class="desc">默认关闭。打开后，这个班的同学在小程序里给作业打勾时，要先拍照或交文件（照片、PDF、Word），班主任、加入这个班的老师和院系管理员在小程序「作业 → 作业审核」里通过或退回，通过了才算完成。</div>
+      <table class="feat"><thead><tr><th>班级</th><th>要求</th><th>待审核</th></tr></thead><tbody>
+      ${list.map((c) => `<tr><td><b>${esc(c.name)}</b></td><td><select data-hw="${c.id}">${M.map(([k, t]) => `<option value="${k}"${c.mode === k ? " selected" : ""}>${t}</option>`).join("")}</select></td>
+        <td>${c.mode === "off" && !c.pending ? "—" : c.pending + " 份"}</td></tr>`).join("") || `<tr><td colspan="3" class="empty">这个院系还没有班级</td></tr>`}</tbody></table>`;
+    box.querySelectorAll("[data-hw]").forEach((sel) => {
+      const was = sel.value;
+      sel.onchange = async () => {
+        if (sel.value !== "off" && !confirm("打开后，这个班的同学交作业要先" + (sel.value === "photo" ? "拍照" : "交照片或文件") + "，老师审核通过才算完成。确定打开？")) { sel.value = was; return; }
+        try { await rpc("hw_proof_set", { p_cid: sel.dataset.hw, p_mode: sel.value }); toast(sel.value === "off" ? "已关闭" : "已打开"); }
+        catch (e) { sel.value = was; fail(e); }
+      };
+    });
+  }
+
   // ---------- 学校 ----------
   function schoolHtml(s) {
     const owner = s.role === "owner";
@@ -101,7 +121,7 @@
     return (s.depts || []).map((d) => `<div class="item"><div class="grow"><b>${esc(d.name)}</b> <span class="pill">院系码 ${esc(d.code)} · ${d.classes} 个班</span>
         <div class="chips">${(d.admins || []).map((a) => `<span class="chip${a.role === "owner" ? " lead" : ""}">${esc(a.name)}${a.role === "owner" ? " <b>主</b>" : ""}<button data-drm="${d.id}|${a.user_id}" title="移除">✕</button></span>`).join("") || `<span class="pill">还没有院系管理员</span>`}</div></div>
         <input placeholder="账号或邮箱" data-dadd-in="${d.id}" size="14"><button class="small" data-dadd="${d.id}">设为院系管理员</button>
-        <button class="small" data-dstat="${d.id}">统计</button><button class="small danger" data-dunlink="${d.id}">移出学校</button>
+        <button class="small" data-dstat="${d.id}">统计</button><button class="small" data-dhw="${d.id}">作业审核</button><button class="small danger" data-dunlink="${d.id}">移出学校</button>
         <div class="dbox" data-dbox="${d.id}" style="width:100%"></div></div>`).join("") || `<div class="empty">还没有院系。</div>`;
   }
   function bindSchool(sec, s) {
@@ -117,6 +137,7 @@
         pane.querySelectorAll("[data-drm]").forEach((b) => (b.onclick = async () => { const [did, uid] = b.dataset.drm.split("|"); if (!confirm("移除这位院系管理员？")) return; try { await rpc("school_dept_admin_remove", { did, uid }); load(); } catch (e) { fail(e); } }));
         pane.querySelectorAll("[data-dunlink]").forEach((b) => (b.onclick = async () => { if (!confirm("把这个院系移出学校？院系和里面的班不会删，只是不再归学校管。")) return; try { await rpc("school_dept_unlink", { did: b.dataset.dunlink }); load(); } catch (e) { fail(e); } }));
         pane.querySelectorAll("[data-dstat]").forEach((b) => (b.onclick = () => showStats(pane.querySelector(`[data-dbox="${b.dataset.dstat}"]`), "dept", b.dataset.dstat, 7)));
+        pane.querySelectorAll("[data-dhw]").forEach((b) => (b.onclick = () => showHw(pane.querySelector(`[data-dbox="${b.dataset.dhw}"]`), b.dataset.dhw)));
       } else if (i === 1) showStats(pane, "school", s.id, 7);
       else if (i === 2) showSched(pane, "school", s.id);
       else if (i === 3) showFeat(pane, "school", s.id);
@@ -137,13 +158,13 @@
   function deptHtml(d) {
     return `<section class="card" data-did="${d.id}"><h2>🏛 ${esc(d.name)} <span class="badge">${d.school ? esc(d.school) : "还没并进学校"}</span></h2>
       ${d.school ? "" : d.role === "owner" ? `<div class="row"><input placeholder="学校码" data-jc size="10"><button data-jgo>并进学校</button><span class="pill">学校管理员在学校管理里能看到学校码</span></div>` : ""}
-      <div class="tabs">${["统计", "作息", "功能"].map((t, i) => `<button class="small${(view[d.id] || 0) === i ? " on" : ""}" data-tab="${i}">${t}</button>`).join("")}</div><div data-pane></div>
+      <div class="tabs">${["统计", "作息", "功能", "作业审核"].map((t, i) => `<button class="small${(view[d.id] || 0) === i ? " on" : ""}" data-tab="${i}">${t}</button>`).join("")}</div><div data-pane></div>
       <div class="desc">建班、挂班、加院系管理员在「我的班级」页的院系里操作。</div></section>`;
   }
   function bindDept(sec, d) {
     const pane = sec.querySelector("[data-pane]");
     const tab = (i) => { view[d.id] = i; sec.querySelectorAll("[data-tab]").forEach((b) => b.classList.toggle("on", +b.dataset.tab === i));
-      if (i === 0) showStats(pane, "dept", d.id, 7); else if (i === 1) showSched(pane, "dept", d.id, d.school); else showFeat(pane, "dept", d.id); };
+      if (i === 0) showStats(pane, "dept", d.id, 7); else if (i === 1) showSched(pane, "dept", d.id, d.school); else if (i === 2) showFeat(pane, "dept", d.id); else showHw(pane, d.id); };
     sec.querySelectorAll("[data-tab]").forEach((b) => (b.onclick = () => tab(+b.dataset.tab)));
     const j = sec.querySelector("[data-jgo]"); if (j) j.onclick = async () => { try { const r = await rpc("dept_join_school", { did: d.id, p_school_code: sec.querySelector("[data-jc]").value }); toast("已并进「" + r.name + "」"); load(); } catch (e) { fail(e); } };
     tab(view[d.id] || 0);
