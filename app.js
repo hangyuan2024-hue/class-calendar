@@ -335,6 +335,21 @@ const viewOn = (id) => (id.startsWith("p_") ? feat("tools") : !VIEW_FEAT[id] || 
 const ingestPersonal = () => !can("can_ingest");      // 没有班级整理权限的人：整理结果只进自己的「我的事项」
 // 普通学生要老师在本班打开「本地整理 · 学生」才有；班委要有「AI 整理」权限
 const ingestAllowed = () => !!currentClass && (ingestPersonal() ? currentClass.member_role === "student" && feat("ingest_local") : (feat("ingest_local") || feat("ingest_cloud")));
+// 7.39 老师 / 院系改了设置（功能开关、班委权限、作业审核、作息……）：live.js 发现版本号变了，马上重新拿，不用刷新网页
+let cfgBusy = 0;
+window.addEventListener("cc-cfg", async (e) => {
+  if (e.detail && e.detail.role) { location.reload(); return; }   // 自己的身份变了（比如被设成老师）：整页重新加载最稳
+  if (cfgBusy) return; cfgBusy = 1;
+  try {
+    if (currentUser) {
+      const cur = currentClass ? currentClass.id : null, all = (await CCAuth.rpc("my_classes")) || [];
+      myClasses = all.filter((c) => c.status === "approved"); pendingClasses = all.filter((c) => c.status === "pending");
+      currentClass = myClasses.find((c) => c.id === cur) || myClasses[0] || null;
+      refreshKinds();
+    }
+    await loadFeatures();
+  } catch (err) {} finally { setTimeout(() => { cfgBusy = 0; }, 1500); }
+});
 async function loadFeatures() {
   const cid = currentClass ? currentClass.id : null;
   const pre = takeBoot("features", cid);
@@ -3366,7 +3381,7 @@ function renderTabs() {
   }).join("")
     + railPins().map((t) => `<button class="nav pin desk${t.view === cur ? " on" : ""}" data-tab="${esc(t.view)}"><span class="emo">${esc(t.icon)}</span><span>${esc(t.name)}</span></button>`).join("")
     + (currentUser && (myClasses || []).length ? `<button class="nav desk" data-ckpanel="1" title="班级签到：投屏动态码、位置签到、看谁没签">${icon("checkin")}<span>签到</span></button>` : "")
-    + `<a class="nav desk" href="class.html">${icon("class")}<span>${cyName("班级")}</span></a>`;
+    + `<a class="nav desk" href="manage.html" title="班级、院系、学校放在一起管">${icon("class")}<span>${cyName("管理中心")}</span></a>`;   // 7.36 左边的「班级」换成管理中心
 }
 // 快捷打开工具：工具页上再点「工具」、长按「工具」、Ctrl/⌘+K
 const openQuickTools = () => { const b = $("navToolPicker"); if (b) b.click(); };

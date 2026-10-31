@@ -712,6 +712,7 @@ button,input,select,textarea{-webkit-tap-highlight-color:transparent}button:focu
       </div>
       <div class="header-actions">
         <div class="time-mode-switch" id="time-mode-switch" role="group" aria-label="时间模式">
+          <button type="button" class="mode-btn hidden" data-mode="school" id="mode-school">学校作息</button>
           <button type="button" class="mode-btn" data-mode="winter">冬春季</button>
           <button type="button" class="mode-btn" data-mode="summer">夏秋季</button>
           <button type="button" class="mode-btn hidden" data-mode="custom" id="mode-custom" title="从课表截图里认出的上课时间">截图时间</button>
@@ -847,9 +848,23 @@ function loadCustomTimes() {
   } catch (e) {}
   return null;
 }
+function orgTimesOf(o) {   // 7.38 学校 / 院系统一作息：按换季日期选冬春 / 夏秋那一套
+  var d = (o && o.data) || {}, ok = function (a) { return Array.isArray(a) && a.length >= 4 && a.every(function (t) { return /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(t); }); };
+  if (!ok(d.summer)) return ok(d.winter) ? d.winter : null;
+  if (!ok(d.winter)) return d.summer;
+  var now = new Date(), t = (now.getMonth() + 1) * 100 + now.getDate(), md = function (s) { var m = /^(\d{2})-(\d{2})$/.exec(s || ""); return m ? +m[1] * 100 + +m[2] : 0; };
+  var sf = md(d.summer_from) || 501, wf = md(d.winter_from) || 1001;
+  return (sf < wf ? t >= sf && t < wf : t >= sf || t < wf) ? d.summer : d.winter;
+}
+function orgCache() { try { var o = JSON.parse(localStorage.getItem("org_schedule_cache_v1") || "null"); return o && o.data ? o : null; } catch (e) { return null; } }
+function loadSchoolMode() {
+  var o = orgCache(), t = o ? orgTimesOf(o) : null;
+  if (t) TIME_MODES.school = { label: o.source === "dept" ? "院系作息" : "学校作息", periods: t }; else delete TIME_MODES.school;
+}
 (function () {
   var ct = loadCustomTimes();
   if (ct) TIME_MODES.custom = { label: "截图时间", periods: ct };
+  loadSchoolMode();
 })();
 
 var DAY_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
@@ -905,7 +920,7 @@ function saveSemester(text) {
 function loadTimeMode() {
   try {
     var v = localStorage.getItem(TIME_MODE_KEY);
-    return v === "winter" || v === "summer" || (v === "custom" && TIME_MODES.custom) ? v : null;
+    return v === "winter" || v === "summer" || (v === "custom" && TIME_MODES.custom) || (v === "school" && TIME_MODES.school) ? v : null;
   } catch (e) {
     return null;
   }
@@ -941,6 +956,7 @@ function saveWeek() {
 
 /* ===== 时间工具 ===== */
 function defaultTimeMode() {
+  if (TIME_MODES.school) return "school";   // 7.38 学校设置了作息：默认用学校的
   var m = new Date().getMonth() + 1;
   return m >= 5 && m <= 10 ? "summer" : "winter";
 }
@@ -1652,7 +1668,8 @@ function init() {
   /* 主页面导入了课表、或在别处改了设置：重新读一遍 */
   window.addEventListener("storage", function (e) {
     var k = e && e.key;
-    if (k !== COURSES_KEY && k !== TIME_MODE_KEY && k !== CUSTOM_TIMES_KEY && k !== WEEK1_KEY && k !== ADJ_KEY) return;
+    if (k !== COURSES_KEY && k !== TIME_MODE_KEY && k !== CUSTOM_TIMES_KEY && k !== WEEK1_KEY && k !== ADJ_KEY && k !== "org_schedule_cache_v1") return;
+    loadSchoolMode();
     var ct = loadCustomTimes();
     if (ct) TIME_MODES.custom = { label: "截图时间", periods: ct }; else delete TIME_MODES.custom;
     state.courses = loadCourses();
@@ -1670,6 +1687,8 @@ function init() {
 function showCustomMode() {
   var b = document.getElementById("mode-custom");
   if (b) b.classList.toggle("hidden", !TIME_MODES.custom);
+  var s = document.getElementById("mode-school");
+  if (s) { s.classList.toggle("hidden", !TIME_MODES.school); if (TIME_MODES.school) s.textContent = TIME_MODES.school.label; }
 }
 
 init();

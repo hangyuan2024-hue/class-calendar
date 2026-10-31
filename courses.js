@@ -61,6 +61,33 @@ const CourseKit = (() => {
     return runs.join(",");
   }
 
+  // ---------- 7.38 学校作息（my_schedule）：本机缓存 30 分钟，课程表插件（同一个网站）也读这份 ----------
+  function orgTimesOf(o) {   // 7.38 学校 / 院系统一作息：按换季日期选冬春 / 夏秋那一套
+    var d = (o && o.data) || {}, ok = function (a) { return Array.isArray(a) && a.length >= 4 && a.every(function (t) { return /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(t); }); };
+    if (!ok(d.summer)) return ok(d.winter) ? d.winter : null;
+    if (!ok(d.winter)) return d.summer;
+    var now = new Date(), t = (now.getMonth() + 1) * 100 + now.getDate(), md = function (s) { var m = /^(\d{2})-(\d{2})$/.exec(s || ""); return m ? +m[1] * 100 + +m[2] : 0; };
+    var sf = md(d.summer_from) || 501, wf = md(d.winter_from) || 1001;
+    return (sf < wf ? t >= sf && t < wf : t >= sf || t < wf) ? d.summer : d.winter;
+  }
+  function orgCache() { try { var o = JSON.parse(localStorage.getItem("org_schedule_cache_v1") || "null"); return o && o.data ? o : null; } catch (e) { return null; } }
+  let orgAt = 0, orgBusy = false;
+  function orgRefresh(force) {
+    const cid = typeof currentClass !== "undefined" && currentClass && typeof currentUser !== "undefined" && currentUser ? currentClass.id : null;
+    if (!cid || orgBusy) return;
+    const o = orgCache();
+    if (!force && o && o.cid === cid && Date.now() - orgAt < 1800000) return;
+    if (!force && Date.now() - orgAt < 60000) return;
+    orgBusy = true; orgAt = Date.now();
+    CCAuth.rpc("my_schedule", { p_cid: cid }).then((r) => {
+      const n = r && r.data ? { cid, name: r.name || "", source: r.source || "", data: r.data } : { cid, data: null };
+      const was = localStorage.getItem("org_schedule_cache_v1"), now = JSON.stringify(n);
+      if (was !== now) { localStorage.setItem("org_schedule_cache_v1", now); read().then(() => { try { renderAll(); } catch (e) {} }).catch(() => {}); }
+    }).catch(() => {}).finally(() => { orgBusy = false; });
+  }
+
+  window.addEventListener("cc-cfg", () => { orgAt = 0; orgRefresh(true); });   // 7.39 学校 / 院系改了作息：马上重新拿
+
   // ---------- 读写课程表的存储 ----------
   async function read() {
     const st = await PFS.all(NS);
@@ -69,7 +96,10 @@ const CourseKit = (() => {
     const customOk = Array.isArray(custom) && custom.length >= 4 && custom.every((t) => TIME_RE.test(t));
     const mode = st[K.mode] || "";
     const m = (typeof ccDate === "function" ? ccDate() : new Date()).getMonth() + 1;
-    const times = mode === "custom" && customOk ? custom : PERIODS[mode === "winter" || mode === "summer" ? mode : (m >= 5 && m <= 10 ? "summer" : "winter")];
+    // 7.38 学校 / 院系统一作息：没手动选过（或选了「学校作息」）就用学校的
+    orgRefresh();
+    const org = orgCache(), ot = org ? orgTimesOf(org) : null;
+    const times = mode === "custom" && customOk ? custom : (ot && (mode === "school" || !mode)) ? ot : PERIODS[mode === "winter" || mode === "summer" ? mode : (m >= 5 && m <= 10 ? "summer" : "winter")];
     const w1 = js(st[K.week1], DEFAULT_WEEK1);
     const list0 = Array.isArray(courses) ? courses.filter((c) => c && c.name) : [];
     seenMax = Math.max(seenMax, list0.length);

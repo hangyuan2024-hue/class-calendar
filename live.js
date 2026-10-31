@@ -24,7 +24,7 @@
   const hash = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36) + s.length.toString(36); };
 
   // ---------------- 1. 实时同步 ----------------
-  let lastAct = Date.now(), timer = 0, inflight = false, failN = 0, off = 0, disabled = false, csig = null, warned = false, lastPingAt = 0;
+  let lastAct = Date.now(), timer = 0, inflight = false, failN = 0, off = 0, disabled = false, csig = null, warned = false, lastPingAt = 0, cfgSig = null;
   ["pointerdown", "keydown", "touchstart", "wheel"].forEach((t) => addEventListener(t, () => {
     const idle = Date.now() - lastAct > 120000; lastAct = Date.now();
     if (idle) kick();   // 放了很久又开始用：马上问一次
@@ -54,6 +54,15 @@
       if (r && cls && typeof currentClass !== "undefined" && currentClass && currentClass.id === cls) {
         if (r.csig != null && csig && csig.cid === cls && csig.v !== r.csig && typeof loadClass === "function") loadClass();
         if (r.csig != null) csig = { cid: cls, v: r.csig };
+      }
+      // 7.39 设置版本号（班级设置 : 全站设置 : 我的身份）变了：马上重新拿功能开关、班级和权限、学校作息……
+      if (r && r.cfg != null) {
+        const k = (cls || "") + "|" + r.cfg;
+        if (cfgSig && cfgSig !== k) {
+          const roleOld = cfgSig.split(":").pop(), roleNew = String(r.cfg).split(":").pop();
+          if (cfgSig.split("|")[0] === (cls || "")) window.dispatchEvent(new CustomEvent("cc-cfg", { detail: { role: roleOld !== roleNew } }));
+        }
+        cfgSig = k;
       }
       LAN.onPing((r && r.peers) || [], (r && r.sig) || []);
     } catch (e) {

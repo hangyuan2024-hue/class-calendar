@@ -48,31 +48,64 @@
   }
 
   // ---------- 作息 ----------
+  // 7.38 作息：一节一节选时间（第 1 节 08:00–08:45 …），保存后本校 / 本系同学的课程表自动用这套
   async function showSched(box, scope, id, parentName) {
     box.innerHTML = `<div class="empty">加载中…</div>`;
     let cur = null; try { cur = await rpc("org_schedule_get", { p_scope: scope, p_id: id }); } catch (e) { box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
     const d = (cur && cur.data) || {};
-    box.innerHTML = `<div class="desc">${scope === "dept" ? `不设置就用${esc(parentName || "学校")}的作息；设置了就覆盖学校的。` : "全校默认的作息；某个院系（比如在分校区）可以在院系里另设一套。"}本校班级的同学打开课表时会自动用这里的时间。</div>
-      <div class="grid2">
-        <label>冬春季节次（一行一节，如 08:00-08:45）<textarea data-k="winter">${esc((d.winter || []).join("\n"))}</textarea></label>
-        <label>夏秋季节次（可不填，不填就全年用冬春季）<textarea data-k="summer">${esc((d.summer || []).join("\n"))}</textarea></label>
-      </div>
-      <div class="row" style="margin-top:8px">
-        <label>夏秋季从 <input data-k="summer_from" placeholder="05-01" value="${esc(d.summer_from || "")}" size="6"></label>
-        <label>冬春季从 <input data-k="winter_from" placeholder="10-01" value="${esc(d.winter_from || "")}" size="6"></label>
-        <label>开学第一周的周一 <input type="date" data-k="week1" value="${esc(d.week1 || "")}"></label>
-        <label>学期 <input data-k="semester" placeholder="2026-2027 第一学期" value="${esc(d.semester || "")}" size="18"></label>
-      </div>
-      <div class="row" style="margin-top:10px"><button class="primary" data-save>保存作息</button>${cur ? `<button class="danger" data-clear>${scope === "dept" ? "不另设，用学校的" : "清空"}</button>` : ""}<span class="pill">${cur ? "上次修改 " + fmt(cur.at) : "还没有设置"}</span></div>`;
-    const v = (k) => box.querySelector(`[data-k="${k}"]`).value.trim();
-    const lines = (k) => v(k).split(/\s*\n\s*/).map((x) => x.replace(/\s/g, "").replace(/[–—~～]/g, "-")).filter(Boolean);
-    box.querySelector("[data-save]").onclick = async () => {
-      const data = { winter: lines("winter") }; const su = lines("summer"); if (su.length) data.summer = su;
-      ["summer_from", "winter_from", "week1", "semester"].forEach((k) => { if (v(k)) data[k] = v(k); });
-      try { await rpc("org_schedule_set", { p_scope: scope, p_id: id, p_data: data }); toast("作息已保存"); showSched(box, scope, id, parentName); } catch (e) { fail(e); }
+    const DEF = ["08:00-08:45", "08:55-09:40", "10:00-10:45", "10:55-11:40", "14:00-14:45", "14:55-15:40", "16:00-16:45", "16:55-17:40", "19:00-19:45", "19:55-20:40"];
+    const S = { winter: (d.winter && d.winter.length ? d.winter : DEF).slice(), summer: (d.summer && d.summer.length ? d.summer : (d.winter && d.winter.length ? d.winter : DEF)).slice(), two: !!(d.summer && d.summer.length), se: "winter" };
+    const addMin = (t, n) => { const m = (+t.slice(0, 2)) * 60 + (+t.slice(3)) + n; return String(Math.floor(m / 60) % 24).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0"); };
+    const draw = () => {
+      const rows = S[S.se];
+      box.innerHTML = `<div class="desc">${scope === "dept" ? `不设置就用${esc(parentName || "学校")}的作息；设置了就用院系的。` : "全校默认的作息；某个院系（比如在分校区）可以另设一套。"}保存后，同学的课程表会自动按这里的时间上下课（同学自己改过的不受影响）。</div>
+        <label class="row"><input type="checkbox" data-two${S.two ? " checked" : ""}> 分冬春季、夏秋季两套（夏天下午上课晚一些的学校打开）</label>
+        ${S.two ? `<div class="tabs"><button class="small${S.se === "winter" ? " on" : ""}" data-se="winter">冬春季</button><button class="small${S.se === "summer" ? " on" : ""}" data-se="summer">夏秋季</button></div>` : ""}
+        <table class="feat" style="max-width:420px"><tbody>${rows.map((t, i) => `<tr><td style="width:70px;color:var(--sub)">第 ${i + 1} 节</td><td style="text-align:left;width:auto"><input type="time" data-s="${i}" value="${t.split("-")[0]}"> – <input type="time" data-e="${i}" value="${t.split("-")[1]}"></td></tr>`).join("")}</tbody></table>
+        <div class="row" style="margin:8px 0"><button class="small" data-add>＋ 加一节</button><button class="small" data-del>去掉最后一节</button></div>
+        <div class="row">${S.two ? `<label>夏秋季从 <input data-k="summer_from" placeholder="05-01" value="${esc(d.summer_from || "05-01")}" size="6"></label><label>冬春季从 <input data-k="winter_from" placeholder="10-01" value="${esc(d.winter_from || "10-01")}" size="6"></label>` : ""}
+          <label>开学第一周的周一 <input type="date" data-k="week1" value="${esc(d.week1 || "")}"></label>
+          <label>学期 <input data-k="semester" placeholder="2026-2027 第一学期" value="${esc(d.semester || "")}" size="18"></label></div>
+        <div class="row" style="margin-top:10px"><button class="primary" data-save>保存作息</button>${cur ? `<button class="danger" data-clear>${scope === "dept" ? "不另设，用学校的" : "清空"}</button>` : ""}<span class="pill">${cur ? "上次修改 " + fmt(cur.at) : "还没有设置"}</span></div>`;
+      const keep = () => { ["summer_from", "winter_from", "week1", "semester"].forEach((k) => { const el = box.querySelector(`[data-k="${k}"]`); if (el) d[k] = el.value.trim(); }); };
+      box.querySelectorAll("[data-s],[data-e]").forEach((el) => (el.onchange = () => {
+        const i = +(el.dataset.s != null ? el.dataset.s : el.dataset.e), [s0, e0] = rows[i].split("-");
+        let s1 = el.dataset.s != null ? el.value : s0, e1 = el.dataset.e != null ? el.value : e0;
+        if (el.dataset.s != null && e1 <= s1) e1 = addMin(s1, 45);
+        rows[i] = s1 + "-" + e1; keep(); draw();
+      }));
+      box.querySelector("[data-two]").onchange = (e) => { keep(); S.two = e.target.checked; if (!S.two) S.se = "winter"; draw(); };
+      box.querySelectorAll("[data-se]").forEach((b) => (b.onclick = () => { keep(); S.se = b.dataset.se; draw(); }));
+      box.querySelector("[data-add]").onclick = () => { if (rows.length >= 16) return toast("最多 16 节", true); const last = rows[rows.length - 1].split("-")[1], s1 = addMin(last, 10); rows.push(s1 + "-" + addMin(s1, 45)); keep(); draw(); };
+      box.querySelector("[data-del]").onclick = () => { if (rows.length <= 4) return toast("至少 4 节", true); rows.pop(); keep(); draw(); };
+      box.querySelector("[data-save]").onclick = async () => {
+        keep();
+        for (const se of S.two ? ["winter", "summer"] : ["winter"]) {
+          const i = S[se].findIndex((t, j) => { const [a, b] = t.split("-"); return b <= a || (j > 0 && a < S[se][j - 1].split("-")[1]); });
+          if (i >= 0) return toast((S.two ? (se === "winter" ? "冬春季" : "夏秋季") : "") + "第 " + (i + 1) + " 节时间不对：结束要晚于开始，也不能早于上一节下课", true);
+        }
+        const data = { winter: S.winter };
+        if (S.two) { data.summer = S.summer; if (d.summer_from) data.summer_from = d.summer_from; if (d.winter_from) data.winter_from = d.winter_from; }
+        if (d.week1) data.week1 = d.week1; if (d.semester) data.semester = d.semester;
+        try { await rpc("org_schedule_set", { p_scope: scope, p_id: id, p_data: data }); toast("已保存，同学的课程表会自动用这套作息"); showSched(box, scope, id, parentName); } catch (e) { fail(e); }
+      };
+      const c = box.querySelector("[data-clear]");
+      if (c) c.onclick = async () => { if (!confirm("确定？")) return; try { await rpc("org_schedule_set", { p_scope: scope, p_id: id, p_data: null }); toast("已清除"); showSched(box, scope, id, parentName); } catch (e) { fail(e); } };
     };
-    const c = box.querySelector("[data-clear]");
-    if (c) c.onclick = async () => { if (!confirm("确定？")) return; try { await rpc("org_schedule_set", { p_scope: scope, p_id: id, p_data: null }); toast("已清除"); showSched(box, scope, id, parentName); } catch (e) { fail(e); } };
+    draw();
+  }
+
+  // 7.38 请假：本校 / 本系最近 7 天的请假，点「去审批」打开那个班
+  async function showLeave(box, scope, id) {
+    box.innerHTML = `<div class="empty">加载中…</div>`;
+    let r; try { r = await rpc("org_leaves", { p_scope: scope, p_id: id, p_days: 7 }); }
+    catch (e) { box.innerHTML = `<div class="empty">${/org_leaves|PGRST202|Could not find/.test(e.message) ? "请假统计暂未开通（要先执行 7.38 SQL）" : esc(e.message)}</div>`; return; }
+    const ST = { pending: ["待批", "wait"], approved: ["已批", "ok"], rejected: ["没批", ""] }, day = (t) => (t ? String(t).slice(5).replace("-", "/") : "");
+    box.innerHTML = `<div class="stats"><div class="stat"><b>${r.today || 0}</b><span>今天请假</span></div><div class="stat"><b style="color:${r.pending ? "var(--orange)" : "inherit"}">${r.pending || 0}</b><span>等批准</span></div><div class="stat"><b>${r.total || 0}</b><span>7 天内</span></div></div>
+      ${Object.keys(r.kinds || {}).length ? `<div class="pill">${Object.keys(r.kinds).map((k) => esc(k) + " " + r.kinds[k]).join(" · ")}</div>` : ""}
+      <div class="tbl-wrap"><table class="st"><thead><tr><th>同学</th><th>班级</th><th>假别</th><th>日期</th><th>原因</th><th>状态</th></tr></thead><tbody>
+      ${(r.rows || []).map((x) => `<tr><td>${esc(x.name)}</td><td>${esc(x.cls)}</td><td>${esc(x.kind)}</td><td>${day(x.from)}${x.to && x.to !== x.from ? "–" + day(x.to) : ""}</td><td style="text-align:left;white-space:normal">${esc(x.reason || "")}</td><td><span class="badge ${ST[x.status] ? ST[x.status][1] : ""}">${ST[x.status] ? ST[x.status][0] : esc(x.status)}</span></td></tr>`).join("") || `<tr><td colspan="6" class="empty">最近 7 天没有人请假</td></tr>`}</tbody></table></div>
+      <div class="pill" style="margin-top:6px">批准、拒绝在班级的请假里操作（小程序「请假」页，或网页班级空间）</div>`;
   }
 
   // ---------- 功能 ----------
@@ -94,7 +127,7 @@
     box.innerHTML = `<div class="empty">加载中…</div>`;
     let list; try { list = (await rpc("dept_hw_proof", { p_did: did })) || []; }
     catch (e) { box.innerHTML = `<div class="empty">${/dept_hw_proof|PGRST202|Could not find/.test(e.message) ? "作业审核暂未开通，请联系管理员" : esc(e.message)}</div>`; return; }
-    const M = [["off", "关闭"], ["photo", "要拍照"], ["file", "要交文件"]];
+    const M = [["off", "关闭"], ["photo", "只要照片"], ["file", "照片或文件（可混着交）"]];
     box.innerHTML = `<div class="desc">默认关闭。打开后，这个班的同学在小程序里给作业打勾时，要先拍照或交文件（照片、PDF、Word），班主任、加入这个班的老师和院系管理员在小程序「作业 → 作业审核」里通过或退回，通过了才算完成。</div>
       <table class="feat"><thead><tr><th>班级</th><th>要求</th><th>待审核</th></tr></thead><tbody>
       ${list.map((c) => `<tr><td><b>${esc(c.name)}</b></td><td><select data-hw="${c.id}">${M.map(([k, t]) => `<option value="${k}"${c.mode === k ? " selected" : ""}>${t}</option>`).join("")}</select></td>
@@ -102,7 +135,7 @@
     box.querySelectorAll("[data-hw]").forEach((sel) => {
       const was = sel.value;
       sel.onchange = async () => {
-        if (sel.value !== "off" && !confirm("打开后，这个班的同学交作业要先" + (sel.value === "photo" ? "拍照" : "交照片或文件") + "，老师审核通过才算完成。确定打开？")) { sel.value = was; return; }
+        if (sel.value !== "off" && !confirm("打开后，这个班的同学交作业要先" + (sel.value === "photo" ? "拍照" : "交照片或文件（可以混着交）") + "，老师审核通过才算完成。确定打开？")) { sel.value = was; return; }
         try { await rpc("hw_proof_set", { p_cid: sel.dataset.hw, p_mode: sel.value }); toast(sel.value === "off" ? "已关闭" : "已打开"); }
         catch (e) { sel.value = was; fail(e); }
       };
@@ -242,7 +275,7 @@
   }
 
   // 7.36 管理中心（manage.html）直接用这里的统计 / 作息 / 功能 / 作业审核面板
-  window.CCOrg = { showStats, showSched, showFeat, showHw, shrink };
+  window.CCOrg = { showStats, showSched, showFeat, showHw, showLeave, shrink };
   (async () => {
     if (document.body.dataset.embed) return;
     const s = await CCAuth.session();

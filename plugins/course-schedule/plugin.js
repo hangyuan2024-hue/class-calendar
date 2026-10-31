@@ -1,3 +1,12 @@
+function orgTimesOf(o) {   // 7.38 学校 / 院系统一作息：按换季日期选冬春 / 夏秋那一套
+  var d = (o && o.data) || {}, ok = function (a) { return Array.isArray(a) && a.length >= 4 && a.every(function (t) { return /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(t); }); };
+  if (!ok(d.summer)) return ok(d.winter) ? d.winter : null;
+  if (!ok(d.winter)) return d.summer;
+  var now = new Date(), t = (now.getMonth() + 1) * 100 + now.getDate(), md = function (s) { var m = /^(\d{2})-(\d{2})$/.exec(s || ""); return m ? +m[1] * 100 + +m[2] : 0; };
+  var sf = md(d.summer_from) || 501, wf = md(d.winter_from) || 1001;
+  return (sf < wf ? t >= sf && t < wf : t >= sf || t < wf) ? d.summer : d.winter;
+}
+function orgCache() { try { var o = JSON.parse(localStorage.getItem("org_schedule_cache_v1") || "null"); return o && o.data ? o : null; } catch (e) { return null; } }
 // 课程表插件：组员开发的独立页面 app.html 由 api.mountApp 嵌入；
 // 另外把课程同步到日历（读取 app.html 存在本机的 personal_course_schedule_* 数据）。
 CalendarApp.register({
@@ -44,8 +53,10 @@ CalendarApp.register({
       // 「拍照导入」认出的上课时间（截图时间）
       const custom = read("personal_course_schedule_custom_times_v1", null);
       const customOk = Array.isArray(custom) && custom.length >= 4 && custom.every((t) => /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(t));
-      const mode = saved === "summer" || saved === "winter" || (saved === "custom" && customOk) ? saved : (m >= 5 && m <= 10 ? "summer" : "winter");
-      const times = mode === "custom" ? custom : PERIODS[mode];
+      // 7.38 没手动选过（或选了「学校作息」）、班级所在学校 / 院系设置了作息 → 用学校的
+      const org = orgCache(), ot = org ? orgTimesOf(org) : null;
+      const mode = saved === "school" && ot ? "school" : saved === "summer" || saved === "winter" || (saved === "custom" && customOk) ? saved : ot && !saved ? "school" : (m >= 5 && m <= 10 ? "summer" : "winter");
+      const times = mode === "custom" ? custom : mode === "school" ? ot : PERIODS[mode];
       const w1 = new Date(first + "T00:00:00");
       const adj = read("personal_course_schedule_adjust_v1", []);
       const DN = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
