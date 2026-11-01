@@ -87,8 +87,8 @@
     }
     const c = (T.classes || []).find((x) => x.id === sel.id) || allDepts().flatMap((d) => d.classes || []).find((x) => x.id === sel.id);
     if (!c) { sel = null; return renderPane(); }
-    pane.innerHTML = head(clsTitle(c), (c.teacher ? esc(c.teacher) + " · " : "") + c.total + " 人") + tabsHtml(["班级", "学情", "课堂互动", "作业审核"]);
-    bindPane(pane, (i) => { const tp = $("tp"); clearTimeout(actT); if (i === 0) classInfo(tp, c); else if (i === 1) learning(tp, c, 30); else if (i === 2) classAct(tp, c); else hwReview(tp, c); });
+    pane.innerHTML = head(clsTitle(c), (c.teacher ? esc(c.teacher) + " · " : "") + c.total + " 人") + tabsHtml(["班级", "学情", "作业审核"]);
+    bindPane(pane, (i) => { const tp = $("tp"); clearTimeout(actT); if (i === 0) classInfo(tp, c); else if (i === 1) learning(tp, c, 30); else hwReview(tp, c); });
   }
 
   function codeBox(label, code, hint) {
@@ -196,6 +196,72 @@
       tp.querySelectorAll("[data-f]").forEach((el) => (el.onclick = () => openFile(fileMap[el.dataset.f])));
     } catch (e) { tp.innerHTML = `<section class="card"><div class="empty">${/hw_review|PGRST202|Could not find/.test(e.message) ? "作业审核暂未开通（要先执行 7.35 SQL）" : esc(e.message)}</div></section>`; }
   }
+  // 7.45 生成 Excel（.xlsx）：和小程序 lib/xlsx.js 同一份（不压缩的 zip 包 + 几份 xml，不用第三方库）
+  const CCXlsx = (() => {
+    const enc = (s) => {   // UTF-8 编码
+      const out = [];
+      for (let i = 0; i < s.length; i++) {
+        let c = s.charCodeAt(i);
+        if (c >= 0xd800 && c <= 0xdbff && i + 1 < s.length) { const d = s.charCodeAt(i + 1); if (d >= 0xdc00 && d <= 0xdfff) { c = 0x10000 + ((c - 0xd800) << 10) + (d - 0xdc00); i++; } }
+        if (c < 0x80) out.push(c);
+        else if (c < 0x800) out.push(0xc0 | (c >> 6), 0x80 | (c & 63));
+        else if (c < 0x10000) out.push(0xe0 | (c >> 12), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
+        else out.push(0xf0 | (c >> 18), 0x80 | ((c >> 12) & 63), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
+      }
+      return new Uint8Array(out);
+    };
+    let CRC = null;
+    function crc32(b) {
+      if (!CRC) { CRC = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; CRC[n] = c >>> 0; } }
+      let c = 0xffffffff; for (let i = 0; i < b.length; i++) c = CRC[(c ^ b[i]) & 255] ^ (c >>> 8);
+      return (c ^ 0xffffffff) >>> 0;
+    }
+    function zip(files) {   // files: [{ name, data: Uint8Array }]，不压缩
+      const parts = [], central = []; let off = 0;
+      const u16 = (v) => [v & 255, (v >>> 8) & 255], u32 = (v) => [v & 255, (v >>> 8) & 255, (v >>> 16) & 255, (v >>> 24) & 255];
+      for (const f of files) {
+        const nm = enc(f.name), crc = crc32(f.data), sz = f.data.length;
+        const head = [].concat(u32(0x04034b50), u16(20), u16(0x0800), u16(0), u16(0), u16(0x21), u32(crc), u32(sz), u32(sz), u16(nm.length), u16(0));
+        parts.push(new Uint8Array(head), nm, f.data);
+        central.push(new Uint8Array([].concat(u32(0x02014b50), u16(20), u16(20), u16(0x0800), u16(0), u16(0), u16(0x21), u32(crc), u32(sz), u32(sz), u16(nm.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(off))), nm);
+        off += head.length + nm.length + sz;
+      }
+      const cdSize = central.reduce((a, b) => a + b.length, 0);
+      const end = new Uint8Array([].concat(u32(0x06054b50), u16(0), u16(0), u16(files.length), u16(files.length), u32(cdSize), u32(off), u16(0)));
+      const all = parts.concat(central, [end]), total = all.reduce((a, b) => a + b.length, 0), out = new Uint8Array(total);
+      let p = 0; for (const a of all) { out.set(a, p); p += a.length; }
+      return out.buffer;
+    }
+    const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "");
+    const col = (i) => { let s = ""; i++; while (i) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
+    function sheetXml(sh) {
+      const bold = sh.bold || [];
+      const cols = (sh.widths || []).length ? "<cols>" + sh.widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join("") + "</cols>" : "";
+      const rows = (sh.rows || []).map((r, ri) => "<row r=\"" + (ri + 1) + "\">" + (r || []).map((v, ci) => {
+        if (v == null || v === "") return "";
+        const ref = col(ci) + (ri + 1), st = bold.indexOf(ri) >= 0 ? ' s="1"' : "";
+        return typeof v === "number" && isFinite(v) ? `<c r="${ref}"${st}><v>${v}</v></c>` : `<c r="${ref}"${st} t="inlineStr"><is><t xml:space="preserve">${esc(v)}</t></is></c>`;
+      }).join("") + "</row>").join("");
+      return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"/></sheetViews>' + cols + "<sheetData>" + rows + "</sheetData></worksheet>";
+    }
+    function build(sheets) {
+      const X = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+      const f = (name, s) => ({ name, data: enc(s) });
+      const files = [
+        f("[Content_Types].xml", X + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
+          + sheets.map((s, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("") + "</Types>"),
+        f("_rels/.rels", X + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'),
+        f("xl/workbook.xml", X + '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>'
+          + sheets.map((s, i) => `<sheet name="${esc(String(s.name || "Sheet" + (i + 1)).replace(/[\\/?*[\]:]/g, " ").slice(0, 31))}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join("") + "</sheets></workbook>"),
+        f("xl/_rels/workbook.xml.rels", X + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+          + sheets.map((s, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join("")
+          + `<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`),
+        f("xl/styles.xml", X + '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="等线"/></font><font><b/><sz val="11"/><name val="等线"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>'),
+      ].concat(sheets.map((s, i) => f(`xl/worksheets/sheet${i + 1}.xml`, sheetXml(s))));
+      return zip(files);
+    }
+    return { build };
+  })();
   // ---------- 7.40 学情 + 随机点名（参照学习通）----------
   async function learning(tp, c, days) {
     tp.innerHTML = `<section class="card"><div class="empty">加载中…</div></section>`;
@@ -205,15 +271,18 @@
     const rows = r.rows || [], warn = rows.filter((x) => x.warn), hasScore = rows.some((x) => x.score != null), W = r.weights;
     const WK = [["hw", "作业"], ["ck", "签到"], ["rush", "抢答"], ["peer", "互评"], ["growth", "成长值"]];
     tp.innerHTML = `<section class="card"><div class="row">${[7, 30, 90].map((d) => `<button class="small${d === days ? " primary" : ""}" data-days="${d}">最近 ${d} 天</button>`).join("")}<span class="spacer"></span>
-        <button class="small" data-report>📋 课堂报告</button><button class="small" data-roll>🎲 随机点名</button><b data-pick style="min-width:80px;text-align:center"></b></div>
+        <button class="small" data-xlsx>⬇ 导出 Excel</button><button class="small" data-report>📋 课堂报告</button><button class="small" data-roll>🎲 随机点名</button><b data-pick style="min-width:80px;text-align:center"></b></div>
       <div data-rep></div>
-      ${W ? `<div class="row" style="flex-wrap:wrap;gap:6px;margin:6px 0"><span class="pill">平时成绩 =</span>${WK.map(([k, t]) => `<label class="pill">${t} <input data-w="${k}" type="number" min="0" max="100" step="5" value="${W[k] || 0}" style="width:52px">%</label>`).join("")}<button class="small" data-wsave>保存权重</button></div>` : ""}
+      ${W ? `<div class="row" style="flex-wrap:wrap;gap:6px;margin:6px 0"><span class="pill">平时成绩 =</span>${WK.map(([k, t]) => `<label class="pill">${t} <input data-w="${k}" type="number" min="0" max="100" step="5" value="${W[k] || 0}" style="width:64px;padding:4px 6px;text-align:center">%</label>`).join("")}<button class="small" data-wsave>保存权重</button></div>` : ""}
       <div class="stats"><div class="stat"><b>${rows.length}</b><span>同学</span></div><div class="stat"><b style="color:${warn.length ? "var(--orange)" : "inherit"}">${warn.length}</b><span>需要关注</span></div><div class="stat"><b>${r.hw}</b><span>到期作业</span></div><div class="stat"><b>${r.ck}</b><span>签到</span></div></div>
       <div class="tbl-wrap"><table class="st"><thead><tr><th>同学</th><th>作业完成</th><th>签到</th><th>请假</th><th>最近用过</th><th>成长值</th>${hasScore ? "<th>抢答</th><th>互评</th><th>平时成绩</th>" : ""}</tr></thead><tbody>
       ${rows.map((x) => `<tr><td>${esc(x.name)}${x.role === "monitor" ? ` <span class="badge">班委</span>` : x.role === "creator" ? ` <span class="badge">班主任</span>` : ""}${x.warn ? ` <span class="badge wait">需要关注</span>` : ""}</td>
         <td style="color:${x.hw_rate != null && x.hw_rate < 60 ? "var(--red)" : "inherit"}">${x.hw_rate == null ? "—" : x.hw_rate + "%"}</td><td style="color:${x.ck_rate != null && x.ck_rate < 80 ? "var(--red)" : "inherit"}">${x.ck_rate == null ? "—" : x.ck_rate + "%"}</td>
         <td>${x.leaves || 0}</td><td>${ago(x.seen)}</td><td>${x.points || 0}</td>${hasScore ? `<td>${x.rush_n || 0}</td><td>${x.peer_avg ? x.peer_avg + " ★" : "—"}</td><td style="font-weight:700;color:${x.score < 60 ? "var(--red)" : "inherit"}">${x.score == null ? "—" : Math.round(x.score)}</td>` : ""}</tr>`).join("") || `<tr><td colspan="9" class="empty">班里还没有同学</td></tr>`}</tbody></table></div>
-      <div class="pill" style="margin-top:6px">作业按这段时间里已经截止的算，交了或打勾都算完成；签到按已经结束的算。作业低于 60%、签到低于 80%、或 7 天没打开，标「需要关注」。</div></section>`;
+      <div class="pill" style="margin-top:6px">作业按这段时间里已经截止的算，交了或打勾都算完成；签到按已经结束的算。作业低于 60%、签到低于 80%、或 7 天没打开，标「需要关注」。</div></section>
+      <div data-act></div>`;
+    classAct(tp.querySelector("[data-act]"), c);   // 7.45 抢答、小组互评也放在学情里
+    tp.querySelector("[data-xlsx]").onclick = () => exportLearning(c, r);
     tp.querySelectorAll("[data-days]").forEach((b) => (b.onclick = () => learning(tp, c, +b.dataset.days)));
     const ws = tp.querySelector("[data-wsave]");
     if (ws) ws.onclick = async () => {
@@ -227,6 +296,27 @@
       const step = () => { out.textContent = rows[Math.floor(Math.random() * rows.length)].name; if (++n < total) setTimeout(step, 40 + n * 12); };
       step();
     };
+  }
+  // ---------- 7.45 学情一键导出 Excel ----------
+  function exportLearning(c, r) {
+    if (!(r.rows || []).length) { toast("还没有学情数据"); return; }
+    const pad = (n) => String(n).padStart(2, "0"), now = new Date(), day = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    const ymd = (t) => { const d = new Date(t); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+    const cname = c.nick || c.nickname || c.name || "班级", w = r.weights || {}, ROLE = { monitor: "班委", creator: "班主任", student: "同学" };
+    const head = ["姓名", "身份", "作业完成率(%)", "作业完成数", "签到率(%)", "签到次数", "抢答次数", "互评均分(星)", "请假次数", "成长值", "平时成绩", "最近使用", "需要关注"];
+    const rows = [[`${cname} · 学情（最近 ${r.days} 天）`], [`导出时间 ${day} ${pad(now.getHours())}:${pad(now.getMinutes())}　到期作业 ${r.hw} 项 · 签到 ${r.ck} 次 · 抢答 ${r.rush || 0} 次`], [], head];
+    r.rows.slice().sort((a, b) => String(a.name).localeCompare(String(b.name), "zh")).forEach((x) => rows.push([
+      x.name, ROLE[x.role] || "同学", x.hw_rate == null ? "" : +x.hw_rate, x.hw_done || 0, x.ck_rate == null ? "" : +x.ck_rate, x.ck_done || 0,
+      x.rush_n || 0, x.peer_avg == null ? "" : +x.peer_avg, x.leaves || 0, x.points || 0, x.score == null ? "" : Math.round(x.score), x.seen ? ymd(x.seen) : "没用过", x.warn ? "是" : ""]));
+    const note = [["说明"], [], ["平时成绩", `作业 ${w.hw || 0}% + 签到 ${w.ck || 0}% + 抢答 ${w.rush || 0}% + 互评 ${w.peer || 0}% + 成长值 ${w.growth || 0}%`],
+      ["作业完成率", "这段时间里已经截止的作业，交了或打勾都算完成"], ["签到率", "这段时间里已经结束的签到"], ["抢答", "参加的次数（满分 = 每次都参加）"],
+      ["互评", "组内互评收到的平均星级（满分 5 星）"], ["成长值", "和班里最高的人比"], ["需要关注", "作业低于 60%、签到低于 80%，或 7 天没打开"]];
+    const buf = CCXlsx.build([{ name: "学情", rows, widths: [12, 8, 14, 10, 11, 9, 9, 13, 9, 8, 9, 12, 9], bold: [0, 3] }, { name: "说明", rows: note, widths: [12, 60], bold: [0] }]);
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    a.download = `学情-${String(cname).replace(/[\\/:*?"<>|\s]+/g, "")}-${day}.xlsx`;
+    document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    toast("已导出");
   }
   // ---------- 7.41 课堂报告 ----------
   async function report(box, c, day) {
@@ -263,7 +353,7 @@
           <td>${staff ? `<select data-aw="${esc(x.uid)}"><option value="">加分</option>${[0, 1, 2, 3, 5, 10].map((n) => `<option value="${n}">${n ? "+" + n : "不加"}</option>`).join("")}</select>` : ""}</td></tr>`).join("")}</tbody></table></div>` : ""}
       </section>
       <section class="card"><div class="row"><h3 style="margin:0">👥 小组互评</h3><span class="spacer"></span>${staff ? `<select data-pk><option value="in">组内互评</option><option value="cross">组间互评</option></select><input data-pt placeholder="互评名称" maxlength="40" style="width:140px"><select data-pd><option value="1">1 天</option><option value="3" selected>3 天</option><option value="7">7 天</option></select><button class="small primary" data-pgo>发起</button>` : ""}</div>
-        <div class="desc">按班级分组来：组内互评是给同组的组员打分，组间互评是给别的小组打分，1~5 星 + 一句话。同学在小程序「成长 → 课堂互动」里评。</div>
+        <div class="desc">按班级分组来：组内互评是给同组的组员打分，组间互评是给别的小组打分，1~5 星 + 一句话。同学在小程序「成长 → 学情」里评。</div>
         ${(peers || []).map((p) => `<div class="kv" style="margin-top:6px"><div style="flex:1"><b>${esc(p.title)}</b> <span class="pill">${p.kind === "cross" ? "组间" : "组内"}</span> <span class="desc">${p.open ? new Date(p.ends_at).toLocaleDateString() + " 截止" : "已结束"}</span></div>${staff ? `<button class="small" data-pr="${p.id}">看结果</button>` : ""}</div><div data-prbox="${p.id}"></div>`).join("") || `<div class="empty">最近没有小组互评</div>`}
       </section>`;
     const q = (k) => tp.querySelector(k);

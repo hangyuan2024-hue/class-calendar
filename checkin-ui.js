@@ -160,6 +160,7 @@
     const d = dlg();
     if (panelCls) { try { list = (await CCAuth.rpc("checkin_list", { cid: c.id })) || []; } catch (e) { list = []; } listFor = c.id; }
     else if (listFor !== c.id) await load();
+    if (mgr()) warmQr(c.id);   // 7.45 能发起签到的人一打开：先叫醒后端，第一张小程序码就不慢了
     const others = (typeof myClasses !== "undefined" ? myClasses || [] : []).filter((x) => x.status === "approved" || x.is_teacher);
     d.innerHTML = `<h3>📋 签到<small>${others.length > 1 ? `<select id="ckCls" aria-label="哪个班">${others.map((x) => `<option value="${esc(x.id)}"${x.id === c.id ? " selected" : ""}>${esc(x.nickname || x.name)}${x.is_teacher ? "（我带的）" : x.member_role === "monitor" ? "（班委）" : ""}</option>`).join("")}</select>` : esc(c.nickname || c.name)}</small></h3>
       ${mgr() ? `<details class="ck-new" ${list.some((x) => x.open) ? "" : "open"}><summary>＋ 发起签到</summary>
@@ -269,6 +270,8 @@
   }
   let tn = 0, qrAt = 0, qrImg = false, detAt = 0, qrT0 = 0;
   const WAIT = `<div class="ck-qrwait">正在生成小程序码…</div>`;
+  // 7.45 等了 6 秒还没好：说一声「第一次要久一点」；30 秒（以前 8 秒）还没好才退回普通二维码
+  const waitHtml = (slow, code) => slow ? `<div class="ck-qrwait" style="flex-direction:column;gap:6px;text-align:center;padding:0 12px">正在生成小程序码…<small>第一次要久一点（最多半分钟）${code ? "，可以先用右边的 4 位码" : ""}</small></div>` : WAIT;
   async function tickCode() {
     if (!one || !$("ckQr")) { clearInterval(codeTimer); return; }
     qrAt = Date.now();
@@ -276,25 +279,28 @@
     try {
       const r = await CCAuth.rpc("checkin_code", { id: one.id });
       if (r && r.geo) {   // 6.9.6 位置签到：码只带编号
-        const fb = !r.img && (r.img_err || Date.now() - qrT0 > 8000), key = r.img ? "mg" : fb ? "ug" : "w";
+        const slow = Date.now() - qrT0 > 6000, fb = !r.img && (r.img_err || Date.now() - qrT0 > 30000), key = r.img ? "mg" : fb ? "ug" : slow ? "sg" : "w";
         qrImg = !!r.img;
-        if (key !== lastCode) { lastCode = key; $("ckQr").innerHTML = r.img ? `<img src="${r.img}" alt="签到小程序码">` : fb ? QRLite.svg(SITE + "?i=" + one.id, { level: "M" }) : WAIT; $("ckQrT").textContent = r.img || !fb ? "微信扫一扫，打开签到页" : "手机扫码打开签到页"; }
+        if (key !== lastCode) { lastCode = key; $("ckQr").innerHTML = r.img ? `<img src="${r.img}" alt="签到小程序码">` : fb ? QRLite.svg(SITE + "?i=" + one.id, { level: "M" }) : waitHtml(slow, false); $("ckQrT").textContent = r.img || !fb ? "微信扫一扫，打开签到页" : "手机扫码打开签到页"; }
         $("ckLeft").textContent = `已签 ${r.signed} / ${one.members}`;
         return;
       }
       if (!r || !r.code) return;
       qrImg = !!r.img;
       // 有小程序码就投小程序码（微信扫一扫直接进小程序签到）；还没生成好 / 后端没配好就先用普通二维码
-      const fb = !r.img && (r.img_err || Date.now() - qrT0 > 8000), key = (r.img ? "m" : fb ? "u" : "w") + r.code;
+      const slow = Date.now() - qrT0 > 6000, fb = !r.img && (r.img_err || Date.now() - qrT0 > 30000), key = (r.img ? "m" : fb ? "u" : slow ? "s" : "w") + r.code;
       $("ckCode").textContent = r.code;
       if (key !== lastCode) {
         lastCode = key;
-        $("ckQr").innerHTML = r.img ? `<img src="${r.img}" alt="签到小程序码">` : fb ? QRLite.svg(SITE + "?i=" + one.id + "&k=" + r.code, { level: "M" }) : WAIT;
+        $("ckQr").innerHTML = r.img ? `<img src="${r.img}" alt="签到小程序码">` : fb ? QRLite.svg(SITE + "?i=" + one.id + "&k=" + r.code, { level: "M" }) : waitHtml(slow, true);
         $("ckQrT").textContent = r.img || !fb ? "微信扫一扫签到" : "手机扫码签到";
       }
       $("ckLeft").textContent = `${r.left} 秒后换码 · 已签 ${r.signed} / ${one.members}`;
     } catch (e) {}
   }
+  // 7.45 预热小程序码：后端休眠了第一张码要等十几秒；服务器 3 分钟内只真正叫一次
+  let warmAt = 0;
+  function warmQr(cid) { if (!cid || Date.now() - warmAt < 120000) return; warmAt = Date.now(); CCAuth.rpc("checkin_qr_warm", { p_cid: cid }).catch(() => {}); }
   async function create() {
     const c = cls(); if (!canMgr(c)) { say("只有老师和班委能发起签到", "bad"); return; }
     const st = $("ckSt"), b = $("ckCreate"), pick = ($("ckDlg").querySelector("input[name=ckMode]:checked") || {}).value || "code", ges = pick === "gesture", mode = ges ? "code" : pick;
