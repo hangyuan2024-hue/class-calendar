@@ -51,24 +51,24 @@
   // [正则, 类型, 分数]。所有命中的分数加起来，分高的类型胜出
   const RULES = [
     // 作业
-    [/作业/, "作业", 4], [/习题|练习题|课后题/, "作业", 3], [/实验报告/, "作业", 4], [/报告(?!厅|会)/, "作业", 2], [/论文/, "作业", 3],
-    [/作文|读后感|心得|观后感|规划书|周报|总结报告/, "作业", 3], [/ppt|PPT/, "作业", 2], [/展示|汇报(?!表演|演出)|答辩|presentation|pre(?![a-z])/i, "作业", 3], [/课设|课程设计|大作业/, "作业", 3],
+    [/作业/, "作业", 4], [/习题(?!课)|练习题|课后题/, "作业", 3], [/实验报告/, "作业", 4], [/报告(?!厅|会)/, "作业", 2], [/论文/, "作业", 3],
+    [/作文|读后感|心得|观后感|规划书|周报|总结报告|周记|实习日志|实习报告|课堂笔记|笔记|手抄报|思维导图|演讲稿|策划书|计划书/, "作业", 3], [/(还)?(没|未)(交|提交|完成|写)[^，。！!]{1,12}的(同学|人)?[，,]?\s*(抓紧|赶紧|尽快|速度|快点)/, "作业", 2], [/(视频|网课|章节|课程|慕课|录播).{0,8}(看完|学完|刷完)|(看完|学完)[^，。]{0,8}(视频|网课|章节|慕课)/, "作业", 3], [/ppt|PPT/, "作业", 2], [/(^|[^艺果])展示|汇报(?!表演|演出)|答辩|presentation|pre(?![a-z])/i, "作业", 3], [/课设|课程设计|大作业/, "作业", 3],
     [/背诵|默写|预习|复习|背单词/, "作业", 3], [/网课|刷完|刷课/, "作业", 2], [/(提交|上交|拍照上传)/, "作业", 2], [/编程题|课后题|上机题|PTA|pta|OJ|头歌|educoder|平台作业|实训报告/, "作业", 3],
     [/(?:^|[^用]|(?:^|[^不])用)交(?!通|流|换|费|钱|材料|表|照片|回执)/, "作业", 1], [/截止|ddl|DDL/, "作业", 1], [/学习通|超星|雨课堂|批改网|慕课/, "作业", 1],
     [/发到.{0,4}邮箱/, "作业", 3], [/实验[一二三四五六七八九十\d]+/, "作业", 2], [/作业本/, "作业", 2],
     [/(学习通|超星|雨课堂).{0,8}完成|完成.{0,10}(学习通|超星|雨课堂)/, "作业", 3],
     // 会议
-    [/开会|班会|会议(?!号|室)|例会|座谈|年级大会|组会|党课|团日|支部大会|班委会|碰个?头|约谈|谈话|短会|小会|全体大会|开个会|[一-龥]{0,6}大会(?!操)/, "会议", 5], [/召开/, "会议", 2],
+    [/开会|班会|会议(?!号|室)|例会|座谈|年级大会|组会|党课(?!结业考|考试)|团日(?!活动)|支部大会|班委会|碰个?头|约谈|谈话|短会|小会|全体大会|开个会|[一-龥]{0,6}大会(?!操)/, "会议", 5], [/召开/, "会议", 2],
     // 活动
-    [/活动(?!中心|室)/, "活动", 2], [/晚会|运动会|开幕式|志愿|社团|招新|面试|参观|讲座|演出|联欢|观影|看电影|团建|聚餐|聚会|评选|投票|分享会|英语角|读书会|拔河|拉练|植树|献血|升旗|彩排|义务|主题日|宣讲|电脑节|文化节|艺术节|科技节|敬老院|春游|秋游|郊游|素拓|拓展/, "活动", 3],
-    [/培训/, "活动", 2], [/集合|签到|报到|就可以来了?|可以过来|来一下|过来一下/, "通知", 2], [/(认知|入学|安全|专业|主题|法治|法制|心理健康|爱国主义|思政|国防|消防)教育|宣讲会?|报告会|专题报告/, "活动", 4], [/坐大巴|校车|大巴|包车/, "活动", 2], [/(赛|运动会|比赛).{0,20}加油|加油.{0,10}(赛|运动会)|拉拉队|啦啦队/, "活动", 2],
-    [/(比|竞|决|初|复|校|辩论|篮球|足球|排球|羽毛球|乒乓球|歌唱|演讲|知识|技能|选拔|大|联|开|新生)赛|[一-龥A-Za-z]{2,6}杯(?!子)/, "活动", 4], [/报名/, "活动", 3], [/报名.{0,12}截止|截止报名/, "活动", 2], [/(四六级|四级|六级|二级|计算机二级|考试|考研|教资|普通话|补考|重修)报名|计算机二级/, "通知", 6],
+    [/活动(?!中心|室)/, "活动", 2], [/晚会|运动会|开幕式|志愿|社团|招新|面试|参观|讲座|演出|联欢|观影|看电影|团建|聚餐|聚会|评选|投票|分享会|英语角|读书会|拔河|拉练|植树|献血|升旗|彩排|义务|主题日|团日活动|训练(?!营)|才艺|节目|接新生|迎新|接站|送站|证件照|宣讲|电脑节|文化节|艺术节|科技节|敬老院|春游|秋游|郊游|素拓|拓展/, "活动", 3],
+    [/培训/, "活动", 2], [/集合|签到|报到|就可以来了?|可以过来|来一下|过来一下/, "通知", 2], [/(认知|入学|入馆|入校|新生|安全|专业|主题|法治|法制|心理健康|爱国主义|思政|国防|消防|诚信|廉洁|劳动)教育|宣讲会?|报告会|专题报告/, "活动", 4], [/坐大巴|校车|大巴|包车/, "活动", 2], [/(赛|运动会|比赛).{0,20}加油|加油.{0,10}(赛|运动会)|拉拉队|啦啦队/, "活动", 2],
+    [/(比|竞|决|初|复|校|辩论|篮球|足球|排球|羽毛球|乒乓球|歌唱|演讲|知识|技能|选拔|大|联|开|新生|友谊|邀请|淘汰|半决|总决|预|晋级|对抗)赛|[一-龥A-Za-z]{2,6}杯(?!子)/, "活动", 4], [/报名/, "活动", 3], [/报名.{0,12}截止|截止报名/, "活动", 2], [/(四六级|四级|六级|二级|计算机二级|考试|考研|教资|普通话|补考|重修)报名|计算机二级/, "通知", 6],
     [/答辩会|评议会|述职|评审会|动员会|见面会|交流会|座谈会|小组讨论|研讨|奖学金答辩|评优答辩|竞选/, "会议", 5], [/放映|电影|剧场|音乐会/, "活动", 3],
     [/(报名|资料|材料|班|书|服装|活动|考试|教材|课本|校服|会|团|党|水电|电|网|住宿|体检|保险)费|每人\s*\d+(\.\d+)?\s*元/, "通知", 8], [/阳光长跑|长跑|跑满|打卡/, "通知", 2], [/答疑|习题课|辅导课/, "通知", 2],
-    [/招聘会|双选会|宣讲会|展览|博览会|表演|团体辅导|团辅|沙龙|工作坊|观众|嘉宾/, "活动", 3], [/举办|举行/, "活动", 1], [/青马|党校|团校/, "活动", 2],
+    [/招聘会|双选会|宣讲会|展览|博览会|表演|团体辅导|团辅|沙龙|工作坊|观众|嘉宾|主讲人?\s*[:：]|观赛|免费入场/, "活动", 3], [/举办|举行/, "活动", 1], [/青马|党校|团校/, "活动", 2],
     // 通知
     [/通知|公告/, "通知", 3], [/放假|调休|调课|停课|补课|换教室|课表|开课|闭馆|开放|不用交|不交了|返校时间/, "通知", 3],
-    [/考试|测验|小测|测试|期中考|期末考|期中测|期末测|考试周|体测|听力考|口语考|上机考|补考|重修|测\d+米|四六级|四级|六级|二级考/, "通知", 3],
+    [/考试|测验|小测|测试|期中考|期末考|期中测|期末测|考试周|体测|听力考|口语考|上机考|补考|重修|测\d+米|四六级|四级|六级|二级考|听写|单词测|单词考|(^|[^思参报备])考(?!虑|研|勤|察|究|查|上|入|进|过|完|核|生|场|号|点|卷|证)[一-龥]{1,6}|期中(?!周|教学|检查|论文|作业|大作业|报告|工作|总结|安排)|期末(?!周|论文|作业|大作业|报告|总结|工作)/, "通知", 3], [/(四六级|英语四级|英语六级|计算机二级|教资|普通话)(考试|笔试|口试|面试)?/, "通知", 3],
     [/答题|安全教育|普查|知识竞答|公示|出结果|结果公布/, "通知", 2], [/退补选|退课|补选|选课|抢课/, "通知", 3], [/不用交|不交了/, "通知", 2],
     [/缴费|交费|缴纳|学费|班费|书费|住宿费|电费|网费|续费|充值|停网|医保|保险|助学金|奖学金|贷款|报销/, "通知", 4],
     [/材料|表格|证件|身份证|学生证|照片|回执|收齐|收缴|统计|名单|上报|签字|盖章|请假条|申请表|申报书|登记|核对|问卷|评教|填写|信息/, "通知", 3],
@@ -79,15 +79,15 @@
     [/报一下|报给|报到|人数|统计一下/, "通知", 2], [/上课|上机|实验课|(课|节).{0,12}在.{0,14}上$|在.{2,14}上课/, "通知", 2],
     [/注意|提醒|务必|全体|请各位|请大家|各位同学|同学们/, "通知", 1],
     [/(发|交|报|传)(给|到)(学委|班长|课代表|老师|辅导员|团支书|生活委员|组长|我)/, "作业", 2], [/留一下|留下来|开个会|聚一下|碰一下/, "会议", 4],
-    [/拍.{0,4}照|毕业照|合影|集体照/, "活动", 4], [/听课|督导/, "通知", 3], [/(不要|别|不得|禁止)迟到/, "通知", 1], [/实习|实训|社会实践|研学|调研|采风/, "活动", 3], [/(考试|考|测验|小测).{0,12}复习|复习.{0,8}(考试|期中|期末|小测|测验)/, "通知", 3],
+    [/拍(?!照.{0,2}(发|上传|传|交|提交))(.{0,4})照(?!.{0,2}(发|上传|传|交|提交))|毕业照|合影|集体照/, "活动", 4], [/听课|督导/, "通知", 3], [/(不要|别|不得|禁止)迟到/, "通知", 1], [/实习(?!报告|周记|日志|心得|总结)|实训(?!报告)|社会实践(?!报告|心得|总结)|研学|调研|采风/, "活动", 3], [/(考试|考|测验|小测|听写|默写).{0,12}复习|复习.{0,8}(考试|期中|期末|小测|测验|听写)/, "通知", 3],
     // 6.16 考试周、随堂考；不排课 / 放假；「记得带…」；「下周起每周…」这类安排变化
-    [/期中周|期末周|考试周|随堂考|随堂测|(各科|各门).{0,6}(考|测)/, "通知", 5], [/不排课|不上课|没有课|无课/, "通知", 4],
+    [/期中周|期末周|考试周|随堂考|随堂测|(各科|各门).{0,6}(考|测)/, "通知", 5], [/不排课|不上课|没有课|没课|无课|全天没课/, "通知", 4], [/补[^，。]{0,6}的课|大扫除|打扫|扫除|整理内务|(手机|证件|钥匙|校园卡|学生证)[^，。]{0,4}(交|上交|收|放到|放在)|防诈|反诈|安全知识|禁毒|消防知识/, "通知", 3], [/(周[一二三四五六日天]|周末|今天|明天|后天|[\d一二三四五六七八九十]+[号日])[^，。]{0,6}(休息|关门|闭馆|不营业|暂停营业)|(暂停|恢复)(营业|开放|服务|上课)|(驿站|食堂|超市|图书馆|自习室|澡堂|浴室|快递|校医院)[^，。]{0,8}(休息|关门|闭馆|不营业|恢复)/, "通知", 4],
     [/(记得|别忘了?|不要忘了?|千万|一定要?)[^，。！!；;]{0,8}带|带好|带上/, "通知", 3], [/(下周|本周|下个?月|从.{1,10})(起|开始)|以后每|今后/, "通知", 3],
   ];
   // 课程本身被调整（调课、停课、改教室）一定是通知，不是作业
   const SCHEDULE = /(课|上机|实验|自习).{0,10}((调|改|换|挪|移)(到|至|成|为)|取消|停|改在|在.{2,14}上)|((调|改|换)(到|至)|改在).{0,10}(上课|上|节)$|停课|调课|补课|课表/;
   const UNSURE_WORDS = /待定|另行通知|具体时间|暂定|可能|大概|左右|或者|还是|看情况|或(早上|上午|中午|下午|晚上|明天|后天|周|下周)/;
-  const VAGUE_TIME = /下次课|下节课|下次上课|近期|尽快|另行通知|待定|最近|每次|每周|每节课|每天/;
+  const VAGUE_TIME = /下次课|下节课|下次上课|下次.{0,6}课|第[一二三四五六七八九十\d]{1,3}个?(教学)?周|期末前|结课前|学期末|近期|尽快|另行通知|待定|最近|每次|每周|每节课|每天/;
   const CHANGE = /(调|改|换|挪|移|推迟|延期|提前|顺延)(到|至|成|为|在)|改在|取消(?=[^。]{0,16}(再|重新|补))/;
 
   // ================= 闲聊识别 =================
@@ -171,6 +171,8 @@
         if (pv && !blank && NOTICE_TITLE.test(pv.lines[0])) { pv.lines.push(line); continue; }
         // 一条长通知被分成好几行：上一行以冒号结尾、这一行是编号、或是「另外/最后/以上」这类接着说的话，都并到上一条
         const prev = msgs[msgs.length - 1], prevLast = prev ? prev.lines[prev.lines.length - 1] : "";
+        // 1.29.2「作业：」标题下面一行一门课（不带编号）、最后一行「都是下周二交」：都是这条的
+        if (prev && !blank && /^(今[日天]|本周|这周|明天|下周)?的?(作业|任务|安排|事项)[^:：]{0,12}[:：]\s*$/.test(prev.lines[0]) && line.length <= 30) { prev.lines.push(line); continue; }
         if (prev && (/[:：]\s*$/.test(prevLast) || LIST_LINE.test(line) && (LIST_LINE.test(prevLast) || /[:：]\s*$/.test(prev.lines[0]) || prev.lines.length === 1 && prevLast.length <= 12) ||
             /^(另外|此外|还有|其次|最后|首先|以上|收到请回复|请大家|特此通知|[一-龥]{2,8}(办公室|学院|委员会|部)$)/.test(line) && prev.lines.length > 1)) { prev.lines.push(line); continue; }
         flush(); cur = { sender, date: "", lines: [body] }; flush(); blank = false;
@@ -233,7 +235,7 @@
     });
     // 6.16 只说「下周」「下下周」（「改到下下周了」「下周起…」）：按那一周的周一
     scan(/(下下|下)个?(周|星期|礼拜)(?![一二三四五六日天1-7末内])/g, (m) => add(m.index, m[0].length, addDays(base, (m[1] === "下下" ? 14 : 7) - dow + 1), { kind: "week", vague: true }));
-    scan(/(本|这)?周末/g, (m) => add(m.index, m[0].length, addDays(base, Math.max(0, 6 - dow)), { kind: "week" }));
+    scan(/(本|这)?周末/g, (m) => add(m.index, m[0].length, addDays(base, Math.max(0, (/^\s*(之?前|以前|结束前|截止)|^.{0,14}(写完|做完|看完|完成|交上|提交)/.test(t.slice(m.index + m[0].length, m.index + m[0].length + 16)) ? 7 : 6) - dow)), { kind: "week" }));   // 1.29.2「周末两天把笔记写完」：截止到周日
     scan(/(本周|这周)(之?内)/g, (m) => add(m.index, m[0].length, addDays(base, 7 - dow), { kind: "week" }));
     scan(/(本月|这个月)?(月底|月末)/g, (m) => add(m.index, m[0].length, new Date(base.getFullYear(), base.getMonth() + 1, 0), { kind: "rel" }));
     scan(new RegExp("(本月|这个月|下个?月)" + NUM + "[号日]", "g"), (m) => {
@@ -284,6 +286,12 @@
     const pubKey = keyOf(base);
     if (res.some((x) => !x.past && !x.ref && x.key >= pubKey)) for (const x of res) if (x.key < pubKey) x.past = true;
     for (let k = 1; k < res.length; k++) if (res[k - 1].every && res[k].i - (res[k - 1].i + res[k - 1].len) <= 1 && res[k].kind === "week" && !/^[本这下]/.test(t.slice(res[k].i))) res[k].ref = res[k].every = true;
+    // 1.29.2「下周开始每周二晚上…」：第一次是下周二，不是下周一
+    for (const x of res) {
+      if (!x.vague) continue;
+      const y = res.find((z) => z.every && z.kind === "week" && z.i > x.i && z.i - (x.i + x.len) <= 8);
+      if (y && /^[^，。；;]{0,4}(开始|起)/.test(t.slice(x.i + x.len))) { x.d = addDays(x.d, (y.d.getDay() + 6) % 7); x.key = keyOf(x.d); }
+    }
     return res;
   }
   // 挑出「事情发生」的那一天：有「调到/改到」时取后面那个，否则取第一个
@@ -294,6 +302,11 @@
     if (live.length >= 2) {
       const a = live[0], b = live[1], between = t.slice(a.i + a.len, b.i);
       if (/^\s*(至|到|-|~|—)\s*$/.test(between) && /交|截止|过期|前|报名|完成|提交/.test(t)) return b;
+    }
+    // 1.29.2「11月3日开始 11月6日截止」：要记的是截止那天
+    if (live.length >= 2 && /^\s*(开始|起)/.test(t.slice(live[0].i + live[0].len, live[0].i + live[0].len + 4))) {
+      const end = live.slice(1).find((x) => /^\s*(截止|结束|为止|之?前)/.test(t.slice(x.i + x.len, x.i + x.len + 4)));
+      if (end) return end;
     }
     const ch = t.match(CHANGE);
     if (ch) { const after = live.find((x) => x.i >= ch.index); if (after) return after; }
@@ -312,6 +325,7 @@
       if (m[1] != null) { h = +m[1]; mi = +m[2]; }
       else if (m[3] != null) {
         if (/[第这那每]$/.test(t.slice(Math.max(0, m.index - 1), m.index))) continue;     // 「第3点」不是时间
+        if (m[3].length > 1 && (isNaN(cnToNum(m[3])) || /[周期拜]$/.test(t.slice(Math.max(0, m.index - 1), m.index)))) { re.lastIndex = m.index + 1; continue; }   // 1.29.2「周五九点半」：「五」是星期，不是钟点
         h = cnToNum(m[3]); if (m[4] === "半") mi = 30; else if (m[4] === "一刻") mi = 15; else if (m[4] === "三刻") mi = 45; else if (m[5]) mi = +m[5];
       } else { h = cnToNum(m[6]); out.push({ i: m.index, len: m[0].length, h, mi: 0, am: true }); continue; }
       if (isNaN(h) || h > 24 || mi > 59) continue;
@@ -356,6 +370,7 @@
     while ((m = re.exec(t))) {
       let s = m[1].trim();
       if (!/[楼馆栋座区教中心]|^[A-Za-z]\d{3,4}$/.test(s)) continue;          // 只有数字（如 120 词）不算
+      if (/^[Pp]\s?\d{1,4}$/.test(s)) continue;          // 1.29.2「P120」是页码
       s = s.replace(/^.*(?:在|到|于|去|至|交|送|往|地点|的|和|与|点|半|时)(?=[一-龥A-Za-z\d])/, "");
       out.push({ i: m.index + m[0].indexOf(s), s: s.replace(/\s+/g, ""), score: 6, room: true });
     }
@@ -364,7 +379,10 @@
     const re3 = /([A-Za-z]{1,2}\d{0,2}\s?[-－]\s?\d{2,4})(?![\d点时:：号月日年元人分秒块米题])/g;   // 6.16「J1-302」「B-201」
     while ((m = re3.exec(t))) { if (m.index > 0 && /[A-Za-z\d]/.test(t.charAt(m.index - 1))) { re3.lastIndex = m.index + 1; continue; } if (!out.some((x) => x.s.includes(m[1]))) out.push({ i: m.index, s: m[1].replace(/\s+/g, ""), score: 6, room: true }); }
     const re2 = /(?:在|到|于|地点:?|还是在?|改在)\s*((?:[一-龥]{1,5}|\d{1,2}栋|\d{1,2}号?公寓|\d{1,2}#)?[A-Za-z]?\d{3,4})(?![\d点时:号月日年元人分秒块米题字词页份篇条个次])/g;
-    while ((m = re2.exec(t))) if (!out.some((x) => x.s.includes(m[1]))) out.push({ i: m.index + m[0].indexOf(m[1]), s: m[1], score: 6, room: true });
+    while ((m = re2.exec(t))) { const v = m[1].replace(/^[在到于]+/, ""); if (v && !out.some((x) => x.s.includes(v))) out.push({ i: m.index + m[0].indexOf(m[1]) + (m[1].length - v.length), s: v, score: 6, room: true }); }
+    // 1.29.2「西12-205」「东3-101」「理学院108」
+    const re5 = /([东西南北中主新老][区]?\d{1,2}\s?[-－]\s?\d{2,4}|[一-龥]{1,4}(?:学院|系馆|楼)(?:\d{3}|(?!20)\d{4}))(?![\d点时:：号月日年元人分秒块米题字词页份篇条个次级届期])/g;
+    while ((m = re5.exec(t))) { if (m.index > 0 && /[\dA-Za-z]/.test(t.charAt(m.index - 1))) continue; const v = m[1].replace(/^.*(?:在|到|于|去|地点)(?=[一-龥])/, "").replace(/\s+/g, ""); if (!out.some((x) => x.s.includes(v) || v.includes(x.s))) out.push({ i: m.index + m[1].length - v.length, s: v, score: 7, room: true }); }
     return out;
   }
   function placeCandidates(t, model) {
@@ -383,7 +401,7 @@
       while (st > lastEnd && m.index - st < 10 && !PLACE_STOP.test(t[st - 1])) st--;
       let s = t.slice(st, end), rest = t.slice(end), e;
       while ((e = rest.match(PLACE_EXT))) { s += e[1]; rest = rest.slice(e[1].length); end += e[1].length; }
-      s = s.replace(/^(地点|学校|校内|本校)/, (x) => (x === "学校" ? "学校" : "")).replace(/^(各|该|此|每个?)/, "").replace(/^\d+(?![\d号#栋楼座区])/, "");
+      { const s0 = s; s = s.replace(/^(地点|学校|校内|本校)/, (x) => (x === "学校" ? "学校" : "")).replace(/^(各|该|此|每个?)/, "").replace(/^\d+(?![\d号#栋楼座区教])/, ""); if (s0.endsWith(s)) st += s0.length - s.length; }
       const pre = t.slice(Math.max(0, st - 3), st).match(/(\d{1,2}[号#])$/);
       if (pre && /^(宿舍|公寓|教学|实验|实训|学生|综合)?楼|^(宿舍|公寓|教学|实验|实训)/.test(s)) { s = pre[1] + s; st -= pre[1].length; }
       if (s.length < 2 || NOT_PLACE.test(s)) continue;
@@ -418,7 +436,13 @@
       const gap = r.i - (n.i + n.s.length);
       if (gap >= 0 && gap <= 1) c.push({ i: n.i, s: `${n.s} ${r.s}`, score: Math.max(n.score, r.score) + 1 });
       const gap2 = n.i - (r.i + r.s.length);
-      if (gap2 >= 0 && gap2 <= 1 && /(办公室|会议室|教室|机房|实验室)$/.test(n.s) && n.s.length <= 8) c.push({ i: r.i, s: `${r.s}${n.s}`, score: Math.max(n.score, r.score) + 1 });
+      if (gap2 >= 0 && gap2 <= 1 && /(办公室|会议室|教室|机房|实验室|自习室|研讨室|活动室|报告厅)$/.test(n.s) && n.s.length <= 8) c.push({ i: r.i, s: `${r.s}${n.s}`, score: Math.max(n.score, r.score) + 1 });
+    }
+    // 1.29.2「由A301调整为B205」「原定在…，改到…」：换走的地点不算，换到的地点优先
+    for (const x of c) {
+      const before = t.slice(Math.max(0, x.i - 6), x.i);
+      if (/(由|从|原来?在?|原定在?|不在|不是)\s*$/.test(before)) x.score -= 5;
+      else if (/(调整为|调整到|改为|改到|改在|换到|换成|调到|移到|挪到)\s*(在)?\s*$/.test(before)) x.score += 3;
     }
     c.sort((a, b) => b.score - a.score || b.s.length - a.s.length);
     return c[0].s.slice(0, 40);
@@ -452,6 +476,9 @@
     if (/取消(?!资格|评优|成绩|学分|考试资格)/.test(t)) s.通知 += CHANGE.test(t) || s.活动 >= 4 ? 1 : 4;
     if (/^[^:：，。]{0,8}通知[:：]/.test(t) && !/通知[^:：]*通知/.test(t)) s.通知 -= 2;   // 「学生会通知：」只是开头
     if (/作业照常|作业不变|照常交/.test(t)) s.作业 -= 3;
+    if (/(交|提交|上交)/.test(t) && s.通知 < 4 && s.会议 < 5 && s.活动 < 3 && COURSES.some(([re]) => re.test(t))) s.作业 += 3;   // 1.29.2「周日交高数」
+    if (/(结业|期中|期末|上机|模拟|线上|闭卷|开卷)考(试)?|考试(?!报名|成绩|安排表|资格)/.test(t) && !/报名(?!的)|成绩/.test(t)) { s.会议 -= 3; s.活动 -= 3; }   // 1.29.2「党课结业考试」「四六级考试，没报名的抓紧」是考试
+    if (/(班会|例会|上课|下课|课|实验课|晚自习|开会)(开始)?(之?前|以前)(交|提交|上交|完成|发|给|收)/.test(t)) { s.会议 -= 5; s.作业 += 2; }   // 「班会前交」：班会只是截止时间
     const tg = t.match(/(改成|改为|换成)(.{0,10})/);
     if (tg) { const x = ruleScores0(tg[2]); for (const k of Object.keys(s)) s[k] += 2 * x[k]; }
     return s;
@@ -461,9 +488,9 @@
     for (const [re, name] of COURSES) if (re.test(t)) return name;
     return "";
   }
-  const TITLE_WORDS = /([一-龥]{0,8}大会|年级大会|主题班会|班委会议|班委会|支部大会|班会|党课|团日活动|组会|例会|开会|[一-龥]{0,6}(?:比赛|竞赛|晚会|运动会|讲座|分享会|报告会|宣讲会|交流会|论坛|沙龙|招新|面试|培训|演练|彩排|开幕式)(?:报名)?|查寝|体测|晨读|跑操|点名|评教|选课|停课|调课|补课|闭馆|读书会|英语角|聚餐|观影|团建|社会实践(?!报告|心得|总结)|实习(?!报告|心得|总结)|课设|课程设计|毕业照|升旗|献血|返校|离校|(?:(?![周天日月号点午晚早今明后有在是])[一-龥]){0,4}考试|测验|缴费|领教材|领取学生证)/;
+  const TITLE_WORDS = /([一-龥]{0,8}大会|年级大会|主题班会|班委会议|班委会|支部大会|班会|党课|团日活动|组会|例会|开会|[一-龥]{0,6}(?:比赛|竞赛|晚会|运动会|讲座|分享会|报告会|宣讲会|交流会|论坛|沙龙|招新|面试|培训|演练|彩排|开幕式)(?:报名)?|查寝|体测|晨读|跑操|点名|评教|选课|停课|调课|补课|闭馆|读书会|英语角|聚餐|观影|团建|社会实践(?!报告|心得|总结)|实习(?!报告|心得|总结|周记|日志)|实习周记|实习日志|课设|课程设计|毕业照|合影|集体照|证件照|接新生|[一-龥]{0,4}志愿(?:服务|活动)|入馆教育|升旗|献血|返校|离校|(?:(?![周天日月号点午晚早今明后有在是])[一-龥]){0,4}考试|测验|缴费|领教材|领取学生证)/;
   // 6.6 开头的连接词、称呼、语气词：不是事情本身
-  const LEAD_JUNK = /^(截至|截止到?|之前|以前|每个人|每人|所有人|另外|还有|然后|同时|并且|此外|以及|另|再|最后|首先|其次|补充一下|补充|提醒一下|提醒|注意|重要|紧急|通知|请|麻烦|各班班长|各班|各位同学注意|各位同学|各位|同学们|全体同学|同学|大家|记得|务必|一定要|一定|需要|必须|要|都|就|也|还|先)[，,：:\s]*/;
+  const LEAD_JUNK = /^(截至|截止到?|之前|以前|每个人|每人|所有人|各班于|于|另外|还有|然后|同时|并且|此外|以及|另|再|最后|首先|其次|补充一下|补充|提醒一下|提醒|注意|重要|紧急|通知|请|麻烦|各班班长|各班|各位同学注意|各位同学|各位|同学们|全体同学|同学|大家|记得|务必|一定要|一定|需要|必须|要|都|就|也|还|先)[，,：:\s]*/;
   function stripLead(s) { let prev; do { prev = s; s = s.replace(LEAD_JUNK, ""); } while (s !== prev && s); return s; }
   function titleOf(t, type, course, loc) {
     t = String(t || "").replace(/〔链接〕/g, " ");
@@ -471,7 +498,9 @@
     const reg = t.match(/(四六级|英语四级|英语六级|四级|六级|计算机二级|二级|教资|普通话|考研|[一-龥]{2,8}(?:比赛|竞赛|大赛|杯))(?:考试)?[^，。；]{0,6}报名/);
     if (reg) return (reg[1] + "报名").slice(0, 16);
     if (course && type !== "作业" && (SCHEDULE.test(t) || /(调|改|换|挪|移)(到|至|成|为|在)|停上|不上了?|取消/.test(t))) return (course + "调课").slice(0, 16);
-    const ex = type !== "作业" && t.match(/(期中|期末)?(上机考试|机考|考试|测验|小测|随堂测|随堂考|模拟考)|(期中|期末)考?/);
+    const big = type !== "作业" && !/报名(?!的)/.test(t) && t.match(/(四六级|英语四级|英语六级|计算机二级|教资|普通话)(考试|笔试|口试|测试)?/);
+    if (big) return (big[1] + (big[2] || "考试")).slice(0, 16);   // 1.29.2「四六级考试」不写成「大学英语考试」
+    const ex = type !== "作业" && t.match(/(期中|期末)?(上机考试|机考|考试|测验|小测|随堂测|随堂考|模拟考|听写|默写)|(期中|期末)考?/);
     if (course && ex) { const nm = (ex[1] || ex[3] || "") + (ex[2] ? ex[2].replace(/^(机考|随堂考)$/, "考试") : "考试"); return (course + (/听力|口语/.test(t) && !/听力|口语/.test(course) ? t.match(/听力|口语/)[0] : "") + nm).slice(0, 16); }   // 6.16「线性代数期中考试」
     if (course && (type === "作业" || /考试|测验|期中|期末|小测|上课|课堂|上机|实验课|在[^，。；]{1,12}上$|第[一二三四五六七八九十\d\-~、]+节/.test(t))) return course;      // 科目就写课程名，作业页按它分组
     // 6.8 正式通知：「关于期中教学检查工作，请各位老师完成…并填写下方在线电子表格」→「期中教学检查：填写在线电子表格」
@@ -485,21 +514,25 @@
     }
     const q = t.match(/[“"「《]([^”"」》]{2,16})[”"」》]\s*(专题)?(讲座|报告会?|比赛|竞赛|大赛|分享会|晚会|培训|活动)/);
     if (q) return (q[1] + q[3]).slice(0, 16);
-    const vis = t.match(/参观|研学|游览|实地考察/);
-    if (vis && loc) return (vis[0] + loc).slice(0, 14);
+    const film = t.match(/(电影|影片|纪录片|观影)[^《，。]{0,4}《([^》]{1,16})》|《([^》]{1,16})》\s*(电影|观影|放映)/);
+    if (film && type === "活动") return ("观影《" + (film[2] || film[3]) + "》").slice(0, 16);   // 1.29.2「观看爱国主义电影《长津湖》」
+    const vis = t.match(/(参观|研学|游览|实地考察)([一-龥A-Za-z]{2,10}?(?:馆|园|厂|基地|中心|所|院|公司|企业|展|博物馆|纪念馆|科技馆)?)(?=[，,。；;！!\s]|$)/);
+    if (vis && vis[2] && vis[2] !== loc) return (vis[1] + vis[2]).slice(0, 14);   // 1.29.2「去参观校史馆」→「参观校史馆」，不拿集合地点当标题
+    if (vis && loc) return (vis[1] + loc).slice(0, 14);
     let k = t.match(TITLE_WORDS);
-    if (k && /(不能|无法|不得|不可|才能|才可以|方可|否则)(参加|进入|报名)?$/.test(t.slice(0, k.index + k[1].length).replace(/(考试|测验)$/, ""))) k = null;   // 6.16「…将不能参加考试」
+    if (k && /(不能|无法|不得|不可|才能|才可以|方可|否则)(参加|进入|报名)?$/.test(t.slice(0, k.index + k[1].length).replace(/(考试|测验)$/, ""))) k = null;
+    if (k && /^\s*(开始)?(之?前|以前|结束后?|后|之后|上)(交|提交|上交|完成|发|给|收)/.test(t.slice(k.index + k[0].length))) k = null;   // 1.29.2「周一班会前交」：班会只是截止时间   // 6.16「…将不能参加考试」
     // 「下周一没课班级去参加讲座」：关键词前面最多带几个修饰字，取最后一个动词后面的部分
     if (k) { let w = k[1].replace(/^[第]?[一二三四五六七八九十百\d]*期/, "");
       const th = t.match(/主题\s*[:：]\s*([^\s，。；;！!]{2,40})/);
-      if (th && /(会|讲座|论坛|沙龙|培训|活动|比赛|竞赛)$/.test(w) && w.length >= 3) return (w + "：" + th[1].replace(/[“”"「」《》]/g, "").trim()).slice(0, 32); const cut = w.match(/^.*(?:参加|参与|去|到|在|开|召开|举办|举行|开展|组织|进行|有|听|观看|看)(?=[一-龥])/); if (cut && cut[0].length < w.length - 1) w = w.slice(cut[0].length); w = w.replace(/^(召开|举办|举行|开展|组织|参加|进行|有)/, ""); if (/^[级届]/.test(w)) { const yr = t.slice(0, k.index + k[1].indexOf(w)).match(/(\d{2,4})$/); w = yr ? yr[1] + w : w.slice(1); } return w.slice(0, 14); }
+      if (th && /(会|讲座|论坛|沙龙|培训|活动|比赛|竞赛)$/.test(w) && w.length >= 3) return (w + "：" + th[1].replace(/[“”"「」《》]/g, "").trim()).slice(0, 32); const cut = w.match(/^.*(?:参加|参与|去|到|在|开(?!幕|学|班|展|放|赛)|召开|举办|举行|开展|组织|进行|有|听|观看|看)(?=[一-龥])/); if (cut && cut[0].length < w.length - 1) w = w.slice(cut[0].length); w = w.replace(/^(召开|举办|举行|开展|组织|参加|进行|有)/, ""); if (/^[级届]/.test(w)) { const yr = t.slice(0, k.index + k[1].indexOf(w)).match(/(\d{2,4})$/); w = yr ? yr[1] + w : w.slice(1); } return w.slice(0, 14); }
     let s = t;
     if (loc) s = s.split(loc).join("");
-    s = s.replace(/【[^】]*】|^(通知|提醒|注意|重要|紧急|温馨提示)[:：]?|辅导员通知[:：]?/g, "")
+    s = s.replace(/【[^】]*】|^(通知|提醒|注意|重要|紧急|温馨提示)[:：]?|辅导员通知[:：]?|^(转发)?[:：]?[^:：，。]{0,8}(通知|要求)[:：]/g, "")
       .replace(/(下下|下个?|本|这个?)?(周|星期|礼拜)[一二三四五六日天1-7]|大后天|后天|明天|今天|今晚|明晚|明早|今早|\d{1,2}月\d{1,2}[日号]?|\d{1,2}[.\/]\d{1,2}/g, "")
       .replace(/(上午|下午|晚上?|中午|早上?|傍晚)?\d{1,2}([:点时]\d{0,2}(半|分|整)?)?/g, "").replace(/(上午|下午|晚上?|中午|早上?|傍晚)?[一二两三四五六七八九十]{1,3}[点时](半|一刻|三刻|整)?/g, "")
       .replace(/第[一二三四五六七八九十\d]+([-~、至到][一二三四五六七八九十\d]+)?节课?(下课)?(以?后|之后|前|之前)?/g, "")   // 6.16「第三节课下课后」
-      .replace(/(之前|以前|前|截止|为止|之内|内)(?=[把交提完填做写])/g, "").replace(/(上午|下午|晚上|中午|早上|傍晚|凌晨)/g, "")
+      .replace(/(之前|以前|前|截止|为止|之内|内)(?=[把交提完填做写上报发领缴])/g, "").replace(/(上午|下午|晚上|中午|早上|傍晚|凌晨)/g, "")
       .replace(/^(请|各位|大家|同学们|全体同学)[，,]?/g, "")
       .replace(/[（(]\s*[)）]/g, "").replace(/^[①②③④⑤⑥⑦⑧⑨⑩\d.、\-~—\s]+/, "").replace(/^[，,。:：\s在于到\-~—]+/, "");
     let first = stripLead((s.split(/[，,。；;！!\n]|\s+(?=[一-龥])/).map((x) => stripLead(x.trim())).find((x) => x.replace(/[^一-龥A-Za-z]/g, "").length >= 2) || t).trim()).replace(/^(有|是|在|于|将|会|需|得|的)/, "");
@@ -514,12 +547,13 @@
     // 6.16 说法再整理一下，接近人写的标题
     first = first.replace(/^(收到请?回复|收到请?扣1|请回复)[:：]?/, "").replace(/^[^:：]{0,10}[吗呢哪啥么][:：]/, "")          // 「收到请回复：」「有同学问作业交哪：」
       .replace(/^(班级)?群里(发|说)的(那个|这个)?|^(那个|这个)/, "");
-    const una = first.match(/^(未|没有?|还没)(完成|交|提交|填写?|报名|参加)(.{2,12}?)的(同学|人|班级)/);      // 「未完成网上学习的同学将不能…」→「完成网上学习」
+    const una = first.match(/^(未|没有?|还没)(完成|交|提交|填写?|报名|参加)(.{2,12}?)的(同学|人|班级|抓紧|赶紧|尽快|速度)/);      // 「未完成网上学习的同学将不能…」→「完成网上学习」
     if (una) first = una[2] + una[3];
     const yx = first.match(/^(.{0,10}?)(表格|表|问卷|材料|作业|名单|信息|选题)(大家|同学们|各位)?(填|交|报|收|发|传)(一下|一哈|上来|好)$/);   // 「那个表格大家填一下」→「填写表格」
     if (yx) first = { 填: "填写", 交: "提交", 报: "上报", 收: "上交", 发: "提交", 传: "上传" }[yx[4]] + yx[1] + yx[2];
     const goTo = first.match(/^交(到|在)(.{2,10}?)(作业)?(板块|平台|里|上)?$/);       // 「交到学习通作业板块」→「交作业（学习通）」
     if (goTo) first = "交作业（" + goTo[2].replace(/作业$/, "") + "）";
+    if (loc && /^(休息|关门|闭馆|不营业|暂停营业|暂停开放|开放)$/.test(first)) first = loc + first;   // 1.29.2「快递驿站休息」
     return (first || t.trim()).slice(0, 16);
   }
 
@@ -573,14 +607,42 @@
       if (marks.length >= 2) {
         const head = t.slice(0, marks[0].i), hm = ms.filter((x) => x.i < marks[0].i);
         const parts = marks.map((mk, k) => t.slice(mk.body, k + 1 < marks.length ? marks[k + 1].i : t.length).replace(/[，,；;。\s]+$/, ""));
-        const evt = (p) => timeMentions(p).length > 0 || Math.max(...Object.values(ruleScores(p))) >= 2;
+        // 1.29.2 开头写了「今日作业（明天交）：」：下面每一条都是一件事，哪怕只写了「高数P120第1-5题」
+        const headKind = /作业|任务|安排|事项|待办/.test(head) && head.replace(/\s/g, "").length <= 24;
+        const evt = (p) => timeMentions(p).length > 0 || Math.max(...Object.values(ruleScores(p))) >= 2 || (headKind && p.replace(/[^一-龥A-Za-z\d]/g, "").length >= 3);
         if (parts.filter(evt).length >= 2 && (hm.length || parts.every((p) => dateMentions(p, pub).some((x) => !x.past && !x.ref)))) {
-          const dw = hm.length ? head.substr(hm[0].i, hm[0].len) : "";
+          const hd = hm.filter((x) => !x.past && !x.ref), due = hd.find((x) => /^[^，。；;]{0,3}(交|前|截止|收)/.test(head.slice(x.i + x.len))) || hd[hd.length - 1] || hm[0];
+          const dw = due ? head.substr(due.i, due.len) + (headKind && /作业/.test(head) ? "交" : "") : "";
           return parts.filter(evt).map((p) => ({ text: (dw && !dateMentions(p, pub).some((x) => !x.past && !x.ref) ? dw + " " : "") + p, start: 0 }));
         }
       }
     }
-    if (groups.length < 2 || keys.size < 2) return [{ text: t, start: 0 }];
+    if (groups.length < 2) {
+      // 1.29.2「作业：线代 P88 2、5 概率论 习题一 全做 都是下周二交」：开头说是作业，后面按课程一门一门列
+      if (/^(今[日天]|本周|这周|明天|下周)?的?(作业|任务)(汇总|安排|清单)?\s*([（(][^)）]{0,10}[)）])?\s*[:：]/.test(t)) {
+        const hits = [];
+        for (const [re] of COURSES) { const g = new RegExp(re.source, re.ignoreCase ? "gi" : "g"); let cm; while ((cm = g.exec(t))) { if (!hits.some((h) => Math.abs(h - cm.index) < 2)) hits.push(cm.index); if (!cm[0]) g.lastIndex++; } }
+        hits.sort((a, b) => a - b);
+        if (hits.length >= 2) {
+          const tail = t.slice(hits[hits.length - 1]).match(/[，,。；;\s]+(都|全部|均|统一)?(是|在)?[^，,。；;]*?(交|截止)[^，,。；;]*$/);
+          const end = tail ? hits[hits.length - 1] + tail.index : t.length, shared = tail ? tail[0].replace(/^[，,。；;\s]+(都|全部|均|统一)?(是|在)?/, "") : "";
+          const parts = hits.map((h, k) => t.slice(h, k + 1 < hits.length ? hits[k + 1] : end).replace(/[，,；;。\s]+$/, ""));
+          if (parts.every((p) => p.length >= 2)) return parts.map((p) => ({ text: p + (shared && !dateMentions(p, pub).some((x) => !x.past && !x.ref) ? " " + shared : ""), start: 0 }));
+        }
+      }
+      // 1.29.2「明天：上午九点体检，下午三点开班会」：同一天好几件事，各有各的钟点
+      if (groups.length === 1) {
+        const cl = t.split(/[，,；;。]/).map((x) => x.trim()).filter(Boolean);
+        const evs = cl.filter((x) => timeMentions(x).length > 0 && Math.max(...Object.values(ruleScores(x))) >= 3 && !/^(到|至|截止)/.test(x));
+        const tps = new Set(evs.map((x) => { const sc = ruleScores(x); return Object.keys(sc).sort((a, b) => sc[b] - sc[a])[0] + "|" + x.replace(/[^一-龥]/g, "").slice(-3); }));
+        if (evs.length >= 2 && evs.length === cl.filter((x) => timeMentions(x).length > 0).length && tps.size === evs.length && !/集合|出发|到场|签到/.test(t)) {
+          const g = groups[0], dw = t.substr(g.i, g.end - g.i);
+          return evs.map((x) => x.replace(/^.*[:：]\s*/, "")).map((x) => ({ text: (dateMentions(x, pub).some((y) => !y.past && !y.ref) ? "" : dw + " ") + x, start: 0 }));
+        }
+      }
+      return [{ text: t, start: 0 }];
+    }
+    if (keys.size < 2) return [{ text: t, start: 0 }];
     // 「明天的班会改到周一」：改期说的是同一件事
     const ch = t.match(CHANGE);
     if (ch && ch.index > groups[0].i && ch.index < groups[groups.length - 1].i && !/[。；;\n]/.test(t.slice(groups[0].i, ch.index))) return [{ text: t, start: 0 }];
@@ -602,7 +664,8 @@
       parts.push({ text: t.slice(segStart), start: segStart });
       // 每段都得像一件事（有类型关键词或时间）
       const ok = parts.filter((p) => {
-        if (/^(不|否则|逾期|过期|没|未|如果|若)/.test(p.text.replace(/^[\s，,；;]+/, ""))) return false;      // 「不续费12月1号停网」是后果，不是另一件事
+        if (/^(不|否则|逾期|过期|没|未|如果|若)/.test(p.text.replace(/^[\s，,；;]+/, ""))) return false;
+        if (/^[\s，,；;]*(从|自)?\s*(下下?个?周|本周|这周|下个?月|明天|今天|后天|\d{1,2}月\d{1,2}[日号]?|(下|本|这)?周[一二三四五六日天])\s*(开始|起)[。！!，,]*\s*$/.test(p.text)) return false;   // 1.29.2「从下周开始」只是说从哪天起      // 「不续费12月1号停网」是后果，不是另一件事
         const sc = ruleScores(p.text.replace(ONLINE, " "));
         return Math.max(...Object.values(sc)) >= 2 || timeMentions(p.text).length > 0 || /交|讲|做|考|开|举行|进行|提交|集合|报名|截止|上课|公示/.test(p.text);
       });
@@ -653,6 +716,7 @@
     }
     const announce = /请(?!假|问|教|客)|各位|大家|同学们|全体|通知|注意|提醒|务必|全班|每班|每人|班委|班长|学委|辅导员|老师说|统一|准时/.test(s);
     if (QUESTION.test(s) && !announce) return true;
+    if (QUESTION.test(s) && /^(班长|学委|老师|辅导员|课代表|助教|团支书)[，,\s]*(我|请问|问一下|想问|能不能|可以)/.test(s)) return true;   // 1.29.2「班长我身份证号填错了能改吗」是在问人
     if (INVITE.test(s) && !/通知|请(?!假|问|教|客)|各位|全体|务必|班委|辅导员|学院|学校/.test(s) && Math.max(...Object.values(ruleScores(s))) < 3) return true;
     // 接龙名单（「周日聚餐 1. 小明 2. 小红」）
     if (/^#?接龙/.test(s) || (s.match(/(^|\n)\s*\d{1,2}[.、]\s*[一-龥A-Za-z]{1,6}\s*(已交|已完成|收到|\+1)?\s*(?=\n|$)/g) || []).length >= 2) return true;
@@ -672,7 +736,7 @@
       const tms = timeMentions(t), after = tms.find((x) => x.i >= pick.i) || (CHANGE.test(t) ? null : tms[0]);
       if (after) time = resolveTime(t, after, 0);
       else if (/中午/.test(t.slice(pick.i))) time = "12:00";
-      if (/晚上?12点|今晚12点|24:00|24点/.test(t) && !time) time = "23:59";
+      if (/晚上?12点|今晚12点|24:00|24点|零点|0点前|凌晨0点/.test(t) && (!time || time === "00:00")) time = "23:59";
       if (!time && /同一时间|原时间|时间不变|时间照旧/.test(t) && tms.length) time = resolveTime(t, tms[0], 0);
     }
     if (!time && pick && model && model.periodTime) time = model.periodTime(t) || "";
@@ -877,7 +941,7 @@
         if (!day && /(^|[^明今昨])(上午|下午|晚上?|中午|傍晚|早上|早晨)(?=[一二两三四五六七八九十\d整半]|.{0,2}点)|(^|[^明今昨])(上午|下午|晚上|中午|傍晚)|今晚|今早/.test(segT) && timeMentions(segT).length) { day = pub; time = findTime(segT); }
         else if (!day && /下午第|上午第|晚自习|早自习/.test(segT)) day = pub;
         // 6.7 只说了钟点（「场务12:05就可以来了」「其他人12点集合」）：就是发消息这天，提醒核实
-        else if (!day && /\d{1,2}[:：]\d{2}|\d{1,2}\s*点(半|[一二三四五六七八九十\d]{1,2}分?)?(?!多|钟|半天)/.test(segT) && /来|到|集合|签到|彩排|开始|出发|见|过来|报到|开会|上课/.test(segT)) { day = pub; time = findTime(segT); ev.guessDay = true; }
+        else if (!day && /\d{1,2}[:：]\d{2}|\d{1,2}\s*点(半|[一二三四五六七八九十\d]{1,2}分?)?(?!多|钟|半天)/.test(segT) && /来|到|集合|签到|彩排|开始|出发|见|过来|报到|开会|上课|前交|前提交|之前交|截止/.test(segT)) { day = pub; time = findTime(segT); ev.guessDay = true; }
         if (!type) {
           // 没有类型关键词：有日期 + 时间/地点的，多半是通知；否则当闲聊或交给 AI
           if ((day && (time || loc || course) && segT.length >= 6 && /请|要|需|交|到|集合|参加|通知|安排|记得|务必|准时|带|上课|停|改|取消|开始|截止|前|点|:/.test(segT)) || force) type = "通知";
@@ -1109,6 +1173,6 @@
     })).filter((x) => x.subject || x.summary);
   }
 
-  const api = { parse, digest, tidy, adjustments, tableItems, splitMessages, isChatter, findDate, findTime, findLocation, extractPrompt, parseJsonItems, createModel, courseOf, version: 2 };
+  const api = { _scores: (t) => ruleScores(t), _places: (t) => placeCandidates(normalize(t)), parse, digest, tidy, adjustments, tableItems, splitMessages, isChatter, findDate, findTime, findLocation, extractPrompt, parseJsonItems, createModel, courseOf, version: 2 };
   if (typeof module !== "undefined" && module.exports) module.exports = api; else root.LaoParse = api;
 })(typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : this);

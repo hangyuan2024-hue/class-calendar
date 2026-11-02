@@ -1,7 +1,7 @@
 // 6.16 本地整理准确率基准：node test/parse-bench.js [--v]
 // 每条消息按「条数、类型、日期、时间、地点、标题」打分，最后输出各项准确率；--v 打印每条没对上的
 const P = require("../parse.js");
-const cases = require("./bench-cases.js");
+const cases = require(process.argv.includes("--hard3") ? "./bench-hard3.js" : process.argv.includes("--hard2") ? "./bench-hard2.js" : process.argv.includes("--hard") ? "./bench-hard.js" : "./bench-cases.js");   // --hard / --hard2：第二、三套留出集
 const PUB = "2026-10-23", V = process.argv.includes("--v");
 const norm = (s) => String(s || "").replace(/\s+/g, "").toLowerCase();
 const tot = { n: 0, type: 0, date: 0, time: 0, loc: 0, sub: 0 }, cnt = { n: 0, type: 0, date: 0, time: 0, loc: 0, sub: 0 };
