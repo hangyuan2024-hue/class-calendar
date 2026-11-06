@@ -34,9 +34,9 @@ async function load() {
   // 组长、班委要从班级名单里选人拉进组
   await Promise.all(mine.filter((c) => !c.is_teacher && (groups[c.id] || []).some((g) => g.lead) || c.member_role === "monitor")
     .map(async (c) => { try { rosters[c.id] = await rpc("class_roster", { cid: c.id }); } catch (e) { /* 没有看名单的权限 */ } }));
-  // 7.55（7.28 SQL，小程序 1.24.5）班委也能审批入班申请：等批准的人
+  // 1.33（7.54 SQL）班委默认能批准谁入班：把待批准的人列出来（老师关掉了这个班委的审批权时服务器返回空）
   await Promise.all(mine.filter((c) => !c.is_teacher && c.status === "approved" && c.member_role === "monitor")
-    .map(async (c) => { try { pendBy[c.id] = (await rpc("class_pending", { p_cid: c.id })) || []; } catch (e) { pendBy[c.id] = []; } }));
+    .map(async (c) => { try { pend[c.id] = (await rpc("class_pending", { p_cid: c.id })) || []; } catch (e) { pend[c.id] = []; } }));
   renderMine();
   // 不只老师：学生（比如班委）也能创建班级，创建者就是这个班的管理者
   await renderTeaching();
@@ -44,7 +44,6 @@ async function load() {
   if (me.role === "admin") renderAdmin().catch((e) => toast(e.message, true));
 }
 
-const pendBy = {};
 // ---------- 学生视角 ----------
 function renderMine() {
   const list = mine.filter((c) => !c.is_teacher);
@@ -57,10 +56,10 @@ function renderMine() {
           ${pending ? `<span class="badge wait">等待老师批准</span>` : `<span class="badge ok">已入班</span>`}
           ${mon ? `<span class="badge mon">班委</span>` : ""}</div>
         <div class="meta">老师：${esc(c.teacher_name || "")}${mon ? " · 我的权限：" + (permList(c).join("、") || "暂无") : ""}</div>
-        ${(pendBy[c.id] || []).length ? `<div class="gtitle">入班申请 <span class="badge wait">${pendBy[c.id].length} 人待批准</span></div>` + pendBy[c.id].map((m) => `<div class="item"><div class="grow">${esc(m.name)} <span class="meta">${esc(m.account || "")} · ${fmt(m.joined_at)} 申请</span></div>
+        <div class="roster" id="roster_${esc(c.id)}"></div>
+        ${mon && (pend[c.id] || []).length ? `<div class="gtitle">待批准 <span class="meta">${pend[c.id].length} 人申请加入，班委也能批准</span></div>` + pend[c.id].map((m) => `<div class="item"><div class="grow">${esc(m.name)} <span class="meta">${esc(m.account || "")} · ${fmt(m.joined_at)} 申请</span></div>
           <button class="small primary" data-act="approve" data-cid="${esc(c.id)}" data-uid="${esc(m.user_id)}">批准</button>
           <button class="small danger" data-act="reject" data-cid="${esc(c.id)}" data-uid="${esc(m.user_id)}">拒绝</button></div>`).join("") : ""}
-        <div class="roster" id="roster_${esc(c.id)}"></div>
         ${pending ? "" : `<div class="gtitle">分组 <span class="meta">${mon ? "可以建组、调整组员、设组长" : "选你上的课 / 所在小组加入，组里的事项和消息只有组员能看到"}</span></div>${groupsHtml(c.id, mon, null)}`}</div>
       ${mon && c.can_view_members ? `<button class="small" data-act="roster" data-id="${esc(c.id)}">成员名单</button>` : ""}
       <button class="small danger" data-act="leave" data-id="${esc(c.id)}" data-name="${esc(c.name)}">${pending ? "撤回申请" : "退出班级"}</button>
@@ -81,7 +80,7 @@ $("joinForm").onsubmit = (e) => {
 };
 
 // ---------- 分组（老师、班委、组长、同学都用这一块）----------
-const groups = {}, mce = {};
+const groups = {}, mce = {}, pend = {}, appr = {};
 async function loadGroups(cid) { try { groups[cid] = await rpc("class_groups_get", { cid }); } catch (e) { groups[cid] = null; } }
 // staff：老师 / 班委，能建组、删组、设组长；roster：本班名单（用来拉人进组）
 function groupsHtml(cid, staff, roster) {
@@ -132,6 +131,7 @@ async function renderTeaching() {
   if (!open.size && list.length === 1) open.add(list[0].id);
   for (const c of list) { try { rosters[c.id] = await rpc("class_roster", { cid: c.id }); } catch (e) { rosters[c.id] = []; } }
   for (const c of list) { try { classFeats[c.id] = await rpc("class_features_get", { cid: c.id }); } catch (e) { classFeats[c.id] = null; } }
+  for (const c of list) { try { appr[c.id] = (await rpc("class_approvers", { cid: c.id })) || {}; } catch (e) { appr[c.id] = null; } }   // 1.33 每个班委能不能审批入班
   if (location.hash === "#features" && list.length) open.add(list[0].id);
   try { for (const x of await rest(`classes?select=id,members_can_edit&teacher_id=eq.${me.id}`)) mce[x.id] = !!x.members_can_edit; } catch (e) { /* 服务器还没更新 */ }
   $("teachList").innerHTML = list.length ? list.map((c) => {
@@ -151,7 +151,7 @@ async function renderTeaching() {
           <select data-act="role"><option value="student" ${m.member_role === "student" ? "selected" : ""}>学生</option>
             <option value="monitor" ${m.member_role === "monitor" ? "selected" : ""}>班委</option></select>
           <span class="perms ${m.member_role === "monitor" ? "" : "hidden"}">${Object.entries(PERM_NAMES).map(([k, v]) =>
-            `<label><input type="checkbox" data-perm="${k}" ${m[k] ? "checked" : ""}> ${v}</label>`).join("")}</span>
+            `<label><input type="checkbox" data-perm="${k}" ${m[k] ? "checked" : ""}> ${v}</label>`).join("")}${appr[c.id] ? `<label title="默认打开：这个班委可以批准或拒绝入班申请"><input type="checkbox" data-appr ${appr[c.id][m.user_id] !== false ? "checked" : ""}> 审批入班</label>` : ""}</span>
           <button class="small danger" data-act="remove" data-name="${esc(m.name)}">移出</button></div>`).join("")
         : `<div class="empty">还没有成员。把班级码发到班群里吧。</div>`}
       <h3>分组 <span class="meta" style="font-weight:400">班里再分组，比如「高数 5 班」「第 3 小组」。发给某个组的事项和班级墙消息，只有组员（和你、班委）能看到。</span></h3>
@@ -212,6 +212,12 @@ async function saveMember(row) {
 }
 $("teachList").addEventListener("change", (e) => {
   const row = e.target.closest(".item[data-uid]"); if (!row) return;
+  if (e.target.matches("input[data-appr]")) {   // 1.33 单独开关某个班委的审批权
+    const on = e.target.checked;
+    guard(e.target, async () => { await rpc("set_member_approve", { cid: row.dataset.cid, uid: row.dataset.uid, p_on: on }); (appr[row.dataset.cid] || {})[row.dataset.uid] = on; toast(on ? "这个班委可以审批入班了" : "已关掉这个班委的审批权"); })
+      .then((ok) => { if (!ok) e.target.checked = !on; });
+    return;
+  }
   if (e.target.matches("select[data-act=role]") && e.target.value === "monitor" && !row.querySelector("input[data-perm]:checked")) {
     // 新任命的班委默认开「增改事项」
     row.querySelector("input[data-perm=can_edit]").checked = true;

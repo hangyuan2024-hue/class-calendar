@@ -287,6 +287,15 @@ button {
   -webkit-overflow-scrolling: touch;
 }
 
+/* 早自习（第一节上面）、晚自习（最后一节下面）：和小程序一样；在网站「课程表」的「早自习 / 晚自习」按钮里设置 */
+.st-l { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 6px 2px; font-size: 11px; font-weight: 700; color: #4b5bd0; text-align: center; line-height: 1.3; border-bottom: 1px solid var(--line, #e7e7e2); }
+.st-l small { font-weight: 400; font-size: 10px; opacity: .8; }
+.st-c { padding: 4px; min-height: 44px; border-bottom: 1px solid var(--line, #e7e7e2); }
+.st-c.today-col { background: rgba(83, 102, 232, .05); }
+.st-c b { display: flex; flex-direction: column; justify-content: center; height: 100%; box-sizing: border-box; padding: 4px 6px; border-radius: 8px; border: 1px dashed rgba(83, 102, 232, .5);
+  background: repeating-linear-gradient(135deg, rgba(83, 102, 232, .1) 0 6px, rgba(83, 102, 232, .04) 6px 12px); color: #3d4db8; font-size: 12px; font-weight: 600; overflow: hidden; }
+.st-c b small { font-weight: 400; font-size: 10px; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
 .schedule-grid {
   display: grid;
   grid-template-columns: 66px repeat(7, minmax(104px, 1fr));
@@ -995,6 +1004,36 @@ function semesterStartDate() {
  * swap：这天按 from 那天的课上；off：这天放假；cancel：这天某门课不上；add：这天加一节课
  */
 var ADJ_KEY = "personal_course_schedule_adjust_v1";
+/* 早自习 / 晚自习（键 morning_v1 / evening_v1，网站「课程表」里设置、跟着账号同步）：
+   规则和首页、小程序一样——没开、时间不对、那天放假 / 停了这节自习、不在设置的星期里就没有；调课那天按被调的那天算 */
+function studyOn(key, defName, k, adj) {
+  var ev = null; try { ev = JSON.parse(localStorage.getItem(key) || "null"); } catch (e) {}
+  if (!ev || !ev.on || !/^\d{1,2}:\d{2}$/.test(ev.t0 || "") || !/^\d{1,2}:\d{2}$/.test(ev.t1 || "") || ev.t1 <= ev.t0) return null;
+  var name = String(ev.name || defName).slice(0, 20), on = adj.filter(function (a) { return a && a.date === k; });
+  if (on.some(function (a) { return a.type === "off" || (a.type === "cancel" && String(a.name || "").trim() === name); })) return null;
+  var sw = on.filter(function (a) { return a.type === "swap" && /^\d{4}-\d{2}-\d{2}$/.test(a.from || ""); })[0];
+  var x = parseYmd(sw ? sw.from : k); if (!x) return null;
+  if ((ev.days || []).map(Number).indexOf((x.getDay() + 6) % 7) < 0) return null;
+  return { name: name, t0: ev.t0, t1: ev.t1, location: String(ev.location || "").slice(0, 40) };
+}
+function studyWeek(adj) {
+  var out = { am: null, pm: null };
+  [["am", "morning_v1", "早自习"], ["pm", "evening_v1", "晚自习"]].forEach(function (z) {
+    var cells = [], any = false;
+    for (var d = 0; d < 7; d++) { var st = studyOn(z[1], z[2], dateOfWeekDay(state.currentWeek, d), adj); if (st) any = true; cells.push(st); }
+    if (any) out[z[0]] = cells;
+  });
+  return out;
+}
+function studyRow(cells, row, today) {
+  var first = null; for (var i = 0; i < cells.length; i++) if (cells[i]) { first = cells[i]; break; }
+  var h = '<div class="st-l" style="grid-row:' + row + ';grid-column:1">' + escapeHtml(first.name) + "<small>" + escapeHtml(first.t0 + "-" + first.t1) + "</small></div>";
+  for (var d = 0; d < 7; d++) {
+    var st = cells[d];
+    h += '<div class="st-c' + (d === today ? " today-col" : "") + '" style="grid-row:' + row + ";grid-column:" + (d + 2) + '">' + (st ? '<b title="' + escapeHtml(st.name + " " + st.t0 + "-" + st.t1 + (st.location ? " · " + st.location : "")) + '">' + escapeHtml(st.name) + "<small>" + escapeHtml(st.t0 + "-" + st.t1 + (st.location ? " · " + st.location : "")) + "</small></b>" : "") + "</div>";
+  }
+  return h;
+}
 function loadAdj() {
   try { var a = JSON.parse(localStorage.getItem(ADJ_KEY) || "[]"); return Array.isArray(a) ? a : []; } catch (e) { return []; }
 }
@@ -1143,6 +1182,7 @@ function periodCount() {
   return Math.min(16, Math.max(n, 10));
 }
 
+var STUDY_W = { am: null, pm: null };   /* 这一周每天的早 / 晚自习（render 里算） */
 function applyGridRows() {
   var base = typeof window !== "undefined" && window.innerWidth <= 640 ? 52 : 58;
   var times = currentTimes();
@@ -1152,7 +1192,7 @@ function applyGridRows() {
     if (times[i]) { var parts = times[i].split("-"); dur = toMinutes(parts[1]) - toMinutes(parts[0]); }
     rows.push(Math.max(44, Math.round((dur / 50) * base)) + "px");
   }
-  gridEl.style.gridTemplateRows = "46px " + rows.join(" ");
+  gridEl.style.gridTemplateRows = "46px " + (STUDY_W.am ? "minmax(48px, auto) " : "") + rows.join(" ") + (STUDY_W.pm ? " minmax(48px, auto)" : "");
 }
 
 /* 这一天里时间重叠的课排成几条「车道」：同一节有两门课（单双周、补课）时并排显示，不叠在一起 */
@@ -1186,6 +1226,8 @@ function nextWeekOf(weeks, week) {
 }
 
 function render() {
+  try { STUDY_W = studyWeek(loadAdj()); } catch (eS) { STUDY_W = { am: null, pm: null }; }
+  var AM = STUDY_W.am ? 1 : 0;
   applyGridRows();
 
   var times = currentTimes();
@@ -1214,13 +1256,15 @@ function render() {
   var nper = periodCount();
   for (var p = 0; p < nper; p++) {
     html.push(
-      '<div class="grid-period" style="grid-row:' + (p + 2) + ';grid-column:1"><span>第' + (p + 1) + "节</span>" +
+      '<div class="grid-period" style="grid-row:' + (p + 2 + AM) + ';grid-column:1"><span>第' + (p + 1) + "节</span>" +
       '<span class="period-time">' + (times[p] || "") + "</span></div>"
     );
     for (var d2 = 0; d2 < 7; d2++) {
-      html.push('<div class="grid-cell' + (showToday && d2 === tIdx ? " today-col" : "") + '" style="grid-row:' + (p + 2) + ';grid-column:' + (d2 + 2) + '"></div>');
+      html.push('<div class="grid-cell' + (showToday && d2 === tIdx ? " today-col" : "") + '" style="grid-row:' + (p + 2 + AM) + ';grid-column:' + (d2 + 2) + '"></div>');
     }
   }
+  if (STUDY_W.am) html.push(studyRow(STUDY_W.am, 2, showToday ? tIdx : -1));
+  if (STUDY_W.pm) html.push(studyRow(STUDY_W.pm, nper + 2 + AM, showToday ? tIdx : -1));
   gridEl.innerHTML = html.join("");
 
   /* 课程卡片：本周有的课正常显示；本周没有、这个时间也空着的课淡淡地显示（标「非本周」），不然像是没导进来 */
@@ -1256,8 +1300,8 @@ function render() {
   for (var vi = 0; vi < placed.length; vi++) {
     var it = placed[vi], c = it.c;
     var col = c.day + 2; /* 第1列是节次，周一从第2列开始 */
-    var rowStart = c.start + 1;
-    var rowEnd = c.end + 1;
+    var rowStart = c.start + 1 + AM;
+    var rowEnd = c.end + 1 + AM;
     var card = document.createElement("div");
     card.className = "course-card color-" + colorIndex(c.name) + (it.ghost ? " off-week" : "") + (it.n > 1 ? " shared" : "") + (c._add ? " adj-add" : c._from ? " adj-swap" : "") + (c.end <= c.start ? " short" : "");
     card.style.gridColumn = col + " / " + (col + 1);

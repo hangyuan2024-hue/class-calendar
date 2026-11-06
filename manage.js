@@ -99,6 +99,7 @@
   function schoolMgr(tp, s) {
     const owner = s.role === "owner";
     tp.innerHTML = codeBox("学校码", s.code, "班主任在自己的班上填学校码就能加进来；院系主管理员填学校码把院系并进来。")
+      + `<section class="card sp-people" data-spp><div class="meta">读取本校注册的人…</div></section>`
       + `<section class="card"><h3 style="margin-top:0">院系（${(s.depts || []).length}）</h3>
         ${(s.depts || []).map((d) => `<div class="hwi" data-go="${d.id}">🏛 <b>${esc(d.name)}</b><span class="pill">${(d.classes || []).length} 个班 · ${(d.admins || []).map((a) => esc(a.name)).join("、") || "还没有院系管理员"}</span><span class="spacer"></span>›</div>`).join("") || `<div class="empty">还没有院系</div>`}
         <div class="row" style="margin-top:10px"><input placeholder="新院系名称" data-nd size="16"><input placeholder="院系管理员账号（可不填）" data-nda size="18"><button class="primary small" data-ndgo>建院系</button></div>
@@ -111,10 +112,49 @@
     act(tp, "[data-lkgo]", async () => { const r = await rpc("school_dept_link", { sid: s.id, p_dept_code: val(tp, "[data-lk]") }); toast(r.already ? "已经在学校里了" : "「" + r.name + "」并进来了"); load(); });
     act(tp, "[data-aaddgo]", async () => { const r = await rpc("school_admin_add", { sid: s.id, p_account: val(tp, "[data-aadd]") }); toast("已加 " + r.name); load(); });
     act(tp, "[data-reset]", async () => { if (!confirm("换一个学校码？旧的码马上失效。")) return; await rpc("school_code_reset", { sid: s.id }); load(); });
+    loadPeople(tp.querySelector("[data-spp]"), s);
+  }
+  // 1.33（7.54 SQL）本校已注册的人：同学选了这所学校就自动挂过来（学校开通前也算），按院系一键整理
+  async function loadPeople(box, s) {
+    if (!box) return;
+    let r;
+    try { r = await rpc("school_people", { sid: s.id }); }
+    catch (e) { box.remove(); return; }   // 服务器还没升级：不显示
+    const real = r.depts_real || [], nNew = (r.depts || []).filter((x) => !x.real).length;
+    box.innerHTML = `<div class="sp-people-h"><h3 style="margin:0">本校已注册 ${r.total} 人</h3><span class="pill">老师 ${r.teachers} · 没填院系 ${r.nodept}</span><span class="spacer"></span>
+        ${nNew ? `<label class="pill">至少 <select data-ocmin><option value="1">1</option><option value="2" selected>2</option><option value="5">5</option></select> 人的院系</label><button class="primary small" data-oc>一键整理</button>` : ""}</div>
+      <div class="desc">同学在资料里选了「${esc(r.school)}」就会出现在这里；院系是他们自己填的。一键整理：把还没建的院系建好、把人对上，同院系的人占一半以上的班会邀请挂到对应院系（班主任同意后生效）。</div>
+      ${(r.depts || []).map((d, i) => `<div class="sp-people-row"><b>${esc(d.name)}</b><span class="sp-tag${d.real ? "" : " no"}">${d.real ? "学校已建" : "还没建"}</span><span class="pill">${d.n} 人</span>
+        <button class="small" data-spl="${i}">看名单</button>${!d.real && real.length ? `<select data-spm="${i}"><option value="">并入已建的院系…</option>${real.map((x) => `<option value="${x.id}">${esc(x.name)}</option>`).join("")}</select>` : ""}</div>`).join("")}
+      ${r.nodept ? `<div class="sp-people-row"><b>没填院系</b><span class="pill">${r.nodept} 人</span><button class="small" data-spl="-1">看名单</button></div>` : ""}
+      <div data-splist></div>`;
+    const deps = r.depts || [];
+    box.querySelectorAll("[data-spl]").forEach((b) => (b.onclick = async () => {
+      const i = +b.dataset.spl, d = i >= 0 ? deps[i] : null, out = box.querySelector("[data-splist]");
+      out.innerHTML = `<div class="meta">读取中…</div>`;
+      try {
+        const l = (await rpc("school_people_list", { sid: s.id, p_key: d ? d.key : null })) || [];
+        out.innerHTML = `<h4 style="margin:12px 0 6px">${d ? esc(d.name) : "没填院系"} · ${l.length} 人</h4>` + (l.map((x) => `<div class="sp-people-row"><b>${esc(x.name)}</b><span class="pill">${x.role === "teacher" ? "老师 · " : ""}${esc(x.account || "")}</span><span class="pill">${esc(x.classes || "还没进班")}</span></div>`).join("") || `<div class="empty">没有人</div>`);
+        out.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      } catch (e) { out.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+    }));
+    box.querySelectorAll("[data-spm]").forEach((sel0) => (sel0.onchange = async () => {
+      const d = deps[+sel0.dataset.spm], to = real.find((x) => x.id === sel0.value); if (!d || !to) return;
+      if (!confirm(`把填「${d.name}」的 ${d.n} 人并入「${to.name}」？`)) { sel0.value = ""; return; }
+      try { const x = await rpc("school_dept_merge", { sid: s.id, p_key: d.key, p_did: to.id }); toast("已并入「" + x.dept + "」，" + x.moved + " 人"); loadPeople(box, s); } catch (e) { fail(e); sel0.value = ""; }
+    }));
+    const oc = box.querySelector("[data-oc]");
+    if (oc) oc.onclick = async () => {
+      const min = +box.querySelector("[data-ocmin]").value || 1;
+      if (!confirm(`一键整理：把至少 ${min} 人填的院系建成本校院系，把同学对上，再邀请对应的班挂到院系。继续？`)) return;
+      oc.disabled = true;
+      try { const x = await rpc("school_one_click", { sid: s.id, p_min: min }); toast(`新建 ${x.depts_new} 个院系，对上 ${x.matched} 人，邀请 ${x.invites} 个班${x.linked ? "，直接挂上 " + x.linked + " 个班" : ""}`); load(); }
+      catch (e) { fail(e); oc.disabled = false; }
+    };
   }
   function deptMgr(tp, d) {
     const owner = d.role === "owner" || d.viaSchool;
-    tp.innerHTML = codeBox("院系码", d.code, "班主任在自己的班上填院系码就能加进来。")
+    tp.innerHTML = codeBox("院系码", d.code, "班主任在自己的班上填院系码就能加进来。<span data-dpc></span>")
       + `<section class="card"><h3 style="margin-top:0">专业（${(d.majors || []).length}）</h3>
         <div class="chips">${(d.majors || []).map((m) => `<span class="chip">${esc(m.name)}<button data-mdel="${m.id}" title="删掉">✕</button></span>`).join("") || `<span class="pill">还没有分专业（可以不分）</span>`}</div>
         <div class="row" style="margin-top:8px"><input placeholder="专业名称，如 软件工程" data-mn size="16"><button class="small" data-mgo>加专业</button></div></section>
@@ -136,6 +176,7 @@
     act(tp, "[data-igo]", async () => { const r = await rpc("dept_class_invite", { p_did: d.id, p_class_code: val(tp, "[data-ic]") }); toast(r.linked ? "「" + r.class + "」已加入" : r.already ? "已经在这个院系里了" : "邀请已发给「" + r.class + "」的班主任"); load(); });
     act(tp, "[data-dago]", async () => { const a = val(tp, "[data-da]"); const r = await rpc(d.viaSchool ? "school_dept_admin_add" : "dept_admin_add", { did: d.id, p_account: a }); toast("已设 " + ((r && r.name) || a)); load(); });
     act(tp, "[data-jgo]", async () => { const r = await rpc("dept_join_school", { did: d.id, p_school_code: val(tp, "[data-jc]") }); toast("已并进「" + r.name + "」"); load(); });
+    rpc("dept_people_count", { did: d.id }).then((n) => { const el = tp.querySelector("[data-dpc]"); if (el && n != null) el.textContent = `本院系已注册 ${n} 人（同学在资料里选了这个院系）。`; }).catch(() => {});   // 1.33
     act(tp, "[data-unl]", async () => { if (!confirm("把这个院系移出学校？院系和里面的班不会删。")) return; await rpc("school_dept_unlink", { did: d.id }); load(); });
   }
   function classInfo(tp, c) {

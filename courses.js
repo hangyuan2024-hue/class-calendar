@@ -7,7 +7,6 @@
 //   3. 首页「今日课程」卡片、本地 AI 问答知道你的课
 // 依赖 app.js 里的全局变量（PFS、frames、pluginItemsCache、renderAll、CCAuth…），都是调用时才用到。
 const CourseKit = (() => {
-  const stu = (k) => (typeof ClassAdj !== "undefined" ? ClassAdj.study(k) : load(k + "_v1", null));   // 7.55 自己没设就用班级发的
   const NS = "course-schedule";
   const K = {
     courses: "personal_course_schedule_courses_v1",
@@ -17,7 +16,7 @@ const CourseKit = (() => {
     adj: "personal_course_schedule_adjust_v1",   // 调课 / 调休 / 停课 / 加课（见 coursesOn）
     semester: "personal_course_schedule_semester_v1",
   };
-  const VER = "20261015-v571";
+  const VER = "20261106-v133";
   const DEFAULT_WEEK1 = "2026-09-14";
   const MAX_WEEK = 20;
   const PERIODS = {
@@ -152,7 +151,7 @@ const CourseKit = (() => {
     }
     return out.sort((a, b) => a.date.localeCompare(b.date));
   }
-  function adjOn(k) { return (typeof ClassAdj !== "undefined" ? ClassAdj.all(data.adj) : (data.adj || [])).filter((a) => a.date === k); }   // 7.55 加上班级发给全班的调课
+  function adjOn(k) { return (data.adj || []).filter((a) => a.date === k); }
   function coursesOn(k) {
     const on = adjOn(k);
     let list;
@@ -296,18 +295,9 @@ const CourseKit = (() => {
       </div>
       <p class="muted" style="font-size:12px;margin:6px 0 0">放假、调休跟着「🔁 调课 / 调休」走：放假那天没有${D0.name}；「这天上周三的课」就按周三算；某一天单独不上：在「🔁 调课 / 调休 → 放假停课」里选「只停「${esc(nm)}」」，或者把群里的通知粘贴进「整理群消息」自动识别。</p>
       <div class="err eve-err" style="color:var(--red);font-size:13px"></div>
-      <div class="btns"><button type="button" data-x="cancel">取消</button>${typeof ClassAdj !== "undefined" && ClassAdj.canManage() && clsId() ? `<button type="button" data-x="cls" title="全班同学的${D0.name}都按这个来（自己设过的同学以自己的为准）">发给全班</button>` : ""}<button type="submit" class="primary">保存</button></div>
+      <div class="btns"><button type="button" data-x="cancel">取消</button><button type="submit" class="primary">保存</button></div>
     </form>`;
     const f = d.querySelector("form");
-    // 7.55（7.15 SQL，小程序 1.22）老师、能增改事项的班委把自习时间发给全班
-    const clsBtn = d.querySelector('[data-x="cls"]');
-    if (clsBtn) clsBtn.onclick = async () => {
-      const v = { on: f.on.checked, study: f.querySelector('input[name="study"]:checked').value === "1", name: f.name.value.trim() || D0.name, days: DAYS.map((_, i) => i).filter((i) => f["d" + i].checked), t0: f.t0.value, t1: f.t1.value, location: f.location.value.trim() };
-      if (v.on && (!v.days.length || !(v.t1 > v.t0))) { d.querySelector(".eve-err").textContent = !v.days.length ? "至少选一天" : "结束时间要晚于开始时间"; return; }
-      clsBtn.disabled = true;
-      try { await ClassAdj.save({ study: { ...ClassAdj.rawStudy(), [kind === "morning" ? "morning" : "evening"]: v } }); d.close(); alert(`已发给「${clsName()}」全班：没自己设过${D0.name}的同学都按这个来。`); try { if (typeof renderAll === "function") renderAll(); } catch (err) {} }
-      catch (err) { d.querySelector(".eve-err").textContent = err.message || "没发出去"; clsBtn.disabled = false; }
-    };
     d.querySelector('[data-x="cancel"]').onclick = () => d.close();
     f.onsubmit = (e) => {
       const v = { on: f.on.checked, study: f.querySelector('input[name="study"]:checked').value === "1", name: f.name.value.trim() || D0.name, days: DAYS.map((_, i) => i).filter((i) => f["d" + i].checked), t0: f.t0.value, t1: f.t1.value, location: f.location.value.trim() };
@@ -479,9 +469,7 @@ const CourseKit = (() => {
   }
 
   // ---------- 调课 / 调休 的弹窗 ----------
-  let adjTab = "swap", adjTo = "me";   // 7.55 adjTo：me 只改自己的 / cls 发给全班（老师、能增改事项的班委，小程序 1.22）
-  const adjCls = () => adjTo === "cls" && typeof ClassAdj !== "undefined" && ClassAdj.canManage();
-  const adjSrc = () => (adjCls() ? ClassAdj.rawAdj() : (data.adj || []));
+  let adjTab = "swap";
   const nextSat = () => { const d = ccDate(); d.setDate(d.getDate() + ((6 - d.getDay() + 7) % 7 || 7)); return keyOf(d); };
   const adjText = (a) => a.type === "swap" ? `上 ${mdw(a.from)} 的课` : a.type === "off" ? `放假 / 停课${a.note ? "：" + a.note : ""}`
     : a.type === "cancel" ? `「${a.name}」${a.start ? "第" + a.start + "节" : ""}不上` : `加课「${a.name}」第${a.start}${a.end > a.start ? "-" + a.end : ""}节${a.location ? " · " + a.location : ""}`;
@@ -493,7 +481,7 @@ const CourseKit = (() => {
   }
   function openAdjust() { read().then(() => { adjRender(); const d = adjDialog(); if (!d.open) d.showModal(); }); }
   function adjRender(msg) {
-    const d = adjDialog(), today = keyOf(ccDate()), list = adjSrc().slice().sort((a, b) => a.date.localeCompare(b.date));
+    const d = adjDialog(), today = keyOf(ccDate()), list = (data.adj || []).slice().sort((a, b) => a.date.localeCompare(b.date));
     const coming = list.filter((a) => a.date >= today), past = list.filter((a) => a.date < today);
     const nper = Math.max(data.times.length, 10, ...data.courses.map((c) => +c.end || 0));
     const pers = Array.from({ length: nper }, (_, i) => `<option value="${i + 1}">第 ${i + 1} 节${data.times[i] ? "（" + data.times[i].split("-")[0] + "）" : ""}</option>`).join("");
@@ -501,7 +489,6 @@ const CourseKit = (() => {
     const row = (a) => `<div class="adj-row${a.date < today ? " past" : ""}"><b>${mdw(a.date)}</b><span>${esc(adjText(a))}</span><button type="button" class="small" data-adjdel="${esc(a.id)}">删除</button></div>`;
     const tabs = [["swap", "🔁 换课（调休）"], ["off", "🏖 放假 / 停课"], ["add", "➕ 加一节课"]];
     d.innerHTML = `<form id="adjForm"><h3>调课 / 调休<small>学校临时通知换课、补课、放假、加课，在这里记一下，课表、首页、日历、提醒都会跟着变</small></h3>
-      ${typeof ClassAdj !== "undefined" && ClassAdj.canManage() && typeof currentClass !== "undefined" && currentClass ? `<div class="ptabs adj-tabs"><button type="button" class="ptab${adjTo === "me" ? " on" : ""}" data-adjto="me">只改我自己的</button><button type="button" class="ptab${adjTo === "cls" ? " on" : ""}" data-adjto="cls">发给全班（${esc(currentClass.nickname || currentClass.name)}）</button></div>${adjTo === "cls" ? `<p class="meta">发给全班的调课，全班同学的课表、首页、日历、提醒都会跟着变（同学自己记的照样有效）。</p>` : ""}` : ""}
       <div class="ptabs adj-tabs">${tabs.map(([k, t]) => `<button type="button" class="ptab${adjTab === k ? " on" : ""}" data-adjtab="${k}">${t}</button>`).join("")}</div>
       ${adjTab === "swap" ? `<div class="adj-grid"><label>哪天上课<input type="date" id="adjB" value="${nextSat()}" required></label><label>上哪天的课<input type="date" id="adjA" required></label></div>
           <label class="check"><input type="checkbox" id="adjAoff" checked>那天（课被挪走的那天）放假，不上课</label>`
@@ -528,7 +515,7 @@ const CourseKit = (() => {
       const D = $q("adjD").value, sel = $q("adjWhich"), cur = sel.value;
       const l = D ? coursesOn(D) : [];
       // 6.3 晚自习 / 6.5 早自习也能单独停一天
-      const studyOpts = typeof IslandCore === "undefined" || !D ? [] : [...(IslandCore.morning ? IslandCore.morning(stu("morning"), D, (typeof ClassAdj !== "undefined" ? ClassAdj.all(data.adj) : (data.adj || []))) : []), ...IslandCore.evening(stu("evening"), D, (typeof ClassAdj !== "undefined" ? ClassAdj.all(data.adj) : (data.adj || [])))];
+      const studyOpts = typeof IslandCore === "undefined" || !D ? [] : [...(IslandCore.morning ? IslandCore.morning(load("morning_v1", null), D, data.adj) : []), ...IslandCore.evening(load("evening_v1", null), D, data.adj)];
       sel.innerHTML = `<option value="">整天都不上</option>` + l.filter((c) => !c._add).map((c) => `<option value="${esc(c.name)}|${c.start}">只停「${esc(c.name)}」第${c.start}${c.end > c.start ? "-" + c.end : ""}节</option>`).join("")
         + studyOpts.map((c) => `<option value="${esc(c.name)}|0">只停「${esc(c.name)}」</option>`).join("");
       if ([...sel.options].some((o) => o.value === cur)) sel.value = cur;
@@ -554,11 +541,6 @@ const CourseKit = (() => {
     return n;
   }
   async function adjSave(list, msg) {
-    if (adjCls()) {
-      try { await ClassAdj.save({ adj: cleanAdj(list) }); } catch (e) { adjRender(e.message || "没发出去"); return; }
-      try { if (typeof renderAll === "function") renderAll(); } catch (e) {}
-      renderBar(); adjRender(msg ? msg + "（已发给全班）" : ""); return;
-    }
     data.adj = cleanAdj(list);
     await write({ [K.adj]: JSON.stringify(data.adj) });
     renderBar(); adjRender(msg);
@@ -568,16 +550,15 @@ const CourseKit = (() => {
   document.addEventListener("click", async (e) => {
     const t = e.target.closest && e.target.closest("#crsAdjDlg button"); if (!t) return;
     if (t.dataset.adjtab) { adjTab = t.dataset.adjtab; adjRender(); return; }
-    if (t.dataset.adjto) { adjTo = t.dataset.adjto; adjRender(); return; }
     if (t.dataset.adjclose) { adjDialog().close(); return; }
-    if (t.dataset.adjdel) { await adjSave(adjSrc().filter((a) => a.id !== t.dataset.adjdel), "已删除"); return; }
-    if (t.dataset.adjclean) { const today = keyOf(ccDate()); await adjSave(adjSrc().filter((a) => a.date >= today), "已清掉"); return; }
+    if (t.dataset.adjdel) { await adjSave(data.adj.filter((a) => a.id !== t.dataset.adjdel), "已删除"); return; }
+    if (t.dataset.adjclean) { const today = keyOf(ccDate()); await adjSave(data.adj.filter((a) => a.date >= today), "已清掉"); return; }
   });
   document.addEventListener("submit", async (e) => {
     if (e.target.id !== "adjForm") return;
     e.preventDefault();
     const d = adjDialog(), $q = (id) => d.querySelector("#" + id), st = $q("adjSt"), id = () => Math.random().toString(36).slice(2, 10);
-    const list = adjSrc().slice(); let msg = "";
+    const list = (data.adj || []).slice(); let msg = "";
     if (adjTab === "swap") {
       const A = $q("adjA").value, B = $q("adjB").value;
       if (!A || !B) { st.textContent = "两个日期都要选"; return; }

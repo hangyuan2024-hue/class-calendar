@@ -1,0 +1,73 @@
+/* 1.33 和小程序同步的界面：签到范围、选人、名单标签、网络差时的签到队列、院系、入班审批、学校整理、功能介绍插图 */
+
+/* ---------- 签到范围 ---------- */
+.ck-scope { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 10px 0 4px; }
+.ck-sc-l { font-size: 13px; font-weight: 700; margin-right: 2px; }
+.ck-sc-t { flex-basis: 100%; color: var(--muted, #7d898e); font-size: 12px; }
+.ck-chip { padding: 5px 12px; border-radius: 999px; border: 1.5px solid var(--line, #e3e6ea); background: transparent; color: inherit; font: inherit; font-size: 13px; cursor: pointer; line-height: 1.4; }
+.ck-chip.on { border-color: #ff7a45; background: rgba(255, 122, 69, .1); color: #d4561f; font-weight: 600; }
+.ck-chip:focus-visible { outline: 2px solid #ff7a45; outline-offset: 2px; }
+.ck-role { font-style: normal; font-size: 11px; padding: 0 5px; margin-left: 4px; border-radius: 4px; background: rgba(83, 102, 232, .12); color: #4153c9; vertical-align: 1px; }
+.ck-av { width: 18px; height: 18px; border-radius: 50%; object-fit: cover; margin-right: 4px; vertical-align: -4px; }
+.ck-why { padding: 8px 12px; border-radius: 10px; background: var(--muted-bg, #f1f1ee); }
+.ck-wait { display: flex; flex-direction: column; gap: 2px; background: rgba(255, 170, 0, .12) !important; color: #9a6400 !important; }
+.ck-wait small { font-weight: 400; font-size: 12px; opacity: .85; }
+
+.ck-sp { width: min(520px, calc(100vw - 32px)); }
+.ck-sp-sec { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
+.ck-sp-sec > b { font-size: 13px; }
+.ck-sp-sec > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.ck-sp-sec input { width: 100%; box-sizing: border-box; }
+.ck-sp-list { max-height: min(42vh, 360px); overflow: auto; border: 1px solid var(--line, #e3e6ea); border-radius: 12px; padding: 4px 0; margin-bottom: 10px; }
+#ckSpDlg .ck-sp-row { display: flex; flex-direction: row; align-items: center; justify-content: flex-start; text-align: left; gap: 8px; padding: 8px 12px; margin: 0; cursor: pointer; font-size: 14px; }
+#ckSpDlg .ck-sp-row span { flex: 1; min-width: 0; }
+#ckSpDlg .ck-sp-row:hover { background: var(--muted-bg, #f6f6f3); }
+#ckSpDlg .ck-sp-row input { width: 18px; height: 18px; min-height: 0; margin: 0; padding: 0; flex: 0 0 18px; }
+
+/* ---------- 资料：院系 ---------- */
+.org-dept { position: relative; margin-top: 8px; }
+.org-dept-sug { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.org-dept-sug button { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line, #e3e6ea); background: transparent; color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
+.org-dept-sug button small { margin-left: 4px; color: var(--muted, #7d898e); font-size: 11px; }
+.org-dept-sug button.real { border-color: rgba(31, 138, 91, .45); }
+.org-dept-info { color: var(--muted, #7d898e); font-size: 12px; margin-top: 6px; line-height: 1.6; }
+
+/* ---------- 学校：本校注册的人 ---------- */
+.sp-people { margin-top: 14px; }
+.sp-people-h { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.sp-people-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 8px 0; border-top: 1px solid var(--line, #e3e6ea); }
+.sp-people-row b { flex: 1 1 8em; min-width: 6em; font-weight: 600; word-break: break-all; }
+.sp-tag { font-size: 11px; padding: 1px 6px; border-radius: 4px; background: rgba(31, 138, 91, .12); color: #1f8a5b; white-space: nowrap; }
+.sp-tag.no { background: rgba(255, 122, 69, .12); color: #c4561f; }
+.sp-people-row select { max-width: 100%; }
+
+/* ---------- 功能介绍插图卡片 ---------- */
+.gd-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; margin: 14px 0; }
+.gd-card { border: 1px solid var(--line, #e3e6ea); border-radius: 16px; overflow: hidden; background: var(--card, var(--surface, #fff)); display: flex; flex-direction: column; padding: 0; text-align: left; font: inherit; color: inherit; cursor: pointer; transition: transform .15s, box-shadow .15s; }
+.gd-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(20, 30, 60, .08); }
+.gd-card:focus-visible { outline: 2px solid #5366e8; outline-offset: 2px; }
+.gd-reset { margin: 4px 0 18px; }
+.gd-dlg { width: min(460px, calc(100vw - 32px)); padding: 0 0 16px; overflow: hidden; }
+.gd-dlg .gd-img { width: 100%; height: auto; display: block; aspect-ratio: 600 / 320; }
+.gd-dlg h3 { margin: 16px 20px 6px; }
+.gd-dlg .gd-steps { margin: 0 20px 14px; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; line-height: 1.6; }
+.gd-dlg .row { padding: 0 20px; }
+.gd-card img, .gd-card > img { width: 100% !important; height: auto !important; max-height: none !important; min-height: 0 !important; aspect-ratio: 600 / 320; object-fit: cover; display: block; flex: none; background: #f3f5fb; }
+.gd-card div { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 4px; }
+.gd-card b { font-size: 15px; }
+.gd-card span { color: var(--muted, #7d898e); font-size: 13px; line-height: 1.55; }
+
+/* ---------- 课表：早晚自习 ---------- */
+.ct-study { background: repeating-linear-gradient(135deg, rgba(83, 102, 232, .1) 0 6px, rgba(83, 102, 232, .04) 6px 12px) !important; border: 1px dashed rgba(83, 102, 232, .45) !important; color: #3d4db8 !important; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .ck-chip.on { color: #ffb08f; }
+  :root:not([data-theme="light"]) .ck-role { color: #aab6ff; }
+  :root:not([data-theme="light"]) .ck-wait { color: #ffcf73 !important; }
+  :root:not([data-theme="light"]) .ct-study { color: #aab6ff !important; }
+}
+@media (max-width: 520px) {
+  .gd-dlg { width: 100%; }
+  .ck-sp { width: calc(100vw - 16px); }
+  .gd-cards { grid-template-columns: 1fr; }
+}
