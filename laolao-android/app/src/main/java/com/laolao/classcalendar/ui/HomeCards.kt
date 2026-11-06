@@ -63,7 +63,7 @@ object Enc {
     val MOODS = listOf(Triple("great", "😄", "超开心"), Triple("good", "🙂", "还不错"), Triple("meh", "😐", "一般般"), Triple("tired", "😮‍💨", "有点累"), Triple("down", "😢", "不开心"))
     private val REPLY = mapOf("great" to listOf("开心的日子要记住！把好心情分一点给同桌吧 🎉", "今天状态满分，冲鸭！"), "good" to listOf("平平稳稳就是好日子 🙂", "保持住，今天也会顺顺利利。"),
         "meh" to listOf("一般般也没关系，做完一件小事就会好一点。", "听首喜欢的歌，再开始下一件事吧 🎧"), "tired" to listOf("累了就歇一会儿，喝口水、伸个懒腰 ☕", "今天早点睡，明天又是满血的你。"),
-        "down" to listOf("抱抱你。难过的时候不用硬撑，找信任的朋友或老师聊聊 🤍", "今天不开心也没关系，明天会好一点的。需要的话，随时可以找人说说。"))
+        "down" to listOf("抱抱你。难过的时候不用硬撑，找信任的朋友或老师聊聊 💛", "今天不开心也没关系，明天会好一点的。需要的话，随时可以找人说说。"))
     var shift = 0
     fun card(overdue: Int, hwLeft: Int): Q {
         val now = T.now(); val h = now.hour; val wd = now.dayOfWeek.value

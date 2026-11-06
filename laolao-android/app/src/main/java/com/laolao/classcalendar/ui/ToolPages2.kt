@@ -516,7 +516,7 @@ class WordsPage(a: Main) : Page(a) {
                 body.addView(sr)
                 val c = ctx.card(4, 18).apply { margins(t = 12) }
                 c.addView(ctx.cell("📝", "来一轮 10 题小测", "从已学和今日词汇中练习，答错的进入薄弱词") { start("quiz") }); c.addView(ctx.hline())
-                c.addView(ctx.cell("🩹", "薄弱词", "${o.weak} 个，需要再认识一次") { mode = "weak"; tab = 1; render() }); c.addView(ctx.hline())
+                c.addView(ctx.cell("🔁", "薄弱词", "${o.weak} 个，需要再认识一次") { mode = "weak"; tab = 1; render() }); c.addView(ctx.hline())
                 c.addView(ctx.cell("⭐", "我的收藏", "${o.favs} 个") { mode = "favorites"; tab = 1; render() })
                 body.addView(c)
             }

@@ -30,7 +30,7 @@ class ToolsPage(a: Main) : Page(a) {
         if (Store.feat("plan")) learn += Tool("🎯", "规划与专注", "今天 ${com.laolao.classcalendar.core.Plan.today()} 个番茄 · 四象限、PDCA、SMART") { a.push(PlanPage(a)) }
         // 7.1 大作业倒排拆解、期末复习排期（和网页、小程序一样；排出来的是普通的我的事项，没做完自动顺延）
         val dps = com.laolao.classcalendar.core.Dplan.projects()
-        learn += Tool("🪜", "大作业拆解", if (dps.isNotEmpty()) "${dps.size} 个进行中 · 没做完自动顺延" else "拆成几步，倒排进截止前的每一天") { a.push(DplanPage(a, "project")) }
+        learn += Tool("🧩", "大作业拆解", if (dps.isNotEmpty()) "${dps.size} 个进行中 · 没做完自动顺延" else "拆成几步，倒排进截止前的每一天") { a.push(DplanPage(a, "project")) }
         learn += Tool("🎓", "期末复习排期", com.laolao.classcalendar.core.Dplan.currentReview()?.let { "复习计划进行中" } ?: "填考试日期，排出每天复习什么") { a.push(DplanPage(a, "review")) }
         learn += Tool("⏳", "考试倒计时", exams.firstOrNull()?.let { "${it.optString("subject")} · 还剩 ${T.dayDiff(it.optString("date"))} 天" } ?: "考试科目、日期，自动倒计时") { a.push(CountdownPage(a)) }
         learn += Tool("📕", "错题本", (try { com.laolao.classcalendar.core.ErrBook.notes().count { !it.optBoolean("mastered") } } catch (e: Exception) { 0 }).let { if (it > 0) "$it 道待复习" else "按学科整理错题，拍照收录" }) { a.push(ErrBookPage(a)) }

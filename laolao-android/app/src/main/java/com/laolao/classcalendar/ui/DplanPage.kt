@@ -77,7 +77,7 @@ class DplanPage(a: Main, private var tab: String = "project") : Page(a) {
 
     override fun render() {
         view; keepScroll(body)
-        body.addView(Seg(ctx, listOf("🪜 大作业拆解", "🎓 期末复习排期"), if (tab == "review") 1 else 0) { tab = if (it == 1) "review" else "project"; render() })
+        body.addView(Seg(ctx, listOf("🧩 大作业拆解", "🎓 期末复习排期"), if (tab == "review") 1 else 0) { tab = if (it == 1) "review" else "project"; render() })
         if (tab == "review") review() else project()
         body.add(ctx.text("排出来的每一步都是「我的事项」：首页、日历、网页、小程序都能看到；在哪边勾、在哪边改都同步。哪天没做完，下次打开会自动顺延。", 12f, C.sub).apply { pad(4, 0) }, 18)
     }

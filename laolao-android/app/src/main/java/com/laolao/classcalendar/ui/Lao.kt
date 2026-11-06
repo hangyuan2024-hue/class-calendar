@@ -94,6 +94,8 @@ class Lao(private val a: Main, private val host: FrameLayout) {
         win = null; veil = null; bub = null
         (box.parent as? android.view.ViewGroup)?.removeView(box)
         if (!on()) { stop(); return }
+        Bg.main.removeCallbacks(untuck); box.animate().cancel(); box.translationX = 0f; box.alpha = 1f; tucked = false; attachedAt = System.currentTimeMillis()
+        host.viewTreeObserver.removeOnScrollChangedListener(onScroll); host.viewTreeObserver.addOnScrollChangedListener(onScroll)
         host.addView(box, place())
         paint(true)
         bob?.cancel()
@@ -101,7 +103,24 @@ class Lao(private val a: Main, private val host: FrameLayout) {
             addUpdateListener { wearTv.translationY = bot.translationY - px(14) }; start() }
         loop()
     }
-    fun stop() { bob?.cancel(); Bg.main.removeCallbacks(tick) }
+    fun stop() { bob?.cancel(); Bg.main.removeCallbacks(tick); Bg.main.removeCallbacks(untuck) }
+
+    // ---------- 7.x 页面滚动时捞捞往边上缩，只露一点、变淡，不挡内容；停下来 1 秒后再出来 ----------
+    private var tucked = false
+    private var attachedAt = 0L
+    private val untuck = Runnable { tuck(false) }
+    private val onScroll = android.view.ViewTreeObserver.OnScrollChangedListener {
+        if (box.parent == null || dragging || win != null || System.currentTimeMillis() - attachedAt < 800) return@OnScrollChangedListener
+        tuck(true); Bg.main.removeCallbacks(untuck); Bg.main.postDelayed(untuck, 1000)
+    }
+    private fun tuck(on: Boolean) {
+        if (on == tucked || dragging) return
+        tucked = on
+        if (on) { Bg.main.removeCallbacks(hideBub); bub?.let { dismissBub(it) } }
+        val dx = if (!on) 0f else (box.width - px(30)).coerceAtLeast(0).toFloat() * if (right) 1 else -1
+        box.animate().translationX(dx).alpha(if (on) 0.55f else 1f).setDuration(if (on) 200 else 320)
+            .setInterpolator(if (on) android.view.animation.DecelerateInterpolator() else OvershootInterpolator(1.1f)).start()
+    }
     private fun loop() { Bg.main.removeCallbacks(tick); if (box.parent != null) Bg.main.postDelayed(tick, 60_000) }
 
     private fun place(): FrameLayout.LayoutParams {
@@ -213,7 +232,8 @@ class Lao(private val a: Main, private val host: FrameLayout) {
         var x0 = 0f; var y0 = 0f; var moved = false
         botBox.setOnTouchListener { _, e ->
             when (e.actionMasked) {
-                MotionEvent.ACTION_DOWN -> { x0 = e.rawX; y0 = e.rawY; moved = false; bot.animate().scaleX(0.94f).scaleY(0.94f).setDuration(80).start(); true }
+                MotionEvent.ACTION_DOWN -> { if (tucked) { Bg.main.removeCallbacks(untuck); tucked = false; box.animate().cancel(); box.translationX = 0f; box.alpha = 1f }
+                    x0 = e.rawX; y0 = e.rawY; moved = false; bot.animate().scaleX(0.94f).scaleY(0.94f).setDuration(80).start(); true }
                 MotionEvent.ACTION_MOVE -> {
                     val dx = e.rawX - x0; val dy = e.rawY - y0
                     if (!moved && Math.abs(dx) + Math.abs(dy) < px(8)) return@setOnTouchListener true
@@ -290,7 +310,7 @@ class Lao(private val a: Main, private val host: FrameLayout) {
             if (i > 0) w.addView(a.hline())
             val row = a.row().apply { setPadding(0, px(9), 0, px(9)) }
             if (r.kind == "item") row.addView(View(a).apply { background = round(Color.TRANSPARENT, px(6).toFloat(), C.accent, px(2))
-                setOnClickListener { v -> v.buzz(); val it0 = Items.find(r.key); if (it0 != null && a.hwGuard(it0) {}) return@setOnClickListener; Items.toggleDone(r.key); com.laolao.classcalendar.core.Bus.emit("data"); Cheer.show(a, "item"); Bg.main.postDelayed({ if (win != null) { ans = null; panel() } }, 60) } },
+                setOnClickListener { v -> v.buzz(); Items.toggleDone(r.key); com.laolao.classcalendar.core.Bus.emit("data"); Cheer.show(a, "item"); Bg.main.postDelayed({ if (win != null) { ans = null; panel() } }, 60) } },
                 LinearLayout.LayoutParams(px(20), px(20)).apply { rightMargin = px(10) })
             else row.addView(a.text("📚", 16f).apply { setPadding(0, 0, px(10), 0) })
             val m = a.col().apply { addView(a.text((if (r.exam) "📝 " else "") + r.title, 14f, C.text, SEMI, 1)); addView(a.text(r.type + " · " + r.whenText + (if (r.location.isNotEmpty()) " · " + r.location else ""), 11.5f, C.sub, null, 1)); setOnClickListener { open(r) } }
