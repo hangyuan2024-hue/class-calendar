@@ -235,7 +235,62 @@ object Items {
 
     // ---------- 「现在最该做的事」：首页卡片、小组件 ----------
     /** cday / cstart：是课的话，哪天第几节（6.9 首页点课程看课表截图） */
-    class Next(val label: String, val title: String, val sub: String, val at: Long, val hot: Boolean, val key: String, val live: Boolean, val cday: String = "", val cstart: Int = 0)
+    /**
+     * 首页「现在该做的事」一张卡。key = 能直接 ✓ 的事项；open = 点卡片打开的事项；go = 右边按钮（homework 去处理 / pomo 开始专注）；
+     * reason = 没有具体时刻时显示的那句（「还剩 5 小时」「没定日子」）；merged = 几项过期作业合成的那一张
+     */
+    class Next(val label: String, val title: String, val sub: String, val at: Long, val hot: Boolean, val key: String, val live: Boolean, val cday: String = "", val cstart: Int = 0,
+               val id: String = "", val open: String = key, val go: String = "", val reason: String = "", val merged: Boolean = false)
+
+    /**
+     * 1.33 首页看板（和小程序 1.22 / 1.29.1、网站同一套）：不再只盯一件事，排成一叠卡片左右滑。
+     * 正在进行 → 3 小时内的下一节课 → 24 小时内截止的事（按截止先后）→ 过期的作业合成一张 → 下一节课 → 更远的事（最多 6 件）；
+     * 深夜第一张不急就先劝睡觉。最多 8 张。
+     */
+    fun deck(): List<Next> {
+        val c = Island.ctx(); val now = c.now; val nowMs = System.currentTimeMillis(); val t = T.todayKey(); val h = now.hour; val night = h >= 23 || h < 5
+        val list = Island.rank(c.items, c.courses, now).filter { it.level != "past" }
+        val byKey = all().associateBy { it.key }
+        fun needDone(k: String) = byKey[k]?.let { !it.course && (it.mine || it.hw) } ?: false
+        fun mins(x: Island.Row): Double? = if (x.day.isEmpty()) null else (T.epoch(x.day, T.min(x.time) ?: (23 * 60 + 59)) - nowMs) / 60000.0
+        val out = mutableListOf<Next>(); val seen = HashSet<String>()
+        fun push(n: Next?) { if (n != null && seen.add(n.id)) out += n }
+        fun card(x: Island.Row): Next {
+            val isC = x.kind == "course"; val live = x.level == "now"
+            val les = if (isC) c.courses.firstOrNull { "course:" + it.name + it.t0 == x.key } else null
+            val at = if (isC) les?.let { T.epoch(x.day, (if (live) it.m1 else it.m0) ?: 0) } ?: 0L else if (x.time.isNotEmpty() && x.day.isNotEmpty()) T.epoch(x.day, T.min(x.time) ?: 0) else 0L
+            val label = if (isC) (if (live) "正在上" else "下一节") else if (live) "进行中" else if (x.exam) "考试" else if (x.type in TYPES) x.type else "待办"
+            val sub = listOf(if (x.time.isNotEmpty()) (if (x.day.isNotEmpty() && x.day != t) T.dayName(x.day) + " " else "") + x.time else if (x.day.isNotEmpty()) T.dayName(x.day) else "没定日子", x.location).filter { it.isNotEmpty() }.joinToString(" · ")
+            return Next(label, x.title, sub, at, x.level == "urgent" || live, if (!isC && needDone(x.key)) x.key else "", live,
+                if (isC && les != null && !les.evening && !les.study) x.day else "", les?.start ?: 0, id = x.key, open = if (isC) "" else x.key, reason = x.reason)
+        }
+        list.filter { it.level == "now" }.forEach { push(card(it)) }
+        val nl = nextLesson()
+        val tmr = T.addDays(t, 1L)
+        val nc = nl?.let { (day, l) ->
+            val sleepy = day == tmr && (night || h >= 21)
+            Next(if (sleepy) "明天" else "下一节", l.name, (if (day == t) "" else T.dayName(day) + " ") + l.t0 + if (l.location.isNotEmpty()) " · " + l.location else "",
+                T.epoch(day, l.m0 ?: 0), false, "", false, if (l.evening) "" else day, l.start, id = "nc:$day${l.name}${l.t0}")
+        }
+        val live = out.any { it.label == "正在上" }
+        val todo = list.filter { it.kind == "item" && it.level != "late" && it.level != "now" }.sortedBy { mins(it) ?: 1e9 }
+        val soon = todo.filter { (mins(it) ?: 1e9) <= 24 * 60 }; val later = todo.filter { (mins(it) ?: 1e9) > 24 * 60 }
+        if (nc != null && !live && nl.first == t && nc.at - nowMs <= 3 * 3600_000L) push(nc)
+        soon.forEach { push(card(it)) }
+        val late = list.filter { it.level == "late" }
+        if (late.isNotEmpty()) {
+            val one = late.size == 1
+            push(Next(if (one) late[0].reason.ifEmpty { "过期了" } else "过期了", if (one) late[0].title else "有 ${late.size} 项作业过期没交",
+                if (one) "" else late.take(3).joinToString("、") { it.title } + if (late.size > 3) " 等" else "", 0, true,
+                if (one && needDone(late[0].key)) late[0].key else "", false, id = "late", open = if (one) late[0].key else "", go = if (one) "" else "homework", merged = true))
+        }
+        if (nc != null && !live) push(nc)
+        later.take(6).forEach { push(card(it)) }
+        if (out.isEmpty()) push(if (night) Next("早点睡", "明天没有要赶的事", "睡饱了脑子才转得快", 0, false, "", false, id = "sleep")
+            else Next("空闲", "手头没有要赶的事", "来一个番茄专注一下？", 0, false, "", false, id = "idle", go = "pomo"))
+        if (night && out[0].id != "sleep" && !out[0].hot) out.add(0, Next("早点睡", "剩下的明天再说", "往左滑看看还有哪些事", 0, false, "", false, id = "sleep"))
+        return out.take(8)
+    }
     fun next(): Next? {
         val now = T.now(); val t = T.todayKey(); val nowMs = System.currentTimeMillis(); val nowMin = now.hour * 60 + now.minute
         val night = now.hour >= 23 || now.hour < 5

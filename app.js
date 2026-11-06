@@ -719,41 +719,98 @@ function heroNextCourse(ctx) {
   const tm = shiftDay(t, 1), c2 = islandCourses(tm).filter((x) => hm2min(x.t0) != null).sort((x, y) => hm2min(x.t0) - hm2min(y.t0))[0];
   return c2 ? { c: c2, day: tm } : null;
 }
-function heroNextHtml(ctx) {
-  const list = IslandCore.rank(ctx.items, ctx.courses, ctx.now).filter((x) => x.level !== "past");
-  // 6.6 正在上课（含早晚自习）：首页这一格固定显示这节课和「还有多久下课」，不被别的事挤掉
-  const top = list.find((x) => x.kind === "course" && x.level === "now") || list[0], h = ctx.now.getHours(), night = h >= 23 || h < 5;
-  // 最靠前的事还远（两天以后、没定日子）：先提醒下一节课（今天晚点的 / 明天的，含调课、加课）
-  const far = top && top.kind !== "course" && top.level === "normal";
-  if (!top || (far && heroNextCourse(ctx))) {
-    // 没有要赶的事：告诉你下一节课；深夜就劝睡觉
-    const nc = heroNextCourse(ctx);
-    if (nc) {
-      const at = atOf(nc.day, nc.c.t0), isTm = nc.day !== keyOf(ctx.now);
-      const early = night || (isTm && h >= 21);
-      return `<div class="hx${early ? " sleep" : ""}"${nc.c.study ? "" : ` data-cview="${esc(nc.c.name)}" data-cday="${nc.day}" data-cstart="${nc.c.start || ""}"`}>
-        <span class="hx-k">${early ? "早点睡" : "下一节"}</span>
-        <span class="hx-t"><b>${esc(nc.c.name)}</b><small>${isTm ? "明天 " : ""}${esc(nc.c.t0)}${nc.c.location ? " · 📍 " + esc(nc.c.location) : ""}</small></span>
-        <span class="hx-cd" data-at="${at}">${leftLabel(at - ccNow())}</span></div>`;
-    }
-    if (night) return `<div class="hx sleep"><span class="hx-k">早点睡</span><span class="hx-t"><b>明天没有要赶的事</b><small>睡饱了脑子才转得快</small></span></div>`;
-    return `<div class="hx"><span class="hx-k">空闲</span><span class="hx-t"><b>手头没有要赶的事</b><small>来一个番茄专注一下？</small></span><button class="hx-go" data-nx="pomo">🍅 开始</button></div>`;
-  }
-  const isCourse = top.kind === "course", live = top.level === "now";
-  const c = isCourse ? (ctx.courses.find((x) => "course:" + x.name + x.t0 === top.key) || {}) : null;
-  const at = isCourse ? atOf(top.day, live ? c.t1 || top.time : top.time) : atOf(top.day, top.time);
-  const hot = top.level === "late" || top.level === "urgent" || live;
-  const sleep = night && !hot && !(top.mins != null && top.mins < 6 * 60);   // 深夜里不急的事：先劝睡觉
-  const label = sleep ? "早点睡" : isCourse ? (live ? "正在上" : "下一节") : top.level === "late" ? "过期了" : top.exam ? "考试" : top.type === "作业" ? "先做这个" : "接下来";
-  const when = at ? `<span class="hx-cd" data-at="${at}" data-end="${live ? 1 : 0}">${live ? "还有 " + leftLabel(at - ccNow()).replace("后", "下课") : leftLabel(at - ccNow())}</span>` : `<span class="hx-cd">${esc(top.reason)}</span>`;
-  const cv = isCourse && !c.study && !top.study ? ` data-cview="${esc(c.name || top.title)}" data-cday="${top.day || keyOf(ctx.now)}" data-cstart="${c.start || ""}"` : "";
-  return `<div class="hx${hot ? " hot" : sleep ? " sleep" : ""}"${cv}>
-    <span class="hx-k">${label}</span>
-    <span class="hx-t"><b>${esc(top.title)}</b><small>${esc([top.time || (top.day ? IslandCore.dayName(top.day, ctx.now) : ""), top.location ? "📍 " + top.location : ""].filter(Boolean).join(" · "))}</small></span>
-    ${when}
-    ${isCourse ? "" : `<button class="hx-done" data-act="done" data-k="${esc(top.key)}" title="标记完成" aria-label="标记完成">✓</button>`}
+// 1.33 首页看板（和小程序 1.22 / 1.29.1 同一套逻辑）：不再只盯着一件事，把「正在进行 / 下一节课 / 快截止的 / 过期的」排成一叠卡片，左右滑动或点两边箭头切换
+//   - 正在上的课、正在开的会排最前；然后是马上要上的课（3 小时内）和 24 小时内截止的事（按截止先后）
+//   - 过期没交的作业合成一张（「有 N 项作业过期没交」），排在今天要做的事后面、更远的事前面
+//   - 事项卡可以直接 ✓ 做完；通知这类不用点完成的没有 ✓；深夜第一张不急就先劝睡觉
+function heroDeck(ctx) {
+  const now = ctx.now, nowMs = now.getTime(), h = now.getHours(), night = h >= 23 || h < 5, t = keyOf(now);
+  const list = IslandCore.rank(ctx.items, ctx.courses, now).filter((x) => x.level !== "past");
+  const raw = {}; allItems().forEach((r) => { raw[r._key] = r; });
+  const needDone = (k) => { const r = raw[k]; return !!r && !r._plugin && (r._mine || (r.need_done != null ? !!r.need_done : r.msg_type === "作业")); };
+  const deck = [], seen = {};
+  const push = (c) => { if (!c || seen[c.id]) return; seen[c.id] = 1; deck.push(c); };
+  const itemCard = (x) => {
+    const isCourse = x.kind === "course", live = x.level === "now";
+    const c = isCourse ? (ctx.courses.find((y) => "course:" + y.name + y.t0 === x.key) || {}) : null;
+    const at = isCourse ? atOf(x.day, live ? c.t1 || x.time : x.time) : atOf(x.day, x.time);
+    const label = isCourse ? (live ? "正在上" : "下一节") : live ? "进行中" : x.exam ? "考试" : ({ "作业": "作业", "会议": "会议", "通知": "通知", "活动": "活动" })[x.type] || "待办";
+    const sub = [x.time ? (x.day && x.day !== t ? IslandCore.dayName(x.day, now) + " " : "") + x.time : (x.day ? IslandCore.dayName(x.day, now) : "没定日子"), x.location || ""].filter(Boolean).join(" · ");
+    return { id: x.key, label, cls: x.level === "urgent" || live ? "hot" : "", title: x.title, sub, at, live,
+      cd: at ? (live ? "还有 " + leftLabel(at - nowMs).replace("后", "下课") : leftLabel(at - nowMs)) : x.reason,
+      cv: isCourse && !c.study && !x.study ? { name: c.name || x.title, day: x.day || t, start: c.start || "" } : null,
+      open: isCourse ? "" : x.key, key: !isCourse && needDone(x.key) ? x.key : "" };
+  };
+  list.filter((x) => x.level === "now").forEach((x) => push(itemCard(x)));
+  const nc = heroNextCourse(ctx);
+  const ncCard = nc ? (() => { const at = atOf(nc.day, nc.c.t0), isTm = nc.day !== t, late = isTm && (night || h >= 21);
+    return { id: "nc:" + nc.day + nc.c.name + nc.c.t0, label: late ? "明天" : "下一节", cls: late ? "sleep" : "", title: nc.c.name, at,
+      sub: (isTm ? "明天 " : "") + nc.c.t0 + (nc.c.location ? " · " + nc.c.location : ""), cd: leftLabel(at - nowMs),
+      cv: nc.c.study ? null : { name: nc.c.name, day: nc.day, start: nc.c.start || "" }, open: "", key: "" }; })() : null;
+  const live = deck.some((x) => x.label === "正在上");
+  const todo = list.filter((x) => x.kind === "item" && x.level !== "late" && x.level !== "now").sort((a, b) => (a.mins == null ? 1e9 : a.mins) - (b.mins == null ? 1e9 : b.mins));
+  const soon = todo.filter((x) => x.mins != null && x.mins <= 24 * 60), later = todo.filter((x) => !(x.mins != null && x.mins <= 24 * 60));
+  if (ncCard && !live && nc.day === t && ncCard.at - nowMs <= 3 * 3600000) push(ncCard);
+  soon.forEach((x) => push(itemCard(x)));
+  const late = list.filter((x) => x.level === "late");
+  if (late.length) push({ id: "late", label: late.length === 1 ? late[0].reason || "过期了" : "过期了", cls: "hot", late: true,
+    title: late.length === 1 ? late[0].title : "有 " + late.length + " 项作业过期没交",
+    sub: late.length === 1 ? "" : late.slice(0, 3).map((x) => x.title).join("、") + (late.length > 3 ? " 等" : ""), cd: "",
+    open: late.length === 1 ? late[0].key : "", key: late.length === 1 && needDone(late[0].key) ? late[0].key : "", go: late.length === 1 ? "" : "homework" });
+  if (ncCard && !live) push(ncCard);
+  later.slice(0, 6).forEach((x) => push(itemCard(x)));
+  if (!deck.length) push(night ? { id: "sleep", label: "早点睡", cls: "sleep", title: "明天没有要赶的事", sub: "睡饱了脑子才转得快", cd: "" }
+    : { id: "idle", label: "空闲", cls: "", title: "手头没有要赶的事", sub: "来一个番茄专注一下？", cd: "", go: "pomo" });
+  if (night && deck[0] && deck[0].cls !== "hot" && deck[0].id !== "sleep") deck.unshift({ id: "sleep", label: "早点睡", cls: "sleep", title: "剩下的明天再说", sub: "往右翻看看还有哪些事", cd: "" });
+  return deck.slice(0, 8);
+}
+let heroAt = "";   // 当前看的是哪一张（按 id 记）：每 30 秒刷新、做完一件，都停在原来那张附近
+function heroDeckHtml(deck) {
+  if (!deck || !deck.length) return "";
+  const card = (x, i) => {
+    const cv = x.cv ? ` data-cview="${esc(x.cv.name)}" data-cday="${esc(x.cv.day)}" data-cstart="${esc(x.cv.start)}"` : "";
+    const act = x.key ? `<button class="hx-ok" data-act="done" data-k="${esc(x.key)}" title="标记完成" aria-label="标记完成">✓</button>`
+      : x.go === "pomo" ? `<button class="hx-go3" data-nx="pomo">开始专注</button>`
+      : x.go === "homework" ? `<button class="hx-go3" data-nxgo="homework">去处理</button>` : "";
+    return `<div class="hx hx3${x.cls ? " " + x.cls : ""}" data-hxid="${esc(x.id)}" data-i="${i}"${cv}${x.open ? ` data-hxopen="${esc(x.open)}"` : ""}>
+      <div class="hx-t"><div class="hx-k3"><i class="hx-dot"></i><span>${esc(x.label)}</span>${x.cd ? `<span class="hx-cd3"${x.at ? ` data-at="${x.at}" data-end="${x.live ? 1 : 0}"` : ""}>${esc(x.cd)}</span>` : ""}</div>
+        <b>${esc(x.title)}</b>${x.sub ? `<small>${esc(x.sub)}</small>` : ""}</div>${act}</div>`;
+  };
+  const n = deck.length;
+  return `<div class="hxd${n > 1 ? " multi" : ""}">
+    <div class="hxd-track" tabindex="-1">${deck.map(card).join("")}</div>
+    ${n > 1 ? `<div class="hxd-nav"><button type="button" class="hxd-a" data-hxd="-1" aria-label="上一件">‹</button><span class="hxd-dots">${deck.map((x, i) => `<i data-hxdot="${i}"></i>`).join("")}</span><button type="button" class="hxd-a" data-hxd="1" aria-label="下一件">›</button></div>` : ""}
   </div>`;
 }
+function heroDeckIdx(tr) {
+  const cs = tr.querySelectorAll(".hx"); if (!cs.length) return 0;
+  const w = cs[0].offsetWidth + 10; return Math.max(0, Math.min(cs.length - 1, Math.round(tr.scrollLeft / w)));
+}
+function heroDeckPaint(tr) {
+  const i = heroDeckIdx(tr), box = tr.closest(".hxd"), cs = tr.querySelectorAll(".hx");
+  if (cs[i]) heroAt = cs[i].dataset.hxid;
+  box.querySelectorAll("[data-hxdot]").forEach((d) => d.classList.toggle("on", +d.dataset.hxdot === i));
+  const a = box.querySelectorAll(".hxd-a"); if (a.length) { a[0].disabled = i === 0; a[1].disabled = i === cs.length - 1; }
+}
+function heroDeckGo(tr, i, smooth) {
+  const cs = tr.querySelectorAll(".hx"); if (!cs[i]) return;
+  tr.scrollTo({ left: cs[i].offsetLeft - cs[0].offsetLeft, behavior: smooth ? "smooth" : "auto" });
+}
+function heroDeckInit() {
+  const tr = document.querySelector(".hero.fx .hxd-track"); if (!tr) return;
+  const cs = [...tr.querySelectorAll(".hx")], i = Math.max(0, cs.findIndex((c) => c.dataset.hxid === heroAt));
+  heroDeckGo(tr, i, false); heroDeckPaint(tr);
+  let tm = 0; tr.addEventListener("scroll", () => { clearTimeout(tm); tm = setTimeout(() => heroDeckPaint(tr), 60); }, { passive: true });
+}
+document.addEventListener("click", (e) => {
+  const a = e.target.closest("[data-hxd], [data-hxdot]");
+  if (a) { const tr = a.closest(".hxd").querySelector(".hxd-track"); heroDeckGo(tr, a.dataset.hxdot != null ? +a.dataset.hxdot : heroDeckIdx(tr) + +a.dataset.hxd, true); return; }
+  // 点事项卡：在下面的列表里展开这一条
+  const c = e.target.closest(".hx[data-hxopen]"); if (!c || e.target.closest("button")) return;
+  const row = document.querySelector(`#agenda .arow[data-row="${CSS.escape(c.dataset.hxopen)}"]`);
+  if (row) { if (row.querySelector(".aextra") && !row.classList.contains("open")) { agendaOpen.add(row.dataset.row); row.classList.add("open"); } agendaManual = true; row.scrollIntoView({ behavior: "smooth", block: "center" }); row.classList.add("flash"); setTimeout(() => row.classList.remove("flash"), 1200); }
+  else showView("homework");
+});
 function heroLineHtml(ctx) {
   const now = ctx.now, t = keyOf(now), nowMin = now.getHours() * 60 + now.getMinutes();
   const itemsOn = (k) => ctx.items.filter((x) => x.day === k && !x.done && hm2min(x.time) != null);
@@ -787,8 +844,10 @@ function heroTickStart() {
     const tl = document.querySelector(".hero.fx .tl"), nw = tl && tl.querySelector(".tl-now");
     if (!nw && tl && !tl.classList.contains("tmr") && m >= +tl.dataset.a) { renderAgenda(); return; }
     if (nw) { const a = +tl.dataset.a, z = +tl.dataset.z; nw.style.left = ((Math.max(a, Math.min(z, m)) - a) / (z - a) * 100).toFixed(2) + "%"; }
-    const cd = document.querySelector(".hero.fx .hx-cd[data-at]");
-    if (cd) { const left = +cd.dataset.at - now; if (left <= 0) { renderAgenda(); return; } cd.textContent = cd.dataset.end === "1" ? "还有 " + leftLabel(left).replace("后", "下课") : leftLabel(left); }
+    for (const cd of document.querySelectorAll(".hero.fx .hx-cd3[data-at]")) {
+      const left = +cd.dataset.at - now; if (left <= 0) { renderAgenda(); return; }
+      cd.textContent = cd.dataset.end === "1" ? "还有 " + leftLabel(left).replace("后", "下课") : leftLabel(left);
+    }
   }, 30000);
 }
 document.addEventListener("click", (e) => {
@@ -889,13 +948,22 @@ function renderAgenda() {
     // 清爽外观：原来的天空问候卡 + 一行「接下来」（实时倒计时）+ 今天的时间轴
     let ctx = null; try { ctx = typeof IslandCore !== "undefined" ? islandCtx() : null; } catch (e) {}
     const wk = ctx && ctx.weekOf ? ctx.weekOf(keyOf(today)) : 0;
+    let deck = null; try { deck = ctx ? heroDeck(ctx) : null; } catch (e) { console.error(e); }
+    // 和小程序 1.29.1 一样：下面的卡片已经写着「过期了」，这句话就不再重复；深夜提醒明天第一节课
+    let say2 = say;
+    if (deck && deck.length) {
+      const nc = (h >= 22 || h < 5) && !/^nc:/.test(deck[0].id) ? heroNextCourse(ctx) : null;
+      if (nc) say2 = (nc.day !== keyOf(today) ? "明天 " : "") + nc.c.t0 + " 有" + nc.c.name + "，记得定好闹钟";
+      else if (deck.some((x) => x.late) && overdue.length) say2 = todayHw ? `今天有 ${todayHw} 项作业要交，别忘啦～` : todayCount ? `今天有 ${todayCount} 件事，一件件来` : "今天没有别的要赶，先把过期的补上";
+    }
     $("hero").innerHTML = `<div class="hero fx">
       <div class="date">${today.getMonth() + 1}月${today.getDate()}日 周${WEEK[today.getDay()]}${wk ? ` · 第 ${wk} 周` : ""}</div>
       <h3>${hi + name}</h3>
-      <div class="say">${say}</div>
+      <div class="say">${say2}</div>
       <button class="mascot hx-lao" type="button" aria-label="和捞捞聊聊" title="点我问问捞捞"><svg viewBox="0 0 120 120" aria-hidden="true"><use href="#mascotArt"/></svg></button>
-      ${ctx ? heroNextHtml(ctx) + heroLineHtml(ctx) : ""}
+      ${ctx ? heroDeckHtml(deck) + heroLineHtml(ctx) : ""}
     </div>`;
+    heroDeckInit();
     heroTickStart();
   } else
   $("hero").innerHTML = `<div class="hero">

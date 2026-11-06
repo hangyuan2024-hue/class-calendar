@@ -7,6 +7,7 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -216,8 +217,16 @@ class HomePage(a: Main) : Page(a) {
         val name = Store.name()
         tc.addView(ctx.text(T.greet() + if (name.isNotEmpty()) "，$name" else "", 27f, C.heroText, BOLD, 2).apply { setLineSpacing(0f, 1.1f) })
         val ag = try { Items.agenda() } catch (e: Exception) { null }
+        val deck = try { Items.deck() } catch (e: Exception) { emptyList() }
+        // 和小程序 1.29.1 一样：下面卡片已经写着「过期了」，这句话就不再重复；深夜提醒明天第一节课
+        var say = ag?.say ?: ""
+        val hr0 = T.now().hour
+        val nl = if ((hr0 >= 22 || hr0 < 5) && deck.isNotEmpty() && !deck[0].id.startsWith("nc:")) Items.nextLesson() else null
+        if (nl != null) say = (if (nl.first != T.todayKey()) "明天 " else "") + nl.second.t0 + " 有" + nl.second.name + "，记得定好闹钟"
+        else if (deck.any { it.merged } && say.contains("过期")) { val todayHw = try { Items.homeworkAll().groups.firstOrNull { it.key == "today" }?.items?.size ?: 0 } catch (_: Exception) { 0 }
+            say = if (todayHw > 0) "今天还有 $todayHw 项作业要交" else if (ag != null && ag.todayCount > 0) "今天有 ${ag.todayCount} 件事，一件件来" else "今天没有别的要赶，先把过期的补上" }
         // 7.x 一句话尽量一行说完；要折行时两行差不多长，不会剩一个字吊在第二行
-        tc.addView(ctx.text(ag?.say ?: "", 13.5f, C.alpha(C.heroText, 0.72f)).apply {
+        tc.addView(ctx.text(say, 13.5f, C.alpha(C.heroText, 0.72f)).apply {
             margins(t = 6); setLineSpacing(0f, 1.3f)
             if (android.os.Build.VERSION.SDK_INT >= 23) breakStrategy = android.text.Layout.BREAK_STRATEGY_BALANCED
         })
@@ -226,14 +235,37 @@ class HomePage(a: Main) : Page(a) {
         mid.addView(ImageView(ctx).apply { setImageResource(if (night) R.drawable.mascot_sleep else R.drawable.mascot); rotation = 8f; tap { it.animate().rotationBy(-16f).setDuration(160).withEndAction { it.animate().rotation(8f).setDuration(160).start() }.start() } },
             LinearLayout.LayoutParams(dp(76), dp(76)).apply { leftMargin = dp(8) })
         h.addView(mid)
-        Items.next()?.let { n -> h.add(nextCard(n), 16) }
-        h.add(timeline(), 18)
+        if (deck.isNotEmpty()) h.add(deckView(deck), 16)
+        h.add(timeline(), if (deck.size > 1) 10 else 18)
     }
     /**
      * 「现在最该做的事」：
      * 第一行 小标签（过期了 / 下一节 / 先做这个）+ 右边还剩多久；第二行标题（整行都给标题，不再被标签挤窄）；第三行时间地点。
      * 过期的时间用红色，正在进行的用主题色。
      */
+    // 1.33 看板：几张卡左右滑（和小程序一样），下面一排小圆点；每分钟刷新、做完一件，都停在原来那张
+    private var deckAt = ""
+    private fun deckView(deck: List<Items.Next>): View {
+        val box = ctx.col()
+        val dots = ctx.row().apply { gravity = Gravity.CENTER }
+        fun paint(i: Int) {
+            deckAt = deck.getOrNull(i)?.id ?: ""
+            for (j in 0 until dots.childCount) dots.getChildAt(j).apply {
+                background = round(C.alpha(C.accent, if (j == i) 0.9f else 0.22f), dp(3).toFloat())
+                layoutParams = (layoutParams as LinearLayout.LayoutParams).apply { width = dp(if (j == i) 14 else 5) }
+            }
+        }
+        val dv = DeckView(ctx, dp(if (deck.size > 1) 26 else 0), dp(10)) { paint(it) }
+        deck.forEach { dv.add(nextCard(it)) }
+        dv.page = maxOf(0, deck.indexOfFirst { it.id == deckAt })
+        box.addView(dv)
+        if (deck.size > 1) {
+            deck.indices.forEach { i -> dots.addView(View(ctx).apply { tap { dv.go(i) } }, LinearLayout.LayoutParams(dp(5), dp(5)).apply { leftMargin = dp(3); rightMargin = dp(3) }) }
+            box.addView(dots, LinearLayout.LayoutParams(MATCH, dp(16)).apply { topMargin = dp(6) })
+        }
+        paint(dv.page)
+        return box
+    }
     private fun nextCard(n: Items.Next): View {
         val c = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; bg(C.card, 16, C.alpha(C.accent, 0.14f)); pad(14, 12, 12, 12) }
         val hot = n.hot; val sleep = n.label == "早点睡"
@@ -246,7 +278,7 @@ class HomePage(a: Main) : Page(a) {
             val left = n.at - System.currentTimeMillis()
             val late = left < -60_000 && !n.live
             tr.addView(ctx.text(if (n.live) "还有 " + T.left(left).replace("后", "下课") else T.left(left), 12.5f, if (late && hot) C.red else if (late) C.sub else C.accent, BOLD, 1).apply { pad(8, 0, 0, 0) })
-        }
+        } else if (n.reason.isNotEmpty() && n.reason != n.label) tr.addView(ctx.text(n.reason, 12.5f, C.sub, SEMI, 1).apply { pad(8, 0, 0, 0) })
         t.addView(tr)
         t.addView(ctx.text(n.title, 16f, C.text, BOLD, 1).apply { margins(t = 6) })
         if (n.sub.isNotEmpty()) t.addView(ctx.text(n.sub, 12.5f, C.sub, lines = 1).apply { margins(t = 2) })
@@ -256,10 +288,19 @@ class HomePage(a: Main) : Page(a) {
                 gravity = Gravity.CENTER; press(C.accent, 12, ripple = C.alpha(Color.WHITE, 0.3f)); contentDescription = "标记完成"
                 tap { v -> v.buzz(); Items.find(n.key)?.let { a.toggle(it) } }
             }, LinearLayout.LayoutParams(dp(40), dp(40)).apply { leftMargin = dp(10) })
-            c.tap { a.push(ItemPage(a, n.key)) }
-        } else {
+        } else if (n.go.isNotEmpty()) {
+            c.addView(ctx.text(if (n.go == "homework") "去处理" else "开始专注", 12.5f, if (hot) C.red else C.accent, BOLD).apply {
+                gravity = Gravity.CENTER; pad(12, 7); bg(C.card, 99, if (hot) C.red else C.accent)
+                tap { if (n.go == "homework") a.selectTab(1) else a.push(PlanPage(a)) }
+            }, LinearLayout.LayoutParams(WRAP, WRAP).apply { leftMargin = dp(10) })
+        } else if (n.open.isNotEmpty() || n.cday.isNotEmpty() || n.label == "下一节" || n.label == "正在上" || n.label == "明天") {
             c.addView(ctx.text("›", 20f, C.sub), LinearLayout.LayoutParams(WRAP, WRAP).apply { leftMargin = dp(8) })
-            c.tap { if (n.cday.isNotEmpty()) CourseView.open(a, n.cday, n.title, n.cstart) else a.push(CoursePage(a)) }
+        }
+        when {
+            n.open.isNotEmpty() -> c.tap { a.push(ItemPage(a, n.open)) }
+            n.go == "homework" -> c.tap { a.selectTab(1) }
+            n.cday.isNotEmpty() -> c.tap { CourseView.open(a, n.cday, n.title, n.cstart) }
+            n.label == "下一节" || n.label == "正在上" || n.label == "明天" -> c.tap { a.push(CoursePage(a)) }
         }
         return c
     }
@@ -513,4 +554,43 @@ class Timeline(ctx: Context, private val lessons: List<Lesson>, private val item
         }
         tp.typeface = BOLD
     }
+}
+
+/**
+ * 1.33 首页看板的横向翻页：每张卡宽 = 屏宽 − 露出下一张的一小截；松手自动对齐到最近一张（滑得够远就翻一张），不会停在两张中间。
+ */
+class DeckView(ctx: Context, private val peek: Int, private val gap: Int, private val onPage: (Int) -> Unit) : android.widget.HorizontalScrollView(ctx) {
+    private val row = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+    var page = 0
+    private var downX = 0f; private var downPage = 0; private var moved = false
+    private val slop = android.view.ViewConfiguration.get(ctx).scaledTouchSlop
+    init { isHorizontalScrollBarEnabled = false; overScrollMode = OVER_SCROLL_NEVER; clipToPadding = false; addView(row, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT)) }
+    fun add(v: View) { row.addView(v, LinearLayout.LayoutParams(1, LinearLayout.LayoutParams.WRAP_CONTENT).apply { if (row.childCount > 0) leftMargin = gap }) }
+    private fun cw() = width - (if (row.childCount > 1) peek else 0)
+    override fun onSizeChanged(w: Int, h: Int, ow: Int, oh: Int) {
+        super.onSizeChanged(w, h, ow, oh)
+        if (w > 0 && w != ow) post {
+            for (i in 0 until row.childCount) row.getChildAt(i).let { c -> c.layoutParams = (c.layoutParams as LinearLayout.LayoutParams).apply { width = cw() } }
+            post { go(page, false) }
+        }
+    }
+    fun go(i: Int, smooth: Boolean = true) {
+        val p = i.coerceIn(0, maxOf(0, row.childCount - 1)); val x = p * (cw() + gap)
+        if (smooth) smoothScrollTo(x, 0) else scrollTo(x, 0)
+        page = p; onPage(p)
+    }
+    override fun dispatchTouchEvent(e: MotionEvent): Boolean {
+        when (e.actionMasked) {
+            MotionEvent.ACTION_DOWN -> { downX = e.x; downPage = page; moved = false }
+            MotionEvent.ACTION_MOVE -> if (Math.abs(e.x - downX) > slop) moved = true
+        }
+        val r = super.dispatchTouchEvent(e)
+        if ((e.actionMasked == MotionEvent.ACTION_UP || e.actionMasked == MotionEvent.ACTION_CANCEL) && moved) {
+            val dx = e.x - downX; val step = cw() + gap
+            val target = if (Math.abs(dx) > step * 0.18f) (if (dx < 0) downPage + 1 else downPage - 1) else Math.round(scrollX.toFloat() / step)
+            post { go(target) }
+        }
+        return r
+    }
+    override fun fling(velocityX: Int) { }   // 一次只翻一张
 }
