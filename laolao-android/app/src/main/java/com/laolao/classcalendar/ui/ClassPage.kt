@@ -26,6 +26,7 @@ class ClassPage(a: Main) : Page(a) {
     override val autoRender = false
 
     override fun build(): View = scaffold("我的$w", pull = { done -> a.refreshSoon(force = true) { done(); render() } }) { body = it }
+    override fun onShow() { Guide.once(a, "class") }
 
     override fun render() {
         view
@@ -105,6 +106,7 @@ class ClassPage(a: Main) : Page(a) {
         val cur = c.str("id") == Store.cls?.str("id")
         if (!cur) opts += "切换到这个$w"
         if (c.optBoolean("is_teacher")) opts += "管理这个$w（审批、班委、功能开关）"
+        if (!c.optBoolean("is_teacher") && c.str("member_role") == "monitor") opts += "审批入班申请（班委也能批准）"
         if (c.optBoolean("is_teacher") && c.str("code").isNotEmpty()) { opts += "复制${w}码 ${c.str("code")}"; opts += "复制邀请语（发到群里）" }
         opts += "成员名单"
         if (!c.optBoolean("is_teacher")) opts += "退出$w"
@@ -112,6 +114,7 @@ class ClassPage(a: Main) : Page(a) {
             val o = opts[i]
             when {
                 o.startsWith("管理") -> a.push(ClassManagePage(a, c.str("id")))
+                o.startsWith("审批入班") -> a.push(JoinReviewPage(a, c.str("id"), c.str("name")))
                 o.startsWith("切换") -> Bg.load({ Store.switchClass(c.str("id")) }) { _, e -> if (e != null) a.toast(e.message ?: "") else { a.toast("已切换到「${c.str("name")}」"); close() } }
                 o.startsWith("复制邀请") -> copy("请用「捞捞课程表」加入「${c.str("name")}」：下载安卓 App 或打开微信小程序 / 网页版注册（选“学生”，填真实姓名），在「我的 → 班级」输入班级码 ${c.str("code")} 申请加入。", "邀请语已复制，发到班群就行")
                 o.startsWith("复制") -> copy(c.str("code"), "班级码 ${c.str("code")} 已复制")

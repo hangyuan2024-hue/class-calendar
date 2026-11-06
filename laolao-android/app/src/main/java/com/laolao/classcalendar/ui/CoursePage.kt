@@ -51,7 +51,7 @@ class CoursePage(a: Main) : Page(a) {
 
     override fun build(): View = scaffold("课程表", ctx.text("⋯", 22f, C.text, BOLD).apply { gravity = Gravity.CENTER; press(0, 12); tap { more() } }.also { it.layoutParams = LinearLayout.LayoutParams(dp(44), dp(40)) },
         pull = { done -> Bg.load({ Courses.pull(force = true) }) { _, e -> done(); if (e != null) a.toast(e.message ?: "") else render() } }) { body = it }
-    override fun onShow() { if (System.currentTimeMillis() - Courses.syncedAt() > 60_000) Bg.load({ Courses.pull(force = true) }) { ch, _ -> if (ch == true) render() } }
+    override fun onShow() { if (System.currentTimeMillis() - Courses.syncedAt() > 60_000) Bg.load({ Courses.pull(force = true) }) { ch, _ -> if (ch == true) render() }; Guide.once(a, "course") }
 
     private val clsId: String? get() = Store.cls?.str("id")
     private val canPublish: Boolean get() = Store.isTeacher || Store.can("can_edit")
@@ -178,6 +178,11 @@ class CoursePage(a: Main) : Page(a) {
         val card = ctx.card(4, 20).apply { margins(t = 12, b = 4); lift(5, C.text) }
         val g = WeekGrid(ctx, days.take(n), lessons.take(n), tms(), week == curWeek(), { d, l -> detail(d, l) }, { d, p -> if (src == "mine") form(null, d.dayOfWeek.value - 1, p) })
         g.onSwipe = { dir -> go(week + dir) }
+        // 7.x 早自习在第一节上面、晚自习在最后一节下面（和小程序、网站一样）
+        if (src == "mine") try {
+            g.am = days.take(n).map { com.laolao.classcalendar.core.Island.morning(T.key(it)).firstOrNull() }.takeIf { l -> l.any { it != null } }
+            g.pm = days.take(n).map { com.laolao.classcalendar.core.Island.evening(T.key(it)).firstOrNull() }.takeIf { l -> l.any { it != null } }
+        } catch (_: Exception) {}
         card.addView(g)
         body.addView(card)
         if (slide != 0) { g.translationX = slide * dp(60).toFloat(); g.alpha = 0f; g.animate().translationX(0f).alpha(1f).setDuration(220).start(); slide = 0 }
@@ -579,7 +584,15 @@ class WeekGrid(ctx: Context, private val days: List<LocalDate>, private val less
     private val rowH get() = (if (forImage) 120f else if (days.size == 5) 60 * d else 58 * d)
     private val s get() = if (forImage) 2.2f else d
     private val boxes = mutableListOf<Triple<RectF, LocalDate, Lesson>>()
-    override fun onMeasure(w: Int, h: Int) { setMeasuredDimension(MeasureSpec.getSize(w), (headH + rowH * n + 4 * s).toInt()) }
+    /** 7.x 早自习 / 晚自习：每天一格（没有就是 null）；整周都没有时为 null，不占地方 */
+    var am: List<Lesson?>? = null
+    var pm: List<Lesson?>? = null
+    private val stH get() = (if (forImage) 84f else 44 * d)
+    private val amH get() = if (am != null) stH else 0f
+    private val pmH get() = if (pm != null) stH else 0f
+    /** 第一节课的顶边（表头 + 早自习那一行） */
+    private val top0 get() = headH + amH
+    override fun onMeasure(w: Int, h: Int) { setMeasuredDimension(MeasureSpec.getSize(w), (top0 + rowH * n + pmH + 4 * s).toInt()) }
     private fun colW() = (width - leftW) / days.size
     override fun onDraw(c: Canvas) {
         boxes.clear()
@@ -598,9 +611,32 @@ class WeekGrid(ctx: Context, private val days: List<LocalDate>, private val less
             tp.textSize = 9.5f * s; tp.color = if (isT) C.alpha(Color.WHITE, 0.85f) else C.sub; tp.typeface = android.graphics.Typeface.DEFAULT
             c.drawText("${day.monthValue}/${day.dayOfMonth}", cx, headH / 2 + 12 * s, tp)
         }
+        // 早自习、晚自习：虚线框（和小程序、网站一样）
+        fun studyRow(l: List<Lesson?>, y: Float) {
+            val first = l.firstOrNull { it != null } ?: return
+            tp.textAlign = Paint.Align.CENTER; tp.textSize = 10 * s; tp.color = C.accent; tp.typeface = BOLD
+            c.drawText(first.name.take(3), leftW / 2, y + stH / 2 - 1 * s, tp)
+            tp.textSize = 8.5f * s; tp.color = C.mutedText; tp.typeface = android.graphics.Typeface.DEFAULT
+            c.drawText(first.t0, leftW / 2, y + stH / 2 + 10 * s, tp)
+            tp.textAlign = Paint.Align.LEFT
+            l.forEachIndexed { i, st ->
+                if (st == null) return@forEachIndexed
+                val r = RectF(leftW + cw * i + 2.5f * s, y + 3 * s, leftW + cw * (i + 1) - 2.5f * s, y + stH - 3 * s)
+                p.color = C.alpha(C.accent, if (C.dark) 0.16f else 0.08f); c.drawRoundRect(r, 9 * s, 9 * s, p)
+                p.style = Paint.Style.STROKE; p.strokeWidth = 1f * s; p.color = C.alpha(C.accent, 0.5f); p.pathEffect = android.graphics.DashPathEffect(floatArrayOf(4 * s, 3 * s), 0f)
+                c.drawRoundRect(r, 9 * s, 9 * s, p); p.pathEffect = null; p.style = Paint.Style.FILL
+                tp.textSize = 11 * s; tp.color = C.accent; tp.typeface = BOLD
+                c.drawText(android.text.TextUtils.ellipsize(st.name, tp, r.width() - 10 * s, android.text.TextUtils.TruncateAt.END).toString(), r.left + 6 * s, r.top + 14 * s, tp)
+                tp.textSize = 9 * s; tp.color = C.sub; tp.typeface = android.graphics.Typeface.DEFAULT
+                c.drawText(android.text.TextUtils.ellipsize(st.t0 + "-" + st.t1, tp, r.width() - 10 * s, android.text.TextUtils.TruncateAt.END).toString(), r.left + 6 * s, r.top + 27 * s, tp)
+            }
+            tp.textAlign = Paint.Align.CENTER
+        }
+        am?.let { studyRow(it, headH) }
+        pm?.let { studyRow(it, top0 + rowH * n) }
         // 节次 + 横线（午饭、晚饭前加粗一点，分出上午 / 下午 / 晚上）
         for (k in 0 until n) {
-            val top = headH + rowH * k
+            val top = top0 + rowH * k
             tp.textSize = 12 * s; tp.color = C.text; tp.typeface = BOLD
             c.drawText("${k + 1}", leftW / 2, top + rowH / 2 - 3 * s, tp)
             times.getOrNull(k)?.let { t -> tp.textSize = 8.5f * s; tp.color = C.mutedText; tp.typeface = android.graphics.Typeface.DEFAULT; c.drawText(t.substringBefore("-"), leftW / 2, top + rowH / 2 + 9 * s, tp) }
@@ -617,7 +653,8 @@ class WeekGrid(ctx: Context, private val days: List<LocalDate>, private val less
         lessons.forEachIndexed { i, list ->
             for (l in list) {
                 val col = Courses.color(l.name)
-                val r = RectF(leftW + cw * i + 2.5f * s, headH + rowH * (l.start - 1) + 2.5f * s, leftW + cw * (i + 1) - 2.5f * s, headH + rowH * l.end - 4.5f * s)
+                if (l.start < 1 || l.evening) continue   // 自习（节次 0 / 90）画在上面、下面那一行
+                val r = RectF(leftW + cw * i + 2.5f * s, top0 + rowH * (l.start - 1) + 2.5f * s, leftW + cw * (i + 1) - 2.5f * s, top0 + rowH * l.end - 4.5f * s)
                 val isToday = i == ti
                 val now = isToday && (l.m0 ?: 9999) <= nowM && nowM < (l.m1 ?: 0)
                 val past = isToday && (l.m1 ?: 9999) <= nowM || (isCurWeek && !forImage && days[i].isBefore(today))
@@ -656,9 +693,9 @@ class WeekGrid(ctx: Context, private val days: List<LocalDate>, private val less
         if (ti >= 0) {
             var y = -1f
             for (k in 0 until n) { val t = times.getOrNull(k) ?: continue; val a0 = T.min(t.substringBefore("-")) ?: continue; val a1 = T.min(t.substringAfter("-")) ?: continue
-                if (nowM in a0 until a1) { y = headH + rowH * k + rowH * (nowM - a0) / (a1 - a0); break }
+                if (nowM in a0 until a1) { y = top0 + rowH * k + rowH * (nowM - a0) / (a1 - a0); break }
                 val nx = times.getOrNull(k + 1)?.let { T.min(it.substringBefore("-")) }
-                if (nx != null && nowM in a1 until nx) { y = headH + rowH * (k + 1); break } }
+                if (nx != null && nowM in a1 until nx) { y = top0 + rowH * (k + 1); break } }
             if (y > 0) { p.color = C.red; c.drawRect(leftW + cw * ti, y - 1 * s, leftW + cw * (ti + 1), y + 1 * s, p); c.drawCircle(leftW + cw * ti + 2 * s, y, 4 * s, p) }
         }
     }
@@ -666,8 +703,8 @@ class WeekGrid(ctx: Context, private val days: List<LocalDate>, private val less
         override fun onDown(e: MotionEvent) = true
         override fun onSingleTapUp(e: MotionEvent): Boolean { boxes.firstOrNull { it.first.contains(e.x, e.y) }?.let { pick(it.second, it.third) }; return true }
         override fun onLongPress(e: MotionEvent) {
-            if (boxes.any { it.first.contains(e.x, e.y) } || e.x < leftW || e.y < headH) return
-            val i = ((e.x - leftW) / colW()).toInt().coerceIn(0, days.size - 1); val k = ((e.y - headH) / rowH).toInt() + 1
+            if (boxes.any { it.first.contains(e.x, e.y) } || e.x < leftW || e.y < top0 || e.y > top0 + rowH * n) return
+            val i = ((e.x - leftW) / colW()).toInt().coerceIn(0, days.size - 1); val k = ((e.y - top0) / rowH).toInt() + 1
             performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); addAt(days[i], k.coerceIn(1, n))
         }
         override fun onFling(e1: MotionEvent?, e2: MotionEvent, vx: Float, vy: Float): Boolean {

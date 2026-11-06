@@ -549,17 +549,6 @@ class ViewersPage(a: Main, private val itemId: String, private val title: String
          val seen = l.filter { it.str("seen_at").isNotEmpty() && !it.optBoolean("done") }; val done = l.filter { it.optBoolean("done") }
         body.add(ctx.text("共 ${l.size} 人 · ${l.size - no.size} 人看过", 13f, C.sub), 4)
         body.add(Seg(ctx, listOf("没看 ${no.size}", "看过 ${seen.size}", "完成 ${done.size}"), tab) { tab = it; render() }, 12)
-        // 7.55 一键微信提醒还没看的同学（7.14 SQL，小程序 1.22）：同一条 2 小时内只能提醒一次
-        if (tab == 0 && no.isNotEmpty()) body.add(ctx.soft("🔔 微信提醒这 ${no.size} 位同学") {
-            val cid = cidArg.ifEmpty { Store.cls?.str("id") ?: "" }; if (cid.isEmpty()) return@soft
-            Bg.load({ Api.rpcObj("item_nudge", jsonOf("cid" to cid, "iid" to itemId.toLong())) }) { r, e ->
-                when {
-                    r == null -> Dialogs.alert(ctx, "没发出去", e?.message?.let { if (Regex("item_nudge|PGRST202|Could not find").containsMatchIn(it)) "这个功能要先在数据库执行 7.14 的 SQL" else it } ?: "")
-                    r.has("ok") && !r.optBoolean("ok") -> Dialogs.alert(ctx, "这次没发", r.str("why"))
-                    else -> Dialogs.alert(ctx, "已提醒", "已给 ${r.optInt("sent")} 人发了微信提醒" + if (r.optInt("no_wx") > 0) "；${r.optInt("no_wx")} 人没开微信提醒，发不到，可以在班级群里说一声。" else "。")
-                }
-            }
-        }, 10)
         val cur = listOf(no, seen, done)[tab]
         if (cur.isEmpty()) { body.addView(ctx.empty("🎉", if (tab == 0) "全都看过了" else "暂时没有")); return }
         val c = ctx.card(4, 18).apply { margins(t = 12) }
@@ -783,6 +772,8 @@ class IngestPage(a: Main) : Page(a) {
 class ClassManagePage(a: Main, private val cid: String) : Page(a) {
     private lateinit var body: LinearLayout
     private var roster: List<JSONObject>? = null; private var feats: List<JSONObject>? = null; private var mce: Boolean? = null; private var err = ""
+    /** 7.x（7.54）每个班委能不能批准入班（默认能）；null = 服务器还没升级 */
+    private var appr: JSONObject? = null
     override val autoRender = false
     private val PERMS = listOf(Triple("can_edit", "增改事项", "发布、修改班级事项，给班级起昵称"), Triple("can_delete", "删除事项", "删掉发错的班级事项"),
         Triple("can_ingest", "AI 整理", "把群消息整理成班级事项"), Triple("can_view_members", "看成员名单", "查看本班已入班的同学"))
@@ -794,6 +785,7 @@ class ClassManagePage(a: Main, private val cid: String) : Page(a) {
             val r = (Api.rpc("class_roster", jsonOf("cid" to cid)) as? JSONArray)?.objs() ?: emptyList()
             val f = try { (Api.rpc("class_features_get", jsonOf("cid" to cid)) as? JSONArray)?.objs() } catch (_: Exception) { null }
             val m = try { (Api.rest("classes?select=id,members_can_edit&id=eq.$cid") as? JSONArray)?.optJSONObject(0)?.let { if (it.has("members_can_edit")) it.optBoolean("members_can_edit") else null } } catch (_: Exception) { null }
+            appr = com.laolao.classcalendar.core.JoinReview.approvers(cid)
             Triple(r, f, m)
         }) { r, e -> done?.invoke(); if (r == null) err = e?.message ?: "加载失败" else { roster = r.first; feats = r.second; mce = r.third; err = "" }; render() }
     }
@@ -856,7 +848,7 @@ class ClassManagePage(a: Main, private val cid: String) : Page(a) {
             ok.sortedWith(compareBy({ it.str("member_role") != "monitor" }, { it.str("name") })).forEachIndexed { i, m ->
                 if (i > 0) mc.addView(ctx.hline())
                 val mon = m.str("member_role") == "monitor"
-                val perms = PERMS.filter { m.optBoolean(it.first) }.joinToString(" · ") { it.second }
+                val perms = (PERMS.filter { m.optBoolean(it.first) }.map { it.second } + listOfNotNull(if (appr != null && appr!!.optBoolean(m.str("user_id"), true)) "审批入班" else null)).joinToString(" · ")
                 val row = ctx.row().apply { pad(14, 10); press(0, 14); tap { member(m) } }
                 row.addView(CK.avatar(ctx, m.str("name"), 36), LinearLayout.LayoutParams(dp(36), dp(36)))
                 val cc = ctx.col().apply { pad(10, 0) }
@@ -905,6 +897,9 @@ class ClassManagePage(a: Main, private val cid: String) : Page(a) {
         val mon = m.str("member_role") == "monitor"
         val opts = mutableListOf(if (mon) "设为普通学生" else "设为班委")
         if (mon) PERMS.forEach { opts += (if (m.optBoolean(it.first)) "✓ " else "○ ") + it.second + "（" + it.third + "）" }
+        val ap = appr
+        val apOn = ap?.optBoolean(m.str("user_id"), true) ?: true
+        if (mon && ap != null) opts += (if (apOn) "✓ " else "○ ") + "审批入班（批准或拒绝入班申请，默认打开）"
         opts += "看 TA 的主页"; opts += "移出班级"
         Dialogs.sheet(ctx, m.str("name"), opts, danger = setOf(opts.size - 1)) { i ->
             val o = opts[i]
@@ -912,6 +907,9 @@ class ClassManagePage(a: Main, private val cid: String) : Page(a) {
                 o == "设为班委" -> saveMember(m, true, PERMS.associate { it.first to (it.first == "can_edit") })
                 o == "设为普通学生" -> saveMember(m, false, emptyMap())
                 o == "看 TA 的主页" -> a.push(UserPage(a, m.str("user_id")))
+                o.contains("审批入班") -> Bg.load({ com.laolao.classcalendar.core.JoinReview.setApprove(cid, m.str("user_id"), !apOn) }) { _, e ->
+                    if (e != null) a.toast("没成功：" + e.message) else { ap?.put(m.str("user_id"), !apOn); a.toast(if (!apOn) "${m.str("name")} 可以审批入班了" else "已关掉 ${m.str("name")} 的审批权"); render() }
+                }
                 o == "移出班级" -> Dialogs.confirm(ctx, "把 ${m.str("name")} 移出班级？", "TA 将看不到这个班的事项，需要的话可以重新申请加入。", "移出", danger = true) {
                     Bg.load({ Api.rest("class_members?class_id=eq.$cid&user_id=eq.${m.str("user_id")}", "DELETE") }) { _, e -> if (e != null) a.toast("没成功：" + e.message) else after("已把 ${m.str("name")} 移出班级") }
                 }

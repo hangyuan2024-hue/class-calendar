@@ -147,7 +147,11 @@ object Checkin {
         return c.optBoolean("is_teacher") || (c.str("member_role") == "monitor" && (c.optBoolean("can_edit") || c.optBoolean("can_ingest")))
     }
     /** 6.9.2 能不能签：班里的同学（班委也要签）；老师不用签。老服务器没有 can_sign 就按以前的规则 */
-    fun signable(x: JSONObject): Boolean = if (x.has("can_sign")) x.optBoolean("can_sign") && !x.optBoolean("is_teacher") else !x.optBoolean("can_manage")
+    // 7.x（7.54 SQL）签到范围：服务器直接告诉「你要不要签」（sign_ok），老师被选进来也能签
+    fun signable(x: JSONObject): Boolean = if (x.has("sign_ok") && !x.isNull("sign_ok")) x.optBoolean("sign_ok")
+        else if (x.has("can_sign")) x.optBoolean("can_sign") && !x.optBoolean("is_teacher") else !x.optBoolean("can_manage")
+    /** 发起人和他指定的人（7.29）：能看码、改范围 */
+    fun ctl(x: JSONObject): Boolean = if (x.has("can_ctl") && !x.isNull("can_ctl")) x.optBoolean("can_ctl") else x.optBoolean("is_creator", x.optBoolean("can_manage"))
     fun leftText(x: JSONObject): String {
         val end = try { java.time.OffsetDateTime.parse(x.str("ends_at")).toInstant().toEpochMilli() } catch (_: Exception) { 0L }
         val m = maxOf(0L, (end - System.currentTimeMillis()) / 60000)

@@ -12,6 +12,12 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import com.laolao.classcalendar.core.Bg
 import com.laolao.classcalendar.core.Checkin
+import com.laolao.classcalendar.core.CkMore
+import com.laolao.classcalendar.core.CkQ
+import com.laolao.classcalendar.core.CkScope
+import com.laolao.classcalendar.core.NoScopeError
+import com.laolao.classcalendar.core.netFail
+import com.laolao.classcalendar.core.noFn
 import com.laolao.classcalendar.core.CourseShot
 import com.laolao.classcalendar.core.Courses
 import com.laolao.classcalendar.core.Growth
@@ -155,10 +161,19 @@ class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: S
         val waiting = o != null && o.optBoolean("can_manage") && o.optBoolean("open") && code?.str("img").isNullOrEmpty() != false
         if (o != null && o.optBoolean("can_manage") && o.optBoolean("open") && (Checkin.needCode(o) || code?.str("img").isNullOrEmpty())) loadCode()
         if (o != null && o.optBoolean("can_manage") && Checkin.needPhoto(o) && o.optBoolean("open") && System.currentTimeMillis() - namesAt > 15000) { namesAt = System.currentTimeMillis(); loadNames() }   // 拍照签到：15 秒刷新一次照片墙
+        if (System.currentTimeMillis() - qAt > 8000 && CkQ.all().isNotEmpty()) flushQ()   // 网络差时记下的签到：自动重交
         Bg.main.postDelayed(this, if (waiting) 1000 else 3000) } }
-    private var namesAt = 0L
+    private var namesAt = 0L; private var qAt = 0L; private var qBusy = false
+    /** 把网络差时记下的签到交上去；交上了就刷新 */
+    private fun flushQ() {
+        if (qBusy) return; qBusy = true; qAt = System.currentTimeMillis()
+        Bg.load({ CkQ.flush() }) { msgs, _ ->
+            qBusy = false
+            if (!msgs.isNullOrEmpty()) { msgs.forEach { a.toast(it) }; if (one != null) openOne(one!!.optLong("id")) else load() }
+        }
+    }
     override fun build(): View = scaffold("签到", pull = { done -> if (one != null) openOne(one!!.optLong("id")) { done() } else load { done() } }) { body = it }
-    override fun onShow() { if (openId > 0 && one == null && !autoTried) { input = openCode; openOne(openId) } else if (one != null) openOne(one!!.optLong("id")) else load(); Bg.main.removeCallbacks(tick); Bg.main.postDelayed(tick, 3000) }
+    override fun onShow() { if (openId > 0 && one == null && !autoTried) { input = openCode; openOne(openId) } else if (one != null) openOne(one!!.optLong("id")) else load(); Bg.main.removeCallbacks(tick); Bg.main.postDelayed(tick, 3000); if (CkQ.all().isNotEmpty()) flushQ(); Guide.once(a, "checkin") }
     override fun onHide() { Bg.main.removeCallbacks(tick) }
     override fun onBack(): Boolean { if (one != null && openId == 0L) { one = null; names = null; code = null; load(); return true }; return false }
     private fun load(done: (() -> Unit)? = null) {
@@ -220,6 +235,13 @@ class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: S
             if (cand.isEmpty()) a.toast("现在没有要输签到码的签到") else { input = v; openOne(cand[0].optLong("id")) { if (v.length == 4) sign() } }
         }, LinearLayout.LayoutParams(WRAP, WRAP).apply { leftMargin = dp(8) })
         body.addView(qc)
+        val qn = CkQ.all().size
+        if (qn > 0) {
+            val qb = ctx.row().apply { pad(14, 12); margins(t = 12); background = round(C.alpha(ORANGE, 0.12f), dp(16).toFloat()) }
+            qb.addView(ctx.text("⏳ $qn 次签到等网络恢复后自动提交", 13.5f, C.text, SEMI), LinearLayout.LayoutParams(0, WRAP, 1f))
+            qb.addView(ctx.text("立即重试", 13.5f, C.accent, BOLD).apply { pad(8, 4); tap { a.toast("正在重新提交…"); flushQ() } })
+            body.addView(qb)
+        }
         val l = list ?: run { body.add(ctx.text(err.ifEmpty { "加载中…" }, 14f, if (err.isNotEmpty()) C.red else C.sub), 14); return }
         if (l.isEmpty()) body.addView(ctx.empty("📋", "班里最近 7 天没有签到", if (Checkin.mgr(cid)) "点上面「发起签到」" else "班委或老师发起后，这里会出现"))
         for (x in l) {
@@ -231,7 +253,8 @@ class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: S
             h.addView(ctx.chip(if (open) "进行中 · 还剩 ${Checkin.leftText(x)}" else "已结束", if (open) ORANGE else C.sub, if (open) C.alpha(ORANGE, 0.14f) else C.mutedBg))
             c.addView(h)
             c.add(ctx.text(Checkin.modeText(x) + (if (x.str("place").isNotEmpty()) " · " + x.str("place") else "") + " · ${Checkin.hm(x.str("starts_at"))} · ${x.str("by")}发起 · 已签 ${x.optInt("signed")}/${x.optInt("members")}", 12.5f, C.sub), 4)
-            c.add(ctx.text(if (mine != null) "✓ ${Checkin.hm(mine.str("at")).takeLast(5)} 签到了" else if (open) "我还没签到 ›" else "我没签到", 13.5f, if (mine != null) C.green else C.sub, SEMI), 6)
+            val qd = mine == null && CkQ.pending(x.optLong("id")) != null
+            c.add(ctx.text(if (mine != null) "✓ ${Checkin.hm(mine.str("at")).takeLast(5)} 签到了" else if (qd) "⏳ 已记下，等网络恢复自动提交" else if (!Checkin.signable(x)) "这次签到你不用签" else if (open) "我还没签到 ›" else "我没签到", 13.5f, if (mine != null) C.green else if (qd) ORANGE else C.sub, SEMI), 6)
             c.press(C.card, 18, if (open) C.alpha(ORANGE, 0.55f) else C.line); c.tap { openOne(x.optLong("id")) }
             body.addView(c)
         }
@@ -250,6 +273,7 @@ class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: S
         val rows = listOf("方式" to Checkin.modeText(o), "班级" to o.str("class_name"), "发起人" to o.str("by").ifEmpty { "班委" },
             "时间" to Checkin.hm(o.str("starts_at")).takeLast(5) + " – " + Checkin.hm(o.str("ends_at")).takeLast(5)) +
             (if (Checkin.needGeo(o)) listOf("地点" to o.str("place").ifEmpty { "签到点" } + " · ${o.optInt("radius")} 米内") else emptyList()) +
+            (if (o.optJSONObject("scope") != null) listOf("谁要签" to CkScope.from(o.optJSONObject("scope")).text()) else emptyList()) +
             listOf("已签到" to "${o.optInt("signed")} / ${o.optInt("members")} 人")
         rows.chunked(2).forEach { pr -> val r = ctx.row().apply { margins(t = 10) }; pr.forEach { (k, v) -> r.addView(kv(k, v), LinearLayout.LayoutParams(0, WRAP, 1f)) }; if (pr.size == 1) r.addView(View(ctx), LinearLayout.LayoutParams(0, 1, 1f)); hc.addView(r) }
         body.addView(hc)
@@ -286,17 +310,18 @@ class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: S
             qc.addView(ctx.text("签到码（每 20 秒换一次）", 14f, C.sub, SEMI).apply { gravity = Gravity.CENTER })
             qc.addView(ctx.text(code?.str("code")?.ifEmpty { null } ?: "····", 64f, ORANGE, HEAVY).apply { gravity = Gravity.CENTER; letterSpacing = 0.25f })
             qc.addView(ctx.text("没带手机扫码的同学：在捞捞「签到」里输入这 4 位码。要投到大屏幕上，用网页或电脑版打开这个签到更清楚", 12.5f, C.sub).apply { gravity = Gravity.CENTER })
-            // 7.55 手势签到：发起人看到的手势（每个点第几步），同学照着画也能签
-            val pat = o.str("gesture_pat")
-            if (o.optBoolean("gesture") && pat.isNotEmpty()) {
-                qc.add(ctx.text("也可以照着画这个手势签到（从 1 连到 ${pat.length}）", 14f, C.sub, SEMI).apply { gravity = Gravity.CENTER }, 14)
-                qc.add(GesturePad(ctx, pat).apply { layoutParams = LinearLayout.LayoutParams(dp(220), dp(220)).apply { gravity = Gravity.CENTER_HORIZONTAL } }, 6)
-                qc.add(ctx.soft("换一个手势") { Bg.load({ com.laolao.classcalendar.core.Api.rpc("checkin_set_gesture", jsonOf("p_id" to o.optLong("id"), "p_pat" to com.laolao.classcalendar.core.Gesture.random())) }) { _, e -> if (e != null) a.toast(e.message ?: "没换成") else openOne(o.optLong("id")) } }, 8)
-            }
             body.addView(qc)
         }
         // 我签到
-        if (Checkin.signable(o) || mine != null) {
+        val queued = if (mine == null) CkQ.pending(o.optLong("id")) else null
+        if (!Checkin.signable(o) && mine == null && !mgr && o.str("why_not").isNotEmpty()) body.add(ctx.text(o.str("why_not"), 13.5f, C.sub).apply { pad(14, 12); bg(C.mutedBg, 14) }, 12)
+        if (queued != null) {
+            val qc = ctx.card(16, 18).apply { margins(t = 12) }
+            qc.addView(ctx.text("⏳ 已记下，等网络恢复自动提交", 16f, ORANGE, BOLD))
+            qc.add(ctx.text("你 " + T.hm(java.time.Instant.ofEpochMilli(queued.optJSONObject("p")?.optLong("at") ?: 0L).atZone(T.BJ).toLocalTime()) + " 点的签到；签到结束后 30 分钟内交上去都算，不用重签", 12.5f, C.sub), 4)
+            qc.add(ctx.soft("立即重试") { a.toast("正在重新提交…"); flushQ() }, 10)
+            body.addView(qc)
+        } else if (Checkin.signable(o) || mine != null) {
             if (mgr && mine == null && open) body.add(ctx.text("你也是这个班的同学：先在下面签到，再看码和名单", 12.5f, C.sub), 10)
             val sc = ctx.card(16, 18).apply { margins(t = 12) }
             when {
@@ -307,12 +332,6 @@ class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: S
                         val ci = ctx.input("4 位签到码", input, type = android.text.InputType.TYPE_CLASS_NUMBER).apply { filters = arrayOf(android.text.InputFilter.LengthFilter(4)); textSize = 22f; gravity = Gravity.CENTER; letterSpacing = 0.3f }
                         ci.addTextChangedListener(object : android.text.TextWatcher { override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}; override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}; override fun afterTextChanged(s: android.text.Editable?) { input = s.toString() } })
                         sc.addView(ci)
-                    }
-                    // 7.55 手势签到（7.41 / 7.43 SQL）：码照样能签，也可以照投屏上的手势在九宫格里一笔连起来
-                    if (o.optBoolean("gesture")) {
-                        sc.add(ctx.text(if (Checkin.needCode(o)) "或者：照投屏上的手势，在下面九宫格里按住一笔连起来" else "照投屏上的手势，在下面九宫格里按住一笔连起来", 13f, C.sub).apply { gravity = Gravity.CENTER }, 10)
-                        val gp = GesturePad(ctx, null) { pat -> input = pat; if (!Checkin.needPhoto(o) && !Checkin.needGeo(o)) sign() else a.toast("手势画好了，点下面的按钮签到") }
-                        sc.add(gp.apply { layoutParams = LinearLayout.LayoutParams(dp(240), dp(240)).apply { gravity = Gravity.CENTER_HORIZONTAL } }, 6)
                     }
                     sc.add(ctx.button(if (Checkin.needPhoto(o)) (if (photo != null && photoFor == o.optLong("id")) "⟳ 重新上传照片签到" else "📷 拍照签到") else if (Checkin.needGeo(o)) "📍 我到了，签到" else "✓ 签到") { sign() }, 10)
                     sc.add(ctx.text(listOfNotNull(if (Checkin.needCode(o)) "码在投屏上，每 20 秒换一次；用手机相机扫投屏二维码、选「用捞捞打开」也能直接签" else null, if (Checkin.needGeo(o)) "签到时会定位一次，确认你在范围里" else null,
@@ -328,6 +347,9 @@ class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: S
             if (d == null) nb.addView(ctx.text("加载名单…", 13.5f, C.sub))
             else {
                 val sg = d.optJSONArray("signed")?.objs() ?: emptyList()
+                // 7.x（7.54）名单里标出老师、班委
+                val roles = d.optJSONObject("roles") ?: JSONObject()
+                fun rt(j: JSONObject): String = when (j.str("role").ifEmpty { roles.optString(j.str("uid")) }) { "teacher" -> "（老师）"; "monitor" -> "（班委）"; else -> "" }
                 // 6.9.6 没签的人带编号（missing_u）：点名字补签；长按已签的名字撤销。老服务器只有名字
                 val mu = d.optJSONArray("missing_u")?.objs()
                 val ms = mu?.map { it.str("name") } ?: d.optJSONArray("missing")?.let { m -> (0 until m.length()).map { m.optString(it) } } ?: emptyList()
@@ -346,6 +368,7 @@ class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: S
                     st.addView(num(ms.size, "还没签", if (ms.isEmpty()) C.text else ORANGE), LinearLayout.LayoutParams(WRAP, WRAP).apply { rightMargin = dp(22) })
                     st.addView(num(nPh, "照片", C.text))
                     st.addView(View(ctx), LinearLayout.LayoutParams(0, 1, 1f))
+                    if (open && Checkin.ctl(o)) st.addView(ctx.soft("改范围") { pickScope(o.str("class_id"), CkScope.from(o.optJSONObject("scope")), "改这场签到的范围") { sc, n -> Bg.load({ CkMore.setScope(o.optLong("id"), if (sc.isDefault) null else sc.json()) }) { _, e -> a.toast(if (e != null) e.message ?: "没改成" else "范围已改，共 $n 人"); openOne(o.optLong("id")) } } }, LinearLayout.LayoutParams(WRAP, WRAP).apply { rightMargin = dp(8) })
                     if (open) st.addView(ctx.soft("结束签到", C.dangerBg, C.red) { Dialogs.confirm(ctx, "结束这次签到？", "结束后同学就不能再签了。", "结束", danger = true) { Bg.load({ Checkin.close(oid) }) { _, e -> a.toast(if (e != null) e.message ?: "没结束成功" else "已结束"); openOne(oid) } } })
                     nb.addView(st)
                     val seg = ctx.row().apply { bg(C.mutedBg, 10); pad(3, 3) }
@@ -358,7 +381,7 @@ class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: S
                             addView(ctx.text("还没签 ${ms.size} 人" + if (mu != null) " · 点名字补签" else "", 13f, ORANGE), LinearLayout.LayoutParams(0, WRAP, 1f))
                             addView(ctx.text("复制", 13f, C.accent, SEMI).apply { pad(8, 2); tap { (ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("没签到", ms.joinToString("、"))); a.toast("已复制") } }) })
                         val fm = FlowRow(ctx, dp(6), dp(6))
-                        if (mu != null) mu.forEach { m -> fm.addView(chip(m.str("name"), false, { mark(m.str("uid"), m.str("name"), true) }, null)) } else ms.forEach { fm.addView(chip(it, false, null, null)) }
+                        if (mu != null) mu.forEach { m -> fm.addView(chip(m.str("name") + rt(m), false, { mark(m.str("uid"), m.str("name"), true) }, null)) } else ms.forEach { fm.addView(chip(it, false, null, null)) }
                         mb.add(fm, 6)
                         nb.add(mb, 10)
                     }
@@ -405,19 +428,20 @@ class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: S
                 val nPh = sg.count { it.optBoolean("photo") }
                 if (nPh > 0) nb.add(ctx.soft("📷 看签到照片（$nPh 张）") { showPhotos(oid) }, 6)
                 val f1 = FlowRow(ctx, dp(6), dp(6))
-                sg.forEach { s -> val uid = s.str("uid"); f1.addView(chip(s.str("name") + " " + Checkin.hm(s.str("at")).takeLast(5) + (if (s.str("via") == "manual") " 补签" else if (s.str("via") == "code") " 码" else if (!s.isNull("dist")) " ${s.optInt("dist")}米" else "") + (if (mu != null && uid.isNotEmpty()) " ×" else ""), true, null,
+                sg.forEach { s -> val uid = s.str("uid"); f1.addView(chip(s.str("name") + rt(s) + " " + Checkin.hm(s.str("at")).takeLast(5) + (if (s.str("via") == "manual") " 补签" else if (s.str("via") == "code") " 码" else if (!s.isNull("dist")) " ${s.optInt("dist")}米" else "") + (if (mu != null && uid.isNotEmpty()) " ×" else ""), true, null,
                     if (mu != null && uid.isNotEmpty()) ({ mark(uid, s.str("name"), false) }) else null)) }
                 if (sg.isEmpty()) f1.addView(ctx.text("还没有", 13.5f, C.sub))
                 nb.add(f1, 6)
                 nb.add(ctx.text("没签 ${ms.size} 人" + if (mu != null && ms.isNotEmpty()) "（点名字补签）" else "", 14f, C.text, BOLD), 12)
                 val f2 = FlowRow(ctx, dp(6), dp(6))
-                if (mu != null) mu.forEach { m -> f2.addView(chip(m.str("name") + " ＋", false, { mark(m.str("uid"), m.str("name"), true) }, null)) }
+                if (mu != null) mu.forEach { m -> f2.addView(chip(m.str("name") + rt(m) + " ＋", false, { mark(m.str("uid"), m.str("name"), true) }, null)) }
                 else ms.forEach { f2.addView(chip(it, false, null, null)) }
                 if (ms.isEmpty()) f2.addView(ctx.text("全到了 🎉", 13.5f, C.sub))
                 nb.add(f2, 6)
                 if (mu != null) nb.add(ctx.text("点已签的名字可以撤销（补签补错了、签错人、代签时用）", 12f, C.sub), 8)
                 val br = ctx.row().apply { margins(t = 10) }
                 if (ms.isNotEmpty()) br.addView(ctx.soft("复制没签的名单") { (ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("没签到", ms.joinToString("、"))); a.toast("已复制") }, LinearLayout.LayoutParams(WRAP, WRAP).apply { rightMargin = dp(8) })
+                if (open && Checkin.ctl(o)) br.addView(ctx.soft("改签到范围") { pickScope(o.str("class_id"), CkScope.from(o.optJSONObject("scope")), "改这场签到的范围") { sc, n -> Bg.load({ CkMore.setScope(o.optLong("id"), if (sc.isDefault) null else sc.json()) }) { _, e -> a.toast(if (e != null) e.message ?: "没改成" else "范围已改，共 $n 人"); openOne(o.optLong("id")) } } }, LinearLayout.LayoutParams(WRAP, WRAP).apply { rightMargin = dp(8) })
                 if (open) br.addView(ctx.soft("结束签到", C.dangerBg, C.red) { Dialogs.confirm(ctx, "结束这次签到？", "结束后同学就不能再签了。", "结束", danger = true) { Bg.load({ Checkin.close(o.optLong("id")) }) { _, e -> a.toast(if (e != null) e.message ?: "没结束成功" else "已结束"); openOne(o.optLong("id")) } } })
                 if (br.childCount > 0) nb.addView(br)
             }
@@ -499,14 +523,20 @@ class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: S
     private fun sign() {
         val o = one ?: return; if (busy) return
         val c = input.trim()
-        if (Checkin.needCode(o) && !Regex("^\\d{4}$").matches(c) && !(o.optBoolean("gesture") && Regex("^[1-9]{4,9}$").matches(c))) { a.toast(if (o.optBoolean("gesture")) "输入 4 位签到码，或者画出投屏上的手势" else "输入 4 位签到码"); return }
+        if (Checkin.needCode(o) && !Regex("^\\d{4}$").matches(c)) { a.toast("输入 4 位签到码"); return }
         if (photoFor != o.optLong("id")) photo = null
         if (Checkin.needPhoto(o) && photo == null) { takePhoto { p -> photo = p; photoFor = o.optLong("id"); sign() }; return }
         val ph = photo
         val go = { p: com.laolao.classcalendar.core.Geo.Pos? ->
             busy = true
-            Bg.load({ Checkin.sign(o.optLong("id"), p, if (Checkin.needCode(o)) c else null, ph?.first, ph?.second) }) { r, e ->
+            // 7.x 点签到那一刻的时间、码、位置、照片都记下来；网络不好就先存在手机上，联网后自动交（服务器按这个时间核对）
+            val pj = jsonOf("id" to o.optLong("id"), "at" to System.currentTimeMillis())
+            if (Checkin.needCode(o)) pj.put("code", c)
+            if (p != null) { pj.put("lat", p.lat); pj.put("lng", p.lng); pj.put("acc", p.acc) }
+            if (ph != null) { pj.put("photo", ph.first); if (ph.second.isNotEmpty()) pj.put("thumb", ph.second) }
+            Bg.load({ try { CkMore.sign2(pj) } catch (ex: Exception) { if (netFail(ex)) { CkQ.add(o.str("title").ifEmpty { "签到" }, pj); jsonOf("queued" to true) } else throw ex } }) { r, e ->
                 busy = false
+                if (r != null && r.optBoolean("queued")) { photo = null; a.toast("网络不好，这次签到已经记下了，网络恢复后会自动交上去，不用重签"); render(); return@load }
                 if (r != null && (r.optBoolean("ok") || r.optBoolean("already"))) photo = null
                 when {
                     r == null -> Dialogs.alert(ctx, "没签上", (e?.message ?: "") + if (ph != null) "\n\n照片已经拍好了，再点一次「签到」会直接用这张重新上传，不用重拍。" else "")
@@ -522,30 +552,118 @@ class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: S
     private fun create() {
         val ccid = cid.ifEmpty { return }
         // 7.3 多了拍照签到：单独拍照，或者位置 + 拍照
-        val modes = listOf("code" to false, "geo" to false, "both" to false, "photo" to true, "geo" to true, "code" to false)
-        Dialogs.sheet(ctx, "怎么签到？", listOf("🔢 动态码：投屏 4 位码，不用定位", "📍 位置：到了现场范围内才能签", "📍+🔢 都要：最严格", "📷 拍照：拍一张现场照片就签", "📍+📷 位置 + 拍照", "🔢+✍️ 码或手势：输码、照着画手势都能签")) { mi ->
-            val mode = modes[mi].first; val needPh = modes[mi].second; val ges = mi == 5   // 7.55 手势签到（7.41 SQL）
+        val modes = listOf("code" to false, "geo" to false, "both" to false, "photo" to true, "geo" to true)
+        Dialogs.sheet(ctx, "怎么签到？", listOf("🔢 动态码：投屏 4 位码，不用定位", "📍 位置：到了现场范围内才能签", "📍+🔢 都要：最严格", "📷 拍照：拍一张现场照片就签", "📍+📷 位置 + 拍照")) { mi ->
+            val mode = modes[mi].first; val needPh = modes[mi].second
             val geo = mode == "geo" || mode == "both"
             Dialogs.prompt(ctx, if (!geo) "签到名称 / 地点（可以不填）" else "签到地点", "", "比如：操场、B302") { place ->
                 if (geo && place.isBlank()) { a.toast("写一下签到地点"); return@prompt }
                 val rs = listOf(50, 100, 200, 500, 1000); val ms = listOf(5, 10, 15, 30, 60, 120)
                 val doIt = { ri: Int ->
                     Dialogs.sheet(ctx, "签到开多久？", ms.map { if (it >= 60) "${it / 60} 小时" else "$it 分钟" }) { mm ->
-                        val send = { pos: com.laolao.classcalendar.core.Geo.Pos? ->
-                            Bg.load({
-                                val r = Checkin.create(ccid, place.ifBlank { "课堂" } + "签到", place, pos, rs[ri], ms[mm], mode, needPh)
-                                if (ges) try { com.laolao.classcalendar.core.Api.rpc("checkin_set_gesture", jsonOf("p_id" to r.optLong("id"), "p_pat" to com.laolao.classcalendar.core.Gesture.random())) } catch (_: Exception) { r.put("_noges", true) }
-                                r
-                            }) { r, e ->
-                                if (r == null) Dialogs.alert(ctx, "没发起成功", e?.message ?: "") else { a.toast(if (r.optBoolean("_noges")) "已发起（手势签到要先在数据库执行 7.41 的 SQL，这次按动态码）" else "已发起"); openOne(r.optLong("id")) }
+                        // 7.x 谁要签：默认全班学生和班委；可以加上老师，或者只让某些人 / 某几个分组签（7.54 SQL）
+                        pickWho(ccid) { sc ->
+                            val send = { pos: com.laolao.classcalendar.core.Geo.Pos? ->
+                                Bg.load({
+                                    if (sc == null || sc.isDefault) Checkin.create(ccid, place.ifBlank { "课堂" } + "签到", place, pos, rs[ri], ms[mm], mode, needPh)
+                                    else {
+                                        val a0 = jsonOf("title" to place.ifBlank { "课堂" } + "签到", "place" to place, "radius" to rs[ri], "minutes" to ms[mm], "mode" to mode)
+                                        if (pos != null) { a0.put("lat", Math.round(pos.lat * 1e6) / 1e6); a0.put("lng", Math.round(pos.lng * 1e6) / 1e6) }
+                                        if (needPh && mode != "photo") a0.put("photo", true)
+                                        CkMore.createScoped(ccid, a0, sc.json())
+                                    }
+                                }) { r, e ->
+                                    if (e is NoScopeError) Dialogs.confirm(ctx, "签到范围暂时用不了", "服务器还没升级。要按全班学生和班委发起吗？", "按全班发起") {
+                                        Bg.load({ Checkin.create(ccid, place.ifBlank { "课堂" } + "签到", place, pos, rs[ri], ms[mm], mode, needPh) }) { r2, e2 -> if (r2 == null) Dialogs.alert(ctx, "没发起成功", e2?.message ?: "") else { a.toast("已发起"); openOne(r2.optLong("id")) } }
+                                    }
+                                    else if (r == null) Dialogs.alert(ctx, "没发起成功", e?.message ?: "") else { a.toast("已发起"); openOne(r.optLong("id")) }
+                                }
                             }
+                            if (!geo) send(null)
+                            else Dialogs.confirm(ctx, "在这里发起？", "签到点就是你【现在所在的位置】，同学要在 ${rs[ri]} 米内才能签到。你现在在「$place」吗？", "就在这里") { a.locate { pos -> send(pos) } }
                         }
-                        if (!geo) send(null)
-                        else Dialogs.confirm(ctx, "在这里发起？", "签到点就是你【现在所在的位置】，同学要在 ${rs[ri]} 米内才能签到。你现在在「$place」吗？", "就在这里") { a.locate { pos -> send(pos) } }
                     }
                 }
                 if (!geo) doIt(2) else Dialogs.sheet(ctx, "多大范围内能签？", rs.map { "$it 米内" }) { ri -> doIt(ri) }
             }
+        }
+    }
+    /** 谁要签：默认 / 加上老师 / 只让部分人（选人、分组）。sc = null 表示默认 */
+    private fun pickWho(cid: String, done: (CkScope?) -> Unit) {
+        Dialogs.sheet(ctx, "谁要签？", listOf("全班学生和班委（默认）", "全班学生、班委和老师", "只让部分人签（选人 / 分组）…")) { i ->
+            when (i) { 0 -> done(null); 1 -> done(CkScope(t = true)); else -> pickScope(cid, CkScope(s = false, m = false), "只让这些人签") { sc, _ -> done(sc) } }
+        }
+    }
+    /** 选人面板：按身份、分组、指定人；勾的人可以存成分组（和小程序、网站一样） */
+    private fun pickScope(cid: String, cur: CkScope, sub: String, done: (CkScope, Int) -> Unit) {
+        a.toast("读取名单…")
+        Bg.load({ CkMore.pick(cid) }) { r, e ->
+            if (r == null) { Dialogs.alert(ctx, "选不了人", if (noFn(e)) "指定人签到暂时用不了（服务器还没升级）" else e?.message ?: ""); return@load }
+            data class P(val uid: String, val name: String, val role: String)
+            val ppl = ArrayList<P>()
+            r.optJSONObject("teacher")?.let { ppl += P(it.str("uid"), it.str("name").ifEmpty { "老师" }, "teacher") }
+            r.optJSONArray("members")?.objs()?.forEach { ppl += P(it.str("uid"), it.str("name").ifEmpty { "（没名字）" }, it.str("role").ifEmpty { "student" }) }
+            val groups = ArrayList((r.optJSONArray("groups")?.objs() ?: emptyList()))
+            fun uids(g: JSONObject): List<String> = g.optJSONArray("uids")?.let { u -> (0 until u.length()).map { u.optString(it) } } ?: emptyList()
+            var s = cur.s; var m = cur.m; var t = cur.t; val gOn = HashSet(cur.g); val uOn = HashSet(cur.u); var q = ""
+            val root = ctx.col().apply { pad(20, 18, 20, 16) }
+            val list = ctx.col()
+            val sv = ScrollView(ctx).apply { addView(list) }
+            lateinit var d: android.app.Dialog
+            lateinit var paint: () -> Unit
+            fun count() = ppl.count { p -> (s && p.role == "student") || (m && p.role == "monitor") || (t && p.role == "teacher") || p.uid in uOn || groups.any { it.optLong("id") in gOn && p.uid in uids(it) } }
+            fun chipV(label: String, on: Boolean, fn: () -> Unit) = ctx.text(label, 13.5f, if (on) ORANGE else C.text, if (on) BOLD else null).apply {
+                pad(12, 6); bg(if (on) C.alpha(ORANGE, 0.12f) else C.mutedBg, 14, if (on) C.alpha(ORANGE, 0.6f) else 0); tap { fn(); paint() } }
+            val ok = ctx.button("确定") {}
+            paint = {
+                list.removeAllViews()
+                list.addView(ctx.text("按身份", 13f, C.sub, SEMI))
+                val f0 = FlowRow(ctx, dp(6), dp(6))
+                f0.addView(chipV("全部学生", s) { s = !s }); f0.addView(chipV("全部班委", m) { m = !m })
+                if (r.optJSONObject("teacher") != null) f0.addView(chipV("老师", t) { t = !t })
+                list.add(f0, 6)
+                list.add(ctx.text("分组", 13f, C.sub, SEMI), 12)
+                if (groups.isEmpty()) list.add(ctx.text("还没有分组：在下面勾几个人，存成分组，下次点一下就选上", 12f, C.mutedText), 4)
+                val f1 = FlowRow(ctx, dp(6), dp(6))
+                groups.forEach { g -> val id = g.optLong("id"); f1.addView(chipV(g.str("name") + " · " + uids(g).size, id in gOn) { if (!gOn.remove(id)) gOn.add(id) }) }
+                list.add(f1, 6)
+                list.add(ctx.text("指定人" + if (uOn.isNotEmpty()) "（已勾 ${uOn.size} 人）" else "", 13f, C.sub, SEMI), 12)
+                ppl.filter { q.isEmpty() || it.name.contains(q) }.forEach { p ->
+                    val row = ctx.row().apply { pad(4, 8); press(0, 10) }
+                    val cb = android.widget.CheckBox(ctx).apply { isChecked = p.uid in uOn; isClickable = false }
+                    row.addView(cb)
+                    row.addView(ctx.text(p.name, 15f, C.text), LinearLayout.LayoutParams(0, WRAP, 1f))
+                    if (p.role != "student") row.addView(ctx.chip(if (p.role == "teacher") "老师" else "班委", C.accent, C.alpha(C.accent, 0.12f)))
+                    row.tap { if (!uOn.remove(p.uid)) uOn.add(p.uid); paint() }
+                    list.addView(row)
+                }
+                if (uOn.isNotEmpty()) list.add(ctx.soft("把勾的 ${uOn.size} 人存成分组") {
+                    Dialogs.prompt(ctx, "存成分组", "", "组名，比如：第一组、学生会") { name ->
+                        if (name.isBlank()) return@prompt
+                        val us = uOn.toList()
+                        Bg.load({ CkMore.groupPut(cid, name.take(30), us) }) { g, e2 ->
+                            if (g == null) { a.toast(if (noFn(e2)) "存分组暂时用不了（服务器还没升级）" else e2?.message ?: "没存上"); return@load }
+                            groups += jsonOf("id" to g.optLong("id"), "name" to g.str("name").ifEmpty { name }, "uids" to org.json.JSONArray(us))
+                            gOn += g.optLong("id"); uOn.clear(); a.toast("已存为分组「${g.str("name").ifEmpty { name }}」"); paint()
+                        }
+                    }
+                }, 10)
+                val n = count(); ok.text = "确定 · 共 $n 人"; ok.alpha = if (n > 0) 1f else 0.4f
+            }
+            root.addView(ctx.text("谁要签", 18f, C.text, BOLD)); root.addView(ctx.text(sub, 12.5f, C.sub))
+            val qi = ctx.input("搜名字").apply { margins(t = 10) }
+            qi.addTextChangedListener(object : android.text.TextWatcher { override fun beforeTextChanged(x: CharSequence?, a1: Int, b1: Int, c1: Int) {}; override fun onTextChanged(x: CharSequence?, a1: Int, b1: Int, c1: Int) {}; override fun afterTextChanged(x: android.text.Editable?) { q = x.toString().trim(); paint() } })
+            root.addView(qi)
+            root.addView(sv, LinearLayout.LayoutParams(MATCH, (ctx.resources.displayMetrics.heightPixels * 0.5).toInt()).apply { topMargin = dp(10) })
+            ok.setOnClickListener {
+                val n = count(); if (n == 0) { a.toast("一个人都没选"); return@setOnClickListener }
+                val gs = groups.filter { it.optLong("id") in gOn }; val us = ppl.filter { it.uid in uOn }
+                val names = listOfNotNull(gs.joinToString("、") { it.str("name") }.ifBlank { null }, if (us.isEmpty()) null else if (us.size <= 3) us.joinToString("、") { it.name } else "${us.size} 人").joinToString(" + ")
+                d.dismiss(); done(CkScope(s, m, t, gOn.toList(), uOn.toList(), names), n)
+            }
+            root.add(ok, 12)
+            paint()
+            d = Dialogs.show(ctx, root, bottom = true)
         }
     }
 }

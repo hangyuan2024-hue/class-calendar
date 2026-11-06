@@ -102,6 +102,7 @@ class MePage(a: Main) : Page(a) {
         val wk = Courses.weekNow()
         group(if (Store.work()) "团队与账号" else "班级与账号", "",
             row("🏫", if (Store.work()) "我的团队" else "我的班级", cls?.let { it.str("name") + " · " + Store.role() + if (Store.classes.size > 1) " · 共 ${Store.classes.size} 个" else "" } ?: if (Store.pending.isNotEmpty()) "等老师批准中" else "还没加入，点这里输入班级码") { a.push(ClassPage(a)) },
+            row("🎓", "学校与院系", (me?.str("org_name") ?: "").ifEmpty { "选了学校就自动挂到学校下面，再填上院系" }) { a.push(OrgPage(a)) },
             row("📚", "课程表", if (Courses.has()) "${Courses.list().size} 门课" + (if (wk > 0) " · 现在是第 $wk 周" else "") else "拍一张课表截图就能导入") { a.push(CoursePage(a)) },
             if (cls != null) row("👥", "班级成员", "点头像进入 TA 的主页") { a.push(PeoplePage(a)) } else null,
             row("✉️", "信箱", "写信给捞捞团队：举报、建议、开源合作、安全问题") { a.push(LetterBoxPage(a)) },
@@ -111,9 +112,8 @@ class MePage(a: Main) : Page(a) {
 
         group("下载与关于", "",
             row("💻", "Windows 电脑版", "整周课表铺满屏幕、右下角提醒 · 同一个账号自动同步") { open(Cfg.SITE + "download/") },
-            row("📖", "功能介绍", "每个功能怎么用") { open(Cfg.SITE) },
+            row("📖", "功能介绍", "每个功能怎么用，一图看懂") { a.push(GuidePage(a)) },
             row("💛", "感谢名单", "为捞捞课程表做出贡献的人") { a.push(CreditsPage(a)) },
-            row("📄", "用户协议与隐私政策", "我们收集哪些信息、怎么用、你的权利") { a.push(LegalPage(a)) },
             row("🌐", "网络线路", "现在用的是" + Net.routeName() + "，连不上会自动换另一条") { a.push(NetCheckPage(a)) },
             row("⬆️", "检查更新", "当前版本 " + version()) { checkUpdate(true) })
 
