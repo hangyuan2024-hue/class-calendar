@@ -290,7 +290,7 @@ class Lao(private val a: Main, private val host: FrameLayout) {
             if (i > 0) w.addView(a.hline())
             val row = a.row().apply { setPadding(0, px(9), 0, px(9)) }
             if (r.kind == "item") row.addView(View(a).apply { background = round(Color.TRANSPARENT, px(6).toFloat(), C.accent, px(2))
-                setOnClickListener { v -> v.buzz(); Items.toggleDone(r.key); com.laolao.classcalendar.core.Bus.emit("data"); Cheer.show(a, "item"); Bg.main.postDelayed({ if (win != null) { ans = null; panel() } }, 60) } },
+                setOnClickListener { v -> v.buzz(); val it0 = Items.find(r.key); if (it0 != null && a.hwGuard(it0) {}) return@setOnClickListener; Items.toggleDone(r.key); com.laolao.classcalendar.core.Bus.emit("data"); Cheer.show(a, "item"); Bg.main.postDelayed({ if (win != null) { ans = null; panel() } }, 60) } },
                 LinearLayout.LayoutParams(px(20), px(20)).apply { rightMargin = px(10) })
             else row.addView(a.text("📚", 16f).apply { setPadding(0, 0, px(10), 0) })
             val m = a.col().apply { addView(a.text((if (r.exam) "📝 " else "") + r.title, 14f, C.text, SEMI, 1)); addView(a.text(r.type + " · " + r.whenText + (if (r.location.isNotEmpty()) " · " + r.location else ""), 11.5f, C.sub, null, 1)); setOnClickListener { open(r) } }

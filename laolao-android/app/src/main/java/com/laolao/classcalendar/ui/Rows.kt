@@ -75,6 +75,7 @@ fun Main.itemRow(r: Item, showDate: Boolean = false, dueTag: Boolean = false): V
 
 /** 打勾 / 取消 */
 fun Main.toggle(r: Item) {
+    if (hwGuard(r) { toast("✓ 已交，等老师审核") }) return   // 7.55 这个班的作业要先交证明（小程序 1.26）
     Items.lastRoll = ""
     val on = Items.toggleDone(r.key)
     // 6.2 重复的事项：排到下一次

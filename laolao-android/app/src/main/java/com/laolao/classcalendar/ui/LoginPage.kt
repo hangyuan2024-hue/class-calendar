@@ -25,6 +25,7 @@ class LoginPage(a: Main) : Page(a) {
     private var busy = false
     private var teacher = false
     private var gender = ""
+    private var agreed = false
     private var orgType = ""
     private lateinit var form: LinearLayout
     private lateinit var title: TextView
@@ -71,7 +72,19 @@ class LoginPage(a: Main) : Page(a) {
         card.addView(form)
         msg = ctx.text("", 13.5f, C.red).apply { visibility = View.GONE; margins(t = 10) }
         card.addView(msg)
-        btn = ctx.button("登录") { submit() }.apply { margins(t = 16) } as TextView
+        // 7.55 用户协议、隐私政策：默认不勾，自己勾选（和小程序 1.29.1、网页一样）
+        val ag = ctx.row().apply { margins(t = 14); gravity = Gravity.CENTER_VERTICAL }
+        val cb = android.widget.CheckBox(ctx).apply { isChecked = false; buttonTintList = android.content.res.ColorStateList.valueOf(C.accent); setOnCheckedChangeListener { _, on -> agreed = on } }
+        ag.addView(cb)
+        val lt = android.text.SpannableStringBuilder("我已阅读并同意")
+        fun link(t: String, tab: Int) { val st = lt.length; lt.append(t); lt.setSpan(object : android.text.style.ClickableSpan() {
+            override fun onClick(w: View) { a.push(LegalPage(a, tab)) }
+            override fun updateDrawState(ds: android.text.TextPaint) { ds.color = C.accent; ds.isUnderlineText = false }
+        }, st, lt.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE) }
+        link("《用户协议》", 0); lt.append("和"); link("《隐私政策》", 1)
+        ag.addView(ctx.text(lt, 12.5f, C.sub).apply { movementMethod = android.text.method.LinkMovementMethod.getInstance(); highlightColor = android.graphics.Color.TRANSPARENT; setOnClickListener { cb.isChecked = !cb.isChecked } }, LinearLayout.LayoutParams(0, WRAP, 1f))
+        card.addView(ag)
+        btn = ctx.button("登录") { submit() }.apply { margins(t = 12) } as TextView
         card.addView(btn)
         card.addView(ctx.text("和网站、微信小程序用同一个账号，数据自动同步", 12f, C.sub).apply { gravity = Gravity.CENTER; margins(t = 12) })
         c.addView(card)
@@ -168,6 +181,7 @@ class LoginPage(a: Main) : Page(a) {
     private fun submit() {
         if (busy) return
         val ac = acct.text.toString(); val p = pw.text.toString()
+        if (!agreed) return fail("请先阅读并勾选同意《用户协议》和《隐私政策》")
         if (ac.isBlank()) return fail("请填写账号")
         if (p.isEmpty()) return fail("请填写密码")
         if (signup && name.text.isBlank()) return fail("请填写姓名")

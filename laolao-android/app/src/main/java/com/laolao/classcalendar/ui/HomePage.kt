@@ -71,6 +71,7 @@ class HomePage(a: Main) : Page(a) {
     }
 
     override fun onShow() {
+        com.laolao.classcalendar.core.ClassAdj.load(); Bg.main.postDelayed({ ActWatch.check(a); JoinWatch.check(a) }, 2500)   // 7.55 班级调课 / 自习；课堂互动提醒
         Bg.main.postDelayed({ popups() }, 1200); com.laolao.classcalendar.core.Bg.main.removeCallbacks(tick); com.laolao.classcalendar.core.Bg.main.postDelayed(tick, 30_000) }
     override fun onHide() { com.laolao.classcalendar.core.Bg.main.removeCallbacks(tick) }
 

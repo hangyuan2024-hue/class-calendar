@@ -86,6 +86,13 @@ class GrowthPage(a: Main) : Page(a) {
             re.addView(ctx.text("›", 20f, C.mutedText))
             re.press(C.card, 18, C.line); re.springy(); re.tap { a.push(RankPage(a)) }
             body.addView(re)
+            // 7.55 课堂互动：抢答、小组互评（小程序 1.28）
+            val ae = ctx.card(16, 18).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; margins(t = 12) }
+            ae.addView(ctx.text("🙋", 28f))
+            ae.addView(ctx.col().apply { addView(ctx.text("课堂互动", 16f, C.text, BOLD)); addView(ctx.text("抢答、小组互评", 12.5f, C.sub).apply { margins(t = 2) }) }, LinearLayout.LayoutParams(0, WRAP, 1f).apply { leftMargin = dp(12) })
+            ae.addView(ctx.text("›", 20f, C.mutedText))
+            ae.press(C.card, 18, C.line); ae.springy(); ae.tap { a.push(ActPage(a)) }
+            body.addView(ae)
             // 6.9 班级位置签到
             val ck = ctx.card(16, 18).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; margins(t = 12) }
             ck.addView(ctx.text("📍", 28f))

@@ -549,6 +549,17 @@ class ViewersPage(a: Main, private val itemId: String, private val title: String
          val seen = l.filter { it.str("seen_at").isNotEmpty() && !it.optBoolean("done") }; val done = l.filter { it.optBoolean("done") }
         body.add(ctx.text("共 ${l.size} 人 · ${l.size - no.size} 人看过", 13f, C.sub), 4)
         body.add(Seg(ctx, listOf("没看 ${no.size}", "看过 ${seen.size}", "完成 ${done.size}"), tab) { tab = it; render() }, 12)
+        // 7.55 一键微信提醒还没看的同学（7.14 SQL，小程序 1.22）：同一条 2 小时内只能提醒一次
+        if (tab == 0 && no.isNotEmpty()) body.add(ctx.soft("🔔 微信提醒这 ${no.size} 位同学") {
+            val cid = cidArg.ifEmpty { Store.cls?.str("id") ?: "" }; if (cid.isEmpty()) return@soft
+            Bg.load({ Api.rpcObj("item_nudge", jsonOf("cid" to cid, "iid" to itemId.toLong())) }) { r, e ->
+                when {
+                    r == null -> Dialogs.alert(ctx, "没发出去", e?.message?.let { if (Regex("item_nudge|PGRST202|Could not find").containsMatchIn(it)) "这个功能要先在数据库执行 7.14 的 SQL" else it } ?: "")
+                    r.has("ok") && !r.optBoolean("ok") -> Dialogs.alert(ctx, "这次没发", r.str("why"))
+                    else -> Dialogs.alert(ctx, "已提醒", "已给 ${r.optInt("sent")} 人发了微信提醒" + if (r.optInt("no_wx") > 0) "；${r.optInt("no_wx")} 人没开微信提醒，发不到，可以在班级群里说一声。" else "。")
+                }
+            }
+        }, 10)
         val cur = listOf(no, seen, done)[tab]
         if (cur.isEmpty()) { body.addView(ctx.empty("🎉", if (tab == 0) "全都看过了" else "暂时没有")); return }
         val c = ctx.card(4, 18).apply { margins(t = 12) }
