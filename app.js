@@ -779,7 +779,8 @@ function heroDeckHtml(deck) {
   const n = deck.length;
   return `<div class="hxd${n > 1 ? " multi" : ""}">
     <div class="hxd-track" tabindex="-1">${deck.map(card).join("")}</div>
-    ${n > 1 ? `<div class="hxd-nav"><button type="button" class="hxd-a" data-hxd="-1" aria-label="上一件">‹</button><span class="hxd-dots">${deck.map((x, i) => `<i data-hxdot="${i}"></i>`).join("")}</span><button type="button" class="hxd-a" data-hxd="1" aria-label="下一件">›</button></div>` : ""}
+    ${n > 1 ? `<button type="button" class="hxd-a prev" data-hxd="-1" aria-label="上一件"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button><button type="button" class="hxd-a next" data-hxd="1" aria-label="下一件"><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+    <div class="hxd-nav"><span class="hxd-dots">${deck.map((x, i) => `<i data-hxdot="${i}" title="第 ${i + 1} 件"></i>`).join("")}</span><span class="hxd-n"></span></div>` : ""}
   </div>`;
 }
 function heroDeckIdx(tr) {
@@ -791,6 +792,7 @@ function heroDeckPaint(tr) {
   if (cs[i]) heroAt = cs[i].dataset.hxid;
   box.querySelectorAll("[data-hxdot]").forEach((d) => d.classList.toggle("on", +d.dataset.hxdot === i));
   const a = box.querySelectorAll(".hxd-a"); if (a.length) { a[0].disabled = i === 0; a[1].disabled = i === cs.length - 1; }
+  const nn = box.querySelector(".hxd-n"); if (nn) nn.textContent = (i + 1) + " / " + cs.length;
 }
 function heroDeckGo(tr, i, smooth) {
   const cs = tr.querySelectorAll(".hx"); if (!cs[i]) return;
