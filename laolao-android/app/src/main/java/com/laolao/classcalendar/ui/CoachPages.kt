@@ -45,7 +45,7 @@ object CoachCard {
             c.add(ctx.text("开启后，捞捞会在这台手机上记下你几点完成了事、专注了多久，慢慢学会你的节奏：推荐现在最适合做的事、定一个够得着的小目标、在你状态最好的时候提醒、每周给你复盘。\n原始记录只存在本机；同步到账号的只有统计数字，没有标题和内容。随时可以关掉、清空。", 13f, C.sub).apply { setLineSpacing(0f, 1.4f) }, 6)
             val br = ctx.row().apply { margins(t = 12) }
             br.addView(ctx.button("开启", h = 42) { Coach.setOpt("asked", true); Coach.setOpt("on", true); Background.coach(a); a.toast("捞捞教练开始学你的节奏啦，用几天会越来越准"); refresh() }, LinearLayout.LayoutParams(0, dp(42), 1f))
-            br.addView(ctx.soft("不用了", C.mutedBg, C.sub) { Coach.setOpt("asked", true); a.toast("以后可以在「我的 → 捞捞教练」里打开"); refresh() }, LinearLayout.LayoutParams(WRAP, dp(42)).apply { leftMargin = dp(8) })
+            br.addView(ctx.soft("不用了", C.mutedBg, C.sub) { Coach.setOpt("asked", true); a.toast("以后可以在「我的 → 设置 → 捞捞教练」里打开"); refresh() }, LinearLayout.LayoutParams(WRAP, dp(42)).apply { leftMargin = dp(8) })
             c.addView(br)
             body.addView(c)
             return
@@ -56,13 +56,17 @@ object CoachCard {
             background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(C.mix(C.card, C.accent, if (C.dark) 0.16f else 0.07f), C.card)).apply { cornerRadius = dp(22).toFloat(); setStroke(1, C.alpha(C.accent, 0.18f)) }
             lift(4, C.accent); margins(t = 14)
         }
+        // 1.22（和小程序一样）默认收起成一行，点标题行展开 / 收起，不挡着下面的内容
+        val fold = Kv.obj("coach_ui_v1").optBoolean("fold", true)
         // 标题行：今日教练 · 连续天数 · 今天的小目标
-        val hr = ctx.row()
+        val hr = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; tap { it.buzz(); Kv.setQuiet("coach_ui_v1", Kv.obj("coach_ui_v1").put("fold", !fold)); refresh() } }
         hr.addView(Ic.lead(ctx.text("🧭 今日教练", 12.5f, C.accent, BOLD), 15), LinearLayout.LayoutParams(0, WRAP, 1f))
         if (s.streak.days > 0) hr.addView(ctx.chip("🔥 ${s.streak.days} 天", if (s.streak.atRisk) C.red else 0xFFE8590C.toInt(), if (s.streak.atRisk) C.dangerBg else C.alpha(0xFFE8590C.toInt(), 0.12f), 12f).apply { pad(8, 3) })
         hr.addView(ctx.chip(if (s.goal.met) "今日目标 ✓" else "今日 ${fmt(s.goal.done)}/${s.goal.target}", if (s.goal.met) C.green else C.accent, if (s.goal.met) C.alpha(C.green, 0.12f) else C.selected, 12f).apply { pad(8, 3) },
             LinearLayout.LayoutParams(WRAP, WRAP).apply { leftMargin = dp(6) })
+        hr.addView(ctx.text(if (fold) "展开 ▾" else "收起 ▴", 12f, C.sub, SEMI).apply { pad(10, 4, 0, 4) })
         c.addView(hr)
+        if (fold) { c.setPadding(dp(16), dp(12), dp(14), dp(12)); body.addView(c); return }
         // 进度条
         val bar = android.widget.FrameLayout(ctx).apply { background = round(C.alpha(C.accent, 0.12f), dp(3).toFloat()) }
         val fill = View(ctx).apply { background = round(if (s.goal.met) C.green else C.accent, dp(3).toFloat()) }

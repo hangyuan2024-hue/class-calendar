@@ -605,7 +605,7 @@ class FarmPage(a: Main) : Page(a) {
     private fun img(pet: String, lv: Int): Int = a.resources.getIdentifier(Farm.img(pet, lv), "drawable", com.laolao.classcalendar.R::class.java.`package`!!.name)
     override fun render() {
         view; keepScroll(body)
-        if (!Farm.on()) { body.addView(ctx.empty("🐣", "云宠农场关掉了", "在「我的 → 趣味与效率」里可以打开")); body.add(ctx.button("去打开") { a.push(FunPage(a)) }, 12); return }
+        if (!Farm.on()) { body.addView(ctx.empty("🐣", "云宠农场关掉了", "在「我的 → 设置 → 趣味与效率」里可以打开")); body.add(ctx.button("去打开") { a.push(FunPage(a)) }, 12); return }
         val s = Farm.state(); val L = Farm.ledger(); val left = Farm.left(L); val lv = s.optInt("level", 1); val sg = Farm.stage(lv); val need = Farm.expNeed(lv)
         val hero = HeroBox(ctx).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; pad(18, 16) }
         hero.addView(ctx.text("💬 " + Farm.hello(), 13f, C.sub).apply { gravity = Gravity.CENTER; bg(C.card, 14); pad(12, 6) })

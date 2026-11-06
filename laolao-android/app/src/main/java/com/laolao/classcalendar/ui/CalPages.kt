@@ -164,7 +164,7 @@ class FeedPage(a: Main) : Page(a) {
         o.add(ctx.button(if (n > 0) "导入 $n 个事项到日历" else "没有可以导入的事项", if (n > 0) C.accent else C.mutedBg, if (n > 0) Color.WHITE else C.sub, h = 46) { if (n > 0) importOnce() }, 14)
         o.add(ctx.text("会生成一个日历文件，在弹出的列表里选「日历」就能一次导入；没有日期的事项不会放进去。", 12f, C.sub).apply { setLineSpacing(0f, 1.3f) }, 8)
         body.addView(o)
-        body.add(ctx.text("也可以在「我的 → 提醒与通知」里让这台手机直接提醒，不用日历。", 12f, C.mutedText).apply { gravity = Gravity.CENTER }, 16)
+        body.add(ctx.text("也可以在「我的 → 设置 → 提醒设置」里让这台手机直接提醒，不用日历。", 12f, C.mutedText).apply { gravity = Gravity.CENTER }, 16)
     }
 
     private val TYPES = listOf("作业" to "✏️", "通知" to "📢", "会议" to "🗣", "活动" to "🎈", "我的事项" to "📝")

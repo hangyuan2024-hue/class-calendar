@@ -83,9 +83,9 @@ class HomePage(a: Main) : Page(a) {
         else if (Store.error.isNotEmpty() && Store.me == null) body.add(notice("连不上服务器：" + Store.error + "。下拉可以重试"), 4)
         hero()
         checkinBanner()
-        CoachCard.build(a, body) { render() }      // 5.9.3 捞捞教练：现在最适合做什么
         val A = Items.agenda()
         agenda(A)
+        CoachCard.build(a, body) { render() }      // 5.9.3 捞捞教练（和小程序 1.22 一样放在「接下来的安排」下面，默认收起成一行）
         cards.build(body, A)
     }
     private val cards = HomeCards(this)
@@ -290,7 +290,7 @@ class HomePage(a: Main) : Page(a) {
             }, LinearLayout.LayoutParams(dp(40), dp(40)).apply { leftMargin = dp(10) })
         } else if (n.go.isNotEmpty()) {
             c.addView(ctx.text(if (n.go == "homework") "去处理" else "开始专注", 12.5f, if (hot) C.red else C.accent, BOLD).apply {
-                gravity = Gravity.CENTER; pad(12, 7); bg(C.card, 99, if (hot) C.red else C.accent)
+                gravity = Gravity.CENTER; pad(13, 7); bg(if (hot) C.dangerBg else C.selected, 10)
                 tap { if (n.go == "homework") a.selectTab(1) else a.push(PlanPage(a)) }
             }, LinearLayout.LayoutParams(WRAP, WRAP).apply { leftMargin = dp(10) })
         } else if (n.open.isNotEmpty() || n.cday.isNotEmpty() || n.label == "下一节" || n.label == "正在上" || n.label == "明天") {

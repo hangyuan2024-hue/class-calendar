@@ -343,7 +343,7 @@ class Lao(private val a: Main, private val host: FrameLayout) {
         f.addView(a.text(if (opt("screen")) "收起小屏幕" else "显示小屏幕", 12f, C.sub).apply { setOnClickListener { fold(); panel() } })
         f.addView(a.text("  ·  ", 12f, C.mutedText))
         f.addView(a.text("让捞捞休息", 12f, C.sub).apply { setOnClickListener { close()
-            Dialogs.confirm(a, "让捞捞休息？", "只在这台手机上；以后在「我的 → 趣味与效率」里可以再叫它出来。", "休息") { setOn(false); paint() } } })
+            Dialogs.confirm(a, "让捞捞休息？", "只在这台手机上；以后在「我的 → 设置 → 趣味与效率」里可以再叫它出来。", "休息") { setOn(false); paint() } } })
         w.addView(f)
         // 开在捞捞上面还是下面：哪边地方大开在哪边
         val loc = IntArray(2); botBox.getLocationInWindow(loc); val hl = IntArray(2); host.getLocationInWindow(hl)
