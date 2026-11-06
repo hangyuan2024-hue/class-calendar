@@ -532,7 +532,8 @@ function detailHtml(r) {
        <button class="link" data-act="hide" data-k="${k}">${r._hidden ? "取消隐藏" : "隐藏"}</button>
        ${canEditIn(r.group_id) ? `<button class="link" data-cact="cedit" data-id="${esc(r.id)}">编辑</button>` : feat("mine") ? `<button class="link" data-act="mycopy" data-k="${k}" title="班级事项只有老师和班委能改；这里改的只对你自己生效">编辑（仅自己）</button>` : ""}
        ${canDelItem(r) ? `<button class="link" data-cact="cdel" data-id="${esc(r.id)}" style="color:var(--red)">删除</button>` : ""}
-       ${GROUPS_OK && r.updated_at ? `<button class="link" data-cact="chist" data-id="${esc(r.id)}">修改记录</button>` : ""}`;
+       ${GROUPS_OK && r.updated_at ? `<button class="link" data-cact="chist" data-id="${esc(r.id)}">修改记录</button>` : ""}
+       ${currentClass && (currentClass.is_teacher || currentClass.member_role === "monitor" || (currentUser && r.created_by === currentUser.id)) ? `<button class="link" data-cact="cnudge" data-id="${esc(r.id)}" title="给还没看过这条的同学发一条微信提醒">🔔 提醒没看的同学</button>` : ""}`;
   const xf = typeof exFilesBtn === "function" ? exFilesBtn(r) : "";
   return `${meta.length ? `<div class="meta">${meta.join("　")}</div>` : ""}
     ${typeof exBadge === "function" ? exBadge(r) : ""}
@@ -2166,6 +2167,19 @@ $("askClear").onclick = () => { if (askCtl) askCtl.abort(); askHistory = []; ren
 $("askInput").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); askSend(); } };
 $("askBox").onclick = (e) => { const b = e.target.closest("[data-q]"); if (b) askSend(b.dataset.q); };
 
+// 7.55（7.14 SQL，小程序 1.22）一键微信提醒还没看这条的同学：同一条 2 小时内只能提醒一次
+async function nudgeItem(b) {
+  if (!currentClass) return;
+  if (!confirm("给还没看过这条的同学发一条微信提醒？（同一条 2 小时内只能提醒一次）")) return;
+  b.disabled = true;
+  try {
+    const r = await CCAuth.rpc("item_nudge", { cid: currentClass.id, iid: +b.dataset.id });
+    if (r && r.ok === false) alert(r.why || "这次没发出去");
+    else if (!r.unseen) alert("大家都看过了 👍");
+    else alert(`还有 ${r.unseen} 人没看，已给 ${r.sent} 人发了微信提醒${r.no_wx ? `；${r.no_wx} 人没开微信提醒，发不到，可以在班级群里说一声` : ""}。`);
+  } catch (e) { alert(/item_nudge|PGRST202|Could not find/.test(e.message) ? "这个功能要先在数据库执行 7.14 的 SQL" : e.message); }
+  b.disabled = false;
+}
 // ===== 操作 =====
 // 7.44 作业要交证明（7.35 SQL）：网页上也拦住，交了（待审核 / 已通过）才能打勾
 //   谁要交：同学、班委；自己建班、身份不是「老师」的人（学委建班当班主任）也要交
@@ -2185,7 +2199,10 @@ function setMark(k, patch) {
       hwpGet().then((c) => {
         const sub = c && (c.subs || {})[k.slice(1)];
         if (!c || c.mode === "off" || (sub && (sub.status === "pending" || sub.status === "approved"))) { setMark(k, { ...patch, _hwOk: true }); return; }
-        alert(`这个班的作业要${c.mode === "photo" ? "拍照" : "交照片或文件"}，老师审核通过后才算完成。${sub && sub.status === "rejected" ? "\n\n上次交的被退回了" + (sub.review_note ? "：" + sub.review_note : "") + "。" : ""}\n\n请用微信打开「捞捞课程表」小程序，点开这项作业提交。`);
+        // 7.55 网页上直接交（以前要去小程序交）
+        const fin = () => setMark(k, { ...patch, _hwOk: true });
+        if (window.CCHwSub) CCHwSub.open(k.slice(1), { onDone: fin, onSubmitted: () => { if (hwpC) (hwpC.subs = hwpC.subs || {})[k.slice(1)] = { status: "pending" }; fin(); } });
+        else alert(`这个班的作业要${c.mode === "photo" ? "拍照" : "交照片或文件"}，老师审核通过后才算完成。请用微信打开「捞捞课程表」小程序，点开这项作业提交。`);
       });
       return;
     }
@@ -2204,6 +2221,7 @@ document.addEventListener("click", (e) => {
     if (cb.dataset.cact === "cedit") openClassForm(classRecords.find((x) => String(x.id) === cb.dataset.id));
     if (cb.dataset.cact === "cdel") deleteClassItem(cb.dataset.id);
     if (cb.dataset.cact === "chist") showItemHistory(cb.dataset.id);
+    if (cb.dataset.cact === "cnudge") nudgeItem(cb);
     return;
   }
   const b = e.target.closest("button[data-act]");
@@ -2910,7 +2928,7 @@ function pluginItems() {
   }
   // 6.3 晚自习 / 6.5 早自习（课程表里设置）：和课一样显示在「接下来的安排」和日历里，跟着调课 / 调休走
   try {
-    const ev = load("evening_v1", null), mo = load("morning_v1", null), adj = (typeof CourseKit !== "undefined" && CourseKit.data && CourseKit.data.adj) || [];
+    const ev = typeof ClassAdj !== "undefined" ? ClassAdj.study("evening") : load("evening_v1", null), mo = typeof ClassAdj !== "undefined" ? ClassAdj.study("morning") : load("morning_v1", null), adj0 = (typeof CourseKit !== "undefined" && CourseKit.data && CourseKit.data.adj) || [], adj = typeof ClassAdj !== "undefined" ? ClassAdj.all(adj0) : adj0;   // 7.55 加上班级发给全班的
     const nx = (k) => { const d = new Date(k + "T00:00:00"); d.setDate(d.getDate() + 1); return keyOf(d); };
     if ((ev && ev.on) || (mo && mo.on)) for (let k = s, g = 0; k <= e && g < 120; k = nx(k), g++) {
       for (const c of IslandCore.morning ? IslandCore.morning(mo, k, adj) : []) out.push({ _plugin: "course-schedule", _pluginName: "课程表", _key: "mor_" + k, _color: "#f08a24", msg_type: "插件",

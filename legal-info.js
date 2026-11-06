@@ -5,7 +5,7 @@ window.LEGAL_INFO = {
   app: "捞捞课程表",
   team: "信息捞捞队",
   contact: "laolaokechengbiao@163.com",
-  updated: "2026年11月1日",
+  updated: "2026年11月6日",
   ver: "2026-11-01",
 };
 (function () {

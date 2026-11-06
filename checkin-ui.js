@@ -167,6 +167,7 @@
         <div class="ck-modes">${[["code", "🔢 动态码", "投屏二维码，扫一扫就签，不用定位"], ["geo", "📍 位置", "到了现场范围内才能签"], ["both", "📍+🔢 都要", "扫码 + 在现场，最严格"], ["photo", "📷 拍照", "拍一张现场照片就签，你能看到每张照片"], ["gesture", "🔢+✍️ 码或手势", "动态码照样能签，也可以照投屏的手势画"]].map(([k, t, dd], i) =>
           `<label class="ck-mode"><input type="radio" name="ckMode" value="${k}"${i ? "" : " checked"}><b>${t}</b><small>${dd}</small></label>`).join("")}</div>
         <label class="ck-photo-opt"><input type="checkbox" id="ckPhoto"> 📷 同时要拍一张现场照片（签到时拍照，你能看到每个人的照片）</label>
+        <label class="ck-static-opt"><input type="checkbox" id="ckStatic"> 🔒 固定码：整场一个 4 位码，不用一直投屏，可以写黑板、发到群里（码被转发出去别人也能签）</label>
         <div class="row"><input id="ckTitle" maxlength="40" placeholder="名称，比如：周三高数课签到" value="${esc(new Date().getMonth() + 1 + "月" + new Date().getDate() + "日签到")}"></div>
         <div class="row"><input id="ckPlace" maxlength="60" placeholder="地点，比如：教三 201（动态码签到可以不填）"></div>
         <div class="row ck-opts"><label class="ck-geo-only">范围<select id="ckR"><option value="100">100 米（一间教室）</option><option value="200" selected>200 米（一栋楼）</option><option value="500">500 米（操场、院区）</option><option value="1000">1 公里</option></select></label>
@@ -179,7 +180,7 @@
           ${x.mine ? `<span class="ck-ok">✓ 已签</span>` : x.open ? `<span class="ck-go">${ctl(x) ? "投屏" : "签到"} ›</span>` : `<span class="ck-miss">未签</span>`}</div>`).join("")
         : `<div class="empty">最近 7 天没有签到。${mgr() ? "点上面「发起签到」试试。" : "班委发起签到后，这里和首页顶上都会出现。"}</div>`}</div>
       <div class="row"><input id="ckCodeQuick" inputmode="numeric" maxlength="4" placeholder="有 4 位签到码？输在这里" class="ck-quick"><button class="small" id="ckQuickGo">签到</button><span class="spacer"></span><button class="small" data-ckx="close">关闭</button></div>`;
-    const syncMode = () => { const m = (d.querySelector("input[name=ckMode]:checked") || {}).value; d.querySelectorAll(".ck-geo-only").forEach((el) => el.classList.toggle("hidden", m === "code" || m === "photo")); const po = d.querySelector(".ck-photo-opt"); if (po) po.classList.toggle("hidden", m === "photo"); };
+    const syncMode = () => { const m = (d.querySelector("input[name=ckMode]:checked") || {}).value; d.querySelectorAll(".ck-geo-only").forEach((el) => el.classList.toggle("hidden", m === "code" || m === "photo")); const po = d.querySelector(".ck-photo-opt"); if (po) po.classList.toggle("hidden", m === "photo"); const so = d.querySelector(".ck-static-opt"); if (so) so.classList.toggle("hidden", m === "geo" || m === "photo"); };
     d.querySelectorAll("input[name=ckMode]").forEach((r) => r.addEventListener("change", syncMode)); syncMode();
     const sel = d.querySelector("#ckCls"); if (sel) sel.onchange = () => openPanel(sel.value);
     if (!d.open) d.showModal();
@@ -241,7 +242,7 @@
           <div class="meta">从 1 连到 ${String(x.gesture_pat || "").length}，同学在捞捞「签到」里画一遍就签上了。</div><div class="meta">已签 ${x.signed} / ${x.members}</div><button class="small" id="ckRegest">换一个手势</button> <button class="small" id="ckShowCode">展示签到码</button> <button class="small" id="ckFull">⛶ 全屏投屏</button></div></div>`
       : ctl(x) && x.open ? `<div class="ck-proj" id="ckProj"><div class="ck-qrbox" id="ckQr"></div><div class="ck-proj-r"><div class="ck-proj-t" id="ckQrT">${needCode(x) ? "微信扫一扫签到" : "微信扫一扫，打开签到页"}</div>${needCode(x) ? `<div class="ck-code" id="ckCode">····</div>
           <div class="meta" id="ckLeft">每 20 秒换一次码</div><div class="meta">没带手机扫码的同学：打开捞捞「签到」，输入这 4 位码</div>` : `<div class="meta" id="ckLeft">已签 ${x.signed} / ${x.members}</div><div class="meta">${needGeo(x) ? `同学扫码后会自动定位，在 ${x.radius} 米内就签上了。` : "同学扫码打开签到页，拍一张现场照片就签上了。"}这张码整场不变，可以截图发到班级群。</div>`}
-          ${needGes(x) ? `<button class="small" id="ckShowGes">展示手势</button> ` : ""}<button class="small" id="ckFull">⛶ 全屏投屏</button></div></div>` : ""}
+          ${needGes(x) ? `<button class="small" id="ckShowGes">展示手势</button> ` : ""}${needCode(x) ? `<button class="small" id="ckStaticSw" hidden>改成固定码</button> ` : ""}${needGeo(x) ? `<button class="small" id="ckMoveHere">📍 用我现在的位置当签到点</button> ` : ""}<button class="small" id="ckFull">⛶ 全屏投屏</button></div></div>` : ""}
       ${signable(x) || x.mine ? `<div class="ck-me">${x.mine ? `<div class="ck-ok big">✓ 你 ${hhmm(x.mine.at)} 签到了${x.mine.dist != null ? `（离签到点 ${x.mine.dist} 米）` : ""}${x.mine.photo ? " · 📷 照片已交" : ""}</div>`
         : x.open ? `${needGes(x) ? `<p class="meta">输签到码，或者照投屏上的手势在下面九宫格里一笔连起来（按住拖动）${x.need_photo || needGeo(x) ? "，再点按钮" : "，松开就签到"}</p><div class="ck-gp" id="ckGp">${"<i></i>".repeat(9)}</div>` : ""}<div class="row">${needCode(x) ? `<input id="ckCodeIn" class="ck-quick big" inputmode="numeric" maxlength="4" placeholder="4 位签到码" value="${esc(code || "")}">` : ""}<button class="btn ink" id="ckSignOne">${x.need_photo ? (pending && pending.id === x.id ? "⟳ 重新上传照片签到" : "📷 拍照签到") : needGeo(x) ? "📍 我到了，签到" : "✓ 签到"}</button></div>
           <p class="meta">${needCode(x) ? "手机上用微信扫投屏的二维码最快。" : ""}${needGeo(x) ? "签到时会定位一次，确认你在范围里（电脑一般定位不准，请用手机）。" : ""}${x.need_photo ? "要拍一张现场照片（手机会打开相机），发起签到的同学和老师能看到，24 小时后自动删除。" : ""}</p>` : `<p class="meta">签到已经结束了。</p>`}</div>` : ""}
@@ -258,6 +259,22 @@
       if (showGes && ctl(x)) { if (x.can_manage) detail(x.id); return; }
     }
     if (x.can_manage) detail(x.id);
+    // 7.55（小程序 1.22 / 1.24.4）动态码 ⇄ 固定码；位置签到用发起人现在的位置更新签到点
+    if ($("ckStaticSw")) $("ckStaticSw").onclick = async () => {
+      const on = !isStatic;
+      if (on && !confirm("改成固定码后，整场只用一个 4 位码，可以写黑板或发到群里，但码被转发出去别人也能签。已经签上的不受影响。")) return;
+      try { await CCAuth.rpc("checkin_set_static", { p_id: x.id, p_on: on }); lastCode = ""; qrT0 = Date.now(); say(on ? "已改成固定码" : "已改回动态码", "ok"); tickCode(); }
+      catch (e) { say(/checkin_set_static|PGRST202|Could not find/.test(e.message) ? "换码要先在数据库执行 7.13 的 SQL" : e.message, "bad"); }
+    };
+    if ($("ckMoveHere")) $("ckMoveHere").onclick = async () => {
+      const b = $("ckMoveHere"); b.disabled = true; b.textContent = "正在定位…";
+      try {
+        const p = await getPos();
+        const r = await CCAuth.rpc("checkin_move", { p_id: x.id, p_lat: +p.lat.toFixed(6), p_lng: +p.lng.toFixed(6), p_acc: Math.round(p.acc || 0), p_fix: x.pos_fixed ? false : null });
+        if (r && r.ok === false) say(r.why || "没改成", "bad"); else { say(`签到点已更新（定位误差约 ${p.acc} 米）`, "ok"); openOne(x.id); return; }
+      } catch (e) { say(/checkin_move|PGRST202|Could not find/.test(e.message) ? "要先在数据库执行 7.27 的 SQL" : e.message, "bad"); }
+      b.disabled = false; b.textContent = "📍 用我现在的位置当签到点";
+    };
     if (ctl(x)) {
       // 动态码每 20 秒换；6.9.6 位置签到整场一张码，只刷新人数
       // 7.4.1 位置 / 拍照签到的码只带编号：先画普通二维码，不等服务器；小程序码没做好时每秒问一次，做好了 2.5 / 5 秒问一次
@@ -268,7 +285,7 @@
     // 扫码进来：带着码的直接签；位置签到的码只带编号，直接定位签到
     if (x.open && !x.mine && signable(x) && !x.need_photo && (code || (scan && !needCode(x)))) sign(x, code, $("ckSignOne"));   // 要拍照的得自己点一下（浏览器只让点按钮时开相机）
   }
-  let tn = 0, qrAt = 0, qrImg = false, detAt = 0, qrT0 = 0;
+  let tn = 0, qrAt = 0, qrImg = false, detAt = 0, qrT0 = 0, isStatic = false;
   const WAIT = `<div class="ck-qrwait">正在生成小程序码…</div>`;
   // 7.45 等了 6 秒还没好：说一声「第一次要久一点」；30 秒（以前 8 秒）还没好才退回普通二维码
   const waitHtml = (slow, code) => slow ? `<div class="ck-qrwait" style="flex-direction:column;gap:6px;text-align:center;padding:0 12px">正在生成小程序码…<small>第一次要久一点（最多半分钟）${code ? "，可以先用右边的 4 位码" : ""}</small></div>` : WAIT;
@@ -295,7 +312,9 @@
         $("ckQr").innerHTML = r.img ? `<img src="${r.img}" alt="签到小程序码">` : fb ? QRLite.svg(SITE + "?i=" + one.id + "&k=" + r.code, { level: "M" }) : waitHtml(slow, true);
         $("ckQrT").textContent = r.img || !fb ? "微信扫一扫签到" : "手机扫码签到";
       }
-      $("ckLeft").textContent = `${r.left} 秒后换码 · 已签 ${r.signed} / ${one.members}`;
+      isStatic = !!r.static;
+      const sw = $("ckStaticSw"); if (sw) { sw.hidden = false; sw.textContent = isStatic ? "改回动态码" : "改成固定码"; }
+      $("ckLeft").textContent = isStatic ? `固定码，整场不变 · 已签 ${r.signed} / ${one.members}` : `${r.left} 秒后换码 · 已签 ${r.signed} / ${one.members}`;
     } catch (e) {}
   }
   // 7.45 预热小程序码：后端休眠了第一张码要等十几秒；服务器 3 分钟内只真正叫一次
@@ -311,6 +330,7 @@
       if (photo) a.photo = true;   // 7.3 老的数据库没有这个参数：只在勾了的时候带上
       if (geo) { const p = await getPos(); if (p.acc > 200) st.textContent = `定位精度只有 ${p.acc} 米，可能不太准…`; a.lat = p.lat; a.lng = p.lng; }
       const r = await CCAuth.rpc("checkin_create", a);
+      if ((mode === "code" || mode === "both") && $("ckStatic") && $("ckStatic").checked) { try { await CCAuth.rpc("checkin_set_static", { p_id: r.id, p_on: true }); } catch (e3) { say("固定码要先在数据库执行 7.13 的 SQL，这次先按动态码发起了", "bad"); } }   // 7.55（小程序 1.22）
       if (ges) { try { await CCAuth.rpc("checkin_set_gesture", { p_id: r.id, p_pat: randGes() }); } catch (e2) { say("手势签到要先在数据库执行 7.41 的 SQL，这次先按动态码发起了", "bad"); } }   // 7.41
       if (panelCls) list = (await CCAuth.rpc("checkin_list", { cid: c.id })) || []; else await load();
       openOne(r.id); say(mode === "code" ? "签到已发起：把二维码投到屏幕上，同学微信一扫就签上" : "签到已发起，同学们首页顶上会出现「签到」", "ok");

@@ -6,6 +6,7 @@
 // 排序和问答的规则在 island-core.js 里，和小程序、电脑版是同一份。
 "use strict";
 const LS_ISLAND = "island_v1", LS_LAO_SAID = "lao_said_v1";
+const islandStudy = (k) => (typeof ClassAdj !== "undefined" ? ClassAdj.study(k) : load(k + "_v1", null));   // 7.55 自己没设早晚自习就用班级发的
 const ISLAND_SHOW = [["urgent", "⚡", "最急的一件事"], ["course", "📚", "下一节课"], ["progress", "⭕", "今日进度"], ["pomo", "🍅", "番茄钟倒计时（专注时）"], ["farm", "🐣", "云宠和养料"]];
 // 捞捞开 / 关只管这台设备（lao_dev_v1，不同步）：在手机上让它休息，电脑上的捞捞不会跟着消失
 const LS_LAO_DEV = "lao_dev_v1";
@@ -26,7 +27,7 @@ function islandItems() {
 // 6.3 晚自习 / 6.5 早自习（课程表里设置，跟着账号同步）：晚自习当成这一天的最后一节课、早自习第一节，到点「上课中」，教练和捞捞都不打扰
 function islandCourses(k) {
   let base = []; try { base = ck().data && ck().data.courses.length ? ck().coursesOn(k) : []; } catch (e) {}
-  try { return IslandCore.withEvening(base, load("evening_v1", null), k, (ck().data || {}).adj, load("morning_v1", null)); } catch (e) { return base; }
+  try { return IslandCore.withEvening(base, islandStudy("evening"), k, typeof ClassAdj !== "undefined" ? ClassAdj.all((ck().data || {}).adj) : (ck().data || {}).adj, islandStudy("morning")); } catch (e) { return base; }
 }
 function islandCtx() {
   const now = new Date(typeof ccNow === "function" ? ccNow() : Date.now()), t = keyOf(now), d = ck().data;
@@ -36,7 +37,7 @@ function islandCtx() {
   try { if (farmOn()) { const n = farmNumbers(), s = farmState(); Object.assign(stats, { food: n.left, petName: s.name, petLevel: s.level }); } } catch (e) {}
   if (rankCache && currentClass && rankCache.cid === currentClass.id && rankCache.period === "week") { const me = rankCache.data.rows.find((r) => r.me); if (me) Object.assign(stats, { growth: me.points, rank: me.rank }); }
   return { now, name: currentUser ? currentUser.display_name : "", items: islandItems(), courses: islandCourses(t).map((c) => ({ ...c, day: t })),
-    coursesOn: islandCourses, weekOf, hasCourses: !!(d && d.courses && d.courses.length) || !!(load("evening_v1", null) || {}).on || !!(load("morning_v1", null) || {}).on, stats };
+    coursesOn: islandCourses, weekOf, hasCourses: !!(d && d.courses && d.courses.length) || !!(islandStudy("evening") || {}).on || !!(islandStudy("morning") || {}).on, stats };
 }
 
 // ---------- 小屏幕上显示什么 ----------

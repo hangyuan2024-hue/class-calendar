@@ -34,6 +34,9 @@ async function load() {
   // 组长、班委要从班级名单里选人拉进组
   await Promise.all(mine.filter((c) => !c.is_teacher && (groups[c.id] || []).some((g) => g.lead) || c.member_role === "monitor")
     .map(async (c) => { try { rosters[c.id] = await rpc("class_roster", { cid: c.id }); } catch (e) { /* 没有看名单的权限 */ } }));
+  // 7.55（7.28 SQL，小程序 1.24.5）班委也能审批入班申请：等批准的人
+  await Promise.all(mine.filter((c) => !c.is_teacher && c.status === "approved" && c.member_role === "monitor")
+    .map(async (c) => { try { pendBy[c.id] = (await rpc("class_pending", { p_cid: c.id })) || []; } catch (e) { pendBy[c.id] = []; } }));
   renderMine();
   // 不只老师：学生（比如班委）也能创建班级，创建者就是这个班的管理者
   await renderTeaching();
@@ -41,6 +44,7 @@ async function load() {
   if (me.role === "admin") renderAdmin().catch((e) => toast(e.message, true));
 }
 
+const pendBy = {};
 // ---------- 学生视角 ----------
 function renderMine() {
   const list = mine.filter((c) => !c.is_teacher);
@@ -53,6 +57,9 @@ function renderMine() {
           ${pending ? `<span class="badge wait">等待老师批准</span>` : `<span class="badge ok">已入班</span>`}
           ${mon ? `<span class="badge mon">班委</span>` : ""}</div>
         <div class="meta">老师：${esc(c.teacher_name || "")}${mon ? " · 我的权限：" + (permList(c).join("、") || "暂无") : ""}</div>
+        ${(pendBy[c.id] || []).length ? `<div class="gtitle">入班申请 <span class="badge wait">${pendBy[c.id].length} 人待批准</span></div>` + pendBy[c.id].map((m) => `<div class="item"><div class="grow">${esc(m.name)} <span class="meta">${esc(m.account || "")} · ${fmt(m.joined_at)} 申请</span></div>
+          <button class="small primary" data-act="approve" data-cid="${esc(c.id)}" data-uid="${esc(m.user_id)}">批准</button>
+          <button class="small danger" data-act="reject" data-cid="${esc(c.id)}" data-uid="${esc(m.user_id)}">拒绝</button></div>`).join("") : ""}
         <div class="roster" id="roster_${esc(c.id)}"></div>
         ${pending ? "" : `<div class="gtitle">分组 <span class="meta">${mon ? "可以建组、调整组员、设组长" : "选你上的课 / 所在小组加入，组里的事项和消息只有组员能看到"}</span></div>${groupsHtml(c.id, mon, null)}`}</div>
       ${mon && c.can_view_members ? `<button class="small" data-act="roster" data-id="${esc(c.id)}">成员名单</button>` : ""}

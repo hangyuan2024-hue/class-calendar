@@ -131,7 +131,7 @@
     let list; try { list = (await rpc("dept_hw_proof", { p_did: did })) || []; }
     catch (e) { box.innerHTML = `<div class="empty">${/dept_hw_proof|PGRST202|Could not find/.test(e.message) ? "作业审核暂未开通，请联系管理员" : esc(e.message)}</div>`; return; }
     const M = [["off", "关闭"], ["photo", "只要照片"], ["file", "照片或文件（可混着交）"]];
-    box.innerHTML = `<div class="desc">默认关闭。打开后，这个班的同学在小程序里给作业打勾时，要先拍照或交文件（照片、PDF、Word），班主任、加入这个班的老师和院系管理员在小程序「作业 → 作业审核」里通过或退回，通过了才算完成。</div>
+    box.innerHTML = `<div class="desc">默认关闭。打开后，这个班的同学在小程序或网页上给作业打勾时，要先拍照或交文件（照片、PDF、Word），班主任、加入这个班的老师和院系管理员在小程序「作业 → 作业审核」或网页「管理中心」里通过或退回，通过了才算完成。</div>
       <table class="feat"><thead><tr><th>班级</th><th>要求</th><th>待审核</th></tr></thead><tbody>
       ${list.map((c) => `<tr><td><b>${esc(c.name)}</b></td><td><select data-hw="${c.id}">${M.map(([k, t]) => `<option value="${k}"${c.mode === k ? " selected" : ""}>${t}</option>`).join("")}</select></td>
         <td>${c.mode === "off" && !c.pending ? "—" : c.pending + " 份"}</td></tr>`).join("") || `<tr><td colspan="3" class="empty">这个院系还没有班级</td></tr>`}</tbody></table>`;
