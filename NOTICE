@@ -20,6 +20,8 @@ Copyright (C) 2024-2026 捞捞课程表开发团队（信息捞捞队）及各�
   - KaTeX（MIT）、markdown-it（MIT）、PDF.js（Apache-2.0）及其 wasm 组件、html-to-image（MIT）
     —— learn/mindmap/vendor/
   - 标题字体：见 display-font-OFL.txt（SIL Open Font License 1.1）
+  - 安卓 App 的功能图标：Lucide（ISC License，部分图标源自 Feather，MIT）
+    —— laolao-android/tools/icons/LICENSE-lucide.txt
   - 其他直接写在文件开头注释里的，以注释为准。
 
 三、贡献
