@@ -97,7 +97,7 @@ class HomePage(a: Main) : Page(a) {
         val mine = o.optJSONObject("mine") != null
         val c = ctx.row().apply { pad(14, 12); margins(t = 12)
             background = round(if (mine) C.alpha(C.green, 0.1f) else C.alpha(C.c("#ff7a45"), 0.1f), dp(16).toFloat(), if (mine) C.alpha(C.green, 0.45f) else C.alpha(C.c("#ff7a45"), 0.5f), dp(1)) }
-        c.addView(ctx.text("📍", 22f))
+        c.addView(Ic.tile(ctx, "📍", 38), LinearLayout.LayoutParams(dp(38), dp(38)))
         c.addView(ctx.col().apply { pad(10, 0); addView(ctx.text(o.str("title").ifEmpty { "位置签到" }, 15f, C.text, BOLD, 1)); addView(ctx.text(o.str("place") + " · 还剩 " + com.laolao.classcalendar.core.Checkin.leftText(o), 12.5f, C.sub, lines = 1)) }, LinearLayout.LayoutParams(0, WRAP, 1f))
         c.addView(ctx.text(if (mine) "✓ 已签到" else "去签到 ›", 13.5f, if (mine) C.green else C.c("#d4561e"), BOLD))
         c.tap { a.push(CheckinPage(a, o.optLong("id"))) }
@@ -170,6 +170,7 @@ class HomePage(a: Main) : Page(a) {
         val gl = ctx.row().apply { margins(t = 12) }
         fun g(t: String, hot: Boolean, fn: () -> Unit) = gl.addView(ctx.text(t, 12.5f, if (hot) C.red else C.text, SEMI, 1).apply {
             gravity = Gravity.CENTER_VERTICAL; bg(if (hot) C.dangerBg else C.card, 14, if (hot) C.alpha(C.red, 0.18f) else C.line); pad(11, 6); tap { fn() }
+            Ic.lead(this, 14, if (hot) null else Ic.colorOf(t.substringBefore(' ')))
         }, LinearLayout.LayoutParams(WRAP, WRAP).apply { rightMargin = dp(8) })
         try {
             if (com.laolao.classcalendar.core.Courses.has()) {

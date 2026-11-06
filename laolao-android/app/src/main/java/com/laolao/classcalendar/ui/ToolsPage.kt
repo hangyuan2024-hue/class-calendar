@@ -73,8 +73,8 @@ class ToolsPage(a: Main) : Page(a) {
                 if (i % 2 == 0) { row = ctx.row().apply { gravity = Gravity.TOP }; body.addView(row, LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = if (i == 0) 0 else dp(10) }) }
                 val c = ctx.col().apply {
                     pad(14, 14); press(C.card, 18, C.line); tap { t.open() }
-                    addView(ctx.text(t.icon, 26f))
-                    addView(ctx.text(t.name, 15f, C.text, BOLD, 1).apply { margins(t = 8) })
+                    addView(Ic.tile(ctx, t.icon, 40), LinearLayout.LayoutParams(dp(40), dp(40)))
+                    addView(ctx.text(t.name, 15f, C.text, BOLD, 1).apply { margins(t = 10) })
                     addView(ctx.text(t.desc, 12f, C.sub, lines = 2).apply { margins(t = 2) })
                 }
                 row!!.addView(c, LinearLayout.LayoutParams(0, WRAP, 1f).apply { if (i % 2 == 1) leftMargin = dp(10) })

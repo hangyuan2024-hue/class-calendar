@@ -95,7 +95,7 @@ class CoursePage(a: Main) : Page(a) {
         fun opt(ic: String, t: String, s: String, pri: Boolean, fn: () -> Unit) = c.add(ctx.row().apply {
             pad(14, 14); if (pri) background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(C.mix(C.accent, Color.WHITE, 0.15f), C.accent)).apply { cornerRadius = dp(16).toFloat() } else bg(C.mutedBg, 16)
             springy(); tap { fn() }
-            addView(ctx.text(ic, 24f)); addView(ctx.col().apply { pad(12, 0); addView(ctx.text(t, 15f, if (pri) Color.WHITE else C.text, BOLD)); addView(ctx.text(s, 12f, if (pri) C.alpha(Color.WHITE, 0.85f) else C.sub)) }, LinearLayout.LayoutParams(0, WRAP, 1f))
+            addView(if (pri) Ic.plain(ctx, ic, 26, Color.WHITE) else Ic.tile(ctx, ic, 40), LinearLayout.LayoutParams(dp(if (pri) 26 else 40), dp(if (pri) 26 else 40))); addView(ctx.col().apply { pad(12, 0); addView(ctx.text(t, 15f, if (pri) Color.WHITE else C.text, BOLD)); addView(ctx.text(s, 12f, if (pri) C.alpha(Color.WHITE, 0.85f) else C.sub)) }, LinearLayout.LayoutParams(0, WRAP, 1f))
             addView(ctx.text("›", 18f, if (pri) Color.WHITE else C.sub)) }, 12)
         opt("📷", "拍照 / 截图导入", "教务系统、课表 App 截图都行，自动识别", true) { a.push(CourseImportPage(a)) }
         if (clsId != null) opt("🏫", "用班级课表", "老师或班委发布过的话，一键套用", false) { src = "class"; if (!clsLoaded) loadClass(); render() }
@@ -161,7 +161,7 @@ class CoursePage(a: Main) : Page(a) {
         listOf(Triple("📷", "导入") { a.push(CourseImportPage(a)) }, Triple("＋", "加课") { form(null, 0, 1) }, Triple("🔁", "调课调休") { adjust() }, Triple("🖼", "存图片") { shareImage() }).forEachIndexed { i, (ic, t, fn) ->
             val f = FrameLayout(ctx)
             f.addView(ctx.col().apply { gravity = Gravity.CENTER_HORIZONTAL; pad(4, 10); bg(C.card, 16, C.line); springy(); tap { fn() }
-                addView(ctx.text(ic, 19f, if (ic == "＋") C.accent else C.text, BOLD).apply { gravity = Gravity.CENTER }); addView(ctx.text(t, 12f, C.text, SEMI, 1).apply { gravity = Gravity.CENTER; margins(t = 2) }); lift(3, C.text) }, FrameLayout.LayoutParams(MATCH, WRAP))
+                addView(Ic.plain(ctx, ic, 22), LinearLayout.LayoutParams(dp(22), dp(22)).apply { gravity = Gravity.CENTER_HORIZONTAL; bottomMargin = dp(3) }); addView(ctx.text(t, 12f, C.text, SEMI, 1).apply { gravity = Gravity.CENTER; margins(t = 2) }); lift(3, C.text) }, FrameLayout.LayoutParams(MATCH, WRAP))
             if (i == 2 && nAdj > 0) f.addView(ctx.text("$nAdj", 10.5f, Color.WHITE, BOLD).apply { gravity = Gravity.CENTER; background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(C.red) } }, FrameLayout.LayoutParams(dp(18), dp(18)).apply { gravity = Gravity.END or Gravity.TOP; topMargin = dp(4); rightMargin = dp(6) })
             f.clipChildren = false; f.clipToPadding = false
             r.addView(f, LinearLayout.LayoutParams(0, WRAP, 1f).apply { if (i > 0) leftMargin = dp(8) })
@@ -248,7 +248,7 @@ class CoursePage(a: Main) : Page(a) {
         hr.addView(ctx.text(l.name, 20f, C.text, HEAVY).apply { pad(10, 0) }, LinearLayout.LayoutParams(0, WRAP, 1f))
         c.addView(hr)
         val cells = ctx.card(4, 16).apply { margins(t = 14); bg(C.mutedBg, 16) }
-        fun cell(ic: String, t: String, s: String) { if (t.isBlank()) return; if (cells.childCount > 0) cells.addView(ctx.hline()); cells.addView(ctx.row().apply { pad(12, 10); addView(ctx.text(ic, 17f)); addView(ctx.col().apply { pad(12, 0); addView(ctx.text(t, 14.5f, C.text, SEMI)); if (s.isNotEmpty()) addView(ctx.text(s, 11.5f, C.sub)) }, LinearLayout.LayoutParams(0, WRAP, 1f)) }) }
+        fun cell(ic: String, t: String, s: String) { if (t.isBlank()) return; if (cells.childCount > 0) cells.addView(ctx.hline()); cells.addView(ctx.row().apply { pad(12, 10); addView(Ic.plain(ctx, ic, 18), LinearLayout.LayoutParams(dp(18), dp(18))); addView(ctx.col().apply { pad(12, 0); addView(ctx.text(t, 14.5f, C.text, SEMI)); if (s.isNotEmpty()) addView(ctx.text(s, 11.5f, C.sub)) }, LinearLayout.LayoutParams(0, WRAP, 1f)) }) }
         cell("🕘", T.md(d) + " " + T.wk(d) + " · 第${l.start}-${l.end}节", if (l.t0.isNotEmpty()) l.t0 + " – " + l.t1 else "")
         rec?.let { val ws = Courses.parseWeeks(it.str("weeks")); cell("📅", it.str("weeks").ifEmpty { "1-16" } + " 周", "共 ${ws.size} 周") }
         cell("📍", l.location, "上课地点"); cell("👤", l.teacher, "教师")
@@ -514,7 +514,7 @@ class CoursePage(a: Main) : Page(a) {
             }
             else -> {
                 val x = cls!!
-                c.addView(ctx.row().apply { addView(ctx.text("🏫", 22f)); addView(ctx.col().apply { pad(12, 0)
+                c.addView(ctx.row().apply { addView(Ic.tile(ctx, "🏫", 38), LinearLayout.LayoutParams(dp(38), dp(38))); addView(ctx.col().apply { pad(12, 0)
                     addView(ctx.text(x.str("title").ifEmpty { name }, 15f, C.text, BOLD))
                     addView(ctx.text(listOf(x.str("by_name").let { if (it.isNotEmpty()) "$it 发布" else "" }, CK.ago(x.str("updated_at")), "共 ${Courses.classCourses(x).size} 门").filter { it.isNotEmpty() }.joinToString(" · "), 12f, C.sub)) }, LinearLayout.LayoutParams(0, WRAP, 1f)) })
                 val br = ctx.row().apply { margins(t = 12) }

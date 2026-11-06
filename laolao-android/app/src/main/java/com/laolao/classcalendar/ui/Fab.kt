@@ -48,7 +48,7 @@ class Fab(private val a: Main, host: FrameLayout, private val items: () -> List<
             val pill = a.row().apply {
                 pad(14, 10, 18, 10)
                 background = round(C.card, a.dp(24).toFloat(), C.line, a.dp(1)); elevation = a.dp(4).toFloat()
-                addView(a.text(it.icon, 18f))
+                addView(Ic.plain(a, it.icon, 19), LinearLayout.LayoutParams(a.dp(19), a.dp(19)))
                 addView(a.text(it.text, 15f, C.text, BOLD).apply { pad(8, 0, 0, 0) })
                 isClickable = true
                 setOnClickListener { _ -> close(); it.run() }

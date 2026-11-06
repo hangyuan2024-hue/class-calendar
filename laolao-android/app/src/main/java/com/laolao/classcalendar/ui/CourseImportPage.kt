@@ -51,7 +51,7 @@ class CourseImportPage(a: Main) : Page(a) {
         val list = rows
         if (list == null) {
             val c = ctx.card(20, 22)
-            c.addView(ctx.text("📷", 40f).apply { gravity = Gravity.CENTER })
+            c.addView(Ic.tile(ctx, "📷", 64), LinearLayout.LayoutParams(dp(64), dp(64)).apply { gravity = Gravity.CENTER_HORIZONTAL })
             c.add(ctx.text("拍一张课表，自动变成课程表", 18f, C.text, BOLD).apply { gravity = Gravity.CENTER }, 8)
             c.add(ctx.text("教务系统里的整周课表截图最好认；纸质课表请拍正、拍全、光线亮一点。识别完可以逐条核对再保存。", 13.5f, C.sub).apply { gravity = Gravity.CENTER }, 6)
             if (busy) c.add(ctx.text(status, 14f, C.accent, SEMI).apply { gravity = Gravity.CENTER; bg(C.selected, 12); pad(12, 10) }, 16)

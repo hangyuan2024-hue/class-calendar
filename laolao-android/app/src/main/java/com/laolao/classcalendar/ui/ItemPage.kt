@@ -39,7 +39,7 @@ class ItemPage(a: Main, private val key: String) : Page(a) {
         c.addView(tr)
         c.add(ctx.text((if (r.pin && !r.done) "📌 " else "") + r.title, 21f, C.text, HEAVY).apply { setTextIsSelectable(true) }, 10)
         if (r.needConfirm) c.add(ctx.text("⚠ 信息不完整，建议去群里核实", 13f, C.red).apply { bg(C.dangerBg, 8); pad(10, 6) }, 10)
-        fun line(icon: String, s: String, color: Int = C.text) { if (s.isNotBlank()) c.add(ctx.row().apply { gravity = Gravity.TOP; addView(ctx.text(icon, 15f), LinearLayout.LayoutParams(dp(26), WRAP)); addView(ctx.text(s, 15f, color), LinearLayout.LayoutParams(0, WRAP, 1f)) }, 10) }
+        fun line(icon: String, s: String, color: Int = C.text) { if (s.isNotBlank()) c.add(ctx.row().apply { gravity = Gravity.TOP; addView(Ic.plain(ctx, icon, 17), LinearLayout.LayoutParams(dp(17), dp(17)).apply { rightMargin = dp(9); topMargin = dp(2) }); addView(ctx.text(s, 15f, color), LinearLayout.LayoutParams(0, WRAP, 1f)) }, 10) }
         if (r.dated) {
             val d = T.date(r.day)!!
             line("🗓", T.md(d) + " " + T.wk(d) + (if (r.time.isNotEmpty()) " " + r.time + (if (r.hw) " 截止" else "") else " 全天") + "（" + T.dayName(r.day) + "）")

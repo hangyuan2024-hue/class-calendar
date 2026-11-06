@@ -110,7 +110,7 @@ fun Page.scaffold(title: String, right: View? = null, pull: ((() -> Unit) -> Uni
 /** 分组标题 */
 fun Context.section(t: String, s: String = "", color: Int = C.text): LinearLayout = row().apply {
     gravity = Gravity.BOTTOM; pad(4, 22, 4, 10)
-    addView(text(t, 17f, color, BOLD))
+    addView(Ic.lead(text(t, 17f, color, BOLD), 18, own = true))
     if (s.isNotEmpty()) addView(text(s, 12.5f, C.sub).apply { pad(8, 0, 0, 1) })
 }
 
@@ -194,18 +194,18 @@ object Dialogs {
 fun Context.empty(icon: String, t: String, s: String = ""): LinearLayout = col().apply {
     gravity = Gravity.CENTER_HORIZONTAL; pad(16, 26)
     bg(C.mutedBg, 14)
-    addView(text(icon, 26f).apply { gravity = Gravity.CENTER })
+    addView(Ic.tile(this@empty, icon, 44), LinearLayout.LayoutParams(dp(44), dp(44)))
     addView(text(t, 14.5f, C.sub, SEMI).apply { gravity = Gravity.CENTER; margins(t = 8) })
     if (s.isNotEmpty()) addView(text(s, 12.5f, C.mutedText).apply { gravity = Gravity.CENTER; margins(t = 4) })
 }
 /** 设置列表里的一行：图标 标题 说明 › */
 fun Context.cell(icon: String, title: String, desc: String = "", right: String = "›", fn: (View) -> Unit): LinearLayout = row().apply {
     pad(14, 13); press(0, 12); tap(fn)
-    if (icon.isNotEmpty()) addView(text(icon, 18f).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(dp(30), WRAP))
+    if (icon.isNotEmpty()) addView(Ic.tile(this@cell, icon, 34), LinearLayout.LayoutParams(dp(34), dp(34)))
     val c = col()
     c.addView(text(title, 15.5f, C.text, SEMI, 1))
     if (desc.isNotEmpty()) c.addView(text(desc, 12.5f, C.sub, lines = 2).apply { margins(t = 2) })
-    addView(c, LinearLayout.LayoutParams(0, WRAP, 1f).apply { leftMargin = dp(6) })
+    addView(c, LinearLayout.LayoutParams(0, WRAP, 1f).apply { leftMargin = dp(if (icon.isNotEmpty()) 12 else 6) })
     if (right.isNotEmpty()) addView(text(right, if (right == "›") 20f else 13f, C.mutedText).apply { pad(8, 0, 0, 0) })
 }
 fun ViewGroup.add(v: View, top: Int = 0): View { addView(v); if (top != 0) v.margins(t = top); return v }

@@ -209,7 +209,7 @@ class HomeCards(private val p: Page) {
     private fun base(): LinearLayout = ctx.col().apply { pad(16, 16); bg(C.card, 18, C.line); elevation = dp(1).toFloat() }
     private fun head(c: LinearLayout, t: String, meta: String = "", right: String = "", go: (() -> Unit)? = null) {
         val r = ctx.row().apply { margins(b = 10) }
-        r.addView(ctx.text(t, 14.5f, C.text, BOLD))
+        r.addView(Ic.lead(ctx.text(t, 14.5f, C.text, BOLD), 16, own = true))
         if (meta.isNotEmpty()) r.addView(ctx.text("  $meta", 12f, C.sub, SEMI, 1), LinearLayout.LayoutParams(0, WRAP, 1f)) else r.addView(View(ctx), LinearLayout.LayoutParams(0, 1, 1f))
         if (right.isNotEmpty()) r.addView(ctx.text(right, 12.5f, C.accent, SEMI).apply { if (go != null) tap { go() } })
         c.addView(r)
@@ -287,7 +287,7 @@ class HomeCards(private val p: Page) {
     private fun pins(): View {
         val top = pins.firstOrNull()
         val v = ctx.row().apply { pad(16, 14); background = round(C.noteBg, dp(18).toFloat(), C.alpha(C.c("#e0a526"), 0.25f), dp(1)); springy(); tap { a.push(WallPage(a, top?.optLong("id") ?: 0)) } }
-        v.addView(ctx.text("📌", 20f))
+        v.addView(Ic.plain(ctx, "📌", 20), LinearLayout.LayoutParams(dp(20), dp(20)))
         val cc = ctx.col().apply { pad(12, 0, 0, 0) }
         if (top != null) {
             cc.addView(ctx.text((if (top.optBoolean("is_notice")) "置顶通知" else "班级墙置顶") + " · " + top.str("author_name"), 14f, C.text, BOLD, 1))
@@ -527,6 +527,6 @@ class HomeCards(private val p: Page) {
             "t:rank" -> Triple("🏆", "排行榜") { a.push(RankPage(a)) }; "t:farm" -> Triple("🐣", "云宠农场") { a.push(FarmPage(a)) }
             "t:meta" -> Triple("🏅", "等级与徽章") { a.push(MetaPage(a)) }; else -> Triple("🧩", "网页工具") { a.toast("这个工具在网页版里打开") }
         }
-        return base().apply { gravity = Gravity.CENTER; springy(); tap { go() }; addView(ctx.text(ic, 26f)); addView(ctx.text(n, 13.5f, C.text, BOLD).apply { margins(t = 4) }) }
+        return base().apply { gravity = Gravity.CENTER; springy(); tap { go() }; addView(Ic.tile(ctx, ic, 40), LinearLayout.LayoutParams(dp(40), dp(40))); addView(ctx.text(n, 13.5f, C.text, BOLD).apply { margins(t = 6) }) }
     }
 }

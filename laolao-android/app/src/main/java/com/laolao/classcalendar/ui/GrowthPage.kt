@@ -63,7 +63,7 @@ class GrowthPage(a: Main) : Page(a) {
         // 规划与专注入口
         val p = Plan.pomo()
         val pe = ctx.card(16, 18).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; margins(t = 12) }
-        pe.addView(ctx.text("🍅", 28f))
+        pe.addView(Ic.tile(ctx, "🍅", 44), LinearLayout.LayoutParams(dp(44), dp(44)))
         val pc = ctx.col()
         pc.addView(ctx.text("规划与专注", 16f, C.text, BOLD))
         val (left, _) = Plan.left()
@@ -77,7 +77,7 @@ class GrowthPage(a: Main) : Page(a) {
         val cls = com.laolao.classcalendar.core.Store.cls
         if (cls != null && com.laolao.classcalendar.core.Store.feat("rank")) {
             val re = ctx.card(16, 18).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; margins(t = 12) }
-            re.addView(ctx.text("🏆", 28f))
+            re.addView(Ic.tile(ctx, "🏆", 44), LinearLayout.LayoutParams(dp(44), dp(44)))
             val rc2 = ctx.col()
             rc2.addView(ctx.text("班级成长排行榜", 16f, C.text, BOLD))
             val me = rankMe
@@ -86,16 +86,9 @@ class GrowthPage(a: Main) : Page(a) {
             re.addView(ctx.text("›", 20f, C.mutedText))
             re.press(C.card, 18, C.line); re.springy(); re.tap { a.push(RankPage(a)) }
             body.addView(re)
-            // 7.55 课堂互动：抢答、小组互评（小程序 1.28）
-            val ae = ctx.card(16, 18).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; margins(t = 12) }
-            ae.addView(ctx.text("🙋", 28f))
-            ae.addView(ctx.col().apply { addView(ctx.text("课堂互动", 16f, C.text, BOLD)); addView(ctx.text("抢答、小组互评", 12.5f, C.sub).apply { margins(t = 2) }) }, LinearLayout.LayoutParams(0, WRAP, 1f).apply { leftMargin = dp(12) })
-            ae.addView(ctx.text("›", 20f, C.mutedText))
-            ae.press(C.card, 18, C.line); ae.springy(); ae.tap { a.push(ActPage(a)) }
-            body.addView(ae)
             // 6.9 班级位置签到
             val ck = ctx.card(16, 18).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; margins(t = 12) }
-            ck.addView(ctx.text("📍", 28f))
+            ck.addView(Ic.tile(ctx, "📍", 44), LinearLayout.LayoutParams(dp(44), dp(44)))
             val o = com.laolao.classcalendar.core.Checkin.open
             ck.addView(ctx.col().apply { addView(ctx.text("班级位置签到", 16f, C.text, BOLD)); addView(ctx.text(if (o != null) (if (o.optJSONObject("mine") != null) "✓ 已签到「" else "🔴 正在签到「") + o.optString("title") + "」· 还剩 " + com.laolao.classcalendar.core.Checkin.leftText(o) else "班委发起，到了现场才能签；签到 +5 经验", 12.5f, if (o != null && o.optJSONObject("mine") == null) C.red else C.sub)) }, LinearLayout.LayoutParams(0, WRAP, 1f).apply { leftMargin = dp(12) })
             ck.addView(ctx.text("›", 20f, C.mutedText))
@@ -114,7 +107,7 @@ class GrowthPage(a: Main) : Page(a) {
         if (com.laolao.classcalendar.core.Farm.on()) links += Triple("🐣", "云宠 Lv." + com.laolao.classcalendar.core.Farm.state().optInt("level", 1)) { a.push(FarmPage(a)) }
         links += Triple("🏅", "徽章 Lv." + com.laolao.classcalendar.core.Meta.stats().level) { a.push(MetaPage(a)) }
         val lr = ctx.row().apply { margins(t = 12) }
-        links.forEachIndexed { i, (ic, t, go) -> lr.addView(ctx.row().apply { gravity = Gravity.CENTER; pad(6, 12); press(C.card, 16, C.line); tap { go() }; addView(ctx.text(ic, 18f)); addView(ctx.text(" $t", 13.5f, C.text, SEMI, 1)) }, LinearLayout.LayoutParams(0, WRAP, 1f).apply { if (i > 0) leftMargin = dp(8) }) }
+        links.forEachIndexed { i, (ic, t, go) -> lr.addView(ctx.row().apply { gravity = Gravity.CENTER; pad(6, 12); press(C.card, 16, C.line); tap { go() }; addView(Ic.plain(ctx, ic, 18), LinearLayout.LayoutParams(dp(18), dp(18))); addView(ctx.text("  $t", 13.5f, C.text, SEMI, 1)) }, LinearLayout.LayoutParams(0, WRAP, 1f).apply { if (i > 0) leftMargin = dp(8) }) }
         body.addView(lr)
 
         // 最近 14 天

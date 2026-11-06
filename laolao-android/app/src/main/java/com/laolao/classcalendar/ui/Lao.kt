@@ -312,7 +312,7 @@ class Lao(private val a: Main, private val host: FrameLayout) {
             if (r.kind == "item") row.addView(View(a).apply { background = round(Color.TRANSPARENT, px(6).toFloat(), C.accent, px(2))
                 setOnClickListener { v -> v.buzz(); Items.toggleDone(r.key); com.laolao.classcalendar.core.Bus.emit("data"); Cheer.show(a, "item"); Bg.main.postDelayed({ if (win != null) { ans = null; panel() } }, 60) } },
                 LinearLayout.LayoutParams(px(20), px(20)).apply { rightMargin = px(10) })
-            else row.addView(a.text("📚", 16f).apply { setPadding(0, 0, px(10), 0) })
+            else row.addView(Ic.plain(a, "📚", 18), LinearLayout.LayoutParams(px(18), px(18)).apply { rightMargin = px(10) })
             val m = a.col().apply { addView(a.text((if (r.exam) "📝 " else "") + r.title, 14f, C.text, SEMI, 1)); addView(a.text(r.type + " · " + r.whenText + (if (r.location.isNotEmpty()) " · " + r.location else ""), 11.5f, C.sub, null, 1)); setOnClickListener { open(r) } }
             row.addView(m, LinearLayout.LayoutParams(0, WRAP, 1f))
             row.addView(a.text(r.reason, 11.5f, when (r.level) { "late", "now" -> C.red; "urgent" -> 0xFFC27803.toInt(); else -> C.sub }, SEMI, 2).apply { gravity = Gravity.END; maxWidth = px(92); setPadding(px(8), 0, 0, 0) })

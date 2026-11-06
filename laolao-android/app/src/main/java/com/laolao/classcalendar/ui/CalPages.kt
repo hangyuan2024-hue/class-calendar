@@ -27,7 +27,8 @@ import java.io.File
 /** 页面顶上的说明卡：大图标 + 标题 + 一句话（设置类页面共用） */
 fun Context.introCard(icon: String, title: String, sub: String): View = HeroBox(this).apply {
     orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; pad(18, 18)
-    addView(text(icon, 30f).apply { gravity = Gravity.CENTER; background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(C.alpha(Color.WHITE, if (C.dark) 0.12f else 0.75f)) } }, LinearLayout.LayoutParams(dp(56), dp(56)))
+    val iv: View = if (Ic.has(icon)) android.widget.ImageView(this@introCard).apply { setImageDrawable(Ic.drawable(this@introCard, icon)); setPadding(dp(14), dp(14), dp(14), dp(14)) } else text(icon, 30f).apply { gravity = Gravity.CENTER }
+    addView(iv.apply { background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(C.alpha(Color.WHITE, if (C.dark) 0.12f else 0.75f)) } }, LinearLayout.LayoutParams(dp(56), dp(56)))
     addView(col().apply { pad(14, 0, 0, 0); addView(text(title, 18f, C.heroText, HEAVY)); addView(text(sub, 12.5f, C.alpha(C.heroText, 0.72f)).apply { setLineSpacing(0f, 1.3f); margins(t = 3) }) }, LinearLayout.LayoutParams(0, WRAP, 1f))
 }
 /** 一排可以多选的小胶囊 */
@@ -285,7 +286,7 @@ class BackupPage(a: Main) : Page(a) {
         val nMine = Kv.arr(Items.MINE).length(); val nMarks = Kv.obj(Items.MARK).length()
         body.addView(ctx.section("现在有", "$nMine 条我的事项 · $nMarks 条标记"))
         fun tile(ic: String, t: String, s: String, fn: () -> Unit) = ctx.col().apply { pad(14, 16); press(C.card, 18, C.line); springy(); tap { fn() }
-            addView(ctx.text(ic, 26f)); addView(ctx.text(t, 15f, C.text, BOLD).apply { margins(t = 8) }); addView(ctx.text(s, 12f, C.sub, lines = 2).apply { margins(t = 2) }) }
+            addView(Ic.tile(ctx, ic, 40), LinearLayout.LayoutParams(dp(40), dp(40))); addView(ctx.text(t, 15f, C.text, BOLD).apply { margins(t = 10) }); addView(ctx.text(s, 12f, C.sub, lines = 2).apply { margins(t = 2) }) }
         fun two(x: View, y: View) = body.add(ctx.row().apply { gravity = Gravity.TOP; addView(x, LinearLayout.LayoutParams(0, WRAP, 1f)); addView(y, LinearLayout.LayoutParams(0, WRAP, 1f).apply { leftMargin = dp(10) }) }, 10)
         two(tile("📤", "存成文件", "发到微信、QQ 或存到手机") { exportFile() }, tile("📋", "复制内容", "粘贴到备忘录里保存") { CK.copy(ctx, text(), "备份内容已复制") })
         body.addView(ctx.section("恢复"))

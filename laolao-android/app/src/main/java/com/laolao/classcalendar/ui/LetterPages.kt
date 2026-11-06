@@ -47,7 +47,7 @@ class LetterBoxPage(a: Main) : Page(a) {
     private val lists = HashMap<String, List<JSONObject>>(); private var err = ""
     override val autoRender = false
     private fun boxes() = if (admin) listOf("in" to "收件箱", "out" to "已发送", "team" to "团队信箱", "review" to "待审核") else listOf("in" to "收件箱", "out" to "已发送")
-    override fun build(): View = scaffold("信箱", ctx.text("⚙", 20f, C.sub).apply { gravity = Gravity.CENTER; press(0, 20); tap { a.push(LetterSettingsPage(a)) } }
+    override fun build(): View = scaffold("信箱", Ic.plain(ctx, "⚙", 20, C.sub).apply { pad(10, 10); press(0, 20); tap { a.push(LetterSettingsPage(a)) } }
         .also { it.layoutParams = LinearLayout.LayoutParams(dp(44), dp(44)) }, pull = { done -> load { done() } }) { body = it }
     override fun onShow() { load() }
     private fun load(done: (() -> Unit)? = null) {

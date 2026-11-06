@@ -71,7 +71,7 @@ class OverviewPage(a: Main) : Page(a) {
         body.add(ctx.cell("📮", "发布记录 · 收到情况", "每条几个人看了、完成了；同一次发给几个班的合在一起看") { a.push(SentPage(a)) }.apply { bg(C.card, 18) }, 12)
         // 签到入口：一直在上面，最常用
         val ck = ctx.card(14, 18).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; margins(t = 12) }
-        ck.addView(ctx.text("📋", 24f))
+        ck.addView(Ic.tile(ctx, "📋", 40), LinearLayout.LayoutParams(dp(40), dp(40)))
         ck.addView(ctx.col().apply { pad(12, 0); addView(ctx.text("这个班的签到", 15.5f, C.text, BOLD)); addView(ctx.text("发起动态码 / 位置签到、看谁没签", 12.5f, C.sub)) }, LinearLayout.LayoutParams(0, WRAP, 1f))
         ck.addView(ctx.text("›", 20f, C.mutedText))
         ck.press(C.card, 18, C.line); ck.tap { a.push(CheckinPage(a, cidArg = cid)) }

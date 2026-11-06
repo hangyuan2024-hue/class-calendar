@@ -425,7 +425,7 @@ class UserPage(a: Main, private val uid: String? = null) : Page(a) {
             for (rowI in 0..1) {
                 val r = ctx.row().apply { margins(t = 10) }
                 for (k in 0..1) { val (ic, p) = st[rowI * 2 + k]
-                    r.addView(ctx.col().apply { pad(14, 12); bg(C.card, 16, C.line); addView(ctx.text(ic, 18f)); addView(ctx.text(p.first, 20f, C.text, HEAVY)); addView(ctx.text(p.second, 12f, C.sub)) }, LinearLayout.LayoutParams(0, WRAP, 1f).apply { if (k == 1) leftMargin = dp(10) })
+                    r.addView(ctx.col().apply { pad(14, 12); bg(C.card, 16, C.line); addView(Ic.plain(ctx, ic, 20), LinearLayout.LayoutParams(dp(20), dp(20)).apply { bottomMargin = dp(4) }); addView(ctx.text(p.first, 20f, C.text, HEAVY)); addView(ctx.text(p.second, 12f, C.sub)) }, LinearLayout.LayoutParams(0, WRAP, 1f).apply { if (k == 1) leftMargin = dp(10) })
                 }
                 body.addView(r)
             }
@@ -931,8 +931,8 @@ class ClassManagePage(a: Main, private val cid: String) : Page(a) {
         v.addView(a.text("给班级起名字", 18f, C.text, BOLD))
         val name = a.input("正式名称", c.str("name")); val nick = a.input("昵称（比如 星河小分队）", c.str("nickname")); val motto = a.input("口号", c.str("motto"))
         v.add(name, 12)
-        val nr = a.row().apply { margins(t = 10) }; nr.addView(nick, LinearLayout.LayoutParams(0, WRAP, 1f)); nr.addView(a.text("🎲", 22f).apply { pad(10, 0); tap { nick.setText(NICK_A.random() + NICK_B.random()) } }); v.addView(nr)
-        val mr = a.row().apply { margins(t = 10) }; mr.addView(motto, LinearLayout.LayoutParams(0, WRAP, 1f)); mr.addView(a.text("🎲", 22f).apply { pad(10, 0); tap { motto.setText(MOTTOS.random()) } }); v.addView(mr)
+        val nr = a.row().apply { margins(t = 10) }; nr.addView(nick, LinearLayout.LayoutParams(0, WRAP, 1f)); nr.addView(Ic.plain(a, "🎲", 22).apply { pad(10, 0); tap { nick.setText(NICK_A.random() + NICK_B.random()) } }); v.addView(nr)
+        val mr = a.row().apply { margins(t = 10) }; mr.addView(motto, LinearLayout.LayoutParams(0, WRAP, 1f)); mr.addView(Ic.plain(a, "🎲", 22).apply { pad(10, 0); tap { motto.setText(MOTTOS.random()) } }); v.addView(mr)
         v.add(a.button("保存") {
             if (name.text.isBlank()) { a.toast("正式名称不能为空"); return@button }
             Bg.load({ Api.rpcObj("set_class_identity", jsonOf("cid" to cid, "cname" to name.text.toString().trim(), "nick" to nick.text.toString().trim(), "mot" to motto.text.toString().trim())) }) { r, e ->
