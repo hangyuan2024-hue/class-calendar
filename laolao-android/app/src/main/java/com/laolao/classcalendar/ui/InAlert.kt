@@ -96,7 +96,7 @@ object InAlert {
         cur?.let { root.removeView(it) }
         val v = a.row().apply {
             gravity = Gravity.CENTER_VERTICAL; pad(14, 12, 14, 12)
-            background = round(C.card, a.dp(18).toFloat(), if (hot) C.alpha(C.red, 0.4f) else C.line, a.dp(1)); elevation = a.dp(10).toFloat()
+            background = round(C.card, a.dp(18).toFloat(), if (hot) C.alpha(C.red, 0.4f) else C.line, a.dp(1)); elevation = a.dp(10).toFloat(); flat()
             addView(Ic.tile(a, icon, 38), LinearLayout.LayoutParams(a.dp(38), a.dp(38)))
             addView(a.col().apply {
                 addView(a.text(title, 14.5f, C.text, BOLD, 1))

@@ -52,7 +52,7 @@ class Lao(private val a: Main, private val host: FrameLayout) {
     private val shadow = View(a)
     private val bot = ImageView(a).apply { scaleType = ImageView.ScaleType.FIT_CENTER }
     /** 5.9.4 刷任务里掉的帽子 / 墨镜……戴在捞捞头上 */
-    private val wearTv = a.text("", 22f).apply { gravity = Gravity.CENTER; translationY = -px(14).toFloat(); elevation = px(2).toFloat() }
+    private val wearTv = a.text("", 22f).apply { gravity = Gravity.CENTER; translationY = -px(14).toFloat(); elevation = px(2).toFloat(); flat() }
     private val scr = LinearLayout(a).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
     private val scrIc = a.text("", 16f)
     private val scrT = a.text("", 13f, Color.WHITE, BOLD, 1)
@@ -196,7 +196,7 @@ class Lao(private val a: Main, private val host: FrameLayout) {
         }
         scrT.maxWidth = px(190); scrS.maxWidth = px(190)
         // 捞捞画在小屏幕上面（不改顺序，用高度）
-        botBox.translationZ = px(12).toFloat()
+        botBox.translationZ = px(12).toFloat(); botBox.flat()
         if (showScr) { scr.alpha = 0f; scr.translationY = px(8).toFloat(); scr.animate().alpha(1f).translationY(0f).setDuration(300).setInterpolator(OvershootInterpolator(1.4f)).start() }
     }
     private fun fold() { setOpt("screen", !opt("screen")); bub?.let { box.removeView(it) }; bub = null; layoutDock() }

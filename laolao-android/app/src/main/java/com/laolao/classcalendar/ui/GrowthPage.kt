@@ -70,8 +70,8 @@ class GrowthPage(a: Main) : Page(a) {
         r.addView(Drawer.button(a))
         val name = Store.name()
         r.addView(ctx.col().apply {
-            addView(ctx.text("成长", 27f, C.text, HEAVY))
-            addView(ctx.text((if (name.isNotEmpty()) "$name，" else "") + "只和昨天的自己比", 13f, C.sub).apply { margins(t = 4) })
+            addView(ctx.text("成长", 23f, C.text, HEAVY))
+            addView(ctx.text((if (name.isNotEmpty()) "$name，" else "") + "只和昨天的自己比", 12.5f, C.sub).apply { margins(t = 2) })
         }, LinearLayout.LayoutParams(0, WRAP, 1f))
         // 等级和班级名次放在一个按钮里：点开就是排行榜（本周 / 本月 / 总榜 / 等级 都在里面）
         val l = com.laolao.classcalendar.core.Level.me(); val me = rankMe

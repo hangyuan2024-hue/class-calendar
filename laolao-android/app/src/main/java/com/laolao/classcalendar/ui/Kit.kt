@@ -87,10 +87,14 @@ fun View.press(color: Int, radiusDp: Int = 0, stroke: Int = 0, ripple: Int = C.a
     isClickable = true; isFocusable = true
     if (color == C.card) lift(3, C.text)
 }
-/** 立体感：投影（安卓 9 起影子带一点主题色，不是死灰） */
-fun View.lift(e: Int = 6, tint: Int = C.accent): View {
-    elevation = dp(e).toFloat()
-    if (Build.VERSION.SDK_INT >= 28) { outlineSpotShadowColor = C.mix(tint, Color.BLACK, 0.35f); outlineAmbientShadowColor = C.mix(tint, Color.BLACK, 0.5f) }
+/** 7.x 不要立体感：只保留层级（谁盖住谁），不画投影 */
+fun View.lift(e: Int = 6, @Suppress("UNUSED_PARAMETER") tint: Int = C.accent): View {
+    elevation = dp(e).toFloat(); flat()
+    return this
+}
+/** 有层级但不画影子（安卓 9 起把影子颜色设成透明；更老的系统直接不抬高） */
+fun View.flat(): View {
+    if (Build.VERSION.SDK_INT >= 28) { outlineSpotShadowColor = Color.TRANSPARENT; outlineAmbientShadowColor = Color.TRANSPARENT } else { elevation = 0f; translationZ = 0f }
     return this
 }
 fun View.tap(fn: (View) -> Unit) { setOnClickListener { v -> fn(v) } }
@@ -174,7 +178,7 @@ class Toggle(ctx: Context, title: String, desc: String, var on: Boolean, val onC
         track.addView(knob, FrameLayout.LayoutParams(dp(22), dp(22)).apply { gravity = Gravity.CENTER_VERTICAL })
         addView(track, LayoutParams(dp(46), dp(28)).apply { leftMargin = dp(12) })
         knob.bg(Color.WHITE, 11)
-        if (Build.VERSION.SDK_INT >= 21) knob.elevation = dp(2).toFloat()
+        if (Build.VERSION.SDK_INT >= 21) { knob.elevation = dp(2).toFloat(); knob.flat() }
         paint(false)
         tap { on = !on; paint(true); buzz(); onChange(on) }
     }

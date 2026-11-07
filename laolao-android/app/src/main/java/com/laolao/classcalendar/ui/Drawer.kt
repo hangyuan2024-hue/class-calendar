@@ -38,7 +38,7 @@ object Drawer {
         val sc = View(a).apply { setBackgroundColor(Color.BLACK); alpha = 0f; isClickable = true; setOnClickListener { close() } }
         root.addView(sc, FrameLayout.LayoutParams(MATCH, MATCH))
         val pn = a.col().apply {
-            isClickable = true; elevation = a.dp(16).toFloat()
+            isClickable = true; elevation = a.dp(16).toFloat(); flat()
             background = android.graphics.drawable.GradientDrawable().apply { setColor(C.bg); val r = a.dp(24).toFloat(); cornerRadii = floatArrayOf(0f, 0f, r, r, r, r, 0f, 0f) }
         }
         val sv = ScrollView(a).apply { isVerticalScrollBarEnabled = false; overScrollMode = View.OVER_SCROLL_NEVER }

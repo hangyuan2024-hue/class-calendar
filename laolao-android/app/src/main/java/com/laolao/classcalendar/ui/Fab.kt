@@ -18,7 +18,7 @@ class FabItem(val icon: String, val text: String, val run: () -> Unit)
  */
 class Fab(private val a: Main, host: FrameLayout, private val items: () -> List<FabItem>) {
     private val btn: TextView = a.text("+", 30f, Color.WHITE).apply {
-        gravity = Gravity.CENTER; press(C.accent, 18, ripple = C.alpha(Color.WHITE, 0.3f)); elevation = dp(6).toFloat()
+        gravity = Gravity.CENTER; press(C.accent, 18, ripple = C.alpha(Color.WHITE, 0.3f)); elevation = dp(6).toFloat(); flat()
         tap { toggle() }
     }
     private var mask: View? = null
@@ -47,7 +47,7 @@ class Fab(private val a: Main, host: FrameLayout, private val items: () -> List<
         list.forEachIndexed { i, it ->
             val pill = a.row().apply {
                 pad(14, 10, 18, 10)
-                background = round(C.card, a.dp(24).toFloat(), C.line, a.dp(1)); elevation = a.dp(4).toFloat()
+                background = round(C.card, a.dp(24).toFloat(), C.line, a.dp(1)); elevation = a.dp(4).toFloat(); flat()
                 addView(Ic.plain(a, it.icon, 19), LinearLayout.LayoutParams(a.dp(19), a.dp(19)))
                 addView(a.text(it.text, 15f, C.text, BOLD).apply { pad(8, 0, 0, 0) })
                 isClickable = true
@@ -91,7 +91,7 @@ object Cheer {
         }
         val veil = View(a).apply { setBackgroundColor(0x33080E20); alpha = 0f; isClickable = true }
         val card = a.col().apply {
-            gravity = Gravity.CENTER_HORIZONTAL; background = round(C.card, a.dp(26).toFloat()); elevation = a.dp(10).toFloat(); pad(22, 16, 22, 18)
+            gravity = Gravity.CENTER_HORIZONTAL; background = round(C.card, a.dp(26).toFloat()); elevation = a.dp(10).toFloat(); flat(); pad(22, 16, 22, 18)
             addView(ImageView(a).apply { setImageResource(R.drawable.mascot) }, LinearLayout.LayoutParams(a.dp(86), a.dp(86)))
             val s = SAY[kind] ?: SAY["item"]!!
             addView(a.text(s.random(), 17f, C.text, HEAVY).apply { gravity = Gravity.CENTER; margins(t = 6) })

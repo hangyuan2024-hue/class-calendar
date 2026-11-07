@@ -121,11 +121,11 @@ class HomePage(a: Main) : Page(a) {
         val r = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; pad(4, 8, 2, 14) }
         r.addView(Drawer.button(a))
         r.addView(ctx.col().apply {
-            addView(ctx.text(if (Store.work()) "工作台" else "学习工作台", 27f, C.text, HEAVY, 1))
-            addView(ctx.text("每一天都值得认真", 13f, C.sub).apply { letterSpacing = 0.12f; margins(t = 4) })
+            addView(ctx.text(if (Store.work()) "工作台" else "学习工作台", 23f, C.text, HEAVY, 1))
+            addView(ctx.text("每一天都值得认真", 12.5f, C.sub).apply { letterSpacing = 0.08f; margins(t = 2) })
         }, LinearLayout.LayoutParams(0, WRAP, 1f))
         r.addView(android.widget.FrameLayout(ctx).apply {
-            background = round(C.card, dp(26).toFloat()); setPadding(dp(3), dp(3), dp(3), dp(3)); elevation = dp(3).toFloat()
+            background = round(C.card, dp(26).toFloat()); setPadding(dp(3), dp(3), dp(3), dp(3)); background = round(C.card, dp(26).toFloat(), C.line, dp(1))
             addView(Avatar.view(ctx, Store.name(), Store.me?.str("gender") ?: "", 23), android.widget.FrameLayout.LayoutParams(dp(46), dp(46)))
             tap { a.selectTab(4) }
         }, LinearLayout.LayoutParams(dp(52), dp(52)))
@@ -137,7 +137,7 @@ class HomePage(a: Main) : Page(a) {
         Store.cls?.let { cls ->
             val c = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; bg(C.card, 22, C.line); pad(14, 14, 14, 14); tap { a.push(ClassPage(a)) } }
             c.addView(ctx.text(cls.str("name").take(1), 20f, Color.WHITE, HEAVY).apply {
-                gravity = Gravity.CENTER; elevation = dp(4).toFloat()
+                gravity = Gravity.CENTER
                 background = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TL_BR, intArrayOf(C.mix(C.accent, Color.WHITE, 0.2f), C.accent)).apply { cornerRadius = dp(14).toFloat() }
             }, LinearLayout.LayoutParams(dp(48), dp(48)))
             c.addView(ctx.col().apply {
@@ -274,7 +274,7 @@ class HomePage(a: Main) : Page(a) {
         val tone = if (hot) C.red else if (sleep) C.c(if (C.dark) "#c7c3ff" else "#4338ca") else C.accent
         val v = ctx.row().apply {
             gravity = Gravity.CENTER_VERTICAL; pad(18, 16, 14, 16)
-            background = round(C.card, dp(18).toFloat()); elevation = dp(2).toFloat()
+            background = round(C.card, dp(18).toFloat(), C.line, dp(1))
         }
         val t = ctx.col()
         val label = n?.label ?: "捞捞建议"

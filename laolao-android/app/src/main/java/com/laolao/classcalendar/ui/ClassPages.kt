@@ -404,7 +404,7 @@ class UserPage(a: Main, private val uid: String? = null) : Page(a) {
         // 封面 + 压在封面边上的头像：用 FrameLayout 摆绝对位置，不靠负边距（负边距会被裁掉一半）
         val top = FrameLayout(ctx)
         top.addView(cv, FrameLayout.LayoutParams(MATCH, dp(96)))
-        top.addView(CK.avatar(ctx, x.str("name"), 68, g).apply { elevation = dp(4).toFloat(); background = (background as GradientDrawable).apply { setStroke(dp(3), C.card) } }, FrameLayout.LayoutParams(dp(68), dp(68)).apply { leftMargin = dp(16); topMargin = dp(62) })
+        top.addView(CK.avatar(ctx, x.str("name"), 68, g).apply { background = (background as GradientDrawable).apply { setStroke(dp(3), C.card) } }, FrameLayout.LayoutParams(dp(68), dp(68)).apply { leftMargin = dp(16); topMargin = dp(62) })
         val hc = ctx.col()
         hc.addView(ctx.text(x.str("name") + when (g) { "m" -> " ♂"; "f" -> " ♀"; else -> "" }, 19f, C.text, HEAVY, 1))
         val role = when (x.str("class_role")) { "teacher" -> "老师"; "monitor" -> "班委"; "student" -> "同学"; else -> "" }

@@ -71,7 +71,7 @@ class ToolsPage(a: Main) : Page(a) {
         body.addView(ctx.row().apply {
             gravity = Gravity.CENTER_VERTICAL; pad(4, 6, 2, 4)
             addView(Drawer.button(a))
-            addView(ctx.text("工具", 26f, C.text, HEAVY), LinearLayout.LayoutParams(0, WRAP, 1f))
+            addView(ctx.text("工具", 23f, C.text, HEAVY), LinearLayout.LayoutParams(0, WRAP, 1f))
             addView(ctx.text("长按看说明", 12f, C.mutedText))
         })
         for ((title, list) in tools()) {

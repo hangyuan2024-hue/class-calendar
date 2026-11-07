@@ -82,7 +82,7 @@ class FlowPage(a: Main, private val onlyBook: Boolean = false) : Page(a) {
                 val cv = cardView
                 when (e.actionMasked) {
                     MotionEvent.ACTION_DOWN -> { y0 = e.y; return true }
-                    MotionEvent.ACTION_MOVE -> { val dy = minOf(0f, e.y - y0); cv?.translationY = dy * 0.5f; cv?.rotationX = (-dy / height * 30f).coerceAtMost(18f) }
+                    MotionEvent.ACTION_MOVE -> { val dy = minOf(0f, e.y - y0); cv?.translationY = dy * 0.5f; cv?.rotationX = 0f }
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                         val dy = y0 - e.y; dragging = false
                         if (dy > dp(80)) swipe() else cv?.animate()?.translationY(0f)?.rotationX(0f)?.setDuration(220)?.setInterpolator(OvershootInterpolator())?.start()
@@ -155,7 +155,7 @@ class FlowPage(a: Main, private val onlyBook: Boolean = false) : Page(a) {
             "sm" -> null
             else -> round(0x1FFFFFFF, dp(16).toFloat())
         }
-        if (kind == "go" || kind == "ok") { elevation = dp(6).toFloat(); if (Build.VERSION.SDK_INT >= 28) { outlineSpotShadowColor = if (kind == "go") 0xFFEC4899.toInt() else 0xFF06B6D4.toInt() } }
+        if (kind == "go" || kind == "ok") { elevation = 0f }
         tap { it.buzz(); fn() }
     }
 
@@ -179,7 +179,7 @@ class FlowPage(a: Main, private val onlyBook: Boolean = false) : Page(a) {
         val card = ctx.col().apply {
             gravity = Gravity.CENTER_HORIZONTAL; pad(22, 26, 22, 20)
             background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(0x24FFFFFF, 0x0AFFFFFF)).apply { cornerRadius = dp(28).toFloat(); setStroke(dp(1), 0x2EFFFFFF) }
-            elevation = dp(18).toFloat(); if (Build.VERSION.SDK_INT >= 28) { outlineSpotShadowColor = VIOLET; outlineAmbientShadowColor = Color.BLACK }
+            elevation = dp(18).toFloat(); flat()
         }
         card.addView(ctx.text((KIND[c.kind] ?: "") + if (c.min > 0) " · ${c.min} 分钟" else "", 12f, 0xFFE9D5FF.toInt(), SEMI).apply { pad(10, 4); background = round(0x1FFFFFFF, dp(12).toFloat()) })
         card.addView(ctx.text(c.title, 22f, Color.WHITE, HEAVY).apply { gravity = Gravity.CENTER; pad(0, 12, 0, 6) })
@@ -216,12 +216,12 @@ class FlowPage(a: Main, private val onlyBook: Boolean = false) : Page(a) {
         val lp = FrameLayout.LayoutParams(minOf(ctx.resources.displayMetrics.widthPixels - dp(32), dp(420)), WRAP, Gravity.CENTER)
         val old = cardView
         if (old != null && !first && !same) {
-            old.animate().translationY(-stage.height * 0.9f).rotationX(25f).scaleX(0.9f).scaleY(0.9f).alpha(0f).setDuration(380).withEndAction { stage.removeView(old) }.start()
+            old.animate().translationY(-stage.height * 0.9f).scaleX(0.9f).scaleY(0.9f).alpha(0f).setDuration(380).withEndAction { stage.removeView(old) }.start()
         } else if (old != null) stage.removeView(old)
         stage.addView(card, lp); cardView = card
         if (!same) {
-            card.translationY = stage.height * 0.4f + dp(120); card.rotationX = -20f; card.scaleX = 0.92f; card.scaleY = 0.92f; card.alpha = 0f
-            card.animate().translationY(0f).rotationX(0f).scaleX(1f).scaleY(1f).alpha(1f).setDuration(460).setInterpolator(OvershootInterpolator(1.1f)).start()
+            card.translationY = stage.height * 0.4f + dp(120); card.scaleX = 0.92f; card.scaleY = 0.92f; card.alpha = 0f
+            card.animate().translationY(0f).scaleX(1f).scaleY(1f).alpha(1f).setDuration(460).setInterpolator(OvershootInterpolator(1.1f)).start()
         }
     }
     private fun setNote(s: String) { note = s; noteTv?.text = s }
@@ -263,8 +263,8 @@ class FlowPage(a: Main, private val onlyBook: Boolean = false) : Page(a) {
         overlay = ov
         bx.scaleX = 0.3f; bx.scaleY = 0.3f; bx.alpha = 0f
         bx.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(600).setInterpolator(OvershootInterpolator(2.2f)).start()
-        em.cameraDistance = 8000 * ctx.resources.displayMetrics.density; em.rotationY = 540f
-        em.animate().rotationY(0f).setDuration(1100).setInterpolator(android.view.animation.DecelerateInterpolator(2f)).start()
+        em.alpha = 0f; em.scaleX = 0.8f; em.scaleY = 0.8f
+        em.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(420).setInterpolator(android.view.animation.DecelerateInterpolator(2f)).start()
         sparks.burst(if (g.r >= 2) 60 else 30, intArrayOf(rc, Color.WHITE, PINK, GOLD))
         if (g.r >= 3) Confetti.burst(root)
     }

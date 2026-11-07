@@ -39,7 +39,7 @@ class MePage(a: Main) : Page(a) {
         val me = Store.me
         val hd = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; pad(2, 6, 0, 12) }
         hd.addView(Drawer.button(a))
-        hd.addView(ctx.text("我的", 26f, C.text, HEAVY), LinearLayout.LayoutParams(0, WRAP, 1f))
+        hd.addView(ctx.text("我的", 23f, C.text, HEAVY), LinearLayout.LayoutParams(0, WRAP, 1f))
         hd.addView(ctx.row().apply {
             gravity = Gravity.CENTER_VERTICAL; pad(12, 8); press(C.card, 20, C.line); contentDescription = "设置"
             addView(Ic.plain(ctx, "⚙️", 17, C.text), LinearLayout.LayoutParams(dp(17), dp(17)))
@@ -57,12 +57,13 @@ class MePage(a: Main) : Page(a) {
             addView(ctx.text("编辑资料", 12.5f, Color.WHITE, SEMI).apply { pad(10, 5); bg(C.alpha(Color.BLACK, 0.25f), 12); tap { editProfile() } },
                 android.widget.FrameLayout.LayoutParams(WRAP, WRAP).apply { gravity = Gravity.END or Gravity.TOP; topMargin = dp(10); rightMargin = dp(10) })
         }, android.widget.FrameLayout.LayoutParams(MATCH, dp(96)))
-        top.addView(Avatar.view(ctx, name, g, 20).apply { elevation = dp(4).toFloat(); tap { a.avatarMenu { render() } } },
+        top.addView(Avatar.view(ctx, name, g, 20).apply { tap { a.avatarMenu { render() } } },
             android.widget.FrameLayout.LayoutParams(dp(72), dp(72)).apply { leftMargin = dp(16); topMargin = dp(56) })
         top.addView(ctx.col().apply {
+            tap { a.push(UserPage(a)) }
             addView(ctx.text(name.ifEmpty { "加载中…" } + when (g) { "m" -> " ♂"; "f" -> " ♀"; else -> "" }, 19f, C.text, HEAVY, 1))
             val roleName = when (me?.str("role")) { "teacher" -> "老师"; "admin" -> "管理员"; "developer" -> "开发者"; else -> if (Store.work()) "职场" else "学生" }
-            addView(ctx.text(listOfNotNull("@" + (me?.str("account") ?: ""), roleName, me?.str("org_name")?.ifBlank { null }).joinToString(" · "), 12f, C.sub, lines = 1).apply { margins(t = 2) })
+            addView(ctx.text(listOfNotNull("@" + (me?.str("account") ?: ""), roleName, me?.str("org_name")?.ifBlank { null }).joinToString(" · ") + "  ›", 12f, C.sub, lines = 1).apply { margins(t = 2) })
         }, android.widget.FrameLayout.LayoutParams(MATCH, WRAP).apply { leftMargin = dp(100); rightMargin = dp(14); topMargin = dp(102) })
         hero.addView(top)
         val bio = me?.str("bio") ?: ""
@@ -75,38 +76,7 @@ class MePage(a: Main) : Page(a) {
         body.addView(hero)
         if (!avLoaded && Store.me != null) { avLoaded = true; Bg.load({ Avatar.load() }) { changed, _ -> if (changed == true) render() } }
 
-        // 几个数字：等级经验、这周作业、今天专注
-        val lv = com.laolao.classcalendar.core.Level.me()
-        val H = try { com.laolao.classcalendar.core.Items.homeworkAll() } catch (_: Exception) { null }
-        val st = ctx.row().apply { bg(C.card, 18, C.line); pad(4, 14); margins(t = 12) }
-        fun cell(n: String, t: String, fn: () -> Unit) {
-            if (st.childCount > 0) st.addView(View(ctx).apply { setBackgroundColor(C.line) }, LinearLayout.LayoutParams(dp(1), dp(28)).apply { gravity = Gravity.CENTER_VERTICAL })
-            st.addView(ctx.col().apply { gravity = Gravity.CENTER; press(C.card, 12); tap { fn() }
-                addView(ctx.text(n, 19f, C.text, HEAVY, 1).apply { gravity = Gravity.CENTER })
-                addView(ctx.text(t, 11.5f, C.sub, SEMI, 1).apply { gravity = Gravity.CENTER; margins(t = 1) })
-            }, LinearLayout.LayoutParams(0, WRAP, 1f))
-        }
-        cell(lv?.let { "${it.xp}" } ?: "–", "成长经验") { a.selectTab(2) }
-        cell(H?.let { "${it.weekDone}/${it.weekTotal}" } ?: "–", "这周作业") { a.selectTab(1) }
-        cell("${com.laolao.classcalendar.core.Plan.today()}", "今天番茄") { a.push(PlanPage(a)) }
-        body.addView(st)
-        if (lv != null) body.add(ctx.col().apply {
-            bg(C.card, 18, C.line); pad(16, 12); tap { a.push(MetaPage(a)) }
-            addView(ctx.row().apply {
-                addView(ctx.text("Lv.${lv.level} ${lv.title}", 14f, C.text, BOLD), LinearLayout.LayoutParams(0, WRAP, 1f))
-                addView(ctx.text("再攒 ${lv.need} 经验升级 ›", 12f, C.sub))
-            })
-            val bar = android.widget.FrameLayout(ctx).apply { bg(C.mutedBg, 4) }
-            val fill = View(ctx).apply { bg(C.accent, 4) }
-            bar.addView(fill, android.widget.FrameLayout.LayoutParams(0, MATCH))
-            addView(bar, LinearLayout.LayoutParams(MATCH, dp(8)).apply { topMargin = dp(10) })
-            bar.post { fill.layoutParams = android.widget.FrameLayout.LayoutParams(bar.width * lv.pct / 100, MATCH) }
-        }, 12)
-        body.add(ctx.card(4, 18).apply {
-            addView(ctx.cell("👤", "我的主页", "同学点你的名字看到的样子") { a.push(UserPage(a)) })
-            addView(ctx.hline())
-            addView(ctx.cell("🏅", "等级与徽章", "完成作业、打卡、专注都会攒经验") { a.push(MetaPage(a)) })
-        }, 12)
+        // 7.x 经验、等级、徽章都在「成长」里，这里不再重复；「我的主页」按钮也去掉了：点上面的名字就能看同学看到的样子
         body.add(ctx.text("捞捞课程表 安卓版 " + version(), 12f, C.mutedText).apply { gravity = Gravity.CENTER }, 18)
     }
     private var avLoaded = false

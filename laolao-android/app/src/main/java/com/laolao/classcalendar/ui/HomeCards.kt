@@ -210,7 +210,7 @@ class HomeCards(private val p: Page) {
         "w:course" -> course(s); "w:meta" -> meta()
         else -> toolCard(s.id)
     }
-    private fun base(): LinearLayout = ctx.col().apply { pad(16, 16); bg(C.card, 18, C.line); elevation = dp(1).toFloat() }
+    private fun base(): LinearLayout = ctx.col().apply { pad(16, 16); bg(C.card, 18, C.line) }
     private fun head(c: LinearLayout, t: String, meta: String = "", right: String = "", go: (() -> Unit)? = null) {
         val r = ctx.row().apply { margins(b = 10) }
         r.addView(Ic.lead(ctx.text(t, 14.5f, C.text, BOLD), 16, own = true))
@@ -304,7 +304,7 @@ class HomeCards(private val p: Page) {
     // 每日鼓励
     private fun encourage(s: Slot, A: Items.Agenda): View {
         val q = Enc.card(A.overdue.size, A.hwLeft); val m = Enc.mood()
-        val r = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; bg(C.card, 18, C.line); clipToOutline = true; elevation = dp(1).toFloat() }
+        val r = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; bg(C.card, 18, C.line); clipToOutline = true }
         val img = FrameLayout(ctx).apply { background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(C.c(q.c1), C.c(q.c2))) }
         img.addView(ctx.text(q.emo, 30f).apply { gravity = Gravity.CENTER }, FrameLayout.LayoutParams(MATCH, MATCH))
         img.addView(View(ctx).apply { background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(C.alpha(C.card, 0f), C.card)) }, FrameLayout.LayoutParams(dp(30), MATCH, Gravity.END))
@@ -367,7 +367,7 @@ class HomeCards(private val p: Page) {
     }
     // 本周进度环
     private fun rings(): View {
-        val c = ctx.row().apply { pad(8, 16); bg(C.card, 18, C.line); elevation = dp(1).toFloat(); springy(); tap { a.selectTab(2) } }
+        val c = ctx.row().apply { pad(8, 16); bg(C.card, 18, C.line); springy(); tap { a.selectTab(2) } }
         val green = if (C.dark) C.c("#82bea1") else C.c("#39856a")
         val rs = Growth.rings(C.red, C.accent, green).let { if (funo.optBoolean("habits", true)) it else it.take(2) }
         for (r in rs) c.addView(ctx.col().apply { gravity = Gravity.CENTER_HORIZONTAL
@@ -382,7 +382,7 @@ class HomeCards(private val p: Page) {
         val st = Farm.state(); val left = Farm.left(); val lv = st.optInt("level", 1)
         val big = s.h >= 2
         val wide = s.w >= 3 && !big
-        val c = (if (wide) ctx.row() else ctx.col().apply { gravity = Gravity.CENTER_HORIZONTAL }).apply { pad(14, 14); bg(C.card, 18, C.line); elevation = dp(1).toFloat(); springy(); tap { a.push(FarmPage(a)) } }
+        val c = (if (wide) ctx.row() else ctx.col().apply { gravity = Gravity.CENTER_HORIZONTAL }).apply { pad(14, 14); bg(C.card, 18, C.line); springy(); tap { a.push(FarmPage(a)) } }
         val iv = ImageView(ctx).apply { setImageResource(a.resources.getIdentifier(Farm.img(st.str("pet"), lv), "drawable", com.laolao.classcalendar.R::class.java.`package`!!.name)) }
         c.addView(iv, LinearLayout.LayoutParams(dp(if (big) 110 else if (wide) 64 else 72), dp(if (big) 110 else if (wide) 64 else 72)))
         // 轻轻上下浮动，像活的
