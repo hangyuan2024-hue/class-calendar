@@ -162,7 +162,7 @@ class ErrBookPage(a: Main, private val bookId: String? = null) : Page(a) {
         hc.addView(ctx.text("收录 ${all.size} 道 · 已掌握 ${all.count { it.optBoolean("mastered") }} 道", 12.5f, C.c("#4b5660")).apply { margins(t = 4) })
         if (bookId != ErrBook.UNFILED) hc.add(ctx.text("整理这本 ›", 13f, C.c("#2d3a8c"), SEMI).apply { tap { bookEdit(b) } }, 6)
         body.addView(hc)
-        val s = ctx.input("搜题干、答案、错因", q).apply { setOnEditorActionListener { v, _, _ -> q = v.text.toString(); render(); true }; imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH }
+        val s = ctx.input("搜题干、答案、错因", q).apply { Ic.search(this); setOnEditorActionListener { v, _, _ -> q = v.text.toString(); render(); true }; imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH }
         body.add(s, 12)
         body.add(Seg(ctx, listOf("全部", "待复习", "已掌握"), filter) { filter = it; render() }, 10)
         val list = all.filter { (filter == 0 || (filter == 2) == it.optBoolean("mastered")) && listOf("question", "answer", "reason", "analysis").joinToString(" ") { k -> it.str(k) }.lowercase().contains(q.trim().lowercase()) }.reversed()
@@ -524,7 +524,7 @@ class WordsPage(a: Main) : Page(a) {
                 val mr = ctx.row()
                 for ((k, n) in listOf("search" to "全部", "favorites" to "收藏", "weak" to "薄弱词", "review" to "到期复习")) mr.addView(ctx.text(n, 13.5f, if (mode == k) Color.WHITE else C.text, SEMI).apply { pad(12, 6); bg(if (mode == k) C.accent else C.card, 14, if (mode == k) 0 else C.line); tap { mode = k; render() } }, LinearLayout.LayoutParams(WRAP, WRAP).apply { rightMargin = dp(6) })
                 body.add(mr, 12)
-                body.add(ctx.input("搜索英文或中文释义，回车搜索", q).apply { imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH; setOnEditorActionListener { v, _, _ -> q = v.text.toString(); render(); true } }, 10)
+                body.add(ctx.input("搜索英文或中文释义，回车搜索", q).apply { Ic.search(this); imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH; setOnEditorActionListener { v, _, _ -> q = v.text.toString(); render(); true } }, 10)
                 val rows = Words.rows(mode, q)
                 if (rows.isEmpty()) body.addView(ctx.empty("🔍", "没有找到匹配的词"))
                 else { val c = ctx.card(4, 18).apply { margins(t = 10) }

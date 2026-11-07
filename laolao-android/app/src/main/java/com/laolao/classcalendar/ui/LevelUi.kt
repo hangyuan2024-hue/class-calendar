@@ -651,7 +651,7 @@ class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: S
                 val n = count(); ok.text = "确定 · 共 $n 人"; ok.alpha = if (n > 0) 1f else 0.4f
             }
             root.addView(ctx.text("谁要签", 18f, C.text, BOLD)); root.addView(ctx.text(sub, 12.5f, C.sub))
-            val qi = ctx.input("搜名字").apply { margins(t = 10) }
+            val qi = ctx.input("搜名字").apply { margins(t = 10); Ic.search(this) }
             qi.addTextChangedListener(object : android.text.TextWatcher { override fun beforeTextChanged(x: CharSequence?, a1: Int, b1: Int, c1: Int) {}; override fun onTextChanged(x: CharSequence?, a1: Int, b1: Int, c1: Int) {}; override fun afterTextChanged(x: android.text.Editable?) { q = x.toString().trim(); paint() } })
             root.addView(qi)
             root.addView(sv, LinearLayout.LayoutParams(MATCH, (ctx.resources.displayMetrics.heightPixels * 0.5).toInt()).apply { topMargin = dp(10) })

@@ -23,7 +23,7 @@ class OverviewPage(a: Main) : Page(a) {
     private var err = ""; private var tab = 0; private var filter = 0; private var days = 14; private var loading = false
     // 7.2 找人、排序（完成率低的在前 / 最近打开 / 名字），和小程序 1.18 一样
     private var q = ""; private var sort = 0
-    private val qBox by lazy { ctx.input("搜名字", "").apply { addTextChangedListener(object : android.text.TextWatcher {
+    private val qBox by lazy { ctx.input("搜名字", "").apply { Ic.search(this); addTextChangedListener(object : android.text.TextWatcher {
         override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
         override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
         override fun afterTextChanged(s: android.text.Editable?) { q = s?.toString()?.trim()?.lowercase() ?: ""; listBox?.let { paintList(it) } }

@@ -339,7 +339,7 @@ class PeoplePage(a: Main) : Page(a) {
         view
         keepScroll(body)
         if (CK.gate(this, body)) return
-        val search = ctx.input("搜名字或签名", q).apply {
+        val search = ctx.input("搜名字或签名", q).apply { Ic.search(this)
             addTextChangedListener(object : android.text.TextWatcher {
                 override fun afterTextChanged(s: android.text.Editable?) { q = s.toString(); Bg.main.removeCallbacks(rr); Bg.main.postDelayed(rr, 250) }
                 override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}

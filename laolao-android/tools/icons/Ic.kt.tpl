@@ -87,4 +87,12 @@ object Ic {
         tv.gravity = tv.gravity or Gravity.CENTER_VERTICAL
         return tv
     }
+
+    /** 搜索框前面放一个放大镜线条图标（代替以前写在提示文字里的 🔍） */
+    fun search(et: TextView, size: Int = 17): TextView {
+        val dr = drawable(et.context, "🔍", C.sub) ?: return et
+        val px = et.context.dp(size); dr.setBounds(0, 0, px, px)
+        et.setCompoundDrawablesRelative(dr, null, null, null); et.compoundDrawablePadding = et.context.dp(8)
+        return et
+    }
 }

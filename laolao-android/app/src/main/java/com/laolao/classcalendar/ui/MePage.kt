@@ -47,10 +47,9 @@ class MePage(a: Main) : Page(a) {
         // 资料卡：点卡片编辑资料
         val pc = ctx.card(18, 20).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         val name = Store.name()
-        pc.addView(ctx.text(name.take(1).ifEmpty { "?" }, 22f, Color.WHITE, BOLD).apply {
-            gravity = Gravity.CENTER
-            background = GradientDrawable(GradientDrawable.Orientation.TL_BR, if (me?.str("gender") == "f") intArrayOf(C.c("#ff9ac1"), C.c("#ff5f8f")) else intArrayOf(C.mix(C.accent, Color.WHITE, 0.25f), C.accent)).apply { cornerRadius = dp(16).toFloat() }
-        }, LinearLayout.LayoutParams(dp(56), dp(56)))
+        // 头像（和小程序、网站同一张）：点头像换 / 去掉；没设过显示名字第一个字
+        pc.addView(Avatar.view(ctx, name, me?.str("gender") ?: "", 16).apply { tap { avatarMenu() } }, LinearLayout.LayoutParams(dp(56), dp(56)))
+        if (!avLoaded && Store.me != null) { avLoaded = true; Bg.load({ Avatar.load() }) { changed, _ -> if (changed == true) render() } }
         val pcc = ctx.col()
         pcc.addView(ctx.text(name.ifEmpty { "加载中…" }, 19f, C.text, HEAVY, 1))
         val roleName = when (me?.str("role")) { "teacher" -> "老师"; "admin" -> "管理员"; "developer" -> "开发者"; else -> if (Store.work()) "职场" else "学生" }
@@ -103,6 +102,17 @@ class MePage(a: Main) : Page(a) {
             row("💛", "感谢名单", "为捞捞课程表做出贡献的人") { a.push(CreditsPage(a)) },
             row("⬆️", "检查更新", "当前版本 " + version()) { checkUpdate(true) })
         body.add(ctx.text("捞捞课程表 安卓版 " + version(), 12f, C.mutedText).apply { gravity = Gravity.CENTER }, 18)
+    }
+    private var avLoaded = false
+    private fun avatarMenu() {
+        val has = Avatar.mine() != null
+        Dialogs.sheet(ctx, "头像", listOf(if (has) "换一张" else "设置头像") + if (has) listOf("去掉头像") else emptyList(), danger = setOf(1)) { i ->
+            if (i == 0) Media.pickImages(a, false) { l ->
+                val u = l.firstOrNull() ?: return@pickImages
+                a.toast("正在上传…")
+                Bg.load({ Avatar.set(ctx, u); true }) { ok, e -> if (ok == true) { a.toast("头像换好了"); render() } else Dialogs.alert(ctx, "头像没换上", e?.message ?: "再试一次") }
+            } else Bg.load({ Avatar.clear(); true }) { ok, e -> if (ok == true) render() else a.toast(e?.message ?: "没去掉") }
+        }
     }
     private fun version(): String = try { a.packageManager.getPackageInfo(a.packageName, 0).versionName ?: "" } catch (e: Exception) { "" }
     @Suppress("DEPRECATION")

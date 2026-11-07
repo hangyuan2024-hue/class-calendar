@@ -54,7 +54,7 @@ class NoteListPage(a: Main) : Page(a) {
     override fun build(): View {
         val add = ctx.text("＋ 新备忘", 15f, C.accent, BOLD).apply { pad(12, 8); press(0, 10); tap { a.push(NotePage(a, null)) } }
         return scaffold("备忘录", add) { b ->
-            val qb = ctx.input("搜索备忘录", "")
+            val qb = ctx.input("搜索备忘录", "").apply { Ic.search(this) }
             qb.addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
                 override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
