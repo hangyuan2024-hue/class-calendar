@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lucide「brush-cleaning」· ISC License · https://lucide.dev -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:pathData="m 16 22 -1 -4" android:fillColor="#00000000" android:strokeColor="#FF000000" android:strokeWidth="2" android:strokeLineCap="round" android:strokeLineJoin="round"/>
+    <path android:pathData="M 19 14 a 1 1 0 0 0 1 -1 v -1 a 2 2 0 0 0 -2 -2 h -3 a 1 1 0 0 1 -1 -1 V 4 a 2 2 0 0 0 -4 0 v 5 a 1 1 0 0 1 -1 1 H 6 a 2 2 0 0 0 -2 2 v 1 a 1 1 0 0 0 1 1" android:fillColor="#00000000" android:strokeColor="#FF000000" android:strokeWidth="2" android:strokeLineCap="round" android:strokeLineJoin="round"/>
+    <path android:pathData="M 19 14 H 5 l -1.973 6.767 A 1 1 0 0 0 4 22 h 16 a 1 1 0 0 0 .973 -1.233 z" android:fillColor="#00000000" android:strokeColor="#FF000000" android:strokeWidth="2" android:strokeLineCap="round" android:strokeLineJoin="round"/>
+    <path android:pathData="m 8 22 1 -4" android:fillColor="#00000000" android:strokeColor="#FF000000" android:strokeWidth="2" android:strokeLineCap="round" android:strokeLineJoin="round"/>
+</vector>

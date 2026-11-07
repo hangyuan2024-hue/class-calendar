@@ -122,6 +122,18 @@ object Ic {
         Def("🚀", R.drawable.ic_l_rocket, 'V'),   // 加速
         Def("⇅", R.drawable.ic_l_arrow_left_right, 'S'),   // 切换班级
         Def("⊞", R.drawable.ic_l_layout_grid, 'B'),   // 自定义首页
+        Def("🏃", R.drawable.ic_l_footprints, 'G'),   // 跑步
+        Def("💧", R.drawable.ic_l_droplet, 'B'),   // 喝水
+        Def("🧘", R.drawable.ic_l_flower_2, 'P'),   // 冥想
+        Def("🎹", R.drawable.ic_l_piano, 'V'),   // 练琴
+        Def("😴", R.drawable.ic_l_moon, 'I'),   // 早睡
+        Def("🍎", R.drawable.ic_l_apple, 'R'),   // 吃水果
+        Def("🗣️", R.drawable.ic_l_languages, 'T'),   // 背单词 / 口语
+        Def("💪", R.drawable.ic_l_dumbbell, 'O'),   // 健身
+        Def("🧹", R.drawable.ic_l_brush_cleaning, 'A'),   // 打扫
+        Def("🧠", R.drawable.ic_l_brain, 'P'),   // 思考
+        Def("🌱", R.drawable.ic_l_sprout, 'G'),   // 成长
+        Def("☀️", R.drawable.ic_l_sun, 'O'),   // 早起
     )
     private fun norm(s: String) = s.replace("️", "").trim()
     private val BY: Map<String, Def> by lazy { ALL.associateBy { norm(it.emoji) } }
