@@ -52,6 +52,15 @@ class Main : Activity() {
     /** 捞捞助手（标签页左下角，可以拖） */
     var lao: Lao? = null
 
+    /** 7.x 界面大小：大屏安卓上默认紧凑一点（整体缩到 90%），设置 → 外观里能改 */
+    override fun attachBaseContext(base: android.content.Context) {
+        val sc = UiScale.get(base)
+        if (sc == 1f) { super.attachBaseContext(base); return }
+        val cfg = android.content.res.Configuration(base.resources.configuration)
+        cfg.densityDpi = (base.resources.configuration.densityDpi * sc).toInt()
+        super.attachBaseContext(base.createConfigurationContext(cfg))
+    }
+
     override fun onCreate(s: Bundle?) {
         super.onCreate(s)
         Store.init(this)

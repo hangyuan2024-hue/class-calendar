@@ -48,6 +48,12 @@ class LookPage(a: Main) : Page(a) {
         pv.addView(pr)
         body.addView(pv)
 
+        body.addView(ctx.section("界面大小", "手机屏幕大，选「紧凑」一屏能看到更多"))
+        val cur0 = UiScale.get(ctx)
+        body.addView(Seg(ctx, UiScale.OPTS.map { it.first }, UiScale.OPTS.indexOfFirst { Math.abs(it.second - cur0) < 0.01f }.coerceAtLeast(0)) { i ->
+            UiScale.set(ctx, UiScale.OPTS[i].second); a.toast("界面大小改好了"); a.recreate()
+        })
+
         body.addView(ctx.section("主题色", "网页、小程序会一起换"))
         val c = ctx.card(12, 18)
         var row: LinearLayout? = null

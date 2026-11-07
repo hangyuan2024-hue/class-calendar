@@ -118,38 +118,38 @@ class HomePage(a: Main) : Page(a) {
     // → 接下来（全部 / 事项 / 课程、放大镜搜索、大号时间的时间线）→ 教练 → 卡片
     /** 标题（和小程序首页一样）：学习工作台 / 每一天都值得认真 · 右边圆形头像 */
     private fun head() {
-        val r = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; pad(4, 8, 2, 14) }
+        val r = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; pad(4, 2, 2, 10) }
         r.addView(ctx.col().apply {
-            addView(ctx.text(if (Store.work()) "工作台" else "学习工作台", 23f, C.text, HEAVY, 1))
-            addView(ctx.text("每一天都值得认真", 12.5f, C.sub).apply { letterSpacing = 0.08f; margins(t = 2) })
+            addView(ctx.text(if (Store.work()) "工作台" else "学习工作台", 21f, C.text, HEAVY, 1))
+            addView(ctx.text("每一天都值得认真", 12f, C.sub).apply { letterSpacing = 0.08f; margins(t = 1) })
         }, LinearLayout.LayoutParams(0, WRAP, 1f))
         r.addView(android.widget.FrameLayout(ctx).apply {
-            background = round(C.card, dp(26).toFloat()); setPadding(dp(3), dp(3), dp(3), dp(3)); background = round(C.card, dp(26).toFloat(), C.line, dp(1))
-            addView(Avatar.view(ctx, Store.name(), Store.me?.str("gender") ?: "", 23), android.widget.FrameLayout.LayoutParams(dp(46), dp(46)))
+            setPadding(dp(2), dp(2), dp(2), dp(2)); background = round(C.card, dp(22).toFloat(), C.line, dp(1))
+            addView(Avatar.view(ctx, Store.name(), Store.me?.str("gender") ?: "", 19), android.widget.FrameLayout.LayoutParams(dp(38), dp(38)))
             tap { a.selectTab(4) }
-        }, LinearLayout.LayoutParams(dp(52), dp(52)))
+        }, LinearLayout.LayoutParams(dp(42), dp(42)))
         body.addView(r)
     }
 
     // ---------- 班级卡：加入了显示班级名和口号，没加入显示加入入口 ----------
     private fun classBar() {
         Store.cls?.let { cls ->
-            val c = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; bg(C.card, 22, C.line); pad(14, 14, 14, 14); tap { a.push(ClassPage(a)) } }
-            c.addView(ctx.text(cls.str("name").take(1), 20f, Color.WHITE, HEAVY).apply {
+            val c = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; bg(C.card, 18, C.line); pad(12, 10, 12, 10); tap { a.push(ClassPage(a)) } }
+            c.addView(ctx.text(cls.str("name").take(1), 16f, Color.WHITE, HEAVY).apply {
                 gravity = Gravity.CENTER
-                background = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TL_BR, intArrayOf(C.mix(C.accent, Color.WHITE, 0.2f), C.accent)).apply { cornerRadius = dp(14).toFloat() }
-            }, LinearLayout.LayoutParams(dp(48), dp(48)))
+                background = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TL_BR, intArrayOf(C.mix(C.accent, Color.WHITE, 0.2f), C.accent)).apply { cornerRadius = dp(11).toFloat() }
+            }, LinearLayout.LayoutParams(dp(38), dp(38)))
             c.addView(ctx.col().apply {
-                addView(ctx.text(cls.str("name"), 17.5f, C.text, HEAVY, 1))
+                addView(ctx.text(cls.str("name"), 15.5f, C.text, HEAVY, 1))
                 val motto = cls.str("motto").ifEmpty { cls.str("slogan") }
-                addView(ctx.text(motto.ifEmpty { Store.role().ifEmpty { "点这里看班级" } }, 13f, C.sub, lines = 1).apply { margins(t = 3) })
-            }, LinearLayout.LayoutParams(0, WRAP, 1f).apply { leftMargin = dp(14) })
+                addView(ctx.text(motto.ifEmpty { Store.role().ifEmpty { "点这里看班级" } }, 12f, C.sub, lines = 1).apply { margins(t = 1) })
+            }, LinearLayout.LayoutParams(0, WRAP, 1f).apply { leftMargin = dp(11) })
             // 加了好几个班：右边圆按钮切换班级；只有一个班：一个「›」，点整张卡进班级页
             if (Store.classes.size > 1) c.addView(FrameLayout(ctx).apply {
-                background = round(C.mutedBg, dp(20).toFloat()); contentDescription = "切换班级"
-                addView(Ic.plain(ctx, "⇅", 18, C.sub), FrameLayout.LayoutParams(dp(18), dp(18), Gravity.CENTER))
+                background = round(C.mutedBg, dp(17).toFloat()); contentDescription = "切换班级"
+                addView(Ic.plain(ctx, "⇅", 16, C.sub), FrameLayout.LayoutParams(dp(16), dp(16), Gravity.CENTER))
                 tap { switchClass() }
-            }, LinearLayout.LayoutParams(dp(40), dp(40)).apply { leftMargin = dp(8) })
+            }, LinearLayout.LayoutParams(dp(34), dp(34)).apply { leftMargin = dp(8) })
             else c.addView(ctx.text("›", 22f, C.mutedText), LinearLayout.LayoutParams(WRAP, WRAP).apply { leftMargin = dp(8) })
             body.addView(c)
             return
@@ -201,8 +201,8 @@ class HomePage(a: Main) : Page(a) {
 
     // ---------- 「现在」：看板 + 今天的时间轴（每 30 秒刷新这一块） ----------
     private fun hero() {
-        val h = HeroBox(ctx).apply { orientation = LinearLayout.VERTICAL; pad(20, 20, 20, 18) }
-        h.layoutParams = LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(14) }
+        val h = HeroBox(ctx).apply { orientation = LinearLayout.VERTICAL; pad(16, 14, 16, 12) }
+        h.layoutParams = LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(10) }
         heroBox = h
         body.addView(h)
         fillHero()
@@ -216,30 +216,30 @@ class HomePage(a: Main) : Page(a) {
         val h = heroBox ?: return
         h.removeAllViews()
         val d = T.today(); val wk = Courses.weekNow()
-        h.addView(ctx.text("${d.monthValue}月${d.dayOfMonth}日 ${T.wk(d)}" + (if (wk > 0) " · 第 $wk 周" else "") + " ›", 13f, C.accent, BOLD).apply {
-            bg(C.alpha(C.card, 0.7f), 10); pad(11, 5); tap { a.push(CalendarPage(a, pushed = true)) }
+        h.addView(ctx.text("${d.monthValue}月${d.dayOfMonth}日 ${T.wk(d)}" + (if (wk > 0) " · 第 $wk 周" else "") + " ›", 12f, C.accent, BOLD).apply {
+            bg(C.alpha(C.card, 0.7f), 9); pad(9, 4); tap { a.push(CalendarPage(a, pushed = true)) }
         }, LinearLayout.LayoutParams(WRAP, WRAP))
-        val mid = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; margins(t = 12) }
+        val mid = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; margins(t = 8) }
         val tc = ctx.col()
         val name = Store.name()
-        tc.addView(ctx.text(T.greet() + if (name.isNotEmpty()) "，$name" else "", 27f, C.heroText, HEAVY, 2))
+        tc.addView(ctx.text(T.greet() + if (name.isNotEmpty()) "，$name" else "", 21f, C.heroText, HEAVY, 2))
         val ag = try { Items.agenda() } catch (_: Exception) { null }
-        if (!ag?.say.isNullOrBlank()) tc.addView(ctx.text(ag!!.say, 14f, C.alpha(C.heroText, 0.72f)).apply {
-            margins(t = 8); setLineSpacing(0f, 1.3f)
+        if (!ag?.say.isNullOrBlank()) tc.addView(ctx.text(ag!!.say, 13f, C.alpha(C.heroText, 0.72f)).apply {
+            margins(t = 4); setLineSpacing(0f, 1.3f)
             if (android.os.Build.VERSION.SDK_INT >= 23) breakStrategy = android.text.Layout.BREAK_STRATEGY_BALANCED
         })
         mid.addView(tc, LinearLayout.LayoutParams(0, WRAP, 1f))
         val night = T.now().hour >= 23 || T.now().hour < 5
         mid.addView(ImageView(ctx).apply { setImageResource(if (night) R.drawable.mascot_sleep else R.drawable.mascot); rotation = 8f; tap { it.animate().rotationBy(-16f).setDuration(160).withEndAction { it.animate().rotation(8f).setDuration(160).start() }.start() } },
-            LinearLayout.LayoutParams(dp(84), dp(84)).apply { leftMargin = dp(6) })
+            LinearLayout.LayoutParams(dp(60), dp(60)).apply { leftMargin = dp(6) })
         h.addView(mid)
         // 接下来做啥：要做的事和捞捞的建议一起打分排序（NextAI），左右滑；长按「2 小时后再说」「少推荐这类」
         val cards = try { NextAI.rank() } catch (e: Exception) { emptyList() }
         if (cards.isNotEmpty()) {
-            h.add(deckView(cards), 16)
-            if (cards.size > 1) h.add(deckDots, 10)
+            h.add(deckView(cards), 12)
+            if (cards.size > 1) h.add(deckDots, 8)
         }
-        h.add(timeline(), 18)
+        h.add(timeline(), 12)
     }
     // 1.33 看板：几张卡左右滑（和小程序一样），右上角「2 / 5」；右边露出下一张一小截一直到屏幕边，提示还能滑；每分钟刷新、做完一件都停在原来那张
     private var deckAt = ""
@@ -258,7 +258,7 @@ class HomePage(a: Main) : Page(a) {
             }
         }
         heroBox?.let { it.clipToPadding = false; it.clipChildren = false }
-        val edge = dp(20)   // 问候卡左右留白：看板往右伸到问候卡边上（露出下一张一截，被卡片圆角裁掉）
+        val edge = dp(16)   // 问候卡左右留白：看板往右伸到问候卡边上（露出下一张一截，被卡片圆角裁掉）
         val dv = DeckView(ctx, if (cards.size > 1) edge + dp(24) else edge, dp(10)) { paint(it) }
         cards.forEach { dv.add(aiCard(it)) }
         dv.page = maxOf(0, cards.indexOfFirst { it.id == deckAt })
@@ -272,8 +272,8 @@ class HomePage(a: Main) : Page(a) {
         val hot = n?.hot == true; val sleep = c.cat == "sleep" || r?.id == "sleep"
         val tone = if (hot) C.red else if (sleep) C.c(if (C.dark) "#c7c3ff" else "#4338ca") else C.accent
         val v = ctx.row().apply {
-            gravity = Gravity.CENTER_VERTICAL; pad(18, 16, 14, 16)
-            background = round(C.card, dp(18).toFloat(), C.line, dp(1))
+            gravity = Gravity.CENTER_VERTICAL; pad(14, 11, 12, 11)
+            background = round(C.card, dp(16).toFloat(), C.line, dp(1))
         }
         val t = ctx.col()
         val label = n?.label ?: "捞捞建议"
@@ -282,23 +282,23 @@ class HomePage(a: Main) : Page(a) {
         t.addView(ctx.row().apply {
             gravity = Gravity.CENTER_VERTICAL
             addView(View(ctx).apply { background = round(tone, dp(4).toFloat()) }, LinearLayout.LayoutParams(dp(7), dp(7)).apply { rightMargin = dp(7) })
-            addView(ctx.text(label, 13f, tone, BOLD, 1))
+            addView(ctx.text(label, 12f, tone, BOLD, 1))
             val extra = listOf(cd, c.why).filter { it.isNotEmpty() }.joinToString(" · ")
-            if (extra.isNotEmpty()) addView(ctx.text(" · $extra", 13f, C.sub, lines = 1))
+            if (extra.isNotEmpty()) addView(ctx.text(" · $extra", 12f, C.sub, lines = 1))
         })
-        t.addView(ctx.text(n?.title ?: r!!.title, 18f, C.text, HEAVY, 1).apply { margins(t = 6) })
+        t.addView(ctx.text(n?.title ?: r!!.title, 15.5f, C.text, HEAVY, 1).apply { margins(t = 3) })
         val sub = n?.sub ?: r?.sub ?: ""
-        if (sub.isNotEmpty()) t.addView(ctx.text(sub, 14f, C.sub, lines = 1).apply { margins(t = 4) })
+        if (sub.isNotEmpty()) t.addView(ctx.text(sub, 12.5f, C.sub, lines = 1).apply { margins(t = 2) })
         v.addView(t, LinearLayout.LayoutParams(0, WRAP, 1f))
         // 右边的动作
         if (n != null && n.key.isNotEmpty()) {
             v.addView(ctx.text("✓", 16f, C.accent, HEAVY).apply {
-                gravity = Gravity.CENTER; background = round(0, dp(19).toFloat(), C.alpha(C.accent, 0.55f), dp(2)); contentDescription = "标记完成"
+                gravity = Gravity.CENTER; background = round(0, dp(16).toFloat(), C.alpha(C.accent, 0.55f), dp(2)); contentDescription = "标记完成"
                 tap { x -> x.buzz(); NextAI.act(c); Items.find(n.key)?.let { a.toggle(it) } }
-            }, LinearLayout.LayoutParams(dp(38), dp(38)).apply { leftMargin = dp(10) })
+            }, LinearLayout.LayoutParams(dp(32), dp(32)).apply { leftMargin = dp(10) })
         } else if (n != null && n.go.isNotEmpty()) {
-            v.addView(ctx.text(if (n.go == "homework") "去处理" else "开始专注", 13f, tone, BOLD).apply {
-                gravity = Gravity.CENTER; pad(12, 7); bg(if (hot) C.dangerBg else C.selected, 10)
+            v.addView(ctx.text(if (n.go == "homework") "去处理" else "开始专注", 12f, tone, BOLD).apply {
+                gravity = Gravity.CENTER; pad(9, 5); bg(if (hot) C.dangerBg else C.selected, 9)
                 tap { NextAI.act(c); if (n.go == "homework") a.selectTab(1) else a.push(PlanPage(a)) }
             }, LinearLayout.LayoutParams(WRAP, WRAP).apply { leftMargin = dp(8) })
         } else if (!sleep) v.addView(ctx.text("›", 20f, C.sub), LinearLayout.LayoutParams(WRAP, WRAP).apply { leftMargin = dp(8) })
@@ -347,7 +347,7 @@ class HomePage(a: Main) : Page(a) {
         c.addView(t, LinearLayout.LayoutParams(0, WRAP, 1f))
         if (n.key.isNotEmpty()) {
             c.addView(ctx.text("✓", 16f, C.accent, HEAVY).apply {
-                gravity = Gravity.CENTER; background = round(0, dp(19).toFloat(), C.alpha(C.accent, 0.55f), dp(2)); contentDescription = "标记完成"
+                gravity = Gravity.CENTER; background = round(0, dp(16).toFloat(), C.alpha(C.accent, 0.55f), dp(2)); contentDescription = "标记完成"
                 tap { v -> v.buzz(); Items.find(n.key)?.let { a.toggle(it) } }
             }, LinearLayout.LayoutParams(dp(38), dp(38)).apply { leftMargin = dp(10) })
         } else if (n.go.isNotEmpty()) {
@@ -396,12 +396,12 @@ class HomePage(a: Main) : Page(a) {
     private var agFind = false      // 搜索框点了放大镜才出来
     private var nextRow: View? = null
     private fun agenda(A0: Items.Agenda) {
-        val c = ctx.card(18, 22).apply { margins(t = 14) }
+        val c = ctx.card(14, 18).apply { margins(t = 10) }
         // 标题行：接下来 · 全部 / 事项 / 课程 · 放大镜（和小程序一样）
         val hr = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL }
-        hr.addView(ctx.text("接下来", 19f, C.text, HEAVY), LinearLayout.LayoutParams(0, WRAP, 1f))
+        hr.addView(ctx.text("接下来", 17f, C.text, HEAVY), LinearLayout.LayoutParams(0, WRAP, 1f))
         hr.addView(Seg(ctx, listOf("全部", "事项", "课程"), agKind) { agKind = it; agManual = false; render() }.apply {
-            for (i in 0 until childCount) (getChildAt(i) as TextView).apply { textSize = 13f; pad(11, 5) }
+            for (i in 0 until childCount) (getChildAt(i) as TextView).apply { textSize = 12.5f; pad(10, 4) }
         }, LinearLayout.LayoutParams(WRAP, WRAP))
         val sIn = ctx.input("搜索事项、备注、清单", agQ).apply { setSingleLine(true); textSize = 14f; Ic.search(this); visibility = if (agFind || agQ.isNotEmpty()) View.VISIBLE else View.GONE }
         hr.addView(android.widget.FrameLayout(ctx).apply {
@@ -586,7 +586,7 @@ class Timeline(ctx: Context, private val lessons: List<Lesson>, private val item
             if (hit != null && onLesson != null) onLesson.invoke(hit) else go(if (lessons.isNotEmpty()) "course" else "calendar")
         }
     }
-    override fun onMeasure(w: Int, h: Int) { setMeasuredDimension(MeasureSpec.getSize(w), context.dp(52)) }
+    override fun onMeasure(w: Int, h: Int) { setMeasuredDimension(MeasureSpec.getSize(w), context.dp(44)) }
     private fun x(m: Int): Float = (maxOf(a, minOf(z, m)) - a).toFloat() / (z - a) * width
     override fun onDraw(c: Canvas) {
         val d = context.resources.displayMetrics.density
