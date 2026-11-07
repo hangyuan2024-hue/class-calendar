@@ -51,10 +51,9 @@ class MePage(a: Main) : Page(a) {
         top.addView(Avatar.view(ctx, name, g, 20).apply { tap { a.avatarMenu { render() } } },
             android.widget.FrameLayout.LayoutParams(dp(72), dp(72)).apply { leftMargin = dp(16); topMargin = dp(56) })
         top.addView(ctx.col().apply {
-            tap { a.push(UserPage(a)) }
             addView(ctx.text(name.ifEmpty { "加载中…" } + when (g) { "m" -> " ♂"; "f" -> " ♀"; else -> "" }, 19f, C.text, HEAVY, 1))
             val roleName = when (me?.str("role")) { "teacher" -> "老师"; "admin" -> "管理员"; "developer" -> "开发者"; else -> if (Store.work()) "职场" else "学生" }
-            addView(ctx.text(listOfNotNull("@" + (me?.str("account") ?: ""), roleName, me?.str("org_name")?.ifBlank { null }).joinToString(" · ") + "  ›", 12f, C.sub, lines = 1).apply { margins(t = 2) })
+            addView(ctx.text(listOfNotNull("@" + (me?.str("account") ?: ""), roleName, me?.str("org_name")?.ifBlank { null }).joinToString(" · "), 12f, C.sub, lines = 1).apply { margins(t = 2) })
         }, android.widget.FrameLayout.LayoutParams(MATCH, WRAP).apply { leftMargin = dp(100); rightMargin = dp(14); topMargin = dp(102) })
         hero.addView(top)
         val bio = me?.str("bio") ?: ""
@@ -67,11 +66,37 @@ class MePage(a: Main) : Page(a) {
         body.addView(hero)
         if (!avLoaded && Store.me != null) { avLoaded = true; Bg.load({ Avatar.load() }) { changed, _ -> if (changed == true) render() } }
 
-        // 7.x 经验、等级、徽章都在「成长」里，这里不再重复；「我的主页」按钮也去掉了：点上面的名字就能看同学看到的样子
+        // 7.x「我的」就是个人主页（同学点你的名字看到的也是这些）：资料卡 + 我在班级墙的发言
+        // 经验、等级、徽章都在「成长」里，这里不再重复
+        if (up == null && !upLoading && Store.me != null) { upLoading = true
+            Bg.load({ com.laolao.classcalendar.core.Api.rpcObj("user_page", com.laolao.classcalendar.core.jsonOf("uid" to com.laolao.classcalendar.core.Api.uid, "cid" to Store.cls?.str("id"))) }) { r, _ -> upLoading = false; if (r != null) { up = r; render() } }
+        }
+        up?.let { x ->
+            val joined = CK.ms(x.str("joined")).takeIf { it > 0 }
+            if (joined != null) hero.addView(ctx.text("加入 ${maxOf(1, (System.currentTimeMillis() - joined) / 86400000)} 天", 12f, C.mutedText).apply { pad(16, 0, 16, 14) })
+            val posts = x.optJSONArray("posts")?.let { arr -> (0 until arr.length()).map { arr.getJSONObject(it) } } ?: emptyList()
+            if (Store.cls != null) {
+                body.addView(ctx.row().apply {
+                    gravity = Gravity.BOTTOM; pad(4, 18, 2, 8)
+                    addView(ctx.text("我的班级墙", 15.5f, C.text, HEAVY))
+                    addView(ctx.text("${x.optInt("post_count")} 条发言", 12f, C.sub).apply { pad(8, 0, 0, 2) }, LinearLayout.LayoutParams(0, WRAP, 1f))
+                    addView(ctx.text("去班级墙 ›", 12.5f, C.accent, SEMI).apply { pad(6, 2); tap { a.push(WallPage(a)) } })
+                })
+                if (posts.isEmpty()) body.addView(ctx.text("还没在班级墙发过言，去打个招呼吧", 13.5f, C.sub).apply { bg(C.card, 14, C.line); pad(14, 14); tap { a.push(WallPage(a)) } })
+                for (p in posts.take(5)) {
+                    val c = ctx.card(12, 14).apply { margins(t = 8); tap { a.push(WallPage(a, p.optLong("id"))) } }
+                    if (p.optBoolean("is_notice") || p.str("title").isNotEmpty()) c.addView(ctx.text(p.str("title").ifEmpty { "通知" }, 14.5f, C.text, BOLD, 1))
+                    c.addView(ctx.text(p.str("body"), 13.5f, C.text, lines = 3).apply { margins(t = 2) })
+                    c.addView(ctx.text(CK.ago(p.str("created_at")) + if (p.optInt("comments") > 0) " · ${p.optInt("comments")} 条评论" else "", 11.5f, C.sub).apply { margins(t = 4) })
+                    body.addView(c)
+                }
+            }
+        }
         body.add(ctx.text("捞捞课程表 安卓版 " + version(), 12f, C.mutedText).apply { gravity = Gravity.CENTER }, 18)
     }
     private var avLoaded = false
-    private fun editProfile() { val me = Store.me; ProfileSheet.open(a, me?.str("gender") ?: "", me?.str("cover") ?: "", me?.str("bio") ?: "") { render() } }
+    private var up: org.json.JSONObject? = null; private var upLoading = false
+    private fun editProfile() { val me = Store.me; ProfileSheet.open(a, me?.str("gender") ?: "", me?.str("cover") ?: "", me?.str("bio") ?: "") { up = null; render() } }
     private fun version(): String = try { a.packageManager.getPackageInfo(a.packageName, 0).versionName ?: "" } catch (e: Exception) { "" }
     @Suppress("DEPRECATION")
     private fun code(): Long = try { val p = a.packageManager.getPackageInfo(a.packageName, 0); if (android.os.Build.VERSION.SDK_INT >= 28) p.longVersionCode else p.versionCode.toLong() } catch (e: Exception) { 0 }

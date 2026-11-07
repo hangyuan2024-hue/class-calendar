@@ -386,7 +386,11 @@ class UserPage(a: Main, private val uid: String? = null) : Page(a) {
     private var d: JSONObject? = null; private var err = ""
     override val autoRender = false
     override fun build(): View = scaffold("个人主页", pull = { done -> load { done() } }) { body = it }
-    override fun onShow() { if (d == null) load() }
+    override fun onShow() {
+        // 7.x 自己的主页就是「我的」标签，不再单独开一页
+        if (uid == null || uid == Api.uid) { a.pop(this); a.selectTab(4); return }
+        if (d == null) load()
+    }
     private fun load(done: (() -> Unit)? = null) {
         Bg.load({ Api.rpcObj("user_page", jsonOf("uid" to (uid ?: Api.uid), "cid" to Store.cls?.str("id"))) }) { r, e ->
             done?.invoke(); if (r == null) err = "打不开这个主页：" + (e?.message ?: "") else { d = r; err = "" }; render()

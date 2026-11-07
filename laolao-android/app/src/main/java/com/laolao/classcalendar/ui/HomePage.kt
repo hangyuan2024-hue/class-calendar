@@ -118,7 +118,7 @@ class HomePage(a: Main) : Page(a) {
     // → 接下来（全部 / 事项 / 课程、放大镜搜索、大号时间的时间线）→ 教练 → 卡片
     /** 标题（和小程序首页一样）：学习工作台 / 每一天都值得认真 · 右边圆形头像 */
     private fun head() {
-        val r = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; pad(4, 2, 2, 10) }
+        val r = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; pad(4, 22, 2, 14) }   // 整体往下放一点，不贴着顶
         r.addView(ctx.col().apply {
             addView(ctx.text(if (Store.work()) "工作台" else "学习工作台", 21f, C.text, HEAVY, 1))
             addView(ctx.text("每一天都值得认真", 12f, C.sub).apply { letterSpacing = 0.08f; margins(t = 1) })
@@ -201,8 +201,8 @@ class HomePage(a: Main) : Page(a) {
 
     // ---------- 「现在」：看板 + 今天的时间轴（每 30 秒刷新这一块） ----------
     private fun hero() {
-        val h = HeroBox(ctx).apply { orientation = LinearLayout.VERTICAL; pad(16, 14, 16, 12) }
-        h.layoutParams = LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(10) }
+        val h = HeroBox(ctx).apply { orientation = LinearLayout.VERTICAL; pad(16, 18, 16, 16) }
+        h.layoutParams = LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(12) }
         heroBox = h
         body.addView(h)
         fillHero()
@@ -219,27 +219,27 @@ class HomePage(a: Main) : Page(a) {
         h.addView(ctx.text("${d.monthValue}月${d.dayOfMonth}日 ${T.wk(d)}" + (if (wk > 0) " · 第 $wk 周" else "") + " ›", 12f, C.accent, BOLD).apply {
             bg(C.alpha(C.card, 0.7f), 9); pad(9, 4); tap { a.push(CalendarPage(a, pushed = true)) }
         }, LinearLayout.LayoutParams(WRAP, WRAP))
-        val mid = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; margins(t = 8) }
+        val mid = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; margins(t = 14) }
         val tc = ctx.col()
         val name = Store.name()
-        tc.addView(ctx.text(T.greet() + if (name.isNotEmpty()) "，$name" else "", 21f, C.heroText, HEAVY, 2))
+        tc.addView(ctx.text(T.greet() + if (name.isNotEmpty()) "，$name" else "", 23f, C.heroText, HEAVY, 2))
         val ag = try { Items.agenda() } catch (_: Exception) { null }
-        if (!ag?.say.isNullOrBlank()) tc.addView(ctx.text(ag!!.say, 13f, C.alpha(C.heroText, 0.72f)).apply {
-            margins(t = 4); setLineSpacing(0f, 1.3f)
+        if (!ag?.say.isNullOrBlank()) tc.addView(ctx.text(ag!!.say, 13.5f, C.alpha(C.heroText, 0.72f)).apply {
+            margins(t = 6); setLineSpacing(0f, 1.3f)
             if (android.os.Build.VERSION.SDK_INT >= 23) breakStrategy = android.text.Layout.BREAK_STRATEGY_BALANCED
         })
         mid.addView(tc, LinearLayout.LayoutParams(0, WRAP, 1f))
         val night = T.now().hour >= 23 || T.now().hour < 5
         mid.addView(ImageView(ctx).apply { setImageResource(if (night) R.drawable.mascot_sleep else R.drawable.mascot); rotation = 8f; tap { it.animate().rotationBy(-16f).setDuration(160).withEndAction { it.animate().rotation(8f).setDuration(160).start() }.start() } },
-            LinearLayout.LayoutParams(dp(60), dp(60)).apply { leftMargin = dp(6) })
+            LinearLayout.LayoutParams(dp(74), dp(74)).apply { leftMargin = dp(6) })
         h.addView(mid)
         // 接下来做啥：要做的事和捞捞的建议一起打分排序（NextAI），左右滑；长按「2 小时后再说」「少推荐这类」
         val cards = try { NextAI.rank() } catch (e: Exception) { emptyList() }
         if (cards.isNotEmpty()) {
-            h.add(deckView(cards), 12)
-            if (cards.size > 1) h.add(deckDots, 8)
+            h.add(deckView(cards), 16)
+            if (cards.size > 1) h.add(deckDots, 10)
         }
-        h.add(timeline(), 12)
+        h.add(timeline(), 16)
     }
     // 1.33 看板：几张卡左右滑（和小程序一样），右上角「2 / 5」；右边露出下一张一小截一直到屏幕边，提示还能滑；每分钟刷新、做完一件都停在原来那张
     private var deckAt = ""
@@ -272,7 +272,7 @@ class HomePage(a: Main) : Page(a) {
         val hot = n?.hot == true; val sleep = c.cat == "sleep" || r?.id == "sleep"
         val tone = if (hot) C.red else if (sleep) C.c(if (C.dark) "#c7c3ff" else "#4338ca") else C.accent
         val v = ctx.row().apply {
-            gravity = Gravity.CENTER_VERTICAL; pad(14, 11, 12, 11)
+            gravity = Gravity.CENTER_VERTICAL; pad(14, 13, 12, 13)
             background = round(C.card, dp(16).toFloat(), C.line, dp(1))
         }
         val t = ctx.col()
@@ -586,7 +586,7 @@ class Timeline(ctx: Context, private val lessons: List<Lesson>, private val item
             if (hit != null && onLesson != null) onLesson.invoke(hit) else go(if (lessons.isNotEmpty()) "course" else "calendar")
         }
     }
-    override fun onMeasure(w: Int, h: Int) { setMeasuredDimension(MeasureSpec.getSize(w), context.dp(44)) }
+    override fun onMeasure(w: Int, h: Int) { setMeasuredDimension(MeasureSpec.getSize(w), context.dp(48)) }
     private fun x(m: Int): Float = (maxOf(a, minOf(z, m)) - a).toFloat() / (z - a) * width
     override fun onDraw(c: Canvas) {
         val d = context.resources.displayMetrics.density
