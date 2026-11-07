@@ -32,20 +32,32 @@ aws configure set default.s3.max_concurrent_requests 24
 ok=""
 T0=$(date +%s)
 echo "开始传到国内存储：$KEY（$(( $(wc -c < "$F") / 1048576 )) MB）" >&2
-# 7.x 从美国传到广州偶尔会特别慢，腾讯云嫌太慢直接断开（UserNetworkTooSlow），以前没有超时，一卡就是十几分钟。
-# 现在：每次最多等 3 分钟；第 2 次换腾讯云「全球加速」地址（桶开了全球加速才有用，没开会很快报错，不耽误）；
-# 3 次都不行就跳过国内存储，照常发布（App 和官网会从 GitHub / jsDelivr 下载）。
-EPS=("$CN_S3_ENDPOINT")
+# 7.x 从 GitHub（美国）直接传到广州经常特别慢：腾讯云嫌太慢会断开（UserNetworkTooSlow），或者 3 分钟都传不完。
+# 腾讯云的桶开了「全球加速」时，走 cos.accelerate.myqcloud.com：先进腾讯云在海外的节点，再走腾讯内网到广州，又快又稳。
+# 所以顺序是：① 全球加速（没开会 1 秒内报 BucketAccelerateNotEnabled，直接跳过）② ③ 普通地址，每次最多等 3 分钟。
+# 3 次都不行就跳过国内存储，照常发布（App 和官网会从网站 download/、jsDelivr、GitHub 下载）。
+EPS=()
 case "$CN_S3_ENDPOINT" in *myqcloud.com*) EPS+=("https://cos.accelerate.myqcloud.com");; esac
-EPS+=("$CN_S3_ENDPOINT")
-for i in 0 1 2; do
-  EP="${EPS[$i]:-$CN_S3_ENDPOINT}"
-  if timeout 180 aws s3 cp "$F" "s3://$CN_S3_BUCKET/$KEY" --endpoint-url "$EP" --content-type application/octet-stream --only-show-errors \
-       --cli-connect-timeout 20 --cli-read-timeout 60 >&2; then ok=1; echo "上传成功（$EP）" >&2; break; fi
-  echo "上传失败（$EP），5 秒后重试（第 $((i + 1)) 次）" >&2; sleep 5
+EPS+=("$CN_S3_ENDPOINT" "$CN_S3_ENDPOINT")
+ERR=$(mktemp)
+n=0
+for EP in "${EPS[@]}"; do
+  n=$((n + 1)); t=$(date +%s)
+  timeout 180 aws s3 cp "$F" "s3://$CN_S3_BUCKET/$KEY" --endpoint-url "$EP" --content-type application/octet-stream --only-show-errors \
+       --cli-connect-timeout 20 --cli-read-timeout 60 2>"$ERR"
+  rc=$?
+  if [ $rc -eq 0 ]; then ok=1; echo "第 $n 次：上传成功（$EP，$(( $(date +%s) - t )) 秒）" >&2; break; fi
+  if [ $rc -eq 124 ]; then why="3 分钟没传完：从 GitHub 的美国服务器到国内网络太慢"
+  elif grep -q "BucketAccelerateNotEnabled" "$ERR"; then why="这个桶没开「全球加速」（腾讯云控制台 → 存储桶 → 域名与传输管理 → 全球加速，开了以后这一步就能用）"
+  elif grep -q "UserNetworkTooSlow" "$ERR"; then why="腾讯云嫌上传太慢断开了（UserNetworkTooSlow）：美国到国内网络太慢"
+  elif grep -qi "AccessDenied\|SignatureDoesNotMatch\|InvalidAccessKeyId" "$ERR"; then why="密钥不对或没有权限：检查 CN_S3_KEY_ID / CN_S3_SECRET"
+  else why="$(tail -c 300 "$ERR" | tr '\n' ' ')"; fi
+  echo "第 $n 次失败（$EP，$(( $(date +%s) - t )) 秒）：$why" >&2
+  [ $n -lt ${#EPS[@]} ] && sleep 5
 done
+rm -f "$ERR"
 echo "用了 $(( $(date +%s) - T0 )) 秒" >&2
-if [ -z "$ok" ]; then echo "::warning::上传到国内存储失败，这次只能从 GitHub 下载" >&2; echo ""; exit 0; fi
+if [ -z "$ok" ]; then echo "::warning::上传到国内存储失败（原因见上面几行），这次 App 更新会改从网站 download/ 或 GitHub 下载" >&2; echo ""; exit 0; fi
 # 清理：同一个文件夹里按时间只留最新 3 个
 DIR="${KEY%/*}/"
 aws s3api list-objects-v2 --bucket "$CN_S3_BUCKET" --prefix "$DIR" --endpoint-url "$CN_S3_ENDPOINT" --query 'sort_by(Contents,&LastModified)[].Key' --output text 2>/dev/null \
