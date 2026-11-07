@@ -80,6 +80,7 @@ class HomePage(a: Main) : Page(a) {
         view
         keepScroll(body)
         head()
+        com.laolao.classcalendar.core.ClassAdj.load(); Bg.main.postDelayed({ ActWatch.check(a); JoinWatch.check(a) }, 2500)   // 7.55 班级调课 / 自习；课堂互动、入班申请提醒
         if (Store.error.isNotEmpty() && Store.itemsAt > 0) body.add(notice("网络不太好，显示的是上次的数据：" + Store.error), 10)
         else if (Store.error.isNotEmpty() && Store.me == null) body.add(notice("连不上服务器：" + Store.error + "。下拉可以重试"), 10)
         classBar()

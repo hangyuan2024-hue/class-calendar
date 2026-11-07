@@ -64,11 +64,11 @@ object Items {
     }
     fun lessonsAsItems(a: String, b: String): List<Item> {
         val hasC = Store.feat("courses") && Courses.has()
-        val evOn = (Kv.get("evening_v1") as? JSONObject)?.optBoolean("on") == true
-        val moOn = (Kv.get("morning_v1") as? JSONObject)?.optBoolean("on") == true   // 6.5 早自习
+        val evOn = ClassAdj.study("evening")?.optBoolean("on") == true   // 7.55 自己没设就用班级发的
+        val moOn = ClassAdj.study("morning")?.optBoolean("on") == true   // 6.5 早自习
         if (!hasC && !evOn && !moOn) return emptyList()
         val out = mutableListOf<Item>()
-        val adj = try { Courses.adjList() } catch (_: Exception) { emptyList() }
+        val adj = try { ClassAdj.all(Courses.adjList()) } catch (_: Exception) { emptyList() }
         var k = a; var guard = 0
         while (k <= b && guard++ < 400) {
             // 6.3 晚自习：和课一样显示在「接下来的安排」和日历里，跟着调课 / 调休走
@@ -404,7 +404,7 @@ object Items {
     fun setDone(key: String, done: Boolean) { val r = find(key) ?: return; if (r.done != done) toggleDone(key) }
     private fun growth(id: String, undo: Boolean) {
         val c = Store.cls ?: return
-        if (c.optBoolean("is_teacher") || !Store.feat("rank")) return
+        if (!HwProof.mustSubmit(c) || !Store.feat("rank")) return   // 7.55 学委建班当班主任也记；老师身份不记（和小程序 1.28.4 一样）
         Bg.run { try { Api.rpc("growth_log", jsonOf("cid" to c.str("id"), "k" to "done", "r" to id, "undo" to undo)) } catch (_: Exception) {} }
     }
     fun setMark(key: String, patch: JSONObject) {

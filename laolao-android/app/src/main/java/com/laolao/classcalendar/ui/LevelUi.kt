@@ -310,6 +310,13 @@ class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: S
             qc.addView(ctx.text("签到码（每 20 秒换一次）", 14f, C.sub, SEMI).apply { gravity = Gravity.CENTER })
             qc.addView(ctx.text(code?.str("code")?.ifEmpty { null } ?: "····", 64f, ORANGE, HEAVY).apply { gravity = Gravity.CENTER; letterSpacing = 0.25f })
             qc.addView(ctx.text("没带手机扫码的同学：在捞捞「签到」里输入这 4 位码。要投到大屏幕上，用网页或电脑版打开这个签到更清楚", 12.5f, C.sub).apply { gravity = Gravity.CENTER })
+            // 7.55 手势签到：发起人看到的手势（每个点第几步），同学照着画也能签
+            val pat = o.str("gesture_pat")
+            if (o.optBoolean("gesture") && pat.isNotEmpty()) {
+                qc.add(ctx.text("也可以照着画这个手势签到（从 1 连到 ${pat.length}）", 14f, C.sub, SEMI).apply { gravity = Gravity.CENTER }, 14)
+                qc.add(GesturePad(ctx, pat).apply { layoutParams = LinearLayout.LayoutParams(dp(220), dp(220)).apply { gravity = Gravity.CENTER_HORIZONTAL } }, 6)
+                qc.add(ctx.soft("换一个手势") { Bg.load({ com.laolao.classcalendar.core.Api.rpc("checkin_set_gesture", jsonOf("p_id" to o.optLong("id"), "p_pat" to com.laolao.classcalendar.core.Gesture.random())) }) { _, e -> if (e != null) a.toast(e.message ?: "没换成") else openOne(o.optLong("id")) } }, 8)
+            }
             body.addView(qc)
         }
         // 我签到
@@ -332,6 +339,12 @@ class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: S
                         val ci = ctx.input("4 位签到码", input, type = android.text.InputType.TYPE_CLASS_NUMBER).apply { filters = arrayOf(android.text.InputFilter.LengthFilter(4)); textSize = 22f; gravity = Gravity.CENTER; letterSpacing = 0.3f }
                         ci.addTextChangedListener(object : android.text.TextWatcher { override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}; override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}; override fun afterTextChanged(s: android.text.Editable?) { input = s.toString() } })
                         sc.addView(ci)
+                    }
+                    // 7.55 手势签到（7.41 / 7.43 SQL）：码照样能签，也可以照投屏上的手势在九宫格里一笔连起来
+                    if (o.optBoolean("gesture")) {
+                        sc.add(ctx.text(if (Checkin.needCode(o)) "或者：照投屏上的手势，在下面九宫格里按住一笔连起来" else "照投屏上的手势，在下面九宫格里按住一笔连起来", 13f, C.sub).apply { gravity = Gravity.CENTER }, 10)
+                        val gp = GesturePad(ctx, null) { pat -> input = pat; if (!Checkin.needPhoto(o) && !Checkin.needGeo(o)) sign() else a.toast("手势画好了，点下面的按钮签到") }
+                        sc.add(gp.apply { layoutParams = LinearLayout.LayoutParams(dp(240), dp(240)).apply { gravity = Gravity.CENTER_HORIZONTAL } }, 6)
                     }
                     sc.add(ctx.button(if (Checkin.needPhoto(o)) (if (photo != null && photoFor == o.optLong("id")) "⟳ 重新上传照片签到" else "📷 拍照签到") else if (Checkin.needGeo(o)) "📍 我到了，签到" else "✓ 签到") { sign() }, 10)
                     sc.add(ctx.text(listOfNotNull(if (Checkin.needCode(o)) "码在投屏上，每 20 秒换一次；用手机相机扫投屏二维码、选「用捞捞打开」也能直接签" else null, if (Checkin.needGeo(o)) "签到时会定位一次，确认你在范围里" else null,
@@ -523,7 +536,7 @@ class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: S
     private fun sign() {
         val o = one ?: return; if (busy) return
         val c = input.trim()
-        if (Checkin.needCode(o) && !Regex("^\\d{4}$").matches(c)) { a.toast("输入 4 位签到码"); return }
+        if (Checkin.needCode(o) && !Regex("^\\d{4}$").matches(c) && !(o.optBoolean("gesture") && Regex("^[1-9]{4,9}$").matches(c))) { a.toast(if (o.optBoolean("gesture")) "输入 4 位签到码，或者画出投屏上的手势" else "输入 4 位签到码"); return }
         if (photoFor != o.optLong("id")) photo = null
         if (Checkin.needPhoto(o) && photo == null) { takePhoto { p -> photo = p; photoFor = o.optLong("id"); sign() }; return }
         val ph = photo
@@ -552,9 +565,9 @@ class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: S
     private fun create() {
         val ccid = cid.ifEmpty { return }
         // 7.3 多了拍照签到：单独拍照，或者位置 + 拍照
-        val modes = listOf("code" to false, "geo" to false, "both" to false, "photo" to true, "geo" to true)
-        Dialogs.sheet(ctx, "怎么签到？", listOf("🔢 动态码：投屏 4 位码，不用定位", "📍 位置：到了现场范围内才能签", "📍+🔢 都要：最严格", "📷 拍照：拍一张现场照片就签", "📍+📷 位置 + 拍照")) { mi ->
-            val mode = modes[mi].first; val needPh = modes[mi].second
+        val modes = listOf("code" to false, "geo" to false, "both" to false, "photo" to true, "geo" to true, "code" to false)
+        Dialogs.sheet(ctx, "怎么签到？", listOf("🔢 动态码：投屏 4 位码，不用定位", "📍 位置：到了现场范围内才能签", "📍+🔢 都要：最严格", "📷 拍照：拍一张现场照片就签", "📍+📷 位置 + 拍照", "🔢+✍️ 码或手势：输码、照着画手势都能签")) { mi ->
+            val mode = modes[mi].first; val needPh = modes[mi].second; val ges = mi == 5   // 7.55 手势签到（7.41 SQL）
             val geo = mode == "geo" || mode == "both"
             Dialogs.prompt(ctx, if (!geo) "签到名称 / 地点（可以不填）" else "签到地点", "", "比如：操场、B302") { place ->
                 if (geo && place.isBlank()) { a.toast("写一下签到地点"); return@prompt }
@@ -565,18 +578,21 @@ class CheckinPage(a: Main, private val openId: Long = 0, private val openCode: S
                         pickWho(ccid) { sc ->
                             val send = { pos: com.laolao.classcalendar.core.Geo.Pos? ->
                                 Bg.load({
-                                    if (sc == null || sc.isDefault) Checkin.create(ccid, place.ifBlank { "课堂" } + "签到", place, pos, rs[ri], ms[mm], mode, needPh)
+                                    val r0 = if (sc == null || sc.isDefault) Checkin.create(ccid, place.ifBlank { "课堂" } + "签到", place, pos, rs[ri], ms[mm], mode, needPh)
                                     else {
                                         val a0 = jsonOf("title" to place.ifBlank { "课堂" } + "签到", "place" to place, "radius" to rs[ri], "minutes" to ms[mm], "mode" to mode)
                                         if (pos != null) { a0.put("lat", Math.round(pos.lat * 1e6) / 1e6); a0.put("lng", Math.round(pos.lng * 1e6) / 1e6) }
                                         if (needPh && mode != "photo") a0.put("photo", true)
                                         CkMore.createScoped(ccid, a0, sc.json())
                                     }
+                                    // 7.55 手势签到：发起后再设一个手势（服务器没升级就按动态码）
+                                    if (ges) try { com.laolao.classcalendar.core.Api.rpc("checkin_set_gesture", jsonOf("p_id" to r0.optLong("id"), "p_pat" to com.laolao.classcalendar.core.Gesture.random())) } catch (_: Exception) { r0.put("_noges", true) }
+                                    r0
                                 }) { r, e ->
                                     if (e is NoScopeError) Dialogs.confirm(ctx, "签到范围暂时用不了", "服务器还没升级。要按全班学生和班委发起吗？", "按全班发起") {
                                         Bg.load({ Checkin.create(ccid, place.ifBlank { "课堂" } + "签到", place, pos, rs[ri], ms[mm], mode, needPh) }) { r2, e2 -> if (r2 == null) Dialogs.alert(ctx, "没发起成功", e2?.message ?: "") else { a.toast("已发起"); openOne(r2.optLong("id")) } }
                                     }
-                                    else if (r == null) Dialogs.alert(ctx, "没发起成功", e?.message ?: "") else { a.toast("已发起"); openOne(r.optLong("id")) }
+                                    else if (r == null) Dialogs.alert(ctx, "没发起成功", e?.message ?: "") else { a.toast(if (r.optBoolean("_noges")) "已发起（手势签到要先在数据库执行 7.41 的 SQL，这次按动态码）" else "已发起"); openOne(r.optLong("id")) }
                                 }
                             }
                             if (!geo) send(null)

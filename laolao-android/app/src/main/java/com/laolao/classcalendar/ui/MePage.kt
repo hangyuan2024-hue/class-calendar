@@ -238,7 +238,8 @@ class SettingsPage(a: Main) : Page(a) {
             row("📖", "功能介绍", "每个功能怎么用，一图看懂") { a.push(GuidePage(a)) },
             row("✉️", "信箱", "写信给捞捞团队：建议、举报、合作") { a.push(LetterBoxPage(a)) },
             row("💻", "电脑版", "整周课表铺满屏幕、右下角提醒 · 同一个账号自动同步") { web(Cfg.SITE + "download/") },
-            row("💛", "感谢名单", "为捞捞课程表做出贡献的人") { a.push(CreditsPage(a)) })
+            row("💛", "感谢名单", "为捞捞课程表做出贡献的人") { a.push(CreditsPage(a)) },
+            row("📄", "用户协议与隐私政策", "我们收集哪些信息、怎么用、你的权利") { a.push(LegalPage(a)) })
         card(b,
             row("🌐", "网络线路", "现在用的是" + Net.routeName() + "，连不上会自动换另一条") { a.push(NetCheckPage(a)) },
             row("⬆️", "检查更新", "当前版本 " + version()) { Updater.check(a, true) })

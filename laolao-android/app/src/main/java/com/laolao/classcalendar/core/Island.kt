@@ -15,17 +15,17 @@ object Island {
     private val DUE_RE = Regex("(之前|以前|前完成|前提交|前上交|前交|前填|前签到|前打卡|前报名|截止|截至|deadline|ddl)", RegexOption.IGNORE_CASE)
     /** 6.3 晚自习（课程表里设置，跟着账号同步，键 evening_v1；和 island-core.js 的 evening 同一套规则） */
     //   跟着调课 / 调休走：放假那天没有；「这天上周三的课」按周三算；「停课」写了晚自习的名字那天没有
-    fun evening(day: String, ev: org.json.JSONObject? = Kv.get("evening_v1") as? org.json.JSONObject, adj: List<org.json.JSONObject>? = null): List<Lesson> =
+    fun evening(day: String, ev: org.json.JSONObject? = ClassAdj.study("evening"), adj: List<org.json.JSONObject>? = null): List<Lesson> =
         selfStudy(day, ev, adj, "晚自习", 90)
     /** 6.5 早自习（键 morning_v1）：和晚自习同一套规则，默认叫「早自习」、排在当天最前面 */
-    fun morning(day: String, mo: org.json.JSONObject? = Kv.get("morning_v1") as? org.json.JSONObject, adj: List<org.json.JSONObject>? = null): List<Lesson> =
+    fun morning(day: String, mo: org.json.JSONObject? = ClassAdj.study("morning"), adj: List<org.json.JSONObject>? = null): List<Lesson> =
         selfStudy(day, mo, adj, "早自习", 0)
     private fun selfStudy(day: String, ev: org.json.JSONObject?, adj: List<org.json.JSONObject>?, defName: String, start: Int): List<Lesson> {
         if (ev == null || !ev.optBoolean("on")) return emptyList()
         val t0 = ev.str("t0"); val t1 = ev.str("t1")
         if (T.min(t0) == null || T.min(t1) == null || t1 <= t0) return emptyList()
         val name = ev.str("name").ifBlank { defName }.take(20)
-        val on = (adj ?: try { Courses.adjList() } catch (_: Exception) { emptyList() }).filter { it.str("date") == day }
+        val on = (adj ?: try { ClassAdj.all(Courses.adjList()) } catch (_: Exception) { emptyList() }).filter { it.str("date") == day }
         if (on.any { it.str("type") == "off" || (it.str("type") == "cancel" && it.str("name").trim() == name) }) return emptyList()
         val sw = on.firstOrNull { it.str("type") == "swap" && Regex("^\\d{4}-\\d{2}-\\d{2}$").matches(it.str("from")) }
         val wd = (T.date(sw?.str("from") ?: day) ?: return emptyList()).dayOfWeek.value - 1

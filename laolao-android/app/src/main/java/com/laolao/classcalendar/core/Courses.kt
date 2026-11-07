@@ -88,7 +88,7 @@ object Courses {
         if (wl != null && wl.length() > 0) return (0 until wl.length()).map { wl.optInt(it) }.toSet()
         return parseWeeks(c.str("weeks"))
     }
-    private fun adj(k: String): List<JSONObject> = (meta().optJSONArray("adj") ?: JSONArray()).objs().filter { it.str("date") == k }
+    private fun adj(k: String): List<JSONObject> = ClassAdj.all((meta().optJSONArray("adj") ?: JSONArray()).objs()).filter { it.str("date") == k }   // 7.55 加上班级发给全班的调课
 
     /** 某一天的课（含调课、调休、停课、加课） */
     fun on(k: String): List<Lesson> {

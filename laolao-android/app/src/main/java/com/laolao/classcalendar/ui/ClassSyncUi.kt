@@ -80,99 +80,7 @@ class GesturePad(ctx: Context, private val show: String? = null, private val onD
     }
 }
 
-/** 课堂互动（同学这边）：抢答、小组互评。发起、看结果在小程序或网页「管理中心 → 学情」 */
-class ActPage(a: Main, private var tab: Int = 0) : Page(a) {
-    private lateinit var body: LinearLayout
-    private var rush: JSONObject? = null; private var peers: List<JSONObject>? = null; private var err = ""; private var hitting = false
-    private val cid get() = Store.cls?.str("id") ?: ""
-    private val tick = object : Runnable { override fun run() { if (tab == 0) load(); Bg.main.postDelayed(this, 1500) } }
-    override fun build(): View = scaffold("课堂互动", pull = { done -> load(done) }) { body = it }
-    override fun onShow() { load(); Bg.main.removeCallbacks(tick); Bg.main.postDelayed(tick, 1500) }
-    override fun onHide() { Bg.main.removeCallbacks(tick) }
-    private fun load(done: (() -> Unit)? = null) {
-        val c = cid; if (c.isEmpty()) { err = "先加入一个班级"; render(); done?.invoke(); return }
-        Bg.load({ if (tab == 0) ClassAct.rush(c) else jsonOf("l" to org.json.JSONArray(ClassAct.peers(c))) }) { r, e ->
-            done?.invoke()
-            if (r == null) { err = e?.message?.let { if (Regex("rush_|peer_|PGRST202|Could not find").containsMatchIn(it)) "课堂互动暂未开通（数据库要执行 7.41 的 SQL）" else it } ?: "加载失败" }
-            else { err = ""; if (tab == 0) rush = r else peers = r.optJSONArray("l")?.objs() ?: emptyList() }
-            render()
-        }
-    }
-    override fun render() {
-        if (!::body.isInitialized) return
-        body.removeAllViews()
-        body.addView(Seg(ctx, listOf("抢答", "小组互评"), tab) { i -> tab = i; rush = null; peers = null; render(); load() }.apply { margins(t = 4) })
-        if (err.isNotEmpty()) { body.add(ctx.text(err, 14f, C.sub).apply { gravity = Gravity.CENTER; pad(0, 30) }, 10); return }
-        if (tab == 0) renderRush() else renderPeer()
-    }
-    private fun renderRush() {
-        val r = rush ?: run { body.add(ctx.text("加载中…", 14f, C.sub).apply { gravity = Gravity.CENTER; pad(0, 30) }, 10); return }
-        if (r.optBoolean("none") || !r.has("id")) { body.add(ctx.text("现在没有抢答。老师或班委发起后，这里会出现「抢」按钮。", 14f, C.sub).apply { gravity = Gravity.CENTER; pad(10, 30) }, 10); return }
-        val end = try { java.time.OffsetDateTime.parse(r.str("ends_at")).toInstant().toEpochMilli() } catch (_: Exception) { 0L }
-        val open = r.optBoolean("open") && end > System.currentTimeMillis()
-        val rows = r.optJSONArray("rows")?.objs() ?: emptyList(); val top = r.optInt("top_n", 3)
-        val mine = rows.indexOfFirst { it.str("uid") == Api.uid }
-        val cd = ctx.card(18, 18).apply { margins(t = 12); gravity = Gravity.CENTER_HORIZONTAL }
-        cd.addView(ctx.text(r.str("title").ifEmpty { "抢答" } + " · 前 $top 名", 17f, C.text, BOLD).apply { gravity = Gravity.CENTER })
-        cd.add(ctx.text(if (open) "还剩 ${maxOf(0L, (end - System.currentTimeMillis() + 999) / 1000)} 秒" else "已结束", 13.5f, if (open) C.accent else C.sub).apply { gravity = Gravity.CENTER }, 4)
-        when {
-            mine >= 0 -> cd.add(ctx.text("你抢到了第 ${mine + 1} 名" + if (mine < top) " 🎉" else "", 18f, C.green, BOLD).apply { gravity = Gravity.CENTER; pad(0, 14) }, 6)
-            open && ClassAct.canHit(r) -> cd.add(ctx.text("抢！", 34f, android.graphics.Color.WHITE, HEAVY).apply {
-                gravity = Gravity.CENTER; background = round(C.accent, dp(80).toFloat())
-                layoutParams = LinearLayout.LayoutParams(dp(150), dp(150)).apply { topMargin = dp(14); bottomMargin = dp(8) }
-                tap { v -> hit(r.optLong("id"), v) } }, 0)
-            open -> cd.add(ctx.text("发起人不能抢，同学们正在抢…", 13.5f, C.sub).apply { gravity = Gravity.CENTER; pad(0, 12) }, 6)
-            else -> cd.add(ctx.text("你这次没抢", 13.5f, C.sub).apply { gravity = Gravity.CENTER; pad(0, 12) }, 6)
-        }
-        body.addView(cd)
-        if (rows.isNotEmpty()) {
-            val lc = ctx.card(14, 18).apply { margins(t = 12) }
-            rows.forEachIndexed { i, x ->
-                val rw = ctx.row().apply { pad(4, 8) }
-                rw.addView(ctx.text("${i + 1}", 15f, if (i < top) C.accent else C.sub, BOLD), LinearLayout.LayoutParams(dp(30), WRAP))
-                rw.addView(ctx.text(x.str("name").ifEmpty { "同学" }, 15f, C.text, if (x.str("uid") == Api.uid) BOLD else null), LinearLayout.LayoutParams(0, WRAP, 1f))
-                rw.addView(ctx.text(String.format("%.1f 秒", x.optDouble("ms", 0.0) / 1000) + if (x.optInt("points") > 0) " · +${x.optInt("points")}" else "", 13f, C.sub))
-                lc.addView(rw)
-            }
-            body.addView(lc)
-        }
-    }
-    private fun hit(id: Long, v: View) {
-        if (hitting) return; hitting = true; v.buzz()
-        Bg.load({ ClassAct.hit(id) }) { r, e ->
-            hitting = false
-            when { r == null -> a.toast(e?.message ?: "没抢上"); r.has("ok") && !r.optBoolean("ok") -> a.toast(r.str("why").ifEmpty { "没抢上" }); else -> a.toast("抢到了，第 ${r.optInt("rank")} 名" + if (r.optBoolean("top")) " 🎉" else "") }
-            load()
-        }
-    }
-    private fun renderPeer() {
-        val l = peers ?: run { body.add(ctx.text("加载中…", 14f, C.sub).apply { gravity = Gravity.CENTER; pad(0, 30) }, 10); return }
-        if (l.isEmpty()) { body.add(ctx.text("现在没有小组互评。老师或班委发起后会出现在这里。", 14f, C.sub).apply { gravity = Gravity.CENTER; pad(10, 30) }, 10); return }
-        for (r in l) {
-            val open = r.optBoolean("open"); val ts = r.optJSONArray("targets")?.objs() ?: emptyList(); val left = ts.count { it.optInt("score") == 0 }
-            val cd = ctx.card(16, 18).apply { margins(t = 12) }
-            cd.addView(ctx.text(r.str("title"), 16f, C.text, BOLD))
-            cd.add(ctx.text((if (r.str("kind") == "cross") "组间评分" else "组内评分") + " · " + (if (!open) "已结束" else if (left > 0) "还有 $left 个没评" else "都评完了 ✓"), 12.5f, C.sub), 2)
-            if (ts.isEmpty()) cd.add(ctx.text("没有要评的" + (if (r.str("kind") == "cross") "小组" else "组员") + "（可能还没分组）", 13f, C.sub), 8)
-            for (t in ts) {
-                val rw = ctx.row().apply { margins(t = 8) }
-                rw.addView(ctx.text(t.str("name"), 15f, C.text), LinearLayout.LayoutParams(0, WRAP, 1f))
-                val sc = t.optInt("score")
-                for (n in 1..5) rw.addView(ctx.text("★", 24f, if (n <= sc) android.graphics.Color.parseColor("#f5a623") else C.alpha(C.sub, 0.35f)).apply {
-                    pad(2, 0); if (open) tap { rate(r.optLong("id"), t.str("id"), n, null) } })
-                if (open) rw.addView(ctx.text("评语", 13f, C.accent, SEMI).apply { pad(10, 6); press(0, 10); tap {
-                    if (sc == 0) { a.toast("先点星星打分"); return@tap }
-                    Dialogs.prompt(ctx, "给「${t.str("name")}」写一句（选填）", "", "比如：分工积极，资料找得很全") { s -> rate(r.optLong("id"), t.str("id"), sc, s.take(100)) }
-                } })
-                cd.addView(rw)
-            }
-            body.addView(cd)
-        }
-    }
-    private fun rate(rid: Long, target: String, score: Int, comment: String?) {
-        Bg.load({ ClassAct.rate(rid, target, score, comment) }) { _, e -> if (e != null) a.toast(e.message ?: "没保存上") else { if (comment != null) a.toast("已保存"); load() } }
-    }
-}
+// 7.x 课堂互动页在 ActPage.kt（抢答、小组评分；老师 / 班委也能在手机上发起、加分、看结果）
 
 /** 开着 App 时：老师 / 班委一发起抢答或小组互评就提醒一次（同一轮只提醒一次）；首页每次显示时看一眼 */
 object ActWatch {
@@ -192,10 +100,10 @@ object ActWatch {
             val r = x.optJSONObject("r") ?: return@load
             if (x.str("k") == "rush") {
                 ClassAct.markSeen("r" + r.optLong("id"))
-                Dialogs.confirm(a, "抢答开始", r.str("title").ifEmpty { "抢答" } + "（前 ${r.optInt("top_n", 3)} 名）", "去抢", cancel = "不抢") { a.push(ActPage(a, 0)) }
+                Dialogs.confirm(a, "抢答开始", r.str("title").ifEmpty { "抢答" } + "（前 ${r.optInt("top_n", 3)} 名）", "去抢", cancel = "不抢") { a.push(ActPage(a, "rush")) }
             } else {
                 ClassAct.markSeen("p" + r.optLong("id"))
-                Dialogs.confirm(a, "小组评分", "「${r.str("title")}」开始了，" + (if (r.str("kind") == "cross") "给别的小组" else "给同组的组员") + "打个分吧", "去评", cancel = "稍后") { a.push(ActPage(a, 1)) }
+                Dialogs.confirm(a, "小组评分", "「${r.str("title")}」开始了，" + (if (r.str("kind") == "cross") "给别的小组" else "给同组的组员") + "打个分吧", "去评", cancel = "稍后") { a.push(ActPage(a, "peer")) }
             }
         }
     }
