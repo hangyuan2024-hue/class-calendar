@@ -37,16 +37,7 @@ class MePage(a: Main) : Page(a) {
         view
         keepScroll(body)
         val me = Store.me
-        val hd = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; pad(2, 6, 0, 12) }
-        hd.addView(Drawer.button(a))
-        hd.addView(ctx.text("我的", 23f, C.text, HEAVY), LinearLayout.LayoutParams(0, WRAP, 1f))
-        hd.addView(ctx.row().apply {
-            gravity = Gravity.CENTER_VERTICAL; pad(12, 8); press(C.card, 20, C.line); contentDescription = "设置"
-            addView(Ic.plain(ctx, "⚙️", 17, C.text), LinearLayout.LayoutParams(dp(17), dp(17)))
-            addView(ctx.text("设置", 13.5f, C.text, SEMI).apply { pad(6, 0, 0, 0) })
-            tap { a.push(SettingsPage(a)) }
-        })
-        body.addView(hd)
+        // 7.x 不放标题和设置按钮：设置在侧边栏里（从左边缘往右滑）
 
         // 封面 + 头像 + 名字（和同学看到的个人主页同一个封面）
         val name = Store.name(); val g = me?.str("gender") ?: ""

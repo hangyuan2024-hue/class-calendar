@@ -149,6 +149,10 @@ class Main : Activity() {
             tabViews += ic to tx
         }
         paintBadges()
+        // 第一次用：告诉一声侧边栏怎么打开（没有按钮了）
+        if (com.laolao.classcalendar.core.Kv.get("drawer_tip_v1") == null) Bg.main.postDelayed({
+            if (login == null && !isFinishing) { com.laolao.classcalendar.core.Kv.setQuiet("drawer_tip_v1", true); toast("从屏幕左边缘往右滑，可以打开侧边栏") }
+        }, 2500)
         cur = -1
         selectTab(0)
         if (System.currentTimeMillis() - Store.bootAt > 15_000) refreshSoon(force = true) else { lastRefresh = System.currentTimeMillis(); Background.afterRefresh(this) }

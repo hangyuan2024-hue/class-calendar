@@ -68,15 +68,9 @@ class ToolsPage(a: Main) : Page(a) {
     override fun render() {
         view
         keepScroll(body)
-        body.addView(ctx.row().apply {
-            gravity = Gravity.CENTER_VERTICAL; pad(4, 6, 2, 4)
-            addView(Drawer.button(a))
-            addView(ctx.text("工具", 23f, C.text, HEAVY), LinearLayout.LayoutParams(0, WRAP, 1f))
-            addView(ctx.text("长按看说明", 12f, C.mutedText))
-        })
         for ((title, list) in tools()) {
             if (list.isEmpty()) continue
-            val c = ctx.card(0, 20).apply { pad(6, 10, 6, 4); margins(t = 10) }
+            val c = ctx.card(0, 20).apply { pad(6, 10, 6, 4); if (body.childCount > 0) margins(t = 10) }
             c.addView(ctx.text(title, 12.5f, C.sub, BOLD).apply { pad(10, 0, 0, 2) })
             list.chunked(4).forEach { rowItems ->
                 val r = ctx.row()
