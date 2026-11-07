@@ -216,39 +216,57 @@ class HomePage(a: Main) : Page(a) {
         mid.addView(ImageView(ctx).apply { setImageResource(if (night) R.drawable.mascot_sleep else R.drawable.mascot); rotation = 8f; tap { it.animate().rotationBy(-16f).setDuration(160).withEndAction { it.animate().rotation(8f).setDuration(160).start() }.start() } },
             LinearLayout.LayoutParams(dp(64), dp(64)).apply { leftMargin = dp(6) })
         h.addView(mid)
-        // 捞捞推荐
-        Rec.view(a) { fillHero() }?.let { rv ->
-            h.add(ctx.row().apply {
-                gravity = Gravity.CENTER_VERTICAL
-                addView(ctx.text("捞捞推荐", 13f, C.heroText, BOLD))
-                addView(ctx.text("  按现在的时间 · 长按不喜欢", 11.5f, C.alpha(C.heroText, 0.6f)))
-            }, 16)
-            h.add(rv, 8)
-        }
-        // 「现在」看板
+        // 「现在」：要紧的事 + 捞捞推荐排成一叠，左右滑（推荐的卡长按可以说不喜欢）
         val deck = try { Items.deck() } catch (e: Exception) { emptyList() }
-        if (deck.isNotEmpty()) {
+        val recs = try { Rec.pick(3) } catch (e: Exception) { emptyList() }
+        val cards = mutableListOf<Pair<String, View>>()
+        val real = deck.filter { it.id != "idle" && !(it.id == "sleep" && recs.isNotEmpty()) }
+        real.take(1).forEach { cards += it.id to nextCard(it) }
+        recs.filter { r -> !(r.id == "sleep" && real.any { it.id == "sleep" }) }.forEach { r -> cards += "rec:" + r.id to recCard(r) }
+        real.drop(1).forEach { cards += it.id to nextCard(it) }
+        if (cards.isEmpty()) deck.forEach { cards += it.id to nextCard(it) }
+        if (cards.isNotEmpty()) {
             val hr = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; margins(t = 16, b = 8) }
-            hr.addView(ctx.text("现在", 13f, C.heroText, BOLD), LinearLayout.LayoutParams(0, WRAP, 1f))
+            hr.addView(ctx.text("现在", 13f, C.heroText, BOLD))
+            if (recs.isNotEmpty()) hr.addView(ctx.text("  含捞捞推荐 · 长按推荐可以说不喜欢", 11.5f, C.alpha(C.heroText, 0.6f), lines = 1), LinearLayout.LayoutParams(0, WRAP, 1f))
+            else hr.addView(View(ctx), LinearLayout.LayoutParams(0, 1, 1f))
             val cnt = ctx.text("", 12f, C.alpha(C.heroText, 0.6f), SEMI)
-            if (deck.size > 1) hr.addView(cnt)
+            if (cards.size > 1) hr.addView(cnt)
             h.addView(hr)
-            h.addView(deckView(deck, cnt))
+            h.addView(deckView(cards, cnt))
         }
-        timeline()?.let { h.add(it, 14) }
+        h.add(timeline(), 14)
     }
     // 1.33 看板：几张卡左右滑（和小程序一样），右上角「2 / 5」；右边露出下一张一小截一直到屏幕边，提示还能滑；每分钟刷新、做完一件都停在原来那张
     private var deckAt = ""
-    private fun deckView(deck: List<Items.Next>, cnt: TextView): View {
-        fun paint(i: Int) { deckAt = deck.getOrNull(i)?.id ?: ""; cnt.text = "${i + 1} / ${deck.size}" }
+    private fun deckView(cards: List<Pair<String, View>>, cnt: TextView): View {
+        fun paint(i: Int) { deckAt = cards.getOrNull(i)?.first ?: ""; cnt.text = "${i + 1} / ${cards.size}" }
         heroBox?.let { it.clipToPadding = false; it.clipChildren = false }
         val edge = dp(18)   // 问候卡左右留白：看板往右伸到问候卡边上（露出下一张一截，被卡片圆角裁掉）
-        val dv = DeckView(ctx, if (deck.size > 1) edge + dp(28) else edge, dp(10)) { paint(it) }
-        deck.forEach { dv.add(nextCard(it)) }
-        dv.page = maxOf(0, deck.indexOfFirst { it.id == deckAt })
+        val dv = DeckView(ctx, if (cards.size > 1) edge + dp(28) else edge, dp(10)) { paint(it) }
+        cards.forEach { dv.add(it.second) }
+        dv.page = maxOf(0, cards.indexOfFirst { it.first == deckAt })
         paint(dv.page)
         dv.clipToPadding = false
         return dv.apply { layoutParams = LinearLayout.LayoutParams(MATCH, WRAP).apply { rightMargin = -edge } }
+    }
+    /** 捞捞推荐的卡：和其他卡一个样子，小字写「捞捞推荐」；点了直接去，长按「不喜欢」 */
+    private fun recCard(r: Rec.S): View {
+        val c = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; pad(14, 14, 12, 14); background = round(C.card, dp(18).toFloat(), C.alpha(C.accent, 0.22f), dp(1)) }
+        c.addView(Ic.tile(ctx, r.icon, 38), LinearLayout.LayoutParams(dp(38), dp(38)))
+        c.addView(ctx.col().apply {
+            addView(ctx.text("✨ 捞捞推荐", 12f, C.accent, BOLD, 1).apply { Ic.lead(this, 13, own = true) })
+            addView(ctx.text(r.title, 16f, C.text, BOLD, 1).apply { margins(t = 4) })
+            addView(ctx.text(r.sub, 12.5f, C.sub, lines = 1).apply { margins(t = 2) })
+        }, LinearLayout.LayoutParams(0, WRAP, 1f).apply { leftMargin = dp(12) })
+        if (r.id != "sleep") c.addView(ctx.text("›", 20f, C.sub), LinearLayout.LayoutParams(WRAP, WRAP).apply { leftMargin = dp(8) })
+        c.tap { Rec.liked(r.id); r.go(a) }
+        c.setOnLongClickListener { v ->
+            v.buzz()
+            Dialogs.sheet(ctx, "「${r.title}」", listOf("不喜欢，这个时段别推荐", "今天先不显示", "以后都不推荐这个")) { k -> Rec.dislike(r.id, k); a.toast("好的，捞捞记住了"); fillHero() }
+            true
+        }
+        return c
     }
     /** 看板里的一张卡：小字「● 类别 · 还有多久」→ 标题 → 时间地点；右边 ✓（能直接做完的）/ 去处理 / 开始专注 / › */
     private fun nextCard(n: Items.Next): View {
@@ -291,8 +309,8 @@ class HomePage(a: Main) : Page(a) {
         return c
     }
 
-    /** 今天（晚上 9 点以后、今天的事都完了就看明天）的时间轴；没课也没有带时间的事就不出现（上面三个数字已经说了） */
-    private fun timeline(): View? {
+    /** 今天（晚上 9 点以后、今天的事都完了就看明天）的时间进度条：课是一段段的条，有时间点的事是小圆点，竖线是「现在」 */
+    private fun timeline(): View {
         val now = T.now(); val nowMin = now.hour * 60 + now.minute; val t = T.todayKey()
         val items = Items.all().filter { !it.done && T.min(it.time) != null }
         val todayCourses = if (Store.feat("courses")) Courses.on(t) else emptyList()
@@ -301,15 +319,14 @@ class HomePage(a: Main) : Page(a) {
         val day = if (tomorrow) T.addDays(t, 1) else t
         val lessons = if (tomorrow) (if (Store.feat("courses")) Courses.on(day) else emptyList()) else todayCourses
         val its = items.filter { it.day == day }
-        if (lessons.isEmpty() && its.isEmpty()) return null
+        val loose = Items.all().count { it.day == day && !it.done && it.time.isEmpty() }
         val box = ctx.col()
         val hr = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL }
         hr.addView(ctx.text(if (tomorrow) "明天" else "今天", 13f, if (tomorrow) C.accent else C.heroText, BOLD))
-        val sub = listOf(if (lessons.isNotEmpty()) "${lessons.size} 节课" else "", if (its.isNotEmpty()) "${its.size} 件有时间点的事" else "").filter { it.isNotEmpty() }.joinToString(" · ")
-        hr.addView(ctx.text(sub, 12.5f, C.sub, lines = 1).apply { pad(8, 0, 0, 0) }, LinearLayout.LayoutParams(0, WRAP, 1f))
-        hr.addView(ctx.text("课表 ›", 12.5f, C.accent, SEMI).apply { pad(8, 2); tap { a.push(CoursePage(a)) } })
+        val sub = listOf(if (lessons.isNotEmpty()) "${lessons.size} 节课" else "", if (its.isNotEmpty()) "${its.size} 件有时间点的事" else "", if (loose > 0) "$loose 件全天的事" else "").filter { it.isNotEmpty() }.joinToString(" · ")
+        hr.addView(ctx.text(sub.ifEmpty { "没有课，也没有要做的事" }, 12f, C.alpha(C.heroText, 0.68f), lines = 1).apply { pad(8, 0, 0, 0) }, LinearLayout.LayoutParams(0, WRAP, 1f))
         box.addView(hr)
-        box.add(Timeline(ctx, lessons, its, if (tomorrow) -1 else nowMin, { l -> if (l.evening) a.push(CoursePage(a)) else CourseView.open(a, T.date(day)!!, l) }) { go -> if (go == "course") a.push(CoursePage(a)) else a.push(CalendarPage(a, pushed = true)) }, 10)
+        box.add(Timeline(ctx, lessons, its, if (tomorrow) -1 else nowMin, { l -> if (l.evening) a.push(CoursePage(a)) else CourseView.open(a, T.date(day)!!, l) }) { go -> if (go == "course") a.push(CoursePage(a)) else a.push(CalendarPage(a, pushed = true)) }, 8)
         return box
     }
 
