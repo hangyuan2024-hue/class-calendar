@@ -59,7 +59,7 @@ class Main : Activity() {
         setContentView(root)
         chrome()
         Api.onLost = { why -> toast(if (why == "revoked") "这台手机已在其他设备上被退出登录" else "登录已过期，请重新登录"); showLogin() }
-        Bus.on(this) { what -> if (what == "user" && !Api.loggedIn) showLogin() else schedule() }
+        Bus.on(this) { what -> if (what == "user" && !Api.loggedIn) showLogin() else schedule(); if (what == "data" && login == null) Bg.main.postDelayed({ InAlert.check(this) }, 600) }
         Net.probe()
         // 6.9 账号经验：+N / 升级的提示
         com.laolao.classcalendar.core.Level.onXp = { pts, l, up -> toast(if (up) "🎉 升级了！Lv.${l.level} ${l.title}" else "⭐ 经验 +$pts · Lv.${l.level} ${l.xp}/${l.to}") }
@@ -241,8 +241,11 @@ class Main : Activity() {
         stack.lastOrNull()?.onAppResume()
         com.laolao.classcalendar.work.Guard.ensure(this)
         if (login == null && Api.loggedIn) Bg.later(1500) { Updater.auto(this) }   // 7.x 强制更新：从后台回来也看一眼
+        Bg.main.removeCallbacks(alertTick); Bg.main.postDelayed(alertTick, 3000)
     }
-    override fun onPause() { super.onPause(); stack.lastOrNull()?.onAppPause(); Bg.run { com.laolao.classcalendar.core.Sync.finish() }; Widgets.update(this) }
+    // 7.x App 开着时每 30 秒看一次：快截止、快开始（InAlert）
+    private val alertTick = object : Runnable { override fun run() { if (login == null && Api.loggedIn) InAlert.check(this@Main); Bg.main.postDelayed(this, 30_000) } }
+    override fun onPause() { Bg.main.removeCallbacks(alertTick); super.onPause(); stack.lastOrNull()?.onAppPause(); Bg.run { com.laolao.classcalendar.core.Sync.finish() }; Widgets.update(this) }
     override fun onDestroy() { Bus.off(this); super.onDestroy() }
     override fun onNewIntent(i: Intent) { super.onNewIntent(i); setIntent(i); handle(i) }
 

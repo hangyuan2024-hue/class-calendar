@@ -97,7 +97,7 @@ class Lao(private val a: Main, private val host: FrameLayout) {
         Bg.main.removeCallbacks(untuck); box.animate().cancel(); box.translationX = 0f; box.alpha = 1f; tucked = false; attachedAt = System.currentTimeMillis()
         host.viewTreeObserver.removeOnScrollChangedListener(onScroll); host.viewTreeObserver.addOnScrollChangedListener(onScroll)
         host.addView(box, place())
-        paint(true)
+        if (hid()) box.post { hideNow(false) } else paint(true)
         bob?.cancel()
         bob = ObjectAnimator.ofFloat(bot, "translationY", 0f, -px(4).toFloat()).apply { duration = 1800; repeatCount = ValueAnimator.INFINITE; repeatMode = ValueAnimator.REVERSE
             addUpdateListener { wearTv.translationY = bot.translationY - px(14) }; start() }
@@ -110,7 +110,7 @@ class Lao(private val a: Main, private val host: FrameLayout) {
     private var attachedAt = 0L
     private val untuck = Runnable { tuck(false) }
     private val onScroll = android.view.ViewTreeObserver.OnScrollChangedListener {
-        if (box.parent == null || dragging || win != null || System.currentTimeMillis() - attachedAt < 800) return@OnScrollChangedListener
+        if (box.parent == null || dragging || win != null || hid() || System.currentTimeMillis() - attachedAt < 800) return@OnScrollChangedListener
         tuck(true); Bg.main.removeCallbacks(untuck); Bg.main.postDelayed(untuck, 1000)
     }
     private fun tuck(on: Boolean) {
@@ -173,7 +173,7 @@ class Lao(private val a: Main, private val host: FrameLayout) {
     }
     private fun layoutDock() {
         val screen = opt("screen")
-        val side: View? = if (dragging) null else if (screen) scr else tab
+        val side: View? = if (dragging || hid()) null else if (screen) scr else tab
         if (botBox.parent == null) dock.addView(botBox, LinearLayout.LayoutParams(px(BOT + 4), px(BOT + 6)))
         val cur = (0 until dock.childCount).map { dock.getChildAt(it) }
         val want = if (side == null) listOf(botBox) else if (right) listOf(side, botBox) else listOf(botBox, side)
@@ -195,6 +195,23 @@ class Lao(private val a: Main, private val host: FrameLayout) {
     }
     private fun fold() { setOpt("screen", !opt("screen")); bub?.let { box.removeView(it) }; bub = null; layoutDock() }
 
+    // ---------- 7.x 藏到侧边：拖出屏幕边松手 → 只露 18dp 一小条（半透明），点一下或往里拖就回来 ----------
+    private fun hid(): Boolean = pos().optBoolean("hid")
+    private fun hideNow(anim: Boolean) {
+        if (box.parent == null) return
+        bub?.let { box.removeView(it) }; bub = null; close()
+        // 小屏幕先收起，只留捞捞
+        for (i in dock.childCount - 1 downTo 0) dock.getChildAt(i).let { if (it !== botBox) dock.removeView(it) }
+        box.post {
+            val dx = ((box.width - px(18)).coerceAtLeast(0) + px(8)).toFloat() * if (right) 1 else -1
+            if (anim) box.animate().translationX(dx).alpha(0.6f).setDuration(240).start() else { box.translationX = dx; box.alpha = 0.6f }
+        }
+    }
+    private fun showNow() {
+        Kv.setQuiet(POS, pos().put("hid", false))
+        box.animate().translationX(0f).alpha(1f).setDuration(320).setInterpolator(OvershootInterpolator(1.1f)).withEndAction { layoutDock(); paint(true) }.start()
+    }
+
     private fun once(key: String): Boolean {
         val said = Kv.obj(SAID); val t = T.todayKey()
         if (said.optString(key) == t) return false
@@ -206,6 +223,7 @@ class Lao(private val a: Main, private val host: FrameLayout) {
     private val hideBub = Runnable { bub?.let { dismissBub(it) } }
     private fun dismissBub(v: View) { if (bub === v) bub = null; v.isClickable = false; v.animate().alpha(0f).scaleX(0.9f).scaleY(0.9f).setDuration(180).withEndAction { (v.parent as? android.view.ViewGroup)?.removeView(v) }.start() }
     fun say(text: String) {
+        if (hid()) return
         bub?.let { box.removeView(it) }
         val b = FrameLayout(a)
         val t = a.text(text, 13f, C.text).apply { setLineSpacing(0f, 1.35f); setPadding(px(13), px(10), px(30), px(10)) }
@@ -233,6 +251,7 @@ class Lao(private val a: Main, private val host: FrameLayout) {
         botBox.setOnTouchListener { _, e ->
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> { if (tucked) { Bg.main.removeCallbacks(untuck); tucked = false; box.animate().cancel(); box.translationX = 0f; box.alpha = 1f }
+                    if (hid()) { box.animate().cancel(); box.alpha = 1f }
                     x0 = e.rawX; y0 = e.rawY; moved = false; bot.animate().scaleX(0.94f).scaleY(0.94f).setDuration(80).start(); true }
                 MotionEvent.ACTION_MOVE -> {
                     val dx = e.rawX - x0; val dy = e.rawY - y0
@@ -247,23 +266,26 @@ class Lao(private val a: Main, private val host: FrameLayout) {
                         bob?.pause(); bot.animate().scaleX(1.15f).scaleY(1.15f).setDuration(150).start()
                         shadow.animate().scaleX(1.4f).alpha(0.6f).translationY(px(6).toFloat()).setDuration(150).start()
                     }
-                    val minX = -box.left.toFloat(); val maxX = (host.width - box.right).toFloat()
+                    // 7.x 可以拖出屏幕边一大半：松手时超过边缘就藏到侧边，只露一小条
+                    val minX = -box.left.toFloat() - box.width * 0.7f; val maxX = (host.width - box.right).toFloat() + box.width * 0.7f
                     val minY = -box.top.toFloat(); val maxY = (host.height - a.underBar - box.bottom).toFloat()
                     box.translationX = (e.rawX - x0).coerceIn(minX, maxX); box.translationY = (e.rawY - y0).coerceIn(minY, maxY)
                     true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     bot.animate().scaleX(1f).scaleY(1f).setDuration(160).start()
-                    if (!moved) { if (e.actionMasked == MotionEvent.ACTION_UP) { botBox.buzz(); toggle() }; return@setOnTouchListener true }
+                    if (!moved) { if (e.actionMasked == MotionEvent.ACTION_UP) { botBox.buzz(); if (hid()) showNow() else toggle() }; return@setOnTouchListener true }
                     shadow.animate().scaleX(1f).alpha(1f).translationY(0f).setDuration(200).start(); bob?.resume()
                     val vx = box.left + box.translationX; val vy = box.top + box.translationY
                     val side = if (vx + box.width / 2f > host.width / 2f) "r" else "l"
+                    val off = vx < -box.width * 0.3f || vx + box.width > host.width + box.width * 0.3f
                     val y = (host.height - a.underBar - (vy + box.height)).toInt().coerceIn(0, maxOf(0, host.height - a.underBar - px(220)))
-                    Kv.setQuiet(POS, pos().put("side", side).put("y", y))
+                    Kv.setQuiet(POS, pos().put("side", side).put("y", y).put("hid", off))
                     box.layoutParams = place()
                     box.post {
                         box.translationX = vx - box.left; box.translationY = vy - box.top
-                        box.animate().translationX(0f).translationY(0f).setDuration(320).setInterpolator(OvershootInterpolator(1.1f)).withEndAction { dragging = false; layoutDock() }.start()
+                        if (off) { box.animate().translationY(0f).setDuration(200).withEndAction { dragging = false; layoutDock(); hideNow(true) }.start(); a.toast("捞捞藏到边上了，点露出来的那一小条就回来") }
+                        else box.animate().translationX(0f).translationY(0f).setDuration(320).setInterpolator(OvershootInterpolator(1.1f)).withEndAction { dragging = false; layoutDock() }.start()
                     }
                     true
                 }

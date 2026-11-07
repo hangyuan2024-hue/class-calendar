@@ -97,6 +97,7 @@ class HomePage(a: Main) : Page(a) {
         com.laolao.classcalendar.core.Checkin.peek { render() }
         if (Store.me != null && System.currentTimeMillis() - lvAt > 300_000) { lvAt = System.currentTimeMillis(); com.laolao.classcalendar.core.Level.refresh { com.laolao.classcalendar.core.Bus.emit("xp") } }
         val o = com.laolao.classcalendar.core.Checkin.open ?: return
+        InAlert.checkin(a, o)   // 7.x 签到开始：提示音 + 横幅（每次签到只响一次）
         val mine = o.optJSONObject("mine") != null
         val c = ctx.row().apply { pad(14, 12); margins(t = 12)
             background = round(if (mine) C.alpha(C.green, 0.1f) else C.alpha(C.c("#ff7a45"), 0.1f), dp(16).toFloat(), if (mine) C.alpha(C.green, 0.45f) else C.alpha(C.c("#ff7a45"), 0.5f), dp(1)) }
@@ -114,22 +115,7 @@ class HomePage(a: Main) : Page(a) {
     // ---------- 7.x 首页重新排：每样信息只出现一次 ----------
     // 问候（日期 + 班级切换）→ 今日概览三个数字 → 「现在」看板（左右滑）→ 今天的时间轴（有课或有带时间的事才出现）→ 接下来的安排 → 教练 → 卡片
     // 去掉了：大标题「学习工作台.」和头像（「我的」里有）、班级口号、一排小胶囊、问候里那句和下面重复的话、问候卡里的捞捞（左下角已经有一个）
-    private fun head() {
-        // 顶上一行（7.x 简化）：左边班级名（点了切换 / 进班级），右边圆形头像（点了去「我的」）；不再用带边框的大胶囊
-        val r = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; pad(4, 4, 0, 10) }
-        val cls = Store.cls
-        r.addView(ctx.col().apply {
-            addView(ctx.text(if (Store.work()) "工作台" else "学习工作台", 11.5f, C.sub, SEMI))
-            addView(ctx.row().apply {
-                gravity = Gravity.CENTER_VERTICAL
-                addView(ctx.text(cls?.str("name") ?: "还没加入班级", 18f, C.text, HEAVY, 1).apply { maxWidth = dp(230) })
-                addView(ctx.text(if (cls != null && Store.classes.size > 1) " ⌄" else " ›", 15f, C.sub, BOLD))
-            })
-            tap { if (cls != null && Store.classes.size > 1) switchClass() else a.push(ClassPage(a)) }
-        }, LinearLayout.LayoutParams(0, WRAP, 1f))
-        r.addView(Avatar.view(ctx, Store.name(), Store.me?.str("gender") ?: "", 18).apply { tap { a.selectTab(4) } }, LinearLayout.LayoutParams(dp(36), dp(36)))
-        body.addView(r)
-    }
+    private fun head() { body.addView(View(ctx), LinearLayout.LayoutParams(MATCH, dp(6))) }   // 7.x 班级和头像都放进问候卡顶上一行了
 
     // ---------- 班级：只有还没加入时才在首页占一块 ----------
     private fun classBar() {
@@ -195,8 +181,18 @@ class HomePage(a: Main) : Page(a) {
         val h = heroBox ?: return
         h.removeAllViews()
         val d = T.today(); val wk = Courses.weekNow()
-        h.addView(ctx.text("${d.monthValue}月${d.dayOfMonth}日 ${T.wk(d)}" + if (wk > 0) " · 第 $wk 周" else "", 12.5f, C.accent, SEMI).apply { bg(C.alpha(C.card, 0.6f), 8); pad(9, 4) }, LinearLayout.LayoutParams(WRAP, WRAP))
-        val mid = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; margins(t = 10) }
+        // 顶上一行：班级（点了切换 / 进班级）· 日期第几周 …… 右边圆形头像（点了去「我的」）
+        val top = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL }
+        val cls = Store.cls
+        top.addView(ctx.row().apply {
+            gravity = Gravity.CENTER_VERTICAL; pad(10, 5, 10, 5); bg(C.alpha(C.card, if (C.dark) 0.35f else 0.7f), 14)
+            if (cls != null) addView(ctx.text(cls.str("name") + if (Store.classes.size > 1) " ⌄" else "", 13f, C.heroText, BOLD, 1).apply { maxWidth = dp(150) })
+            addView(ctx.text((if (cls != null) "  ·  " else "") + "${d.monthValue}月${d.dayOfMonth}日 ${T.wk(d)}" + if (wk > 0) " · 第 $wk 周" else "", 12.5f, C.alpha(C.heroText, 0.65f), SEMI, 1))
+            tap { if (cls != null && Store.classes.size > 1) switchClass() else a.push(if (cls != null) ClassPage(a) else CalendarPage(a, pushed = true)) }
+        }, LinearLayout.LayoutParams(0, WRAP, 1f))
+        top.addView(Avatar.view(ctx, Store.name(), Store.me?.str("gender") ?: "", 16).apply { tap { a.selectTab(4) } }, LinearLayout.LayoutParams(dp(32), dp(32)).apply { leftMargin = dp(10) })
+        h.addView(top)
+        val mid = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; margins(t = 12) }
         val tc = ctx.col()
         val name = Store.name()
         tc.addView(ctx.text(T.greet() + if (name.isNotEmpty()) "，$name" else "", 24f, C.heroText, HEAVY, 2))
@@ -215,7 +211,7 @@ class HomePage(a: Main) : Page(a) {
         mid.addView(tc, LinearLayout.LayoutParams(0, WRAP, 1f))
         val night = T.now().hour >= 23 || T.now().hour < 5
         mid.addView(ImageView(ctx).apply { setImageResource(if (night) R.drawable.mascot_sleep else R.drawable.mascot); rotation = 8f; tap { it.animate().rotationBy(-16f).setDuration(160).withEndAction { it.animate().rotation(8f).setDuration(160).start() }.start() } },
-            LinearLayout.LayoutParams(dp(64), dp(64)).apply { leftMargin = dp(6) })
+            LinearLayout.LayoutParams(dp(58), dp(58)).apply { leftMargin = dp(6) })
         h.addView(mid)
         // 「接下来做啥」：要做的事和捞捞的建议一起打分排序（NextAI），左右滑；长按可以「2 小时后再说」「少推荐这类」
         val cards = try { NextAI.rank() } catch (e: Exception) { emptyList() }
@@ -252,20 +248,20 @@ class HomePage(a: Main) : Page(a) {
         val hot = n?.hot == true; val sleep = c.cat == "sleep" || r?.id == "sleep"
         val tone = if (hot) C.red else if (sleep) C.c(if (C.dark) "#c7c3ff" else "#4338ca") else C.accent
         val v = ctx.row().apply {
-            gravity = Gravity.CENTER_VERTICAL; pad(14, 14, 12, 14)
-            background = round(C.card, dp(18).toFloat(), if (hot) C.alpha(C.red, 0.28f) else C.line, dp(1))
+            gravity = Gravity.CENTER_VERTICAL; pad(12, 12, 10, 12)
+            background = round(C.card, dp(16).toFloat(), if (hot) C.alpha(C.red, 0.28f) else C.line, dp(1))
         }
-        v.addView(Ic.tile(ctx, c.icon, 40), LinearLayout.LayoutParams(dp(40), dp(40)))
+        v.addView(Ic.tile(ctx, c.icon, 36), LinearLayout.LayoutParams(dp(36), dp(36)))
         val t = ctx.col()
         val label = n?.label ?: "建议"
         val cd = if (n == null) "" else if (n.at > 0) { val left = n.at - System.currentTimeMillis(); if (n.live) "还有 " + T.left(left).replace("后", "下课") else T.left(left) }
             else if (n.reason.isNotEmpty() && n.reason != n.label) n.reason else ""
         t.addView(ctx.text(label + if (cd.isNotEmpty()) " · $cd" else "", 12f, tone, BOLD, 1))
-        t.addView(ctx.text(n?.title ?: r!!.title, 16f, C.text, BOLD, 1).apply { margins(t = 3) })
+        t.addView(ctx.text(n?.title ?: r!!.title, 15.5f, C.text, BOLD, 1).apply { margins(t = 2) })
         val sub = n?.sub ?: r?.sub ?: ""
         if (sub.isNotEmpty()) t.addView(ctx.text(sub, 12.5f, C.sub, lines = 1).apply { margins(t = 2) })
         if (c.why.isNotEmpty()) t.addView(ctx.text("✨ " + c.why, 11.5f, C.accent, SEMI, 1).apply { margins(t = 3) })
-        v.addView(t, LinearLayout.LayoutParams(0, WRAP, 1f).apply { leftMargin = dp(12) })
+        v.addView(t, LinearLayout.LayoutParams(0, WRAP, 1f).apply { leftMargin = dp(11) })
         // 右边的动作
         if (n != null && n.key.isNotEmpty()) {
             v.addView(ctx.text("✓", 16f, C.accent, HEAVY).apply {

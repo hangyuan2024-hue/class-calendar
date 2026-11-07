@@ -57,6 +57,26 @@ class RemindPage(a: Main) : Page(a) {
         c1.addView(Toggle(ctx, "每天早上 7 点的今日概览", "今天几节课、几件事、哪些作业快截止", Prefs.briefOn(ctx)) { Prefs.set(ctx, "brief", it); Background.reschedule(ctx) })
         body.addView(c1)
 
+        // 7.x App 开着时（和小程序一样）：新事项提示音 + 横幅、快截止提醒、签到提示音
+        body.addView(ctx.section("App 开着时", "新事项专属提示音 · 快截止提醒 · 顶部横幅"))
+        val o = InAlert.opts()
+        val c0 = ctx.card(16, 18)
+        fun tg(k: String, t: String, d: String) = c0.addView(Toggle(ctx, t, d, o.optBoolean(k)) { InAlert.set(k, it) })
+        tg("sound", "提示音（总开关）", "老师、班委发了新事项时响一声「叮咚咚」")
+        tg("classMute", "上课时间不响", "按你的课程表，上课时只震动、弹横幅，不出声")
+        tg("ckSound", "签到提示音", "班委发起签到时响一声")
+        tg("vibrate", "震动", "")
+        tg("banner", "顶部横幅", "不管在哪一页都从顶上滑下来，点一下打开那一条")
+        tg("due", "作业快截止、事项快开始", "另一种提示音（双音），每件只响一次")
+        val leads0 = listOf(15, 30, 60, 120)
+        c0.addView(ctx.cell("", "作业截止前多久响", "会议、活动是开始前 15 分钟", "${o.optInt("lead", 30)} 分钟") {
+            Dialogs.sheet(ctx, "作业截止前多久响", leads0.map { "$it 分钟" }) { i -> InAlert.set("lead", leads0[i]); render() }
+        })
+        c0.addView(ctx.cell("", "试听一下", "新事项 · 快截止 · 签到三种声音依次响") {
+            InAlert.play("new", true); Bg.later(1300) { InAlert.play("due", true) }; Bg.later(2600) { InAlert.play("ck", true) }
+        })
+        body.addView(c0)
+
         body.addView(ctx.section("App 关着也能收到"))
         val c2 = ctx.card(4, 18)
         val pushOk = Push.ready(ctx)
