@@ -78,22 +78,16 @@ class EditPage(a: Main, private val key: String?, private val homework: Boolean 
                 b.addView(typeSeg)
                 if (key == null) { rcBox = ctx.col(); b.addView(rcBox); rcInit() }
             }
-            b.addView(label(if (classMode) "科目 / 标题" else "什么事"))
-            title = ctx.input(if (classMode) "比如：数学作业" else "比如：明天下午3点交数学作业", src?.title?.removePrefix("⚠ ") ?: "")
+            if (classMode) {
+            b.addView(label("科目 / 标题"))
+            title = ctx.input("比如：数学作业", src?.title?.removePrefix("⚠ ") ?: "")
             b.addView(title)
             guess = ctx.text("", 13f, C.accent, SEMI).apply { visibility = View.GONE; bg(C.selected, 10); pad(12, 8); margins(t = 8) }
             b.addView(guess)
-            if (!classMode) {
-                b.addView(label("类型"))
-                val names = Items.MINE_KINDS.map { if (it == "作业" && Store.work()) "任务" else it }
-                kindSeg = Seg(ctx, listOf("普通") + names, Items.MINE_KINDS.indexOf(fKind) + 1) { i -> fKind = if (i == 0) "" else Items.MINE_KINDS[i - 1]; fHw = fKind == "作业" }
-                b.addView(kindSeg)
-            }
-            if (classMode) { b.addView(label("说明")); summary = ctx.input("作业内容、要求…", src?.summary ?: "", multi = true); b.addView(summary) }
-            b.addView(label("日期和时间").also { if (classMode) dayLabel = (it as LinearLayout).getChildAt(0) as TextView })
+            b.addView(label("说明")); summary = ctx.input("作业内容、要求…", src?.summary ?: "", multi = true); b.addView(summary)
+            b.addView(label("日期和时间").also { dayLabel = (it as LinearLayout).getChildAt(0) as TextView })
             dayBox = ctx.col(); b.addView(dayBox); paintDay()
             b.addView(label("地点", true)); place = ctx.input("比如：图书馆三楼", src?.location ?: ""); b.addView(place)
-            if (classMode) {
                 b.addView(label("要准备", true)); prep = ctx.input("比如：带计算器", src?.prepare ?: ""); b.addView(prep)
                 // 5.9.2 重要的事：弹窗提醒全班
                 popup0 = Popup.has(src?.id); fPopup = popup0
@@ -113,28 +107,7 @@ class EditPage(a: Main, private val key: String?, private val homework: Boolean 
                 })
                 if (src != null) Bg.load({ Store.cls?.let { Popup.refresh(it.str("id")) }; Popup.has(src.id) }) { on, _ -> if (on != null && on != popup0) { popup0 = on; fPopup = on; tg.on = on; tg.refresh() } }
             }
-            else {
-                b.addView(label("备注", true))
-                // 7.2 换成全屏备忘录（格式、清单、图片、手写）；有格式的提醒一下在这里改文字会按新文字重排
-                val nr = editingId?.let { Items.mineRecord(it) }
-                if (nr != null && com.laolao.classcalendar.core.NoteStore.hasRich(nr)) b.addView(ctx.text("这条在全屏备忘录里有格式或图片：在这里改备注 / 清单的文字，格式会按新文字重排（图片不会丢）", 12.5f, C.sub).apply { pad(2, 0, 2, 6) })
-                if (copyOf == null) b.addView(ctx.text("📒 换成全屏备忘录：格式、图片、手写 ›", 13.5f, C.accent, SEMI).apply { pad(2, 2, 2, 8); tap { toNote() } })
-                // 6.2 改成我自己的版本：带上完整内容，不再只抄被截断的摘要
-                note = ctx.input("想写多少写多少（最多 5000 字）", key?.let { Items.mineRecord(src?.id ?: "")?.str("note") } ?: (if (copyOf != null) src?.full ?: "" else ""), multi = true).apply {
-                    filters = arrayOf<android.text.InputFilter>(android.text.InputFilter.LengthFilter(5000)) }
-                b.addView(note)
-                b.addView(label("清单", true))
-                listIn = ctx.input("每行一项，可以一项项勾，比如：\n买牛奶\n打印签到表", if (editingId != null) com.laolao.classcalendar.core.MemoCore.listToText(src?.list ?: emptyList()) else "", multi = true)
-                b.addView(listIn)
-                b.addView(label("重复"))
-                val reps = com.laolao.classcalendar.core.MemoCore.REPS
-                b.addView(Seg(ctx, reps.map { it.second }, maxOf(0, reps.indexOfFirst { it.first == fRep })) { fRep = reps[it].first })
-                val opts = ctx.card(2, 16).apply { margins(t = 16); pad(14, 2) }
-                opts.addView(Toggle(ctx, "只存在这台手机", "不同步到网页和小程序", fLocal) { fLocal = it })
-                opts.addView(ctx.hline())
-                opts.addView(Toggle(ctx, "📌 置顶", "一直显示在首页最上面", fPin) { fPin = it })
-                b.addView(opts)
-            }
+            else personalForm(b, src)
             b.add(ctx.button(if (classMode && key == null) "发布给全班" else "保存") { save() }, 22)
             if (editingId != null) b.add(ctx.text("删除这条", 14f, C.red, SEMI).apply {
                 gravity = Gravity.CENTER; pad(12); tap { Dialogs.confirm(ctx, "删除「${title.text}」？", "", "删除", danger = true) { Items.deleteMine(editingId!!); a.toast("已删除"); close() } }
@@ -146,6 +119,72 @@ class EditPage(a: Main, private val key: String?, private val homework: Boolean 
             })
             if (key == null && copyOf == null) { title.requestFocus(); Dialogs.showKeyboard(title) }
         }
+    }
+    /** 7.x「记一件事」：分成几张卡（写什么 · 什么时候 · 在哪、清单 · 选项），输入框不要边框，像手机自带的提醒事项 */
+    private fun borderless(e: EditText, size: Float = 15f): EditText = e.apply {
+        background = null; setPadding(0, dp(8), 0, dp(8)); textSize = size; onFocusChangeListener = null
+    }
+    private fun cap(t: String): View = ctx.text(t, 12.5f, C.sub, BOLD).apply { pad(6, 18, 2, 8) }
+    private fun iconRow(icon: String, v: View): LinearLayout = ctx.row().apply {
+        gravity = Gravity.TOP
+        addView(Ic.plain(ctx, icon, 18, C.sub), LinearLayout.LayoutParams(dp(18), dp(18)).apply { topMargin = dp(11); rightMargin = dp(12) })
+        addView(v, LinearLayout.LayoutParams(0, WRAP, 1f))
+    }
+    private fun personalForm(b: LinearLayout, src: com.laolao.classcalendar.core.Item?) {
+        // ① 写什么：标题（大一点）+ 认出的时间 + 备注，一张卡
+        val main = ctx.card(14, 18).apply { margins(t = 4) }
+        title = borderless(ctx.input("要做什么？比如：明天下午3点交数学作业", src?.title?.removePrefix("⚠ ") ?: ""), 18f).apply { typeface = BOLD }
+        main.addView(title)
+        guess = ctx.text("", 13f, C.accent, SEMI).apply { visibility = View.GONE; bg(C.selected, 10); pad(12, 8); margins(b = 6) }
+        main.addView(guess)
+        main.addView(ctx.hline())
+        val nr = editingId?.let { Items.mineRecord(it) }
+        note = borderless(ctx.input("备注（选填）", key?.let { Items.mineRecord(src?.id ?: "")?.str("note") } ?: (if (copyOf != null) src?.full ?: "" else ""), multi = true)).apply {
+            minLines = 2; filters = arrayOf<android.text.InputFilter>(android.text.InputFilter.LengthFilter(5000)) }
+        main.addView(note)
+        if (nr != null && com.laolao.classcalendar.core.NoteStore.hasRich(nr)) main.addView(ctx.text("这条在全屏备忘录里有格式或图片：在这里改文字，格式会按新文字重排（图片不会丢）", 12f, C.sub).apply { pad(0, 0, 0, 6) })
+        if (copyOf == null) main.addView(ctx.row().apply {
+            gravity = Gravity.CENTER_VERTICAL; pad(0, 4, 0, 4); tap { toNote() }
+            addView(Ic.plain(ctx, "📒", 14, C.accent), LinearLayout.LayoutParams(dp(14), dp(14)))
+            addView(ctx.text("换成全屏备忘录（格式、图片、手写）›", 12.5f, C.accent, SEMI).apply { pad(6, 0, 0, 0) })
+        })
+        b.addView(main)
+        // 类型
+        b.addView(cap("类型"))
+        val names = Items.MINE_KINDS.map { if (it == "作业" && Store.work()) "任务" else it }
+        kindSeg = Seg(ctx, listOf("普通") + names, Items.MINE_KINDS.indexOf(fKind) + 1) { i -> fKind = if (i == 0) "" else Items.MINE_KINDS[i - 1]; fHw = fKind == "作业" }
+        b.addView(kindSeg)
+        // ② 什么时候
+        b.addView(cap("什么时候"))
+        val when0 = ctx.card(12, 18)
+        dayBox = ctx.col(); when0.addView(dayBox); paintDay()
+        when0.add(ctx.hline(), 12)
+        val reps = com.laolao.classcalendar.core.MemoCore.REPS
+        when0.add(ctx.row().apply {
+            gravity = Gravity.CENTER_VERTICAL
+            addView(Ic.plain(ctx, "🔁", 17, C.sub), LinearLayout.LayoutParams(dp(17), dp(17)).apply { rightMargin = dp(10) })
+            addView(ctx.text("重复", 14.5f, C.text, SEMI), LinearLayout.LayoutParams(0, WRAP, 1f))
+            val rv = ctx.text(reps.firstOrNull { it.first == fRep }?.second ?: reps[0].second, 14f, C.accent, SEMI).apply { pad(10, 6) }
+            addView(rv)
+            addView(Ic.plain(ctx, "ed.next", 14, C.mutedText), LinearLayout.LayoutParams(dp(14), dp(14)))
+            tap { Dialogs.sheet(ctx, "重复", reps.map { it.second }) { k -> fRep = reps[k].first; rv.text = reps[k].second } }
+        }, 10)
+        b.addView(when0)
+        // ③ 在哪、清单
+        b.addView(cap("更多（选填）"))
+        val more = ctx.card(12, 18)
+        place = borderless(ctx.input("地点，比如：图书馆三楼", src?.location ?: ""))
+        more.addView(iconRow("📍", place))
+        more.addView(ctx.hline().apply { (layoutParams as LinearLayout.LayoutParams).leftMargin = dp(30) })
+        listIn = borderless(ctx.input("清单：每行一项，比如\n买牛奶\n打印签到表", if (editingId != null) com.laolao.classcalendar.core.MemoCore.listToText(src?.list ?: emptyList()) else "", multi = true)).apply { minLines = 2 }
+        more.addView(iconRow("✅", listIn))
+        b.addView(more)
+        // ④ 选项
+        val opts = ctx.card(2, 18).apply { margins(t = 12); pad(14, 2) }
+        opts.addView(Toggle(ctx, "📌 置顶", "一直显示在首页最上面", fPin) { fPin = it })
+        opts.addView(ctx.hline())
+        opts.addView(Toggle(ctx, "只存在这台手机", "不同步到网页和小程序", fLocal) { fLocal = it })
+        b.addView(opts)
     }
     private fun label(t: String, opt: Boolean = false): View = ctx.row().apply {
         pad(2, 18, 2, 8)

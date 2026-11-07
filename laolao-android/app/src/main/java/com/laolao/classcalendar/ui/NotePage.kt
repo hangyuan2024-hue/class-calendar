@@ -117,6 +117,7 @@ class NotePage(a: Main, id0: String?, private val kind0: String = "") : Page(a) 
     private var dirty = false
     private lateinit var titleIn: EditText
     private lateinit var metaRow: LinearLayout
+    private lateinit var tplRow: LinearLayout
     private lateinit var savedTv: TextView
     private lateinit var box: LinearLayout
     private lateinit var scroll: ScrollView
@@ -136,6 +137,14 @@ class NotePage(a: Main, id0: String?, private val kind0: String = "") : Page(a) 
         val COLORS = listOf("" to "默认", "#e5484d" to "红", "#f76b15" to "橙", "#2f9e44" to "绿", "#3e63dd" to "蓝", "#8e4ec6" to "紫")
         val HL = listOf("" to "无", "#fff3a3" to "黄", "#d3f9d8" to "绿", "#d0ebff" to "蓝", "#ffdeeb" to "粉")
         val KINDS = listOf("", "作业", "会议", "活动", "通知"); val KIND_N = listOf("普通", "作业", "会议", "活动", "通知")
+        /** 模板：每行「格式|文字」，格式 h1 / h2 / c（清单）/ b（圆点）/ o（编号）/ 空（正文） */
+        val TPLS = listOf(
+            "课堂笔记" to listOf("h2|今天讲了什么", "b|", "h2|重点 / 难点", "b|", "h2|没听懂的", "c|", "h2|课后要做", "c|"),
+            "会议纪要" to listOf("h2|时间 · 地点 · 参加的人", "|", "h2|讨论了什么", "o|", "h2|定下来的事", "b|", "h2|谁做什么、什么时候做完", "c|"),
+            "读书笔记" to listOf("h2|书名 · 作者", "|", "h2|讲了什么", "|", "h2|印象最深的一句话", "|", "h2|我的想法", "|"),
+            "待办清单" to listOf("h2|今天要做", "c|", "c|", "c|", "h2|有空再做", "c|"),
+            "今日复盘" to listOf("h2|今天做成了什么", "b|", "h2|哪里可以更好", "b|", "h2|明天最重要的三件事", "o|", "o|", "o|"),
+        )
     }
 
     // ---------- 一块 ----------
@@ -188,13 +197,26 @@ class NotePage(a: Main, id0: String?, private val kind0: String = "") : Page(a) 
         kind = rec?.str("kind") ?: kind0.takeIf { it in KINDS } ?: ""
         fmap.putAll(NoteStore.fmap(rec))
         val root = ctx.col().apply { setBackgroundColor(C.card) }
-        val head = ctx.row().apply { pad(6, 6, 8, 6); minimumHeight = dp(52) }
-        head.addView(ctx.text("‹", 30f, C.text).apply { gravity = Gravity.CENTER; press(0, 20); tap { a.onBackPressed() } }, LinearLayout.LayoutParams(dp(44), dp(44)))
-        head.addView(ctx.text("备忘录", 18f, C.text, BOLD, 1).apply { pad(4, 0) })
-        savedTv = ctx.text("", 12f, C.sub).apply { pad(8, 0) }
-        head.addView(savedTv, LinearLayout.LayoutParams(0, WRAP, 1f))
-        head.addView(ctx.text("⚡ 快速记", 14f, C.accent, SEMI).apply { pad(10, 8); press(0, 10); tap { toQuick() } })
-        head.addView(ctx.text("⋯", 22f, C.text, BOLD).apply { gravity = Gravity.CENTER; pad(10, 2); press(0, 10); tap { more() } })
+        // 7.x 顶栏：返回 · 备忘录（下面一行小字：保存状态、字数）· 快速记 · 分享 · 更多
+        val head = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; pad(4, 6, 6, 6); minimumHeight = dp(54) }
+        fun iconBtn(k: String, desc: String, fn: () -> Unit) = FrameLayout(ctx).apply {
+            contentDescription = desc; press(0, 20); tap { fn() }
+            addView(Ic.plain(ctx, k, 21, C.text), FrameLayout.LayoutParams(dp(21), dp(21), Gravity.CENTER))
+        }
+        head.addView(iconBtn("ed.back", "返回") { a.onBackPressed() }, LinearLayout.LayoutParams(dp(42), dp(42)))
+        head.addView(ctx.col().apply {
+            pad(4, 0)
+            addView(ctx.text("备忘录", 17f, C.text, BOLD, 1))
+            savedTv = ctx.text("", 11.5f, C.sub, lines = 1)
+            addView(savedTv)
+        }, LinearLayout.LayoutParams(0, WRAP, 1f))
+        head.addView(ctx.row().apply {
+            gravity = Gravity.CENTER_VERTICAL; pad(10, 6); press(C.selected, 16); contentDescription = "快速记"; tap { toQuick() }
+            addView(Ic.plain(ctx, "ed.quick", 15, C.accent), LinearLayout.LayoutParams(dp(15), dp(15)))
+            addView(ctx.text("快速记", 13f, C.accent, SEMI).apply { pad(4, 0, 0, 0) })
+        }, LinearLayout.LayoutParams(WRAP, WRAP).apply { rightMargin = dp(4) })
+        head.addView(iconBtn("ed.share", "分享") { share() }, LinearLayout.LayoutParams(dp(40), dp(40)))
+        head.addView(iconBtn("ed.more", "更多") { more() }, LinearLayout.LayoutParams(dp(40), dp(40)))
         root.addView(head)
         root.addView(ctx.hline())
         scroll = ScrollView(ctx).apply { isFillViewport = true; isVerticalScrollBarEnabled = false }
@@ -214,6 +236,12 @@ class NotePage(a: Main, id0: String?, private val kind0: String = "") : Page(a) 
         body.addView(titleIn)
         metaRow = ctx.row().apply { pad(0, 2, 0, 8) }
         body.addView(HorizontalScrollView(ctx).apply { isHorizontalScrollBarEnabled = false; addView(metaRow) })
+        // 新的空备忘：给几个模板，一点就排好格式
+        tplRow = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; pad(0, 2, 0, 10) }
+        tplRow.addView(Ic.plain(ctx, "ed.tpl", 14, C.sub), LinearLayout.LayoutParams(dp(14), dp(14)).apply { rightMargin = dp(6) })
+        tplRow.addView(ctx.text("从模板开始", 12.5f, C.sub).apply { pad(0, 0, 8, 0) })
+        for ((n, _) in TPLS) tplRow.addView(ctx.text(n, 12.5f, C.text, SEMI).apply { pad(10, 5); press(C.mutedBg, 12); tap { useTpl(n) } }, LinearLayout.LayoutParams(WRAP, WRAP).apply { rightMargin = dp(6) })
+        body.addView(HorizontalScrollView(ctx).apply { isHorizontalScrollBarEnabled = false; addView(tplRow) })
         box = ctx.col()
         body.addView(box)
         // 点下面空白的地方：接着最后一行写
@@ -224,13 +252,25 @@ class NotePage(a: Main, id0: String?, private val kind0: String = "") : Page(a) 
         panel = ctx.row().apply { pad(12, 8); visibility = View.GONE; setBackgroundColor(C.mutedBg) }
         root.addView(HorizontalScrollView(ctx).apply { isHorizontalScrollBarEnabled = false; addView(panel) })
         root.addView(ctx.hline())
-        bar = ctx.row().apply { pad(6, 4) }
-        root.addView(HorizontalScrollView(ctx).apply { isHorizontalScrollBarEnabled = false; setBackgroundColor(C.card); addView(bar) }, LinearLayout.LayoutParams(MATCH, WRAP))
+        bar = ctx.row().apply { pad(6, 3) }
+        root.addView(ctx.row().apply {
+            gravity = Gravity.CENTER_VERTICAL; setBackgroundColor(C.card)
+            addView(HorizontalScrollView(ctx).apply { isHorizontalScrollBarEnabled = false; addView(bar) }, LinearLayout.LayoutParams(0, WRAP, 1f))
+            addView(View(ctx).apply { setBackgroundColor(C.line) }, LinearLayout.LayoutParams(dp(1), dp(24)))
+            // 收起键盘：固定在最右边，不跟着滑
+            addView(FrameLayout(ctx).apply {
+                contentDescription = "收起键盘"; press(0, 10)
+                addView(Ic.plain(ctx, "ed.kb", 20, C.sub), FrameLayout.LayoutParams(dp(20), dp(20), Gravity.CENTER))
+                tap { focused?.et?.let { Dialogs.hideKeyboard(it) }; Dialogs.hideKeyboard(titleIn); panel.visibility = View.GONE }
+            }, LinearLayout.LayoutParams(dp(48), dp(42)))
+        }, LinearLayout.LayoutParams(MATCH, WRAP))
         buildBar()
         val L = NoteStore.load(rec)
         setOps(L.ops)
         if (L.fresh) a.toast("这条在别的地方改过文字，已按新内容显示（图片还在）")
         snap(true); paintMeta()
+        savedTv.text = if (isNew) "新备忘" else "${words()} 字"
+        tplRow.visibility = if (isNew && blocks.all { it.type == "t" && it.et!!.text.isEmpty() }) View.VISIBLE else View.GONE
         if (isNew) { titleIn.requestFocus(); Dialogs.showKeyboard(titleIn) }
         return root
     }
@@ -249,8 +289,8 @@ class NotePage(a: Main, id0: String?, private val kind0: String = "") : Page(a) 
     private fun paintMeta() {
         metaRow.removeAllViews()
         val rec = Items.mineRecord(id)
-        fun chip(t: String, on: Boolean, fn: () -> Unit) = metaRow.addView(ctx.text(t, 12.5f, if (on) C.accent else C.sub, SEMI).apply {
-            bg(if (on) C.selected else C.mutedBg, 12); pad(10, 4); tap { fn() }
+        fun chip(t: String, on: Boolean, fn: () -> Unit) = metaRow.addView(Ic.lead(ctx.text(t, 12.5f, if (on) C.accent else C.sub, SEMI), 13, if (on) C.accent else C.sub).apply {
+            bg(if (on) C.selected else C.mutedBg, 12); pad(10, 5); tap { fn() }
         }, LinearLayout.LayoutParams(WRAP, WRAP).apply { rightMargin = dp(6) })
         chip((if (kind.isEmpty()) "类型：普通" else KIND_N[maxOf(0, KINDS.indexOf(kind))]) + " ▾", kind.isNotEmpty()) {
             Dialogs.sheet(ctx, "类型", KIND_N) { i ->
@@ -269,13 +309,46 @@ class NotePage(a: Main, id0: String?, private val kind0: String = "") : Page(a) 
         if (ls.isNotEmpty()) p += "清单 " + com.laolao.classcalendar.core.MemoCore.statText(ls)
         metaRow.addView(ctx.text(p.filter { it.isNotEmpty() }.joinToString(" · "), 12f, C.mutedText).apply { pad(4, 0) })
     }
+    private fun plainText(): String {
+        val p = NoteCore.toPlain(opsNow())
+        val t = titleIn.text.toString().trim()
+        val body = (listOf(p.note.trim()) + p.list.map { (if (it.d) "☑ " else "☐ ") + it.t }).filter { it.isNotBlank() }.joinToString("\n")
+        return listOf(t, body).filter { it.isNotBlank() }.joinToString("\n\n")
+    }
+    private fun words(): Int = NoteCore.toPlain(opsNow()).let { p -> (p.note + p.list.joinToString("") { it.t }).count { !it.isWhitespace() } }
+    private fun share() {
+        val s = plainText(); if (s.isBlank()) { a.toast("还没写内容"); return }
+        a.startActivity(android.content.Intent.createChooser(android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, s), "分享到"))
+    }
+    private fun useTpl(name: String) {
+        val lines = TPLS.firstOrNull { it.first == name }?.second ?: return
+        if (titleIn.text.isBlank()) { muting = true; titleIn.setText(name + " · " + java.time.LocalDate.now(java.time.ZoneId.of("Asia/Shanghai")).let { "${it.monthValue}月${it.dayOfMonth}日" }); muting = false }
+        val nb = lines.map { ln ->
+            val f = ln.substringBefore("|"); val t = ln.substringAfter("|")
+            textBlock(SpannableStringBuilder(t)).apply { when (f) { "h1" -> h = 1; "h2" -> h = 2; "c" -> list = "unchecked"; "b" -> list = "bullet"; "o" -> list = "ordered" } }
+        }
+        // 还是空的：直接用模板替换掉那一行空白
+        if (blocks.all { it.type == "t" && it.et!!.text.isEmpty() }) { blocks.toList().forEach { removeBlock(it) }; focused = null }
+        insertBlocks(nb)
+        tplRow.visibility = View.GONE
+        // 光标放到第一个空行（标题下面那行）
+        blocks.firstOrNull { it.type == "t" && it.h == 0 && it.et!!.text.isEmpty() }?.let { focusAt(it, 0) }
+    }
     private fun more() {
         val rec = Items.mineRecord(id)
-        val opts = mutableListOf("⚡ 换成「记一件事」（改日期、提醒、重复、地点）")
+        val opts = mutableListOf("分享", "复制全文", "插入模板…", "字数：${words()} 字")
+        if (rec != null) opts += if (rec.optBoolean("pin")) "取消置顶" else "置顶"
+        opts += "换成「记一件事」（改日期、提醒、重复、地点）"
         if (rec != null) opts += "删除这条备忘"
-        Dialogs.sheet(ctx, "", opts, if (rec != null) setOf(1) else emptySet()) { i ->
-            if (i == 0) toQuick()
-            if (i == 1) Dialogs.confirm(ctx, "删除「${rec?.str("subject") ?: "这条备忘"}」？", "", "删除", danger = true) { dirty = false; Items.deleteMine(id); a.toast("已删除"); a.pop(this) }
+        Dialogs.sheet(ctx, "", opts, if (rec != null) setOf(opts.size - 1) else emptySet()) { i ->
+            when (opts[i]) {
+                "分享" -> share()
+                "复制全文" -> plainText().let { if (it.isBlank()) a.toast("还没写内容") else CK.copy(ctx, it, "已复制") }
+                "插入模板…" -> Dialogs.sheet(ctx, "插入模板", TPLS.map { it.first }) { k -> useTpl(TPLS[k].first) }
+                "置顶", "取消置顶" -> { NoteStore.patch(id) { if (it.optBoolean("pin")) it.remove("pin") else it.put("pin", true) }; paintMeta() }
+                "删除这条备忘" -> Dialogs.confirm(ctx, "删除「${rec?.str("subject") ?: "这条备忘"}」？", "", "删除", danger = true) { dirty = false; Items.deleteMine(id); a.toast("已删除"); a.pop(this) }
+                else -> if (opts[i].startsWith("换成")) toQuick()
+            }
         }
     }
     private fun toQuick() {
@@ -288,7 +361,8 @@ class NotePage(a: Main, id0: String?, private val kind0: String = "") : Page(a) 
 
     // ================= 保存 =================
     private fun changed(struct: Boolean) {
-        dirty = true; savedTv.text = ""
+        dirty = true; savedTv.text = "编辑中…"
+        if (::tplRow.isInitialized && tplRow.visibility == View.VISIBLE && blocks.any { it.type != "t" || it.et!!.text.isNotEmpty() }) tplRow.visibility = View.GONE
         Bg.main.removeCallbacks(saveRun); Bg.main.postDelayed(saveRun, 800)
         Bg.main.removeCallbacks(snapRun); Bg.main.postDelayed(snapRun, if (struct) 0 else 500)
     }
@@ -310,7 +384,7 @@ class NotePage(a: Main, id0: String?, private val kind0: String = "") : Page(a) 
         f.put("rich", rich)
         NoteStore.save(id, f, if (isNew) kind else null)
         isNew = false; dirty = false; lastSig = sig
-        savedTv.text = "已保存"; paintMeta()
+        savedTv.text = "已保存 · ${words()} 字"; paintMeta()
     }
 
     // ================= 内容 ↔ delta =================
@@ -556,45 +630,47 @@ class NotePage(a: Main, id0: String?, private val kind0: String = "") : Page(a) 
     }
 
     // ================= 工具栏 =================
-    private val barBtns = HashMap<String, TextView>()
+    private val barBtns = HashMap<String, View>()
     private fun buildBar() {
-        fun btn(k: String, label: CharSequence, fn: () -> Unit) {
-            val v = ctx.text(label, 16f, C.text, SEMI).apply {
-                gravity = Gravity.CENTER; minWidth = dp(40); pad(8, 8); press(0, 10)
-                tap { fn() }
+        fun btn(k: String, icon: String, desc: String, fn: () -> Unit) {
+            val v = FrameLayout(ctx).apply {
+                contentDescription = desc; press(0, 10); tap { fn() }
+                addView(Ic.plain(ctx, icon, 20, C.text), FrameLayout.LayoutParams(dp(20), dp(20), Gravity.CENTER))
+                setOnLongClickListener { a.toast(desc); true }
             }
-            barBtns[k] = v; bar.addView(v, LinearLayout.LayoutParams(WRAP, dp(42)))
+            barBtns[k] = v; bar.addView(v, LinearLayout.LayoutParams(dp(42), dp(42)))
         }
-        fun sep() = bar.addView(View(ctx).apply { setBackgroundColor(C.line) }, LinearLayout.LayoutParams(dp(1), dp(20)).apply { leftMargin = dp(4); rightMargin = dp(4) })
-        fun styled(t: String, sp: Any) = SpannableStringBuilder(t).apply { setSpan(sp, 0, t.length, 0) }
-        btn("undo", "↶") { undo() }; btn("redo", "↷") { redo() }; sep()
-        btn("check", "☑") { lineFmt { b -> b.list = if (b.list == "checked" || b.list == "unchecked") "" else "unchecked"; if (b.list.isNotEmpty()) b.h = 0 } }
-        btn("img", "🖼") { pickImg() }; btn("draw", "✍️") { DrawPad(a) { png -> addImage(png, "png") }.show() }; sep()
-        btn("h1", styled("H1", StyleSpan(Typeface.BOLD))) { lineFmt { b -> b.h = if (b.h == 1) 0 else 1; if (b.h > 0) b.list = "" } }
-        btn("h2", styled("H2", StyleSpan(Typeface.BOLD))) { lineFmt { b -> b.h = if (b.h == 2) 0 else 2; if (b.h > 0) b.list = "" } }
-        btn("bold", styled("B", StyleSpan(Typeface.BOLD))) { inline("bold", null) }
-        btn("italic", styled("I", StyleSpan(Typeface.ITALIC))) { inline("italic", null) }
-        btn("underline", styled("U", UnderlineSpan())) { inline("underline", null) }
-        btn("strike", styled("S", StrikethroughSpan())) { inline("strike", null) }
-        btn("color", styled("A", ForegroundColorSpan(Color.parseColor("#e5484d")))) { togglePanel("color") }
-        btn("hl", styled(" A ", BackgroundColorSpan(Color.parseColor("#fff3a3")))) { togglePanel("hl") }; sep()
-        btn("bullet", "•≡") { lineFmt { b -> b.list = if (b.list == "bullet") "" else "bullet"; if (b.list.isNotEmpty()) b.h = 0 } }
-        btn("ordered", "1.") { lineFmt { b -> b.list = if (b.list == "ordered") "" else "ordered"; if (b.list.isNotEmpty()) b.h = 0 } }
-        btn("outdent", "⇤") { lineFmt { b -> b.ind = maxOf(0, b.ind - 1) } }
-        btn("indent", "⇥") { lineFmt { b -> b.ind = minOf(6, b.ind + 1) } }; sep()
-        btn("hr", "―") { insertBlocks(listOf(hrBlock())) }
-        btn("stamp", "🕒") {
+        fun sep() = bar.addView(View(ctx).apply { setBackgroundColor(C.line) }, LinearLayout.LayoutParams(dp(1), dp(18)).apply { leftMargin = dp(4); rightMargin = dp(4); gravity = Gravity.CENTER_VERTICAL })
+        // 常用的放前面：撤销重做 · 清单列表 · 图片拍照手写 · 文字格式 · 缩进 · 分割线时间清除
+        btn("undo", "ed.undo", "撤销") { undo() }; btn("redo", "ed.redo", "重做") { redo() }; sep()
+        btn("check", "ed.check", "清单") { lineFmt { b -> b.list = if (b.list == "checked" || b.list == "unchecked") "" else "unchecked"; if (b.list.isNotEmpty()) b.h = 0 } }
+        btn("bullet", "ed.bullet", "圆点列表") { lineFmt { b -> b.list = if (b.list == "bullet") "" else "bullet"; if (b.list.isNotEmpty()) b.h = 0 } }
+        btn("ordered", "ed.ordered", "编号列表") { lineFmt { b -> b.list = if (b.list == "ordered") "" else "ordered"; if (b.list.isNotEmpty()) b.h = 0 } }; sep()
+        btn("img", "ed.img", "插入图片") { pickImg() }
+        btn("cam", "ed.cam", "拍照") { Media.camera(a) { u -> Bg.load({ Media.jpeg(ctx, u, 1800, 85) }) { bytes, e -> if (bytes == null) a.toast("拍照没成功" + (e?.message?.let { "：$it" } ?: "")) else addImage(bytes, "jpg") } } }
+        btn("draw", "ed.draw", "手写 / 画图") { DrawPad(a) { png -> addImage(png, "png") }.show() }; sep()
+        btn("h1", "ed.h1", "大标题") { lineFmt { b -> b.h = if (b.h == 1) 0 else 1; if (b.h > 0) b.list = "" } }
+        btn("h2", "ed.h2", "小标题") { lineFmt { b -> b.h = if (b.h == 2) 0 else 2; if (b.h > 0) b.list = "" } }
+        btn("bold", "ed.bold", "加粗") { inline("bold", null) }
+        btn("italic", "ed.italic", "斜体") { inline("italic", null) }
+        btn("underline", "ed.underline", "下划线") { inline("underline", null) }
+        btn("strike", "ed.strike", "删除线") { inline("strike", null) }
+        btn("color", "ed.color", "文字颜色") { togglePanel("color") }
+        btn("hl", "ed.hl", "高亮") { togglePanel("hl") }; sep()
+        btn("outdent", "ed.outdent", "减少缩进") { lineFmt { b -> b.ind = maxOf(0, b.ind - 1) } }
+        btn("indent", "ed.indent", "增加缩进") { lineFmt { b -> b.ind = minOf(6, b.ind + 1) } }; sep()
+        btn("hr", "ed.hr", "分割线") { insertBlocks(listOf(hrBlock())) }
+        btn("stamp", "ed.stamp", "插入现在的时间") {
             val et = focused?.et ?: return@btn; val n = java.time.LocalDateTime.now(java.time.ZoneId.of("Asia/Shanghai"))
             val s = "${n.monthValue}月${n.dayOfMonth}日 " + String.format("%02d:%02d ", n.hour, n.minute)
             et.text.replace(minOf(et.selectionStart, et.selectionEnd).coerceAtLeast(0), maxOf(et.selectionStart, et.selectionEnd).coerceAtLeast(0), s)
         }
-        btn("clear", "⌫") {
+        btn("clear", "ed.clear", "清除格式") {
             val b = focused?.takeIf { it.type == "t" } ?: return@btn; val et = b.et!!
             snap(); val s = minOf(et.selectionStart, et.selectionEnd); val t = maxOf(et.selectionStart, et.selectionEnd)
             muting = true; if (s < t) for (k in KEYS) setAttr(et.text, s, t, k, null) else for (k in KEYS) pending[k] = null; muting = false
             b.h = 0; b.list = ""; b.ind = 0; paintLine(b); renumber(); changed(true); syncBar()
         }
-        btn("kb", "⌨") { focused?.et?.let { Dialogs.hideKeyboard(it) }; panel.visibility = View.GONE }
         syncBar()
     }
     private var panelKey = ""
@@ -614,7 +690,7 @@ class NotePage(a: Main, id0: String?, private val kind0: String = "") : Page(a) 
     private fun syncBar() {
         if (barBtns.isEmpty()) return
         val b = focused
-        fun on(k: String, v: Boolean) { barBtns[k]?.let { it.background = if (v) round(C.selected, dp(10).toFloat()) else null; it.setTextColor(if (v) C.accent else C.text) } }
+        fun on(k: String, v: Boolean) { barBtns[k]?.let { fl -> fl.background = if (v) round(C.selected, dp(10).toFloat()) else null; ((fl as? FrameLayout)?.getChildAt(0) as? ImageView)?.setColorFilter(if (v) C.accent else C.text) } }
         for (k in listOf("bold", "italic", "underline", "strike")) on(k, b?.type == "t" && curAttr(k) != null)
         on("h1", b?.h == 1); on("h2", b?.h == 2); on("bullet", b?.list == "bullet"); on("ordered", b?.list == "ordered")
         on("check", b?.list == "checked" || b?.list == "unchecked")

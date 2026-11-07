@@ -49,7 +49,13 @@ class CoursePage(a: Main) : Page(a) {
     private var slide = 0                    // 换周时的滑动方向（动画）
     override val autoRender = false
 
-    override fun build(): View = scaffold("课程表", ctx.text("⋯", 22f, C.text, BOLD).apply { gravity = Gravity.CENTER; press(0, 12); tap { more() } }.also { it.layoutParams = LinearLayout.LayoutParams(dp(44), dp(40)) },
+    override fun build(): View = scaffold("课程表", ctx.row().apply {
+            gravity = Gravity.CENTER_VERTICAL
+            fun ib(k: String, desc: String, fn: () -> Unit) = addView(FrameLayout(ctx).apply { contentDescription = desc; press(0, 18); tap { fn() }
+                addView(Ic.plain(ctx, k, 21, C.text), FrameLayout.LayoutParams(dp(21), dp(21), Gravity.CENTER)) }, LinearLayout.LayoutParams(dp(40), dp(40)))
+            ib("ed.plus", "加课") { if (src == "mine") form(null, 0, 1) else a.toast("班级课表只能看；点右上角「⋯」里的「用到我的课表」后可以改") }
+            ib("ed.more", "更多") { more() }
+        },
         pull = { done -> Bg.load({ Courses.pull(force = true) }) { _, e -> done(); if (e != null) a.toast(e.message ?: "") else render() } }) { body = it }
     override fun onShow() { if (System.currentTimeMillis() - Courses.syncedAt() > 60_000) Bg.load({ Courses.pull(force = true) }) { ch, _ -> if (ch == true) render() }; Guide.once(a, "course") }
 
@@ -71,21 +77,18 @@ class CoursePage(a: Main) : Page(a) {
         if (src == "class") { classBar(); if (cls == null) return }
         else if (!Courses.has()) { start(); return }
         if (week == 0) week = curWeek().takeIf { it > 0 } ?: 1
-        hero()
-        if (src == "mine") actions()
-        body.add(Seg(ctx, listOf("整周", "按天看"), if (dayView) 1 else 0) { i -> dayView = i == 1; render() }, 12)
+        weekBar()
         val monday = w1().plusWeeks((week - 1).toLong())
         val days = (0 until 7).map { monday.plusDays(it.toLong()) }
         if (dayView) dayList(days) else grid(days)
         // 这周的调课
         val notes = if (src == "mine") days.mapNotNull { d -> Courses.dayNote(T.key(d)).takeIf { it.isNotEmpty() }?.let { T.wk(d) + "：" + it } } else emptyList()
-        if (notes.isNotEmpty()) body.add(ctx.row().apply { pad(14, 11); bg(C.selected, 14); tap { adjust() }
-            addView(ctx.text("🔁", 15f)); addView(ctx.text(notes.joinToString("；"), 13f, C.accent, SEMI).apply { pad(8, 0, 0, 0) }, LinearLayout.LayoutParams(0, WRAP, 1f)); addView(ctx.text("›", 16f, C.accent)) }, 12)
-        // 底部
+        if (notes.isNotEmpty()) body.add(ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; pad(12, 9); bg(C.selected, 14); tap { adjust() }
+            addView(Ic.plain(ctx, "🔁", 15, C.accent), LinearLayout.LayoutParams(dp(15), dp(15))); addView(ctx.text(notes.joinToString("；"), 12.5f, C.accent, SEMI, 2).apply { pad(8, 0, 0, 0) }, LinearLayout.LayoutParams(0, WRAP, 1f)); addView(ctx.text("›", 16f, C.accent)) }, 10)
+        // 底部：一行小字
         val n = courses().size
         val shown = days.sumOf { lessonsOn(T.key(it)).size }
-        body.add(ctx.text("共 $n 门课 · 这周 $shown 节" + if (src == "mine") "\n☁ 课表存在云端，网页、小程序、这里是同一份" + (if (Courses.syncedAt() > 0) " · " + T.ago(Courses.syncedAt()) + "同步" else "") else "", 12f, C.sub).apply { gravity = Gravity.CENTER; setLineSpacing(0f, 1.4f) }, 14)
-        if (src == "mine") body.add(ctx.text("⚙ 作息时间、第 1 周、学期 ›", 13f, C.accent, SEMI).apply { gravity = Gravity.CENTER; pad(0, 10); tap { settings() } }, 4)
+        body.add(ctx.text("共 $n 门课 · 这周 $shown 节" + if (src == "mine" && Courses.syncedAt() > 0) " · " + T.ago(Courses.syncedAt()) + "同步" else "", 11.5f, C.mutedText).apply { gravity = Gravity.CENTER }, 12)
     }
 
     // ---------- 还没有课：三个清楚的入口 ----------
@@ -101,6 +104,53 @@ class CoursePage(a: Main) : Page(a) {
         if (clsId != null) opt("🏫", "用班级课表", "老师或班委发布过的话，一键套用", false) { src = "class"; if (!clsLoaded) loadClass(); render() }
         opt("✍️", "手动添加", "一门一门填，也可以长按表格空白处", false) { form(null, 0, 1) }
         body.addView(c)
+    }
+
+    // ---------- 7.x 顶部一行：‹ 第 10 周 › · 周 / 日（课表一进来就能看全，不再放一大块展示板） ----------
+    private fun weekBar() {
+        val monday = w1().plusWeeks((week - 1).toLong())
+        val cur = curWeek(); val isCur = week == cur
+        val r = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL }
+        fun nav(k: String, desc: String, fn: () -> Unit) = r.addView(FrameLayout(ctx).apply { contentDescription = desc; background = round(C.card, dp(17).toFloat(), C.line, dp(1)); tap { it.buzz(); fn() }
+            addView(Ic.plain(ctx, k, 17, C.text), FrameLayout.LayoutParams(dp(17), dp(17), Gravity.CENTER)) }, LinearLayout.LayoutParams(dp(34), dp(34)))
+        nav("ed.back", "上一周") { go(week - 1) }
+        r.addView(ctx.col().apply {
+            gravity = Gravity.CENTER_HORIZONTAL; pad(6, 0); tap { pickWeek() }
+            addView(ctx.row().apply {
+                gravity = Gravity.CENTER_VERTICAL
+                addView(ctx.text("第 $week 周", 18f, C.text, HEAVY))
+                addView(ctx.text(if (isCur) "  本周" else " ▾", 12f, if (isCur) C.accent else C.sub, BOLD))
+            })
+            addView(ctx.text(T.md(monday) + " – " + T.md(monday.plusDays(6)), 11.5f, C.sub))
+        }, LinearLayout.LayoutParams(WRAP, WRAP).apply { leftMargin = dp(6); rightMargin = dp(6) })
+        nav("ed.next", "下一周") { go(week + 1) }
+        if (!isCur && cur > 0) r.addView(ctx.text("回本周", 12f, C.accent, BOLD).apply { pad(10, 5); bg(C.selected, 12); tap { go(cur) } }, LinearLayout.LayoutParams(WRAP, WRAP).apply { leftMargin = dp(8) })
+        r.addView(View(ctx), LinearLayout.LayoutParams(0, 1, 1f))
+        r.addView(Seg(ctx, listOf("周", "日"), if (dayView) 1 else 0) { i -> dayView = i == 1; render() }.apply {
+            for (i in 0 until childCount) (getChildAt(i) as? TextView)?.apply { textSize = 13f; pad(14, 5) }
+        })
+        body.addView(r)
+        // 下节课：一行
+        if (isCur) {
+            val tl = lessonsOn(T.todayKey()); val nowM = T.now().hour * 60 + T.now().minute
+            val next = tl.firstOrNull { (it.m1 ?: 0) > nowM }
+            val say = when {
+                tl.isEmpty() -> null
+                next == null -> "今天的 ${tl.size} 节课都上完了"
+                (next.m0 ?: 0) <= nowM -> "正在上「${next.name}」" + (if (next.location.isNotEmpty()) " · " + next.location else "")
+                else -> "下节「${next.name}」" + ((next.m0 ?: 0) - nowM).let { m -> if (m < 60) " · $m 分钟后" else " · " + next.t0 } + if (next.location.isNotEmpty()) " · " + next.location else ""
+            }
+            if (say != null) body.add(ctx.row().apply {
+                gravity = Gravity.CENTER_VERTICAL; pad(12, 7); bg(C.alpha(C.accent, if (C.dark) 0.16f else 0.08f), 12)
+                addView(Ic.plain(ctx, "📚", 14, C.accent), LinearLayout.LayoutParams(dp(14), dp(14)))
+                addView(ctx.text(say, 12.5f, C.accent, SEMI, 1).apply { pad(7, 0, 0, 0) })
+            }, 10)
+        }
+    }
+    private fun pickWeek() {
+        val cur = curWeek()
+        val ws = (1..Courses.MAX_WEEK).toList()
+        Dialogs.sheet(ctx, "跳到第几周", ws.map { "第 $it 周" + (if (it == cur) "（本周）" else "") + if (it == week) "  ✓" else "" }) { i -> go(ws[i]) }
     }
 
     // ---------- 顶部：第几周 + 周次条 ----------
@@ -175,7 +225,7 @@ class CoursePage(a: Main) : Page(a) {
         // 周末没课就不占地方，五天的格子更宽、字更清楚
         val showWeekend = lessons[5].isNotEmpty() || lessons[6].isNotEmpty()
         val n = if (showWeekend) 7 else 5
-        val card = ctx.card(4, 20).apply { margins(t = 12, b = 4); lift(5, C.text) }
+        val card = ctx.card(2, 18).apply { margins(t = 10, b = 2) }
         val g = WeekGrid(ctx, days.take(n), lessons.take(n), tms(), week == curWeek(), { d, l -> detail(d, l) }, { d, p -> if (src == "mine") form(null, d.dayOfWeek.value - 1, p) })
         g.onSwipe = { dir -> go(week + dir) }
         // 7.x 早自习在第一节上面、晚自习在最后一节下面（和小程序、网站一样）
@@ -186,7 +236,7 @@ class CoursePage(a: Main) : Page(a) {
         card.addView(g)
         body.addView(card)
         if (slide != 0) { g.translationX = slide * dp(60).toFloat(); g.alpha = 0f; g.animate().translationX(0f).alpha(1f).setDuration(220).start(); slide = 0 }
-        body.add(ctx.text(if (src == "class") "班级课表只能查看；点「用到我的课表」后可以自己改" else "点课程看详情 · 长按空白格子加课 · 左右滑动换周" + if (!showWeekend) " · 这周周末没课" else "", 11.5f, C.mutedText).apply { gravity = Gravity.CENTER }, 8)
+        if (src == "class") body.add(ctx.text("班级课表只能查看；点右上角「⋯」→「用到我的课表」后可以自己改", 11.5f, C.mutedText).apply { gravity = Gravity.CENTER }, 8)
     }
 
     // ---------- 按天看：时间线 ----------
@@ -579,15 +629,16 @@ class WeekGrid(ctx: Context, private val days: List<LocalDate>, private val less
     private val tp = TextPaint(Paint.ANTI_ALIAS_FLAG)
     private val d = ctx.resources.displayMetrics.density
     private val n = maxOf(times.size, lessons.flatten().maxOfOrNull { it.end } ?: 0, 8)
-    private val headH get() = (if (forImage) 64f else 46 * d)
+    private val headH get() = (if (forImage) 64f else 40 * d)
     private val leftW get() = (if (forImage) 70f else 34 * d)
-    private val rowH get() = (if (forImage) 120f else if (days.size == 5) 60 * d else 58 * d)
+    // 7.x 每节矮一点：一屏看完一整天（课多的话再矮一点）
+    private val rowH get() = (if (forImage) 120f else (if (n >= 11) 46 else 50) * d)
     private val s get() = if (forImage) 2.2f else d
     private val boxes = mutableListOf<Triple<RectF, LocalDate, Lesson>>()
     /** 7.x 早自习 / 晚自习：每天一格（没有就是 null）；整周都没有时为 null，不占地方 */
     var am: List<Lesson?>? = null
     var pm: List<Lesson?>? = null
-    private val stH get() = (if (forImage) 84f else 44 * d)
+    private val stH get() = (if (forImage) 84f else 40 * d)
     private val amH get() = if (am != null) stH else 0f
     private val pmH get() = if (pm != null) stH else 0f
     /** 第一节课的顶边（表头 + 早自习那一行） */
@@ -654,21 +705,16 @@ class WeekGrid(ctx: Context, private val days: List<LocalDate>, private val less
             for (l in list) {
                 val col = Courses.color(l.name)
                 if (l.start < 1 || l.evening) continue   // 自习（节次 0 / 90）画在上面、下面那一行
-                val r = RectF(leftW + cw * i + 2.5f * s, top0 + rowH * (l.start - 1) + 2.5f * s, leftW + cw * (i + 1) - 2.5f * s, top0 + rowH * l.end - 4.5f * s)
+                val r = RectF(leftW + cw * i + 2f * s, top0 + rowH * (l.start - 1) + 2f * s, leftW + cw * (i + 1) - 2f * s, top0 + rowH * l.end - 2f * s)
                 val isToday = i == ti
                 val now = isToday && (l.m0 ?: 9999) <= nowM && nowM < (l.m1 ?: 0)
                 val past = isToday && (l.m1 ?: 9999) <= nowM || (isCurWeek && !forImage && days[i].isBefore(today))
                 val hit = hl?.let { h -> h.first == l.name && h.second == i && h.third == l.start } ?: false
                 val a = (if (past) 0.62f else 1f) * (if (hl != null && !hit) 0.38f else 1f)
-                // 立体的小方块：底下一道深一点的「厚度」+ 渐变面 + 顶上一道高光 + 左边一条课程色
-                val lip = RectF(r.left, r.top + 2.5f * s, r.right, r.bottom + 2.5f * s)
-                p.color = C.alpha(C.mix(col, Color.BLACK, if (C.dark) 0.55f else 0.15f), (if (C.dark) 0.9f else 0.55f) * a); c.drawRoundRect(lip, 10 * s, 10 * s, p)
-                p.shader = LinearGradient(r.left, r.top, r.left, r.bottom, if (C.dark) C.mix(col, Color.BLACK, 0.35f) else C.mix(col, Color.WHITE, 0.62f), if (C.dark) C.mix(col, Color.BLACK, 0.55f) else C.mix(col, Color.WHITE, 0.80f), Shader.TileMode.CLAMP)
-                p.alpha = (255 * a).toInt(); c.drawRoundRect(r, 10 * s, 10 * s, p); p.shader = null; p.alpha = 255
-                p.style = Paint.Style.STROKE; p.strokeWidth = 1f * s; p.color = C.alpha(Color.WHITE, (if (C.dark) 0.12f else 0.7f) * a)
-                c.drawRoundRect(RectF(r.left + 0.5f * s, r.top + 0.5f * s, r.right - 0.5f * s, r.bottom - 0.5f * s), 9.5f * s, 9.5f * s, p); p.style = Paint.Style.FILL
-                p.color = C.alpha(col, a); c.save(); c.clipRect(r.left, r.top, r.left + 3.5f * s, r.bottom); c.drawRoundRect(r, 10 * s, 10 * s, p); c.restore()
-                if (now) { p.style = Paint.Style.STROKE; p.strokeWidth = 2.2f * s; p.color = col; c.drawRoundRect(r, 10 * s, 10 * s, p); p.style = Paint.Style.FILL }
+                // 7.x 扁平的小方块：课程色的淡底 + 左边一条课程色（不要立体的厚度和高光）
+                p.color = C.alpha(if (C.dark) C.mix(col, Color.BLACK, 0.45f) else C.mix(col, Color.WHITE, 0.78f), a); c.drawRoundRect(r, 8 * s, 8 * s, p)
+                p.color = C.alpha(col, a); c.save(); c.clipRect(r.left, r.top, r.left + 3 * s, r.bottom); c.drawRoundRect(r, 8 * s, 8 * s, p); c.restore()
+                if (now) { p.style = Paint.Style.STROKE; p.strokeWidth = 2f * s; p.color = col; c.drawRoundRect(r, 8 * s, 8 * s, p); p.style = Paint.Style.FILL }
                 if (hit) { p.style = Paint.Style.STROKE; p.strokeWidth = 3f * s; p.color = Color.parseColor("#ff7a45"); c.drawRoundRect(RectF(r.left - 1.5f * s, r.top - 1.5f * s, r.right + 1.5f * s, r.bottom + 1.5f * s), 11 * s, 11 * s, p); p.style = Paint.Style.FILL }
                 val fg = if (C.dark) Color.WHITE else C.mix(col, Color.BLACK, 0.62f)
                 val wText = maxOf(10, (r.width() - 11 * s).toInt())

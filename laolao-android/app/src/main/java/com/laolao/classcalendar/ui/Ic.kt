@@ -135,6 +135,36 @@ object Ic {
         Def("🌱", R.drawable.ic_l_sprout, 'G'),   // 成长
         Def("☀️", R.drawable.ic_l_sun, 'O'),   // 早起
         Def("☰", R.drawable.ic_l_menu, 'S'),   // 侧边栏
+        Def("ed.undo", R.drawable.ic_l_undo_2, 'S'),   // 撤销
+        Def("ed.redo", R.drawable.ic_l_redo_2, 'S'),   // 重做
+        Def("ed.check", R.drawable.ic_l_square_check, 'S'),   // 清单
+        Def("ed.img", R.drawable.ic_l_image, 'S'),   // 图片
+        Def("ed.cam", R.drawable.ic_l_camera, 'S'),   // 拍照
+        Def("ed.draw", R.drawable.ic_l_pen_tool, 'S'),   // 手写
+        Def("ed.h1", R.drawable.ic_l_heading_1, 'S'),   // 大标题
+        Def("ed.h2", R.drawable.ic_l_heading_2, 'S'),   // 小标题
+        Def("ed.bold", R.drawable.ic_l_type, 'S'),   // 加粗
+        Def("ed.italic", R.drawable.ic_l_italic, 'S'),   // 斜体
+        Def("ed.underline", R.drawable.ic_l_underline, 'S'),   // 下划线
+        Def("ed.strike", R.drawable.ic_l_strikethrough, 'S'),   // 删除线
+        Def("ed.color", R.drawable.ic_l_baseline, 'S'),   // 文字颜色
+        Def("ed.hl", R.drawable.ic_l_highlighter, 'S'),   // 高亮
+        Def("ed.bullet", R.drawable.ic_l_list, 'S'),   // 圆点列表
+        Def("ed.ordered", R.drawable.ic_l_list_ordered, 'S'),   // 编号列表
+        Def("ed.outdent", R.drawable.ic_l_list_indent_decrease, 'S'),   // 减少缩进
+        Def("ed.indent", R.drawable.ic_l_list_indent_increase, 'S'),   // 增加缩进
+        Def("ed.hr", R.drawable.ic_l_minus, 'S'),   // 分割线
+        Def("ed.stamp", R.drawable.ic_l_clock, 'S'),   // 时间
+        Def("ed.clear", R.drawable.ic_l_remove_formatting, 'S'),   // 清除格式
+        Def("ed.kb", R.drawable.ic_l_keyboard_off, 'S'),   // 收起键盘
+        Def("ed.back", R.drawable.ic_l_chevron_left, 'S'),   // 返回
+        Def("ed.quick", R.drawable.ic_l_zap, 'A'),   // 快速记
+        Def("ed.more", R.drawable.ic_l_ellipsis, 'S'),   // 更多
+        Def("ed.share", R.drawable.ic_l_share_2, 'S'),   // 分享
+        Def("ed.copy", R.drawable.ic_l_copy, 'S'),   // 复制
+        Def("ed.tpl", R.drawable.ic_l_layout_template, 'V'),   // 模板
+        Def("ed.plus", R.drawable.ic_l_plus, 'S'),   // 添加
+        Def("ed.next", R.drawable.ic_l_chevron_right, 'S'),   // 下一个
     )
     private fun norm(s: String) = s.replace("️", "").trim()
     private val BY: Map<String, Def> by lazy { ALL.associateBy { norm(it.emoji) } }

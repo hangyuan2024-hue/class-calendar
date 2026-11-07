@@ -117,6 +117,18 @@ MAP = [
     ("🌱", "sprout", "G", "成长"),
     ("☀️", "sun", "O", "早起"),
     ("☰", "menu", "S", "侧边栏"),
+    # 7.x 备忘录编辑器工具栏（键不是表情，只在代码里用）
+    ("ed.undo", "undo-2", "S", "撤销"), ("ed.redo", "redo-2", "S", "重做"),
+    ("ed.check", "square-check", "S", "清单"), ("ed.img", "image", "S", "图片"), ("ed.cam", "camera", "S", "拍照"), ("ed.draw", "pen-tool", "S", "手写"),
+    ("ed.h1", "heading-1", "S", "大标题"), ("ed.h2", "heading-2", "S", "小标题"), ("ed.bold", "type", "S", "加粗"),
+    ("ed.italic", "italic", "S", "斜体"), ("ed.underline", "underline", "S", "下划线"), ("ed.strike", "strikethrough", "S", "删除线"),
+    ("ed.color", "baseline", "S", "文字颜色"), ("ed.hl", "highlighter", "S", "高亮"),
+    ("ed.bullet", "list", "S", "圆点列表"), ("ed.ordered", "list-ordered", "S", "编号列表"),
+    ("ed.outdent", "list-indent-decrease", "S", "减少缩进"), ("ed.indent", "list-indent-increase", "S", "增加缩进"),
+    ("ed.hr", "minus", "S", "分割线"), ("ed.stamp", "clock", "S", "时间"), ("ed.clear", "remove-formatting", "S", "清除格式"),
+    ("ed.kb", "keyboard-off", "S", "收起键盘"), ("ed.back", "chevron-left", "S", "返回"), ("ed.quick", "zap", "A", "快速记"),
+    ("ed.more", "ellipsis", "S", "更多"), ("ed.share", "share-2", "S", "分享"), ("ed.copy", "copy", "S", "复制"), ("ed.tpl", "layout-template", "V", "模板"),
+    ("ed.plus", "plus", "S", "添加"), ("ed.next", "chevron-right", "S", "下一个"),
 ]
 
 NUM = r"-?(?:\d+\.?\d*|\.\d+)(?:e-?\d+)?"

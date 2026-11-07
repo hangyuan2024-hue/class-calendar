@@ -133,10 +133,14 @@ fun Main.timeRow(r: Item, showDate: Boolean = false): View {
     val bar = if (r.course) r.color else when (r.type) { "作业" -> C.red; "会议" -> C.accent; "活动" -> C.green; else -> C.alpha(C.accent, 0.45f) }
     row.addView(View(this).apply { background = round(if (r.done || ended) C.line else bar, dp(2).toFloat()) }, LinearLayout.LayoutParams(dp(4), LinearLayout.LayoutParams.MATCH_PARENT).apply { leftMargin = dp(2); rightMargin = dp(12); topMargin = dp(3); bottomMargin = dp(3) })
     val body = col()
-    val tl = text((if (r.needConfirm) "⚠ " else "") + r.title, 16f, if (r.done || ended) C.mutedText else C.text, BOLD, 2)
+    // 标题前面自带的表情（比如「🌙 晚自习」）拿掉：前面已经有一个类型图标了，不重复
+    val lead = Regex("^[\\p{So}\\p{Cs}\\uFE0F\\u200D]+\\s*").find(r.title)
+    val leadEmo = lead?.value?.trim() ?: ""
+    val title0 = if (lead != null && lead.value.length < r.title.length) r.title.substring(lead.value.length) else r.title
+    val tl = text((if (r.needConfirm) "⚠ " else "") + title0, 16f, if (r.done || ended) C.mutedText else C.text, BOLD, 2)
     if (r.done || ended) tl.paintFlags = tl.paintFlags or Paint.STRIKE_THRU_TEXT_FLAG
     val tr = row().apply { gravity = Gravity.CENTER_VERTICAL }
-    val kindIc = when { r.course && (r.title.contains("晚自习") || r.title.contains("夜")) -> "💤"; r.course -> "📚"; r.hw -> "📝"; r.type == "会议" -> "👥"; r.type == "活动" -> "🎉"; r.mine -> "✏️"; else -> "📢" }
+    val kindIc = when { leadEmo.isNotEmpty() && Ic.has(leadEmo) && !r.course -> leadEmo; r.course && (r.title.contains("晚自习") || r.title.contains("夜")) -> "💤"; r.course && r.title.contains("早自习") -> "☀️"; r.course -> "📚"; r.hw -> "📝"; r.type == "会议" -> "👥"; r.type == "活动" -> "🎉"; r.mine -> "✏️"; else -> "📢" }
     if (!r.pin || r.done) tr.addView(Ic.plain(this, kindIc, 15, if (r.done || ended) C.mutedText else bar), LinearLayout.LayoutParams(dp(15), dp(15)).apply { rightMargin = dp(6) })
     if (r.pin && !r.done) tr.addView(Ic.plain(this, "📌", 14), LinearLayout.LayoutParams(dp(14), dp(14)).apply { rightMargin = dp(4) })
     tr.addView(tl, LinearLayout.LayoutParams(0, WRAP, 1f))

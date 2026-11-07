@@ -73,6 +73,7 @@ class Lao(private val a: Main, private val host: FrameLayout) {
         // 捞捞脚下一块柔和的影子 + 上下轻轻晃：站在屏幕上的感觉
         shadow.background = GradientDrawable().apply { shape = GradientDrawable.OVAL; gradientType = GradientDrawable.RADIAL_GRADIENT; gradientRadius = px(24).toFloat(); colors = intArrayOf(C.alpha(Color.BLACK, if (C.dark) 0.5f else 0.28f), Color.TRANSPARENT) }
         botBox.addView(shadow, FrameLayout.LayoutParams(px(48), px(12)).apply { gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL })
+        shadow.visibility = View.GONE   // 7.x 不要脚下的影子（扁平风格）
         botBox.addView(bot, FrameLayout.LayoutParams(px(BOT), px(BOT)).apply { gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL })
         botBox.addView(wearTv, FrameLayout.LayoutParams(WRAP, WRAP).apply { gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL })
         drag()

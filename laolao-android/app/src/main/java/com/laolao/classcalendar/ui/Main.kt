@@ -119,7 +119,7 @@ class Main : Activity() {
         // 7.x 选中的标签不再垫一块底色，简洁一点：只换成「实心」图标 + 主题色文字
         tabInd = View(this).apply { visibility = View.GONE }
         barWrap.addView(tabInd, FrameLayout.LayoutParams(dp(58), dp(32)).apply { topMargin = dp(TAB_TOP) })
-        tabBar = row().apply { pad(4, TAB_TOP, 4, 4) }
+        tabBar = row().apply { pad(4, TAB_TOP, 4, 6) }
         barWrap.addView(tabBar, FrameLayout.LayoutParams(MATCH, WRAP))
         tabBox.addView(barWrap, FrameLayout.LayoutParams(MATCH, WRAP).apply { gravity = Gravity.BOTTOM })
         barWrap.addOnLayoutChangeListener { _, _, t, _, b, _, _, _, _ -> if (b - t != underBar) { underBar = b - t; tabContent.post { if (cur >= 0) { padUnder(tabs[cur].view); moveInd(false) }; lao?.attach() } } }
@@ -142,18 +142,18 @@ class Main : Activity() {
             }
             val box = FrameLayout(this).apply { clipChildren = false; clipToPadding = false }
             val ic = ImageView(this).apply { setImageResource(TAB_ICONS[i].first); scaleType = ImageView.ScaleType.FIT_CENTER }
-            box.addView(ic, FrameLayout.LayoutParams(dp(23), dp(23), Gravity.CENTER))
+            box.addView(ic, FrameLayout.LayoutParams(dp(24), dp(24), Gravity.CENTER))
             // 角标：作业有过期 / 今天要交的显示红色数字
             val badge = text("", 10f, Color.WHITE, BOLD).apply {
                 gravity = Gravity.CENTER; minWidth = dp(16); setPadding(dp(4), 0, dp(4), 0); includeFontPadding = false
                 background = round(C.red, dp(8).toFloat(), C.card, dp(2)); visibility = View.GONE
             }
             // 角标放在图标右上角，但不超出这一格的上边（超出去会被底栏裁掉一半）
-            box.addView(badge, FrameLayout.LayoutParams(WRAP, dp(16), Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { leftMargin = dp(21); topMargin = 0 })
+            box.addView(badge, FrameLayout.LayoutParams(WRAP, dp(16), Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { leftMargin = dp(22); topMargin = 0 })
             tabBadges += badge
-            cell.addView(box, LinearLayout.LayoutParams(dp(52), dp(26)))
-            val tx = text(names[i], 10.5f, C.tab, SEMI).apply { gravity = Gravity.CENTER; letterSpacing = 0.02f }
-            cell.addView(tx, LinearLayout.LayoutParams(WRAP, WRAP).apply { topMargin = dp(1) })
+            cell.addView(box, LinearLayout.LayoutParams(dp(56), dp(30)))
+            val tx = text(names[i], 11f, C.tab, SEMI).apply { gravity = Gravity.CENTER; letterSpacing = 0.02f }
+            cell.addView(tx, LinearLayout.LayoutParams(WRAP, WRAP).apply { topMargin = dp(2) })
             tabBar.addView(cell, LinearLayout.LayoutParams(0, WRAP, 1f))
             tabViews += ic to tx
         }
@@ -173,7 +173,7 @@ class Main : Activity() {
     /** 底栏图标：没选中是线条，选中是「实心」版（tools/icons/tabs.py 生成） */
     private val TAB_ICONS = listOf(R.drawable.tab_v_home to R.drawable.tab_v_home_on, R.drawable.tab_v_homework to R.drawable.tab_v_homework_on,
         R.drawable.tab_v_growth to R.drawable.tab_v_growth_on, R.drawable.tab_v_tools to R.drawable.tab_v_tools_on, R.drawable.tab_v_me to R.drawable.tab_v_me_on)
-    private val TAB_TOP = 5
+    private val TAB_TOP = 6
     private val tabBadges = mutableListOf<TextView>()
     /** 作业角标：过期的 + 今天要交的（没有就不显示） */
     fun paintBadges() {
