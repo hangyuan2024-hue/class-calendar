@@ -24,18 +24,22 @@ import com.laolao.classcalendar.core.T
  *  ② 我每天要坚持的小习惯（一行一个，右边大圆圈一点就打卡；新习惯从底部弹出来加，不再堆在页面里）
  *  ③ 我这段时间的节奏（这周比上周、三个进度环、14 天趋势、本周复盘）
  *  ④ 我做到了什么（最近完成的事）
- * 等级、徽章、云宠、班级排行榜、位置签到收进最下面「更多」：想看再点，不抢你的注意力。
+ * 等级和班级排行榜合成右上角一个按钮（点开排行榜，里面有本周 / 本月 / 总榜 / 等级）；徽章、云宠、签到在最下面一行。
  */
 class GrowthPage(a: Main) : Page(a) {
     private var rankMe: Pair<Int, Int>? = null; private var rankAt = 0L
     private lateinit var body: LinearLayout
     private var allDone = false
+    private lateinit var ps: PullScroll
+    private var habitsAt: View? = null; private var doneAt: View? = null
+    /** 点「今天的我」里的数字：滚到对应的那一块 */
+    private fun jump(v: View?) { v ?: return; ps.scroll.smoothScrollTo(0, maxOf(0, v.top - dp(8))) }
     lateinit var fab: Fab
     private val green get() = if (C.dark) C.c("#82bea1") else C.c("#39856a")
 
     override fun build(): View {
         val f = FrameLayout(ctx).apply { setBackgroundColor(C.bg) }
-        val ps = PullScroll(ctx) { done -> a.refreshSoon(force = true) { done() } }
+        ps = PullScroll(ctx) { done -> a.refreshSoon(force = true) { done() } }
         body = ps.content.apply { pad(18, 14, 18, 110) }
         f.addView(ps, FrameLayout.LayoutParams(MATCH, MATCH))
         fab = Fab(a, f) {
@@ -68,14 +72,20 @@ class GrowthPage(a: Main) : Page(a) {
             addView(ctx.text("成长", 27f, C.text, HEAVY))
             addView(ctx.text((if (name.isNotEmpty()) "$name，" else "") + "只和昨天的自己比", 13f, C.sub).apply { margins(t = 4) })
         }, LinearLayout.LayoutParams(0, WRAP, 1f))
-        com.laolao.classcalendar.core.Level.me()?.let { l ->
-            r.addView(ctx.row().apply {
-                gravity = Gravity.CENTER_VERTICAL; pad(12, 7); press(C.card, 18, C.line)
-                addView(ctx.text("Lv.${l.level}", 14f, C.c("#ff7a45"), HEAVY))
-                addView(ctx.text(" " + l.title, 13f, C.sub, SEMI, 1))
-                tap { a.push(MetaPage(a)) }
+        // 等级和班级名次放在一个按钮里：点开就是排行榜（本周 / 本月 / 总榜 / 等级 都在里面）
+        val l = com.laolao.classcalendar.core.Level.me(); val me = rankMe
+        if (Store.me != null) r.addView(ctx.col().apply {
+            gravity = Gravity.END; pad(12, 7); press(C.card, 16, C.line)
+            addView(ctx.row().apply {
+                gravity = Gravity.CENTER_VERTICAL
+                addView(ctx.text(if (l != null) "Lv.${l.level}" else "等级", 15f, C.c("#ff7a45"), HEAVY))
+                if (l != null) addView(ctx.text(" " + l.title, 13f, C.text, SEMI, 1))
+                addView(ctx.text(" ›", 15f, C.mutedText))
             })
-        }
+            val sub = listOfNotNull(if (me != null && me.second > 0) "班里第 ${me.second} 名" else null, if (l != null) "今天 +${com.laolao.classcalendar.core.Level.today()}" else null).joinToString(" · ")
+            if (sub.isNotEmpty()) addView(ctx.text(sub, 11.5f, C.sub, lines = 1).apply { margins(t = 1) })
+            tap { if (Store.cls != null && Store.feat("rank")) a.push(RankPage(a)) else a.push(MetaPage(a)) }
+        })
         body.addView(r)
     }
 
@@ -99,15 +109,16 @@ class GrowthPage(a: Main) : Page(a) {
 
     // ---------- ① 今天的我 ----------
     private fun today() {
-        val h = HeroBox(ctx).apply { orientation = LinearLayout.VERTICAL; pad(20, 18, 20, 16) }
-        h.layoutParams = LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(14) }
-        h.addView(ctx.text("今天的我", 13f, C.accent, BOLD))
+        val h = HeroBox(ctx).apply { orientation = LinearLayout.VERTICAL; pad(18, 16, 18, 14) }
+        h.layoutParams = LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(12) }
+        h.addView(ctx.text("今天的我 · " + T.md(T.todayKey()) + " " + T.wk(T.todayKey()), 13f, C.accent, BOLD))
         val hs = Growth.habits(); val lg = Growth.log()
         val checked = hs.count { Growth.checked(it.id) }
         val doneN = Growth.trend(1).firstOrNull()?.second ?: 0
         val pomo = Plan.today()
         val stats = ctx.row().apply { margins(t = 12) }
-        fun stat(n: String, unit: String, label: String, color: Int) = stats.addView(ctx.col().apply {
+        fun stat(n: String, unit: String, label: String, color: Int, go: () -> Unit) = stats.addView(ctx.col().apply {
+            tap { go() }
             addView(ctx.row().apply {
                 gravity = Gravity.BOTTOM
                 addView(ctx.text(n, 30f, color, HEAVY))
@@ -115,9 +126,9 @@ class GrowthPage(a: Main) : Page(a) {
             })
             addView(ctx.text(label, 12.5f, C.sub))
         }, LinearLayout.LayoutParams(0, WRAP, 1f))
-        stat("$doneN", "件", "完成的事", C.heroText)
-        stat(if (hs.isEmpty()) "–" else "$checked", if (hs.isEmpty()) "" else "/ ${hs.size}", "习惯打卡", green)
-        stat("$pomo", "个", "专注番茄", C.c("#e0603c"))
+        stat("$doneN", "件", "完成的事", C.heroText) { jump(doneAt) }
+        stat(if (hs.isEmpty()) "–" else "$checked", if (hs.isEmpty()) "" else "/ ${hs.size}", "习惯打卡", green) { jump(habitsAt) }
+        stat("$pomo", "个", "专注番茄", C.c("#e0603c")) { a.push(PlanPage(a, pomo = true)) }
         h.addView(stats)
         val left = hs.size - checked
         val say = when {
@@ -146,14 +157,17 @@ class GrowthPage(a: Main) : Page(a) {
 
     // ---------- ② 每天的小习惯 ----------
     private fun habits() {
-        val hr = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; pad(4, 26, 2, 10) }
-        hr.addView(ctx.col().apply {
-            addView(ctx.text("每天的小习惯", 19f, C.text, HEAVY))
-            addView(ctx.text("一点一点来，坚持比完美重要", 12.5f, C.sub).apply { margins(t = 2) })
-        }, LinearLayout.LayoutParams(0, WRAP, 1f))
-        hr.addView(ctx.text("＋ 新习惯", 13f, C.accent, SEMI).apply { pad(12, 7); press(C.selected, 16); tap { addHabit() } })
-        body.addView(hr)
         val hs = Growth.habits(); val lg = Growth.log()
+        val hr = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; pad(4, 20, 2, 8) }
+        hr.addView(ctx.text("每天的小习惯", 18f, C.text, HEAVY))
+        if (hs.isNotEmpty()) {
+            val n = hs.count { Growth.checked(it.id) }
+            hr.addView(ctx.text("今天 $n/${hs.size}", 12f, if (n == hs.size) Color.WHITE else green, BOLD).apply { pad(8, 2); bg(if (n == hs.size) green else C.alpha(green, 0.12f), 10) },
+                LinearLayout.LayoutParams(WRAP, WRAP).apply { leftMargin = dp(8) })
+        }
+        hr.addView(View(ctx), LinearLayout.LayoutParams(0, 1, 1f))
+        hr.addView(ctx.text("＋ 新习惯", 13f, C.accent, SEMI).apply { pad(12, 7); press(C.selected, 16); tap { addHabit() } })
+        body.addView(hr); habitsAt = hr
         val c = ctx.card(4, 20)
         if (hs.isEmpty()) {
             c.addView(ctx.text("还没有习惯。挑一个开始吧：", 14f, C.sub).apply { pad(14, 14, 14, 4) })
@@ -177,20 +191,24 @@ class GrowthPage(a: Main) : Page(a) {
             val nm = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL }
             nm.addView(ctx.text(h.name, 15.5f, C.text, BOLD, 1), LinearLayout.LayoutParams(0, WRAP, 1f).apply { width = WRAP; weight = 0f })
             Growth.place(h.id)?.let { nm.addView(Ic.plain(ctx, "📍", 13, C.sub), LinearLayout.LayoutParams(dp(13), dp(13)).apply { leftMargin = dp(5) }) }
-            col.addView(nm)
-            // 这一周（周一到周日）每天打没打：小圆点，今天带圈
-            val cells = Growth.cells(h.id, 7, lg)
-            val week = (0..6).map { k -> T.addDays(t0, (k - 6).toLong()) }
-            val dots = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; margins(t = 6) }
-            week.forEachIndexed { k, d ->
-                val hit = cells[k]
-                dots.addView(ctx.text(wk[((T.date(d)?.dayOfWeek?.value ?: 1) - 1)], 9.5f, if (hit) Color.WHITE else C.mutedText, BOLD).apply {
-                    gravity = Gravity.CENTER; includeFontPadding = false
-                    background = round(if (hit) green else C.alpha(C.text, 0.06f), dp(9).toFloat(), if (d == t0) C.alpha(green, 0.9f) else 0, if (d == t0) dp(1) else 0)
-                }, LinearLayout.LayoutParams(dp(18), dp(18)).apply { rightMargin = dp(4) })
-            }
             val sk = Growth.streak(h.id, lg)
-            dots.addView(ctx.text(if (sk > 1) "连续 $sk 天" else if (on) "今天打卡了" else "", 12f, if (sk > 1) C.c("#e0603c") else C.sub, SEMI).apply { pad(4, 0, 0, 0) })
+            if (sk > 1) {
+                nm.addView(Ic.plain(ctx, "🔥", 13, C.c("#e0603c")), LinearLayout.LayoutParams(dp(13), dp(13)).apply { leftMargin = dp(8) })
+                nm.addView(ctx.text("$sk 天", 12.5f, C.c("#e0603c"), BOLD).apply { pad(2, 0, 0, 0) })
+            }
+            col.addView(nm)
+            // 这一周（周一到周日，固定位置）：打了卡的填满，今天带圈，还没到的日子只留个浅框
+            val mon = com.laolao.classcalendar.core.Items.weekStart(0)
+            val hit = lg.optJSONObject(h.id)
+            val dots = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; margins(t = 7) }
+            for (k in 0..6) {
+                val d = T.addDays(mon, k.toLong()); val yes = hit?.optBoolean(d) == true; val future = d > t0; val today = d == t0
+                dots.addView(ctx.text(wk[k], 9.5f, if (yes) Color.WHITE else if (future) C.alpha(C.mutedText, 0.6f) else C.mutedText, BOLD).apply {
+                    gravity = Gravity.CENTER; includeFontPadding = false
+                    background = round(if (yes) green else if (future) 0 else C.alpha(C.text, 0.06f), dp(9).toFloat(),
+                        if (today) green else if (future) C.alpha(C.text, 0.08f) else 0, if (today) ctx.dp(1.5f) else if (future) dp(1) else 0)
+                }, LinearLayout.LayoutParams(dp(19), dp(19)).apply { rightMargin = dp(5) })
+            }
             col.addView(dots)
             r.addView(col, LinearLayout.LayoutParams(0, WRAP, 1f).apply { leftMargin = dp(12) })
             // 打卡：右边大圆圈
@@ -245,11 +263,7 @@ class GrowthPage(a: Main) : Page(a) {
 
     // ---------- ③ 我的节奏 ----------
     private fun rhythm() {
-        body.addView(ctx.col().apply {
-            pad(4, 26, 2, 10)
-            addView(ctx.text("我的节奏", 19f, C.text, HEAVY))
-            addView(ctx.text("最近两周，每天完成的事和打卡", 12.5f, C.sub).apply { margins(t = 2) })
-        })
+        body.addView(ctx.text("我的节奏", 18f, C.text, HEAVY).apply { pad(4, 20, 2, 8) })
         val c = ctx.card(16, 20)
         val tr = Growth.trend(14)
         val now = tr.takeLast(7).sumOf { it.second + it.third }; val prev = tr.take(7).sumOf { it.second + it.third }
@@ -285,13 +299,18 @@ class GrowthPage(a: Main) : Page(a) {
         }
         c.addView(rr)
         c.add(ctx.hline(), 16)
-        val lg = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; margins(t = 12) }
-        lg.addView(View(ctx).apply { bg(C.accent, 2) }, LinearLayout.LayoutParams(dp(12), dp(4)))
-        lg.addView(ctx.text("完成的事", 12f, C.sub).apply { pad(6, 0, 14, 0) })
-        lg.addView(View(ctx).apply { bg(green, 2) }, LinearLayout.LayoutParams(dp(12), dp(4)))
-        lg.addView(ctx.text("打卡", 12f, C.sub).apply { pad(6, 0, 0, 0) })
-        c.addView(lg)
-        c.add(TrendChart(ctx, tr, C.accent, green), 6)
+        if (tr.all { it.second + it.third == 0 }) {
+            c.add(ctx.text("这两周还没有记录。完成一件事、打一个卡，这里就会长出第一根柱子。", 13f, C.sub).apply { setLineSpacing(0f, 1.3f) }, 14)
+        } else {
+            val lg = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; margins(t = 12) }
+            lg.addView(ctx.text("最近 14 天", 12.5f, C.text, BOLD), LinearLayout.LayoutParams(0, WRAP, 1f))
+            lg.addView(View(ctx).apply { bg(C.accent, 3) }, LinearLayout.LayoutParams(dp(9), dp(9)))
+            lg.addView(ctx.text("完成", 12f, C.sub).apply { pad(5, 0, 12, 0) })
+            lg.addView(View(ctx).apply { bg(green, 3) }, LinearLayout.LayoutParams(dp(9), dp(9)))
+            lg.addView(ctx.text("打卡", 12f, C.sub).apply { pad(5, 0, 0, 0) })
+            c.addView(lg)
+            c.add(BarChart(ctx, tr, C.accent, green), 10)
+        }
         c.add(ctx.row().apply {
             gravity = Gravity.CENTER_VERTICAL; pad(0, 10, 0, 0)
             addView(Ic.plain(ctx, "📊", 15, C.accent), LinearLayout.LayoutParams(dp(15), dp(15)))
@@ -308,26 +327,24 @@ class GrowthPage(a: Main) : Page(a) {
         if (rd.isEmpty()) return
         val total = rd.sumOf { it.second.size }
         body.addView(ctx.row().apply {
-            gravity = Gravity.CENTER_VERTICAL; pad(4, 26, 2, 10)
-            addView(ctx.col().apply {
-                addView(ctx.text("我做到的", 19f, C.text, HEAVY))
-                addView(ctx.text("最近完成了 $total 件事", 12.5f, C.sub).apply { margins(t = 2) })
-            }, LinearLayout.LayoutParams(0, WRAP, 1f))
-        })
+            gravity = Gravity.BOTTOM; pad(4, 20, 2, 8)
+            addView(ctx.text("我做到的", 18f, C.text, HEAVY))
+            addView(ctx.text("最近 $total 件", 12.5f, C.sub).apply { pad(8, 0, 0, 2) })
+        }.also { doneAt = it })
         val c = ctx.card(16, 20)
         var shown = 0
         for ((i, pair) in rd.withIndex()) {
             val (d, list) = pair
-            if (!allDone && (i >= 3 || shown >= 8)) break
+            if (!allDone && (i >= 2 || shown >= 5)) break
             val n = T.dayDiff(d)
-            c.add(ctx.text(if (n == 0L) "今天" else if (n == -1L) "昨天" else T.md(d) + " " + T.wk(d), 12.5f, C.sub, BOLD), if (i == 0) 0 else 14)
+            c.add(ctx.text(if (n == 0L) "今天" else if (n == -1L) "昨天" else T.md(d) + " " + T.wk(d), 12.5f, C.sub, BOLD), if (i == 0) 0 else 12)
             for (r in list) {
-                if (!allDone && shown >= 8) break
+                if (!allDone && shown >= 5) break
                 c.add(ctx.row().apply {
                     gravity = Gravity.CENTER_VERTICAL
                     addView(ctx.text("✓", 12f, Color.WHITE, HEAVY).apply { gravity = Gravity.CENTER; includeFontPadding = false; background = round(C.alpha(green, 0.85f), dp(9).toFloat()) }, LinearLayout.LayoutParams(dp(18), dp(18)))
                     addView(ctx.text(r.title, 14.5f, C.text, lines = 1).apply { pad(10, 0, 0, 0) }, LinearLayout.LayoutParams(0, WRAP, 1f))
-                }, 8)
+                }, 7)
                 shown++
             }
         }
@@ -335,40 +352,28 @@ class GrowthPage(a: Main) : Page(a) {
         body.addView(c)
     }
 
-    // ---------- 更多：等级、徽章、云宠、排行榜、签到（想看再点） ----------
+    // ---------- 更多：徽章、云宠、签到 一行放下（等级和排行榜在右上角） ----------
     private fun more() {
-        body.addView(ctx.text("更多", 15f, C.sub, BOLD).apply { pad(6, 26, 2, 10) })
-        val c = ctx.card(4, 20)
-        fun row(icon: String, title: String, sub: String, go: () -> Unit) {
-            if (c.childCount > 0) c.addView(ctx.hline().apply { (layoutParams as LinearLayout.LayoutParams).leftMargin = dp(60) })
-            c.addView(ctx.row().apply {
-                gravity = Gravity.CENTER_VERTICAL; pad(12, 12); press(C.card, 0); tap { go() }
-                addView(Ic.tile(ctx, icon, 36), LinearLayout.LayoutParams(dp(36), dp(36)))
-                addView(ctx.col().apply {
-                    addView(ctx.text(title, 15f, C.text, SEMI, 1))
-                    if (sub.isNotEmpty()) addView(ctx.text(sub, 12.5f, C.sub, lines = 1).apply { margins(t = 1) })
-                }, LinearLayout.LayoutParams(0, WRAP, 1f).apply { leftMargin = dp(12) })
-                addView(ctx.text("›", 20f, C.mutedText))
-            })
+        val items = mutableListOf<Triple<String, String, () -> Unit>>()
+        items += Triple("🏅", "徽章") { a.push(MetaPage(a)) }
+        if (com.laolao.classcalendar.core.Farm.on()) items += Triple("🐣", "云宠 Lv." + com.laolao.classcalendar.core.Farm.state().optInt("level", 1)) { a.push(FarmPage(a)) }
+        if (Store.cls != null) items += Triple("📍", "位置签到") { a.push(CheckinPage(a)) }
+        val r = ctx.row().apply { margins(t = 16) }
+        items.forEachIndexed { i, (ic, t, go) ->
+            r.addView(ctx.row().apply {
+                gravity = Gravity.CENTER; pad(6, 11); press(C.card, 16, C.line); tap { go() }
+                addView(Ic.plain(ctx, ic, 17), LinearLayout.LayoutParams(dp(17), dp(17)))
+                addView(ctx.text(t, 13.5f, C.text, SEMI, 1).apply { pad(6, 0, 0, 0) })
+            }, LinearLayout.LayoutParams(0, WRAP, 1f).apply { if (i > 0) leftMargin = dp(8) })
         }
-        val l = com.laolao.classcalendar.core.Level.me()
-        if (Store.me != null) row("⭐", if (l != null) "等级 Lv.${l.level} · ${l.title}" else "账号等级", if (l != null) "今天 +${com.laolao.classcalendar.core.Level.today()} 经验 · 再攒 ${l.need} 升级" else "完成事项、打卡、专注都能攒经验") {
-            if (Store.cls != null) a.push(RankPage(a, level = true)) else a.push(MetaPage(a))
-        }
-        row("🏅", "徽章", "解锁了哪些成就") { a.push(MetaPage(a)) }
-        if (com.laolao.classcalendar.core.Farm.on()) row("🐣", "云宠 Lv." + com.laolao.classcalendar.core.Farm.state().optInt("level", 1), "用打卡攒的养料喂它") { a.push(FarmPage(a)) }
+        body.addView(r)
+        // 班里名次在后台取一下（右上角显示）
         val cls = Store.cls
-        if (cls != null && Store.feat("rank")) {
-            val me = rankMe
-            row("🏆", "班级排行榜", if (me != null && me.second > 0) "这周第 ${me.second} 名 · ${me.first} 成长值" else "想和同学比一比时再来看") { a.push(RankPage(a)) }
-            if (System.currentTimeMillis() - rankAt > 300_000) { rankAt = System.currentTimeMillis()
-                com.laolao.classcalendar.core.Bg.load({ com.laolao.classcalendar.core.Api.rpcObj("growth_board", com.laolao.classcalendar.core.jsonOf("cid" to cls.optString("id"), "period" to "week")) }) { d, _ ->
-                    val r = d?.optJSONArray("rows")?.let { arr -> (0 until arr.length()).map { arr.getJSONObject(it) } }?.firstOrNull { it.optBoolean("me") }
-                    if (r != null) { rankMe = r.optInt("points") to r.optInt("rank"); com.laolao.classcalendar.core.Island.rankMe = rankMe; render() }
-                } }
-        }
-        if (cls != null) row("📍", "班级位置签到", "班委发起，到了现场才能签") { a.push(CheckinPage(a)) }
-        body.addView(c)
+        if (cls != null && Store.feat("rank") && System.currentTimeMillis() - rankAt > 300_000) { rankAt = System.currentTimeMillis()
+            com.laolao.classcalendar.core.Bg.load({ com.laolao.classcalendar.core.Api.rpcObj("growth_board", com.laolao.classcalendar.core.jsonOf("cid" to cls.optString("id"), "period" to "week")) }) { d, _ ->
+                val x = d?.optJSONArray("rows")?.let { arr -> (0 until arr.length()).map { arr.getJSONObject(it) } }?.firstOrNull { it.optBoolean("me") }
+                if (x != null) { rankMe = x.optInt("points") to x.optInt("rank"); com.laolao.classcalendar.core.Island.rankMe = rankMe; render() }
+            } }
     }
 
     private fun more(h: Growth.Habit) {
@@ -398,11 +403,43 @@ class RingView(ctx: Context, private val done: Int, private val total: Int, priv
     }
 }
 
-/** 最近 14 天两条折线 */
+/** 7.x 最近 14 天：每天一根柱子，下面是完成的事、上面摞着打卡；今天那根颜色最深、顶上写总数 */
+class BarChart(ctx: Context, private val data: List<Triple<String, Int, Int>>, private val c1: Int, private val c2: Int) : View(ctx) {
+    private val p = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
+    private val r = RectF()
+    override fun onMeasure(w: Int, h: Int) { setMeasuredDimension(MeasureSpec.getSize(w), (resources.displayMetrics.density * 112).toInt()) }
+    override fun onDraw(c: Canvas) {
+        val d = resources.displayMetrics.density
+        val top = 16 * d; val bottom = height - 18 * d; val n = data.size
+        val max = maxOf(3, data.maxOf { it.second + it.third })
+        val slot = width / n.toFloat(); val bw = minOf(slot * 0.56f, 16 * d)
+        p.color = C.line; p.strokeWidth = maxOf(1f, d * 0.6f); c.drawLine(0f, bottom, width.toFloat(), bottom, p)
+        data.forEachIndexed { i, (day, a, b) ->
+            val cx = slot * i + slot / 2; val today = i == n - 1
+            val fade = if (today) 1f else 0.55f
+            val ha = (bottom - top) * a / max; val hb = (bottom - top) * b / max
+            if (a + b == 0) { p.color = C.alpha(C.text, 0.07f); r.set(cx - bw / 2, bottom - 3 * d, cx + bw / 2, bottom); c.drawRoundRect(r, 1.5f * d, 1.5f * d, p) }
+            else {
+                // 先画整根（打卡色），再把下面一段盖成完成色：上面是圆角，下面是平的
+                p.color = C.alpha(if (b > 0) c2 else c1, fade)
+                r.set(cx - bw / 2, bottom - ha - hb, cx + bw / 2, bottom); c.drawRoundRect(r, bw / 2.6f, bw / 2.6f, p)
+                c.drawRect(cx - bw / 2, bottom - minOf(ha + hb, bw / 2.6f), cx + bw / 2, bottom, p)
+                if (a > 0 && b > 0) { p.color = C.alpha(c1, fade); c.drawRect(cx - bw / 2, bottom - ha, cx + bw / 2, bottom, p) }
+            }
+            tp.textSize = 10 * d
+            if (today) { tp.color = C.text; tp.typeface = HEAVY; c.drawText("${a + b}", cx, bottom - ha - hb - 5 * d, tp) }
+            if (today || i % 7 == 0) { tp.color = if (today) C.text else C.sub; tp.typeface = if (today) HEAVY else null
+                c.drawText(if (today) "今天" else "${day.substring(5, 7).toInt()}/${day.substring(8).toInt()}", cx, height - 4 * d, tp) }
+        }
+    }
+}
+
+/** 最近 14 天两条折线（以前的成长页用，留着） */
 class TrendChart(ctx: Context, private val data: List<Triple<String, Int, Int>>, private val c1: Int, private val c2: Int) : View(ctx) {
     private val p = Paint(Paint.ANTI_ALIAS_FLAG)
     private val tp = Paint(Paint.ANTI_ALIAS_FLAG)
-    override fun onMeasure(w: Int, h: Int) { setMeasuredDimension(MeasureSpec.getSize(w), (resources.displayMetrics.density * 150).toInt()) }
+    override fun onMeasure(w: Int, h: Int) { setMeasuredDimension(MeasureSpec.getSize(w), (resources.displayMetrics.density * 120).toInt()) }
     override fun onDraw(c: Canvas) {
         val d = resources.displayMetrics.density
         val L = 24 * d; val R = 22 * d; val Tp = 8 * d; val B = 22 * d
