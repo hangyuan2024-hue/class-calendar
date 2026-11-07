@@ -101,6 +101,8 @@ MAP = [
     ("⬆️", "circle-arrow-up", "G", "检查更新"),
     ("🔋", "battery-charging", "G", "省电"),
     ("🚀", "rocket", "V", "加速"),
+    ("⇅", "arrow-left-right", "S", "切换班级"),
+    ("⊞", "layout-grid", "B", "自定义首页"),
 ]
 
 NUM = r"-?(?:\d+\.?\d*|\.\d+)(?:e-?\d+)?"

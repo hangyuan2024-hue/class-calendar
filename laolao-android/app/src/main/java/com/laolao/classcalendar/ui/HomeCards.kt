@@ -130,17 +130,21 @@ class HomeCards(private val p: Page) {
 
     // ---------- 画出来 ----------
     fun build(body: LinearLayout, A: Items.Agenda) {
-        val sp = ctx.row().apply { margins(t = 26, b = 12) }
-        val hc = ctx.col()
-        hc.addView(ctx.text("为今天而安排", 11.5f, C.sub, SEMI))
-        hc.addView(ctx.text("我的学习空间", 20f, C.text, HEAVY).apply { margins(t = 2) })
+        val sp = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; margins(t = 26, b = 12) }
+        val hc = ctx.col().apply { pad(4, 0, 0, 0) }
+        hc.addView(ctx.text("我的学习空间", 19f, C.text, HEAVY))
+        hc.addView(ctx.text("为今天而安排", 12.5f, C.sub).apply { margins(t = 2) })
         sp.addView(hc, LinearLayout.LayoutParams(0, WRAP, 1f))
-        sp.addView(ctx.text(if (editing) "完成" else "⊞ 自定义首页", 13f, if (editing) Color.WHITE else C.accent, SEMI).apply { pad(12, 7); press(if (editing) C.accent else C.selected, 16); tap { editing = !editing; p.render() } })
+        sp.addView(ctx.row().apply {
+            gravity = Gravity.CENTER_VERTICAL; pad(12, 7); press(if (editing) C.accent else C.selected, 16); tap { editing = !editing; p.render() }
+            if (!editing) addView(Ic.plain(ctx, "⊞", 14, C.accent), LinearLayout.LayoutParams(dp(14), dp(14)).apply { rightMargin = dp(5) })
+            addView(ctx.text(if (editing) "完成" else "自定义", 13f, if (editing) Color.WHITE else C.accent, SEMI))
+        })
         body.addView(sp)
         val L = layout()
         if (editing) body.addView(editBar(L))
         loadPins()
-        val shown = L.filter { s -> (s.id in TOOL_IDS || DEFS[s.id]?.on?.invoke() == true) && (s.id != "w:pins" || pins.isNotEmpty() || editing) }
+        val shown = L.filter { s -> s.id != "w:quick" && (s.id in TOOL_IDS || DEFS[s.id]?.on?.invoke() == true) && (s.id != "w:pins" || pins.isNotEmpty() || editing) }
         var i = 0
         while (i < shown.size) {
             val s = shown[i]
@@ -181,8 +185,8 @@ class HomeCards(private val p: Page) {
     private fun editBar(L: MutableList<Slot>): View {
         val c = ctx.card(14, 18).apply { margins(b = 12) }
         c.addView(ctx.text("自定义首页", 15f, C.text, BOLD))
-        c.addView(ctx.text("点名字换大小，↑↓ 排序，✕ 移走；会同步到网页和小程序", 12f, C.sub).apply { margins(t = 2) })
-        val addable = DEFS.filter { (id, d) -> L.none { it.id == id } && d.on() }
+        c.addView(ctx.text("点名字换大小，↑↓ 排序，✕ 移走；会同步到网页和小程序。常用入口在右下角「＋」里", 12f, C.sub).apply { margins(t = 2); setLineSpacing(0f, 1.3f) })
+        val addable = DEFS.filter { (id, d) -> id != "w:quick" && L.none { it.id == id } && d.on() }
         val wrapRow = ctx.col().apply { margins(t = 8) }
         var row: LinearLayout? = null
         addable.entries.forEachIndexed { i, (id, d) ->

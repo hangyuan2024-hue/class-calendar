@@ -124,14 +124,14 @@ class HomePage(a: Main) : Page(a) {
             addView(ctx.text("每一天都值得认真", 13f, C.sub).apply { letterSpacing = 0.12f; margins(t = 4) })
         }, LinearLayout.LayoutParams(0, WRAP, 1f))
         r.addView(android.widget.FrameLayout(ctx).apply {
-            background = round(Color.WHITE, dp(26).toFloat()); setPadding(dp(3), dp(3), dp(3), dp(3)); elevation = dp(3).toFloat()
+            background = round(C.card, dp(26).toFloat()); setPadding(dp(3), dp(3), dp(3), dp(3)); elevation = dp(3).toFloat()
             addView(Avatar.view(ctx, Store.name(), Store.me?.str("gender") ?: "", 23), android.widget.FrameLayout.LayoutParams(dp(46), dp(46)))
             tap { a.selectTab(4) }
         }, LinearLayout.LayoutParams(dp(52), dp(52)))
         body.addView(r)
     }
 
-    // ---------- 班级：只有还没加入时才在首页占一块 ----------
+    // ---------- 班级卡：加入了显示班级名和口号，没加入显示加入入口 ----------
     private fun classBar() {
         Store.cls?.let { cls ->
             val c = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; bg(C.card, 22, C.line); pad(14, 14, 14, 14); tap { a.push(ClassPage(a)) } }
@@ -144,8 +144,13 @@ class HomePage(a: Main) : Page(a) {
                 val motto = cls.str("motto").ifEmpty { cls.str("slogan") }
                 addView(ctx.text(motto.ifEmpty { Store.role().ifEmpty { "点这里看班级" } }, 13f, C.sub, lines = 1).apply { margins(t = 3) })
             }, LinearLayout.LayoutParams(0, WRAP, 1f).apply { leftMargin = dp(14) })
-            c.addView(ctx.text("⇅", 16f, C.sub, BOLD).apply { gravity = Gravity.CENTER; background = round(C.mutedBg, dp(20).toFloat()); tap { if (Store.classes.size > 1) switchClass() else a.push(ClassPage(a)) } },
-                LinearLayout.LayoutParams(dp(40), dp(40)).apply { leftMargin = dp(8) })
+            // 加了好几个班：右边圆按钮切换班级；只有一个班：一个「›」，点整张卡进班级页
+            if (Store.classes.size > 1) c.addView(FrameLayout(ctx).apply {
+                background = round(C.mutedBg, dp(20).toFloat()); contentDescription = "切换班级"
+                addView(Ic.plain(ctx, "⇅", 18, C.sub), FrameLayout.LayoutParams(dp(18), dp(18), Gravity.CENTER))
+                tap { switchClass() }
+            }, LinearLayout.LayoutParams(dp(40), dp(40)).apply { leftMargin = dp(8) })
+            else c.addView(ctx.text("›", 22f, C.mutedText), LinearLayout.LayoutParams(WRAP, WRAP).apply { leftMargin = dp(8) })
             body.addView(c)
             return
         }
@@ -219,7 +224,7 @@ class HomePage(a: Main) : Page(a) {
         val name = Store.name()
         tc.addView(ctx.text(T.greet() + if (name.isNotEmpty()) "，$name" else "", 27f, C.heroText, HEAVY, 2))
         val ag = try { Items.agenda() } catch (_: Exception) { null }
-        tc.addView(ctx.text(ag?.say ?: "", 14f, C.alpha(C.heroText, 0.72f)).apply {
+        if (!ag?.say.isNullOrBlank()) tc.addView(ctx.text(ag!!.say, 14f, C.alpha(C.heroText, 0.72f)).apply {
             margins(t = 8); setLineSpacing(0f, 1.3f)
             if (android.os.Build.VERSION.SDK_INT >= 23) breakStrategy = android.text.Layout.BREAK_STRATEGY_BALANCED
         })
@@ -391,7 +396,7 @@ class HomePage(a: Main) : Page(a) {
     private var agFind = false      // 搜索框点了放大镜才出来
     private var nextRow: View? = null
     private fun agenda(A0: Items.Agenda) {
-        val c = ctx.card(18, 22).apply { margins(t = 16) }
+        val c = ctx.card(18, 22).apply { margins(t = 14) }
         // 标题行：接下来 · 全部 / 事项 / 课程 · 放大镜（和小程序一样）
         val hr = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL }
         hr.addView(ctx.text("接下来", 19f, C.text, HEAVY), LinearLayout.LayoutParams(0, WRAP, 1f))
@@ -432,7 +437,7 @@ class HomePage(a: Main) : Page(a) {
                 list.addView(ctx.col().apply {
                     gravity = Gravity.CENTER; pad(12, 18); bg(C.mutedBg, 12)
                     addView(ctx.text("✓", 16f, C.green, BOLD).apply { gravity = Gravity.CENTER; bg(0, 16, C.green) }, LinearLayout.LayoutParams(dp(30), dp(30)))
-                    addView(ctx.text("今天没有安排，轻松一下 ☕", 13f, C.sub).apply { margins(t = 8) })
+                    addView(ctx.text(when (agKind) { 1 -> "今天没有别的事了"; 2 -> "今天没有课了"; else -> "今天没有别的安排了" } + "，轻松一下", 13f, C.sub).apply { margins(t = 8) })
                 })
                 continue
             }
@@ -505,9 +510,9 @@ class HomePage(a: Main) : Page(a) {
     }
     private val R_HEAD = 0x7f0a1001
     private fun dayHead(c: LinearLayout, label: String, sub: String, late: Boolean): View {
-        val r = ctx.row().apply { gravity = Gravity.BOTTOM; margins(t = 16, b = 2) }
-        r.addView(ctx.text(label, 14f, if (late) C.red else C.text, BOLD))
-        r.addView(ctx.text(sub, 12f, C.sub).apply { pad(8, 0, 0, 0) })
+        val r = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; margins(t = 18, b = 4) }
+        r.addView(Ic.lead(ctx.text(label, 16f, if (late) C.red else C.text, HEAVY), 15, if (late) C.red else C.text))
+        r.addView(ctx.text(sub, 13f, C.sub, lines = 1).apply { pad(10, 0, 0, 0) })
         c.addView(r)
         return r
     }
@@ -531,7 +536,7 @@ class HomePage(a: Main) : Page(a) {
         shown += list.size
     }
     private fun nowLine(): View = android.widget.FrameLayout(ctx).apply {
-        val red = C.c("#ff6a3d")
+        val red = C.c(if (C.dark) "#ff8a66" else "#e0603c")   // 和问候卡时间条上「现在」同一个颜色
         addView(View(ctx).apply { setBackgroundColor(red) }, android.widget.FrameLayout.LayoutParams(MATCH, dp(1).coerceAtLeast(2), Gravity.CENTER_VERTICAL))
         addView(View(ctx).apply { background = round(red, dp(4).toFloat()) }, android.widget.FrameLayout.LayoutParams(dp(8), dp(8), Gravity.CENTER_VERTICAL))
         val nw = T.now()
@@ -610,7 +615,7 @@ class Timeline(ctx: Context, private val lessons: List<Lesson>, private val item
             c.drawCircle(cx, cy, 4 * d, p)
         }
         if (nowMin in a..z) {
-            p.color = C.c("#c8604a")
+            p.color = C.c(if (C.dark) "#ff8a66" else "#e0603c")
             val nx = x(nowMin)
             c.drawRect(nx - 1 * d, top - 4 * d, nx + 1 * d, bot + 3 * d, p)
             c.drawCircle(nx, top - 4 * d, 4 * d, p)

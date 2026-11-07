@@ -120,6 +120,8 @@ object Ic {
         Def("⬆️", R.drawable.ic_l_circle_arrow_up, 'G'),   // 检查更新
         Def("🔋", R.drawable.ic_l_battery_charging, 'G'),   // 省电
         Def("🚀", R.drawable.ic_l_rocket, 'V'),   // 加速
+        Def("⇅", R.drawable.ic_l_arrow_left_right, 'S'),   // 切换班级
+        Def("⊞", R.drawable.ic_l_layout_grid, 'B'),   // 自定义首页
     )
     private fun norm(s: String) = s.replace("️", "").trim()
     private val BY: Map<String, Def> by lazy { ALL.associateBy { norm(it.emoji) } }
