@@ -9,3 +9,6 @@
   2. 下载 Lucide 的 icons 文件夹（https://github.com/lucide-icons/lucide 里的 icons/）
   3. cp Ic.kt.tpl ../../app/src/main/java/com/laolao/classcalendar/ui/Ic.kt
      python3 gen.py <lucide/icons> ../../app/src/main/res/drawable ../../app/src/main/java/com/laolao/classcalendar/ui/Ic.kt
+
+底部导航栏图标（tab_v_*.xml，选中时用 *_on 实心版）：
+  python3 tabs.py <lucide/icons> ../../app/src/main/res/drawable
