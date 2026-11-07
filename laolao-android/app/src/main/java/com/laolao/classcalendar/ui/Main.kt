@@ -139,7 +139,8 @@ class Main : Activity() {
                 gravity = Gravity.CENTER; minWidth = dp(16); setPadding(dp(4), 0, dp(4), 0); includeFontPadding = false
                 background = round(C.red, dp(8).toFloat(), C.card, dp(2)); visibility = View.GONE
             }
-            box.addView(badge, FrameLayout.LayoutParams(WRAP, dp(17), Gravity.CENTER).apply { leftMargin = dp(20); bottomMargin = dp(14) })
+            // 角标放在图标右上角，但不超出这一格的上边（超出去会被底栏裁掉一半）
+            box.addView(badge, FrameLayout.LayoutParams(WRAP, dp(17), Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { leftMargin = dp(22); topMargin = 0 })
             tabBadges += badge
             cell.addView(box, LinearLayout.LayoutParams(dp(58), dp(32)))
             val tx = text(names[i], 11f, C.tab, SEMI).apply { gravity = Gravity.CENTER; letterSpacing = 0.02f }

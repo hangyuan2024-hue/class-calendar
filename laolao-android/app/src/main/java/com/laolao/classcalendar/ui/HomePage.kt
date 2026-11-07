@@ -642,12 +642,15 @@ class DeckView(ctx: Context, private val peek: Int, private val gap: Int, privat
     init { isHorizontalScrollBarEnabled = false; overScrollMode = OVER_SCROLL_NEVER; clipToPadding = false; addView(row, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT)) }
     fun add(v: View) { row.addView(v, LinearLayout.LayoutParams(1, LinearLayout.LayoutParams.MATCH_PARENT).apply { if (row.childCount > 0) leftMargin = gap }) }   // 一样高
     private fun cw() = width - peek   // peek：右边留出来的宽度（露出下一张 / 首页伸到屏幕边的那段）
+    // 卡片宽度在测量时就定好（以前是量完再改，刚打开那一下卡片只有 1 像素宽，会显示成一排竖线）
+    override fun onMeasure(wSpec: Int, hSpec: Int) {
+        val w = MeasureSpec.getSize(wSpec)
+        if (w > 0) for (i in 0 until row.childCount) (row.getChildAt(i).layoutParams as LinearLayout.LayoutParams).let { lp -> if (lp.width != w - peek) lp.width = w - peek }
+        super.onMeasure(wSpec, hSpec)
+    }
     override fun onSizeChanged(w: Int, h: Int, ow: Int, oh: Int) {
         super.onSizeChanged(w, h, ow, oh)
-        if (w > 0 && w != ow) post {
-            for (i in 0 until row.childCount) row.getChildAt(i).let { c -> c.layoutParams = (c.layoutParams as LinearLayout.LayoutParams).apply { width = cw() } }
-            post { go(page, false) }
-        }
+        if (w > 0 && w != ow) post { go(page, false) }
     }
     fun go(i: Int, smooth: Boolean = true) {
         val p = i.coerceIn(0, maxOf(0, row.childCount - 1)); val x = p * (cw() + gap)
