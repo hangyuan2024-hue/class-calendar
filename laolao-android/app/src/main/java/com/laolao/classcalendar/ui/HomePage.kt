@@ -119,6 +119,7 @@ class HomePage(a: Main) : Page(a) {
     /** 标题（和小程序首页一样）：学习工作台 / 每一天都值得认真 · 右边圆形头像 */
     private fun head() {
         val r = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; pad(4, 8, 2, 14) }
+        r.addView(Drawer.button(a))
         r.addView(ctx.col().apply {
             addView(ctx.text(if (Store.work()) "工作台" else "学习工作台", 27f, C.text, HEAVY, 1))
             addView(ctx.text("每一天都值得认真", 13f, C.sub).apply { letterSpacing = 0.12f; margins(t = 4) })

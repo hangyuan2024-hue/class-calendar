@@ -67,6 +67,7 @@ class GrowthPage(a: Main) : Page(a) {
     // ---------- 标题：成长 + 一句话，右上角等级 ----------
     private fun header() {
         val r = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; pad(4, 8, 2, 4) }
+        r.addView(Drawer.button(a))
         val name = Store.name()
         r.addView(ctx.col().apply {
             addView(ctx.text("成长", 27f, C.text, HEAVY))
@@ -89,22 +90,10 @@ class GrowthPage(a: Main) : Page(a) {
         body.addView(r)
     }
 
-    // ---------- 正在签到：只有在签到时才出现 ----------
+    // ---------- 正在签到：「今天的我」里的签到按钮会变红，这里只负责及时刷新签到状态 ----------
     private fun checkinBanner() {
         if (Store.cls == null) return
         com.laolao.classcalendar.core.Checkin.peek { render() }
-        val o = com.laolao.classcalendar.core.Checkin.open ?: return
-        if (o.optJSONObject("mine") != null) return
-        body.add(ctx.row().apply {
-            gravity = Gravity.CENTER_VERTICAL; pad(14, 12); press(C.dangerBg, 16)
-            addView(Ic.tile(ctx, "📍", 36), LinearLayout.LayoutParams(dp(36), dp(36)))
-            addView(ctx.col().apply {
-                addView(ctx.text("正在签到：" + o.optString("title").ifEmpty { "位置签到" }, 15f, C.red, BOLD, 1))
-                addView(ctx.text("还剩 " + com.laolao.classcalendar.core.Checkin.leftText(o) + " · 到了现场点这里签到", 12.5f, C.sub, lines = 1))
-            }, LinearLayout.LayoutParams(0, WRAP, 1f).apply { leftMargin = dp(12) })
-            addView(ctx.text("›", 20f, C.red))
-            tap { a.push(CheckinPage(a)) }
-        }, 12)
     }
 
     // ---------- ① 今天的我 ----------
@@ -139,19 +128,43 @@ class GrowthPage(a: Main) : Page(a) {
             else -> "今天已经专注了 $pomo 个番茄，记得起来走走"
         }
         h.add(ctx.text(say, 14f, C.alpha(C.heroText, 0.75f)).apply { setLineSpacing(0f, 1.3f) }, 12)
-        // 专注：正在专注就显示还剩多久，没在专注就是一个「开始」
+        // 专注 + 位置签到：两个最常点的放在「今天的我」里，一伸手就够到
         val p = Plan.pomo(); val (rest, _) = Plan.left()
-        val fr = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; margins(t = 14); pad(12, 10, 10, 10); press(C.alpha(C.card, if (C.dark) 0.6f else 0.85f), 16) }
-        fr.addView(Ic.tile(ctx, "🍅", 36), LinearLayout.LayoutParams(dp(36), dp(36)))
-        fr.addView(ctx.col().apply {
-            addView(ctx.text(when (p.mode) { "focus" -> "专注中 · 还剩 " + Plan.fmt(rest); "break" -> "休息一下 · " + Plan.fmt(rest); "paused" -> "专注暂停了 · " + Plan.fmt(rest); else -> "专注一会儿" }, 15f, if (p.mode == "focus") C.accent else C.text, BOLD, 1))
-            addView(ctx.text("本周 ${Plan.week()} 个番茄 · 点开排四象限", 12.5f, C.sub, lines = 1).apply { margins(t = 1) })
-        }, LinearLayout.LayoutParams(0, WRAP, 1f).apply { leftMargin = dp(11) })
-        if (p.mode == "idle" || p.mode.isEmpty()) fr.addView(ctx.text("开始", 14f, Color.WHITE, BOLD).apply {
-            gravity = Gravity.CENTER; pad(16, 8); press(C.accent, 18, ripple = C.alpha(Color.WHITE, 0.3f)); tap { a.push(PlanPage(a, pomo = true)) }
-        }) else fr.addView(ctx.text("›", 20f, C.mutedText))
-        fr.tap { a.push(PlanPage(a, pomo = p.mode != "idle" && p.mode.isNotEmpty())) }
-        h.addView(fr)
+        val running = p.mode != "idle" && p.mode.isNotEmpty()
+        val focusT = when (p.mode) { "focus" -> "专注中 " + Plan.fmt(rest); "break" -> "休息 " + Plan.fmt(rest); "paused" -> "暂停 " + Plan.fmt(rest); else -> "开始专注" }
+        val ck = com.laolao.classcalendar.core.Checkin.open
+        if (Store.cls == null) {
+            val fr = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; margins(t = 14); pad(12, 10, 10, 10); press(C.alpha(C.card, if (C.dark) 0.6f else 0.85f), 16) }
+            fr.addView(Ic.tile(ctx, "🍅", 36), LinearLayout.LayoutParams(dp(36), dp(36)))
+            fr.addView(ctx.col().apply {
+                addView(ctx.text(if (running) focusT else "专注一会儿", 15f, if (p.mode == "focus") C.accent else C.text, BOLD, 1))
+                addView(ctx.text("本周 ${Plan.week()} 个番茄 · 点开排四象限", 12.5f, C.sub, lines = 1).apply { margins(t = 1) })
+            }, LinearLayout.LayoutParams(0, WRAP, 1f).apply { leftMargin = dp(11) })
+            if (!running) fr.addView(ctx.text("开始", 14f, Color.WHITE, BOLD).apply {
+                gravity = Gravity.CENTER; pad(16, 8); press(C.accent, 18, ripple = C.alpha(Color.WHITE, 0.3f)); tap { a.push(PlanPage(a, pomo = true)) }
+            }) else fr.addView(ctx.text("›", 20f, C.mutedText))
+            fr.tap { a.push(PlanPage(a, pomo = running)) }
+            h.addView(fr)
+        } else {
+            val two = ctx.row().apply { margins(t = 14) }
+            fun tile(icon: String, title: String, sub: String, hot: Boolean, go: () -> Unit) = two.addView(ctx.row().apply {
+                gravity = Gravity.CENTER_VERTICAL; pad(10, 10, 8, 10)
+                press(if (hot) C.dangerBg else C.alpha(C.card, if (C.dark) 0.6f else 0.85f), 16); tap { go() }
+                addView(Ic.tile(ctx, icon, 34), LinearLayout.LayoutParams(dp(34), dp(34)))
+                addView(ctx.col().apply {
+                    addView(ctx.text(title, 14.5f, if (hot) C.red else C.text, BOLD, 1))
+                    addView(ctx.text(sub, 11.5f, C.sub, lines = 1).apply { margins(t = 1) })
+                }, LinearLayout.LayoutParams(0, WRAP, 1f).apply { leftMargin = dp(9) })
+            }, LinearLayout.LayoutParams(0, WRAP, 1f).apply { if (two.childCount > 0) leftMargin = dp(8) })
+            tile("🍅", focusT, "本周 ${Plan.week()} 个番茄", false) { a.push(PlanPage(a, pomo = true)) }
+            val open = ck != null && ck.optJSONObject("mine") == null
+            tile("📍", if (open) "去签到" else "位置签到", when {
+                open -> "还剩 " + com.laolao.classcalendar.core.Checkin.leftText(ck!!)
+                ck != null -> "这次已签到 ✓"
+                else -> "现在没有签到"
+            }, open) { a.push(CheckinPage(a)) }
+            h.addView(two)
+        }
         body.addView(h)
     }
 
@@ -352,12 +365,11 @@ class GrowthPage(a: Main) : Page(a) {
         body.addView(c)
     }
 
-    // ---------- 更多：徽章、云宠、签到 一行放下（等级和排行榜在右上角） ----------
+    // ---------- 更多：徽章、云宠 一行放下（等级和排行榜在右上角，签到在「今天的我」里） ----------
     private fun more() {
         val items = mutableListOf<Triple<String, String, () -> Unit>>()
         items += Triple("🏅", "徽章") { a.push(MetaPage(a)) }
         if (com.laolao.classcalendar.core.Farm.on()) items += Triple("🐣", "云宠 Lv." + com.laolao.classcalendar.core.Farm.state().optInt("level", 1)) { a.push(FarmPage(a)) }
-        if (Store.cls != null) items += Triple("📍", "位置签到") { a.push(CheckinPage(a)) }
         val r = ctx.row().apply { margins(t = 16) }
         items.forEachIndexed { i, (ic, t, go) ->
             r.addView(ctx.row().apply {

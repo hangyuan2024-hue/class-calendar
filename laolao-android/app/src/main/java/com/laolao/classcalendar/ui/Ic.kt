@@ -134,6 +134,7 @@ object Ic {
         Def("🧠", R.drawable.ic_l_brain, 'P'),   // 思考
         Def("🌱", R.drawable.ic_l_sprout, 'G'),   // 成长
         Def("☀️", R.drawable.ic_l_sun, 'O'),   // 早起
+        Def("☰", R.drawable.ic_l_menu, 'S'),   // 侧边栏
     )
     private fun norm(s: String) = s.replace("️", "").trim()
     private val BY: Map<String, Def> by lazy { ALL.associateBy { norm(it.emoji) } }

@@ -9,10 +9,13 @@ import com.laolao.classcalendar.core.Store
 import com.laolao.classcalendar.core.T
 import com.laolao.classcalendar.core.Tools
 
-/** 工具（底部标签）：课程表、日历、规划专注、考试倒计时、记账本、抽签…（照小程序「工具」） */
+/**
+ * 工具（底部标签）。7.x 重新排：一屏放下所有工具——每个分组一张卡，一行四个小图标 + 短名字；
+ * 要紧的状态用右上角小角标（待复习几道、待确认几条、离考试几天），长按图标看说明。
+ */
 class ToolsPage(a: Main) : Page(a) {
     private lateinit var body: LinearLayout
-    class Tool(val icon: String, val name: String, val desc: String, val open: () -> Unit)
+    class Tool(val icon: String, val name: String, val desc: String, val badge: String = "", val hot: Boolean = false, val open: () -> Unit)
 
     override fun build(): View {
         val ps = PullScroll(ctx, null)
@@ -28,58 +31,76 @@ class ToolsPage(a: Main) : Page(a) {
         if (Store.feat("courses")) learn += Tool("📚", "课程表", if (Courses.has()) "${Courses.list().size} 门课" + (if (wk > 0) " · 第 $wk 周" else "") else "拍一张课表截图就能导入") { a.push(CoursePage(a)) }
         learn += Tool("📅", "日历", "月历看所有安排") { a.push(CalendarPage(a, pushed = true)) }
         // 7.2 全屏备忘录（格式、清单、图片、手写；和小程序、网页同一份）
-        learn += Tool("📒", "备忘录", com.laolao.classcalendar.core.NoteStore.memos().size.let { if (it > 0) "$it 条 · 格式、清单、图片、手写" else "格式、清单、图片、手写，三端同步" }) { a.push(NoteListPage(a)) }
-        if (Store.feat("plan")) learn += Tool("🎯", "规划与专注", "今天 ${com.laolao.classcalendar.core.Plan.today()} 个番茄 · 四象限、PDCA、SMART") { a.push(PlanPage(a)) }
+        learn += Tool("📒", "备忘录", "格式、清单、图片、手写，三端同步") { a.push(NoteListPage(a)) }
+        val pm = com.laolao.classcalendar.core.Plan.pomo().mode
+        if (Store.feat("plan")) learn += Tool("🎯", "规划专注", "番茄钟、四象限、PDCA、SMART", if (pm == "focus") "专注中" else "") { a.push(PlanPage(a)) }
+        val ex = exams.firstOrNull()?.let { T.dayDiff(it.optString("date")) }
+        learn += Tool("⏳", "考试倒计时", exams.firstOrNull()?.let { "${it.optString("subject")} · 还剩 ${T.dayDiff(it.optString("date"))} 天" } ?: "考试科目、日期，自动倒计时", if (ex != null) "${ex}天" else "", ex != null && ex <= 7) { a.push(CountdownPage(a)) }
         // 7.1 大作业倒排拆解、期末复习排期（和网页、小程序一样；排出来的是普通的我的事项，没做完自动顺延）
-        val dps = com.laolao.classcalendar.core.Dplan.projects()
-        learn += Tool("🧩", "大作业拆解", if (dps.isNotEmpty()) "${dps.size} 个进行中 · 没做完自动顺延" else "拆成几步，倒排进截止前的每一天") { a.push(DplanPage(a, "project")) }
-        learn += Tool("🎓", "期末复习排期", com.laolao.classcalendar.core.Dplan.currentReview()?.let { "复习计划进行中" } ?: "填考试日期，排出每天复习什么") { a.push(DplanPage(a, "review")) }
-        learn += Tool("⏳", "考试倒计时", exams.firstOrNull()?.let { "${it.optString("subject")} · 还剩 ${T.dayDiff(it.optString("date"))} 天" } ?: "考试科目、日期，自动倒计时") { a.push(CountdownPage(a)) }
-        learn += Tool("📕", "错题本", (try { com.laolao.classcalendar.core.ErrBook.notes().count { !it.optBoolean("mastered") } } catch (e: Exception) { 0 }).let { if (it > 0) "$it 道待复习" else "按学科整理错题，拍照收录" }) { a.push(ErrBookPage(a)) }
-        learn += Tool("📖", "单词搭子", "七本词书，间隔复习、小测") { a.push(WordsPage(a)) }
-        learn += Tool("🐸", "时间管理大师", (try { com.laolao.classcalendar.core.TimeMaster.frogs(T.todayKey(), false).filter { it.optString("title").isNotEmpty() } } catch (e: Exception) { emptyList() }).let { f -> if (f.isEmpty()) "今天的三只青蛙还没写" else "今天的青蛙 ${f.count { it.optBoolean("done") }}/${f.size} 只" }) { a.push(TimeMasterPage(a)) }
-        learn += Tool("📋", "导入备忘录 / 作业", "一段文字拆成一条条待办") { a.push(MemoPage(a, "")) }
-        learn += Tool("📥", "群消息自动收集", com.laolao.classcalendar.core.Collect.count().let { n -> if (n > 0) "$n 条待确认" else if (com.laolao.classcalendar.core.Collect.on(a)) "开着 · 群里有作业、通知会收进来" else "微信 / QQ 群的作业通知自动收进来，不用粘贴" }) { a.push(CollectPage(a)) }
+        learn += Tool("🧩", "大作业拆解", "拆成几步，倒排进截止前的每一天", com.laolao.classcalendar.core.Dplan.projects().size.let { if (it > 0) "$it" else "" }) { a.push(DplanPage(a, "project")) }
+        learn += Tool("🎓", "期末复习", "填考试日期，排出每天复习什么") { a.push(DplanPage(a, "review")) }
+        val err = try { com.laolao.classcalendar.core.ErrBook.notes().count { !it.optBoolean("mastered") } } catch (e: Exception) { 0 }
+        learn += Tool("📕", "错题本", "按学科整理错题，拍照收录", if (err > 0) "$err" else "") { a.push(ErrBookPage(a)) }
+        learn += Tool("📖", "背单词", "七本词书，间隔复习、小测") { a.push(WordsPage(a)) }
+        learn += Tool("🐸", "时间管理", "三只青蛙：先做今天最重要的事") { a.push(TimeMasterPage(a)) }
+        learn += Tool("📋", "导入待办", "一段文字拆成一条条待办") { a.push(MemoPage(a, "")) }
+        val col = com.laolao.classcalendar.core.Collect.count()
+        learn += Tool("📥", "群消息收集", "微信 / QQ 群的作业通知自动收进来", if (col > 0) "$col" else "", col > 0) { a.push(CollectPage(a)) }
         val cls = mutableListOf<Tool>()
         if (Store.cls != null) {
             if (Store.feat("wall")) cls += Tool("💬", "班级墙", "通知、文章、评论") { a.push(WallPage(a)) }
-            cls += Tool("👥", "班级成员", "找到同学与老师") { a.push(PeoplePage(a)) }
+            cls += Tool("👥", "成员", "找到同学与老师") { a.push(PeoplePage(a)) }
             if (Store.can("can_ingest") || Store.feat("ingest_local")) cls += Tool("✨", "整理群消息", "群聊截图、文字一键变事项") { a.push(IngestPage(a)) }
-            if (Store.can("can_edit")) cls += Tool("📢", "发布班级事项", "作业、通知发给全班") { a.push(EditPage(a, null, classMode = true)) }
-            if (Store.feat("rank")) cls += Tool("🏆", "班级排行榜", "这周谁攒的成长值最多") { a.push(RankPage(a)) }
+            if (Store.can("can_edit")) cls += Tool("📢", "发布事项", "作业、通知发给全班") { a.push(EditPage(a, null, classMode = true)) }
+            if (Store.feat("rank")) cls += Tool("🏆", "排行榜", "成长值、等级排行") { a.push(RankPage(a)) }
         }
         cls += Tool("💡", "问问捞捞", "今天先做什么？下节课在哪？") { a.push(AskPage(a)) }
-        val fun0 = mutableListOf<Tool>()
-        if (com.laolao.classcalendar.core.Farm.on()) fun0 += Tool("🐣", "云宠农场", com.laolao.classcalendar.core.Farm.state().let { st -> st.optString("name") + " Lv." + st.optInt("level", 1) + " · 养料 " + com.laolao.classcalendar.core.Farm.left() }) { a.push(FarmPage(a)) }
-        fun0 += Tool("🏅", "等级与徽章", com.laolao.classcalendar.core.Meta.stats().let { "Lv.${it.level} ${it.title}" }) { a.push(MetaPage(a)) }
-        fun0 += Tool("📝", "个人日记", if (com.laolao.classcalendar.core.Kv.get("personal_updated_" + T.todayKey()) != null) "今天写过了 ✓" else "今天还没写，记一点小事吧") { a.push(DiaryPage(a)) }
-        fun0 += Tool("✦", "神谕阁", "答案之书、卡牌指引") { a.push(OraclePage(a)) }
-        val life = listOf(
-            Tool("💳", "校园记账本", "收支分类、月度统计") { a.push(LedgerPage(a)) },
-            Tool("🎲", "随机抽签", "点名、分组、抽奖") { a.push(DrawPage(a)) },
-        )
-        return listOf("学习" to learn, (if (Store.work()) "团队" else "班级") to cls, "趣味" to fun0, "生活" to life)
+        val more = mutableListOf<Tool>()
+        more += Tool("📝", "日记", "记一点今天的小事", if (com.laolao.classcalendar.core.Kv.get("personal_updated_" + T.todayKey()) != null) "✓" else "") { a.push(DiaryPage(a)) }
+        more += Tool("💳", "记账本", "收支分类、月度统计") { a.push(LedgerPage(a)) }
+        more += Tool("🎲", "随机抽签", "点名、分组、抽奖") { a.push(DrawPage(a)) }
+        if (com.laolao.classcalendar.core.Farm.on()) more += Tool("🐣", "云宠农场", "打卡攒养料，养一只小宠物") { a.push(FarmPage(a)) }
+        more += Tool("🏅", "等级徽章", com.laolao.classcalendar.core.Meta.stats().let { "Lv.${it.level} ${it.title}" }) { a.push(MetaPage(a)) }
+        more += Tool("✦", "神谕阁", "答案之书、卡牌指引") { a.push(OraclePage(a)) }
+        return listOf("学习" to learn, (if (Store.work()) "团队" else "班级") to cls, "生活与趣味" to more)
     }
 
     override fun render() {
         view
         keepScroll(body)
-        body.addView(ctx.text("顺手的小工具", 11.5f, C.sub, SEMI).apply { letterSpacing = 0.08f })
-        body.addView(ctx.text("工具", 26f, C.text, HEAVY).apply { margins(t = 2) })
+        body.addView(ctx.row().apply {
+            gravity = Gravity.CENTER_VERTICAL; pad(4, 6, 2, 4)
+            addView(Drawer.button(a))
+            addView(ctx.text("工具", 26f, C.text, HEAVY), LinearLayout.LayoutParams(0, WRAP, 1f))
+            addView(ctx.text("长按看说明", 12f, C.mutedText))
+        })
         for ((title, list) in tools()) {
-            body.addView(ctx.section(title))
-            var row: LinearLayout? = null
-            list.forEachIndexed { i, t ->
-                if (i % 2 == 0) { row = ctx.row().apply { gravity = Gravity.TOP }; body.addView(row, LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = if (i == 0) 0 else dp(10) }) }
-                val c = ctx.col().apply {
-                    pad(14, 14); press(C.card, 18, C.line); tap { t.open() }
-                    addView(Ic.tile(ctx, t.icon, 40), LinearLayout.LayoutParams(dp(40), dp(40)))
-                    addView(ctx.text(t.name, 15f, C.text, BOLD, 1).apply { margins(t = 10) })
-                    addView(ctx.text(t.desc, 12f, C.sub, lines = 2).apply { margins(t = 2) })
-                }
-                row!!.addView(c, LinearLayout.LayoutParams(0, WRAP, 1f).apply { if (i % 2 == 1) leftMargin = dp(10) })
+            if (list.isEmpty()) continue
+            val c = ctx.card(0, 20).apply { pad(6, 10, 6, 4); margins(t = 10) }
+            c.addView(ctx.text(title, 12.5f, C.sub, BOLD).apply { pad(10, 0, 0, 2) })
+            list.chunked(4).forEach { rowItems ->
+                val r = ctx.row()
+                rowItems.forEach { t -> r.addView(cell(t), LinearLayout.LayoutParams(0, WRAP, 1f)) }
+                repeat(4 - rowItems.size) { r.addView(View(ctx), LinearLayout.LayoutParams(0, 1, 1f)) }
+                c.addView(r)
             }
-            if (list.size % 2 == 1) row!!.addView(View(ctx), LinearLayout.LayoutParams(0, 1, 1f).apply { leftMargin = dp(10) })
+            body.addView(c)
         }
+    }
+
+    /** 一个工具：小方块图标 + 短名字；右上角角标；长按看说明 */
+    private fun cell(t: Tool): View = ctx.col().apply {
+        gravity = Gravity.CENTER_HORIZONTAL; pad(2, 5, 2, 6); press(C.card, 14)
+        tap { t.open() }
+        setOnLongClickListener { v -> v.buzz(); a.toast(t.name + "：" + t.desc); true }
+        contentDescription = t.name
+        val box = FrameLayout(ctx).apply { clipChildren = false; clipToPadding = false }
+        box.addView(Ic.tile(ctx, t.icon, 38), FrameLayout.LayoutParams(dp(38), dp(38), Gravity.CENTER))
+        if (t.badge.isNotEmpty()) box.addView(ctx.text(t.badge, 9.5f, android.graphics.Color.WHITE, BOLD).apply {
+            gravity = Gravity.CENTER; includeFontPadding = false; minWidth = dp(15); setPadding(dp(4), 0, dp(4), 0)
+            background = round(when { t.badge == "✓" -> C.green; t.hot -> C.red; else -> C.alpha(C.text, 0.55f) }, dp(8).toFloat(), C.card, dp(1))
+        }, FrameLayout.LayoutParams(WRAP, dp(16), Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { leftMargin = dp(22) })
+        addView(box, LinearLayout.LayoutParams(dp(56), dp(41)))
+        addView(ctx.text(t.name, 12.5f, C.text, SEMI, 1).apply { gravity = Gravity.CENTER; margins(t = 3) }, LinearLayout.LayoutParams(MATCH, WRAP))
     }
 }

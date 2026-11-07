@@ -88,6 +88,12 @@ class Lao(private val a: Main, private val host: FrameLayout) {
     }
 
     // ---------- 放到页面上（每次切标签都会把内容清掉，再放回来） ----------
+    /** 这个点（屏幕坐标）是不是落在捞捞身上：侧边栏的边缘滑动要让着它 */
+    fun hit(x: Float, y: Float): Boolean {
+        if (box.parent == null || box.visibility != View.VISIBLE) return false
+        val r = android.graphics.Rect(); if (!box.getGlobalVisibleRect(r)) return false
+        r.inset(-px(8), -px(8)); return r.contains(x.toInt(), y.toInt())
+    }
     fun attach() {
         Bg.main.removeCallbacks(hideBub)
         bub?.let { box.removeView(it) }; win?.let { host.removeView(it) }; veil?.let { host.removeView(it) }

@@ -92,14 +92,14 @@ class Main : Activity() {
 
     // ---------- 登录 / 主界面 ----------
     fun showLogin() {
-        lao?.stop(); lao = null
+        lao?.stop(); lao = null; Drawer.close(false)
         stack.clear(); tabs.clear(); tabViews.clear(); fabs.clear(); root.removeAllViews()
         val p = LoginPage(this); login = p
         root.addView(p.view, FrameLayout.LayoutParams(MATCH, MATCH))
         Widgets.update(this)
     }
     fun showTabs() {
-        login = null; stack.clear(); tabs.clear(); tabViews.clear(); fabs.clear(); root.removeAllViews()
+        Drawer.close(false); login = null; stack.clear(); tabs.clear(); tabViews.clear(); fabs.clear(); root.removeAllViews()
         tabBox = FrameLayout(this)
         tabContent = FrameLayout(this).apply { clipChildren = false }
         lao?.stop(); lao = Lao(this, tabContent)
@@ -225,6 +225,29 @@ class Main : Activity() {
         walk(v)
     }
 
+    // ---------- 7.x 侧边栏：从屏幕左边缘往右滑打开（捞捞趴在左边时让着它） ----------
+    private var edgeX = -1f; private var edgeY = 0f; private var edgeOn = false
+    override fun dispatchTouchEvent(e: android.view.MotionEvent): Boolean {
+        if (login == null && !Drawer.isOpen) when (e.actionMasked) {
+            android.view.MotionEvent.ACTION_DOWN -> {
+                edgeOn = false
+                edgeX = if (e.rawX < dp(22) && lao?.hit(e.rawX, e.rawY) != true) e.rawX else -1f; edgeY = e.rawY
+            }
+            android.view.MotionEvent.ACTION_MOVE -> if (edgeX >= 0 && !edgeOn) {
+                val dx = e.rawX - edgeX; val dy = Math.abs(e.rawY - edgeY)
+                if (dx > dp(28) && dx > dy * 1.4f) {
+                    edgeOn = true; edgeX = -1f
+                    // 让下面的页面取消这次按下（不会误点到东西）
+                    val c = android.view.MotionEvent.obtain(e).apply { action = android.view.MotionEvent.ACTION_CANCEL }
+                    super.dispatchTouchEvent(c); c.recycle()
+                    Drawer.open(this); return true
+                } else if (dy > dp(24)) edgeX = -1f
+            }
+        }
+        if (edgeOn) { if (e.actionMasked == android.view.MotionEvent.ACTION_UP || e.actionMasked == android.view.MotionEvent.ACTION_CANCEL) edgeOn = false; return true }
+        return super.dispatchTouchEvent(e)
+    }
+
     // ---------- 页面栈 ----------
     fun push(p: Page) {
         fabs.forEach { it.close() }
@@ -250,6 +273,7 @@ class Main : Activity() {
     }
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
+        if (Drawer.isOpen) { Drawer.close(); return }
         fabs.firstOrNull { it.open }?.let { it.close(); return }
         if (stack.isEmpty() && lao?.isOpen == true) { lao?.close(); return }
         val top = stack.lastOrNull()

@@ -38,6 +38,7 @@ class MePage(a: Main) : Page(a) {
         keepScroll(body)
         val me = Store.me
         val hd = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; pad(2, 6, 0, 12) }
+        hd.addView(Drawer.button(a))
         hd.addView(ctx.text("我的", 26f, C.text, HEAVY), LinearLayout.LayoutParams(0, WRAP, 1f))
         hd.addView(ctx.row().apply {
             gravity = Gravity.CENTER_VERTICAL; pad(12, 8); press(C.card, 20, C.line); contentDescription = "设置"

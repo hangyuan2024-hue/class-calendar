@@ -9,6 +9,7 @@ import org.json.JSONArray
 
 /**
  * 7.x 首页右下角「＋」放哪些入口（和小程序 1.22 fabcfg.js 一样，同一个 fab_cfg_v1，只存这台手机）：
+ * 「＋」只管新建（记事、发布、整理群消息、写备忘录、导入……）；打卡、专注、签到、课表、日历这些常用入口在侧边栏里。
  * 在「我的 → 设置 → 首页快捷菜单」里勾选、排顺序，最多 8 个。
  */
 object FabCfg {
@@ -18,20 +19,14 @@ object FabCfg {
     private val ALL = listOf(
         Opt("mine", "✏️", "记一件事", { true }) { a -> a.push(EditPage(a, null)) },
         Opt("quick", "💬", "一句话记事", { true }) { a -> QuickAdd.open(a) },
-        Opt("calendar", "📅", "打开日历", { true }) { a -> a.push(CalendarPage(a, pushed = true)) },
-        Opt("homework", "📝", "看作业", { Store.feat("homework") }) { a -> a.selectTab(1) },
         Opt("pub", "📢", "发布班级事项", { Store.can("can_edit") }) { a -> a.push(EditPage(a, null, classMode = true)) },
         Opt("ingest", "✨", "整理群消息", { Store.cls != null && (Store.can("can_ingest") || Store.feat("ingest_local")) }) { a -> a.push(IngestPage(a)) },
-        Opt("checkin", "📍", "签到", { Store.cls != null }) { a -> a.push(CheckinPage(a)) },
         Opt("wall", "📌", "发到班级墙", { Store.cls != null && Store.feat("wall") }) { a -> a.push(WallPage(a)) },
-        Opt("habit", "🔥", "今日打卡", { true }) { a -> a.selectTab(2) },
-        Opt("pomo", "🍅", "开始专注", { Store.feat("plan") }) { a -> a.push(PlanPage(a, pomo = true)) },
         Opt("note", "📒", "写备忘录", { true }) { a -> a.push(NotePage(a, null)) },
-        Opt("course", "📚", "课表", { Store.feat("courses") }) { a -> a.push(CoursePage(a)) },
         Opt("courseimp", "📷", "拍课表导入", { Store.feat("courses") }) { a -> a.push(CourseImportPage(a)) },
         Opt("memo", "📋", "导入备忘录 / 聊天记录", { true }) { a -> a.push(MemoPage(a, "")) },
     )
-    private val DEF = listOf("mine", "quick", "pub", "ingest", "habit", "pomo", "note")
+    private val DEF = listOf("mine", "quick", "pub", "ingest", "note")
     private fun safe(f: () -> Boolean) = try { f() } catch (_: Exception) { false }
 
     /** 现在选了哪些（按顺序）；没设置过用默认 */
@@ -54,7 +49,7 @@ class FabCfgPage(a: Main) : Page(a) {
         body.removeAllViews()
         val sel = FabCfg.keys().toMutableList()
         val all = FabCfg.all()
-        body.addView(ctx.text("首页右下角「＋」点开后显示哪些入口，最多 ${FabCfg.MAX} 个。只存在这台手机上。", 13f, C.sub).apply { setLineSpacing(0f, 1.3f); pad(4, 0, 4, 4) })
+        body.addView(ctx.text("首页右下角「＋」用来新建东西，点开后显示哪些入口，最多 ${FabCfg.MAX} 个。打卡、专注、签到、课表这些常用入口在侧边栏里（从左边缘往右滑）。只存在这台手机上。", 13f, C.sub).apply { setLineSpacing(0f, 1.3f); pad(4, 0, 4, 4) })
         body.addView(ctx.section("已选 ${sel.size} 个", "点 ↑ ↓ 调顺序，点 − 去掉"))
         val c1 = ctx.card(4, 18)
         sel.forEachIndexed { i, k ->
