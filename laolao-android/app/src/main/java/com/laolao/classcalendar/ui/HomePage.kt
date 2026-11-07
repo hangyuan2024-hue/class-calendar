@@ -101,8 +101,8 @@ class HomePage(a: Main) : Page(a) {
         val o = com.laolao.classcalendar.core.Checkin.open ?: return
         InAlert.checkin(a, o)   // 7.x 签到开始：提示音 + 横幅（每次签到只响一次）
         val mine = o.optJSONObject("mine") != null
-        val c = ctx.row().apply { pad(14, 12); margins(t = 12)
-            background = round(if (mine) C.alpha(C.green, 0.1f) else C.alpha(C.c("#ff7a45"), 0.1f), dp(16).toFloat(), if (mine) C.alpha(C.green, 0.45f) else C.alpha(C.c("#ff7a45"), 0.5f), dp(1)) }
+        val c = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; pad(14, 11); margins(t = 12)
+            background = round(if (mine) C.alpha(C.green, 0.1f) else C.alpha(C.c("#ff7a45"), 0.1f), dp(20).toFloat(), if (mine) C.alpha(C.green, 0.45f) else C.alpha(C.c("#ff7a45"), 0.5f), dp(1)) }
         c.addView(Ic.tile(ctx, "📍", 38), LinearLayout.LayoutParams(dp(38), dp(38)))
         c.addView(ctx.col().apply { pad(10, 0); addView(ctx.text(o.str("title").ifEmpty { "位置签到" }, 15f, C.text, BOLD, 1)); addView(ctx.text(o.str("place") + " · 还剩 " + com.laolao.classcalendar.core.Checkin.leftText(o), 12.5f, C.sub, lines = 1)) }, LinearLayout.LayoutParams(0, WRAP, 1f))
         c.addView(ctx.text(if (mine) "✓ 已签到" else "去签到 ›", 13.5f, if (mine) C.green else C.c("#d4561e"), BOLD))
@@ -119,7 +119,7 @@ class HomePage(a: Main) : Page(a) {
     // → 接下来（全部 / 事项 / 课程、放大镜搜索、大号时间的时间线）→ 教练 → 卡片
     /** 标题（和小程序首页一样）：学习工作台 / 每一天都值得认真 · 右边圆形头像 */
     private fun head() {
-        val r = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; pad(4, 22, 2, 14) }   // 整体往下放一点，不贴着顶
+        val r = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; pad(4, 38, 2, 16) }   // 整体往下放：标题离顶部留出一段呼吸的空间
         r.addView(ctx.col().apply {
             addView(ctx.text(if (Store.work()) "工作台" else "学习工作台", 21f, C.text, HEAVY, 1))
             addView(ctx.text("每一天都值得认真", 12f, C.sub).apply { letterSpacing = 0.08f; margins(t = 1) })
@@ -135,7 +135,7 @@ class HomePage(a: Main) : Page(a) {
     // ---------- 班级卡：加入了显示班级名和口号，没加入显示加入入口 ----------
     private fun classBar() {
         Store.cls?.let { cls ->
-            val c = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; bg(C.card, 18, C.line); pad(12, 10, 12, 10); tap { a.push(ClassPage(a)) } }
+            val c = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; bg(C.card, 20, C.line); pad(12, 11, 12, 11); tap { a.push(ClassPage(a)) } }
             c.addView(ctx.text(cls.str("name").take(1), 16f, Color.WHITE, HEAVY).apply {
                 gravity = Gravity.CENTER
                 background = android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TL_BR, intArrayOf(C.mix(C.accent, Color.WHITE, 0.2f), C.accent)).apply { cornerRadius = dp(11).toFloat() }
@@ -231,7 +231,19 @@ class HomePage(a: Main) : Page(a) {
         })
         mid.addView(tc, LinearLayout.LayoutParams(0, WRAP, 1f))
         val night = T.now().hour >= 23 || T.now().hour < 5
-        mid.addView(ImageView(ctx).apply { setImageResource(if (night) R.drawable.mascot_sleep else R.drawable.mascot); rotation = 8f; tap { it.animate().rotationBy(-16f).setDuration(160).withEndAction { it.animate().rotation(8f).setDuration(160).start() }.start() } },
+        mid.addView(ImageView(ctx).apply {
+            setImageResource(if (night) R.drawable.mascot_sleep else R.drawable.mascot); rotation = 8f
+            // 轻轻上下浮动：系统关了动画（省电 / 无障碍）就不动
+            if (android.provider.Settings.Global.getFloat(ctx.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) > 0f)
+                android.animation.ObjectAnimator.ofFloat(this, View.TRANSLATION_Y, 0f, -dp(4).toFloat()).apply {
+                    duration = 1600; repeatMode = android.animation.ValueAnimator.REVERSE; repeatCount = android.animation.ValueAnimator.INFINITE
+                    interpolator = android.view.animation.AccelerateDecelerateInterpolator()
+                    addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+                        override fun onViewAttachedToWindow(v: View) { start() }
+                        override fun onViewDetachedFromWindow(v: View) { cancel() }
+                    })
+                }
+            tap { it.animate().rotationBy(-16f).setDuration(160).withEndAction { it.animate().rotation(8f).setDuration(160).start() }.start() } },
             LinearLayout.LayoutParams(dp(74), dp(74)).apply { leftMargin = dp(6) })
         h.addView(mid)
         // 接下来做啥：要做的事和捞捞的建议一起打分排序（NextAI），左右滑；长按「2 小时后再说」「少推荐这类」
@@ -399,7 +411,7 @@ class HomePage(a: Main) : Page(a) {
     private var nowRef: View? = null      // 列表里「现在」那条红线：打开时停在这里
     private var lateOpen = false          // 已过期：默认收起，点标题展开
     private fun agenda(A0: Items.Agenda) {
-        val c = ctx.card(14, 18).apply { margins(t = 10) }
+        val c = ctx.card(14, 20).apply { margins(t = 12) }
         // 标题行：接下来 · 全部 / 事项 / 课程 · 放大镜（和小程序一样）
         val hr = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL }
         hr.addView(ctx.text("接下来", 17f, C.text, HEAVY), LinearLayout.LayoutParams(0, WRAP, 1f))
@@ -485,15 +497,17 @@ class HomePage(a: Main) : Page(a) {
             paintBack(sc, back)
         }
         sc.post { if (!agManual) goNext(sc, false) else sc.scrollTo(0, agY); paintBack(sc, back) }
-        val foot = "只显示今天起两周内的安排，更早或更晚的去「日历」里看" + if (Store.itemsAt > 0) "\n班级数据更新于 " + T.ago(Store.itemsAt) + " · 下拉可以刷新" else ""
         c.add(ctx.hline(), 8)
+        val ft = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; margins(t = 8) }
         if (A.doneCount > 0) {
             val hide = Items.hideDone()
-            c.add(ctx.text(if (hide) "显示已完成的" else "隐藏已完成的（${A.doneCount}）", 13f, C.accent, SEMI).apply {
-                pad(0, 4); tap { com.laolao.classcalendar.core.Kv.setQuiet("app_hide_done", !hide); agManual = false; render() }
-            }, 10)
+            ft.addView(ctx.text(if (hide) "显示已完成" else "隐藏已完成 ${A.doneCount}", 12.5f, C.accent, SEMI).apply {
+                pad(0, 6, 12, 6); tap { com.laolao.classcalendar.core.Kv.setQuiet("app_hide_done", !hide); agManual = false; render() }
+            })
         }
-        c.add(ctx.text(foot, 12f, C.sub).apply { setLineSpacing(0f, 1.4f); tap { a.push(CalendarPage(a, pushed = true)) } }, 10)
+        ft.addView(ctx.text(if (Store.itemsAt > 0) "更新于 " + T.ago(Store.itemsAt) else "", 11.5f, C.mutedText, lines = 1).apply { gravity = Gravity.END }, LinearLayout.LayoutParams(0, WRAP, 1f))
+        ft.addView(ctx.text("两周后去日历 ›", 12.5f, C.accent, SEMI).apply { pad(12, 6, 0, 6); tap { a.push(CalendarPage(a, pushed = true)) } })
+        c.addView(ft)
         body.addView(c)
     }
     /** 翻到第一件还没做的事（连同那一天的标题一起露出来） */
@@ -533,7 +547,7 @@ class HomePage(a: Main) : Page(a) {
         list.forEachIndexed { i, r ->
             // 今天的列表里画一条红线「现在 14:05」（和小程序一样）
             if (today && !nowShown && r.dated && r.time.isNotEmpty() && r.at() > now) { nowShown = true; c.addView(nowLine()) }
-            else if (i > 0) c.addView(ctx.hline())
+            else if (i > 0) c.addView(ctx.hline().apply { (layoutParams as LinearLayout.LayoutParams).leftMargin = dp(72) })
             val v = a.timeRow(r, showDate)
             c.addView(v)
             if (nextRow == null && Items.pending(r, now)) {
