@@ -240,6 +240,7 @@ class Main : Activity() {
         if (login == null && !Api.loggedIn) showLogin()
         stack.lastOrNull()?.onAppResume()
         com.laolao.classcalendar.work.Guard.ensure(this)
+        if (login == null && Api.loggedIn) Bg.later(1500) { Updater.auto(this) }   // 7.x 强制更新：从后台回来也看一眼
     }
     override fun onPause() { super.onPause(); stack.lastOrNull()?.onAppPause(); Bg.run { com.laolao.classcalendar.core.Sync.finish() }; Widgets.update(this) }
     override fun onDestroy() { Bus.off(this); super.onDestroy() }

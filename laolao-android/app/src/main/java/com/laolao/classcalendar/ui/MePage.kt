@@ -211,7 +211,7 @@ class SettingsPage(a: Main) : Page(a) {
         card(b,
             row("🎨", "外观", "配色、深色模式、背景") { a.push(LookPage(a)) },
             row("➕", "首页快捷菜单", "右下角「＋」里放哪些、什么顺序") { a.push(FabCfgPage(a)) },
-            row("💡", "捞捞推荐", "首页按时间推荐；长按过「不喜欢」的，在这里全部恢复") { Dialogs.confirm(ctx, "恢复全部推荐？", "之前长按选过「不喜欢」的推荐，会重新出现。", "恢复") { Rec.resetAll(); a.toast("已恢复") } })
+            row("💡", "接下来做啥", "首页的智能推荐会学你的习惯；在这里清空重新学") { Dialogs.confirm(ctx, "清空推荐记录？", "捞捞记住的习惯、长按选过的「不喜欢」「2 小时后再说」都会清空，重新开始学。", "清空") { Rec.resetAll(); NextAI.reset(); a.toast("已清空") } })
         card(b,
             row("🎉", "趣味与效率", "完成时的鼓励、撒花、捞捞助手、打卡、规划、云宠") { a.push(FunPage(a)) },
             row("🧭", "捞捞教练", "推荐现在做什么、每周复盘；只在本机计算") { a.push(CoachPage(a)) },

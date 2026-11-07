@@ -115,18 +115,19 @@ class HomePage(a: Main) : Page(a) {
     // 问候（日期 + 班级切换）→ 今日概览三个数字 → 「现在」看板（左右滑）→ 今天的时间轴（有课或有带时间的事才出现）→ 接下来的安排 → 教练 → 卡片
     // 去掉了：大标题「学习工作台.」和头像（「我的」里有）、班级口号、一排小胶囊、问候里那句和下面重复的话、问候卡里的捞捞（左下角已经有一个）
     private fun head() {
-        // 顶上一行：左边班级（多个班级点了切换），右边自己的头像（点了去「我的」）
-        val r = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; pad(2, 6, 0, 10) }
+        // 顶上一行（7.x 简化）：左边班级名（点了切换 / 进班级），右边圆形头像（点了去「我的」）；不再用带边框的大胶囊
+        val r = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; pad(4, 4, 0, 10) }
         val cls = Store.cls
-        if (cls != null) r.addView(ctx.row().apply {
-            gravity = Gravity.CENTER_VERTICAL; pad(8, 6, 12, 6); press(C.card, 18, C.line)
-            addView(ctx.text(cls.str("name").take(1), 12f, C.text, HEAVY).apply { gravity = Gravity.CENTER; bg(C.mint, 7) }, LinearLayout.LayoutParams(dp(24), dp(24)))
-            addView(ctx.text(cls.str("name"), 14f, C.text, BOLD, 1).apply { pad(8, 0, 0, 0); maxWidth = dp(170) })
-            if (Store.classes.size > 1) addView(ctx.text(" ⇅", 12f, C.sub))
-            tap { if (Store.classes.size > 1) switchClass() else a.push(ClassPage(a)) }
-        }) else r.addView(ctx.text(if (Store.work()) "工作台" else "学习工作台", 17f, C.text, HEAVY))
-        r.addView(View(ctx), LinearLayout.LayoutParams(0, 1, 1f))
-        r.addView(Avatar.view(ctx, Store.name(), Store.me?.str("gender") ?: "", 12).apply { tap { a.selectTab(4) } }, LinearLayout.LayoutParams(dp(38), dp(38)))
+        r.addView(ctx.col().apply {
+            addView(ctx.text(if (Store.work()) "工作台" else "学习工作台", 11.5f, C.sub, SEMI))
+            addView(ctx.row().apply {
+                gravity = Gravity.CENTER_VERTICAL
+                addView(ctx.text(cls?.str("name") ?: "还没加入班级", 18f, C.text, HEAVY, 1).apply { maxWidth = dp(230) })
+                addView(ctx.text(if (cls != null && Store.classes.size > 1) " ⌄" else " ›", 15f, C.sub, BOLD))
+            })
+            tap { if (cls != null && Store.classes.size > 1) switchClass() else a.push(ClassPage(a)) }
+        }, LinearLayout.LayoutParams(0, WRAP, 1f))
+        r.addView(Avatar.view(ctx, Store.name(), Store.me?.str("gender") ?: "", 18).apply { tap { a.selectTab(4) } }, LinearLayout.LayoutParams(dp(36), dp(36)))
         body.addView(r)
     }
 
@@ -216,20 +217,11 @@ class HomePage(a: Main) : Page(a) {
         mid.addView(ImageView(ctx).apply { setImageResource(if (night) R.drawable.mascot_sleep else R.drawable.mascot); rotation = 8f; tap { it.animate().rotationBy(-16f).setDuration(160).withEndAction { it.animate().rotation(8f).setDuration(160).start() }.start() } },
             LinearLayout.LayoutParams(dp(64), dp(64)).apply { leftMargin = dp(6) })
         h.addView(mid)
-        // 「现在」：要紧的事 + 捞捞推荐排成一叠，左右滑（推荐的卡长按可以说不喜欢）
-        val deck = try { Items.deck() } catch (e: Exception) { emptyList() }
-        val recs = try { Rec.pick(3) } catch (e: Exception) { emptyList() }
-        val cards = mutableListOf<Pair<String, View>>()
-        val real = deck.filter { it.id != "idle" && !(it.id == "sleep" && recs.isNotEmpty()) }
-        real.take(1).forEach { cards += it.id to nextCard(it) }
-        recs.filter { r -> !(r.id == "sleep" && real.any { it.id == "sleep" }) }.forEach { r -> cards += "rec:" + r.id to recCard(r) }
-        real.drop(1).forEach { cards += it.id to nextCard(it) }
-        if (cards.isEmpty()) deck.forEach { cards += it.id to nextCard(it) }
+        // 「接下来做啥」：要做的事和捞捞的建议一起打分排序（NextAI），左右滑；长按可以「2 小时后再说」「少推荐这类」
+        val cards = try { NextAI.rank() } catch (e: Exception) { emptyList() }
         if (cards.isNotEmpty()) {
             val hr = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; margins(t = 16, b = 8) }
-            hr.addView(ctx.text("现在", 13f, C.heroText, BOLD))
-            if (recs.isNotEmpty()) hr.addView(ctx.text("  含捞捞推荐 · 长按推荐可以说不喜欢", 11.5f, C.alpha(C.heroText, 0.6f), lines = 1), LinearLayout.LayoutParams(0, WRAP, 1f))
-            else hr.addView(View(ctx), LinearLayout.LayoutParams(0, 1, 1f))
+            hr.addView(ctx.text("接下来做啥", 13.5f, C.heroText, BOLD), LinearLayout.LayoutParams(0, WRAP, 1f))
             val cnt = ctx.text("", 12f, C.alpha(C.heroText, 0.6f), SEMI)
             if (cards.size > 1) hr.addView(cnt)
             h.addView(hr)
@@ -239,35 +231,77 @@ class HomePage(a: Main) : Page(a) {
     }
     // 1.33 看板：几张卡左右滑（和小程序一样），右上角「2 / 5」；右边露出下一张一小截一直到屏幕边，提示还能滑；每分钟刷新、做完一件都停在原来那张
     private var deckAt = ""
-    private fun deckView(cards: List<Pair<String, View>>, cnt: TextView): View {
-        fun paint(i: Int) { deckAt = cards.getOrNull(i)?.first ?: ""; cnt.text = "${i + 1} / ${cards.size}" }
+    private fun deckView(cards: List<NextAI.Card>, cnt: TextView): View {
+        var last = -1
+        fun paint(i: Int) {
+            if (last in 0 until i) cards.getOrNull(last)?.let { NextAI.skip(it) }   // 划过去没理：这类在这个时段稍微往后排
+            last = i; deckAt = cards.getOrNull(i)?.id ?: ""; cnt.text = "${i + 1} / ${cards.size}"
+        }
         heroBox?.let { it.clipToPadding = false; it.clipChildren = false }
         val edge = dp(18)   // 问候卡左右留白：看板往右伸到问候卡边上（露出下一张一截，被卡片圆角裁掉）
         val dv = DeckView(ctx, if (cards.size > 1) edge + dp(28) else edge, dp(10)) { paint(it) }
-        cards.forEach { dv.add(it.second) }
-        dv.page = maxOf(0, cards.indexOfFirst { it.first == deckAt })
-        paint(dv.page)
+        cards.forEach { dv.add(aiCard(it)) }
+        dv.page = maxOf(0, cards.indexOfFirst { it.id == deckAt })
+        last = dv.page; paint(dv.page)
         dv.clipToPadding = false
         return dv.apply { layoutParams = LinearLayout.LayoutParams(MATCH, WRAP).apply { rightMargin = -edge } }
     }
-    /** 捞捞推荐的卡：和其他卡一个样子，小字写「捞捞推荐」；点了直接去，长按「不喜欢」 */
-    private fun recCard(r: Rec.S): View {
-        val c = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; pad(14, 14, 12, 14); background = round(C.card, dp(18).toFloat(), C.alpha(C.accent, 0.22f), dp(1)) }
-        c.addView(Ic.tile(ctx, r.icon, 38), LinearLayout.LayoutParams(dp(38), dp(38)))
-        c.addView(ctx.col().apply {
-            addView(ctx.text("✨ 捞捞推荐", 12f, C.accent, BOLD, 1).apply { Ic.lead(this, 13, own = true) })
-            addView(ctx.text(r.title, 16f, C.text, BOLD, 1).apply { margins(t = 4) })
-            addView(ctx.text(r.sub, 12.5f, C.sub, lines = 1).apply { margins(t = 2) })
-        }, LinearLayout.LayoutParams(0, WRAP, 1f).apply { leftMargin = dp(12) })
-        if (r.id != "sleep") c.addView(ctx.text("›", 20f, C.sub), LinearLayout.LayoutParams(WRAP, WRAP).apply { leftMargin = dp(8) })
-        c.tap { Rec.liked(r.id); r.go(a) }
-        c.setOnLongClickListener { v ->
-            v.buzz()
-            Dialogs.sheet(ctx, "「${r.title}」", listOf("不喜欢，这个时段别推荐", "今天先不显示", "以后都不推荐这个")) { k -> Rec.dislike(r.id, k); a.toast("好的，捞捞记住了"); fillHero() }
+    /** 「接下来做啥」的一张卡（要做的事、建议同一个样子）：左边图标 | 小字「类别 · 还剩多久」、标题、说明 | 右边 ✓ / 去处理 / › */
+    private fun aiCard(c: NextAI.Card): View {
+        val n = c.next; val r = c.rec
+        val hot = n?.hot == true; val sleep = c.cat == "sleep" || r?.id == "sleep"
+        val tone = if (hot) C.red else if (sleep) C.c(if (C.dark) "#c7c3ff" else "#4338ca") else C.accent
+        val v = ctx.row().apply {
+            gravity = Gravity.CENTER_VERTICAL; pad(14, 14, 12, 14)
+            background = round(C.card, dp(18).toFloat(), if (hot) C.alpha(C.red, 0.28f) else C.line, dp(1))
+        }
+        v.addView(Ic.tile(ctx, c.icon, 40), LinearLayout.LayoutParams(dp(40), dp(40)))
+        val t = ctx.col()
+        val label = n?.label ?: "建议"
+        val cd = if (n == null) "" else if (n.at > 0) { val left = n.at - System.currentTimeMillis(); if (n.live) "还有 " + T.left(left).replace("后", "下课") else T.left(left) }
+            else if (n.reason.isNotEmpty() && n.reason != n.label) n.reason else ""
+        t.addView(ctx.text(label + if (cd.isNotEmpty()) " · $cd" else "", 12f, tone, BOLD, 1))
+        t.addView(ctx.text(n?.title ?: r!!.title, 16f, C.text, BOLD, 1).apply { margins(t = 3) })
+        val sub = n?.sub ?: r?.sub ?: ""
+        if (sub.isNotEmpty()) t.addView(ctx.text(sub, 12.5f, C.sub, lines = 1).apply { margins(t = 2) })
+        if (c.why.isNotEmpty()) t.addView(ctx.text("✨ " + c.why, 11.5f, C.accent, SEMI, 1).apply { margins(t = 3) })
+        v.addView(t, LinearLayout.LayoutParams(0, WRAP, 1f).apply { leftMargin = dp(12) })
+        // 右边的动作
+        if (n != null && n.key.isNotEmpty()) {
+            v.addView(ctx.text("✓", 16f, C.accent, HEAVY).apply {
+                gravity = Gravity.CENTER; background = round(0, dp(19).toFloat(), C.alpha(C.accent, 0.55f), dp(2)); contentDescription = "标记完成"
+                tap { x -> x.buzz(); NextAI.act(c); Items.find(n.key)?.let { a.toggle(it) } }
+            }, LinearLayout.LayoutParams(dp(38), dp(38)).apply { leftMargin = dp(10) })
+        } else if (n != null && n.go.isNotEmpty()) {
+            v.addView(ctx.text(if (n.go == "homework") "去处理" else "开始专注", 13f, tone, BOLD).apply {
+                gravity = Gravity.CENTER; pad(12, 7); bg(if (hot) C.dangerBg else C.selected, 10)
+                tap { NextAI.act(c); if (n.go == "homework") a.selectTab(1) else a.push(PlanPage(a)) }
+            }, LinearLayout.LayoutParams(WRAP, WRAP).apply { leftMargin = dp(8) })
+        } else if (!sleep) v.addView(ctx.text("›", 20f, C.sub), LinearLayout.LayoutParams(WRAP, WRAP).apply { leftMargin = dp(8) })
+        v.tap {
+            NextAI.act(c)
+            when {
+                r != null -> r.go(a)
+                n == null -> {}
+                n.open.isNotEmpty() -> a.push(ItemPage(a, n.open))
+                n.go == "homework" -> a.selectTab(1)
+                n.cday.isNotEmpty() -> CourseView.open(a, n.cday, n.title, n.cstart)
+                c.cat == "class" || c.cat == "live" -> a.push(CoursePage(a))
+            }
+        }
+        v.setOnLongClickListener { x ->
+            x.buzz()
+            val opts = mutableListOf("2 小时后再说", "这个时段少推荐这类")
+            if (r != null) opts += listOf("今天先不显示", "以后都不推荐这个")
+            Dialogs.sheet(ctx, "「${n?.title ?: r!!.title}」", opts) { k ->
+                when (k) { 0 -> NextAI.snooze(c); 1 -> { NextAI.less(c); r?.let { Rec.dislike(it.id, 0) } }; 2 -> Rec.dislike(r!!.id, 1); else -> Rec.dislike(r!!.id, 2) }
+                a.toast(if (k == 0) "好的，2 小时后再提醒" else "好的，捞捞记住了"); fillHero()
+            }
             true
         }
-        return c
+        return v
     }
+
     /** 看板里的一张卡：小字「● 类别 · 还有多久」→ 标题 → 时间地点；右边 ✓（能直接做完的）/ 去处理 / 开始专注 / › */
     private fun nextCard(n: Items.Next): View {
         val hot = n.hot; val sleep = n.label == "早点睡"

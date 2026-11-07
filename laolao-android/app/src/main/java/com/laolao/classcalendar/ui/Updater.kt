@@ -28,13 +28,19 @@ object Updater {
     fun code(a: Main): Long = try { val p = a.packageManager.getPackageInfo(a.packageName, 0); if (Build.VERSION.SDK_INT >= 28) p.longVersionCode else p.versionCode.toLong() } catch (e: Exception) { 0 }
     fun version(a: Main): String = try { a.packageManager.getPackageInfo(a.packageName, 0).versionName ?: "" } catch (e: Exception) { "" }
 
-    /** 启动时调：12 小时内问过就不问；同一个版本点过「以后」就三天内不再弹 */
+    /**
+     * 7.x 强制更新：打开 App、从后台回来（最多 20 分钟查一次）都看一下官网有没有新版本。
+     * 有新版本就弹一个关不掉的更新窗口，必须更新才能继续用（app-version.json 里写了 "force": false 的版本例外，照旧可以点「以后」）。
+     * 没联网、官网连不上：不拦，照常用。
+     */
     fun auto(a: Main) {
+        if (forced?.isShowing == true) return
         val ap = a.getSharedPreferences("app", android.content.Context.MODE_PRIVATE)
-        if (System.currentTimeMillis() - ap.getLong("upd_at", 0) < 12 * 3600_000L) return
+        if (System.currentTimeMillis() - ap.getLong("upd_at", 0) < 20 * 60_000L) return
         ap.edit().putLong("upd_at", System.currentTimeMillis()).apply()
         check(a, false)
     }
+    private var forced: Dialog? = null
 
     fun check(a: Main, manual: Boolean) {
         if (running) { if (manual) a.toast("正在下载新版本…"); return }
@@ -47,14 +53,17 @@ object Updater {
             if (j == null) { if (manual) a.toast("检查失败：" + (e?.message ?: "网络不好")); return@load }
             val vc = j.optLong("versionCode"); val vn = j.str("versionName")
             if (vc <= code(a)) { if (manual) a.toast("已经是最新版 " + version(a)); return@load }
+            val force = j.optBoolean("force", true)
             val ap = a.getSharedPreferences("app", android.content.Context.MODE_PRIVATE)
-            if (!manual && ap.getLong("upd_skip", 0) == vc && System.currentTimeMillis() - ap.getLong("upd_skip_at", 0) < 3 * 86400_000L) return@load
+            if (!force && !manual && ap.getLong("upd_skip", 0) == vc && System.currentTimeMillis() - ap.getLong("upd_skip_at", 0) < 3 * 86400_000L) return@load
             val mb = if (j.optLong("size") > 0) " · " + Media.size(j.optLong("size")) else ""
-            ask(a, j, "有新版本 $vn", "你现在是 ${version(a)}$mb\n点「立即更新」在 App 里下载，下完点「安装」就能覆盖升级，数据不会丢。")
+            if (force) ask(a, j, "需要更新到 $vn", "你现在是 ${version(a)}$mb\n这个版本需要更新后才能继续使用。点「立即更新」在 App 里下载，下完点「安装」覆盖升级，数据不会丢。", true)
+            else ask(a, j, "有新版本 $vn", "你现在是 ${version(a)}$mb\n点「立即更新」在 App 里下载，下完点「安装」就能覆盖升级，数据不会丢。")
         }
     }
 
-    private fun ask(a: Main, j: JSONObject, title: String, msg: String) {
+    private fun ask(a: Main, j: JSONObject, title: String, msg: String, force: Boolean = false) {
+        if (force && forced?.isShowing == true) return
         val ctx = a
         val c = ctx.col().apply { pad(22, 22, 22, 14) }
         lateinit var d: Dialog
@@ -66,8 +75,8 @@ object Updater {
         bar.addView(fill, FrameLayout.LayoutParams(0, MATCH))
         c.addView(bar, LinearLayout.LayoutParams(MATCH, ctx.dp(6)).apply { topMargin = ctx.dp(14) })
         val btns = ctx.row().apply { gravity = Gravity.END; margins(t = 16) }
-        val later = ctx.text("以后", 15f, C.sub, SEMI).apply { pad(16, 10); press(0, 10) }
-        val web = ctx.text("去官网下载", 15f, C.sub, SEMI).apply { pad(16, 10); press(0, 10); visibility = View.GONE }
+        val later = ctx.text("以后", 15f, C.sub, SEMI).apply { pad(16, 10); press(0, 10); if (force) visibility = View.GONE }
+        val web = ctx.text("去官网下载", 15f, C.sub, SEMI).apply { pad(16, 10); press(0, 10); if (!force) visibility = View.GONE }
         val ok = ctx.text("立即更新", 15f, C.accent, BOLD).apply { pad(16, 10); press(0, 10) }
         btns.addView(later); btns.addView(web); btns.addView(ok); c.addView(btns)
         var file: File? = null
@@ -75,7 +84,7 @@ object Updater {
             a.getSharedPreferences("app", android.content.Context.MODE_PRIVATE).edit().putLong("upd_skip", j.optLong("versionCode")).putLong("upd_skip_at", System.currentTimeMillis()).apply()
             d.dismiss()
         }
-        web.tap { d.dismiss(); a.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Cfg.SITE + "download/"))) }
+        web.tap { if (!force) d.dismiss(); a.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Cfg.SITE + "download/"))) }
         ok.tap {
             file?.let { install(a, it); return@tap }
             if (running) return@tap
@@ -83,18 +92,24 @@ object Updater {
             bar.visibility = View.VISIBLE; later.visibility = View.GONE; web.visibility = View.GONE
             ok.text = "下载中…"; tip.text = "正在下载新版本，别关这个窗口…"
             download(a, j, { p -> Bg.ui { fill.layoutParams = fill.layoutParams.apply { width = (bar.width * p).toInt() }; fill.requestLayout(); ok.text = "下载中 ${(p * 100).toInt()}%" } }) { f, err ->
-                running = false; d.setCancelable(true)
+                running = false; d.setCancelable(!force)
                 if (f == null) {
                     tip.text = "下载失败：${err ?: "网络不好"}\n可以再试一次，或者去官网下载。"
-                    ok.text = "再试一次"; later.visibility = View.VISIBLE; web.visibility = View.VISIBLE; bar.visibility = View.GONE
+                    ok.text = "再试一次"; if (!force) later.visibility = View.VISIBLE; web.visibility = View.VISIBLE; bar.visibility = View.GONE
                 } else {
-                    file = f; ok.text = "安装"; later.visibility = View.VISIBLE; (later as TextView).text = "关闭"
+                    file = f; ok.text = "安装"; if (!force) { later.visibility = View.VISIBLE; (later as TextView).text = "关闭" }
                     tip.text = "下载好了，点「安装」→ 系统界面里点「更新 / 安装」。\n第一次可能要先允许「安装未知应用」。"
                     install(a, f)
                 }
             }
         }
         d = Dialogs.show(ctx, c)
+        if (force) {
+            // 关不掉：点外面没反应，按返回键就退出 App
+            d.setCancelable(false); d.setCanceledOnTouchOutside(false)
+            d.setOnKeyListener { _, k, e -> if (k == android.view.KeyEvent.KEYCODE_BACK && e.action == android.view.KeyEvent.ACTION_UP) { a.finish(); true } else false }
+            forced = d
+        }
     }
 
     /** 6.9.8 国内加速：下载线路（按顺序试）= 国内存储 → jsDelivr（几个节点）→ 官网 → GitHub 加速镜像 → GitHub；
