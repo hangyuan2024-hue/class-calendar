@@ -47,11 +47,22 @@ class MePage(a: Main) : Page(a) {
             background = CK.cover(me?.str("cover") ?: "", g)
             addView(ctx.text("编辑资料", 12.5f, Color.WHITE, SEMI).apply { pad(10, 5); bg(C.alpha(Color.BLACK, 0.25f), 12); tap { editProfile() } },
                 android.widget.FrameLayout.LayoutParams(WRAP, WRAP).apply { gravity = Gravity.END or Gravity.TOP; topMargin = dp(10); rightMargin = dp(10) })
+            // 左上角三条横线：打开侧边栏（也可以从屏幕左边缘往右滑）
+            addView(android.widget.FrameLayout(ctx).apply {
+                background = round(C.alpha(Color.BLACK, 0.25f), dp(17).toFloat()); contentDescription = "打开侧边栏"
+                addView(Ic.plain(ctx, "☰", 18, Color.WHITE), android.widget.FrameLayout.LayoutParams(dp(18), dp(18), Gravity.CENTER))
+                tap { it.buzz(); Drawer.open(a) }
+            }, android.widget.FrameLayout.LayoutParams(dp(34), dp(34)).apply { gravity = Gravity.START or Gravity.TOP; topMargin = dp(9); leftMargin = dp(10) })
         }, android.widget.FrameLayout.LayoutParams(MATCH, dp(96)))
         top.addView(Avatar.view(ctx, name, g, 20).apply { tap { a.avatarMenu { render() } } },
             android.widget.FrameLayout.LayoutParams(dp(72), dp(72)).apply { leftMargin = dp(16); topMargin = dp(56) })
+        // 头像右下角：性别标志（男生蓝色 ♂、女生粉色 ♀；保密不显示）
+        if (g == "m" || g == "f") top.addView(ctx.text(if (g == "m") "♂" else "♀", 13f, Color.WHITE, HEAVY).apply {
+            gravity = Gravity.CENTER; includeFontPadding = false
+            background = round(C.c(if (g == "m") "#3B82F6" else "#EC4899"), dp(11).toFloat(), C.card, dp(2))
+        }, android.widget.FrameLayout.LayoutParams(dp(22), dp(22)).apply { leftMargin = dp(68); topMargin = dp(108) })
         top.addView(ctx.col().apply {
-            addView(ctx.text(name.ifEmpty { "加载中…" } + when (g) { "m" -> " ♂"; "f" -> " ♀"; else -> "" }, 19f, C.text, HEAVY, 1))
+            addView(ctx.text(name.ifEmpty { "加载中…" }, 19f, C.text, HEAVY, 1))
             val roleName = when (me?.str("role")) { "teacher" -> "老师"; "admin" -> "管理员"; "developer" -> "开发者"; else -> if (Store.work()) "职场" else "学生" }
             addView(ctx.text(listOfNotNull("@" + (me?.str("account") ?: ""), roleName, me?.str("org_name")?.ifBlank { null }).joinToString(" · "), 12f, C.sub, lines = 1).apply { margins(t = 2) })
         }, android.widget.FrameLayout.LayoutParams(MATCH, WRAP).apply { leftMargin = dp(100); rightMargin = dp(14); topMargin = dp(102) })
@@ -74,6 +85,18 @@ class MePage(a: Main) : Page(a) {
         up?.let { x ->
             val joined = CK.ms(x.str("joined")).takeIf { it > 0 }
             if (joined != null) hero.addView(ctx.text("加入 ${maxOf(1, (System.currentTimeMillis() - joined) / 86400000)} 天", 12f, C.mutedText).apply { pad(16, 0, 16, 14) })
+            // 活跃统计（之前「个人主页」里的成长足迹：最近 16 周每天做了多少）
+            x.optJSONObject("days")?.let { days ->
+                body.addView(ctx.row().apply {
+                    gravity = Gravity.BOTTOM; pad(4, 18, 2, 8)
+                    addView(ctx.text("活跃统计", 15.5f, C.text, HEAVY))
+                    addView(ctx.text("最近 16 周", 12f, C.sub).apply { pad(8, 0, 0, 2) })
+                })
+                val hc = ctx.card(14, 16)
+                hc.addView(HeatMap(ctx, days), LinearLayout.LayoutParams(MATCH, dp(120)))
+                hc.add(ctx.text("完成 ${x.optInt("done")} 件事 · 打卡 ${x.optInt("habits")} 次 · 专注 ${x.optInt("pomos")} 个番茄", 12f, C.sub), 8)
+                body.addView(hc)
+            }
             val posts = x.optJSONArray("posts")?.let { arr -> (0 until arr.length()).map { arr.getJSONObject(it) } } ?: emptyList()
             if (Store.cls != null) {
                 body.addView(ctx.row().apply {

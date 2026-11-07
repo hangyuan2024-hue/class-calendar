@@ -16,6 +16,7 @@ import com.laolao.classcalendar.core.Plan
 import com.laolao.classcalendar.core.Store
 import com.laolao.classcalendar.core.Sync
 import com.laolao.classcalendar.core.T
+import com.laolao.classcalendar.core.str
 
 /**
  * 7.x 成长（底部标签）重新设计：以「你自己」为中心，只和昨天的自己比。
@@ -77,7 +78,7 @@ class GrowthPage(a: Main) : Page(a) {
 
     // ---------- 最上面：一句话 + 右边等级和班级名次（点开排行榜） ----------
     private fun header() {
-        val r = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; pad(4, 2, 2, 2) }
+        val r = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; pad(4, 14, 2, 2) }
         r.addView(ctx.text(say(), 15f, C.text, BOLD, 1), LinearLayout.LayoutParams(0, WRAP, 1f))
         val l = com.laolao.classcalendar.core.Level.me(); val me = rankMe
         if (Store.me != null) r.addView(ctx.row().apply {
@@ -123,26 +124,48 @@ class GrowthPage(a: Main) : Page(a) {
         val focusT = when (p.mode) { "focus" -> "专注中 " + Plan.fmt(rest); "break" -> "休息 " + Plan.fmt(rest); "paused" -> "暂停 " + Plan.fmt(rest); else -> "开始专注" }
         val ck = com.laolao.classcalendar.core.Checkin.open
         val two = ctx.row().apply { margins(t = 10) }
+        val three = Store.cls != null
         fun tile(icon: String, title: String, sub: String, hot: Boolean, go: () -> Unit) = two.addView(ctx.row().apply {
-            gravity = Gravity.CENTER_VERTICAL; pad(8, 7, 6, 7)
+            gravity = Gravity.CENTER_VERTICAL; pad(if (three) 6 else 8, 7, 4, 7)
             press(if (hot) C.dangerBg else C.alpha(C.card, if (C.dark) 0.6f else 0.85f), 13); tap { go() }
-            addView(Ic.tile(ctx, icon, 28), LinearLayout.LayoutParams(dp(28), dp(28)))
+            addView(Ic.tile(ctx, icon, if (three) 26 else 28), LinearLayout.LayoutParams(dp(if (three) 26 else 28), dp(if (three) 26 else 28)))
             addView(ctx.col().apply {
-                addView(ctx.text(title, 13.5f, if (hot) C.red else C.text, BOLD, 1))
-                addView(ctx.text(sub, 11f, C.sub, lines = 1))
-            }, LinearLayout.LayoutParams(0, WRAP, 1f).apply { leftMargin = dp(8) })
-        }, LinearLayout.LayoutParams(0, WRAP, 1f).apply { if (two.childCount > 0) leftMargin = dp(8) })
-        tile("🍅", focusT, "本周 ${Plan.week()} 个番茄", false) { a.push(PlanPage(a, pomo = true)) }
+                addView(ctx.text(title, if (three) 12.5f else 13.5f, if (hot) C.red else C.text, BOLD, 1))
+                addView(ctx.text(sub, 10.5f, C.sub, lines = 1))
+            }, LinearLayout.LayoutParams(0, WRAP, 1f).apply { leftMargin = dp(if (three) 6 else 8) })
+        }, LinearLayout.LayoutParams(0, WRAP, 1f).apply { if (two.childCount > 0) leftMargin = dp(if (three) 6 else 8) })
+        tile("🍅", focusT, "本周 ${Plan.week()} 个", false) { a.push(PlanPage(a, pomo = true)) }
         if (Store.cls != null) {
             val open = ck != null && ck.optJSONObject("mine") == null
-            tile("📍", if (open) "去签到" else "位置签到", when {
+            tile("📍", if (open) "去签到" else "签到", when {
                 open -> "还剩 " + com.laolao.classcalendar.core.Checkin.leftText(ck!!)
-                ck != null -> "这次已签到 ✓"
-                else -> "现在没有签到"
+                ck != null -> "已签到 ✓"
+                else -> "现在没有"
             }, open) { a.push(CheckinPage(a)) }
+            // 课堂互动：正在抢答 / 有小组评分没评时变红
+            actPeek()
+            val ac = act
+            tile("⚡", if (ac?.third == "rush") "快去抢答" else "课堂互动", ac?.first ?: "抢答 · 小组评分", ac != null) { a.push(ActPage(a, ac?.third ?: "rush")) }
         } else tile("📊", "本周复盘", "看看这周的节奏", false) { a.push(CoachPage(a)) }
         h.addView(two)
         body.addView(h)
+    }
+
+    /** 课堂互动的状态（20 秒查一次）：Triple(一句话, 是否要紧, 打开哪一栏) */
+    private var act: Triple<String, Boolean, String>? = null; private var actAt = 0L
+    private fun actPeek() {
+        val cid = Store.cls?.str("id") ?: return
+        if (System.currentTimeMillis() - actAt < 20_000) return
+        actAt = System.currentTimeMillis()
+        com.laolao.classcalendar.core.Bg.load({
+            val r = com.laolao.classcalendar.core.Api.rpc("rush_state", com.laolao.classcalendar.core.jsonOf("p_cid" to cid)) as? org.json.JSONObject
+            val p = com.laolao.classcalendar.core.Api.rpcArr("peer_todo", com.laolao.classcalendar.core.jsonOf("p_cid" to cid))
+            val rushOn = r != null && !r.optBoolean("none") && r.optBoolean("open") && !r.optBoolean("mine") && CK.ms(r.str("ends_at")) > System.currentTimeMillis()
+            var todo = 0
+            for (i in 0 until p.length()) { val x = p.getJSONObject(i); if (!x.optBoolean("open")) continue
+                val ts = x.optJSONArray("targets") ?: continue; for (k in 0 until ts.length()) if (ts.getJSONObject(k).optInt("score") == 0) { todo++; break } }
+            if (rushOn) Triple("正在抢答", true, "rush") else if (todo > 0) Triple("$todo 个评分没评", true, "peer") else null
+        }) { x, e -> val old = act; act = if (e == null) x else null; if (old?.first != act?.first && view.isAttachedToWindow) render() }
     }
 
     /** 今天完成了哪些（以及前几天）：从底部弹出来看，不占页面 */

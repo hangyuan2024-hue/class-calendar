@@ -20,7 +20,7 @@ class ToolsPage(a: Main) : Page(a) {
     override fun build(): View {
         val ps = PullScroll(ctx, null)
         ps.setBackgroundColor(C.bg)
-        body = ps.content.apply { pad(18, 14, 18, 60) }
+        body = ps.content.apply { pad(18, 26, 18, 60) }
         return ps
     }
 
@@ -49,6 +49,7 @@ class ToolsPage(a: Main) : Page(a) {
         val cls = mutableListOf<Tool>()
         if (Store.cls != null) {
             if (Store.feat("wall")) cls += Tool("💬", "班级墙", "通知、文章、评论") { a.push(WallPage(a)) }
+            cls += Tool("⚡", "课堂互动", "抢答、小组评分") { a.push(ActPage(a)) }
             cls += Tool("👥", "成员", "找到同学与老师") { a.push(PeoplePage(a)) }
             if (Store.can("can_ingest") || Store.feat("ingest_local")) cls += Tool("✨", "整理群消息", "群聊截图、文字一键变事项") { a.push(IngestPage(a)) }
             if (Store.can("can_edit")) cls += Tool("📢", "发布事项", "作业、通知发给全班") { a.push(EditPage(a, null, classMode = true)) }

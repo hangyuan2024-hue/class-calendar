@@ -50,7 +50,7 @@ class HomeworkPage(a: Main) : Page(a) {
         keepScroll(body)
         val hw = if (Store.work()) "任务" else "作业"
         val H = Items.homeworkAll()
-        val hr = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; pad(2, 4, 0, 0) }
+        val hr = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; pad(2, 12, 0, 0) }
         hr.addView(Seg(ctx, listOf("按截止", "按周"), if (mode() == "week") 1 else 0) { i ->
             com.laolao.classcalendar.core.Kv.set("hw_view_v1", if (i == 1) "week" else "due"); week = 0; selDay = ""; render()
         }, LinearLayout.LayoutParams(MATCH, WRAP))

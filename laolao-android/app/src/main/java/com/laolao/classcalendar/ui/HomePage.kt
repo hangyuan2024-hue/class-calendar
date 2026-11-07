@@ -395,6 +395,8 @@ class HomePage(a: Main) : Page(a) {
     private var agKind = 0          // 0 全部 / 1 事项 / 2 课程（和小程序「接下来」一样）
     private var agFind = false      // 搜索框点了放大镜才出来
     private var nextRow: View? = null
+    private var nowRef: View? = null      // 列表里「现在」那条红线：打开时停在这里
+    private var lateOpen = false          // 已过期：默认收起，点标题展开
     private fun agenda(A0: Items.Agenda) {
         val c = ctx.card(14, 18).apply { margins(t = 10) }
         // 标题行：接下来 · 全部 / 事项 / 课程 · 放大镜（和小程序一样）
@@ -423,13 +425,18 @@ class HomePage(a: Main) : Page(a) {
         c.add(res, 4)
         // 列表放在一个最高 440dp 的框里，超出在框里滚
         val list = ctx.col()
-        nextRow = null
+        nextRow = null; nowRef = null
         val now = System.currentTimeMillis()
         fun keep(l: List<Item>) = when (agKind) { 1 -> l.filter { !it.course }; 2 -> l.filter { it.course }; else -> l }
         val A = if (agKind == 0) A0 else Items.Agenda(keep(A0.overdue), A0.days.mapNotNull { d -> val k = keep(d.items); if (k.isEmpty() && d.key != T.todayKey()) null else Day(d.key, d.label, d.sub.substringBefore(" · ") + if (k.isNotEmpty()) " · ${k.size} 项" else "", k) },
             keep(A0.undatedMine), keep(A0.undatedCls), A0.todayCount, A0.hwLeft, A0.say, A0.doneCount, keep(A0.pins))
         if (A.pins.isNotEmpty()) { dayBlock(list, "📌 置顶", "${A.pins.size} 项", A.pins, now, showDate = true); nextRow = null }   // 置顶的不算「接下来」
-        if (A.overdue.isNotEmpty()) dayBlock(list, "已过期", "还没标记完成的作业", A.overdue, now, late = true, showDate = true)
+        if (A.overdue.isNotEmpty()) {
+            // 已过期默认收起：只留一行标题，点开再看；不算「接下来」（打开时停在现在的位置）
+            val hd = dayHead(list, "已过期", "${A.overdue.size} 项还没标记完成 · " + if (lateOpen) "收起 ▴" else "展开 ▾", true)
+            hd.setOnClickListener { lateOpen = !lateOpen; agManual = true; render() }
+            if (lateOpen) { val keepNext = nextRow; for ((i, r) in A.overdue.withIndex()) { if (i > 0) list.addView(ctx.hline()); list.addView(a.timeRow(r, true)) }; nextRow = keepNext }
+        }
         for (d in A.days) {
             if (d.items.isEmpty()) {
                 dayHead(list, d.label, d.sub, false)
@@ -490,22 +497,24 @@ class HomePage(a: Main) : Page(a) {
     }
     /** 翻到第一件还没做的事（连同那一天的标题一起露出来） */
     private fun goNext(sc: InnerScroll, smooth: Boolean) {
-        val r = nextRow ?: return
+        // 有「现在」红线就停在红线（上面露出一行刚过去的）；没有就停在第一件还没做的事
+        val now = nowRef
+        val r = now ?: nextRow ?: return
         var y = 0; var v: View? = r
         while (v != null && v !== sc) { y += v.top; v = v.parent as? View }
-        val target = maxOf(0, y - (r.getTag(R_HEAD) as? Int ?: dp(10)))
+        val target = maxOf(0, y - (if (now != null) dp(64) else (r.getTag(R_HEAD) as? Int ?: dp(10))))
         agAuto = System.currentTimeMillis()
         if (smooth) sc.smoothScrollTo(0, target) else sc.scrollTo(0, target)
         agY = target
     }
     private fun paintBack(sc: InnerScroll, back: TextView) {
-        val r = nextRow
+        val r = nowRef ?: nextRow
         if (r == null || !sc.scrollable) { back.visibility = View.GONE; return }
         var y = 0; var v: View? = r
         while (v != null && v !== sc) { y += v.top; v = v.parent as? View }
         val rel = y - sc.scrollY
         val off = rel + r.height < 0 || rel > sc.height - dp(30)
-        if (off) { back.text = if (rel < 0) "↑ 回到接下来" else "↓ 回到接下来"; if (back.visibility != View.VISIBLE) { back.visibility = View.VISIBLE; back.alpha = 0f; back.animate().alpha(1f).setDuration(160).start() } }
+        if (off) { back.text = (if (rel < 0) "↑ 回到" else "↓ 回到") + if (nowRef != null) "现在" else "接下来"; if (back.visibility != View.VISIBLE) { back.visibility = View.VISIBLE; back.alpha = 0f; back.animate().alpha(1f).setDuration(160).start() } }
         else back.visibility = View.GONE
     }
     private val R_HEAD = 0x7f0a1001
@@ -535,7 +544,7 @@ class HomePage(a: Main) : Page(a) {
         if (today && !nowShown && list.isNotEmpty() && list.all { !it.dated || it.time.isEmpty() || it.at() <= now }) c.addView(nowLine())
         shown += list.size
     }
-    private fun nowLine(): View = android.widget.FrameLayout(ctx).apply {
+    private fun nowLine(): View = android.widget.FrameLayout(ctx).also { nowRef = it }.apply {
         val red = C.c(if (C.dark) "#ff8a66" else "#e0603c")   // 和问候卡时间条上「现在」同一个颜色
         addView(View(ctx).apply { setBackgroundColor(red) }, android.widget.FrameLayout.LayoutParams(MATCH, dp(1).coerceAtLeast(2), Gravity.CENTER_VERTICAL))
         addView(View(ctx).apply { background = round(red, dp(4).toFloat()) }, android.widget.FrameLayout.LayoutParams(dp(8), dp(8), Gravity.CENTER_VERTICAL))

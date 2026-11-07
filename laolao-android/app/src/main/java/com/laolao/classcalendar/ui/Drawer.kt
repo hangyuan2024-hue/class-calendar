@@ -112,7 +112,7 @@ object Drawer {
             Triple("📒", "备忘录") { a.push(NoteListPage(a)) },
             if (cls != null && safe { Store.can("can_ingest") || Store.feat("ingest_local") }) Triple("✨", "整理群消息") { a.push(IngestPage(a)) } else null,
             if (cls != null) Triple("🏫", "班级") { a.push(ClassPage(a)) } else null,
-            if (cls != null && safe { Store.feat("rank") }) Triple("🏆", "排行榜") { a.push(RankPage(a)) } else null,
+            if (cls != null) Triple("⚡", "课堂互动") { a.push(ActPage(a)) } else null,
             Triple("📖", "背单词") { a.push(WordsPage(a)) },
             Triple("🧰", "全部工具") { a.selectTab(3) },
         )
