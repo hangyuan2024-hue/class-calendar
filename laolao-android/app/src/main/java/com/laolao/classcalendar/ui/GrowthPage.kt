@@ -9,6 +9,7 @@ import android.graphics.RectF
 import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
+import android.widget.TextView
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import com.laolao.classcalendar.core.Growth
@@ -51,15 +52,115 @@ class GrowthPage(a: Main) : Page(a) {
         return f
     }
 
+    private var tab = 0            // 0 我的 / 1 班级
+    private var cPeriod = 0        // 班级榜：0 本周 / 1 本月 / 2 总共
+    private var board: org.json.JSONObject? = null; private var boardKey = ""; private var boardErr = ""
+
     override fun render() {
         view
         keepScroll(body)
+        topBar()
+        if (tab == 1 && Store.cls != null) { classView(); return }
         header()
         checkinBanner()
         today()
         habits()
         rhythm()
         more()
+    }
+
+    // ---------- 最上面：我的 / 班级 切换（没加入班级就只有「我的」） ----------
+    private fun topBar() {
+        if (Store.cls == null) { tab = 0; body.addView(View(ctx), LinearLayout.LayoutParams(MATCH, dp(18))); return }
+        val r = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; pad(0, 22, 0, 4) }
+        r.addView(Seg(ctx, listOf("我的", "班级"), tab) { i -> tab = i; render() }.apply {
+            for (k in 0 until childCount) (getChildAt(k) as? TextView)?.apply { textSize = 14.5f; pad(22, 7) }
+        }, LinearLayout.LayoutParams(WRAP, WRAP))
+        body.addView(r)
+    }
+
+    // ---------- 班级情况：概况 + 排行 + 班级里的事（签到、课堂互动、班级墙） ----------
+    private fun classView() {
+        val cls = Store.cls ?: return
+        val per = listOf("week", "month", "all"); val P = listOf("本周", "本月", "总共")[cPeriod]
+        val key = cls.str("id") + per[cPeriod]
+        if (boardKey != key) { boardKey = key; board = null; boardErr = ""
+            com.laolao.classcalendar.core.Bg.load({ com.laolao.classcalendar.core.Api.rpcObj("growth_board", com.laolao.classcalendar.core.jsonOf("cid" to cls.str("id"), "period" to per[cPeriod])) }) { d, e ->
+                if (boardKey != key) return@load
+                if (d == null) boardErr = e?.message ?: "加载失败" else board = d
+                if (tab == 1 && view.isAttachedToWindow) render()
+            } }
+        val x = board
+        val cl = x?.optJSONObject("class") ?: org.json.JSONObject()
+        // 概况
+        val h = HeroBox(ctx).apply { orientation = LinearLayout.VERTICAL; pad(16, 14, 16, 14) }
+        h.layoutParams = LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(10) }
+        h.addView(ctx.row().apply {
+            gravity = Gravity.CENTER_VERTICAL
+            addView(ctx.text(cls.str("nickname").ifEmpty { cls.str("name") }, 16f, C.heroText, HEAVY, 1), LinearLayout.LayoutParams(0, WRAP, 1f))
+            addView(Seg(ctx, listOf("本周", "本月", "总共"), cPeriod) { i -> cPeriod = i; render() }.apply { for (k in 0 until childCount) (getChildAt(k) as? TextView)?.apply { textSize = 12.5f; pad(10, 4) } })
+        })
+        val stats = ctx.row().apply { margins(t = 12) }
+        fun stat(n: String, label: String, color: Int) = stats.addView(ctx.col().apply {
+            addView(ctx.text(n, 24f, color, HEAVY)); addView(ctx.text(label, 12f, C.sub))
+        }, LinearLayout.LayoutParams(0, WRAP, 1f))
+        val rate = if (cl.isNull("hw_rate") || !cl.has("hw_rate")) -1 else cl.optInt("hw_rate")
+        stat(if (x == null) "–" else "${cl.optInt("points")}", "${P}成长值", C.heroText)
+        stat(if (rate >= 0) "$rate%" else "–", "作业完成率", green)
+        stat(if (x == null) "–" else "${cl.optInt("active")}/${cl.optInt("members")}", "活跃的人", C.c("#e0603c"))
+        h.addView(stats)
+        // 班级里的事：一排三个
+        val acts = ctx.row().apply { margins(t = 12) }
+        fun tile(icon: String, t: String, sub: String, hot: Boolean, go: () -> Unit) = acts.addView(ctx.col().apply {
+            gravity = Gravity.CENTER_HORIZONTAL; pad(4, 9); press(if (hot) C.dangerBg else C.alpha(C.card, if (C.dark) 0.6f else 0.85f), 13); tap { go() }
+            addView(Ic.tile(ctx, icon, 30), LinearLayout.LayoutParams(dp(30), dp(30)))
+            addView(ctx.text(t, 13f, if (hot) C.red else C.text, BOLD, 1).apply { margins(t = 4) })
+            addView(ctx.text(sub, 11f, C.sub, lines = 1))
+        }, LinearLayout.LayoutParams(0, WRAP, 1f).apply { if (acts.childCount > 0) leftMargin = dp(8) })
+        val ck = com.laolao.classcalendar.core.Checkin.open; val open = ck != null && ck.optJSONObject("mine") == null
+        tile("📍", if (open) "去签到" else "签到", if (open) "还剩 " + com.laolao.classcalendar.core.Checkin.leftText(ck!!) else if (ck != null) "已签到" else "现在没有", open) { a.push(CheckinPage(a)) }
+        actPeek(); val ac = act
+        tile("⚡", if (ac?.third == "rush") "快去抢答" else "课堂互动", ac?.first ?: "抢答 · 评分", ac != null) { a.push(ActPage(a, ac?.third ?: "rush")) }
+        if (Store.feat("wall")) tile("💬", "班级墙", "通知和讨论", false) { a.push(WallPage(a)) }
+        else tile("👥", "成员", "同学和老师", false) { a.push(PeoplePage(a)) }
+        h.addView(acts)
+        body.addView(h)
+        // 排行
+        val hr = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; pad(4, 16, 2, 6) }
+        hr.addView(ctx.text("${P}排行", 16f, C.text, HEAVY), LinearLayout.LayoutParams(0, WRAP, 1f))
+        hr.addView(ctx.text("完整榜单 ›", 13f, C.accent, SEMI).apply { pad(8, 4); tap { a.push(RankPage(a, level = false)) } })
+        body.addView(hr)
+        val c = ctx.card(4, 18)
+        if (!Store.feat("rank")) c.addView(ctx.text("排行榜现在关闭了", 14f, C.sub).apply { pad(14, 16) })
+        else if (x == null) c.addView(ctx.text(boardErr.ifEmpty { "加载中…" }, 14f, if (boardErr.isNotEmpty()) C.red else C.sub).apply { pad(14, 16) })
+        else {
+            val rows = (x.optJSONArray("rows")?.let { arr -> (0 until arr.length()).map { arr.getJSONObject(it) } } ?: emptyList())
+            if (rows.isEmpty()) c.addView(ctx.text("${P}还没有人上榜：完成一项作业、打个卡，就能攒成长值", 14f, C.sub).apply { pad(14, 16) })
+            val mine = rows.firstOrNull { it.optBoolean("me") }
+            val show = rows.take(8).toMutableList().also { l -> if (mine != null && mine !in l) l += mine }
+            val top = maxOf(1, rows.firstOrNull()?.optInt("points") ?: 1)
+            show.forEachIndexed { i, r ->
+                if (i > 0) c.addView(ctx.hline().apply { (layoutParams as LinearLayout.LayoutParams).leftMargin = dp(56) })
+                val anon = r.optBoolean("anon") && !x.optBoolean("teacher") && !r.optBoolean("me")
+                val rk = r.optInt("rank")
+                c.addView(ctx.row().apply {
+                    gravity = Gravity.CENTER_VERTICAL; pad(12, 9); if (r.optBoolean("me")) bg(C.selected, 14)
+                    addView(ctx.text(if (rk in 1..3) listOf("🥇", "🥈", "🥉")[rk - 1] else "$rk", if (rk in 1..3) 17f else 15f, C.sub, BOLD).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(dp(28), WRAP))
+                    addView(CK.avatar(ctx, r.str("name"), 32, grey = anon), LinearLayout.LayoutParams(dp(32), dp(32)).apply { leftMargin = dp(4) })
+                    addView(ctx.col().apply {
+                        pad(10, 0)
+                        addView(ctx.text(r.str("name") + if (r.optBoolean("me")) "（我）" else "", 14.5f, C.text, SEMI, 1))
+                        val bar = FrameLayout(ctx).apply { bg(C.mutedBg, 3) }
+                        bar.addView(View(ctx).apply { bg(if (r.optBoolean("me")) C.accent else C.alpha(C.accent, 0.55f), 3) }, FrameLayout.LayoutParams(0, MATCH))
+                        addView(bar, LinearLayout.LayoutParams(MATCH, dp(4)).apply { topMargin = dp(5) })
+                        bar.post { bar.getChildAt(0).layoutParams = bar.getChildAt(0).layoutParams.apply { width = maxOf(dp(4), bar.width * r.optInt("points") / top) }; bar.requestLayout() }
+                    }, LinearLayout.LayoutParams(0, WRAP, 1f))
+                    addView(ctx.text("${r.optInt("points")}", 15.5f, C.text, HEAVY))
+                })
+            }
+        }
+        body.addView(c)
+        body.add(ctx.text("成长值：完成作业、打卡、专注、签到都会攒；在「完整榜单」里能设置实名 / 匿名 / 不参加", 11.5f, C.mutedText).apply { gravity = Gravity.CENTER; setLineSpacing(0f, 1.3f) }, 12)
     }
 
     /** 今天的一句话（放在最上面，代替原来的标题） */
@@ -78,8 +179,8 @@ class GrowthPage(a: Main) : Page(a) {
 
     // ---------- 最上面：一句话 + 右边等级和班级名次（点开排行榜） ----------
     private fun header() {
-        val r = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; pad(4, 14, 2, 2) }
-        r.addView(ctx.text(say(), 15f, C.text, BOLD, 1), LinearLayout.LayoutParams(0, WRAP, 1f))
+        val r = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; pad(4, 8, 2, 2) }
+        r.addView(ctx.text(say(), 15.5f, C.text, BOLD, 1), LinearLayout.LayoutParams(0, WRAP, 1f))
         val l = com.laolao.classcalendar.core.Level.me(); val me = rankMe
         if (Store.me != null) r.addView(ctx.row().apply {
             gravity = Gravity.CENTER_VERTICAL; pad(10, 5); press(C.card, 14, C.line)

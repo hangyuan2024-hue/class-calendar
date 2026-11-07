@@ -58,6 +58,8 @@ class Main : Activity() {
         if (sc == 1f) { super.attachBaseContext(base); return }
         val cfg = android.content.res.Configuration(base.resources.configuration)
         cfg.densityDpi = (base.resources.configuration.densityDpi * sc).toInt()
+        // 界面缩小了，文字补回来一点：紧凑模式下字基本还是原来的大小，只有间距、图标变小
+        if (sc < 1f) cfg.fontScale = base.resources.configuration.fontScale * minOf(1.08f, 1f / sc)
         super.attachBaseContext(base.createConfigurationContext(cfg))
     }
 

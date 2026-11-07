@@ -71,42 +71,7 @@ class EditPage(a: Main, private val key: String?, private val homework: Boolean 
                 if (key != null && src.mine) { editingId = src.id; fLocal = src.local; fRep = src.rep; fPin = src.pin }
                 if (classMode) { fType = maxOf(0, Items.TYPES.indexOf(src.type)); fUnsure = src.needConfirm && src.day.isNotEmpty() }
             } else { fDay = day ?: if (classMode || fHw) T.todayKey() else T.todayKey() }
-            if (classMode) {
-                b.addView(ctx.text("👥 " + (Store.cls?.str("name") ?: "本班") + " · 全班同学都会看到", 13f, C.sub).apply { pad(2, 4, 2, 0) })
-                b.addView(label("发什么"))
-                typeSeg = Seg(ctx, Items.TYPES.map { t -> (CTS.firstOrNull { it.n == t }?.ic?.plus(" ") ?: "") + typeName(t) }, fType) { fType = it; classHints(); paintPreview() }
-                b.addView(typeSeg)
-                if (key == null) { rcBox = ctx.col(); b.addView(rcBox); rcInit() }
-            }
-            if (classMode) {
-            b.addView(label("科目 / 标题"))
-            title = ctx.input("比如：数学作业", src?.title?.removePrefix("⚠ ") ?: "")
-            b.addView(title)
-            guess = ctx.text("", 13f, C.accent, SEMI).apply { visibility = View.GONE; bg(C.selected, 10); pad(12, 8); margins(t = 8) }
-            b.addView(guess)
-            b.addView(label("说明")); summary = ctx.input("作业内容、要求…", src?.summary ?: "", multi = true); b.addView(summary)
-            b.addView(label("日期和时间").also { dayLabel = (it as LinearLayout).getChildAt(0) as TextView })
-            dayBox = ctx.col(); b.addView(dayBox); paintDay()
-            b.addView(label("地点", true)); place = ctx.input("比如：图书馆三楼", src?.location ?: ""); b.addView(place)
-                b.addView(label("要准备", true)); prep = ctx.input("比如：带计算器", src?.prepare ?: ""); b.addView(prep)
-                // 5.9.2 重要的事：弹窗提醒全班
-                popup0 = Popup.has(src?.id); fPopup = popup0
-                val opts = ctx.card(2, 16).apply { margins(t = 16); pad(14, 2) }
-                val tg = Toggle(ctx, "📣 重要：弹窗提醒全班", "同学下次打开时弹出来，点「我知道了」才关掉", fPopup) { fPopup = it; paintPreview() }
-                opts.addView(tg)
-                opts.addView(ctx.hline())
-                opts.addView(Toggle(ctx, "⚠ 信息还不确定", "同学会看到「建议去群里核实」；没填日期也会自动标上", fUnsure) { fUnsure = it; paintPreview() })
-                b.addView(opts)
-                b.addView(ctx.text("同学们看到的样子", 13f, C.sub, SEMI).apply { pad(2, 18, 2, 8) })
-                pv = ctx.card(14, 16).also { b.addView(it) }
-                classHints(); paintPreview()
-                for (e in listOf(title, summary, place, prep)) e.addTextChangedListener(object : TextWatcher {
-                    override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
-                    override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
-                    override fun afterTextChanged(s: Editable?) { paintPreview() }
-                })
-                if (src != null) Bg.load({ Store.cls?.let { Popup.refresh(it.str("id")) }; Popup.has(src.id) }) { on, _ -> if (on != null && on != popup0) { popup0 = on; fPopup = on; tg.on = on; tg.refresh() } }
-            }
+            if (classMode) classForm(b, src)
             else personalForm(b, src)
             b.add(ctx.button(if (classMode && key == null) "发布给全班" else "保存") { save() }, 22)
             if (editingId != null) b.add(ctx.text("删除这条", 14f, C.red, SEMI).apply {
@@ -120,6 +85,89 @@ class EditPage(a: Main, private val key: String?, private val homework: Boolean 
             if (key == null && copyOf == null) { title.requestFocus(); Dialogs.showKeyboard(title) }
         }
     }
+    /**
+     * 7.x「发布班级事项」：目的是让全班准确知道一件事，所以按「发给谁 → 发什么 → 内容 → 时间 → 地点 / 准备 → 提醒方式 → 同学看到的样子」排，
+     * 每一步一张卡；类型用四个大按钮选，下面的提示、预览跟着类型变。
+     */
+    private var typeRow: LinearLayout? = null
+    private fun paintTypes() {
+        val r = typeRow ?: return
+        r.removeAllViews()
+        Items.TYPES.forEachIndexed { i, t ->
+            val on = i == fType; val ct = CTS.firstOrNull { it.n == t }; val col = C.type(t)
+            r.addView(ctx.col().apply {
+                gravity = Gravity.CENTER_HORIZONTAL; pad(4, 10)
+                background = round(if (on) C.alpha(col, if (C.dark) 0.22f else 0.1f) else C.card, dp(16).toFloat(), if (on) col else C.line, dp(if (on) 2 else 1))
+                tap { if (fType != i) { fType = i; paintTypes(); classHints(); paintPreview() } }
+                addView(Ic.tile(ctx, ct?.ic ?: "📢", 34), LinearLayout.LayoutParams(dp(34), dp(34)))
+                addView(ctx.text(typeName(t), 13.5f, if (on) col else C.text, BOLD).apply { margins(t = 5) })
+            }, LinearLayout.LayoutParams(0, WRAP, 1f).apply { if (i > 0) leftMargin = dp(8) })
+        }
+    }
+    private fun classForm(b: LinearLayout, src: com.laolao.classcalendar.core.Item?) {
+        // ① 发给谁
+        b.addView(cap("发给谁"))
+        val who = ctx.card(12, 18)
+        who.addView(ctx.row().apply {
+            gravity = Gravity.CENTER_VERTICAL
+            addView(Ic.tile(ctx, "👥", 32), LinearLayout.LayoutParams(dp(32), dp(32)))
+            addView(ctx.col().apply {
+                addView(ctx.text(Store.cls?.str("name") ?: "本班", 15f, C.text, BOLD, 1))
+                addView(ctx.text(if (key == null) "默认全班同学都会看到，下面可以改" else "已经发出去的事项，改了大家会看到新的", 12f, C.sub))
+            }, LinearLayout.LayoutParams(0, WRAP, 1f).apply { leftMargin = dp(10) })
+        })
+        if (key == null) { rcBox = ctx.col(); who.addView(rcBox); rcInit() }
+        b.addView(who)
+        // ② 发什么
+        b.addView(cap("发什么"))
+        typeRow = ctx.row(); b.addView(typeRow); paintTypes()
+        // ③ 内容
+        b.addView(cap("内容"))
+        val main = ctx.card(14, 18)
+        title = borderless(ctx.input("比如：数学作业", src?.title?.removePrefix("⚠ ") ?: ""), 18f).apply { typeface = BOLD }
+        main.addView(title)
+        guess = ctx.text("", 13f, C.accent, SEMI).apply { visibility = View.GONE; bg(C.selected, 10); pad(12, 8); margins(b = 6) }
+        main.addView(guess)
+        main.addView(ctx.hline())
+        summary = borderless(ctx.input("作业内容、要求…", src?.summary ?: "", multi = true)).apply { minLines = 3 }
+        main.addView(summary)
+        b.addView(main)
+        // ④ 时间
+        dayLabel = ctx.text("日期和时间", 12.5f, C.sub, BOLD).apply { pad(6, 18, 2, 8) }
+        b.addView(dayLabel)
+        val when0 = ctx.card(12, 18)
+        dayBox = ctx.col(); when0.addView(dayBox); paintDay()
+        b.addView(when0)
+        // ⑤ 地点、要准备
+        b.addView(cap("地点和要准备（选填）"))
+        val more = ctx.card(12, 18)
+        place = borderless(ctx.input("比如：图书馆三楼", src?.location ?: ""))
+        more.addView(iconRow("📍", place))
+        more.addView(ctx.hline().apply { (layoutParams as LinearLayout.LayoutParams).leftMargin = dp(30) })
+        prep = borderless(ctx.input("比如：带计算器", src?.prepare ?: ""))
+        more.addView(iconRow("🎒", prep))
+        b.addView(more)
+        // ⑥ 怎么提醒
+        b.addView(cap("怎么提醒"))
+        popup0 = Popup.has(src?.id); fPopup = popup0
+        val opts = ctx.card(2, 18).apply { pad(14, 2) }
+        val tg = Toggle(ctx, "📣 重要：弹窗提醒全班", "同学下次打开时弹出来，点「我知道了」才关掉", fPopup) { fPopup = it; paintPreview() }
+        opts.addView(tg)
+        opts.addView(ctx.hline())
+        opts.addView(Toggle(ctx, "⚠ 信息还不确定", "同学会看到「建议去群里核实」；没填日期也会自动标上", fUnsure) { fUnsure = it; paintPreview() })
+        b.addView(opts)
+        // ⑦ 同学们看到的样子
+        b.addView(cap("同学们看到的样子"))
+        pv = ctx.card(14, 18).apply { background = round(C.card, dp(18).toFloat(), C.alpha(C.accent, 0.35f), dp(1)) }.also { b.addView(it) }
+        classHints(); paintPreview()
+        for (e in listOf(title, summary, place, prep)) e.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun afterTextChanged(s: Editable?) { paintPreview() }
+        })
+        if (src != null) Bg.load({ Store.cls?.let { Popup.refresh(it.str("id")) }; Popup.has(src.id) }) { on, _ -> if (on != null && on != popup0) { popup0 = on; fPopup = on; tg.on = on; tg.refresh() } }
+    }
+
     /** 7.x「记一件事」：分成几张卡（写什么 · 什么时候 · 在哪、清单 · 选项），输入框不要边框，像手机自带的提醒事项 */
     private fun borderless(e: EditText, size: Float = 15f): EditText = e.apply {
         background = null; setPadding(0, dp(8), 0, dp(8)); textSize = size; onFocusChangeListener = null
@@ -149,11 +197,6 @@ class EditPage(a: Main, private val key: String?, private val homework: Boolean 
             addView(ctx.text("换成全屏备忘录（格式、图片、手写）›", 12.5f, C.accent, SEMI).apply { pad(6, 0, 0, 0) })
         })
         b.addView(main)
-        // 类型
-        b.addView(cap("类型"))
-        val names = Items.MINE_KINDS.map { if (it == "作业" && Store.work()) "任务" else it }
-        kindSeg = Seg(ctx, listOf("普通") + names, Items.MINE_KINDS.indexOf(fKind) + 1) { i -> fKind = if (i == 0) "" else Items.MINE_KINDS[i - 1]; fHw = fKind == "作业" }
-        b.addView(kindSeg)
         // ② 什么时候
         b.addView(cap("什么时候"))
         val when0 = ctx.card(12, 18)
@@ -170,6 +213,11 @@ class EditPage(a: Main, private val key: String?, private val homework: Boolean 
             tap { Dialogs.sheet(ctx, "重复", reps.map { it.second }) { k -> fRep = reps[k].first; rv.text = reps[k].second } }
         }, 10)
         b.addView(when0)
+        // 类型（自己的事：时间最要紧，类型放在后面）
+        b.addView(cap("类型"))
+        val names = Items.MINE_KINDS.map { if (it == "作业" && Store.work()) "任务" else it }
+        kindSeg = Seg(ctx, listOf("普通") + names, Items.MINE_KINDS.indexOf(fKind) + 1) { i -> fKind = if (i == 0) "" else Items.MINE_KINDS[i - 1]; fHw = fKind == "作业" }
+        b.addView(kindSeg)
         // ③ 在哪、清单
         b.addView(cap("更多（选填）"))
         val more = ctx.card(12, 18)
@@ -288,7 +336,7 @@ class EditPage(a: Main, private val key: String?, private val homework: Boolean 
                 val on = fDay == n.day && fTime == n.time
                 cr.addView(ctx.text("📚 下次" + n.name.take(8) + "课前 · " + n.text, 13f, if (on) C.accent else C.text, SEMI).apply {
                     bg(if (on) C.selected else C.card, 12, if (on) C.accent else C.line); pad(12, 8)
-                    tap { fDay = n.day; fTime = n.time; if (classMode) typeSeg?.let { fType = 0; it.pick(0) }; paintDay() }
+                    tap { fDay = n.day; fTime = n.time; if (classMode) { fType = 0; paintTypes(); classHints() }; paintDay() }
                 }, LinearLayout.LayoutParams(WRAP, WRAP).apply { rightMargin = dp(8) })
             }
             hs.addView(cr)

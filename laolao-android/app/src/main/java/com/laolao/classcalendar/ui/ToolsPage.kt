@@ -20,7 +20,7 @@ class ToolsPage(a: Main) : Page(a) {
     override fun build(): View {
         val ps = PullScroll(ctx, null)
         ps.setBackgroundColor(C.bg)
-        body = ps.content.apply { pad(18, 26, 18, 60) }
+        body = ps.content.apply { pad(18, 40, 18, 60) }
         return ps
     }
 

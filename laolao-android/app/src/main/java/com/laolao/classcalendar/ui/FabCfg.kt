@@ -18,7 +18,6 @@ object FabCfg {
     class Opt(val k: String, val icon: String, val title: String, val ok: () -> Boolean, val go: (Main) -> Unit)
     private val ALL = listOf(
         Opt("mine", "✏️", "记一件事", { true }) { a -> a.push(EditPage(a, null)) },
-        Opt("quick", "💬", "一句话记事", { true }) { a -> QuickAdd.open(a) },
         Opt("pub", "📢", "发布班级事项", { Store.can("can_edit") }) { a -> a.push(EditPage(a, null, classMode = true)) },
         Opt("ingest", "✨", "整理群消息", { Store.cls != null && (Store.can("can_ingest") || Store.feat("ingest_local")) }) { a -> a.push(IngestPage(a)) },
         Opt("wall", "📌", "发到班级墙", { Store.cls != null && Store.feat("wall") }) { a -> a.push(WallPage(a)) },
@@ -26,7 +25,7 @@ object FabCfg {
         Opt("courseimp", "📷", "拍课表导入", { Store.feat("courses") }) { a -> a.push(CourseImportPage(a)) },
         Opt("memo", "📋", "导入备忘录 / 聊天记录", { true }) { a -> a.push(MemoPage(a, "")) },
     )
-    private val DEF = listOf("mine", "quick", "pub", "ingest", "note")
+    private val DEF = listOf("mine", "pub", "ingest", "note")   // 「一句话记事」并进了「记一件事」（标题里写时间会自动认出来）
     private fun safe(f: () -> Boolean) = try { f() } catch (_: Exception) { false }
 
     /** 现在选了哪些（按顺序）；没设置过用默认 */
