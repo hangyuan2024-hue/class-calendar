@@ -20,6 +20,7 @@ import com.laolao.classcalendar.core.Bg
 import com.laolao.classcalendar.core.Bus
 import com.laolao.classcalendar.core.Net
 import com.laolao.classcalendar.core.Store
+import com.laolao.classcalendar.core.Items
 import com.laolao.classcalendar.push.Push
 import com.laolao.classcalendar.work.Background
 import com.laolao.classcalendar.widget.Widgets
@@ -59,7 +60,7 @@ class Main : Activity() {
         setContentView(root)
         chrome()
         Api.onLost = { why -> toast(if (why == "revoked") "这台手机已在其他设备上被退出登录" else "登录已过期，请重新登录"); showLogin() }
-        Bus.on(this) { what -> if (what == "user" && !Api.loggedIn) showLogin() else schedule(); if (what == "data" && login == null) Bg.main.postDelayed({ InAlert.check(this) }, 600) }
+        Bus.on(this) { what -> if (what == "user" && !Api.loggedIn) showLogin() else schedule(); if (what == "data" && login == null) { Bg.main.postDelayed({ InAlert.check(this) }, 600); paintBadges() } }
         Net.probe()
         // 6.9 账号经验：+N / 升级的提示
         com.laolao.classcalendar.core.Level.onXp = { pts, l, up -> toast(if (up) "🎉 升级了！Lv.${l.level} ${l.title}" else "⭐ 经验 +$pts · Lv.${l.level} ${l.xp}/${l.to}") }
@@ -106,24 +107,47 @@ class Main : Activity() {
         // 底栏：毛玻璃一样半透明，内容从下面透出来；选中的标签有一块会滑动的底色
         barWrap = GlassBar(this, tabContent).apply { lift(8, C.text) }
         barWrap.addView(View(this).apply { setBackgroundColor(C.alpha(C.line, 0.7f)) }, FrameLayout.LayoutParams(MATCH, maxOf(1, dp(1) / 2)))
-        tabInd = View(this).apply { background = round(C.alpha(C.accent, if (C.dark) 0.26f else 0.13f), dp(16).toFloat()) }
-        barWrap.addView(tabInd, FrameLayout.LayoutParams(dp(60), dp(32)).apply { topMargin = dp(5) })
-        tabBar = row().apply { pad(0, 6, 0, 6) }
+        // 7.x 选中的标签不再垫一块底色，简洁一点：只换成「实心」图标 + 主题色文字
+        tabInd = View(this).apply { visibility = View.GONE }
+        barWrap.addView(tabInd, FrameLayout.LayoutParams(dp(58), dp(32)).apply { topMargin = dp(TAB_TOP) })
+        tabBar = row().apply { pad(4, TAB_TOP, 4, 7) }
         barWrap.addView(tabBar, FrameLayout.LayoutParams(MATCH, WRAP))
         tabBox.addView(barWrap, FrameLayout.LayoutParams(MATCH, WRAP).apply { gravity = Gravity.BOTTOM })
         barWrap.addOnLayoutChangeListener { _, _, t, _, b, _, _, _, _ -> if (b - t != underBar) { underBar = b - t; tabContent.post { if (cur >= 0) { padUnder(tabs[cur].view); moveInd(false) }; lao?.attach() } } }
         root.addView(tabBox, FrameLayout.LayoutParams(MATCH, MATCH))
         tabs += HomePage(this); tabs += HomeworkPage(this); tabs += GrowthPage(this); tabs += ToolsPage(this); tabs += MePage(this)
         val names = listOf("首页", if (Store.work()) "任务" else "作业", "成长", "工具", "我的")
-        val icons = listOf(R.drawable.tab_home, R.drawable.tab_homework, R.drawable.tab_growth, R.drawable.tab_tools, R.drawable.tab_me)
+        tabBadges.clear()
         for (i in tabs.indices) {
-            val cell = col().apply { gravity = Gravity.CENTER; tap { selectTab(i) } }
-            val ic = icon(icons[i], 25)
-            val tx = text(names[i], 11f, C.tab, SEMI).apply { gravity = Gravity.CENTER }
-            cell.addView(ic); cell.addView(tx)
+            val cell = col().apply {
+                gravity = Gravity.CENTER_HORIZONTAL; contentDescription = names[i]
+                setOnClickListener { v -> v.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP); selectTab(i) }
+                // 按下去轻轻缩一下
+                setOnTouchListener { v, e ->
+                    when (e.actionMasked) {
+                        android.view.MotionEvent.ACTION_DOWN -> v.animate().scaleX(0.92f).scaleY(0.92f).setDuration(90).start()
+                        android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> v.animate().scaleX(1f).scaleY(1f).setDuration(160).start()
+                    }
+                    false
+                }
+            }
+            val box = FrameLayout(this).apply { clipChildren = false; clipToPadding = false }
+            val ic = ImageView(this).apply { setImageResource(TAB_ICONS[i].first); scaleType = ImageView.ScaleType.FIT_CENTER }
+            box.addView(ic, FrameLayout.LayoutParams(dp(24), dp(24), Gravity.CENTER))
+            // 角标：作业有过期 / 今天要交的显示红色数字
+            val badge = text("", 10f, Color.WHITE, BOLD).apply {
+                gravity = Gravity.CENTER; minWidth = dp(16); setPadding(dp(4), 0, dp(4), 0); includeFontPadding = false
+                background = round(C.red, dp(8).toFloat(), C.card, dp(2)); visibility = View.GONE
+            }
+            box.addView(badge, FrameLayout.LayoutParams(WRAP, dp(17), Gravity.CENTER).apply { leftMargin = dp(20); bottomMargin = dp(14) })
+            tabBadges += badge
+            cell.addView(box, LinearLayout.LayoutParams(dp(58), dp(32)))
+            val tx = text(names[i], 11f, C.tab, SEMI).apply { gravity = Gravity.CENTER; letterSpacing = 0.02f }
+            cell.addView(tx, LinearLayout.LayoutParams(WRAP, WRAP).apply { topMargin = dp(3) })
             tabBar.addView(cell, LinearLayout.LayoutParams(0, WRAP, 1f))
             tabViews += ic to tx
         }
+        paintBadges()
         cur = -1
         selectTab(0)
         if (System.currentTimeMillis() - Store.bootAt > 15_000) refreshSoon(force = true) else { lastRefresh = System.currentTimeMillis(); Background.afterRefresh(this) }
@@ -132,8 +156,29 @@ class Main : Activity() {
         // 有没有新版本：12 小时最多问一次，有就弹窗「立即更新」（ui/Updater.kt）
         Bg.later(4000) { Updater.auto(this) }
     }
+    /** 底栏图标：没选中是线条，选中是「实心」版（tools/icons/tabs.py 生成） */
+    private val TAB_ICONS = listOf(R.drawable.tab_v_home to R.drawable.tab_v_home_on, R.drawable.tab_v_homework to R.drawable.tab_v_homework_on,
+        R.drawable.tab_v_growth to R.drawable.tab_v_growth_on, R.drawable.tab_v_tools to R.drawable.tab_v_tools_on, R.drawable.tab_v_me to R.drawable.tab_v_me_on)
+    private val TAB_TOP = 7
+    private val tabBadges = mutableListOf<TextView>()
+    /** 作业角标：过期的 + 今天要交的（没有就不显示） */
+    fun paintBadges() {
+        val b = tabBadges.getOrNull(1) ?: return
+        val n = try {
+            if (!Store.feat("homework")) 0 else Items.homeworkAll().groups.filter { it.key == "late" || it.key == "today" }.sumOf { g -> g.items.count { !it.done } }
+        } catch (_: Exception) { 0 }
+        b.text = if (n > 99) "99+" else "$n"
+        b.visibility = if (n > 0) View.VISIBLE else View.GONE
+        tabViews.getOrNull(1)?.second?.contentDescription = if (n > 0) "作业，$n 项要尽快交" else null
+    }
+    /** 再点一下当前标签：滚回顶部 */
+    private fun toTop(v: View): Boolean {
+        if (v is android.widget.ScrollView) { v.smoothScrollTo(0, 0); return true }
+        if (v is android.view.ViewGroup) for (k in 0 until v.childCount) if (toTop(v.getChildAt(k))) return true
+        return false
+    }
     fun selectTab(i: Int) {
-        if (i == cur) { (tabs[i] as? HomePage)?.scrollTop(); return }
+        if (i == cur) { (tabs[i] as? HomePage)?.scrollTop() ?: toTop(tabs[i].view); return }
         fabs.forEach { it.close() }
         if (cur >= 0) tabs[cur].onHide()
         cur = i
@@ -144,13 +189,14 @@ class Main : Activity() {
         padUnder(pv)
         if (!first) { pv.alpha = 0f; pv.translationY = dp(10).toFloat(); pv.animate().alpha(1f).translationY(0f).setDuration(200).start() }
         tabViews.forEachIndexed { k, (ic, tx) ->
+            ic.setImageResource(if (k == i) TAB_ICONS[k].second else TAB_ICONS[k].first)
             ic.setColorFilter(if (k == i) C.accent else C.tab)
             tx.setTextColor(if (k == i) C.accent else C.tab)
             tx.typeface = if (k == i) BOLD else SEMI
         }
         // 选中的图标弹一下
-        tabViews.getOrNull(i)?.first?.let { ic -> ic.scaleX = 0.7f; ic.scaleY = 0.7f; ic.translationY = dp(3).toFloat()
-            ic.animate().scaleX(1f).scaleY(1f).translationY(0f).setDuration(320).setInterpolator(android.view.animation.OvershootInterpolator(3f)).start() }
+        tabViews.getOrNull(i)?.first?.let { ic -> ic.scaleX = 0.8f; ic.scaleY = 0.8f
+            ic.animate().scaleX(1f).scaleY(1f).setDuration(280).setInterpolator(android.view.animation.OvershootInterpolator(2.2f)).start() }
         moveInd(!first)
         tabs[i].render(); tabs[i].onShow()
         tabContent.post { lao?.attach() }
@@ -160,7 +206,7 @@ class Main : Activity() {
     private fun moveInd(anim: Boolean) {
         val cell = tabBar.getChildAt(cur) ?: return
         if (cell.width == 0) { tabBar.post { moveInd(false) }; return }
-        val x = cell.left + (cell.width - tabInd.width.coerceAtLeast(dp(60))) / 2f
+        val x = tabBar.left + cell.left + (cell.width - tabInd.width.coerceAtLeast(dp(58))) / 2f
         if (anim) tabInd.animate().translationX(x).setDuration(300).setInterpolator(android.view.animation.OvershootInterpolator(1.2f)).start() else tabInd.translationX = x
     }
     /** 标签页里的滚动内容：底下多留出底栏那么高，滚到底时不被底栏挡住，滚动时内容从底栏下面透出来 */
