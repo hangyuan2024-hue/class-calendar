@@ -25,16 +25,24 @@ export AWS_ACCESS_KEY_ID="$CN_S3_KEY_ID" AWS_SECRET_ACCESS_KEY="$CN_S3_SECRET" A
 # 新版 aws 命令默认加 CRC 校验头，国内几家的 S3 接口不认：只在必须时才加
 export AWS_REQUEST_CHECKSUM_CALCULATION=when_required AWS_RESPONSE_CHECKSUM_VALIDATION=when_required
 aws configure set default.s3.addressing_style virtual
-# 从 GitHub（在美国）传到国内很慢、延迟高：切成 8MB 的小块、同时传 24 块，比一块一块传快好几倍
-aws configure set default.s3.multipart_threshold 8MB
-aws configure set default.s3.multipart_chunksize 8MB
+# 从 GitHub（在美国）传到国内很慢、延迟高：切成 5MB 的小块（S3 允许的最小块）同时传，比整个文件一次传快，也不容易被嫌慢断开
+aws configure set default.s3.multipart_threshold 5MB
+aws configure set default.s3.multipart_chunksize 5MB
 aws configure set default.s3.max_concurrent_requests 24
 ok=""
 T0=$(date +%s)
 echo "开始传到国内存储：$KEY（$(( $(wc -c < "$F") / 1048576 )) MB）" >&2
-for i in 1 2 3; do
-  if aws s3 cp "$F" "s3://$CN_S3_BUCKET/$KEY" --endpoint-url "$CN_S3_ENDPOINT" --content-type application/octet-stream --only-show-errors >&2; then ok=1; break; fi
-  echo "上传失败，10 秒后重试（第 $i 次）" >&2; sleep 10
+# 7.x 从美国传到广州偶尔会特别慢，腾讯云嫌太慢直接断开（UserNetworkTooSlow），以前没有超时，一卡就是十几分钟。
+# 现在：每次最多等 3 分钟；第 2 次换腾讯云「全球加速」地址（桶开了全球加速才有用，没开会很快报错，不耽误）；
+# 3 次都不行就跳过国内存储，照常发布（App 和官网会从 GitHub / jsDelivr 下载）。
+EPS=("$CN_S3_ENDPOINT")
+case "$CN_S3_ENDPOINT" in *myqcloud.com*) EPS+=("https://cos.accelerate.myqcloud.com");; esac
+EPS+=("$CN_S3_ENDPOINT")
+for i in 0 1 2; do
+  EP="${EPS[$i]:-$CN_S3_ENDPOINT}"
+  if timeout 180 aws s3 cp "$F" "s3://$CN_S3_BUCKET/$KEY" --endpoint-url "$EP" --content-type application/octet-stream --only-show-errors \
+       --cli-connect-timeout 20 --cli-read-timeout 60 >&2; then ok=1; echo "上传成功（$EP）" >&2; break; fi
+  echo "上传失败（$EP），5 秒后重试（第 $((i + 1)) 次）" >&2; sleep 5
 done
 echo "用了 $(( $(date +%s) - T0 )) 秒" >&2
 if [ -z "$ok" ]; then echo "::warning::上传到国内存储失败，这次只能从 GitHub 下载" >&2; echo ""; exit 0; fi
