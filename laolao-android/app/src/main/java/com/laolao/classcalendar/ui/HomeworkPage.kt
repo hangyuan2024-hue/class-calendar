@@ -56,7 +56,7 @@ class HomeworkPage(a: Main) : Page(a) {
             com.laolao.classcalendar.core.Kv.set("hw_view_v1", if (i == 1) "week" else "due"); week = 0; selDay = ""; render()
         }, LinearLayout.LayoutParams(dp(140), WRAP))
         body.addView(hr)
-        if (mode() == "week") { weekView(hw); return }
+        if (mode() == "week") { weekView(hw); HwPlus.load(ctx, Items.all().filter { it.hw }) { if (view.isAttachedToWindow) render() }; return }
 
         val late = H.groups.firstOrNull { it.key == "late" }?.items?.size ?: 0
         body.addView(summary(H.left, late, H.groups.flatMap { it.items }))
@@ -86,6 +86,7 @@ class HomeworkPage(a: Main) : Page(a) {
             }, 16)
             if (showDone) body.addView(card(H.done.take(60)))
         }
+        if (HwPlus.lastErr.isNotEmpty()) body.add(ctx.text(HwPlus.lastErr, 11.5f, C.mutedText).apply { gravity = Gravity.CENTER }, 10)
         HwPlus.load(ctx, H.groups.flatMap { it.items } + H.done.take(60)) { if (view.isAttachedToWindow) render() }
     }
 
@@ -141,27 +142,11 @@ class HomeworkPage(a: Main) : Page(a) {
         val meta = listOfNotNull(if (lv == 3 && !r.done) dueT else null, HwPlus.read(r).ifEmpty { null }, if (r.note.isNotBlank()) "备注：" + r.note else null)
         if (meta.isNotEmpty()) b.addView(ctx.text(meta.joinToString(" · "), 12f, if (lv == 3 && !r.done) C.red else C.mutedText, lines = 1).apply { margins(t = 4) })
         // 附件：图片直接显示小图，点开看原图；文档显示名字
-        val n = HwPlus.count(r.key)
-        if (n > 0) {
-            val fs = HwPlus.list(r.key)
-            val strip = ctx.row()
-            if (fs == null) strip.addView(ctx.text("📎 $n 个附件，加载中…", 12f, C.sub).apply { bg(C.mutedBg, 8); pad(8, 4) })
-            else fs.forEach { f ->
-                if (f.img) strip.addView(android.widget.FrameLayout(ctx).apply {
-                    background = round(C.mutedBg, dp(10).toFloat()); clipToOutline = true
-                    if (f.thumb != null) addView(android.widget.ImageView(ctx).apply { setImageBitmap(f.thumb); scaleType = android.widget.ImageView.ScaleType.CENTER_CROP }, android.widget.FrameLayout.LayoutParams(MATCH, MATCH))
-                    else addView(Ic.plain(ctx, "🖼", 22, C.mutedText), android.widget.FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER))
-                    tap { HwPlus.open(a, f) }
-                }, LinearLayout.LayoutParams(dp(68), dp(68)).apply { rightMargin = dp(6) })
-                else strip.addView(ctx.row().apply {
-                    gravity = Gravity.CENTER_VERTICAL; bg(C.mutedBg, 10); pad(10, 0)
-                    addView(Ic.plain(ctx, "📄", 16, C.sub), LinearLayout.LayoutParams(dp(16), dp(16)))
-                    addView(ctx.text(f.name, 12f, C.text, lines = 1).apply { pad(6, 0, 0, 0); maxWidth = dp(140) })
-                    tap { HwPlus.open(a, f) }
-                }, LinearLayout.LayoutParams(WRAP, dp(68)).apply { rightMargin = dp(6) })
-            }
-            b.add(android.widget.HorizontalScrollView(ctx).apply { isHorizontalScrollBarEnabled = false; addView(strip) }, 8)
-        }
+        HwPlus.strip(a, r)?.let { b.add(it, 8) }
+        // 点一下在原地展开（和首页一样），不再跳到另一页
+        val extra = ctx.col(); b.addView(extra)
+        fun paint() { extra.removeAllViews(); if (r.key in RowOpen.keys) a.itemExtra(r, extra) }
+        paint()
         row.addView(b, LinearLayout.LayoutParams(0, WRAP, 1f).apply { leftMargin = dp(6) })
         // 打勾：右边的圆圈
         row.addView(ctx.text(if (r.done) "✓" else "", 13f, Color.WHITE, HEAVY).apply {
@@ -171,7 +156,7 @@ class HomeworkPage(a: Main) : Page(a) {
             tap { v -> v.buzz(); a.toggle(r) }
         }, LinearLayout.LayoutParams(dp(26), dp(26)).apply { leftMargin = dp(10); topMargin = dp(1) })
         row.press(0, 12)
-        row.tap { a.push(ItemPage(a, r.key)) }
+        row.tap { if (!RowOpen.keys.remove(r.key)) RowOpen.keys += r.key; paint() }
         row.setOnLongClickListener { v -> v.buzz(); a.quickActions(r); true }
         return row
     }

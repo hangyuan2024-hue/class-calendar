@@ -58,7 +58,8 @@ object HwPlus {
                 val r = Api.rpc("item_extras", jsonOf("cid" to cid)) as? JSONObject
                 val m = HashMap<String, Int>(); r?.optJSONObject("files")?.let { o -> o.keys().forEach { k -> m[k] = o.optInt(k) } }
                 if (m != counts) { counts = m; ch = true }
-            } catch (_: Exception) {}
+                lastErr = ""
+            } catch (e: Exception) { lastErr = "附件数量没拿到：" + (e.message ?: e.javaClass.simpleName); ch = true }
         }
         if (cid != null && rows.any { !it.mine } && (cid != viewsCid || now - viewsAt > 60_000)) {
             viewsAt = now
@@ -80,7 +81,7 @@ object HwPlus {
                     filesAt[r.key] = now
                 }
                 ch = true
-            } catch (_: Exception) { l.forEach { files[it.key] = emptyList() } }
+            } catch (e: Exception) { l.forEach { files[it.key] = emptyList() }; lastErr = "附件列表没拿到：" + (e.message ?: e.javaClass.simpleName) }
         }
         // 以前传的图片没有小图：下载原图（不超过 1.6MB）压一张
         for (l in files.values) for (f in l) {
@@ -118,6 +119,31 @@ object HwPlus {
         file.writeBytes(out.toByteArray()); pulled[id] = file
         return file
     }
+    /** 附件小图那一排（没有附件返回 null）：图片显示小图，点开看原图；文档显示名字 */
+    fun strip(a: Main, r: Item): android.view.View? {
+        val n = count(r.key); if (n <= 0) return null
+        val fs = list(r.key)
+        val row = a.row()
+        if (fs == null) row.addView(a.text("$n 个附件，加载中…", 12f, C.sub).apply { Ic.lead(this, 13); bg(C.mutedBg, 8); pad(8, 4) })
+        else if (fs.isEmpty()) row.addView(a.text("$n 个附件，点开看", 12f, C.sub).apply { bg(C.mutedBg, 8); pad(8, 4); tap { a.push(FilesPage(a, r.key)) } })
+        else fs.forEach { f ->
+            if (f.img) row.addView(android.widget.FrameLayout(a).apply {
+                background = round(C.mutedBg, a.dp(10).toFloat()); clipToOutline = true
+                if (f.thumb != null) addView(android.widget.ImageView(a).apply { setImageBitmap(f.thumb); scaleType = android.widget.ImageView.ScaleType.CENTER_CROP }, android.widget.FrameLayout.LayoutParams(MATCH, MATCH))
+                else addView(Ic.plain(a, "🖼", 22, C.mutedText), android.widget.FrameLayout.LayoutParams(a.dp(22), a.dp(22), android.view.Gravity.CENTER))
+                tap { open(a, f) }
+            }, android.widget.LinearLayout.LayoutParams(a.dp(68), a.dp(68)).apply { rightMargin = a.dp(6) })
+            else row.addView(a.row().apply {
+                gravity = android.view.Gravity.CENTER_VERTICAL; bg(C.mutedBg, 10); pad(10, 0)
+                addView(Ic.plain(a, "📄", 16, C.sub), android.widget.LinearLayout.LayoutParams(a.dp(16), a.dp(16)))
+                addView(a.text(f.name, 12f, C.text, lines = 1).apply { pad(6, 0, 0, 0); maxWidth = a.dp(140) })
+                tap { open(a, f) }
+            }, android.widget.LinearLayout.LayoutParams(WRAP, a.dp(68)).apply { rightMargin = a.dp(6) })
+        }
+        return android.widget.HorizontalScrollView(a).apply { isHorizontalScrollBarEnabled = false; addView(row) }
+    }
+    /** 拿附件信息出错时的原因（作业页最下面小字显示，方便排查） */
+    var lastErr = ""
     /** 点小图：下载原图全屏看；不是图片就用别的 App 打开 */
     fun open(a: Main, f: F) {
         a.toast(if (f.img) "正在加载原图…" else "正在打开…")

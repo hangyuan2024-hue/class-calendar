@@ -87,6 +87,7 @@ class HomePage(a: Main) : Page(a) {
         checkinBanner()
         val A = Items.agenda()
         agenda(A)
+        HwPlus.load(ctx, (A.pins + A.overdue + A.days.flatMap { it.items } + A.undatedMine + A.undatedCls).filter { !it.course }) { if (view.isAttachedToWindow && !InnerScroll.busy) render() }
         CoachCard.build(a, body) { render() }      // 5.9.3 捞捞教练（和小程序 1.22 一样放在「接下来的安排」下面，默认收起成一行）
         cards.build(body, A)
     }
@@ -343,7 +344,7 @@ class HomePage(a: Main) : Page(a) {
             val hits = Items.search(q)
             if (hits.isEmpty()) { res.add(ctx.text("没有找到「$q」相关的事项", 13.5f, C.sub).apply { pad(4, 14) }, 4); return }
             dayHead(res, "搜索结果", "${hits.size} 条", false)
-            hits.forEachIndexed { i, r -> if (i > 0) res.addView(ctx.hline()); res.addView(a.itemRow(r, showDate = true)) }
+            hits.forEachIndexed { i, r -> if (i > 0) res.addView(ctx.hline()); res.addView(a.timeRow(r, showDate = true)) }
         }
         sIn.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(x: CharSequence?, st: Int, n: Int, af: Int) {}
@@ -393,9 +394,13 @@ class HomePage(a: Main) : Page(a) {
     }
     private fun dayBlock(c: LinearLayout, label: String, sub: String, list: List<Item>, now: Long, late: Boolean = false, showDate: Boolean = false) {
         dayHead(c, label, sub, late)
+        val today = label == "今天" || list.firstOrNull()?.day == T.todayKey() && !late && !showDate
+        var nowShown = false
         list.forEachIndexed { i, r ->
-            if (i > 0) c.addView(ctx.hline())
-            val v = a.itemRow(r, showDate)
+            // 今天的列表里画一条红线「现在 14:05」（和小程序一样）
+            if (today && !nowShown && r.dated && r.time.isNotEmpty() && r.at() > now) { nowShown = true; c.addView(nowLine()) }
+            else if (i > 0) c.addView(ctx.hline())
+            val v = a.timeRow(r, showDate)
             c.addView(v)
             if (nextRow == null && Items.pending(r, now)) {
                 nextRow = v
@@ -403,23 +408,20 @@ class HomePage(a: Main) : Page(a) {
                 v.setTag(R_HEAD, if (i == 0) dp(46) else dp(28))
             }
         }
+        if (today && !nowShown && list.isNotEmpty() && list.all { !it.dated || it.time.isEmpty() || it.at() <= now }) c.addView(nowLine())
         shown += list.size
+    }
+    private fun nowLine(): View = android.widget.FrameLayout(ctx).apply {
+        val red = C.c("#ff6a3d")
+        addView(View(ctx).apply { setBackgroundColor(red) }, android.widget.FrameLayout.LayoutParams(MATCH, dp(1).coerceAtLeast(2), Gravity.CENTER_VERTICAL))
+        addView(View(ctx).apply { background = round(red, dp(4).toFloat()) }, android.widget.FrameLayout.LayoutParams(dp(8), dp(8), Gravity.CENTER_VERTICAL))
+        val nw = T.now()
+        addView(ctx.text("现在 %02d:%02d".format(nw.hour, nw.minute), 10.5f, Color.WHITE, BOLD).apply { bg(red, 9); pad(7, 1) }, android.widget.FrameLayout.LayoutParams(WRAP, WRAP, Gravity.CENTER_VERTICAL).apply { leftMargin = dp(14) })
+        layoutParams = LinearLayout.LayoutParams(MATCH, dp(20)).apply { topMargin = dp(2); bottomMargin = dp(2) }
     }
 
     // ---------- 右下角「＋」（照小程序：一串胶囊按钮） ----------
-    private fun addMenu(): List<FabItem> {
-        val l = mutableListOf(
-            FabItem("✏️", "记一件事") { a.push(EditPage(a, null)) },
-            FabItem("💬", "一句话记事") { QuickAdd.open(a) },
-            FabItem("📋", "导入备忘录 / 聊天记录") { a.push(MemoPage(a, "")) },
-            FabItem("📷", "拍课表导入") { a.push(CourseImportPage(a)) },
-        )
-        if (Store.can("can_edit")) l += FabItem("📢", "发布班级事项") { a.push(EditPage(a, null, classMode = true)) }
-        if (Store.cls != null && (Store.can("can_ingest") || Store.feat("ingest_local"))) l += FabItem("✨", "整理群消息") { a.push(IngestPage(a)) }
-        if (Store.cls != null && Store.feat("wall")) l += FabItem("📌", "发到班级墙") { a.push(WallPage(a)) }
-        l += FabItem("🔥", "今日打卡") { a.selectTab(2) }
-        return l
-    }
+    private fun addMenu(): List<FabItem> = FabCfg.items(a)   // 7.x 放哪些、什么顺序：我的 → 设置 → 首页快捷菜单
 }
 
 /** 问候卡背景：浅色底 + 右上两个圆圈 */

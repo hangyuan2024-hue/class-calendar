@@ -671,31 +671,79 @@ class IngestPage(a: Main) : Page(a) {
     override val autoRender = false
     override fun build(): View = scaffold("整理群消息") { body = it }
     private val personal: Boolean get() = !Store.can("can_ingest")
+    /**
+     * 7.x 重新排（照小程序 1.33 整理群消息）：
+     * 顶部说明卡 → 三个大按钮（截图识别 / 读文档 / 粘贴剪贴板）→ 文本框（字数、清空）→ 状态 → 整理按钮 → 三步说明。
+     */
     override fun render() {
         view; keepScroll(body)
         if (CK.gate(this, body)) return
         val text = input?.text?.toString() ?: ""
         val cloud = !personal && Store.feat("ingest_cloud")
-        body.addView(ctx.text(if (personal) "整理到你自己的「我的事项」，只有你自己看得到" else "交给 AI 整理成「${Store.cls!!.str("name")}」的班级事项，全班都能看到", 13.5f, C.sub).apply { pad(4, 0, 4, 10) })
-        val inp = ctx.input("把群里的消息粘贴到这里（可以一次贴很多条）", text, multi = true).apply { minLines = 8; maxLines = 16 }
-        input = inp; body.addView(inp)
-        val r = ctx.row().apply { margins(t = 10) }
-        r.addView(ctx.soft("📋 粘贴") {
+        // 说明卡
+        val hc = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; bg(C.card, 18, C.line); pad(14, 14) }
+        hc.addView(Ic.tile(ctx, "✨", 44), LinearLayout.LayoutParams(dp(44), dp(44)))
+        hc.addView(ctx.col().apply {
+            addView(ctx.text(if (personal) "整理到我的事项" else "整理成「${Store.cls!!.str("name")}」的班级事项", 15.5f, C.text, BOLD, 2))
+            addView(ctx.text(if (personal) "只有你自己看得到" else "全班都能看到，出现在首页和日历里", 12.5f, C.sub).apply { margins(t = 2) })
+        }, LinearLayout.LayoutParams(0, WRAP, 1f).apply { leftMargin = dp(12) })
+        body.addView(hc)
+        // 三种放进来的方式
+        body.add(ctx.text("把群消息放进来", 13f, C.sub, SEMI).apply { pad(4, 0) }, 16)
+        val pk = ctx.row().apply { margins(t = 8) }
+        fun pick(ic: String, t: String, d: String, fn: () -> Unit) = pk.addView(ctx.col().apply {
+            pad(10, 12); press(C.card, 16, C.line); gravity = Gravity.CENTER_HORIZONTAL
+            if (busy.isNotEmpty()) alpha = 0.5f
+            addView(Ic.tile(ctx, ic, 38), LinearLayout.LayoutParams(dp(38), dp(38)))
+            addView(ctx.text(t, 13.5f, C.text, BOLD, 1).apply { gravity = Gravity.CENTER; margins(t = 8) })
+            addView(ctx.text(d, 11f, C.sub, lines = 2).apply { gravity = Gravity.CENTER; margins(t = 2) })
+            tap { if (busy.isEmpty()) fn() }
+        }, LinearLayout.LayoutParams(0, WRAP, 1f).apply { if (pk.childCount > 0) leftMargin = dp(8) })
+        pick("📷", if (busy == "ocr") "识别中…" else "截图识别", "群聊截图，一次几张") { Media.pickImages(a, true) { ocr(it) } }
+        pick("📄", "读文档", "Word、txt") { Media.pickDocs(a) { docs(it) } }
+        pick("📋", "粘贴", "复制好的群消息") {
             val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             val s = cm.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(ctx)?.toString() ?: ""
-            if (s.isBlank()) a.toast("剪贴板是空的") else inp.setText((inp.text.toString().trim() + "\n\n" + s).trim())
-        }, LinearLayout.LayoutParams(0, dp(42), 1f))
-        r.addView(ctx.soft(if (busy == "ocr") "识别中…" else "📷 截图识别") { if (busy.isEmpty()) Media.pickImages(a, true) { ocr(it) } }, LinearLayout.LayoutParams(0, dp(42), 1f).apply { leftMargin = dp(10) })
-        // 6.3 直接导入文稿：Word（.docx）/ txt，全在手机上读，表格每一行会整理成一件事
-        r.addView(ctx.soft("📄 文档") { if (busy.isEmpty()) Media.pickDocs(a) { docs(it) } }, LinearLayout.LayoutParams(0, dp(42), 1f).apply { leftMargin = dp(10) })
-        body.addView(r)
-        if (status.isNotEmpty()) body.add(ctx.text(status, 13.5f, if (bad) C.red else C.accent).apply { bg(if (bad) C.dangerBg else C.selected, 10); pad(12, 8) }, 12)
-        if (cloud) body.add(ctx.button(if (busy == "cloud") "AI 正在整理…" else "✨ 交给 AI 整理成班级事项") { cloudRun() }, 14)
+            if (s.isBlank()) a.toast("剪贴板是空的") else { input?.setText(((input?.text?.toString() ?: "").trim() + "\n\n" + s).trim()); say("粘贴好了，检查一下再整理") }
+        }
+        body.addView(pk)
+        // 文本框
+        val inp = ctx.input("或者直接在这里输入、粘贴（QQ、微信复制的格式都行，可以一次贴很多条）", text, multi = true).apply { minLines = 7; maxLines = 14; textSize = 14.5f }
+        input = inp; body.add(inp, 12)
+        val cnt = ctx.text("", 12f, C.sub)
+        val tr = ctx.row().apply { gravity = Gravity.CENTER_VERTICAL; margins(t = 6) }
+        tr.addView(cnt, LinearLayout.LayoutParams(0, WRAP, 1f))
+        tr.addView(ctx.text("清空", 12.5f, C.accent, SEMI).apply { pad(8, 4); tap { inp.setText(""); status = ""; render() } })
+        body.addView(tr)
+        fun paintCnt() { val n = inp.text.length; cnt.text = if (n == 0) "还没有内容" else "$n 字 · ${inp.text.lines().count { it.isNotBlank() }} 行" }
+        paintCnt()
+        inp.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(x: CharSequence?, st: Int, n: Int, af: Int) {}
+            override fun onTextChanged(x: CharSequence?, st: Int, b: Int, n: Int) {}
+            override fun afterTextChanged(e: android.text.Editable?) { paintCnt() }
+        })
+        if (status.isNotEmpty()) body.add(ctx.row().apply {
+            gravity = Gravity.CENTER_VERTICAL; bg(if (bad) C.dangerBg else C.selected, 12); pad(12, 10)
+            addView(Ic.plain(ctx, if (bad) "🚫" else if (busy.isNotEmpty()) "⏳" else "✅", 16, if (bad) C.red else C.accent), LinearLayout.LayoutParams(dp(16), dp(16)).apply { rightMargin = dp(8) })
+            addView(ctx.text(status, 13.5f, if (bad) C.red else C.accent), LinearLayout.LayoutParams(0, WRAP, 1f))
+        }, 12)
+        // 整理
+        if (cloud) body.add(ctx.button(if (busy == "cloud") "AI 正在整理…" else "交给 AI 整理成班级事项") { cloudRun() }.apply { Ic.lead(this, 17, Color.WHITE) }, 16)
         body.add(ctx.button(if (cloud) "先在手机上拆一拆，自己确认" else "拆成待办，自己确认", if (cloud) C.selected else C.accent, if (cloud) C.accent else Color.WHITE) {
-            val t = inp.text.toString().trim(); if (t.isEmpty()) { say("先粘贴群消息", true); return@button }
+            val t = inp.text.toString().trim(); if (t.isEmpty()) { say("先把群消息放进来", true); return@button }
             a.push(MemoPage(a, t))
-        }, 10)
-        body.add(ctx.text("截图识别要联网，AI 整理大约半分钟到一分钟。整理好的事项会出现在首页和日历里。", 12.5f, C.sub).apply { setLineSpacing(0f, 1.3f) }, 12)
+        }, if (cloud) 10 else 16)
+        // 三步说明
+        val how = ctx.card(14, 18).apply { margins(t = 18) }
+        how.addView(ctx.text("怎么用", 14f, C.text, BOLD))
+        listOf("截图、文档或粘贴，把群里的消息放进来", if (cloud) "交给 AI：大约半分钟到一分钟，自动认出作业、通知、时间地点" else "拆成待办：一条条列出来，你勾选、改好再保存", "整理好的事项会出现在首页、作业页和日历里").forEachIndexed { i, t ->
+            how.add(ctx.row().apply {
+                gravity = Gravity.TOP
+                addView(ctx.text("${i + 1}", 11.5f, C.accent, BOLD).apply { gravity = Gravity.CENTER; bg(C.selected, 9) }, LinearLayout.LayoutParams(dp(18), dp(18)).apply { rightMargin = dp(10); topMargin = dp(1) })
+                addView(ctx.text(t, 13f, C.sub).apply { setLineSpacing(0f, 1.3f) }, LinearLayout.LayoutParams(0, WRAP, 1f))
+            }, 8)
+        }
+        body.addView(how)
     }
     private fun say(s: String, b: Boolean = false) { status = s; bad = b; render() }
     private fun docs(us: List<Uri>) {
