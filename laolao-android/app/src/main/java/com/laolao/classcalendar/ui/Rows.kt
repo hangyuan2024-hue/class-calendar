@@ -123,16 +123,20 @@ fun Main.timeRow(r: Item, showDate: Boolean = false): View {
     val gT = when { !r.dated -> "待定"; showDate -> if (r.day == today) "今天" else if (T.dayDiff(r.day) == 1L) "明天" else T.md(r.day).replace("月", "/").removeSuffix("日"); else -> r.time.ifEmpty { "全天" } }
     val gD = when { showDate && r.time.isNotEmpty() -> r.time; r.course && r.endTime.isNotEmpty() -> "–" + r.endTime; r.hw && r.time.isNotEmpty() -> "截止"; r.endTime.isNotEmpty() -> "–" + r.endTime; else -> "" }
     val ended = Items.state(r)?.second == -1
+    // 左边：大号时间 + 下面结束时间（和小程序「接下来」一样）
     row.addView(col().apply {
-        addView(text(gT, 13.5f, if (r.done || ended) C.mutedText else if (late) C.red else if (soon) C.accent else C.text, BOLD, 1))
-        if (gD.isNotEmpty()) addView(text(gD, 11f, C.sub, lines = 1).apply { margins(t = 1) })
-    }, LinearLayout.LayoutParams(dp(46), WRAP))
-    // 色条：课用课的颜色
-    row.addView(View(this).apply { if (r.course) background = round(r.color, dp(2).toFloat()) }, LinearLayout.LayoutParams(dp(3), LinearLayout.LayoutParams.MATCH_PARENT).apply { leftMargin = dp(2); rightMargin = dp(10); topMargin = dp(2); bottomMargin = dp(2) })
+        addView(text(gT, 17f, if (r.done || ended) C.mutedText else if (late) C.red else if (soon) C.accent else C.text, HEAVY, 1))
+        if (gD.isNotEmpty()) addView(text(gD.removePrefix("–"), 12f, C.sub, lines = 1).apply { margins(t = 2) })
+    }, LinearLayout.LayoutParams(dp(54), WRAP))
+    // 色条：课用课的颜色，作业红、会议蓝、活动绿
+    val bar = if (r.course) r.color else when (r.type) { "作业" -> C.red; "会议" -> C.accent; "活动" -> C.green; else -> C.alpha(C.accent, 0.45f) }
+    row.addView(View(this).apply { background = round(if (r.done || ended) C.line else bar, dp(2).toFloat()) }, LinearLayout.LayoutParams(dp(4), LinearLayout.LayoutParams.MATCH_PARENT).apply { leftMargin = dp(2); rightMargin = dp(12); topMargin = dp(3); bottomMargin = dp(3) })
     val body = col()
-    val tl = text((if (r.needConfirm) "⚠ " else "") + r.title, 15f, if (r.done || ended) C.mutedText else C.text, SEMI, 2)
+    val tl = text((if (r.needConfirm) "⚠ " else "") + r.title, 16f, if (r.done || ended) C.mutedText else C.text, BOLD, 2)
     if (r.done || ended) tl.paintFlags = tl.paintFlags or Paint.STRIKE_THRU_TEXT_FLAG
     val tr = row().apply { gravity = Gravity.CENTER_VERTICAL }
+    val kindIc = when { r.course && (r.title.contains("晚自习") || r.title.contains("夜")) -> "💤"; r.course -> "📚"; r.hw -> "📝"; r.type == "会议" -> "👥"; r.type == "活动" -> "🎉"; r.mine -> "✏️"; else -> "📢" }
+    if (!r.pin || r.done) tr.addView(Ic.plain(this, kindIc, 15, if (r.done || ended) C.mutedText else bar), LinearLayout.LayoutParams(dp(15), dp(15)).apply { rightMargin = dp(6) })
     if (r.pin && !r.done) tr.addView(Ic.plain(this, "📌", 14), LinearLayout.LayoutParams(dp(14), dp(14)).apply { rightMargin = dp(4) })
     tr.addView(tl, LinearLayout.LayoutParams(0, WRAP, 1f))
     val nf = HwPlus.count(r.key)
