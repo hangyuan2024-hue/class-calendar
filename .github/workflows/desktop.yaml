@@ -112,8 +112,11 @@ jobs:
           for ($i = 1; $i -le 4; $i++) {
             npm install --no-audit --no-fund
             if ($LASTEXITCODE -eq 0) { $ok = $true; break }
-            Write-Warning "第 $i 次 npm install 失败（多半是下载 Electron 时网络临时出错），$(20 * $i) 秒后重试"
-            Start-Sleep -Seconds (20 * $i)
+            # GitHub 上的 Electron 下载一直 504 时，后面几次改从 npmmirror 的 Electron 镜像下载（Electron 官方文档里推荐的镜像）
+            $env:ELECTRON_MIRROR = "https://npmmirror.com/mirrors/electron/"
+            $env:ELECTRON_BUILDER_BINARIES_MIRROR = "https://npmmirror.com/mirrors/electron-builder-binaries/"
+            Write-Warning "第 $i 次 npm install 失败（多半是从 GitHub 下载 Electron 时网络出错），$(15 * $i) 秒后改用镜像重试"
+            Start-Sleep -Seconds (15 * $i)
           }
           if (-not $ok) { throw "npm install 连续 4 次失败，看上面的报错" }
           npx electron-builder --win nsis --x64 --publish never
