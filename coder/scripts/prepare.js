@@ -3,6 +3,7 @@
 //   · ../desktop/core/api.js  → core/api.js       捞捞课程表电脑版的登录、接口（同一个账号）
 //   · ../config.js            → core/site-config.js  服务器地址
 //   · node_modules/codemirror → renderer/vendor/codemirror
+//   · node_modules/three/build/three.min.js → renderer/vendor/three（画出来的 3D 舞台）
 "use strict";
 const fs = require("fs"), path = require("path");
 const HERE = path.resolve(__dirname, ".."), SITE = path.resolve(HERE, "..");
@@ -19,5 +20,9 @@ if (fs.existsSync(CM)) {
 } else if (!fs.existsSync(path.join(HERE, "renderer", "vendor", "codemirror", "lib", "codemirror.js"))) {
   throw new Error("缺少编辑器：先在 coder 目录运行 npm install");
 }
+// 3D 舞台（画出来）用的 three.js（MIT）
+const THREE_DIR = path.join(HERE, "node_modules", "three");
+if (fs.existsSync(THREE_DIR)) { cp(path.join(THREE_DIR, "build", "three.min.js"), path.join(HERE, "renderer", "vendor", "three", "three.min.js")); cp(path.join(THREE_DIR, "LICENSE"), path.join(HERE, "renderer", "vendor", "three", "LICENSE")); }
+else if (!fs.existsSync(path.join(HERE, "renderer", "vendor", "three", "three.min.js"))) throw new Error("缺少 three.js：先在 coder 目录运行 npm install");
 for (const d of ["resources/toolchains", "resources/llama", "resources/models"]) fs.mkdirSync(path.join(HERE, d), { recursive: true });
 console.log("捞捞编程：准备好了");

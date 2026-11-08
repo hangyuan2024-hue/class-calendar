@@ -18,6 +18,7 @@
   "dependencies": {},
   "devDependencies": {
     "codemirror": "5.65.18",
+    "three": "0.147.0",
     "electron": "^31.7.7",
     "electron-builder": "^24.13.3"
   },
@@ -26,7 +27,7 @@
     "productName": "捞捞编程",
     "copyright": "捞捞",
     "directories": { "output": "dist", "buildResources": "build" },
-    "files": ["main.js", "preload.js", "core/**", "renderer/**", "build/*.png", "package.json"],
+    "files": ["main.js", "preload.js", "preload-pop.js", "core/**", "renderer/**", "build/*.png", "package.json"],
     "asar": true,
     "extraResources": [
       { "from": "resources/toolchains", "to": "toolchains", "filter": ["**/*"] },

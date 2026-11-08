@@ -1,8 +1,9 @@
 // 捞捞编程 · Electron 主进程：开窗口，把 core/service.js 的功能接到界面上。
 // 界面只能通过 preload 里的 cc.call 调 service 里列出的方法。
 "use strict";
-const { app, BrowserWindow, ipcMain, dialog, shell, Menu, net, session } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog, shell, Menu, net, session, screen } = require("electron");
 const path = require("path");
+const fs = require("fs");
 const { spawn } = require("child_process");
 const { createService } = require("./core/service");
 const updater = require("./core/updater");
@@ -77,6 +78,51 @@ ipcMain.handle("upd", async (ev, action) => {
 });
 ipcMain.handle("closing-ok", () => { if (win) { win.__canClose = true; win.close(); } });
 
+// ---------- 实时画面拖出程序：单独的一个小窗口，置顶，可以放在屏幕任何地方 ----------
+// 主界面负责追踪、把结果（每一步的变量）发过来；小窗口自己播放，按钮（放大、收回）发回主界面
+let pop = null;
+const popFile = () => path.join(app.getPath("userData"), "viz-pop.json");
+function popBounds(want) {
+  let b = want;
+  if (!b) { try { b = JSON.parse(fs.readFileSync(popFile(), "utf8")); } catch (e) {} }
+  if (!b) { const wb = win ? win.getBounds() : { x: 100, y: 100, width: 1200, height: 800 }; b = { x: wb.x + wb.width - 400, y: wb.y + wb.height - 360, width: 380, height: 330 }; }
+  b = { x: Math.round(b.x), y: Math.round(b.y), width: Math.max(280, Math.round(b.width || 380)), height: Math.max(200, Math.round(b.height || 330)) };
+  // 屏幕换了（拔了外接显示器）：拉回到能看见的地方
+  const wa = screen.getDisplayMatching(b).workArea;
+  b.x = Math.min(Math.max(b.x, wa.x - b.width + 80), wa.x + wa.width - 80);
+  b.y = Math.min(Math.max(b.y, wa.y), wa.y + wa.height - 60);
+  return b;
+}
+let popSave = 0;
+function openPop(want) {
+  if (pop && !pop.isDestroyed()) { if (want) pop.setBounds(popBounds(want)); pop.showInactive(); return true; }
+  pop = new BrowserWindow({ ...popBounds(want), minWidth: 280, minHeight: 200, frame: false, alwaysOnTop: true, skipTaskbar: false, resizable: true, fullscreenable: false, maximizable: false,
+    title: "实时画面 · 捞捞编程", backgroundColor: "#060b16", show: false, icon: path.join(__dirname, "build", "icon.png"),
+    webPreferences: { preload: path.join(__dirname, "preload-pop.js"), contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: false } });
+  pop.setAlwaysOnTop(true, "floating");
+  pop.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  pop.webContents.on("will-navigate", (e) => e.preventDefault());
+  pop.loadFile(path.join(__dirname, "renderer", "vizpop.html"));
+  pop.once("ready-to-show", () => { if (pop && !pop.isDestroyed()) pop.showInactive(); });
+  const save = () => { clearTimeout(popSave); popSave = setTimeout(() => { try { if (pop && !pop.isDestroyed()) fs.writeFileSync(popFile(), JSON.stringify(pop.getBounds())); } catch (e) {} }, 400); };
+  pop.on("move", save); pop.on("resize", save);
+  pop.on("closed", () => { pop = null; if (win && !win.isDestroyed()) win.webContents.send("vizpop-cmd", { type: "closed" }); });
+  return true;
+}
+const fromMain = (ev) => win && ev.sender === win.webContents;
+const fromPop = (ev) => pop && !pop.isDestroyed() && ev.sender === pop.webContents;
+ipcMain.handle("vizpop:open", (ev, b) => { if (!fromMain(ev)) throw new Error("拒绝"); return openPop(b && typeof b === "object" ? b : null); });
+ipcMain.on("vizpop:move", (ev, x, y) => { if (fromMain(ev) && pop && !pop.isDestroyed()) { const b = pop.getBounds(); pop.setBounds({ x: Math.round(x), y: Math.round(y), width: b.width, height: b.height }); } });
+ipcMain.on("vizpop:close", (ev) => { if ((fromMain(ev) || fromPop(ev)) && pop && !pop.isDestroyed()) pop.close(); });
+// 主界面 → 小窗口：追踪结果、状态
+ipcMain.on("vizpop:to-pop", (ev, msg) => { if (fromMain(ev) && pop && !pop.isDestroyed()) pop.webContents.send("vizpop", msg); });
+// 小窗口 → 主界面：放大、收回、播到第几步（编辑器里跟着标行）
+ipcMain.on("vizpop:to-main", (ev, msg) => {
+  if (!fromPop(ev) || !win || win.isDestroyed()) return;
+  if (msg && msg.type === "expand") { if (win.isMinimized()) win.restore(); win.show(); win.focus(); }
+  win.webContents.send("vizpop-cmd", msg);
+});
+
 function createWindow() {
   win = new BrowserWindow({
     width: 1360, height: 860, minWidth: 900, minHeight: 560, title: "捞捞编程", backgroundColor: "#f6f5f1", show: false,
@@ -87,6 +133,7 @@ function createWindow() {
   win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   win.webContents.on("will-navigate", (e) => e.preventDefault());
   win.loadFile(path.join(__dirname, "renderer", "index.html"));
+  win.on("closed", () => { if (pop && !pop.isDestroyed()) pop.destroy(); });
   // 关窗口前让界面把没保存的代码存好（最多等 1.5 秒）
   win.on("close", (e) => {
     if (win.__canClose) return;

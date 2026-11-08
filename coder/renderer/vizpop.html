@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; frame-src 'none'; object-src 'none'">
+<title>实时画面 · 捞捞编程</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="pop-body">
+<div class="vf hud pop" id="vizFloat">
+  <header class="vf-h pop-drag" title="按住这里拖到屏幕任何地方">
+    <span class="vf-dot" id="vfDot"></span><b>实时画面</b><span class="vf-step" id="vfStep"></span><span class="vf-file" id="vfFile"></span><span class="grow"></span>
+    <button class="vf-b" data-f="play" title="播放 / 暂停（空格）"></button>
+    <button class="vf-b" data-f="snd" title="音效（M）"></button>
+    <button class="vf-b" data-f="max" title="在程序里放大看全部变量"></button>
+    <button class="vf-b" data-f="dock" title="收回到程序里"></button>
+  </header>
+  <div class="vf-line" id="vfLine"></div>
+  <div class="vf-stage viz-stage3" id="vfStage" hidden></div>
+  <div class="vf-board vb mini" id="vfBoard"></div>
+  <div class="vf-note" id="vfNote">在捞捞编程里写代码，这里会跟着画</div>
+  <div class="vf-track" id="vfTrack"><i id="vfBar"></i></div>
+</div>
+<script src="icons.js"></script>
+<script src="vendor/three/three.min.js"></script>
+<script src="sfx.js"></script>
+<script src="stage3d.js"></script>
+<script src="viz-board.js"></script>
+<script src="vizpop.js"></script>
+</body>
+</html>

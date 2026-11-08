@@ -333,5 +333,15 @@
     paint(el, opt.mini ? miniHtml(step, prev, opt.focus, opt) : boardHtml(step, prev, opt));
   }
 
-  root.VizBoard = { render, narrate, pickFocus, scopes, short, morph };
+  // 3D 舞台用：这一步里「重点数组」的值和下标标记（只要一维的数字数组，2~48 个）
+  function focusArray(step, focusName) {
+    if (!step || !focusName) return null;
+    const sc = scopes(step); CTX = { scopes: sc };
+    for (let i = sc.length - 1; i >= 0; i--) for (const [n, v] of sc[i].vars) {
+      if (n !== focusName || v.k !== "a" || v.v.length < 2 || v.v.length > 48 || !v.v.every(isNum)) continue;
+      return { name: n, fn: sc[i].fn || "", values: v.v.map(numOf), marks: markers(v, sc[i], step.g || [], v.v.length) };
+    }
+    return null;
+  }
+  root.VizBoard = { render, narrate, pickFocus, scopes, short, morph, focusArray };
 })(typeof window !== "undefined" ? window : globalThis);

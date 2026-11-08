@@ -5,7 +5,18 @@
 "use strict";
 (function () {
   const $ = (s, r = document) => r.querySelector(s);
-  const A = window.VizAlgos, B = window.VizBoard, I = window.ICON;
+  const A = window.VizAlgos, B = window.VizBoard, I = window.ICON, SND = window.LaoSfx;
+  const STAGE = window.LaoStage && window.LaoStage.webgl() ? window.LaoStage : null;   // 3D 舞台（没有 WebGL 就用平面柱子）
+  const sndIcon = () => I(SND && SND.muted ? "mute" : "sound", 15);
+  const plain = (h) => String(h || "").replace(/<br>/g, " ").replace(/<[^>]+>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+  const ascending = (a) => a.every((x, i) => i === 0 || a[i - 1] <= x), descending = (a) => a.every((x, i) => i === 0 || a[i - 1] >= x);
+  // 算法演示的一步 → 舞台要的样子
+  function algoState(s, k, n, kind) {
+    const h = s.hi || {}, marks = {};
+    for (const [nm, v] of Object.entries(s.ptr || {})) if (v >= 0 && v < s.a.length) (marks[v] ||= []).push(nm);
+    const swap = h.swap && h.swap.length === 2 && !s.tmp ? h.swap : [];
+    return { a: s.a, cmp: h.cmp || [], swap, sorted: s.sorted || [], pivot: h.pivot, range: h.range, found: h.found, mark: h.mark, marks, note: s.note, done: kind !== "search" && k === n - 1 };
+  }
   let LC = null;
   const LS = { get(k, d) { try { const v = localStorage.getItem("lc_viz_" + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem("lc_viz_" + k, JSON.stringify(v)); } catch (e) {} } };
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -17,7 +28,8 @@
   // 我的代码（大画面）
   const U = { res: null, steps: [], k: 0, src: "", file: "", lang: "", busy: false };
   // 悬浮小窗
-  const F = { on: LS.get("float", true), min: LS.get("floatMin", false), res: null, steps: [], k: 0, timer: 0, seq: 0, debounce: 0, focus: null, src: "", file: "", status: "", lineH: null };
+  const CAN_POP = !!(window.cc && window.cc.popOpen);   // 电脑版：可以拖出程序，变成单独的置顶小窗口
+  const F = { on: LS.get("float", true), min: LS.get("floatMin", false), popped: false, res: null, steps: [], k: 0, timer: 0, seq: 0, debounce: 0, focus: null, src: "", file: "", status: "", lineH: null };
   const SPEEDS = [[0.5, "慢"], [1, "正常"], [2, "快"], [4, "很快"]];
 
   // =====================================================================
@@ -32,16 +44,17 @@
         <span class="viz-title">${I("activity", 18)}<b>画出来</b><small>CODE VISUALIZER</small></span>
         <div class="viz-modes" id="vzModes" role="tablist"><button data-m="user">${I("code", 14)}我的代码</button><span class="viz-sep"></span><small class="viz-grp">算法演示</small>${A.ALGOS.map((a) => `<button data-m="${a.id}">${esc(a.name.replace("排序", "").replace("查找", ""))}</button>`).join("")}</div>
         <span class="grow"></span>
+        ${SND ? `<button class="ic-btn" id="vzSnd" title="音效（M）">${sndIcon()}</button>` : ""}
         <button class="ic-btn" id="vzClose" title="关掉（Esc）" aria-label="关掉">${I("x", 18)}</button>
       </div>
       <div class="viz-body">
         <section class="viz-stage">
           <div class="viz-hud-line"><span class="hud-k">STEP</span><b id="vzStepN">0</b><span class="hud-k">/ <i id="vzStepT">0</i></span><span class="hud-k">LINE</span><b id="vzLineN">-</b><span class="grow"></span><span class="viz-status" id="vzStatus"></span></div>
           <div class="viz-note" id="vzNote" aria-live="polite"></div>
-          <div class="viz-userview" id="vzUser"><div class="vb" id="vzBoard"></div></div>
+          <div class="viz-userview" id="vzUser"><div class="viz-stage3 user" id="vzUStage" hidden></div><div class="vb" id="vzBoard"></div></div>
           <div class="viz-algoview" id="vzAlgo" hidden>
             <div class="viz-desc" id="vzDesc"></div>
-            <div class="viz-canvas"><div class="viz-bars" id="vzBars"></div><div class="viz-tmp" id="vzTmp" hidden></div></div>
+            <div class="viz-canvas${STAGE ? " has3d" : ""}"><div class="viz-stage3" id="vzStage3"></div><div class="viz-bars" id="vzBars"></div><div class="viz-tmp" id="vzTmp" hidden></div></div>
             <div class="viz-legend" id="vzLegend"></div>
           </div>
           <div class="viz-ctrl">
@@ -64,6 +77,7 @@
       </div>`;
     document.body.appendChild(root);
     $("#vzClose").onclick = close;
+    if ($("#vzSnd")) { $("#vzSnd").onclick = () => SND.toggle(); SND.onChange(() => { for (const b of document.querySelectorAll("#vzSnd, #vizFloat [data-f=snd]")) b.innerHTML = sndIcon(); }); }
     $("#vzModes").onclick = (e) => { const b = e.target.closest("[data-m]"); if (b) setMode(b.dataset.m); };
     root.querySelector(".viz-ctrl").addEventListener("click", (e) => { const b = e.target.closest("[data-c]"); if (!b) return; const c = b.dataset.c; if (c === "play") toggle(); else { pause(); go(c === "first" ? 0 : c === "last" ? cur().length - 1 : st().k + (c === "next" ? 1 : -1)); } });
     $("#vzSlider").oninput = (e) => { pause(); go(+e.target.value); };
@@ -78,11 +92,17 @@
       else if (e.key === "ArrowRight") { e.preventDefault(); pause(); go(st().k + 1); }
       else if (e.key === "ArrowLeft") { e.preventDefault(); pause(); go(st().k - 1); }
       else if (e.key === "Home") { pause(); go(0); } else if (e.key === "End") { pause(); go(cur().length - 1); }
+      else if ((e.key === "m" || e.key === "M") && SND) SND.toggle();
     });
     playBtn();
     return root;
   }
   const st = () => (V.mode === "user" ? U : V);
+  let stA = null, stU = null;   // 算法演示的舞台、我的代码的舞台
+  function stageA() { if (!stA && STAGE) stA = STAGE.create($("#vzStage3"), { hello: true }); return stA; }
+  function stageU() { if (!stU && STAGE) stU = STAGE.create($("#vzUStage"), {}); return stU; }
+  // 这一步是不是紧接着上一步（是：动画过去；不是：直接摆好）
+  function stepDur(o) { return V.timer ? Math.max(140, (o.interval || 700) * 0.9) : 650; }
   const cur = () => st().steps;
 
   function open(mode, k) {
@@ -148,7 +168,11 @@
   const fixIn = (s) => (s && !s.endsWith("\n") ? s + "\n" : s || "");
 
   function useResult(r, src, t, k) {
-    U.res = r; U.src = src; U.file = t.file; U.lang = r.lang || t.lang; U.steps = r.steps || []; U.k = 0;
+    U.res = r; U.src = src; U.file = t.file; U.lang = r.lang || t.lang; U.steps = r.steps || []; U.k = 0; U.pk = -5;
+    U.focus = B.pickFocus(U.steps);
+    // 这个数组在运行过程中变过没有（变过、最后又是有序的 → 结尾庆祝）
+    U.changed = false;
+    if (U.focus) { let first = null; for (const x of U.steps) { const fa = B.focusArray(x, U.focus); if (!fa) continue; const k = fa.values.join(); if (first == null) first = k; else if (k !== first) { U.changed = true; break; } } }
     paintCode(src);
     $("#vzSlider").max = String(Math.max(0, U.steps.length - 1));
     paintTicks();
@@ -195,6 +219,17 @@
     const py = U.lang === "python";
     B.render($("#vzBoard"), s, prev, { py, n: U.k });
     let note = B.narrate(s, prev, { py });
+    // 重点数组（一维、全是数）：上面用 3D 舞台演
+    const fa = U.focus ? B.focusArray(s, U.focus) : null;
+    const box = $("#vzUStage");
+    if (fa && stageU()) {
+      box.hidden = false;
+      const last = U.k === U.steps.length - 1, err = s.err || (last && U.res.error);
+      const stt = { a: fa.values, marks: fa.marks, note: err ? plain((U.res.error && U.res.error.msg) || s.err) : plain(note) || `第 ${s.l} 行`, error: !!err,
+        done: last && !err && U.changed && (ascending(fa.values) || descending(fa.values)) };
+      if (U.pk === U.k - 1) stU.step(stt, { dur: stepDur(U) }); else stU.set(stt);
+    } else box.hidden = true;
+    U.pk = U.k;
     if (s.err) note = `<span class="bad">${esc((U.res.error && U.res.error.msg) || s.err)}</span>`;
     if (U.k === U.steps.length - 1 && U.res.error && !s.err) note = `<span class="bad">${esc(U.res.error.msg)}</span>`;
     const lineTxt = (U.src.split("\n")[s.l - 1] || "").trim();
@@ -245,7 +280,7 @@
   function build() {
     const al = A.byId(V.mode);
     const t = al.trace(V.data, V.x);
-    V.steps = t.steps; V.code = t.code; V.k = 0;
+    V.steps = t.steps; V.code = t.code; V.k = 0; V.pk = -5;
     paintCode(t.code);
     $("#vzSlider").max = String(V.steps.length - 1);
     paintTicks();
@@ -269,6 +304,13 @@
     });
   }
   function paintAlgoStep(s) {
+    const sa = stageA();
+    if (sa) {
+      $("#vzBars").hidden = true;
+      const kind = A.byId(V.mode).kind, stt = algoState(s, V.k, V.steps.length, kind);
+      if (V.pk === V.k - 1) sa.step(stt, { dur: stepDur(V) }); else sa.set(stt);
+    }
+    V.pk = V.k;
     const n = s.a.length, cls = Array(n).fill("");
     const h = s.hi || {};
     const sorted = new Set(s.sorted || []);
@@ -306,8 +348,9 @@
   function play() {
     const S = cur(); if (!S.length) return;
     if (st().k >= S.length - 1) go(0);
-    const base = V.mode === "user" ? Math.max(70, Math.min(600, 9000 / S.length)) : 700;
-    V.timer = setInterval(() => go(st().k + 1), Math.max(40, base / V.speed));
+    const base = V.mode === "user" ? Math.max(STAGE ? 260 : 70, Math.min(700, (STAGE ? 26000 : 9000) / S.length)) : 900;
+    st().interval = Math.max(40, base / V.speed);
+    V.timer = setInterval(() => go(st().k + 1), st().interval);
     playBtn();
   }
   function pause() { if (V.timer) clearInterval(V.timer); V.timer = 0; playBtn(); }
@@ -331,10 +374,13 @@
       <header class="vf-h" title="拖动可以挪位置">
         <span class="vf-dot" id="vfDot"></span><b>实时画面</b><span class="vf-step" id="vfStep"></span><span class="grow"></span>
         <button class="vf-b" data-f="play" title="播放 / 暂停">${I("play", 14)}</button>
+        ${SND ? `<button class="vf-b" data-f="snd" title="音效">${sndIcon()}</button>` : ""}
+        ${CAN_POP ? `<button class="vf-b" data-f="pop" title="拖出程序：变成单独的小窗口，放在屏幕任何地方（直接把标题栏拖出窗口也行）">${I("external", 14)}</button>` : ""}
         <button class="vf-b" data-f="max" title="放大看全部变量（F7）">${I("maximize", 14)}</button>
         <button class="vf-b" data-f="min" title="收起">${I("minimize", 14)}</button>
       </header>
       <div class="vf-line" id="vfLine"></div>
+      <div class="vf-stage viz-stage3" id="vfStage" hidden title="点一下放大"></div>
       <div class="vf-board vb mini" id="vfBoard" title="点一下放大"></div>
       <div class="vf-note" id="vfNote"></div>
       <div class="vf-track" id="vfTrack"><i id="vfBar"></i></div>`;
@@ -346,9 +392,9 @@
     pill.onclick = () => { F.min = false; LS.set("floatMin", false); F.on = true; LS.set("float", true); paintFloatShell(); schedule(0); };
     f.addEventListener("click", (e) => {
       const b = e.target.closest("[data-f]");
-      if (b) { e.stopPropagation(); const a = b.dataset.f; if (a === "play") fToggle(); else if (a === "max") open("user", F.k); else if (a === "min") { F.min = true; LS.set("floatMin", true); fPause(); clearLine(); paintFloatShell(); } return; }
+      if (b) { e.stopPropagation(); const a = b.dataset.f; if (a === "play") { F.userPlay = true; fToggle(); } else if (a === "snd") SND.toggle(); else if (a === "pop") popOut(); else if (a === "max") open("user", F.k); else if (a === "min") { F.min = true; LS.set("floatMin", true); fPause(); clearLine(); paintFloatShell(); } return; }
       if (e.target.closest("#vfTrack")) { const r = $("#vfTrack").getBoundingClientRect(); fPause(); fGo(Math.round(((e.clientX - r.left) / r.width) * (F.steps.length - 1))); return; }
-      if (e.target.closest(".vf-board, .vf-line, .vf-note") && F.steps.length) open("user", F.k);
+      if (e.target.closest(".vf-board, .vf-line, .vf-note, .vf-stage") && F.steps.length) open("user", F.k);
     });
     drag(f);
     return f;
@@ -361,13 +407,22 @@
       if (e.target.closest("button")) return;
       const wrap = f.parentElement.getBoundingClientRect(), r0 = f.getBoundingClientRect();
       const sx = e.clientX, sy = e.clientY, R = wrap.right - r0.right, Bm = wrap.bottom - r0.bottom;
+      const offX = sx - r0.left, offY = sy - r0.top;
+      let out = false;
       h.setPointerCapture(e.pointerId); f.classList.add("drag");
       const mv = (ev) => {
+        // 拖到程序窗口外面了：变成单独的小窗口，接着跟着鼠标走，松手就停在那儿
+        if (CAN_POP && !out && (ev.clientX < 0 || ev.clientY < 0 || ev.clientX > innerWidth || ev.clientY > innerHeight)) {
+          out = true; f.classList.add("popping");
+          popOut({ x: ev.screenX - offX, y: ev.screenY - offY, width: Math.round(r0.width), height: Math.round(r0.height) }, true);
+          return;
+        }
+        if (out) { window.cc.popMove(ev.screenX - offX, ev.screenY - offY); return; }
         const r = Math.max(6, Math.min(wrap.width - r0.width - 6, R - (ev.clientX - sx)));
         const b = Math.max(6, Math.min(wrap.height - r0.height - 6, Bm - (ev.clientY - sy)));
         f.style.right = r + "px"; f.style.bottom = b + "px";
       };
-      const up = () => { h.removeEventListener("pointermove", mv); f.classList.remove("drag"); LS.set("floatPos", { r: parseInt(f.style.right) || 16, b: parseInt(f.style.bottom) || 16 }); };
+      const up = () => { h.removeEventListener("pointermove", mv); f.classList.remove("drag", "popping"); if (out) paintFloatShell(); else LS.set("floatPos", { r: parseInt(f.style.right) || 16, b: parseInt(f.style.bottom) || 16 }); };
       h.addEventListener("pointermove", mv); h.addEventListener("pointerup", up, { once: true });
     });
   }
@@ -377,13 +432,46 @@
     const f = fel(); if (!f) return;
     const t = traceable();
     const show = !!t && F.on;
-    f.hidden = !show || F.min;
-    $("#vizPill").hidden = !(t && (F.min || !F.on));
+    f.hidden = !show || F.min || F.popped;
+    $("#vizPill").hidden = !(t && (F.min || !F.on)) || F.popped;
+  }
+  // ---------- 拖出程序 ----------
+  // dragging：正在拖着标题栏拖出去 —— 先别把程序里的小窗藏起来（藏了鼠标就「丢」了），松手再藏
+  async function popOut(bounds, dragging) {
+    if (!CAN_POP) return;
+    F.popped = true; LS.set("floatPop", true);
+    F.min = false; LS.set("floatMin", false); F.on = true; LS.set("float", true);
+    fPause(); clearLine();
+    try { await window.cc.popOpen(bounds || null); } catch (e) { F.popped = false; LS.set("floatPop", false); }
+    if (!dragging) paintFloatShell();
+    sendPop();
+    schedule(0);
+  }
+  const popSend = (m) => { if (F.popped && CAN_POP) window.cc.popSend(m); };
+  function sendPop() {
+    if (!F.popped) return;
+    const t = traceable();
+    if (!t) return popSend({ type: "clear" });
+    if (F.steps.length && F.file === t.file) popSend({ type: "result", steps: F.steps, focus: F.focus, src: F.src, lang: F.res.lang || "", tip: F.tip, kind: F.status, name: t.name, k: F.k, autoplay: false });
+    else popSend({ type: "status", kind: F.status || "wait", html: ($("#vfNote") || {}).innerHTML || "" });
+  }
+  function onPopCmd(m) {
+    if (!m) return;
+    if (m.type === "ready") sendPop();
+    else if (m.type === "expand") open("user", m.k);
+    else if (m.type === "dock") window.cc.popClose();
+    else if (m.type === "closed") { F.popped = false; LS.set("floatPop", false); clearLine(); paintFloatShell(); if (F.steps.length) fGo(F.k); }
+    else if (m.type === "k") {
+      F.k = m.k; clearLine();
+      const t = traceable();
+      if (t && F.file === t.file && LC.cm.getValue() === F.src && m.line) F.lineH = LC.cm.addLineClass(m.line - 1, "background", "vf-runline");
+    }
   }
   function fStatus(kind, txt) {
     F.status = kind;
     const d = $("#vfDot"); if (d) d.className = "vf-dot " + kind;
     if (txt != null) { const n = $("#vfNote"); if (n) n.innerHTML = txt; }
+    popSend({ type: "status", kind, html: txt, stale: kind === "err" });
   }
   function schedule(ms = 1300) {
     clearTimeout(F.debounce);
@@ -415,10 +503,13 @@
       return;
     }
     $("#vfBoard").classList.remove("stale");
-    F.res = r; F.src = text; F.file = t.file; F.steps = r.steps; F.focus = B.pickFocus(r.steps); F.k = 0;
+    F.res = r; F.src = text; F.file = t.file; F.steps = r.steps; F.focus = B.pickFocus(r.steps); F.k = 0; F.pk = -5; F.userPlay = false;
+    F.changed = false;
+    if (F.focus) { let first = null; for (const x of r.steps) { const fa = B.focusArray(x, F.focus); if (!fa) continue; const k = fa.values.join(); if (first == null) first = k; else if (k !== first) { F.changed = true; break; } } }
     const tip = r.harness ? "用第 1 个样例跑你的函数" : needsInput(text) && !LS.get("stdin:" + t.file, "") && !r.harness ? "程序要输入：放大后在下面填" : r.error ? `<span class="bad">${esc(r.error.msg)}</span>` : r.trunc ? `只画了前 ${r.steps.length} 步` : "";
     fStatus(r.error ? "err" : "ok", tip);
     F.tip = tip;
+    if (F.popped) { popSend({ type: "result", steps: r.steps, focus: F.focus, src: text, lang: r.lang || "", tip, kind: r.error ? "err" : "ok", name: t.name, k: 0 }); return; }
     fGo(0); fPlay();
   }
   function fGo(k) {
@@ -426,7 +517,18 @@
     F.k = Math.max(0, Math.min(F.steps.length - 1, k));
     const s = F.steps[F.k], prev = F.steps[F.k - 1];
     const py = (F.res.lang || "") === "python";
-    B.render($("#vfBoard"), s, prev, { mini: true, focus: F.focus, py, n: F.k });
+    // 重点是一维数字数组：小窗里也用 3D 舞台（下面只留几个变量）
+    const fa = F.focus ? B.focusArray(s, F.focus) : null;
+    if (fa && !F.stage && STAGE) F.stage = STAGE.create($("#vfStage"), { mini: true });
+    $("#vfStage").hidden = !(fa && F.stage);
+    if (fa && F.stage) {
+      const last = F.k === F.steps.length - 1;
+      const stt = { a: fa.values, marks: fa.marks, error: !!(s.err || (last && F.res.error)), done: last && !F.res.error && F.changed && (ascending(fa.values) || descending(fa.values)) };
+      // 边打字边自动播：不出声（吵）；点了播放才出声
+      if (F.pk === F.k - 1) F.stage.step(stt, { dur: F.timer ? F.interval * 0.9 : 600, sound: !!F.userPlay }); else F.stage.set(stt);
+    }
+    F.pk = F.k;
+    B.render($("#vfBoard"), s, prev, { mini: true, focus: fa && F.stage ? null : F.focus, py, n: F.k });
     const lineTxt = (F.src.split("\n")[s.l - 1] || "").trim();
     $("#vfLine").innerHTML = `<span class="hud-k">L${s.l}</span><code>${esc(lineTxt.slice(0, 60))}</code>`;
     $("#vfStep").textContent = `${F.k + 1}/${F.steps.length}`;
@@ -442,7 +544,8 @@
     if (!F.steps.length) return;
     if (F.k >= F.steps.length - 1) fGo(0);
     clearInterval(F.timer);
-    const ms = Math.max(60, Math.min(450, 7000 / F.steps.length));
+    const ms = F.stage || (STAGE && F.focus) ? Math.max(220, Math.min(650, 20000 / F.steps.length)) : Math.max(60, Math.min(450, 7000 / F.steps.length));
+    F.interval = ms;
     F.timer = setInterval(() => fGo(F.k + 1), ms);
     const b = $('#vizFloat [data-f="play"]'); if (b) b.innerHTML = I("pause", 14);
   }
@@ -460,8 +563,14 @@
       fPause(); clearLine(); F.res = null; F.steps = []; F.tip = ""; F.seq++;
       for (const id of ["#vfBoard", "#vfLine", "#vfNote", "#vfStep"]) { const e = $(id); if (e) e.innerHTML = ""; }
       const bar = $("#vfBar"); if (bar) bar.style.width = "0";
+      popSend(traceable() ? { type: "status", kind: "wait", html: "等你写完，停一下就开始画…" } : { type: "clear" });
       schedule(400);
     });
+    if (CAN_POP) {
+      window.cc.on("vizpop-cmd", onPopCmd);
+      // 上次关软件时实时画面在程序外面：还放回那儿
+      if (LS.get("floatPop", false)) setTimeout(() => popOut(null), 600);
+    }
     schedule(800);
   }
   if (window.LC) hook(); else document.addEventListener("lc-ready", hook, { once: true });

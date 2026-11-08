@@ -197,7 +197,7 @@
       ${rec.length ? `<div class="wl-sec">最近打开</div><div class="wl-recent">${rec.map((f) => `<button data-open="${esc(f)}"><b>${esc(base(f))}</b><small>${esc(f)}</small></button>`).join("")}</div>` : ""}
       <div class="wl-sec">刚开始学？</div>
       <div class="wl-tip">左边「练习」里有 ${S.exercises.length} 道题：入门 15 题从 Hello World 开始，还有计算机二级 C 语言、二级 Python 和经典算法题库。每道题写完点「检查」，自动帮你跑测试。${p.solved ? `你已经做对了 <b>${p.solved}</b> 道。` : ""}</div>
-      <div class="wl-feats"><div>${ICON("activity", 18)}<b>实时画面</b><span>写 C / C++ / Python 时，右下角会把程序一步一步画出来：数组、链表、递归……点一下放大看全部（F7）</span></div><div>${ICON("trophy", 18)}<b>刷题</b><span>左边「刷题」按你的水平推荐力扣、Codeforces 的题，在软件里看题、写代码、跑样例、提交</span></div></div>`;
+      <div class="wl-feats"><div class="wl-xz">${window.XIAOZHI ? XIAOZHI.svg({ size: 46, mood: "happy" }) : ICON("activity", 18)}<b>实时画面</b><span>写 C / C++ / Python 时，捞小智在右下角把程序一步一步演出来：数组变成一排小机器人，交换时会跳过去，还有音效；点一下放大（F7），也能拖出程序放在屏幕任何地方</span></div><div>${ICON("trophy", 18)}<b>刷题</b><span>左边「刷题」按你的水平推荐力扣、Codeforces 的题，在软件里看题、写代码、跑样例、提交</span></div></div>`;
   }
   $("#welcome").addEventListener("click", (e) => {
     const n = e.target.closest("[data-new]"); if (n) newFileDialog(n.dataset.new);
@@ -440,7 +440,7 @@
   window.cc.on("ai-state", (a) => { S.ai = a; paintAiState(); });
   function paintChat() {
     const box = $("#aiMsgs");
-    if (!chat.length) { box.innerHTML = `<div class="ai-empty"><span class="fish">${ICON("bot", 34)}</span>卡住了就问我。<br>运行出错时点「哪里错了」，<br>想自己写出来就点「给我提示」。<br><small>选中一段代码再问，我只看那一段。</small></div>`; return; }
+    if (!chat.length) { box.innerHTML = `<div class="ai-empty"><span class="fish xzwrap">${window.XIAOZHI ? XIAOZHI.svg({ size: 78 }) : ICON("bot", 34)}</span><b class="xz-name">捞小智</b>卡住了就问我。<br>运行出错时点「哪里错了」，<br>想自己写出来就点「给我提示」。<br><small>选中一段代码再问，我只看那一段。</small></div>`; return; }
     box.innerHTML = chat.map((m, i) => m.role === "user"
       ? `<div class="msg me">${m.label ? `<small>${esc(m.label)}</small>` : ""}${esc(m.show || m.content)}</div>`
       : `<div class="msg bot${m.error ? " err" : ""}" data-i="${i}">${m.error ? esc(m.error) : MD.render(m.content)}${m.pending ? '<span class="typing"></span>' : ""}</div>`).join("");
