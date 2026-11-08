@@ -57,11 +57,13 @@ jobs:
           tar -xf "dl\$($pick.name)" -C coder\resources\toolchains
           if (-not (Test-Path coder\resources\toolchains\mingw64\bin\gcc.exe)) { throw "解压后没有 mingw64\bin\gcc.exe" }
           # 去掉用不到的大东西；去掉翻译文件，编译器的报错保持英文（软件按英文解析，再配中文提示）
-          foreach ($d in @('share\doc', 'share\info', 'share\man', 'share\locale', 'share\gcc-*\python', 'opt\lib\python*\test')) {
+          foreach ($d in @('share\doc', 'share\info', 'share\man', 'share\locale', 'opt\lib\python*\test')) {   # share\gcc-*\python 留着：gdb 靠它把 vector、string 画成数组、字符串
             Get-ChildItem "coder\resources\toolchains\mingw64\$d" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
             Remove-Item "coder\resources\toolchains\mingw64\$d" -Recurse -Force -ErrorAction SilentlyContinue
           }
           & coder\resources\toolchains\mingw64\bin\gcc.exe --version | Select-Object -First 1
+          # 「画出来」一步步追踪用的 gdb（winlibs 自带，里面带 Python）
+          if (Test-Path coder\resources\toolchains\mingw64\bin\gdb.exe) { & coder\resources\toolchains\mingw64\bin\gdb.exe -nx -batch -ex "python import sys; print('gdb python', sys.version)" } else { Write-Warning "没有 gdb.exe：画出来会退回只画数组" }
           "{0:N0} MB" -f ((Get-ChildItem coder\resources\toolchains\mingw64 -Recurse | Measure-Object Length -Sum).Sum / 1MB)
 
       - name: Python 3.12（python-build-standalone，免安装版）
@@ -127,6 +129,7 @@ jobs:
           node test/exercises.test.js
           node test/core.test.js
           node test/viz.test.js
+          node test/trace.test.js
           node test/bundled.test.js
 
       - name: 打包程序（electron-builder，先出文件夹）
