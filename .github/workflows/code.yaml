@@ -118,7 +118,7 @@ jobs:
           npm install --no-audit --no-fund
           node scripts/prepare.js
 
-      - name: 测试（规则 + 安装包自带的编译器 + 本地模型真的能回答）
+      - name: 测试（规则 + 安装包自带的编译器 + 画出来 + 本地模型真的能回答）
         working-directory: coder
         env:
           LC_TEST_AI: "1"
@@ -126,6 +126,7 @@ jobs:
         run: |
           node test/exercises.test.js
           node test/core.test.js
+          node test/viz.test.js
           node test/bundled.test.js
 
       - name: 打包程序（electron-builder，先出文件夹）
