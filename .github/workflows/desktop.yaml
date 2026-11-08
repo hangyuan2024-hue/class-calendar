@@ -34,6 +34,7 @@ on:
 
 permissions:
   contents: write
+  actions: write   # 发布完让「网站国内加速」再跑一遍（机器人提交不会自动触发别的流程）
 
 concurrency:
   group: desktop-app
@@ -146,3 +147,14 @@ jobs:
           done
           echo "::error::安装包已经发布到 Releases，但更新官网版本号失败"
           exit 1
+
+      # 上一步是机器人（GITHUB_TOKEN）提交的版本文件，GitHub 规定这种提交不会触发别的流程：
+      # 国内网站（腾讯云 COS）就一直停在旧的 download/desktop-version.json，官网「国内下载」指向已经被清理掉的旧安装包 → NoSuchKey。这里手动叫它跑一遍。
+      - name: 让国内网站也换成新版下载
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run site-cn.yml --repo "$GITHUB_REPOSITORY" --ref "${{ github.ref_name }}" \
+            && echo "已经让「网站国内加速」重新同步" \
+            || echo "::warning::没能自动触发「网站国内加速」，请到 Actions 里手动 Run workflow"

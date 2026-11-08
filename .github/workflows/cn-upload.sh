@@ -11,8 +11,9 @@
 #   CN_DL_BASE      公开下载地址前缀，比如 https://<桶名>.cos.ap-guangzhou.myqcloud.com（有自己的加速域名就填域名）
 # 同一个前缀下只留最新的 3 个版本（捞捞编程 1 个），省存储费。
 set -uo pipefail
-# 捞捞编程约 1.5GB：只留最新 1 个版本（其他留 3 个）
-KEEP=3; case "$2" in code/*) KEEP=1;; esac
+# 捞捞编程约 1.5GB：留最新 2 个版本（其他留 3 个）。只留 1 个时，刚发新版就把上一版删了，
+# 正在下载 / 刚检查过更新的人会拿到 NoSuchKey（App 会换别的线路，但浏览器里直接打开的链接就 404 了）
+KEEP=3; case "$2" in code/*) KEEP=2;; esac
 F="$1"; KEY="$2"
 # 复制粘贴密钥时常带上空格、换行：全部去掉
 for v in CN_S3_ENDPOINT CN_S3_REGION CN_S3_BUCKET CN_S3_KEY_ID CN_S3_SECRET CN_DL_BASE CN_SITE_BUCKET; do
