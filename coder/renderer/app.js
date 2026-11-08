@@ -393,10 +393,11 @@
     if (r.needInstall) { offerInstall(L, checkEx); return; }
     if (r.error) { conSys(esc(r.error), "bad"); conState("没检查", "bad"); return; }
     S.progress = r.progress || S.progress; paintExList(); paintExBar(); paintStatus();
+    if (r.skillDelta) document.dispatchEvent(new CustomEvent("skill", { detail: r.skillDelta }));
     if (r.compileFailed) { showDiags(t, r.diags || []); conAppend(r.stderr || "", "c"); conSys("✗ 编译没通过：" + esc(firstErrHint(t) || "先把标红的地方改好"), "bad"); conState("编译出错", "bad"); $("#askErrBtn").hidden = false; return; }
     const ex = S.exercises.find((e) => e.id === t.ex);
     if (r.pass) {
-      conSys(`<span class="res pass"><b>🎉 全部 ${ex.tests} 组测试都对了！</b>${r.first ? "<br>又攻下一道题。" + nextTip(ex) : "<br>这道题之前就做对了，再写一遍记得更牢。"}</span>`);
+      conSys(`<span class="res pass"><b>🎉 全部 ${ex.tests} 组测试都对了！</b>${r.first ? "<br>又攻下一道题。" + (r.skillDelta > 0 ? ` 水平分 +${r.skillDelta}。` : "") + nextTip(ex) : "<br>这道题之前就做对了，再写一遍记得更牢。"}</span>`);
       conState("通过", "ok"); if (r.first) confetti();
     } else {
       const f = r.results[r.results.length - 1];
@@ -449,7 +450,7 @@
     if (!t && !question) { toast("先打开一个代码文件，或者直接在下面打字问"); return; }
     const ex = t && t.ex && S.exercises.find((e) => e.id === t.ex);
     const sel = t && cm.somethingSelected() ? cm.getSelection() : "";
-    const ctx = t ? { lang: L ? L.name : "", file: t.name, fileFull: t.file, code: sel ? "" : t.doc.getValue(), selection: sel, diags: t.diags || [], output: out.textContent.slice(-3000), exercise: ex ? { title: ex.title, desc: ex.desc } : null } : {};
+    const ctx = t ? { lang: L ? L.name : "", file: t.name, fileFull: t.file, code: sel ? "" : t.doc.getValue(), selection: sel, diags: t.diags || [], output: out.textContent.slice(-3000), exercise: ex ? { id: ex.id, title: ex.title, desc: ex.desc } : null } : {};
     const history = chat.filter((m) => !m.error && !m.pending).map((m) => ({ role: m.role, content: m.content }));
     const show = question || (sel ? "（关于选中的这段代码）" : "");
     chat.push({ role: "user", content: question || ASK_LABEL[mode] || "", show: show || ASK_LABEL[mode], label: question ? "" : "" });
@@ -519,7 +520,7 @@
   $("#fontMinus").onclick = () => font(-1); $("#fontPlus").onclick = () => font(1);
 
   // 侧栏：文件 / 练习
-  $(".side-tabs").addEventListener("click", (e) => { const b = e.target.closest("[data-side]"); if (!b) return; $$(".side-tabs button").forEach((x) => x.classList.toggle("on", x === b)); $("#sideFiles").hidden = b.dataset.side !== "files"; $("#sideEx").hidden = b.dataset.side !== "ex"; LS.set("side", b.dataset.side); });
+  $(".side-tabs").addEventListener("click", (e) => { const b = e.target.closest("[data-side]"); if (!b) return; $$(".side-tabs button").forEach((x) => x.classList.toggle("on", x === b)); $("#sideFiles").hidden = b.dataset.side !== "files"; $("#sideEx").hidden = b.dataset.side !== "ex"; $("#sideLc").hidden = b.dataset.side !== "lc"; LS.set("side", b.dataset.side); document.dispatchEvent(new CustomEvent("side", { detail: b.dataset.side })); });
 
   // 输出区高度：拖
   (() => {
@@ -588,10 +589,13 @@
     S = await call("state");
     applyTheme(); paintMe(); paintStatus(); paintAiState(); paintChat(); paintFiles(); paintExList();
     if (S.settings.aiOpen === false) toggleAi(false); else $("#aiToggle").classList.add("on");
-    if (LS.get("side", "files") === "ex") $('.side-tabs [data-side="ex"]').click();
+    const side0 = LS.get("side", "files"); if (side0 !== "files" && $(`.side-tabs [data-side="${side0}"]`)) setTimeout(() => $(`.side-tabs [data-side="${side0}"]`).click());
     switchTab(-1);
     if (S.settings.lastFile) await openFile(S.settings.lastFile, { focus: false }).catch(() => {});
     conState(S.dev ? "开发版：用电脑上装好的编译器" : "还没运行");
-    window.LC = { get tabs() { return tabs; }, get S() { return S; }, cm, run, checkEx, ask, openFile, openExercise };   // 测试用
+    // 给「画出来」（viz.js）、「刷题」（lc.js）和测试用
+    window.LC = { get tabs() { return tabs; }, get cur() { return tabs[cur] || null; }, get S() { return S; }, cm, run, checkEx, ask, openFile, openExercise, call, toast, esc, dialog, saveAll,
+      async newFile(name, lang, text) { const f = await call("create", name, lang, text); await refreshFiles(); await openFile(f); return f; } };
+    document.dispatchEvent(new Event("lc-ready"));
   })().catch((e) => { document.body.innerHTML = `<p style="padding:40px">捞捞编程启动失败：${esc(e.message)}</p>`; });
 })();

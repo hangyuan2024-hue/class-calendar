@@ -7,5 +7,6 @@ window.cc = (() => {
     call: async (method, ...args) => { const r = await (await fetch("/call", { method: "POST", body: JSON.stringify({ method, args }) })).json(); if (!r.ok) throw new Error(r.e); return r.r; },
     on: (ev, fn) => { (subs[ev] ||= []).push(fn); },
     closingOk: async () => {},
+    upd: async () => null,
   };
 })();

@@ -10,6 +10,9 @@ const AI = require("./ai");
 const { messages, options: tutorOptions } = require("./tutor");
 const { EX, BANKS, starter, check } = require("./exercises");
 const { Progress, sync } = require("./account");
+const VIZ = require("./viz");
+const { Bank, leetcodeRecent, codeforcesSolved } = require("./judge");
+const { Skill } = require("./skill");
 
 // env：{ dev, res, user, documents, version, platform, send(ch, data), pickDir(), pickFile(exts), trash(f), reveal(f), openPath(d), openExternal(u), siteConfig }
 function createService(env) {
@@ -38,6 +41,10 @@ function createService(env) {
 
   // ---------- 账号 ----------
   const progress = new Progress(path.join(USER, "progress.json"));
+  const bank = new Bank(path.join(USER, "judge-cache.json"));
+  const skill = new Skill(path.join(USER, "skill.json"));
+  const exTries = {};   // 这次打开软件以来每道练习检查了几次（用来估水平）
+  const exAsked = new Set();
   let api = null, me = null;
   function makeApi() {
     try {
@@ -186,10 +193,68 @@ function createService(env) {
       try { r = await check(ex, (input) => runOnce(lang, f, { toolDirs: DIRS, allowSystem: DEV, buildDir: BUILD }, input)); }
       catch (e) { return { error: e.message, needInstall: e.needInstall || null, lang }; }
       if (r.pass) r.first = progress.solved(id, lang); else progress.tried(id, lang);
+      exTries[id] = (exTries[id] || 0) + 1;
+      // 估水平：第一次做对才算（同一道题反复做对不重复加分）
+      if (!r.pass || !skill.isDone("ex:" + id)) r.skillDelta = skill.exercise(ex, r.pass, exTries[id], exAsked.has(id));
+      if (r.pass) delete exTries[id];
       r.progress = progress.summary();
       lastRun = { output: r.results.length ? (r.results[r.results.length - 1].got || "") : r.stderr || "", diags: r.diags || (r.results.slice(-1)[0] || {}).diags || [], file: f };
       if (me) syncNow();
       return r;
+    },
+
+    // 画出来：把你自己的代码跑一遍，数组每变一次记一帧（auto：自动在给数组赋值的地方加 SHOW；false：只认你自己写的 SHOW）
+    async vizRun(f, stdin, auto = true) {
+      f = safeFile(f);
+      const lang = (langOfFile(f) || {}).id;
+      if (lang !== "c" && lang !== "cpp") throw new Error("「画出来」现在只支持 C / C++ 文件");
+      const src = fs.readFileSync(f, "utf8");
+      const ins = auto ? VIZ.instrument(src) : { src, added: 0, arrays: [], manual: VIZ.hasShow(src) };
+      fs.mkdirSync(BUILD, { recursive: true });
+      fs.writeFileSync(path.join(BUILD, "laolao_viz.h"), VIZ.HEADER);
+      const tag = require("crypto").createHash("md5").update(path.resolve(f)).digest("hex").slice(0, 8);
+      const copy = path.join(BUILD, `viz-${tag}${path.extname(f).toLowerCase()}`);
+      fs.writeFileSync(copy, ins.src);
+      progress.ran();
+      let r;
+      try { r = await runOnce(lang, copy, { toolDirs: DIRS, allowSystem: DEV, buildDir: BUILD, include: "laolao_viz.h", incDir: /#\s*include\s*"/.test(src) ? path.dirname(f) : "" }, stdin || "", { timeoutMs: 8000 }); }
+      catch (e) { return { error: e.message, needInstall: e.needInstall || null, lang }; }
+      if (r.compileFailed) return { compileFailed: true, stderr: r.stderr.split(path.basename(copy)).join(path.basename(f)), diags: r.diags, lang };
+      const p = VIZ.parseFrames(r.stdout);
+      return { frames: VIZ.dedupe(p.frames), noArray: !ins.manual && !ins.added, found: [...VIZ.findArrays(src).keys()], output: p.output, stderr: r.stderr, code: r.code, timedOut: r.timedOut, tooMuch: r.tooMuch, arrays: ins.arrays, manual: !!ins.manual, added: ins.added, lang };
+    },
+
+    // 刷题：外面的题库 + 估水平 + 推荐
+    judgeState() { return { bank: bank.status(), skill: skill.summary(), tags: [...new Set(bank.list().flatMap((p) => p.tags))] }; },
+    async judgeRefresh(src) {
+      const res = {};
+      for (const s of src ? [src] : ["lc", "cf"]) { try { res[s] = { n: await bank.refresh(s) }; } catch (e) { res[s] = { error: e.message }; } }
+      return { res, ...H.judgeState() };
+    },
+    judgeRecommend(opt = {}) {
+      if (bank.stale("lc", 7) && !bank.data.err.lc) bank.refresh("lc").catch(() => {});   // 后台悄悄更新，下次就用新的
+      return skill.recommend(bank.list(), Math.min(20, opt.n || 6), { src: opt.src || "", tag: opt.tag || "" });
+    },
+    judgeMark(id, how) {
+      const p = bank.list().find((x) => x.id === id); if (!p) throw new Error("题库里没有这道题");
+      if (how === "skip") { skill.skip(id); return { delta: 0, ...H.judgeState() }; }
+      return { delta: skill.external(p, how), ...H.judgeState() };
+    },
+    judgeSetUser(site, name) { name = String(name || "").trim().slice(0, 40); skill.d.accounts[site] = name; skill.save(); return skill.summary(); },
+    // 把你在力扣 / Codeforces 上做出来的题拿过来：没记过的按「做出来了」算（分量轻一点）
+    async judgeSync() {
+      const out = {}; const all = new Map(bank.list().map((p) => [p.id, p]));
+      for (const [site, fn] of [["lc", leetcodeRecent], ["cf", codeforcesSolved]]) {
+        const u = skill.d.accounts[site]; if (!u) continue;
+        try {
+          if (site === "cf" && !bank.data.cf) await bank.refresh("cf").catch(() => {});
+          if (site === "cf") for (const p of bank.data.cf || []) all.set(p.id, p);
+          const got = await fn(u); let n = 0;
+          for (const g of got.sort((a, b) => a.t - b.t)) { const p = all.get(g.id); if (p && !skill.isDone(p.id)) { skill.external(p, "auto"); n++; } }
+          out[site] = { n, seen: got.length };
+        } catch (e) { out[site] = { error: e.message }; }
+      }
+      return { out, ...H.judgeState() };
     },
 
     // 安装语言
@@ -217,6 +282,7 @@ function createService(env) {
       if (!(await aiStart())) throw new Error(aiState.msg || "本地模型没准备好");
       if (aiReq) { aiReq.abort(); aiReq = null; }
       const c = { ...(ctx || {}) };
+      if (c.exercise && c.exercise.id) exAsked.add(c.exercise.id);
       if (!c.output && lastRun.file === c.fileFull) c.output = lastRun.output;
       if ((!c.diags || !c.diags.length) && lastRun.file === c.fileFull) c.diags = lastRun.diags;
       const msgs = messages(mode, c, question, history || []);
@@ -237,7 +303,7 @@ function createService(env) {
     async logout() { if (api) await api.signOut(); me = null; return true; },
     async syncNow() { const r = await syncNow(); return { r, progress: progress.summary() }; },
     // 只打开自己网站和题库里列出的几个知名题库网站
-    openUrl(u) { u = String(u); if (/^https:\/\/(www\.)?laolaokechengbiao\.cn\//.test(u) || BANKS.some((b) => (b.links || []).some((l) => l[1] === u))) env.openExternal(u); return true; },
+    openUrl(u) { u = String(u); if (/^https:\/\/(www\.)?laolaokechengbiao\.cn\//.test(u) || /^https:\/\/leetcode\.cn\/(problems|u)\/[\w-]+\/?$/.test(u) || /^https:\/\/codeforces\.com\/problemset\/problem\/\d+\/[A-Z]\d?$/.test(u) || BANKS.some((b) => (b.links || []).some((l) => l[1] === u))) env.openExternal(u); return true; },
   };
 
   api = makeApi();

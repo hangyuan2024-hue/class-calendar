@@ -58,8 +58,9 @@ function plan(langId, file, opt) {
       fs.copyFileSync(file, src);
       diagName = path.basename(src);
     }
+    // opt.include：编译时多带的头文件（「画出来」用的 SHOW 宏，见 core/viz.js）
     const args = [...std, "-g", "-O0", "-Wall", "-fdiagnostics-color=never", "-fdiagnostics-parseable-fixits", "-finput-charset=UTF-8", "-fexec-charset=UTF-8", "-I.",
-      src, unbuf, "-o", out, ...(L.id === "c" ? ["-lm"] : []), ...(WIN ? ["-static"] : [])];
+      ...(opt.include ? ["-include", opt.include] : []), ...(opt.incDir ? ["-I", opt.incDir] : []), src, unbuf, "-o", out, ...(L.id === "c" ? ["-lm"] : []), ...(WIN ? ["-static"] : [])];
     // 编译器的提示一律用英文（中文 Windows 上可能变成乱码的本地化提示；报错解析和中文提示都按英文写的）
     return { lang: L, tool, compile: { cmd: tool.exe, args, env: { ...env, LANG: "C", LC_ALL: "C", LANGUAGE: "C" } }, run: { cmd: out, args: [], env }, out, diagName };
   }
