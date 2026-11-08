@@ -156,10 +156,15 @@ jobs:
 
       - name: 打包程序（electron-builder，先出文件夹）
         working-directory: coder
+        env:
+          # 打包工具要的小工具（改图标用的 rcedit 等）改从 npmmirror 镜像下载（GitHub 时不时 504）
+          ELECTRON_BUILDER_BINARIES_MIRROR: https://npmmirror.com/mirrors/electron-builder-binaries/
         run: |
           $v = "1.0.${{ github.run_number }}"
           npm version $v --no-git-tag-version --allow-same-version
-          npx electron-builder --win --x64 --dir --publish never
+          # 直接用 npm install 时已经装好的 Electron（node_modules/electron/dist），不再从 GitHub 重新下载一遍（GitHub 504 时打包会失败）
+          if (-not (Test-Path node_modules\electron\dist\electron.exe)) { throw "node_modules 里没有 Electron，npm install 没装完整" }
+          npx electron-builder --win --x64 --dir --publish never "-c.electronDist=node_modules/electron/dist"
           if (-not (Test-Path dist\win-unpacked\LaolaoCode.exe)) { throw "没有生成 LaolaoCode.exe" }
           Get-ChildItem dist\win-unpacked\resources | Select-Object Name
 
