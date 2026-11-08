@@ -90,6 +90,16 @@ jobs:
         working-directory: desktop
         run: node test/core.test.js
 
+      # Electron 本体（100 多 MB）和打包工具的下载缓存：缓存住以后基本不用再从 GitHub 下载
+      - name: Electron 下载缓存
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\AppData\Local\electron\Cache
+            ~\AppData\Local\electron-builder\Cache
+          key: electron-${{ runner.os }}-desktop-${{ hashFiles('desktop/package.json') }}
+          restore-keys: electron-${{ runner.os }}-desktop-
+
       - name: 打包安装程序
         working-directory: desktop
         shell: pwsh
@@ -97,7 +107,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           npm version "3.4.${{ github.run_number }}" --no-git-tag-version --allow-same-version
-          npm install --no-audit --no-fund
+          # 装 Electron 时要从 GitHub 下载 100 多 MB，偶尔遇到 GitHub 临时 504 / 超时，整个 npm install 就失败了：最多试 4 次
+          $ok = $false
+          for ($i = 1; $i -le 4; $i++) {
+            npm install --no-audit --no-fund
+            if ($LASTEXITCODE -eq 0) { $ok = $true; break }
+            Write-Warning "第 $i 次 npm install 失败（多半是下载 Electron 时网络临时出错），$(20 * $i) 秒后重试"
+            Start-Sleep -Seconds (20 * $i)
+          }
+          if (-not $ok) { throw "npm install 连续 4 次失败，看上面的报错" }
           npx electron-builder --win nsis --x64 --publish never
           Get-ChildItem dist
 

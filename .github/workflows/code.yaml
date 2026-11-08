@@ -115,10 +115,28 @@ jobs:
           if ($len -lt 500MB) { throw "模型文件太小（$len 字节），下载坏了" }
           "{0:N0} MB" -f ($len / 1MB)
 
+      # Electron 本体（100 多 MB）和打包工具的下载缓存：缓存住以后基本不用再从 GitHub 下载
+      - name: Electron 下载缓存
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\AppData\Local\electron\Cache
+            ~\AppData\Local\electron-builder\Cache
+          key: electron-${{ runner.os }}-coder-${{ hashFiles('coder/package.json') }}
+          restore-keys: electron-${{ runner.os }}-coder-
+
       - name: 安装依赖、准备代码
         working-directory: coder
         run: |
-          npm install --no-audit --no-fund
+          # 装 Electron 时要从 GitHub 下载 100 多 MB，偶尔遇到 GitHub 临时 504 / 超时，整个 npm install 就失败了：最多试 4 次
+          $ok = $false
+          for ($i = 1; $i -le 4; $i++) {
+            npm install --no-audit --no-fund
+            if ($LASTEXITCODE -eq 0) { $ok = $true; break }
+            Write-Warning "第 $i 次 npm install 失败（多半是下载 Electron 时网络临时出错），$(20 * $i) 秒后重试"
+            Start-Sleep -Seconds (20 * $i)
+          }
+          if (-not $ok) { throw "npm install 连续 4 次失败，看上面的报错" }
           node scripts/prepare.js
 
       - name: 测试（规则 + 安装包自带的编译器 + 画出来 + 本地模型真的能回答）
