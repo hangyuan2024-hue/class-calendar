@@ -69,10 +69,57 @@ Type: filesandordirs; Name: "{userappdata}\LaolaoCode\build"
 Type: filesandordirs; Name: "{userappdata}\LaolaoCode\toolchains\.downloads"
 
 [Code]
+const
+  SYNCHRONIZE = $00100000;
+
+function OpenProcess(dwDesiredAccess: Cardinal; bInheritHandle: Integer; dwProcessId: Cardinal): THandle;
+  external 'OpenProcess@kernel32.dll stdcall';
+function WaitForSingleObject(hHandle: THandle; dwMilliseconds: Cardinal): Cardinal;
+  external 'WaitForSingleObject@kernel32.dll stdcall';
+function CloseHandle(hObject: THandle): Integer;
+  external 'CloseHandle@kernel32.dll stdcall';
+
 function ShouldRelaunch: Boolean;
 var i: Integer;
 begin
   Result := False;
   for i := 1 to ParamCount do
     if CompareText(ParamStr(i), '/RELAUNCH') = 0 then Result := True;
+end;
+
+{ /WAITPID=1234 → 1234 }
+function WaitPid: Integer;
+var i: Integer; s: String;
+begin
+  Result := 0;
+  for i := 1 to ParamCount do
+  begin
+    s := ParamStr(i);
+    if CompareText(Copy(s, 1, 9), '/WAITPID=') = 0 then
+      Result := StrToIntDef(Copy(s, 10, Length(s) - 9), 0);
+  end;
+end;
+
+{ 软件里点「重启并更新」：先等捞捞编程完全退出；还没退干净的（窗口、本地模型 llama-server、
+  正在运行的程序）强制结束 —— 以前静默安装碰到文件被占用会直接放弃，看起来就是「点了更新没反应」 }
+function InitializeSetup: Boolean;
+var pid, rc: Integer; h: THandle;
+begin
+  Result := True;
+  pid := WaitPid;
+  if pid > 0 then
+  begin
+    h := OpenProcess(SYNCHRONIZE, 0, pid);
+    if h <> 0 then
+    begin
+      WaitForSingleObject(h, 15000);
+      CloseHandle(h);
+    end;
+  end;
+  if ShouldRelaunch then
+  begin
+    Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /T /IM LaolaoCode.exe', '', SW_HIDE, ewWaitUntilTerminated, rc);
+    Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /T /IM llama-server.exe', '', SW_HIDE, ewWaitUntilTerminated, rc);
+    Sleep(1000);
+  end;
 end;

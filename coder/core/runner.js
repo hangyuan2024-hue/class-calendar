@@ -166,4 +166,25 @@ async function runOnce(langId, file, opt, input, { timeoutMs = 6000 } = {}) {
   return { code: r.code, stdout: out, stderr: err, timedOut: r.killedFor === "timeout", tooMuch: r.killedFor === "output", ms: r.ms, diags: err ? parseDiags(p.lang.id, err, file) : [] };
 }
 
-module.exports = { plan, Session, runOnce, killTree, UNBUF };
+// 同一个程序跑好几组输入（刷题的样例）：只编译一次
+async function runMany(langId, file, opt, inputs, { timeoutMs = 5000 } = {}) {
+  const p = plan(langId, file, opt);
+  const cwd = path.dirname(file);
+  if (p.compile) {
+    let err = "";
+    const r = await exec(p.compile, cwd, (s, t) => (err += t), { timeoutMs: 60000 }).done;
+    const shown = err.split("\n").filter((x) => !/^fix-it:/.test(x)).join("\n");
+    if (r.code !== 0) return { compileFailed: true, stderr: p.diagName && p.diagName !== path.basename(file) ? shown.split(p.diagName).join(path.basename(file)) : shown, diags: parseDiags(p.lang.id, err, file, p.diagName) };
+  }
+  const results = [];
+  for (const input of inputs) {
+    let out = "", err = "";
+    const x = exec(p.run, cwd, (s, t) => (s === "stdout" ? (out += t) : (err += t)), { timeoutMs });
+    try { x.child.stdin.end(input || ""); } catch (e) {}
+    const r = await x.done;
+    results.push({ code: r.code, stdout: out, stderr: err, timedOut: r.killedFor === "timeout", tooMuch: r.killedFor === "output", ms: r.ms });
+  }
+  return { results };
+}
+
+module.exports = { plan, Session, runOnce, runMany, killTree, UNBUF };

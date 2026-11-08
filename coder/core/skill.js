@@ -77,11 +77,11 @@ class Skill {
   }
 
   // 外面的题：自己点「做出来了 / 看了题解 / 没做出来 / 太简单」
-  static SCORE = { easy: 1, solved: 0.95, hint: 0.4, failed: 0, auto: 1 };
+  static SCORE = { easy: 1, solved: 0.95, hint: 0.4, failed: 0, auto: 1, samples: 0.85, accepted: 1 };
   external(p, how) {
     const s = Skill.SCORE[how]; if (s == null) return 0;
-    const words = { easy: "太简单了", solved: "做出来了", hint: "看了题解才会", failed: "没做出来", auto: "在网站上做出来了（自动同步）" };
-    return this.record(p, s, { how: words[how], weight: how === "easy" ? 1.3 : how === "auto" ? 0.6 : 1 });
+    const words = { easy: "太简单了", solved: "做出来了", hint: "看了题解才会", failed: "没做出来", auto: "在网站上做出来了（自动同步）", samples: "样例全对（本地判）", accepted: "力扣判题通过" };
+    return this.record(p, s, { how: words[how], weight: how === "easy" ? 1.3 : how === "auto" ? 0.6 : how === "samples" ? 0.7 : 1 });
   }
 
   summary(allTags) {

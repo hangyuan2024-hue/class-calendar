@@ -6,7 +6,9 @@
   let LC = null, st = null, recs = [], src = "", tag = "", opened = {}, busy = false;
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const SRC = { lc: "力扣", cf: "CF", ex: "练习" };
-  const MARKS = [["solved", "✓ 做出来了"], ["hint", "看了题解"], ["failed", "没做出来"], ["easy", "太简单"]];
+  const MARKS = [["solved", "做出来了"], ["hint", "看了题解"], ["failed", "没做出来"], ["easy", "太简单"]];
+  const LANGS = [["c", "C"], ["cpp", "C++"], ["python", "Python"], ["java", "Java"], ["javascript", "JS"], ["go", "Go"]];
+  let lang = (() => { try { return localStorage.getItem("lc_lang") || "c"; } catch (e) { return "c"; } })();
   const ago = (t) => { if (!t) return "还没更新过"; const d = Math.floor((Date.now() - t) / 864e5); return d <= 0 ? "今天更新" : d + " 天前更新"; };
 
   async function load(refreshRecs = true) {
@@ -30,9 +32,10 @@
       </div>
       <div class="lc-filter">
         <div class="seg">${[["", "全部"], ["lc", "力扣"], ["cf", "Codeforces"]].map(([v, n]) => `<button data-src="${v}" class="${src === v ? "on" : ""}">${n}</button>`).join("")}</div>
-        <button class="ic-btn" id="lcMore" title="换一批">↻</button>
+        <select id="lcLang" title="用什么语言做（点「开始做」时用）">${LANGS.map(([v, n]) => `<option value="${v}"${v === lang ? " selected" : ""}>用 ${n} 做</option>`).join("")}</select>
+        <button class="ic-btn" id="lcMore" title="换一批">${ICON("refresh", 15)}</button>
       </div>
-      ${tag ? `<div class="lc-tagon">只看「${esc(tag)}」<button class="link" data-tag="">✕ 不限</button></div>` : ""}
+      ${tag ? `<div class="lc-tagon">只看「${esc(tag)}」<button class="link" data-tag="">不限</button></div>` : ""}
       <div class="lc-list">${recs.length ? recs.map(item).join("") : `<div class="lc-empty">${src === "cf" && !b.cf ? "Codeforces 的题还没下载：点下面「更新题库」" : "这类题都做过了，换个筛选试试"}</div>`}</div>
       <details class="lc-acc"${k.accounts && (k.accounts.lc || k.accounts.cf) ? "" : ""}>
         <summary>同步我在网站上做过的题</summary>
@@ -46,7 +49,7 @@
         <button class="btn sm ghost" id="lcRefresh">更新题库</button>
       </div>
       ${k.log && k.log.length ? `<details class="lc-log"><summary>最近做的</summary>${k.log.slice(0, 12).map((x) => `<div><span class="lc-src ${x.src}">${SRC[x.src] || ""}</span>${esc(x.title)}<span class="grow"></span><small>${esc(x.how)}</small><b class="${x.delta >= 0 ? "up" : "dn"}">${x.delta >= 0 ? "+" : ""}${x.delta}</b></div>`).join("")}</details>` : ""}
-      <p class="ex-note lc-cr">题目来自 力扣（leetcode.cn）和 Codeforces，点「去做」在它们的网站上打开。</p>`;
+      <p class="ex-note lc-cr">题目来自 力扣（leetcode.cn）和 Codeforces，点「开始做」在软件里看题、写代码、提交。</p>`;
   }
 
   function item(p) {
@@ -56,7 +59,7 @@
       <div class="lc-i1"><span class="lc-src ${p.src}">${SRC[p.src]}</span><b title="${esc(p.title)}">${esc(no)} ${esc(p.title)}</b></div>
       <div class="lc-i2"><span class="lv lv-${esc(p.level)}">${esc(p.src === "cf" ? "难度 " + p.level : p.level)}</span>${(p.tags || []).slice(0, 2).map((t) => `<span class="tg">${esc(t)}</span>`).join("")}<span class="grow"></span><small class="pb" title="按你现在的水平，大概有这么大把握做出来">把握 ${p.prob}%</small></div>
       <div class="lc-why">${esc(p.why)}</div>
-      <div class="lc-acts">${on ? MARKS.map(([v, n]) => `<button class="btn sm${v === "solved" ? " pri" : ""}" data-mark="${v}">${n}</button>`).join("") + `<button class="link" data-go>再打开</button>` : `<button class="btn sm pri" data-go>去做 ↗</button><button class="btn sm ghost" data-mark="skip" title="不想做这道，30 天内不再推">跳过</button>`}</div>
+      <div class="lc-acts">${on ? MARKS.map(([v, n]) => `<button class="btn sm ghost" data-mark="${v}">${n}</button>`).join("") + `<button class="btn sm pri" data-do>${ICON("code", 13)}接着做</button>` : `<button class="btn sm pri" data-do title="在软件里看题、写代码、运行样例、提交">${ICON("code", 13)}开始做</button><button class="ic-btn" data-go title="在网站上打开">${ICON("external", 14)}</button><button class="btn sm ghost" data-mark="skip" title="不想做这道，30 天内不再推">跳过</button>`}</div>
     </div>`;
   }
 
@@ -70,6 +73,12 @@
     const it = t.closest(".lc-item"); if (!it) return;
     const p = recs.find((x) => x.id === it.dataset.id); if (!p) return;
     if (t.closest("[data-go]")) { LC.call("openUrl", p.url); opened[p.id] = true; paint(); LC.toast("在浏览器里打开了。做完回来点一下结果，捞捞好估计你的水平"); return; }
+    if (t.closest("[data-do]")) {
+      const b = t.closest("[data-do]"); b.disabled = true; b.innerHTML = ICON("radar", 13, "spin") + "打开中…";
+      try { await window.LaolaoProb.open(p.id, lang); opened[p.id] = true; }
+      catch (e) { LC.toast(e.message, 4000); }
+      paint(); return;
+    }
     const m = t.closest("[data-mark]");
     if (m && !busy) {
       busy = true;
@@ -116,6 +125,7 @@
     LC = window.LC;
     const body = $("#lcBody"); if (!body) return;
     body.addEventListener("click", onClick);
+    body.addEventListener("change", (e) => { if (e.target.id === "lcLang") { lang = e.target.value; try { localStorage.setItem("lc_lang", lang); } catch (x) {} } });
     document.addEventListener("side", (e) => { if (e.detail === "lc") load(!recs.length); });
     document.addEventListener("skill", () => { if (!$("#sideLc").hidden) load(false); else st = null; });
     if (!$("#sideLc").hidden) load();

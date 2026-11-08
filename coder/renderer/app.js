@@ -12,7 +12,7 @@
   let tabs = [], cur = -1;      // 打开的文件
   let running = false, runKind = "", lastExit = null;
   let chat = [], asking = null; // 问捞捞的对话
-  const ICON = { c: "C", cpp: "C++", python: "Py", java: "Java", javascript: "JS", go: "Go" };
+  const LANG_TAG = { c: "C", cpp: "C++", python: "Py", java: "Java", javascript: "JS", go: "Go" };
   const LANG = (id) => (S.langs || []).find((l) => l.id === id);
 
   function toast(msg, ms = 2600) { const t = $("#toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("on"), ms); }
@@ -80,6 +80,7 @@
     if (t) { cm.getWrapperElement().style.display = ""; $("#welcome").hidden = true; cm.swapDoc(t.doc); const L = LANG(t.lang); cm.setOption("indentUnit", t.lang === "go" ? 8 : 4); cm.setOption("indentWithTabs", t.lang === "go"); setTimeout(() => cm.refresh(), 0); call("setSettings", { lastFile: t.file }).catch(() => {}); }
     else { cm.getWrapperElement().style.display = "none"; $("#welcome").hidden = false; paintWelcome(); }
     paintTabs(); paintTop(); paintFiles(); paintExBar(); paintExList();
+    document.dispatchEvent(new CustomEvent("tab", { detail: t || null }));   // 画出来的悬浮小窗、刷题的题目栏跟着换
   }
   async function closeTab(i) {
     const t = tabs[i]; if (!t) return;
@@ -121,8 +122,8 @@
     const sep = S.workspace.includes("\\") ? "\\" : "/";
     const full = (rel) => S.workspace + sep + rel.split("/").join(sep);
     $("#fileList").innerHTML = S.files.length ? S.files.map((f) => f.dir
-      ? `<div class="f dir" style="padding-left:${8 + f.depth * 14}px">📁 <span class="nm">${esc(f.name)}</span></div>`
-      : `<button class="f${t && t.file === full(f.rel) ? " on" : ""}" style="padding-left:${8 + f.depth * 14}px" data-open="${esc(full(f.rel))}" title="${esc(f.rel)}"><span class="fi ${esc(f.lang)}">${esc(ICON[f.lang] || "TXT")}</span><span class="nm">${esc(f.name)}</span></button>`).join("")
+      ? `<div class="f dir" style="padding-left:${8 + f.depth * 14}px">${ICON("folder", 14)}<span class="nm">${esc(f.name)}</span></div>`
+      : `<button class="f${t && t.file === full(f.rel) ? " on" : ""}" style="padding-left:${8 + f.depth * 14}px" data-open="${esc(full(f.rel))}" title="${esc(f.rel)}"><span class="fi ${esc(f.lang)}">${esc(LANG_TAG[f.lang] || "TXT")}</span><span class="nm">${esc(f.name)}</span></button>`).join("")
       : `<div class="empty">这里还没有代码文件。<br>点「＋ 新建」写第一个程序，<br>或者去「练习」做一道题。</div>`;
   }
   $("#fileList").addEventListener("click", (e) => { const b = e.target.closest("[data-open]"); if (b) openFile(b.dataset.open); });
@@ -130,6 +131,13 @@
 
   // ================= 对话框 =================
   const dlg = $("#dlg");
+  // 正在做力扣 / Codeforces 的题：把题目也告诉捞捞（只给文字，截短）
+  function probCtx(t) {
+    const P = window.LaolaoProb && window.LaolaoProb.problem;
+    if (!P || !t || !/[\\/]刷题[\\/]/.test(t.file)) return null;
+    const d = new DOMParser().parseFromString(String(P.html || ""), "text/html").body;
+    return { title: `${P.src === "lc" ? "力扣" : "Codeforces"} ${P.no}. ${P.title}`, desc: d.textContent.replace(/\n{3,}/g, "\n\n").trim().slice(0, 1500) };
+  }
   function dialog(html, bind) {
     $("#dlgBody").innerHTML = html;
     if (!dlg.open) dlg.showModal();
@@ -156,7 +164,7 @@
     });
   }
   function fileMenu(f) {
-    dialog(`<h3>${esc(base(f))}</h3><div class="menu"><button type="button" data-a="ren">✎ 改名</button><button type="button" data-a="show">📂 在文件夹里显示</button><button type="button" data-a="del" style="color:var(--err)">🗑 删除（放进回收站）</button></div><div class="acts"><button class="btn" value="cancel">取消</button></div>`, (body) => {
+    dialog(`<h3>${esc(base(f))}</h3><div class="menu"><button type="button" data-a="ren">${ICON("pencil", 14)}改名</button><button type="button" data-a="show">${ICON("folder-open", 14)}在文件夹里显示</button><button type="button" data-a="del" style="color:var(--err)">${ICON("trash", 14)}删除（放进回收站）</button></div><div class="acts"><button class="btn" value="cancel">取消</button></div>`, (body) => {
       body.addEventListener("click", async (e) => {
         const a = e.target.closest("[data-a]"); if (!a) return; e.preventDefault();
         if (a.dataset.a === "show") { call("reveal", f); closeDlg(); }
@@ -170,7 +178,7 @@
   }
   $("#newFileBtn").onclick = () => newFileDialog();
   $("#openFileBtn").onclick = async () => { const f = await call("openFile"); if (f) openFile(f); };
-  $("#moreFilesBtn").onclick = () => dialog(`<h3>代码文件夹</h3><p>现在放在：${esc(S.workspace)}</p><div class="menu"><button type="button" data-a="open">📂 打开这个文件夹</button><button type="button" data-a="pick">🔁 换一个文件夹</button><button type="button" data-a="dir">＋ 新建子文件夹</button><button type="button" data-a="ref">↻ 刷新文件列表</button></div><div class="acts"><button class="btn" value="cancel">关闭</button></div>`, (body) => body.addEventListener("click", async (e) => {
+  $("#moreFilesBtn").onclick = () => dialog(`<h3>代码文件夹</h3><p>现在放在：${esc(S.workspace)}</p><div class="menu"><button type="button" data-a="open">${ICON("folder-open", 14)}打开这个文件夹</button><button type="button" data-a="pick">${ICON("refresh", 14)}换一个文件夹</button><button type="button" data-a="dir">＋ 新建子文件夹</button><button type="button" data-a="ref">↻ 刷新文件列表</button></div><div class="acts"><button class="btn" value="cancel">关闭</button></div>`, (body) => body.addEventListener("click", async (e) => {
     const a = e.target.closest("[data-a]"); if (!a) return; e.preventDefault();
     if (a.dataset.a === "open") call("openWorkspaceFolder");
     if (a.dataset.a === "pick") { const d = await call("pickWorkspace"); if (d) { S.workspace = d; await refreshFiles(); } }
@@ -183,12 +191,13 @@
   function paintWelcome() {
     const rec = (S.settings.recent || []).slice(0, 6);
     const p = S.progress || {};
-    $("#welcome").innerHTML = `<h1>${p.streak > 1 ? `🔥 连续 ${p.streak} 天写代码，继续！` : "开始写代码吧 👋"}</h1>
+    $("#welcome").innerHTML = `<h1>${p.streak > 1 ? `${ICON("flame", 26, "hot")}连续 ${p.streak} 天写代码，继续！` : "开始写代码吧"}</h1>
       <p>选一种语言新建一个程序，写完按 <b>F5</b> 运行。程序要输入就在下面的「输入」框里打字；看不懂报错，点右边的「问捞捞」。</p>
       <div class="wl-grid">${S.langs.map((l) => `<button class="wl" data-new="${l.id}"><b>${esc(l.name)}</b><small class="${l.ready ? "ok" : ""}">${l.ready ? "✓ 能直接用" : "点一下自动安装 · " + esc(l.size)}</small></button>`).join("")}</div>
       ${rec.length ? `<div class="wl-sec">最近打开</div><div class="wl-recent">${rec.map((f) => `<button data-open="${esc(f)}"><b>${esc(base(f))}</b><small>${esc(f)}</small></button>`).join("")}</div>` : ""}
       <div class="wl-sec">刚开始学？</div>
-      <div class="wl-tip">左边「练习」里有 ${S.exercises.length} 道题：入门 15 题从 Hello World 开始，还有计算机二级 C 语言、二级 Python 和经典算法题库。每道题写完点「检查」，自动帮你跑测试。${p.solved ? `你已经做对了 <b>${p.solved}</b> 道。` : ""}</div>`;
+      <div class="wl-tip">左边「练习」里有 ${S.exercises.length} 道题：入门 15 题从 Hello World 开始，还有计算机二级 C 语言、二级 Python 和经典算法题库。每道题写完点「检查」，自动帮你跑测试。${p.solved ? `你已经做对了 <b>${p.solved}</b> 道。` : ""}</div>
+      <div class="wl-feats"><div>${ICON("activity", 18)}<b>实时画面</b><span>写 C / C++ / Python 时，右下角会把程序一步一步画出来：数组、链表、递归……点一下放大看全部（F7）</span></div><div>${ICON("trophy", 18)}<b>刷题</b><span>左边「刷题」按你的水平推荐力扣、Codeforces 的题，在软件里看题、写代码、跑样例、提交</span></div></div>`;
   }
   $("#welcome").addEventListener("click", (e) => {
     const n = e.target.closest("[data-new]"); if (n) newFileDialog(n.dataset.new);
@@ -266,7 +275,7 @@
     clearDiags(t);
     t.doc.replaceRange(fx.text, from, to, "+fix");
     cm.focus(); cm.setCursor({ line: from.line, ch: from.ch + fx.text.length });
-    toast("改好了，按 F5 再运行一次看看 👍");
+    toast("改好了，按 F5 再运行一次看看");
   }
   // 第一处错误的一句话说明（输出区里也写上，不用去找标红的地方）
   const firstErrHint = (t) => { const d = (t && t.diags || []).find((x) => x.severity !== "warning" && (x.hint || x.message)); return d ? (d.hint || d.message) : ""; };
@@ -301,7 +310,7 @@
     const first = t.diags.find((d) => d.line && d.severity !== "warning");
     if (first) cm.scrollIntoView({ line: first.line - 1, ch: 0 }, 120);
     const noLine = t.diags.filter((d) => !d.line);
-    for (const d of noLine) conSys(`⚠ ${esc(d.hint || d.message)}`, "bad");
+    for (const d of noLine) conSys(`${ICON("warn", 13)} ${esc(d.hint || d.message)}`, "bad");
   }
 
   // ================= 安装语言 =================
@@ -313,7 +322,7 @@
     });
   }
   async function install(L, then) {
-    conClear(); conSys(`⬇ 正在安装 ${esc(L.toolName)}…（可以接着写代码）`); conState("正在安装…", "busy");
+    conClear(); conSys(`${ICON("download", 13)} 正在安装 ${esc(L.toolName)}…（可以接着写代码）`); conState("正在安装…", "busy");
     const bar = document.createElement("span"); bar.className = "sys"; out.appendChild(bar);
     const on = (p) => {
       if (p.tool !== L.tool) return;
@@ -341,7 +350,7 @@
     $("#exCount").textContent = `${all}/${S.exercises.length}`;
     $("#exStat").innerHTML = `<select id="exBank" class="ex-bank" aria-label="题库">${banks().map((b) => { const L = bankEx(b), d = L.filter((e) => done(e.id)).length; return `<option value="${b.id}"${b.id === B.id ? " selected" : ""}>${esc(b.name)}（${d}/${L.length}）</option>`; }).join("")}</select>
       <div class="ex-note">${esc(B.note || "")}${(B.links || []).length ? `<div class="ex-links">${B.links.map((l) => `<a href="#" data-url="${esc(l[1])}">${esc(l[0])} ↗</a>`).join("")}</div>` : ""}</div>
-      做对了 <b>${n}</b> / ${list.length} 道${p.streak ? ` · 🔥 连续 ${p.streak} 天` : ""}<div class="ex-bar"><i style="width:${list.length ? (n / list.length) * 100 : 0}%"></i></div>`;
+      做对了 <b>${n}</b> / ${list.length} 道${p.streak ? ` · ${ICON("flame", 12, "hot")}连续 ${p.streak} 天` : ""}<div class="ex-bar"><i style="width:${list.length ? (n / list.length) * 100 : 0}%"></i></div>`;
     const t = tabs[cur], LV = B.levels || {};
     let html = "", lv = 0;
     for (const e of list) {
@@ -397,7 +406,7 @@
     if (r.compileFailed) { showDiags(t, r.diags || []); conAppend(r.stderr || "", "c"); conSys("✗ 编译没通过：" + esc(firstErrHint(t) || "先把标红的地方改好"), "bad"); conState("编译出错", "bad"); $("#askErrBtn").hidden = false; return; }
     const ex = S.exercises.find((e) => e.id === t.ex);
     if (r.pass) {
-      conSys(`<span class="res pass"><b>🎉 全部 ${ex.tests} 组测试都对了！</b>${r.first ? "<br>又攻下一道题。" + (r.skillDelta > 0 ? ` 水平分 +${r.skillDelta}。` : "") + nextTip(ex) : "<br>这道题之前就做对了，再写一遍记得更牢。"}</span>`);
+      conSys(`<span class="res pass"><b>${ICON("party", 15)}全部 ${ex.tests} 组测试都对了！</b>${r.first ? "<br>又攻下一道题。" + (r.skillDelta > 0 ? ` 水平分 +${r.skillDelta}。` : "") + nextTip(ex) : "<br>这道题之前就做对了，再写一遍记得更牢。"}</span>`);
       conState("通过", "ok"); if (r.first) confetti();
     } else {
       const f = r.results[r.results.length - 1];
@@ -420,10 +429,10 @@
     const a = S.ai || {}, st = $("#aiSt");
     $("#aiModel").textContent = a.state === "ready" ? "本地 · " + S.model : "";
     const mb = (n) => (n / 1048576).toFixed(0) + " MB";
-    if (a.state === "starting") st.innerHTML = `⏳ ${esc(a.msg)}`;
+    if (a.state === "starting") st.innerHTML = `${ICON("hourglass", 13)} ${esc(a.msg)}`;
     else if (a.state === "need-model") st.innerHTML = `${esc(a.msg)}<br><button class="btn sm pri" id="aiDl">下载本地模型（约 1 GB）</button>`;
-    else if (a.state === "downloading") st.innerHTML = `⬇ ${esc(a.msg)} ${a.total ? mb(a.got) + " / " + mb(a.total) : mb(a.got || 0)}<div class="bar"><i style="width:${a.total ? (a.got / a.total) * 100 : 3}%"></i></div>`;
-    else if (a.state === "error" || a.state === "missing") st.innerHTML = `⚠ ${esc(a.msg)}${a.state === "error" ? '<br><button class="btn sm" id="aiRetry">再试一次</button>' : ""}`;
+    else if (a.state === "downloading") st.innerHTML = `${ICON("download", 13)} ${esc(a.msg)} ${a.total ? mb(a.got) + " / " + mb(a.total) : mb(a.got || 0)}<div class="bar"><i style="width:${a.total ? (a.got / a.total) * 100 : 3}%"></i></div>`;
+    else if (a.state === "error" || a.state === "missing") st.innerHTML = `${ICON("warn", 13)} ${esc(a.msg)}${a.state === "error" ? '<br><button class="btn sm" id="aiRetry">再试一次</button>' : ""}`;
     else st.innerHTML = "";
     const dl = $("#aiDl"); if (dl) dl.onclick = () => call("aiDownload").catch((e) => toast(e.message));
     const rt = $("#aiRetry"); if (rt) rt.onclick = () => call("aiStart").catch(() => {});
@@ -431,7 +440,7 @@
   window.cc.on("ai-state", (a) => { S.ai = a; paintAiState(); });
   function paintChat() {
     const box = $("#aiMsgs");
-    if (!chat.length) { box.innerHTML = `<div class="ai-empty"><span class="fish">🐟</span>卡住了就问我。<br>运行出错时点「哪里错了」，<br>想自己写出来就点「给我提示」。<br><small>选中一段代码再问，我只看那一段。</small></div>`; return; }
+    if (!chat.length) { box.innerHTML = `<div class="ai-empty"><span class="fish">${ICON("bot", 34)}</span>卡住了就问我。<br>运行出错时点「哪里错了」，<br>想自己写出来就点「给我提示」。<br><small>选中一段代码再问，我只看那一段。</small></div>`; return; }
     box.innerHTML = chat.map((m, i) => m.role === "user"
       ? `<div class="msg me">${m.label ? `<small>${esc(m.label)}</small>` : ""}${esc(m.show || m.content)}</div>`
       : `<div class="msg bot${m.error ? " err" : ""}" data-i="${i}">${m.error ? esc(m.error) : MD.render(m.content)}${m.pending ? '<span class="typing"></span>' : ""}</div>`).join("");
@@ -442,7 +451,7 @@
     const code = b.closest(".md-code").querySelector("code").textContent;
     navigator.clipboard.writeText(code).then(() => { b.textContent = "已复制"; setTimeout(() => (b.textContent = "复制"), 1500); });
   });
-  const ASK_LABEL = { error: "❓ 哪里错了", hint: "💡 给我提示", explain: "📖 讲讲这段代码", review: "✨ 帮我看看" };
+  const ASK_LABEL = { error: "哪里错了", hint: "给我提示", explain: "讲讲这段代码", review: "帮我看看" };
   async function ask(mode, question) {
     if (asking) return;
     if ($("#main").classList.contains("no-ai")) toggleAi(true);
@@ -450,7 +459,7 @@
     if (!t && !question) { toast("先打开一个代码文件，或者直接在下面打字问"); return; }
     const ex = t && t.ex && S.exercises.find((e) => e.id === t.ex);
     const sel = t && cm.somethingSelected() ? cm.getSelection() : "";
-    const ctx = t ? { lang: L ? L.name : "", file: t.name, fileFull: t.file, code: sel ? "" : t.doc.getValue(), selection: sel, diags: t.diags || [], output: out.textContent.slice(-3000), exercise: ex ? { id: ex.id, title: ex.title, desc: ex.desc } : null } : {};
+    const ctx = t ? { lang: L ? L.name : "", file: t.name, fileFull: t.file, code: sel ? "" : t.doc.getValue(), selection: sel, diags: t.diags || [], output: out.textContent.slice(-3000), exercise: ex ? { id: ex.id, title: ex.title, desc: ex.desc } : probCtx(t) } : {};
     const history = chat.filter((m) => !m.error && !m.pending).map((m) => ({ role: m.role, content: m.content }));
     const show = question || (sel ? "（关于选中的这段代码）" : "");
     chat.push({ role: "user", content: question || ASK_LABEL[mode] || "", show: show || ASK_LABEL[mode], label: question ? "" : "" });
@@ -511,7 +520,7 @@
   // ================= 底栏、主题、字号 =================
   function paintStatus() {
     const p = S.progress || {};
-    $("#stStreak").innerHTML = p.streak ? `🔥 连续 <b>${p.streak}</b> 天` : "🔥 今天开始连续打卡";
+    $("#stStreak").innerHTML = p.streak ? `${ICON("flame", 13, "hot")}连续 <b>${p.streak}</b> 天` : `${ICON("flame", 13)}今天开始连续打卡`;
     $("#stToday").innerHTML = `今天运行 <b>${(p.today && p.today.runs) || 0}</b> 次`;
     $("#stSolved").innerHTML = `练习 <b>${p.solved || 0}</b>/${S.exercises.length}`;
   }
@@ -555,20 +564,21 @@
   let upd = null, updHide = "";
   const updLine = (u) => !u ? "" : u.state === "downloading" ? `正在下载 ${esc(u.latest && u.latest.version)}… ${Math.round((u.progress || 0) * 100)}%${u.speed ? " · " + (u.speed >= 1024 ? (u.speed / 1024).toFixed(1) + " MB/s" : u.speed + " KB/s") : ""}${u.via ? " · " + esc(u.via) : ""}`
     : u.state === "ready" ? `新版本 ${esc(u.latest.version)} 下载好了，重启一下就装好` : u.state === "available" ? (u.error ? esc(u.error) : `有新版本 ${esc(u.latest.version)}（现在是 ${esc(u.current)}）`)
-    : u.state === "latest" ? `已经是最新版本 ${esc(u.current)}` : u.state === "error" ? esc(u.error || "检查更新失败") : "";
+    : u.state === "failed" ? esc(u.error || "上次更新没装上") : u.state === "latest" ? `已经是最新版本 ${esc(u.current)}` : u.state === "error" ? esc(u.error || "检查更新失败") : "";
   const updBtns = (u, big) => !u ? "" : u.state === "downloading" ? `<button class="btn sm" data-upd="cancel">取消</button>`
     : u.state === "ready" ? `<button class="btn sm pri" data-upd="install">重启并更新</button>`
+    : u.state === "failed" ? `<button class="btn sm pri" data-upd="manual">手动安装</button><button class="btn sm" data-upd="page">去官网下载</button>${big ? "" : `<button class="btn sm ghost" data-upd="later">以后</button>`}`
     : u.state === "available" ? `<button class="btn sm pri" data-upd="download">${u.error ? "再试一次" : "立即更新"}</button>${u.error ? `<button class="btn sm" data-upd="page">去官网下载</button>` : ""}${big ? "" : `<button class="btn sm ghost" data-upd="later">以后</button>`}` : "";
   function paintUpd() {
     let el = $("#updCard");
-    const show = upd && ["available", "downloading", "ready"].includes(upd.state) && (upd.state !== "available" || updHide !== (upd.latest && upd.latest.version));
+    const show = upd && ["available", "downloading", "ready", "failed"].includes(upd.state) && (upd.state !== "available" || updHide !== (upd.latest && upd.latest.version));
     if (!show) { if (el) el.remove(); } else {
       if (!el) { el = document.createElement("div"); el.id = "updCard"; el.className = "upd-card"; document.body.appendChild(el); }
-      el.innerHTML = `<div class="upd-h">⬆️ <b>${updLine(upd)}</b></div>${upd.state === "downloading" ? `<div class="upd-bar"><i style="width:${Math.round((upd.progress || 0) * 100)}%"></i></div>` : ""}<div class="upd-b">${updBtns(upd)}</div>`;
+      el.innerHTML = `<div class="upd-h">${ICON("update", 16)}<b>${updLine(upd)}</b></div>${upd.state === "downloading" ? `<div class="upd-bar"><i style="width:${Math.round((upd.progress || 0) * 100)}%"></i></div>` : ""}<div class="upd-b">${updBtns(upd)}</div>`;
     }
     const ab = $("#aboutUpd"); if (ab) ab.innerHTML = `<span>${updLine(upd)}</span> ${updBtns(upd, true) || `<button class="btn sm" data-upd="check">检查更新</button>`}`;
   }
-  window.cc.on("update", (u) => { upd = u; paintUpd(); });
+  window.cc.on("update", (u) => { upd = u; paintUpd(); if (u && u.justUpdated) toast("已经更新到 " + u.justUpdated); });
   window.cc.upd("state").then((u) => { if (u) { upd = u; paintUpd(); } }).catch(() => {});
   document.addEventListener("click", async (e) => {
     const b = e.target.closest("[data-upd]"); if (!b) return;
@@ -595,7 +605,8 @@
     conState(S.dev ? "开发版：用电脑上装好的编译器" : "还没运行");
     // 给「画出来」（viz.js）、「刷题」（lc.js）和测试用
     window.LC = { get tabs() { return tabs; }, get cur() { return tabs[cur] || null; }, get S() { return S; }, cm, run, checkEx, ask, openFile, openExercise, call, toast, esc, dialog, saveAll,
-      async newFile(name, lang, text) { const f = await call("create", name, lang, text); await refreshFiles(); await openFile(f); return f; } };
+      async newFile(name, lang, text) { const f = await call("create", name, lang, text); await refreshFiles(); await openFile(f); return f; },
+      refreshFiles, conSys, conClear, showDiags, get main() { return $("#main"); } };
     document.dispatchEvent(new Event("lc-ready"));
   })().catch((e) => { document.body.innerHTML = `<p style="padding:40px">捞捞编程启动失败：${esc(e.message)}</p>`; });
 })();

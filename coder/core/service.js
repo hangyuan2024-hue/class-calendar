@@ -4,15 +4,17 @@
 const fs = require("fs");
 const path = require("path");
 const { LANGS, byId, langOfFile, locate } = require("./langs");
-const { Session, runOnce } = require("./runner");
+const { Session, runOnce, runMany } = require("./runner");
 const TC = require("./toolchains");
 const AI = require("./ai");
 const { messages, options: tutorOptions } = require("./tutor");
 const { EX, BANKS, starter, check } = require("./exercises");
 const { Progress, sync } = require("./account");
 const VIZ = require("./viz");
+const TRACE = require("./trace");
 const { Bank, leetcodeRecent, codeforcesSolved } = require("./judge");
 const { Skill } = require("./skill");
+const PB = require("./problems");
 
 // env：{ dev, res, user, documents, version, platform, send(ch, data), pickDir(), pickFile(exts), trash(f), reveal(f), openPath(d), openExternal(u), siteConfig }
 function createService(env) {
@@ -28,7 +30,7 @@ function createService(env) {
   const send = (ch, data) => env.send(ch, data);
 
   // ---------- 设置 ----------
-  let settings = { workspace: "", recent: [], fontSize: 15, theme: "light", lastFile: "", aiOpen: true };
+  let settings = { workspace: "", recent: [], fontSize: 15, theme: "dark", lastFile: "", aiOpen: true };
   try { Object.assign(settings, JSON.parse(fs.readFileSync(SETTINGS_FILE, "utf8"))); } catch (e) {}
   const saveSettings = () => { try { fs.mkdirSync(USER, { recursive: true }); fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 1)); } catch (e) {} };
   function workspace() {
@@ -43,6 +45,18 @@ function createService(env) {
   const progress = new Progress(path.join(USER, "progress.json"));
   const bank = new Bank(path.join(USER, "judge-cache.json"));
   const skill = new Skill(path.join(USER, "skill.json"));
+  const traces = {};
+  // 哪个文件是哪道题：{ 文件路径: { id, lang } }
+  const probFile = path.join(USER, "problem-files.json");
+  let probFiles = {}; try { probFiles = JSON.parse(fs.readFileSync(probFile, "utf8")); } catch (e) {}
+  const saveProbFiles = () => { try { fs.writeFileSync(probFile, JSON.stringify(probFiles)); } catch (e) {} };
+  const tries = {};
+  // 生成的文件里的行号 → 你的代码里的行号
+  const fixLines = (t, from, to, pre) => String(t || "").split(from).join(to).replace(new RegExp(to.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ":(\\d+)", "g"), (m0, n) => to + ":" + Math.max(1, n - pre));
+  // 报错里的行号（line、改法 fix、中文提示里的「第 N 行」）都减掉前面多出来的行；不在你代码里的（自动生成的 main）不要
+  const shiftDiags = (ds, pre, n) => (ds || []).map((d) => ({ ...d, line: d.line - pre, hint: String(d.hint || "").replace(/第 (\d+) 行/g, (m0, k) => `第 ${k - pre} 行`),
+    fix: d.fix ? { ...d.fix, line: d.fix.line - pre, endLine: d.fix.endLine - pre } : d.fix })).filter((d) => d.line > 0 && d.line <= n);
+  const runErr = (err, lang) => { const t = String(err || "").trim().split("\n").filter(Boolean); return lang === "python" ? t.slice(-1)[0] || "" : t.slice(0, 2).join(" ").slice(0, 200); };    // 正在跑的「画出来」：{ channel: { kill } }
   const exTries = {};   // 这次打开软件以来每道练习检查了几次（用来估水平）
   const exAsked = new Set();
   let api = null, me = null;
@@ -204,18 +218,18 @@ function createService(env) {
     },
 
     // 画出来：把你自己的代码跑一遍，数组每变一次记一帧（auto：自动在给数组赋值的地方加 SHOW；false：只认你自己写的 SHOW）
-    async vizRun(f, stdin, auto = true) {
+    async vizRun(f, stdin, auto = true, text = null) {
       f = safeFile(f);
       const lang = (langOfFile(f) || {}).id;
       if (lang !== "c" && lang !== "cpp") throw new Error("「画出来」现在只支持 C / C++ 文件");
-      const src = fs.readFileSync(f, "utf8");
+      const src = text != null ? String(text) : fs.readFileSync(f, "utf8");
       const ins = auto ? VIZ.instrument(src) : { src, added: 0, arrays: [], manual: VIZ.hasShow(src) };
       fs.mkdirSync(BUILD, { recursive: true });
       fs.writeFileSync(path.join(BUILD, "laolao_viz.h"), VIZ.HEADER);
       const tag = require("crypto").createHash("md5").update(path.resolve(f)).digest("hex").slice(0, 8);
       const copy = path.join(BUILD, `viz-${tag}${path.extname(f).toLowerCase()}`);
       fs.writeFileSync(copy, ins.src);
-      progress.ran();
+      if (text == null) progress.ran();
       let r;
       try { r = await runOnce(lang, copy, { toolDirs: DIRS, allowSystem: DEV, buildDir: BUILD, include: "laolao_viz.h", incDir: /#\s*include\s*"/.test(src) ? path.dirname(f) : "" }, stdin || "", { timeoutMs: 8000 }); }
       catch (e) { return { error: e.message, needInstall: e.needInstall || null, lang }; }
@@ -223,6 +237,64 @@ function createService(env) {
       const p = VIZ.parseFrames(r.stdout);
       return { frames: VIZ.dedupe(p.frames), noArray: !ins.manual && !ins.added, found: [...VIZ.findArrays(src).keys()], output: p.output, stderr: r.stderr, code: r.code, timedOut: r.timedOut, tooMuch: r.tooMuch, arrays: ins.arrays, manual: !!ins.manual, added: ins.added, lang };
     },
+
+    // 画出来（新）：一行一行走一遍，每一步所有变量都记下来（core/trace.js）。
+    // text：编辑器里还没保存的代码（悬浮小窗边打字边画）；channel：float（悬浮小窗）/ main（大画面），同一个 channel 新的来了旧的就停掉
+    async traceRun(f, stdin, channel = "main", text = null) {
+      f = safeFile(f);
+      const lang = (langOfFile(f) || {}).id;
+      if (!["c", "cpp", "python"].includes(lang)) return { unsupported: true, lang };
+      const ch = String(channel || "main").replace(/\W/g, "").slice(0, 12) || "main";
+      let src = f;
+      if (text != null) {
+        const d = path.join(BUILD, "trace-" + ch, "src");
+        fs.mkdirSync(d, { recursive: true });
+        src = path.join(d, path.basename(f));
+        fs.writeFileSync(src, String(text));
+      }
+      if (traces[ch]) traces[ch].kill();
+      const float = ch === "float";
+      // 刷题的文件：力扣题只写了一个函数 → 套上自动生成的 main，用第一个样例跑；Codeforces 题没填输入就用第一个样例
+      let shift = null;
+      const pf = probFiles[f];
+      if (pf) {
+        let p = null; try { p = JSON.parse(fs.readFileSync(path.join(USER, "problems", pf.id.replace(/[^\w.-]/g, "_") + ".json"), "utf8")); } catch (e) {}
+        const s0 = p && (p.samples || []).find((x) => x.input != null);
+        if (p && p.src === "lc" && s0 && !PB.harnessSupport(p.meta, lang)) {
+          const code = text != null ? String(text) : fs.readFileSync(f, "utf8");
+          let hs = null; try { hs = { c: PB.cHarness, cpp: PB.cppHarness, python: PB.pyHarness }[lang](code, p.meta); } catch (e) {}
+          if (hs) {
+            const d = path.join(BUILD, "trace-" + ch, "src"); fs.mkdirSync(d, { recursive: true });
+            src = path.join(d, path.basename(f)); fs.writeFileSync(src, hs);
+            shift = { pre: hs.slice(0, hs.indexOf(code)).split("\n").length - 1, n: code.split("\n").length };
+            if (!String(stdin || "").trim()) stdin = s0.input + "\n";
+          }
+        } else if (p && p.src === "cf" && s0 && !String(stdin || "").trim()) stdin = s0.input.endsWith("\n") ? s0.input : s0.input + "\n";
+      }
+      const h = TRACE.trace(lang, src, stdin || "", { toolDirs: DIRS, allowSystem: DEV, buildDir: BUILD, channel: ch, maxSteps: float ? 800 : 3000, secs: float ? 8 : 15, incDir: path.dirname(f) });
+      traces[ch] = h;
+      let r;
+      try { r = await h.done; } finally { if (traces[ch] === h) delete traces[ch]; }
+      if (r.cancelled) return { cancelled: true };
+      // 套了 main 的：行号对回你的代码，只留你写的那几行（自动生成的 main 不画）
+      if (shift) {
+        const inUser = (l) => l > shift.pre && l <= shift.pre + shift.n;
+        if (r.diags) r.diags = shiftDiags(r.diags, shift.pre, shift.n);
+        if (r.stderr) r.stderr = String(r.stderr).replace(/:(\d+):/g, (m0, n) => ":" + Math.max(1, n - shift.pre) + ":");
+        if (r.steps) r.steps = r.steps.filter((st) => inUser(st.l)).map((st) => ({ ...st, l: st.l - shift.pre, g: [], f: (st.f || []).filter((fr) => inUser(fr.l) && !/^_ll_|^ll_/.test(fr.fn)).map((fr) => ({ ...fr, l: fr.l - shift.pre })) })).filter((st) => st.f.length || lang === "python");
+        if (r.error && r.error.line) r.error.line = inUser(r.error.line) ? r.error.line - shift.pre : null;
+        r.harness = true;
+      }
+      // 电脑上的 gdb 没有 Python（很少见）：退回老办法，只画数组
+      if (r.noTracer && (lang === "c" || lang === "cpp")) {
+        const v = await H.vizRun(f, stdin, true, text != null ? text : null);
+        if (v.compileFailed || v.error) return { ...v, lang };
+        return { lang, fallback: true, why: r.why || "", output: v.output, exit: v.code, trunc: !!(v.timedOut || v.tooMuch),
+          steps: v.frames.map((fr) => ({ l: fr.line, f: [{ fn: "", l: fr.line, v: [[fr.name, { k: "a", v: fr.a.map((n) => ({ k: "n", v: n })), n: fr.a.length }]].concat(fr.i >= 0 ? [["i", { k: "n", v: fr.i }]] : []).concat(fr.j >= 0 ? [["j", { k: "n", v: fr.j }]] : []) }], g: [] })) };
+      }
+      return r;
+    },
+    traceStop(channel) { const ch = String(channel || "main").replace(/\W/g, "").slice(0, 12); if (traces[ch]) { traces[ch].kill(); delete traces[ch]; } return true; },
 
     // 刷题：外面的题库 + 估水平 + 推荐
     judgeState() { return { bank: bank.status(), skill: skill.summary(), tags: [...new Set(bank.list().flatMap((p) => p.tags))] }; },
@@ -256,6 +328,111 @@ function createService(env) {
       }
       return { out, ...H.judgeState() };
     },
+
+    // ---------- 在软件里做题（core/problems.js） ----------
+    // 题面：先看本机缓存（7 天内），没有再联网拿
+    async problemGet(id, fresh = false) {
+      id = String(id || "");
+      const file = path.join(USER, "problems", id.replace(/[^\w.-]/g, "_") + ".json");
+      if (!fresh) { try { const c = JSON.parse(fs.readFileSync(file, "utf8")); if (Date.now() - c.at < 7 * 864e5) return c; } catch (e) {} }
+      let p;
+      const m = id.match(/^cf:(\d+)([A-Z]\d?)$/);
+      if (id.startsWith("lc:")) p = await PB.fetchLeetcode(id.slice(3));
+      else if (m) p = await PB.fetchCodeforces(m[1], m[2]);
+      else throw new Error("不认识这道题");
+      const meta = bank.list().find((x) => x.id === id);
+      if (meta) p.diff = meta.diff;
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, JSON.stringify(p));
+      return p;
+    },
+    // 开始做：在「刷题」文件夹里建一个代码文件（已经有了就接着写，不覆盖）
+    async problemOpen(id, lang) {
+      const p = await H.problemGet(id);
+      if (!PB.EXT[lang]) throw new Error("还不支持这种语言");
+      const dir = path.join(workspace(), "刷题");
+      fs.mkdirSync(dir, { recursive: true });
+      const name = `${p.src === "cf" ? "CF" : "力扣"}${p.no}-${String(p.title).replace(/[\\/:*?"<>|\s]+/g, "").slice(0, 24)}`;
+      let f = path.join(dir, name + (lang === "java" ? "" : "") + PB.EXT[lang]);
+      if (lang === "java") { const d2 = path.join(dir, name); fs.mkdirSync(d2, { recursive: true }); f = path.join(d2, p.src === "lc" ? "Solution.java" : "Main.java"); }
+      if (!fs.existsSync(f)) fs.writeFileSync(f, PB.template(p, lang));
+      probFiles[f] = { id, lang }; saveProbFiles();
+      return { file: f, problem: p };
+    },
+    problemOfFile(f) {
+      const x = probFiles[path.normalize(String(f || ""))];
+      if (!x) return null;
+      let p = null;
+      try { p = JSON.parse(fs.readFileSync(path.join(USER, "problems", x.id.replace(/[^\w.-]/g, "_") + ".json"), "utf8")); } catch (e) {}
+      return { ...x, problem: p, done: skill.isDone(x.id) };
+    },
+    // 本地跑样例。text：编辑器里的代码（可能还没保存）
+    async problemRun(f, text) {
+      f = safeFile(f);
+      const x = probFiles[f]; if (!x) throw new Error("这个文件不是刷题的文件");
+      const p = await H.problemGet(x.id);
+      const lang = (langOfFile(f) || {}).id;
+      const code = text != null ? String(text) : fs.readFileSync(f, "utf8");
+      const samples = (p.samples || []).filter((s) => s.input != null);
+      if (!samples.length) throw new Error("这道题没拿到样例");
+      const jd = path.join(BUILD, "judge"); fs.mkdirSync(jd, { recursive: true });
+      const opt = { toolDirs: DIRS, allowSystem: DEV, buildDir: BUILD };
+      let cases = [];
+      if (p.src === "lc") {
+        const why = PB.harnessSupport(p.meta, lang);
+        if (why) return { unsupported: why };
+        let src;
+        try { src = { c: PB.cHarness, cpp: PB.cppHarness, python: PB.pyHarness }[lang](code, p.meta); } catch (e) { return { unsupported: e.message + "，登录力扣后在线运行" }; }
+        const hf = path.join(jd, "lc-" + p.slug.replace(/[^\w-]/g, "") + PB.EXT[lang]);
+        fs.writeFileSync(hf, src);
+        // 报错的行号对回你的代码：生成的文件前面多了几行
+        const pre = src.slice(0, src.indexOf(code)).split("\n").length - 1;
+        const r = await runMany(lang, hf, opt, [samples.map((s) => s.input).join("\n") + "\n"], { timeoutMs: 6000 });
+        if (r.compileFailed) return { compileFailed: true, stderr: fixLines(r.stderr, path.basename(hf), path.basename(f), pre), diags: shiftDiags(r.diags, pre, code.split("\n").length) };
+        const res = r.results[0];
+        const lines = res.stdout.split("\n");
+        cases = samples.map((s, i) => ({ input: s.input, want: s.output, got: lines[i] != null && i < lines.length - (res.stdout.endsWith("\n") ? 1 : 0) ? lines[i] : "", pass: lines[i] != null ? PB.lcSame(lines[i], s.output) : false }));
+        if (res.code !== 0 || res.timedOut) { const k = cases.findIndex((c) => !c.got); if (k >= 0) { cases[k].error = res.timedOut ? "超时（是不是死循环？）" : runErr(res.stderr, lang).replace(/line (\d+)/g, (m0, n) => "line " + Math.max(1, n - pre)).split(path.basename(hf)).join(path.basename(f)); for (let i = k + 1; i < cases.length; i++) cases[i].skipped = true; } }
+      } else {
+        if (text != null) fs.writeFileSync(f, code);
+        const r = await runMany(lang, f, opt, samples.map((s) => (s.input.endsWith("\n") ? s.input : s.input + "\n")), { timeoutMs: 4000 });
+        if (r.compileFailed) return { compileFailed: true, stderr: r.stderr, diags: r.diags };
+        cases = samples.map((s, i) => { const o = r.results[i]; return { input: s.input, want: s.output, got: o.stdout, pass: !o.timedOut && o.code === 0 && PB.cfSame(o.stdout, s.output), error: o.timedOut ? "超时（是不是死循环？或者在等输入）" : o.code !== 0 ? runErr(o.stderr, lang) || "程序出错退出了（返回 " + o.code + "）" : "", ms: o.ms }; });
+      }
+      progress.ran();
+      return { local: true, cases, allPass: cases.length > 0 && cases.every((c) => c.pass) };
+    },
+    // 提交：登录了力扣就在线判；不然本地样例全对也算做出来（分量轻一点）
+    async problemSubmit(f, text, mode = "submit") {
+      f = safeFile(f);
+      const x = probFiles[f]; if (!x) throw new Error("这个文件不是刷题的文件");
+      const p = await H.problemGet(x.id);
+      const code = text != null ? String(text) : fs.readFileSync(f, "utf8");
+      const lang = (langOfFile(f) || {}).id;
+      const bankP = bank.list().find((b) => b.id === x.id) || { id: x.id, title: p.title, diff: p.diff || 1300, tags: [], src: p.src };
+      if (p.src === "lc" && env.lcCookies) {
+        const s = await PB.lcSession(env.lcCookies);
+        if (s) {
+          const r = await PB.lcRemote(env.lcCookies, p, lang, code, mode, (state) => send("judge", { state }));
+          if (mode === "submit") {
+            if (r.ok && !skill.isDone(x.id)) r.delta = skill.external(bankP, "accepted");
+            else if (!r.ok && !r.compileError) { tries[x.id] = (tries[x.id] || 0) + 1; if (tries[x.id] === 3) r.delta = skill.external(bankP, "failed") * 0.5; }
+          }
+          return r;
+        }
+      }
+      if (mode === "run") return H.problemRun(f, text);
+      const r = await H.problemRun(f, text);
+      if (r.allPass && !skill.isDone(x.id)) r.delta = skill.external(bankP, "samples");
+      r.offline = true;
+      return r;
+    },
+    async lcAccount() {
+      if (!env.lcCookies) return { available: false };
+      try { return { available: true, ...(await PB.lcUser(env.lcCookies)) }; } catch (e) { return { available: true, signedIn: false, error: e.message }; }
+    },
+    async lcLogin() { if (!env.lcLogin) throw new Error("要在电脑版里登录"); await env.lcLogin(); return H.lcAccount(); },
+    async lcLogout() { if (env.lcLogout) await env.lcLogout(); return H.lcAccount(); },
 
     // 安装语言
     async install(tool) {
@@ -303,12 +480,12 @@ function createService(env) {
     async logout() { if (api) await api.signOut(); me = null; return true; },
     async syncNow() { const r = await syncNow(); return { r, progress: progress.summary() }; },
     // 只打开自己网站和题库里列出的几个知名题库网站
-    openUrl(u) { u = String(u); if (/^https:\/\/(www\.)?laolaokechengbiao\.cn\//.test(u) || /^https:\/\/leetcode\.cn\/(problems|u)\/[\w-]+\/?$/.test(u) || /^https:\/\/codeforces\.com\/problemset\/problem\/\d+\/[A-Z]\d?$/.test(u) || BANKS.some((b) => (b.links || []).some((l) => l[1] === u))) env.openExternal(u); return true; },
+    openUrl(u) { u = String(u); if (/^https:\/\/(www\.)?laolaokechengbiao\.cn\//.test(u) || /^https:\/\/leetcode\.cn\/(problems|u)\/[\w-]+\/(submissions\/)?$/.test(u) || /^https:\/\/leetcode\.cn\/(problems|u)\/[\w-]+$/.test(u) || /^https:\/\/codeforces\.com\/problemset\/problem\/\d+\/[A-Z]\d?$/.test(u) || BANKS.some((b) => (b.links || []).some((l) => l[1] === u))) env.openExternal(u); return true; },
   };
 
   api = makeApi();
   const boot = () => loadMe().then(() => { send("me", me); if (me) syncNow(); });
-  const shutdown = () => { session.stop(); try { aiChild && aiChild.kill(); } catch (e) {} };
+  const shutdown = () => { session.stop(); for (const k in traces) try { traces[k].kill(); } catch (e) {} try { aiChild && aiChild.kill(); } catch (e) {} };
   return { H, boot, shutdown };
 }
 

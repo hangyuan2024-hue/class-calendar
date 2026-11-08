@@ -1,98 +1,233 @@
-// 捞捞编程 · 画出来：把代码的执行过程画成动画（柱子 = 数组里的数，一步一步看它怎么变）
-// 两种用法：
-//   ① 算法动画：冒泡 / 选择 / 插入 / 快排 / 归并 / 二分，左边柱子动，右边 C 代码跟着高亮正在执行的那一行；
-//   ② 我的代码：把你自己写的 C / C++ 跑一遍（不改你的文件），数组每变一次画一帧。
+// 捞捞编程 · 画出来
+//   悬浮小窗：在编辑器右下角，边打字边画 —— 你停手 1 秒多，就把代码一行行走一遍，把最重要的那个数组 / 链表 / 变量画成动画；
+//             点小窗（或右上角放大）进入大画面，停在同一步。
+//   大画面：所有变量（每一层函数调用一张卡片）、正在执行的代码行、输出、一句话说明这一步发生了什么；还有六种经典算法的演示。
 "use strict";
 (function () {
   const $ = (s, r = document) => r.querySelector(s);
-  const A = window.VizAlgos;
+  const A = window.VizAlgos, B = window.VizBoard, I = window.ICON;
   let LC = null;
   const LS = { get(k, d) { try { const v = localStorage.getItem("lc_viz_" + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem("lc_viz_" + k, JSON.stringify(v)); } catch (e) {} } };
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const TRACEABLE = /\.(c|cpp|cc|cxx|py)$/i;
+  const needsInput = (src) => /\b(scanf|getchar|gets|fgets\s*\(\s*\w+\s*,[^)]*stdin|cin\s*>>|input\s*\()/.test(src);
 
-  // 当前状态
-  const V = { mode: LS.get("mode", "bubble"), data: LS.get("data", null) || A.randomData(8), x: null, steps: [], code: "", k: 0, timer: 0, speed: LS.get("speed", 1), user: null, arr: "" };
+  // 算法演示的状态
+  const V = { mode: LS.get("mode", "user"), data: LS.get("data", null) || A.randomData(8), x: null, steps: [], code: "", k: 0, timer: 0, speed: LS.get("speed", 1) };
+  // 我的代码（大画面）
+  const U = { res: null, steps: [], k: 0, src: "", file: "", lang: "", busy: false };
+  // 悬浮小窗
+  const F = { on: LS.get("float", true), min: LS.get("floatMin", false), res: null, steps: [], k: 0, timer: 0, seq: 0, debounce: 0, focus: null, src: "", file: "", status: "", lineH: null };
   const SPEEDS = [[0.5, "慢"], [1, "正常"], [2, "快"], [4, "很快"]];
 
+  // =====================================================================
+  //  大画面
+  // =====================================================================
   function el() {
     let root = $("#viz"); if (root) return root;
-    root = document.createElement("div"); root.id = "viz"; root.className = "viz"; root.hidden = true;
+    root = document.createElement("div"); root.id = "viz"; root.className = "viz hud"; root.hidden = true;
     root.setAttribute("role", "dialog"); root.setAttribute("aria-label", "画出来");
     root.innerHTML = `
       <div class="viz-head">
-        <b class="viz-title">🎬 画出来</b>
-        <div class="viz-modes" id="vzModes" role="tablist">${A.ALGOS.map((a) => `<button data-m="${a.id}">${esc(a.name)}</button>`).join("")}<span class="viz-sep"></span><button data-m="user">我的代码</button></div>
+        <span class="viz-title">${I("activity", 18)}<b>画出来</b><small>CODE VISUALIZER</small></span>
+        <div class="viz-modes" id="vzModes" role="tablist"><button data-m="user">${I("code", 14)}我的代码</button><span class="viz-sep"></span><small class="viz-grp">算法演示</small>${A.ALGOS.map((a) => `<button data-m="${a.id}">${esc(a.name.replace("排序", "").replace("查找", ""))}</button>`).join("")}</div>
         <span class="grow"></span>
-        <button class="ic-btn" id="vzClose" title="关掉（Esc）" aria-label="关掉">✕</button>
+        <button class="ic-btn" id="vzClose" title="关掉（Esc）" aria-label="关掉">${I("x", 18)}</button>
       </div>
       <div class="viz-body">
         <section class="viz-stage">
-          <div class="viz-desc" id="vzDesc"></div>
-          <div class="viz-canvas"><div class="viz-bars" id="vzBars"></div><div class="viz-tmp" id="vzTmp" hidden></div></div>
+          <div class="viz-hud-line"><span class="hud-k">STEP</span><b id="vzStepN">0</b><span class="hud-k">/ <i id="vzStepT">0</i></span><span class="hud-k">LINE</span><b id="vzLineN">-</b><span class="grow"></span><span class="viz-status" id="vzStatus"></span></div>
           <div class="viz-note" id="vzNote" aria-live="polite"></div>
+          <div class="viz-userview" id="vzUser"><div class="vb" id="vzBoard"></div></div>
+          <div class="viz-algoview" id="vzAlgo" hidden>
+            <div class="viz-desc" id="vzDesc"></div>
+            <div class="viz-canvas"><div class="viz-bars" id="vzBars"></div><div class="viz-tmp" id="vzTmp" hidden></div></div>
+            <div class="viz-legend" id="vzLegend"></div>
+          </div>
           <div class="viz-ctrl">
-            <button class="ic-btn" data-c="first" title="回到开头（Home）" aria-label="回到开头"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M3 3h2v10H3zM13 3v10L6 8z"/></svg></button>
-            <button class="ic-btn" data-c="prev" title="上一步（←）" aria-label="上一步"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M11 3v10L4 8z"/></svg></button>
-            <button class="btn sm pri viz-play" data-c="play" title="播放 / 暂停（空格）">▶ 播放</button>
-            <button class="ic-btn" data-c="next" title="下一步（→）" aria-label="下一步"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M5 3v10l7-5z"/></svg></button>
-            <button class="ic-btn" data-c="last" title="跳到最后（End）" aria-label="跳到最后"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M11 3h2v10h-2zM3 3v10l7-5z"/></svg></button>
-            <input type="range" id="vzSlider" min="0" max="0" value="0" aria-label="第几步">
-            <span class="viz-step" id="vzStep"></span>
+            <button class="ic-btn" data-c="first" title="回到开头（Home）" aria-label="回到开头">${I("first", 15)}</button>
+            <button class="ic-btn" data-c="prev" title="上一步（←）" aria-label="上一步">${I("prev", 17)}</button>
+            <button class="btn sm pri viz-play" data-c="play" title="播放 / 暂停（空格）"></button>
+            <button class="ic-btn" data-c="next" title="下一步（→）" aria-label="下一步">${I("next", 17)}</button>
+            <button class="ic-btn" data-c="last" title="跳到最后（End）" aria-label="跳到最后">${I("last", 15)}</button>
+            <div class="viz-track"><input type="range" id="vzSlider" min="0" max="0" value="0" aria-label="第几步"><div class="viz-ticks" id="vzTicks"></div></div>
             <select id="vzSpeed" title="速度">${SPEEDS.map(([v, n]) => `<option value="${v}">${n}</option>`).join("")}</select>
           </div>
           <div class="viz-data" id="vzData"></div>
-          <div class="viz-legend" id="vzLegend"></div>
         </section>
         <aside class="viz-side">
-          <div class="viz-code-h"><b id="vzCodeH">C 代码</b><span class="grow"></span><button class="btn sm ghost" id="vzOpen" title="把这段代码存成文件，自己改改再跑">📄 打开这段代码</button></div>
+          <div class="viz-code-h"><span class="hud-k">SOURCE</span><b id="vzCodeH">代码</b><span class="grow"></span><button class="btn sm ghost" id="vzOpen" title="把这段代码存成文件，自己改改再跑">${I("file-code", 14)}打开这段代码</button></div>
           <pre class="viz-code" id="vzCode"></pre>
           <div class="viz-vars" id="vzVars"></div>
+          <div class="viz-outbox"><div class="viz-code-h"><span class="hud-k">OUTPUT</span><b>输出</b></div><pre class="viz-out" id="vzOut"></pre></div>
         </aside>
       </div>`;
     document.body.appendChild(root);
     $("#vzClose").onclick = close;
     $("#vzModes").onclick = (e) => { const b = e.target.closest("[data-m]"); if (b) setMode(b.dataset.m); };
-    root.querySelector(".viz-ctrl").addEventListener("click", (e) => { const b = e.target.closest("[data-c]"); if (!b) return; const c = b.dataset.c; if (c === "play") toggle(); else { pause(); go(c === "first" ? 0 : c === "last" ? V.steps.length - 1 : V.k + (c === "next" ? 1 : -1)); } });
+    root.querySelector(".viz-ctrl").addEventListener("click", (e) => { const b = e.target.closest("[data-c]"); if (!b) return; const c = b.dataset.c; if (c === "play") toggle(); else { pause(); go(c === "first" ? 0 : c === "last" ? cur().length - 1 : st().k + (c === "next" ? 1 : -1)); } });
     $("#vzSlider").oninput = (e) => { pause(); go(+e.target.value); };
     $("#vzSpeed").value = String(V.speed);
     $("#vzSpeed").onchange = (e) => { V.speed = +e.target.value; LS.set("speed", V.speed); if (V.timer) { pause(); play(); } };
     $("#vzOpen").onclick = openCode;
+    $("#vzCode").onclick = (e) => { const ln = e.target.closest(".ln"); if (!ln || V.mode !== "user") return; jumpToLine(+ln.dataset.l); };
     root.addEventListener("keydown", (e) => {
       if (/INPUT|TEXTAREA|SELECT/.test(e.target.tagName) && e.key !== "Escape") return;
       if (e.key === "Escape") { e.preventDefault(); close(); }
       else if (e.key === " ") { e.preventDefault(); toggle(); }
-      else if (e.key === "ArrowRight") { e.preventDefault(); pause(); go(V.k + 1); }
-      else if (e.key === "ArrowLeft") { e.preventDefault(); pause(); go(V.k - 1); }
-      else if (e.key === "Home") { pause(); go(0); } else if (e.key === "End") { pause(); go(V.steps.length - 1); }
+      else if (e.key === "ArrowRight") { e.preventDefault(); pause(); go(st().k + 1); }
+      else if (e.key === "ArrowLeft") { e.preventDefault(); pause(); go(st().k - 1); }
+      else if (e.key === "Home") { pause(); go(0); } else if (e.key === "End") { pause(); go(cur().length - 1); }
     });
+    playBtn();
     return root;
   }
+  const st = () => (V.mode === "user" ? U : V);
+  const cur = () => st().steps;
 
-  function open(mode) {
+  function open(mode, k) {
     const root = el(); root.hidden = false;
-    // 当前打开的是 C / C++ 文件、而且里面有数组 → 默认「我的代码」
-    if (mode) setMode(mode); else setMode(V.mode);
+    setMode(mode || V.mode, k);
     root.tabIndex = -1; root.focus();
   }
   function close() { pause(); const r = $("#viz"); if (r) r.hidden = true; if (LC && LC.cm) LC.cm.focus(); }
 
-  function setMode(m) {
+  function setMode(m, k) {
     pause();
+    if (m !== "user" && !A.byId(m)) m = "user";
     V.mode = m; LS.set("mode", m);
-    for (const b of $("#vzModes").children) if (b.dataset) b.classList.toggle("on", b.dataset.m === m);
-    if (m === "user") return userMode();
-    $("#vzOpen").hidden = false; $("#vzCodeH").textContent = "C 代码";
+    for (const b of $("#vzModes").querySelectorAll("[data-m]")) b.classList.toggle("on", b.dataset.m === m);
+    $("#vzUser").hidden = m !== "user"; $("#vzAlgo").hidden = m === "user";
+    $("#vzOpen").hidden = m === "user";
+    if (m === "user") return userMode(k);
+    $("#vzCodeH").textContent = "C 代码";
+    $("#vzVars").hidden = false;
     const al = A.byId(m);
     $("#vzDesc").innerHTML = `<b>${esc(al.name)}</b><span class="viz-big">${esc(al.big)}</span>${esc(al.desc)}`;
     paintDataForm(al);
     build();
   }
 
+  // ---------------- 我的代码 ----------------
+  function userMode(k) {
+    $("#vzCodeH").textContent = "你的代码";
+    $("#vzVars").hidden = true;
+    const t = LC && LC.cur;
+    const ok = t && TRACEABLE.test(t.file);
+    if (!ok) {
+      U.steps = []; paintCode("");
+      $("#vzBoard").innerHTML = `<div class="viz-empty">${I("code", 28)}<b>先打开一个 C / C++ / Python 文件</b><span>写好代码，这里会一步一步画出所有变量的变化：数组、字符串、结构体、链表、二叉树、递归……<br>也可以先看看上面的算法演示。</span></div>`;
+      $("#vzData").innerHTML = ""; $("#vzNote").innerHTML = ""; status(""); hud();
+      return;
+    }
+    $("#vzData").innerHTML = `<label class="grow">程序的输入<textarea id="vzStdin" rows="2" placeholder="程序里有 scanf / cin / input() 就在这里填，比如：5 3 8 1 9">${esc(LS.get("stdin:" + t.file, ""))}</textarea></label>
+      <button class="btn sm pri" id="vzRun">${I("play", 14)}重新运行</button>`;
+    $("#vzRun").onclick = () => runUser();
+    $("#vzStdin").addEventListener("change", (e) => { LS.set("stdin:" + t.file, e.target.value); });
+    // 悬浮小窗已经有这份代码的结果：直接用，停在同一步
+    const text = LC.cm.getValue();
+    if (F.res && F.file === t.file && F.src === text && F.steps.length) { useResult(F.res, F.src, t, k != null ? k : F.k); return; }
+    if (U.res && U.file === t.file && U.src === text) { useResult(U.res, U.src, t, k != null ? k : U.k); return; }
+    runUser();
+  }
+
+  async function runUser() {
+    const t = LC.cur; if (!t) return;
+    const box = $("#vzStdin"); const stdin = box ? box.value : LS.get("stdin:" + t.file, "");
+    LS.set("stdin:" + t.file, stdin);
+    const text = LC.cm.getValue();
+    U.busy = true; status("run", "正在一步一步运行…");
+    const btn = $("#vzRun"); if (btn) btn.disabled = true;
+    let r;
+    try { r = await LC.call("traceRun", t.file, fixIn(stdin), "main", text); } catch (e) { r = { error: { msg: e.message } }; }
+    U.busy = false; if (btn) btn.disabled = false;
+    if (!r || r.cancelled) return;
+    useResult(r, text, t, 0);
+    if (r.steps && r.steps.length) play();
+  }
+  const fixIn = (s) => (s && !s.endsWith("\n") ? s + "\n" : s || "");
+
+  function useResult(r, src, t, k) {
+    U.res = r; U.src = src; U.file = t.file; U.lang = r.lang || t.lang; U.steps = r.steps || []; U.k = 0;
+    paintCode(src);
+    $("#vzSlider").max = String(Math.max(0, U.steps.length - 1));
+    paintTicks();
+    if (r.compileFailed) {
+      const d = (r.diags || [])[0];
+      status("err", "编译没通过");
+      $("#vzNote").innerHTML = `<span class="bad">${d ? `第 ${d.line} 行：${esc(d.hint || d.message)}` : esc((r.stderr || "").split("\n")[0])}</span>`;
+      $("#vzBoard").innerHTML = `<pre class="viz-err">${esc((r.stderr || "").slice(0, 2000))}</pre>`;
+      if (d) markLine(d.line, "err");
+      $("#vzOut").textContent = ""; hud();
+      return;
+    }
+    if (r.unsupported) { status("", ""); $("#vzBoard").innerHTML = `<div class="viz-empty"><b>这种语言还不能画</b><span>现在支持 C、C++、Python。</span></div>`; return; }
+    if (r.needInstall || (r.error && !U.steps.length)) { status("err", "没跑起来"); $("#vzBoard").innerHTML = `<div class="viz-empty"><b>${esc((r.error && r.error.msg) || "没跑起来")}</b></div>`; return; }
+    if (!U.steps.length) { status("", ""); $("#vzBoard").innerHTML = `<div class="viz-empty"><b>程序一行都没走到</b><span>看看是不是没有 main 函数。</span></div>`; return; }
+    const tips = [];
+    if (r.trunc) tips.push(`只画了前 ${U.steps.length} 步`);
+    if (r.fallback) tips.push("简化模式：只画数组");
+    if (needsInput(src) && !($("#vzStdin") || {}).value) tips.push("程序要输入：在下面填好再点「重新运行」");
+    status(r.error ? "err" : "ok", r.error ? "程序出错停下了" : tips.join(" · ") || "跑完了");
+    go(Math.min(k || 0, U.steps.length - 1));
+  }
+
+  // 时间轴上标出：出错的那一步、有输出的步
+  function paintTicks() {
+    const box = $("#vzTicks"); if (!box) return;
+    const S = cur(), n = S.length;
+    if (V.mode !== "user" || n < 2) { box.innerHTML = ""; return; }
+    let h = "";
+    S.forEach((s, i) => { if (s.o || s.err) h += `<i class="${s.err ? "e" : "o"}" style="left:${(i / (n - 1)) * 100}%"></i>`; });
+    box.innerHTML = h;
+  }
+
+  function hud() {
+    const S = cur(), s = S[st().k];
+    $("#vzStepN").textContent = S.length ? st().k + 1 : 0;
+    $("#vzStepT").textContent = S.length;
+    $("#vzLineN").textContent = s ? (s.l != null ? s.l : s.line) : "-";
+  }
+  function status(kind, txt) { const e = $("#vzStatus"); if (e) { e.className = "viz-status " + (kind || ""); e.textContent = txt || ""; } }
+
+  function paintUserStep() {
+    const s = U.steps[U.k], prev = U.steps[U.k - 1];
+    const py = U.lang === "python";
+    B.render($("#vzBoard"), s, prev, { py, n: U.k });
+    let note = B.narrate(s, prev, { py });
+    if (s.err) note = `<span class="bad">${esc((U.res.error && U.res.error.msg) || s.err)}</span>`;
+    if (U.k === U.steps.length - 1 && U.res.error && !s.err) note = `<span class="bad">${esc(U.res.error.msg)}</span>`;
+    const lineTxt = (U.src.split("\n")[s.l - 1] || "").trim();
+    $("#vzNote").innerHTML = `${note ? note + "<br>" : ""}<span class="viz-cl"><span class="hud-k">L${s.l}</span><code>${esc(lineTxt.slice(0, 120))}</code></span>`;
+    // 到这一步为止的输出
+    let out = ""; for (let i = 0; i <= U.k; i++) if (U.steps[i].o) out += U.steps[i].o;
+    const o = $("#vzOut"); o.textContent = out.slice(-6000); o.scrollTop = o.scrollHeight;
+    markLine(s.l, "on");
+  }
+
+  // 点代码的某一行：跳到下一次走到这一行的那一步
+  function jumpToLine(l) {
+    const S = U.steps; if (!S.length) return;
+    for (let d = 1; d <= S.length; d++) { const i = (U.k + d) % S.length; if (S[i].l === l) { pause(); go(i); return; } }
+    LC.toast("程序没走到第 " + l + " 行");
+  }
+
+  function paintCode(code) {
+    $("#vzCode").innerHTML = code.split("\n").map((l, i) => `<div class="ln" data-l="${i + 1}"><span class="no">${i + 1}</span>${esc(l) || " "}</div>`).join("");
+  }
+  function markLine(l, cls) {
+    const code = $("#vzCode");
+    for (const x of code.querySelectorAll(".ln.on, .ln.err")) x.classList.remove("on", "err");
+    const ln = code.querySelector(`.ln[data-l="${l}"]`);
+    if (ln) { ln.classList.add(cls); const top = ln.offsetTop - code.clientHeight / 2 + ln.offsetHeight / 2; code.scrollTo({ top, behavior: V.timer ? "smooth" : "auto" }); }
+  }
+
+  // ---------------- 算法演示 ----------------
   function paintDataForm(al) {
     const search = al.kind === "search";
     $("#vzData").innerHTML = `<label>数据<input id="vzIn" value="${esc(V.data.join(" "))}" placeholder="用空格隔开，最多 16 个，比如 5 3 8 1"></label>
       ${search ? `<label class="sm">要找<input id="vzX" value="${V.x == null ? "" : V.x}" placeholder="自动" inputmode="numeric"></label>` : ""}
-      <button class="btn sm" id="vzApply">用这组数</button><button class="btn sm ghost" id="vzRand">🎲 随机一组</button>
+      <button class="btn sm" id="vzApply">${I("check", 14)}用这组数</button><button class="btn sm ghost" id="vzRand">${I("shuffle", 14)}随机一组</button>
       ${search ? "" : `<button class="btn sm ghost" id="vzWorst" title="倒着排好的，最费劲的情况">倒序</button>`}`;
     const apply = () => {
       const d = A.parseData($("#vzIn").value);
@@ -107,44 +242,21 @@
     $("#vzRand").onclick = () => { V.data = A.randomData(Math.max(5, Math.min(12, V.data.length || 8))); V.x = null; LS.set("data", V.data); paintDataForm(al); build(); };
     if (!search) $("#vzWorst").onclick = () => { V.data = V.data.slice().sort((p, q) => q - p); LS.set("data", V.data); paintDataForm(al); build(); };
   }
-
   function build() {
     const al = A.byId(V.mode);
     const t = al.trace(V.data, V.x);
-    V.steps = t.steps; V.code = t.code; V.k = 0; V.user = null;
-    if (al.kind === "search") V.xShown = t.x;
+    V.steps = t.steps; V.code = t.code; V.k = 0;
     paintCode(t.code);
     $("#vzSlider").max = String(V.steps.length - 1);
+    paintTicks();
+    status("ok", al.big);
     legend(al.kind === "search" ? [["cmp", "正在看的"], ["found", "找到了"], ["out", "已经排除"]] : V.mode === "quick" ? [["cmp", "在比较"], ["swap", "交换了"], ["pivot", "基准"], ["sorted", "排好了"]] : V.mode === "merge" ? [["cmp", "在比较"], ["swap", "刚合并好的"], ["out", "这次不管"], ["sorted", "排好了"]] : [["cmp", "在比较"], ["swap", "交换了"], ["mark", "正在处理"], ["sorted", "排好了"]]);
     go(0);
   }
-
   function legend(items) { $("#vzLegend").innerHTML = items.map(([c, n]) => `<span><i class="lg ${c}"></i>${esc(n)}</span>`).join(""); }
-
-  function paintCode(code) {
-    $("#vzCode").innerHTML = code.split("\n").map((l, i) => `<div class="ln" data-l="${i + 1}"><span class="no">${i + 1}</span>${esc(l) || " "}</div>`).join("");
-  }
-
-  // ---------- 一帧 ----------
-  function go(k) {
-    if (!V.steps.length) return;
-    V.k = Math.max(0, Math.min(V.steps.length - 1, k));
-    const s = V.steps[V.k];
-    $("#vzSlider").value = String(V.k);
-    $("#vzStep").textContent = `第 ${V.k + 1} / ${V.steps.length} 步`;
-    if (V.user) paintUserFrame(s); else paintAlgoStep(s);
-    // 代码高亮
-    const code = $("#vzCode");
-    for (const x of code.querySelectorAll(".ln.on")) x.classList.remove("on");
-    const ln = code.querySelector(`.ln[data-l="${s.line}"]`);
-    if (ln) { ln.classList.add("on"); const top = ln.offsetTop - code.clientHeight / 2 + ln.offsetHeight / 2; code.scrollTo({ top, behavior: V.timer ? "smooth" : "auto" }); }
-    if (V.k >= V.steps.length - 1) pause();
-  }
-
-  function bars(a, cls, labels, ptr) {
+  function bars(a, cls, ptr) {
     const lo = Math.min(0, ...a), hi = Math.max(1, ...a), span = hi - lo || 1;
     const box = $("#vzBars");
-    // 复用柱子（数量不变时只改高度 → 有过渡动画）
     if (box.children.length !== a.length) box.innerHTML = a.map(() => `<div class="bar"><div class="tk"><span class="v"></span><i></i></div><span class="ix"></span><span class="pt"></span></div>`).join("");
     box.style.setProperty("--n", a.length);
     a.forEach((v, i) => {
@@ -152,11 +264,10 @@
       b.className = "bar " + (cls[i] || "");
       b.querySelector("i").style.height = Math.max(3, ((v - lo) / span) * 86) + "%";
       b.querySelector(".v").textContent = v;
-      b.querySelector(".ix").textContent = labels ? labels[i] : i;
+      b.querySelector(".ix").textContent = i;
       b.querySelector(".pt").textContent = (ptr && ptr[i]) || "";
     });
   }
-
   function paintAlgoStep(s) {
     const n = s.a.length, cls = Array(n).fill("");
     const h = s.hi || {};
@@ -171,128 +282,188 @@
     if (h.split != null) cls[h.split] = (cls[h.split] || "") + " split";
     const ptr = {};
     for (const [k, v] of Object.entries(s.ptr || {})) if (v >= 0 && v < n) ptr[v] = ptr[v] ? ptr[v] + "," + k : k;
-    bars(s.a, cls, null, ptr);
-    // 归并的临时数组
+    bars(s.a, cls, ptr);
     const tm = $("#vzTmp");
     if (s.tmp) { tm.hidden = false; tm.innerHTML = `<small>临时数组 tmp</small>${s.tmp.map((v) => `<span>${v}</span>`).join("") || "<em>（空）</em>"}`; } else tm.hidden = true;
     $("#vzNote").innerHTML = esc(s.note || "");
     const vars = Object.entries(s.vars || {}).map(([k, v]) => `<span><code>${esc(k)}</code> = <b>${esc(v)}</b></span>`).join("");
     $("#vzVars").innerHTML = `${vars ? `<div class="vv">${vars}</div>` : ""}<div class="vs"><span>比较 <b>${s.cmp}</b> 次</span><span>${V.mode === "binary" ? "" : `交换 / 移动 <b>${s.swp}</b> 次`}</span>${s.depth != null ? `<span>递归第 <b>${s.depth + 1}</b> 层</span>` : ""}</div>`;
+    // 算法演示的 C 代码里 main 打印最终结果：输出栏显示
+    $("#vzOut").textContent = V.k === V.steps.length - 1 ? (s.a ? (A.byId(V.mode).kind === "search" ? "" : s.a.join(" ")) : "") : "";
+    markLine(s.line, "on");
   }
 
-  // ---------- 播放 ----------
-  function play() {
-    if (!V.steps.length) return;
-    if (V.k >= V.steps.length - 1) go(0);
-    const ms = Math.max(60, 700 / V.speed);
-    V.timer = setInterval(() => go(V.k + 1), ms);
-    const b = document.querySelector(".viz-play"); b.textContent = "⏸ 暂停";
+  // ---------------- 一步 / 播放 ----------------
+  function go(k) {
+    const S = cur(); if (!S.length) { hud(); return; }
+    const o = st(); o.k = Math.max(0, Math.min(S.length - 1, k));
+    $("#vzSlider").value = String(o.k);
+    if (V.mode === "user") paintUserStep(); else paintAlgoStep(S[o.k]);
+    hud();
+    if (o.k >= S.length - 1) pause();
   }
-  function pause() { if (V.timer) clearInterval(V.timer); V.timer = 0; const b = document.querySelector(".viz-play"); if (b) b.textContent = "▶ 播放"; }
+  function playBtn() { const b = document.querySelector(".viz-play"); if (b) b.innerHTML = V.timer ? `${I("pause", 14)}暂停` : `${I("play", 14)}播放`; }
+  function play() {
+    const S = cur(); if (!S.length) return;
+    if (st().k >= S.length - 1) go(0);
+    const base = V.mode === "user" ? Math.max(70, Math.min(600, 9000 / S.length)) : 700;
+    V.timer = setInterval(() => go(st().k + 1), Math.max(40, base / V.speed));
+    playBtn();
+  }
+  function pause() { if (V.timer) clearInterval(V.timer); V.timer = 0; playBtn(); }
   function toggle() { if (V.timer) pause(); else play(); }
 
   async function openCode() {
     if (!LC) return;
     const al = A.byId(V.mode); if (!al) return;
-    try { await LC.newFile(al.name + ".c", "c", V.code); close(); LC.toast("存好了：改改数据按 F5 运行，或者点「画出来」看你改的版本"); }
+    try { await LC.newFile(al.name + ".c", "c", V.code); close(); LC.toast("存好了：改改数据，右下角的小窗会跟着画"); }
     catch (e) { LC.toast(e.message); }
   }
 
-  // ---------- 我的代码 ----------
-  function userMode() {
-    $("#vzOpen").hidden = true; $("#vzCodeH").textContent = "你的代码";
-    legend([["swap", "这一步变了的"], ["cmp", "SHOW2 标出的 i / j"]]);
-    const t = LC && LC.cur;
-    const okLang = t && /\.(c|cpp|cc|cxx)$/i.test(t.file);
-    $("#vzDesc").innerHTML = okLang
-      ? `<b>${esc(t.name)}</b>把你的程序跑一遍，数组每变一次画一帧。你的文件不会被改。`
-      : `<b>我的代码</b>先在编辑器里打开一个 C / C++ 文件（里面有 int 数组，比如自己写的排序），再来点这里。`;
-    $("#vzData").innerHTML = okLang ? `<label class="grow">程序要的输入<textarea id="vzStdin" rows="2" placeholder="程序里有 scanf 就在这里填，比如：5 3 8 1 9">${esc(LS.get("stdin:" + t.file, ""))}</textarea></label>
-      <div class="viz-urun"><button class="btn sm pri" id="vzRun">▶ 跑一遍，画出来</button><label class="chk" title="自动在给数组赋值的地方加 SHOW（复制一份去跑，不改你的文件）"><input type="checkbox" id="vzAuto" ${LS.get("auto", true) ? "checked" : ""}> 自动找数组</label></div>` : "";
-    V.steps = []; V.user = { file: okLang ? t.file : "" };
-    $("#vzBars").innerHTML = ""; $("#vzTmp").hidden = true; $("#vzSlider").max = "0"; $("#vzStep").textContent = "";
-    $("#vzVars").innerHTML = ""; $("#vzNote").innerHTML = okLang ? "点「跑一遍，画出来」" : "";
-    paintCode(okLang ? LC.cm.getValue() : "");
-    if (!okLang) return;
-    $("#vzRun").onclick = runUser;
-    $("#vzAuto").onchange = (e) => LS.set("auto", e.target.checked);
+  // =====================================================================
+  //  悬浮小窗
+  // =====================================================================
+  function fel() {
+    let f = $("#vizFloat"); if (f) return f;
+    const wrap = $("#editorWrap"); if (!wrap) return null;
+    f = document.createElement("div"); f.id = "vizFloat"; f.className = "vf hud"; f.hidden = true;
+    f.innerHTML = `
+      <header class="vf-h" title="拖动可以挪位置">
+        <span class="vf-dot" id="vfDot"></span><b>实时画面</b><span class="vf-step" id="vfStep"></span><span class="grow"></span>
+        <button class="vf-b" data-f="play" title="播放 / 暂停">${I("play", 14)}</button>
+        <button class="vf-b" data-f="max" title="放大看全部变量（F7）">${I("maximize", 14)}</button>
+        <button class="vf-b" data-f="min" title="收起">${I("minimize", 14)}</button>
+      </header>
+      <div class="vf-line" id="vfLine"></div>
+      <div class="vf-board vb mini" id="vfBoard" title="点一下放大"></div>
+      <div class="vf-note" id="vfNote"></div>
+      <div class="vf-track" id="vfTrack"><i id="vfBar"></i></div>`;
+    wrap.appendChild(f);
+    const pill = document.createElement("button");
+    pill.id = "vizPill"; pill.className = "vf-pill"; pill.hidden = true; pill.title = "边写边画：打开实时画面";
+    pill.innerHTML = `${I("activity", 14)}<span>实时画面</span>`;
+    wrap.appendChild(pill);
+    pill.onclick = () => { F.min = false; LS.set("floatMin", false); F.on = true; LS.set("float", true); paintFloatShell(); schedule(0); };
+    f.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-f]");
+      if (b) { e.stopPropagation(); const a = b.dataset.f; if (a === "play") fToggle(); else if (a === "max") open("user", F.k); else if (a === "min") { F.min = true; LS.set("floatMin", true); fPause(); clearLine(); paintFloatShell(); } return; }
+      if (e.target.closest("#vfTrack")) { const r = $("#vfTrack").getBoundingClientRect(); fPause(); fGo(Math.round(((e.clientX - r.left) / r.width) * (F.steps.length - 1))); return; }
+      if (e.target.closest(".vf-board, .vf-line, .vf-note") && F.steps.length) open("user", F.k);
+    });
+    drag(f);
+    return f;
+  }
+  // 拖动挪位置（记住离右下角多远）
+  function drag(f) {
+    const pos = LS.get("floatPos", null); if (pos) { f.style.right = pos.r + "px"; f.style.bottom = pos.b + "px"; }
+    const h = f.querySelector(".vf-h");
+    h.addEventListener("pointerdown", (e) => {
+      if (e.target.closest("button")) return;
+      const wrap = f.parentElement.getBoundingClientRect(), r0 = f.getBoundingClientRect();
+      const sx = e.clientX, sy = e.clientY, R = wrap.right - r0.right, Bm = wrap.bottom - r0.bottom;
+      h.setPointerCapture(e.pointerId); f.classList.add("drag");
+      const mv = (ev) => {
+        const r = Math.max(6, Math.min(wrap.width - r0.width - 6, R - (ev.clientX - sx)));
+        const b = Math.max(6, Math.min(wrap.height - r0.height - 6, Bm - (ev.clientY - sy)));
+        f.style.right = r + "px"; f.style.bottom = b + "px";
+      };
+      const up = () => { h.removeEventListener("pointermove", mv); f.classList.remove("drag"); LS.set("floatPos", { r: parseInt(f.style.right) || 16, b: parseInt(f.style.bottom) || 16 }); };
+      h.addEventListener("pointermove", mv); h.addEventListener("pointerup", up, { once: true });
+    });
   }
 
-  async function runUser() {
-    const t = LC.cur; if (!t) return;
-    const stdin = $("#vzStdin").value; LS.set("stdin:" + t.file, stdin);
-    const btn = $("#vzRun"); btn.disabled = true; btn.textContent = "运行中…";
-    $("#vzNote").innerHTML = "编译、运行中…";
+  function traceable() { const t = LC && LC.cur; return t && TRACEABLE.test(t.file) ? t : null; }
+  function paintFloatShell() {
+    const f = fel(); if (!f) return;
+    const t = traceable();
+    const show = !!t && F.on;
+    f.hidden = !show || F.min;
+    $("#vizPill").hidden = !(t && (F.min || !F.on));
+  }
+  function fStatus(kind, txt) {
+    F.status = kind;
+    const d = $("#vfDot"); if (d) d.className = "vf-dot " + kind;
+    if (txt != null) { const n = $("#vfNote"); if (n) n.innerHTML = txt; }
+  }
+  function schedule(ms = 1300) {
+    clearTimeout(F.debounce);
+    const t = traceable(); paintFloatShell();
+    if (!t || !F.on || F.min) return;
+    if (F.res && F.file === t.file && F.src === LC.cm.getValue()) return;
+    fStatus("wait", F.steps.length ? null : "等你写完，停一下就开始画…");
+    F.debounce = setTimeout(traceFloat, ms);
+  }
+  async function traceFloat() {
+    const t = traceable(); if (!t || !F.on || F.min) return;
+    const text = LC.cm.getValue();
+    if (text.trim().length < 15) { fStatus("idle", "写点代码，这里会把它画出来"); return; }
+    const seq = ++F.seq;
+    fStatus("run", null);
     let r;
-    try { await LC.saveAll(); r = await LC.call("vizRun", t.file, stdin.endsWith("\n") || !stdin ? stdin : stdin + "\n", $("#vzAuto").checked); }
-    catch (e) { r = { error: e.message }; }
-    btn.disabled = false; btn.textContent = "▶ 跑一遍，画出来";
-    paintCode(LC.cm.getValue());
-    if (r.error) { $("#vzNote").innerHTML = `<span class="bad">${esc(r.error)}</span>`; return; }
+    try { r = await LC.call("traceRun", t.file, fixIn(LS.get("stdin:" + t.file, "")), "float", text); } catch (e) { r = { error: { msg: e.message } }; }
+    if (seq !== F.seq || !r || r.cancelled) return;
+    const still = traceable();
+    if (!still || still.file !== t.file) return;
     if (r.compileFailed) {
       const d = (r.diags || [])[0];
-      $("#vzNote").innerHTML = `<span class="bad">编译没通过${d ? `：第 ${d.line} 行 ${esc(d.hint || d.message)}` : ""}</span>　先在编辑器里改好（按 F5 能看到完整报错）`;
-      if (d) { const ln = $(`#vzCode .ln[data-l="${d.line}"]`); if (ln) { ln.classList.add("err"); ln.scrollIntoView({ block: "center" }); } }
+      fStatus("err", `<span class="bad">${d ? `第 ${d.line} 行有错` : "代码还有错"}</span>，改好了自动接着画`);
+      $("#vfBoard").classList.add("stale"); clearLine();
       return;
     }
-    const names = [...new Set(r.frames.map((f) => f.name))];
-    if (!r.frames.length) {
-      $("#vzNote").innerHTML = r.noArray
-        ? `没找到给数组赋值的地方。可以自己在想看的地方加一句 <code>SHOW(a, n);</code>（a 是数组名，n 是个数），或者 <code>SHOW2(a, n, i, j);</code> 顺便标出 i 和 j。`
-        : `程序跑完了，但数组一次都没变${r.timedOut ? "（程序跑了 8 秒还没完，是不是在等输入？上面填好输入再试）" : ""}。`;
-      out(r); return;
+    if (r.unsupported || r.needInstall || (!r.steps || !r.steps.length)) {
+      fStatus("idle", esc((r.error && r.error.msg) || (r.unsupported ? "这种语言还不能画" : "程序没走起来（有 main 吗？）")));
+      return;
     }
-    V.arr = names.includes(V.arr) ? V.arr : names[0];
-    V.user = { file: t.file, frames: r.frames, names, r };
-    pickArr(V.arr);
-    const tip = [r.timedOut ? "程序跑太久，停在第 8 秒" : "", r.tooMuch ? "输出太多，后面的没画" : "", r.frames.length >= 3000 ? "最多画 3000 帧" : ""].filter(Boolean).join("；");
-    if (tip) LC.toast(tip);
-    play();
+    $("#vfBoard").classList.remove("stale");
+    F.res = r; F.src = text; F.file = t.file; F.steps = r.steps; F.focus = B.pickFocus(r.steps); F.k = 0;
+    const tip = r.harness ? "用第 1 个样例跑你的函数" : needsInput(text) && !LS.get("stdin:" + t.file, "") && !r.harness ? "程序要输入：放大后在下面填" : r.error ? `<span class="bad">${esc(r.error.msg)}</span>` : r.trunc ? `只画了前 ${r.steps.length} 步` : "";
+    fStatus(r.error ? "err" : "ok", tip);
+    F.tip = tip;
+    fGo(0); fPlay();
   }
-
-  function pickArr(name) {
-    const u = V.user; V.arr = name;
-    V.steps = u.frames.filter((f) => f.name === name);
-    $("#vzSlider").max = String(V.steps.length - 1);
-    // 多个数组：可以切换
-    const sw = u.names.length > 1 ? `<span class="viz-arrs">看哪个数组：${u.names.map((n) => `<button class="btn sm ${n === name ? "pri" : ""}" data-arr="${esc(n)}">${esc(n)}</button>`).join("")}</span>` : "";
-    let box = $("#vzArrs"); if (!box) { box = document.createElement("div"); box.id = "vzArrs"; $("#vzData").appendChild(box); }
-    box.innerHTML = sw; box.onclick = (e) => { const b = e.target.closest("[data-arr]"); if (b) { pause(); pickArr(b.dataset.arr); } };
-    out(u.r);
-    go(0);
+  function fGo(k) {
+    if (!F.steps.length) return;
+    F.k = Math.max(0, Math.min(F.steps.length - 1, k));
+    const s = F.steps[F.k], prev = F.steps[F.k - 1];
+    const py = (F.res.lang || "") === "python";
+    B.render($("#vfBoard"), s, prev, { mini: true, focus: F.focus, py, n: F.k });
+    const lineTxt = (F.src.split("\n")[s.l - 1] || "").trim();
+    $("#vfLine").innerHTML = `<span class="hud-k">L${s.l}</span><code>${esc(lineTxt.slice(0, 60))}</code>`;
+    $("#vfStep").textContent = `${F.k + 1}/${F.steps.length}`;
+    $("#vfBar").style.width = ((F.k + 1) / F.steps.length) * 100 + "%";
+    if (!F.tip) { const n = B.narrate(s, prev, { py }); $("#vfNote").innerHTML = n; }
+    // 编辑器里也标出正在执行的那一行（代码没改过才标）
+    clearLine();
+    if (LC.cm.getValue() === F.src && s.l) F.lineH = LC.cm.addLineClass(s.l - 1, "background", "vf-runline");
+    if (F.k >= F.steps.length - 1) fPause();
   }
-  function out(r) {
-    const o = String(r.output || "").trim();
-    const prev = $("#vzOut"); if (prev) prev.remove();
-    if (!o && !r.stderr) return;
-    const d = document.createElement("details"); d.id = "vzOut"; d.className = "viz-out";
-    d.innerHTML = `<summary>程序的输出</summary><pre>${esc(o.slice(-3000))}${r.stderr ? `\n<span class="bad">${esc(String(r.stderr).slice(-1500))}</span>` : ""}</pre>`;
-    $("#vzData").appendChild(d);
+  function clearLine() { if (F.lineH != null) { try { LC.cm.removeLineClass(F.lineH, "background", "vf-runline"); } catch (e) {} F.lineH = null; } }
+  function fPlay() {
+    if (!F.steps.length) return;
+    if (F.k >= F.steps.length - 1) fGo(0);
+    clearInterval(F.timer);
+    const ms = Math.max(60, Math.min(450, 7000 / F.steps.length));
+    F.timer = setInterval(() => fGo(F.k + 1), ms);
+    const b = $('#vizFloat [data-f="play"]'); if (b) b.innerHTML = I("pause", 14);
   }
-
-  function paintUserFrame(f) {
-    const prev = V.steps[V.k - 1];
-    const cls = f.a.map((v, i) => (prev && prev.a.length === f.a.length && prev.a[i] !== v ? "swap" : ""));
-    const ptr = {};
-    if (f.i >= 0 && f.i < f.a.length) { cls[f.i] = cls[f.i] || "cmp"; ptr[f.i] = "i"; }
-    if (f.j >= 0 && f.j < f.a.length) { cls[f.j] = cls[f.j] || "cmp"; ptr[f.j] = ptr[f.j] ? ptr[f.j] + ",j" : "j"; }
-    if (V.k === V.steps.length - 1) for (let i = 0; i < cls.length; i++) if (!cls[i]) cls[i] = "done";
-    bars(f.a, cls, null, ptr);
-    const ch = prev ? f.a.map((v, i) => (prev.a[i] !== v ? i : -1)).filter((i) => i >= 0) : [];
-    const lineTxt = (LC.cm.getLine(f.line - 1) || "").trim();
-    $("#vzNote").innerHTML = (V.k === 0 ? "一开始：" : ch.length === 2 ? `a[${ch[0]}] 和 a[${ch[1]}] 换了位置：` : ch.length ? `${ch.map((i) => `${esc(f.name)}[${i}] 变成 ${f.a[i]}`).slice(0, 3).join("，")}${ch.length > 3 ? " …" : ""}：` : "")
-      + `第 ${f.line} 行 <code>${esc(lineTxt.slice(0, 80))}</code>`;
-    const changes = V.steps.slice(0, V.k + 1).reduce((m, x, i, arr) => m + (i && arr[i - 1].a.some((v, j) => v !== x.a[j]) ? 1 : 0), 0);
-    $("#vzVars").innerHTML = `<div class="vs"><span>数组 <b>${esc(f.name)}</b>，${f.a.length} 个数</span><span>到这一步变了 <b>${changes}</b> 次</span></div>`;
-  }
+  function fPause() { clearInterval(F.timer); F.timer = 0; const b = $('#vizFloat [data-f="play"]'); if (b) b.innerHTML = I("play", 14); }
+  function fToggle() { if (F.timer) fPause(); else fPlay(); }
 
   // ---------- 接到主界面 ----------
   function hook() {
     LC = window.LC;
     const btn = document.getElementById("vizBtn");
-    if (btn) btn.onclick = () => open();
-    document.addEventListener("keydown", (e) => { if (e.key === "F7") { e.preventDefault(); const r = $("#viz"); if (r && !r.hidden) close(); else open(); } });
+    if (btn) btn.onclick = () => open(traceable() ? "user" : V.mode, F.steps.length && traceable() && F.file === traceable().file ? F.k : undefined);
+    document.addEventListener("keydown", (e) => { if (e.key === "F7") { e.preventDefault(); const r = $("#viz"); if (r && !r.hidden) close(); else btn && btn.click(); } });
+    LC.cm.on("changes", () => { if (F.timer) fPause(); clearLine(); schedule(); });
+    document.addEventListener("tab", () => {
+      fPause(); clearLine(); F.res = null; F.steps = []; F.tip = ""; F.seq++;
+      for (const id of ["#vfBoard", "#vfLine", "#vfNote", "#vfStep"]) { const e = $(id); if (e) e.innerHTML = ""; }
+      const bar = $("#vfBar"); if (bar) bar.style.width = "0";
+      schedule(400);
+    });
+    schedule(800);
   }
   if (window.LC) hook(); else document.addEventListener("lc-ready", hook, { once: true });
-  window.LaolaoViz = { open, close, get state() { return V; } };
+  window.LaolaoViz = { open, close, get state() { return { V, U, F }; }, setFloat(on) { F.on = !!on; LS.set("float", F.on); paintFloatShell(); schedule(0); } };
 })();

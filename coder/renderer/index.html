@@ -13,15 +13,15 @@
 </head>
 <body>
 <header class="top">
-  <div class="brand"><span class="logo">&lt;/&gt;</span><b>捞捞编程</b></div>
+  <div class="brand"><span class="logo"><i data-ic="code" data-size="17"></i></span><b>捞捞编程</b></div>
   <div class="tabs" id="tabs" role="tablist" aria-label="打开的文件"></div>
   <span class="grow"></span>
   <span class="lang-chip" id="langChip" hidden></span>
-  <button class="btn run" id="runBtn" title="编译并运行（F5）" disabled><span class="ic">▶</span>运行<kbd>F5</kbd></button>
-  <button class="btn stop" id="stopBtn" title="停止（Shift+F5）" hidden><span class="ic">■</span>停止</button>
-  <button class="btn check" id="checkBtn" title="跑一遍这道题的测试（F6）" hidden><span class="ic">✓</span>检查<kbd>F6</kbd></button>
-  <button class="btn ghost" id="vizBtn" title="把代码的执行过程画成动画：排序、查找，或者你自己写的代码（F7）"><span class="ic">🎬</span>画出来</button>
-  <button class="btn ghost" id="aiToggle" title="问捞捞（Ctrl+L）"><span class="ic">🐟</span>问捞捞</button>
+  <button class="btn run" id="runBtn" title="编译并运行（F5）" disabled><i data-ic="play" data-size="15"></i>运行<kbd>F5</kbd></button>
+  <button class="btn stop" id="stopBtn" title="停止（Shift+F5）" hidden><i data-ic="stop" data-size="14"></i>停止</button>
+  <button class="btn check" id="checkBtn" title="跑一遍这道题的测试（F6）" hidden><i data-ic="flask" data-size="15"></i>检查<kbd>F6</kbd></button>
+  <button class="btn ghost" id="vizBtn" title="把代码的执行过程画成动画：排序、查找，或者你自己写的代码（F7）"><i data-ic="activity" data-size="15"></i>画出来</button>
+  <button class="btn ghost" id="aiToggle" title="问捞捞（Ctrl+L）"><i data-ic="bot" data-size="16"></i>问捞捞</button>
   <button class="me-chip" id="meChip" title="捞捞账号"></button>
 </header>
 
@@ -46,7 +46,15 @@
     </div>
   </aside>
 
+  <aside class="prob" id="prob" hidden aria-label="题目">
+    <div class="prob-head" id="probHead"></div>
+    <div class="prob-tabs" id="probTabs" role="tablist"></div>
+    <div class="prob-body" id="probBody"></div>
+    <div class="prob-acts" id="probActs"></div>
+  </aside>
+
   <section class="center">
+    <button class="prob-handle" id="probHandle" hidden title="打开题目"><i data-ic="book" data-size="15"></i><span>题目</span></button>
     <div class="exbar" id="exBar" hidden>
       <div class="exbar-top"><span class="exbar-tag">练习</span><b id="exTitle"></b><span class="grow"></span><button class="btn sm ghost" id="exToggle">收起题目</button></div>
       <pre class="exbar-desc" id="exDesc"></pre>
@@ -56,17 +64,17 @@
     </div>
     <div class="splitter" id="splitter" title="拖动调整高度"></div>
     <section class="console" id="console">
-      <div class="con-head"><b>输出</b><span class="con-st" id="conSt">还没运行</span><span class="grow"></span><button class="btn sm ghost" id="askErrBtn" hidden>🐟 问捞捞这个报错</button><button class="btn sm ghost" id="clearBtn">清空</button></div>
+      <div class="con-head"><b>输出</b><span class="con-st" id="conSt">还没运行</span><span class="grow"></span><button class="btn sm ghost" id="askErrBtn" hidden><i data-ic="bot" data-size="14"></i>问捞捞这个报错</button><button class="btn sm ghost" id="clearBtn">清空</button></div>
       <div class="con-out" id="conOut" tabindex="0" aria-live="polite"></div>
       <form class="con-in" id="conIn" autocomplete="off"><span class="prompt">输入 ›</span><input id="stdin" placeholder="程序要你输入的时候，在这里打字，按回车发给程序" disabled><button class="btn sm" id="eofBtn" type="button" title="告诉程序「输入完了」（Ctrl+D）" disabled>输入完了</button></form>
     </section>
   </section>
 
   <aside class="ai" id="ai">
-    <div class="ai-head"><b>🐟 问捞捞</b><small id="aiModel"></small><span class="grow"></span><button class="btn sm ghost" id="aiNew" title="清空对话">新对话</button><button class="ic-btn" id="aiClose" aria-label="收起">✕</button></div>
+    <div class="ai-head"><b><i data-ic="bot" data-size="16"></i>问捞捞</b><small id="aiModel"></small><span class="grow"></span><button class="btn sm ghost" id="aiNew" title="清空对话">新对话</button><button class="ic-btn" id="aiClose" aria-label="收起"><i data-ic="x" data-size="16"></i></button></div>
     <div class="ai-st" id="aiSt"></div>
     <div class="ai-quick" id="aiQuick">
-      <button data-ask="error">❓ 哪里错了</button><button data-ask="hint">💡 给我提示</button><button data-ask="explain">📖 讲讲这段代码</button><button data-ask="review">✨ 帮我看看</button>
+      <button data-ask="error"><i data-ic="help" data-size="13"></i>哪里错了</button><button data-ask="hint"><i data-ic="bulb" data-size="13"></i>给我提示</button><button data-ask="explain"><i data-ic="book" data-size="13"></i>讲讲这段代码</button><button data-ask="review"><i data-ic="wand" data-size="13"></i>帮我看看</button>
     </div>
     <div class="ai-msgs" id="aiMsgs" role="log" aria-live="polite"></div>
     <form class="ai-form" id="aiForm"><textarea id="aiInput" rows="3" placeholder="有什么不懂的，直接问。选中一段代码再问，捞捞只看那一段。（Enter 发送，Shift+Enter 换行）"></textarea><div class="ai-form-acts"><small>本地模型 · 不联网 · 代码不上传</small><span class="grow"></span><button class="btn sm" id="aiStop" type="button" hidden>停下</button><button class="btn sm pri" id="aiSend">发送</button></div></form>
@@ -74,7 +82,7 @@
 </div>
 
 <footer class="status" id="status">
-  <span id="stStreak"></span><span id="stToday"></span><span id="stSolved"></span><span class="grow"></span><span id="stLang"></span><span id="stPos"></span><button class="link" id="themeBtn" title="换浅色 / 深色">◐</button><button class="link" id="fontMinus" title="字小一点">A-</button><button class="link" id="fontPlus" title="字大一点">A+</button>
+  <span id="stStreak"></span><span id="stToday"></span><span id="stSolved"></span><span class="grow"></span><span id="stLang"></span><span id="stPos"></span><button class="link" id="themeBtn" title="换浅色 / 深色"><i data-ic="theme" data-size="14"></i></button><button class="link" id="fontMinus" title="字小一点">A-</button><button class="link" id="fontPlus" title="字大一点">A+</button>
 </footer>
 
 <dialog id="dlg"><form method="dialog" id="dlgBody"></form></dialog>
@@ -94,10 +102,13 @@
 <script src="vendor/codemirror/addon/dialog/dialog.js"></script>
 <script src="vendor/codemirror/addon/search/searchcursor.js"></script>
 <script src="vendor/codemirror/addon/search/search.js"></script>
+<script src="icons.js"></script>
 <script src="md.js"></script>
 <script src="viz-algos.js"></script>
+<script src="viz-board.js"></script>
 <script src="app.js"></script>
 <script src="viz.js"></script>
 <script src="lc.js"></script>
+<script src="prob.js"></script>
 </body>
 </html>

@@ -65,7 +65,7 @@ function create({ app, fetch, tmpDir, send, alt, spawn, log, opt }) {
     st.checkedAt = Date.now();
     if (!info || !info.version) { st.error = manual ? "检查更新失败：" + ((last && last.message) || "连不上官网") : ""; st.state = manual ? "error" : st.state; push(); return st; }
     st.latest = info; st.error = "";
-    st.state = cmp(info.version, app.getVersion()) > 0 ? "available" : "latest";
+    st.state = cmp(info.version, app.getVersion()) > 0 ? (st.state === "failed" || st.state === "ready" || st.state === "downloading" ? st.state : "available") : "latest";
     push();
     return st;
   }
@@ -167,15 +167,53 @@ function create({ app, fetch, tmpDir, send, alt, spawn, log, opt }) {
     return st;
   }
   function cancel() { if (dl && dl.ctl) dl.ctl.abort(); }
-  // 静默安装（电脑版 NSIS：/S --updated --force-run；捞捞编程 Inno Setup：/VERYSILENT /RELAUNCH），装完自动重新打开
+  // 安装（电脑版 NSIS：/S --updated --force-run；捞捞编程 Inno Setup：/SILENT /RELAUNCH /WAITPID=…，有进度窗口），装完自动重新打开
+  // 记一笔「正在更新到 x」：下次打开软件时版本没变，说明没装上 → 告诉用户原因，给「手动安装」
+  const pendingFile = () => path.join(tmpDir, "pending-install.json");
   function install(quit) {
     if (st.state !== "ready" || !st.file || !fs.existsSync(st.file)) throw new Error("安装包还没下载好");
-    const p = spawn(st.file, opt.installArgs, { detached: true, stdio: "ignore" });
-    p.unref();
-    setTimeout(quit, 300);
+    const logFile = path.join(tmpDir, "install.log");
+    try { fs.unlinkSync(logFile); } catch (e) {}
+    const args = typeof opt.installArgs === "function" ? opt.installArgs({ log: logFile, pid: process.pid }) : opt.installArgs;
+    try { fs.writeFileSync(pendingFile(), JSON.stringify({ version: st.latest && st.latest.version, from: app.getVersion(), file: st.file, log: logFile, at: Date.now() })); } catch (e) {}
+    let started = false;
+    const fallback = (why) => { log && log("installer spawn failed", why); if (opt.openInstaller) { try { opt.openInstaller(st.file); started = true; } catch (e) {} } };
+    try {
+      const p = spawn(st.file, args, { detached: true, stdio: "ignore", windowsHide: false });
+      p.on("error", (e) => fallback(e.message));
+      p.on("spawn", () => { started = true; });
+      p.unref();
+    } catch (e) { fallback(e.message); }
+    setTimeout(quit, 600);
     return true;
   }
-  return { check, download, cancel, install, state: () => ({ ...st, current: app.getVersion() }), page: SITE + (opt.product === "code" ? "code/" : "download/") };
+  // 软件打开时调用：上次是不是更新失败了
+  function checkPending() {
+    let pd = null;
+    try { pd = JSON.parse(fs.readFileSync(pendingFile(), "utf8")); } catch (e) { return null; }
+    const cur = app.getVersion();
+    if (!pd || !pd.version || cmp(pd.version, cur) <= 0 || Date.now() - pd.at > 7 * 864e5) { try { fs.unlinkSync(pendingFile()); } catch (e) {} return pd && pd.version === cur ? { updated: cur } : null; }
+    try { fs.unlinkSync(pendingFile()); } catch (e) {}
+    // 读安装日志的最后几行，挑出出错的那句
+    let reason = "";
+    try {
+      const txt = fs.readFileSync(pd.log).toString("utf8").replace(/^\uFEFF/, "");
+      const lines = txt.split(/\r?\n/).filter(Boolean);
+      const bad = lines.filter((l) => /error|failed|denied|in use|abort|错误|失败|拒绝|占用/i.test(l)).slice(-2);
+      reason = (bad.length ? bad : lines.slice(-2)).map((l) => l.replace(/^\S+ \S+\s+/, "")).join("；").slice(0, 300);
+    } catch (e) { reason = "安装程序没有运行起来（可能被杀毒软件拦了）"; }
+    if (pd.file && fs.existsSync(pd.file)) { st.file = pd.file; st.state = "failed"; st.latest = st.latest || { version: pd.version }; }
+    st.error = "上次更新到 " + pd.version + " 没装上" + (reason ? "：" + reason : "");
+    push();
+    return { failed: pd.version, reason };
+  }
+  function openInstaller(quit) {
+    if (!st.file || !fs.existsSync(st.file)) throw new Error("安装包不在了，请重新下载");
+    opt.openInstaller(st.file);
+    setTimeout(quit, 800);
+    return true;
+  }
+  return { check, download, cancel, install, checkPending, openInstaller, state: () => ({ ...st, current: app.getVersion() }), page: SITE + (opt.product === "code" ? "code/" : "download/") };
 }
 
 module.exports = { create, cmp, sources, DEFAULT_MIRRORS };
