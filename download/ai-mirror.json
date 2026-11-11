@@ -1,0 +1,15 @@
+{
+ "files": {
+  "ai/pkg/comfyui-v0.45.0/ComfyUI_windows_portable_nvidia.7z": {
+   "group": "comfyui",
+   "name": "ComfyUI_windows_portable_nvidia.7z",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/pkg/comfyui-v0.45.0/ComfyUI_windows_portable_nvidia.7z",
+   "src": "https://github.com/Comfy-Org/ComfyUI/releases/download/v0.45.0/ComfyUI_windows_portable_nvidia.7z",
+   "size": 2071479423,
+   "sha256": "60c12e8c7af778047ad0413722dd3dc0f6ca773a41cbf5cb229ee9bc92c44a6f",
+   "pkg": "comfyui",
+   "ver": "v0.45.0"
+  }
+ },
+ "at": "2026-11-11T16:18:17.716Z"
+}
