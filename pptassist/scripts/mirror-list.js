@@ -23,7 +23,13 @@ async function models(keys) {
   const out = [];
   for (const k of keys) {
     const m = W.MODELS[k];
-    if (!m.pick) { out.push({ id: k, url: `${HF}/${m.repo}/resolve/main/${m.path}`, key: `ai/models/${m.dir}/${m.name}`, name: m.name, size: m.size, model: k }); continue; }
+    if (!m.pick) {
+      // 大小要用 Hugging Face 上的真实大小（workflows.js 里的只是估计，拿来校验会报「大小不对」）
+      const dir = m.path.includes("/") ? m.path.slice(0, m.path.lastIndexOf("/")) : "";
+      const hit = (await hfTree(m.repo, dir).catch(() => [])).find((x) => x.path === m.path);
+      out.push({ id: k, url: `${HF}/${m.repo}/resolve/main/${m.path}`, key: `ai/models/${m.dir}/${m.name}`, name: m.name, size: hit ? sizeOf(hit) : 0, model: k });
+      continue;
+    }
     // 有好几种量化：每个显存档位挑的第一个都搬（软件按老师的显存挑）
     const files = (await hfTree(m.repo, m.folder)).filter((x) => x.path.endsWith(m.ext));
     const seen = new Set();
