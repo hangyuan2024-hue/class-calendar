@@ -1,0 +1,64 @@
+# 自动打包「捞捞PPT助手」Windows 安装包：改了 pptassist/ 里的文件、或者在 Actions 页面手动点「Run workflow」时运行。
+# 先跑测试（PPT 读写、声音、假的 GPT-SoVITS、3D 形象工坊的绑骨骼和做脸），过了再打包。
+# 发布到仓库 Releases 的 laolao-ppt（固定的标签，每次覆盖安装包），不抢 latest：
+#   https://github.com/<仓库>/releases/download/laolao-ppt/LaolaoPPT-Setup.exe
+# GPT-SoVITS 不放进安装包（好几个 G），老师自己下整合包，在软件里选文件夹。
+name: 捞捞PPT助手
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "pptassist/**"
+      - ".github/workflows/ppt.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: laolao-ppt
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: pptassist
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: 装依赖
+        run: npm install --no-audit --no-fund
+      - name: 准备界面用的 three.js
+        run: npm run prepare-ui
+      - name: 测试
+        run: npm test
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: 测试 3D 形象工坊（找关节、蒙皮、做脸；不用显卡）
+        run: |
+          python -m pip install --disable-pip-version-check numpy scipy opencv-python-headless pillow soundfile
+          python -m unittest discover -s ai3d/tests -v
+      - name: 打包
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npx electron-builder --win nsis --publish never
+      - name: 发布到 Releases（laolao-ppt，不抢 latest）
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $notes = "捞捞PPT助手 Windows 版 $v`n`n上传自己的照片和一段录音，生成老师自己的公仔分身（五官照着照片画；有 NVIDIA 显卡还能用 AI 从照片 + 参考图生成 3D 公仔），加进 PPT：进到那一页自动讲解，点问题按钮由形象回答。声音克隆用 GPT-SoVITS（自己下载整合包，需要 NVIDIA 显卡），也可以每段自己录。`n`n下载：https://github.com/${{ github.repository }}/releases/download/laolao-ppt/LaolaoPPT-Setup.exe`n`n安装时如果 Windows 提示「已保护你的电脑」，点「更多信息 → 仍要运行」。"
+          gh release view laolao-ppt --repo "${{ github.repository }}" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload laolao-ppt dist\LaolaoPPT-Setup.exe --repo "${{ github.repository }}" --clobber
+            gh release edit laolao-ppt --repo "${{ github.repository }}" --title "捞捞PPT助手 Windows 版 $v" --notes $notes --latest=false
+          } else {
+            gh release create laolao-ppt dist\LaolaoPPT-Setup.exe --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "捞捞PPT助手 Windows 版 $v" --notes $notes --latest=false
+          }
