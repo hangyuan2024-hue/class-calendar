@@ -10,6 +10,7 @@ const http = require("http");
 const crypto = require("crypto");
 const { spawn } = require("child_process");
 const W = require("./workflows");
+const DL = require("./dl");
 
 const PAGES = {
   comfy: "https://github.com/comfyanonymous/ComfyUI/releases",
@@ -79,6 +80,7 @@ function create(opt = {}) {
   const doFetch = opt.fetch || fetch;
   const doSpawn = opt.spawn || spawn;
   const hf = opt.hf || HF, gh = opt.gh || GH, pip = opt.pip || PIP;
+  const mirror = opt.mirror || null;   // 国内存储的清单（core/mirror.js），有就先从国内存储下
   let proc = null, base = opt.url || null, sys = null, info = null, job = null, task = null;
   const log = [];
   const addLog = (l) => { for (const x of String(l).split(/\r?\n/)) if (x.trim()) { log.push(x); if (log.length > 120) log.shift(); } };
@@ -158,8 +160,17 @@ function create(opt = {}) {
   // ---------- 确定模型文件名：同一个仓库里好几种量化，按显存挑 ----------
   async function resolve(key, vramGB) {
     const m = W.MODELS[key]; if (!m) throw new Error("没有这个模型：" + key);
+    const tier = m.pick ? Object.keys(m.pick).map(Number).sort((a, b) => b - a).find((t) => (+vramGB || 0) >= t) || 0 : 0;
+    // 国内存储里有就用国内的（Hugging Face 镜像当后备）
+    const cn = mirror ? await mirror.model(key).catch(() => []) : [];
+    if (cn.length) {
+      const hit = m.pick ? m.pick[tier].map((w) => cn.find((x) => x.name.includes(w))).find(Boolean) : cn.find((x) => x.name === m.name);
+      if (hit) {
+        const p = m.pick ? hit.src && hit.src.split("/resolve/main/")[1] : m.path;
+        return { name: hit.name, size: hit.size || 0, sha256: hit.sha256 || "", urls: [hit.url, ...(p ? hf.map((h) => `${h}/${m.repo}/resolve/main/${p}`) : [])] };
+      }
+    }
     if (!m.pick) return { name: m.name, size: 0, urls: hf.map((h) => `${h}/${m.repo}/resolve/main/${m.path}`) };
-    const tier = Object.keys(m.pick).map(Number).sort((a, b) => b - a).find((t) => (+vramGB || 0) >= t) || 0;
     let err = null;
     for (const h of hf) {
       try {
@@ -177,45 +188,8 @@ function create(opt = {}) {
     throw err;
   }
 
-  // ---------- 下载（断点续传；先写 .part，下完再改名）----------
-  async function download(urls, dest, onProg, signal) {
-    fs.mkdirSync(path.dirname(dest), { recursive: true });
-    const part = dest + ".part";
-    let lastErr = null;
-    for (const u of urls) {
-      for (let attempt = 0; attempt < 3; attempt++) {
-        if (signal && signal.aborted) throw new Error("已经停了");
-        let have = 0; try { have = fs.statSync(part).size; } catch (e) {}
-        try {
-          const r = await doFetch(u, { headers: have ? { Range: `bytes=${have}-` } : {}, signal, redirect: "follow" });
-          if (r.status === 416) { fs.renameSync(part, dest); return; }
-          if (!r.ok) throw new Error(`${r.status}`);
-          if (have && r.status !== 206) have = 0;   // 不支持续传：从头下
-          const total = have + (+r.headers.get("content-length") || 0);
-          const out = fs.createWriteStream(part, { flags: have ? "a" : "w" });
-          let got = have, t = Date.now(), tGot = got, speed = 0;
-          try {
-            for await (const chunk of r.body) {
-              if (!out.write(chunk)) await new Promise((ok) => out.once("drain", ok));
-              got += chunk.length;
-              const now = Date.now();
-              if (now - t > 1000) { speed = ((got - tGot) * 1000) / (now - t); t = now; tGot = got; onProg && onProg({ got, total, speed }); }
-            }
-          } finally { await new Promise((ok) => out.end(ok)); }
-          if (total && got < total) throw new Error("没下完");
-          fs.renameSync(part, dest);
-          onProg && onProg({ got, total: total || got, speed, done: true });
-          return;
-        } catch (e) {
-          lastErr = e;
-          if (signal && signal.aborted) throw new Error("已经停了");
-          addLog(`下载出错（${u.replace(/^https?:\/\/([^/]+).*/, "$1")}）：${e.message}`);
-          await new Promise((ok) => setTimeout(ok, 1500 * (attempt + 1)));
-        }
-      }
-    }
-    throw new Error("下载失败：" + (lastErr ? lastErr.message : "") + "（网络不好可以过一会儿再点，已经下的部分不会丢）");
-  }
+  // ---------- 下载（断点续传、换地址重试、校验，见 core/dl.js）----------
+  const download = (urls, dest, onProg, signal, want) => DL.download(urls, dest, { fetch: doFetch, onProg, signal, log: addLog, want });
 
   // 下载一个功能要的模型；onMsg({ key, name, got, total, speed, i, n })
   async function fetchModels(rt, feature, files, vramGB, onMsg) {
@@ -227,10 +201,10 @@ function create(opt = {}) {
       const keys = W.NEEDS[feature].filter((k) => !st.models[k].ok);
       for (let i = 0; i < keys.length; i++) {
         const k = keys[i];
-        const r = files[k] && files[k].urls ? files[k] : await resolve(k, vramGB);
+        const r = await resolve(k, vramGB);
         files[k] = r;
         const dest = path.join(rt.models, W.MODELS[k].dir, r.name);
-        await download(r.urls, dest, (p) => { task.last = { key: k, name: r.name, i, n: keys.length, ...p }; onMsg && onMsg(task.last); }, ac.signal);
+        await download(r.urls, dest, (p) => { task.last = { key: k, name: r.name, i, n: keys.length, ...p }; onMsg && onMsg(task.last); }, ac.signal, { size: r.size, sha256: r.sha256 });
         files[k].size = fs.statSync(dest).size;
       }
       return files;
@@ -260,7 +234,8 @@ function create(opt = {}) {
         const say = (msg) => { task.last = { pack: p.dir, i, n: packs.length, msg }; onMsg && onMsg(task.last); };
         say("下载 " + p.dir);
         const zip = path.join(rt.nodes, p.dir + "-" + p.commit.slice(0, 7) + ".zip");
-        await download(gh.map((g) => `${g}https://github.com/${p.repo}/archive/${p.commit}.zip`), zip, null);
+        const cnZip = mirror ? await mirror.node(p.dir, p.commit).catch(() => null) : null;
+        await download([...(cnZip ? [cnZip.url] : []), ...gh.map((g) => `${g}https://github.com/${p.repo}/archive/${p.commit}.zip`)], zip, null, null, cnZip ? { size: cnZip.size, sha256: cnZip.sha256 } : {});
         say("解压 " + p.dir);
         await runPy(rt, ["-c", UNZIP, zip, dest]);
         fs.rmSync(zip, { force: true });

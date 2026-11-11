@@ -27,8 +27,18 @@
 | 画 Q版形象、口型和眨眼图层 | Qwen-Image-Edit-2511（fp8）+ 4 步加速 LoRA | Apache-2.0 | 12G 起（内存 32G 起，不够的部分 ComfyUI 自动放内存） | 约 31G |
 | AI 说话视频 | InfiniteTalk（Wan2.1-I2V-14B 的 GGUF 量化版）+ lightx2v 加速 LoRA | Apache-2.0 | 12G 起；按显存自动挑量化（24G Q8、16G Q5、12G Q4）和换出的块数 | 约 23G |
 
-- 老师自己下 **ComfyUI 的 Windows 整合包**（官方 `ComfyUI_windows_portable`），解压，在软件里选那个文件夹、点「启动」。软件用整合包自带的 Python 启动它，只听 `127.0.0.1`，也能连一个已经开着的本机 ComfyUI。
-- 缺什么软件里直接点：**下载模型**（国内走 hf-mirror.com，断了接着下，按显存挑文件）、**装插件**（说话视频要用的 ComfyUI-WanVideoWrapper、ComfyUI-VideoHelperSuite，固定版本，从 GitHub 下 zip，国内走加速镜像，依赖用清华 / 阿里的 pip 源）。
+- **一键装好**：老师点一下，软件从**我们自己的国内存储**（腾讯云 COS，和安装包同一个桶）下载 ComfyUI 官方 Windows 整合包、自动解压（7-Zip）、自动启动，再下载要用的模型。已经有整合包的老师也可以自己选文件夹。软件用整合包自带的 Python 启动 ComfyUI，只听 `127.0.0.1`。
+- 缺什么软件里直接点：**下载模型**（先走国内存储，没有再走 hf-mirror.com；断了接着下，校验 sha256，按显存挑文件）、**装插件**（说话视频要用的 ComfyUI-WanVideoWrapper、ComfyUI-VideoHelperSuite，固定版本的 zip，先走国内存储；依赖用清华 / 阿里的 pip 源）。
+- 「我的声音」的 GPT-SoVITS 整合包、「AI 生成 3D 形象」的 Hunyuan3D-2 WinPortable 也一样有「一键下载安装」。
+
+### 国内存储（老师下载快）
+
+所有大文件由 GitHub Actions 的 **「AI 组件搬到国内存储」**（`.github/workflows/ai-mirror.yml`，手动点 Run workflow）搬到 COS 的 `ai/` 下面：从 GitHub / Hugging Face 下载 → 传到 COS（`cn-put.sh`：大文件分块、先走全球加速、不删别的文件）→ 写官网的 `download/ai-mirror.json`（地址、大小、sha256）。软件读这个清单；清单在 `scripts/mirror-list.js` 里从 `core/workflows.js` 生成，模型换了重新跑一次就行，已经搬过、大小一样的会跳过。
+
+- 一共大约 85G（ComfyUI 2G、画形象的模型 31G、说话视频的模型 35G、GPT-SoVITS 8G、Hunyuan3D 整合包若干 G）。
+- **花钱的地方**：存储费（按 G·月）和老师下载的外网流量费（按 G）。每位老师装一次 AI 形象要下载 30～65G，流量费比存储费多得多；建议在腾讯云给这个桶设流量告警 / 封顶，开防盗链。具体价格看腾讯云 COS 的计费说明。
+- 从 GitHub 的机器（在美国）传到广州比较慢：桶开「全球加速」会快很多。
+- 这些模型和整合包的许可（Apache-2.0、MIT、GPL-3.0、腾讯混元社区许可）都允许转发，照原样转发、不改文件。
 - 工作流在 `core/workflows.js`（API 格式的节点图）。节点名、参数、取值都拿真的 ComfyUI 0.45 + 两个插件的固定版本核对过：`node test/workflows-check.js http://127.0.0.1:8188`（不要显卡：在 models 文件夹里放同名空文件就能过校验）。**换 ComfyUI 或插件版本以后要重新跑一遍。**
 - 画风三种：盲盒手办（默认）、3D 动画电影、日系动漫；提示词要求「保留本人的脸型、发型和发色、眉毛、眼型、胡子、眼镜、肤色、衣服」，再加大头 Q版比例、白底全身站姿。老师可以补一句「哪里不像」。
 - Q版动画：`puppet.js` 先把三张图层和原图对齐（AI 改图会挪几个像素）、找出变了的那块（嘴 / 眼睛）、找脖子；改动太大或者没改的图层不用，提示重画。播放时一个 WebGL 着色器画：头绕脖子转（头和身子之间渐变，不撕裂）、呼吸、侧身、轻蹦，背景换成这一页的颜色，脚下一圈软影子。
@@ -57,6 +67,7 @@
 | `renderer/app.js` | 界面四步；导出视频时在界面里画好每一帧 png 送给后台 |
 | `core/engine.js` | 本机 AI 引擎（ComfyUI）：认整合包、启动 / 连接（只认本机）、查缺的插件和模型、按显存挑模型文件、断点续传下载、装插件、交工作流、收进度（自己写的极简 WebSocket）、取结果、停止 |
 | `core/workflows.js` | 交给 ComfyUI 的工作流：照片 → Q版形象、只改嘴 / 眼睛的图层、形象 + 配音 → 说话视频；要哪些模型和插件 |
+| `core/mirror.js` / `core/installer.js` / `core/dl.js` | 国内存储的清单；一键下载安装整合包（分卷、校验、7-Zip 解压、查硬盘空间和路径）；断点续传下载 |
 | `renderer/puppet.js` | AI Q版动画：图层对齐、找嘴和眼睛、找脖子（纯数组，`test/puppet.test.js` 用画出来的小人测），WebGL 画每一帧 |
 | `core/ai3d.js` | AI 3D 形象：认 Hunyuan3D-2 整合包、用它的 Python 跑形象工坊、收进度（`@@` 开头的 JSON 行）、一次只做一件、能停 |
 | `ai3d/lao3d/` | 形象工坊（Python）：照片 + 参考图 → 立绘 → 3D 模型 → 自动绑骨骼 → 会动的脸 → `avatar.glb`，见 `ai3d/README.md` |
@@ -67,7 +78,7 @@
 npm install
 npm run prepare-ui   # three.js → renderer/vendor
 npm start            # 打开软件
-npm test             # PPT 读写、声音、GPT-SoVITS（用假的服务）、后台（授权、视频、标识、一键清除、AI 形象）、AI 3D 形象（用假的工坊）、认发型、本机 AI 引擎（用假的 ComfyUI）、Q版动画
+npm test             # PPT 读写、声音、GPT-SoVITS（用假的服务）、后台（授权、视频、标识、一键清除、AI 形象）、AI 3D 形象（用假的工坊）、认发型、本机 AI 引擎（用假的 ComfyUI）、Q版动画、一键下载安装（假的国内存储 + 真的 7-Zip）
 node test/workflows-check.js http://127.0.0.1:8188   # 拿真的 ComfyUI 核对工作流
 npx electron test/electron-smoke.js 照片.jpg   # 在真的 Electron 里（file://、真的安全策略）试一次认脸认发型
 python -m unittest discover -s ai3d/tests   # 形象工坊：找关节、蒙皮、做脸（要 numpy、scipy、opencv-python、pillow）

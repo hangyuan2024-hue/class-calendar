@@ -423,6 +423,26 @@
   let avLogT = 0;
   const avLogOn = (on) => { clearInterval(avLogT); if (on) avLogT = setInterval(async () => { const l = await call("aiavLog"); $("#avLog").textContent = l.join("\n"); }, 2000); };
   const FEAT = { portrait: "画 Q版形象", talk: "AI 说话视频" };
+  // ---------- 一键下载安装（整合包、模型从国内存储下）：进度 ----------
+  let setupI = null;
+  const setupInfo = async (force) => { if (!setupI || force) setupI = await call("setupInfo").catch(() => null); return setupI; };
+  const left = (m) => (m.speed > 0 && m.total ? Math.ceil((m.total - m.got) / m.speed / 60) : 0);
+  function setupText(m) {
+    if (m.stage === "download") return `下载 ${m.name}${m.n > 1 ? `（${m.i + 1}/${m.n}）` : ""}：${gb(m.got || 0)} / ${m.total ? gb(m.total) : "?"}${m.speed ? `，${(m.speed / 1048576).toFixed(1)}MB/秒` : ""}${left(m) ? `，还要约 ${left(m)} 分钟` : ""}`;
+    if (m.stage === "check") return `校验 ${m.name}……`;
+    if (m.stage === "extract") return `解压 ${Math.round((m.p || 0) * 100)}%（文件多，要几分钟）`;
+    return "";
+  }
+  const PROG = { comfyui: ["#avProg", "#avBar", "#avMsg"], hy3d: ["#aiProg", "#aiBar", "#aiMsg"], gsv: ["#gsvProg", "#gsvProg .bar i", "#gsvProg > span"] };
+  window.cc.on("setup", (m) => {
+    const [box, bar, msg] = PROG[m.kind] || []; if (!box) return;
+    $(box).hidden = false;
+    const p = m.stage === "download" && m.total ? m.got / m.total : m.stage === "extract" ? m.p || 0 : null;
+    if (p != null) $(bar).style.width = Math.round(p * 100) + "%";
+    $(msg).textContent = setupText(m);
+  });
+  document.addEventListener("click", (e) => { if (e.target.closest("[data-setup-cancel]")) guard(() => call("setupCancel"))(); });
+  const sizeText = (p, extra = 0) => (p ? `约 ${gb(p.size + extra)}，从国内存储下载` : "国内存储里还没有（要先在 GitHub 的 Actions 里运行「AI 组件搬到国内存储」）");
   window.cc.on("aiav", (m) => {
     if (m.warn) { toast(m.warn, true); return; }
     if (m.stage === "download") {
@@ -453,10 +473,11 @@
   async function paintAv() {
     avS = await call("aiavState");
     const s = avS, e = s.engine || {}, c = s.check;
-    let env = s.dir ? "整合包：" + s.dir + (s.rt && s.rt.ok ? "" : "（" + ((s.rt && s.rt.error) || "不能用") + "）") : "还没选整合包。要一个 ComfyUI 的 Windows 整合包（官方的 ComfyUI_windows_portable，解压就能用）。";
+    let env = s.dir ? "整合包：" + s.dir + (s.rt && s.rt.ok ? "" : "（" + ((s.rt && s.rt.error) || "不能用") + "）") : "还没装。点「一键装好」：AI 引擎和模型从国内存储下载、自动解压、自动启动；已经有 ComfyUI 整合包的点「已经有整合包，选文件夹」。";
     if (e.running) env += "\n已启动" + (e.vram && e.vram.gpu ? `：${e.vram.name}，显存 ${e.vram.gb}G` : "：没认出 NVIDIA 显卡") + (e.version ? `；ComfyUI ${e.version}` : "");
     if (c && c.coreMissing && c.coreMissing.length) env += "\nComfyUI 版本太旧：运行整合包里的 update\\update_comfyui.bat 更新一下";
     $("#avEnv").textContent = env;
+    setupInfo().then((i) => { if (!i) return; const f = i.feat.portrait; $("#avSize").textContent = s.rt && s.rt.ok ? "" : i.pkg.comfyui ? `约 ${gb(i.pkg.comfyui.size + f.bytes)}（引擎 + 画形象的模型），从国内存储下载` : `约 ${gb(f.bytes + 2e9)}${f.cn ? "，模型从国内存储下载" : "（国内存储里还没有，先从镜像下载）"}`; });
     $("#avNeed").innerHTML = c ? Object.entries(FEAT).map(([k, t]) => {
       const f = c.feat[k];
       if (f.ready) return `<div class="need"><span>${t}</span><b class="ok">✓ 齐了</b></div>`;
@@ -500,6 +521,7 @@
     try { return await fn(); } finally { avLogOn(false); avBusy(false); await paintAv(); }
   });
   $("#avDir").onclick = avDo(async () => { await call("aiavPickDir"); }, "检查整合包……");
+  $("#avOneClick").onclick = avDo(async () => { const r = await call("aiavOneClick", "portrait"); if (r) toast("装好了：AI 引擎已经启动，可以画 Q版形象了"); }, "一键装好：下载 AI 引擎和模型（第一次要一阵子，可以先去做别的）……");
   $("#avStart").onclick = avDo(async () => { await call("aiavStart"); toast("AI 引擎启动好了"); }, "启动 AI 引擎（第一次要一两分钟）……");
   $("#avNeed").onclick = (e) => {
     const d = e.target.closest("[data-avdl]"), i = e.target.closest("[data-avinstall]");
@@ -554,6 +576,7 @@
       }
     }
     $("#aiEnv").textContent = env;
+    setupInfo().then((i) => { if (i) $("#aiSize").textContent = aiS.dir ? "" : sizeText(i.pkg.hy3d); });
     const st = $("#aiStyleImg"); st.hidden = !aiS.style; if (aiS.style) st.src = aiS.style;
     const fg = $("#aiFigImg"); fg.hidden = !aiS.figure; if (aiS.figure) fg.src = aiS.figure;
     $("#aiCands").innerHTML = aiS.cands.map((u, i) => `<img src="${u}" data-i="${i}" title="用这一张">`).join("");
@@ -587,6 +610,7 @@
     try { return await fn(); } finally { aiBusy(false); await paintAi(); }
   });
   $("#aiDir").onclick = aiDo(async () => { await call("ai3dPickDir"); }, "检查环境……");
+  $("#aiInstall").onclick = aiDo(async () => { if (await call("ai3dInstall")) toast("Hunyuan3D-2 装好了，缺什么组件点「安装缺的组件」"); }, "准备下载 Hunyuan3D-2 整合包……");
   $("#aiSetup").onclick = aiDo(async () => { await call("ai3dSetup"); toast("组件装好了"); }, "安装组件（要下载，几分钟到几十分钟）……");
   $("#aiStyle").onclick = guard(async () => { await call("ai3dPickStyle"); await paintAi(); });
   $("#aiFigure").onclick = guard(async () => { if (await call("ai3dPickFigure")) { await paintAi(); toast("好了，下一步点「生成 3D 形象」"); } });
@@ -596,7 +620,7 @@
   $("#aiBuild").onclick = aiDo(async () => { await call("ai3dBuild", { quality: $("#aiQ3").value }); await useNew(); toast("3D 形象做好了"); }, "生成 3D 形象……");
   $("#aiRig").onclick = aiDo(async () => { await call("ai3dRig"); await useNew(); toast("重新绑好了"); }, "绑骨骼……");
   $("#aiFaceFix").onclick = aiDo(async () => { const [e1, e2, mouth] = aiPts; await call("ai3dFace", { e1, e2, mouth }); await useNew(); toast("脸重新做好了"); }, "按点的位置重做脸……");
-  $("#aiCancel").onclick = guard(async () => { await call("ai3dCancel"); });
+  $("#aiCancel").onclick = guard(async () => { await call("setupCancel"); await call("ai3dCancel"); });
   $("#aiCard").addEventListener("click", (e) => { const a = e.target.closest("[data-aipage]"); if (a) { e.preventDefault(); call("ai3dOpenPage", a.dataset.aipage); } });
 
   // ---------- ② 我的声音 ----------
@@ -606,6 +630,7 @@
     $("#voiceAudio").hidden = !v; if (v) $("#voiceAudio").src = v.url;
     $("#voicePrompt").value = v ? v.prompt : "";
     $("#gsvDir").textContent = S.profile.gsvDir || "还没选";
+    setupInfo().then((i) => { if (i) $("#gsvSize").textContent = S.profile.gsvDir ? "" : sizeText(i.pkg.gsv); });
     paintEngine(S.engine);
   }
   function paintEngine(e) {
@@ -618,6 +643,11 @@
   $("#pickVoice").onclick = guard(async () => { const v = await call("pickVoice"); if (!v) return; S.voice = v; paintVoice(); toast(v.short ? "录音太短了，最好 3～10 秒" : "录音好了，别忘了在下面写上这段话说的是什么"); $("#voicePrompt").focus(); });
   $("#voicePrompt").onchange = guard(async () => { await call("setVoicePrompt", $("#voicePrompt").value); S.voice.prompt = $("#voicePrompt").value; markDone(); });
   $("#gsvPage").onclick = (e) => { e.preventDefault(); call("openGsvPage"); };
+  $("#gsvInstall").onclick = guard(async () => {
+    const b = $("#gsvInstall"); b.disabled = true; $("#gsvProg").hidden = false; $("#gsvProg > span").textContent = "准备下载……";
+    try { const d = await call("voiceInstall"); if (d) { S.profile.gsvDir = d; paintVoice(); toast("GPT-SoVITS 装好了，点「启动」"); } }
+    finally { b.disabled = false; $("#gsvProg").hidden = true; }
+  });
   $("#pickGsv").onclick = guard(async () => { const d = await call("pickGsvDir"); if (d) { S.profile.gsvDir = d; paintVoice(); } });
   $("#engStart").onclick = guard(async () => {
     $("#engLog").hidden = false; $("#engLog").textContent = "正在启动 GPT-SoVITS…";

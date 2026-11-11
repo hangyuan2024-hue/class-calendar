@@ -10,6 +10,8 @@ const VOICE = require("./voice");
 const DRAFT = require("./draft");
 const AI3D = require("./ai3d");
 const ENGINE = require("./engine");
+const MIRROR = require("./mirror");
+const INSTALL = require("./installer");
 const WF = require("./workflows");
 
 const IMG_EXT = ["png", "jpg", "jpeg", "webp", "bmp"];
@@ -42,7 +44,21 @@ function createService(env) {
   const aiModel = () => { const f = aiFile("out", "avatar.glb"); return fs.existsSync(f) ? f : null; };
   const firstExisting = (base) => IMG_EXT.map((e) => aiFile(base + "." + e)).find((f) => fs.existsSync(f)) || null;
   // AI 形象（本机 ComfyUI）：候选 aiav/cands、挑好的 aiav/figure.png、口型和眨眼图层 aiav/layers
-  const eng = ENGINE.create(env.engineOpt || {});
+  // 国内存储的清单：整合包、模型、插件优先从老师自己的国内存储下
+  const mirror = MIRROR.create(env.mirrorOpt || {});
+  const eng = ENGINE.create({ mirror, ...(env.engineOpt || {}) });
+  let setupJob = null;   // 一键下载安装：一次只装一个
+  const setupSend = (kind, m) => send("setup", { kind, ...m });
+  async function runSetup(kind, title, fn) {
+    if (setupJob) throw new Error("正在安装" + INSTALL.NAMES[setupJob.kind] + "，等它装完");
+    const parent = await env.pickDir(title); if (!parent) return null;
+    const ac = new AbortController(); setupJob = { kind, ac };
+    try {
+      const gpu = (eng.status().vram || {}).name || "";
+      const r = await INSTALL.install(kind, parent, { mirror, gpu, signal: ac.signal, onMsg: (m) => setupSend(kind, m), ...(env.installOpt || {}) });
+      return await fn(r);
+    } finally { setupJob = null; }
+  }
   const AV = () => (profile.aiav = profile.aiav || { files: {} });
   const avFile = (...a) => P("aiav", ...a);
   const avSend = (m) => send("aiav", m);
@@ -315,7 +331,48 @@ function createService(env) {
       fs.rmSync(a16, { force: true }); fs.rmSync(tmp, { recursive: true, force: true });
       return { key, mp4: out, size: fs.statSync(out).size };
     },
-    aiavCancel() { return eng.cancel(); },
+    aiavCancel() { if (setupJob) setupJob.ac.abort(); return eng.cancel(); },
+    // ---------- 一键下载安装（整合包从国内存储下，解压好自动选上）----------
+    async setupInfo() {
+      const out = {};
+      for (const k of ["comfyui", "gsv", "hy3d"]) { const p = await mirror.pkg(k).catch(() => null); out[k] = p ? { size: p.size, ver: p.ver } : null; }
+      const feat = {};
+      for (const [f, keys] of Object.entries(WF.NEEDS)) {
+        let n = 0, cn = 0;
+        for (const k of keys) { const e = await mirror.model(k).catch(() => []); const one = e[0]; n += one ? one.size : WF.MODELS[k].size; if (one) cn++; }
+        feat[f] = { bytes: n, cn: cn === keys.length };
+      }
+      return { pkg: out, feat, job: setupJob ? setupJob.kind : null };
+    },
+    // AI 形象一键装好：整合包（没有就下载安装）→ 启动 → 插件（说话视频要）→ 模型
+    async aiavOneClick(feature = "portrait") {
+      if (!WF.NEEDS[feature]) throw new Error("没有这个功能");
+      let rt = null; try { rt = avRt(); } catch (e) {}
+      if (!rt) {
+        const need = WF.NEEDS[feature].reduce((s, k) => s + WF.MODELS[k].size, 0);
+        const r = await runSetup("comfyui", `选一个放 AI 引擎的文件夹（路径只能有英文和数字，比如 D:\\AI；要留出大约 ${Math.ceil(need / 1e9 + 8)}G 空间）`, async (x) => x);
+        if (!r) return null;
+        AV().dir = r.dir; saveProfile(); rt = avRt();
+      }
+      if (!eng.status().running) { avSend({ stage: "setup", step: "start" }); await eng.start(rt); }
+      const c = await eng.check(rt, AV().files);
+      if (c.feat[feature].packs.length) { await H.aiavInstall(feature); }
+      if (c.feat[feature].missing.length) await H.aiavDownload(feature);
+      return H.aiavState();
+    },
+    async voiceInstall() {
+      return runSetup("gsv", "选一个放声音克隆（GPT-SoVITS）的文件夹（路径只能有英文和数字，比如 D:\\AI；要留出大约 25G 空间）", async (r) => {
+        const i = VOICE.inspect(r.dir); if (!i.ok) throw new Error(i.error);
+        profile.gsvDir = r.dir; saveProfile(); return r.dir;
+      });
+    },
+    async ai3dInstall() {
+      return runSetup("hy3d", "选一个放 AI 3D 形象（Hunyuan3D-2）的文件夹（路径只能有英文和数字，比如 D:\\AI；要留出大约 80G 空间）", async (r) => {
+        const i = AI3D.inspect(r.dir); if (!i.ok) throw new Error(i.error);
+        A3().dir = r.dir; A3().check = null; saveProfile(); return H.ai3dCheck().catch(() => null);
+      });
+    },
+    setupCancel() { if (setupJob) { setupJob.ac.abort(); return true; } return false; },
     aiavLog() { return eng.log.slice(-40); },
     aiavOpenPage(k) { if (ENGINE.PAGES[k]) env.openExternal(ENGINE.PAGES[k]); return true; },
     // ---------- 我的形象 ----------

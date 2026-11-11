@@ -8,12 +8,13 @@ const PICK = { png: process.env.PICK_PHOTO, jpg: process.env.PICK_PHOTO, wav: pr
 const svc = createService({
   user, documents: user, version: "test", send() {},
   pickFile: async (exts) => PICK[exts[0]] || null,
-  pickDir: async (title) => (/Hunyuan/.test(title || "") ? process.env.PICK_AI3D_DIR : /ComfyUI/.test(title || "") ? process.env.PICK_COMFY : process.env.PICK_GSV) || null,
+  pickDir: async (title) => (/选一个放/.test(title || "") ? process.env.PICK_PARENT : /Hunyuan/.test(title || "") ? process.env.PICK_AI3D_DIR : /ComfyUI/.test(title || "") ? process.env.PICK_COMFY : process.env.PICK_GSV) || null,
   openPath() {}, reveal() {}, openExternal() {},
   voiceOpt: { cmd: process.execPath, args: (p) => [path.join(__dirname, "fake-gsv.js"), String(p)], waitMs: 15000 },
   // AI 3D 形象：用这台机器的 python3 跑真的工坊（画立绘、生成 3D 这两步用假的，见 LAO3D_TEST_*）
   ai3dOpt: process.env.PICK_AI3D_PY ? { cmd: process.env.PICK_AI3D_PY } : {},
   // AI 形象：COMFY_URL 给一个已经开着的 ComfyUI（测试用 test/fake-comfy.js），「启动」就直接连它
+  mirrorOpt: process.env.MIRROR_URL ? { sources: [process.env.MIRROR_URL] } : {},
   engineOpt: process.env.COMFY_URL ? { url: process.env.COMFY_URL, poll: 200 } : {},
 });
 const ROOT = path.join(__dirname, "..", "renderer");

@@ -101,7 +101,7 @@ const ok = (m) => console.log("✓ " + m);
     const pyRel = process.platform === "win32" ? ["python_embeded", "python.exe"] : ["python_embeded", "bin", "python3"];
     fs.mkdirSync(path.join(comfy, ...pyRel.slice(0, -1)), { recursive: true }); fs.writeFileSync(path.join(comfy, ...pyRel), "");
     const sends = [];
-    const sv = createService({ user, documents: user, version: "t", send: (ch, d) => sends.push([ch, d]), pickFile: async () => null, pickDir: async () => comfy, openPath() {}, reveal() {}, openExternal() {}, voiceOpt: {}, engineOpt: { hf: [fake.url], poll: 20 } });
+    const sv = createService({ user, documents: user, version: "t", send: (ch, d) => sends.push([ch, d]), pickFile: async () => null, pickDir: async () => comfy, openPath() {}, reveal() {}, openExternal() {}, voiceOpt: {}, engineOpt: { hf: [fake.url], poll: 20 }, mirrorOpt: { sources: [] } });
     const A = sv.H;
     let st = await A.aiavPickDir(); assert.equal(st.rt.ok, true); assert.equal(st.engine.running, false);
     await assert.rejects(A.aiavPortrait(), /先启动 AI 引擎/);

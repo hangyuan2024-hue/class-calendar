@@ -38,8 +38,9 @@
       <div class="ai-steps av-steps">
         <div class="ai-step">
           <b>① AI 引擎</b>
-          <div class="row"><button class="btn sm" id="avDir">选 ComfyUI 整合包文件夹</button><button class="btn sm pri" id="avStart" disabled>启动</button><a href="#" class="lnk" data-avpage="comfy">下载整合包</a></div>
-          <p class="hint" id="avEnv">要一个 ComfyUI 的 Windows 整合包（官方的 ComfyUI_windows_portable，解压就能用），在这里选它的文件夹，点「启动」。</p>
+          <div class="row"><button class="btn sm pri" id="avOneClick" title="整合包、模型都从国内存储下载，装好自动启动">一键装好</button><span class="muted" id="avSize"></span></div>
+          <div class="row"><button class="btn sm" id="avDir">已经有整合包，选文件夹</button><button class="btn sm" id="avStart" disabled>启动</button><a href="#" class="lnk" data-avpage="comfy">自己下载</a></div>
+          <p class="hint" id="avEnv">第一次用点「一键装好」：AI 引擎（ComfyUI）和画 Q版形象要的模型都从国内存储下载、自动解压、自动启动。</p>
           <div class="av-need" id="avNeed"></div>
         </div>
         <div class="ai-step">
@@ -114,7 +115,8 @@
       <div class="ai-steps">
         <div class="ai-step">
           <b>① 准备</b>
-          <div class="row"><button class="btn sm" id="aiDir">选 Hunyuan3D-2 整合包文件夹</button><button class="btn sm" id="aiSetup" disabled>安装缺的组件</button><a href="#" class="lnk" data-aipage="portable">下载整合包（Windows）</a></div>
+          <div class="row"><button class="btn sm pri" id="aiInstall" title="从国内存储下载 Hunyuan3D-2 整合包，自动解压、自动选上">一键下载安装</button><span class="muted" id="aiSize"></span></div>
+          <div class="row"><button class="btn sm" id="aiDir">选 Hunyuan3D-2 整合包文件夹</button><button class="btn sm" id="aiSetup" disabled>安装缺的组件</button><a href="#" class="lnk" data-aipage="portable">自己下载</a></div>
           <p class="hint" id="aiEnv">要一个 Hunyuan3D-2 的整合包（推荐 Hunyuan3D-2 WinPortable，解压就能用），在这里选它的文件夹；缺什么点「安装缺的组件」。</p>
         </div>
         <div class="ai-step">
@@ -157,8 +159,10 @@
       </div>
       <div class="card">
         <div class="card-h"><b>② 声音克隆引擎：GPT-SoVITS</b><span class="grow"></span><span class="pill" id="engState">没启动</span></div>
-        <p class="hint">需要 NVIDIA 显卡。第一次用：<a href="#" id="gsvPage">打开 GPT-SoVITS 的下载说明</a>，下载 Windows 整合包，解压到一个<b>英文路径</b>的文件夹（比如 D:\GPT-SoVITS），再在这里选那个文件夹。</p>
-        <div class="row"><button class="btn" id="pickGsv">选文件夹</button><code id="gsvDir" class="path">还没选</code></div>
+        <p class="hint">需要 NVIDIA 显卡。第一次用点「一键下载安装」：从国内存储下载 GPT-SoVITS 整合包、自动解压、自动选上（放在只有英文和数字的文件夹里，比如 D:\AI）。已经有整合包的点「选文件夹」。</p>
+        <div class="row"><button class="btn pri" id="gsvInstall">一键下载安装</button><span class="muted" id="gsvSize"></span><button class="btn" id="pickGsv">选文件夹</button><a href="#" id="gsvPage" class="lnk">自己下载</a></div>
+        <div class="ai-prog setup-prog" id="gsvProg" hidden><div class="bar"><i></i></div><span></span><button class="btn sm" data-setup-cancel>停止</button></div>
+        <div class="row"><code id="gsvDir" class="path">还没选</code></div>
         <div class="row"><button class="btn pri" id="engStart">启动</button><button class="btn" id="engStop">停止</button><span class="muted">第一次启动要加载模型，一两分钟</span></div>
         <pre class="log" id="engLog" hidden></pre>
       </div>
