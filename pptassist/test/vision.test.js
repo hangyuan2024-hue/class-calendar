@@ -63,11 +63,17 @@ ok("认发型：长发 / 齐肩 / 短发，齐刘海 / 斜刘海 / 中分刘海"
   const bald = person({ hair: "none" }), rn = V.hairFront(bald.im, bald.lm, bald.person);
   assert.equal(rn.ok, false);
   ok("颜色：头发黑色 / 金色、上衣的颜色；短发提醒可能是扎起来的；看不到头发就不乱认");
+  const sc = person({ hair: "short", hairRGB: [244, 206, 186] }), rsc = V.hairFront(sc.im, sc.lm, sc.person);
+  assert.equal(rsc.style, "none", JSON.stringify(rsc.detail)); assert.ok(/光头/.test(rsc.text));
+  ok("光头：头顶是皮肤色（头皮）→ 公仔不要头发");
   const back = { ok: true, style: "ponytail" }, m = V.mergeHair(rs, back);
   assert.equal(m.style, "ponytail"); assert.ok(/马尾/.test(m.text) && !m.notes.some((n) => /扎起来/.test(n)));
   ok("正脸 + 后脑勺：后脑勺看到马尾就改成马尾");
 }
 {
+  assert.equal(V.faceShapeOf({ fw: 100, fh: 145, jaw: 0.8 }), "long"); assert.equal(V.faceShapeOf({ fw: 100, fh: 128, jaw: 0.9 }), "square");
+  assert.equal(V.faceShapeOf({ fw: 100, fh: 112, jaw: 0.8 }), "round"); assert.equal(V.faceShapeOf({ fw: 100, fh: 125, jaw: 0.8 }), "oval");
+  ok("脸型：长脸 / 方脸 / 圆脸 / 鹅蛋脸");
   const p = person({}), P = V.pose(p.lm);
   assert.ok(Math.abs(P.yaw) < 1 && P.eyeOpen > 0.3);
   const m = V.marksOf(p.lm); assert.deepStrictEqual(m.e1, [166, 178]); assert.deepStrictEqual(m.mouth, [200, 247]);

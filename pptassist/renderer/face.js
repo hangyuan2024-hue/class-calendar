@@ -406,7 +406,15 @@
       else lines.nose = def.nose;
     }
     const clean = LA.cleanLines(lines) || def;
-    return { lines: clean, found, marks: mk, scale: big.scale, small: big.scale > 6 };
+    let skin = null; try { skin = skinColor(big); } catch (e) {}   // 皮肤色（公仔照着它，再往瓷白靠一点）
+    // 眼珠的颜色：两个虹膜中间一小圈（避开瞳孔和高光）的中位数；深棕、黑眼睛就用默认的暖棕色
+    let eye = null;
+    try {
+      const R = [], G = [], B = [];
+      for (const e of clean.eyes) { const [u, v, r] = e.iris; for (let a = 0; a < 24; a++) for (const k of [0.55, 0.75]) { const x = Math.round((u + Math.cos(a / 24 * Math.PI * 2) * r * k) * S), y = Math.round((v + Math.sin(a / 24 * Math.PI * 2) * r * k) * S); if (x < 0 || y < 0 || x >= S || y >= S) continue; const i = (y * S + x) * 4; const l = d[i] + d[i + 1] + d[i + 2]; if (l < 60 || l > 600) continue; R.push(d[i]); G.push(d[i + 1]); B.push(d[i + 2]); } }
+      if (R.length > 20) { const med = (a) => a.sort((x, y) => x - y)[a.length >> 1], c = [med(R), med(G), med(B)]; if (c[2] > c[0] + 5 && c[2] >= c[1] && c[0] + c[1] + c[2] > 150) eye = "#4d6a86"; else if (c[1] > c[0] + 4 && c[1] > c[2] + 4) eye = "#4f7a5a"; }   // 蓝灰、绿色的眼睛（照片里眼珠常常发暗，只认很明显的）
+    } catch (e) {}
+    return { lines: clean, found, marks: mk, scale: big.scale, small: big.scale > 6, skin, eye };
   }
   const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
   function solve3(A, B) {   // 3×3 线性方程（克拉默法则）

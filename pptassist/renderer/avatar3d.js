@@ -264,7 +264,7 @@
       eye: hexOf(p.eye, 0x2b1d18), blush: p.blush !== false, earrings: !!p.earrings,
       top: hexOf(p.top, 0xf3f5fb), collar: hexOf(p.collar, null),
       bottom: p.bottom === "skirt" ? "skirt" : "pants", pants: hexOf(p.pants, 0x3b4a6b), shoes: hexOf(p.shoes, 0x2f3650),
-      accent: hexOf(p.accent, 0x22d3ee), antenna: !!p.antenna, earpods: p.earpods !== false, photoFace: p.photoFace !== false, tech: p.tech !== false, faceStyle: ["doll", "ai3d", "screen", "cyber", "photo", "soft", "cartoon"].includes(p.faceStyle) ? p.faceStyle : "doll", rig: p.rig === true, grid: p.grid !== false, body: p.body === "tall" ? "tall" : "chibi", faceLines: cleanLines(p.faceLines), shell: hexOf(p.shell, 0xeef1f6), stage: !!p.stage,
+      accent: hexOf(p.accent, 0x22d3ee), antenna: !!p.antenna, earpods: p.earpods !== false, photoFace: p.photoFace !== false, tech: p.tech !== false, faceStyle: ["doll", "ai3d", "screen", "cyber", "photo", "soft", "cartoon"].includes(p.faceStyle) ? p.faceStyle : "doll", rig: p.rig === true, grid: p.grid !== false, body: p.body === "tall" ? "tall" : "chibi", faceLines: cleanLines(p.faceLines), faceShape: ["round", "oval", "long", "square"].includes(p.faceShape) ? p.faceShape : "round", part: p.part === "right" ? "right" : "left", shell: hexOf(p.shell, 0xeef1f6), stage: !!p.stage,
     };
   }
 
@@ -287,151 +287,390 @@
   function hairShell(T, k, w, t0, t1) { return G.shell[k] || (G.shell[k] = new T.SphereGeometry(1, 48, 24, Math.PI / 2 + w / 2, Math.PI * 2 - w, t0, t1 - t0)); }
 
 
-  // ================= 公仔风（2026.11 用户选定的样子）=================
-  //   像潮玩手办：大头（大约 3.3 个头高）、肉色的脸上画着弯弯的笑眼、粗短眉毛、小鼻子、小嘴和腮红；
-  //   黑色有光泽的头发（刘海、两边垂下的发丝、高马尾），毛衣、裤子、短靴是布料 / 皮革的质感；
-  //   「机器人」的那一面是一套露在外面的骨架：红色关节球、绿色线路、银色脊椎、银色骨架手，衣服和头发上一层白色细网格。
+  // ---------- 雕塑：用距离场（SDF）捏形状，再变成三角形网格（surface nets）----------
+  //   像捏黏土：圆、椭圆、两头不一样粗的圆柱光滑地并在一起（smin）或挖掉一块（smax），出来是一整块圆润、没有接缝的形状。
+  const SC = (function () {
+  const len3 = (x, y, z) => Math.sqrt(x * x + y * y + z * z);
+  const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
+
+  // ---------- 形状（都返回「到表面的距离」，里面是负数）----------
+  const sphere = (cx, cy, cz, r) => (x, y, z) => len3(x - cx, y - cy, z - cz) - r;
+  // 椭球（近似距离，够用）
+  const ellipsoid = (cx, cy, cz, rx, ry, rz) => (x, y, z) => {
+    const px = (x - cx) / rx, py = (y - cy) / ry, pz = (z - cz) / rz;
+    const k0 = len3(px, py, pz), k1 = len3(px / rx, py / ry, pz / rz);
+    return k1 > 1e-9 ? (k0 * (k0 - 1)) / k1 : -Math.min(rx, ry, rz);
+  };
+  // 两头不一样粗的「胶囊」（round cone）：a 点半径 ra，b 点半径 rb
+  const cone = (a, b, ra, rb) => {
+    const bax = b[0] - a[0], bay = b[1] - a[1], baz = b[2] - a[2];
+    const l2 = bax * bax + bay * bay + baz * baz, rr = ra - rb, a2 = l2 - rr * rr, il2 = 1 / l2;
+    return (x, y, z) => {
+      const pax = x - a[0], pay = y - a[1], paz = z - a[2];
+      const yy = pax * bax + pay * bay + paz * baz, z0 = yy - l2;
+      const cx = pax * l2 - bax * yy, cy = pay * l2 - bay * yy, cz = paz * l2 - baz * yy;
+      const x2 = cx * cx + cy * cy + cz * cz, y2 = yy * yy * l2, z2 = z0 * z0 * l2;
+      const k = Math.sign(rr) * rr * rr * x2;
+      if (Math.sign(z0) * a2 * z2 > k) return Math.sqrt(x2 + z2) * il2 - rb;
+      if (Math.sign(yy) * a2 * y2 < k) return Math.sqrt(x2 + y2) * il2 - ra;
+      return (Math.sqrt(x2 * a2 * il2) + yy * rr) * il2 - ra;
+    };
+  };
+  // 一串点连成的「管子」（每一段是 cone），半径从 r0 渐变到 r1；sx/sz 可以把截面压扁（发片）
+  const strand = (pts, r0, r1, k = 0.004) => {
+    const segs = [];
+    for (let i = 0; i < pts.length - 1; i++) segs.push(cone(pts[i], pts[i + 1], r0 + (r1 - r0) * (i / (pts.length - 1)), r0 + (r1 - r0) * ((i + 1) / (pts.length - 1))));
+    return union(segs, k);
+  };
+  // 圆角盒子
+  const box = (cx, cy, cz, hx, hy, hz, r = 0) => (x, y, z) => {
+    const qx = Math.abs(x - cx) - hx + r, qy = Math.abs(y - cy) - hy + r, qz = Math.abs(z - cz) - hz + r;
+    return len3(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qy, qz), 0) - r;
+  };
+  // 平面：n·p - d（n 是单位向量，朝外为正）
+  const plane = (nx, ny, nz, d) => (x, y, z) => nx * x + ny * y + nz * z - d;
+
+  // ---------- 组合 ----------
+  const smin = (a, b, k) => { if (k <= 0) return Math.min(a, b); const h = clamp(0.5 + (0.5 * (b - a)) / k, 0, 1); return b + (a - b) * h - k * h * (1 - h); };
+  const smax = (a, b, k) => -smin(-a, -b, k);
+  const union = (fs, k = 0) => (x, y, z) => { let d = fs[0](x, y, z); for (let i = 1; i < fs.length; i++) d = smin(d, fs[i](x, y, z), k); return d; };
+  const cut = (f, g, k = 0) => (x, y, z) => smax(f(x, y, z), -g(x, y, z), k);          // f 挖掉 g
+  const inter = (f, g, k = 0) => (x, y, z) => smax(f(x, y, z), g(x, y, z), k);
+  const shell = (f, t) => (x, y, z) => Math.abs(f(x, y, z)) - t;
+  const offset = (f, d) => (x, y, z) => f(x, y, z) - d;
+  // 包围盒外面直接给一个大概的距离，省得每个点都算一遍复杂的形状
+  const bound = (f, lo, hi, pad = 0.02) => (x, y, z) => {
+    const dx = Math.max(lo[0] - pad - x, 0, x - hi[0] - pad), dy = Math.max(lo[1] - pad - y, 0, y - hi[1] - pad), dz = Math.max(lo[2] - pad - z, 0, z - hi[2] - pad);
+    return dx + dy + dz > 0 ? len3(dx, dy, dz) + pad * 0.5 : f(x, y, z);
+  };
+
+  // ---------- 变成网格（surface nets）----------
+  //   lo / hi：范围；h：格子大小。返回 { pos, nor, idx }（Float32Array / Uint32Array）
+  function mesh(f, lo, hi, h, opt = {}) {
+    const nx = Math.ceil((hi[0] - lo[0]) / h) + 1, ny = Math.ceil((hi[1] - lo[1]) / h) + 1, nz = Math.ceil((hi[2] - lo[2]) / h) + 1;
+    const N = nx * ny * nz, V = new Float32Array(N);
+    // 只在表面附近细算：先按 4×4×4 一块算块中心，离表面远的整块直接填上同一个符号（快十来倍）
+    const B = 4, R = B * h * 0.87 * 1.5 + h;
+    for (let bk = 0; bk < nz; bk += B) for (let bj = 0; bj < ny; bj += B) for (let bi = 0; bi < nx; bi += B) {
+      const ei = Math.min(nx, bi + B), ej = Math.min(ny, bj + B), ek = Math.min(nz, bk + B);
+      const dc = f(lo[0] + ((bi + ei - 1) / 2) * h, lo[1] + ((bj + ej - 1) / 2) * h, lo[2] + ((bk + ek - 1) / 2) * h);
+      const far = Math.abs(dc) > R;
+      for (let k = bk; k < ek; k++) { const z = lo[2] + k * h; for (let j = bj; j < ej; j++) { const y = lo[1] + j * h; let i = bi + nx * (j + ny * k); for (let ii = bi; ii < ei; ii++, i++) V[i] = far ? dc : f(lo[0] + ii * h, y, z); } }
+    }
+    const at = (i, j, k) => V[i + nx * (j + ny * k)];
+    const vid = new Int32Array((nx - 1) * (ny - 1) * (nz - 1)).fill(-1);
+    const P = [], cid = (i, j, k) => i + (nx - 1) * (j + (ny - 1) * k);
+    const E = [[0, 0, 0, 1, 0, 0], [0, 1, 0, 1, 1, 0], [0, 0, 1, 1, 0, 1], [0, 1, 1, 1, 1, 1], [0, 0, 0, 0, 1, 0], [1, 0, 0, 1, 1, 0], [0, 0, 1, 0, 1, 1], [1, 0, 1, 1, 1, 1], [0, 0, 0, 0, 0, 1], [1, 0, 0, 1, 0, 1], [0, 1, 0, 0, 1, 1], [1, 1, 0, 1, 1, 1]];
+    for (let k = 0; k < nz - 1; k++) for (let j = 0; j < ny - 1; j++) for (let i = 0; i < nx - 1; i++) {
+      let neg = 0;
+      for (let c = 0; c < 8; c++) if (at(i + (c & 1), j + ((c >> 1) & 1), k + (c >> 2)) < 0) neg++;
+      if (neg === 0 || neg === 8) continue;
+      let sx = 0, sy = 0, sz = 0, n = 0;
+      for (const e of E) {
+        const a = at(i + e[0], j + e[1], k + e[2]), b = at(i + e[3], j + e[4], k + e[5]);
+        if ((a < 0) === (b < 0)) continue;
+        const t = a / (a - b);
+        sx += e[0] + (e[3] - e[0]) * t; sy += e[1] + (e[4] - e[1]) * t; sz += e[2] + (e[5] - e[2]) * t; n++;
+      }
+      vid[cid(i, j, k)] = P.length / 3;
+      P.push(lo[0] + (i + sx / n) * h, lo[1] + (j + sy / n) * h, lo[2] + (k + sz / n) * h);
+    }
+    const I = [];
+    const quad = (a, b, c, d, flip) => { if (a < 0 || b < 0 || c < 0 || d < 0) return; if (flip) I.push(a, c, b, a, d, c); else I.push(a, b, c, a, c, d); };
+    for (let k = 1; k < nz - 1; k++) for (let j = 1; j < ny - 1; j++) for (let i = 1; i < nx - 1; i++) {
+      const v0 = at(i, j, k) < 0;
+      if (i < nx - 1 && v0 !== (at(i + 1, j, k) < 0)) quad(vid[cid(i, j - 1, k - 1)], vid[cid(i, j, k - 1)], vid[cid(i, j, k)], vid[cid(i, j - 1, k)], !v0);
+      if (j < ny - 1 && v0 !== (at(i, j + 1, k) < 0)) quad(vid[cid(i - 1, j, k - 1)], vid[cid(i - 1, j, k)], vid[cid(i, j, k)], vid[cid(i, j, k - 1)], !v0);
+      if (k < nz - 1 && v0 !== (at(i, j, k + 1) < 0)) quad(vid[cid(i - 1, j - 1, k)], vid[cid(i, j - 1, k)], vid[cid(i, j, k)], vid[cid(i - 1, j, k)], !v0);
+    }
+    const pos = new Float32Array(P), nor = new Float32Array(P.length), e = h * 0.5;
+    const grad = (x, y, z) => { const gx = f(x + e, y, z) - f(x - e, y, z), gy = f(x, y + e, z) - f(x, y - e, z), gz = f(x, y, z + e) - f(x, y, z - e), l = len3(gx, gy, gz) || 1; return [gx / l, gy / l, gz / l]; };
+    for (let v = 0; v < pos.length; v += 3) {
+      let x = pos[v], y = pos[v + 1], z = pos[v + 2];
+      for (let it = 0; it < (opt.project == null ? 1 : opt.project); it++) { const d = f(x, y, z), g = grad(x, y, z); x -= g[0] * d; y -= g[1] * d; z -= g[2] * d; }   // 推到表面上
+      pos[v] = x; pos[v + 1] = y; pos[v + 2] = z;
+      const g = grad(x, y, z); nor[v] = g[0]; nor[v + 1] = g[1]; nor[v + 2] = g[2];
+    }
+    return { pos, nor, idx: new Uint32Array(I) };
+  }
+
+  return { sphere, ellipsoid, cone, strand, box, plane, smin, smax, union, cut, inter, shell, offset, bound, mesh };
+  })();
+
+  // ================= 公仔（2026.11 第二版：国潮手办）=================
+  //   像潮玩店里的盲盒手办：大头（约 2.3 个头高）、圆圆的脸蛋、大眼睛（深色眼珠 + 两点高光）、小鼻子、小嘴、淡淡的腮红，
+  //   头和头发是「捏」出来的一整块（距离场雕塑，见上面的 SC）：圆润、没有接缝，头发是一束束有体积的造型；
+  //   衣服是新中式：立领、对襟、三对盘扣、镶边，下摆和袖口绣着祥云；裤子或者马面裙，黑面白底的布鞋。
+  //   颜色从照片里取，再「归」到最近的中国传统色（黛蓝、朱红、月白、松绿……），所以怎么搭都好看。
+  //   老师的特点：发型（短发 / 波波头 / 长发 / 外翻 / 马尾 / 发髻 / 卷发）、刘海（齐 / 斜 / 中分 / 不要）、发色、肤色、
+  //   眼睛圆还是细长、眼角往上还是往下、眉毛粗细和走向、嘴多宽、爱不爱笑（faceLines 量出来的）、戴不戴眼镜。
   //   骨架的关节名字和别的样子一样（hips / spine / chest / head / arms / legs），动作、导出视频、捞捞编程舞台都通用。
   const DOLL = { FW: 0.2, FH: 0.2, FY: 0.16 };   // 脸贴图：头的局部坐标 → 画布（x ±FW、y 以 FY 为中心 ±FH）
+  const FIG = { eyeX: 0.074, eyeY: 0.13, browY: 0.206, noseY: 0.1, mouthY: 0.062, blushX: 0.114, blushY: 0.09 };
+  // 中国传统色：照片里的衣服颜色归到最近的一个（在 Lab 颜色空间里比）
+  const GUO = [["玄青", 0x2c2d38], ["墨灰", 0x585b66], ["黛蓝", 0x3d4f6e], ["靛青", 0x2e5b8a], ["天青", 0x9ec2d8], ["月白", 0xeef1ec], ["米白", 0xf3ead6],
+    ["朱红", 0xc63a2f], ["胭脂", 0x9b2b38], ["杏黄", 0xe9b450], ["松绿", 0x3d8a6c], ["竹青", 0x8fba9c], ["藕荷", 0xb49dc4], ["桃粉", 0xf0aeac], ["驼色", 0xa98762]];
+  const labOf = (hex) => {
+    const f = (c) => { c /= 255; return c > 0.04045 ? Math.pow((c + 0.055) / 1.055, 2.4) : c / 12.92; };
+    const r = f((hex >> 16) & 255), g = f((hex >> 8) & 255), b = f(hex & 255);
+    const X = (r * 0.4124 + g * 0.3576 + b * 0.1805) / 0.9505, Y = r * 0.2126 + g * 0.7152 + b * 0.0722, Z = (r * 0.0193 + g * 0.1192 + b * 0.9505) / 1.089;
+    const h = (t) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+    return [116 * h(Y) - 16, 500 * (h(X) - h(Y)), 200 * (h(Y) - h(Z))];
+  };
+  function guoColor(hex) {
+    const a = labOf(hex); let best = GUO[0], bd = Infinity;
+    for (const c of GUO) { const b = labOf(c[1]), d = (a[0] - b[0]) ** 2 * 0.6 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2; if (d < bd) { bd = d; best = c; } }
+    return { name: best[0], hex: best[1] };
+  }
+  // 镶边、盘扣的颜色：深色衣服配金色，浅色配朱红，红衣服配金色
+  const trimOf = (hex) => { const l = labOf(hex); return l[0] < 55 || (l[1] > 30 && l[0] < 70) ? 0xd8b06a : 0xc63a2f; };
+  // 手办的皮肤：保留色相（老师本来的肤色），往瓷白的方向靠一点、更干净
+  const figSkin = (hex) => { const r = ((hex >> 16) & 255) / 255, g = ((hex >> 8) & 255) / 255, b = (hex & 255) / 255; const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2; let h = 0, s = 0; if (mx !== mn) { const d = mx - mn; s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn); h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h /= 6; } return { h: clamp(h, 0.02, 0.1), s: clamp(s, 0.35, 0.62), l: clamp(lerp(l, 0.8, 0.4), 0.5, 0.87) }; };
+  // 头发：太黑的头发在灯下看不出形状，提一点点亮、带一点暖
+  // 浅色、棕色的头发（照片里常常发灰）：颜色饱和一点、亮一点，金发就是金色
+  const figHair = (hex) => { const r = (hex >> 16) & 255, g = (hex >> 8) & 255, b = hex & 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 510; if (l < 0.13) return mixHex(hex, 0x3a2a24, 0.55); if (l < 0.22) return hex; const m = (r + g + b) / 3, k = 1.45, f = (c) => clamp(Math.round(m + (c - m) * k + (l > 0.35 ? 18 : 6)), 0, 255); return (f(r) << 16) | (f(g) << 8) | f(b); };
+
+  // ---------- 捏头和头发（距离场），做好的网格按发型存起来，换颜色不用重算 ----------
+  const SHAPES = new Map();
+  function figHead(shape = "round") {
+    const E = SC.ellipsoid;
+    const cr = E(0, 0.205, -0.005, 0.196, 0.172, 0.184);                          // 脑袋
+    // 脸型（照片量的，只微调，都还是圆嘟嘟的）：圆脸脸蛋宽；鹅蛋脸下巴尖一点；长脸下巴往下一点；方脸下巴宽
+    const K = { round: [0.072, 0.102, 0.086, 0.062, 0.066], oval: [0.066, 0.096, 0.08, 0.056, 0.068], long: [0.064, 0.094, 0.078, 0.046, 0.074], square: [0.072, 0.1, 0.094, 0.058, 0.064] }[shape] || [0.072, 0.102, 0.086, 0.062, 0.066];
+    const cheeks = [-1, 1].map((s) => E(s * K[0], 0.1, 0.05, K[1], 0.086, 0.1));   // 圆圆的脸蛋（肉嘟嘟的下半张脸）
+    const chin = E(0, K[3], 0.052, K[2], K[4], 0.082);
+    const face = SC.union([cr, ...cheeks, chin], 0.055);
+    const ears = [-1, 1].map((s) => E(s * 0.19, 0.142, -0.014, 0.022, 0.036, 0.028));
+    const head = SC.union([face, ...ears], 0.016);
+    return { cr, face, head };
+  }
+  // 正面上 (x, y) 这一点的表面在多前面（z）：从前往后找
+  const frontZ = (f, x, y, z0 = 0.45) => { let a = 0, b = z0; if (f(x, y, b) < 0) return b; if (f(x, y, a) > 0) return 0; for (let i = 0; i < 30; i++) { const m = (a + b) / 2; if (f(x, y, m) < 0) a = m; else b = m; } return a; };
+  function figShapes(style, bangs, shape = "round") {
+    const key = style + "|" + bangs; if (SHAPES.has(key)) return { ...SHAPES.get(key), head: figHeadMesh(shape) };
+    const { ellipsoid: E, sphere: Sp, union: U, cut: Cut, inter: In, offset: Off, plane: Pl, box: Bx, strand: Str, cone: Co, bound: Bd, mesh: M } = SC;
+    const H = figHead(), out = { hair: [], extra: [] }, smaxF = SC.smax;
+    if (style !== "none") {
+      const short = style === "short", tied = style === "ponytail" || style === "bun", curly = style === "curly";
+      const shellT = curly ? 0.034 : short ? 0.02 : 0.024;
+      const cap = Off(H.cr, shellT);
+      // 脸前面空出来的地方（圆角的「窗」）：上沿是发际线，两边到太阳穴；短发再把耳朵、后脖子露出来
+      const top = bangs === "none" ? 0.305 : 0.29;
+      const win = Bx(0, top - 0.2, 0.22, short ? 0.158 : 0.15, 0.2, 0.22, 0.09);
+      let helmet = Cut(cap, win, 0.014);
+      if (short) {
+        const ears = [-1, 1].map((s) => E(s * 0.2, 0.12, -0.005, 0.05, 0.075, 0.06));
+        helmet = Cut(In(helmet, Pl(0, -1, 0, -0.12), 0.02), U(ears), 0.016);
+        // 短发头顶蓬一点（有型，不是贴着头皮的头盔）
+        helmet = U([helmet, Cut(E(0.012, 0.3, 0.02, 0.19, 0.095, 0.19), win, 0.014)], 0.03);
+        // 侧分：分缝那边浅浅一道沟，另一边头发往上蓬起来一点（像吹过的）
+        const swoop = E(0.035, 0.335, 0.05, 0.15, 0.06, 0.13), part = Co([-0.07, top + 0.01, 0.17], [-0.06, 0.39, -0.02], 0.006, 0.004);
+        helmet = Cut(U([helmet, Cut(swoop, win, 0.014)], 0.03), part, 0.006);
+      }
+      if (curly) {   // 卷发：发壳表面一个个小卷（三个方向的波叠起来，鼓起来的地方圆圆的）
+        const base = helmet;
+        helmet = (x, y, z) => { const d = base(x, y, z); if (d > 0.05) return d - 0.012; const w = Math.sin(x * 44 + Math.sin(z * 24)) * Math.sin(y * 42 + Math.sin(x * 20)) * Math.sin(z * 41 + Math.sin(y * 22)); return d - 0.017 * (w * 0.5 + 0.5) ** 0.8; };
+      }
+      const parts = [{ f: helmet, lo: [-0.27, 0.0, -0.27], hi: [0.27, 0.43, 0.26], h: 0.0042 }];
+      if (style === "bob" || style === "long" || style === "flare" || curly) {
+        // 波波头：两边和后面垂到下巴，发尾往里收；长发 / 外翻：再往下接一整片披到背上（一整块捏出来，没有接缝），前面两缕垂到肩膀
+        const long = style === "long" || style === "flare", flare = style === "flare";
+        const B = E(0, 0.16, -0.016, curly ? 0.25 : 0.236, 0.25, curly ? 0.24 : 0.226);
+        let f = In(B, Pl(0, -1, 0, curly ? -0.0 : 0.012), 0.03);
+        if (long) {
+          const back = In(E(0, 0.0, -0.085, 0.222, 0.3, 0.125), Pl(0, -1, 0, flare ? 0.2 : 0.25), 0.05);
+          const locks = [-1, 1].map((sd) => Str([[sd * 0.19, 0.14, -0.01], [sd * 0.2, 0.03, 0.0], [sd * 0.195, -0.09, 0.012], [sd * (flare ? 0.22 : 0.185), -0.18, 0.012]], 0.036, 0.026, 0.01));
+          const ends = flare ? [-1, 1].map((sd) => Str([[sd * 0.17, -0.12, -0.06], [sd * 0.23, -0.19, -0.06], [sd * 0.27, -0.2, -0.05]], 0.045, 0.025, 0.01)) : [];
+          f = U([f, back, ...locks, ...ends], 0.045);
+        }
+        if (curly) { const g0 = f; f = (x, y, z) => { const d = g0(x, y, z); if (d > 0.05) return d - 0.012; const w = Math.sin(x * 44 + Math.sin(z * 24)) * Math.sin(y * 42 + Math.sin(x * 20)) * Math.sin(z * 41 + Math.sin(y * 22)); return d - 0.017 * (w * 0.5 + 0.5) ** 0.8; }; }
+        const bob = Cut(f, Bx(0, top - 0.24, 0.24, 0.152, 0.24, 0.24, 0.08), 0.016);
+        parts.push(long ? { f: bob, lo: [-0.32, -0.3, -0.27], hi: [0.32, 0.42, 0.26], h: 0.005 } : { f: bob, lo: [-0.27, -0.03, -0.27], hi: [0.27, 0.42, 0.26], h: 0.0045 });
+      }
+      if (style === "ponytail") {
+        // 高马尾：后脑勺上面扎起来，往后翘一下再垂下来；系一个朱红的蝴蝶结
+        const tail = U([Str([[0, 0.345, -0.19], [0, 0.34, -0.27], [0, 0.24, -0.315], [0, 0.1, -0.3], [0.01, -0.03, -0.26], [0.025, -0.12, -0.21]], 0.075, 0.03, 0.015), E(0, 0.2, -0.3, 0.07, 0.11, 0.065)], 0.04);
+        parts.push({ f: U([tail, Sp(0, 0.33, -0.17, 0.05)], 0.02), lo: [-0.1, -0.15, -0.38], hi: [0.1, 0.42, -0.1], h: 0.004 });
+        out.extra.push({ kind: "bow", at: [0, 0.35, -0.235], dir: [0, 0.3, -1] });
+      }
+      if (style === "bun") {
+        // 发髻：头顶偏后一个圆髻，插一支簪子（玉珠 + 小流苏）
+        const bun = U([E(0, 0.385, -0.085, 0.092, 0.078, 0.088), E(0, 0.355, -0.06, 0.07, 0.04, 0.07)], 0.02);
+        const wrap = Cut(bun, Bx(0, 0.392, -0.085, 0.2, 0.004, 0.2, 0), 0.006);   // 盘起来的一道纹
+        parts.push({ f: wrap, lo: [-0.12, 0.29, -0.2], hi: [0.12, 0.48, 0.03], h: 0.0035 });
+        out.extra.push({ kind: "pin", a: [-0.13, 0.43, -0.03], b: [0.13, 0.375, -0.14] });
+      }
+      if (bangs !== "none") {
+        const shell = Off(H.cr, shellT + 0.004);
+        // 刘海：贴着额头的一整片（越往发梢越薄），下沿一个个尖尖的发梢，发梢之间往上有一道浅浅的缝——像手办上雕出来的一缕缕
+        //   齐刘海平着；斜刘海斜着梳向一边（分缝那边高）；中分从中间往两边分开，额头中间露出来
+        const side = bangs === "side", mid = bangs === "middle", W = 0.056;
+        const sweep = (x, y) => (side ? x + 0.55 * (y - 0.22) : mid ? Math.abs(x) + 0.45 * (y - 0.22) : x);
+        const edgeY = (x) => (side ? 0.218 + 0.07 * clamp((-0.07 - x) / 0.12, 0, 1) ** 1.5 : mid ? 0.222 + 0.075 * Math.exp(-((x / 0.055) ** 2)) : 0.216) + 0.03 * (x / 0.175) ** 4;
+        const bangF = (x, y, z) => {
+          const u = sweep(x, y), sn = Math.abs(Math.sin((Math.PI * u) / W));
+          const tipY = edgeY(x) + 0.02 * Math.pow(sn, 0.85);                         // 下沿：发梢尖尖的，发梢之间圆圆地往上收
+          const fade = clamp((0.37 - y) / 0.08, 0, 1);                                // 往头顶慢慢收进发壳里（不起台阶）
+          const thick = shellT - 0.006 + fade * (0.008 + 0.013 * clamp((y - tipY) / 0.07, 0, 1));   // 发梢薄、中间厚
+          let d = H.cr(x, y, z) - thick + 0.0035 * Math.pow(sn, 10) * fade;           // 发缝
+          d = smaxF(d, tipY - y, 0.006);                                              // 下沿
+          d = smaxF(d, 0.04 - z, 0.02);                                               // 只要前面
+          return smaxF(d, y - 0.4, 0.02);
+        };
+        parts.push({ f: bangF, lo: [-0.22, 0.18, 0.0], hi: [0.22, 0.42, 0.26], h: 0.003 });
+      }
+      // 每一块做成网格（外面先套包围盒，省得到处算）
+      for (const p of parts) out.hair.push(M(Bd(p.f, p.lo, p.hi), p.lo, p.hi, p.h));
+    }
+    SHAPES.set(key, out);
+    return { ...out, head: figHeadMesh(shape) };
+  }
+  function figHeadMesh(shape) {
+    const k = "head|" + shape; if (SHAPES.has(k)) return SHAPES.get(k);
+    const m = SC.mesh(SC.bound(figHead(shape).head, [-0.22, -0.02, -0.21], [0.22, 0.39, 0.21]), [-0.23, -0.03, -0.22], [0.23, 0.4, 0.22], 0.004);
+    SHAPES.set(k, m); return m;
+  }
+
+  // 脸：画在一张透明画布上，平着投到头的正面。st：{ talk, blink, look, happy, think, t }
   function dollFaceDraw(ctx, S, P, st = {}) {
     const talk = clamp(st.talk || 0, 0, 1), blink = clamp(st.blink || 0, 0, 1), happy = clamp(st.happy || 0, 0, 1), think = clamp(st.think || 0, 0, 1);
     const look = st.look || [0, 0];
     const X = (x) => (0.5 + x / (2 * DOLL.FW)) * S, Y = (y) => (0.5 - (y - DOLL.FY) / (2 * DOLL.FH)) * S, Lw = (k) => Math.max(1, (k / (2 * DOLL.FW)) * S);
     const F = P.faceLines ? faceLook(P.faceLines) : null;
     ctx.save(); ctx.clearRect(0, 0, S, S); ctx.lineCap = "round"; ctx.lineJoin = "round";
-    const ink = hexCss(mixHex(P.hair, 0x24160f, 0.3)), sep = F ? clamp(0.072 * (F.sep / 0.14), 0.064, 0.082) : 0.072, ey = 0.152;
-    // 腮红：大大的、淡淡的桃色圆（一直有，笑的时候更红）
-    if (P.blush) for (const sd of [-1, 1]) { const x = X(sd * (sep + 0.03)), y = Y(0.104), r = Lw(0.04), g = ctx.createRadialGradient(x, y, 0, x, y, r); const a = 0.55 + 0.18 * happy; g.addColorStop(0, `rgba(242,150,138,${a})`); g.addColorStop(0.55, `rgba(242,150,138,${a * 0.6})`); g.addColorStop(1, "rgba(242,150,138,0)"); ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2); }
-    // 刘海下面的一层淡淡的影子（额头上方暗一点，脸更立体）
-    if (P.hairStyle !== "none" && P.bangs !== "none") { const g = ctx.createLinearGradient(0, Y(0.3), 0, Y(0.235)); g.addColorStop(0, "rgba(120,62,48,0.32)"); g.addColorStop(1, "rgba(120,62,48,0)"); ctx.fillStyle = g; ctx.fillRect(0, Y(0.36), S, Y(0.235) - Y(0.36)); }
-    // 一道两头尖、中间粗的弧（眉毛、笑眼都这样画）：从 a 到 b，中间往上拱 bow，最粗 th
-    const crescent = (ax, ay, bx, by, bow, th, col) => {
-      const mx = (ax + bx) / 2, my = (ay + by) / 2;
-      ctx.beginPath(); ctx.moveTo(X(ax), Y(ay)); ctx.quadraticCurveTo(X(mx), Y(my + bow * 2 + th), X(bx), Y(by)); ctx.quadraticCurveTo(X(mx), Y(my + bow * 2 - th), X(ax), Y(ay)); ctx.closePath();
-      ctx.fillStyle = col; ctx.fill();
-    };
-    // 眉毛：粗、柔和地往上弯、两头细；走向和粗细从照片里量的来（想事情时一边挑起来）
+    const hair = figHair(P.hair), ink = hexCss(mixHex(hair, 0x1d120e, 0.5)), browC = hexCss(mixHex(hair, 0x2a1a14, 0.25));
+    // 照片量出来的特点 → 可爱化以后的参数（只在一个好看的范围里变）
+    const open = F ? clamp(0.92 + (F.eh / F.ew - 1.0) * 0.5, 0.8, 1.06) : 1;   // 眼睛圆还是细长
+    const tilt = F ? clamp(F.tilt, -0.15, 0.15) : 0.03;                          // 眼角往上（正）还是往下
+    const ex = FIG.eyeX * (F ? clamp(F.sep / 0.14, 0.95, 1.06) : 1), ey = FIG.eyeY;
+    // 腮红：大大的、淡淡的
+    if (P.blush) for (const sd of [-1, 1]) { const x = X(sd * FIG.blushX), y = Y(FIG.blushY), rx = Lw(0.034), g = ctx.createRadialGradient(x, y, 0, x, y, rx); const a = 0.42 + 0.2 * happy; g.addColorStop(0, `rgba(246,140,130,${a})`); g.addColorStop(0.6, `rgba(246,140,130,${a * 0.45})`); g.addColorStop(1, "rgba(246,140,130,0)"); ctx.save(); ctx.translate(x, y); ctx.scale(1, 0.72); ctx.translate(-x, -y); ctx.fillStyle = g; ctx.fillRect(x - rx, y - rx, rx * 2, rx * 2); ctx.restore(); }
+    // 刘海下面一层淡淡的影子
+    if (P.hairStyle !== "none" && P.bangs !== "none") { const g = ctx.createLinearGradient(0, Y(0.27), 0, Y(0.2)); g.addColorStop(0, "rgba(110,60,50,0.28)"); g.addColorStop(1, "rgba(110,60,50,0)"); ctx.fillStyle = g; ctx.fillRect(0, Y(0.3), S, Y(0.2) - Y(0.3)); }
+    // 眉毛：短短的、软软的两笔（粗细、走向照着照片）
     for (const [k, sd] of [[0, -1], [1, 1]]) {
-      const B = F ? F.brows[k] : { slope: 0.1, arch: 0.012, t: 0.02 };
-      const cx = sd * (sep + 0.004) + look[0] * 0.004, len = 0.07, lift = 0.004 * happy + (sd > 0 ? 0.012 * think : 0);
-      const by = 0.214 + lift, dy = clamp(B.slope, -0.4, 0.4) * len * 0.3, ix = cx - sd * len / 2, ox = cx + sd * len / 2;
-      crescent(ix, by - 0.002 - dy / 2, ox, by - 0.004 + dy / 2, 0.008 + B.arch * 0.25, clamp(B.t * 0.75, 0.014, 0.019), ink);
+      const B = F ? F.brows[k] : { slope: 0.08, arch: 0.01, t: 0.018 };
+      const cx = sd * (ex + 0.004) + look[0] * 0.003, len = 0.042, lift = 0.006 * happy + (sd > 0 ? 0.01 * think : -0.002 * think) + 0.003 * talk;
+      const by = FIG.browY + lift, dy = clamp(B.slope, -0.4, 0.4) * len * 0.6;
+      const ix = cx - sd * len / 2, ox = cx + sd * len / 2, th = clamp(B.t * 0.55, 0.0075, 0.012);
+      ctx.strokeStyle = browC; ctx.lineWidth = Lw(th);
+      ctx.beginPath(); ctx.moveTo(X(ix), Y(by - dy / 2)); ctx.quadraticCurveTo(X(cx), Y(by + 0.006 + clamp(B.arch, 0, 0.02) * 0.3), X(ox), Y(by + dy / 2 - 0.002)); ctx.stroke();
     }
-    // 眼睛
-    const smile = P.eyeStyle !== "open";
+    // 眼睛：大大的深色眼珠（下面透一点琥珀色）、黑瞳孔、上眼线带一根小睫毛、两点高光；会眨、会看方向；开心时变成弯弯的笑眼
+    const eyeCol = P.eye;
     for (const sd of [-1, 1]) {
-      const cx = sd * sep + look[0] * 0.006, cy = ey + look[1] * 0.004, w = 0.064;
-      if (smile || happy > 0.6) {
-        // 弯弯的笑眼（往上拱的一道粗弧），外眼角一根小睫毛往外翘
-        crescent(cx - w / 2, cy - 0.006, cx + w / 2, cy - 0.006, 0.014, 0.0135, ink);
-        const ex = cx + sd * w / 2;
-        ctx.strokeStyle = ink; ctx.lineWidth = Lw(0.005);
-        ctx.beginPath(); ctx.moveTo(X(ex - sd * 0.005), Y(cy - 0.001)); ctx.quadraticCurveTo(X(ex + sd * 0.006), Y(cy - 0.001), X(ex + sd * 0.012), Y(cy - 0.008)); ctx.stroke();
+      const cx = sd * ex, cy = ey, w = 0.054, h = 0.066 * open;
+      ctx.save(); ctx.translate(X(cx), Y(cy)); ctx.rotate(-sd * tilt * 0.5); ctx.translate(-X(cx), -Y(cy));
+      if ((happy > 0.55 || P.eyeStyle === "smile") && blink < 0.5) {
+        ctx.strokeStyle = ink; ctx.lineWidth = Lw(0.0085);
+        ctx.beginPath(); ctx.moveTo(X(cx - w * 0.55), Y(cy - 0.006)); ctx.quadraticCurveTo(X(cx), Y(cy + 0.03), X(cx + w * 0.55), Y(cy - 0.006)); ctx.stroke();
+      } else if (blink > 0.55) {
+        ctx.strokeStyle = ink; ctx.lineWidth = Lw(0.008);
+        ctx.beginPath(); ctx.moveTo(X(cx - w * 0.56), Y(cy + 0.002)); ctx.quadraticCurveTo(X(cx), Y(cy - 0.016), X(cx + w * 0.56), Y(cy + 0.002)); ctx.stroke();
       } else {
-        // 睁眼：深棕色的大眼珠 + 两点高光，上眼皮一道线，会眨
-        const h = Math.max(0.004, 0.046 * (1 - blink * 0.95));
-        ctx.fillStyle = hexCss(P.eye); ctx.beginPath(); ctx.ellipse(X(cx), Y(cy), Lw(w * 0.36), Lw(h / 2), 0, 0, Math.PI * 2); ctx.fill();
-        if (blink < 0.5) { ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.ellipse(X(cx - 0.006), Y(cy + 0.009), Lw(0.0062), Lw(0.0075), 0, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(X(cx + 0.007), Y(cy - 0.01), Lw(0.003), 0, Math.PI * 2); ctx.fill(); }
-        ctx.strokeStyle = ink; ctx.lineWidth = Lw(0.007); ctx.beginPath(); ctx.moveTo(X(cx - w * 0.52), Y(cy + h * 0.25)); ctx.quadraticCurveTo(X(cx), Y(cy + h * 0.5 + 0.01), X(cx + w * 0.52), Y(cy + h * 0.25)); ctx.stroke();
+        const k = 1 - blink * 0.9, hh = h * k, lx = look[0] * 0.007, ly = look[1] * 0.005;
+        // 眼白只露一点点边（让眼珠更大更亮）
+        ctx.fillStyle = "#fffaf6"; ctx.beginPath(); ctx.ellipse(X(cx), Y(cy), Lw(w * 0.55), Lw(hh * 0.52), 0, 0, Math.PI * 2); ctx.fill();
+        ctx.save(); ctx.beginPath(); ctx.ellipse(X(cx), Y(cy), Lw(w * 0.55), Lw(hh * 0.52), 0, 0, Math.PI * 2); ctx.clip();
+        const ix = X(cx + lx), iy = Y(cy + ly - 0.002), ir = Lw(w * 0.47);
+        const g = ctx.createRadialGradient(ix, iy + ir * 0.45, ir * 0.1, ix, iy, ir * 1.05);
+        g.addColorStop(0, hexCss(mixHex(eyeCol, 0xd9a35e, 0.55))); g.addColorStop(0.55, hexCss(mixHex(eyeCol, 0x6b3f24, 0.25))); g.addColorStop(1, hexCss(mixHex(eyeCol, 0x0c0706, 0.55)));
+        ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(ix, iy, ir, Lw(hh * 0.5), 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = hexCss(mixHex(eyeCol, 0x050303, 0.75)); ctx.beginPath(); ctx.ellipse(ix, iy - Lw(0.002), ir * 0.46, Lw(hh * 0.25), 0, 0, Math.PI * 2); ctx.fill();
+        // 上眼皮的影子
+        const sh = ctx.createLinearGradient(0, Y(cy + hh * 0.52), 0, Y(cy + hh * 0.1)); sh.addColorStop(0, "rgba(20,10,8,0.45)"); sh.addColorStop(1, "rgba(20,10,8,0)"); ctx.fillStyle = sh; ctx.fillRect(X(cx - w), Y(cy + hh * 0.6), Lw(w * 2), Y(cy + hh * 0.1) - Y(cy + hh * 0.6));
+        // 高光：右上一大点、左下一小点（两只眼睛同一边，像同一盏灯）
+        if (blink < 0.4) {
+          ctx.fillStyle = "rgba(255,255,255,0.97)"; ctx.beginPath(); ctx.ellipse(X(cx + lx + 0.011), Y(cy + ly + hh * 0.2), Lw(0.0092), Lw(0.0115), -0.4, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = "rgba(255,255,255,0.85)"; ctx.beginPath(); ctx.arc(X(cx + lx - 0.01), Y(cy + ly - hh * 0.2), Lw(0.0042), 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.restore();
+        // 上眼线：粗一点、两头细，外眼角一根小睫毛往外翘
+        ctx.fillStyle = ink;
+        ctx.beginPath(); ctx.moveTo(X(cx - sd * w * 0.6), Y(cy + hh * 0.18));
+        ctx.quadraticCurveTo(X(cx - sd * w * 0.1), Y(cy + hh * 0.62 + 0.004), X(cx + sd * w * 0.62), Y(cy + hh * 0.3));
+        ctx.lineTo(X(cx + sd * w * 0.78), Y(cy + hh * 0.42));
+        ctx.lineTo(X(cx + sd * w * 0.58), Y(cy + hh * 0.2));
+        ctx.quadraticCurveTo(X(cx - sd * w * 0.1), Y(cy + hh * 0.5), X(cx - sd * w * 0.6), Y(cy + hh * 0.18)); ctx.closePath(); ctx.fill();
+        // 下眼皮一笔很淡的线
+        ctx.strokeStyle = "rgba(120,70,60,0.35)"; ctx.lineWidth = Lw(0.0035);
+        ctx.beginPath(); ctx.moveTo(X(cx - w * 0.3), Y(cy - hh * 0.5)); ctx.quadraticCurveTo(X(cx), Y(cy - hh * 0.58), X(cx + w * 0.3), Y(cy - hh * 0.5)); ctx.stroke();
       }
+      ctx.restore();
     }
-    // 小鼻子：一点淡淡的影子
-    { const x = X(0), y = Y(0.106), r = Lw(0.008), g = ctx.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, "rgba(190,110,90,0.35)"); g.addColorStop(1, "rgba(190,110,90,0)"); ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2); }
-    // 嘴：平时一道小小的微笑；说话时张开（深红色，里面一点粉色的舌头）
-    const mw = F ? clamp(0.05 * (F.mw / 0.12), 0.04, 0.06) : 0.05, my = 0.078, opn = clamp(talk * 0.024 + happy * 0.004, 0, 0.026), curve = 0.008 + (F ? F.smile * 0.02 : 0.004) - think * 0.008;
-    const lip = "#5c2a26", mx = look[0] * 0.003 + think * 0.008;
+    // 鼻子：一点淡淡的影子（3D 上还有一个小小的鼓包）
+    { const x = X(0.004), y = Y(FIG.noseY - 0.004), r = Lw(0.009), g = ctx.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, "rgba(200,110,95,0.3)"); g.addColorStop(1, "rgba(200,110,95,0)"); ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2); }
+    // 嘴：平时一道小小的笑；说话时张开（圆圆的，里面深红、一点粉色的舌头）；开心时笑开
+    const mw = F ? clamp(0.03 * (F.mw / 0.12), 0.026, 0.036) : 0.03, my = FIG.mouthY, mx = look[0] * 0.002 + think * 0.006;
+    const curve = 0.006 + (F ? clamp(F.smile, 0, 0.2) * 0.02 : 0.003) - think * 0.006;
+    const grin = F && F.open > 0.012 ? 1 - talk : 0;   // 照片里是露齿笑的老师：平时就是张嘴笑
+    const opn = clamp(talk * 0.022 + happy * 0.008 + grin * 0.008, 0, 0.026), lip = "#8a3a34";
     if (opn < 0.003) {
-      ctx.strokeStyle = lip; ctx.lineWidth = Lw(0.0048);
-      ctx.beginPath(); ctx.moveTo(X(mx - mw / 2), Y(my + curve * 0.5)); ctx.quadraticCurveTo(X(mx), Y(my - curve), X(mx + mw / 2), Y(my + curve * 0.5)); ctx.stroke();
+      ctx.strokeStyle = lip; ctx.lineWidth = Lw(0.0042);
+      ctx.beginPath(); ctx.moveTo(X(mx - mw / 2), Y(my + curve * 0.4)); ctx.quadraticCurveTo(X(mx), Y(my - curve), X(mx + mw / 2), Y(my + curve * 0.4)); ctx.stroke();
     } else {
-      // 张开的嘴：上边几乎平、下边圆圆的（像小写的 D 倒过来），里面深红，底下一点粉色的舌头
-      const w2 = mw * (0.72 + 0.12 * (1 - talk)), top = my + curve * 0.35, bot = my - opn * 1.9;
-      const mouth = () => { ctx.beginPath(); ctx.moveTo(X(mx - w2 / 2), Y(top)); ctx.quadraticCurveTo(X(mx), Y(top - 0.003), X(mx + w2 / 2), Y(top)); ctx.bezierCurveTo(X(mx + w2 / 2), Y(bot), X(mx - w2 / 2), Y(bot), X(mx - w2 / 2), Y(top)); ctx.closePath(); };
-      mouth(); ctx.fillStyle = "#6e1f2a"; ctx.fill();
-      ctx.save(); mouth(); ctx.clip(); ctx.fillStyle = "#e57f8b"; ctx.beginPath(); ctx.ellipse(X(mx), Y(bot + opn * 0.35), Lw(w2 * 0.32), Lw(Math.max(0.003, opn * 0.55)), 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-      mouth(); ctx.strokeStyle = lip; ctx.lineWidth = Lw(0.003); ctx.stroke();
+      const w2 = mw * (0.85 + 0.25 * Math.max(happy, grin * 0.8)), top = my + 0.004, bot = my - opn * 1.6;
+      const mouth = () => { ctx.beginPath(); ctx.moveTo(X(mx - w2 / 2), Y(top)); ctx.quadraticCurveTo(X(mx), Y(top - 0.004 * (1 - happy)), X(mx + w2 / 2), Y(top)); ctx.bezierCurveTo(X(mx + w2 / 2), Y(bot), X(mx - w2 / 2), Y(bot), X(mx - w2 / 2), Y(top)); ctx.closePath(); };
+      mouth(); ctx.fillStyle = "#7a2630"; ctx.fill();
+      ctx.save(); mouth(); ctx.clip(); ctx.fillStyle = "#ee8a92"; ctx.beginPath(); ctx.ellipse(X(mx), Y(bot + opn * 0.3), Lw(w2 * 0.34), Lw(Math.max(0.003, opn * 0.5)), 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "rgba(255,255,255,0.9)"; ctx.fillRect(X(mx - w2 * 0.32), Y(top + 0.0005), Lw(w2 * 0.64), Lw(Math.min(0.004, opn * 0.25))); ctx.restore();
     }
     ctx.restore();
   }
 
   function buildDoll(T, P, opt, K) {
-    const { glow, mesh, grp, lathe, limb, mats, geosOwn, texOwn } = K;
-    const rig = P.rig === true, grid = P.grid !== false;   // 机器人骨架默认不要；衣服上的白格子默认有
-    // 颜色按 sRGB 算（输出也是 sRGB），不然整体发灰发白；捞捞编程的舞台已经是这样，那里不用再换算
+    const { glow, mesh, grp, lathe, mats, geosOwn, texOwn } = K;
     const managed = !!(T.ColorManagement && T.ColorManagement.legacyMode === false);
     const C = (c) => { const k = new T.Color(c); if (!managed) k.convertSRGBToLinear(); return k; };
     const std = (col, o = {}) => { const e = o.emissive != null ? C(o.emissive) : undefined; return K.std(C(col), { ...o, ...(e ? { emissive: e } : {}) }); };
-    const lum = (c) => { const k = new T.Color(c); return 0.3 * k.r + 0.59 * k.g + 0.11 * k.b; };
-    // 白色细网格：深色布料 / 头发上是亮线（emissiveMap），浅色的上面是暗线（map）
-    const gridCache = {};
-    const gridTex = (rx, ry, light) => {
-      const key = rx + "x" + ry + (light ? "L" : "D"); if (gridCache[key]) return gridCache[key];
-      const c = typeof document !== "undefined" ? document.createElement("canvas") : null; if (!c) return null;
-      c.width = c.height = 64; const g = c.getContext("2d");
-      g.fillStyle = light ? "#ffffff" : "#000000"; g.fillRect(0, 0, 64, 64);
-      g.fillStyle = light ? "#b9bcc4" : "#ffffff"; g.fillRect(0, 0, 64, 2); g.fillRect(0, 0, 2, 64);
-      const t = new T.CanvasTexture(c); t.wrapS = t.wrapT = T.RepeatWrapping; t.repeat.set(rx, ry); t.anisotropy = 4; t.encoding = T.sRGBEncoding; texOwn.push(t);
-      return (gridCache[key] = t);
-    };
-    // 毛线的凹凸（法线贴图）：一竖条一竖条的针脚，灯一照有起伏，看着是织出来的布
-    const knitCache = {};
-    const knitTex = (rx, ry, kind) => {
-      const key = kind + rx + "x" + ry; if (knitCache[key]) return knitCache[key];
+    const physM = (col, o = {}) => { const m = new T.MeshPhysicalMaterial({ color: C(col), roughness: 0.5, metalness: 0.0, ...o }); mats.push(m); return m; };
+    const geoOf = (m) => { const g = new T.BufferGeometry(); g.setAttribute("position", new T.BufferAttribute(m.pos, 3)); g.setAttribute("normal", new T.BufferAttribute(m.nor, 3)); g.setIndex(new T.BufferAttribute(m.idx, 1)); geosOwn.push(g); return g; };
+    // 布料的纹理（法线贴图）：斜纹，灯一照有很细的起伏
+    const weave = (() => {
       const c = typeof document !== "undefined" ? document.createElement("canvas") : null; if (!c) return null;
       const N = 64; c.width = c.height = N; const g = c.getContext("2d"), img = g.createImageData(N, N);
-      const hgt = (x, y) => kind === "knit"
-        ? Math.pow(Math.abs(Math.sin((Math.PI * x) / 8)), 0.7) * (0.75 + 0.25 * Math.cos((Math.PI * 2 * (y + (Math.floor(x / 8) % 2) * 4)) / 8))   // 针脚：竖着一列列 V 字
-        : 0.5 + 0.5 * Math.sin((Math.PI * 2 * (x + y)) / 8);   // 斜纹布
-      for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-        const dx = hgt((x + 1) % N, y) - hgt((x + N - 1) % N, y), dy = hgt(x, (y + 1) % N) - hgt(x, (y + N - 1) % N);
-        const nx = -dx * 1.4, ny = dy * 1.4, l = Math.hypot(nx, ny, 1), i = (y * N + x) * 4;
-        img.data[i] = (nx / l * 0.5 + 0.5) * 255; img.data[i + 1] = (ny / l * 0.5 + 0.5) * 255; img.data[i + 2] = (1 / l * 0.5 + 0.5) * 255; img.data[i + 3] = 255;
-      }
-      g.putImageData(img, 0, 0);
-      const t = new T.CanvasTexture(c); t.wrapS = t.wrapT = T.RepeatWrapping; t.repeat.set(rx, ry); t.anisotropy = 4; texOwn.push(t);
-      return (knitCache[key] = t);
-    };
-    const physM = (col, o = {}) => { const m = new T.MeshPhysicalMaterial({ color: C(col), roughness: 0.5, metalness: 0.0, clearcoat: 0.25, clearcoatRoughness: 0.5, ...o }); mats.push(m); return m; };
-    // 布料：哑光、边上有一层绒绒的光（sheen），加针脚的凹凸；白格子和参考图一样（深色衣服上是亮线，浅色上是暗线）
-    const cloth = (col, rx, ry, kind = "knit", o = {}) => {
-      const m = physM(col, { roughness: 0.9, clearcoat: 0, sheen: 0.25, sheenRoughness: 0.5, sheenColor: C(new T.Color(col).lerp(new T.Color(0xffffff), 0.2).getHex()), ...o }); m.userData.envK = 0.7;
-      const nt = kind === "rib" ? null : knitTex(kind === "knit" ? rx * 3 : rx * 2, kind === "knit" ? ry * 4 : ry * 2, kind); if (nt) { m.normalMap = nt; m.normalScale = new T.Vector2(0.55, 0.55); }
-      if (grid && kind !== "rib") { if (lum(col) < 0.42) { const t = gridTex(rx, ry, false); if (t) { m.emissiveMap = t; m.emissive = C(0x9ca3af).multiplyScalar(0.32); } } else { const t = gridTex(rx, ry, true); if (t) m.map = t; } }
-      return m;
-    };
-    // 皮肤：哑光的瓷，边上一点暖暖的透光（sheen）；颜色稍微饱和一点（捞捞编程的舞台有色调映射，会压灰一点）
-    const skinMat = (col) => { const k = new T.Color(col), hsl = {}; k.getHSL(hsl); k.setHSL(hsl.h, Math.min(1, hsl.s * 1.05), hsl.l); const m = physM(k.getHex(), { roughness: 0.55, clearcoat: 0.08, clearcoatRoughness: 0.55, sheen: 0.4, sheenRoughness: 0.5, sheenColor: C(0xffb8a0), emissive: C(k.getHex()).multiplyScalar(0.1) }); return m; };
-    const skinM = skinMat(P.skin);
-    // 头发：黑色、半哑光（不再是一块块白亮的高光），边上有柔柔的光，显出一缕缕的体积
-    const hairM = physM(P.hair, { roughness: 0.46, clearcoat: 0.18, clearcoatRoughness: 0.4, sheen: 0.2, sheenRoughness: 0.4, sheenColor: C(new T.Color(P.hair).lerp(new T.Color(0x8890a8), 0.5).getHex()) });
-    hairM.userData.envK = 0.45;
-    const topM = cloth(P.top, 14, 6), sleeveM = cloth(P.top, 6, 5), ribM = cloth(new T.Color(P.top).multiplyScalar(0.85).getHex(), 1, 1, "rib");
-    const pantsM = cloth(P.pants, 9, 7, "twill"), bootM = std(P.shoes, { roughness: 0.5, metalness: 0.05 }), soleM = std(new T.Color(P.shoes).multiplyScalar(0.55).getHex(), { roughness: 0.6, metalness: 0.0 });
-    const redM = std(0xe0242f, { roughness: 0.22, metalness: 0.05, emissive: 0x330000 });
-    const greenM = std(0x46b04a, { roughness: 0.45, metalness: 0.05, emissive: 0x0c2a0d });
-    const silverM = std(0xdfe3e8, { roughness: 0.22, metalness: 0.85 });
-    // 加竖条纹（毛衣的罗纹）：把旋转体的半径按角度一凸一凹
-    const ribbed = (m, n, amp) => { const pos = m.geometry.attributes.position; for (let i = 0; i < pos.count; i++) { const x = pos.getX(i), z = pos.getZ(i), r = Math.hypot(x, z); if (r < 1e-5) continue; const a = Math.atan2(x, z), k = 1 + amp * Math.pow(Math.abs(Math.cos(a * n / 2)), 2); pos.setXYZ(i, x * k, pos.getY(i), z * k); } pos.needsUpdate = true; m.geometry.computeVertexNormals(); seam(m.geometry); return m; };
-    // 旋转体首尾那一圈点是重合的，法线算出来两边不一样，背后会有一道亮条：把重合的点的法线取平均
-    function seam(g) { const pos = g.attributes.position, nor = g.attributes.normal, at = new Map(); for (let i = 0; i < pos.count; i++) { const k = pos.getX(i).toFixed(5) + "," + pos.getY(i).toFixed(5) + "," + pos.getZ(i).toFixed(5); if (!at.has(k)) at.set(k, []); at.get(k).push(i); } for (const ids of at.values()) { if (ids.length < 2) continue; let x = 0, y = 0, z = 0; for (const i of ids) { x += nor.getX(i); y += nor.getY(i); z += nor.getZ(i); } const l = Math.hypot(x, y, z) || 1; for (const i of ids) nor.setXYZ(i, x / l, y / l, z / l); } nor.needsUpdate = true; }
-    // 一缕头发 / 一根线：沿一串点的管子，两头可以变细；out = 往外的方向（头发贴着头时用，管子横截面压扁成发片）
-    const tube = (pts, w0, w1, th, m, parent, center, M = 12, N = 40, taperRoot = 0.08, tipLen = 0.18) => {
-      const c = new T.CatmullRomCurve3(pts.map((q) => new T.Vector3(q[0], q[1], q[2])), false, "centripetal");
-      const P0 = [], idx = [], uvs = [];
-      const up = new T.Vector3(0, 0, 1), tmp = new T.Vector3();
-      for (let i = 0; i <= N; i++) {
-        const u = i / N, p = c.getPointAt(u), tg = c.getTangentAt(u).normalize();
-        let out = center ? p.clone().sub(center).normalize() : (Math.abs(tg.z) > 0.9 ? new T.Vector3(1, 0, 0) : up.clone());
-        const side = new T.Vector3().crossVectors(tg, out).normalize(); out = new T.Vector3().crossVectors(side, tg).normalize();
-        let w = w0 + (w1 - w0) * u; w *= Math.min(1, Math.pow(Math.max(0, (1 - u) / tipLen), tipLen > 0.25 ? 0.75 : 0.5)) * (taperRoot > 0 ? Math.min(1, 0.55 + 0.45 * u / taperRoot) : 1);
-        for (let j = 0; j <= M; j++) { const a = (j / M) * Math.PI * 2; tmp.copy(p).addScaledVector(side, Math.cos(a) * w).addScaledVector(out, Math.sin(a) * w * th); P0.push(tmp.x, tmp.y, tmp.z); uvs.push(j / M, u); }
-      }
-      for (let i = 0; i < N; i++) for (let j = 0; j < M; j++) { const a = i * (M + 1) + j, b = a + M + 1; idx.push(a, b, a + 1, b, b + 1, a + 1); }
-      const g = new T.BufferGeometry(); g.setAttribute("position", new T.Float32BufferAttribute(P0, 3)); g.setAttribute("uv", new T.Float32BufferAttribute(uvs, 2)); g.setIndex(idx); g.computeVertexNormals(); geosOwn.push(g);
-      return mesh(g, m, parent);
-    };
-    const wire = (pts, parent, r = 0.0026) => (rig ? tube(pts, r, r, 1, greenM, parent, null, 6, Math.max(8, pts.length * 6), 0) : null);
-    const joint = (parent, x, y, z, r = 0.017) => { if (!rig) return null; const b = mesh(G.ball, redM, parent, false); b.scale.setScalar(r); b.position.set(x, y, z); return b; };
+      const hgt = (x, y) => 0.5 + 0.5 * Math.sin((Math.PI * 2 * (x + y)) / 8);
+      for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { const dx = hgt((x + 1) % N, y) - hgt((x + N - 1) % N, y), dy = hgt(x, (y + 1) % N) - hgt(x, (y + N - 1) % N), nx = -dx * 0.8, ny = dy * 0.8, l = Math.hypot(nx, ny, 1), i = (y * N + x) * 4; img.data[i] = (nx / l * 0.5 + 0.5) * 255; img.data[i + 1] = (ny / l * 0.5 + 0.5) * 255; img.data[i + 2] = (1 / l * 0.5 + 0.5) * 255; img.data[i + 3] = 255; }
+      g.putImageData(img, 0, 0); const t = new T.CanvasTexture(c); t.wrapS = t.wrapT = T.RepeatWrapping; t.repeat.set(24, 12); texOwn.push(t); return t;
+    })();
+    const cloth = (col, o = {}) => { const m = physM(col, { roughness: 0.82, sheen: 0.35, sheenRoughness: 0.6, sheenColor: C(mixHex(col, 0xffffff, 0.3)), ...o }); if (weave && !o.map) { m.normalMap = weave; m.normalScale = new T.Vector2(0.25, 0.25); } m.userData.envK = 0.7; return m; };
+    // 颜色：衣服归到中国传统色；镶边和盘扣配金色或朱红
+    const topG = guoColor(P.top), botG = guoColor(P.pants), trim = trimOf(topG.hex);
+    const skinHSL = figSkin(P.skin), skinCol = new T.Color().setHSL(skinHSL.h, skinHSL.s, skinHSL.l).getHex();
+    const hairCol = figHair(P.hair);
+    // 皮肤：哑光的软胶，边上一点暖暖的透光
+    const skinM = physM(skinCol, { roughness: 0.6, sheen: 0.5, sheenRoughness: 0.45, sheenColor: C(0xffc2a8), emissive: C(skinCol).multiplyScalar(0.06) });
+    // 头发：半哑光，一束束的边上有柔柔的光
+    const hairM = physM(hairCol, { roughness: 0.55, clearcoat: 0.15, clearcoatRoughness: 0.55, sheen: 0.4, sheenRoughness: 0.35, sheenColor: C(mixHex(hairCol, 0xa8b0c8, 0.55)) }); hairM.userData.envK = 0.5;
+    const trimM = physM(trim, { roughness: 0.35, metalness: trim === 0xd8b06a ? 0.55 : 0.05, clearcoat: 0.4 });
+    // 上衣：画一张贴图——底色、下摆一圈祥云、前襟中间一道镶边
+    const jacketTex = (() => {
+      const c = typeof document !== "undefined" ? document.createElement("canvas") : null; if (!c) return null;
+      c.width = 1024; c.height = 512; const g = c.getContext("2d");
+      g.fillStyle = hexCss(topG.hex); g.fillRect(0, 0, 1024, 512);
+      const tc = hexCss(trim), soft = rgba(mixHex(topG.hex, trim, 0.55), 0.9);
+      // 下摆的镶边（贴图下面一截 = 衣服的下摆）
+      g.fillStyle = tc; g.fillRect(0, 446, 1024, 12);
+      // 祥云：一朵朵卷云纹，沿下摆排一圈
+      const cloud = (x, y, s) => {
+        g.lineWidth = 3.2 * s; g.strokeStyle = soft; g.lineCap = "round";
+        g.beginPath(); g.arc(x, y, 9 * s, Math.PI * 0.9, Math.PI * 2.6); g.stroke();
+        g.beginPath(); g.arc(x + 15 * s, y - 4 * s, 11 * s, Math.PI * 1.0, Math.PI * 2.4); g.stroke();
+        g.beginPath(); g.arc(x + 31 * s, y + 1 * s, 8 * s, Math.PI * 1.1, Math.PI * 2.9); g.stroke();
+        g.beginPath(); g.moveTo(x - 10 * s, y + 10 * s); g.quadraticCurveTo(x + 15 * s, y + 18 * s, x + 42 * s, y + 9 * s); g.stroke();
+      };
+      for (let i = 0; i < 14; i++) cloud(20 + i * 74, 408 + (i % 2) * 8, 1);
+      // 前襟（u = 0.5 是正前方）：一道镶边
+      g.fillStyle = tc; g.fillRect(509, 0, 6, 512);
+      const t = new T.CanvasTexture(c); t.encoding = T.sRGBEncoding; t.anisotropy = 8; texOwn.push(t); return t;
+    })();
+    const topM = cloth(topG.hex, jacketTex ? { map: jacketTex, color: C(0xffffff) } : {});
+    if (jacketTex && weave) { topM.normalMap = weave; topM.normalScale = new T.Vector2(0.2, 0.2); }
+    const sleeveM = cloth(topG.hex), pantsM = cloth(botG.hex);
+    const shoeM = physM(0x26252b, { roughness: 0.85, sheen: 0.3, sheenColor: C(0x666677) }), soleM = physM(0xf1ebdc, { roughness: 0.7 });
+    const redM = physM(0xc8302a, { roughness: 0.4, clearcoat: 0.5, sheen: 0.4, sheenColor: C(0xff8a7a) });
+    const jadeM = physM(0x8fd1b0, { roughness: 0.15, clearcoat: 1, transmission: 0, emissive: C(0x1a3a2c) });
+    const goldM = physM(0xd8b06a, { roughness: 0.3, metalness: 0.7 });
 
     const root3 = new T.Group(), body = grp(root3), A = { root: root3, body };
     const ring = mesh(G.torus(0.3, 0.005), glow(P.accent, { transparent: true, opacity: 0.5 }), root3, false); ring.rotation.x = Math.PI / 2; ring.position.y = 0.004;
@@ -440,218 +679,131 @@
     ring.visible = ring2.visible = halo.visible = !!P.stage;
     A.ring = ring; A.ring2 = ring2; A.halo = halo;
 
-    // ---- 胯、腿、短靴 ----
-    // Q版（默认，body "chibi"）：大约 2.4 头身——头放大 1.3 倍，腿缩短到 0.62、胳膊到 0.8（鞋和手不变，肉乎乎的）；"tall" 是原来 3.2 头身的比例
-    const QB = P.body !== "tall", HS = QB ? 1.3 : 1, LS = QB ? 0.62 : 1, AS = QB ? 0.8 : 1;
+    // ---- 比例：Q版（默认）约 2.3 头身；"tall" 修长一点 ----
+    const QB = P.body !== "tall", HS = QB ? 1.42 : 1.15, LS = QB ? 0.6 : 0.95, AS = QB ? 0.8 : 1;
     const sy = (pts, k) => pts.map(([a, y, z]) => (z === undefined ? [a, y * k] : [a, y * k, z]));
     const HIP = 0.47 - 0.33 * (1 - LS), hips = grp(body, 0, HIP, 0); A.hips = hips;
-    lathe([[0.001, -0.075], [0.1, -0.085], [0.152, -0.045], [0.16, 0.03], [0.152, 0.075], [0.001, 0.08]], pantsM, hips, 0.8);
     const skirt = P.bottom === "skirt";
-    if (skirt) lathe([[0.001, -0.2], [0.215, -0.2], [0.205, -0.15], [0.18, -0.04], [0.163, 0.05], [0.001, 0.07]], pantsM, hips, 0.82);
-    const legM = skirt ? std(new T.Color(P.pants).lerp(new T.Color(0x22242c), 0.6).getHex(), { roughness: 0.6, metalness: 0.02 }) : pantsM;
+    lathe([[0.001, -0.07], [0.1, -0.08], [0.13, -0.045], [0.138, 0.03], [0.13, 0.075], [0.001, 0.08]], pantsM, hips, 0.8);
+    if (skirt) {
+      // 马面裙：一圈褶子，下摆一道织金的襕边
+      const sk = lathe([[0.001, -0.25 * LS / 0.6], [0.23, -0.25 * LS / 0.6], [0.222, -0.19 * LS / 0.6], [0.19, -0.05], [0.165, 0.05], [0.001, 0.07]], pantsM, hips, 0.84, 144);
+      const pos = sk.geometry.attributes.position;
+      for (let i = 0; i < pos.count; i++) { const x = pos.getX(i), z = pos.getZ(i), y = pos.getY(i), r = Math.hypot(x, z); if (r < 1e-4) continue; const a = Math.atan2(x, z), k = 1 + 0.03 * Math.max(0, -y / 0.25) * Math.abs(Math.sin(a * 18)); pos.setXYZ(i, x * k, y, z * k); }
+      pos.needsUpdate = true; sk.geometry.computeVertexNormals();
+      const band = lathe([[0.226, -0.215 * LS / 0.6], [0.229, -0.2 * LS / 0.6], [0.225, -0.18 * LS / 0.6]], goldM, hips, 0.845, 144); band.castShadow = false;
+    }
+    const legM = skirt ? cloth(0xf1ebdc) : pantsM;
     A.legs = [-1, 1].map((s) => {
-      const hip = grp(hips, s * 0.078, -0.04, 0);
-      mesh(G.ball, legM, hip).scale.setScalar(skirt ? 0.05 : 0.072);
-      // 裤腿一整根（不在膝盖接缝，看不出一圈圈的）；膝盖只是个挂点，动作里弯得很少
-      lathe(sy(skirt ? [[0.001, 0.01], [0.05, 0.0], [0.048, -0.09], [0.044, -0.17], [0.04, -0.3], [0.001, -0.31]] : [[0.001, 0.012], [0.072, 0.0], [0.0745, -0.08], [0.0765, -0.2], [0.079, -0.312], [0.073, -0.322], [0.001, -0.323]], LS), legM, hip, 0.95, 40, 48);
+      const hip = grp(hips, s * 0.074, -0.04, 0);
+      mesh(G.ball, legM, hip).scale.setScalar(skirt ? 0.045 : 0.07);
+      lathe(sy(skirt ? [[0.001, 0.01], [0.046, 0.0], [0.044, -0.09], [0.04, -0.17], [0.038, -0.3], [0.001, -0.31]] : [[0.001, 0.012], [0.07, 0.0], [0.072, -0.08], [0.076, -0.2], [0.079, -0.3], [0.074, -0.322], [0.001, -0.323]], LS), legM, hip, 0.95, 40, 48);
       const knee = grp(hip, 0, -0.17 * LS, 0);
       const ankle = grp(knee, 0, -0.16 * LS, 0);
-      // 短靴：靴筒 + 圆头 + 深色鞋底
-      lathe([[0.062, -0.1], [0.068, -0.06], [0.068, 0.0], [0.066, 0.03], [0.058, 0.035]], bootM, ankle, 1.0, 32);
-      const toe = mesh(G.ball, bootM, ankle); toe.scale.set(0.072, 0.052, 0.105); toe.position.set(0, -0.078, 0.038);
-      const sole = mesh(G.ball, soleM, ankle, false); sole.scale.set(0.075, 0.016, 0.112); sole.position.set(0, -0.112, 0.038);
-      const heel = mesh(G.cyl(0.06, 0.062, 0.03, 24), soleM, ankle, false); heel.position.set(0, -0.11, -0.01);
-      // 骨架：胯、膝、踝的红球，前面一道绿线，膝盖、脚踝是银色的小关节
-      if (rig) {
-        const zf = skirt ? 0.052 : 0.078;
-        joint(hip, 0, 0, zf, 0.019); joint(knee, 0, 0, zf * 0.96, 0.018); joint(ankle, 0, -0.01, 0.07, 0.016);
-        wire(sy([[0, -0.015, zf + 0.002], [0, -0.08, zf + 0.004], [0, -0.155, zf * 0.96 + 0.002]], LS), hip);
-        wire(sy([[0, -0.015, zf * 0.96 + 0.002], [0, -0.08, zf + 0.003], [0, -0.15, 0.072]], LS), knee);
-        for (const sx of [-1, 1]) { const k = mesh(G.cyl(0.006, 0.006, 0.01, 10), silverM, knee, false); k.rotation.z = Math.PI / 2; k.position.set(sx * 0.012, -0.022, zf * 0.96); }
-      }
+      // 布鞋：黑色的鞋面、圆头，白色的千层底
+      lathe([[0.058, -0.075], [0.062, -0.05], [0.06, -0.03], [0.05, -0.025]], shoeM, ankle, 1.0, 32);
+      const toe = mesh(G.ball, shoeM, ankle); toe.scale.set(0.066, 0.042, 0.1); toe.position.set(0, -0.08, 0.034);
+      const sole = mesh(G.ball, soleM, ankle, false); sole.scale.set(0.07, 0.02, 0.108); sole.position.set(0, -0.108, 0.034);
+      const strap = mesh(G.torus(0.05, 0.006, Math.PI), shoeM, ankle, false); strap.position.set(0, -0.072, 0.03); strap.rotation.set(0, 0, 0); strap.scale.set(1.1, 0.7, 1);
       return { s, hip, knee, ankle };
     });
 
-    // ---- 毛衣：下摆罗纹、身子、高领 ----
+    // ---- 新中式上衣：一整件（下摆盖住腰），立领、对襟、三对盘扣 ----
     const spine = grp(hips, 0, 0.08, 0); A.spine = spine;
-    ribbed(lathe([[0.001, -0.075], [0.166, -0.075], [0.17, -0.06], [0.17, -0.012], [0.163, 0.0], [0.001, 0.005]], ribM, spine, 0.82, 120), 80, 0.02);
     const chest = grp(spine, 0, 0.0, 0); A.chest = chest;
-    const CH = [[0.001, -0.005], [0.164, -0.005], [0.17, 0.05], [0.172, 0.12], [0.168, 0.18], [0.155, 0.222], [0.118, 0.248], [0.07, 0.26], [0.001, 0.262]], CZ = 0.8;
-    lathe(CH, topM, chest, CZ, 64);
-    const neckR = 0.062;
-    ribbed(lathe([[0.075, 0.236], [0.09, 0.244], [0.09, 0.27], [0.086, 0.29], [0.07, 0.296], [0.06, 0.29]], ribM, chest, 0.92, 72), 40, 0.04);
-    // 胸前表面上的点（画线路、放关节球用）
+    const CH = [[0.001, -0.135], [0.176, -0.135], [0.175, -0.07], [0.168, 0.02], [0.168, 0.11], [0.164, 0.17], [0.15, 0.215], [0.118, 0.244], [0.07, 0.258], [0.001, 0.26]], CZ = 0.8;
+    lathe(CH, topM, chest, CZ, 96, 48);
     const chestR = (y) => { for (let i = 1; i < CH.length; i++) if (y <= CH[i][1]) { const [r0, y0] = CH[i - 1], [r1, y1] = CH[i]; return r0 + ((r1 - r0) * (y - y0)) / (y1 - y0 || 1); } return 0.06; };
     const onChest = (x, y, out = 0.004) => { const r = chestR(y), z = Math.sqrt(Math.max(0, r * r - x * x)) * CZ; return [x, y, z + out]; };
+    // 立领：一圈直立的领子，前面留一个小口；上沿镶边
+    { const g = new T.CylinderGeometry(0.074, 0.08, 0.046, 48, 1, true, 0.22, Math.PI * 2 - 0.44); geosOwn.push(g); const col = mesh(g, cloth(topG.hex, { side: T.DoubleSide }), chest, false); col.position.y = 0.272; col.scale.z = 0.92;
+      const rim = mesh(G.torus(0.074, 0.004, Math.PI * 2 - 0.44), trimM, chest, false); rim.rotation.set(Math.PI / 2, 0, Math.PI / 2 + 0.22); rim.position.y = 0.295; rim.scale.set(1, 0.92, 1); }
+    // 盘扣：每一对是两个小圈 + 中间一颗扣子，横着扣在前襟上
+    for (const y of [0.205, 0.145, 0.085]) {
+      const [x0, y0, z0] = onChest(0, y, 0.003);
+      for (const sd of [-1, 1]) { const lp = mesh(G.torus(0.011, 0.0032), trimM, chest, false); lp.position.set(x0 + sd * 0.017, y0, z0 - 0.002); lp.scale.set(1.25, 0.8, 1); }
+      const kn = mesh(G.ball, trimM, chest, false); kn.scale.setScalar(0.0065); kn.position.set(x0, y0, z0 + 0.003);
+    }
 
-    // ---- 胳膊：蓬蓬的毛衣袖子、罗纹袖口、银色骨架手 ----
+    // ---- 胳膊：袖子到手腕，袖口宽一点、镶边 ----
     A.arms = [-1, 1].map((s) => {
-      const sh = grp(chest, s * 0.158, 0.205, 0);
-      // 袖子：肩膀一个圆、上臂和小臂差不多粗，弯胳膊时肘弯处一个圆补上（看不出一节一节的泡泡）
+      const sh = grp(chest, s * 0.152, 0.2, 0);
       mesh(G.ball, sleeveM, sh).scale.set(0.058, 0.06, 0.058);
-      lathe(sy([[0.001, 0.02], [0.05, 0.012], [0.059, -0.02], [0.061, -0.09], [0.06, -0.15], [0.05, -0.175], [0.001, -0.18]], AS), sleeveM, sh, 1, 40);
+      lathe(sy([[0.001, 0.02], [0.05, 0.012], [0.058, -0.02], [0.06, -0.09], [0.06, -0.15], [0.05, -0.175], [0.001, -0.18]], AS), sleeveM, sh, 1, 40);
       const el = grp(sh, 0, -0.155 * AS, 0);
-      mesh(G.ball, sleeveM, el).scale.setScalar(0.0585);
-      lathe(sy([[0.001, 0.02], [0.056, 0.012], [0.061, -0.02], [0.063, -0.08], [0.06, -0.112], [0.052, -0.124], [0.001, -0.126]], AS), sleeveM, el, 1, 40);
-      ribbed(lathe([[0.046, -0.118 * AS], [0.05, -0.122 * AS], [0.05, -0.15 * AS], [0.046, -0.156 * AS], [0.04, -0.152 * AS]], ribM, el, 1, 48), 24, 0.05);
-      const wr = grp(el, 0, -0.155 * AS, 0); wr.scale.setScalar(1.35);
-      // 手：默认是皮肤色、肉乎乎的公仔手（手掌 + 四根两节的手指 + 大拇指，能握能指）；打开机器人骨架才是银色的骨头手
-      let fingers, th;
-      if (rig) {
-        const bone = (len, r, parent, y0 = 0) => { const b = mesh(G.cap(r, len), silverM, parent, false); b.position.y = y0 - len / 2 - r; return b; };
-        mesh(G.ball, silverM, wr, false).scale.set(0.022, 0.012, 0.016);
-        fingers = [-1.5, -0.5, 0.5, 1.5].map((k, i) => {
-          const len = [0.016, 0.019, 0.02, 0.018][s > 0 ? 3 - i : i];
-          const mc = grp(wr, k * 0.0105, -0.008, 0); mc.rotation.z = k * 0.06;
-          bone(0.03, 0.0035, mc);
-          const f = grp(mc, 0, -0.042, 0);
-          mesh(G.ball, silverM, f, false).scale.setScalar(0.0052);
-          bone(len, 0.0033, f, -0.003);
-          const f2 = grp(f, 0, -len - 0.01, 0); mesh(G.ball, silverM, f2, false).scale.setScalar(0.0045); bone(len * 0.75, 0.003, f2, -0.002);
-          wire([[0, -0.004, 0.006], [0, -0.024, 0.0065], [0, -0.04, 0.006]], mc, 0.0016);
-          f.userData.f2 = f2;
-          return f;
-        });
-        th = grp(wr, -s * 0.024, -0.012, 0.008); th.rotation.z = -s * 0.7;
-        bone(0.018, 0.0036, th); { const t2 = grp(th, 0, -0.03, 0); mesh(G.ball, silverM, t2, false).scale.setScalar(0.005); bone(0.014, 0.0033, t2, -0.002); }
-      } else {
-        const seg = (len, r, parent) => { const b = mesh(G.cap(r, len), skinM, parent); b.position.y = -len / 2 - r * 0.6; return b; };
-        mesh(G.ball, skinM, wr).scale.set(0.021, 0.018, 0.017);   // 手腕
-        const palm = mesh(G.ball, skinM, wr); palm.scale.set(0.03, 0.031, 0.0165); palm.position.set(0, -0.03, 0.001);
-        fingers = [-1.5, -0.5, 0.5, 1.5].map((k, i) => {
-          const len = [0.012, 0.0145, 0.015, 0.013][s > 0 ? 3 - i : i];
-          const f = grp(wr, k * 0.0118, -0.05 + Math.abs(k) * 0.003, 0.001); f.rotation.z = k * 0.05;
-          seg(len, 0.0069, f);
-          const f2 = grp(f, 0, -len - 0.004, 0); seg(len * 0.8, 0.0064, f2);
-          f.userData.f2 = f2;
-          return f;
-        });
-        th = grp(wr, -s * 0.025, -0.022, 0.007); th.rotation.set(-0.35, 0, -s * 0.8);
-        seg(0.013, 0.0076, th); { const t2 = grp(th, 0, -0.017, 0); seg(0.01, 0.007, t2); }
-      }
-      if (rig) {
-        joint(sh, 0, 0.004, 0.058, 0.02); joint(el, 0, 0, 0.062, 0.018); joint(wr, 0, 0.018, 0.04, 0.014);
-        wire(sy([[0, -0.018, 0.06], [0, -0.08, 0.066], [0, -0.14, 0.064]], AS), sh);
-        wire(sy([[0, -0.018, 0.064], [0, -0.07, 0.068], [0, -0.13, 0.054]], AS), el);
-      }
+      mesh(G.ball, sleeveM, el).scale.setScalar(0.058);
+      lathe(sy([[0.001, 0.02], [0.056, 0.012], [0.06, -0.02], [0.064, -0.08], [0.068, -0.118], [0.066, -0.126], [0.001, -0.128]], AS), sleeveM, el, 1, 40);
+      lathe([[0.062, -0.112 * AS], [0.07, -0.118 * AS], [0.07, -0.126 * AS], [0.064, -0.13 * AS]], trimM, el, 1, 40);
+      const wr = grp(el, 0, -0.152 * AS, 0); wr.scale.setScalar(1.35);
+      const seg = (len, r, parent) => { const b = mesh(G.cap(r, len), skinM, parent); b.position.y = -len / 2 - r * 0.6; return b; };
+      mesh(G.ball, skinM, wr).scale.set(0.021, 0.018, 0.017);
+      const palm = mesh(G.ball, skinM, wr); palm.scale.set(0.03, 0.031, 0.0165); palm.position.set(0, -0.03, 0.001);
+      const fingers = [-1.5, -0.5, 0.5, 1.5].map((k, i) => {
+        const len = [0.012, 0.0145, 0.015, 0.013][s > 0 ? 3 - i : i];
+        const f = grp(wr, k * 0.0118, -0.05 + Math.abs(k) * 0.003, 0.001); f.rotation.z = k * 0.05;
+        seg(len, 0.0069, f);
+        const f2 = grp(f, 0, -len - 0.004, 0); seg(len * 0.8, 0.0064, f2);
+        f.userData.f2 = f2;
+        return f;
+      });
+      const th = grp(wr, -s * 0.025, -0.022, 0.007); th.rotation.set(-0.35, 0, -s * 0.8);
+      seg(0.013, 0.0076, th); { const t2 = grp(th, 0, -0.017, 0); seg(0.01, 0.007, t2); }
       return { s, sh, el, wr, fingers, th };
     });
 
-    // ---- 骨架：银色脊椎、肋骨状的绿线、关节球 ----
-    if (rig) {
-      for (let y = 0.235, i = 0; y > -0.005; y -= 0.0215, i++) {
-        const [x, yy, z] = onChest(0, y, 0.002);
-        const v = mesh(G.cyl(0.02, 0.02, 0.011, 20), silverM, chest, false); v.scale.set(1.15, 1, 0.55); v.position.set(x, yy, z);
-      }
-      for (const y of [0.205, 0.105, 0.012]) joint(chest, ...onChest(0, y, 0.012), 0.02);
-      joint(hips, 0, 0.0, 0.13, 0.02);
-      // 锁骨：两边肩膀到胸口中间
-      for (const sd of [-1, 1]) wire([onChest(sd * 0.13, 0.198), onChest(sd * 0.07, 0.205), onChest(sd * 0.02, 0.205)], chest);
-      // 肋骨：几道往两边弯下去的线
-      for (const y of [0.165, 0.135, 0.105]) for (const sd of [-1, 1]) wire([onChest(sd * 0.018, y), onChest(sd * 0.06, y - 0.004), onChest(sd * 0.1, y - 0.016), onChest(sd * 0.125, y - 0.032)], chest, 0.0022);
-      // 腰到胯两边
-      for (const sd of [-1, 1]) wire([[0, 0.0, 0.132], [sd * 0.04, -0.015, 0.128], [sd * 0.075, -0.035, 0.1]], hips);
-    }
-
-    // ---- 脖子（一小段银色脊椎）→ 头 ----
+    // ---- 脖子 → 头（捏出来的一整块：脑袋 + 脸蛋 + 下巴 + 耳朵）----
     const neck = grp(chest, 0, 0.27, 0);
-    for (let i = 0; i < 3; i++) { const v = mesh(G.cyl(0.026, 0.026, 0.012, 20), i % 2 ? redM : silverM, neck, false); v.position.y = 0.008 + i * 0.014; v.scale.set(1, 1, 0.9); }
-    lathe([[0.001, -0.01], [0.062, -0.01], [0.058, 0.03], [0.05, 0.055], [0.001, 0.062]], skinM, neck, 0.95, 32);
+    lathe([[0.001, -0.01], [0.056, -0.01], [0.052, 0.03], [0.046, 0.055], [0.001, 0.062]], skinM, neck, 0.95, 32);
     const head = grp(neck, 0, 0.03, 0); head.scale.setScalar(HS); A.head = head;
-    const HP = [[0.001, 0.0], [0.05, 0.006], [0.105, 0.032], [0.15, 0.08], [0.18, 0.135], [0.19, 0.19], [0.186, 0.24], [0.17, 0.285], [0.138, 0.325], [0.09, 0.352], [0.045, 0.362], [0.001, 0.364]];
-    const headMesh = lathe(HP, skinM, head, 0.94, 96, 56);
-    const headR = (y) => { for (let i = 1; i < HP.length; i++) if (y <= HP[i][1]) { const [r0, y0] = HP[i - 1], [r1, y1] = HP[i]; return r0 + ((r1 - r0) * (y - y0)) / (y1 - y0 || 1); } return 0.001; };
-    const onHead = (x, y, out = 0) => { const r = headR(y) + out, z = Math.sqrt(Math.max(0, r * r - x * x)) * 0.94; return new T.Vector3(x, y, z); };
-    // 小鼻子
-    { const n = mesh(G.ball, skinMat(new T.Color(P.skin).lerp(new T.Color(0xf2a08c), 0.2).getHex()), head, false); n.scale.set(0.0105, 0.009, 0.009); n.position.copy(onHead(0, 0.113, -0.004)); }
-    // 耳朵（藏在头发边上）+ 小耳环
-    for (const sd of [-1, 1]) {
-      const e = mesh(G.ball, skinM, head); e.scale.set(0.018, 0.036, 0.028); e.position.set(sd * 0.183, 0.15, -0.012); e.rotation.y = sd * 0.35;
-      const e2 = mesh(G.ball, std(new T.Color(P.skin).multiplyScalar(0.85).getHex(), { roughness: 0.6, metalness: 0 }), head, false); e2.scale.set(0.008, 0.022, 0.016); e2.position.set(sd * 0.195, 0.152, -0.006); e2.rotation.y = sd * 0.35;
-      if (P.earrings) { const r = mesh(G.torus(0.009, 0.0022), silverM, head, false); r.position.set(sd * 0.19, 0.11, -0.004); r.rotation.y = Math.PI / 2; }
-    }
-    // 脸：一张透明的画布贴在脸的正面（眉毛、眼睛、腮红、鼻子的影子、嘴），每一帧画一次
+    const SH = figShapes(P.hairStyle, P.bangs, P.faceShape), headGeo = geoOf(SH.head);
+    const headMesh = mesh(headGeo, skinM, head);
+    const HF = figHead(P.faceShape).head;
+    // 小鼻子：一个很小的鼓包
+    { const n = mesh(G.ball, skinM, head, false); n.scale.set(0.011, 0.009, 0.008); n.position.set(0, FIG.noseY, frontZ(HF, 0, FIG.noseY) - 0.003); }
+    // 脸：一张透明的画布平着投到正面（眉毛、眼睛、腮红、嘴），每一帧画一次
     let face = null;
-    { const S = opt.screenSize || 512, cv = typeof document !== "undefined" ? document.createElement("canvas") : null;
+    { const S = opt.screenSize || 768, cv = typeof document !== "undefined" ? document.createElement("canvas") : null;
       if (cv) {
         cv.width = cv.height = S;
         const tex = new T.CanvasTexture(cv); tex.flipY = false; tex.anisotropy = 8; tex.encoding = T.sRGBEncoding; texOwn.push(tex);
-        const g = headMesh.geometry.clone(); geosOwn.push(g);
-        const pos = g.attributes.position, uv = g.attributes.uv;
-        for (let i = 0; i < pos.count; i++) { const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i); if (z < 0.02) uv.setXY(i, -1, -1); else uv.setXY(i, 0.5 + x / (2 * DOLL.FW), 0.5 - (y - DOLL.FY) / (2 * DOLL.FH)); }
-        uv.needsUpdate = true;
-        const fm = new T.MeshStandardMaterial({ map: tex, transparent: true, depthWrite: false, roughness: 0.58, metalness: 0, emissiveMap: tex, emissive: C(0xffffff).multiplyScalar(0.1), polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+        const g = headGeo.clone(); geosOwn.push(g);
+        const pos = g.attributes.position, uv = new Float32Array(pos.count * 2);
+        for (let i = 0; i < pos.count; i++) { const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i); if (z < 0.03) { uv[i * 2] = -1; uv[i * 2 + 1] = -1; } else { uv[i * 2] = 0.5 + x / (2 * DOLL.FW); uv[i * 2 + 1] = 0.5 - (y - DOLL.FY) / (2 * DOLL.FH); } }
+        g.setAttribute("uv", new T.BufferAttribute(uv, 2));
+        const fm = new T.MeshPhysicalMaterial({ map: tex, transparent: true, depthWrite: false, roughness: 0.42, clearcoat: 0.35, clearcoatRoughness: 0.3, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
         mats.push(fm);
-        const fp = mesh(g, fm, head, false); fp.scale.copy(headMesh.scale); fp.renderOrder = 1;
+        const fp = mesh(g, fm, head, false); fp.renderOrder = 1;
         face = { ctx: cv.getContext("2d"), S, tex };
       } }
     if (P.glasses) {
-      const gm = std(P.glassesColor, { metalness: 0.5, roughness: 0.3 });
-      for (const sd of [-1, 1]) { const l = mesh(G.torus(0.041, 0.0034), gm, head, false); l.scale.set(1, 0.8, 1); l.position.copy(onHead(sd * 0.074, 0.153, 0.016)); l.lookAt(l.position.clone().add(new T.Vector3(sd * 0.3, 0, 1))); }
-      const br = mesh(G.cap(0.0028, 0.03), gm, head, false); br.rotation.z = Math.PI / 2; br.position.copy(onHead(0, 0.16, 0.018));
+      const gm = physM(P.glassesColor, { metalness: 0.5, roughness: 0.3 }), gz = (x, y) => frontZ(HF, x, y) + 0.016;
+      for (const sd of [-1, 1]) { const x = sd * FIG.eyeX, l = mesh(G.torus(0.04, 0.0036), gm, head, false); l.scale.set(1.02, 0.92, 1); l.position.set(x, FIG.eyeY, gz(x, FIG.eyeY)); l.lookAt(l.position.clone().add(new T.Vector3(sd * 0.25, 0, 1))); }
+      const br = mesh(G.cap(0.0026, 0.044), gm, head, false); br.rotation.z = Math.PI / 2; br.position.set(0, FIG.eyeY + 0.008, gz(0, FIG.eyeY + 0.008) + 0.004);
+    }
+    // 头发
+    const hairOn = P.hairStyle !== "none";
+    const hairG = grp(head); if (P.part === "right") hairG.scale.x = -1;   // 分缝在另一边：头发整个左右翻过来
+    for (const m of SH.hair) mesh(geoOf(m), hairM, hairG);
+    for (const x of SH.extra) {
+      if (x.kind === "bow") {
+        // 朱红的蝴蝶结：两片圆圆的翅膀 + 中间一个结 + 两根垂下来的带子
+        const g = grp(head, ...x.at); g.lookAt(new T.Vector3(...x.at).add(new T.Vector3(...x.dir)));
+        for (const sd of [-1, 1]) { const w = mesh(G.ball, redM, g); w.scale.set(0.06, 0.036, 0.02); w.position.set(sd * 0.056, 0.006, 0); w.rotation.z = sd * 0.25; const tl = mesh(G.cap(0.01, 0.06), redM, g); tl.position.set(sd * 0.02, -0.055, 0.004); tl.rotation.z = sd * 0.3; tl.scale.set(1.3, 1, 0.5); }
+        const kn = mesh(G.ball, redM, g); kn.scale.set(0.022, 0.024, 0.018);
+        A.hairTie = g;
+      } else if (x.kind === "pin") {
+        // 簪子：一根细金簪，一头一颗玉珠，下面挂两串小流苏
+        const a = new T.Vector3(...x.a), b = new T.Vector3(...x.b), d = b.clone().sub(a), L = d.length();
+        const rod = mesh(G.cyl(0.0035, 0.0035, L, 10), goldM, head, false); rod.position.copy(a).add(b).multiplyScalar(0.5); rod.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), d.clone().normalize());
+        const bead = mesh(G.ball, jadeM, head); bead.scale.setScalar(0.016); bead.position.copy(a);
+        for (const k of [0, 1]) for (let i = 0; i < 3; i++) { const t = mesh(G.ball, i === 2 ? redM : goldM, head, false); t.scale.setScalar(i === 2 ? 0.006 : 0.004); t.position.copy(a).add(new T.Vector3(-0.006 + k * 0.012, -0.022 - i * 0.014, 0.004)); }
+      }
     }
 
-    // ---- 头发：一顶贴着头的发壳 + 刘海、两边的发丝 + 马尾 / 丸子 ----
-    const hairOn = P.hairStyle !== "none";
-    const HC = new T.Vector3(0, 0.19, -0.004), HRr = 0.198;
-    const sph = (az, pol, r = HRr) => [HC.x + r * Math.sin(pol) * Math.sin(az), HC.y + r * Math.cos(pol), HC.z + r * Math.sin(pol) * Math.cos(az) * 0.95];
-    if (hairOn) {
-      const long = P.hairStyle === "long" || P.hairStyle === "flare", bob = P.hairStyle === "bob" || P.hairStyle === "curly", short = P.hairStyle === "short";
-      const g = new T.SphereGeometry(1, 72, 44); geosOwn.push(g);
-      const pos = g.attributes.position;
-      const tied = P.hairStyle === "ponytail" || P.hairStyle === "bun", thF = P.bangs === "none" ? 0.95 : 0.62, thS = short ? 1.5 : 1.62, thB = short ? 2.05 : bob || long ? 2.35 : tied ? 2.5 : 2.2;
-      const sm = (x) => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
-      for (let i = 0; i < pos.count; i++) {
-        const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i), th = Math.acos(clamp(y, -1, 1)), az = Math.abs(Math.atan2(x, z)), t = az / Math.PI;
-        const lim = t < 0.5 ? thF + (thS - thF) * sm(t / 0.5) : thS + (thB - thS) * sm((t - 0.5) / (tied ? 0.25 : 0.5));   // 扎起来的头发：后脑勺整个盖住
-        const t2 = Math.min(th, lim), h = Math.hypot(x, z) || 1, r = Math.sin(t2);
-        pos.setXYZ(i, (x / h) * r, Math.cos(t2), (z / h) * r);
-      }
-      g.computeVertexNormals();
-      const cap = mesh(g, hairM, head); cap.scale.set(HRr * 1.06, HRr * 1.03, HRr * 1.0); cap.position.copy(HC);   // 比头大一圈，头发看着有厚度
-      // 刘海：几缕又宽又厚的发片从头顶分缝的地方往前、再往下垂到眉毛上面，互相叠着，发梢收尖（像手办上雕出来的头发，有体积、不是一排尖刺）
-      if (P.bangs !== "none") {
-        const side = P.bangs === "side";
-        const L = P.bangs === "full" ? [[-0.165, 0.258, 0.068], [-0.1, 0.245, 0.078], [-0.035, 0.24, 0.08], [0.03, 0.24, 0.08], [0.095, 0.245, 0.078], [0.16, 0.258, 0.068]]
-          : P.bangs === "middle" ? [[-0.175, 0.232, 0.07], [-0.115, 0.252, 0.08], [-0.055, 0.282, 0.074], [0.055, 0.282, 0.074], [0.115, 0.252, 0.08], [0.175, 0.232, 0.07]]
-          : [[-0.175, 0.232, 0.072], [-0.105, 0.262, 0.078], [-0.012, 0.258, 0.076], [0.058, 0.24, 0.088], [0.125, 0.228, 0.092], [0.188, 0.238, 0.08]];
-        const partX = side ? -0.05 : 0, partAz = side ? -0.28 : 0;
-        // 发根藏在发壳里面（头顶是光滑的一整块），一缕高一缕低地叠着（缕和缕之间有阴影），发梢离额头一点点、尖尖的
-        L.forEach(([tx, ty, w], i) => {
-          const up = i % 2 ? 0.012 : 0, az0 = partAz + (tx - partX) * 1.7, top = sph(partAz * 0.6 + (tx - partX) * 0.6, 0.3, HRr + 0.002), m1 = sph(partAz + (az0 - partAz) * 0.6, 0.58, HRr + 0.03 + up);
-          const m2 = onHead(partX + (tx - partX) * 0.82, 0.31, 0.034 + up), tip = onHead(tx, ty, 0.02 + up * 0.6);
-          tube([top, m1, [m2.x, m2.y, m2.z], [tip.x + tx * 0.05, tip.y - 0.006, tip.z]], w * 0.8, w * 0.84, 0.55, hairM, head, new T.Vector3(0, 0.17, -0.02), 16, 52, 0.1, 0.46);
-        });
-      }
-      // 两边垂下来的发丝（耳朵前面一缕、后面一缕），长发更长
-      const sideLen = short ? 0.0 : long ? -0.2 : bob ? -0.02 : -0.06;
-      if (!short) for (const sd of [-1, 1]) {
-        tube([sph(sd * 1.2, 1.0, HRr + 0.016), sph(sd * 1.32, 1.4, HRr + 0.02), [sd * 0.202, 0.11, 0.055], [sd * 0.208, 0.03, 0.06], [sd * 0.19, sideLen, 0.075]], 0.04, 0.044, 0.62, hairM, head, new T.Vector3(0, 0.1, -0.02), 12, 40, 0.2, 0.35);
-        tube([sph(sd * 1.6, 1.2, HRr + 0.012), sph(sd * 1.75, 1.6, HRr + 0.016), [sd * 0.22, 0.08, -0.04], [sd * 0.224, sideLen + 0.02, -0.03]], 0.042, 0.046, 0.65, hairM, head, new T.Vector3(0, 0.1, -0.06), 12, 40, 0.2, 0.35);
-      }
-      if (bob || long) for (let k = 0; k < 7; k++) { const az = Math.PI * (0.62 + k * 0.127) * (k % 2 ? 1 : -1) * 0 + Math.PI * (0.55 + k * 0.15); tube([sph(az, 1.4, HRr + 0.004), sph(az, 1.9, HRr + 0.016), [Math.sin(az) * 0.21, long ? -0.12 : 0.0, Math.cos(az) * 0.2], [Math.sin(az) * 0.2, long ? -0.24 : -0.04, Math.cos(az) * 0.19]], 0.05, 0.045, 0.5, hairM, head, new T.Vector3(0, 0.05, 0), 12, 36, 0.2); }
-      if (P.hairStyle === "ponytail") {
-        // 高马尾：头顶偏后扎一个红色发圈，马尾往后翘一下再垂到背上
-        const tp = new T.Vector3(...sph(Math.PI, 0.5, HRr + 0.01));
-        const tie = mesh(G.torus(0.032, 0.012), redM, head, false); tie.position.copy(tp); tie.lookAt(tp.clone().add(new T.Vector3(0, 0.8, -1))); A.hairTie = tie;
-        const base = mesh(G.ball, hairM, head); base.scale.set(0.045, 0.04, 0.045); base.position.copy(tp).add(new T.Vector3(0, 0.012, -0.012));
-        const P0 = [[0, tp.y + 0.02, tp.z - 0.02], [0, tp.y + 0.035, tp.z - 0.065], [0.006, tp.y - 0.035, tp.z - 0.13], [0.012, 0.13, -0.24], [0.004, -0.04, -0.24], [0.022, -0.2, -0.2]];
-        tube(P0, 0.05, 0.07, 0.8, hairM, head, null, 16, 60, 0.1);
-        tube(P0.map(([x, y, z], i) => [x + 0.025 * Math.min(1, i / 2), y - 0.01, z + 0.01]), 0.03, 0.04, 0.8, hairM, head, null, 12, 50, 0.1);
-        tube(P0.map(([x, y, z], i) => [x - 0.022 * Math.min(1, i / 2), y - 0.02 * i, z + 0.012]).slice(0, 5), 0.028, 0.034, 0.8, hairM, head, null, 12, 44, 0.1);
-      }
-      if (P.hairStyle === "bun") { const tp = new T.Vector3(...sph(Math.PI * 0.95, 0.35, HRr + 0.03)); const bn = mesh(G.ball, hairM, head); bn.scale.setScalar(0.07); bn.position.copy(tp); const tie = mesh(G.torus(0.045, 0.01), redM, head, false); tie.position.copy(tp).add(new T.Vector3(0, -0.05, 0.01)); tie.rotation.x = Math.PI / 2 - 0.3; }
-      // 头上的骨架：头顶、两边太阳穴的红球，绿线连起来
-      if (rig) {
-        joint(head, ...sph(0, 0.12, HRr + 0.03), 0.02);
-        for (const sd of [-1, 1]) { joint(head, ...sph(sd * 1.42, 0.95, HRr + 0.02), 0.017); const pts = []; for (let k = 0; k <= 8; k++) { const u = k / 8; pts.push(sph(sd * 1.42 * Math.min(1, u * 1.4), 0.12 + (0.95 - 0.12) * u, HRr + 0.026 - 0.006 * u)); } wire(pts, head, 0.0022); }
-        const pb = []; for (let k = 0; k <= 8; k++) pb.push(sph(Math.PI, 0.12 + 0.36 * (k / 8), HRr + 0.026)); wire(pb, head, 0.0022);
-      }
-    } else if (rig) joint(head, 0, 0.375, 0, 0.02);
-
     const NECK_Y = HIP + 0.08 + 0.27 + 0.03;
-    A.height = NECK_Y + (0.364 + (hairOn ? 0.03 : 0)) * HS;
-    A.faceY = NECK_Y + 0.19 * HS; A.faceSpan = 0.52 * HS; A.srgb = !managed; A.fullTall = true;
+    A.height = NECK_Y + (0.375 + (hairOn ? 0.03 : 0) + (P.hairStyle === "bun" ? 0.08 : 0)) * HS;
+    A.faceY = NECK_Y + 0.17 * HS; A.faceSpan = 0.5 * HS; A.srgb = !managed; A.fullTall = true;
+    A.palette = { top: topG.name, bottom: botG.name };
 
     // ---------- 动起来（和别的样子同一套动作，按公仔的短胳膊调过角度）----------
     const st = { t: Math.random() * 10, talk: 0, talkS: 0, talkSlow: 0, blink: 1 + Math.random() * 3, mood: "idle", moodT: 0, w: { wave: 0, point: 0, gesture: 0, nod: 0, think: 0 } };
@@ -696,7 +848,7 @@
           // 指幻灯片：胳膊往左上方伸，食指指出去
           shZ = lerp(shZ, -1.7, W.point); shX = lerp(shX, 0, W.point); shY = lerp(shY, -0.2, W.point); elX = lerp(elX, -0.9, W.point); elZ = lerp(elZ, -0.75, W.point); wrZ = lerp(wrZ, -0.15, W.point); if (W.point > 0.3) idx = 0.05; curl = lerp(curl, 1.4, W.point);
           // 想一想：手托下巴
-          shX = lerp(shX, -1.3, W.think); shZ = lerp(shZ, -0.4, W.think); elX = lerp(elX, -2.1, W.think); elZ = lerp(elZ, 0.5, W.think); wrY = lerp(wrY, 0.5, W.think); wrZ = lerp(wrZ, 0.3, W.think); curl = lerp(curl, 1.1, W.think);
+          shX = lerp(shX, -1.45, W.think); shZ = lerp(shZ, -0.5, W.think); elX = lerp(elX, -2.3, W.think); elZ = lerp(elZ, 0.55, W.think); wrY = lerp(wrY, 0.5, W.think); wrZ = lerp(wrZ, 0.3, W.think); curl = lerp(curl, 1.1, W.think);
         } else {
           const down = Math.max(W.wave, W.point, W.think);
           shX = lerp(shX, 0, down); shZ = lerp(shZ, 0.16, down); elX = lerp(elX, -0.15, down); wrY = lerp(wrY, -s * 1.1, down); curl = lerp(curl, 0.4, down);
@@ -1390,7 +1542,8 @@
     }
     frameCam();
     let raf = 0, last = 0, dead = false, manual = !!opt.manual;
-    function loop(now) { if (dead || manual) return; raf = requestAnimationFrame(loop); const dt = last ? (now - last) / 1000 : 0.016; last = now; A.update(dt); ren.render(scene, cam); }
+    // 看不见的时候（换到别的页、换成了 Q版动画）不画，省显卡
+    function loop(now) { if (dead || manual) return; raf = requestAnimationFrame(loop); if (ren.domElement.offsetParent === null) { last = now; return; } const dt = last ? (now - last) / 1000 : 0.016; last = now; A.update(dt); ren.render(scene, cam); }
     if (!manual) raf = requestAnimationFrame(loop);
     const ro = root.ResizeObserver ? new ResizeObserver(() => { ren.setSize(W(), H()); frameCam(); }) : null; if (ro) ro.observe(el);
     const api = {
@@ -1401,6 +1554,7 @@
       async setAi(bytes, s) { ai = bytes ? await loadAi(bytes) : null; return api.setSpec(s || A.spec); },
       get hasAi() { return !!ai; },
       get spec() { return A.spec; },
+      get model() { return A; },
       talk(v) { A.talk(v); },
       mood(m, secs) { A.mood(m, secs); },
       // 导出视频：手动一帧一帧画（dt 秒，这一帧的音量）
@@ -1412,5 +1566,5 @@
     return api;
   }
 
-  root.LaoAvatar = { sanitize, build, create, envFor, loadAi, drawAiFace: aiFaceDraw, drawScreen, drawDollFace: dollFaceDraw, defaultLines, cleanLines, STYLES, MOODS, FACE, SCREEN };
+  root.LaoAvatar = { sanitize, build, create, envFor, loadAi, drawAiFace: aiFaceDraw, drawScreen, drawDollFace: dollFaceDraw, defaultLines, cleanLines, STYLES, MOODS, FACE, SCREEN, sculpt: SC, guoColor, figShapes, figSkinCss: (c) => { const k = figSkin(hexOf(c, 0xf0bf9c)), T = root.THREE; return T ? "#" + new T.Color().setHSL(k.h, k.s, k.l).getHexString() : c; } };
 })(typeof window !== "undefined" ? window : globalThis);

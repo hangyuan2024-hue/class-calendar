@@ -195,6 +195,11 @@ class Lao3D(unittest.TestCase):
         self.assertIn("图3是同一位老师的侧面和背面", prompt_for(True, "photo", True))
         self.assertIn("图2是同一位老师的侧面和背面", prompt_for(False, "photo", True))
         self.assertNotIn("侧面和背面", prompt_for(True))
+        # 没有参考图：默认国潮手办 + 新中式衣服；选「照着照片」就不换衣服
+        self.assertIn("国潮盲盒手办", prompt_for(False))
+        self.assertIn("盘扣", prompt_for(False))
+        self.assertNotIn("盘扣", prompt_for(False, "photo"))
+        self.assertIn("盘扣", prompt_for(False, "style"))
         fs = []
         for i, size in enumerate([(300, 400), (200, 100)]):
             f = os.path.join(self.tmp, f"v{i}.png")

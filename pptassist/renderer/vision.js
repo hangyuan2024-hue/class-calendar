@@ -9,7 +9,7 @@
 (function (root) {
   // ---------- 脸上的点（MediaPipe Face Mesh 的编号） ----------
   const LM = {
-    top: 10, chin: 152, nose: 1, edgeR: 234, edgeL: 454,   // R/L 是老师自己的右 / 左（照片里 R 在左边）
+    top: 10, chin: 152, nose: 1, edgeR: 234, edgeL: 454, jawR: 172, jawL: 397,   // R/L 是老师自己的右 / 左（照片里 R 在左边）；jaw 是下颌角
     eyeRo: 33, eyeRi: 133, eyeRt: 159, eyeRb: 145, eyeLo: 263, eyeLi: 362, eyeLt: 386, eyeLb: 374,
     irisR: 468, irisL: 473, lipT: 13, lipB: 14, mouthR: 61, mouthL: 291,
     browR: [70, 63, 105, 66, 107], browL: [336, 296, 334, 293, 300], cheekR: [50, 205, 187], cheekL: [280, 425, 411],
@@ -66,8 +66,17 @@
     const eo = (t1, b1, o, i) => dist(lm[t1], lm[b1]) / Math.max(1, dist(lm[o], lm[i]));
     const eyeOpen = Math.min(eo(LM.eyeRt, LM.eyeRb, LM.eyeRo, LM.eyeRi), eo(LM.eyeLt, LM.eyeLb, LM.eyeLo, LM.eyeLi));
     const mouthOpen = dist(lm[LM.lipT], lm[LM.lipB]) / Math.max(1, dist(lm[LM.mouthR], lm[LM.mouthL]));
-    const fw = dist(a, b), fh = dist(t, c);
-    return { yaw, pitch, roll, eyeOpen, mouthOpen, fw, fh };
+    const fw = dist(a, b), fh = dist(t, c), jaw = dist(lm[LM.jawR], lm[LM.jawL]) / Math.max(1, fw);
+    return { yaw, pitch, roll, eyeOpen, mouthOpen, fw, fh, jaw };
+  }
+  // 脸型：长（脸长 / 脸宽大）、方（下颌角宽）、圆（短而宽）、鹅蛋（其余）。公仔的脸蛋和下巴按这个微调
+  function faceShapeOf(f) {
+    if (!f || !f.fw) return "round";
+    const L = f.fh / f.fw, j = f.jaw || 0.8;
+    if (L > 1.36) return "long";
+    if (j > 0.87) return "square";
+    if (L < 1.2) return "round";
+    return "oval";
   }
   // 照片上的三个点（和以前老师手点的一样）：两只眼睛（虹膜中心，没有就用眼角中点）、嘴巴中间
   function marksOf(lm) {
@@ -104,17 +113,24 @@
     const skin = [0, 1, 2].map((c) => median(skinPts.map((i) => L[i * 3 + c])));
     // 头发的种子：额头上面一条（脸框最上面那个点再往上）+ 两边太阳穴外侧，在「人」里面、颜色不像皮肤的
     const seeds = [];
-    let band = 0;
-    const take = (x0, x1, y0, y1) => {
+    let band = 0, scalp = 0;
+    const take = (x0, x1, y0, y1, crown) => {
       for (let y = Math.floor(y0); y <= y1; y++) for (let x = Math.floor(x0); x <= x1; x++) {
         if (x < 0 || y < 0 || x >= w || y >= h) continue;
         const i = y * w + x; if (!isP(i) || face[i]) continue; band++;
+        if (crown && Math.hypot((L[i * 3] - skin[0]) * 0.3, (L[i * 3 + 1] - skin[1]) * 1.6, (L[i * 3 + 2] - skin[2]) * 1.2) < 11) scalp++;   // 头皮：亮一点暗一点都行，颜色（偏红、偏黄）要和脸一样——金发偏黄，不会算成头皮
         if (dE(L, i, skin) > 16) seeds.push(i);
       }
     };
-    take(cx - 0.3 * fw, cx + 0.3 * fw, top[1] - 0.32 * fh, top[1] - 0.05 * fh);
+    take(cx - 0.3 * fw, cx + 0.3 * fw, top[1] - 0.32 * fh, top[1] - 0.05 * fh, true);
+    const crownN = band;
     take(lm[LM.edgeR][0] - 0.2 * fw, lm[LM.edgeR][0] - 0.02 * fw, eyeY - 0.35 * fh, eyeY);
     take(lm[LM.edgeL][0] + 0.02 * fw, lm[LM.edgeL][0] + 0.2 * fw, eyeY - 0.35 * fh, eyeY);
+    // 光头：额头上面那一块大多是皮肤色（头皮），公仔就不要头发
+    if (crownN > 30 && scalp > crownN * 0.6) {
+      notes.push("头顶大部分是头皮，按光头做（有头发的话在下面选发型）");
+      return { ok: true, style: "none", bangs: "none", color: null, conf: 0.6, notes, part: null, text: "光头（或者头发很少）", top: null, skin: hex(...labToRgb(skin)), detail: { scalp: +(scalp / crownN).toFixed(2) } };
+    }
     if (band < 30 || seeds.length < band * 0.2) {
       notes.push("头顶看不到头发（光头、很短的寸头，或者照片把头顶裁掉了）");
       return { ok: false, style: "short", bangs: "none", color: null, conf: 0.3, notes, skin: hex(...labToRgb(skin)) };
@@ -378,7 +394,7 @@
     return best ? [best.t0, best.t1] : null;
   }
 
-  const core = { LM, lab, pose, marksOf, sharpness, polyMask, hairFront, hairBack, mergeHair, frameScore, pickViews, speechSpan, colorName };
+  const core = { LM, lab, pose, faceShapeOf, marksOf, sharpness, polyMask, hairFront, hairBack, mergeHair, frameScore, pickViews, speechSpan, colorName };
 
   // ---------- 浏览器里：调 MediaPipe ----------
   // MediaPipe 的 wasm 胶水代码要用 eval，主窗口的安全策略不许；所以模型放在一个单独的小页面（vision.html，只加载本地的这几个脚本）里跑，

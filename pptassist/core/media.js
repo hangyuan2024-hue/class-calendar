@@ -115,12 +115,18 @@ function encoder(out, { fps = 25, wav, codec = "png", label = LABEL, meta = null
 }
 
 // 已经有画面的视频（真人数字人对好口型的）+ 配音 → 叠标识、写元数据，出 PowerPoint 能放的 mp4
-async function finalize(video, wav, out, { label = LABEL, meta = null } = {}) {
-  const f = label ? ["-i", label, "-filter_complex", "[0:v][2:v]overlay=24:24:format=auto[v]", "-map", "[v]", "-map", "1:a"] : ["-map", "0:v", "-map", "1:a"];
+// size：[宽, 高] 时先缩放到这么大（AI 出的 480×832 放大成 720×1280，标识的大小才对）
+async function finalize(video, wav, out, { label = LABEL, meta = null, size = null } = {}) {
+  const sc = size ? `[0:v]scale=${size[0] | 0}:${size[1] | 0}:flags=lanczos,setsar=1[s0];` : "";
+  const src = size ? "[s0]" : "[0:v]";
+  const f = label ? ["-i", label, "-filter_complex", `${sc}${src}[2:v]overlay=24:24:format=auto[v]`, "-map", "[v]", "-map", "1:a"]
+    : size ? ["-filter_complex", `${sc.slice(0, -1).replace("[s0]", "[v]")}`, "-map", "[v]", "-map", "1:a"] : ["-map", "0:v", "-map", "1:a"];
   await run(["-i", video, "-i", wav, ...f, "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-shortest", ...metaArgs(meta), out]);
 }
 // 视频的第一帧存成 png（PPT 里视频没开始放时显示的封面，也带着标识）
 const poster = (video, out) => run(["-i", video, "-frames:v", "1", out]);
+// 图片转成 png（jpg、webp 的形象图）
+const toPng = (src, out) => run(["-i", src, "-frames:v", "1", out]);
 
 // ---------- 老师上传的视频 ----------
 // 看一眼：多长、多大、有没有声音（ffmpeg -i 不给输出文件会「出错」退出，信息在 stderr 里）
@@ -159,4 +165,4 @@ function makeTemplate(src, t0, t1, out, { cx = 0.5, cy = 0.45, w = 0.6 } = {}) {
   return run(["-ss", String(t0), "-to", String(t1), "-i", src, "-an", "-vf", `${crop},scale=720:1280,fps=25`, "-c:v", "libx264", "-preset", "veryfast", "-crf", "16", "-pix_fmt", "yuv420p", out]);
 }
 
-module.exports = { ffmpegPath, readWav, writeWav, lipLevels, toWav, encoder, run, LABEL, aigc, finalize, poster, probe, extractVideo, frameAt, cutWav, makeTemplate };
+module.exports = { ffmpegPath, readWav, writeWav, lipLevels, toWav, encoder, run, LABEL, aigc, finalize, poster, toPng, probe, extractVideo, frameAt, cutWav, makeTemplate };

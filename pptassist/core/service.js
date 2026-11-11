@@ -9,6 +9,8 @@ const MEDIA = require("./media");
 const VOICE = require("./voice");
 const DRAFT = require("./draft");
 const AI3D = require("./ai3d");
+const ENGINE = require("./engine");
+const WF = require("./workflows");
 
 const IMG_EXT = ["png", "jpg", "jpeg", "webp", "bmp"];
 const AUDIO_EXT = ["wav", "mp3", "m4a", "aac", "ogg", "flac", "wma", "amr", "opus", "webm"];
@@ -39,6 +41,25 @@ function createService(env) {
   const aiCands = () => { const d = aiFile("cands", "x"); const dir = path.dirname(d); return fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => /^cand_\d+\.png$/.test(f)).sort((a, b) => parseInt(a.slice(5)) - parseInt(b.slice(5))).map((f) => path.join(dir, f)) : []; };
   const aiModel = () => { const f = aiFile("out", "avatar.glb"); return fs.existsSync(f) ? f : null; };
   const firstExisting = (base) => IMG_EXT.map((e) => aiFile(base + "." + e)).find((f) => fs.existsSync(f)) || null;
+  // AI 形象（本机 ComfyUI）：候选 aiav/cands、挑好的 aiav/figure.png、口型和眨眼图层 aiav/layers
+  const eng = ENGINE.create(env.engineOpt || {});
+  const AV = () => (profile.aiav = profile.aiav || { files: {} });
+  const avFile = (...a) => P("aiav", ...a);
+  const avSend = (m) => send("aiav", m);
+  const avRt = () => { const d = AV().dir; if (!d) throw new Error("先选 ComfyUI 整合包的文件夹"); const r = ENGINE.inspect(d); if (!r.ok) throw new Error(r.error); return r; };
+  const avCands = () => { const d = path.dirname(avFile("cands", "x")); return fs.existsSync(d) ? fs.readdirSync(d).filter((f) => /^cand_\d+\.png$/.test(f)).sort((a, b) => parseInt(a.slice(5)) - parseInt(b.slice(5))).map((f) => path.join(d, f)) : []; };
+  const avFigure = () => { const f = avFile("figure.png"); return fs.existsSync(f) ? f : null; };
+  const avLayers = () => Object.fromEntries(Object.keys(WF.VARIANTS).map((k) => [k, avFile("layers", k + ".png")]).filter(([, f]) => fs.existsSync(f)));
+  const avName = (k) => { const f = AV().files[k]; return (f && f.name) || WF.MODELS[k].name; };
+  async function avReady(feature) {
+    const st = eng.status(); if (!st.running) throw new Error("先启动 AI 引擎（ComfyUI）");
+    const c = await eng.check(avRt(), AV().files);
+    const f = c.feat[feature];
+    if (c.coreMissing.length) throw new Error("ComfyUI 版本太旧（缺 " + c.coreMissing[0] + "）：运行整合包里的 update\\update_comfyui.bat 更新一下");
+    if (f.packs.length) throw new Error("还没装 AI 引擎需要的插件：" + f.packs.join("、"));
+    if (f.missing.length) throw new Error("还有模型没下载好（" + f.missing.map((k) => avName(k)).join("、") + "）");
+    return st;
+  }
   const jobs = new Map();
   const outputs = new Set();   // 只让界面打开 / 定位我们自己生成的文件
   let jobN = 0;
@@ -91,10 +112,11 @@ function createService(env) {
     // 一键清除：照片、视频、声音、做出来的脸 / 3D 形象 / 讲解视频全部删掉，授权也撤回（留一条撤回记录）
     clearBiometrics() {
       for (const e of IMG_EXT) fs.rmSync(P("photo." + e), { force: true });
-      for (const d of ["video", "voice", "cache", path.join("ai3d", "cands"), path.join("ai3d", "gen"), path.join("ai3d", "out")]) fs.rmSync(P(d), { recursive: true, force: true });
+      for (const d of ["video", "voice", "cache", path.join("ai3d", "cands"), path.join("ai3d", "gen"), path.join("ai3d", "out"), path.join("aiav", "cands"), path.join("aiav", "layers")]) fs.rmSync(P(d), { recursive: true, force: true });
+      fs.rmSync(P("aiav", "figure.png"), { force: true }); fs.rmSync(P("aiav", "rig.json"), { force: true });
       for (const f of ["face.png", ...IMG_EXT.map((e) => path.join("ai3d", "figure." + e))]) fs.rmSync(P(f), { force: true });
       fs.mkdirSync(CACHE, { recursive: true });
-      if (profile.avatar) { delete profile.avatar.faceLines; delete profile.avatar.faceImage; if (profile.avatar.faceStyle === "ai3d" || profile.avatar.faceStyle === "real") profile.avatar.faceStyle = "doll"; }
+      if (profile.avatar) { delete profile.avatar.faceLines; delete profile.avatar.faceImage; if (["ai3d", "real", "puppet", "aivideo"].includes(profile.avatar.faceStyle)) profile.avatar.faceStyle = "doll"; }
       logConsent({ act: "clear", at: new Date().toISOString(), was: profile.consent || null });
       for (const k of ["photo", "face", "faceMarks", "voice", "video", "consent"]) delete profile[k];
       saveProfile();
@@ -136,7 +158,7 @@ function createService(env) {
       const sty = firstExisting("style");
       const n = Math.max(1, Math.min(6, parseInt(o.n) || 3));
       const extra = ["back", "left", "right"].map((k) => videoDir("views", k + ".jpg")).filter((f) => fs.existsSync(f)).slice(0, 2);
-      const args = ["stylize", "--photo", P(profile.photo), ...(sty ? ["--style", sty] : []), ...(extra.length ? ["--extra", extra.join(",")] : []), "--out", dir, "--n", String(n), "--quality", o.quality === "fast" ? "fast" : "best", "--clothes", o.clothes === "style" ? "style" : "photo"];
+      const args = ["stylize", "--photo", P(profile.photo), ...(sty ? ["--style", sty] : []), ...(extra.length ? ["--extra", extra.join(",")] : []), "--out", dir, "--n", String(n), "--quality", o.quality === "fast" ? "fast" : "best", "--clothes", ["style", "photo"].includes(o.clothes) ? o.clothes : "guochao"];
       await ai.run(aiRt(), args, aiSend);
       return aiCands().map((f) => dataUrl(f, "image/png"));
     },
@@ -177,6 +199,125 @@ function createService(env) {
     ai3dCancel() { return ai.cancel(); },
     ai3dLog() { return ai.log.slice(-30); },
     ai3dOpenPage(k) { if (AI3D.PAGES[k]) env.openExternal(AI3D.PAGES[k]); return true; },
+    // ---------- AI 形象（本机 ComfyUI）：照片 → Q版形象 → Q版动画 / AI 说话视频 / 3D 手办 ----------
+    async aiavState(o = {}) {
+      const a = AV(), fig = avFigure();
+      let rt = null; try { rt = a.dir ? ENGINE.inspect(a.dir) : null; } catch (e) {}
+      const engine = o.check === false ? eng.status() : await eng.refresh();
+      let check = null; if (rt && rt.ok && o.check !== false) try { check = await eng.check(rt, a.files); } catch (e) {}
+      const layers = avLayers();
+      return { dir: a.dir || null, rt, engine, check, style: a.style || "toy", extra: a.extra || "", styles: Object.fromEntries(Object.entries(WF.STYLES).map(([k, v]) => [k, v.name])),
+        cands: avCands().map((f) => dataUrl(f, "image/png")), figure: fig ? dataUrl(fig, "image/png") : null,
+        layers: Object.fromEntries(Object.entries(layers).map(([k, f]) => [k, dataUrl(f, "image/png")])), rig: readJson(avFile("rig.json"), null), pages: ENGINE.PAGES };
+    },
+    async aiavPickDir() {
+      const d = await env.pickDir("选 ComfyUI 整合包（ComfyUI_windows_portable）的文件夹"); if (!d) return null;
+      const r = ENGINE.inspect(d); if (!r.ok) throw new Error(r.error);
+      AV().dir = r.dir; saveProfile();
+      return H.aiavState();
+    },
+    async aiavStart(o = {}) { const st = await eng.start(avRt(), { lowvram: !!o.lowvram }); if (!st.vram.gpu) avSend({ warn: "没认出 NVIDIA 显卡：AI 形象要用 NVIDIA 显卡（显存 8G 以上，说话视频要 12G 以上）" }); return H.aiavState(); },
+    async aiavAttach(url) { await eng.attach(url); return H.aiavState(); },
+    aiavStop() { eng.stop(); return eng.status(); },
+    // 装插件（说话视频要用）；装完要重启 ComfyUI 才会加载
+    async aiavInstall(feature = "talk") {
+      const rt = avRt();
+      await eng.installPacks(rt, feature, (m) => avSend({ ...m, stage: "install" }));
+      if (eng.status().own) { eng.stop(); await eng.start(rt); }
+      return H.aiavState();
+    },
+    async aiavDownload(feature) {
+      if (!WF.NEEDS[feature]) throw new Error("没有这个功能");
+      const vram = eng.status().vram.gb || AV().vram || 12;
+      AV().vram = vram;
+      await eng.fetchModels(avRt(), feature, AV().files, vram, (m) => avSend({ ...m, stage: "download", feature }));
+      saveProfile();
+      return H.aiavState();
+    },
+    // 照片 → 几张 Q版形象（白底全身竖图），老师挑
+    async aiavPortrait(o = {}) {
+      needConsent();
+      if (!profile.photo || !fs.existsSync(P(profile.photo))) throw new Error("先在上面上传老师的照片");
+      await avReady("portrait");
+      const a = AV();
+      a.style = WF.STYLES[o.style] ? o.style : a.style || "toy";
+      a.extra = String(o.extra != null ? o.extra : a.extra || "").slice(0, 300);
+      saveProfile();
+      const name = await eng.upload(P(profile.photo), "laolao-photo" + path.extname(profile.photo));
+      const n = Math.max(1, Math.min(4, parseInt(o.n) || 4));
+      const g = WF.portrait({ photo: name, style: a.style, extra: a.extra, batch: n, fast: o.quality !== "best", seed: crypto.randomInt(1, 2 ** 31) }, avName);
+      const tmp = path.dirname(avFile("tmp", "x")); fs.rmSync(tmp, { recursive: true, force: true });
+      const files = await eng.run("画 Q版形象", g, tmp, (m) => avSend({ ...m, step: m.stage, stage: "portrait" }));
+      const dir = path.dirname(avFile("cands", "x")); fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true });
+      files.filter((f) => /\.png$/i.test(f)).forEach((f, i) => fs.renameSync(f, path.join(dir, `cand_${i}.png`)));
+      fs.rmSync(tmp, { recursive: true, force: true });
+      return avCands().map((f) => dataUrl(f, "image/png"));
+    },
+    // 挑一张；也可以用老师自己已经有的形象图（o.file）
+    aiavChoose(i) {
+      const c = avCands()[parseInt(i)]; if (!c) throw new Error("没有这一张");
+      fs.rmSync(path.dirname(avFile("layers", "x")), { recursive: true, force: true }); fs.rmSync(avFile("rig.json"), { force: true });
+      fs.copyFileSync(c, avFile("figure.png")); return dataUrl(avFile("figure.png"), "image/png");
+    },
+    async aiavPickFigure() {
+      const f = await env.pickFile(["png", "jpg", "jpeg", "webp"], "选一张已经做好的 Q版形象（白底、全身、正面站好）", "图片"); if (!f) return null;
+      if (fs.statSync(f).size > 20e6) throw new Error("图片太大了（超过 20MB）");
+      fs.rmSync(path.dirname(avFile("layers", "x")), { recursive: true, force: true }); fs.rmSync(avFile("rig.json"), { force: true });
+      if (/\.png$/i.test(f)) fs.copyFileSync(f, avFile("figure.png")); else await MEDIA.toPng(f, avFile("figure.png"));
+      return dataUrl(avFile("figure.png"), "image/png");
+    },
+    // Q版动画要的图层：张一点嘴、张大嘴、闭眼（同一张图只改那一处）
+    async aiavLayers(o = {}) {
+      const fig = avFigure(); if (!fig) throw new Error("先挑一张 Q版形象");
+      await avReady("portrait");
+      const name = await eng.upload(fig, "laolao-figure.png");
+      const dir = path.dirname(avFile("layers", "x")); fs.mkdirSync(dir, { recursive: true });
+      const kinds = (o.kinds || Object.keys(WF.VARIANTS)).filter((k) => WF.VARIANTS[k]);
+      for (let i = 0; i < kinds.length; i++) {
+        const k = kinds[i], tmp = path.dirname(avFile("tmp", "x")); fs.rmSync(tmp, { recursive: true, force: true });
+        const files = await eng.run("画口型和眨眼", WF.variant({ image: name, kind: k, seed: 7 + i, fast: o.quality !== "best" }, avName), tmp, (m) => avSend({ ...m, step: m.stage, stage: "layers", kind: k, i, n: kinds.length }));
+        fs.renameSync(files[0], path.join(dir, k + ".png"));
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+      fs.rmSync(avFile("rig.json"), { force: true });
+      return H.aiavState({ check: false });
+    },
+    // 界面算好的 Q版动画数据（嘴、眼睛在哪，头怎么动）
+    aiavSaveRig(rig) { const t = JSON.stringify(rig || null); if (!rig || t.length > 2e5) throw new Error("动画数据不对"); fs.writeFileSync(avFile("rig.json"), t); return true; },
+    aiavSprites() {
+      const fig = avFigure(); if (!fig) return null;
+      const L = avLayers();
+      return { figure: new Uint8Array(fs.readFileSync(fig)), layers: Object.fromEntries(Object.entries(L).map(([k, f]) => [k, new Uint8Array(fs.readFileSync(f))])), rig: readJson(avFile("rig.json"), null) };
+    },
+    // 挑好的形象拿去做 3D 手办（AI 3D 形象那一套）
+    aiavTo3d() {
+      const fig = avFigure(); if (!fig) throw new Error("先挑一张 Q版形象");
+      for (const e of IMG_EXT) fs.rmSync(aiFile("figure." + e), { force: true });
+      fs.copyFileSync(fig, aiFile("figure.png")); return dataUrl(aiFile("figure.png"), "image/png");
+    },
+    // AI 说话视频：形象 + 这一段配音 → 视频（慢：16G 显卡大约 2～3 分钟出 1 秒）
+    async aiavTalk(key, o = {}) {
+      needConsent();
+      if (!keyOk(key)) throw new Error("编号不对");
+      const s = segWav(key); if (!s) throw new Error("这一段还没有声音");
+      const fig = avFigure(); if (!fig) throw new Error("先在「我的形象」里生成并挑一张 Q版形象");
+      const st = await avReady("talk");
+      const a16 = P("cache", `aiav-${key}-16k.wav`), out = P("cache", `vid-${key}.mp4`), png = P("cache", `vid-${key}.png`);
+      await MEDIA.toWav(s.wav, a16, { rate: 16000 });
+      const img = await eng.upload(fig, "laolao-figure.png");
+      const aud = await eng.upload(a16, `laolao-${key}.wav`);
+      const act = WF.TALK_ACT[o.act] ? o.act : "auto";
+      const tmp = path.dirname(P("cache", "aiav-tmp", "x")); fs.rmSync(tmp, { recursive: true, force: true });
+      const files = await eng.run("AI 说话视频", WF.talk({ image: img, audio: aud, seconds: s.ms / 1000, act, vramGB: st.vram.gb || 12, seed: crypto.randomInt(1, 2 ** 31) }, avName), tmp, (m) => send("talk", { ...m, step: m.stage, key, ai: true }));
+      const raw = files.find((f) => /\.mp4$/i.test(f)); if (!raw) throw new Error("AI 引擎没出视频");
+      await MEDIA.finalize(raw, s.wav, out, { meta: MEDIA.aigc(aigcId()), size: [720, 1280] });
+      await MEDIA.poster(out, png);
+      fs.rmSync(a16, { force: true }); fs.rmSync(tmp, { recursive: true, force: true });
+      return { key, mp4: out, size: fs.statSync(out).size };
+    },
+    aiavCancel() { return eng.cancel(); },
+    aiavLog() { return eng.log.slice(-40); },
+    aiavOpenPage(k) { if (ENGINE.PAGES[k]) env.openExternal(ENGINE.PAGES[k]); return true; },
     // ---------- 我的形象 ----------
     saveAvatar(spec) { if (!spec || typeof spec !== "object" || JSON.stringify(spec).length > 6000) throw new Error("形象数据不对"); profile.avatar = spec; saveProfile(); return true; },
     saveLayout(o) { if (o && (o.side === "left" || o.side === "right")) profile.side = o.side; if (o && +o.scale >= 0.25 && +o.scale <= 0.8) profile.scale = +o.scale; saveProfile(); return true; },
@@ -381,7 +522,7 @@ function createService(env) {
     openFile(f) { if (!outputs.has(f)) throw new Error("不能打开这个文件"); env.openPath(f); return true; },
     reveal(f) { if (!outputs.has(f)) throw new Error("不能打开这个文件"); env.reveal(f); return true; },
   };
-  return { H, shutdown: () => voice.stop() };
+  return { H, shutdown: () => { voice.stop(); eng.stop(); } };
 }
 
 module.exports = { createService };

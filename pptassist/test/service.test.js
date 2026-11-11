@@ -89,8 +89,56 @@ const ok = (m) => console.log("✓ " + m);
     ok("真人数字人：模板 + 配音 → 对口型（测试模式）→ 叠「AI生成」、写 AIGC 元数据、出封面");
   } else console.log("（跳过真人数字人：这台电脑的 Python 没有 cv2 / soundfile）");
 
+  // AI 形象（本机 ComfyUI，用假的）：照片 → Q版候选 → 挑一张 → 口型 / 眨眼图层 → AI 说话视频
+  {
+    const FAKE = require("./fake-comfy");
+    const W = require("../core/workflows");
+    const talkMp4 = path.join(user, "ai-talk.mp4");
+    await M.run(["-f", "lavfi", "-i", "testsrc=size=480x832:rate=25:duration=2", "-c:v", "libx264", "-pix_fmt", "yuv420p", talkMp4]);
+    const fake = await FAKE.start({ view: (fn) => fs.readFileSync(/\.mp4$/.test(fn) ? talkMp4 : path.join(__dirname, "fixtures", "face.png")) });
+    const comfy = path.join(user, "ComfyUI_windows_portable");
+    fs.mkdirSync(path.join(comfy, "ComfyUI", "comfy"), { recursive: true }); fs.writeFileSync(path.join(comfy, "ComfyUI", "main.py"), "");
+    const pyRel = process.platform === "win32" ? ["python_embeded", "python.exe"] : ["python_embeded", "bin", "python3"];
+    fs.mkdirSync(path.join(comfy, ...pyRel.slice(0, -1)), { recursive: true }); fs.writeFileSync(path.join(comfy, ...pyRel), "");
+    const sends = [];
+    const sv = createService({ user, documents: user, version: "t", send: (ch, d) => sends.push([ch, d]), pickFile: async () => null, pickDir: async () => comfy, openPath() {}, reveal() {}, openExternal() {}, voiceOpt: {}, engineOpt: { hf: [fake.url], poll: 20 } });
+    const A = sv.H;
+    let st = await A.aiavPickDir(); assert.equal(st.rt.ok, true); assert.equal(st.engine.running, false);
+    await assert.rejects(A.aiavPortrait(), /先启动 AI 引擎/);
+    st = await A.aiavAttach(fake.url); assert.equal(st.engine.vram.gb, 16);
+    await assert.rejects(A.aiavPortrait(), /模型没下载好/);
+    const put = (k) => { const m = W.MODELS[k], f = path.join(comfy, "ComfyUI", "models", m.dir, m.name); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, "x"); };
+    W.NEEDS.portrait.forEach(put);
+    st = await A.aiavState(); assert.equal(st.check.feat.portrait.ready, true); assert.equal(st.check.feat.talk.ready, false);
+    const cands = await A.aiavPortrait({ style: "anime", extra: "戴细框眼镜", n: 2 });
+    assert.equal(cands.length, 2); assert.ok(cands[0].startsWith("data:image/png;base64,"));
+    const pp = fake.st.prompts[0].prompt; const enc = Object.values(pp).find((n) => n.class_type === "TextEncodeQwenImageEditPlus");
+    assert.match(enc.inputs.prompt, /anime/); assert.match(enc.inputs.prompt, /戴细框眼镜/); assert.ok(fake.st.uploads["laolao-photo.jpg"] > 0);
+    assert.equal(Object.values(pp).find((n) => n.class_type === "EmptySD3LatentImage").inputs.batch_size, 2);
+    assert.ok(sends.some(([ch, d]) => ch === "aiav" && d.stage === "portrait" && d.value === 2));
+    A.aiavChoose(1);
+    st = await A.aiavLayers();
+    assert.deepStrictEqual(Object.keys(st.layers).sort(), ["eyesClosed", "mouthHalf", "mouthOpen"]); assert.ok(st.figure);
+    A.aiavSaveRig({ mouth: [1, 2, 3, 4] }); assert.deepStrictEqual(A.aiavSprites().rig, { mouth: [1, 2, 3, 4] }); assert.ok(A.aiavSprites().layers.mouthOpen.length > 100);
+    ok("AI 形象：先启动引擎、模型下全才能画；照片 → 几张 Q版候选（画风、补充说明都传进去）→ 挑一张 → 画出张嘴、闭眼图层");
+    await assert.rejects(A.aiavTalk("n2"), /插件/);
+    for (const p of W.NODE_PACKS) fs.mkdirSync(path.join(comfy, "ComfyUI", "custom_nodes", p.dir), { recursive: true });
+    W.NEEDS.talk.forEach(put);
+    const tv = await A.aiavTalk("n2", { act: "wave" });
+    const inf = await M.probe(tv.mp4); assert.equal(inf.w, 720); assert.equal(inf.h, 1280); assert.ok(inf.audio);
+    assert.match(meta(tv.mp4), /AIGC/); assert.ok(fs.existsSync(path.join(user, "cache", "vid-n2.png")));
+    const tp2 = fake.st.prompts[fake.st.prompts.length - 1].prompt;
+    assert.match(Object.values(tp2).find((n) => n.class_type === "WanVideoTextEncodeCached").inputs.positive_prompt, /waves one hand/);
+    assert.equal(Object.values(tp2).find((n) => n.class_type === "WanVideoBlockSwap").inputs.blocks_to_swap, 25);
+    ok("AI 说话视频：形象 + 配音 → 视频（按 16G 显存省显存）→ 放大到 720×1280、叠「AI生成」、写 AIGC 元数据、出封面");
+    A.aiavTo3d(); assert.ok(fs.existsSync(path.join(user, "ai3d", "figure.png")));
+    ok("挑好的 Q版形象可以直接拿去做 3D 手办");
+    sv.shutdown(); fake.close();
+  }
+
   // 一键清除
   H.clearBiometrics();
+  assert.ok(!fs.existsSync(path.join(user, "aiav", "figure.png")) && !fs.existsSync(path.join(user, "aiav", "cands")) && !fs.existsSync(path.join(user, "aiav", "layers")));
   const st2 = H.state();
   assert.equal(st2.photo, null); assert.equal(st2.voice, null); assert.equal(st2.video, null); assert.equal(st2.consent, null); assert.equal(st2.face, null);
   assert.ok(!fs.existsSync(path.join(user, "video")) && !fs.existsSync(path.join(user, "voice")));

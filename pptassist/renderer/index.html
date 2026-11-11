@@ -26,12 +26,40 @@
 <main>
   <!-- 1 我的形象 -->
   <section class="page" id="pg-avatar">
-    <header><h1>我的形象</h1><p>你在电子世界里的分身：一个 Q版大头公仔，像桌上摆的 3D 手办。上传一张正面照片（或者一段视频，更像），程序自动找到眼睛和嘴、量出五官的特点（两眼距离、眉毛的走向、嘴的宽度和笑的弧度）照着画到公仔脸上，还会认出发型（长短、刘海、扎没扎）和头发、衣服的颜色；认得不对可以自己改。改完自动保存。</p></header>
+    <header><h1>我的形象</h1><p>你在电子世界里的 Q版分身。有 NVIDIA 显卡的话，用下面的「AI 形象」：AI 照着你的照片画出又像你、又可爱的 Q版形象，再让它动起来、开口讲课，全部在这台电脑上算。没有显卡也能用「公仔风」：程序量出你的五官和发型，拼出一个 3D 公仔。改完自动保存。</p></header>
     <div class="card consent-card" id="consentCard">
       <div class="consent-st" id="consentSt">还没授权</div>
       <span class="grow"></span>
       <button class="btn sm pri" id="consentOpen">阅读并同意授权</button>
       <button class="btn sm" id="bioClear" title="照片、视频、声音、做好的脸、3D 形象、讲解视频全部删掉，授权也撤回">清除我的照片、视频和声音</button>
+    </div>
+    <div class="card av-card" id="avCard">
+      <div class="card-h"><b>AI 形象（推荐：像本人、又可爱）</b><small class="ai-sub">AI 照着照片画 Q版形象，再让它开口讲课。在你自己电脑上用 NVIDIA 显卡算（本机的 ComfyUI），照片不出这台电脑</small></div>
+      <div class="ai-steps av-steps">
+        <div class="ai-step">
+          <b>① AI 引擎</b>
+          <div class="row"><button class="btn sm" id="avDir">选 ComfyUI 整合包文件夹</button><button class="btn sm pri" id="avStart" disabled>启动</button><a href="#" class="lnk" data-avpage="comfy">下载整合包</a></div>
+          <p class="hint" id="avEnv">要一个 ComfyUI 的 Windows 整合包（官方的 ComfyUI_windows_portable，解压就能用），在这里选它的文件夹，点「启动」。</p>
+          <div class="av-need" id="avNeed"></div>
+        </div>
+        <div class="ai-step">
+          <b>② 画 Q版形象</b>
+          <div class="row"><select id="avStyle" title="画风"></select><select id="avN" title="一次画几张"><option value="2">画 2 张</option><option value="4" selected>画 4 张</option></select><select id="avQ" title="画得多细"><option value="fast" selected>快（4 张约 1～3 分钟）</option><option value="best">更细（4 张约 10～20 分钟）</option></select></div>
+          <label class="field"><span>补充说明（可以不写）</span><input id="avExtra" maxlength="120" placeholder="比如：戴细框眼镜、穿白衬衫、短发往后梳"></label>
+          <div class="row"><button class="btn pri" id="avPortrait">用照片画 Q版形象</button><button class="btn sm" id="avFigure">我已经有形象图</button></div>
+          <div class="ai-cands" id="avCands"></div>
+          <p class="hint">照片越清楚越像。画好了点一张最像、最好看的；都不满意就再画一次（每次都不一样），或者在补充说明里写哪里不像。</p>
+        </div>
+        <div class="ai-step">
+          <b>③ 动起来</b>
+          <div class="row"><img id="avFigImg" class="ai-thumb" alt="" hidden><button class="btn" id="avLayers" disabled>画口型和眨眼</button></div>
+          <div class="av-layers" id="avLayersBox"></div>
+          <p class="hint" id="avRigHint">挑好形象后点「画口型和眨眼」：AI 在同一张图上只改嘴、只改眼睛，再由我们的程序让它说话、眨眼、点头、挥手。</p>
+          <div class="row"><button class="btn sm" id="avUsePuppet" disabled>用「Q版动画」</button><button class="btn sm" id="avUseVideo" disabled>用「AI 说话视频」</button><button class="btn sm" id="avTo3d" disabled title="拿这张图去下面「AI 生成 3D 形象」做 3D 手办">做成 3D 手办</button></div>
+        </div>
+      </div>
+      <div class="ai-prog" id="avProg" hidden><div class="bar"><i id="avBar"></i></div><span id="avMsg"></span><button class="btn sm" id="avCancel">停止</button></div>
+      <details class="av-log"><summary>AI 引擎的日志</summary><pre id="avLog"></pre></details>
     </div>
     <div class="avatar-grid">
       <div class="card photo-card">
@@ -94,10 +122,10 @@
           <div class="row"><button class="btn sm" id="aiStyle">选参考图</button><img id="aiStyleImg" class="ai-thumb" alt="" hidden>
             <select id="aiN" title="一次画几张"><option value="2">画 2 张</option><option value="3" selected>画 3 张</option><option value="4">画 4 张</option></select>
             <select id="aiQ" title="画得多细"><option value="best">最好（每张约 20 分钟）</option><option value="fast">快（每张约 4 分钟）</option></select>
-            <select id="aiClothes"><option value="photo">衣服照着照片</option><option value="style">衣服照着参考图</option></select></div>
-          <div class="row"><button class="btn" id="aiStylize">用照片 + 参考图画公仔</button><button class="btn sm" id="aiFigure">我已经有公仔图，直接用</button></div>
+            <select id="aiClothes"><option value="guochao" selected>新中式衣服（国潮）</option><option value="photo">衣服照着照片</option><option value="style">衣服照着参考图</option></select></div>
+          <div class="row"><button class="btn" id="aiStylize">用照片画国潮公仔</button><button class="btn sm" id="aiFigure">我已经有公仔图，直接用</button></div>
           <div class="ai-cands" id="aiCands"></div>
-          <p class="hint">参考图定风格，上面上传的照片定长相；画好了点一张最像的。要做成 3D，图里最好是正面全身、站直、胳膊离开身子一点。</p>
+          <p class="hint">照片定长相，风格默认是我们的「国潮手办」（不用参考图）；想要别的风格就上传一张参考图。画好了点一张最像的。要做成 3D，图里最好是正面全身、站直、胳膊离开身子一点。</p>
         </div>
         <div class="ai-step">
           <b>③ 3D 形象</b>
@@ -206,6 +234,7 @@
 <script src="avatar3d.js"></script>
 <script src="face.js"></script>
 <script src="vision.js"></script>
+<script src="puppet.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

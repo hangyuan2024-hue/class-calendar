@@ -22,11 +22,16 @@ PROMPT_STYLE = (
     "图1是一位老师的照片，图2是一个3D公仔手办。把图1里的这位老师做成图2那种风格的3D Q版公仔手办："
     "和图2一样的材质和做工、一样柔和的摄影棚灯光。" + QBAN + SMOOTH + LIKE + "{clothes}" + POSE
 )
+# 没有参考图时用我们自己的风格「国潮手办」（和不用显卡的公仔风是一个样子）：大众喜欢的盲盒潮玩 + 中国风
+GUO = ("国潮盲盒手办风格（像潮玩店里卖的那种中国风盲盒公仔）：哑光软胶质感，皮肤白里透粉、干净光滑；大大的深色眼睛，眼珠里两点白色高光，"
+       "眉毛短短的、柔和；小鼻子，小嘴微笑，淡淡的桃色腮红；头发是光滑的一大束一大束的造型，发梢收尖。")
+GUO_CLOTHES = ("衣服是新中式：立领、对襟、三对盘扣，袖口和下摆有一道金色（浅色衣服用朱红）的镶边，下摆绣一圈浅浅的祥云纹；"
+               "颜色用中国传统色（黛蓝、朱红、月白、松绿、杏黄、藕荷这一类），尽量和图1里老师衣服的颜色接近；下面是同色系的阔腿裤（老师穿裙子就是马面裙）；黑色鞋面、白色厚底的布鞋。")
 PROMPT_PHOTO_ONLY = (
-    "把图1里的这位老师做成一个3D Q版公仔手办：精致的手办做工，柔和的摄影棚灯光。" + QBAN + SMOOTH + LIKE +
-    "衣服照着图1里老师穿的。" + POSE
+    "把图1里的这位老师做成一个3D Q版公仔手办：精致的手办做工，柔和的摄影棚灯光。" + GUO + QBAN + SMOOTH + LIKE +
+    "{clothes}" + POSE
 )
-CLOTHES = {"photo": "衣服照着图1里老师穿的。", "style": "衣服、鞋子、配饰照着图2的公仔。"}
+CLOTHES = {"photo": "衣服照着图1里老师穿的。", "style": "衣服、鞋子、配饰照着图2的公仔。", "guochao": GUO_CLOTHES}
 NEGATIVE = "写实比例，大长腿，八头身，小头，瘦长身材，衣服褶皱多，表面粗糙，颗粒感，多个人，文字，水印，底座，侧身，背影，手放在胸前，手拿东西，手贴着身体，画面被裁切，只有半身，模糊，变形，多余的手指"
 
 
@@ -34,8 +39,11 @@ NEGATIVE = "写实比例，大长腿，八头身，小头，瘦长身材，衣�
 EXTRA = "图{k}是同一位老师的侧面和背面（从视频里截的），发型的长短、扎法（马尾、丸子头、披着）、后脑勺的样子都照着图{k}。"
 
 
-def prompt_for(has_style, clothes="photo", extra=False):
-    p = PROMPT_STYLE.format(clothes=CLOTHES.get(clothes, CLOTHES["photo"])) if has_style else PROMPT_PHOTO_ONLY
+def prompt_for(has_style, clothes="guochao", extra=False):
+    c = CLOTHES.get(clothes, GUO_CLOTHES)
+    if not has_style and clothes == "style":   # 没有参考图却选了「照着参考图」：用国潮
+        c = GUO_CLOTHES
+    p = PROMPT_STYLE.format(clothes=c) if has_style else PROMPT_PHOTO_ONLY.format(clothes=c)
     return p + (EXTRA.format(k=3 if has_style else 2) if extra else "")
 
 
@@ -64,7 +72,7 @@ def _fit(img, max_side=1280):
     return img
 
 
-def run(photo, style, out_dir, n=3, quality="best", clothes="photo", seed=None, rank=None, extra=None):
+def run(photo, style, out_dir, n=3, quality="best", clothes="guochao", seed=None, rank=None, extra=None):
     import random
     import torch
     from PIL import Image

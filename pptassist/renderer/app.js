@@ -10,8 +10,8 @@
   const guard = (fn) => async (...a) => { try { return await fn(...a); } catch (e) { toast(String((e && e.message) || e).replace(/^Error invoking remote method 'call': (Error: )?/, ""), true); } };
 
   // ---------- 状态 ----------
-  // 默认是「公仔风」：大头、黑色高马尾、眯眯笑眼、黑色格子高领毛衣、紫裤子、棕色短靴（机器人骨架默认不要，想要可以勾上）
-  const DEFAULT = { look: 8, photoFace: true, faceStyle: "doll", rig: false, grid: true, body: "chibi", tech: true, stage: false, collar: "#f7f8fb", shell: "#eef1f6", hairStyle: "ponytail", bangs: "side", eyeStyle: "smile", bottom: "pants", skin: "#ffdccb", hair: "#1c1a1f", top: "#26262c", pants: "#6a4f8c", shoes: "#6b4430", eye: "#2b1d18", glassesColor: "#3b3b46", accent: "#22d3ee", glasses: false, blush: true, earrings: true, antenna: false, earpods: true };
+  // 默认是「公仔风」（2026.11 第二版：国潮手办）：大头、大眼睛、齐刘海马尾系朱红蝴蝶结、黛蓝色立领盘扣上衣、玄青阔腿裤、布鞋
+  const DEFAULT = { look: 9, photoFace: true, faceStyle: "doll", rig: false, grid: false, body: "chibi", tech: true, stage: false, collar: "#f7f8fb", shell: "#eef1f6", hairStyle: "ponytail", bangs: "full", eyeStyle: "open", faceShape: "round", bottom: "pants", skin: "#f6d3bf", hair: "#2a1d18", top: "#3d4f6e", pants: "#2c2d38", shoes: "#26252b", eye: "#3a2418", glassesColor: "#3b3b46", accent: "#22d3ee", glasses: false, blush: true, earrings: false, antenna: false, earpods: true };
   let S = null, spec = { ...DEFAULT }, doc = null, cur = 0, qaSeq = 0;
   const plan = new Map();   // 页号 → { on, narration, qa: [{ id, q, a }] }
 
@@ -35,16 +35,18 @@
   const EYES = [["smile", "眯眯眼"], ["open", "睁眼"]];
   const BOTTOM = [["pants", "裤子"], ["skirt", "裙子"]];
   const BODY = [["chibi", "Q版（大头）"], ["tall", "修长"]];
-  const COLORS = [["shell", "头部外壳"], ["skin", "皮肤"], ["hair", "头发"], ["top", "上衣（毛衣 / 外套）"], ["collar", "衬衫领子、袖口"], ["pants", "裤子 / 裙子"], ["shoes", "鞋子"], ["eye", "眼睛（睁眼时）"], ["glassesColor", "镜框"], ["accent", "发光色（舞台光效）"]];
-  const FACESTYLE = [["doll", "公仔风（推荐）"], ["ai3d", "AI 3D 形象"], ["real", "真人数字人"], ["screen", "机器人屏幕脸"], ["cyber", "赛博照片"], ["photo", "原样照片"], ["cartoon", "卡通"]];
+  const COLORS = [["shell", "头部外壳"], ["skin", "皮肤"], ["hair", "头发"], ["top", "上衣"], ["collar", "衬衫领子、袖口"], ["pants", "裤子 / 裙子"], ["shoes", "鞋子"], ["eye", "眼睛（睁眼时）"], ["glassesColor", "镜框"], ["accent", "发光色（舞台光效）"]];
+  const FACESTYLE = [["puppet", "AI Q版动画（推荐）"], ["aivideo", "AI 说话视频"], ["doll", "公仔风（不用显卡）"], ["ai3d", "AI 3D 形象"], ["real", "真人数字人"], ["screen", "机器人屏幕脸"], ["cyber", "赛博照片"], ["photo", "原样照片"], ["cartoon", "卡通"]];
   const TOGGLES = [["rig", "机器人骨架（关节球、线路、骨头手）"], ["grid", "衣服上的白格子"], ["photoFace", "用照片做脸"], ["tech", "照片脸的科技光效"], ["stage", "舞台光效（脚下光环、扫描线）"], ["glasses", "戴眼镜"], ["blush", "腮红"], ["earrings", "耳环"], ["earpods", "耳机灯环"], ["antenna", "小天线"]];
   // 每种脸用得上的颜色、开关（用不上的不显示，免得改了没反应）
   const USES = {
-    doll: { c: ["skin", "hair", "top", "pants", "shoes", "eye", "glassesColor", "accent"], t: ["grid", "rig", "stage", "glasses", "blush", "earrings"] },
+    doll: { c: ["skin", "hair", "top", "pants", "eye", "glassesColor", "accent"], t: ["stage", "glasses", "blush"] },
     screen: { c: ["shell", "hair", "top", "collar", "pants", "shoes", "glassesColor", "accent"], t: ["stage", "glasses", "earpods", "antenna"] },
     ai3d: { c: ["accent"], t: ["stage"] },   // AI 生成的：长相、衣服都在模型里了
     real: { c: [], t: [] },   // 真人数字人：就是老师自己的视频
+    puppet: { c: [], t: [] }, aivideo: { c: [], t: [] },   // AI 画的形象：长相、衣服都在图里
   };
+  const aiFace = () => spec.faceStyle === "puppet" || spec.faceStyle === "aivideo";
   const uses = (kind, k) => { const u = USES[spec.faceStyle]; return !u || u[kind].includes(k); };
   const lineFace = () => spec.faceStyle === "doll" || spec.faceStyle === "screen";   // 只从照片里量五官，照片不贴上去
   // 每一段说话时做什么动作
@@ -54,17 +56,25 @@
     const chips = (k, list) => `<div class="chips" data-k="${k}">${list.map(([v, t]) => `<button data-v="${v}" class="${spec[k] === v ? "on" : ""}">${t}</button>`).join("")}</div>`;
     $("#avatarForm").innerHTML =
       `<div class="grp"><b>脸的样子</b>${chips("faceStyle", FACESTYLE)}</div>` +
-      (spec.faceStyle === "real" ? `<p class="hint">真人数字人：PPT 里出现的是你自己视频里正对镜头的那几秒，嘴跟着配音动（要显卡）。在下面「用一段视频做」里上传视频、装好组件就能用。画面左上角一直有「AI生成」标识。</p>` :
+      (spec.faceStyle === "puppet" ? `<p class="hint">AI Q版动画：上面「AI 形象」里画好、挑好的那张 Q版形象，由我们的程序让它说话（嘴跟着配音换口型）、眨眼、点头、挥手、指幻灯片。出视频很快，生成好形象以后不再需要显卡。</p>` :
+      spec.faceStyle === "aivideo" ? `<p class="hint">AI 说话视频：同一张 Q版形象，由 AI 生成整段讲课视频（表情、口型、手势都是 AI 画的，最自然）。要 NVIDIA 显卡（12G 显存以上），很慢：16G 显卡大约 2～3 分钟出 1 秒，适合下班前点「开始生成」、第二天来拿。右边预览用的是 Q版动画。</p>` :
+      spec.faceStyle === "real" ? `<p class="hint">真人数字人：PPT 里出现的是你自己视频里正对镜头的那几秒，嘴跟着配音动（要显卡）。在下面「用一段视频做」里上传视频、装好组件就能用。画面左上角一直有「AI生成」标识。</p>` :
       spec.faceStyle === "ai3d" ? `<p class="hint">AI 生成的形象：长相、发型、衣服都在模型里了，在下面「AI 生成 3D 形象」里重新生成就能换。</p>` :   // 发型、衣服这些对它没用
       `<div class="grp"><b>发型</b>${chips("hairStyle", HAIR)}</div>` +
       (spec.hairStyle === "none" ? "" : `<div class="grp"><b>刘海</b>${chips("bangs", BANGS)}</div>`) +
       `<div class="grp"><b>眼睛</b>${chips("eyeStyle", EYES)}</div>` +
       `<div class="grp"><b>下装</b>${chips("bottom", BOTTOM)}</div>` +
       (spec.faceStyle === "doll" ? `<div class="grp"><b>身材</b>${chips("body", BODY)}</div>` : "")) +
-      `<div class="grp"><b>颜色</b><div class="colors">${COLORS.filter(([k]) => uses("c", k)).map(([k, t]) => `<label><input type="color" data-c="${k}" value="${spec[k]}">${t}</label>`).join("")}</div></div>` +
-      `<div class="grp"><b>其他</b><div class="toggles">${TOGGLES.filter(([k]) => uses("t", k)).map(([k, t]) => `<label><input type="checkbox" data-t="${k}" ${spec[k] ? "checked" : ""}>${t}</label>`).join("")}</div></div>` +
+      (aiFace() ? "" : `<div class="grp"><b>颜色</b><div class="colors">${COLORS.filter(([k]) => uses("c", k)).map(([k, t]) => `<label><input type="color" data-c="${k}" value="${spec[k]}">${t}</label>`).join("")}</div>${spec.faceStyle === "doll" ? `<p class="hint" id="guoHint">${guoText()}</p>` : ""}</div>` +
+      `<div class="grp"><b>其他</b><div class="toggles">${TOGGLES.filter(([k]) => uses("t", k)).map(([k, t]) => `<label><input type="checkbox" data-t="${k}" ${spec[k] ? "checked" : ""}>${t}</label>`).join("")}</div></div>`) +
       `<div class="row"><button class="btn sm" id="avReset">恢复默认</button></div>`;
     $$("#dropper button").forEach((b) => { const k = b.dataset.pick; b.innerHTML = `<i style="background:${spec[k]}"></i>${b.textContent.replace(/^\s+/, "")}`; });
+  }
+  // 公仔的衣服颜色会归到最近的中国传统色：告诉老师配成了哪个颜色
+  function guoText() {
+    const L = window.LaoAvatar; if (!L || !L.guoColor) return "";
+    const h = (x) => parseInt(String(x || "#000000").slice(1), 16) || 0, t = L.guoColor(h(spec.top)), b = L.guoColor(h(spec.pants));
+    return `衣服配成最接近的中国传统色：上衣「${t.name}」、${spec.bottom === "skirt" ? "马面裙" : "裤子"}「${b.name}」。`;
   }
   function changed() {
     if (av) av.setSpec(spec);
@@ -72,17 +82,18 @@
     clearTimeout(saveT); saveT = setTimeout(guard(async () => { await call("saveAvatar", spec); S.profile.avatar = spec; markDone(); }), 400);
   }
   $("#avatarForm").addEventListener("click", (e) => {
-    const b = e.target.closest(".chips button"); if (b) { const k = b.parentElement.dataset.k; spec[k] = b.dataset.v; changed(); if (k === "hairStyle") paintForm(); if (k === "faceStyle") showReal(); if (k === "faceStyle" && spec.faceStyle === "real") return; if (k === "faceStyle" && spec.faceStyle === "ai3d") { guard(ensureAi)(); return; } if (k === "faceStyle") { if (photoImg && marks.e1 && marks.e2 && marks.mouth) guard(buildFace)(); else if (!lineFace()) toast("先上传照片、标好五官，再选照片脸"); } }
+    const b = e.target.closest(".chips button"); if (b) { const k = b.parentElement.dataset.k; spec[k] = b.dataset.v; changed(); if (k === "hairStyle") paintForm(); if (k === "faceStyle") { showReal(); guard(showPuppet)(); } if (k === "faceStyle" && (spec.faceStyle === "real" || aiFace())) return; if (k === "faceStyle" && spec.faceStyle === "ai3d") { guard(ensureAi)(); return; } if (k === "faceStyle") { if (photoImg && marks.e1 && marks.e2 && marks.mouth) guard(buildFace)(); else if (!lineFace()) toast("先上传照片、标好五官，再选照片脸"); } }
     if (e.target.id === "avReset") { spec = { ...DEFAULT }; changed(); }
   });
-  $("#avatarForm").addEventListener("input", (e) => { const c = e.target.dataset.c; if (c) { spec[c] = e.target.value; if (av) av.setSpec(spec); clearTimeout(saveT); saveT = setTimeout(changed, 250); } });
+  $("#avatarForm").addEventListener("input", (e) => { const c = e.target.dataset.c; if (c) { spec[c] = e.target.value; if (av) av.setSpec(spec); const gh = $("#guoHint"); if (gh) gh.textContent = guoText(); clearTimeout(saveT); saveT = setTimeout(changed, 250); } });
   $("#avatarForm").addEventListener("change", (e) => { const t = e.target.dataset.t; if (t) { spec[t] = e.target.checked; changed(); } });
   let talkTimer = 0;
   $(".poses").onclick = (e) => {
-    const p = e.target.closest("button"); if (!p || !av) return;
-    clearInterval(talkTimer); av.talk(0);
-    if (p.dataset.pose === "talk" || p.dataset.pose === "gesture") { if (p.dataset.pose === "gesture") av.mood("gesture", 3); let n = 0; talkTimer = setInterval(() => { av.talk(Math.random() < 0.25 ? 0.05 : 0.35 + Math.random() * 0.65); if (++n > 30) { clearInterval(talkTimer); av.talk(0); } }, 90); }
-    else av.mood(p.dataset.pose, 2.6);
+    const a = aiFace() && pup ? pup : av;   // AI 形象时动的是 Q版动画
+    const p = e.target.closest("button"); if (!p || !a) return;
+    clearInterval(talkTimer); a.talk(0);
+    if (p.dataset.pose === "talk" || p.dataset.pose === "gesture") { if (p.dataset.pose === "gesture") a.mood("gesture", 3); let n = 0; talkTimer = setInterval(() => { a.talk(Math.random() < 0.25 ? 0.05 : 0.35 + Math.random() * 0.65); if (++n > 30) { clearInterval(talkTimer); a.talk(0); } }, 90); }
+    else a.mood(p.dataset.pose, 2.6);
   };
   // 照片 + 吸颜色 + 标五官
   let pickKey = null, markKey = null, photoImg = null, photoK = 1, marks = {}, faceImg = null;
@@ -130,6 +141,8 @@
     let said = "";
     if (h && h.ok && spec.faceStyle !== "ai3d" && spec.faceStyle !== "real") {
       spec.hairStyle = h.style; spec.bangs = h.bangs; if (h.color) spec.hair = h.color; if (h.top) spec.top = h.top;
+      if (r.face) spec.faceShape = window.LaoVision.faceShapeOf(r.face);
+      spec.part = h.part != null && h.part > 0.03 ? "right" : "left";   // 分缝在照片右边：公仔的斜刘海往另一边梳
       said = `认出来：${h.text}。公仔的发型选了「${HAIR_T[h.style] || h.style}」、刘海选了最接近的「${BANGS_T[h.bangs] || h.bangs}」，头发和上衣的颜色照着照片取了（不对就在右边改）。`;
     }
     await buildFace();
@@ -147,7 +160,7 @@
       // 公仔风 / 屏幕脸：从照片里量出眉毛、眼睛、嘴的形状和特点（两眼距离、眉毛走向、嘴的宽度和笑的弧度），照着画到脸上（照片本身不贴上去）
       const r = window.LaoFace.analyze(photoImg, { eyeL, eyeR, mouth: marks.mouth });
       marks = { e1: r.marks.eyeL, e2: r.marks.eyeR, mouth: marks.mouth }; drawPhoto();
-      spec.faceLines = r.lines; spec.photoFace = true;
+      spec.faceLines = r.lines; spec.photoFace = true; if (r.skin && spec.faceStyle === "doll") spec.skin = r.skin; if (spec.faceStyle === "doll") spec.eye = r.eye || "#3a2418";
       const pv = $("#facePrev"); pv.hidden = false; drawFacePrev(pv);
       const what = spec.faceStyle === "doll" ? "公仔脸" : "屏幕脸";
       const fd = r.found, miss = [!(fd.brows >= 2) && "眉毛", !(fd.eyes >= 2) && "眼睛", !fd.mouth && "嘴"].filter(Boolean);
@@ -176,7 +189,7 @@
     const g = pv.getContext("2d"), n = pv.width, P = window.LaoAvatar.sanitize(spec);
     if (spec.faceStyle !== "doll") { window.LaoAvatar.drawScreen(g, n, P, { t: 1 }); return; }
     const c = document.createElement("canvas"); c.width = c.height = n * 2; window.LaoAvatar.drawDollFace(c.getContext("2d"), n * 2, P, {});
-    g.clearRect(0, 0, n, n); g.fillStyle = spec.skin; g.beginPath(); g.arc(n / 2, n / 2, n / 2, 0, Math.PI * 2); g.fill();
+    g.clearRect(0, 0, n, n); g.fillStyle = window.LaoAvatar.figSkinCss ? window.LaoAvatar.figSkinCss(spec.skin) : spec.skin; g.beginPath(); g.arc(n / 2, n / 2, n / 2, 0, Math.PI * 2); g.fill();
     g.drawImage(c, n * 0.36, n * 0.46, n * 1.28, n * 1.28, 0, 0, n, n);   // 只取五官那一块，放大一点
   }
   $("#pickPhoto").onclick = guard(async () => {
@@ -403,6 +416,115 @@
     try { await call("talkSetup"); S = await call("state"); showReal(); toast("真人数字人的组件装好了"); } finally { vidBusy(false); }
   });
 
+  // ---------- AI 形象（本机 ComfyUI）：画 Q版形象 → 口型和眨眼图层 → Q版动画 / AI 说话视频 / 3D 手办 ----------
+  let avS = null, pup = null, pupKey = "";
+  const gb = (b) => (b / 1073741824).toFixed(b > 10 * 1073741824 ? 0 : 1) + "G";
+  const avBusy = (on, msg) => { $("#avProg").hidden = !on; if (msg) $("#avMsg").textContent = msg; for (const b of $$("#avCard button:not(#avCancel)")) b.disabled = on; if (!on) paintAvButtons(); };
+  let avLogT = 0;
+  const avLogOn = (on) => { clearInterval(avLogT); if (on) avLogT = setInterval(async () => { const l = await call("aiavLog"); $("#avLog").textContent = l.join("\n"); }, 2000); };
+  const FEAT = { portrait: "画 Q版形象", talk: "AI 说话视频" };
+  window.cc.on("aiav", (m) => {
+    if (m.warn) { toast(m.warn, true); return; }
+    if (m.stage === "download") {
+      const pct = m.total ? m.got / m.total : 0;
+      $("#avBar").style.width = Math.round(pct * 100) + "%";
+      $("#avMsg").textContent = `下载模型 ${m.i + 1}/${m.n}：${m.name}  ${gb(m.got)} / ${m.total ? gb(m.total) : "?"}${m.speed ? `，${(m.speed / 1048576).toFixed(1)}MB/秒` : ""}`;
+    } else if (m.stage === "install") $("#avMsg").textContent = `装插件 ${m.i + 1}/${m.n}：${m.msg}`;
+    else if (m.stage === "portrait" || m.stage === "layers") {
+      const what = m.stage === "portrait" ? "画 Q版形象" : `画口型和眨眼（${m.i + 1}/${m.n}）`;
+      if (m.max) $("#avBar").style.width = Math.round((m.value / m.max) * 100) + "%";
+      $("#avMsg").textContent = what + (m.step === "queued" ? "：排队中（第一次要把模型读进显卡，慢一点）" : m.max ? `：第 ${m.value}/${m.max} 步` : "……");
+    }
+  });
+  function paintAvButtons() {
+    const s = avS; if (!s) return;
+    const run = s.engine && s.engine.running, f = s.check && s.check.feat;
+    $("#avStart").disabled = !(s.rt && s.rt.ok) || run;
+    $("#avStart").textContent = run ? "已启动" : "启动";
+    $("#avPortrait").disabled = !(run && f && f.portrait.ready);
+    $("#avLayers").disabled = !(run && f && f.portrait.ready && s.figure);
+    const hasLayers = Object.keys(s.layers || {}).length > 0;
+    $("#avUsePuppet").disabled = !s.figure;
+    $("#avUseVideo").disabled = !s.figure;
+    $("#avTo3d").disabled = !s.figure;
+    $("#avPortrait").title = !run ? "先启动 AI 引擎" : f && !f.portrait.ready ? "先下载 Q版形象要的模型" : "";
+    if (!hasLayers && s.figure) $("#avUsePuppet").title = "还没画口型和眨眼：能动，但嘴不会动";
+  }
+  async function paintAv() {
+    avS = await call("aiavState");
+    const s = avS, e = s.engine || {}, c = s.check;
+    let env = s.dir ? "整合包：" + s.dir + (s.rt && s.rt.ok ? "" : "（" + ((s.rt && s.rt.error) || "不能用") + "）") : "还没选整合包。要一个 ComfyUI 的 Windows 整合包（官方的 ComfyUI_windows_portable，解压就能用）。";
+    if (e.running) env += "\n已启动" + (e.vram && e.vram.gpu ? `：${e.vram.name}，显存 ${e.vram.gb}G` : "：没认出 NVIDIA 显卡") + (e.version ? `；ComfyUI ${e.version}` : "");
+    if (c && c.coreMissing && c.coreMissing.length) env += "\nComfyUI 版本太旧：运行整合包里的 update\\update_comfyui.bat 更新一下";
+    $("#avEnv").textContent = env;
+    $("#avNeed").innerHTML = c ? Object.entries(FEAT).map(([k, t]) => {
+      const f = c.feat[k];
+      if (f.ready) return `<div class="need"><span>${t}</span><b class="ok">✓ 齐了</b></div>`;
+      const btn = f.packs.length ? `<button class="btn sm" data-avinstall="${k}">装插件</button>` : `<button class="btn sm" data-avdl="${k}">下载模型（约 ${gb(f.bytes)}）</button>`;
+      return `<div class="need"><span>${t}：${f.packs.length ? "缺插件 " + f.packs.join("、") : "缺 " + f.missing.length + " 个模型"}</span>${btn}</div>`;
+    }).join("") : "";
+    if (!$("#avStyle").options.length) $("#avStyle").innerHTML = Object.entries(s.styles).map(([k, t]) => `<option value="${k}">画风：${t}</option>`).join("");
+    $("#avStyle").value = s.style; if (document.activeElement !== $("#avExtra")) $("#avExtra").value = s.extra || "";
+    $("#avCands").innerHTML = s.cands.map((u, i) => `<img src="${u}" data-i="${i}" title="用这一张">`).join("");
+    const fg = $("#avFigImg"); fg.hidden = !s.figure; if (s.figure) fg.src = s.figure;
+    const names = { mouthHalf: "张一点嘴", mouthOpen: "张大嘴", eyesClosed: "闭眼" };
+    $("#avLayersBox").innerHTML = Object.entries(s.layers || {}).map(([k, u]) => `<figure><img src="${u}" alt=""><figcaption>${names[k]}</figcaption></figure>`).join("");
+    // 有图层还没算动画数据：在这里算一次存起来
+    if (s.figure && Object.keys(s.layers || {}).length && !s.rig) {
+      const rig = await window.LaoPuppet.analyzeImages(s.figure, s.layers);
+      await call("aiavSaveRig", rig); s.rig = rig; pupKey = "";
+    }
+    const w = s.rig && s.rig.warn ? s.rig.warn : [];
+    $("#avRigHint").textContent = s.rig ? (w.length ? "注意：" + w.join("；") : "口型和眨眼都对上了。上面「脸的样子」选「AI Q版动画」或「AI 说话视频」就用上了。") : s.figure ? "点「画口型和眨眼」：AI 在同一张图上只改嘴、只改眼睛，我们的程序再让它说话、眨眼、点头、挥手。" : "先在左边画 Q版形象，挑一张。";
+    const busy = (e.job && e.job.kind) || (e.task && e.task.kind);
+    if (busy) { avBusy(true, "正在" + busy + "……"); avLogOn(true); } else paintAvButtons();
+    if (aiFace()) await showPuppet();
+  }
+  // 右边的预览：AI 形象时换成 Q版动画
+  async function showPuppet() {
+    let box = $("#pupStage");
+    if (!aiFace()) { if (box) box.remove(); if (pup) { pup.dispose(); pup = null; pupKey = ""; } if (spec.faceStyle !== "real") $("#avStage").hidden = false; return; }
+    $("#avStage").hidden = true; const rs = $("#realStage"); if (rs) rs.remove();
+    if (!box) { box = document.createElement("div"); box.id = "pupStage"; box.className = "pup-stage"; $(".stage-card").prepend(box); }
+    if (!avS) avS = await call("aiavState", { check: false });
+    if (!avS.figure) { box.innerHTML = `<p class="empty" style="padding:40px 20px;text-align:center;color:#64748b">还没有 AI 形象：在上面「AI 形象」里画一张、挑一张</p>`; if (pup) { pup.dispose(); pup = null; } pupKey = ""; return; }
+    const key = avS.figure.length + ":" + Object.keys(avS.layers || {}).join() + ":" + !!avS.rig;
+    if (pup && key === pupKey) return;
+    if (pup) { pup.dispose(); pup = null; }
+    box.innerHTML = "";
+    pup = await window.LaoPuppet.create(box, { figure: avS.figure, layers: avS.layers || {}, rig: avS.rig }, { width: 540, height: 960, transparent: true, side: S.profile.side });
+    pupKey = key; pup.mood("wave", 2);
+  }
+  const avDo = (fn, msg) => guard(async () => {
+    avBusy(true, msg); $("#avBar").style.width = "0%"; avLogOn(true);
+    try { return await fn(); } finally { avLogOn(false); avBusy(false); await paintAv(); }
+  });
+  $("#avDir").onclick = avDo(async () => { await call("aiavPickDir"); }, "检查整合包……");
+  $("#avStart").onclick = avDo(async () => { await call("aiavStart"); toast("AI 引擎启动好了"); }, "启动 AI 引擎（第一次要一两分钟）……");
+  $("#avNeed").onclick = (e) => {
+    const d = e.target.closest("[data-avdl]"), i = e.target.closest("[data-avinstall]");
+    if (d) avDo(async () => { await call("aiavDownload", d.dataset.avdl); toast("模型下载好了"); }, "下载模型（很大，网不好可以停了下次接着下）……")();
+    if (i) avDo(async () => { await call("aiavInstall", i.dataset.avinstall); toast("插件装好了"); }, "装插件……")();
+  };
+  $("#avPortrait").onclick = avDo(async () => {
+    await call("aiavPortrait", { style: $("#avStyle").value, extra: $("#avExtra").value, n: $("#avN").value, quality: $("#avQ").value });
+    toast("画好了，点一张最像、最好看的");
+  }, "画 Q版形象……");
+  $("#avFigure").onclick = guard(async () => { if (await call("aiavPickFigure")) { await paintAv(); toast("好了，下一步点「画口型和眨眼」"); } });
+  $("#avCands").onclick = guard(async (e) => {
+    const im = e.target.closest("img"); if (!im) return;
+    await call("aiavChoose", im.dataset.i); await paintAv();
+    $$("#avCands img").forEach((x) => x.classList.toggle("on", x.dataset.i === im.dataset.i));
+    toast("选好了，下一步点「画口型和眨眼」");
+  });
+  $("#avLayers").onclick = avDo(async () => { await call("aiavLayers", { quality: $("#avQ").value }); pupKey = ""; toast("口型和眨眼画好了"); }, "画口型和眨眼……");
+  const useStyle = (v) => guard(async () => { spec.faceStyle = v; changed(); showReal(); await showPuppet(); window.scrollTo({ top: 0, behavior: "smooth" }); })();
+  $("#avUsePuppet").onclick = () => useStyle("puppet");
+  $("#avUseVideo").onclick = () => useStyle("aivideo");
+  $("#avTo3d").onclick = guard(async () => { await call("aiavTo3d"); await paintAi(); $("#aiCard").scrollIntoView({ behavior: "smooth" }); toast("这张图放到「AI 生成 3D 形象」里了，点「生成 3D 形象」"); });
+  $("#avCancel").onclick = guard(async () => { await call("aiavCancel"); });
+  $("#avCard").addEventListener("click", (e) => { const a = e.target.closest("[data-avpage]"); if (a) { e.preventDefault(); call("aiavOpenPage", a.dataset.avpage); } });
+
   // ---------- AI 生成 3D 形象 ----------
   let aiBytes = null, aiS = null, aiPts = [], aiShotImg = null;
   // 把 AI 模型读进预览（第一次用、或者刚重新生成过）
@@ -608,12 +730,34 @@
   const VW = 720, VH = 1280;   // 视频清晰度（竖着的 9:16，PPT 里放大也不糊）
   // 画一段视频：形象跟着声音说话（嘴跟着张合），按选的动作动
   async function renderVideo(job, seg, first, onP) {
+    if (spec.faceStyle === "aivideo") {   // AI 说话视频：Q版形象 + 这一段配音 → AI 生成整段视频（本机 ComfyUI，慢）
+      const t0 = Date.now();
+      talkProg = (m) => { if (m.key !== job.key) return; const min = Math.floor((Date.now() - t0) / 60000); status(job.key, `AI 生成中… ${m.step === "queued" ? "排队" : m.max ? `第 ${m.value}/${m.max} 步` : ""}（已经 ${min} 分钟）`, "", null); };
+      try { return await call("aiavTalk", job.key, { act: job.action || "auto" }); } finally { talkProg = null; }
+    }
     if (spec.faceStyle === "real") {   // 真人数字人：老师的视频模板 + 这一段配音 → 对口型（工坊里用显卡算）
       talkProg = (m) => { if (m.key === job.key && m.p != null) onP(m.p); };
       try { return await call("talkMake", job.key, { quality: "best" }); } finally { talkProg = null; }
     }
     const id = await call("videoBegin", job.key, { jpeg: true });
     const host = $("#offscreen"); host.innerHTML = "";
+    if (spec.faceStyle === "puppet") {   // AI Q版动画：一帧帧画（快）
+      const sp = await call("aiavSprites"); if (!sp) { call("videoCancel", id); throw new Error("还没有 AI 形象：先在「我的形象」里画一张、挑一张"); }
+      let pp = null;
+      try {
+        pp = await window.LaoPuppet.create(host, { figure: sp.figure, layers: sp.layers, rig: sp.rig }, { manual: true, width: VW, height: VH, bg: parseInt(job.bg.slice(1), 16), side: S.profile.side });
+        const fps = 25, n = Math.ceil(seg.ms / (1000 / fps)) + 15, dur = n / fps;
+        for (let f = 0; f < n; f++) {
+          const t = f / fps, cv = pp.frame(1 / fps, seg.levels[f] || 0, t > dur - 0.6 ? "idle" : moodAt(job, first, t, dur));
+          if (f === 0) { const pb = await new Promise((r) => cv.toBlob(r, "image/png")); await call("videoFrame", id, new Uint8Array(await pb.arrayBuffer()), true); }
+          const blob = await new Promise((r) => cv.toBlob(r, "image/jpeg", 0.93));
+          await call("videoFrame", id, new Uint8Array(await blob.arrayBuffer()));
+          if (f % 5 === 0) onP(f / n);
+        }
+        return await call("videoEnd", id);
+      } catch (e) { call("videoCancel", id); throw e; }
+      finally { if (pp) pp.dispose(); host.innerHTML = ""; }
+    }
     const ai = spec.faceStyle === "ai3d" && aiBytes ? await window.LaoAvatar.loadAi(aiBytes) : null;   // 每段视频单独读一份 AI 模型
     const st = window.LaoAvatar.create(host, spec, { manual: true, capture: true, pixelRatio: 2, bg: parseInt(job.bg.slice(1), 16), width: VW, height: VH, face: faceImg, ai });
     // 先按两倍大画，再缩小成视频的大小（超采样）：边缘、头发、五官都更细腻
@@ -674,7 +818,10 @@
     if (S.profile.avatar) spec = { ...DEFAULT, ...S.profile.avatar };
     // 以前存的是旧样子（机器人屏幕脸 / 旧的照片脸）：换成新的公仔风，从照片量出来的五官留着；想要旧的可以在「脸的样子」里选回去
     if (S.profile.avatar && !(S.profile.avatar.look >= 7)) { spec = { ...DEFAULT, faceLines: S.profile.avatar.faceLines }; setTimeout(() => { toast("老师形象换成了新的公仔风（原来的样子在「脸的样子」里还能选回去）"); changed(); }, 800); }
-    else if (S.profile.avatar && S.profile.avatar.look === 7) { spec.look = 8; spec.rig = false; setTimeout(changed, 800); }   // 公仔风第一版默认带骨架，现在默认不要
+    else if (S.profile.avatar && S.profile.avatar.look < 9) {   // 公仔风第二版（国潮手办）：照片认出来的发型、颜色、五官都留着，只换成新的样子
+      spec.look = 9; spec.rig = false; spec.grid = false; spec.earrings = false; if (spec.eyeStyle === "smile") spec.eyeStyle = "open";
+      setTimeout(() => { toast("公仔换成了新的「国潮手办」样子（发型、颜色、五官照旧）"); changed(); }, 800);
+    }
     paintForm();
     if (S.face) { faceImg = await new Promise((r) => { const i = new Image(); i.onload = () => r(i); i.onerror = () => r(null); i.src = S.face.url; }); marks = S.face.marks || {}; if (faceImg) { const pv = $("#facePrev"); pv.hidden = false; pv.getContext("2d").drawImage(faceImg, 0, 0, 96, 96); } }
     if (lineFace() && spec.faceLines) { const pv = $("#facePrev"); pv.hidden = false; drawFacePrev(pv); }
@@ -682,11 +829,13 @@
     if (av) setTimeout(() => av.mood("wave", 2), 400);
     if (spec.faceStyle === "ai3d") guard(ensureAi)();
     guard(paintAi)();
+    guard(paintAv)();
     showPhoto(S.photo); paintVoice(); paintConsent(); paintVid(); showReal(); markDone();
     $("#sideFoot").innerHTML = `捞捞PPT助手 ${esc(S.version || "")}<br><a id="lawOpen">授权与合规说明</a>`;
     $("#lawOpen").onclick = () => $("#lawDlg").showModal();
     $("#openXz").onclick = guard(() => call("openSite", "xiaozhi"));
     $("#openNext").onclick = guard(() => call("openSite", "next"));
+    window.__lao = { renderVideo };   // 测试用
     window.__ready = true;
   })().catch((e) => toast("启动出错：" + e.message, true));
 })();

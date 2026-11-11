@@ -1,7 +1,7 @@
 # 捞捞 · 3D 形象工坊：命令行入口（捞捞PPT助手用整合包里的 Python 调它）
 #   python -m lao3d.run check  [--hy 整合包]                         看环境：显卡、内存、装了哪些
 #   python -m lao3d.run setup  [--hy 整合包]                         装缺的组件（国内自动用清华 pip 源、hf-mirror）
-#   python -m lao3d.run stylize --photo 照片 [--style 参考图] --out 文件夹 [--n 3] [--quality best|fast] [--clothes photo|style]
+#   python -m lao3d.run stylize --photo 照片 [--style 参考图] --out 文件夹 [--n 3] [--quality best|fast] [--clothes guochao|photo|style]
 #   python -m lao3d.run to3d   --image 立绘 --out raw.glb --hy 整合包 [--quality best|fast] [--seed 1234]
 #   python -m lao3d.run build  --src raw.glb --out 文件夹 [--smooth 1]    磨皮 + 绑骨骼 + 做脸（不用显卡）
 #   python -m lao3d.run face   --out 文件夹 --hints '{"e1":[x,y],"e2":[x,y],"mouth":[x,y]}'   重新做脸
@@ -107,7 +107,7 @@ def main(argv=None):
     ap.add_argument("--out")
     ap.add_argument("--n", type=int, default=3)
     ap.add_argument("--quality", default="best", choices=["best", "fast"])
-    ap.add_argument("--clothes", default="photo", choices=["photo", "style"])
+    ap.add_argument("--clothes", default="guochao", choices=["guochao", "photo", "style"])
     ap.add_argument("--seed", type=int)
     ap.add_argument("--hints")
     ap.add_argument("--smooth", type=float, default=1.0, help="磨皮力度：1 = 默认，2 = 磨得更狠，0 = 不磨")
