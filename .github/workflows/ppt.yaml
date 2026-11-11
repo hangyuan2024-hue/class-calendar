@@ -47,6 +47,33 @@ jobs:
         run: |
           python -m pip install --disable-pip-version-check numpy scipy opencv-python-headless pillow soundfile
           python -m unittest discover -s ai3d/tests -v
+      # AI 助手（对话改 PPT）用的本地模型程序：llama.cpp 的 Vulkan 版（NVIDIA / AMD / Intel 显卡都能加速）放 resources/llama，
+      # CPU 版放 resources/llama-cpu（显卡用不了时换它）。模型本身（约 3G）不放进安装包，老师第一次用时从国内存储下载。
+      - name: llama.cpp（AI 助手的本地模型程序）
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force resources\llama, resources\llama-cpu, dl | Out-Null
+          $tags = gh release list --repo ggml-org/llama.cpp --limit 15 --json tagName --jq '.[].tagName'
+          $got = @{}
+          foreach ($t in $tags) {
+            $names = @(gh release view $t --repo ggml-org/llama.cpp --json assets --jq '.assets[].name')
+            $win = @($names | Where-Object { $_ -match 'win' -and $_ -match 'x64' -and $_ -match '\.zip$' -and $_ -notmatch 'cudart|cuda|hip|sycl|arm64|opencl|kompute' })
+            $vk = $win | Where-Object { $_ -match 'vulkan' } | Select-Object -First 1
+            $cpu = $win | Where-Object { $_ -match 'cpu' } | Select-Object -First 1
+            if ($vk -and $cpu) { $got = @{ tag = $t; vk = $vk; cpu = $cpu }; break }
+          }
+          if (-not $got.tag) { throw "没找到 llama.cpp 的 Windows 版本（Vulkan + CPU）" }
+          Write-Host "使用 $($got.tag)：$($got.vk)、$($got.cpu)"
+          foreach ($k in @('vk', 'cpu')) {
+            gh release download $got.tag --repo ggml-org/llama.cpp --pattern $got[$k] --dir dl --clobber
+            Expand-Archive "dl\$($got[$k])" -DestinationPath "llama-$k" -Force
+            $exe = Get-ChildItem "llama-$k" -Recurse -Filter llama-server.exe | Select-Object -First 1
+            if (-not $exe) { throw "$($got[$k]) 里没有 llama-server.exe" }
+            $to = if ($k -eq 'vk') { 'resources\llama' } else { 'resources\llama-cpu' }
+            Copy-Item (Join-Path $exe.DirectoryName '*') $to -Recurse -Force
+          }
+          Get-ChildItem resources\llama | Select-Object -First 20 | Format-Table Name, Length
       - name: 打包
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"

@@ -5,6 +5,7 @@
 #   nodes     ComfyUI 插件（固定版本的 zip，很小）
 #   gsv       GPT-SoVITS 官方 Windows 整合包（声音克隆，约 8G）
 #   hy3d      Hunyuan3D-2 WinPortable（AI 3D 形象）
+#   llm       AI 助手（对话改 PPT）的本地大模型 Qwen3-VL-4B（约 3.3G）
 # 只在 Actions 页面手动点「Run workflow」时运行（文件大，搬一次要几个小时）；已经搬过、大小一样的会跳过。
 # 搬完写官网的 download/ai-mirror.json（软件读这个文件知道国内地址），再让「网站国内加速」同步一次。
 # 用的 Secrets 和捞捞编程的安装包一样：CN_S3_ENDPOINT、CN_S3_REGION、CN_S3_BUCKET、CN_S3_KEY_ID、CN_S3_SECRET、CN_DL_BASE。
@@ -15,8 +16,8 @@ on:
   workflow_dispatch:
     inputs:
       what:
-        description: "搬哪些（逗号隔开）：comfyui,portrait,talk,nodes,gsv,hy3d"
-        default: "comfyui,portrait,talk,nodes,gsv,hy3d"
+        description: "搬哪些（逗号隔开）：llm,comfyui,portrait,talk,nodes,gsv,hy3d"
+        default: "llm,comfyui,portrait,talk,nodes,gsv,hy3d"
         required: true
 
 permissions:
