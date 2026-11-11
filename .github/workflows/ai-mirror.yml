@@ -1,0 +1,169 @@
+# 把捞捞PPT助手要用的大文件搬到国内存储（腾讯云 COS，和安装包同一个桶）：老师在软件里点「一键下载安装」时从国内下，不再去 GitHub / Hugging Face。
+#   comfyui   ComfyUI 官方 Windows 整合包（AI 形象的引擎，约 2G）
+#   portrait  画 Q版形象要的模型（约 31G）
+#   talk      AI 说话视频要的模型（约 35G，Wan 有两种量化）
+#   nodes     ComfyUI 插件（固定版本的 zip，很小）
+#   gsv       GPT-SoVITS 官方 Windows 整合包（声音克隆，约 8G）
+#   hy3d      Hunyuan3D-2 WinPortable（AI 3D 形象）
+# 只在 Actions 页面手动点「Run workflow」时运行（文件大，搬一次要几个小时）；已经搬过、大小一样的会跳过。
+# 搬完写官网的 download/ai-mirror.json（软件读这个文件知道国内地址），再让「网站国内加速」同步一次。
+# 用的 Secrets 和捞捞编程的安装包一样：CN_S3_ENDPOINT、CN_S3_REGION、CN_S3_BUCKET、CN_S3_KEY_ID、CN_S3_SECRET、CN_DL_BASE。
+# 从美国传到广州很慢：桶开了「全球加速」会快很多（腾讯云控制台 → 存储桶 → 域名与传输管理 → 全球加速）。
+name: AI 组件搬到国内存储
+
+on:
+  workflow_dispatch:
+    inputs:
+      what:
+        description: "搬哪些（逗号隔开）：comfyui,portrait,talk,nodes,gsv,hy3d"
+        default: "comfyui,portrait,talk,nodes,gsv,hy3d"
+        required: true
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: ai-mirror
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      items: ${{ steps.l.outputs.items }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: 列出要搬的文件
+        id: l
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          WHAT: ${{ inputs.what }}
+        run: |
+          items=$(node pptassist/scripts/mirror-list.js "$WHAT")
+          echo "items=$items" >> "$GITHUB_OUTPUT"
+          echo "$items" | node -e 'const a=JSON.parse(require("fs").readFileSync(0,"utf8"));let t=0;for(const x of a){t+=x.size||0;console.log(x.group.padEnd(9),((x.size||0)/1e9).toFixed(2).padStart(7)+"G ",x.key)}console.log("一共",a.length,"个，约",(t/1e9).toFixed(1)+"G")'
+
+  copy:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        item: ${{ fromJSON(needs.plan.outputs.items) }}
+    name: ${{ matrix.item.id }}
+    env:
+      CN_S3_ENDPOINT: ${{ secrets.CN_S3_ENDPOINT }}
+      CN_S3_REGION: ${{ secrets.CN_S3_REGION }}
+      CN_S3_BUCKET: ${{ secrets.CN_S3_BUCKET }}
+      CN_S3_KEY_ID: ${{ secrets.CN_S3_KEY_ID }}
+      CN_S3_SECRET: ${{ secrets.CN_S3_SECRET }}
+      CN_DL_BASE: ${{ secrets.CN_DL_BASE }}
+      ITEM: ${{ toJSON(matrix.item) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: 已经搬过（大小一样）就跳过
+        id: have
+        run: |
+          set -uo pipefail
+          KEY=$(echo "$ITEM" | jq -r .key); SIZE=$(echo "$ITEM" | jq -r '.size // 0')
+          B=$(printf '%s' "$CN_S3_BUCKET" | tr -d '[:space:]'); EP=$(printf '%s' "$CN_S3_ENDPOINT" | tr -d '[:space:]')
+          export AWS_ACCESS_KEY_ID=$(printf '%s' "$CN_S3_KEY_ID" | tr -d '[:space:]') AWS_SECRET_ACCESS_KEY=$(printf '%s' "$CN_S3_SECRET" | tr -d '[:space:]') AWS_DEFAULT_REGION=$(printf '%s' "${CN_S3_REGION:-us-east-1}" | tr -d '[:space:]') AWS_EC2_METADATA_DISABLED=true
+          aws configure set default.s3.addressing_style virtual
+          HAVE=$(aws s3api head-object --bucket "$B" --key "$KEY" --endpoint-url "$EP" --query ContentLength --output text 2>/dev/null || echo 0)
+          echo "存储里：$HAVE 字节；源文件：$SIZE 字节"
+          if [ "$SIZE" != "0" ] && [ "$HAVE" = "$SIZE" ]; then echo "skip=1" >> "$GITHUB_OUTPUT"; echo "已经有了，跳过"; else echo "skip=0" >> "$GITHUB_OUTPUT"; fi
+      - name: 腾出硬盘空间（大文件要二十几 G）
+        if: steps.have.outputs.skip != '1' && matrix.item.size > 8000000000
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost "$AGENT_TOOLSDIRECTORY" || true
+          df -h /
+      - name: 下载
+        if: steps.have.outputs.skip != '1'
+        run: |
+          set -euo pipefail
+          URL=$(echo "$ITEM" | jq -r .url)
+          mkdir -p "$RUNNER_TEMP/m"; F="$RUNNER_TEMP/m/file"
+          for i in 1 2 3 4 5; do
+            if curl -fL --retry 5 --retry-all-errors --retry-delay 10 -C - -o "$F" "$URL"; then break; fi
+            echo "下载断了，第 $i 次接着下"; sleep 20
+          done
+          ls -l "$F"
+          SIZE=$(echo "$ITEM" | jq -r '.size // 0')
+          if [ "$SIZE" != "0" ] && [ "$(stat -c %s "$F")" != "$SIZE" ]; then echo "::error::下载的大小不对"; exit 1; fi
+      - name: 传到国内存储
+        if: steps.have.outputs.skip != '1'
+        run: |
+          set -euo pipefail
+          F="$RUNNER_TEMP/m/file"; KEY=$(echo "$ITEM" | jq -r .key)
+          SHA=$(sha256sum < "$F" | cut -d' ' -f1); SIZE=$(stat -c %s "$F")
+          URL=$(bash .github/workflows/cn-put.sh "$F" "$KEY")
+          mkdir -p r; echo "$ITEM" | jq --arg u "$URL" --arg s "$SHA" --argjson n "$SIZE" '. + {cn: $u, sha256: $s, size: $n}' > r/item.json
+          cat r/item.json
+      - name: 跳过的也记一笔
+        if: steps.have.outputs.skip == '1'
+        run: |
+          KEY=$(echo "$ITEM" | jq -r .key)
+          mkdir -p r; echo "$ITEM" | jq --arg u "$(printf '%s' "$CN_DL_BASE" | tr -d '[:space:]' | sed 's#/*$##')/$KEY" '. + {cn: $u, sha256: ""}' > r/item.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: r-${{ matrix.item.id }}
+          path: r/item.json
+          retention-days: 3
+
+  manifest:
+    needs: [plan, copy]
+    if: always() && needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: r-*
+          path: results
+      - name: 写 download/ai-mirror.json
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          PUB="${RUNNER_TEMP}/pub"
+          git fetch --no-tags origin "$BRANCH"
+          git worktree add --detach "$PUB" FETCH_HEAD
+          git -C "$PUB" config user.name "github-actions[bot]"
+          git -C "$PUB" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for ATTEMPT in 1 2 3; do
+            if [ "$ATTEMPT" -gt 1 ]; then git fetch --no-tags origin "$BRANCH"; git -C "$PUB" reset --hard FETCH_HEAD; fi
+            node -e '
+              const fs = require("fs"), path = require("path");
+              const out = process.argv[1], dir = process.argv[2];
+              let m = { files: {} }; try { m = JSON.parse(fs.readFileSync(out, "utf8")); } catch (e) {}
+              const walk = (d) => fs.existsSync(d) ? fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]) : [];
+              let n = 0;
+              for (const f of walk(dir).filter((f) => f.endsWith(".json"))) {
+                const it = JSON.parse(fs.readFileSync(f, "utf8")); const old = m.files[it.key] || {};
+                m.files[it.key] = { group: it.group, name: it.name, url: it.cn, src: it.url, size: it.size, sha256: it.sha256 || (old.size === it.size ? old.sha256 || "" : ""),
+                  ...(it.model ? { model: it.model } : {}), ...(it.node ? { node: it.node, commit: it.commit } : {}), ...(it.pkg ? { pkg: it.pkg, ver: it.ver } : {}) };
+                n++;
+              }
+              m.at = new Date().toISOString();
+              fs.mkdirSync(path.dirname(out), { recursive: true }); fs.writeFileSync(out, JSON.stringify(m, null, 1) + "\n");
+              console.log("清单里一共", Object.keys(m.files).length, "个文件，这次", n, "个");
+            ' "$PUB/download/ai-mirror.json" results
+            git -C "$PUB" add -- download/ai-mirror.json
+            if git -C "$PUB" diff --cached --quiet; then echo "清单没变"; exit 0; fi
+            git -C "$PUB" commit -m "AI 组件国内地址"
+            if git -C "$PUB" push origin "HEAD:${BRANCH}"; then exit 0; fi
+          done
+          echo "::error::写 download/ai-mirror.json 失败"; exit 1
+      - name: 让国内网站也同步
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run site-cn.yml --repo "$GITHUB_REPOSITORY" --ref "${{ github.ref_name }}" \
+            && echo "已经让「网站国内加速」重新同步" \
+            || echo "::warning::没能自动触发「网站国内加速」，请到 Actions 里手动 Run workflow"
