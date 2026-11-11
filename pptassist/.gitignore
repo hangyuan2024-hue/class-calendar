@@ -1,0 +1,4 @@
+node_modules/
+dist/
+renderer/vendor/
+test/fixtures/*（捞捞助手）.pptx
