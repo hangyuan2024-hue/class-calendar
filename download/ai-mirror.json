@@ -9,7 +9,184 @@
    "sha256": "60c12e8c7af778047ad0413722dd3dc0f6ca773a41cbf5cb229ee9bc92c44a6f",
    "pkg": "comfyui",
    "ver": "v0.45.0"
+  },
+  "ai/models/clip_vision/clip_vision_h.safetensors": {
+   "group": "talk",
+   "name": "clip_vision_h.safetensors",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/models/clip_vision/clip_vision_h.safetensors",
+   "src": "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/clip_vision/clip_vision_h.safetensors",
+   "size": 1264219396,
+   "sha256": "64a7ef761bfccbadbaa3da77366aac4185a6c58fa5de5f589b42a65bcc21f161",
+   "model": "clipVision"
+  },
+  "ai/models/loras/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors": {
+   "group": "talk",
+   "name": "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/models/loras/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
+   "src": "https://huggingface.co/Kijai/WanVideo_comfy/resolve/main/Lightx2v/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
+   "size": 738005744,
+   "sha256": "85c4a61c30e0497aa44b91d93a893b624708461a56fe5485183b28fa07e2dfb3",
+   "model": "fastVideo"
+  },
+  "ai/pkg/gsv-20261005/GPT-SoVITS-v5-20261005.7z": {
+   "group": "gsv",
+   "name": "GPT-SoVITS-v5-20261005.7z",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/pkg/gsv-20261005/GPT-SoVITS-v5-20261005.7z",
+   "src": "https://huggingface.co/lj1995/GPT-SoVITS-windows-package/resolve/main/GPT-SoVITS-v5-20261005.7z",
+   "size": 10869111823,
+   "sha256": "2c1cd034af0e76854a8023d0f1fd6156ef2414bcfd5c88aae3309e1263e0fffe",
+   "pkg": "gsv",
+   "ver": "20261005"
+  },
+  "ai/pkg/gsv-20261005/GPT-SoVITS-v5-20261005nvidia50x0.7z": {
+   "group": "gsv",
+   "name": "GPT-SoVITS-v5-20261005nvidia50x0.7z",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/pkg/gsv-20261005/GPT-SoVITS-v5-20261005nvidia50x0.7z",
+   "src": "https://huggingface.co/lj1995/GPT-SoVITS-windows-package/resolve/main/GPT-SoVITS-v5-20261005nvidia50x0.7z",
+   "size": 10644626883,
+   "sha256": "27b269fc1c53823dc9d404ada83f4444b300e455011db9861ec72e01b6fc5d5e",
+   "pkg": "gsv50",
+   "ver": "20261005"
+  },
+  "ai/pkg/hy3d-v4-cu129/Hunyuan3D2_WinPortable_cu129.7z.001": {
+   "group": "hy3d",
+   "name": "Hunyuan3D2_WinPortable_cu129.7z.001",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/pkg/hy3d-v4-cu129/Hunyuan3D2_WinPortable_cu129.7z.001",
+   "src": "https://github.com/YanWenKun/Hunyuan3D-2-WinPortable/releases/download/v4-cu129/Hunyuan3D2_WinPortable_cu129.7z.001",
+   "size": 2140000000,
+   "sha256": "b1cea320ebe71cc57946b233b3b9df1341f9bb6570b72513559dd4a786e6494a",
+   "pkg": "hy3d",
+   "ver": "v4-cu129"
+  },
+  "ai/pkg/hy3d-v4-cu129/Hunyuan3D2_WinPortable_cu129.7z.002": {
+   "group": "hy3d",
+   "name": "Hunyuan3D2_WinPortable_cu129.7z.002",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/pkg/hy3d-v4-cu129/Hunyuan3D2_WinPortable_cu129.7z.002",
+   "src": "https://github.com/YanWenKun/Hunyuan3D-2-WinPortable/releases/download/v4-cu129/Hunyuan3D2_WinPortable_cu129.7z.002",
+   "size": 1347303397,
+   "sha256": "98c344fcd573e7c68c618adadf73123f12f2e811cf6becbaf957d1258d3098bb",
+   "pkg": "hy3d",
+   "ver": "v4-cu129"
+  },
+  "ai/nodes/ComfyUI-VideoHelperSuite-4d907bee61e92c2e65af3bd6383a4e4d356126d1.zip": {
+   "group": "nodes",
+   "name": "ComfyUI-VideoHelperSuite-4d907bee61e92c2e65af3bd6383a4e4d356126d1.zip",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/nodes/ComfyUI-VideoHelperSuite-4d907bee61e92c2e65af3bd6383a4e4d356126d1.zip",
+   "src": "https://codeload.github.com/Kosinkadink/ComfyUI-VideoHelperSuite/zip/4d907bee61e92c2e65af3bd6383a4e4d356126d1",
+   "size": 116108,
+   "sha256": "5114977eefb133c76592a5213c45ad3caa1ad7b1c2e4a77905b5ff0c48ca4363",
+   "node": "ComfyUI-VideoHelperSuite",
+   "commit": "4d907bee61e92c2e65af3bd6383a4e4d356126d1"
+  },
+  "ai/nodes/ComfyUI-WanVideoWrapper-088128b224242e110d3906c6750e9a3a348a659b.zip": {
+   "group": "nodes",
+   "name": "ComfyUI-WanVideoWrapper-088128b224242e110d3906c6750e9a3a348a659b.zip",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/nodes/ComfyUI-WanVideoWrapper-088128b224242e110d3906c6750e9a3a348a659b.zip",
+   "src": "https://codeload.github.com/kijai/ComfyUI-WanVideoWrapper/zip/088128b224242e110d3906c6750e9a3a348a659b",
+   "size": 19168405,
+   "sha256": "2d071807fa2ab1b1b2e77f1e5b2241dffd9d369691645012848fcdb7cb506616",
+   "node": "ComfyUI-WanVideoWrapper",
+   "commit": "088128b224242e110d3906c6750e9a3a348a659b"
+  },
+  "ai/models/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors": {
+   "group": "portrait",
+   "name": "qwen_2.5_vl_7b_fp8_scaled.safetensors",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/models/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors",
+   "src": "https://huggingface.co/Comfy-Org/HunyuanVideo_1.5_repackaged/resolve/main/split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors",
+   "size": 9384670680,
+   "sha256": "cb5636d852a0ea6a9075ab1bef496c0db7aef13c02350571e388aea959c5c0b4",
+   "model": "qwenClip"
+  },
+  "ai/models/diffusion_models/qwen_image_edit_2511_fp8mixed.safetensors": {
+   "group": "portrait",
+   "name": "qwen_image_edit_2511_fp8mixed.safetensors",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/models/diffusion_models/qwen_image_edit_2511_fp8mixed.safetensors",
+   "src": "https://huggingface.co/Comfy-Org/Qwen-Image-Edit_ComfyUI/resolve/main/split_files/diffusion_models/qwen_image_edit_2511_fp8mixed.safetensors",
+   "size": 20533762817,
+   "sha256": "c9fdc158e46d3b61ef75f21ae866ca2fe808bf4a53643120d1c1e87c19280a4e",
+   "model": "qwenEdit"
+  },
+  "ai/models/loras/Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors": {
+   "group": "portrait",
+   "name": "Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/models/loras/Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors",
+   "src": "https://huggingface.co/lightx2v/Qwen-Image-Edit-2511-Lightning/resolve/main/Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors",
+   "size": 849608296,
+   "sha256": "22226e8d05d354bb356627d428809f5afd7819399b077238a2b70a82883a904f",
+   "model": "qwenFast"
+  },
+  "ai/models/vae/qwen_image_vae.safetensors": {
+   "group": "portrait",
+   "name": "qwen_image_vae.safetensors",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/models/vae/qwen_image_vae.safetensors",
+   "src": "https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/vae/qwen_image_vae.safetensors",
+   "size": 253806246,
+   "sha256": "a70580f0213e67967ee9c95f05bb400e8fb08307e017a924bf3441223e023d1f",
+   "model": "qwenVae"
+  },
+  "ai/models/diffusion_models/Wan2_1-InfiniteTalk_Single_Q8.gguf": {
+   "group": "talk",
+   "name": "Wan2_1-InfiniteTalk_Single_Q8.gguf",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/models/diffusion_models/Wan2_1-InfiniteTalk_Single_Q8.gguf",
+   "src": "https://huggingface.co/Kijai/WanVideo_comfy_GGUF/resolve/main/InfiniteTalk/Wan2_1-InfiniteTalk_Single_Q8.gguf",
+   "size": 2646330016,
+   "sha256": "c5e251c56174995d940494ec02fdf9d36da00dffdde6827829801cd171fe8ffd",
+   "model": "talkModel"
+  },
+  "ai/models/text_encoders/umt5-xxl-enc-fp8_e4m3fn.safetensors": {
+   "group": "talk",
+   "name": "umt5-xxl-enc-fp8_e4m3fn.safetensors",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/models/text_encoders/umt5-xxl-enc-fp8_e4m3fn.safetensors",
+   "src": "https://huggingface.co/Kijai/WanVideo_comfy/resolve/main/umt5-xxl-enc-fp8_e4m3fn.safetensors",
+   "size": 6731333792,
+   "sha256": "3fe5173588270c22505d4f9158bb1644b78331b8614206a97e92760b960c9ffa",
+   "model": "umt5"
+  },
+  "ai/models/diffusion_models/wan2.1-i2v-14b-480p-Q4_K_M.gguf": {
+   "group": "talk",
+   "name": "wan2.1-i2v-14b-480p-Q4_K_M.gguf",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/models/diffusion_models/wan2.1-i2v-14b-480p-Q4_K_M.gguf",
+   "src": "https://huggingface.co/city96/Wan2.1-I2V-14B-480P-gguf/resolve/main/wan2.1-i2v-14b-480p-Q4_K_M.gguf",
+   "size": 11341184384,
+   "sha256": "d91f7139acadb42ea05cdf97b311e5099f714f11fbe4d90916500e2f53cbba82",
+   "model": "wanI2V"
+  },
+  "ai/models/diffusion_models/wan2.1-i2v-14b-480p-Q5_K_M.gguf": {
+   "group": "talk",
+   "name": "wan2.1-i2v-14b-480p-Q5_K_M.gguf",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/models/diffusion_models/wan2.1-i2v-14b-480p-Q5_K_M.gguf",
+   "src": "https://huggingface.co/city96/Wan2.1-I2V-14B-480P-gguf/resolve/main/wan2.1-i2v-14b-480p-Q5_K_M.gguf",
+   "size": 12743654784,
+   "sha256": "f4d223577def3642d9499c3becf8367c84c6fe3b6673fd3e0519738a4ecf3d31",
+   "model": "wanI2V"
+  },
+  "ai/models/diffusion_models/wan2.1-i2v-14b-480p-Q8_0.gguf": {
+   "group": "talk",
+   "name": "wan2.1-i2v-14b-480p-Q8_0.gguf",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/models/diffusion_models/wan2.1-i2v-14b-480p-Q8_0.gguf",
+   "src": "https://huggingface.co/city96/Wan2.1-I2V-14B-480P-gguf/resolve/main/wan2.1-i2v-14b-480p-Q8_0.gguf",
+   "size": 18144640384,
+   "sha256": "db961e33570a3a7902614ea52b6e77a33d284dfc85743a05e880a02da1164b45",
+   "model": "wanI2V"
+  },
+  "ai/models/vae/Wan2_1_VAE_bf16.safetensors": {
+   "group": "talk",
+   "name": "Wan2_1_VAE_bf16.safetensors",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/models/vae/Wan2_1_VAE_bf16.safetensors",
+   "src": "https://huggingface.co/Kijai/WanVideo_comfy/resolve/main/Wan2_1_VAE_bf16.safetensors",
+   "size": 253806278,
+   "sha256": "1ab9a32cc2c740f6e39d80d367ce5dcc28db8c71b79b28670546b8973e9d75f9",
+   "model": "wanVae"
+  },
+  "ai/models/wav2vec2/wav2vec2-chinese-base_fp16.safetensors": {
+   "group": "talk",
+   "name": "wav2vec2-chinese-base_fp16.safetensors",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/models/wav2vec2/wav2vec2-chinese-base_fp16.safetensors",
+   "src": "https://huggingface.co/Kijai/wav2vec2_safetensors/resolve/main/wav2vec2-chinese-base_fp16.safetensors",
+   "size": 190115368,
+   "sha256": "000813e441020f18cff844c969d2d5d4adc2a5ce46b2db1f23950b05d88805b4",
+   "model": "wav2vec"
   }
  },
- "at": "2026-11-11T16:18:17.716Z"
+ "at": "2026-11-11T16:57:45.732Z"
 }
