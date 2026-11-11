@@ -8,6 +8,13 @@ import urllib.request
 
 _t0 = time.time()
 
+# 消息和日志里有中文：不管系统是什么编码（英文 Windows 默认 cp1252），一律按 UTF-8 输出
+for _s in (sys.stdout, sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 
 def say(**kw):
     """给 PPT 助手发一条消息：stage（哪一步）、p（0~1 的进度）、msg（给老师看的话）"""
