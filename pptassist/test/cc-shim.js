@@ -12,5 +12,13 @@ window.cc = {
     if (!r.ok) throw new Error(r.e);
     return dec(r.r);
   },
-  on() {},
+  // 后台的事件：轮询 /events（真的软件里是 Electron 推过来的）
+  on(ch, fn) {
+    const L = (window.__ccOn = window.__ccOn || { fns: {}, next: 0, timer: 0 });
+    (L.fns[ch] = L.fns[ch] || []).push(fn);
+    if (L.timer) return;
+    L.timer = setInterval(async () => {
+      try { const r = await (await fetch("/events?since=" + L.next)).json(); L.next = r.next; for (const e of r.ev) for (const f of L.fns[e.ch] || []) f(e.d); } catch (e) {}
+    }, 250);
+  },
 };

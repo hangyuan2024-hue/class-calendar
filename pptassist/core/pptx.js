@@ -257,4 +257,4 @@ async function write(buf, plan, opt = {}) {
   return { buf: out, report };
 }
 
-module.exports = { read, write, paragraphs, EMU };
+module.exports = { read, write, paragraphs, EMU, open, shapes, parseRels, relsXml, nextRid, resolve, relsPath, esc, unesc, attr, box, maxShapeId, REL, CT_SLIDE, NS_R };

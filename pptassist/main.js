@@ -16,6 +16,9 @@ const svc = createService({
   pickDir: async (title) => { const r = await dialog.showOpenDialog(win, { title, properties: ["openDirectory"] }); return r.canceled ? null : r.filePaths[0]; },
   openPath: (f) => shell.openPath(f),
   reveal: (f) => shell.showItemInFolder(f),
+  // AI 助手的本地模型程序（llama.cpp），打包时放在 resources/llama
+  llamaCpuExe: app.isPackaged ? path.join(process.resourcesPath, "llama-cpu", "llama-server.exe") : path.join(__dirname, "resources", "llama-cpu", process.platform === "win32" ? "llama-server.exe" : "llama-server"),
+  llamaExe: app.isPackaged ? path.join(process.resourcesPath, "llama", "llama-server.exe") : path.join(__dirname, "resources", "llama", process.platform === "win32" ? "llama-server.exe" : "llama-server"),
   openExternal: (u) => { if (/^https:\/\/(github\.com|www\.laolaokechengbiao\.cn)\//.test(u)) shell.openExternal(u); },
 });
 ipcMain.handle("call", async (ev, method, args) => {

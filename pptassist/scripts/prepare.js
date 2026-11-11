@@ -17,3 +17,11 @@ for (const pkg of ["face_mesh", "selfie_segmentation"]) {
   fs.copyFileSync(path.join(__dirname, "..", "ai3d", "third_party", "latentsync", "LICENSE"), path.join(out, "LICENSE-Apache-2.0.txt"));
 }
 console.log("mediapipe → renderer/vendor/mediapipe");
+// 公式预览用的 MathJax（Apache-2.0）：tex-svg 一个文件，字形都在里面，不用联网
+{
+  const out = path.join(__dirname, "..", "renderer", "vendor", "mathjax");
+  fs.mkdirSync(out, { recursive: true });
+  fs.copyFileSync(path.join(__dirname, "..", "node_modules", "mathjax", "es5", "tex-svg.js"), path.join(out, "tex-svg.js"));
+  fs.copyFileSync(path.join(__dirname, "..", "node_modules", "mathjax", "LICENSE"), path.join(out, "LICENSE"));
+  console.log("mathjax → renderer/vendor/mathjax");
+}

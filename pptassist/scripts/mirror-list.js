@@ -68,6 +68,19 @@ const GROUPS = {
     const pick = files.filter((x) => date(x) === d).slice(0, 3);
     return pick.map((x) => ({ id: "gsv-" + base(x.path).replace(/[^\w.-]/g, "_"), url: `${HF}/lj1995/GPT-SoVITS-windows-package/resolve/main/${x.path}`, key: `ai/pkg/gsv-${d}/${base(x.path)}`, name: base(x.path), size: sizeOf(x), ver: d, pkg: /nvidia50|50x0|blackwell/i.test(x.path) ? "gsv50" : "gsv" }));
   },
+  // AI 助手（对话改 PPT）的本地大模型：通义千问 Qwen3-VL-4B（Apache-2.0），主模型 + 看图用的 mmproj
+  async llm() {
+    const L = require("../core/llm").MODEL;
+    const files = await hfTree(L.repo);
+    const out = [];
+    for (const [k, key] of [["main", "llmMain"], ["mmproj", "llmMmproj"]]) {
+      const c = files.filter((x) => L[k].test(x.path));
+      const hit = L[k].prefer.map((w) => c.find((x) => x.path.includes(w))).find(Boolean) || c[0];
+      if (!hit) throw new Error(L.repo + " 里没找到 " + k);
+      out.push({ id: "llm-" + k, url: `${HF}/${L.repo}/resolve/main/${hit.path}`, key: `ai/llm/${base(hit.path)}`, name: base(hit.path), size: sizeOf(hit), model: key });
+    }
+    return out;
+  },
   // Hunyuan3D-2 WinPortable（可能分成好几卷：.7z.001、.7z.002……）
   async hy3d() {
     const rel = await gh("/repos/YanWenKun/Hunyuan3D-2-WinPortable/releases/latest");

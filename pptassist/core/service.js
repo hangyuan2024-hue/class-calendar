@@ -12,6 +12,9 @@ const AI3D = require("./ai3d");
 const ENGINE = require("./engine");
 const MIRROR = require("./mirror");
 const INSTALL = require("./installer");
+const LLM = require("./llm");
+const AGENT = require("./agent");
+const EDIT = require("./pptedit");
 const WF = require("./workflows");
 
 const IMG_EXT = ["png", "jpg", "jpeg", "webp", "bmp"];
@@ -47,6 +50,17 @@ function createService(env) {
   // 国内存储的清单：整合包、模型、插件优先从老师自己的国内存储下
   const mirror = MIRROR.create(env.mirrorOpt || {});
   const eng = ENGINE.create({ mirror, ...(env.engineOpt || {}) });
+  // AI 助手：本地大模型 + 正在改的 PPT（edit.deck，改完另存）
+  const llm = LLM.create({ dir: P("llm", "x").slice(0, -2), exe: env.llamaExe, exeCpu: env.llamaCpuExe, mirror, onState: (st) => send("agent", { type: "state", state: st }), ...(env.llmOpt || {}) });
+  let edit = null;   // { deck, file, saved }
+  const agent = AGENT.create({ llm, deck: () => (edit ? edit.deck : null), fileName: () => (edit ? path.basename(edit.file) : ""), onEvent: (e) => send("agent", e) });
+  async function ensureDeck() {
+    if (edit && doc && edit.file === doc.file) return edit.deck;
+    if (!doc) return null;
+    edit = { deck: await EDIT.load(fs.readFileSync(doc.file)), file: doc.file, saved: true };
+    return edit.deck;
+  }
+  const editInfo = async () => (edit ? { file: edit.file, saved: edit.saved, history: edit.deck.history(), outline: (await edit.deck.outline()).map((x) => ({ no: x.no, title: x.title, formulas: x.formulas, hidden: x.hidden })) } : null);
   let setupJob = null;   // 一键下载安装：一次只装一个
   const setupSend = (kind, m) => send("setup", { kind, ...m });
   async function runSetup(kind, title, fn) {
@@ -372,6 +386,57 @@ function createService(env) {
         A3().dir = r.dir; A3().check = null; saveProfile(); return H.ai3dCheck().catch(() => null);
       });
     },
+    // ---------- AI 助手：对话改 PPT ----------
+    async aiState() {
+      const f = llm.files();
+      let size = LLM.MODEL.main.size + LLM.MODEL.mmproj.size;
+      return { llm: llm.state(), model: { name: LLM.MODEL.name, ready: !!(f.main && f.mmproj), size }, exe: !!(env.llamaExe && fs.existsSync(env.llamaExe)), busy: agent.busy(), edit: (await ensureDeck().catch(() => null)) ? await editInfo() : null };
+    },
+    async aiDownload() { await llm.download((m) => send("agent", { type: "download", ...m })); return H.aiState(); },
+    async aiStart() { await llm.start(); return H.aiState(); },
+    aiStopModel() { llm.stop(); return true; },
+    // 老师说一句（可以带图片：data:image/…;base64）。回复和每一步进度通过 agent 事件发给界面
+    async aiSend(text, images = []) {
+      const imgs = (Array.isArray(images) ? images : []).filter((u) => typeof u === "string" && /^data:image\/(png|jpe?g|webp);base64,/.test(u) && u.length < 12e6).slice(0, 3);
+      await ensureDeck();
+      const before = edit ? edit.deck.history().length : 0;
+      await agent.send(text, imgs);
+      if (edit && edit.deck.history().length !== before) edit.saved = false;
+      return editInfo();
+    },
+    aiStop() { return agent.stop(); },
+    aiReset() { agent.reset(); return true; },
+    async aiOcr(image) {
+      if (typeof image !== "string" || !/^data:image\/(png|jpe?g|webp);base64,/.test(image)) throw new Error("图片不对");
+      return agent.ocr(image);
+    },
+    async aiInsertFormula(slide, latex, o = {}) {
+      const d = await ensureDeck(); if (!d) throw new Error("先在「选页和内容」里打开一个 PPT");
+      const r = await d.insertFormula(slide, latex, { where: o.where, size: o.size }); edit.saved = false;
+      return { ...r, edit: await editInfo() };
+    },
+    async aiUndo() { const d = await ensureDeck(); if (!d) return null; const l = await d.undo(); if (l) edit.saved = false; return { undone: l, edit: await editInfo() }; },
+    async aiPickImage() {
+      const f = await env.pickFile(["png", "jpg", "jpeg", "webp"], "选一张照片（公式、板书、截图）", "图片"); if (!f) return null;
+      if (fs.statSync(f).size > 15e6) throw new Error("图片太大了（超过 15MB）");
+      return dataUrl(f, mimeOf(f));
+    },
+    // 另存成「原名（捞捞助手改）.pptx」，原文件不动；之后「生成 PPT」也用改好的这一份
+    async aiSave() {
+      if (!edit) throw new Error("还没改过");
+      const buf = await edit.deck.save();
+      const base = path.basename(edit.file, path.extname(edit.file)).replace(/（捞捞助手改）$/, "");
+      let out = path.join(path.dirname(edit.file), `${base}（捞捞助手改）.pptx`);
+      try { fs.writeFileSync(out, buf); }
+      catch (e) {
+        if (e.code === "EBUSY" || e.code === "EPERM") throw new Error("「" + path.basename(out) + "」正在 PowerPoint 里打开着，先关掉它再保存");
+        out = path.join(env.documents, `${base}（捞捞助手改）.pptx`); fs.writeFileSync(out, buf);
+      }
+      outputs.add(out);
+      doc = { file: out, info: await PPTX.read(buf) };
+      edit.file = out; edit.saved = true;
+      return { file: out, size: buf.length, doc };
+    },
     setupCancel() { if (setupJob) { setupJob.ac.abort(); return true; } return false; },
     aiavLog() { return eng.log.slice(-40); },
     aiavOpenPage(k) { if (ENGINE.PAGES[k]) env.openExternal(ENGINE.PAGES[k]); return true; },
@@ -498,6 +563,7 @@ function createService(env) {
       const f = await env.pickFile(["pptx"], "打开一个 PPT（.pptx）", "PowerPoint"); if (!f) return null;
       const info = await PPTX.read(fs.readFileSync(f));
       doc = { file: f, info };
+      edit = null; agent.reset();   // 换了一份 PPT：AI 助手从头来
       return { file: f, info };
     },
     draft(no, opt = {}) {
@@ -579,7 +645,7 @@ function createService(env) {
     openFile(f) { if (!outputs.has(f)) throw new Error("不能打开这个文件"); env.openPath(f); return true; },
     reveal(f) { if (!outputs.has(f)) throw new Error("不能打开这个文件"); env.reveal(f); return true; },
   };
-  return { H, shutdown: () => { voice.stop(); eng.stop(); } };
+  return { H, shutdown: () => { voice.stop(); eng.stop(); llm.stop(); } };
 }
 
 module.exports = { createService };

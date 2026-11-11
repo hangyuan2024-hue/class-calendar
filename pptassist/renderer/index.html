@@ -13,7 +13,8 @@
     <button data-step="avatar" class="on"><i>1</i><span>我的形象<small>照片 + 捏脸</small></span></button>
     <button data-step="voice"><i>2</i><span>我的声音<small>3～10 秒录音</small></span></button>
     <button data-step="slides"><i>3</i><span>选页和内容<small>讲解词、问答</small></span></button>
-    <button data-step="make"><i>4</i><span>生成 PPT<small>配音、视频、写进去</small></span></button>
+    <button data-step="ai"><i>4</i><span>AI 改 PPT<small>说一句就改、拍照插公式</small></span></button>
+    <button data-step="make"><i>5</i><span>生成 PPT<small>配音、视频、写进去</small></span></button>
   </nav>
   <div class="side-more">
     <small>更多</small>
@@ -145,6 +146,50 @@
     </div>
   </section>
 
+  <!-- AI 改 PPT -->
+  <section class="page" id="pg-ai" hidden>
+    <header><h1>AI 改 PPT</h1><p>和「捞捞」说要怎么改：改标题和文字、全文替换、加一页、删一页、调顺序、插数学公式；拍一张公式照片发给它，它认成 PowerPoint 公式（双击还能改）。它一边做一边告诉你做到哪了。全部在这台电脑上算（本地大模型，不联网）；改完另存成新文件，原文件不动。</p></header>
+    <div class="card ai-bar">
+      <span class="pill" id="aiPill">没启动</span><span class="muted" id="aiModelMeta"></span>
+      <button class="btn sm pri" id="aiDl" hidden>下载 AI 助手模型</button><button class="btn sm" id="aiGo" hidden>启动</button>
+      <span class="grow"></span>
+      <span class="muted ai-file" id="aiFile">还没打开 PPT</span>
+      <button class="btn sm" id="aiUndoBtn" disabled title="撤销上一步改动">撤销</button>
+      <button class="btn sm pri" id="aiSaveBtn" disabled>保存成新文件</button>
+    </div>
+    <div class="ai-prog" id="aiDlProg" hidden><div class="bar"><i></i></div><span></span></div>
+    <div class="ai-grid">
+      <div class="card chat">
+        <div class="chat-log" id="chatLog"><div class="chat-hello"><b>你好，我是捞捞。</b><span>先在「选页和内容」里打开一个 PPT，然后告诉我怎么改，比如：</span>
+          <button class="ex">把第 3 页的标题改成「冒泡排序的原理」</button><button class="ex">在第 5 页后面加一页小结，写三条要点</button><button class="ex">在第 6 页插入求根公式</button><button class="ex">把所有的「数组」换成「一维数组」</button></div></div>
+        <div class="chat-imgs" id="chatImgs"></div>
+        <div class="chat-in">
+          <button class="btn sm" id="chatImg" title="发一张照片或截图（也可以直接粘贴、拖进来）">图片</button>
+          <textarea id="chatText" rows="2" placeholder="告诉捞捞要怎么改（Enter 发送，Shift+Enter 换行）"></textarea>
+          <button class="btn pri" id="chatSend">发送</button><button class="btn" id="chatStop" hidden>停下</button>
+        </div>
+      </div>
+      <div class="ai-side">
+        <div class="card">
+          <div class="card-h"><b>拍照插公式</b></div>
+          <div class="row"><button class="btn sm" id="ocrPick">选公式照片</button><span class="muted">也可以把截图直接粘贴到这里</span></div>
+          <img id="ocrImg" class="ocr-img" alt="" hidden>
+          <div class="row"><button class="btn sm pri" id="ocrGo" disabled>认公式</button></div>
+          <label class="field"><span>LaTeX（认得不对可以直接改）</span><textarea id="ocrTex" rows="3" placeholder="比如 x=\frac{-b\pm\sqrt{b^2-4ac}}{2a}"></textarea></label>
+          <div class="ocr-prev" id="ocrPrev"></div>
+          <div class="row"><span>插到第</span><input id="ocrSlide" type="number" min="1" value="1" style="width:64px"><span>页</span>
+            <select id="ocrWhere"><option value="">自动找空的地方</option><option value="top">上面</option><option value="middle">中间</option><option value="bottom">下面</option></select>
+            <button class="btn sm pri" id="ocrIns">插进去</button></div>
+        </div>
+        <div class="card">
+          <div class="card-h"><b>这份 PPT</b><span class="grow"></span><small class="muted" id="aiCount"></small></div>
+          <ol class="ai-outline" id="aiOutline"></ol>
+          <div class="ai-hist" id="aiHist"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- 2 我的声音 -->
   <section class="page" id="pg-voice" hidden>
     <header><h1>我的声音</h1><p>用一段 3～10 秒的录音，就能让形象用你的声音讲课（GPT-SoVITS，在你自己电脑上运行，不联网）。也可以每一段都自己录，在「选页和内容」里给那一段上传录音。</p></header>
@@ -239,6 +284,9 @@
 <script src="face.js"></script>
 <script src="vision.js"></script>
 <script src="puppet.js"></script>
+<script src="mathjax-config.js"></script>
+<script src="vendor/mathjax/tex-svg.js" id="MathJax-script"></script>
+<script src="chat.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

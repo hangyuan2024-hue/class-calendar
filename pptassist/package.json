@@ -10,7 +10,7 @@
   "scripts": {
     "start": "electron .",
     "prepare-ui": "node scripts/prepare.js",
-    "test": "node test/pptx.test.js && node test/media.test.js && node test/voice.test.js && node test/service.test.js && node test/ai3d.test.js && node test/vision.test.js && node test/avatar.test.js && node test/engine.test.js && node test/puppet.test.js && node test/installer.test.js",
+    "test": "node test/pptx.test.js && node test/media.test.js && node test/voice.test.js && node test/service.test.js && node test/ai3d.test.js && node test/vision.test.js && node test/avatar.test.js && node test/engine.test.js && node test/puppet.test.js && node test/installer.test.js && node test/latex.test.js && node test/pptedit.test.js && node test/agent.test.js",
     "dist": "node scripts/prepare.js && electron-builder --win nsis"
   },
   "dependencies": {
@@ -18,7 +18,8 @@
     "@mediapipe/selfie_segmentation": "0.1.1675465747",
     "7zip-bin": "5.2.0",
     "ffmpeg-static": "^5.2.0",
-    "jszip": "^3.10.1"
+    "jszip": "^3.10.1",
+    "mathjax": "3.2.2"
   },
   "devDependencies": {
     "electron": "^33.2.1",
@@ -47,6 +48,15 @@
       "node_modules/7zip-bin/win/x64/**",
       "ai3d/lao3d/**",
       "ai3d/third_party/**"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/llama",
+        "to": "llama",
+        "filter": [
+          "**/*"
+        ]
+      }
     ],
     "asar": true,
     "asarUnpack": [

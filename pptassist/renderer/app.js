@@ -20,6 +20,7 @@
     for (const b of $$("#steps button")) b.classList.toggle("on", b.dataset.step === step);
     for (const p of $$(".page")) p.hidden = p.id !== "pg-" + step;
     if (step === "make") paintJobs();
+    if (step === "ai") window.dispatchEvent(new Event("lao-ai-show"));
     if (av) av.setManual(step !== "avatar");   // 不在这一页就别一直画
   }
   $("#steps").onclick = (e) => { const b = e.target.closest("button"); if (b) go(b.dataset.step); };
@@ -668,6 +669,13 @@
     doc = r; plan.clear(); cur = (r.info.slides.find((s) => !s.hidden) || r.info.slides[0] || {}).no || 0;
     $("#pptName").textContent = r.file; $("#slidesGrid").hidden = false;
     if (r.info.slides.some((s) => s.laolao)) toast("这个 PPT 里已经加过捞捞形象了：最好用没加过的原文件", true);
+    paintSlides(); paintEdit(); markDone();
+  });
+  // AI 改 PPT 另存了新文件：「选页和内容」「生成 PPT」都换成改好的这一份（勾选的页和讲解词按页号留着）
+  window.addEventListener("lao-doc", (e) => {
+    const r = e.detail; if (!r) return;
+    doc = r; if (!cur || !r.info.slides.some((x) => x.no === cur)) cur = (r.info.slides.find((x) => !x.hidden) || r.info.slides[0] || {}).no || 0;
+    $("#pptName").textContent = r.file; $("#slidesGrid").hidden = false;
     paintSlides(); paintEdit(); markDone();
   });
   function paintSlides() {
