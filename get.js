@@ -1,6 +1,7 @@
 // 下载按钮：按设备（安卓 / 苹果 / Windows 电脑 / 微信里）给出合适的下载方式
 // data-get="apk"  安卓安装包（不写值也是安卓，下载页用的旧写法）
 // data-get="exe"  Windows 电脑版安装包
+// data-get="ppt"  捞捞PPT助手安装包（国内优先走国内存储，见 download/ppt-version.json）
 // data-get="auto" 看设备：安卓手机给 App，Windows 电脑给电脑版，苹果手机给网页版
 (() => {
   const root = new URL(document.body.dataset.root || "./", location.href);
@@ -35,6 +36,8 @@
   const CODE_GH = "https://github.com/hangyuan2024-hue/class-calendar/releases/download/laolao-code/LaolaoCode-Setup.exe";
   let MIR = { gh: ["https://ghfast.top/", "https://gh-proxy.com/", "https://ghproxy.net/"] };
   let CODE = CODE_GH, exeHow = "", codeHow = "";
+  const PPT_GH = "https://github.com/hangyuan2024-hue/class-calendar/releases/download/laolao-ppt/LaolaoPPT-Setup.exe";
+  let PPT = PPT_GH, pptHow = "";
   // 能不能连上（不跨域读内容，只看通不通）；几条线路同时试，谁先通用谁
   const reach = (u, ms) => new Promise((ok) => {
     const ctl = new AbortController(), t = setTimeout(() => { ctl.abort(); ok(false); }, ms || 4000);
@@ -96,6 +99,7 @@
     const k = a.dataset.get || "apk";
     if (k === "exe") return "exe";
     if (k === "code") return "code";
+    if (k === "ppt") return "ppt";
     if (k === "apk") return plat.ios || plat.app ? "web" : "apk";
     if (plat.app || plat.ios) return "web";
     if (plat.windows) return "exe";
@@ -106,6 +110,7 @@
     apk: () => ["下载安卓 App", ver ? `${ver.versionName} 版，${mb(ver.size)}` : ""],
     exe: () => ["下载 Windows 电脑版", "约 100 MB，Win10 / Win11" + (exeHow ? " · " + exeHow : "")],
     code: () => ["下载 Windows 版", "约 1.5 GB" + (codeHow ? " · " + codeHow : "")],
+    ppt: () => ["下载 Windows 版", "Windows 10 / 11" + (pptHow ? " · " + pptHow : "")],
     web: () => [plat.app ? "你已经装好了，回到 App" : "苹果手机用网页版", ""],
     pick: () => ["选择你的设备下载", ""],
   };
@@ -113,6 +118,7 @@
     apk: () => `免费，安卓 7.0 及以上都能装。${ver && day(ver.at) ? day(ver.at) + "更新" : ""}`,
     exe: () => "免费，Windows 10 / 11（64 位）都能装，账号和手机通用",
     code: () => "Windows 10 / 11 · 64 位，自带编译器和本地模型，所以比较大",
+    ppt: () => "Windows 10 / 11 · 64 位",
     web: () => "账号和数据在手机、电脑上自动同步",
     pick: () => "有安卓 App 和 Windows 电脑版，苹果电脑可以直接用网页版",
   };
@@ -128,6 +134,7 @@
       if (k === "apk") useDownload(a, apk);
       else if (k === "exe") { a.href = EXE; a.removeAttribute("download"); }
       else if (k === "code") { a.href = CODE; a.removeAttribute("download"); }
+      else if (k === "ppt") { a.href = PPT; a.removeAttribute("download"); }
       else if (k === "web") { a.href = web; a.removeAttribute("download"); }
       else { a.href = "#get"; a.removeAttribute("download"); }
       if (!a.classList.contains("done")) setLabel(a, ...TEXT[k]());
@@ -184,10 +191,11 @@
     if (!(await nearCn(dv0 && dv0.cn))) return;
     cnChosen = true;
     const m = await getJson("download/mirrors.json"); if (m && Array.isArray(m.gh) && m.gh.length) MIR = m;
-    const [dv, cv] = await Promise.all([getJson("download/desktop-version.json"), getJson("download/code-version.json")]);
-    const [pe, pc] = await Promise.all([(plat.desktop || plat.windows) && $$('[data-get="exe"], [data-get="auto"]').length ? cnPick(dv, EXE_GH) : null, $$('[data-get="code"]').length ? cnPick(cv, CODE_GH) : null]);
+    const [dv, cv, pv] = await Promise.all([getJson("download/desktop-version.json"), getJson("download/code-version.json"), $$('[data-get="ppt"]').length ? getJson("download/ppt-version.json") : null]);
+    const [pe, pc, pp] = await Promise.all([(plat.desktop || plat.windows) && $$('[data-get="exe"], [data-get="auto"]').length ? cnPick(dv, EXE_GH) : null, $$('[data-get="code"]').length ? cnPick(cv, CODE_GH) : null, $$('[data-get="ppt"]').length ? cnPick(pv, PPT_GH) : null]);
     if (pe) { EXE = pe.url; exeHow = pe.how; }
     if (pc) { CODE = pc.url; codeHow = pc.how; }
+    if (pp) { PPT = pp.url; pptHow = pp.how; }
     const v = await info.ready;
     if (v && /^https:\/\//.test(v.cn || "")) { apk = v.cn; }
     else if (v && apk !== backupApk) { apk = backupApk; backupApk = v.url ? new URL(v.url, root).href : originalApk; }   // 国内用官网副本，GitHub 当备用线路
