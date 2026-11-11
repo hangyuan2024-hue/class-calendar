@@ -10,7 +10,8 @@ const clients = new Set();
 const svc = createService({
   dev: true, res: path.join(__dirname, "..", "resources"), user: path.join(DATA, "user"), documents: path.join(DATA, "docs"), version: "test",
   send: (ch, data) => { const s = `data: ${JSON.stringify({ ch, data })}\n\n`; for (const c of clients) c.write(s); },
-  pickDir: async () => null, pickFile: async () => null, trash: async (f) => fs.rmSync(f, { force: true }), reveal() {}, openPath() {}, openExternal() {},
+  skinBase: process.env.SKIN_BASE,
+  pickDir: async () => null, pickFile: async (exts) => (exts && exts[0] === "json" && process.env.PICK_SKIN) || null, trash: async (f) => fs.rmSync(f, { force: true }), reveal() {}, openPath() {}, openExternal() {},
 });
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8" };
 http.createServer(async (req, res) => {

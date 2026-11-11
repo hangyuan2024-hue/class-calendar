@@ -44,6 +44,7 @@
         <span class="viz-title">${I("activity", 18)}<b>画出来</b><small>CODE VISUALIZER</small></span>
         <div class="viz-modes" id="vzModes" role="tablist"><button data-m="user">${I("code", 14)}我的代码</button><span class="viz-sep"></span><small class="viz-grp">算法演示</small>${A.ALGOS.map((a) => `<button data-m="${a.id}">${esc(a.name.replace("排序", "").replace("查找", ""))}</button>`).join("")}</div>
         <span class="grow"></span>
+        ${window.LaoSkins && STAGE ? `<button class="btn sm ghost" id="vzSkin" title="皮肤商店：换数据小兵的样子">${I("shirt", 14)}皮肤</button>` : ""}
         ${SND ? `<button class="ic-btn" id="vzSnd" title="音效（M）">${sndIcon()}</button>` : ""}
         <button class="ic-btn" id="vzClose" title="关掉（Esc）" aria-label="关掉">${I("x", 18)}</button>
       </div>
@@ -77,6 +78,7 @@
       </div>`;
     document.body.appendChild(root);
     $("#vzClose").onclick = close;
+    if ($("#vzSkin")) $("#vzSkin").onclick = () => window.LaoSkins.show();
     if ($("#vzSnd")) { $("#vzSnd").onclick = () => SND.toggle(); SND.onChange(() => { for (const b of document.querySelectorAll("#vzSnd, #vizFloat [data-f=snd]")) b.innerHTML = sndIcon(); }); }
     $("#vzModes").onclick = (e) => { const b = e.target.closest("[data-m]"); if (b) setMode(b.dataset.m); };
     root.querySelector(".viz-ctrl").addEventListener("click", (e) => { const b = e.target.closest("[data-c]"); if (!b) return; const c = b.dataset.c; if (c === "play") toggle(); else { pause(); go(c === "first" ? 0 : c === "last" ? cur().length - 1 : st().k + (c === "next" ? 1 : -1)); } });
@@ -447,7 +449,10 @@
     sendPop();
     schedule(0);
   }
-  const popSend = (m) => { if (F.popped && CAN_POP) window.cc.popSend(m); };
+  // 拖出去的小窗口也穿同一身皮肤：每次发结果都带上；在皮肤商店里换了也马上告诉它
+  const skinNow = () => { const s = STAGE && STAGE.getSkin(); return s && s.id !== "robot" ? s : null; };
+  const popSend = (m) => { if (F.popped && CAN_POP) window.cc.popSend(m.type === "result" ? { ...m, skin: skinNow() } : m); };
+  if (window.LaoSkins) window.LaoSkins.onChange((s) => popSend({ type: "skin", skin: s }));
   function sendPop() {
     if (!F.popped) return;
     const t = traceable();

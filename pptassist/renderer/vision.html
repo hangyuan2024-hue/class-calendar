@@ -1,0 +1,7 @@
+<!doctype html>
+<!-- 认脸、认头发的小页面：MediaPipe 的 wasm 胶水代码要 eval，只在这个页面里放开（只加载本地的这几个脚本，不联网），主窗口还是严格的安全策略 -->
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval'; connect-src 'self'; img-src 'self' data: blob:; worker-src 'self' blob:">
+<script src="vendor/mediapipe/face_mesh/face_mesh.js"></script>
+<script src="vendor/mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
+<script src="vision.js"></script>

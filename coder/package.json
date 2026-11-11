@@ -12,7 +12,7 @@
     "prepare-app": "node scripts/prepare.js",
     "prestart": "node scripts/prepare.js",
     "start": "electron .",
-    "test": "node scripts/prepare.js && node test/runner.test.js && node test/exercises.test.js && node test/core.test.js && node test/viz.test.js && node test/trace.test.js",
+    "test": "node scripts/prepare.js && node test/runner.test.js && node test/exercises.test.js && node test/core.test.js && node test/viz.test.js && node test/skin.test.js && node test/trace.test.js",
     "dist": "node scripts/prepare.js && electron-builder --win --x64 --dir --publish never"
   },
   "dependencies": {},

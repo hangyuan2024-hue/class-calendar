@@ -24,6 +24,39 @@
 
   function webgl() { try { const c = document.createElement("canvas"); return !!(c.getContext("webgl2") || c.getContext("webgl")); } catch (e) { return false; } }
 
+  // ---------- 皮肤：数据小兵长什么样 ----------
+  // 皮肤只是一份数据（JSON），不带代码：model 选「robot」（原来的小机器人）或「person」（老师的分身：公仔 / 机器人屏幕脸 / 照片脸），再配颜色、发型、眼镜……
+  // 皮肤商店里的皮肤放在官网 code-skins/ 下，格式见 code-skins/README.md；这里把它洗一遍，不认识的字段一律丢掉。
+  const ROBOT = { id: "robot", name: "数据小兵", author: "捞捞", desc: "原版的小机器人", version: "1.0.0", model: "robot", colors: {} };
+  const HAIR_STYLES = ["none", "short", "bob", "long", "flare", "ponytail", "bun", "curly"];
+  // 颜色写成 "#rrggbb"；洗过一遍的皮肤里是数字，再洗一遍也认（所以 sanitizeSkin 洗几遍都一样）
+  const hexOf = (s, d) => (typeof s === "string" && /^#[0-9a-fA-F]{6}$/.test(s) ? parseInt(s.slice(1), 16) : Number.isInteger(s) && s >= 0 && s <= 0xffffff ? s : d);
+  function sanitizeSkin(s) {
+    if (!s || typeof s !== "object") return ROBOT;
+    const str = (x, n) => String(x == null ? "" : x).replace(/[<>]/g, "").slice(0, n);
+    const colors = {};
+    for (const k of ["body", "cmp", "swap", "sorted", "pivot", "mark"]) { const v = hexOf(s.colors && s.colors[k]); if (v != null) colors[k] = v; }
+    const out = { id: str(s.id, 40).replace(/[^\w-]/g, "") || "custom", name: str(s.name, 24) || "自定义皮肤", author: str(s.author, 24), desc: str(s.desc, 120), version: str(s.version, 16), model: s.model === "person" ? "person" : "robot", colors };
+    if (out.model === "person") {
+      const p = s.person && typeof s.person === "object" ? s.person : {};
+      out.person = {
+        skin: hexOf(p.skin, 0xf3c2a2), hair: hexOf(p.hair, 0x2a1b14), hairStyle: HAIR_STYLES.includes(p.hairStyle) ? p.hairStyle : "bob",
+        bangs: ["side", "none", "middle"].includes(p.bangs) ? p.bangs : "full", eyeStyle: p.eyeStyle === "smile" ? "smile" : "open",
+        glasses: !!p.glasses, glassesColor: hexOf(p.glassesColor, 0x3b3b46), top: hexOf(p.top, 0x6d8cf0), collar: hexOf(p.collar, null),
+        shoes: hexOf(p.shoes, 0x3a3049), eye: hexOf(p.eye, 0x2b1d18), blush: p.blush !== false, earrings: !!p.earrings, accent: hexOf(p.accent, 0x22d3ee),
+        bottom: p.bottom === "skirt" ? "skirt" : "pants", pants: hexOf(p.pants, 0x3b4a6b), antenna: !!p.antenna, earpods: p.earpods !== false,
+        // 照片做的脸（捞捞PPT助手导出的皮肤里带着）：只认 data:image 的 jpg / png，不超过 60KB
+        faceImage: typeof p.faceImage === "string" && p.faceImage.length < 60000 && /^data:image\/(jpeg|png);base64,[A-Za-z0-9+/=]+$/.test(p.faceImage) ? p.faceImage : undefined, photoFace: p.photoFace !== false,
+        tech: p.tech !== false, faceStyle: ["doll", "screen", "cyber", "photo", "soft", "cartoon"].includes(p.faceStyle) ? p.faceStyle : "doll", rig: p.rig === true, grid: p.grid !== false, body: p.body === "tall" ? "tall" : "chibi", shell: hexOf(p.shell, 0xeef1f6), stage: false,
+        // 公仔脸 / 屏幕脸的线条（捞捞PPT助手从照片里量出来的五官形状）：交给 LaoAvatar 洗（没加载就不要）
+        faceLines: root.LaoAvatar && root.LaoAvatar.cleanLines ? root.LaoAvatar.cleanLines(p.faceLines) : undefined,
+      };
+    }
+    return out;
+  }
+  let SKIN = ROBOT;
+  const LIVE = new Set();   // 跟着全局皮肤走的舞台
+
   // ---------- 小工具：文字贴图 ----------
   function textTex(draw, w, h) {
     const c = document.createElement("canvas"); c.width = w; c.height = h;
@@ -125,31 +158,130 @@
     };
     const visorMat = new T.MeshStandardMaterial({ color: 0x050b18, roughness: 0.08, metalness: 0.9 });
     const footMat = new T.MeshStandardMaterial({ color: 0x1e2a4a, roughness: 0.5, metalness: 0.4 });
+    // Q 版小人用的形状：大脑袋（头发是一个球，脸是往前探出来一点的另一个球，两个球的交线就是发际线）
+    const HR = 0.4;
+    const AV_S = 0.44, AV_H = 1.87;   // 机器人分身：缩放、原来的身高
+    Object.assign(geo, {
+      ball: new T.SphereGeometry(1, 48, 32),
+      hairShell: (w, t0, t1) => new T.SphereGeometry(1, 48, 24, Math.PI / 2 + w / 2, Math.PI * 2 - w, t0, t1 - t0),
+      collar: new T.TorusGeometry(0.2, 0.035, 8, 28),
+      smile: new T.TorusGeometry(0.045, 0.011, 6, 18, Math.PI),
+      lens: new T.TorusGeometry(0.068, 0.011, 8, 28),
+      bridge: new T.CylinderGeometry(0.008, 0.008, 0.07, 6),
+      pony: new T.CapsuleGeometry(0.085, 0.2, 6, 12),
+    });
+    const hairGeoCache = {};
+    const hairGeo = (k, w, t0, t1) => hairGeoCache[k] || (hairGeoCache[k] = geo.hairShell(w, t0, t1));
+
+    let skin = opt.skin ? sanitizeSkin(opt.skin) : SKIN;
+    let PAL = palette();
+    function palette() { const P = skin.person; return { ...COL, ...skin.colors, body: skin.colors.body != null ? skin.colors.body : P ? P.top : COL.body }; }
+    // 小人的头比机器人高出来多少（摆镜头、捞小智飞多高要用）
+    const headExtra = () => (skin.person ? (root.LaoAvatar ? R0 * 0.2 + AV_H * AV_S + 0.1 - R0 : HR * 2.15 + 0.2 - R0) : 0);
 
     let chars = [], n = 0, lo = 0, hi = 1, spacing = 1, scaleK = 1, hMin = 0.25, hMax = 2.2;
     const heightOf = (v) => (hi > lo ? lerp(hMin, hMax, (v - lo) / (hi - lo)) : (hMin + hMax) / 2);
 
+    // 在脸（球心 fc、半径 fr）表面上摆一个小东西：dx、dy 是往右、往上偏多少（-1..1）
+    function onFace(m, fc, fr, dx, dy, out = 1) {
+      const dz = Math.sqrt(Math.max(0.05, 1 - dx * dx - dy * dy));
+      m.position.set(fc.x + dx * fr * out, fc.y + dy * fr * out, fc.z + dz * fr * out);
+      m.lookAt(fc.x + dx * 3, fc.y + dy * 3, fc.z + dz * 3);
+      return m;
+    }
+    function personHead(c, top, P) {
+      const std = (col, o = {}) => { const m = new T.MeshStandardMaterial({ color: col, roughness: 0.55, metalness: 0.02, transparent: true, ...o }); c.extra.push(m); return m; };
+      const skinM = std(P.skin, { roughness: 0.62 }), hairM = std(P.hair, { roughness: 0.45 });
+      const mat = c.mat;
+      // 肩膀（衣服）+ 白领子
+      const sh = new T.Mesh(geo.hemiTop, mat); sh.scale.set(R0, R0 * 0.55, R0); sh.castShadow = true; top.add(sh);
+      const col = new T.Mesh(geo.collar, std(P.collar)); col.rotation.x = Math.PI / 2; col.position.y = R0 * 0.5; col.scale.set(1, 1, 0.8); top.add(col);
+      const hy = R0 * 0.5 + HR * 0.95;                         // 脑袋中心
+      const fc = new T.Vector3(0, hy - 0.015, 0.045), fr = HR; // 脸
+      const face = new T.Mesh(geo.ball, skinM); face.scale.setScalar(fr); face.position.copy(fc); face.castShadow = true; top.add(face);
+      // 头发：一个比脸大一点、往后上方挪一点的球；刘海样式决定它往前盖多少
+      const hc = new T.Vector3(0, hy + 0.035, P.bangs === "none" ? -0.07 : -0.03);
+      const hairR = HR * 1.04;
+      const hair = new T.Mesh(geo.ball, hairM); hair.scale.setScalar(hairR); hair.position.copy(hc); hair.castShadow = true; top.add(hair);
+      if (P.bangs === "side") { const sb = new T.Mesh(geo.ball, hairM); sb.scale.set(HR * 0.62, HR * 0.34, HR * 0.5); sb.position.set(-0.13, hy + 0.17, 0.2); sb.rotation.z = 0.5; top.add(sb); }
+      const shell = (k, w, t0, t1, sy = 1, r = hairR * 1.01) => { const m = new T.Mesh(hairGeo(k, w, t0, t1), hairM); m.material.side = T.DoubleSide; m.scale.set(r, r * sy, r); m.position.copy(hc); m.castShadow = true; top.add(m); return m; };
+      // 波波头 / 长发：外面再罩一层「壳」，头顶一整片，往下在脸前面开个口子
+      if (P.hairStyle === "bob" || P.hairStyle === "long") {
+        const long = P.hairStyle === "long", R = hairR * 1.07, cut = Math.PI * 0.32;
+        shell("cap", 0, 0, cut, 1, R);
+        const sd = shell(long ? "long" : "bob", long ? 1.25 : 1.3, cut, Math.PI * (long ? 0.93 : 0.74), 1, R);
+        // 下半截往下拉长一点（不动上沿，接得上头顶那片）
+        const pos = sd.geometry.attributes.position;
+        if (!sd.geometry.__stretched) { for (let i = 0; i < pos.count; i++) { const y = pos.getY(i), y0 = Math.cos(cut); if (y < y0) pos.setY(i, y0 + (y - y0) * (long ? 1.5 : 1.12)); } pos.needsUpdate = true; sd.geometry.computeVertexNormals(); sd.geometry.__stretched = true; }
+      }
+      if (P.hairStyle === "ponytail") { const pt = new T.Mesh(geo.pony, hairM); pt.position.set(0, hy - 0.05, -hairR - 0.05); pt.rotation.x = 0.35; pt.castShadow = true; top.add(pt); const tie = new T.Mesh(geo.ball, std(P.accent)); tie.scale.setScalar(0.05); tie.position.set(0, hy + 0.08, -hairR + 0.01); top.add(tie); }
+      if (P.hairStyle === "bun") { const bn = new T.Mesh(geo.ball, hairM); bn.scale.setScalar(0.14); bn.position.set(0, hy + hairR + 0.06, -0.06); bn.castShadow = true; top.add(bn); }
+      if (P.hairStyle === "curly") for (let i = 0; i < 9; i++) { const a = (i / 9) * Math.PI * 2; const cu = new T.Mesh(geo.ball, hairM); cu.scale.setScalar(0.1); cu.position.set(Math.cos(a) * hairR * 0.92, hy + 0.05 + Math.sin(i * 1.7) * 0.06, -0.04 + Math.sin(a) * hairR * 0.92 * (Math.sin(a) > 0.3 ? 0.4 : 1)); top.add(cu); }
+      // 耳朵、耳环
+      for (const s of [-1, 1]) {
+        const ear = new T.Mesh(geo.ball, skinM); ear.scale.set(0.045, 0.06, 0.035); ear.position.set(s * fr * 0.98, hy - 0.03, fc.z - 0.02); top.add(ear);
+        if (P.earrings) { const er = new T.Mesh(geo.ball, std(P.accent, { metalness: 0.5, roughness: 0.3 })); er.scale.setScalar(0.022); er.position.set(s * fr * 0.99, hy - 0.1, fc.z - 0.01); top.add(er); }
+      }
+      // 眼睛（会眨）+ 高光
+      const eyeMat = new T.MeshBasicMaterial({ color: P.eye, transparent: true }); c.eyeMat = eyeMat;
+      const hlM = std(0xffffff, { emissive: 0xffffff, emissiveIntensity: 1 });
+      c.eyes = [-1, 1].map((s) => {
+        const e = new T.Mesh(geo.eye, eyeMat); e.scale.set(1.25, 1.1, 0.6); onFace(e, fc, fr, s * 0.33, -0.02, 0.99); e.rotation.z = 0; top.add(e);
+        const hl = new T.Mesh(geo.ball, hlM); hl.scale.setScalar(0.014); onFace(hl, fc, fr, s * 0.33 + 0.04, 0.05, 1.035); top.add(hl);
+        return e;
+      });
+      if (P.blush) { const bm = std(0xff9db0, { opacity: 0.55, roughness: 0.9, depthWrite: false }); bm.__alpha = 0.55; for (const s of [-1, 1]) { const b = new T.Mesh(geo.ball, bm); b.scale.set(0.05, 0.028, 0.012); onFace(b, fc, fr, s * 0.48, -0.22, 0.995); top.add(b); } }
+      const mouth = new T.Mesh(geo.smile, std(0xb4505a, { roughness: 0.6 })); onFace(mouth, fc, fr, 0, -0.3, 1.0); mouth.rotateZ(Math.PI); top.add(mouth); c.mouth = mouth;
+      const mo = new T.Mesh(geo.ball, std(0x7a2232, { roughness: 0.7 })); onFace(mo, fc, fr, 0, -0.33, 0.985); mo.scale.set(0.035, 0.002, 0.02); top.add(mo); c.mouthO = mo;
+      if (P.glasses) {
+        const gm = std(P.glassesColor, { metalness: 0.4, roughness: 0.35 });
+        for (const s of [-1, 1]) { const l = new T.Mesh(geo.lens, gm); onFace(l, fc, fr, s * 0.33, -0.02, 1.06); top.add(l); }
+        const br = new T.Mesh(geo.bridge, gm); onFace(br, fc, fr, 0, 0.0, 1.07); br.rotateZ(Math.PI / 2); top.add(br);
+      }
+      c.headTop = hy + hairR + (P.hairStyle === "bun" ? 0.2 : 0.02);
+    }
+
+    // 老师的分身（有身子）：柱子的高矮还是表示数的大小，形象站在柱子顶上的小平台上（形象见 avatar3d.js）
+    function personBody(c, top, P) {
+      const A = root.LaoAvatar.build(P, { face: P.faceImage }); c.av = A;
+      const plat = new T.Mesh(geo.hemiTop, c.mat); plat.scale.set(R0 * 1.05, R0 * 0.22, R0 * 1.05); plat.castShadow = true; top.add(plat);
+      const k = A.fullTall ? 0.56 : AV_S;   // 公仔矮、头大，放大一点（宽度和原来的差不多）
+      A.root.scale.setScalar(k); A.root.position.y = R0 * 0.2; A.halo.visible = false; top.add(A.root);
+      c.eyes = []; c.eyeMat = new T.MeshBasicMaterial();
+      c.headTop = R0 * 0.2 + A.height * k;
+    }
+
     function makeChar(v, idx) {
-      const c = { v, h: heightOf(v), hT: heightOf(v), x: 0, state: "", color: new T.Color(COL.body), colorT: new T.Color(COL.body), eyeC: new T.Color(COL.eye), eyeT: new T.Color(COL.eye), dim: 0, dimT: 0, look: 0, lookT: 0, blink: Math.random() * 4, squash: 1, jump: 0, spin: 0, arms: 0, bob: Math.random() * 6 };
+      const P = skin.person;
+      const c = { v, h: heightOf(v), hT: heightOf(v), x: 0, state: "", color: new T.Color(PAL.body), colorT: new T.Color(PAL.body), eyeC: new T.Color(P ? P.eye : COL.eye), eyeT: new T.Color(P ? P.eye : COL.eye), dim: 0, dimT: 0, look: 0, lookT: 0, blink: Math.random() * 4, squash: 1, jump: 0, spin: 0, arms: 0, bob: Math.random() * 6, extra: [] };
       const g = new T.Group(); c.g = g;
       const body = new T.Group(); g.add(body); c.body = body;
-      const mat = new T.MeshStandardMaterial({ color: COL.body, roughness: 0.32, metalness: 0.18, emissive: 0x000000, transparent: true, opacity: 1 }); c.mat = mat;
+      const mat = new T.MeshStandardMaterial({ color: PAL.body, roughness: P ? 0.6 : 0.32, metalness: P ? 0.02 : 0.18, emissive: 0x000000, transparent: true, opacity: 1 }); c.mat = mat;
       const bot = new T.Mesh(geo.hemiBot, mat); bot.scale.setScalar(R0); bot.castShadow = true; body.add(bot); c.bot = bot;
       const cyl = new T.Mesh(geo.cyl, mat); cyl.scale.set(R0, 1, R0); cyl.castShadow = true; body.add(cyl); c.cyl = cyl;
       const top = new T.Group(); body.add(top); c.top = top;
-      const head = new T.Mesh(geo.hemiTop, mat); head.scale.setScalar(R0); head.castShadow = true; top.add(head);
-      const visor = new T.Mesh(geo.visor, visorMat); visor.scale.setScalar(R0); top.add(visor);
-      const eyeMat = new T.MeshBasicMaterial({ color: COL.eye }); c.eyeMat = eyeMat;
-      const e1 = new T.Mesh(geo.eye, eyeMat), e2 = new T.Mesh(geo.eye, eyeMat);
-      e1.position.set(-0.09, R0 * 0.42, R0 * 0.93); e2.position.set(0.09, R0 * 0.42, R0 * 0.93);
-      top.add(e1, e2); c.eyes = [e1, e2];
-      const halo = new T.Mesh(geo.halo, new T.MeshBasicMaterial({ color: COL.pivot, transparent: true, opacity: 0, depthWrite: false })); halo.visible = false; halo.rotation.x = Math.PI / 2; halo.position.y = R0 + 0.22; top.add(halo); c.halo = halo;
+      if (P && root.LaoAvatar) personBody(c, top, P);
+      else if (P) personHead(c, top, P);
+      else {
+        const head = new T.Mesh(geo.hemiTop, mat); head.scale.setScalar(R0); head.castShadow = true; top.add(head);
+        const visor = new T.Mesh(geo.visor, visorMat); visor.scale.setScalar(R0); top.add(visor);
+        const eyeMat = new T.MeshBasicMaterial({ color: COL.eye }); c.eyeMat = eyeMat;
+        const e1 = new T.Mesh(geo.eye, eyeMat), e2 = new T.Mesh(geo.eye, eyeMat);
+        e1.position.set(-0.09, R0 * 0.42, R0 * 0.93); e2.position.set(0.09, R0 * 0.42, R0 * 0.93);
+        top.add(e1, e2); c.eyes = [e1, e2];
+        c.headTop = R0;
+      }
+      const halo = new T.Mesh(geo.halo, new T.MeshBasicMaterial({ color: PAL.pivot, transparent: true, opacity: 0, depthWrite: false })); halo.visible = false; halo.rotation.x = Math.PI / 2; halo.position.y = c.headTop + 0.22; top.add(halo); c.halo = halo;
       const scrTex = textTex(screenDraw(v, ""), 160, 80); c.scrTex = scrTex;
       const scr = new T.Mesh(geo.screen, new T.MeshBasicMaterial({ map: scrTex, transparent: true })); scr.scale.set(0.44, 0.44, 1); scr.position.z = R0 + 0.012; body.add(scr); c.scr = scr;
       const a1 = new T.Mesh(geo.arm, mat), a2 = new T.Mesh(geo.arm, mat);
       a1.castShadow = a2.castShadow = true; body.add(a1, a2); c.armsM = [a1, a2];
-      const f1 = new T.Mesh(geo.foot, footMat), f2 = new T.Mesh(geo.foot, footMat);
+      if (c.av) for (const a of c.armsM) a.visible = false;
+      if (P && !c.av) { const hm = c.extra[0]; for (const a of c.armsM) { const hand = new T.Mesh(geo.ball, hm); hand.scale.setScalar(0.055); hand.position.y = -0.13; a.add(hand); } }
+      const fMat = P ? (() => { const m = new T.MeshStandardMaterial({ color: P.shoes, roughness: 0.5, metalness: 0.1, transparent: true }); c.extra.push(m); return m; })() : footMat;
+      const f1 = new T.Mesh(geo.foot, fMat), f2 = new T.Mesh(geo.foot, fMat);
       f1.scale.set(1, 0.55, 1.3); f2.scale.set(1, 0.55, 1.3); f1.position.set(-0.12, 0.05, 0.08); f2.position.set(0.12, 0.05, 0.08); g.add(f1, f2);
+      if (c.av) f1.visible = f2.visible = false;
       // 地上的光圈（i、j 指着的时候亮）
       const ring = new T.Mesh(geo.ring, new T.MeshBasicMaterial({ color: 0x22d3ee, transparent: true, opacity: 0, side: T.DoubleSide, depthWrite: false })); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.01; c.ring = ring; world.add(ring);
       const ix = labelSprite(String(idx), "#5b6f99", 0.9); ix.position.set(0, 0.03, 0.95); c.ix = ix; world.add(ix);
@@ -170,7 +302,7 @@
     }
     function disposeChar(c) {
       world.remove(c.g); world.remove(c.ring); world.remove(c.ix); if (c.tag) world.remove(c.tag);
-      c.mat.dispose(); c.eyeMat.dispose(); c.scrTex.dispose(); c.scr.material.dispose(); c.ring.material.dispose(); c.ix.material.map.dispose(); c.ix.material.dispose(); c.halo.material.dispose();
+      c.mat.dispose(); c.eyeMat.dispose(); for (const m of c.extra) m.dispose(); if (c.av) c.av.dispose(); c.scrTex.dispose(); c.scr.material.dispose(); c.ring.material.dispose(); c.ix.material.map.dispose(); c.ix.material.dispose(); c.halo.material.dispose();
       if (c.tag) { c.tag.material.map.dispose(); c.tag.material.dispose(); }
     }
     const slotX = (i) => (i - (n - 1) / 2) * spacing;
@@ -241,7 +373,7 @@
       renderer.setSize(W, H, false); camera.aspect = W / H; camera.updateProjectionMatrix();
       const rowW = Math.max(3, n * spacing + 1.2);
       const vfov = (camera.fov * Math.PI) / 180, hfov = 2 * Math.atan(Math.tan(vfov / 2) * camera.aspect);
-      const zTop = hMax * scaleK + R0 * 2 + (mini ? 1.0 : 1.25) + 0.9;   // 捞小智头顶（天线）
+      const zTop = (hMax + headExtra()) * scaleK + R0 * 2 + (mini ? 1.0 : 1.25) + 0.9;   // 捞小智头顶（天线）
       const needH = zTop + 0.4;
       const dW = rowW / 2 / Math.tan(hfov / 2) + 1.2, dH = needH / 2 / Math.tan(vfov / 2) + 1.2;
       const d = Math.max(dW, dH, 4.5);
@@ -283,8 +415,9 @@
         if (swp.includes(i)) s = "swap";
         if (st.found === i) s = "found";
         c.state = s;
-        c.colorT.setHex({ sorted: COL.sorted, mark: COL.mark, pivot: COL.pivot, cmp: COL.cmp, swap: COL.swap, found: COL.found }[s] || COL.body);
-        c.eyeT.setHex({ sorted: COL.eyeSorted, cmp: COL.eyeCmp, swap: COL.eyeSwap, found: COL.eyeSorted }[s] || COL.eye);
+        c.colorT.setHex({ sorted: PAL.sorted, mark: PAL.mark, pivot: PAL.pivot, cmp: PAL.cmp, swap: PAL.swap, found: PAL.sorted }[s] || PAL.body);
+        if (c.av) c.av.mood(s === "cmp" ? "think" : s === "swap" ? "wave" : "idle");
+        c.eyeT.setHex(skin.person ? skin.person.eye : { sorted: COL.eyeSorted, cmp: COL.eyeCmp, swap: COL.eyeSwap, found: COL.eyeSorted }[s] || COL.eye);
         c.dimT = range && (i < range[0] || i > range[1]) ? 1 : 0;
         c.halo.material.opacity = s === "pivot" ? 0.95 : 0; c.halo.visible = s === "pivot";
         if (c.scrState !== s) { c.scrState = s; redraw(c.scrTex, screenDraw(c.v, s)); }
@@ -306,7 +439,7 @@
       if (focus.length) { const xs = focus.map(slotX); Z.tx = (Math.min(...xs) + Math.max(...xs)) / 2; Z.beamT = cmp.length || swp.length ? 1 : 0.45; Z.beamW = (Math.max(...xs) - Math.min(...xs)) / 2 + 0.45; }
       else { Z.tx = 0; Z.beamT = 0; }
       if (st.found != null) { Z.tx = slotX(st.found); Z.beamT = 1; Z.beamW = 0.5; }
-      Z.ty = hMax * scaleK + R0 * 2 + (mini ? 1.0 : 1.25);
+      Z.ty = (hMax + headExtra()) * scaleK + R0 * 2 + (mini ? 1.0 : 1.25);
       zhiMood(st.mood || (st.found != null ? "happy" : st.error ? "sad" : cmp.length ? "think" : ""));
       say(st.note);
     }
@@ -443,9 +576,22 @@
       },
       say,
       mood: zhiMood,
+      // 换皮肤：现在站着的这排数重新造一遍，颜色、标记照旧
+      setSkin(s) {
+        skin = sanitizeSkin(s); PAL = palette();
+        const vals = chars.map((c) => c.v);
+        finishAll();
+        if (vals.length) { rebuild(vals); chars.forEach((c, i) => { c.h = c.hT; redrawIx(c, i); }); if (lastState) applyLook(lastState); }
+        Z.ty = (hMax + headExtra()) * scaleK + R0 * 2 + (mini ? 1.0 : 1.25);
+        fit();
+        return skin;
+      },
+      get skin() { return skin; },
+      // 说话时嘴巴张合（0..1，按音量给）；i 不给就是全部小人
+      talk(level, i) { for (const [k, c] of chars.entries()) if (i == null || i === k) c.talkT = clamp(+level || 0, 0, 1); },
       resize: fit,
       setPaused(p) { paused = !!p; if (!paused) loop(); },
-      dispose() { disposed = true; cancelAnimationFrame(raf); ro.disconnect(); for (const c of chars) disposeChar(c); renderer.dispose(); wrap.remove(); },
+      dispose() { LIVE.delete(api); disposed = true; cancelAnimationFrame(raf); ro.disconnect(); for (const c of chars) disposeChar(c); renderer.dispose(); wrap.remove(); },
     };
     function redrawIx(c, i) { if (c.ixI === i) return; c.ixI = i; redraw(c.ix.__tex, (g, w, h) => { rr(g, 4, 4, w - 8, h - 8, (h - 8) / 2); g.fillStyle = "rgba(6,11,24,.6)"; g.fill(); g.font = "700 38px Consolas, monospace"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillStyle = "#6b7fa8"; g.fillText(String(i), w / 2, h / 2 + 2); }); }
     function hop(c, hgt) { const h0 = 0; tween(380, (p) => { c.jump = Math.sin(Math.PI * p) * hgt; c.squash = 1 + 0.1 * Math.sin(Math.PI * p); c.arms = Math.sin(Math.PI * p) * 0.8; }, E.lin).then(() => { c.jump = h0; c.arms = 0; c.squash = 1; }); }
@@ -473,6 +619,9 @@
         c.eyeC.lerp(c.eyeT, f12); c.eyeMat.color.copy(c.eyeC);
         c.dim = lerp(c.dim, c.dimT, f9); c.mat.opacity = 1 - c.dim * 0.65; c.scr.material.opacity = 1 - c.dim * 0.7;
         c.mat.depthWrite = c.dim < 0.5;
+        for (const m of c.extra) { m.opacity = (m.__alpha || 1) * (1 - c.dim * 0.65); if (!m.__alpha) m.depthWrite = c.dim < 0.5; }
+        if (c.av) { c.av.talk(c.talkT || 0); c.av.update(dt); }
+        if (c.mouthO) { c.talkS = lerp(c.talkS || 0, c.talkT || 0, 1 - Math.exp(-dt * 25)); c.mouthO.scale.set(0.035 + c.talkS * 0.012, 0.002 + c.talkS * 0.05, 0.02); c.mouth.visible = c.talkS < 0.25; }
         c.look = lerp(c.look, c.lookT, f9);
         // 待机：轻轻呼吸、眨眼
         c.bob += dt;
@@ -535,8 +684,11 @@
     document.addEventListener("visibilitychange", () => { if (!document.hidden && !raf) { last = now(); loop(); } });
     fit(); loop();
     if (SFX && opt.hello) SFX.play("hello");
+    if (!opt.skin) LIVE.add(api);
     return api;
   }
 
-  root.LaoStage = { create, webgl };
+  // 换全局皮肤：所有跟着全局走的舞台马上换，之后新开的舞台也用它
+  function setSkin(s) { const nx = sanitizeSkin(s); if (JSON.stringify(nx) === JSON.stringify(SKIN)) return SKIN; SKIN = nx; for (const a of LIVE) a.setSkin(SKIN); return SKIN; }
+  root.LaoStage = { create, webgl, setSkin, getSkin: () => SKIN, sanitizeSkin, ROBOT };
 })(typeof window !== "undefined" ? window : globalThis);

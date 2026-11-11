@@ -1,0 +1,62 @@
+{
+  "name": "laolao-ppt",
+  "productName": "捞捞PPT助手",
+  "version": "1.0.0",
+  "description": "捞捞PPT助手：把老师自己的公仔分身（五官照着老师画、老师的声音）加进 PPT，讲解每一页、回答同学的问题",
+  "main": "main.js",
+  "author": "捞捞",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "prepare-ui": "node scripts/prepare.js",
+    "test": "node test/pptx.test.js && node test/media.test.js && node test/voice.test.js && node test/service.test.js && node test/ai3d.test.js && node test/vision.test.js",
+    "dist": "node scripts/prepare.js && electron-builder --win nsis"
+  },
+  "dependencies": {
+    "@mediapipe/face_mesh": "0.4.1633559619",
+    "@mediapipe/selfie_segmentation": "0.1.1675465747",
+    "ffmpeg-static": "^5.2.0",
+    "jszip": "^3.10.1"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "three": "^0.147.0"
+  },
+  "build": {
+    "appId": "cn.laolaokechengbiao.ppt",
+    "productName": "捞捞PPT助手",
+    "copyright": "捞捞",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "core/**",
+      "renderer/**",
+      "package.json",
+      "node_modules/jszip/**",
+      "node_modules/ffmpeg-static/**",
+      "ai3d/lao3d/**",
+      "ai3d/third_party/**"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/ffmpeg-static/**",
+      "ai3d/**"
+    ],
+    "win": {
+      "target": "nsis",
+      "executableName": "LaolaoPPT"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "LaolaoPPT-Setup.${ext}",
+      "shortcutName": "捞捞PPT助手"
+    }
+  }
+}

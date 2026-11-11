@@ -597,6 +597,7 @@
   // ================= 启动 =================
   (async function boot() {
     S = await call("state");
+    if (window.LaoSkins) window.LaoSkins.boot(S.settings);   // 上次在皮肤商店里选的皮肤
     applyTheme(); paintMe(); paintStatus(); paintAiState(); paintChat(); paintFiles(); paintExList();
     if (S.settings.aiOpen === false) toggleAi(false); else $("#aiToggle").classList.add("on");
     const side0 = LS.get("side", "files"); if (side0 !== "files" && $(`.side-tabs [data-side="${side0}"]`)) setTimeout(() => $(`.side-tabs [data-side="${side0}"]`).click());

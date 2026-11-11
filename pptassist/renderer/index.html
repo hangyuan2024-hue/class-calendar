@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>捞捞PPT助手</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<aside class="side">
+  <div class="brand"><span class="logo">捞</span><div><b>捞捞PPT助手</b><small>老师的公仔分身来讲课</small></div></div>
+  <nav id="steps">
+    <button data-step="avatar" class="on"><i>1</i><span>我的形象<small>照片 + 捏脸</small></span></button>
+    <button data-step="voice"><i>2</i><span>我的声音<small>3～10 秒录音</small></span></button>
+    <button data-step="slides"><i>3</i><span>选页和内容<small>讲解词、问答</small></span></button>
+    <button data-step="make"><i>4</i><span>生成 PPT<small>配音、视频、写进去</small></span></button>
+  </nav>
+  <div class="side-more">
+    <small>更多</small>
+    <button id="openXz" title="在浏览器里打开捞小智的页面"><i>✦</i><span>捞小智<small>智能体 · 内测准备中</small></span><em>↗</em></button>
+    <button id="openNext" title="捞捞PPT助手接下来想做的功能"><i>＋</i><span>更多功能<small>教案变课件等 · 规划中</small></span><em>↗</em></button>
+  </div>
+  <div class="side-foot" id="sideFoot"></div>
+</aside>
+
+<main>
+  <!-- 1 我的形象 -->
+  <section class="page" id="pg-avatar">
+    <header><h1>我的形象</h1><p>你在电子世界里的分身：一个 Q版大头公仔，像桌上摆的 3D 手办。上传一张正面照片（或者一段视频，更像），程序自动找到眼睛和嘴、量出五官的特点（两眼距离、眉毛的走向、嘴的宽度和笑的弧度）照着画到公仔脸上，还会认出发型（长短、刘海、扎没扎）和头发、衣服的颜色；认得不对可以自己改。改完自动保存。</p></header>
+    <div class="card consent-card" id="consentCard">
+      <div class="consent-st" id="consentSt">还没授权</div>
+      <span class="grow"></span>
+      <button class="btn sm pri" id="consentOpen">阅读并同意授权</button>
+      <button class="btn sm" id="bioClear" title="照片、视频、声音、做好的脸、3D 形象、讲解视频全部删掉，授权也撤回">清除我的照片、视频和声音</button>
+    </div>
+    <div class="avatar-grid">
+      <div class="card photo-card">
+        <div class="card-h"><b>照片</b><span class="grow"></span><button class="btn sm" id="pickPhoto">上传照片</button><button class="btn sm pri" id="pickVideo" title="一段 10～30 秒的视频：自动挑最清楚的正脸、侧脸、后脑勺，还能截一段声音做配音">上传视频（更像）</button></div>
+        <div class="photo-box" id="photoBox"><canvas id="photoCv" hidden></canvas><div class="empty" id="photoEmpty">还没有照片<br><small>正面、光线亮一点的半身照最好</small></div></div>
+        <div class="dropper" id="dropper">
+          <span class="k">吸颜色：</span>
+          <button data-pick="hair">头发</button><button data-pick="skin">皮肤</button><button data-pick="top">上衣</button><button data-pick="pants">裤子 / 裙子</button><button data-pick="eye">眼睛</button><button data-pick="glassesColor">镜框</button>
+        </div>
+        <p class="hint" id="dropHint">先点上面一个部位，再点照片上对应的地方</p>
+        <div class="dropper marks" id="marks">
+          <span class="k">标五官：</span>
+          <button data-mark="e1">一只眼睛</button><button data-mark="e2">另一只眼睛</button><button data-mark="mouth">嘴巴中间</button>
+        </div>
+        <div class="face-row"><canvas id="facePrev" width="96" height="96" hidden></canvas><p class="hint" id="faceHint">上传照片后会自动找到眼睛和嘴（找不到或者不准，就在照片上依次点：一只眼睛、另一只眼睛、嘴巴中间），量出你眉毛、眼睛、嘴的特点，照着画到公仔脸上；戴眼镜的话勾上「戴眼镜」。照片越清楚、正脸、光线均匀，量得越准。</p></div>
+        <div class="row"><button class="btn sm" id="exportSkin" title="把这个形象（带照片的脸）存成捞捞编程「画出来」能用的皮肤文件">导出成捞捞编程皮肤</button></div>
+      </div>
+      <div class="card form-card" id="avatarForm"></div>
+      <div class="card stage-card">
+        <div class="av-stage" id="avStage"></div>
+        <div class="poses"><button class="btn sm" data-pose="wave">挥手</button><button class="btn sm" data-pose="point">指幻灯片</button><button class="btn sm" data-pose="gesture">边讲边比划</button><button class="btn sm" data-pose="nod">点头</button><button class="btn sm" data-pose="think">想一想</button><button class="btn sm" data-pose="talk">说话</button></div>
+      </div>
+    </div>
+    <div class="card vid-card" id="vidCard">
+      <div class="card-h"><b>用一段视频做（推荐，更像）</b><small class="ai-sub">程序自动挑最清楚的正脸、左右侧脸、后脑勺来认长相和发型，再截一段声音做配音；还能做「真人数字人」。全部在这台电脑上算，不上传</small></div>
+      <div class="vid-guide" id="vidGuide">
+        <b>怎么拍（手机就行，10～30 秒）</b>
+        <ol>
+          <li>正对镜头，用平时讲课的语气说：<q id="vidLine">同学们好，今天我们一起来学习新的内容。</q>（这段声音会拿来做配音，周围要安静）</li>
+          <li>说完看着镜头、自然地停 3 秒（做「真人数字人」时，这一段就是你在 PPT 里的样子）</li>
+          <li>慢慢把头转向左边、再转向右边，然后转过身背对镜头 2 秒（让程序看到侧面和后面的发型）</li>
+        </ol>
+        <small>光线亮一点、别逆光；头发别被帽子挡住；画面里只拍你自己（别拍到学生）。</small>
+      </div>
+      <div class="ai-prog" id="vidProg" hidden><div class="bar"><i id="vidBar"></i></div><span id="vidMsg"></span></div>
+      <div class="vid-views" id="vidViews" hidden></div>
+      <div class="vid-voice" id="vidVoice" hidden>
+        <div class="row"><b>配音参考</b><audio id="vidAudio" controls></audio><span class="muted" id="vidVoiceMeta"></span></div>
+        <label class="field"><span>这段里说的话（一个字都不要差）</span><input id="vidText"></label>
+      </div>
+      <p class="hint" id="vidHint"></p>
+      <div class="row" id="vidUseRow" hidden><button class="btn pri" id="vidUse">用这些</button><span class="muted">正脸当照片（自动认五官、发型），侧脸和后脑勺给「AI 生成 3D 形象」参考发型，声音当配音参考</span></div>
+      <div class="vid-real">
+        <b>真人数字人</b>
+        <p class="hint">PPT 里出现的是你自己（视频里正对镜头的那几秒），嘴跟着配音动。要 NVIDIA 显卡和下面「AI 生成 3D 形象」里选的整合包；第一次要装组件、下载约 5G 模型。生成的视频左上角一直有「AI生成」标识。</p>
+        <div class="row"><button class="btn sm" id="talkSetup">安装真人数字人组件</button><span class="muted" id="talkSt"></span></div>
+        <video id="realPrev" class="real-prev" muted loop playsinline hidden></video>
+      </div>
+    </div>
+    <div class="card ai-card" id="aiCard">
+      <div class="card-h"><b>AI 生成 3D 形象</b><small class="ai-sub">老师照片 + 参考图 → 会动的 3D 公仔。在你自己电脑上用 NVIDIA 显卡算，不联网生成；第一次要下载约 40G 模型</small></div>
+      <div class="ai-steps">
+        <div class="ai-step">
+          <b>① 准备</b>
+          <div class="row"><button class="btn sm" id="aiDir">选 Hunyuan3D-2 整合包文件夹</button><button class="btn sm" id="aiSetup" disabled>安装缺的组件</button><a href="#" class="lnk" data-aipage="portable">下载整合包（Windows）</a></div>
+          <p class="hint" id="aiEnv">要一个 Hunyuan3D-2 的整合包（推荐 Hunyuan3D-2 WinPortable，解压就能用），在这里选它的文件夹；缺什么点「安装缺的组件」。</p>
+        </div>
+        <div class="ai-step">
+          <b>② 公仔立绘</b>
+          <div class="row"><button class="btn sm" id="aiStyle">选参考图</button><img id="aiStyleImg" class="ai-thumb" alt="" hidden>
+            <select id="aiN" title="一次画几张"><option value="2">画 2 张</option><option value="3" selected>画 3 张</option><option value="4">画 4 张</option></select>
+            <select id="aiQ" title="画得多细"><option value="best">最好（每张约 20 分钟）</option><option value="fast">快（每张约 4 分钟）</option></select>
+            <select id="aiClothes"><option value="photo">衣服照着照片</option><option value="style">衣服照着参考图</option></select></div>
+          <div class="row"><button class="btn" id="aiStylize">用照片 + 参考图画公仔</button><button class="btn sm" id="aiFigure">我已经有公仔图，直接用</button></div>
+          <div class="ai-cands" id="aiCands"></div>
+          <p class="hint">参考图定风格，上面上传的照片定长相；画好了点一张最像的。要做成 3D，图里最好是正面全身、站直、胳膊离开身子一点。</p>
+        </div>
+        <div class="ai-step">
+          <b>③ 3D 形象</b>
+          <div class="row"><img id="aiFigImg" class="ai-thumb" alt="" hidden><select id="aiQ3"><option value="best">最好（约 15 分钟）</option><option value="fast">快（约 4 分钟）</option></select><button class="btn" id="aiBuild">生成 3D 形象</button><button class="btn sm" id="aiRig" title="不用显卡，几十秒">只重新绑骨骼</button></div>
+          <div class="ai-prog" id="aiProg" hidden><div class="bar"><i id="aiBar"></i></div><span id="aiMsg"></span><button class="btn sm" id="aiCancel">停止</button></div>
+          <p class="hint" id="aiWarn"></p>
+        </div>
+        <div class="ai-step">
+          <b>④ 眼睛和嘴</b>
+          <canvas id="aiShot" width="220" height="220" hidden></canvas>
+          <p class="hint" id="aiShotHint">做好以后这里显示找到的眼睛（青色框）和嘴（红框）。框不对就在图上依次点：一只眼睛、另一只眼睛、嘴。</p>
+          <button class="btn sm" id="aiFaceFix" disabled>按点的位置重做脸</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 我的声音 -->
+  <section class="page" id="pg-voice" hidden>
+    <header><h1>我的声音</h1><p>用一段 3～10 秒的录音，就能让形象用你的声音讲课（GPT-SoVITS，在你自己电脑上运行，不联网）。也可以每一段都自己录，在「选页和内容」里给那一段上传录音。</p></header>
+    <div class="voice-grid">
+      <div class="card">
+        <div class="card-h"><b>① 一段我的录音</b></div>
+        <p class="hint">在安静的地方，用平时讲课的语气，把下面这句话读一遍（手机录音就行），然后上传：</p>
+        <blockquote id="readMe">同学们好，今天我们来学习 C 语言。遇到报错不要慌，我们一步一步来。</blockquote>
+        <div class="row"><button class="btn pri" id="pickVoice">上传录音</button><span id="voiceMeta" class="muted"></span></div>
+        <audio id="voiceAudio" controls hidden></audio>
+        <label class="field"><span>这段录音里说的话（一个字都不要差）</span><textarea id="voicePrompt" rows="2" placeholder="录音里说了什么就写什么"></textarea></label>
+      </div>
+      <div class="card">
+        <div class="card-h"><b>② 声音克隆引擎：GPT-SoVITS</b><span class="grow"></span><span class="pill" id="engState">没启动</span></div>
+        <p class="hint">需要 NVIDIA 显卡。第一次用：<a href="#" id="gsvPage">打开 GPT-SoVITS 的下载说明</a>，下载 Windows 整合包，解压到一个<b>英文路径</b>的文件夹（比如 D:\GPT-SoVITS），再在这里选那个文件夹。</p>
+        <div class="row"><button class="btn" id="pickGsv">选文件夹</button><code id="gsvDir" class="path">还没选</code></div>
+        <div class="row"><button class="btn pri" id="engStart">启动</button><button class="btn" id="engStop">停止</button><span class="muted">第一次启动要加载模型，一两分钟</span></div>
+        <pre class="log" id="engLog" hidden></pre>
+      </div>
+      <div class="card">
+        <div class="card-h"><b>③ 试听</b></div>
+        <label class="field"><span>让形象用我的声音说一句</span><input id="tryText" value="同学们，这节课我们来学冒泡排序。"></label>
+        <div class="row"><button class="btn pri" id="trySay">试听</button><span class="muted" id="tryMeta"></span></div>
+        <audio id="tryAudio" controls hidden></audio>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 选页和内容 -->
+  <section class="page" id="pg-slides" hidden>
+    <header><h1>选页和内容</h1><p>打开一个 PPT，勾上要加老师形象的页。每一页：进到这一页时形象自动开讲；旁边的问题按钮点一下，跳到回答页由形象回答，点「返回」回来。讲解词和问答先帮你打好草稿，改成你想说的。</p></header>
+    <div class="row"><button class="btn pri" id="openPpt">打开 PPT</button><code id="pptName" class="path">还没打开</code></div>
+    <div class="slides-grid" id="slidesGrid" hidden>
+      <div class="card slide-list" id="slideList"></div>
+      <div class="card slide-edit" id="slideEdit"></div>
+    </div>
+  </section>
+
+  <!-- 4 生成 -->
+  <section class="page" id="pg-make" hidden>
+    <header><h1>生成 PPT</h1><p>按下面的设置，给每段讲解和回答配上老师的声音、画出形象说话的视频，写进一个新的 PPT（原文件不动）。</p></header>
+    <div class="card make-opts">
+      <label>形象放在 <select id="optSide"><option value="right">右下角</option><option value="left">左下角</option></select></label>
+      <label>大小 <input type="range" id="optScale" min="0.4" max="0.8" step="0.02"> <span id="optScaleV"></span></label>
+      <span class="grow"></span>
+      <button class="btn pri big" id="makeGo">开始生成</button>
+    </div>
+    <div class="card" id="makeList"><p class="muted">在「选页和内容」里勾上要加的页。</p></div>
+    <div class="card done" id="makeDone" hidden></div>
+  </section>
+</main>
+<div class="offscreen" id="offscreen"></div>
+<div class="toast" id="toast" hidden></div>
+<dialog id="consentDlg" class="dlg">
+  <form method="dialog">
+    <h2>人脸和声音的授权</h2>
+    <ul>
+      <li>照片、视频里的脸和录音里的声音是<b>生物识别信息</b>，属于《个人信息保护法》里的敏感个人信息。只能用<b>你自己的</b>，或者<b>已经取得本人书面同意</b>的人的。</li>
+      <li>全部在这台电脑上处理，<b>不上传</b>到任何服务器；随时可以点「清除我的照片、视频和声音」全部删掉。</li>
+      <li>只用来做教学用的分身（公仔、3D 形象、真人讲解视频）。不得用来冒充别人、编造别人没说过的话、制作虚假或违法的内容。</li>
+      <li>按《人工智能生成合成内容标识办法》，生成的讲解视频画面上一直有「AI生成」标识，文件里也写着隐式标识，<b>不能去掉</b>。</li>
+      <li>只拍老师自己，别拍到学生（未成年人）。</li>
+    </ul>
+    <div class="who">
+      <label><input type="radio" name="who" value="self" checked> 是我本人</label>
+      <label><input type="radio" name="who" value="other"> 是别人（比如帮同事做）</label>
+    </div>
+    <div class="other" id="consentOther" hidden>
+      <label class="field"><span>他（她）的名字</span><input id="consentName" maxlength="40"></label>
+      <label><input type="checkbox" id="consentWritten"> 我已经拿到本人的书面同意（同意用他的照片、视频、声音做教学分身）</label>
+    </div>
+    <label class="agree"><input type="checkbox" id="consentAgree"> 我已阅读并同意以上内容</label>
+    <div class="row"><span class="grow"></span><button class="btn" value="cancel">取消</button><button class="btn pri" id="consentOk" value="ok">同意</button></div>
+  </form>
+</dialog>
+<dialog id="lawDlg" class="dlg">
+  <form method="dialog">
+    <h2>授权与合规说明</h2>
+    <p><b>依据</b>：《个人信息保护法》（人脸、声音属于敏感个人信息，要单独同意）、《民法典》肖像权和声音的保护、《互联网信息服务深度合成管理规定》（编辑人脸、人声要取得本人单独同意）、《人工智能生成合成内容标识办法》（2025 年 9 月 1 日起施行）和强制性国家标准 GB 45438-2025。</p>
+    <p><b>标识</b>：讲解视频画面左上角一直显示「AI生成」（字高约为画面短边的 6%，标准要求不低于 5%）；mp4 文件的元数据里写入 <code>AIGC</code> 隐式标识（标准附录 E 的格式：内容属性、生成者「捞捞PPT助手」、内容编号）。</p>
+    <p><b>数据</b>：照片、视频、声音只存在这台电脑上捞捞PPT助手自己的文件夹里，不联网、不上传；「清除我的照片、视频和声音」会全部删掉并撤回授权（留一条撤回的记录）。</p>
+    <p><b>用到的模型和许可</b>（都允许商用；模型不随软件分发，用到时在你电脑上下载）：认脸和人像分割 MediaPipe（Apache-2.0，随软件带）；画立绘 Qwen-Image-Edit-2509（Apache-2.0）+ nunchaku（Apache-2.0）；3D 形象 Hunyuan3D-2（腾讯混元社区许可，适用地区不含欧盟、英国、韩国）；口型同步 LatentSync 1.5（代码 Apache-2.0，权重 CreativeML Open RAIL++-M：不得用于冒充他人、未经同意的影像、虚假信息等）+ whisper tiny（MIT）+ sd-vae-ft-mse（MIT）；人脸检测 YuNet（MIT，随软件带）；配音 GPT-SoVITS（MIT）。没有用 InsightFace、Wav2Lip 这类只许非商业使用的模型。</p>
+    <div class="row"><span class="grow"></span><button class="btn pri" value="ok">知道了</button></div>
+  </form>
+</dialog>
+
+<script src="vendor/three/three.min.js"></script>
+<script src="vendor/three/GLTFLoader.js"></script>
+<script src="avatar3d.js"></script>
+<script src="face.js"></script>
+<script src="vision.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

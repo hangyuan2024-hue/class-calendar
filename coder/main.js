@@ -38,7 +38,7 @@ const svc = createService({
   version: app.getVersion(),
   send: (ch, data) => { if (win && !win.isDestroyed()) win.webContents.send(ch, data); },
   pickDir: async () => { const r = await dialog.showOpenDialog(win, { title: "选一个放代码的文件夹", properties: ["openDirectory", "createDirectory"] }); return r.canceled ? null : r.filePaths[0]; },
-  pickFile: async (exts) => { const r = await dialog.showOpenDialog(win, { title: "打开代码文件", properties: ["openFile"], filters: [{ name: "代码", extensions: exts }, { name: "所有文件", extensions: ["*"] }] }); return r.canceled ? null : r.filePaths[0]; },
+  pickFile: async (exts, title, kind) => { const r = await dialog.showOpenDialog(win, { title: title || "打开代码文件", properties: ["openFile"], filters: [{ name: kind || "代码", extensions: exts }, { name: "所有文件", extensions: ["*"] }] }); return r.canceled ? null : r.filePaths[0]; },
   trash: (f) => shell.trashItem(f),
   reveal: (f) => shell.showItemInFolder(f),
   openPath: (d) => shell.openPath(d),

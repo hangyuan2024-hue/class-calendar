@@ -204,3 +204,6 @@ html { scroll-padding-top: calc(var(--hh) + 16px); }
   .v7-burger { flex: none; }
   .s-header .s-nav { padding: 6px 16px 16px; }
 }
+
+/* 捞捞PPT助手、捞小智的菜单图标 */
+.v7-mi.ppt { background: #dff6f8; color: #0b8ea0; } .v7-mi.xz { background: #f1e8ff; color: #7a4bd8; }

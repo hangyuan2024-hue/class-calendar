@@ -33,6 +33,10 @@ window.LAOLAO_SITE = {
       { icon: "🛡️", t: "后端与安全", d: "云同步、设备管理、权限控制，数据丢了能找回来" },
     ],
   },
+  // 捞小智（捞捞的智能体）的入口：xiaozhi/ 页面和捞捞PPT助手里的「捞小智」都从这里取
+  //   url：智能体的地址（比如扣子 / Coze 上发布后的链接）。留空 = 页面显示「内测准备中」，按钮点不了
+  //   正式对外开放之前，先确认生成式人工智能服务的备案 / 登记要求（见 xiaozhi/README.md）
+  xiaozhi: { url: "", status: "内测准备中" },
   repo: "https://github.com/hangyuan2024-hue/class-calendar",   // 例如 "https://github.com/你的组织/laolao"；留空 = 显示「即将开放」
   contact: {
     email: "",              // 例如 "dev@laolaokechengbiao.cn"

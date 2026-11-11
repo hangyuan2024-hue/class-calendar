@@ -56,6 +56,8 @@
 
   window.pop.on((m) => {
     if (!m) return;
+    if ("skin" in m && STAGE) STAGE.setSkin(m.skin);   // 主界面穿的皮肤
+    if (m.type === "skin") return;
     if (m.type === "result") {
       pause();
       Object.assign(S, { steps: m.steps || [], focus: m.focus, src: m.src || "", lang: m.lang || "", tip: m.tip || "", k: 0, pk: -5, userPlay: false });

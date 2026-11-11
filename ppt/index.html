@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<script src="../noframe.js?v=20261023-v715"></script>
+<script src="../i18n.js?v=20261023-v700"></script>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com https://*.workers.dev https://github.githubassets.com https://ghfast.top https://gh-proxy.com https://ghproxy.net https://*.jsdelivr.net https://*.myqcloud.com https://*.aliyuncs.com https://*.volces.com; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a1433">
+<title>捞捞PPT助手 · 老师的分身走进课件</title>
+<meta name="description" content="捞捞PPT助手 Windows 版：上传老师的照片（或一段视频）和一段录音，生成老师自己的 Q版公仔分身或真人数字人，加进 PPT——进到那一页自动讲解，点问题按钮由分身回答。全部在老师自己的电脑上完成，生成的视频都带「AI生成」标识。">
+<link rel="canonical" href="https://www.laolaokechengbiao.cn/ppt/">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../studio-v2.css?v=20261008-org1">
+<link rel="stylesheet" href="../home-v6.css?v=20261019-v65">
+<link rel="stylesheet" href="../fonts.css?v=20261023-v698">
+<link rel="stylesheet" href="../home-v7.css?v=20261023-v699">
+<link rel="stylesheet" href="../board.css?v=20261023-v700">
+<link rel="stylesheet" href="../home-v8.css?v=20261023-v716">
+<style>
+  .v7-mi.ppt { background: #dff6f8; color: #0b8ea0; } .v7-mi.xz { background: #f1e8ff; color: #7a4bd8; }
+  .s-button-ppt { background: #0ea5b7; } .s-button-ppt:hover { background: #0b8ea0; }
+  /* 首屏右边：一页幻灯片，右下角是老师的分身，旁边是问题按钮 */
+  .pp-slide { position: relative; aspect-ratio: 16 / 10; border-radius: 18px; background: #fbfaf7; color: #1d2a35; box-shadow: 0 30px 60px -28px rgba(0, 0, 0, .7); overflow: hidden; container-type: inline-size; }
+  .pp-slide .t { position: absolute; left: 6%; top: 8%; font-size: 4.6cqw; font-weight: 800; letter-spacing: -.02em; }
+  .pp-slide .t small { display: block; font-size: 2.2cqw; font-weight: 600; color: #8a949b; letter-spacing: .1em; margin-bottom: .6cqw; }
+  .pp-slide ul { position: absolute; left: 6%; top: 30%; width: 40%; margin: 0; padding: 0 0 0 1.2em; font-size: 2.5cqw; line-height: 1.9; color: #3c4a55; }
+  .pp-slide ul b { color: #0b8ea0; }
+  .pp-slide .av { position: absolute; right: 4%; bottom: 0; width: 22%; aspect-ratio: 9 / 16; border-radius: 1.6cqw 1.6cqw 0 0; overflow: hidden; background: #fff; box-shadow: 0 0 0 1px #e6e2da; }
+  .pp-slide .av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .pp-slide .av .lbl { position: absolute; left: 6%; top: 3%; padding: .3cqw 1cqw; border-radius: 99px; background: rgba(0, 0, 0, .58); color: #fff; font-size: 1.5cqw; font-weight: 700; }
+  .pp-slide .qs { position: absolute; right: 28%; bottom: 7%; display: grid; gap: 1.2cqw; }
+  .pp-slide .qs span { padding: 1cqw 1.8cqw; border-radius: 99px; background: #0ea5b7; color: #fff; font-size: 2cqw; font-weight: 700; box-shadow: 0 1cqw 2cqw -1cqw rgba(14, 165, 183, .8); }
+  .pp-slide .say { position: absolute; right: 27%; top: 28%; width: 24%; padding: 1.4cqw 1.8cqw; border-radius: 2cqw 2cqw .4cqw 2cqw; background: #e8f8fa; color: #24505a; font-size: 1.9cqw; line-height: 1.6; }
+  .pp-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; counter-reset: s; }
+  .pp-step { padding: 22px; border-radius: 20px; border: 1px solid var(--edge, #e6e2da); background: #fff; }
+  .pp-step::before { counter-increment: s; content: counter(s); display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: #0ea5b7; color: #fff; font-weight: 800; margin-bottom: 12px; }
+  .pp-step h3 { margin: 0 0 6px; font-size: 18px; } .pp-step p { margin: 0; font-size: 13.5px; line-height: 1.75; color: var(--muted, #5d6b70); }
+  .pp-road .bd-card { border-style: dashed; background: #fcfdfd; }
+  .bd-card .tag.plan { background: #fff3dc; color: #b26a00; }
+  .bd-card .tag.beta { background: #f1e8ff; color: #7a4bd8; }
+  .pp-xz { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 22px; align-items: center; padding: 28px; border-radius: 24px; background: linear-gradient(135deg, #1b1240, #2c1d66 60%, #3b2a8a); color: #ece6ff; }
+  .pp-xz .face { width: 76px; height: 76px; border-radius: 24px; display: grid; place-items: center; font-size: 38px; background: rgba(255, 255, 255, .12); }
+  .pp-xz h3 { margin: 0 0 6px; font-size: 24px; color: #fff; } .pp-xz p { margin: 0; color: #cfc4f5; line-height: 1.75; font-size: 14px; }
+  .pp-xz .s-button { background: #fff; color: #2c1d66; white-space: nowrap; }
+  .pp-req { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; font-size: 13.5px; color: var(--muted, #5d6b70); }
+  .pp-req b { color: var(--ink, #14252b); }
+  @media (max-width: 860px) { .pp-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pp-xz { grid-template-columns: 1fr; } }
+  @media (max-width: 520px) { .pp-steps { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body class="studio-public v8-board" data-root="../" style="--bd-accent:#0ea5b7;--bd-hi:#7fe3ee">
+<header class="s-header">
+  <a class="s-brand" href="../app.html" aria-label="捞捞调度首页"><span class="s-brand-icon"><img src="../brand/laolao-mark.svg" alt=""></span><span>捞捞调度<span class="s-brand-sub">捞捞PPT助手</span></span></a>
+  <button class="v7-burger" type="button" aria-expanded="false" aria-controls="siteNav" aria-label="打开菜单"><i></i><i></i><i></i></button>
+  <nav class="s-nav" id="siteNav" aria-label="网站导航"><a href="../app.html#showcase">作品展映</a>
+    <div class="v7-dd"><button type="button" class="v7-dd-btn" aria-expanded="false" aria-controls="ddProd">三大板块</button>
+      <div class="v7-menu" id="ddProd">
+        <a href="../index.html?guest=1"><span class="v7-mi cal">▦</span><span><b>捞捞课程表</b><small>课表、作业、班级消息、签到和提醒</small></span></a>
+        <a href="../learn/"><span class="v7-mi learn">✺</span><span><b>捞捞学习</b><small>思维导图、课内学习、错题和公式</small></span></a>
+        <a href="../code/"><span class="v7-mi code">&lt;/&gt;</span><span><b>捞捞编程</b><small>自带编译器，按 F5 运行，不懂就问本地模型</small></span></a>
+        <a href="../ppt/" aria-current="page"><span class="v7-mi ppt">▶</span><span><b>捞捞PPT助手</b><small>给老师：自己的分身走进课件，自动讲解、回答提问</small></span></a>
+        <a href="../xiaozhi/"><span class="v7-mi xz">✦</span><span><b>捞小智</b><small>捞捞的智能体 · 内测准备中</small></span></a>
+        <a class="v7-mfoot" href="../app.html#products">三个板块的详细介绍</a>
+      </div></div>
+    <a href="../app.html#team">团队</a><a href="../app.html#open">开源共建</a>
+    <div class="v7-dd"><button type="button" class="v7-dd-btn" aria-expanded="false" aria-controls="ddGet">下载</button>
+      <div class="v7-menu v7-menu-get" id="ddGet">
+        <div class="v7-mg"><span class="v7-mh">捞捞课程表</span>
+          <a href="../download/class-calendar.apk"><span class="v7-mi cal">▯</span><span><b>安卓 App</b><small>约 6 MB</small></span></a>
+          <a href="https://github.com/hangyuan2024-hue/class-calendar/releases/latest/download/LaolaoKechengbiao-Setup.exe"><span class="v7-mi cal">▣</span><span><b>Windows 电脑版</b><small>约 100 MB · Win10 / 11</small></span></a>
+          <a href="../app.html#get"><span class="v7-mi cal">✳</span><span><b>微信小程序 · 网页版</b><small>扫码打开，或者直接在浏览器用</small></span></a></div>
+        <div class="v7-mg"><span class="v7-mh">老师和编程</span>
+          <a href="https://github.com/hangyuan2024-hue/class-calendar/releases/download/laolao-ppt/LaolaoPPT-Setup.exe"><span class="v7-mi ppt">▶</span><span><b>捞捞PPT助手</b><small>Windows 10 / 11</small></span></a>
+          <a data-get="code" href="https://github.com/hangyuan2024-hue/class-calendar/releases/download/laolao-code/LaolaoCode-Setup.exe"><span class="v7-mi code">&lt;/&gt;</span><span><b>捞捞编程</b><small>约 1.5 GB · 自带编译器和本地模型</small></span></a></div>
+      </div></div>
+    <div class="v8-nav-extra"><button class="lang-btn" type="button" data-lang-toggle>EN</button><a href="../app.html#login" data-acct-login>登录 / 注册</a><button type="button" data-acct-open hidden>账号管理</button></div>
+  </nav>
+  <div class="s-header-actions"><button class="s-login-link lang-btn" type="button" data-lang-toggle>EN</button><a class="s-login-link" href="../app.html#login" data-acct-login>登录</a><button class="v8-acct-btn" type="button" data-acct-btn hidden></button><a class="s-button s-button-small " href="#get">下载电脑版 <span aria-hidden="true">↓</span></a></div>
+</header>
+<main class="bd-main" id="main">
+  <section class="bd-hero">
+    <div>
+      <span class="s-kicker">LAOLAO PPT · 捞捞PPT助手</span>
+      <h1>老师的分身，<br><span>走进课件来讲课。</span></h1>
+      <p class="lead">上传一张照片（或者一段视频）和一段录音，捞捞做出<b>老师自己的分身</b>：Q版公仔，或者就是老师本人。把它加进 PPT——翻到那一页，分身用<b>老师的声音</b>自动开讲；页面上放几个问题按钮，学生点一下，分身来回答。全部在老师自己的电脑上完成，不上传照片和声音。</p>
+      <div class="bd-acts"><a class="s-button s-button-ppt" href="https://github.com/hangyuan2024-hue/class-calendar/releases/download/laolao-ppt/LaolaoPPT-Setup.exe">下载 Windows 版 <span aria-hidden="true">↓</span></a><small>Windows 10 / 11 · 64 位<br>克隆声音、AI 3D、真人数字人要 NVIDIA 显卡</small></div>
+    </div>
+    <div class="pp-slide" role="img" aria-label="示意：一页幻灯片，右下角是老师的公仔分身在讲解，旁边两个问题按钮">
+      <div class="t"><small>第三章 · 示例</small>函数的极限</div>
+      <ul><li>自变量趋近时，函数值<b>无限接近</b>一个数</li><li>左极限、右极限都存在且<b>相等</b></li><li>先看定义，再看三个例题</li></ul>
+      <div class="say">同学们好～这一页我们先看<b>极限的定义</b>，注意「无限接近」不是「等于」哦。</div>
+      <div class="qs"><span>极限一定等于函数值吗？</span><span>左右极限怎么求？</span></div>
+      <div class="av"><img src="avatar.jpg" alt="" width="360" height="640"><span class="lbl">AI生成</span></div>
+    </div>
+  </section>
+
+  <section class="bd-sec" aria-labelledby="ppt-feat">
+    <span class="s-kicker">01 / WHAT IT DOES</span>
+    <h2 id="ppt-feat">现在<span>能做什么</span></h2>
+    <div class="bd-grid">
+      <div class="bd-card"><span class="ic" style="background:#dff6f8;color:#0b8ea0">☺</span><h3>老师的 Q版分身</h3><p>照片上自动找到眼睛和嘴，量出五官的特点画到公仔脸上；还会认出发型（长短、刘海、扎没扎）和头发、衣服的颜色。会眨眼、说话，会挥手、指幻灯片、托腮想一想。</p></div>
+      <div class="bd-card"><span class="ic" style="background:#fff0dc;color:#c76a14">🎙</span><h3>老师的声音</h3><p>录 3～10 秒，用开源的 GPT-SoVITS 在本机克隆老师的声音，讲解词写好就能读出来；没有显卡也可以每段自己录。</p></div>
+      <div class="bd-card"><span class="ic" style="background:#e3f7f0;color:#11946f">▶</span><h3>进页自动讲</h3><p>选好要讲的几页，每页先帮你起好讲解词和两个问题的草稿。生成的新 PPT 里，翻到那一页分身自动开讲，原文件不动。</p></div>
+      <div class="bd-card"><span class="ic" style="background:#e8edff;color:#2f5fd0">?</span><h3>点问题，分身回答</h3><p>每个问题一张隐藏的回答页：学生点按钮跳过去，分身回答完点「返回」回到原来那页。正常放映时回答页不会出现。</p></div>
+      <div class="bd-card"><span class="ic" style="background:#f1e8ff;color:#7a4bd8">◆</span><h3>AI 3D 形象</h3><p>有 NVIDIA 显卡：照片定长相、参考图定风格，在本机用开源模型画出 Q版立绘、做成 3D 模型，自动绑骨骼，眼睛和嘴会动。</p></div>
+      <div class="bd-card"><span class="ic" style="background:#ffe9e4;color:#c8452b">◉</span><h3>真人数字人</h3><p>拍一段 10～30 秒的视频，PPT 里出现的就是老师本人，嘴跟着配音动（本机显卡对口型）。同一段视频还能自动挑出正脸、侧脸、后脑勺，让公仔更像。</p></div>
+    </div>
+  </section>
+
+  <section class="bd-sec" aria-labelledby="ppt-steps">
+    <span class="s-kicker">02 / FOUR STEPS</span>
+    <h2 id="ppt-steps">四步，<span>一节课的课件</span></h2>
+    <div class="pp-steps">
+      <div class="pp-step"><h3>我的形象</h3><p>上传照片或视频，自动做好分身；发型、衣服颜色不对就点一下改。</p></div>
+      <div class="pp-step"><h3>我的声音</h3><p>录一段话，或者直接用视频里截出来的那一段。</p></div>
+      <div class="pp-step"><h3>选页和内容</h3><p>打开 .pptx，勾上要讲的页，改改讲解词和问题，选个动作。</p></div>
+      <div class="pp-step"><h3>生成 PPT</h3><p>配音、做视频、写进新 PPT，一页一页自动完成。</p></div>
+    </div>
+  </section>
+
+  <section class="bd-sec" aria-labelledby="ppt-safe">
+    <span class="s-kicker">03 / SAFE TO USE</span>
+    <h2 id="ppt-safe">放心<span>用</span></h2>
+    <div class="bd-grid">
+      <div class="bd-card"><span class="ic" style="background:#e3f7f0;color:#11946f">⌂</span><h3>只在你的电脑上</h3><p>照片、视频、声音只存在你自己的电脑上，生成过程不联网、不上传。随时可以一键清除，授权也一起撤回。</p></div>
+      <div class="bd-card"><span class="ic" style="background:#fff0dc;color:#c76a14">✓</span><h3>先授权，再使用</h3><p>人脸和声音是敏感个人信息。用之前要确认是本人，或者已经取得本人的书面同意；只拍老师自己，不拍学生。</p></div>
+      <div class="bd-card"><span class="ic" style="background:#e8edff;color:#2f5fd0">AI</span><h3>标明「AI生成」</h3><p>按《人工智能生成合成内容标识办法》和国家标准 GB 45438-2025：讲解视频画面上一直显示「AI生成」，文件里也写入隐式标识。用到的开源模型都允许商用。</p></div>
+    </div>
+  </section>
+
+  <section class="bd-sec pp-road" id="next" aria-labelledby="ppt-road">
+    <span class="s-kicker">04 / WHAT'S NEXT</span>
+    <h2 id="ppt-road">不只是<span>一个功能</span></h2>
+    <p class="lead" style="margin:-8px 0 22px;color:var(--muted,#5d6b70);max-width:46em;line-height:1.8">捞捞PPT助手想做成<b>老师备课、上课、课后的小帮手</b>。下面是我们正在想的方向，还没做好，顺序和内容会根据老师们的反馈调整——有想法欢迎<a href="../join.html">告诉我们</a>。</p>
+    <div class="bd-grid">
+      <div class="bd-card"><span class="tag plan">设想中</span><span class="ic">📄</span><h3>教案变课件</h3><p>把 Word 教案或者一份提纲交给它，在本机排出一份 PPT 初稿，再由老师修改。</p></div>
+      <div class="bd-card"><span class="tag plan">设想中</span><span class="ic">🎨</span><h3>课件一键整理</h3><p>统一字体和配色、对齐排版、检查错别字，让旧课件看起来清清爽爽。</p></div>
+      <div class="bd-card"><span class="tag plan">设想中</span><span class="ic">🙋</span><h3>课堂互动</h3><p>随堂小测、投票、随机点名，和捞捞课程表的班级打通，结果课后自动汇总。</p></div>
+      <div class="bd-card"><span class="tag plan">设想中</span><span class="ic">🔁</span><h3>课后回看</h3><p>分身讲解和问答发到班级，学生在捞捞学习里按页回看，没听懂的地方再听一遍。</p></div>
+      <div class="bd-card"><span class="tag plan">设想中</span><span class="ic">🌐</span><h3>换一种语言讲</h3><p>同一份讲解词，用老师自己的声音换成英语等其他语言讲，方便双语课和留学生。</p></div>
+      <div class="bd-card"><span class="tag beta">先开入口</span><span class="ic" style="background:#f1e8ff;color:#7a4bd8">✦</span><h3>捞小智</h3><p>捞捞的智能体：备课时帮老师想讲解词和提问，课后帮学生答疑。入口已经开好，正在准备内测。</p></div>
+    </div>
+  </section>
+
+  <section class="bd-sec" aria-labelledby="ppt-xz">
+    <span class="s-kicker">05 / LAOXIAOZHI</span>
+    <h2 id="ppt-xz">先认识一下<span>捞小智</span></h2>
+    <div class="pp-xz">
+      <div class="face" aria-hidden="true">✦</div>
+      <div><h3>捞小智 · 捞捞的智能体</h3><p>一个懂捞捞的 AI 助手：备课时帮老师打讲解词的草稿、想课堂提问，平时回答课程表、学习、编程上的问题。正在准备内测，开放后从这里进入。</p></div>
+      <a class="s-button" href="../xiaozhi/">进入捞小智 <span aria-hidden="true">↗</span></a>
+    </div>
+  </section>
+
+  <section class="bd-sec" id="get" aria-labelledby="ppt-get">
+    <span class="s-kicker">06 / DOWNLOAD</span>
+    <h2 id="ppt-get">下载<span>捞捞PPT助手</span></h2>
+    <div class="bd-grid lr">
+      <div class="bd-card big"><span class="ic" style="background:#dff6f8;color:#0b8ea0">⬇</span><h3>Windows 电脑版</h3>
+        <ul class="pp-req">
+          <li><b>基本功能</b>：Windows 10 / 11 64 位就能用（公仔分身、讲解视频、写进 PPT；配音可以每段自己录）</li>
+          <li><b>克隆声音</b>：要 NVIDIA 显卡，另外下载 GPT-SoVITS 的 Windows 整合包</li>
+          <li><b>AI 3D 形象、真人数字人</b>：要 NVIDIA 显卡（12 GB 显存够用），第一次要下载模型</li>
+          <li>安装时 Windows 提示「已保护你的电脑」：点「更多信息 → 仍要运行」</li>
+        </ul>
+        <div class="bd-acts" style="margin-top:auto"><a class="s-button s-button-ppt" href="https://github.com/hangyuan2024-hue/class-calendar/releases/download/laolao-ppt/LaolaoPPT-Setup.exe">下载安装包 <span aria-hidden="true">↓</span></a><a class="s-text-link" style="color:#0b8ea0" href="https://github.com/hangyuan2024-hue/class-calendar/releases/tag/laolao-ppt" rel="noopener">版本说明 →</a></div></div>
+      <div class="bd-card"><span class="ic">🍎</span><h3>苹果电脑？</h3><p>目前只有 Windows 版。生成好的 PPT 在苹果电脑的 PowerPoint 里也能放。</p></div>
+      <div class="bd-card"><span class="ic">🖥</span><h3>PowerPoint 版本</h3><p>讲解视频是 H.264 的 mp4，PowerPoint 2013 及以后的版本都能放；WPS 也能打开播放。</p></div>
+    </div>
+  </section>
+
+  <section class="bd-sec" aria-labelledby="ppt-faq">
+    <span class="s-kicker">07 / FAQ</span>
+    <h2 id="ppt-faq">常见<span>问题</span></h2>
+    <div class="bd-faq">
+      <details><summary>照片和声音会上传吗？</summary><p>不会。照片、视频、录音只存在你自己的电脑上，生成分身、配音、对口型都在本机完成。在「我的形象」页可以一键清除全部数据。</p></details>
+      <details><summary>能用别的老师的照片和声音吗？</summary><p>只能用本人的，或者已经取得本人书面同意的。人脸和声音属于敏感个人信息，软件第一次使用时会请你确认授权；不得用来冒充别人或制作虚假内容。</p></details>
+      <details><summary>为什么视频上有「AI生成」？能去掉吗？</summary><p>国家规定 AI 生成、合成的视频要标明，所以画面上一直显示「AI生成」，文件里也写着隐式标识，不能去掉。这也是对学生负责：他们知道这是老师的数字分身。</p></details>
+      <details><summary>没有独立显卡能用吗？</summary><p>能。公仔分身、讲解视频、写进 PPT 都不需要显卡，配音可以每一段自己录。克隆声音、AI 3D 形象、真人数字人需要 NVIDIA 显卡。</p></details>
+      <details><summary>原来的 PPT 会被改吗？</summary><p>不会。生成的是一个新文件「原名（捞捞助手）.pptx」，原文件保持不动；原来页面上的动画也照常播放。</p></details>
+    </div>
+  </section>
+</main>
+<footer class="s-footer"><a class="s-brand" href="../app.html"><span class="s-brand-icon"><img src="../brand/laolao-mark.svg" alt=""></span><span>捞捞调度<span class="s-brand-sub">认真生活，也自在生长。</span></span></a><p>捞捞PPT助手 · 让老师的分身走进课件</p><div><a href="../index.html?guest=1">工作台 ↗</a><a href="../xiaozhi/">捞小智</a><a href="../code/">捞捞编程</a><a href="../privacy.html">隐私</a></div></footer>
+<script src="../config.js"></script>
+<script src="../auth.js?v=20261023-v715"></script>
+<script src="../board.js?v=20261019-v65"></script>
+<script src="../home-v7.js?v=20261023-v699"></script>
+<script src="../site-account.js?v=20261023-v700"></script>
+<script src="../get.js?v=20261028-v765c"></script>
+</body>
+</html>

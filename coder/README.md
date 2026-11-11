@@ -11,6 +11,7 @@
   - 大画面：每一层函数调用一张卡片（递归看得清），数组画成柱子（i、j、lo、hi、指针指着哪一格都标出来，传给函数的数组也标在原数组上），字符串一格一个字，二维数组画成网格，结构体画成盒子，链表画成一串节点，二叉树画成树，字典 / map 画成表；右边代码高亮、输出跟着走，点代码某一行跳到走到这一行的那一步
   - 做法：C / C++ 用 `gcc -g` 编译后在 gdb 里跑 `core/tracer/gdb_trace.py`（gdb 自带的 Python 一步步 step，读出所有变量；一行里的死循环每 0.12 秒戳停一次）；Python 用 `core/tracer/py_trace.py`（sys.settrace）。gdb 没有 Python 时退回老办法：自动加 `SHOW(数组, 个数)` 只画数组（`core/viz.js`）
   - 3D 舞台（`renderer/stage3d.js`，three.js）：数组里每个数是一个「数据小兵」小机器人，越大越高；比较时捞小智飞过去用扫描光照着、两个小兵互相看；交换时大的蹲下起跳从小的头顶翻过去、小的缩着身子滑过去，落地扬灰；改值时身体弹性长高 / 变矮；排好变绿蹦一下；全部排好挨个蹦、撒彩带。i、j、lo、hi 在地上亮光圈和名字牌。大画面、悬浮小窗、拖出去的小窗口都有；没有 WebGL 时退回平面柱子
+  - 皮肤商店（`renderer/skins.js`）：「画出来」右上角「皮肤」，把数据小兵换成别的样子（比如老师的机器人分身老师：发型、眼镜、衣服颜色都能配）。皮肤只是一份 .json，放在官网 `code-skins/`（格式和上架方法见 `code-skins/README.md`），主进程去取、本机留一份，断网也能用；还能「导入皮肤文件」先试穿。3D 舞台按皮肤造小兵（`stage3d.js` 的 `sanitizeSkin` / `setSkin`），拖出去的小窗口跟着换
   - 捞小智（`renderer/xiaozhi.js` 平面版，3D 版在舞台里）：白色圆壳、深色玻璃面罩、两道青色光眼睛、天线、悬浮推进光；在舞台上当讲解员（气泡里说这一步在干什么），也是「问捞捞」的形象
   - 音效（`renderer/sfx.js`）：全部用 Web Audio 现场合成，没有音频文件。比较的两个音按数值大小定音高（五声音阶，排序的过程像一段旋律）；起跳、落地、改值、排好、找到、全部完成、出错各有声音；右上角喇叭或按 M 开关。边打字边自动播放时不出声，点了播放才出声
   - 算法演示：冒泡、选择、插入、快排、归并、二分查找，C 代码在测试里真的编译运行，结果和动画最后一步一致
@@ -44,6 +45,7 @@
 | `core/problems.js` / `renderer/prob.js` | 在软件里做题：题面、模板、自动配 main 本地判、力扣在线运行 / 提交 |
 | `core/judge.js` / `core/skill.js` / `renderer/lc.js` | 刷题：力扣 / Codeforces 题目列表和做题记录；水平分和推荐；推荐列表 |
 | `renderer/icons.js` | 线条图标（Lucide） |
+| `renderer/skins.js` / `renderer/avatar3d.js` / `../code-skins/` | 皮肤商店界面；老师的机器人分身（和捞捞PPT助手共用，改了两边一起改）；官网上的皮肤文件 |
 | `renderer/stage3d.js` / `renderer/sfx.js` / `renderer/xiaozhi.js` | 3D 舞台（three.js，MIT，`npm install` 后由 prepare 拷到 renderer/vendor/three）、合成音效、捞小智 |
 | `renderer/` | 界面（CodeMirror 5） |
 | `installer/laolao-code.iss` | Inno Setup 安装包脚本 |

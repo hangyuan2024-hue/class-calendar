@@ -15,6 +15,7 @@ const TRACE = require("./trace");
 const { Bank, leetcodeRecent, codeforcesSolved } = require("./judge");
 const { Skill } = require("./skill");
 const PB = require("./problems");
+const { fetchText } = require("./net");
 
 // env：{ dev, res, user, documents, version, platform, send(ch, data), pickDir(), pickFile(exts), trash(f), reveal(f), openPath(d), openExternal(u), siteConfig }
 function createService(env) {
@@ -28,6 +29,11 @@ function createService(env) {
   const SETTINGS_FILE = path.join(USER, "settings.json");
 
   const send = (ch, data) => env.send(ch, data);
+  // 皮肤商店的地址（测试时可以换成本机的）
+  const SKIN_BASE = env.skinBase || "https://www.laolaokechengbiao.cn/code-skins/";
+  const SKIN_CACHE = path.join(USER, "skin-store.json");
+  // 皮肤就是一小份数据：有 id、不超过 80KB（带照片脸的皮肤里有一张小 jpg）；具体字段在界面里（stage3d.js 的 sanitizeSkin）再洗一遍
+  const skinOk = (sk) => !!sk && typeof sk === "object" && !Array.isArray(sk) && typeof sk.id === "string" && /^[\w-]{1,40}$/.test(sk.id) && JSON.stringify(sk).length <= 80000;
 
   // ---------- 设置 ----------
   let settings = { workspace: "", recent: [], fontSize: 15, theme: "dark", lastFile: "", aiOpen: true };
@@ -168,7 +174,37 @@ function createService(env) {
     openWorkspaceFolder() { env.openPath(workspace()); return true; },
     async pickWorkspace() { const d = await env.pickDir(); if (!d) return null; settings.workspace = d; saveSettings(); return settings.workspace; },
     async openFile() { return (await env.pickFile([...CODE_EXT].map((e) => e.slice(1)))) || null; },
-    setSettings(o) { for (const k of ["fontSize", "theme", "aiOpen", "lastFile"]) if (o && k in o) settings[k] = o[k]; saveSettings(); return settings; },
+    setSettings(o) {
+      for (const k of ["fontSize", "theme", "aiOpen", "lastFile"]) if (o && k in o) settings[k] = o[k];
+      if (o && "skin" in o) settings.skin = o.skin === null ? null : skinOk(o.skin) ? o.skin : settings.skin;   // 「画出来」里数据小兵的皮肤（整份皮肤数据，断网也能用）
+      saveSettings(); return settings;
+    },
+    // 导入自己电脑上的皮肤文件（试穿用，还没上架的皮肤）
+    async pickSkinFile() {
+      const f = await env.pickFile(["json"], "选一个皮肤文件", "皮肤"); if (!f) return null;
+      if (fs.statSync(f).size > 80000) throw new Error("皮肤文件太大了（超过 80KB）");
+      let sk; try { sk = JSON.parse(fs.readFileSync(f, "utf8")); } catch (e) { throw new Error("不是正确的 JSON 文件"); }
+      if (!skinOk(sk)) throw new Error("缺少 id（只能用字母、数字、- 和 _）");
+      return sk;
+    },
+    // 皮肤商店：官网 code-skins/index.json 列出所有皮肤，一个皮肤一个 .json；拿到了存一份在本机，断网时用上次的
+    async skinStore() {
+      try {
+        const idx = JSON.parse(await fetchText(SKIN_BASE + "index.json", 10000));
+        const list = Array.isArray(idx && idx.skins) ? idx.skins.slice(0, 60) : [];
+        const got = await Promise.all(list.map(async (e) => {
+          const f = String((e && e.file) || "");
+          if (!/^[\w-]{1,60}\.json$/.test(f)) return null;
+          try { const sk = JSON.parse(await fetchText(SKIN_BASE + f, 10000)); return skinOk(sk) ? sk : null; } catch (er) { return null; }
+        }));
+        const skins = got.filter(Boolean);
+        try { fs.mkdirSync(USER, { recursive: true }); fs.writeFileSync(SKIN_CACHE, JSON.stringify({ at: Date.now(), skins })); } catch (er) {}
+        return { online: true, skins };
+      } catch (e) {
+        let c = null; try { c = JSON.parse(fs.readFileSync(SKIN_CACHE, "utf8")); } catch (er) {}
+        return { online: false, error: e.message, skins: (c && c.skins) || [], at: (c && c.at) || 0 };
+      }
+    },
     opened(f) { pushRecent(safeFile(f)); return true; },
 
     // 运行

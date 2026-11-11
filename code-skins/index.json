@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "skins": [
+    { "id": "c-teacher", "file": "c-teacher.json" }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "id": "c-teacher",
+  "name": "C 语言老师",
+  "author": "捞捞",
+  "version": "7.1.0",
+  "desc": "C 语言老师的公仔分身：Q版 2.4 头身的大头、黑色高马尾、眯眯笑眼，穿格子高领毛衣。站在柱子上，比较时托腮想一想，交换时挥手。",
+  "model": "person",
+  "person": {
+    "skin": "#ffdccb",
+    "hair": "#1c1a1f",
+    "hairStyle": "ponytail",
+    "bangs": "side",
+    "eyeStyle": "smile",
+    "glasses": false,
+    "top": "#26262c",
+    "bottom": "pants",
+    "body": "chibi",
+    "pants": "#6a4f8c",
+    "shoes": "#6b4430",
+    "eye": "#2b1d18",
+    "blush": true,
+    "earrings": true,
+    "accent": "#22d3ee",
+    "antenna": false,
+    "earpods": true,
+    "faceStyle": "doll",
+    "rig": false,
+    "grid": true
+  },
+  "colors": {
+    "body": "#7c8cf0"
+  }
+}
