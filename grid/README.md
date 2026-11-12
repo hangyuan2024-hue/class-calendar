@@ -53,7 +53,7 @@ node grid/tools/grid.js job grid/plans/demo.json                     # 按计划
 ```
 控制中心（`/admin/`）也能发邀请、建任务、暂停、调优先级、看每台电脑实时跑到哪一行、导出审核结果。
 
-**3. 同事的电脑**：装「捞捞算力」（Actions 里的「捞捞算力」工作流打包，Releases 的 laolao-grid），粘贴邀请链接加入，按任务向导：体检 → 一键装训练环境（Python 3.11 + PyTorch CUDA 12.8，装在软件自己的文件夹里）→ 跑通测试 → 装 AI 引擎（显卡 8G 以上：ComfyUI + Qwen-Image-Edit，约 35G，从国内存储下）→ 录表情（自愿）→ 挂机设置。你自己的电脑也可以装一个一起算。
+**3. 同事的电脑**：装「捞捞算力」（Actions 里的「捞捞算力」工作流打包，Releases 的 laolao-grid），粘贴邀请链接加入，按任务向导：体检 → 一键装训练环境（Python 3.11 + PyTorch CUDA 12.8，装在软件自己的文件夹里）→ 跑通测试 → 装 AI 引擎（显卡 8G 以上：ComfyUI + Qwen-Image-Edit，约 35G，从国内存储下）→ 录表情（自愿）→ 什么时候算（默认：点「开始」才算）。你自己的电脑也可以装一个一起算。
 
 ## 写配方
 
@@ -71,17 +71,21 @@ lg.done(ckpt="final.pt", loss=loss)   # 结果里的文件会自动上传
 ```
 示例：`recipes/demo_relay.py`（接力，断电后结果不变）、`recipes/demo_diloco.py`（多台一起训）、`recipes/demo_avatar.py`（生成 + 审核）、`recipes/probe_gpu.py`（测显卡）。
 
-## Q版每日一轮（`plans/qversion.json`）
+## Q版自动训练（`plans/qversion.json`，不定时间）
 
 ```bash
-node grid/tools/grid.js cycle grid/plans/qversion.json          # 每天 19:00 自动开始
-node grid/tools/grid.js cycle grid/plans/qversion.json --now    # 现在就开一轮（到第二天 04:30 收尾）
+node grid/tools/grid.js cycle grid/plans/qversion.json          # 设好就开始：谁开着谁算
+node grid/tools/grid.js cycle grid/plans/qversion.json --now    # 不等攒够审核，马上训练一次（控制中心也能点）
 ```
+没有固定时间：同事想算就在软件里点「开始」，不想算点「停止」（正在算的交给别的电脑从存档接着算）。
+
 | 步骤 | 什么时候 | 谁做 | 做什么 |
 |---|---|---|---|
-| 画 Q版（`recipes/qv_gen.py`） | 19:00 → 04:30 到点收尾（`until`），画多少算多少 | 装了 AI 引擎的电脑（显卡 8G+） | 随机一位「虚拟老师」的照片 → 老师端同款流程画 2 张 Q版 → 交审核（带参考照片）；每张图的 CLIP 特征跟着审核存 |
-| 审核 | 白天 | 所有人（软件里「人工审核」，快捷键 1/2/3/0） | 哪张 Q版更好 |
-| 训练打分模型（`recipes/qv_scorer.py`） | 04:30 以后 | 任何一台（只用 numpy，几分钟） | 用到今天为止所有审核训练；和现在发布的那一版在同一份考题上比，答对得更多（且 ≥55%）才发布 `qversion-scorer` |
+| 画 Q版（`recipes/qv_gen.py`） | 一直有活（`standing`），快领完了自动补 40 个 | 装了 AI 引擎、点了「开始」的电脑（显卡 8G+） | 随机一位「虚拟老师」的照片 → 老师端同款流程画 2 张 Q版 → 交审核（带参考照片）；每张图的 CLIP 特征跟着审核存 |
+| 审核 | 随时 | 所有人（软件里「人工审核」，快捷键 1/2/3/0） | 哪张 Q版更好 |
+| 训练打分模型（`recipes/qv_scorer.py`） | 新审核攒够 50 条、离上次至少 3 小时（`when`） | 任何一台（只用 numpy，几分钟） | 用到现在为止所有审核训练；和现在发布的那一版在同一份考题上比，答对得更多（且 ≥55%）才发布 `qversion-scorer` |
+
+配方或发布的模型更新了，画图的活自动换成新的（正在画的画完）；一个都没画成就连着失败 5 个，自动停下等你看出错信息。
 
 配方里要用本机的 AI 引擎：开头写 `# needs: comfy`，用 `lg.comfy("info" / "upload" / "lora" / "run", ...)`；训练要审核结果：任务参数写 `"dataset": "标签"`，配方里 `lg.dataset()`。配方改了直接 `cycle` 重新签名上传，客户端不用更新。
 
@@ -106,8 +110,8 @@ node grid/tools/grid.js cycle grid/plans/qversion.json --now    # 现在就开�
 | `py/lg.py` | 配方用的小工具；还会每 0.25 秒看一眼主线程执行到配方的第几行（界面上高亮） |
 | `shared/expr.js` | 捞捞「表情参数」标准 v1：14 个参数，画图和声音都按它走 |
 | `app/` | Electron 客户端：星图、实时面板、任务向导、录表情（`record.html`，MediaPipe face_mesh）、审核、贡献榜 |
-| `tools/grid.js` | 管理员命令行：登录、签名上传配方、按计划建任务、发邀请、设每日一轮 |
-| `server/cycle.js` | 每日一轮：到点开一轮、到点收尾、评测过了才发布、老师端的发布清单 |
+| `tools/grid.js` | 管理员命令行：登录、签名上传配方、按计划建任务、发邀请、设自动训练 |
+| `server/cycle.js` | 自动训练（不定时间：一直有活、审核攒够就训练）/ 每日一轮（定时）；评测过了才发布、老师端的发布清单 |
 | `app/ai.js` | AI 引擎（ComfyUI）：一键装、给配方画图；代码和捞捞PPT助手共用（打包时从 `pptassist/core` 拷到 `app/ppt/`） |
 
 测试：`npm test`（调度中心、断电测试、客户端）。界面截图：`node test/ui-server.js 8901 8902` 起一套模拟的训练网，浏览器打开 8901（客户端，要 `test/lg-shim.js`）和 8902/admin/（控制中心）。

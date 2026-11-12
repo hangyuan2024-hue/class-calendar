@@ -4,7 +4,7 @@
 //   node tools/grid.js publish <配方.py> [名字]             签名并上传一个配方，打印配方编号
 //   node tools/grid.js job <计划.json>                      按计划建任务（见 plans/demo.json）
 //   node tools/grid.js invite [备注] [--admin] [--uses 5]   发邀请链接
-//   node tools/grid.js cycle <每日一轮.json> [--now]          设每日一轮（签名上传用到的配方）；--now 马上跑一轮
+//   node tools/grid.js cycle <自动训练.json> [--now]          设自动训练 / 每日一轮（签名上传用到的配方）；--now 马上跑一轮（训练一次）
 "use strict";
 const fs = require("fs");
 const os = require("os");
@@ -66,7 +66,7 @@ async function cycle(c, file) {
   }
   const spec = { ...p, stages: p.stages.map(({ recipeFile, ...s }) => s) };
   const r = await api(c, "/api/admin/pipeline", spec);
-  console.log(`每日一轮「${p.name}」设好了（#${r.id}）：每天 ${p.at || "18:30"} 自动开始`);
+  console.log(p.mode === "continuous" ? `「${p.name}」设好了（#${r.id}）：不定时间，大家开着就算；审核攒够了自动训练（控制中心能看进度、能「现在训练一次」）` : `每日一轮「${p.name}」设好了（#${r.id}）：每天 ${p.at || "18:30"} 自动开始`);
   return r.id;
 }
 

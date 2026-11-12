@@ -54,7 +54,7 @@
     if (st.state !== "busy") { $("#lvJob").textContent = st.state === "paused" ? "已暂停" : "等下一个任务"; $("#lvWhy").textContent = st.why || ""; $("#lvBar").style.width = "0%"; $("#lvPct").textContent = ""; }
   }
   // 手动开关：开始（一直算到点停止）/ 自动（按挂机设置）/ 停止（正在算的交给别人从存档接着算）
-  const MANUAL = { on: "一直算，直到你点「停止」（还是会让着游戏、怕过热）", auto: "按挂机设置：空闲 / 定时才算", off: "不算了；正在算的交给别的电脑接着算，不丢" };
+  const MANUAL = { on: "一直算，直到你点「停止」（还是会让着游戏、怕过热）", auto: "按挂机设置（默认：点「开始」才算）", off: "不算了；正在算的交给别的电脑接着算，不丢" };
   function paintCtl(m) {
     $$("[data-ctl]").forEach((el) => {
       el.innerHTML = `<div class="seg"><button data-m="on">▶ 开始</button><button data-m="auto">⟳ 自动</button><button data-m="off">■ 停止</button></div><small>${MANUAL[m]}</small>`;
@@ -65,7 +65,7 @@
     const v = await call("setManual", m);
     if (S) { S.manual = v; S.paused = v === "off"; }
     paintCtl(v);
-    toast(v === "on" ? "开始了：现在就领任务算" : v === "off" ? "停了：正在算的交给别的电脑从存档接着算" : "交给挂机设置：空闲 / 定时的时候自动算");
+    toast(v === "on" ? "开始了：现在就领任务算" : v === "off" ? "停了：正在算的交给别的电脑从存档接着算" : "交给挂机设置");
   });
 
   // ---------- 星图 ----------
@@ -179,7 +179,7 @@
     $("#recSkip").hidden = !!S.steps.record;
     $("#recState").textContent = S.recorded ? `已经录了 ${S.recorded} 段，谢谢！还可以接着录` : S.steps.record ? "跳过了：以后想录随时点「开始录」" : "";
     const p = S.policy || {};
-    const m = $$("input[name=mode]").find((x) => x.value === (p.mode || "idle")); if (m) m.checked = true;
+    const m = $$("input[name=mode]").find((x) => x.value === (p.mode || "off")); if (m) m.checked = true;
     if (p.idleMin) $("#pIdle").value = p.idleMin; if (p.from) $("#pFrom").value = p.from; if (p.to) $("#pTo").value = p.to; if (p.maxTemp) $("#pTemp").value = p.maxTemp;
     $("#pGames").checked = p.yieldGames !== false; $("#pAuto").checked = !!S.autostart;
   }
@@ -211,7 +211,7 @@
   });
   $("#testGo").onclick = guard(async () => { $("#testGo").disabled = true; $("#testTerm").innerHTML = ""; try { const r = await call("test"); paintTest(r); S = await call("status"); paintGuide(); } finally { $("#testGo").disabled = false; } });
   $("#policyGo").onclick = guard(async () => {
-    const mode = ($$("input[name=mode]").find((x) => x.checked) || {}).value || "idle";
+    const mode = ($$("input[name=mode]").find((x) => x.checked) || {}).value || "off";
     await call("setPolicy", { mode, idleMin: +$("#pIdle").value, from: $("#pFrom").value, to: $("#pTo").value, maxTemp: +$("#pTemp").value, yieldGames: $("#pGames").checked, autostart: $("#pAuto").checked });
     S = await call("status"); paintGuide(); $("#policyState").textContent = "保存好了"; toast("保存好了");
   });

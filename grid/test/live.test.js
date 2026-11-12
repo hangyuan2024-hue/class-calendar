@@ -71,7 +71,11 @@ function face(o = {}) {
   assert.ok(pr.items.find((i) => i.k === "net").state === "ok");
   ok("加入训练网（邀请链接）、体检（这台没显卡，会提示；到调度中心的网速正常）");
 
-  // ---- 挂机规则：默认空闲 5 分钟才算 ----
+  // ---- 什么时候算：默认自己点「开始」才算；选了「空闲时算」就空闲 5 分钟才算 ----
+  await sleep(600);
+  assert.equal(svc.agent().status().state, "waiting");
+  assert.match(svc.agent().status().why, /开始/, "默认不自动算");
+  await svc.H.setPolicy({ mode: "idle", idleMin: 5 });
   await sleep(600);
   assert.equal(svc.agent().status().state, "waiting");
   assert.match(svc.agent().status().why, /空闲/);

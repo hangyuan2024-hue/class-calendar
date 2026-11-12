@@ -332,6 +332,23 @@ function open(file, opt = {}) {
       return "done";
     });
   }
+  // 一直开着的任务（随时有人开着就画）：快领完了再补一批
+  function addTasks(jobId, n) {
+    return tx(() => {
+      const j = one("select * from jobs where id=?", jobId);
+      if (!j || j.kind !== "map") return 0;
+      const from = (one("select coalesce(max(seq),-1)+1 as n from tasks where job_id=?", jobId) || {}).n || 0;
+      for (let i = 0; i < n; i++) run("insert into tasks(job_id,kind,seq,input,state) values(?,?,?,?,?)", jobId, "run", from + i, S({ i: from + i }), "queued");
+      run("update jobs set total=(select count(*) from tasks where job_id=? and state!='dropped') where id=?", jobId, jobId);
+      return n;
+    });
+  }
+  // 换下来（配方或模型更新了）：没人领的不做了，正在算的算完；一个都没做的直接结束
+  function retire(jobId) {
+    const c = cut(jobId);
+    if (c === "empty") run("update jobs set state='done', finished=? where id=? and state!='done'", clock(), jobId);
+    return c;
+  }
   // 训练要用的人工审核结果：只给手上正领着这个任务的电脑（params.dataset 写的是哪一类审核）
   function dataset(dev, { task }) {
     const t = mine(dev, task);
@@ -471,7 +488,7 @@ function open(file, opt = {}) {
   return {
     db, kv, event, on: (f) => (listeners.add(f), () => listeners.delete(f)),
     adminToken, isAdmin, invite, join, auth, heartbeat, addRecipe, stage, createJob, lease, renew, checkpoint, finish, fail, sweep,
-    humanNext, humanDone, reviewNext, vote, cut, dataset, overview, jobDetail, devicesView, board, setJob, setDevice, retry,
+    humanNext, humanDone, reviewNext, vote, cut, retire, addTasks, dataset, overview, jobDetail, devicesView, board, setJob, setDevice, retry,
     recipe: (id) => one("select * from recipes where id=?", id), recipes: () => all("select id,name,meta,created from recipes order by created desc"),
     review: (id) => one("select * from reviews where id=?", id),
     invites: () => all("select * from invites order by created desc limit 50"),

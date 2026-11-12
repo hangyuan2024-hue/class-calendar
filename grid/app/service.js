@@ -36,7 +36,7 @@ function createService(o) {
     if (agent || !cfg.token) return;
     agent = Agent.create({
       server: cfg.server, token: cfg.token, pubkey: cfg.pubkey, workDir: work(), python: () => env.python(),
-      caps: lastProbe ? capsNow() : null, comfy: ai, policy: cfg.policy || { mode: "idle", idleMin: 5 },
+      caps: lastProbe ? capsNow() : null, comfy: ai, policy: cfg.policy || { mode: "off", idleMin: 5 },   // 默认：自己点「开始」才算
       idleSecs: o.idleSecs, ensure: (pkgs) => env.ensure(pkgs), version: o.version, gpuInfo: async () => (await probe.gpus())[0] || null, gpuApps: (ours) => probe.gpuApps(undefined, ours),
       ...(o.agentOpt || {}),
     });

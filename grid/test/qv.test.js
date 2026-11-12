@@ -1,5 +1,5 @@
-// Q版每日一轮：
-//   · 到点收尾（until）：不管画了多少，到 04:30 就收尾，后面的训练接着开始
+// Q版自动训练（不定时间）：
+//   · 设好就一直有画图的活，谁开着谁画，快领完了自动补；新审核攒够了就训练一次（离上次至少隔一会儿）
 //   · 只有装好 AI 引擎的电脑领画图的任务；配方通过 lg.comfy() 让本机 ComfyUI 画图（这里用假的 ComfyUI）
 //   · 审核带参考照片，训练用的特征不给审核界面；训练只拿到审核好了的
 //   · 打分模型：第一版发布；审核不够就跳过（不算失败）；和现在的那一版在同一份考题上比
@@ -85,6 +85,7 @@ const until = async (f, what, ms = 60000) => { const t0 = Date.now(); while (Dat
       if (op === "info") return { models: { qwenEdit: "q.safetensors", qwenClip: "c.safetensors", qwenVae: "v.safetensors", qwenFast: "f.safetensors" }, vram: 8 };
       if (op === "upload") { assert.ok(a.path.startsWith(ctx.dir), "只传任务文件夹里的"); return { name: a.as || path.basename(a.path) }; }
       if (op === "run") {
+        if (fakeComfy.broken) throw new Error("显卡内存不够");
         graphs.push(a.graph);
         await sleep(150);
         const out = path.join(ctx.dir, "comfy-" + drawn); fs.mkdirSync(out, { recursive: true });
@@ -104,86 +105,95 @@ const until = async (f, what, ms = 60000) => { const t0 = Date.now(); while (Dat
   const clipBase = "file://" + (process.platform === "win32" ? "/" : "") + clip.replace(/\\/g, "/") + "/";
   const plan = JSON.parse(fs.readFileSync(path.join(ROOT, "plans", "qversion.json"), "utf8"));
   const pf = path.join(tmp, "qv.json");
-  const writePlan = (minPairs) => fs.writeFileSync(pf, JSON.stringify({ ...plan, publish: { ...plan.publish, metrics: plan.publish.metrics.map((m) => ({ ...m, min: 0 })) }, stages: plan.stages.map((s) => ({ ...s, recipeFile: path.join(ROOT, "recipes", path.basename(s.recipeFile)),
-    params: s.key === "gen" ? { ...s.params, count: 200, clipBases: [clipBase] } : { ...s.params, minPairs, epochs: 60 } })) }));
-  writePlan(3);
+  const writePlan = (o = {}) => fs.writeFileSync(pf, JSON.stringify({ ...plan, publish: { ...plan.publish, metrics: plan.publish.metrics.map((m) => ({ ...m, min: 0 })) }, stages: plan.stages.map((s) => ({ ...s, recipeFile: path.join(ROOT, "recipes", path.basename(s.recipeFile)),
+    ...(s.key === "gen" ? { keep: 6, params: { ...s.params, clipBases: [clipBase], ...(o.gen || {}) } } : { when: { ...s.when, reviews: 4, minHours: 1 }, params: { ...s.params, minPairs: o.minPairs || 3, epochs: 60 } }) })) }));
+  writePlan();
   await Tools.cycle(admin, pf);
   const C = app.cycle, db = app.core.db;
   assert.equal(new Date(C.nextAt("04:30", now)).toISOString(), "2026-11-13T20:30:00.000Z", "北京时间第二天 04:30");
+  const genJob = () => db.prepare("select * from jobs where params like '%\"stageKey\":\"gen\"%' and state!='done' order by id desc limit 1").get();
+  const doneOf = (id) => db.prepare("select count(*) as n from tasks where job_id=? and state='done'").get(id).n;
 
+  // 不定时间：设好就有活，谁开着谁画
+  C.tick();
+  const gen = genJob();
+  assert.ok(gen, "设好就有画图的活"); assert.equal(gen.total, 6);
+  assert.equal(C.view().pipelines[0].runs.length, 0, "还没攒够审核，不训练");
   big.start(); small.start();
-  now = Date.parse("2026-11-13T11:00:00Z"); C.tick();   // 19:00
-  const run1 = C.view().pipelines[0].runs[0];
-  assert.ok(run1, "到点开了一轮");
-  const gen = db.prepare("select * from jobs where run_id=? and params like '%\"stageKey\":\"gen\"%'").get(run1.id);
-  assert.equal(JSON.parse(gen.params).deadline, Date.parse("2026-11-13T20:30:00Z"));
-
-  // 画了几个，审核几条（大家白天审核）
-  await until(() => db.prepare("select count(*) as n from tasks where job_id=? and state='done'").get(gen.id).n >= 4, "画 4 个");
+  await until(() => doneOf(gen.id) >= 4, "画 4 个");
+  C.tick();
+  assert.ok(db.prepare("select total from jobs where id=?").get(gen.id).total > 6, "快领完了自动补一批");
   assert.equal(db.prepare("select count(*) as n from tasks where job_id=? and device_id=(select id from devices where name='小显卡')").get(gen.id).n, 0, "小显卡的电脑不领画图的任务");
   assert.equal(graphs[0]["20"].class_type, "TextEncodeQwenImageEditPlus"); assert.ok(!graphs[0]["20"].inputs.image1, "先画照片（不带图）");
   assert.deepEqual(graphs[1]["20"].inputs.image1, ["11", 0], "再把照片变成 Q版");
   assert.equal(graphs[1]["5"].inputs.lora_name, "f.safetensors", "用这台电脑上的模型文件名");
-  ok("只有装好 AI 引擎的电脑领画图的任务；配方先画虚拟老师的照片，再变成 Q版（和老师端一样的节点图）");
+  ok("不定时间：设好就有活，开着 AI 引擎的电脑就画，快领完了自动补；小显卡的电脑不领画图的；节点图和老师端一样");
 
   const rv = await big.api("/api/review/next");
   assert.ok(rv.item && rv.item.payload.refUrl && rv.item.payload.aUrl && rv.item.payload.bUrl, "审核带参考照片");
   assert.ok(!("meta" in rv.item.payload), "训练用的特征不给审核界面");
   assert.equal(rv.item.payload.tag, "qv1");
   let voted = 0;
-  for (;;) {
-    const r = await small.api("/api/review/next"); if (!r.item) break;
-    await small.api("/api/review/vote", { review: r.item.id, choice: voted % 3 === 2 ? "b" : "a" }); voted++;
-  }
+  const voteAll = async () => { let n = 0; for (;;) { const r = await small.api("/api/review/next"); if (!r.item) return n; await small.api("/api/review/vote", { review: r.item.id, choice: voted % 3 === 2 ? "b" : "a" }); voted++; n++; } };
+  await voteAll();
   assert.ok(voted >= 4);
   ok(`审核：左边参考照片、中间和右边两张 Q版；投了 ${voted} 票`);
 
-  // 到点收尾：没人领的不画了，正在画的画完；训练接着开始
-  now = Date.parse("2026-11-13T20:31:00Z"); C.tick();
-  await until(() => { C.tick(); return db.prepare("select state from jobs where id=?").get(gen.id).state === "done"; }, "画图收尾");
-  const g2 = db.prepare("select * from jobs where id=?").get(gen.id);
-  const dropped = db.prepare("select count(*) as n from tasks where job_id=? and state='dropped'").get(gen.id).n;
-  assert.ok(dropped > 100, "没人领的不画了"); assert.equal(g2.total, g2.done, "进度算成 100%");
-  ok(`到 04:30 收尾：画了 ${g2.done} 个，剩下 ${dropped} 个不画了；不用先测每台电脑多快`);
-
-  await until(() => db.prepare("select state from runs where id=?").get(run1.id).state === "done", "第 1 轮做完", 30000).catch((e) => { console.log(db.prepare("select id,name,state,deps from jobs").all(), db.prepare("select job_id,state,error from tasks where state!='dropped' and job_id>1").all(), db.prepare("select msg from events order by id desc limit 8").all()); throw e; });
+  // 审核攒够了 → 开一轮训练（画图不停）
+  C.tick();
+  const run1 = C.view().pipelines[0].runs[0];
+  assert.ok(run1 && run1.state === "running", "攒够了就训练");
+  await until(() => db.prepare("select state from runs where id=?").get(run1.id).state === "done", "第 1 轮训练做完");
   let models = C.view().models;
   assert.equal(models[0].name, "qversion-scorer"); assert.equal(models[0].version, 1); assert.equal(models[0].state, "released");
+  assert.equal(genJob().id, gen.id, "训练的时候画图照常");
   const m1 = await (await fetch(url + "/pub/models/manifest.json")).json();
   const sf = Buffer.from(await (await fetch(m1.models["qversion-scorer"].files[0].url)).arrayBuffer());
   const head = JSON.parse(sf.subarray(8, 8 + Number(sf.readBigUInt64LE(0))).toString());
   assert.equal(head.__metadata__.format, "laolao-qversion-scorer-1"); assert.deepEqual(head.v.shape, [1536, 1]);
-  ok(`接着训练打分模型（用今天的审核），第 1 版发布（考题答对 ${models[0].metrics.acc}）；文件是标准的 safetensors`);
+  ok(`新审核攒够了就训练打分模型，第 1 版发布（考题答对 ${models[0].metrics.acc}）；文件是标准的 safetensors`);
 
-  // 第 2 天：审核不够（要求 1000 对）→ 跳过，不算失败；老师端继续用第 1 版
-  writePlan(1000); await Tools.cycle(admin, pf);
-  now = Date.parse("2026-11-14T11:00:00Z"); C.tick();
+  // 又攒够了，但离上次不到 1 小时 → 等一等；过了 1 小时再训练；审核不够训练的对数 → 跳过，不算失败
+  writePlan({ minPairs: 1000 }); await Tools.cycle(admin, pf);
+  await until(async () => { await voteAll(); return C.view().pipelines[0].when.fresh >= 4; }, "又攒 4 条审核");
+  C.tick(); assert.equal(C.view().pipelines[0].runs.length, 1, "离上次不到 1 小时，先不训练");
+  assert.equal(genJob().id, gen.id, "只改了训练的设置：画图的活不用换");
+  now += 3601e3; C.tick();
   const run2 = C.view().pipelines[0].runs[0];
-  await until(() => db.prepare("select count(*) as n from tasks t join jobs j on j.id=t.job_id where j.run_id=? and t.state='done'").get(run2.id).n >= 1, "第 2 天画 1 个");
-  now = Date.parse("2026-11-14T20:31:00Z");
-  await until(() => { C.tick(); return db.prepare("select state from runs where id=?").get(run2.id).state !== "running"; }, "第 2 轮做完");
+  assert.notEqual(run2.id, run1.id);
+  await until(() => db.prepare("select state from runs where id=?").get(run2.id).state !== "running", "第 2 轮做完");
   assert.equal(db.prepare("select state from runs where id=?").get(run2.id).state, "done");
   assert.equal(C.view().models.length, 1, "没出新版");
-  assert.ok(app.core.db.prepare("select msg from events where msg like '%没出新版%'").get(), "动态里说了为什么");
-  ok("审核结果不够：这一轮不出新版，也不算失败");
+  assert.ok(db.prepare("select msg from events where msg like '%没出新版%'").get(), "动态里说了为什么");
+  ok("又攒够了：离上次至少隔 1 小时才训练；训练对数不够 → 这一轮不出新版，也不算失败");
+
+  // 控制中心「现在训练一次」
+  const r3 = await Tools.api(admin, "/api/admin/pipeline/run", { id: C.view().pipelines[0].id });
+  await until(() => db.prepare("select state from runs where id=?").get(r3.run).state !== "running", "手动训练做完");
+  ok("控制中心点「现在训练一次」：不用等");
+
+  // 画图的配方设置改了 → 换成新的活，正在画的画完；新的一个都画不成（AI 引擎坏了）→ 停下，不一直空转
+  fakeComfy.broken = true;
+  writePlan({ gen: { cands: 4 } }); await Tools.cycle(admin, pf);
+  C.tick();
+  const gen2 = genJob();
+  assert.notEqual(gen2.id, gen.id, "换成新的活");
+  assert.equal(db.prepare("select count(*) as n from tasks where job_id=? and state='queued'").get(gen.id).n, 0, "旧的没人领的不做了");
+  await until(() => { C.tick(); return db.prepare("select state from jobs where id=?").get(gen2.id).state === "paused"; }, "连着失败停下", 120000);
+  assert.ok(db.prepare("select msg from events where msg like '%一个都没做成%'").get());
+  ok("配方设置改了：换成新的活（正在画的画完）；连着 5 个都画不成 → 停下等你看出错信息");
 
   // 同一份考题比：新的不如现在的 → 不发布（vs）
   const g = C.better({ metrics: [{ k: "acc", better: "higher", vs: "base_acc" }] }, { metrics: JSON.stringify({ acc: 0.5 }) }, { acc: 0.6, base_acc: 0.7 });
   assert.equal(g.ok, false);
-  assert.equal(C.better({ metrics: [{ k: "acc", better: "higher", vs: "base_acc" }] }, { metrics: JSON.stringify({ acc: 0.9 }) }, { acc: 0.6, base_acc: 0.55 }).ok, true, "昨天的分数高也没关系：今天的考题更难");
+  assert.equal(C.better({ metrics: [{ k: "acc", better: "higher", vs: "base_acc" }] }, { metrics: JSON.stringify({ acc: 0.9 }) }, { acc: 0.6, base_acc: 0.55 }).ok, true, "以前的分数高也没关系：现在的考题更多");
   assert.equal(C.better(plan.publish, null, { acc: 0.5 }).ok, false, "第一版也要过及格线");
   assert.equal(C.better(plan.publish, null, { acc: 0.6 }).ok, true);
-  ok("和现在的那一版在同一份考题上比（每天考题变多，不和昨天的分数比）；第一版也要过及格线（比瞎猜好）");
+  ok("和现在的那一版在同一份考题上比（考题越攒越多，不和以前的分数比）；第一版也要过及格线（比瞎猜好）");
 
-  // 一个都没画成：这一轮失败
-  now = Date.parse("2026-11-15T11:00:00Z"); big.stop(); small.stop(); await sleep(300); C.tick();
-  const run3 = C.view().pipelines[0].runs[0];
-  now = Date.parse("2026-11-15T20:31:00Z"); C.tick();
-  assert.equal(db.prepare("select state from runs where id=?").get(run3.id).state, "failed");
-  ok("到点了一个都没画成：这一轮算失败，老师端继续用现在的");
-
+  big.stop(); small.stop();
   app.close();
   fs.rmSync(tmp, { recursive: true, force: true });
-  console.log("Q版每日一轮：全部通过");
+  console.log("Q版自动训练：全部通过");
   process.exit(0);
 })().catch((e) => { console.error(e); process.exit(1); });

@@ -118,12 +118,12 @@
           <div class="btns"><button class="btn primary" id="recGo">开始录</button><button class="btn ghost" id="recSkip">这一步跳过</button></div>
           <p class="muted small" id="recState"></p></div></div>
         <div class="step" data-s="policy"><div class="num">6</div><div class="body">
-          <h3>挂机设置</h3><p>什么时候可以用这台电脑算。你一用电脑、一开游戏，马上让出显卡。</p>
+          <h3>什么时候算</h3><p>没有固定时间：想算就点左下角「开始」，不想算就点「停止」（正在算的交给别的电脑从存档接着算，不丢）。开游戏、显卡太热会自动让出。</p>
           <div class="policy">
-            <label class="radio"><input type="radio" name="mode" value="idle"> 空闲时算（推荐）：<input type="number" id="pIdle" min="1" max="120" value="5"> 分钟不动鼠标键盘就开始</label>
+            <label class="radio"><input type="radio" name="mode" value="off"> 想算的时候点「开始」，不想算点「停止」（推荐；平时不自动算，审核、录表情照常）</label>
+            <label class="radio"><input type="radio" name="mode" value="idle"> 空闲时自动算：<input type="number" id="pIdle" min="1" max="120" value="5"> 分钟不动鼠标键盘就开始</label>
             <label class="radio"><input type="radio" name="mode" value="schedule"> 定时算：<input type="time" id="pFrom" value="22:00"> 到 <input type="time" id="pTo" value="08:00"></label>
             <label class="radio"><input type="radio" name="mode" value="always"> 一直算（电脑开着就算）</label>
-            <label class="radio"><input type="radio" name="mode" value="off"> 不算（只做人工审核和录表情）</label>
             <div class="row3">
               <label>显卡温度上限 <input type="number" id="pTemp" min="60" max="90" value="83"> ℃</label>
               <label class="check"><input type="checkbox" id="pGames" checked> 别的程序用显卡时让给它</label>

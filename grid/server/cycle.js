@@ -7,6 +7,10 @@
 //   到点收尾：步骤里写 until: "04:30"（北京时间）→ 到点不管做了多少都收尾，后面的步骤接着开始（不用先测每台电脑多快）
 //     map：没人领的小任务不做了，正在算的算完；relay：正在算的这一段算完就用它的结果
 //   评测交 skip（比如「票数还不够」）：这一轮不出新版，不算失败
+//   随时模式（mode: "continuous"，不定时间）：大家想算的时候开着就算
+//     standing: true 的步骤一直开着（比如画 Q版）：快领完了自动补一批（keep 个）；用到的配方、发布的模型更新了就换成新的
+//     when: { tag, reviews, minHours } 的步骤（比如训练）：这类审核新攒够 reviews 条、离上次至少 minHours 小时 → 开一轮
+//     控制中心点「现在跑一轮」= 马上训练一次
 //   比较时用同一份数据：metrics 里写 vs: "base_acc" → 和评测结果里现在这一版的分数比（每天的测试题会变多，昨天的分数不能直接比）
 "use strict";
 
@@ -72,8 +76,13 @@ function attach(core, opt = {}) {
     const keys = new Set(spec.stages.map((s) => s.key));
     for (const s of spec.stages) for (const a of s.after || []) if (!keys.has(a)) throw new Error(`「${s.key}」要等的「${a}」不存在`);
     for (const s of spec.stages) if (s.until) { nextAt(s.until); if (!["map", "relay"].includes(s.kind)) throw new Error(`「${s.key}」：只有 map 和 relay 能到点收尾`); }
-    run("insert into pipelines(name,spec,at,created) values(?,?,?,?) on conflict(name) do update set spec=excluded.spec, at=excluded.at", spec.name, S(spec), spec.at || "18:30", clock());
-    core.event("pipeline", `每日一轮「${spec.name}」设好了：每天 ${spec.at || "18:30"} 开始`);
+    const cont = spec.mode === "continuous";
+    if (cont) {
+      if (!spec.stages.some((x) => x.standing || x.when)) throw new Error("随时模式要有一直开着的步骤（standing）或者攒够了才开的步骤（when）");
+      for (const x of spec.stages) if (x.standing && x.kind !== "map") throw new Error(`「${x.key}」：一直开着的只能是 map`);
+    }
+    run("insert into pipelines(name,spec,at,created) values(?,?,?,?) on conflict(name) do update set spec=excluded.spec, at=excluded.at", spec.name, S(spec), cont ? "" : spec.at || "18:30", clock());
+    core.event("pipeline", cont ? `「${spec.name}」设好了：不定时间，大家开着就算；审核攒够了自动训练` : `每日一轮「${spec.name}」设好了：每天 ${spec.at || "18:30"} 开始`);
     return one("select * from pipelines where name=?", spec.name).id;
   }
   // 配方按名字找最新上传的那个
@@ -88,20 +97,27 @@ function attach(core, opt = {}) {
     if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, fill(x)]));
     return v;
   }
+  // 随时模式：某一类审核一共定下来多少条（训练开一轮时记下来，下次看新攒了多少）
+  const reviewsDone = (tag) => one("select count(*) as n from reviews where state='done' and json_extract(payload,'$.tag')=?", String(tag)).n;
   function startRun(pid, why = "到点了") {
     const p = one("select * from pipelines where id=?", pid);
     const spec = J(p.spec);
-    const rid = Number(run("insert into runs(pipeline_id,day,state,jobs,created) values(?,?,?,?,?)", pid, day(), "running", "{}", clock()).lastInsertRowid);
+    const cont = spec.mode === "continuous";
+    const stages = cont ? spec.stages.filter((x) => !x.standing) : spec.stages;
+    if (!stages.length) throw new Error("没有要开一轮的步骤");
+    const marks = {};
+    for (const x of stages) if (x.when && x.when.tag) marks[x.when.tag] = reviewsDone(x.when.tag);
+    const rid = Number(run("insert into runs(pipeline_id,day,state,jobs,created,result) values(?,?,?,?,?,?)", pid, day(), "running", "{}", clock(), S({ marks, why })).lastInsertRowid);
     const ids = {};
-    const stage = `每日一轮 · ${day()}`;
-    for (const s of spec.stages) {
+    const stage = cont ? `自动训练 · ${p.name}` : `每日一轮 · ${day()}`;
+    for (const s of stages) {
       const recipe = s.kind === "record" ? null : recipeByName(s.recipe);
       if (s.kind !== "record" && !recipe) throw new Error(`还没上传配方「${s.recipe}」`);
       const params = { ...fill(s.params || {}), stageKey: s.key, runId: rid };
       if (s.until) params.deadline = nextAt(s.until);
       const id = core.createJob({ name: `${s.name || s.key}（第 ${rid} 轮）`, stage, kind: s.kind, recipe, params, req: s.req || {}, priority: s.priority || 0 });
       ids[s.key] = id;
-      run("update jobs set deps=?, run_id=? where id=?", S((s.after || []).map((k) => ids[k])), rid, id);
+      run("update jobs set deps=?, run_id=? where id=?", S((s.after || []).filter((k) => ids[k]).map((k) => ids[k])), rid, id);
     }
     run("update runs set jobs=? where id=?", S(ids), rid);
     run("update pipelines set enabled=enabled where id=?", pid);
@@ -135,10 +151,51 @@ function attach(core, opt = {}) {
       if (failed) continue;
     }
     for (const p of all("select * from pipelines where enabled=1")) {
+      const spec = J(p.spec, {});
+      if (spec.mode === "continuous") { try { continuous(p, spec); } catch (e) { core.event("error", `「${p.name}」出错：${e.message}`); } continue; }
       if (hhmm() < (p.at || "18:30")) continue;
       if (one("select id from runs where pipeline_id=? and day=?", p.id, day())) continue;
       if (one("select id from runs where pipeline_id=? and state='running'", p.id)) continue;
       try { startRun(p.id); } catch (e) { core.event("error", `「${p.name}」没能开始：${e.message}`); }
+    }
+  }
+  // 随时模式：一直开着的步骤补活、换新；攒够审核开一轮训练
+  function continuous(p, spec) {
+    for (const s of spec.stages.filter((x) => x.standing)) {
+      const recipe = recipeByName(s.recipe);
+      if (!recipe) continue;
+      const params = { ...fill(s.params || {}), stageKey: s.key };
+      const sig = require("crypto").createHash("sha1").update(S(params) + recipe).digest("hex").slice(0, 12);
+      let j = one("select j.* from jobs j join runs r on r.id=j.run_id where r.pipeline_id=? and r.state='standing' and json_extract(j.params,'$.stageKey')=? and j.state!='done' order by j.id desc limit 1", p.id, s.key);
+      if (j && (J(j.params, {}) || {}).sig !== sig) {
+        core.retire(j.id);
+        core.event("job", `「${s.name || s.key}」的配方或模型更新了：换成新的（正在算的算完）`);
+        j = null;
+      }
+      const keep = Math.max(1, s.keep || 40);
+      if (!j) {
+        const rid = Number(run("insert into runs(pipeline_id,day,state,jobs,created) values(?,?,?,?,?)", p.id, day(), "standing", "{}", clock()).lastInsertRowid);
+        const id = core.createJob({ name: s.name || s.key, stage: `自动训练 · ${p.name}`, kind: "map", recipe, params: { ...params, sig, runId: rid, count: keep }, req: s.req || {}, priority: s.priority || 0 });
+        run("update jobs set run_id=? where id=?", rid, id);
+        run("update runs set jobs=? where id=?", S({ [s.key]: id }), rid);
+        continue;
+      }
+      if (j.state !== "active") continue;   // 管理员暂停了，或者连着失败停下了
+      const n = one("select sum(state='queued') as q, sum(state='failed') as bad, sum(state='done') as ok from tasks where job_id=?", j.id);
+      // 一个都没做成就已经有 5 个彻底失败了（比如 AI 引擎在这些电脑上跑不起来）→ 停下，别一直空转
+      if (!n.ok && n.bad >= 5) { core.setJob(j.id, { state: "paused" }); core.event("fail", `「${j.name}」连着 ${n.bad} 个都失败了（一个都没做成），先停下：看看出错信息，修好了在控制中心点「重试」`); continue; }
+      if ((n.q || 0) < keep / 2) core.addTasks(j.id, keep - (n.q || 0));
+    }
+    // 训练：上一轮还没完就不开；新审核攒够了、离上次够久了 → 开一轮
+    if (one("select id from runs where pipeline_id=? and state='running'", p.id)) return;
+    const last = one("select * from runs where pipeline_id=? and state!='standing' order by id desc limit 1", p.id);
+    const marks = (J(last && last.result, {}) || {}).marks || {};
+    for (const s of spec.stages.filter((x) => x.when)) {
+      const w = s.when, now = reviewsDone(w.tag), fresh = now - (marks[w.tag] || 0);
+      if (fresh < (w.reviews || 1)) continue;
+      if (last && clock() - last.created < (w.minHours || 0) * 3600e3) continue;
+      startRun(p.id, `新的审核攒够了 ${fresh} 条`);
+      return;
     }
   }
   // 一个任务做完：是不是一轮的最后一步；评测完了比一比，好了就发布
@@ -186,7 +243,16 @@ function attach(core, opt = {}) {
   }
   function view() {
     return {
-      pipelines: all("select * from pipelines order by id").map((p) => ({ id: p.id, name: p.name, at: p.at, enabled: !!p.enabled, stages: J(p.spec).stages.map((s) => s.name || s.key), runs: all("select id, day, state, created, finished from runs where pipeline_id=? order by id desc limit 7", p.id) })),
+      pipelines: all("select * from pipelines order by id").map((p) => {
+        const spec = J(p.spec, {});
+        const cont = spec.mode === "continuous";
+        const w = cont && (spec.stages.find((x) => x.when) || {}).when;
+        const last = cont && one("select * from runs where pipeline_id=? and state!='standing' order by id desc limit 1", p.id);
+        return { id: p.id, name: p.name, at: p.at, mode: cont ? "continuous" : "daily", enabled: !!p.enabled, stages: spec.stages.map((s) => s.name || s.key),
+          when: w ? { ...w, fresh: reviewsDone(w.tag) - (((J(last && last.result, {}) || {}).marks || {})[w.tag] || 0) } : null,
+          standing: cont ? all("select j.id, j.name, j.state, j.done from jobs j join runs r on r.id=j.run_id where r.pipeline_id=? and r.state='standing' and j.state!='done' order by j.id desc limit 3", p.id) : [],
+          runs: all("select id, day, state, created, finished from runs where pipeline_id=? and state!='standing' order by id desc limit 7", p.id) };
+      }),
       models: all("select * from models order by name, version desc limit 60").map((m) => ({ id: m.id, name: m.name, version: m.version, state: m.state, metrics: J(m.metrics, {}), created: m.created, note: m.note, run: m.run_id })),
     };
   }

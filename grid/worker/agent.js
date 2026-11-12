@@ -117,7 +117,7 @@ function create(opt) {
     if (paused) return { ok: false, why: "你点了暂停" };
     if (draining) return { ok: false, why: "有新版本：手上的算完就自动更新" };
     if (manual === "off") return { ok: false, why: "你点了停止" };
-    if (manual !== "on" && policy.mode === "off") return { ok: false, why: "设置里关了挂机" };
+    if (manual !== "on" && policy.mode === "off") return { ok: false, why: "想算的时候点「开始」" };
     if (manual !== "on" && policy.mode === "schedule" && !inWindow()) return { ok: false, why: `只在 ${policy.from}～${policy.to} 算` };
     if (manual !== "on" && policy.mode === "idle") {
       const idle = opt.idleSecs ? await opt.idleSecs() : 1e9;
