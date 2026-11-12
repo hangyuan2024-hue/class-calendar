@@ -1,0 +1,78 @@
+# 自动打包「捞捞算力」Windows 安装包（几台电脑一起训练捞捞的模型）：改了 grid/ 里的文件、或者在 Actions 页面手动点「Run workflow」时运行。
+# 先跑测试（调度中心、断电测试：随机拔电源后接力训练的结果和一台电脑算的一模一样、客户端），过了再打包。
+# 发布到仓库 Releases 的 laolao-grid（固定标签，每次覆盖），不抢 latest；配了国内存储（CN_S3_*）还会传一份到国内：
+#   https://github.com/<仓库>/releases/download/laolao-grid/LaolaoGrid-Setup.exe
+# 调度中心（服务器）不用打包：在云服务器上 git clone 后 bash grid/server/deploy.sh，见 grid/README.md。
+name: 捞捞算力
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "grid/**"
+      - ".github/workflows/grid.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: laolao-grid
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: grid
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: 装依赖
+        run: |
+          npm install --no-audit --no-fund
+          python -m pip install --disable-pip-version-check numpy pillow
+      - name: 准备界面（认脸组件、表情参数标准）
+        run: npm run prepare-ui
+      - name: 测试
+        env:
+          PYTHON: python
+        run: npm test
+      - name: 打包
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npx electron-builder --win nsis --publish never
+      - name: 发布到 Releases（laolao-grid，不抢 latest）
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $notes = "捞捞算力 Windows 版 $v`n`n几台电脑一起训练捞捞自己的模型：一台停了，下一台接着算。装好后粘贴管理员发的邀请链接加入，按「任务向导」一步一步来（体检 → 装环境 → 跑通测试 → 录表情 → 挂机设置）。`n`n下载：https://github.com/${{ github.repository }}/releases/download/laolao-grid/LaolaoGrid-Setup.exe`n`n安装时如果 Windows 提示「已保护你的电脑」，点「更多信息 → 仍要运行」。"
+          gh release view laolao-grid --repo "${{ github.repository }}" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload laolao-grid dist\LaolaoGrid-Setup.exe --repo "${{ github.repository }}" --clobber
+            gh release edit laolao-grid --repo "${{ github.repository }}" --title "捞捞算力 Windows 版 $v" --notes $notes --latest=false
+          } else {
+            gh release create laolao-grid dist\LaolaoGrid-Setup.exe --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "捞捞算力 Windows 版 $v" --notes $notes --latest=false
+          }
+      - name: 传一份到国内存储
+        shell: bash
+        working-directory: .
+        env:
+          CN_S3_ENDPOINT: ${{ secrets.CN_S3_ENDPOINT }}
+          CN_S3_REGION: ${{ secrets.CN_S3_REGION }}
+          CN_S3_BUCKET: ${{ secrets.CN_S3_BUCKET }}
+          CN_S3_KEY_ID: ${{ secrets.CN_S3_KEY_ID }}
+          CN_S3_SECRET: ${{ secrets.CN_S3_SECRET }}
+          CN_DL_BASE: ${{ secrets.CN_DL_BASE }}
+        run: |
+          CN=$(bash .github/workflows/cn-upload.sh "grid/dist/LaolaoGrid-Setup.exe" "grid/LaolaoGrid-Setup-1.0.${{ github.run_number }}.exe")
+          echo "国内下载地址：${CN:-（没配国内存储）}"
+          if [ -n "$CN" ]; then echo "### 国内下载地址：$CN" >> "$GITHUB_STEP_SUMMARY"; fi
