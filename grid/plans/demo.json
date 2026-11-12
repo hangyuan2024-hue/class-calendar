@@ -1,0 +1,12 @@
+{
+  "jobs": [
+    { "name": "试运行：测一测每台电脑的显卡", "stage": "阶段 0 · 试运行", "kind": "map", "recipe": "../recipes/probe_gpu.py", "params": { "count": 4 }, "req": { "gpu": true }, "priority": 9 },
+    { "name": "试运行：生成 + 审核", "stage": "阶段 0 · 试运行", "kind": "map", "recipe": "../recipes/demo_avatar.py", "params": { "count": 20, "reviewNeed": 2, "question": "哪个更可爱？" }, "priority": 5 },
+    { "name": "试运行：接力训练（断电接着算）", "stage": "阶段 0 · 试运行", "kind": "relay", "recipe": "../recipes/demo_relay.py", "params": { "totalSteps": 3000, "segSteps": 500, "ckptEvery": 50, "sleep": 0.05 }, "priority": 4 },
+    { "name": "试运行：多台一起训", "stage": "阶段 0 · 试运行", "kind": "diloco", "recipe": "../recipes/demo_diloco.py", "params": { "rounds": 20, "width": 3, "innerSteps": 100, "minDone": 2, "roundSecs": 300, "sleep": 0.05 }, "priority": 3 },
+    { "name": "录表情（讲课）", "stage": "阶段 1 · 数据", "kind": "record", "params": { "items": [
+      { "lines": ["同学们好，今天我们来学习冒泡排序。", "大家先看这一组数：五、三、八、一。", "相邻的两个数比较，大的往后换。", "第一轮结束，最大的数就到了最后。", "这就是冒泡排序的基本思路，大家记住了吗？", "好，我们来做一道练习题。", "这道题有点难，大家先想一想。", "对了！回答得非常好。", "不对哦，再仔细看一看。", "今天的课就到这里，下课！"] },
+      { "lines": ["上课之前，我们先复习一下上节课的内容。", "谁能告诉我，什么是数组？", "很好，数组就是一排整齐的格子。", "注意看，这里的下标是从零开始的。", "如果越界了，程序就会出错。", "大家觉得这样写对不对？", "我们换一种方法试试。", "是不是简单多了？", "下面请同学们自己动手写一写。", "有问题随时举手问我。"] }
+    ] }, "priority": 1 }
+  ]
+}

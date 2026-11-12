@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: file: http: https:; media-src 'self' blob:; frame-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>捞捞算力</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="bg"></canvas>
+
+<!-- 第一次打开：加入训练网 -->
+<section id="joinPage" class="join" hidden>
+  <div class="join-card glass">
+    <div class="logo-big"><span>捞</span></div>
+    <h1>捞捞算力</h1>
+    <p class="sub">几台电脑一起训练捞捞自己的模型：一台停了，下一台接着算。</p>
+    <label>邀请链接（管理员发给你的，LG1. 开头）<textarea id="jInvite" rows="3" placeholder="LG1.eyJ1Ijoi…"></textarea></label>
+    <div class="row2">
+      <label>你的名字<input id="jName" maxlength="20" placeholder="比如：张三"></label>
+      <label>这台电脑叫<input id="jDev" maxlength="40" placeholder="比如：家里台式机"></label>
+    </div>
+    <label class="check"><input type="checkbox" id="jConsent"> 我同意：用这台电脑的空闲算力帮捞捞训练模型；录表情时只上传表情参数和录音，不上传视频；随时可以暂停或退出。</label>
+    <button id="jGo" class="btn primary big">加入训练网</button>
+    <p class="err" id="jErr"></p>
+  </div>
+</section>
+
+<div id="appShell" class="shell" hidden>
+  <nav class="side">
+    <div class="brand"><div class="logo"><span>捞</span></div><div><b>捞捞算力</b><small id="meName">—</small></div></div>
+    <a data-p="home" class="on"><i>✦</i>星图</a>
+    <a data-p="live"><i>⌁</i>我的电脑<em id="navBusy" hidden></em></a>
+    <a data-p="guide"><i>☰</i>任务向导<em id="navGuide" hidden></em></a>
+    <a data-p="review"><i>✓</i>人工审核<em id="navReview" hidden></em></a>
+    <a data-p="board"><i>♛</i>贡献榜</a>
+    <a id="navAdmin" data-p="admin" hidden><i>◎</i>控制中心</a>
+    <div class="side-foot">
+      <div id="statePill" class="pill">连接中…</div>
+      <button id="pauseBtn" class="btn ghost small">暂停</button>
+    </div>
+  </nav>
+
+  <main>
+    <!-- 星图 -->
+    <section class="page on" id="p-home">
+      <div class="hero">
+        <canvas id="star"></canvas>
+        <div class="hero-left glass">
+          <div class="ring" id="totalRing"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" class="track"/><circle cx="60" cy="60" r="52" class="bar" id="ringBar"/></svg><div><b id="totalPct">0%</b><small>总体进度</small></div></div>
+          <div class="kpis">
+            <div><b id="kOnline">0</b><small>台在线</small></div>
+            <div><b id="kBusy">0</b><small>台在算</small></div>
+            <div><b id="kReview">0</b><small>条待审核</small></div>
+          </div>
+        </div>
+      </div>
+      <div class="stages" id="stages"></div>
+      <div class="grid2">
+        <div class="glass panel"><h3>正在进行</h3><div id="jobList" class="jobs"></div></div>
+        <div class="glass panel"><h3>动态</h3><div id="feed" class="feed"></div></div>
+      </div>
+    </section>
+
+    <!-- 我的电脑：实时 -->
+    <section class="page" id="p-live">
+      <div class="live-top glass">
+        <div><small>正在算</small><b id="lvJob">还没有任务</b><span id="lvWhy" class="muted"></span></div>
+        <div class="bar-wrap"><div class="bar"><i id="lvBar"></i></div><span id="lvPct">0%</span></div>
+        <div class="gauges">
+          <div class="gauge" id="gTemp"><svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="26"/><circle cx="32" cy="32" r="26" class="v"/></svg><b>—</b><small>温度</small></div>
+          <div class="gauge" id="gUtil"><svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="26"/><circle cx="32" cy="32" r="26" class="v"/></svg><b>—</b><small>显卡占用</small></div>
+          <div class="gauge" id="gVram"><svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="26"/><circle cx="32" cy="32" r="26" class="v"/></svg><b>—</b><small>显存</small></div>
+          <div class="gauge" id="gPow"><svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="26"/><circle cx="32" cy="32" r="26" class="v"/></svg><b>—</b><small>功耗</small></div>
+        </div>
+      </div>
+      <div class="live-grid">
+        <div class="glass panel code-panel">
+          <h3><span>实时代码</span><small id="codeName" class="muted"></small><small id="codeFn" class="tag"></small></h3>
+          <div id="code" class="code"><div class="empty">领到任务后，这里显示正在运行的代码，执行到哪一行就亮哪一行。</div></div>
+        </div>
+        <div class="live-right">
+          <div class="glass panel"><h3>训练曲线 <small class="muted" id="chartKey"></small></h3><canvas id="chart" height="190"></canvas></div>
+          <div class="glass panel"><h3>日志</h3><div id="logs" class="logs"></div></div>
+        </div>
+      </div>
+      <div class="glass panel"><h3>刚生成的</h3><div id="gallery" class="gallery"><div class="empty">生成图片的任务会把结果一张张放在这里。</div></div></div>
+    </section>
+
+    <!-- 任务向导 -->
+    <section class="page" id="p-guide">
+      <h2>任务向导 <small class="muted">一步一步来，做完一步亮一颗星</small></h2>
+      <div class="steps" id="steps">
+        <div class="step" data-s="probe"><div class="num">1</div><div class="body">
+          <h3>体检</h3><p>看看这台电脑的显卡、驱动、内存、硬盘、网速够不够。</p>
+          <div class="probe" id="probeOut"></div>
+          <button class="btn primary" id="probeGo">开始体检</button></div></div>
+        <div class="step" data-s="env"><div class="num">2</div><div class="body">
+          <h3>装训练环境</h3><p>一键装好 Python 3.11 和 PyTorch（50 系显卡要 CUDA 12.8 版）。装在捞捞算力自己的文件夹里，不影响电脑上原来的东西。大约要下载 3G。</p>
+          <div class="term" id="envTerm" hidden></div>
+          <div class="btns"><button class="btn primary" id="envGo">一键安装</button><button class="btn ghost" id="envCheck">检查</button><button class="btn ghost" id="envCancel" hidden>取消</button></div>
+          <p class="muted small" id="envState"></p></div></div>
+        <div class="step" data-s="test"><div class="num">3</div><div class="body">
+          <h3>跑通测试</h3><p>用显卡算一小会儿，测一测这台电脑有多快。</p>
+          <div class="term" id="testTerm" hidden></div>
+          <button class="btn primary" id="testGo">开始测试</button>
+          <p class="result" id="testOut"></p></div></div>
+        <div class="step" data-s="record"><div class="num">4</div><div class="body">
+          <h3>录表情</h3><p>对着摄像头读讲稿，教 AI「说这句话时脸怎么动」。<b>只上传表情参数和录音，视频不保存、不上传。</b>每段 10 句左右，大约 3 分钟。</p>
+          <button class="btn primary" id="recGo">开始录</button>
+          <p class="muted small" id="recState"></p></div></div>
+        <div class="step" data-s="policy"><div class="num">5</div><div class="body">
+          <h3>挂机设置</h3><p>什么时候可以用这台电脑算。你一用电脑、一开游戏，马上让出显卡。</p>
+          <div class="policy">
+            <label class="radio"><input type="radio" name="mode" value="idle"> 空闲时算（推荐）：<input type="number" id="pIdle" min="1" max="120" value="5"> 分钟不动鼠标键盘就开始</label>
+            <label class="radio"><input type="radio" name="mode" value="schedule"> 定时算：<input type="time" id="pFrom" value="22:00"> 到 <input type="time" id="pTo" value="08:00"></label>
+            <label class="radio"><input type="radio" name="mode" value="always"> 一直算（电脑开着就算）</label>
+            <label class="radio"><input type="radio" name="mode" value="off"> 不算（只做人工审核和录表情）</label>
+            <div class="row3">
+              <label>显卡温度上限 <input type="number" id="pTemp" min="60" max="90" value="83"> ℃</label>
+              <label class="check"><input type="checkbox" id="pGames" checked> 别的程序用显卡时让给它</label>
+              <label class="check"><input type="checkbox" id="pAuto"> 开机自动启动（在托盘里）</label>
+            </div>
+          </div>
+          <button class="btn primary" id="policyGo">保存</button> <span class="muted small" id="policyState"></span></div></div>
+      </div>
+    </section>
+
+    <!-- 人工审核 -->
+    <section class="page" id="p-review">
+      <h2>人工审核 <small class="muted">大家都能做：每投一票 +1 分。快捷键 1 / 2 / 3 / 0</small></h2>
+      <div id="rvBox" class="glass panel review"></div>
+    </section>
+
+    <!-- 录表情（放在一个单独的小页面里：认脸要用 wasm） -->
+    <section class="page" id="p-record">
+      <iframe id="recFrame" src="about:blank" allow="camera; microphone"></iframe>
+    </section>
+
+    <!-- 贡献榜 -->
+    <section class="page" id="p-board">
+      <h2>贡献榜 <small class="muted">算力每分钟 1 分，录表情每分钟 3 分，审核每票 1 分。模型开源时写进致谢名单。</small></h2>
+      <div class="podium" id="podium"></div>
+      <div class="glass panel"><table class="tbl" id="boardTbl"></table></div>
+    </section>
+
+    <!-- 控制中心（管理员） -->
+    <section class="page" id="p-admin">
+      <div class="glass panel center"><h3>控制中心</h3><p>总体进度、每台电脑、每个任务、审核、发邀请，都在控制中心里。</p><button class="btn primary" id="adminGo">打开控制中心</button></div>
+    </section>
+  </main>
+</div>
+<div id="toast" class="toast" hidden></div>
+<script src="chart.js"></script>
+<script src="starmap.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

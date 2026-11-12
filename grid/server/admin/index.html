@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>捞捞算力 · 控制中心</title>
+<link rel="icon" href="icon.png">
+<link rel="stylesheet" href="admin.css">
+</head>
+<body>
+<section id="login" class="login" hidden>
+  <div class="card">
+    <img src="icon.png" alt="" width="72" height="72">
+    <h1>捞捞算力 · 控制中心</h1>
+    <p>输入管理员口令（调度中心第一次启动时生成，在服务器的 data/admin.txt 里）</p>
+    <input id="tok" type="password" placeholder="adm_…" autocomplete="off">
+    <button id="loginGo" class="btn primary">进入</button>
+    <p class="err" id="loginErr"></p>
+  </div>
+</section>
+
+<div id="app" hidden>
+  <header>
+    <div class="brand"><img src="icon.png" alt="" width="34" height="34"><div><b>捞捞算力</b><small>控制中心</small></div></div>
+    <div class="kpis">
+      <div><b id="kTotal">0%</b><small>总体进度</small></div>
+      <div><b id="kOnline">0</b><small>台在线</small></div>
+      <div><b id="kBusy">0</b><small>台在算</small></div>
+      <div><b id="kHours">0</b><small>算力小时</small></div>
+      <div><b id="kReview">0</b><small>条待审核</small></div>
+      <div><b id="kMembers">0</b><small>位成员</small></div>
+    </div>
+    <div class="acts">
+      <button class="btn" id="inviteBtn">＋ 发邀请</button>
+      <button class="btn primary" id="jobBtn">＋ 新任务</button>
+    </div>
+  </header>
+  <div class="progress-strip"><i id="totalBar"></i></div>
+
+  <main>
+    <section class="stages" id="stages"></section>
+    <section class="cols">
+      <div class="card">
+        <h2>任务 <small id="jobCount"></small></h2>
+        <table class="tbl" id="jobs"></table>
+      </div>
+      <div class="card">
+        <h2>电脑 <small id="devCount"></small></h2>
+        <div class="devs" id="devs"></div>
+      </div>
+    </section>
+    <section class="cols3">
+      <div class="card"><h2>动态</h2><div class="feed" id="feed"></div></div>
+      <div class="card"><h2>贡献榜</h2><table class="tbl" id="board"></table></div>
+      <div class="card"><h2>邀请</h2><div id="invites" class="invites"></div></div>
+    </section>
+  </main>
+</div>
+
+<!-- 右边抽屉：任务详情 / 电脑实时 -->
+<aside id="drawer" class="drawer" hidden>
+  <button class="x" id="drawerX">×</button>
+  <div id="drawerBody"></div>
+</aside>
+
+<!-- 发邀请 -->
+<div class="modal" id="mInvite" hidden><div class="card">
+  <h2>发邀请</h2>
+  <label>备注（给谁）<input id="iNote" placeholder="比如：张三"></label>
+  <div class="row"><label>身份<select id="iRole"><option value="member">成员</option><option value="admin">管理员</option></select></label>
+  <label>能用几次<input id="iUses" type="number" value="1" min="1" max="100"></label>
+  <label>几小时内有效<input id="iHours" type="number" value="72" min="1" max="720"></label></div>
+  <div id="iOut" class="out" hidden></div>
+  <div class="row end"><button class="btn" data-close>关闭</button><button class="btn primary" id="iGo">生成邀请链接</button></div>
+</div></div>
+
+<!-- 新任务 -->
+<div class="modal" id="mJob" hidden><div class="card wide">
+  <h2>新任务</h2>
+  <div class="row"><label>名字<input id="nName" placeholder="比如：生成 Q版角色（第一批）"></label><label>阶段<input id="nStage" list="stageList" placeholder="比如：阶段 1 · 数据"></label><datalist id="stageList"></datalist></div>
+  <div class="row">
+    <label>分法<select id="nKind">
+      <option value="map">生成 / 评测：拆成很多小任务，谁空谁领</option>
+      <option value="relay">接力训练：一台算一段，停了下一台接着算</option>
+      <option value="diloco">多台一起训（DiLoCo）：各算一段再合并</option>
+      <option value="record">录表情（人工）：成员在软件里一段段录</option>
+    </select></label>
+    <label>配方<select id="nRecipe"></select></label>
+    <label>优先级<input id="nPri" type="number" value="0"></label>
+  </div>
+  <label>参数（JSON）<textarea id="nParams" rows="6"></textarea></label>
+  <label>对电脑的要求（JSON，比如 {"vram": 8, "ram": 32}）<input id="nReq" value="{}"></label>
+  <p class="muted small">配方要先在你自己的电脑上签名上传：<code>node tools/grid.js publish 配方.py</code>（私钥只在你电脑上，别人冒充不了）。</p>
+  <p class="err" id="nErr"></p>
+  <div class="row end"><button class="btn" data-close>取消</button><button class="btn primary" id="nGo">建任务</button></div>
+</div></div>
+<div id="toast" class="toast" hidden></div>
+<script src="chart.js"></script>
+<script src="admin.js"></script>
+</body>
+</html>

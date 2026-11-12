@@ -1,0 +1,60 @@
+{
+  "name": "laolao-grid",
+  "productName": "捞捞算力",
+  "version": "0.1.0",
+  "description": "捞捞算力：几台电脑一起训练捞捞的模型，一台停了下一台接着算",
+  "main": "app/main.js",
+  "author": "捞捞",
+  "license": "Apache-2.0",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "server": "node server/index.js",
+    "prepare-ui": "node scripts/prepare.js",
+    "test": "node test/core.test.js && node test/chaos.test.js && node test/live.test.js",
+    "dist": "node scripts/prepare.js && electron-builder --win nsis"
+  },
+  "dependencies": {
+    "@mediapipe/face_mesh": "0.4.1633559619"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "cn.laolaokechengbiao.grid",
+    "productName": "捞捞算力",
+    "copyright": "捞捞",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "app/**",
+      "worker/**",
+      "py/**",
+      "recipes/**",
+      "shared/**",
+      "package.json",
+      "!app/renderer/__*"
+    ],
+    "asarUnpack": [
+      "py/**",
+      "recipes/**"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico",
+      "artifactName": "LaolaoGrid-Setup.exe"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "捞捞算力",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico"
+    }
+  }
+}
