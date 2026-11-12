@@ -75,7 +75,8 @@ function face(o = {}) {
   await sleep(600);
   assert.equal(svc.agent().status().state, "waiting");
   assert.match(svc.agent().status().why, /空闲/);
-  idle = 3600; await sleep(1500);
+  idle = 3600;
+  for (let i = 0; i < 150 && app.core.jobDetail(2).state !== "done"; i++) await sleep(100);
   assert.equal(app.core.jobDetail(2).state, "done", "空闲了就算完了");
   idle = 0;
   await svc.H.setPolicy({ mode: "schedule", from: "00:00", to: "00:00" });

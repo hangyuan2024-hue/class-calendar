@@ -20,9 +20,15 @@ import threading
 import time
 
 _out = sys.__stdout__
+# Windows 的控制台默认是 GBK / cp1252，写中文会报错：和客户端之间一律用 UTF-8
+for _s in (sys.__stdout__, sys.__stderr__):
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 _lock = threading.Lock()
 _task = None
-_recipe = os.path.abspath(os.environ.get("LG_RECIPE", sys.argv[0] if sys.argv else ""))
+_recipe = os.path.normcase(os.path.abspath(os.environ.get("LG_RECIPE", sys.argv[0] if sys.argv else "")))
 
 
 def _send(**m):
@@ -102,7 +108,7 @@ def _sampler(main_id):
             f = sys._current_frames().get(main_id)
             hit = None
             while f is not None:
-                if os.path.abspath(f.f_code.co_filename) == _recipe:
+                if os.path.normcase(os.path.abspath(f.f_code.co_filename)) == _recipe:
                     hit = f
                     break
                 f = f.f_back

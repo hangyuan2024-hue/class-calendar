@@ -31,7 +31,7 @@ let rnd = seed; const rand = () => ((rnd = (rnd * 1103515245 + 12345) % 21474836
   // 一台电脑从头算到尾的结果（对照）
   const ref = path.join(tmp, "ref"); fs.mkdirSync(ref);
   fs.writeFileSync(path.join(ref, "t.json"), JSON.stringify({ kind: "run", input: { from: 0, to: 300 }, job: { params: { ckptEvery: 1000 } }, work: ref }));
-  execFileSync(PY, [path.join(ROOT, "recipes/demo_relay.py")], { env: { ...process.env, PYTHONPATH: path.join(ROOT, "py"), LG_TASK: path.join(ref, "t.json") } });
+  execFileSync(PY, [path.join(ROOT, "recipes/demo_relay.py")], { env: { ...process.env, PYTHONPATH: path.join(ROOT, "py"), PYTHONIOENCODING: "utf-8", LG_TASK: path.join(ref, "t.json") } });
   const refFile = fs.readdirSync(ref).find((f) => f.startsWith("ckpt-300"));
   ok("对照：一台电脑从头算到第 300 步");
 
