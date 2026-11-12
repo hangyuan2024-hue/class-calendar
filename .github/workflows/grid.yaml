@@ -110,6 +110,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh workflow run site-cn.yml --repo "$GITHUB_REPOSITORY" --ref "${{ github.ref_name }}" \
-            && echo "已经让「网站国内加速」重新同步" \
-            || echo "::warning::没能自动触发「网站国内加速」，请到 Actions 里手动 Run workflow"
+          # GitHub 偶尔回 504：隔一会儿再试，试 4 次
+          for i in 1 2 3 4; do
+            if gh workflow run site-cn.yml --repo "$GITHUB_REPOSITORY" --ref "${{ github.ref_name }}"; then echo "已经让「网站国内加速」重新同步"; exit 0; fi
+            echo "第 $i 次没成功，等一会儿再试"; sleep $((i * 20))
+          done
+          echo "::warning::没能自动触发「网站国内加速」，请到 Actions 里手动 Run workflow"
