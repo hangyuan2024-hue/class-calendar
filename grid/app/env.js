@@ -73,14 +73,26 @@ function create({ dir, onEvent, python: given }) {
     if (!ok) throw new Error("装 numpy 这些基础包失败");
     say("pkgs", "基础的包装好了", { done: true });
     // 3. PyTorch（CUDA 12.8 版，50 系显卡要它）
+    //    坑：普通的 pip 源（清华、PyPI）上 Windows 的 torch 是「CPU 版」，混着源装就会装成看不到显卡的那个。
+    //    所以：先从普通源装 torch 要的小包，再只从「CUDA 版」的源装 torch 本身（--no-deps），装完核对 torch.version.cuda
     if (!skipTorch) {
+      const cudaOf = async () => { const o = await out(exe, ["-c", "import torch;print(torch.version.cuda or 'cpu')"]); return o ? o.trim().split("\n").pop() : null; };
+      let cv = await cudaOf();
+      if (cv && cv !== "cpu" && parseFloat(cv) >= 12.8) { say("torch", `已经有 CUDA ${cv} 版的 PyTorch`, { done: true }); return check(); }
+      if (cv) { say("torch", cv === "cpu" ? "现在装的是 CPU 版的 PyTorch（看不到显卡），先删掉换 CUDA 版" : `现在的 PyTorch 是 CUDA ${cv}，50 系显卡要 12.8 以上，换掉`); await run(exe, ["-m", "pip", "uninstall", "-y", "torch", "torchvision"], "torch").catch(() => {}); }
+      for (const idx of PIP) { try { await pip(["filelock", "typing-extensions", "sympy", "networkx", "jinja2", "fsspec", "-i", idx], "torch"); break; } catch (e) { if (cancelled) throw e; } }
       ok = false;
       for (const src of TORCH) {
-        try { await pip(["torch", "torchvision", ...src, "--extra-index-url", PIP[0]], "torch"); ok = true; break; }
-        catch (e) { if (cancelled) throw e; say("torch", "换一个镜像再试"); }
+        try {
+          say("torch", "从 " + new URL(src[1]).host + " 下载 CUDA 版的 PyTorch（约 3G）");
+          await pip(["torch", "torchvision", "--no-deps", "--force-reinstall", ...(src[0] === "-f" ? ["--no-index", "-f", src[1]] : ["--index-url", src[1]])], "torch");
+          cv = await cudaOf();
+          if (cv && cv !== "cpu") { ok = true; break; }
+          say("torch", "装上的还是 CPU 版，换一个源");
+        } catch (e) { if (cancelled) throw e; say("torch", "换一个镜像再试"); }
       }
-      if (!ok) throw new Error("PyTorch 装不上：换个时间再试，或者问管理员要离线安装包");
-      say("torch", "PyTorch 装好了", { done: true });
+      if (!ok) throw new Error("CUDA 版的 PyTorch 装不上：换个时间再试，或者问管理员要离线安装包");
+      say("torch", `PyTorch 装好了（CUDA ${cv}）`, { done: true });
     }
     return check();
   }
