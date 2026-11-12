@@ -13,6 +13,7 @@ const ENGINE = require("./engine");
 const MIRROR = require("./mirror");
 const INSTALL = require("./installer");
 const LLM = require("./llm");
+const GridModels = require("./gridmodels");
 const AGENT = require("./agent");
 const EDIT = require("./pptedit");
 const WF = require("./workflows");
@@ -51,6 +52,9 @@ function createService(env) {
   const mirror = MIRROR.create(env.mirrorOpt || {});
   const eng = ENGINE.create({ mirror, ...(env.engineOpt || {}) });
   // AI 助手：本地大模型 + 正在改的 PPT（edit.deck，改完另存）
+  // 捞捞自己训练的模型（捞捞算力每天训练、评测通过才发布）：后台自动下载，下次生成时才换上
+  const grid = GridModels.create({ dir: path.join(USER, "grid-models"), onEvent: (e) => send("aiav", { stage: "gridmodel", ...e }), ...(env.gridOpt || {}) });
+  if (env.gridModels !== false) grid.start();
   const llm = LLM.create({ dir: P("llm", "x").slice(0, -2), exe: env.llamaExe, exeCpu: env.llamaCpuExe, mirror, onState: (st) => send("agent", { type: "state", state: st }), ...(env.llmOpt || {}) });
   let edit = null;   // { deck, file, saved }
   const agent = AGENT.create({ llm, deck: () => (edit ? edit.deck : null), fileName: () => (edit ? path.basename(edit.file) : ""), onEvent: (e) => send("agent", e) });
@@ -275,7 +279,15 @@ function createService(env) {
       saveProfile();
       const name = await eng.upload(P(profile.photo), "laolao-photo" + path.extname(profile.photo));
       const n = Math.max(1, Math.min(4, parseInt(o.n) || 4));
-      const g = WF.portrait({ photo: name, style: a.style, extra: a.extra, batch: n, fast: o.quality !== "best", seed: crypto.randomInt(1, 2 ** 31) }, avName);
+      // 有捞捞Q版插件就用上（放进 ComfyUI 的 loras/laolao 文件夹）
+      const loras = [];
+      const q = grid.use("qversion-lora");
+      if (q && q.files.lora) {
+        const rel = `laolao/qversion-${q.version}.safetensors`, dst = path.join(avRt().models, "loras", ...rel.split("/"));
+        if (!fs.existsSync(dst)) { fs.mkdirSync(path.dirname(dst), { recursive: true }); fs.copyFileSync(q.files.lora, dst); }
+        loras.push({ name: rel, strength: +(q.metrics && q.metrics.strength) || 1 });
+      }
+      const g = WF.portrait({ photo: name, style: a.style, extra: a.extra, batch: n, fast: o.quality !== "best", seed: crypto.randomInt(1, 2 ** 31), loras }, avName);
       const tmp = path.dirname(avFile("tmp", "x")); fs.rmSync(tmp, { recursive: true, force: true });
       const files = await eng.run("画 Q版形象", g, tmp, (m) => avSend({ ...m, step: m.stage, stage: "portrait" }));
       const dir = path.dirname(avFile("cands", "x")); fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true });
@@ -645,7 +657,9 @@ function createService(env) {
     openFile(f) { if (!outputs.has(f)) throw new Error("不能打开这个文件"); env.openPath(f); return true; },
     reveal(f) { if (!outputs.has(f)) throw new Error("不能打开这个文件"); env.reveal(f); return true; },
   };
-  return { H, shutdown: () => { voice.stop(); eng.stop(); llm.stop(); } };
+  H.gridModels = async () => grid.status();
+  H.gridModelsCheck = async () => grid.check();
+  return { H, shutdown: () => { voice.stop(); eng.stop(); llm.stop(); grid.stop(); }, grid };
 }
 
 module.exports = { createService };

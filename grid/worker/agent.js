@@ -185,6 +185,9 @@ function create(opt) {
       if (L.resume) { const f = path.join(dir, "resume-" + path.basename(L.resume.key)); c.note = "下载存档…"; await xfer("GET", L.resume.url, f); t.resume = f; t.resumeInfo = { step: L.resume.step, round: L.resume.round }; }
       for (const [i, u] of (L.task.input.partUrls || []).entries()) { const f = path.join(dir, `part-${i}.npz`); await xfer("GET", u, f); t.parts.push(f); }
       delete t.input.partUrls;
+      // 前面步骤的结果文件、接着训练的起点：下载到本机
+      t.files = {}; t.deps = L.deps || {};
+      for (const [k, u] of Object.entries(L.fileUrls || {})) { const f = path.join(dir, "in-" + k.replace(/[^\w.\-]/g, "_")); c.note = "下载 " + k + "…"; await xfer("GET", u, f); t.files[k] = f; }
       fs.writeFileSync(path.join(dir, "task.json"), JSON.stringify(t));
       renewTimer = setInterval(() => renew(c).catch(() => {}), opt.renewMs || 20000);
       const code = await spawnPy(c, rc.file, path.join(dir, "task.json"));
@@ -194,7 +197,13 @@ function create(opt) {
       if (code !== 0 || !c.result) throw new Error((c.logs.filter((l) => l.level === "error").slice(-6).map((l) => l.msg).join("\n")) || `配方退出码 ${code}`);
       // 结果里的文件：上传，换成存储地址
       const result = {};
-      for (const [k, v] of Object.entries(c.result)) result[k] = v && v.$file ? await put(c, v.$file, k) : v;
+      for (const [k, v] of Object.entries(c.result)) {
+        if (!(v && v.$file)) { result[k] = v; continue; }
+        result[k] = await put(c, v.$file, k);
+        // 发布给老师端要用：大小和 sha256
+        result[k + "_size"] = fs.statSync(v.$file).size;
+        result[k + "_sha256"] = await new Promise((ok, bad) => { const h = crypto.createHash("sha256"); fs.createReadStream(v.$file).on("data", (d) => h.update(d)).on("end", () => ok(h.digest("hex"))).on("error", bad); });
+      }
       const secs = (Date.now() - c.started) / 1000;
       const r = await api("/api/done", { task: c.id, result, outputs: c.outputs, reviews: c.reviews, secs, metrics: c.metrics.splice(0) });
       log(r.ok ? `做完了「${L.job.name}」，用了 ${Math.round(secs)} 秒` : r.why, r.ok ? "ok" : "warn");

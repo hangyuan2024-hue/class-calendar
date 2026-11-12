@@ -4,6 +4,7 @@
 //   node tools/grid.js publish <配方.py> [名字]             签名并上传一个配方，打印配方编号
 //   node tools/grid.js job <计划.json>                      按计划建任务（见 plans/demo.json）
 //   node tools/grid.js invite [备注] [--admin] [--uses 5]   发邀请链接
+//   node tools/grid.js cycle <每日一轮.json> [--now]          设每日一轮（签名上传用到的配方）；--now 马上跑一轮
 "use strict";
 const fs = require("fs");
 const os = require("os");
@@ -56,7 +57,20 @@ async function plan(c, file) {
   return out;
 }
 
-module.exports = { keypair, sign, publish, plan, login, api };
+// 每日一轮：{ name, at, stages: [{ key, kind, recipe: 名字, recipeFile: 配方.py, params, after }], publish }
+async function cycle(c, file) {
+  const p = JSON.parse(fs.readFileSync(file, "utf8"));
+  const done = new Set();
+  for (const s of p.stages) {
+    if (s.recipeFile && !done.has(s.recipe)) { await publish(c, path.resolve(path.dirname(file), s.recipeFile), s.recipe); done.add(s.recipe); }
+  }
+  const spec = { ...p, stages: p.stages.map(({ recipeFile, ...s }) => s) };
+  const r = await api(c, "/api/admin/pipeline", spec);
+  console.log(`每日一轮「${p.name}」设好了（#${r.id}）：每天 ${p.at || "18:30"} 自动开始`);
+  return r.id;
+}
+
+module.exports = { keypair, sign, publish, plan, login, api, cycle };
 
 if (require.main === module) {
   const [cmd, ...a] = process.argv.slice(2);
@@ -66,11 +80,12 @@ if (require.main === module) {
     if (cmd === "login") await login(a[0], a[1]);
     else if (cmd === "publish") { need(); console.log(await publish(c, a[0], a[1])); }
     else if (cmd === "job") { need(); await plan(c, a[0]); }
+    else if (cmd === "cycle") { need(); const id = await cycle(c, a[0]); if (a.includes("--now")) { const r = await api(c, "/api/admin/pipeline/run", { id }); console.log(`现在就跑第 ${r.run} 轮`); } }
     else if (cmd === "invite") {
       need();
       const uses = a.includes("--uses") ? +a[a.indexOf("--uses") + 1] : 1;
       const r = await api(c, "/api/admin/invite", { note: a.find((x) => !x.startsWith("--") && !/^\d+$/.test(x)) || "", role: a.includes("--admin") ? "admin" : "member", maxUses: uses, server: c.server });
       console.log(`邀请码 ${r.code}（${new Date(r.expires).toLocaleString()} 前有效）\n把下面这一串发给他，在「捞捞算力」里粘贴：\n${r.link}`);
-    } else console.log(fs.readFileSync(__filename, "utf8").split("\n").slice(1, 7).join("\n").replace(/^\/\/ ?/gm, ""));
+    } else console.log(fs.readFileSync(__filename, "utf8").split("\n").slice(1, 8).join("\n").replace(/^\/\/ ?/gm, ""));
   })().catch((e) => { console.error(e.message); process.exit(1); });
 }

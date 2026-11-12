@@ -1,0 +1,10 @@
+{
+  "name": "试运行：每日一轮",
+  "at": "19:00",
+  "stages": [
+    { "key": "gen", "name": "生成今天的数据", "kind": "map", "recipe": "demo_cycle", "recipeFile": "../recipes/demo_cycle.py", "params": { "count": 4 } },
+    { "key": "train", "name": "接着上一版训练", "kind": "relay", "recipe": "demo_cycle", "recipeFile": "../recipes/demo_cycle.py", "params": { "totalSteps": 1, "segSteps": 1, "steps": 300, "warmStart": "$model:demo-curve/model" }, "after": ["gen"] },
+    { "key": "eval", "name": "评测", "kind": "map", "recipe": "demo_cycle", "recipeFile": "../recipes/demo_cycle.py", "params": { "count": 1 }, "after": ["train"] }
+  ],
+  "publish": { "model": "demo-curve", "from": "eval", "files": ["model"], "metrics": [{ "k": "score", "better": "higher", "tol": 0 }] }
+}

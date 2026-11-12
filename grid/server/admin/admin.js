@@ -57,6 +57,23 @@
     $("#board").innerHTML = `<tr><th>#</th><th>名字</th><th>积分</th><th>算力</th><th>审核</th><th>录表情</th></tr>` + ov.board.map((m, i) => `<tr><td>${i + 1}</td><td>${esc(m.name)}</td><td class="num">${Math.round(m.points)}</td><td>${dur(m.secs)}</td><td>${m.reviews}</td><td>${m.records}</td></tr>`).join("");
     if (open) (open.kind === "job" ? openJob : openDev)(open.id, true);
   }
+  // ---- 每日一轮、模型版本 ----
+  async function loadCycle() {
+    const c = await api("/api/admin/cycle").catch(() => null);
+    if (!c) return;
+    const RS = { done: "完成", running: "进行中", failed: "失败" };
+    $("#pipes").innerHTML = c.pipelines.map((p) => `<div class="pipe"><b>${esc(p.name)}</b><small>每天 ${esc(p.at)} · ${p.stages.map(esc).join(" → ")}${p.enabled ? "" : " · 已停用"}</small>
+      <div class="runs">${p.runs.map((r) => `<span class="run ${r.state}" title="第 ${r.id} 轮">${esc(r.day.slice(5))} ${RS[r.state] || r.state}</span>`).join("") || `<span class="muted small">还没跑过</span>`}
+      <button class="btn sm" data-run="${p.id}">现在跑一轮</button><button class="btn sm" data-en="${p.id}" data-v="${p.enabled ? 0 : 1}">${p.enabled ? "停用" : "启用"}</button></div></div>`).join("") || `<p class="muted">还没设每日一轮：node tools/grid.js cycle 每日一轮.json</p>`;
+    $$("#pipes [data-run]").forEach((b) => (b.onclick = guard(async () => { const r = await api("/api/admin/pipeline/run", { id: +b.dataset.run }); toast(`第 ${r.run} 轮开始了`); refresh(); loadCycle(); })));
+    $$("#pipes [data-en]").forEach((b) => (b.onclick = guard(async () => { await api("/api/admin/pipeline/enable", { id: +b.dataset.en, enabled: b.dataset.v === "1" }); loadCycle(); })));
+    const MS = { released: "已发布", candidate: "等你确认", rejected: "没发布" };
+    const active = new Set(); const seen = new Set();
+    for (const m of c.models) if (m.state === "released" && !seen.has(m.name)) { seen.add(m.name); active.add(m.id); }
+    $("#models").innerHTML = `<tr><th>模型</th><th>版本</th><th>评测</th><th>状态</th><th></th></tr>` + c.models.map((m) => `<tr><td>${esc(m.name)}</td><td class="num">第 ${m.version} 版</td><td>${Object.entries(m.metrics).map(([k, v]) => `${esc(k)} ${typeof v === "number" ? +v.toFixed(4) : esc(v)}`).join("，")}<small>${esc(m.note || "")} · ${ago(m.created)}</small></td><td><span class="st ${m.state}">${active.has(m.id) ? "老师端在用" : m.state === "released" ? "以前发布的" : MS[m.state] || m.state}</span></td>
+      <td>${m.state === "released" ? `<button class="btn sm" data-m="${m.id}" data-s="rejected">撤回</button>` : `<button class="btn sm" data-m="${m.id}" data-s="released">发布</button>`}</td></tr>`).join("");
+    $$("#models [data-m]").forEach((b) => (b.onclick = guard(async () => { if (b.dataset.s === "rejected" && !confirm("撤回这一版？老师端会退回上一版。")) return; await api("/api/admin/model/set", { id: +b.dataset.m, state: b.dataset.s }); loadCycle(); })));
+  }
   async function loadInvites() {
     const list = await api("/api/admin/invites").catch(() => []);
     $("#invites").innerHTML = list.slice(0, 8).map((i) => `<div><span><code>${esc(i.code)}</code> ${esc(i.note || "")} ${i.role === "admin" ? "（管理员）" : ""}</span><span class="muted">${i.uses}/${i.max_uses} · ${i.expires < Date.now() ? "过期" : ago(i.created)}</span></div>`).join("") || `<p class="muted">还没发过邀请</p>`;
@@ -147,7 +164,7 @@
   };
   $$("[data-close]").forEach((b) => (b.onclick = () => (b.closest(".modal").hidden = true)));
 
-  function start() { $("#login").hidden = true; $("#app").hidden = false; refresh(); loadInvites(); clearInterval(start.t); start.t = setInterval(refresh, 2500); }
+  function start() { $("#login").hidden = true; $("#app").hidden = false; refresh(); loadInvites(); loadCycle(); clearInterval(loadCycle.t); loadCycle.t = setInterval(loadCycle, 10000); clearInterval(start.t); start.t = setInterval(refresh, 2500); }
   if (token) api("/api/admin/overview").then(start, () => {}); else showLogin();
   window.__ready = true;
 })();

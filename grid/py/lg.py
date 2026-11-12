@@ -31,9 +31,20 @@ _task = None
 _recipe = os.path.normcase(os.path.abspath(os.environ.get("LG_RECIPE", sys.argv[0] if sys.argv else "")))
 
 
+def _clean(v):
+    # NaN / 无穷大（训练发散时常见）JSON 里放不下：换成 None
+    if isinstance(v, float) and (v != v or v in (float("inf"), float("-inf"))):
+        return None
+    if isinstance(v, dict):
+        return {k: _clean(x) for k, x in v.items()}
+    if isinstance(v, (list, tuple)):
+        return [_clean(x) for x in v]
+    return v
+
+
 def _send(**m):
     with _lock:
-        _out.write("@@lg " + json.dumps(m, ensure_ascii=False) + "\n")
+        _out.write("@@lg " + json.dumps(_clean(m), ensure_ascii=False) + "\n")
         _out.flush()
 
 
@@ -61,7 +72,7 @@ def log(*a):
 
 
 def metric(step, **kv):
-    _send(t="metric", step=int(step), **{k: float(v) for k, v in kv.items()})
+    _send(t="metric", step=int(step), **{k: float(v) for k, v in kv.items() if v is not None})
 
 
 def progress(p, note=None):
@@ -88,6 +99,22 @@ def review(kind="ab", **payload):
         if k in payload and payload[k]:
             payload[k] = os.path.abspath(payload[k])
     _send(t="review", kind=kind, **payload)
+
+
+def download(url, dest):
+    """下载一个文件（前面步骤交的结果：t["deps"][步骤]["outputs"][i]["url"]）。下过的不再下。"""
+    import urllib.request
+    if os.path.exists(dest) and os.path.getsize(dest) > 0:
+        return dest
+    tmp = dest + ".part"
+    with urllib.request.urlopen(url, timeout=120) as r, open(tmp, "wb") as f:
+        while True:
+            b = r.read(1 << 20)
+            if not b:
+                break
+            f.write(b)
+    os.replace(tmp, dest)
+    return dest
 
 
 def done(**result):

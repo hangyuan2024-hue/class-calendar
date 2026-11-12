@@ -12,6 +12,7 @@ const path = require("path");
 const crypto = require("crypto");
 const Core = require("./core");
 const Store = require("./store");
+const Cycle = require("./cycle");
 
 function arg(name, d) { const i = process.argv.indexOf("--" + name); return i > 0 ? process.argv[i + 1] : process.env["GRID_" + name.toUpperCase()] || d; }
 
@@ -28,6 +29,10 @@ function create(opt = {}) {
   const store = env.GRID_COS_BUCKET ? Store.cos({ endpoint: env.GRID_COS_ENDPOINT, region: env.GRID_COS_REGION, bucket: env.GRID_COS_BUCKET, keyId: env.GRID_COS_KEY_ID, secret: env.GRID_COS_SECRET, prefix: env.GRID_COS_PREFIX }) : local;
   const ADMIN_DIR = path.join(__dirname, "admin");
   const maxBlob = opt.maxBlob || 40e9;
+  const cycle = Cycle.attach(core, opt);
+  const tickTimer = opt.noTick ? null : setInterval(() => { try { cycle.tick(); } catch (e) {} }, opt.tickMs || 30000);
+  // 老师端读的发布清单：每个文件给一个固定地址（/pub/<key>），真正下载时再转到临时链接
+  const pubManifest = () => { const m = cycle.manifest(); for (const v of Object.values(m.models)) v.files = v.files.map((f) => ({ ...f, url: `${publicBase}/pub/${f.key}` })); return m; };
 
   const json = (res, code, obj) => { const b = Buffer.from(JSON.stringify(obj)); res.writeHead(code, { "content-type": "application/json; charset=utf-8", "content-length": b.length, "cache-control": "no-store", "access-control-allow-origin": "*" }); res.end(b); };
   const body = (req, limit = 4e6) => new Promise((ok, bad) => {
@@ -57,6 +62,8 @@ function create(opt = {}) {
       const r = core.lease(dev, b.caps || {});
       if (r && r.recipe) r.recipe.url = store.url("GET", r.recipe.key, 3600);
       if (r && r.resume) r.resume.url = store.url("GET", r.resume.key, 3600);
+      if (r && r.deps) for (const d of Object.values(r.deps)) d.outputs = (d.outputs || []).map((o) => ({ ...o, url: store.url("GET", o.key, 6 * 3600) }));
+      if (r && r.files) r.fileUrls = Object.fromEntries(Object.entries(r.files).map(([k, v]) => [k, store.url("GET", v, 6 * 3600)]));
       if (r && r.task.kind === "merge") r.task.input.partUrls = (r.task.input.parts || []).map((k) => store.url("GET", k, 3600));
       return { task: r };
     },
@@ -110,6 +117,12 @@ function create(opt = {}) {
     "POST /api/admin/pubkey": (req, b) => { if (core.kv.get("pubkey") && !b.force) throw new Error("已经设过公钥了"); core.kv.set("pubkey", b.pubkey); return { ok: true }; },
     "GET /api/admin/recipe": (req, b, dev, u) => { const r = core.recipe(u.searchParams.get("id")); if (!r) throw new Error("没有"); return { ...r, source: store.kind === "local" && local.exists(r.key) ? fs.readFileSync(local.file(r.key), "utf8") : null, url: store.url("GET", r.key, 600) }; },
     "GET /api/admin/export": (req, b, dev, u) => ({ reviews: core.exportReviews(+u.searchParams.get("job")), outputs: core.outputs(+u.searchParams.get("job")) }),
+    // 每日一轮、模型版本
+    "GET /api/admin/cycle": () => cycle.view(),
+    "POST /api/admin/pipeline": (req, b) => ({ id: cycle.setPipeline(b) }),
+    "POST /api/admin/pipeline/run": (req, b) => ({ run: cycle.startRun(+b.id, "管理员点了「现在跑一轮」") }),
+    "POST /api/admin/pipeline/enable": (req, b) => (cycle.setEnabled(+b.id, !!b.enabled), { ok: true }),
+    "POST /api/admin/model/set": (req, b) => cycle.setModel(+b.id, b.state),
     "POST /api/admin/geturl": (req, b) => { if (!Store.okKey(b.key)) throw new Error("文件名不对"); return { url: store.url("GET", b.key, 3600) }; },
   };
 
@@ -119,6 +132,13 @@ function create(opt = {}) {
     try {
       if (req.method === "OPTIONS") { res.writeHead(204, { "access-control-allow-origin": "*", "access-control-allow-headers": "authorization, content-type", "access-control-allow-methods": "GET, POST, PUT" }); return res.end(); }
       if (u.pathname.startsWith("/blob/")) return blob(req, res, u);
+      if (u.pathname === "/pub/models/manifest.json") return json(res, 200, pubManifest());
+      if (u.pathname.startsWith("/pub/")) {
+        const key = decodeURIComponent(u.pathname.slice(5));
+        if (!cycle.publicKeys().has(key)) return json(res, 404, { error: "没有这个文件" });
+        if (store.kind === "local") { u.searchParams.set("exp", String(Math.floor(Date.now() / 1000) + 600)); return blob(Object.assign(req, { method: req.method === "HEAD" ? "HEAD" : "GET" }), res, new URL(store.url("GET", key, 600))); }
+        res.writeHead(302, { location: store.url("GET", key, 6 * 3600) }); return res.end();
+      }
       if (u.pathname === "/" || u.pathname === "/admin") { res.writeHead(302, { location: "/admin/" }); return res.end(); }
       if (u.pathname.startsWith("/admin/")) return staticFile(res, ADMIN_DIR, u.pathname.slice(7) || "index.html");
       const route = routes[`${req.method} ${u.pathname}`];
@@ -189,7 +209,8 @@ function create(opt = {}) {
     core, store, server,
     listen(port, host) { return new Promise((ok) => server.listen(port, host, () => { if (!opt.public) publicBase = `http://${host === "0.0.0.0" || !host ? "127.0.0.1" : host}:${server.address().port}`; ok(server.address().port); })); },
     setPublic(u) { publicBase = u; },
-    close() { server.close(); core.close(); },
+    close() { clearInterval(tickTimer); server.close(); core.close(); },
+    cycle,
   };
 }
 

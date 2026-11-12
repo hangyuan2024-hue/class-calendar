@@ -81,13 +81,15 @@ function plan(vramGB) {
 
 // ---- 节点图 ----
 // file(name) 是老师电脑上确定下来的文件名（不同量化版本名字不同）
-function qwenModel(g, file, fast) {
+// loras：捞捞自己训练的插件（[{ name: "laolao/qversion-3.safetensors", strength }]），接在加速插件后面
+function qwenModel(g, file, fast, loras = []) {
   g["1"] = { class_type: "UNETLoader", inputs: { unet_name: file("qwenEdit"), weight_dtype: "default" } };
   g["2"] = { class_type: "CLIPLoader", inputs: { clip_name: file("qwenClip"), type: "qwen_image", device: "default" } };
   g["3"] = { class_type: "VAELoader", inputs: { vae_name: file("qwenVae") } };
   g["4"] = { class_type: "ModelSamplingAuraFlow", inputs: { model: ["1", 0], shift: 3.1 } };
   let m = ["4", 0];
   if (fast) { g["5"] = { class_type: "LoraLoaderModelOnly", inputs: { model: m, lora_name: file("qwenFast"), strength_model: 1 } }; m = ["5", 0]; }
+  loras.forEach((l, i) => { const id = "7" + i; g[id] = { class_type: "LoraLoaderModelOnly", inputs: { model: m, lora_name: l.name, strength_model: l.strength || 1 } }; m = [id, 0]; });
   g["6"] = { class_type: "CFGNorm", inputs: { model: m, strength: 1 } };
   return ["6", 0];
 }
@@ -104,9 +106,9 @@ function qwenEdit(g, model, image, prompt, neg, latent, seed, fast) {
 }
 
 // 照片 → Q版形象（竖图 768×1344；batch 张一起画，种子不同）
-function portrait({ photo, style = "toy", extra = "", seed = 1, batch = 4, fast = true, width = 768, height = 1344, prefix = "laolao/portrait" }, file) {
+function portrait({ photo, style = "toy", extra = "", seed = 1, batch = 4, fast = true, width = 768, height = 1344, prefix = "laolao/portrait", loras = [] }, file) {
   const g = {};
-  const model = qwenModel(g, file, fast);
+  const model = qwenModel(g, file, fast, loras);
   g["10"] = { class_type: "LoadImage", inputs: { image: photo } };
   g["11"] = { class_type: "FluxKontextImageScale", inputs: { image: ["10", 0] } };
   g["12"] = { class_type: "EmptySD3LatentImage", inputs: { width, height, batch_size: Math.max(1, Math.min(4, batch | 0)) } };

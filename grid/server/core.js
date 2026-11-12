@@ -194,6 +194,9 @@ function open(file, opt = {}) {
       const jobs = all("select * from jobs where state='active' and kind!='record' order by priority desc, id asc");
       for (const j of jobs) {
         if (!fits(J(j.req), caps)) continue;
+        // 每日一轮里的任务：前面的步骤做完了才能开始
+        const deps = J(j.deps, []) || [];
+        if (deps.length && one(`select count(*) as n from jobs where id in (${deps.map(Number).join(",")}) and state!='done'`).n) continue;
         // 失败过的任务，排在后面再试；一台电脑不重复领自己刚失败的
         const t = one("select * from tasks where job_id=? and state='queued' and kind in ('run','merge') order by errors asc, case kind when 'merge' then 0 else 1 end, round asc, seq asc limit 1", j.id);
         if (!t) continue;
@@ -218,6 +221,20 @@ function open(file, opt = {}) {
     const j = one("select * from jobs where id=?", t.job_id);
     const r = j.recipe_id && one("select * from recipes where id=?", j.recipe_id);
     const out = { task: { id: t.id, kind: t.kind, seq: t.seq, round: t.round, input: J(t.input, {}), attempts: t.attempts, leaseUntil: t.lease_until }, job: { id: j.id, name: j.name, kind: j.kind, params: J(j.params, {}) }, recipe: r ? { id: r.id, name: r.name, key: r.key, sig: r.sig, meta: J(r.meta, {}) } : null, resume: null };
+    // 前面步骤的结果（文件由电脑下载到本机）、接着上一版训练的起点（warmStart）
+    const deps = J(j.deps, []) || [];
+    if (deps.length) {
+      out.deps = {}; out.files = {};
+      for (const d of deps) {
+        const dj = one("select * from jobs where id=?", d);
+        if (!dj) continue;
+        const k = (J(dj.params, {}) || {}).stageKey || String(d), res = (J(dj.meta, {}) || {}).result || {};
+        out.deps[k] = { result: res, outputs: all("select name, key, size from outputs where job_id=? order by id", d) };
+        for (const [n, v] of Object.entries(res)) if (typeof v === "string" && /^jobs\//.test(v)) out.files[`${k}.${n}`] = v;
+      }
+    }
+    const ws = (J(j.params, {}) || {}).warmStart;
+    if (typeof ws === "string" && /^jobs\//.test(ws)) (out.files = out.files || {}).warmStart = ws;
     if (j.kind === "relay") {
       const c = one("select * from ckpts where job_id=? and kind='relay' order by step desc, id desc limit 1", j.id);
       if (c) out.resume = { key: c.key, step: c.step };
@@ -271,7 +288,7 @@ function open(file, opt = {}) {
       if (j.kind === "map") {
         const left = one("select count(*) as n from tasks where job_id=? and state in ('queued','leased')", j.id).n;
         run("update jobs set done=(select count(*) from tasks where job_id=? and state='done') where id=?", j.id, j.id);
-        if (!left) endJob(j);
+        if (!left) endJob(j, j.total === 1 ? result : undefined);   // 只有一个小任务的（比如评测）：它的结果就是整个任务的结果
       }
       if (j.kind === "relay") {
         const i = J(t.input, {});

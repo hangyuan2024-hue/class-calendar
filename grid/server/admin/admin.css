@@ -99,3 +99,10 @@ main { padding: 18px 26px 40px; display: grid; gap: 16px; }
 @media (max-width: 1100px) { .cols, .cols3 { grid-template-columns: 1fr; } .kpis { flex-wrap: wrap; gap: 14px; } header { flex-wrap: wrap; } }
 ::-webkit-scrollbar { width: 8px; height: 8px; } ::-webkit-scrollbar-thumb { background: rgba(120, 170, 255, .2); border-radius: 9px; }
 .dev .ver { font-family: var(--mono); font-size: 11px; color: var(--mut); margin-left: 4px; } .dev .ver.old { color: var(--am); }
+.pipes { display: grid; gap: 10px; }
+.pipe { padding: 12px; border-radius: 12px; background: rgba(0, 0, 0, .25); border: 1px solid var(--line); }
+.pipe b { font-size: 13px; } .pipe small { display: block; color: var(--mut); font-size: 11.5px; margin: 3px 0 8px; }
+.pipe .runs { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.pipe .run { font-size: 11px; padding: 2px 8px; border-radius: 99px; background: rgba(255, 255, 255, .06); }
+.pipe .run.done { color: var(--gr); } .pipe .run.running { color: var(--cy); } .pipe .run.failed { color: var(--rd); }
+.st.released { color: var(--gr); } .st.candidate { color: var(--am); } .st.rejected { color: var(--mut); }
