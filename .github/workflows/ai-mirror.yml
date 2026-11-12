@@ -6,6 +6,7 @@
 #   gsv       GPT-SoVITS 官方 Windows 整合包（声音克隆，约 8G）
 #   hy3d      Hunyuan3D-2 WinPortable（AI 3D 形象）
 #   llm       AI 助手（对话改 PPT）的本地大模型 Qwen3-VL-4B（约 3.3G）
+#   grid      捞捞算力的训练环境：Python 3.11 安装包 + PyTorch（CUDA 12.8 版）和要用的 Python 包（Windows 版，约 3.5G）
 # 只在 Actions 页面手动点「Run workflow」时运行（文件大，搬一次要几个小时）；已经搬过、大小一样的会跳过。
 # 搬完写官网的 download/ai-mirror.json（软件读这个文件知道国内地址），再让「网站国内加速」同步一次。
 # 用的 Secrets 和捞捞编程的安装包一样：CN_S3_ENDPOINT、CN_S3_REGION、CN_S3_BUCKET、CN_S3_KEY_ID、CN_S3_SECRET、CN_DL_BASE。
@@ -16,8 +17,8 @@ on:
   workflow_dispatch:
     inputs:
       what:
-        description: "搬哪些（逗号隔开）：llm,comfyui,portrait,talk,nodes,gsv,hy3d"
-        default: "llm,comfyui,portrait,talk,nodes,gsv,hy3d"
+        description: "搬哪些（逗号隔开）：grid,llm,comfyui,portrait,talk,nodes,gsv,hy3d"
+        default: "grid,llm,comfyui,portrait,talk,nodes,gsv,hy3d"
         required: true
 
 permissions:
@@ -44,12 +45,16 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           WHAT: ${{ inputs.what }}
         run: |
+          # grid（训练环境）不在这里列，下面单独一个任务用 pip 下载
+          WHAT=$(echo "$WHAT" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^grid$' | grep -v '^$' | paste -sd, - || true)
+          if [ -z "$WHAT" ]; then echo "items=[]" >> "$GITHUB_OUTPUT"; exit 0; fi
           items=$(node pptassist/scripts/mirror-list.js "$WHAT")
           echo "items=$items" >> "$GITHUB_OUTPUT"
           echo "$items" | node -e 'const a=JSON.parse(require("fs").readFileSync(0,"utf8"));let t=0;for(const x of a){t+=x.size||0;console.log(x.group.padEnd(9),((x.size||0)/1e9).toFixed(2).padStart(7)+"G ",x.key)}console.log("一共",a.length,"个，约",(t/1e9).toFixed(1)+"G")'
 
   copy:
     needs: plan
+    if: needs.plan.outputs.items != '[]'
     runs-on: ubuntu-latest
     timeout-minutes: 350
     strategy:
@@ -117,8 +122,63 @@ jobs:
           path: r/item.json
           retention-days: 3
 
+  # 捞捞算力的训练环境（同事电脑上「一键装环境」用）：Python 安装包 + Windows 版的 wheel，用 pip 按依赖关系下载
+  grid:
+    if: contains(inputs.what, 'grid')
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      CN_S3_ENDPOINT: ${{ secrets.CN_S3_ENDPOINT }}
+      CN_S3_REGION: ${{ secrets.CN_S3_REGION }}
+      CN_S3_BUCKET: ${{ secrets.CN_S3_BUCKET }}
+      CN_S3_KEY_ID: ${{ secrets.CN_S3_KEY_ID }}
+      CN_S3_SECRET: ${{ secrets.CN_S3_SECRET }}
+      CN_DL_BASE: ${{ secrets.CN_DL_BASE }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: 下载 Python 安装包和 Windows 版的 Python 包
+        run: |
+          set -euo pipefail
+          mkdir -p w
+          curl -fL --retry 5 -o w/python-3.11.9-amd64.exe https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe
+          P="--dest w --only-binary=:all: --platform win_amd64 --python-version 3.11 --implementation cp"
+          # PyTorch 只从 CUDA 12.8 的源拿（它的依赖那个源里也有，版本是配好的）
+          pip download $P torch torchvision --index-url https://download.pytorch.org/whl/cu128
+          # 别的小包从 PyPI
+          pip download $P numpy pillow safetensors tqdm colorama filelock typing-extensions sympy networkx jinja2 fsspec mpmath MarkupSafe
+          ls -la w; du -sh w
+          ls w | grep -q '^torch-.*+cu128' || { echo "::error::没下到 CUDA 版的 torch"; exit 1; }
+      - name: 传到国内存储（大小一样的跳过）
+        run: |
+          set -uo pipefail
+          B=$(printf '%s' "$CN_S3_BUCKET" | tr -d '[:space:]'); EP=$(printf '%s' "$CN_S3_ENDPOINT" | tr -d '[:space:]'); BASE=$(printf '%s' "$CN_DL_BASE" | tr -d '[:space:]' | sed 's#/*$##')
+          export AWS_ACCESS_KEY_ID=$(printf '%s' "$CN_S3_KEY_ID" | tr -d '[:space:]') AWS_SECRET_ACCESS_KEY=$(printf '%s' "$CN_S3_SECRET" | tr -d '[:space:]') AWS_DEFAULT_REGION=$(printf '%s' "${CN_S3_REGION:-us-east-1}" | tr -d '[:space:]') AWS_EC2_METADATA_DISABLED=true
+          aws configure set default.s3.addressing_style virtual
+          mkdir -p r; i=0; bad=0
+          TV=$(ls w | sed -n 's/^torch-\([^-]*\)-.*/\1/p' | head -1)
+          for f in w/*; do
+            n=$(basename "$f"); KEY="ai/grid/$n"; SIZE=$(stat -c %s "$f"); SHA=$(sha256sum < "$f" | cut -d' ' -f1)
+            HAVE=$(aws s3api head-object --bucket "$B" --key "$KEY" --endpoint-url "$EP" --query ContentLength --output text 2>/dev/null || echo 0)
+            if [ "$HAVE" = "$SIZE" ]; then URL="$BASE/$KEY"; echo "已经有了：$n"
+            else URL=$(bash .github/workflows/cn-put.sh "$f" "$KEY") || { bad=1; continue; }; fi
+            case "$n" in *.exe) PK=gridpy;; *) PK=gridwheel;; esac
+            i=$((i+1))
+            jq -n --arg k "$KEY" --arg n "$n" --arg u "$URL" --arg s "$SHA" --argjson z "$SIZE" --arg p "$PK" --arg v "$TV" \
+              '{group:"grid", key:$k, name:$n, cn:$u, url:("pip:" + $n), size:$z, sha256:$s, pkg:$p, ver:$v}' > "r/$i.json"
+          done
+          echo "传了 $i 个文件"; [ "$bad" = 0 ] || { echo "::error::有文件没传上去，再跑一次（传好的会跳过）"; exit 1; }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: r-grid
+          path: r/
+          retention-days: 3
+
   manifest:
-    needs: [plan, copy]
+    needs: [plan, copy, grid]
     if: always() && needs.plan.result == 'success'
     runs-on: ubuntu-latest
     steps:
