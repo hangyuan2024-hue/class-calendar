@@ -13,7 +13,7 @@ NEW=$(git rev-parse FETCH_HEAD)
 if [ "$OLD" = "$NEW" ]; then echo "已经是最新的了（${OLD:0:7}）"; else
   git reset --hard -q FETCH_HEAD
   # 先检查新代码能不能启动，不行就退回去，不重启
-  if ! node -e 'require("./grid/server/core");require("./grid/server/store")'; then
+  if ! NODE_NO_WARNINGS=1 node -e 'require("./grid/server/core");require("./grid/server/store")'; then
     echo "!! 新代码有问题，退回 ${OLD:0:7}，没重启"; git reset --hard -q "$OLD"; exit 1
   fi
   systemctl restart laolao-grid

@@ -30,7 +30,17 @@ function verifySig(pub, msg, sig) {
 }
 
 // 上传 / 下载（带 Content-Length，COS 的预签名 PUT 要它）
-function xfer(method, url, file, { onProgress, signal } = {}) {
+// 同一个文件同时只下一次（比如刚重启时旧的下载还没停）：后来的等前面那个
+const inflight = new Map();
+function xfer(method, url, file, o = {}) {
+  if (method !== "GET") return xfer1(method, url, file, o);
+  const k = path.resolve(file);
+  if (inflight.has(k)) return inflight.get(k);
+  const p = xfer1(method, url, file, o).finally(() => inflight.delete(k));
+  inflight.set(k, p);
+  return p;
+}
+function xfer1(method, url, file, { onProgress, signal } = {}) {
   return new Promise((ok, bad) => {
     const u = new URL(url);
     const mod = u.protocol === "https:" ? https : http;
@@ -51,7 +61,7 @@ function xfer(method, url, file, { onProgress, signal } = {}) {
     const tmp = file + ".part";
     let have = 0; try { have = fs.statSync(tmp).size; } catch (e) {}
     const req = mod.get(u, { headers: have ? { range: `bytes=${have}-` } : {} }, (res) => {
-      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) { res.resume(); return xfer("GET", new URL(res.headers.location, u).href, file, { onProgress, signal }).then(ok, bad); }
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) { res.resume(); return xfer1("GET", new URL(res.headers.location, u).href, file, { onProgress, signal }).then(ok, bad); }
       if (res.statusCode !== 200 && res.statusCode !== 206) { res.resume(); return bad(new Error(`下载失败 ${res.statusCode}`)); }
       if (res.statusCode === 200) have = 0;
       const total = have + (+res.headers["content-length"] || 0);
@@ -59,7 +69,8 @@ function xfer(method, url, file, { onProgress, signal } = {}) {
       let got = have;
       res.on("data", (c) => { got += c.length; onProgress && onProgress(got, total); });
       res.pipe(ws);
-      ws.on("finish", () => { fs.renameSync(tmp, file); ok({ size: got }); });
+      // 改名失败（同一个文件另一处刚好也下完、已经改过名了）：文件在就算成功，不让整个程序崩掉
+      ws.on("finish", () => { try { fs.renameSync(tmp, file); ok({ size: got }); } catch (e) { if (fs.existsSync(file)) ok({ size: fs.statSync(file).size }); else bad(e); } });
       ws.on("error", bad);
     });
     req.on("error", bad);
