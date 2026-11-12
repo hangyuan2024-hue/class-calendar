@@ -1,7 +1,7 @@
 {
   "name": "laolao-grid",
   "productName": "捞捞算力",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "捞捞算力：几台电脑一起训练捞捞的模型，一台停了下一台接着算",
   "main": "app/main.js",
   "author": "捞捞",

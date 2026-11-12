@@ -1,6 +1,6 @@
 // 捞捞算力 · Electron 主进程：开窗口、托盘（关掉窗口后台照样算）、开机自启、空闲时间、控制中心窗口
 "use strict";
-const { app, BrowserWindow, ipcMain, shell, Menu, Tray, powerMonitor, nativeImage, session } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, Menu, Tray, powerMonitor, nativeImage, session, dialog } = require("electron");
 const path = require("path");
 const { createService } = require("./service");
 
@@ -14,6 +14,7 @@ const svc = createService({
   idleSecs: async () => powerMonitor.getSystemIdleTime(),
   setAutostart: (v) => app.setLoginItemSettings({ openAtLogin: v, args: ["--hidden"] }),
   openPath: (f) => shell.openPath(f),
+  pickDir: async (title) => { const r = await dialog.showOpenDialog(win, { title, properties: ["openDirectory", "createDirectory"] }); return r.canceled ? null : r.filePaths[0]; },
   openAdmin: (u) => {
     const w = new BrowserWindow({ width: 1400, height: 900, title: "捞捞算力 · 控制中心", backgroundColor: "#060a16", autoHideMenuBar: true, webPreferences: { contextIsolation: true, sandbox: true } });
     w.webContents.setWindowOpenHandler(() => ({ action: "deny" }));

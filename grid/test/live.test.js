@@ -59,9 +59,9 @@ function face(o = {}) {
 
   // ---- 客户端后台：加入 ----
   const EV = [];
-  let idle = 0, games = [];
+  let idle = 0, games = [], pick = null;
   const svc = createService({ user: path.join(tmp, "me"), version: "t", python: PY, send: (ch, d) => EV.push({ ch, d }),
-    idleSecs: async () => idle, agentOpt: { tickMs: 100, hbMs: 300, leaseEveryMs: 100, renewMs: 300, gpuInfo: async () => ({ temp: 60 }), gpuApps: async () => games } });
+    idleSecs: async () => idle, pickDir: async () => pick, agentOpt: { tickMs: 100, hbMs: 300, leaseEveryMs: 100, renewMs: 300, gpuInfo: async () => ({ temp: 60 }), gpuApps: async () => games } });
   let st = await svc.H.status();
   assert.equal(st.joined, false);
   await assert.rejects(svc.H.join("乱写的", "我"), /邀请链接不对/);
@@ -123,6 +123,17 @@ function face(o = {}) {
   const board = await svc.H.board();
   assert.ok(board[0].name === "小明" && board[0].points > 0 && board[0].reviews === 1);
   ok("人工审核和贡献榜（算力 + 录表情 + 审核都有积分）");
+
+  // ---- 换个地方放（比如 D 盘）----
+  pick = path.join(tmp, "D盘");
+  await assert.rejects(svc.H.pickDataDir(), /中文/);
+  pick = path.join(tmp, "Ddisk");
+  const pr2 = await svc.H.pickDataDir();
+  st = await svc.H.status();
+  assert.equal(st.dataDir, path.join(tmp, "Ddisk", "LaolaoGrid"));
+  assert.ok(pr2.items.find((i) => i.k === "disk"));
+  assert.ok(st.agent, "换完地方接着在线");
+  ok("训练环境和数据可以换到别的盘（自动建 LaolaoGrid 文件夹；中文路径不行，说清楚）");
 
   // ---- 被移出 ----
   app.core.setDevice(st.deviceId, { disabled: true });

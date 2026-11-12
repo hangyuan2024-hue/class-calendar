@@ -14,12 +14,12 @@ function smiPath() {
 }
 
 async function gpus(smi = smiPath()) {
-  const out = await run(smi, ["--query-gpu=name,memory.total,memory.used,driver_version,temperature.gpu,utilization.gpu,power.draw,pcie.link.gen.current,pcie.link.width.current", "--format=csv,noheader,nounits"]);
+  const out = await run(smi, ["--query-gpu=name,memory.total,memory.used,driver_version,temperature.gpu,utilization.gpu,power.draw,pcie.link.gen.max,pcie.link.width.max", "--format=csv,noheader,nounits"]);
   if (!out) return [];
   return out.trim().split(/\r?\n/).filter(Boolean).map((l) => {
     const [name, total, used, driver, temp, util, power, gen, width] = l.split(",").map((s) => s.trim());
     const n = (x) => (isFinite(+x) ? +x : null);
-    return { name, vram: Math.round((n(total) || 0) / 1024 * 10) / 10, used: Math.round((n(used) || 0) / 1024 * 10) / 10, driver, temp: n(temp), util: n(util), power: n(power), pcie: gen && width ? `PCIe ${gen}.0 x${width}` : "" };
+    return { name, vram: Math.round((n(total) || 0) / 1024 * 10) / 10, used: Math.round((n(used) || 0) / 1024 * 10) / 10, driver, temp: n(temp) == null ? null : Math.round(n(temp)), util: n(util), power: n(power), pcie: gen && width ? `PCIe ${gen}.0 x${width}` : "" };
   });
 }
 // 别的程序在用显卡吗（打游戏、剪视频）：除了我们自己的进程
@@ -48,7 +48,7 @@ async function full({ dir, server, fetchImpl = fetch, smi } = {}) {
     if (gpu.pcie) items.push({ k: "pcie", name: "显卡接口", state: "ok", value: gpu.pcie, tip: "" });
   }
   items.push({ k: "ram", name: "内存", state: ramGB >= 32 ? "ok" : ramGB >= 16 ? "warn" : "bad", value: ramGB + "G", tip: ramGB >= 32 ? "" : ramGB >= 16 ? "16G 能做大部分任务；大模型生成数据要 32G 以上" : "内存太小，只能做人工审核和录表情" });
-  items.push({ k: "disk", name: "硬盘剩余", state: freeGB == null || freeGB >= 80 ? "ok" : freeGB >= 40 ? "warn" : "bad", value: freeGB == null ? "—" : freeGB + "G", tip: freeGB != null && freeGB < 80 ? "大模型和数据要 80G 左右，清一清硬盘，或者在设置里换一个盘放" : "" });
+  items.push({ k: "disk", name: "硬盘剩余", state: freeGB == null || freeGB >= 80 ? "ok" : freeGB >= 40 ? "warn" : "bad", value: freeGB == null ? "—" : freeGB + "G", tip: freeGB != null && freeGB < 80 ? "大模型和数据要 80G 左右：点下面「换个地方」放到空间大的盘（比如 D 盘）" : "" });
   let rtt = null, speed = null;
   if (server) {
     try {

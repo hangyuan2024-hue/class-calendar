@@ -158,6 +158,7 @@
     const n = order.filter((k) => !S.steps[k]).length;
     $("#navGuide").hidden = !n; $("#navGuide").textContent = n;
     if (S.probe) paintProbe(S.probe);
+    $("#dataDir").textContent = S.dataDir || "—";
     if (S.env) $("#envState").textContent = S.env.ok ? `已装好：Python ${S.env.python}，PyTorch ${S.env.torch}（CUDA ${S.env.cudaVer}）` : S.env.python ? `有 Python ${S.env.python}，${S.env.torch ? "PyTorch 看不到显卡" : "还没装 PyTorch"}` : "";
     if (S.testResult) paintTest(S.testResult);
     const p = S.policy || {};
@@ -168,6 +169,7 @@
   function paintProbe(r) {
     $("#probeOut").innerHTML = r.items.map((i) => `<div class="${i.state}"><small>${esc(i.name)}</small><b>${esc(i.value)}</b>${i.tip ? `<p>${esc(i.tip)}</p>` : ""}</div>`).join("");
   }
+  $("#dataDirBtn").onclick = guard(async () => { const r = await call("pickDataDir"); if (!r) return; paintProbe(r); S = await call("status"); paintGuide(); toast("换好了：以后训练环境和数据都放在 " + S.dataDir); });
   $("#probeGo").onclick = guard(async () => { $("#probeGo").disabled = true; $("#probeGo").textContent = "体检中…"; try { const r = await call("probe"); paintProbe(r); S = await call("status"); paintGuide(); toast(r.ok ? "体检通过" : "有几项要处理，看红色的提示"); } finally { $("#probeGo").disabled = false; $("#probeGo").textContent = "重新体检"; } });
   const term = (box, e) => {
     box.hidden = false;

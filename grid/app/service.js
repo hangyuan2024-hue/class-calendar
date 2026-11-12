@@ -18,8 +18,11 @@ function createService(o) {
   let cfg = {}; try { cfg = JSON.parse(fs.readFileSync(CFG, "utf8")); } catch (e) {}
   const save = () => fs.writeFileSync(CFG, JSON.stringify(cfg, null, 1));
   const send = (ch, d) => { try { o.send(ch, d); } catch (e) {} };
-  const work = () => cfg.workDir || path.join(dir, "work");
-  const env = Env.create({ dir: path.join(dir, "env"), python: o.python || cfg.python, onEvent: (e) => send("env", e) });
+  // 训练环境（Python + PyTorch，约 6G）和工作文件（模型、存档、数据）放哪：默认软件自己的文件夹（一般在 C 盘），可以换到别的盘
+  const base = () => cfg.dataDir || dir;
+  const work = () => path.join(base(), "work");
+  const mkEnv = () => Env.create({ dir: path.join(base(), "env"), python: o.python || cfg.python, onEvent: (e) => send("env", e) });
+  let env = mkEnv();
   let agent = null, lastProbe = cfg.probe || null, sources = {};
   const gallery = [];
 
@@ -49,7 +52,7 @@ function createService(o) {
     // ---- 加入 ----
     async status() {
       return {
-        joined: !!cfg.token, server: cfg.server || "", me: cfg.member || null, deviceId: cfg.device || null, deviceName: cfg.deviceName || "", version: o.version,
+        joined: !!cfg.token, server: cfg.server || "", dataDir: base(), me: cfg.member || null, deviceId: cfg.device || null, deviceName: cfg.deviceName || "", version: o.version,
         agent: agent ? agent.status() : null, probe: lastProbe, policy: cfg.policy || (agent && agent.policy) || null, paused: !!cfg.paused,
         python: cfg.python || "", env: cfg.envOk || null, testResult: cfg.testResult || null, consent: cfg.consent || null, autostart: !!cfg.autostart,
         steps: { probe: !!(lastProbe && lastProbe.ok), env: !!(cfg.envOk && cfg.envOk.ok), test: !!(cfg.testResult && cfg.testResult.ok), record: !!cfg.recorded, policy: !!cfg.policySet },
@@ -74,9 +77,25 @@ function createService(o) {
       if (agent) agent.setCaps(lastProbe.caps);
       return lastProbe;
     },
+    // 换个地方放（比如 D 盘）：只能用英文路径（PyTorch 和不少包在中文、空格路径下会出错）
+    async pickDataDir() {
+      const d = o.pickDir ? await o.pickDir("选一个放训练环境和数据的文件夹（建议 D 盘，要 80G 左右）") : null;
+      if (!d) return null;
+      let to = path.basename(d).toLowerCase() === "laolaogrid" ? d : path.join(d, "LaolaoGrid");
+      if (!/^[\x20-\x7e]+$/.test(to) || /\s/.test(to)) throw new Error("路径里不能有中文和空格：选 D 盘根目录就行（会自动建 LaolaoGrid 文件夹）");
+      fs.mkdirSync(to, { recursive: true });
+      fs.accessSync(to, fs.constants.W_OK);
+      if (agent) { await agent.stop(); agent = null; }
+      cfg.dataDir = to; delete cfg.envOk; delete cfg.testResult; save();
+      env = mkEnv();
+      startAgent();
+      return H.probe();
+    },
     // ---- ② 装环境 ----
     envCheck: async () => { const r = await env.check(); cfg.envOk = r; save(); return r; },
-    async envInstall() { const r = await env.install(); cfg.envOk = r; save(); return r; },
+    async envInstall() {
+      if (!/^[\x20-\x7e]+$/.test(base()) || /\s/.test(base())) throw new Error("现在的位置（" + base() + "）里有中文或空格，装 PyTorch 会出错：先在第 1 步点「换个地方」，选 D 盘");
+      const r = await env.install(); cfg.envOk = r; save(); return r; },
     envCancel: async () => env.cancel(),
     async usePython(p) { cfg.python = p || ""; save(); return H.envCheck(); },
     // ---- ③ 跑通测试（本机自带的测试配方，不用签名） ----

@@ -7,12 +7,12 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DATA=/var/lib/laolao-grid
 PORT="${PORT:-8787}"
-NODE_VER=v22.11.0
+NODE_VER=v22.22.0   # 要 22.13 以上：内置的 SQLite（node:sqlite）从 22.13 起不用加开关
 
 if [ "$(id -u)" != 0 ]; then echo "要用 sudo 运行"; exit 1; fi
 
 # 1. Node.js 22（从国内镜像下）
-if ! command -v node >/dev/null || [ "$(node -p 'process.versions.node.split(".")[0]')" -lt 22 ]; then
+if ! command -v node >/dev/null || ! node -e 'const [a,b]=process.versions.node.split(".").map(Number);process.exit(a>22||(a===22&&b>=13)?0:1)'; then
   echo "装 Node.js $NODE_VER …"
   ARCH=$(uname -m); case "$ARCH" in x86_64) A=x64;; aarch64) A=arm64;; *) echo "不支持的 CPU：$ARCH"; exit 1;; esac
   cd /tmp
