@@ -11,7 +11,7 @@
     "start": "electron .",
     "server": "node server/index.js",
     "prepare-ui": "node scripts/prepare.js",
-    "test": "node test/core.test.js && node test/chaos.test.js && node test/live.test.js && node test/update.test.js",
+    "test": "node test/core.test.js && node test/chaos.test.js && node test/live.test.js && node test/update.test.js && node test/env.test.js",
     "dist": "node scripts/prepare.js && electron-builder --win nsis"
   },
   "dependencies": {
