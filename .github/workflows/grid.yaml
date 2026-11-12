@@ -15,6 +15,7 @@ on:
 
 permissions:
   contents: write
+  actions: write   # 写完版本号让「网站国内加速」同步一次（客户端从官网查新版本）
 
 concurrency:
   group: laolao-grid
@@ -35,6 +36,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      # 版本号每次打包自动加一（0.1.<第几次运行>）：客户端靠它判断有没有新版
+      - name: 版本号
+        run: npm version "0.1.${{ github.run_number }}" --no-git-tag-version --allow-same-version
       - name: 装依赖
         run: |
           npm install --no-audit --no-fund
@@ -62,10 +66,12 @@ jobs:
           } else {
             gh release create laolao-grid dist\LaolaoGrid-Setup.exe --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "捞捞算力 Windows 版 $v" --notes $notes --latest=false
           }
-      - name: 传一份到国内存储
+      # 传一份到国内存储；写官网的 download/grid-version.json（版本、地址、大小、sha256），客户端每 2 小时查一次，空闲时自动更新
+      - name: 传到国内存储，写版本号
         shell: bash
         working-directory: .
         env:
+          BRANCH: ${{ github.ref_name }}
           CN_S3_ENDPOINT: ${{ secrets.CN_S3_ENDPOINT }}
           CN_S3_REGION: ${{ secrets.CN_S3_REGION }}
           CN_S3_BUCKET: ${{ secrets.CN_S3_BUCKET }}
@@ -73,6 +79,37 @@ jobs:
           CN_S3_SECRET: ${{ secrets.CN_S3_SECRET }}
           CN_DL_BASE: ${{ secrets.CN_DL_BASE }}
         run: |
-          CN=$(bash .github/workflows/cn-upload.sh "grid/dist/LaolaoGrid-Setup.exe" "grid/LaolaoGrid-Setup-1.0.${{ github.run_number }}.exe")
+          set -euo pipefail
+          V="0.1.${{ github.run_number }}"
+          SRC="${GITHUB_WORKSPACE}/grid/dist/LaolaoGrid-Setup.exe"
+          SIZE=$(stat -c %s "$SRC" 2>/dev/null || wc -c < "$SRC")
+          SHA=$(sha256sum < "$SRC" | cut -d' ' -f1)
+          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/laolao-grid/LaolaoGrid-Setup.exe"
+          CN=$(bash .github/workflows/cn-upload.sh "$SRC" "grid/LaolaoGrid-Setup-${V}.exe")
           echo "国内下载地址：${CN:-（没配国内存储）}"
           if [ -n "$CN" ]; then echo "### 国内下载地址：$CN" >> "$GITHUB_STEP_SUMMARY"; fi
+          PUB="${RUNNER_TEMP}/grid-publish"
+          git fetch --no-tags origin "$BRANCH"
+          git worktree add --detach "$PUB" FETCH_HEAD
+          git -C "$PUB" config user.name "github-actions[bot]"
+          git -C "$PUB" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for ATTEMPT in 1 2 3; do
+            if [ "$ATTEMPT" -gt 1 ]; then git fetch --no-tags origin "$BRANCH"; git -C "$PUB" reset --hard FETCH_HEAD; fi
+            mkdir -p "$PUB/download"
+            echo "{\"version\": \"${V}\", \"url\": \"${URL}\", \"cn\": \"${CN}\", \"size\": ${SIZE}, \"sha256\": \"${SHA}\", \"notes\": \"捞捞算力 ${V}\", \"at\": \"$(date -u +%FT%TZ)\"}" > "$PUB/download/grid-version.json"
+            cat "$PUB/download/grid-version.json"
+            git -C "$PUB" add -- download/grid-version.json
+            if git -C "$PUB" diff --cached --quiet; then echo "已经是最新"; exit 0; fi
+            git -C "$PUB" commit -m "捞捞算力 ${V}"
+            if git -C "$PUB" push origin "HEAD:${BRANCH}"; then exit 0; fi
+          done
+          echo "::error::安装包发布了，但写 download/grid-version.json 失败"; exit 1
+      - name: 让国内网站也同步
+        shell: bash
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run site-cn.yml --repo "$GITHUB_REPOSITORY" --ref "${{ github.ref_name }}" \
+            && echo "已经让「网站国内加速」重新同步" \
+            || echo "::warning::没能自动触发「网站国内加速」，请到 Actions 里手动 Run workflow"
