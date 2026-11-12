@@ -35,9 +35,11 @@
     <a data-p="review"><i>✓</i>人工审核<em id="navReview" hidden></em></a>
     <a data-p="board"><i>♛</i>贡献榜</a>
     <a id="navAdmin" data-p="admin" hidden><i>◎</i>控制中心</a>
+    <div class="ver" id="verLabel"></div>
     <div class="side-foot">
+      <div id="updPill" class="upd" hidden></div>
       <div id="statePill" class="pill">连接中…</div>
-      <button id="pauseBtn" class="btn ghost small">暂停</button>
+      <div class="runctl" data-ctl></div>
     </div>
   </nav>
 
@@ -66,7 +68,7 @@
     <section class="page" id="p-live">
       <div class="live-top glass">
         <div><small>正在算</small><b id="lvJob">还没有任务</b><span id="lvWhy" class="muted"></span></div>
-        <div class="bar-wrap"><div class="bar"><i id="lvBar"></i></div><span id="lvPct">0%</span></div>
+        <div><div class="bar-wrap"><div class="bar"><i id="lvBar"></i></div><span id="lvPct">0%</span></div><div class="runctl wide" data-ctl></div></div>
         <div class="gauges">
           <div class="gauge" id="gTemp"><svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="26"/><circle cx="32" cy="32" r="26" class="v"/></svg><b>—</b><small>温度</small></div>
           <div class="gauge" id="gUtil"><svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="26"/><circle cx="32" cy="32" r="26" class="v"/></svg><b>—</b><small>显卡占用</small></div>

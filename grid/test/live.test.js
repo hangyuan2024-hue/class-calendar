@@ -87,6 +87,21 @@ function face(o = {}) {
   await sleep(400);
   assert.match(svc.agent().status().why, /在用显卡/);
   games = [];
+  svc.agent().drain(true); await sleep(300);
+  assert.match(svc.agent().status().why, /新版本/);
+  svc.agent().drain(false);
+  // 手动开关：「开始」不管空闲规则马上算；「停止」立刻停、手上的交出去；「自动」回到挂机设置
+  await svc.H.setPolicy({ mode: "idle", idleMin: 5 }); idle = 0; await sleep(300);
+  assert.equal(svc.agent().status().state, "waiting");
+  assert.equal(await svc.H.setManual("on"), "on"); await sleep(400);
+  assert.notEqual(svc.agent().status().state, "waiting", "手动开始：有人在用电脑也算");
+  assert.equal((await svc.H.status()).manual, "on");
+  assert.equal(await svc.H.setManual("off"), "off"); await sleep(300);
+  assert.equal(svc.agent().status().state, "paused"); assert.match(svc.agent().status().why, /停止/);
+  await svc.H.setManual("auto"); await sleep(300);
+  assert.equal(svc.agent().status().state, "waiting");
+  await svc.H.setPolicy({ mode: "always" });
+  ok("手动开关：开始（不管空闲规则，马上算）、停止（立刻停）、自动（回到挂机设置）");
   await svc.H.pause(true); await sleep(300);
   assert.equal(svc.agent().status().state, "paused");
   await svc.H.pause(false);

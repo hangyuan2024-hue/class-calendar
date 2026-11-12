@@ -6,7 +6,7 @@ window.LaoChart = function draw(cv, series, opt = {}) {
   const g = cv.getContext("2d");
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   g.clearRect(0, 0, W, H);
-  const pts = (series || []).filter((p) => isFinite(p[0]) && isFinite(p[1]));
+  const pts = (series || []).filter((p) => isFinite(p[0]) && isFinite(p[1])).slice().sort((a, b) => a[0] - b[0]);
   const L = 52, R = 10, T = 10, B = 22;
   g.font = "11px Consolas, monospace";
   if (pts.length < 2) { g.fillStyle = "#5b6a8c"; g.textAlign = "center"; g.fillText(opt.empty || "等第一批数据…", W / 2, H / 2); return; }

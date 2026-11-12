@@ -7,6 +7,7 @@
   const ago = (t) => { const s = (Date.now() - t) / 1000; return s < 60 ? "刚刚" : s < 3600 ? Math.round(s / 60) + " 分钟前" : s < 86400 ? Math.round(s / 3600) + " 小时前" : Math.round(s / 86400) + " 天前"; };
   const dur = (s) => (s == null ? "—" : s < 90 ? Math.round(s) + " 秒" : s < 5400 ? Math.round(s / 60) + " 分钟" : (s / 3600).toFixed(1) + " 小时");
   const toast = (t, err) => { const el = $("#toast"); el.textContent = t; el.className = "toast" + (err ? " err" : ""); el.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => (el.hidden = true), 3000); };
+  const cmpVer = (a, b) => { const x = String(a).split(".").map(Number), y = String(b).split(".").map(Number); for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0); return 0; };
   const fnName = (f) => (!f ? "" : f === "<module>" ? "主程序" : esc(f) + "()");
   const KIND = { map: "生成 / 评测", relay: "接力训练", diloco: "一起训", record: "录表情" };
   const STATE = { active: "进行中", paused: "暂停", done: "完成", failed: "失败" };
@@ -46,7 +47,8 @@
     $$("#jobs [data-act]").forEach((b) => (b.onclick = guard(async (e) => { e.stopPropagation(); await api("/api/admin/job/set", { id: +b.dataset.id, state: b.dataset.act === "pause" ? "paused" : "active" }); refresh(); })));
     $$("#jobs tr[data-job]").forEach((tr) => (tr.onclick = () => openJob(+tr.dataset.job)));
     $("#devCount").textContent = `${ov.online} 台在线 / 共 ${ov.devices.length} 台`;
-    $("#devs").innerHTML = ov.devices.map((d) => `<div class="dev ${d.state}" data-dev="${d.id}"><i class="dot"></i><b>${esc(d.member)} · ${esc(d.name)}</b>
+    const newest = ov.devices.map((d) => d.version).filter(Boolean).sort(cmpVer).pop() || "";
+    $("#devs").innerHTML = ov.devices.map((d) => `<div class="dev ${d.state}" data-dev="${d.id}"><i class="dot"></i><b>${esc(d.member)} · ${esc(d.name)}</b>${d.version ? ` <span class="ver ${cmpVer(d.version, newest) < 0 ? "old" : ""}" title="${cmpVer(d.version, newest) < 0 ? "不是最新版：空闲时会自动更新" : "最新版"}">v${esc(d.version)}</span>` : ""}
       <small>${esc(d.gpu || "没有显卡信息")}${d.vram ? " · " + d.vram + "G" : ""}${d.ram ? " · 内存 " + d.ram + "G" : ""}</small>
       <small>${d.online ? (d.task ? "在算「" + esc(d.task.name) + "」" : d.state === "waiting" ? "等空闲" : "在线，等任务") : "离线 · " + (d.lastSeen ? ago(d.lastSeen) : "")} · 累计 ${dur(d.secs)}</small>
       ${d.live && d.task ? `<div class="line">${fnName(d.live.fn)} 第 ${d.live.line || "—"} 行${d.live.gpu ? ` · ${d.live.gpu.temp}℃ ${d.live.gpu.util}%` : ""}</div><div class="bar"><i style="width:${(d.task.progress || 0) * 100}%"></i></div>` : ""}</div>`).join("") || `<p class="muted">还没有电脑加入：点「发邀请」</p>`;

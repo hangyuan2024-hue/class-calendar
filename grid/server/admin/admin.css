@@ -98,3 +98,4 @@ main { padding: 18px 26px 40px; display: grid; gap: 16px; }
 .toast.err { border-color: var(--rd); }
 @media (max-width: 1100px) { .cols, .cols3 { grid-template-columns: 1fr; } .kpis { flex-wrap: wrap; gap: 14px; } header { flex-wrap: wrap; } }
 ::-webkit-scrollbar { width: 8px; height: 8px; } ::-webkit-scrollbar-thumb { background: rgba(120, 170, 255, .2); border-radius: 9px; }
+.dev .ver { font-family: var(--mono); font-size: 11px; color: var(--mut); margin-left: 4px; } .dev .ver.old { color: var(--am); }

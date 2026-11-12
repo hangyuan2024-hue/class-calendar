@@ -8,6 +8,7 @@ const { spawn } = require("child_process");
 const Agent = require("../worker/agent");
 const probe = require("../worker/probe");
 const Env = require("./env");
+const Updater = require("./updater");
 
 const RECIPES = path.join(__dirname, "..", "recipes").replace(/app\.asar([\\/])/, "app.asar.unpacked$1");  // 打包后 Python 读不了 asar 里的文件
 
@@ -31,7 +32,7 @@ function createService(o) {
     agent = Agent.create({
       server: cfg.server, token: cfg.token, pubkey: cfg.pubkey, workDir: work(), python: () => env.python(),
       caps: lastProbe ? lastProbe.caps : null, policy: cfg.policy || { mode: "idle", idleMin: 5 },
-      idleSecs: o.idleSecs, ensure: (pkgs) => env.ensure(pkgs), gpuInfo: async () => (await probe.gpus())[0] || null, gpuApps: (ours) => probe.gpuApps(undefined, ours),
+      idleSecs: o.idleSecs, ensure: (pkgs) => env.ensure(pkgs), version: o.version, gpuInfo: async () => (await probe.gpus())[0] || null, gpuApps: (ours) => probe.gpuApps(undefined, ours),
       ...(o.agentOpt || {}),
     });
     agent.on("any", ({ k, v }) => {
@@ -43,7 +44,8 @@ function createService(o) {
       if (k === "kicked") { send("kicked", v); }
       send("agent", { k, v });
     });
-    if (cfg.paused) agent.pause(true);
+    if (cfg.paused && !cfg.manual) cfg.manual = "off";   // 老版本的「暂停」= 停止
+    if (cfg.manual) agent.setManual(cfg.manual);
     agent.start();
   }
   const api = (p, b) => { if (!agent) throw new Error("还没加入训练网"); return agent.api(p, b); };
@@ -53,7 +55,7 @@ function createService(o) {
     async status() {
       return {
         joined: !!cfg.token, server: cfg.server || "", dataDir: base(), me: cfg.member || null, deviceId: cfg.device || null, deviceName: cfg.deviceName || "", version: o.version,
-        agent: agent ? agent.status() : null, probe: lastProbe, policy: cfg.policy || (agent && agent.policy) || null, paused: !!cfg.paused,
+        agent: agent ? agent.status() : null, probe: lastProbe, policy: cfg.policy || (agent && agent.policy) || null, paused: cfg.manual === "off", manual: cfg.manual || "auto",
         python: cfg.python || "", env: cfg.envOk || null, testResult: cfg.testResult || null, consent: cfg.consent || null, autostart: !!cfg.autostart,
         steps: { probe: !!(lastProbe && lastProbe.ok), env: !!(cfg.envOk && cfg.envOk.ok), test: !!(cfg.testResult && cfg.testResult.ok), record: !!cfg.recorded, policy: !!cfg.policySet },
       };
@@ -123,7 +125,9 @@ function createService(o) {
     },
     // ---- ⑤ 挂机 ----
     async setPolicy(p) { cfg.policy = { ...(cfg.policy || {}), ...p }; cfg.policySet = true; save(); if (agent) agent.setPolicy(cfg.policy); if (o.setAutostart && p.autostart != null) { cfg.autostart = !!p.autostart; o.setAutostart(cfg.autostart); save(); } return cfg.policy; },
-    async pause(v) { cfg.paused = !!v; save(); if (agent) agent.pause(cfg.paused); return cfg.paused; },
+    async pause(v) { return (await H.setManual(v ? "off" : "auto")) === "off"; },
+    // 手动开始（on）/ 停止（off）/ 按挂机设置自动（auto）
+    async setManual(m) { cfg.manual = ["on", "off"].includes(m) ? m : "auto"; delete cfg.paused; save(); if (agent) agent.setManual(cfg.manual); o.onManual && o.onManual(cfg.manual); return cfg.manual; },
     // ---- 看 ----
     overview: () => api("/api/overview"),
     me: () => api("/api/me"),
@@ -168,8 +172,17 @@ function createService(o) {
     openAdmin: async () => { const u = await H.adminUrl(); if (u && o.openAdmin) o.openAdmin(u); return !!u; },
     openWork: async () => { fs.mkdirSync(work(), { recursive: true }); o.openPath && o.openPath(work()); return true; },
   };
+  // 自动更新（只在装好的软件里开；开发和测试时 o.install 没给就不开）
+  let recording = false;
+  const updater = Updater.create({ dir: base, version: o.version, agent: () => agent, idleSecs: o.idleSecs, windowHidden: o.windowHidden, recording: () => recording,
+    install: o.install || (async () => { throw new Error("这个版本不能自动更新"); }), onEvent: (e) => send("update", e), ...(o.updaterOpt || {}) });
+  if (o.install && o.autoUpdate !== false) updater.start();
+  H.updateStatus = async () => updater.status();
+  H.updateCheck = async () => updater.check();
+  H.updateNow = async () => updater.now();
+  H.recording = async (v) => { recording = !!v; return recording; };
   if (cfg.token) startAgent();
-  return { H, shutdown: async () => { if (agent) await agent.stop(); }, agent: () => agent };
+  return { H, shutdown: async () => { updater.stop(); if (agent) await agent.stop(); }, agent: () => agent, updater };
 }
 
 module.exports = { createService };

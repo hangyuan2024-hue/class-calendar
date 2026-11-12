@@ -19,6 +19,7 @@
   function go(p) {
     page = p;
     document.querySelector("main").scrollTop = 0;
+    if (p !== "record") Promise.resolve(call("recording", false)).catch(() => {});
     $$(".side a").forEach((a) => a.classList.toggle("on", a.dataset.p === p || (p === "record" && a.dataset.p === "guide")));
     $$(".page").forEach((x) => x.classList.toggle("on", x.id === "p-" + p));
     if (p === "home") { star.resize(); refreshOverview(); }
@@ -49,11 +50,23 @@
     const p = $("#statePill");
     p.className = "pill " + st.state;
     p.innerHTML = `<b>${STATE[st.state] || st.state}</b>${esc(st.why || "")}`;
-    $("#pauseBtn").textContent = st.state === "paused" || (S && S.paused) ? "继续" : "暂停";
     $("#navBusy").hidden = st.state !== "busy"; $("#navBusy").className = "dot";
     if (st.state !== "busy") { $("#lvJob").textContent = st.state === "paused" ? "已暂停" : "等下一个任务"; $("#lvWhy").textContent = st.why || ""; $("#lvBar").style.width = "0%"; $("#lvPct").textContent = ""; }
   }
-  $("#pauseBtn").onclick = guard(async () => { const v = await call("pause", !(S && S.paused)); S.paused = v; toast(v ? "暂停了：正在算的交给别人接着算" : "继续帮忙算"); paintState({ state: v ? "paused" : "idle", why: "" }); });
+  // 手动开关：开始（一直算到点停止）/ 自动（按挂机设置）/ 停止（正在算的交给别人从存档接着算）
+  const MANUAL = { on: "一直算，直到你点「停止」（还是会让着游戏、怕过热）", auto: "按挂机设置：空闲 / 定时才算", off: "不算了；正在算的交给别的电脑接着算，不丢" };
+  function paintCtl(m) {
+    $$("[data-ctl]").forEach((el) => {
+      el.innerHTML = `<div class="seg"><button data-m="on">▶ 开始</button><button data-m="auto">⟳ 自动</button><button data-m="off">■ 停止</button></div><small>${MANUAL[m]}</small>`;
+      el.querySelectorAll("button").forEach((b) => { b.classList.toggle("on", b.dataset.m === m); b.onclick = () => setManual(b.dataset.m); });
+    });
+  }
+  const setManual = guard(async (m) => {
+    const v = await call("setManual", m);
+    if (S) { S.manual = v; S.paused = v === "off"; }
+    paintCtl(v);
+    toast(v === "on" ? "开始了：现在就领任务算" : v === "off" ? "停了：正在算的交给别的电脑从存档接着算" : "交给挂机设置：空闲 / 定时的时候自动算");
+  });
 
   // ---------- 星图 ----------
   async function refreshOverview() {
@@ -148,6 +161,7 @@
     if (k === "done") { if (v.ok && v.secs > 60) toast(`算完一个任务（${dur(v.secs)}）`); }
   });
   window.lg.on("kicked", (m) => toast("调度中心说：" + m, true));
+  window.lg.on("agent", ({ k, v }) => { if (k === "manual") { if (S) S.manual = v; paintCtl(v); } });
 
   // ---------- 任务向导 ----------
   function paintGuide() {
@@ -204,6 +218,7 @@
     const r = await call("recordNext", null);
     if (!r.item) return toast("管理员还没发「录表情」的任务，或者已经录完了");
     go("record");
+    call("recording", true);
     const f = $("#recFrame");
     f.src = "record.html";
     f.onload = () => f.contentWindow.postMessage({ type: "start", item: r.item }, "*");
@@ -215,7 +230,7 @@
     try {
       if (m.type === "save") reply({ ok: true, r: await call("recordSave", m.task, m.idx, new Uint8Array(m.audio), m.params) });
       if (m.type === "submit") { const r = await call("recordSubmit", m.task, m.job, m.secs); reply({ ok: true, r }); S = await call("status"); toast("交上去了，谢谢！+" + Math.round(m.secs / 60 * 3) + " 分"); }
-      if (m.type === "close") { go("guide"); $("#recFrame").src = "about:blank"; }
+      if (m.type === "close") { go("guide"); $("#recFrame").src = "about:blank"; call("recording", false); }
     } catch (x) { reply({ ok: false, e: String(x.message || x) }); }
   });
 
@@ -250,6 +265,18 @@
     $("#boardTbl").innerHTML = `<tr><th>#</th><th>名字</th><th>积分</th><th>算力</th><th>录表情</th><th>审核</th><th>电脑</th></tr>` + b.map((m, i) => `<tr class="${S && S.me && S.me.id === m.id ? "me" : ""}"><td>${i + 1}</td><td>${esc(m.name)}</td><td class="num">${pts(m.points)}</td><td>${dur(m.secs)}</td><td>${m.records} 段</td><td>${m.reviews} 票</td><td>${m.devices} 台</td></tr>`).join("");
   }
 
+  // ---------- 自动更新 ----------
+  function paintUpdate(u) {
+    const el = $("#updPill");
+    if (!u || !["downloading", "ready", "installing"].includes(u.state)) { el.hidden = true; return; }
+    el.hidden = false;
+    if (u.state === "downloading") el.innerHTML = `<b>正在下载新版 ${esc(u.latest)}</b>后台下载，不影响干活<div class="bar"><i style="width:${(u.progress || 0) * 100}%"></i></div>`;
+    if (u.state === "ready") el.innerHTML = `<b>新版 ${esc(u.latest)} 已下载</b>${esc(u.waiting || "等你不用电脑时自动更新（手上的任务先算完）")}<button class="btn ghost small" id="updNow">现在就更新</button>`;
+    if (u.state === "installing") el.innerHTML = `<b>正在更新到 ${esc(u.latest)}…</b>一会儿自己重新打开`;
+    const b = $("#updNow"); if (b) b.onclick = guard(async () => { b.disabled = true; b.textContent = "正在更新…"; const ok = await call("updateNow"); if (!ok) { b.disabled = false; b.textContent = "现在就更新"; toast("这个版本不能自动更新：去官网下载新版安装包", true); } });
+  }
+  window.lg.on("update", paintUpdate);
+
   $("#adminGo").onclick = guard(async () => { if (!(await call("openAdmin"))) toast("只有管理员能打开", true); });
 
   // ---------- 启动 ----------
@@ -259,6 +286,9 @@
     $("#joinPage").hidden = true; $("#appShell").hidden = false;
     $("#meName").textContent = `${S.me ? S.me.name : ""} · ${S.deviceName}`;
     $("#navAdmin").hidden = !(S.me && S.me.role === "admin");
+    $("#verLabel").textContent = "v" + (S.version || "");
+    paintCtl(S.manual || "auto");
+    paintUpdate(await call("updateStatus").catch(() => null));
     if (S.agent) { paintState(S.agent); if (S.agent.task) { curTask = S.agent.task; $("#lvJob").textContent = S.agent.task.job.name; const src = await call("source", S.agent.task.id); showSource(src); } S.agent.logs.slice(-80).forEach(addLog); paintGpu(S.agent.gpu); }
     paintGuide();
     const first = ["probe", "env", "test", "record", "policy"].find((k) => !S.steps[k]);

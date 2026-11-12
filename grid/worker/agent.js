@@ -79,7 +79,9 @@ function create(opt) {
   let state = "starting";       // starting / waiting（按设置还不能算）/ idle（能算，没活）/ busy / paused（自己点了暂停）/ offline
   let why = "";
   let cur = null;               // 正在跑的任务
-  let stopped = false, paused = false;
+  let stopped = false, paused = false, draining = false;
+  // 手动开关：auto 按挂机设置；on 手动开始（不管空闲 / 定时，一直算到点「停止」，但还是让着游戏、怕过热）；off 停止
+  let manual = opt.manual || "auto";
   let lastHb = 0, lastLease = 0;
   const logs = [];
   let gpuNow = null;
@@ -102,9 +104,11 @@ function create(opt) {
   }
   async function gate() {
     if (paused) return { ok: false, why: "你点了暂停" };
-    if (policy.mode === "off") return { ok: false, why: "设置里关了挂机" };
-    if (policy.mode === "schedule" && !inWindow()) return { ok: false, why: `只在 ${policy.from}～${policy.to} 算` };
-    if (policy.mode === "idle") {
+    if (draining) return { ok: false, why: "有新版本：手上的算完就自动更新" };
+    if (manual === "off") return { ok: false, why: "你点了停止" };
+    if (manual !== "on" && policy.mode === "off") return { ok: false, why: "设置里关了挂机" };
+    if (manual !== "on" && policy.mode === "schedule" && !inWindow()) return { ok: false, why: `只在 ${policy.from}～${policy.to} 算` };
+    if (manual !== "on" && policy.mode === "idle") {
       const idle = opt.idleSecs ? await opt.idleSecs() : 1e9;
       if (idle < (policy.idleMin || 5) * 60) return { ok: false, why: `你在用电脑，空闲 ${policy.idleMin} 分钟后开始`, active: true };
     }
@@ -125,12 +129,12 @@ function create(opt) {
       const g = await gate();
       if (Date.now() - lastHb > (opt.hbMs || 15000)) {
         lastHb = Date.now();
-        await api("/api/hb", { state: cur ? "busy" : g.ok ? "idle" : "waiting", info: caps ? { ...caps, gpuNow } : { gpuNow }, policy, live: cur ? liveOf() : null });
+        await api("/api/hb", { state: cur ? "busy" : g.ok ? "idle" : "waiting", info: { ...(caps || {}), gpuNow, version: opt.version || "" }, policy, live: cur ? liveOf() : null });
         if (state === "offline") setState(cur ? "busy" : "idle");
       }
       if (cur) {
-        if (!g.ok && (paused || g.active || /℃/.test(g.why))) { log("停下：" + g.why, "warn"); await stopTask(true, g.why); }
-      } else if (!g.ok) setState(paused ? "paused" : "waiting", g.why);
+        if (!g.ok && (paused || manual === "off" || g.active || /℃/.test(g.why))) { log("停下：" + g.why, "warn"); await stopTask(true, g.why); }
+      } else if (!g.ok) setState(paused || manual === "off" ? "paused" : "waiting", g.why);
       else if (Date.now() - lastLease > (opt.leaseEveryMs || 10000)) {
         lastLease = Date.now();
         const r = await api("/api/lease", { caps: caps || {} });
@@ -202,7 +206,7 @@ function create(opt) {
       if (cur === c) cur = null;
       if (!opt.keepTaskDirs) fs.rm(dir, { recursive: true, force: true }, () => {});
       lastLease = 0;
-      setState(paused ? "paused" : "idle");
+      setState(paused || manual === "off" ? "paused" : "idle");
     }
   }
   async function put(c, file, name) {
@@ -291,10 +295,21 @@ function create(opt) {
     on: (k, f) => (ev.on(k, f), () => ev.off(k, f)),
     start, stop, api, upload,
     pause(v) { paused = !!v; if (paused && cur) stopTask(true, "你点了暂停"); setState(paused ? "paused" : "idle"); lastLease = 0; },
+    // 手动开始 / 停止 / 恢复自动。停止时正在算的交给别的电脑从存档接着算
+    setManual(m) {
+      manual = ["on", "off"].includes(m) ? m : "auto";
+      lastLease = 0;
+      if (manual === "off") { if (cur) stopTask(true, "你点了停止"); setState("paused", "你点了停止"); }
+      else setState("idle", manual === "on" ? "手动开始了" : "");
+      setTimeout(tick, 0);
+      return manual;
+    },
     setPolicy(p) { policy = { ...policy, ...p }; lastHb = 0; return policy; },
     setCaps(c) { caps = c; lastHb = 0; },
+    // 准备更新：不领新任务，手上的接着算完
+    drain(v) { draining = !!v; lastLease = 0; },
     get policy() { return policy; },
-    status: () => ({ state, why, paused, policy, task: cur ? { id: cur.id, job: cur.job, recipe: cur.recipe && { id: cur.recipe.id, name: cur.recipe.name }, progress: cur.progress, line: cur.line, fn: cur.fn, note: cur.note, started: cur.started, ckpts: cur.ckpts } : null, logs: logs.slice(-200), gpu: gpuNow }),
+    status: () => ({ state, why, paused, manual, policy, task: cur ? { id: cur.id, job: cur.job, recipe: cur.recipe && { id: cur.recipe.id, name: cur.recipe.name }, progress: cur.progress, line: cur.line, fn: cur.fn, note: cur.note, started: cur.started, ckpts: cur.ckpts } : null, logs: logs.slice(-200), gpu: gpuNow }),
     // 测试用：模拟突然断电（不告诉调度中心，进程直接没了）
     crash() { stopped = true; clearInterval(timer); timer = null; if (cur) { cur.stopping = true; try { cur.child && cur.child.kill("SIGKILL"); } catch (e) {} } },
     current: () => cur,

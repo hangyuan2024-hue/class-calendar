@@ -14,6 +14,14 @@ const svc = createService({
   idleSecs: async () => powerMonitor.getSystemIdleTime(),
   setAutostart: (v) => app.setLoginItemSettings({ openAtLogin: v, args: ["--hidden"] }),
   openPath: (f) => shell.openPath(f),
+  windowHidden: () => !win || win.isDestroyed() || !win.isVisible() || win.isMinimized(),
+  // 静默安装新版（/S），装完自己打开（--force-run）；只有装好的软件才自动更新
+  install: app.isPackaged ? async (file) => {
+    const { spawn } = require("child_process");
+    spawn(file, ["/S", "--force-run"], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+    quitting = true;
+    setTimeout(() => app.quit(), 300);
+  } : null,
   pickDir: async (title) => { const r = await dialog.showOpenDialog(win, { title, properties: ["openDirectory", "createDirectory"] }); return r.canceled ? null : r.filePaths[0]; },
   openAdmin: (u) => {
     const w = new BrowserWindow({ width: 1400, height: 900, title: "捞捞算力 · 控制中心", backgroundColor: "#060a16", autoHideMenuBar: true, webPreferences: { contextIsolation: true, sandbox: true } });
@@ -26,6 +34,8 @@ ipcMain.handle("call", async (ev, method, args) => {
   if (!Object.prototype.hasOwnProperty.call(svc.H, method)) throw new Error("不支持的操作：" + method);
   return svc.H[method](...(Array.isArray(args) ? args : []));
 });
+// 托盘里改了开关，界面也跟着变
+const syncUi = (m) => { if (win && !win.isDestroyed()) win.webContents.send("agent", { k: "manual", v: m }); };
 function show() { if (!win) createWindow(); else { win.show(); win.focus(); } }
 function createWindow() {
   Menu.setApplicationMenu(null);
@@ -48,7 +58,9 @@ app.whenReady().then(() => {
     tray.setToolTip("捞捞算力");
     tray.setContextMenu(Menu.buildFromTemplate([
       { label: "打开捞捞算力", click: show },
-      { label: "暂停 / 继续", click: async () => { const s = await svc.H.status(); await svc.H.pause(!s.paused); } },
+      { label: "▶ 开始（一直算）", click: () => svc.H.setManual("on").then(syncUi) },
+      { label: "⟳ 自动（按挂机设置）", click: () => svc.H.setManual("auto").then(syncUi) },
+      { label: "■ 停止", click: () => svc.H.setManual("off").then(syncUi) },
       { type: "separator" },
       { label: "退出（不再帮忙算）", click: () => { quitting = true; app.quit(); } },
     ]));

@@ -41,13 +41,18 @@ const Tools = require("../tools/grid");
   // 我的电脑：真的客户端后台
   const EV = [];
   const user = path.join(tmp, "me");
-  const svc = createService({ user, version: "test", python: PY, send: (ch, d) => { EV.push({ ch, d }); if (EV.length > 3000) EV.splice(0, 1000), (EV.base = (EV.base || 0) + 1000); },
+  // FAKE_UPDATE=1：假装官网上有新版（截图看「新版已下载」的样子）
+  const fakeExe = Buffer.alloc(2e6, 1);
+  const fakeUpd = process.env.FAKE_UPDATE ? { install: async () => {}, updaterOpt: { sources: [`http://127.0.0.1:${uiPort}/__v.json`], firstDelayMs: 500, tickMs: 1000, maxWaitMin: 999 } } : {};
+  const svc = createService({ user, version: "0.1.5", python: PY, ...fakeUpd, send: (ch, d) => { EV.push({ ch, d }); if (EV.length > 3000) EV.splice(0, 1000), (EV.base = (EV.base || 0) + 1000); },
     agentOpt: { tickMs: 400, hbMs: 1500, renewMs: 1500, gpuInfo: async () => ({ name: "NVIDIA GeForce RTX 5060", vram: 8, used: 6.1, temp: 71, util: 93, power: 131, driver: "581.57" }), gpuApps: async () => [] } });
   fs.writeFileSync(path.join(tmp, "invite.txt"), invAdmin.link);
   console.log(JSON.stringify({ tmp, url, invite: invAdmin.link, adminToken: app.core.adminToken() }));
   const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".wasm": "application/wasm", ".png": "image/png", ".data": "application/octet-stream", ".binarypb": "application/octet-stream" };
   const RR = path.join(ROOT, "app", "renderer");
   http.createServer((q, r) => {
+    if (q.url.startsWith("/__v.json")) { r.setHeader("content-type", "application/json"); return r.end(JSON.stringify({ version: "0.1.6", url: `http://127.0.0.1:${uiPort}/__x.exe`, size: fakeExe.length, sha256: require("crypto").createHash("sha256").update(fakeExe).digest("hex") })); }
+    if (q.url.startsWith("/__x.exe")) { r.setHeader("content-length", fakeExe.length); return r.end(fakeExe); }
     if (q.url.startsWith("/events")) {
       const since = +(new URL(q.url, "http://x").searchParams.get("since") || 0), base = EV.base || 0;
       r.setHeader("content-type", "application/json");

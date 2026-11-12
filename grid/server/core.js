@@ -366,7 +366,7 @@ function open(file, opt = {}) {
     return all("select d.*, m.name as member_name, t.job_id, t.progress, j.name as job_name from devices d join members m on m.id=d.member_id left join tasks t on t.id=d.task_id left join jobs j on j.id=t.job_id where d.disabled=0 order by d.id").map((d) => {
       const online = clock() - (d.last_seen || 0) < 90000;
       const info = J(d.info, {}) || {};
-      return { id: d.id, name: d.name, member: d.member_name, online, state: online ? (d.task_id ? "busy" : d.state || "idle") : "offline", gpu: info.gpu || "", vram: info.vram || 0, ram: info.ram || 0, task: d.task_id ? { job: d.job_id, name: d.job_name, progress: d.progress } : null, secs: d.secs, tasks: d.tasks, live: J(d.live, null), lastSeen: d.last_seen, ...(admin ? { info } : {}) };
+      return { id: d.id, name: d.name, member: d.member_name, online, state: online ? (d.task_id ? "busy" : d.state || "idle") : "offline", gpu: info.gpu || "", vram: info.vram || 0, ram: info.ram || 0, version: info.version || "", task: d.task_id ? { job: d.job_id, name: d.job_name, progress: d.progress } : null, secs: d.secs, tasks: d.tasks, live: J(d.live, null), lastSeen: d.last_seen, ...(admin ? { info } : {}) };
     });
   }
   function jobsView() {
