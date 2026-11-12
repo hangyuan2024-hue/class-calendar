@@ -54,10 +54,10 @@ function createService(o) {
     // ---- 加入 ----
     async status() {
       return {
-        joined: !!cfg.token, server: cfg.server || "", dataDir: base(), me: cfg.member || null, deviceId: cfg.device || null, deviceName: cfg.deviceName || "", version: o.version,
+        joined: !!cfg.token, server: cfg.server || "", dataDir: base(), me: cfg.member || null, deviceId: cfg.device || null, recorded: cfg.recorded || 0, deviceName: cfg.deviceName || "", version: o.version,
         agent: agent ? agent.status() : null, probe: lastProbe, policy: cfg.policy || (agent && agent.policy) || null, paused: cfg.manual === "off", manual: cfg.manual || "auto",
         python: cfg.python || "", env: cfg.envOk || null, testResult: cfg.testResult || null, consent: cfg.consent || null, autostart: !!cfg.autostart,
-        steps: { probe: !!(lastProbe && lastProbe.ok), env: !!(cfg.envOk && cfg.envOk.ok), test: !!(cfg.testResult && cfg.testResult.ok), record: !!cfg.recorded, policy: !!cfg.policySet },
+        steps: { probe: !!(lastProbe && lastProbe.ok), env: !!(cfg.envOk && cfg.envOk.ok), test: !!(cfg.testResult && cfg.testResult.ok), record: !!(cfg.recorded || cfg.recordSkipped), policy: !!cfg.policySet },
       };
     },
     async join(invite, name, deviceName) {
@@ -125,6 +125,8 @@ function createService(o) {
     },
     // ---- ⑤ 挂机 ----
     async setPolicy(p) { cfg.policy = { ...(cfg.policy || {}), ...p }; cfg.policySet = true; save(); if (agent) agent.setPolicy(cfg.policy); if (o.setAutostart && p.autostart != null) { cfg.autostart = !!p.autostart; o.setAutostart(cfg.autostart); save(); } return cfg.policy; },
+    // 录表情是自愿的：不录也不影响帮忙算
+    async skipRecord(v = true) { cfg.recordSkipped = !!v; save(); return H.status(); },
     async pause(v) { return (await H.setManual(v ? "off" : "auto")) === "off"; },
     // 手动开始（on）/ 停止（off）/ 按挂机设置自动（auto）
     async setManual(m) { cfg.manual = ["on", "off"].includes(m) ? m : "auto"; delete cfg.paused; save(); if (agent) agent.setManual(cfg.manual); o.onManual && o.onManual(cfg.manual); return cfg.manual; },

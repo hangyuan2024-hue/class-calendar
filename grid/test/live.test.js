@@ -118,6 +118,9 @@ function face(o = {}) {
   assert.ok(EV.some((e) => e.ch === "test" && e.d.k === "source"));
   ok("跑通测试：没装 PyTorch / 看不到显卡时说清楚怎么办：" + t.why);
 
+  assert.equal((await svc.H.status()).steps.record, false);
+  assert.equal((await svc.H.skipRecord(true)).steps.record, true);
+  ok("录表情是自愿的：可以跳过，不影响帮忙算");
   // ---- 录表情 ----
   const r = await svc.H.recordNext(null);
   assert.equal(r.item.job.id, recJob);

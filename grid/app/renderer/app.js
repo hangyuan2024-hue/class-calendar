@@ -175,6 +175,8 @@
     $("#dataDir").textContent = S.dataDir || "—";
     if (S.env) $("#envState").textContent = S.env.ok ? `已装好：Python ${S.env.python}，PyTorch ${S.env.torch}（CUDA ${S.env.cudaVer}）` : S.env.python ? `有 Python ${S.env.python}，${S.env.torch ? "PyTorch 看不到显卡" : "还没装 PyTorch"}` : "";
     if (S.testResult) paintTest(S.testResult);
+    $("#recSkip").hidden = !!S.steps.record;
+    $("#recState").textContent = S.recorded ? `已经录了 ${S.recorded} 段，谢谢！还可以接着录` : S.steps.record ? "跳过了：以后想录随时点「开始录」" : "";
     const p = S.policy || {};
     const m = $$("input[name=mode]").find((x) => x.value === (p.mode || "idle")); if (m) m.checked = true;
     if (p.idleMin) $("#pIdle").value = p.idleMin; if (p.from) $("#pFrom").value = p.from; if (p.to) $("#pTo").value = p.to; if (p.maxTemp) $("#pTemp").value = p.maxTemp;
@@ -214,6 +216,7 @@
   });
 
   // ---------- 录表情（小页面 record.html 里认脸；录好的交给后台存、上传） ----------
+  $("#recSkip").onclick = guard(async () => { S = await call("skipRecord", true); paintGuide(); toast("跳过了：不影响帮忙算。以后想录，随时回来点「开始录」"); });
   $("#recGo").onclick = guard(async () => {
     const r = await call("recordNext", null);
     if (!r.item) return toast("管理员还没发「录表情」的任务，或者已经录完了");
