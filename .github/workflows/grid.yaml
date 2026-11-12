@@ -11,6 +11,12 @@ on:
     paths:
       - "grid/**"
       - ".github/workflows/grid.yaml"
+      # AI 引擎的代码是从捞捞PPT助手拷过来的（scripts/prepare.js）
+      - "pptassist/core/engine.js"
+      - "pptassist/core/workflows.js"
+      - "pptassist/core/dl.js"
+      - "pptassist/core/installer.js"
+      - "pptassist/core/mirror.js"
   workflow_dispatch:
 
 permissions:
@@ -43,7 +49,7 @@ jobs:
         run: |
           npm install --no-audit --no-fund
           python -m pip install --disable-pip-version-check numpy pillow
-      - name: 准备界面（认脸组件、表情参数标准）
+      - name: 准备界面（认脸组件、表情参数标准、AI 引擎代码）
         run: npm run prepare-ui
       - name: 测试
         env:

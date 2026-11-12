@@ -7,6 +7,7 @@
 #   hy3d      Hunyuan3D-2 WinPortable（AI 3D 形象）
 #   llm       AI 助手（对话改 PPT）的本地大模型 Qwen3-VL-4B（约 3.3G）
 #   grid      捞捞算力的训练环境：Python 3.11 安装包 + PyTorch（CUDA 12.8 版）和要用的 Python 包（Windows 版，约 3.5G）
+#             + 给 Q版打分用的 CLIP ViT-L/14（openai/clip-vit-large-patch14，MIT，约 1.7G），放在 ai/grid/clip-vit-large-patch14/
 # 只在 Actions 页面手动点「Run workflow」时运行（文件大，搬一次要几个小时）；已经搬过、大小一样的会跳过。
 # 搬完写官网的 download/ai-mirror.json（软件读这个文件知道国内地址），再让「网站国内加速」同步一次。
 # 用的 Secrets 和捞捞编程的安装包一样：CN_S3_ENDPOINT、CN_S3_REGION、CN_S3_BUCKET、CN_S3_KEY_ID、CN_S3_SECRET、CN_DL_BASE。
@@ -151,6 +152,10 @@ jobs:
           pip download $P numpy pillow safetensors tqdm colorama filelock typing-extensions sympy networkx jinja2 fsspec mpmath MarkupSafe
           ls -la w; du -sh w
           ls w | grep -q '^torch-.*+cu128' || { echo "::error::没下到 CUDA 版的 torch"; exit 1; }
+          # 给 Q版打分用的 CLIP（每日一轮的配方从国内存储下，地址固定：ai/grid/clip-vit-large-patch14/文件名）
+          mkdir -p clip
+          for n in config.json preprocessor_config.json model.safetensors; do curl -fL --retry 5 -o "clip/$n" "https://huggingface.co/openai/clip-vit-large-patch14/resolve/main/$n"; done
+          ls -la clip
       - name: 传到国内存储（大小一样的跳过）
         run: |
           set -uo pipefail
@@ -168,6 +173,11 @@ jobs:
             i=$((i+1))
             jq -n --arg k "$KEY" --arg n "$n" --arg u "$URL" --arg s "$SHA" --argjson z "$SIZE" --arg p "$PK" --arg v "$TV" \
               '{group:"grid", key:$k, name:$n, cn:$u, url:("pip:" + $n), size:$z, sha256:$s, pkg:$p, ver:$v}' > "r/$i.json"
+          done
+          for f in clip/*; do
+            n=$(basename "$f"); KEY="ai/grid/clip-vit-large-patch14/$n"; SIZE=$(stat -c %s "$f")
+            HAVE=$(aws s3api head-object --bucket "$B" --key "$KEY" --endpoint-url "$EP" --query ContentLength --output text 2>/dev/null || echo 0)
+            if [ "$HAVE" = "$SIZE" ]; then echo "已经有了：clip/$n"; else bash .github/workflows/cn-put.sh "$f" "$KEY" >/dev/null || bad=1; fi
           done
           echo "传了 $i 个文件"; [ "$bad" = 0 ] || { echo "::error::有文件没传上去，再跑一次（传好的会跳过）"; exit 1; }
       - uses: actions/upload-artifact@v4
