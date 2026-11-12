@@ -183,6 +183,7 @@ function open(file, opt = {}) {
     if (req.vram && (caps.vram || 0) < req.vram) return false;
     if (req.ram && (caps.ram || 0) < req.ram) return false;
     if (req.os && caps.os && req.os !== caps.os) return false;
+    if (req.comfy && !caps.comfy) return false;   // 要装好 AI 引擎（ComfyUI + 画 Q版的模型）
     return true;
   }
   // 领一个活
@@ -294,7 +295,8 @@ function open(file, opt = {}) {
         const i = J(t.input, {});
         if (result.ckpt) run("insert into ckpts(job_id,task_id,step,key,kind,created,device_id) values(?,?,?,?,?,?,?)", j.id, t.id, i.to, result.ckpt, "relay", clock(), dev.id);
         run("update jobs set done=? where id=?", i.to, j.id);
-        if (i.to >= p.totalSteps) endJob(j, result); else newSegment(j.id, p, i.to);
+        // 到点了（每日一轮的 until）：这一段算完就收尾，用现在的结果
+        if (i.to >= p.totalSteps || (p.deadline && clock() >= p.deadline)) endJob(j, result); else newSegment(j.id, p, i.to);
       }
       if (j.kind === "diloco") {
         if (t.kind === "merge") {
@@ -311,6 +313,33 @@ function open(file, opt = {}) {
   function endJob(j, result) {
     run("update jobs set state='done', finished=?, meta=json_set(coalesce(meta,'{}'),'$.result',json(?)) where id=?", clock(), S(result || {}), j.id);
     event("jobdone", `「${j.name}」全部完成`, { job: j.id });
+  }
+  // 到点收尾（每日一轮的 until）：没人领的小任务不做了；正在算的让它算完。
+  //   返回 "wait"（还有在算的）、"empty"（一个都没做成）、"done"（收好了，后面的步骤可以开始）
+  function cut(jobId) {
+    return tx(() => {
+      const j = one("select * from jobs where id=?", jobId);
+      if (!j || j.state === "done") return "done";
+      const dropped = Number(run("update tasks set state='dropped' where job_id=? and state='queued'", j.id).changes);
+      const leased = one("select count(*) as n from tasks where job_id=? and state='leased'", j.id).n;
+      const done = all("select * from tasks where job_id=? and kind='run' and state='done' order by id", j.id);
+      if (j.kind === "map") run("update jobs set total=?, done=? where id=?", done.length + leased, done.length, j.id);
+      if (dropped) event("cut", `「${j.name}」到点了：已经做了 ${done.length} 个${leased ? `，还有 ${leased} 个正在算的算完就收尾` : "，收尾"}`, { job: j.id });
+      if (leased) return "wait";
+      if (!done.length) return "empty";
+      const last = J(done[done.length - 1].result, {});
+      endJob(j, j.kind === "relay" ? last : done.length === 1 ? last : undefined);
+      return "done";
+    });
+  }
+  // 训练要用的人工审核结果：只给手上正领着这个任务的电脑（params.dataset 写的是哪一类审核）
+  function dataset(dev, { task }) {
+    const t = mine(dev, task);
+    if (!t) throw new Error("这个任务已经不归你了");
+    const tag = (J(one("select params from jobs where id=?", t.job_id).params, {}) || {}).dataset;
+    if (!tag) throw new Error("这个任务不用审核数据");
+    return all("select r.id, r.job_id, r.kind, r.payload, r.result, r.created from reviews r where r.state='done' and json_extract(r.payload,'$.tag')=? order by r.id", String(tag))
+      .map((r) => ({ id: r.id, job: r.job_id, kind: r.kind, payload: J(r.payload, {}), result: J(r.result, {}), created: r.created }));
   }
   // 出错了；release=true 是老师要用电脑了（不算失败次数）
   function fail(dev, { task, error, release }) {
@@ -442,7 +471,7 @@ function open(file, opt = {}) {
   return {
     db, kv, event, on: (f) => (listeners.add(f), () => listeners.delete(f)),
     adminToken, isAdmin, invite, join, auth, heartbeat, addRecipe, stage, createJob, lease, renew, checkpoint, finish, fail, sweep,
-    humanNext, humanDone, reviewNext, vote, overview, jobDetail, devicesView, board, setJob, setDevice, retry,
+    humanNext, humanDone, reviewNext, vote, cut, dataset, overview, jobDetail, devicesView, board, setJob, setDevice, retry,
     recipe: (id) => one("select * from recipes where id=?", id), recipes: () => all("select id,name,meta,created from recipes order by created desc"),
     review: (id) => one("select * from reviews where id=?", id),
     invites: () => all("select * from invites order by created desc limit 50"),

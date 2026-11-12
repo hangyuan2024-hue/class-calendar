@@ -178,6 +178,7 @@ function create(opt) {
     return { file: f, source: src.toString("utf8") };
   }
 
+  const ensured = new Set();   // 装过的包这次开机不再装
   async function runTask(L) {
     const dir = path.join(work, "tasks", String(L.task.id));
     fs.mkdirSync(dir, { recursive: true });
@@ -191,7 +192,13 @@ function create(opt) {
       emit("source", { id: c.id, name: L.recipe.name, source: rc.source });
       // 配方开头写「# requires: diffusers==0.35.1 transformers」：先把要的包装好（装过的 pip 会跳过）
       const req = (/^#\s*requires:\s*(.+)$/m.exec(rc.source) || [])[1];
-      if (req && opt.ensure) { c.note = "装配方要的包…"; log("装配方要的包：" + req); await opt.ensure(req.trim().split(/\s+/)); }
+      if (req && opt.ensure && !ensured.has(req.trim())) { c.note = "装配方要的包…"; log("装配方要的包：" + req); await opt.ensure(req.trim().split(/\s+/)); ensured.add(req.trim()); }
+      // 配方开头写「# needs: comfy」：要用本机的 AI 引擎画图，先把它开起来
+      if (/^#\s*needs:.*\bcomfy\b/m.test(rc.source)) {
+        if (!opt.comfy) throw new Error("这台电脑还没装好 AI 引擎");
+        c.note = "启动 AI 引擎（ComfyUI）…"; log("启动 AI 引擎（第一次要 1～3 分钟）");
+        await opt.comfy.ensure();
+      }
       const t = { kind: L.task.kind, task: L.task, input: L.task.input, job: L.job, work: dir, resume: null, parts: [] };
       if (L.resume) { const f = path.join(dir, "resume-" + path.basename(L.resume.key)); c.note = "下载存档…"; await xfer("GET", L.resume.url, f); t.resume = f; t.resumeInfo = { step: L.resume.step, round: L.resume.round }; }
       for (const [i, u] of (L.task.input.partUrls || []).entries()) { const f = path.join(dir, `part-${i}.npz`); await xfer("GET", u, f); t.parts.push(f); }
@@ -199,6 +206,8 @@ function create(opt) {
       // 前面步骤的结果文件、接着训练的起点：下载到本机
       t.files = {}; t.deps = L.deps || {};
       for (const [k, u] of Object.entries(L.fileUrls || {})) { const f = path.join(dir, "in-" + k.replace(/[^\w.\-]/g, "_")); c.note = "下载 " + k + "…"; await xfer("GET", u, f); t.files[k] = f; }
+      // 训练要用的人工审核结果（params.dataset）
+      if (L.job.params && L.job.params.dataset) { c.note = "取审核数据…"; const d = await api("/api/dataset", { task: c.id }); t.dataset = path.join(dir, "dataset.json"); fs.writeFileSync(t.dataset, JSON.stringify(d.items || [])); log(`审核数据：${(d.items || []).length} 条`); }
       fs.writeFileSync(path.join(dir, "task.json"), JSON.stringify(t));
       renewTimer = setInterval(() => renew(c).catch(() => {}), opt.renewMs || 20000);
       const code = await spawnPy(c, rc.file, path.join(dir, "task.json"));
@@ -245,6 +254,7 @@ function create(opt) {
     if (!c || c.stopping) return;
     c.stopping = true;
     if (c.child) { try { c.child.kill(); } catch (e) {} }
+    if (opt.comfy) { try { await opt.comfy.abort(); if (release) opt.comfy.stop(); } catch (e) {} }   // 你要用电脑了：AI 引擎也关掉，让出显存
     await c.uploads.catch(() => {});
     if (release) await api("/api/fail", { task: c.id, release: true, error: reason }).catch(() => {});
     emit("done", { id: c.id, ok: false, stopped: true, why: reason });
@@ -300,11 +310,21 @@ function create(opt) {
       case "review":
         c.uploads = c.uploads.then(async () => {
           const { t, ...r } = m;
-          for (const k of ["a", "b", "img", "audio"]) if (r[k] && fs.existsSync(r[k])) r[k] = await put(c, r[k], "rv");
+          c.put = c.put || {};   // 同一张图（比如参考照片）只传一次
+          for (const k of ["a", "b", "ref", "img", "audio"]) if (r[k] && fs.existsSync(r[k])) r[k] = c.put[r[k]] = c.put[r[k]] || await put(c, r[k], "rv");
           c.reviews.push(r);
         }).catch((e) => log("审核图片上传失败：" + e.message, "warn"));
         break;
       case "result": { const { t, ...r } = m; c.result = r; break; }
+      // 配方让 AI 引擎画图：做完把结果写回配方的标准输入（一行 JSON）
+      case "comfy": {
+        const { t, id, op, ...a } = m;
+        const reply = (x) => { try { if (c.child && c.child.stdin && !c.child.stdin.destroyed) c.child.stdin.write(JSON.stringify({ id, ...x }) + "\n"); } catch (e) {} };
+        Promise.resolve()
+          .then(() => { if (!opt.comfy) throw new Error("这台电脑还没装好 AI 引擎"); return opt.comfy.call(op, a, { dir: c.dir, onMsg: (x) => { if (x && x.max) { c.note = `AI 引擎：第 ${x.value}/${x.max} 步`; emit("progress", { id: c.id, p: c.progress, note: c.note }); } } }); })
+          .then((r) => reply({ ok: true, ...r }), (e) => reply({ ok: false, error: e.message }));
+        break;
+      }
     }
   }
 

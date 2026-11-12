@@ -8,3 +8,8 @@ for (const f of fs.readdirSync(src)) if (/\.(js|wasm|data|binarypb|tflite)$/.tes
 for (const f of ["README.md", "LICENSE"]) if (fs.existsSync(path.join(src, f))) fs.copyFileSync(path.join(src, f), path.join(out, f));
 fs.copyFileSync(path.join(R, "shared", "expr.js"), path.join(R, "app", "renderer", "expr.js"));
 console.log("mediapipe face_mesh、expr.js → app/renderer");
+// AI 引擎（ComfyUI）的安装、启动、下模型、交节点图：和捞捞PPT助手用同一套代码（只维护一份）
+const ppt = path.join(R, "..", "pptassist", "core"), pout = path.join(R, "app", "ppt");
+fs.mkdirSync(pout, { recursive: true });
+for (const f of ["engine.js", "workflows.js", "dl.js", "installer.js", "mirror.js"]) fs.copyFileSync(path.join(ppt, f), path.join(pout, f));
+console.log("pptassist/core 的 AI 引擎代码 → app/ppt");

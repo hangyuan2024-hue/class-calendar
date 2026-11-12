@@ -1,0 +1,18 @@
+{
+  "name": "Q版每日一轮",
+  "at": "19:00",
+  "stages": [
+    {
+      "key": "gen", "name": "画 Q版、交审核", "kind": "map", "recipe": "qv_gen", "recipeFile": "../recipes/qv_gen.py",
+      "until": "04:30",
+      "params": { "count": 2000, "cands": 2, "reviewNeed": 1, "tag": "qv1", "styles": ["toy", "toy", "film", "anime"], "warmStart": "$model:qversion-lora/lora" },
+      "req": { "vram": 7.5, "comfy": true }, "priority": 10
+    },
+    {
+      "key": "train", "name": "训练 Q版打分模型（用到今天为止所有审核）", "kind": "map", "recipe": "qv_scorer", "recipeFile": "../recipes/qv_scorer.py",
+      "params": { "count": 1, "dataset": "qv1", "minPairs": 40, "epochs": 300, "warmStart": "$model:qversion-scorer/scorer" },
+      "req": {}, "priority": 20, "after": ["gen"]
+    }
+  ],
+  "publish": { "model": "qversion-scorer", "from": "train", "files": ["scorer"], "metrics": [{ "k": "acc", "better": "higher", "vs": "base_acc", "tol": 0, "min": 0.55 }] }
+}

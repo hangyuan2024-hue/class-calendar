@@ -11,11 +11,12 @@
     "start": "electron .",
     "server": "node server/index.js",
     "prepare-ui": "node scripts/prepare.js",
-    "test": "node test/core.test.js && node test/chaos.test.js && node test/live.test.js && node test/update.test.js && node test/env.test.js && node test/cycle.test.js",
+    "test": "node test/core.test.js && node test/chaos.test.js && node test/live.test.js && node test/update.test.js && node test/env.test.js && node test/cycle.test.js && node test/qv.test.js",
     "dist": "node scripts/prepare.js && electron-builder --win nsis"
   },
   "dependencies": {
-    "@mediapipe/face_mesh": "0.4.1633559619"
+    "@mediapipe/face_mesh": "0.4.1633559619",
+    "7zip-bin": "5.2.0"
   },
   "devDependencies": {
     "electron": "^33.2.1",
@@ -36,11 +37,19 @@
       "recipes/**",
       "shared/**",
       "package.json",
-      "!app/renderer/__*"
+      "!app/renderer/__*",
+      "!node_modules/7zip-bin/linux/**",
+      "!node_modules/7zip-bin/mac/**",
+      "!node_modules/7zip-bin/win/ia32/**",
+      "!node_modules/7zip-bin/win/arm64/**"
     ],
     "asarUnpack": [
       "py/**",
-      "recipes/**"
+      "recipes/**",
+      "node_modules/7zip-bin/index.js",
+      "node_modules/7zip-bin/package.json",
+      "node_modules/7zip-bin/LICENSE.txt",
+      "node_modules/7zip-bin/win/x64/**"
     ],
     "win": {
       "target": "nsis",

@@ -47,7 +47,8 @@ function create(opt = {}) {
   // 签名的链接，把 key 里的东西带上
   const signed = (payload) => {
     const out = { ...payload };
-    for (const f of ["a", "b", "img", "audio", "video"]) if (typeof out[f] === "string" && Store.okKey(out[f])) out[f + "Url"] = store.url("GET", out[f], 3600);
+    delete out.meta;   // 训练用的东西（比如图片特征），不给审核界面
+    for (const f of ["a", "b", "ref", "img", "audio", "video"]) if (typeof out[f] === "string" && Store.okKey(out[f])) out[f + "Url"] = store.url("GET", out[f], 3600);
     if (Array.isArray(out.imgs)) out.imgUrls = out.imgs.map((k) => store.url("GET", k, 3600));
     return out;
   };
@@ -86,6 +87,7 @@ function create(opt = {}) {
     "POST /api/human/done": (req, b, dev) => core.humanDone(dev, b),
     "GET /api/review/next": (req, b, dev) => { const r = core.reviewNext(dev); return { item: r ? { id: r.id, job: r.job_name, kind: r.kind, need: r.need, votes: r.votes, payload: signed(JSON.parse(r.payload || "{}")) } : null }; },
     "POST /api/review/vote": (req, b, dev) => core.vote(dev, b),
+    "POST /api/dataset": (req, b, dev) => ({ items: core.dataset(dev, b) }),
     // ---- 管理员（控制中心） ----
     "GET /api/admin/overview": () => ({ ...core.overview(true), store: store.kind, pubkey: core.kv.get("pubkey") || null }),
     "GET /api/admin/job": (req, b, dev, u) => {

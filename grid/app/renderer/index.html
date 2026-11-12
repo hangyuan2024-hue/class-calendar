@@ -108,11 +108,16 @@
           <div class="term" id="testTerm" hidden></div>
           <button class="btn primary" id="testGo">开始测试</button>
           <p class="result" id="testOut"></p></div></div>
-        <div class="step" data-s="record"><div class="num">4</div><div class="body">
+        <div class="step" data-s="ai"><div class="num">4</div><div class="body">
+          <h3>装 AI 引擎 <span class="tag" id="aiTag">显卡 8G 以上</span></h3><p>画 Q版用的 ComfyUI 和通义千问的图片编辑模型（Qwen-Image-Edit，Apache-2.0），都从捞捞自己的国内存储下载，<b>大约 35G</b>，断了再点会接着下。装在上面选的数据文件夹里。</p>
+          <div class="term" id="aiTerm" hidden></div>
+          <div class="btns"><button class="btn primary" id="aiGo">一键安装</button><button class="btn ghost" id="aiDir">已经装过 ComfyUI</button><button class="btn ghost" id="aiCheck">检查</button><button class="btn ghost" id="aiCancel" hidden>取消</button><button class="btn ghost" id="aiSkip">这一步跳过</button></div>
+          <p class="muted small" id="aiState"></p></div></div>
+        <div class="step" data-s="record"><div class="num">5</div><div class="body">
           <h3>录表情 <span class="tag">自愿，可以跳过</span></h3><p>对着摄像头读讲稿，教 AI「说这句话时脸怎么动」。<b>只上传表情参数和录音，视频不保存、不上传。</b>每段 10 句左右，大约 3 分钟。</p>
           <div class="btns"><button class="btn primary" id="recGo">开始录</button><button class="btn ghost" id="recSkip">这一步跳过</button></div>
           <p class="muted small" id="recState"></p></div></div>
-        <div class="step" data-s="policy"><div class="num">5</div><div class="body">
+        <div class="step" data-s="policy"><div class="num">6</div><div class="body">
           <h3>挂机设置</h3><p>什么时候可以用这台电脑算。你一用电脑、一开游戏，马上让出显卡。</p>
           <div class="policy">
             <label class="radio"><input type="radio" name="mode" value="idle"> 空闲时算（推荐）：<input type="number" id="pIdle" min="1" max="120" value="5"> 分钟不动鼠标键盘就开始</label>

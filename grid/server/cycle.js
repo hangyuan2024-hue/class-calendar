@@ -4,6 +4,10 @@
 //                        publish: { model: "qversion-lora", from: "eval", files: ["lora"], metrics: [{ k: "score", better: "higher", tol: 0 }] } }
 //   训练接着上一版：params 里写 "warmStart": "$model:qversion-lora/lora" → 换成现在发布的那一版的文件
 //   上一步的结果：后面的任务能拿到 deps[key].result（文件会下载到本机）
+//   到点收尾：步骤里写 until: "04:30"（北京时间）→ 到点不管做了多少都收尾，后面的步骤接着开始（不用先测每台电脑多快）
+//     map：没人领的小任务不做了，正在算的算完；relay：正在算的这一段算完就用它的结果
+//   评测交 skip（比如「票数还不够」）：这一轮不出新版，不算失败
+//   比较时用同一份数据：metrics 里写 vs: "base_acc" → 和评测结果里现在这一版的分数比（每天的测试题会变多，昨天的分数不能直接比）
 "use strict";
 
 function attach(core, opt = {}) {
@@ -20,6 +24,15 @@ function attach(core, opt = {}) {
   const S = (o) => JSON.stringify(o == null ? null : o);
   const day = (t = clock()) => { const d = new Date(t + 8 * 3600e3); return d.toISOString().slice(0, 10); };   // 北京时间的日期
   const hhmm = (t = clock()) => new Date(t + 8 * 3600e3).toISOString().slice(11, 16);
+  // 下一个北京时间 hh:mm（比现在晚的那个）
+  function nextAt(hm, t = clock()) {
+    const [h, m] = String(hm).split(":").map(Number);
+    if (!(h >= 0 && h < 24 && m >= 0 && m < 60)) throw new Error("时间不对：" + hm);
+    const d = new Date(t + 8 * 3600e3);
+    let ts = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), h, m) - 8 * 3600e3;
+    if (ts <= t) ts += 86400e3;
+    return ts;
+  }
 
   // ---- 模型版本 ----
   const released = (name) => one("select * from models where name=? and state='released' order by version desc limit 1", name);
@@ -34,10 +47,16 @@ function attach(core, opt = {}) {
   // 发布出去的文件才能公开下载
   const publicKeys = () => new Set(all("select files from models where state='released'").flatMap((m) => J(m.files, []).map((f) => f.key)));
   function better(spec, cur, cand) {
+    // 及格线（min）：连第一版也要过（比如打分模型至少要比瞎猜好）
+    for (const m of spec.metrics || []) {
+      if (m.min == null) continue;
+      const b = +cand[m.k];
+      if (!isFinite(b) || (m.better === "lower" ? b > m.min : b < m.min)) return { ok: false, why: `${m.k} 是 ${isFinite(b) ? +b.toFixed(4) : "—"}，没到及格线 ${m.min}` };
+    }
     if (!cur) return { ok: true, why: "第一版" };
     let up = false;
     for (const m of spec.metrics || []) {
-      const a = +J(cur.metrics, {})[m.k], b = +cand[m.k];
+      const a = m.vs ? +cand[m.vs] : +J(cur.metrics, {})[m.k], b = +cand[m.k];
       if (!isFinite(b)) return { ok: false, why: `评测结果里没有 ${m.k}` };
       if (!isFinite(a)) { up = true; continue; }
       const d = m.better === "lower" ? a - b : b - a;   // 正数 = 变好
@@ -52,6 +71,7 @@ function attach(core, opt = {}) {
     if (!spec.name || !Array.isArray(spec.stages) || !spec.stages.length) throw new Error("流水线要有名字和步骤");
     const keys = new Set(spec.stages.map((s) => s.key));
     for (const s of spec.stages) for (const a of s.after || []) if (!keys.has(a)) throw new Error(`「${s.key}」要等的「${a}」不存在`);
+    for (const s of spec.stages) if (s.until) { nextAt(s.until); if (!["map", "relay"].includes(s.kind)) throw new Error(`「${s.key}」：只有 map 和 relay 能到点收尾`); }
     run("insert into pipelines(name,spec,at,created) values(?,?,?,?) on conflict(name) do update set spec=excluded.spec, at=excluded.at", spec.name, S(spec), spec.at || "18:30", clock());
     core.event("pipeline", `每日一轮「${spec.name}」设好了：每天 ${spec.at || "18:30"} 开始`);
     return one("select * from pipelines where name=?", spec.name).id;
@@ -77,7 +97,9 @@ function attach(core, opt = {}) {
     for (const s of spec.stages) {
       const recipe = s.kind === "record" ? null : recipeByName(s.recipe);
       if (s.kind !== "record" && !recipe) throw new Error(`还没上传配方「${s.recipe}」`);
-      const id = core.createJob({ name: `${s.name || s.key}（第 ${rid} 轮）`, stage, kind: s.kind, recipe, params: { ...fill(s.params || {}), stageKey: s.key, runId: rid }, req: s.req || {}, priority: s.priority || 0 });
+      const params = { ...fill(s.params || {}), stageKey: s.key, runId: rid };
+      if (s.until) params.deadline = nextAt(s.until);
+      const id = core.createJob({ name: `${s.name || s.key}（第 ${rid} 轮）`, stage, kind: s.kind, recipe, params, req: s.req || {}, priority: s.priority || 0 });
       ids[s.key] = id;
       run("update jobs set deps=?, run_id=? where id=?", S((s.after || []).map((k) => ids[k])), rid, id);
     }
@@ -88,12 +110,29 @@ function attach(core, opt = {}) {
   }
   // 每分钟看一眼：到点了、今天还没跑过 → 开一轮；上一轮还没跑完就不开（不叠在一起）
   function tick() {
-    // 有一步失败了（试了好几次都不行）：这一轮算失败，明天照常开新的一轮
     for (const r of all("select * from runs where state='running'")) {
       const ids = Object.values(J(r.jobs, {})).map(Number);
       if (!ids.length) continue;
-      const bad = one(`select j.name from jobs j where j.id in (${ids.join(",")}) and exists(select 1 from tasks t where t.job_id=j.id and t.state='failed') and not exists(select 1 from tasks t where t.job_id=j.id and t.state in ('queued','leased'))`);
-      if (bad) { run("update runs set state='failed', finished=? where id=?", clock(), r.id); run(`update jobs set state='paused' where id in (${ids.join(",")}) and state='active'`); core.event("fail", `第 ${r.id} 轮「${bad.name}」失败了，这一轮先停下；老师端继续用现在的模型`); }
+      const fail = (why) => { run("update runs set state='failed', finished=? where id=?", clock(), r.id); run(`update jobs set state='paused' where id in (${ids.join(",")}) and state='active'`); core.event("fail", `第 ${r.id} 轮${why}，这一轮先停下；老师端继续用现在的模型`); };
+      let failed = false;
+      for (const j of all(`select * from jobs where id in (${ids.join(",")}) and state='active'`)) {
+        const p = J(j.params, {}) || {};
+        const n = one("select sum(state in ('queued','leased')) as open, sum(state='failed') as bad, sum(state='done') as ok from tasks where job_id=?", j.id);
+        // 到点了：收尾
+        if (p.deadline && clock() >= p.deadline && ["map", "relay"].includes(j.kind)) {
+          const c = core.cut(j.id);
+          if (c === "empty") { fail(`「${j.name}」到点了一个也没做成`); failed = true; break; }
+          continue;
+        }
+        // 拆成很多份的：一个都没做成就已经有 5 个彻底失败了（比如 AI 引擎在这些电脑上跑不起来）→ 别整晚空转
+        if (j.kind === "map" && !n.ok && n.bad >= 5) { fail(`「${j.name}」连着 ${n.bad} 个都失败了（一个都没做成）`); failed = true; break; }
+        // 有小任务试了好几次都不行：生成这种拆成很多份的，做成了一些就用做成的；其他的算这一轮失败
+        if (n.bad && !n.open) {
+          if (j.kind === "map" && n.ok) { core.cut(j.id); continue; }
+          fail(`「${j.name}」失败了`); failed = true; break;
+        }
+      }
+      if (failed) continue;
     }
     for (const p of all("select * from pipelines where enabled=1")) {
       if (hhmm() < (p.at || "18:30")) continue;
@@ -114,8 +153,10 @@ function attach(core, opt = {}) {
     const key = J(j.params, {}).stageKey;
     if (pub && key === pub.from) {
       const res = (J(j.meta, {}) || {}).result || {};
+      if (res.skip) { core.event("model", `「${pub.model}」这一轮没出新版：${res.skip}（老师端继续用现在的）`); }
+      else {
       const files = (pub.files || []).map((n) => ({ name: n, key: res[n] })).filter((f) => f.key);
-      const metrics = Object.fromEntries((pub.metrics || []).map((m) => [m.k, res[m.k]]));
+      const metrics = Object.fromEntries((pub.metrics || []).flatMap((m) => [[m.k, res[m.k]], ...(m.vs ? [[m.vs, res[m.vs]]] : [])]));
       const cur = released(pub.model);
       const v = (one("select max(version) as v from models where name=?", pub.model) || {}).v || 0;
       const g = files.length === (pub.files || []).length ? better(pub, cur, metrics) : { ok: false, why: "评测没交出模型文件" };
@@ -125,6 +166,7 @@ function attach(core, opt = {}) {
         : state === "candidate" ? `「${pub.model}」第 ${v + 1} 版评测通过（${fmt(metrics)}），等你在控制中心点「发布」`
         : `「${pub.model}」第 ${v + 1} 版没发布：${g.why}（老师端继续用第 ${cur ? cur.version : "—"} 版）`);
       opt.onPublish && opt.onPublish();
+      }
     }
     const left = one(`select count(*) as n from jobs where id in (${Object.values(ids).map(Number).join(",") || 0}) and state!='done'`).n;
     if (!left) { run("update runs set state='done', finished=? where id=?", clock(), r.id); core.event("run", `「${p.name}」第 ${r.id} 轮做完了`); }
@@ -148,7 +190,7 @@ function attach(core, opt = {}) {
       models: all("select * from models order by name, version desc limit 60").map((m) => ({ id: m.id, name: m.name, version: m.version, state: m.state, metrics: J(m.metrics, {}), created: m.created, note: m.note, run: m.run_id })),
     };
   }
-  return { setPipeline, startRun, tick, onJobDone, manifest, publicKeys, setModel, view, better, released, setEnabled: (id, v) => run("update pipelines set enabled=? where id=?", v ? 1 : 0, id) };
+  return { nextAt, setPipeline, startRun, tick, onJobDone, manifest, publicKeys, setModel, view, better, released, setEnabled: (id, v) => run("update pipelines set enabled=? where id=?", v ? 1 : 0, id) };
 }
 
 module.exports = { attach };

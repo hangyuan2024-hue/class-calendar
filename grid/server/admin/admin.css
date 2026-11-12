@@ -87,6 +87,7 @@ main { padding: 18px 26px 40px; display: grid; gap: 16px; }
 .thumbs img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; background: #fff; }
 .rv { display: grid; grid-template-columns: 1fr 1fr 90px; gap: 6px; align-items: center; font-size: 12px; margin-bottom: 6px; }
 .rv img { width: 100%; border-radius: 6px; background: #fff; outline: 2px solid transparent; } .rv img.win { outline-color: var(--gr); }
+.rv:has(img.ref) { grid-template-columns: .8fr 1fr 1fr 90px; } .rv img.ref { opacity: .85; outline: 1px dashed var(--line); }
 
 .modal { position: fixed; inset: 0; background: rgba(0, 0, 0, .6); display: grid; place-items: center; z-index: 30; backdrop-filter: blur(4px); }
 .modal .card { width: 520px; display: grid; gap: 12px; } .modal .card.wide { width: 760px; }

@@ -9,6 +9,7 @@ const Agent = require("../worker/agent");
 const probe = require("../worker/probe");
 const Env = require("./env");
 const Updater = require("./updater");
+const AI = require("./ai");
 
 const RECIPES = path.join(__dirname, "..", "recipes").replace(/app\.asar([\\/])/, "app.asar.unpacked$1");  // 打包后 Python 读不了 asar 里的文件
 
@@ -25,13 +26,17 @@ function createService(o) {
   const mkEnv = () => Env.create({ dir: path.join(base(), "env"), python: o.python || cfg.python, onEvent: (e) => send("env", e) });
   let env = mkEnv();
   let agent = null, lastProbe = cfg.probe || null, sources = {};
+  // AI 引擎（ComfyUI + 画 Q版的模型），装在数据文件夹的 ai 里
+  const ai = (o.aiFactory || AI.create)({ get: () => cfg.ai, set: (v) => { cfg.ai = v; save(); }, onEvent: (e) => send("ai", e),
+    vram: () => (lastProbe && lastProbe.caps && lastProbe.caps.vram) || 0, gpuName: () => (lastProbe && lastProbe.caps && lastProbe.caps.gpu) || "", ...(o.aiOpt || {}) });
+  const capsNow = () => ({ ...((lastProbe && lastProbe.caps) || {}), comfy: !!(cfg.ai && cfg.ai.ready) });
   const gallery = [];
 
   function startAgent() {
     if (agent || !cfg.token) return;
     agent = Agent.create({
       server: cfg.server, token: cfg.token, pubkey: cfg.pubkey, workDir: work(), python: () => env.python(),
-      caps: lastProbe ? lastProbe.caps : null, policy: cfg.policy || { mode: "idle", idleMin: 5 },
+      caps: lastProbe ? capsNow() : null, comfy: ai, policy: cfg.policy || { mode: "idle", idleMin: 5 },
       idleSecs: o.idleSecs, ensure: (pkgs) => env.ensure(pkgs), version: o.version, gpuInfo: async () => (await probe.gpus())[0] || null, gpuApps: (ours) => probe.gpuApps(undefined, ours),
       ...(o.agentOpt || {}),
     });
@@ -48,6 +53,8 @@ function createService(o) {
     if (cfg.manual) agent.setManual(cfg.manual);
     agent.start();
   }
+  const smallGpu = () => !!(lastProbe && lastProbe.caps && lastProbe.caps.vram < 7.5);
+  const aiInfo = () => ({ ready: !!(cfg.ai && cfg.ai.ready), dir: (cfg.ai && cfg.ai.dir) || "", skipped: !!cfg.aiSkipped, smallGpu: smallGpu(), ram: (lastProbe && lastProbe.caps && lastProbe.caps.ram) || 0 });
   const api = (p, b) => { if (!agent) throw new Error("还没加入训练网"); return agent.api(p, b); };
 
   const H = {
@@ -57,7 +64,8 @@ function createService(o) {
         joined: !!cfg.token, server: cfg.server || "", dataDir: base(), me: cfg.member || null, deviceId: cfg.device || null, recorded: cfg.recorded || 0, deviceName: cfg.deviceName || "", version: o.version,
         agent: agent ? agent.status() : null, probe: lastProbe, policy: cfg.policy || (agent && agent.policy) || null, paused: cfg.manual === "off", manual: cfg.manual || "auto",
         python: cfg.python || "", env: cfg.envOk || null, testResult: cfg.testResult || null, consent: cfg.consent || null, autostart: !!cfg.autostart,
-        steps: { probe: !!(lastProbe && lastProbe.ok), env: !!(cfg.envOk && cfg.envOk.ok), test: !!(cfg.testResult && cfg.testResult.ok), record: !!(cfg.recorded || cfg.recordSkipped), policy: !!cfg.policySet },
+        ai: aiInfo(),
+        steps: { probe: !!(lastProbe && lastProbe.ok), env: !!(cfg.envOk && cfg.envOk.ok), test: !!(cfg.testResult && cfg.testResult.ok), ai: !!(cfg.ai && cfg.ai.ready) || !!cfg.aiSkipped || smallGpu(), record: !!(cfg.recorded || cfg.recordSkipped), policy: !!cfg.policySet },
       };
     },
     async join(invite, name, deviceName) {
@@ -76,7 +84,7 @@ function createService(o) {
     async probe() {
       lastProbe = await probe.full({ dir: work(), server: cfg.server, smi: o.smi });
       cfg.probe = lastProbe; save();
-      if (agent) agent.setCaps(lastProbe.caps);
+      if (agent) agent.setCaps(capsNow());
       return lastProbe;
     },
     // 换个地方放（比如 D 盘）：只能用英文路径（PyTorch 和不少包在中文、空格路径下会出错）
@@ -123,6 +131,24 @@ function createService(o) {
       cfg.testResult = { ...res, t: undefined, at: Date.now() }; save();
       return cfg.testResult;
     },
+    // ---- ④ 装 AI 引擎（画 Q版用；显卡 8G 以上才要装）----
+    aiCheck: async () => { const r = await ai.check(); if (agent) agent.setCaps(capsNow()); return { ...r, ...aiInfo() }; },
+    async aiInstall() {
+      if (!/^[\x20-\x7e]+$/.test(base()) || /\s/.test(base())) throw new Error("现在的位置（" + base() + "）里有中文或空格，ComfyUI 放在这种地方会出错：先在第 1 步点「换个地方」，选 D 盘");
+      const r = await ai.install(path.join(base(), "ai"));
+      delete cfg.aiSkipped; save();
+      if (agent) agent.setCaps(capsNow());
+      return { ...r, ...aiInfo() };
+    },
+    async aiUseDir() {
+      const d = o.pickDir ? await o.pickDir("选已经装好的 ComfyUI 整合包文件夹（比如捞捞PPT助手装的 LaolaoAI-ComfyUI 里面那个）") : null;
+      if (!d) return null;
+      const r = await ai.useDir(d);
+      if (agent) agent.setCaps(capsNow());
+      return { ...r, ...aiInfo() };
+    },
+    aiCancel: async () => ai.cancel(),
+    async skipAi(v = true) { cfg.aiSkipped = !!v; save(); return H.status(); },
     // ---- ⑤ 挂机 ----
     async setPolicy(p) { cfg.policy = { ...(cfg.policy || {}), ...p }; cfg.policySet = true; save(); if (agent) agent.setPolicy(cfg.policy); if (o.setAutostart && p.autostart != null) { cfg.autostart = !!p.autostart; o.setAutostart(cfg.autostart); save(); } return cfg.policy; },
     // 录表情是自愿的：不录也不影响帮忙算
@@ -184,7 +210,7 @@ function createService(o) {
   H.updateNow = async () => updater.now();
   H.recording = async (v) => { recording = !!v; return recording; };
   if (cfg.token) startAgent();
-  return { H, shutdown: async () => { updater.stop(); if (agent) await agent.stop(); }, agent: () => agent, updater };
+  return { H, shutdown: async () => { updater.stop(); if (agent) await agent.stop(); try { ai.stop(); } catch (e) {} }, agent: () => agent, updater, ai };
 }
 
 module.exports = { createService };

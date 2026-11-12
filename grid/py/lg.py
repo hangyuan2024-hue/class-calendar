@@ -10,6 +10,8 @@
     lg.output(path)                # 交一个结果文件
     lg.review(kind="ab", a=图片路径, b=图片路径, question="哪个更可爱？")  # 交给大家人工审核
     lg.done(loss=0.01, ckpt=path)  # 做完（结果里的文件路径会自动上传）
+    lg.comfy("run", graph={...})   # 配方开头写「# needs: comfy」：让本机的 AI 引擎（ComfyUI）画图，返回结果文件
+    lg.dataset()                   # 任务参数里写了 dataset：大家审核好的结果（训练用）
 
 客户端会每隔一小会儿看一眼「现在执行到配方的第几行」，在界面上把那一行高亮出来。
 """
@@ -21,7 +23,7 @@ import time
 
 _out = sys.__stdout__
 # Windows 的控制台默认是 GBK / cp1252，写中文会报错：和客户端之间一律用 UTF-8
-for _s in (sys.__stdout__, sys.__stderr__):
+for _s in (sys.__stdout__, sys.__stderr__, sys.stdin):
     try:
         _s.reconfigure(encoding="utf-8", errors="replace")
     except Exception:
@@ -95,26 +97,92 @@ def image(path, caption=""):
 
 def review(kind="ab", **payload):
     """交给大家审核。kind="ab"：a、b 两张图比哪个好；kind="pass"：img 一张图合不合格。图片写本地路径，客户端会上传。"""
-    for k in ("a", "b", "img", "audio"):
+    for k in ("a", "b", "ref", "img", "audio"):
         if k in payload and payload[k]:
             payload[k] = os.path.abspath(payload[k])
     _send(t="review", kind=kind, **payload)
 
 
-def download(url, dest):
-    """下载一个文件（前面步骤交的结果：t["deps"][步骤]["outputs"][i]["url"]）。下过的不再下。"""
+def download(url, dest, note=None):
+    """下载一个文件（前面步骤交的结果：t["deps"][步骤]["outputs"][i]["url"]）。下过的不再下。
+    url 可以是一串地址（国内存储、hf-mirror、官方），前面的不通就换下一个。"""
     import urllib.request
     if os.path.exists(dest) and os.path.getsize(dest) > 0:
         return dest
-    tmp = dest + ".part"
-    with urllib.request.urlopen(url, timeout=120) as r, open(tmp, "wb") as f:
+    os.makedirs(os.path.dirname(os.path.abspath(dest)), exist_ok=True)
+    urls = [url] if isinstance(url, str) else list(url)
+    err = None
+    for u in urls:
+        tmp = dest + ".part"
+        try:
+            req = urllib.request.Request(u, headers={"User-Agent": "laolao-grid"})
+            with urllib.request.urlopen(req, timeout=120) as r, open(tmp, "wb") as f:
+                total = int(r.headers.get("Content-Length") or 0)
+                got, last = 0, 0.0
+                while True:
+                    b = r.read(1 << 20)
+                    if not b:
+                        break
+                    f.write(b)
+                    got += len(b)
+                    if note and total and time.time() - last > 2:
+                        last = time.time()
+                        log("%s：%d%%（%.0fM / %.0fM）" % (note, got * 100 // total, got / 1e6, total / 1e6))
+            if total and os.path.getsize(tmp) != total:
+                raise IOError("没下完整")
+            os.replace(tmp, dest)
+            return dest
+        except Exception as e:  # 换下一个地址
+            err = e
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+    raise IOError("下载失败：%s（%s）" % (os.path.basename(dest), err))
+
+
+_cid = 0
+_stdin_lock = threading.Lock()
+
+
+def comfy(op, **args):
+    """让本机的 AI 引擎（ComfyUI）做事，等它做完：
+        comfy("info")                             → {"models": {"qwenEdit": 文件名, ...}, "vram": 8}
+        comfy("upload", path=图片)                → {"name": ComfyUI 里的名字}（给 LoadImage 用）
+        comfy("lora", path=插件, name="x.safetensors") → {"name": "laolao/x.safetensors"}（给 LoraLoader 用）
+        comfy("run", graph=节点图)                → {"files": [结果图片的本地路径]}
+    """
+    global _cid
+    with _stdin_lock:
+        _cid += 1
+        my = _cid
+        if "path" in args and args["path"]:
+            args["path"] = os.path.abspath(args["path"])
+        _send(t="comfy", id=my, op=op, **args)
         while True:
-            b = r.read(1 << 20)
-            if not b:
-                break
-            f.write(b)
-    os.replace(tmp, dest)
-    return dest
+            line = sys.stdin.readline()
+            if not line:
+                raise RuntimeError("客户端断开了")
+            try:
+                m = json.loads(line)
+            except ValueError:
+                continue
+            if m.get("id") != my:
+                continue
+            if not m.get("ok"):
+                raise RuntimeError("AI 引擎：" + str(m.get("error")))
+            m.pop("ok", None)
+            m.pop("id", None)
+            return m
+
+
+def dataset():
+    """大家审核好的结果（任务参数里写 "dataset": "标签"，只给领着这个任务的电脑）。"""
+    p = task().get("dataset")
+    if not p or not os.path.exists(p):
+        return []
+    with open(p, encoding="utf-8") as f:
+        return json.load(f)
 
 
 def done(**result):

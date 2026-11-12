@@ -166,7 +166,7 @@
   // ---------- 任务向导 ----------
   function paintGuide() {
     if (!S) return;
-    const order = ["probe", "env", "test", "record", "policy"];
+    const order = ["probe", "env", "test", "ai", "record", "policy"];
     const first = order.find((k) => !S.steps[k]);
     $$(".step").forEach((el) => { const k = el.dataset.s; el.classList.toggle("done", !!S.steps[k]); el.classList.toggle("cur", k === first); });
     const n = order.filter((k) => !S.steps[k]).length;
@@ -175,6 +175,7 @@
     $("#dataDir").textContent = S.dataDir || "—";
     if (S.env) $("#envState").textContent = S.env.ok ? `已装好：Python ${S.env.python}，PyTorch ${S.env.torch}（CUDA ${S.env.cudaVer}）` : S.env.python ? `有 Python ${S.env.python}，${S.env.torch ? "PyTorch 看不到显卡" : "还没装 PyTorch"}` : "";
     if (S.testResult) paintTest(S.testResult);
+    paintAi(S.ai || {});
     $("#recSkip").hidden = !!S.steps.record;
     $("#recState").textContent = S.recorded ? `已经录了 ${S.recorded} 段，谢谢！还可以接着录` : S.steps.record ? "跳过了：以后想录随时点「开始录」" : "";
     const p = S.policy || {};
@@ -215,6 +216,36 @@
     S = await call("status"); paintGuide(); $("#policyState").textContent = "保存好了"; toast("保存好了");
   });
 
+  // ---------- 装 AI 引擎 ----------
+  function paintAi(a) {
+    $("#aiSkip").hidden = !!S.steps.ai;
+    $("#aiTag").textContent = a.smallGpu ? "这台不用装" : "显卡 8G 以上";
+    $("#aiState").textContent = a.ready ? `✓ 装好了：${a.dir}` + (a.ram && a.ram < 24 ? `（内存 ${a.ram}G：画图会比较慢，32G 更好）` : "")
+      : a.smallGpu ? "这台电脑的显卡不到 8G，不用装：它会做训练、评测这些，画图交给显存大的电脑"
+      : a.skipped ? "跳过了：这台电脑不画图，只做别的任务。以后想装随时点「一键安装」" : a.dir ? "装了一半：点「一键安装」接着装" : "";
+  }
+  const aiTerm = (e) => {
+    const box = $("#aiTerm");
+    const bar = (text) => { box.hidden = false; let pg = box.lastElementChild; if (!pg || !pg.classList.contains("pg")) { pg = document.createElement("div"); pg.className = "pg"; box.appendChild(pg); } pg.textContent = text; };
+    if (e.stage === "download") {
+      const pct = e.total ? Math.floor(e.got / e.total * 100) : null;
+      return bar(`下载 ${e.name || ""}${e.n > 1 ? `（${e.i + 1}/${e.n}）` : ""}：${pct == null ? Math.round((e.got || 0) / 1e6) + "M" : pct + "%"}${e.speed ? `，${(e.speed / 1e6).toFixed(1)}M/秒` : ""}`);
+    }
+    if (e.stage === "check" && e.name) return bar(`核对 ${e.name}…`);
+    if (e.stage === "extract") return bar(`解压 ${Math.round((e.p || 0) * 100)}%`);
+    if (e.msg) term(box, { msg: e.msg, done: e.done });
+  };
+  window.lg.on("ai", aiTerm);
+  const aiDone = async (r) => { S = await call("status"); paintGuide(); if (r) toast(r.ready ? "AI 引擎装好了：这台电脑可以画 Q版了" : r.missing && r.missing.length ? "还有模型没下完：再点一次接着下" : "装完了，但还不能用：看上面的提示", !r.ready); };
+  $("#aiGo").onclick = guard(async () => {
+    $("#aiGo").disabled = true; $("#aiCancel").hidden = false; $("#aiTerm").innerHTML = "";
+    try { await aiDone(await call("aiInstall")); } finally { $("#aiGo").disabled = false; $("#aiCancel").hidden = true; }
+  });
+  $("#aiDir").onclick = guard(async () => { const r = await call("aiUseDir"); if (r) await aiDone(r); });
+  $("#aiCheck").onclick = guard(async () => { await aiDone(await call("aiCheck")); });
+  $("#aiCancel").onclick = () => call("aiCancel");
+  $("#aiSkip").onclick = guard(async () => { S = await call("skipAi", true); paintGuide(); toast("跳过了：这台电脑不画图，训练、评测、审核照常"); });
+
   // ---------- 录表情（小页面 record.html 里认脸；录好的交给后台存、上传） ----------
   $("#recSkip").onclick = guard(async () => { S = await call("skipRecord", true); paintGuide(); toast("跳过了：不影响帮忙算。以后想录，随时回来点「开始录」"); });
   $("#recGo").onclick = guard(async () => {
@@ -246,7 +277,7 @@
     if (!rv) { box.innerHTML = `<div class="rv-done"><b>✓</b>现在没有要审核的了，谢谢！</div>`; return; }
     const p = rv.payload;
     if (rv.kind === "ab") box.innerHTML = `<div class="q">${esc(p.question || "哪个更好？")}<small>${esc(rv.job)} · 已有 ${rv.votes} 票，要 ${rv.need} 票</small></div>
-      <div class="ab"><button data-c="a"><img src="${esc(p.aUrl)}"><span><kbd>1</kbd>左边这个</span></button><button data-c="b"><img src="${esc(p.bUrl)}"><span><kbd>2</kbd>右边这个</span></button></div>
+      <div class="ab${p.refUrl ? " ref3" : ""}">${p.refUrl ? `<figure class="ref"><img src="${esc(p.refUrl)}"><figcaption>照片（参考）</figcaption></figure>` : ""}<button data-c="a"><img src="${esc(p.aUrl)}"><span><kbd>1</kbd>${p.refUrl ? "中间" : "左边"}这个</span></button><button data-c="b"><img src="${esc(p.bUrl)}"><span><kbd>2</kbd>右边这个</span></button></div>
       <div class="rv-more"><button class="btn ghost" data-c="same"><kbd>3</kbd>差不多</button><button class="btn ghost" data-c="bad"><kbd>0</kbd>两个都不行</button></div>`;
     else box.innerHTML = `<div class="q">${esc(p.question || "这个合格吗？")}<small>${esc(rv.job)}</small></div>
       <div class="ab" style="grid-template-columns:1fr;max-width:460px">${p.imgUrl ? `<img src="${esc(p.imgUrl)}" style="border-radius:16px">` : ""}${p.text ? `<p>${esc(p.text)}</p>` : ""}</div>
@@ -294,7 +325,7 @@
     paintUpdate(await call("updateStatus").catch(() => null));
     if (S.agent) { paintState(S.agent); if (S.agent.task) { curTask = S.agent.task; $("#lvJob").textContent = S.agent.task.job.name; const src = await call("source", S.agent.task.id); showSource(src); } S.agent.logs.slice(-80).forEach(addLog); paintGpu(S.agent.gpu); }
     paintGuide();
-    const first = ["probe", "env", "test", "record", "policy"].find((k) => !S.steps[k]);
+    const first = ["probe", "env", "test", "ai", "record", "policy"].find((k) => !S.steps[k]);
     go(first && !S.steps.probe ? "guide" : "home");
     clearInterval(boot.t); boot.t = setInterval(() => { if (page === "home") refreshOverview(); else if (page === "review" && !rv) loadReview(); }, 3000);
     refreshOverview();
