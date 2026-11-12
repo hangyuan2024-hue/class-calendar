@@ -186,7 +186,215 @@
    "size": 190115368,
    "sha256": "000813e441020f18cff844c969d2d5d4adc2a5ce46b2db1f23950b05d88805b4",
    "model": "wav2vec"
+  },
+  "ai/grid/colorama-0.4.6-py2.py3-none-any.whl": {
+   "group": "grid",
+   "name": "colorama-0.4.6-py2.py3-none-any.whl",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/grid/colorama-0.4.6-py2.py3-none-any.whl",
+   "src": "pip:colorama-0.4.6-py2.py3-none-any.whl",
+   "size": 25335,
+   "sha256": "4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6",
+   "pkg": "gridwheel",
+   "ver": "2.11.0+cu128"
+  },
+  "ai/grid/numpy-2.4.6-cp311-cp311-win_amd64.whl": {
+   "group": "grid",
+   "name": "numpy-2.4.6-cp311-cp311-win_amd64.whl",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/grid/numpy-2.4.6-cp311-cp311-win_amd64.whl",
+   "src": "pip:numpy-2.4.6-cp311-cp311-win_amd64.whl",
+   "size": 12608406,
+   "sha256": "1e254a00cdf42b1e4d5b3d68d33af63268d41340d8885df2ab6470f2e1500147",
+   "pkg": "gridwheel",
+   "ver": "2.11.0+cu128"
+  },
+  "ai/grid/pillow-13.0.0-cp311-cp311-win_amd64.whl": {
+   "group": "grid",
+   "name": "pillow-13.0.0-cp311-cp311-win_amd64.whl",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/grid/pillow-13.0.0-cp311-cp311-win_amd64.whl",
+   "src": "pip:pillow-13.0.0-cp311-cp311-win_amd64.whl",
+   "size": 7278471,
+   "sha256": "d7710eb676e9bb68965cb045be0d333b4c0d7f9dfbaa7fbf121385b1588683d3",
+   "pkg": "gridwheel",
+   "ver": "2.11.0+cu128"
+  },
+  "ai/grid/python-3.11.9-amd64.exe": {
+   "group": "grid",
+   "name": "python-3.11.9-amd64.exe",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/grid/python-3.11.9-amd64.exe",
+   "src": "pip:python-3.11.9-amd64.exe",
+   "size": 26216840,
+   "sha256": "5ee42c4eee1e6b4464bb23722f90b45303f79442df63083f05322f1785f5fdde",
+   "pkg": "gridpy",
+   "ver": "2.11.0+cu128"
+  },
+  "ai/grid/safetensors-0.8.0-cp310-abi3-win_amd64.whl": {
+   "group": "grid",
+   "name": "safetensors-0.8.0-cp310-abi3-win_amd64.whl",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/grid/safetensors-0.8.0-cp310-abi3-win_amd64.whl",
+   "src": "pip:safetensors-0.8.0-cp310-abi3-win_amd64.whl",
+   "size": 355540,
+   "sha256": "096ec1a98435df7beb08853bb5aa9081a84f23d0adc67ed1a0a10550f608373f",
+   "pkg": "gridwheel",
+   "ver": "2.11.0+cu128"
+  },
+  "ai/grid/setuptools-78.1.0-py3-none-any.whl": {
+   "group": "grid",
+   "name": "setuptools-78.1.0-py3-none-any.whl",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/grid/setuptools-78.1.0-py3-none-any.whl",
+   "src": "pip:setuptools-78.1.0-py3-none-any.whl",
+   "size": 1256108,
+   "sha256": "3e386e96793c8702ae83d17b853fb93d3e09ef82ec62722e61da5cd22376dcd8",
+   "pkg": "gridwheel",
+   "ver": "2.11.0+cu128"
+  },
+  "ai/grid/sympy-1.14.0-py3-none-any.whl": {
+   "group": "grid",
+   "name": "sympy-1.14.0-py3-none-any.whl",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/grid/sympy-1.14.0-py3-none-any.whl",
+   "src": "pip:sympy-1.14.0-py3-none-any.whl",
+   "size": 6299353,
+   "sha256": "e091cc3e99d2141a0ba2847328f5479b05d94a6635cb96148ccb3f34671bd8f5",
+   "pkg": "gridwheel",
+   "ver": "2.11.0+cu128"
+  },
+  "ai/grid/torch-2.11.0+cu128-cp311-cp311-win_amd64.whl": {
+   "group": "grid",
+   "name": "torch-2.11.0+cu128-cp311-cp311-win_amd64.whl",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/grid/torch-2.11.0+cu128-cp311-cp311-win_amd64.whl",
+   "src": "pip:torch-2.11.0+cu128-cp311-cp311-win_amd64.whl",
+   "size": 2753148611,
+   "sha256": "90ef0c2454e5296a9fb021ddd42252e4ce1abe2c0a4988a173ef90a6cded0bf5",
+   "pkg": "gridwheel",
+   "ver": "2.11.0+cu128"
+  },
+  "ai/grid/torchvision-0.26.0+cu128-cp311-cp311-win_amd64.whl": {
+   "group": "grid",
+   "name": "torchvision-0.26.0+cu128-cp311-cp311-win_amd64.whl",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/grid/torchvision-0.26.0+cu128-cp311-cp311-win_amd64.whl",
+   "src": "pip:torchvision-0.26.0+cu128-cp311-cp311-win_amd64.whl",
+   "size": 9313819,
+   "sha256": "d26091b15cd6e3c74c148d9b68c9a901ad6fb9b0f66fa3ea3ab09f04132a07d3",
+   "pkg": "gridwheel",
+   "ver": "2.11.0+cu128"
+  },
+  "ai/grid/tqdm-4.70.1-py3-none-any.whl": {
+   "group": "grid",
+   "name": "tqdm-4.70.1-py3-none-any.whl",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/grid/tqdm-4.70.1-py3-none-any.whl",
+   "src": "pip:tqdm-4.70.1-py3-none-any.whl",
+   "size": 80199,
+   "sha256": "c293e525e6fef9c20e8728fd4612df02a0aa31bb5fe91ecd93e123b1b7bffa73",
+   "pkg": "gridwheel",
+   "ver": "2.11.0+cu128"
+  },
+  "ai/grid/typing_extensions-4.16.0-py3-none-any.whl": {
+   "group": "grid",
+   "name": "typing_extensions-4.16.0-py3-none-any.whl",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/grid/typing_extensions-4.16.0-py3-none-any.whl",
+   "src": "pip:typing_extensions-4.16.0-py3-none-any.whl",
+   "size": 45571,
+   "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+   "pkg": "gridwheel",
+   "ver": "2.11.0+cu128"
+  },
+  "ai/grid/filelock-4.2.10-py3-none-any.whl": {
+   "group": "grid",
+   "name": "filelock-4.2.10-py3-none-any.whl",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/grid/filelock-4.2.10-py3-none-any.whl",
+   "src": "pip:filelock-4.2.10-py3-none-any.whl",
+   "size": 218040,
+   "sha256": "9479aaeb4db20b5a53e3da28493edd24720b66b8a0b84030aa56ccdf243d6857",
+   "pkg": "gridwheel",
+   "ver": "2.11.0+cu128"
+  },
+  "ai/grid/filelock-4.2.4-py3-none-any.whl": {
+   "group": "grid",
+   "name": "filelock-4.2.4-py3-none-any.whl",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/grid/filelock-4.2.4-py3-none-any.whl",
+   "src": "pip:filelock-4.2.4-py3-none-any.whl",
+   "size": 162475,
+   "sha256": "301241438c57936ef93f4243a94f2559022268bfcf9b375a9a72eb0f8db8358e",
+   "pkg": "gridwheel",
+   "ver": "2.11.0+cu128"
+  },
+  "ai/grid/fsspec-2026.9.0-py3-none-any.whl": {
+   "group": "grid",
+   "name": "fsspec-2026.9.0-py3-none-any.whl",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/grid/fsspec-2026.9.0-py3-none-any.whl",
+   "src": "pip:fsspec-2026.9.0-py3-none-any.whl",
+   "size": 221738,
+   "sha256": "8dd6e646e99ea382bd85f97a45e6b526a442d79423a7dc673f1e2756d05fcb5f",
+   "pkg": "gridwheel",
+   "ver": "2.11.0+cu128"
+  },
+  "ai/grid/jinja2-3.1.6-py3-none-any.whl": {
+   "group": "grid",
+   "name": "jinja2-3.1.6-py3-none-any.whl",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/grid/jinja2-3.1.6-py3-none-any.whl",
+   "src": "pip:jinja2-3.1.6-py3-none-any.whl",
+   "size": 134899,
+   "sha256": "85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67",
+   "pkg": "gridwheel",
+   "ver": "2.11.0+cu128"
+  },
+  "ai/grid/markupsafe-3.0.3-cp311-cp311-win_amd64.whl": {
+   "group": "grid",
+   "name": "markupsafe-3.0.3-cp311-cp311-win_amd64.whl",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/grid/markupsafe-3.0.3-cp311-cp311-win_amd64.whl",
+   "src": "pip:markupsafe-3.0.3-cp311-cp311-win_amd64.whl",
+   "size": 15077,
+   "sha256": "de8a88e63464af587c950061a5e6a67d3632e36df62b986892331d4620a35c01",
+   "pkg": "gridwheel",
+   "ver": "2.11.0+cu128"
+  },
+  "ai/grid/markupsafe-3.0.4-cp311-cp311-win_amd64.whl": {
+   "group": "grid",
+   "name": "markupsafe-3.0.4-cp311-cp311-win_amd64.whl",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/grid/markupsafe-3.0.4-cp311-cp311-win_amd64.whl",
+   "src": "pip:markupsafe-3.0.4-cp311-cp311-win_amd64.whl",
+   "size": 14328,
+   "sha256": "fdb4ca07ab75ffadab4a8b135ad59cdbb3156b99310f3d565370da74a15d6bd3",
+   "pkg": "gridwheel",
+   "ver": "2.11.0+cu128"
+  },
+  "ai/grid/mpmath-1.3.0-py3-none-any.whl": {
+   "group": "grid",
+   "name": "mpmath-1.3.0-py3-none-any.whl",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/grid/mpmath-1.3.0-py3-none-any.whl",
+   "src": "pip:mpmath-1.3.0-py3-none-any.whl",
+   "size": 536198,
+   "sha256": "a0b2b9fe80bbcd81a6647ff13108738cfb482d481d826cc0e02f5b35e5c88d2c",
+   "pkg": "gridwheel",
+   "ver": "2.11.0+cu128"
+  },
+  "ai/grid/networkx-3.6.1-py3-none-any.whl": {
+   "group": "grid",
+   "name": "networkx-3.6.1-py3-none-any.whl",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/grid/networkx-3.6.1-py3-none-any.whl",
+   "src": "pip:networkx-3.6.1-py3-none-any.whl",
+   "size": 2068504,
+   "sha256": "d47fbf302e7d9cbbb9e2555a0d267983d2aa476bac30e90dfbe5669bd57f3762",
+   "pkg": "gridwheel",
+   "ver": "2.11.0+cu128"
+  },
+  "ai/llm/Qwen3VL-4B-Instruct-Q4_K_M.gguf": {
+   "group": "llm",
+   "name": "Qwen3VL-4B-Instruct-Q4_K_M.gguf",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/llm/Qwen3VL-4B-Instruct-Q4_K_M.gguf",
+   "src": "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct-GGUF/resolve/main/Qwen3VL-4B-Instruct-Q4_K_M.gguf",
+   "size": 2497281664,
+   "sha256": "66358cb18bb6b3b1b6675aa412c7a88ef01d228f481184d13668e5201c730a0a",
+   "model": "llmMain"
+  },
+  "ai/llm/mmproj-Qwen3VL-4B-Instruct-F16.gguf": {
+   "group": "llm",
+   "name": "mmproj-Qwen3VL-4B-Instruct-F16.gguf",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/llm/mmproj-Qwen3VL-4B-Instruct-F16.gguf",
+   "src": "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct-GGUF/resolve/main/mmproj-Qwen3VL-4B-Instruct-F16.gguf",
+   "size": 836180256,
+   "sha256": "256f3a43bd4205ffef48d6b92715e1e70b5b0e9aef06522584967513a9985331",
+   "model": "llmMmproj"
   }
  },
- "at": "2026-11-11T16:57:45.732Z"
+ "at": "2026-11-12T09:51:14.583Z"
 }
