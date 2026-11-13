@@ -53,9 +53,11 @@ function createService(env) {
   const eng = ENGINE.create({ mirror, ...(env.engineOpt || {}) });
   // AI 助手：本地大模型 + 正在改的 PPT（edit.deck，改完另存）
   // 捞捞自己训练的模型（捞捞算力每天训练、评测通过才发布）：后台自动下载，下次生成时才换上
-  const grid = GridModels.create({ dir: path.join(USER, "grid-models"), onEvent: (e) => send("aiav", { stage: "gridmodel", ...e }), ...(env.gridOpt || {}) });
+  const grid = GridModels.create({ dir: path.join(USER, "grid-models"), want: ["qversion-lora", "qa-lora"], codes: () => [profile && profile.voiceCode], onEvent: (e) => send("aiav", { stage: "gridmodel", ...e }), ...(env.gridOpt || {}) });
   if (env.gridModels !== false) grid.start();
-  const llm = LLM.create({ dir: P("llm", "x").slice(0, -2), exe: env.llamaExe, exeCpu: env.llamaCpuExe, mirror, onState: (st) => send("agent", { type: "state", state: st }), ...(env.llmOpt || {}) });
+  const llm = LLM.create({ dir: P("llm", "x").slice(0, -2), exe: env.llamaExe, exeCpu: env.llamaCpuExe, mirror,
+    // 捞捞算力训练、考试通过的答题 LoRA：下次启动 AI 助手时换上；带上起不来就退回上一版
+    lora: () => { const q = grid.use("qa-lora"); return (q && q.files && q.files.lora) || null; }, onLoraFail: () => grid.rollback("qa-lora"), onState: (st) => send("agent", { type: "state", state: st }), ...(env.llmOpt || {}) });
   let edit = null;   // { deck, file, saved }
   const agent = AGENT.create({ llm, deck: () => (edit ? edit.deck : null), fileName: () => (edit ? path.basename(edit.file) : ""), onEvent: (e) => send("agent", e) });
   async function ensureDeck() {
@@ -121,6 +123,15 @@ function createService(env) {
   }
 
   function photoInfo() { return profile.photo && fs.existsSync(P(profile.photo)) ? dataUrl(P(profile.photo), mimeOf(profile.photo)) : null; }
+  // 捞捞算力训练的声音（凭声音码下载的）：{ version, files: { gpt, sovits, ref, reftext }, prompt }
+  function trainedVoice() {
+    if (!profile.voiceCode) return null;
+    const name = grid.privateNames()[0] || profile.voiceModel;
+    const m = name && grid.use(name);
+    if (!m || !m.files.gpt || !m.files.sovits || !m.files.ref) return null;
+    let prompt = ""; try { prompt = fs.readFileSync(m.files.reftext, "utf8").trim(); } catch (e) {}
+    return { ...m, prompt };
+  }
   function voiceInfo() {
     const v = profile.voice; if (!v || !fs.existsSync(P(v.ref))) return null;
     return { prompt: v.prompt || "", seconds: v.seconds, url: dataUrl(P(v.ref), "audio/wav") };
@@ -558,6 +569,18 @@ function createService(env) {
       saveProfile();
       return { ...voiceInfo(), short: w.seconds < 3 };
     },
+    // 填声音码（管理员在捞捞算力里给这位老师训练好声音后发的）
+    async setVoiceCode(code) {
+      code = String(code || "").trim();
+      if (!code) { delete profile.voiceCode; delete profile.voiceModel; saveProfile(); return { ok: true, cleared: true }; }
+      if (!/^[\w-]{6,40}$/.test(code)) throw new Error("声音码不对");
+      const name = await grid.tryCode(code);
+      if (name === null) throw new Error("声音码不对（问一下管理员）");
+      profile.voiceCode = code; profile.voiceModel = name; saveProfile();
+      grid.check().catch(() => {});
+      return { ok: true, name, ready: !!trainedVoice() };
+    },
+    trainedVoiceState() { const t = trainedVoice(); return { code: !!profile.voiceCode, name: profile.voiceModel || "", ready: !!t, version: t ? t.version : null }; },
     setVoicePrompt(t) { if (!profile.voice) throw new Error("先上传一段录音"); profile.voice.prompt = String(t || "").slice(0, 200); saveProfile(); return true; },
     async pickGsvDir() {
       const d = await env.pickDir("选 GPT-SoVITS 整合包的文件夹"); if (!d) return null;
@@ -592,9 +615,17 @@ function createService(env) {
       let wav, src;
       if (fs.existsSync(rec)) { wav = rec; src = "rec"; }
       else {
-        const v = profile.voice; if (!v || !fs.existsSync(P(v.ref))) throw new Error("还没有老师的声音：先在「我的声音」里上传一段录音");
-        wav = P("cache", `tts-${key}-${hash(text + "|" + v.prompt + "|" + v.seconds)}.wav`); src = "tts";
-        if (!fs.existsSync(wav)) { const b = await voice.tts({ text, refWav: P(v.ref), promptText: v.prompt }); fs.writeFileSync(wav, b); }
+        // 捞捞算力给这位老师训练的声音（填了声音码）：优先用它；没有就用上传的那段录音
+        const tm = trainedVoice();
+        const v = profile.voice;
+        if (tm) {
+          wav = P("cache", `tts-${key}-${hash(text + "|trained|" + tm.version)}.wav`); src = "tts";
+          if (!fs.existsSync(wav)) { const b = await voice.tts({ text, refWav: tm.files.ref, promptText: tm.prompt, gpt: tm.files.gpt, sovits: tm.files.sovits }); fs.writeFileSync(wav, b); }
+        } else {
+          if (!v || !fs.existsSync(P(v.ref))) throw new Error("还没有老师的声音：先在「我的声音」里上传一段录音");
+          wav = P("cache", `tts-${key}-${hash(text + "|" + v.prompt + "|" + v.seconds)}.wav`); src = "tts";
+          if (!fs.existsSync(wav)) { const b = await voice.tts({ text, refWav: P(v.ref), promptText: v.prompt }); fs.writeFileSync(wav, b); }
+        }
       }
       const w = MEDIA.readWav(fs.readFileSync(wav));
       const r = { key, src, wav, ms: Math.round(w.seconds * 1000), levels: MEDIA.lipLevels(w.samples, w.rate, 25) };

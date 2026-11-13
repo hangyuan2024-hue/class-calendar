@@ -68,10 +68,27 @@ function create({ log = () => {}, onState = () => {} } = {}) {
     }
     stop(); set("error", "GPT-SoVITS 启动超时：" + (tail.slice(-3).join(" ") || "没有输出")); throw new Error(lastErr);
   }
-  function stop() { if (proc) { const p = proc; proc = null; try { p.kill(); } catch (e) {} } if (state !== "error" && state !== "off") set("off"); }
+  function stop() { loaded = { gpt: null, sovits: null }; if (proc) { const p = proc; proc = null; try { p.kill(); } catch (e) {} } if (state !== "error" && state !== "off") set("off"); }
+  // 换成捞捞算力给这位老师训练的模型（gpt / sovits 文件）；不传就是整合包自带的
+  let loaded = { gpt: null, sovits: null };
+  function get(port, p, timeoutMs) {
+    return new Promise((resolve, reject) => {
+      const req = http.get({ host: "127.0.0.1", port, path: p, timeout: timeoutMs }, (res) => { const cs = []; res.on("data", (c) => cs.push(c)); res.on("end", () => resolve({ status: res.statusCode, body: Buffer.concat(cs) })); });
+      req.on("timeout", () => req.destroy(new Error("等太久了"))); req.on("error", reject);
+    });
+  }
+  async function weights(gpt, sovits) {
+    for (const [k, f] of [["gpt", gpt], ["sovits", sovits]]) {
+      if (!f || loaded[k] === f) continue;
+      const r = await get(port, `/set_${k}_weights?weights_path=${encodeURIComponent(f)}`, 5 * 60 * 1000);
+      if (r.status !== 200) throw new Error("换声音模型失败：" + r.body.toString("utf8").slice(0, 200));
+      loaded[k] = f;
+    }
+  }
   // 用参考录音的声音念 text，返回 wav（Buffer）
-  async function tts({ text, refWav, promptText, speed = 1.0 }) {
+  async function tts({ text, refWav, promptText, speed = 1.0, gpt, sovits }) {
     if (state !== "ready") throw new Error("老师的声音还没准备好：先在「我的声音」里启动 GPT-SoVITS");
+    if (gpt || sovits) await weights(gpt, sovits);
     const r = await post(port, "/tts", {
       text: String(text), text_lang: "zh", ref_audio_path: refWav, prompt_text: String(promptText || ""), prompt_lang: "zh",
       text_split_method: "cut5", batch_size: 1, media_type: "wav", streaming_mode: false, speed_factor: speed, parallel_infer: true, repetition_penalty: 1.35,

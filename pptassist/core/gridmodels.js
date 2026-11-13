@@ -26,10 +26,28 @@ function create(o) {
   const log = (m) => { try { o.onEvent && o.onEvent(m); } catch (e) {} };
 
   async function manifest() {
+    let out = null;
     for (const u of o.sources || SOURCES) {
-      try { const r = await doFetch(u + "?t=" + Date.now(), { signal: AbortSignal.timeout(15000) }); if (r.ok) { const m = await r.json(); if (m && m.models) return m; } } catch (e) {}
+      try { const r = await doFetch(u + "?t=" + Date.now(), { signal: AbortSignal.timeout(15000) }); if (r.ok) { const m = await r.json(); if (m && m.models) { out = m; break; } } } catch (e) {}
     }
-    return null;
+    // 不公开的模型（老师自己的声音）：凭声音码拿
+    for (const code of (o.codes ? o.codes() : []).filter(Boolean)) {
+      for (const u of o.sources || SOURCES) {
+        try {
+          const r = await doFetch(privateUrl(u, code) + "?t=" + Date.now(), { signal: AbortSignal.timeout(15000) });
+          if (r.ok) { const m = await r.json(); if (m && m.models) { out = out || { models: {} }; Object.assign(out.models, m.models); privateNames = Object.keys(m.models); break; } }
+        } catch (e) {}
+      }
+    }
+    return out;
+  }
+  let privateNames = [];
+  // 声音码对不对（老师在「我的声音」里填的时候先查一下）：对的话返回模型名
+  async function tryCode(code) {
+    for (const u of o.sources || SOURCES) {
+      try { const r = await doFetch(privateUrl(u, code) + "?t=" + Date.now(), { signal: AbortSignal.timeout(15000) }); if (r.status === 404) return null; if (r.ok) { const m = await r.json(); return Object.keys(m.models || {})[0] || ""; } } catch (e) {}
+    }
+    throw new Error("连不上捞捞算力的服务器，等会儿再试");
   }
   async function download(url, file, size, onProg) {
     const r = await doFetch(url, { signal: AbortSignal.timeout(6 * 3600e3) });
@@ -50,16 +68,17 @@ function create(o) {
       const m = await manifest();
       st.checked = Date.now();
       if (!m) { save(); return status(); }
-      for (const name of want) {
+      for (const name of [...want, ...privateNames.filter((n) => !want.includes(n))]) {
         const rel = m.models[name];
         const cur = st.current[name];
         if (!rel) continue;
         // 管理员撤回了：清单里的版本比现在用的旧，也要换回去
         if (cur && cur.version === rel.version) { delete st.pending[name]; continue; }
         if (st.pending[name] && st.pending[name].version === rel.version) continue;
-        const vd = path.join(dir, name, String(rel.version));
+        const vd = path.join(dir, name.replace(/[^\w.\-]/g, (ch) => "_" + ch.charCodeAt(0).toString(16)), String(rel.version));
         fs.mkdirSync(vd, { recursive: true });
         const files = {};
+        try {   // 一个模型下不好，不耽误别的
         for (const f of rel.files) {
           const p = path.join(vd, f.name + path.extname(new URL(f.url).pathname || ""));
           let ok = false;
@@ -71,6 +90,7 @@ function create(o) {
           }
           files[f.name] = p;
         }
+        } catch (e) { log({ name, stage: "error", error: e.message }); continue; }
         st.pending[name] = { version: rel.version, files, metrics: rel.metrics || {}, at: Date.now() };
         log({ name, version: rel.version, stage: "ready" });
       }
@@ -104,7 +124,7 @@ function create(o) {
   // 只留现在的、上一版、等着换的
   function cleanup(name) {
     const keep = new Set([st.current[name], st.prev && st.prev[name], st.pending[name]].filter(Boolean).map((x) => String(x.version)));
-    const d = path.join(dir, name);
+    const d = path.join(dir, name.replace(/[^\w.\-]/g, (ch) => "_" + ch.charCodeAt(0).toString(16)));
     for (const v of fs.existsSync(d) ? fs.readdirSync(d) : []) if (!keep.has(v)) fs.rmSync(path.join(d, v), { recursive: true, force: true });
   }
   function status() { return { current: Object.fromEntries(Object.entries(st.current).map(([k, v]) => [k, { version: v.version, metrics: v.metrics }])), pending: Object.fromEntries(Object.entries(st.pending).map(([k, v]) => [k, v.version])), checked: st.checked }; }
@@ -115,7 +135,9 @@ function create(o) {
     t0.unref && t0.unref(); timer.unref && timer.unref();   // 不拖住程序退出
   }
   function stop() { clearInterval(timer); timer = null; }
-  return { check, use, rollback, status, start, stop };
+  return { check, use, rollback, status, start, stop, tryCode, privateNames: () => privateNames.slice() };
 }
+// 公开清单的地址 → 凭码的清单地址（同一台服务器）
+const privateUrl = (u, code) => u.replace(/\/pub\/models\/manifest\.json$/, "") + "/pub/private/" + encodeURIComponent(code) + "/manifest.json";
 
-module.exports = { create, SOURCES };
+module.exports = { create, SOURCES, privateUrl };

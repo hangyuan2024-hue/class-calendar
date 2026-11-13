@@ -201,6 +201,9 @@
         <div class="row"><button class="btn pri" id="pickVoice">上传录音</button><span id="voiceMeta" class="muted"></span></div>
         <audio id="voiceAudio" controls hidden></audio>
         <label class="field"><span>这段录音里说的话（一个字都不要差）</span><textarea id="voicePrompt" rows="2" placeholder="录音里说了什么就写什么"></textarea></label>
+        <div class="field"><span>或者：用捞捞算力专门给你训练的声音（更像，填管理员发给你的声音码）</span>
+          <div class="row"><input id="voiceCode" placeholder="声音码" autocomplete="off" spellcheck="false"><button class="btn" id="voiceCodeGo">使用</button></div>
+          <span class="muted" id="voiceCodeState"></span></div>
       </div>
       <div class="card">
         <div class="card-h"><b>② 声音克隆引擎：GPT-SoVITS</b><span class="grow"></span><span class="pill" id="engState">没启动</span></div>

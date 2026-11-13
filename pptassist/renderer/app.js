@@ -631,6 +631,7 @@
     $("#voiceAudio").hidden = !v; if (v) $("#voiceAudio").src = v.url;
     $("#voicePrompt").value = v ? v.prompt : "";
     $("#gsvDir").textContent = S.profile.gsvDir || "还没选";
+    call("trainedVoiceState").then((t) => { $("#voiceCodeState").textContent = !t.code ? "" : t.ready ? `✓ 在用捞捞训练的声音（第 ${t.version} 版），念课件时自动用它` : "✓ 声音码对了，正在后台下载训练好的声音（下载完自动换上）"; }).catch(() => {});
     setupInfo().then((i) => { if (i) $("#gsvSize").textContent = S.profile.gsvDir ? "" : sizeText(i.pkg.gsv); });
     paintEngine(S.engine);
   }
@@ -642,6 +643,12 @@
   }
   window.cc.on("voice", (e) => { S.engine = e; paintEngine(e); });
   $("#pickVoice").onclick = guard(async () => { const v = await call("pickVoice"); if (!v) return; S.voice = v; paintVoice(); toast(v.short ? "录音太短了，最好 3～10 秒" : "录音好了，别忘了在下面写上这段话说的是什么"); $("#voicePrompt").focus(); });
+  $("#voiceCodeGo").onclick = guard(async () => {
+    const r = await call("setVoiceCode", $("#voiceCode").value);
+    $("#voiceCode").value = "";
+    toast(r.cleared ? "不用训练的声音了，改回上传的录音" : r.ready ? "换上了捞捞训练的声音" : "声音码对了：后台下载训练好的声音，下载完自动换上");
+    paintVoice();
+  });
   $("#voicePrompt").onchange = guard(async () => { await call("setVoicePrompt", $("#voicePrompt").value); S.voice.prompt = $("#voicePrompt").value; markDone(); });
   $("#gsvPage").onclick = (e) => { e.preventDefault(); call("openGsvPage"); };
   $("#gsvInstall").onclick = guard(async () => {

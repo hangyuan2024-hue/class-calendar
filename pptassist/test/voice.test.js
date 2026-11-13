@@ -17,6 +17,10 @@ const ok = (m) => console.log("✓ " + m);
   assert.equal(v.state.state, "ready");
   const wav = await v.tts({ text: "同学们好。", refWav: path.join(dir, "ref.wav"), promptText: "你好" });
   assert.equal(wav.toString("ascii", 0, 4), "RIFF");
+  // 换成捞捞算力训练的模型：先设好 gpt / sovits，再念
+  const w2 = await v.tts({ text: "同学们好。", refWav: path.join(dir, "ref.wav"), promptText: "你好", gpt: "D:/m/voice-gpt.ckpt", sovits: "D:/m/voice-sovits.pth" });
+  assert.equal(w2.toString("ascii", 0, 4), "RIFF");
+  console.log("✓ 用捞捞算力训练的声音模型：先换上 gpt / sovits 权重再念");
   await assert.rejects(v.tts({ text: "", refWav: "" }), /生成声音失败/);
   v.stop();
   assert.deepStrictEqual(states.slice(0, 2), ["starting", "ready"]);

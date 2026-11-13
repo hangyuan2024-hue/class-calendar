@@ -94,7 +94,10 @@ function create(opt = {}) {
       if (h0.status === 200) { set("ready", MODEL.name); return state; }
       set("starting", "正在启动 AI 助手（第一次要一会儿）");
       const threads = Math.max(2, Math.min(8, os.cpus().length - 1));
-      const args = ["-m", f.main, "--mmproj", f.mmproj, "--host", "127.0.0.1", "--port", String(port), "-c", String(opt.ctx || 16384), "-t", String(threads), "-ngl", "99", "--jinja", "--alias", MODEL.id, "--no-webui"];
+      let args = ["-m", f.main, "--mmproj", f.mmproj, "--host", "127.0.0.1", "--port", String(port), "-c", String(opt.ctx || 16384), "-t", String(threads), "-ngl", "99", "--jinja", "--alias", MODEL.id, "--no-webui"];
+      // 捞捞自己训练的答题 LoRA（捞捞算力每天训练、考试通过才发布）：有就带上
+      const lora = opt.lora ? opt.lora() : null;
+      if (lora && fs.existsSync(lora)) args.push("--lora", lora);
       let err = "", exited = false;
       const launch = (a) => launchWith(exe, a);
       const launchWith = (bin, a) => { const c = spawn(bin, a, { cwd: path.dirname(bin), windowsHide: true, stdio: ["ignore", "pipe", "pipe"] }); exited = false; c.stdout.on("data", (d) => { addLog(d); err = (err + d).slice(-3000); }); c.stderr.on("data", (d) => { addLog(d); err = (err + d).slice(-3000); }); c.on("exit", () => { exited = true; if (child === c) { child = null; if (state.status === "ready") set("off", "AI 助手停了"); } }); c.on("error", (e) => { err += e.message; exited = true; }); return c; };
@@ -103,6 +106,12 @@ function create(opt = {}) {
       if (exited && /no-webui|unknown argument|invalid argument/i.test(err)) child = launch(args.filter((a) => a !== "--no-webui"));
       const t0 = Date.now();
       while (Date.now() - t0 < (opt.timeoutMs || 180000)) {
+        if (exited && args.includes("--lora") && !err.includes("NOLORA")) {
+          // 带上 LoRA 起不来：先不带，退回上一版（下次再试新的）
+          err += "NOLORA"; const i = args.indexOf("--lora"); args = args.filter((x, k) => k !== i && k !== i + 1);
+          try { opt.onLoraFail && opt.onLoraFail(); } catch (e) {}
+          child = launch(args); await new Promise((r) => setTimeout(r, 1200)); continue;
+        }
         if (exited) {
           // 显卡用不了（驱动太旧、没有 Vulkan）：换 CPU 版、不用显卡再试一次
           if (!err.includes("RETRIED")) {

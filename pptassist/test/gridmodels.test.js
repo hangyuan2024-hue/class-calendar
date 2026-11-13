@@ -13,6 +13,8 @@ const ok = (m) => console.log("✓", m);
   let base = "", man = null, hits = 0;
   const srv = http.createServer((q, r) => {
     if (q.url.startsWith("/pub/models/manifest.json")) { r.setHeader("content-type", "application/json"); return r.end(JSON.stringify(man)); }
+    const pc = /^\/pub\/private\/([\w-]+)\/manifest\.json/.exec(q.url);
+    if (pc) { if (pc[1] !== "goodcode1") { r.statusCode = 404; return r.end("{}"); } r.setHeader("content-type", "application/json"); return r.end(JSON.stringify({ models: { "voice-王老师": { version: 3, metrics: {}, files: ["gpt", "sovits", "ref", "reftext"].map((n) => ({ name: n, url: `${base}/pub/v1/${n}.bin?c=goodcode1`, size: blobs.v1.length, sha256: crypto.createHash("sha256").update(blobs.v1).digest("hex") })) } } })); }
     const m = /^\/pub\/(v\d)\//.exec(q.url);
     if (m) { hits++; return r.end(blobs[m[1]]); }
     r.statusCode = 404; r.end();
@@ -63,6 +65,19 @@ const ok = (m) => console.log("✓", m);
   assert.equal(Object.values(WF.portrait({ photo: "p.png" }, (k) => k)).filter((n) => n.class_type === "LoraLoaderModelOnly").length, 1, "没有插件时照旧");
   ok("Q版插件接进 ComfyUI 的节点图（接在 4 步加速插件后面）；没有插件时照旧");
 
+  // 老师自己的声音（不公开）：填了声音码才下载
+  {
+    let code = null;
+    const g2 = G.create({ dir: path.join(tmp, "gm2"), sources: [base + "/pub/models/manifest.json"], codes: () => [code] });
+    assert.equal(await g2.tryCode("badcode99"), null, "声音码不对");
+    assert.equal(await g2.tryCode("goodcode1"), "voice-王老师");
+    await g2.check(); assert.equal(g2.use("voice-王老师"), null, "没填码不下载");
+    code = "goodcode1"; await g2.check();
+    const v = g2.use("voice-王老师");
+    assert.equal(v.version, 3); assert.ok(v.files.gpt && v.files.sovits && v.files.ref && v.files.reftext);
+    assert.deepEqual(g2.privateNames(), ["voice-王老师"]);
+    ok("老师自己的声音：填了声音码才下载（码不对会提示）；下好后念课件时用它");
+  }
   srv.close(); fs.rmSync(tmp, { recursive: true, force: true });
   console.log("捞捞自己的模型（老师端）：全部通过");
 })().catch((e) => { console.error(e); process.exit(1); });
