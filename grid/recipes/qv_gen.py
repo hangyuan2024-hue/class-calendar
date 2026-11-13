@@ -153,10 +153,56 @@ CLIP_BASES = p.get("clipBases") or [
 ]
 
 
+def fetch(urls, dest, note):
+    """断点续传下载：连接断了从断的地方接着下（每个地址试 6 次），不通再换下一个地址。"""
+    import ssl
+    import urllib.error
+    import urllib.request
+    if os.path.exists(dest) and os.path.getsize(dest) > 0:
+        return dest
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    part, err = dest + ".part", None
+    for u in urls:
+        for attempt in range(6):
+            have = os.path.getsize(part) if os.path.exists(part) else 0
+            try:
+                req = urllib.request.Request(u, headers={"User-Agent": "laolao-grid", **({"Range": "bytes=%d-" % have} if have else {})})
+                with urllib.request.urlopen(req, timeout=60) as r:
+                    if have and r.status != 206:   # 这个地址不支持续传：从头下
+                        have = 0
+                    total = have + int(r.headers.get("Content-Length") or 0)
+                    with open(part, "ab" if have else "wb") as f:
+                        got, last = have, 0.0
+                        while True:
+                            b = r.read(1 << 20)
+                            if not b:
+                                break
+                            f.write(b)
+                            got += len(b)
+                            if time.time() - last > 3:
+                                last = time.time()
+                                lg.log("%s：%d%%（%.0fM / %.0fM）" % (note, got * 100 // max(total, 1), got / 1e6, total / 1e6))
+                if total and os.path.getsize(part) < total:
+                    raise IOError("没下完整")
+                os.replace(part, dest)
+                return dest
+            except urllib.error.HTTPError as e:
+                err = e
+                if e.code in (404, 403, 410):   # 这个地址没有这个文件：换下一个
+                    break
+                if e.code == 416:   # 续传位置不对：从头下
+                    os.remove(part)
+            except (OSError, ssl.SSLError) as e:   # 连接断了：等一下接着下
+                err = e
+                lg.log("%s：连接断了（%s），%d 秒后接着下" % (note, str(e)[:80], 3 * (attempt + 1)))
+                time.sleep(3 * (attempt + 1))
+    raise IOError("下载失败：%s（%s）" % (os.path.basename(dest), err))
+
+
 def clip_dir():
     d = os.path.abspath(os.path.join(work, "..", "..", "cache", "clip-vit-large-patch14"))
     for f in CLIP_FILES:
-        lg.download([b + f for b in CLIP_BASES], os.path.join(d, f), note="下载 CLIP（第一次，约 1.7G）")
+        fetch([b + f for b in CLIP_BASES], os.path.join(d, f), "下载 CLIP（只下一次，约 1.7G）")
     return d
 
 
@@ -175,7 +221,7 @@ def embed(paths):
     import torch
     from PIL import Image
     from transformers import CLIPVisionModelWithProjection
-    m = CLIPVisionModelWithProjection.from_pretrained(clip_dir(), torch_dtype=torch.float32).eval()
+    m = CLIPVisionModelWithProjection.from_pretrained(clip_box["dir"], torch_dtype=torch.float32).eval()
     mean = np.array([0.48145466, 0.4578275, 0.40821073], dtype=np.float32)
     std = np.array([0.26862954, 0.26130258, 0.27577711], dtype=np.float32)
     xs = [((np.asarray(to_square(Image.open(f)), dtype=np.float32) / 255 - mean) / std).transpose(2, 0, 1) for f in paths]
@@ -223,6 +269,22 @@ if ws:
     loras.append((lg.comfy("lora", path=ws, name="qversion-%s.safetensors" % hx)["name"], float(p.get("loraStrength", 1))))
     lg.log("接上现在发布的 Q版插件")
 
+# CLIP 在画图的同时下载（第一次要下 1.7G），画完正好用
+import threading  # noqa: E402
+
+clip_box = {}
+
+
+def _bg():
+    try:
+        clip_box["dir"] = clip_dir()
+    except Exception as e:  # 下不下来也不影响这次画的图（只是这次的审核不能拿来训练）
+        clip_box["err"] = e
+
+
+clip_t = threading.Thread(target=_bg, daemon=True)
+clip_t.start()
+
 lg.progress(0.05, "画一张虚拟老师的照片")
 try:
     photo = run(photo_graph(m, d, seed % (2 ** 31)), "照片")
@@ -248,12 +310,22 @@ for k in range(n):
 lg.progress(0.9, "算特征、交审核")
 ph_s = small(photo, os.path.join(work, "photo.jpg"))
 cs = [small(f, os.path.join(work, "qv%d.jpg" % k)) for k, f in enumerate(cands)]
-embs = embed([photo] + cands)
+clip_t.join()
+embs = None
+if "dir" in clip_box:
+    try:
+        embs = embed([photo] + cands)
+    except Exception as e:
+        lg.log("算特征出错（%s）：这次的图照常交审核，只是不能拿来训练打分模型" % e)
+else:
+    lg.log("CLIP 没下下来（%s）：这次的图照常交审核，下个任务接着下" % clip_box.get("err"))
 lg.output(sheet([ph_s] + cs, os.path.join(work, "sheet-%d-%d.jpg" % (run_id, i))))
-meta = {"persona": {k: v for k, v in d.items() if k != "prompt"}, "style": style, "seed": seed, "lora": bool(loras), "ep": embs[0]}
+meta = {"persona": {k: v for k, v in d.items() if k != "prompt"}, "style": style, "seed": seed, "lora": bool(loras)}
+if embs:
+    meta["ep"] = embs[0]
 for a in range(0, n - 1, 2):
     lg.review(kind="ab", tag=TAG, a=cs[a], b=cs[a + 1], ref=ph_s,
               question="左边是照片，哪张 Q版更好？（像不像这个人、可不可爱、从头到脚完整、没有画坏）",
-              need=int(p.get("reviewNeed", 1)), meta={**meta, "ea": embs[1 + a], "eb": embs[2 + a]})
+              need=int(p.get("reviewNeed", 1)), meta={**meta, **({"ea": embs[1 + a], "eb": embs[2 + a]} if embs else {})})
 lg.metric(i, secs=time.time() - t0)
-lg.done(style=style, secs=round(time.time() - t0, 1))
+lg.done(style=style, secs=round(time.time() - t0, 1), emb=bool(embs))
