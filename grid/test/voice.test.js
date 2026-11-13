@@ -111,7 +111,7 @@ class SV:
 `);
 // 假的 ffmpeg：输入本来就是 wav，照抄
 const FF = path.join(tmp, "ff.py");
-W(FF, "import sys,shutil,os\na=sys.argv\nshutil.copy(a[a.index('-i')+1],a[-1])\nif '-af' in a: open(os.path.join(os.path.dirname(a[0]),'af.log'),'a').write(a[a.index('-af')+1]+'\\n')\n");
+W(FF, "import sys,shutil,os\na=sys.argv\nshutil.copy(a[a.index('-i')+1],a[-1])\nif '-af' in a:\n  d=os.path.join(os.path.dirname(a[0]),'af'); os.makedirs(d,exist_ok=True)\n  open(os.path.join(d,os.path.basename(a[-1])+'.txt'),'w').write(a[a.index('-af')+1])\n");   // 一句一个文件：几个 ffmpeg 同时跑，往一个文件追加在 Windows 上会丢行
 
 (async () => {
   const app = Server.create({ data: path.join(tmp, "server"), leaseMs: 5000, noTick: true });
@@ -193,7 +193,8 @@ W(FF, "import sys,shutil,os\na=sys.argv\nshutil.copy(a[a.index('-i')+1],a[-1])\n
   assert.equal(app.core.db.prepare("select state from runs where id=?").get(r3.run).state, "done");
   const res3 = JSON.parse(app.core.db.prepare("select result from tasks t join jobs j on j.id=t.job_id where j.run_id=?").get(r3.run).result);
   assert.equal(res3.clips, 10, "学生说话的 2 段扔掉了");
-  const af0 = fs.readFileSync(path.join(tmp, "af.log"), "utf8");
+  const afAll = () => fs.readdirSync(path.join(tmp, "af")).map((x) => fs.readFileSync(path.join(tmp, "af", x), "utf8"));
+  const af0 = afAll().join("\n");
   assert.match(af0, /highpass=f=70,afftdn/, "导入的录音先去噪");
   const li2 = (await Tools.api(admin, "/api/admin/voices")).find((v) => v.member === "李老师");
   assert.equal(li2.model, 1); assert.equal(li2.run.state, "done");
@@ -241,7 +242,7 @@ W(FF, "import sys,shutil,os\na=sys.argv\nshutil.copy(a[a.index('-i')+1],a[-1])\n
   const res2 = JSON.parse(app.core.db.prepare("select result from tasks t join jobs j on j.id=t.job_id where j.run_id=?").get(r2.run).result);
   assert.equal(res2.clips, 12, "挑的是 26～40 岁、北方口音的女声（SSB0002），12 句都用上");
   assert.ok(hits.every((h) => !/SSB000[134]/.test(h)), "别人的录音不下载");
-  const af = fs.readFileSync(path.join(tmp, "af.log"), "utf8").trim().split("\n").filter((x) => /^asetrate/.test(x));
+  const af = afAll().filter((x) => /^asetrate/.test(x));
   assert.equal(af.length, 12); assert.match(af[0], /^asetrate=35919,aresample=32000,atempo=0\.8908/, "升 2 个半音、音色一起变、语速不变");
   const pub2 = await (await fetch(url + "/pub/models/manifest.json")).json();
   assert.ok(pub2.models["laolao-voice"] && pub2.models["laolao-voice"].files.map((f) => f.name).join() === "gpt,sovits,ref,reftext", "捞捞的声音公开发布，老师端自动下载");
