@@ -23,6 +23,9 @@ function attach(core, opt = {}) {
     create table if not exists models(id integer primary key, name text, version integer, files text, metrics text, state text, run_id integer, created integer, note text);
   `);
   for (const c of ["deps text", "run_id integer"]) { try { db.exec("alter table jobs add column " + c); } catch (e) {} }
+  // 不公开的模型（老师的声音）：不进公开清单，老师端凭「声音码」才能下载
+  try { db.exec("alter table models add column private integer not null default 0"); } catch (e) {}
+  db.exec("create table if not exists model_codes(name text primary key, code text unique, created integer)");
   const one = (s, ...a) => db.prepare(s).get(...a), all = (s, ...a) => db.prepare(s).all(...a), run = (s, ...a) => db.prepare(s).run(...a);
   const J = (s, d = null) => { try { return s == null ? d : JSON.parse(s); } catch (e) { return d; } };
   const S = (o) => JSON.stringify(o == null ? null : o);
@@ -42,20 +45,38 @@ function attach(core, opt = {}) {
   const released = (name) => one("select * from models where name=? and state='released' order by version desc limit 1", name);
   function manifest() {
     const out = { updated: clock(), models: {} };
-    for (const r of all("select name from models where state='released' group by name")) {
+    for (const r of all("select name from models where state='released' and private=0 group by name")) {
       const m = released(r.name);
       out.models[r.name] = { version: m.version, files: J(m.files, []), metrics: J(m.metrics, {}), at: m.created, note: m.note || "" };
     }
     return out;
   }
   // 发布出去的文件才能公开下载
-  const publicKeys = () => new Set(all("select files from models where state='released'").flatMap((m) => J(m.files, []).map((f) => f.key)));
+  const publicKeys = () => new Set(all("select files from models where state='released' and private=0").flatMap((m) => J(m.files, []).map((f) => f.key)));
+  // 声音码：一个不公开的模型一个码（管理员发给这位老师）
+  function codeOf(name, rotate) {
+    const old = one("select code from model_codes where name=?", name);
+    if (old && !rotate) return old.code;
+    const code = require("crypto").randomBytes(9).toString("base64url");
+    run("insert into model_codes(name,code,created) values(?,?,?) on conflict(name) do update set code=excluded.code, created=excluded.created", name, code, clock());
+    return code;
+  }
+  function privateManifest(code) {
+    const c = one("select name from model_codes where code=?", String(code || ""));
+    if (!c) return null;
+    const m = released(c.name);
+    return { updated: clock(), models: m ? { [c.name]: { version: m.version, files: J(m.files, []), metrics: J(m.metrics, {}), at: m.created, note: m.note || "", private: true } } : {} };
+  }
+  const privateKeys = (code) => { const pm = privateManifest(code); return new Set(pm ? Object.values(pm.models).flatMap((m) => m.files.map((f) => f.key)) : []); };
   function better(spec, cur, cand) {
     // 及格线（min）：连第一版也要过（比如打分模型至少要比瞎猜好）
     for (const m of spec.metrics || []) {
       if (m.min == null) continue;
+      // 及格线可以是固定的数，也可以是评测结果里的另一项（比如 "base_acc"：至少不比没训练的原版差，差一点点 minTol 可以）
+      const lim = typeof m.min === "string" ? +cand[m.min] - (m.minTol || 0) : m.min;
       const b = +cand[m.k];
-      if (!isFinite(b) || (m.better === "lower" ? b > m.min : b < m.min)) return { ok: false, why: `${m.k} 是 ${isFinite(b) ? +b.toFixed(4) : "—"}，没到及格线 ${m.min}` };
+      if (!isFinite(lim)) continue;
+      if (!isFinite(b) || (m.better === "lower" ? b > lim : b < lim)) return { ok: false, why: `${m.k} 是 ${isFinite(b) ? +b.toFixed(4) : "—"}，没到及格线 ${typeof m.min === "string" ? `${m.min}（${+lim.toFixed(4)}）` : m.min}` };
     }
     if (!cur) return { ok: true, why: "第一版" };
     let up = false;
@@ -82,7 +103,7 @@ function attach(core, opt = {}) {
       for (const x of spec.stages) if (x.standing && x.kind !== "map") throw new Error(`「${x.key}」：一直开着的只能是 map`);
     }
     run("insert into pipelines(name,spec,at,created) values(?,?,?,?) on conflict(name) do update set spec=excluded.spec, at=excluded.at", spec.name, S(spec), cont ? "" : spec.at || "18:30", clock());
-    core.event("pipeline", cont ? `「${spec.name}」设好了：不定时间，大家开着就算${spec.stages.some((x) => x.when) ? "；审核攒够了自动训练" : ""}` : `每日一轮「${spec.name}」设好了：每天 ${spec.at || "18:30"} 开始`);
+    core.event("pipeline", cont ? `「${spec.name}」设好了：不定时间，大家开着就算${spec.stages.some((x) => x.when && !x.when.manual) ? "；攒够了自动训练" : spec.stages.some((x) => x.when) ? "；在控制中心点「现在训练一次」才训练" : ""}` : `每日一轮「${spec.name}」设好了：每天 ${spec.at || "18:30"} 开始`);
     return one("select * from pipelines where name=?", spec.name).id;
   }
   // 配方按名字找最新上传的那个
@@ -99,23 +120,29 @@ function attach(core, opt = {}) {
   }
   // 随时模式：某一类审核一共定下来多少条（训练开一轮时记下来，下次看新攒了多少）
   const reviewsDone = (tag) => one("select count(*) as n from reviews where state='done' and json_extract(payload,'$.tag')=?", String(tag)).n;
-  function startRun(pid, why = "到点了") {
+  // 「攒够了才训练」看什么：审核结果（tag + reviews）或者某一类任务交的结果文件（outputsOf + outputs）
+  const whenKey = (w) => (w.outputsOf ? "out:" + w.outputsOf : w.tag);
+  const whenCount = (w) => (w.outputsOf ? one("select count(*) as n from outputs o join jobs j on j.id=o.job_id where json_extract(j.params,'$.tag')=?", String(w.outputsOf)).n : reviewsDone(w.tag));
+  const whenNeed = (w) => w.outputs || w.reviews || 1;
+  // extra：这一轮额外的参数（比如训练谁的声音 {member: "杭远"}），会并进每个步骤的参数，发布的模型名里 {member} 也换成它
+  function startRun(pid, why = "到点了", extra = {}) {
     const p = one("select * from pipelines where id=?", pid);
     const spec = J(p.spec);
     const cont = spec.mode === "continuous";
     const stages = cont ? spec.stages.filter((x) => !x.standing) : spec.stages;
     if (!stages.length) throw new Error("没有要开一轮的步骤");
     const marks = {};
-    for (const x of stages) if (x.when && x.when.tag) marks[x.when.tag] = reviewsDone(x.when.tag);
-    const rid = Number(run("insert into runs(pipeline_id,day,state,jobs,created,result) values(?,?,?,?,?,?)", pid, day(), "running", "{}", clock(), S({ marks, why })).lastInsertRowid);
+    for (const x of stages) if (x.when && (x.when.tag || x.when.outputsOf)) marks[whenKey(x.when)] = whenCount(x.when);
+    extra = Object.fromEntries(Object.entries(extra || {}).filter(([k, v]) => /^\w{1,30}$/.test(k) && ["string", "number", "boolean"].includes(typeof v)));
+    const rid = Number(run("insert into runs(pipeline_id,day,state,jobs,created,result) values(?,?,?,?,?,?)", pid, day(), "running", "{}", clock(), S({ marks, why, extra })).lastInsertRowid);
     const ids = {};
     const stage = cont ? `自动训练 · ${p.name}` : `每日一轮 · ${day()}`;
     for (const s of stages) {
       const recipe = s.kind === "record" ? null : recipeByName(s.recipe);
       if (s.kind !== "record" && !recipe) throw new Error(`还没上传配方「${s.recipe}」`);
-      const params = { ...fill(s.params || {}), stageKey: s.key, runId: rid };
+      const params = { ...fill(s.params || {}), ...extra, stageKey: s.key, runId: rid };
       if (s.until) params.deadline = nextAt(s.until);
-      const id = core.createJob({ name: `${s.name || s.key}（第 ${rid} 轮）`, stage, kind: s.kind, recipe, params, req: s.req || {}, priority: s.priority || 0 });
+      const id = core.createJob({ name: `${s.name || s.key}（${extra.member ? extra.member + " · " : ""}第 ${rid} 轮）`, stage, kind: s.kind, recipe, params, req: s.req || {}, priority: s.priority || 0 });
       ids[s.key] = id;
       run("update jobs set deps=?, run_id=? where id=?", S((s.after || []).filter((k) => ids[k]).map((k) => ids[k])), rid, id);
     }
@@ -191,8 +218,10 @@ function attach(core, opt = {}) {
     const last = one("select * from runs where pipeline_id=? and state!='standing' order by id desc limit 1", p.id);
     const marks = (J(last && last.result, {}) || {}).marks || {};
     for (const s of spec.stages.filter((x) => x.when)) {
-      const w = s.when, now = reviewsDone(w.tag), fresh = now - (marks[w.tag] || 0);
-      if (fresh < (w.reviews || 1)) continue;
+      const w = s.when;
+      if (w.manual) continue;   // 只在控制中心点「现在训练一次」时才开（比如要租卡的）
+      const now = whenCount(w), fresh = now - (marks[whenKey(w)] || 0);
+      if (fresh < whenNeed(w)) continue;
       if (last && clock() - last.created < (w.minHours || 0) * 3600e3) continue;
       startRun(p.id, `新的审核攒够了 ${fresh} 条`);
       return;
@@ -206,19 +235,21 @@ function attach(core, opt = {}) {
     if (!r || r.state !== "running") return;
     const p = one("select * from pipelines where id=?", r.pipeline_id);
     const spec = J(p.spec), ids = J(r.jobs, {});
-    const pub = spec.publish;
+    const ex = (J(r.result, {}) || {}).extra || {};
+    const pub = spec.publish && { ...spec.publish, model: String(spec.publish.model).replace(/\{(\w+)\}/g, (m, k) => (ex[k] != null ? String(ex[k]) : m)) };
     const key = J(j.params, {}).stageKey;
     if (pub && key === pub.from) {
       const res = (J(j.meta, {}) || {}).result || {};
       if (res.skip) { core.event("model", `「${pub.model}」这一轮没出新版：${res.skip}（老师端继续用现在的）`); }
       else {
       const files = (pub.files || []).map((n) => ({ name: n, key: res[n] })).filter((f) => f.key);
-      const metrics = Object.fromEntries((pub.metrics || []).flatMap((m) => [[m.k, res[m.k]], ...(m.vs ? [[m.vs, res[m.vs]]] : [])]));
+      const metrics = Object.fromEntries((pub.metrics || []).flatMap((m) => [[m.k, res[m.k]], ...(m.vs ? [[m.vs, res[m.vs]]] : []), ...(typeof m.min === "string" ? [[m.min, res[m.min]]] : [])]));
       const cur = released(pub.model);
       const v = (one("select max(version) as v from models where name=?", pub.model) || {}).v || 0;
       const g = files.length === (pub.files || []).length ? better(pub, cur, metrics) : { ok: false, why: "评测没交出模型文件" };
       const state = g.ok && !pub.manual ? "released" : g.ok ? "candidate" : "rejected";
-      run("insert into models(name,version,files,metrics,state,run_id,created,note) values(?,?,?,?,?,?,?,?)", pub.model, v + 1, S(files.map((f) => ({ ...f, size: res[f.name + "_size"] || 0, sha256: res[f.name + "_sha256"] || "" }))), S(metrics), state, r.id, clock(), g.why);
+      run("insert into models(name,version,files,metrics,state,run_id,created,note,private) values(?,?,?,?,?,?,?,?,?)", pub.model, v + 1, S(files.map((f) => ({ ...f, size: res[f.name + "_size"] || 0, sha256: res[f.name + "_sha256"] || "" }))), S(metrics), state, r.id, clock(), g.why, pub.private ? 1 : 0);
+      if (pub.private) codeOf(pub.model);
       core.event(state === "released" ? "release" : "model", state === "released" ? `「${pub.model}」第 ${v + 1} 版发布了（${g.why}：${fmt(metrics)}），老师端会自动换上`
         : state === "candidate" ? `「${pub.model}」第 ${v + 1} 版评测通过（${fmt(metrics)}），等你在控制中心点「发布」`
         : `「${pub.model}」第 ${v + 1} 版没发布：${g.why}（老师端继续用第 ${cur ? cur.version : "—"} 版）`);
@@ -241,6 +272,27 @@ function attach(core, opt = {}) {
     opt.onPublish && opt.onPublish();
     return { ok: true };
   }
+  // 新插件在审核里比得怎么样：两张里一张用现在的、一张用新的（meta.sides 记着哪边是新的）
+  function abStats(tag) {
+    const s = { test: 0, cur: 0, same: 0, bad: 0, total: 0 };
+    for (const r of all("select payload, result from reviews where state='done' and json_extract(payload,'$.tag')=? and json_extract(payload,'$.meta.sides') is not null", String(tag))) {
+      const sides = ((J(r.payload, {}) || {}).meta || {}).sides || {}, c = (J(r.result, {}) || {}).choice;
+      s.total++;
+      if (c === "a" || c === "b") s[sides[c] === "test" ? "test" : "cur"]++; else if (c === "bad") s.bad++; else s.same++;
+    }
+    s.winRate = s.test + s.cur ? +(s.test / (s.test + s.cur)).toFixed(3) : null;
+    return s;
+  }
+  // 试用的新插件转正：把 from（比如 qversion-lora-test）最新发布的那一版，作为 to（qversion-lora，老师端用的）的新一版发布
+  function promote(from, to, note) {
+    const m = one("select * from models where name=? and state='released' order by version desc limit 1", from);
+    if (!m) throw new Error(`「${from}」还没有发布的版本`);
+    const v = (one("select max(version) as v from models where name=?", to) || {}).v || 0;
+    run("insert into models(name,version,files,metrics,state,run_id,created,note) values(?,?,?,?,?,?,?,?)", to, v + 1, m.files, m.metrics, "released", m.run_id, clock(), note || `从「${from}」第 ${m.version} 版转正`);
+    core.event("release", `「${to}」第 ${v + 1} 版发布了（${note || `从「${from}」第 ${m.version} 版转正`}），老师端会自动换上`);
+    opt.onPublish && opt.onPublish();
+    return { ok: true, version: v + 1 };
+  }
   function view() {
     return {
       pipelines: all("select * from pipelines order by id").map((p) => {
@@ -249,14 +301,14 @@ function attach(core, opt = {}) {
         const w = cont && (spec.stages.find((x) => x.when) || {}).when;
         const last = cont && one("select * from runs where pipeline_id=? and state!='standing' order by id desc limit 1", p.id);
         return { id: p.id, name: p.name, at: p.at, mode: cont ? "continuous" : "daily", enabled: !!p.enabled, stages: spec.stages.map((s) => s.name || s.key),
-          when: w ? { ...w, fresh: reviewsDone(w.tag) - (((J(last && last.result, {}) || {}).marks || {})[w.tag] || 0) } : null,
+          when: w ? { ...w, need: whenNeed(w), fresh: whenCount(w) - (((J(last && last.result, {}) || {}).marks || {})[whenKey(w)] || 0) } : null,
           standing: cont ? all("select j.id, j.name, j.state, j.done from jobs j join runs r on r.id=j.run_id where r.pipeline_id=? and r.state='standing' and j.state!='done' order by j.id desc limit 3", p.id) : [],
           runs: all("select id, day, state, created, finished from runs where pipeline_id=? and state!='standing' order by id desc limit 7", p.id) };
       }),
       models: all("select * from models order by name, version desc limit 60").map((m) => ({ id: m.id, name: m.name, version: m.version, state: m.state, metrics: J(m.metrics, {}), created: m.created, note: m.note, run: m.run_id })),
     };
   }
-  return { nextAt, setPipeline, startRun, tick, onJobDone, manifest, publicKeys, setModel, view, better, released, setEnabled: (id, v) => run("update pipelines set enabled=? where id=?", v ? 1 : 0, id) };
+  return { nextAt, setPipeline, startRun, tick, onJobDone, manifest, publicKeys, privateManifest, privateKeys, codeOf, setModel, view, better, released, abStats, promote, setEnabled: (id, v) => run("update pipelines set enabled=? where id=?", v ? 1 : 0, id) };
 }
 
 module.exports = { attach };

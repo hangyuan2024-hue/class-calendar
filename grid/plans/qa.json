@@ -3,12 +3,26 @@
   "mode": "continuous",
   "stages": [
     {
-      "key": "math", "name": "做数学题、写讲解（自动核对）", "kind": "map", "recipe": "qa_math", "recipeFile": "../recipes/qa_math.py",
-      "standing": true, "keep": 30,
+      "key": "math",
+      "name": "做数学题、写讲解（自动核对）",
+      "kind": "map",
+      "recipe": "qa_math",
+      "recipeFile": "../recipes/qa_math.py",
+      "standing": true,
+      "keep": 30,
       "params": {
-        "per": 12, "samples": 4, "parallel": 2, "sources": ["gsm8k", "topics"], "tag": "qa-math",
+        "per": 12,
+        "samples": 4,
+        "parallel": 2,
+        "sources": [
+          "gsm8k",
+          "topics"
+        ],
+        "tag": "qa-math",
         "llm": {
-          "name": "Qwen3-8B-Q4_K_M.gguf", "ctx": 16384, "slots": 2,
+          "name": "Qwen3-8B-Q4_K_M.gguf",
+          "ctx": 16384,
+          "slots": 2,
           "urls": [
             "https://www.modelscope.cn/models/Qwen/Qwen3-8B-GGUF/resolve/master/Qwen3-8B-Q4_K_M.gguf",
             "https://hf-mirror.com/Qwen/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q4_K_M.gguf",
@@ -16,7 +30,65 @@
           ]
         }
       },
-      "req": { "vram": 7.5, "llm": true }, "priority": 10
+      "req": {
+        "vram": 7.5,
+        "llm": true
+      },
+      "priority": 10
+    },
+    {
+      "key": "train",
+      "name": "训练答题大脑（同事显卡，QLoRA）",
+      "kind": "map",
+      "recipe": "qa_train",
+      "recipeFile": "../recipes/qa_train.py",
+      "when": {
+        "outputsOf": "qa-math",
+        "outputs": 100,
+        "minHours": 6
+      },
+      "params": {
+        "count": 1,
+        "outputsOf": "qa-math",
+        "minExamples": 300,
+        "maxExamples": 8000,
+        "epochs": 2,
+        "rank": 16,
+        "lr": 0.0001,
+        "maxLen": 1024,
+        "evalN": 100,
+        "llm": {
+          "lazy": true,
+          "ctx": 8192,
+          "slots": 2
+        }
+      },
+      "req": {
+        "vram": 7.5,
+        "llm": true
+      },
+      "priority": 20
     }
-  ]
+  ],
+  "publish": {
+    "model": "qa-lora",
+    "from": "train",
+    "files": [
+      "lora"
+    ],
+    "metrics": [
+      {
+        "k": "acc",
+        "better": "higher",
+        "tol": 0.02,
+        "min": "base_acc",
+        "minTol": 0.02
+      },
+      {
+        "k": "zh_rate",
+        "better": "higher",
+        "tol": 0.02
+      }
+    ]
+  }
 }

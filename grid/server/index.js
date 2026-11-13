@@ -87,7 +87,12 @@ function create(opt = {}) {
     "POST /api/human/done": (req, b, dev) => core.humanDone(dev, b),
     "GET /api/review/next": (req, b, dev) => { const r = core.reviewNext(dev); return { item: r ? { id: r.id, job: r.job_name, kind: r.kind, need: r.need, votes: r.votes, payload: signed(JSON.parse(r.payload || "{}")) } : null }; },
     "POST /api/review/vote": (req, b, dev) => core.vote(dev, b),
-    "POST /api/dataset": (req, b, dev) => ({ items: core.dataset(dev, b) }),
+    // 训练要用的审核结果：图片给下载地址（6 小时内有效）
+    "POST /api/dataset": (req, b, dev) => ({ items: core.dataset(dev, b).map((it) => {
+      const pl = { ...it.payload };
+      for (const f of ["a", "b", "ref", "img", "audio"]) if (typeof pl[f] === "string" && /^[\w\-/.]+$/.test(pl[f]) && !/^https?:/.test(pl[f])) pl[f + "Url"] = store.url("GET", pl[f], 6 * 3600);
+      return { ...it, payload: pl };
+    }) }),
     // ---- 管理员（控制中心） ----
     "GET /api/admin/overview": () => ({ ...core.overview(true), store: store.kind, pubkey: core.kv.get("pubkey") || null }),
     "GET /api/admin/job": (req, b, dev, u) => {
@@ -122,9 +127,20 @@ function create(opt = {}) {
     // 每日一轮、模型版本
     "GET /api/admin/cycle": () => cycle.view(),
     "POST /api/admin/pipeline": (req, b) => ({ id: cycle.setPipeline(b) }),
-    "POST /api/admin/pipeline/run": (req, b) => ({ run: cycle.startRun(+b.id, "管理员点了「现在跑一轮」") }),
+    "POST /api/admin/pipeline/run": (req, b) => ({ run: cycle.startRun(+(b.id || (core.db.prepare("select id from pipelines where name=?").get(String(b.name || "")) || {}).id), b.extra && b.extra.member ? `训练「${b.extra.member}」` : "管理员点了「现在跑一轮」", b.extra || {}) }),
+    // 导入老师自己录的音频（手机录音机录的原文件）：先拿上传地址，传完再登记
+    "POST /api/admin/import/start": (req, b) => {
+      const name = String(b.name || "").replace(/[^\w.\-]/g, "_").slice(0, 100);
+      if (!name || !/\.(wav|m4a|mp3|aac|flac|ogg|opus|webm|mp4|mov|amr)$/i.test(name)) throw new Error("只能导入音频或视频文件");
+      const key = `imports/${Date.now()}-${name}`;
+      return { key, url: store.url("PUT", key, 3600) };
+    },
+    "POST /api/admin/import/done": (req, b) => core.importVoice(b),
     "POST /api/admin/pipeline/enable": (req, b) => (cycle.setEnabled(+b.id, !!b.enabled), { ok: true }),
     "POST /api/admin/model/set": (req, b) => cycle.setModel(+b.id, b.state),
+    "POST /api/admin/model/code": (req, b) => ({ name: String(b.name), code: cycle.codeOf(String(b.name), !!b.rotate) }),
+    "POST /api/admin/ab": (req, b) => cycle.abStats(b.tag || "qv1"),
+    "POST /api/admin/model/promote": (req, b) => cycle.promote(String(b.from), String(b.to), b.note),
     "POST /api/admin/geturl": (req, b) => { if (!Store.okKey(b.key)) throw new Error("文件名不对"); return { url: store.url("GET", b.key, 3600) }; },
   };
 
@@ -135,9 +151,19 @@ function create(opt = {}) {
       if (req.method === "OPTIONS") { res.writeHead(204, { "access-control-allow-origin": "*", "access-control-allow-headers": "authorization, content-type", "access-control-allow-methods": "GET, POST, PUT" }); return res.end(); }
       if (u.pathname.startsWith("/blob/")) return blob(req, res, u);
       if (u.pathname === "/pub/models/manifest.json") return json(res, 200, pubManifest());
+      // 不公开的模型（老师的声音）：凭声音码拿清单和文件
+      const pm = /^\/pub\/private\/([\w-]{6,40})\/manifest\.json$/.exec(u.pathname);
+      if (pm) {
+        const m = cycle.privateManifest(pm[1]);
+        if (!m) return json(res, 404, { error: "声音码不对" });
+        for (const v of Object.values(m.models)) v.files = v.files.map((f) => ({ ...f, url: `${publicBase}/pub/${f.key}?c=${pm[1]}` }));
+        return json(res, 200, m);
+      }
       if (u.pathname.startsWith("/pub/")) {
         const key = decodeURIComponent(u.pathname.slice(5));
-        if (!cycle.publicKeys().has(key)) return json(res, 404, { error: "没有这个文件" });
+        const code = u.searchParams.get("c");
+        if (!cycle.publicKeys().has(key) && !(code && cycle.privateKeys(code).has(key))) return json(res, 404, { error: "没有这个文件" });
+        u.searchParams.delete("c");
         if (store.kind === "local") { u.searchParams.set("exp", String(Math.floor(Date.now() / 1000) + 600)); return blob(Object.assign(req, { method: req.method === "HEAD" ? "HEAD" : "GET" }), res, new URL(store.url("GET", key, 600))); }
         res.writeHead(302, { location: store.url("GET", key, 6 * 3600) }); return res.end();
       }

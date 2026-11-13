@@ -84,6 +84,7 @@ const until = async (f, what, ms = 60000) => { const t0 = Date.now(); while (Dat
     call: async (op, a, ctx) => {
       if (op === "info") return { models: { qwenEdit: "q.safetensors", qwenClip: "c.safetensors", qwenVae: "v.safetensors", qwenFast: "f.safetensors" }, vram: 8 };
       if (op === "upload") { assert.ok(a.path.startsWith(ctx.dir), "只传任务文件夹里的"); return { name: a.as || path.basename(a.path) }; }
+      if (op === "lora") return { name: "laolao/" + a.name };
       if (op === "run") {
         if (fakeComfy.broken) throw new Error("显卡内存不够");
         graphs.push(a.graph);
@@ -120,7 +121,7 @@ const until = async (f, what, ms = 60000) => { const t0 = Date.now(); while (Dat
   assert.ok(gen, "设好就有画图的活"); assert.equal(gen.total, 6);
   assert.equal(C.view().pipelines[0].runs.length, 0, "还没攒够审核，不训练");
   big.start(); small.start();
-  await until(() => doneOf(gen.id) >= 4, "画 4 个");
+  await until(() => doneOf(gen.id) >= 4, "画 4 个").catch((e) => { console.log(db.prepare("select state,error from tasks where error is not null limit 3").all()); throw e; });
   C.tick();
   assert.ok(db.prepare("select total from jobs where id=?").get(gen.id).total > 6, "快领完了自动补一批");
   assert.equal(db.prepare("select count(*) as n from tasks where job_id=? and device_id=(select id from devices where name='小显卡')").get(gen.id).n, 0, "小显卡的电脑不领画图的任务");
@@ -191,6 +192,49 @@ const until = async (f, what, ms = 60000) => { const t0 = Date.now(); while (Dat
   assert.equal(C.better(plan.publish, null, { acc: 0.6 }).ok, true);
   ok("和现在的那一版在同一份考题上比（考题越攒越多，不和以前的分数比）；第一版也要过及格线（比瞎猜好）");
 
+  // Q版插件（租卡）：手动开一轮 → 24G 的卡领到 → 发布成「试用」→ 同事画图时一张用现在的、一张用新的 → 审核比 → 转正
+  {
+    fakeComfy.broken = false;
+    const lp = JSON.parse(fs.readFileSync(path.join(ROOT, "plans", "qv-lora.json"), "utf8"));
+    const lf = path.join(tmp, "qv-lora.json");
+    fs.writeFileSync(lf, JSON.stringify({ ...lp, stages: lp.stages.map((s) => ({ ...s, recipeFile: path.join(ROOT, "recipes", "qv_lora.py"), params: { ...s.params, dryRun: true, minPairs: 1 } })) }));
+    await Tools.cycle(admin, lf);
+    C.tick();
+    const lpipe = C.view().pipelines.find((x) => x.name === lp.name);
+    assert.equal(lpipe.runs.length, 0, "手动的：不会自己开");
+    const rent = Agent.create({ ...(await Agent.join(inv.link, "我", { name: "租的4090" }).then((j) => ({ token: j.token, pubkey: j.pubkey }))), server: url, workDir: path.join(tmp, "w-rent"), python: PY, caps: { vram: 24 }, tickMs: 100, hbMs: 300, leaseEveryMs: 100, renewMs: 300 });
+    const lr = await Tools.api(admin, "/api/admin/pipeline/run", { id: lpipe.id });
+    rent.start();
+    await until(() => db.prepare("select state from runs where id=?").get(lr.run).state !== "running", "训练 Q版插件");
+    rent.stop();
+    const test = C.view().models.find((m) => m.name === "qversion-lora-test");
+    assert.ok(test && test.state === "released", "发布成试用");
+    C.tick();
+    const g3 = genJob();
+    assert.ok(/^jobs\//.test(JSON.parse(g3.params).loraTest), "画图的活带上了试用插件");
+    graphs.length = 0;
+    await until(() => doneOf(g3.id) >= 1, "带试用插件画 1 组");
+    const loraOf = (g) => Object.values(g).filter((n) => n.class_type === "LoraLoaderModelOnly" && /qversion-test/.test(n.inputs.lora_name)).length;
+    const qg = graphs.filter((g) => g["20"].inputs.image1);
+    assert.equal(qg.slice(0, 2).filter((g) => loraOf(g)).length, 1, "两张里一张用新插件");
+    let n = 0; for (;;) { const r = await small.api("/api/review/next"); if (!r.item) break; await small.api("/api/review/vote", { review: r.item.id, choice: "a" }); n++; }
+    const ab = await Tools.api(admin, "/api/admin/ab", { tag: "qv1" });
+    assert.ok(ab.total >= 1 && ab.test + ab.cur === ab.total);
+    await Tools.api(admin, "/api/admin/model/promote", { from: "qversion-lora-test", to: "qversion-lora" });
+    const man = await (await fetch(url + "/pub/models/manifest.json")).json();
+    assert.ok(man.models["qversion-lora"], "转正了：老师端会换上");
+    ok(`Q版插件：手动开一轮，24G 的租卡领到、训完发布成试用；同事画图时一张用现在的一张用新的（左右随机），审核比了 ${ab.total} 组（新的胜率 ${ab.winRate}）；转正后老师端换上`);
+  }
+
+  // 整理 Q版插件的训练集：审核里明确选了一张的 → 照片 + 赢的图 + 提示词，打包
+  {
+    const rid = await Tools.publish(admin, path.join(ROOT, "recipes", "qv_export.py"), "qv_export");
+    const ej = (await Tools.api(admin, "/api/admin/job", { name: "整理训练集", kind: "map", recipe: rid, params: { count: 1, dataset: "qv1", minPairs: 1 }, priority: 99 })).id;
+    await until(() => app.core.jobDetail(ej).state === "done", "整理训练集");
+    const res = JSON.parse(db.prepare("select result from tasks where job_id=?").get(ej).result);
+    assert.ok(res.pairs >= 1 && /jobs\//.test(res.trainset), "打包好了");
+    ok(`整理 Q版插件的训练集：${res.pairs} 组（照片 → 审核里赢的那张 + 提示词）`);
+  }
   big.stop(); small.stop();
   app.close();
   fs.rmSync(tmp, { recursive: true, force: true });

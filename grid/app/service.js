@@ -11,6 +11,7 @@ const Env = require("./env");
 const Updater = require("./updater");
 const AI = require("./ai");
 const LLMW = require("./llmw");
+const GSVW = require("./gsvw");
 
 const RECIPES = path.join(__dirname, "..", "recipes").replace(/app\.asar([\\/])/, "app.asar.unpacked$1");  // 打包后 Python 读不了 asar 里的文件
 
@@ -33,14 +34,17 @@ function createService(o) {
   // 本地大模型（llama.cpp 跟着安装包走）；和 ComfyUI 抢显存：开一个先关另一个
   const llm = (o.llmFactory || LLMW.create)({ exe: o.llamaExe, base: () => base(), beforeStart: async () => { try { ai.stop(); } catch (e) {} }, ...(o.llmOpt || {}) });
   const comfy = { ...ai, ensure: async () => { llm.stop(); return ai.ensure(); } };
-  const capsNow = () => ({ ...((lastProbe && lastProbe.caps) || {}), comfy: !!(cfg.ai && cfg.ai.ready), llm: llm.ok() });
+  // GPT-SoVITS（训练声音）：第一次用的时候自动装；训练前关掉 ComfyUI 和本地大模型
+  const gsv = (o.gsvFactory || GSVW.create)({ base: () => base(), get: () => cfg.gsv, set: (v) => { cfg.gsv = { ...(cfg.gsv || {}), ...v }; save(); },
+    gpuName: () => (lastProbe && lastProbe.caps && lastProbe.caps.gpu) || "", beforeStart: async () => { try { ai.stop(); } catch (e) {} try { llm.stop(); } catch (e) {} }, ...(o.gsvOpt || {}) });
+  const capsNow = () => ({ ...((lastProbe && lastProbe.caps) || {}), comfy: !!(cfg.ai && cfg.ai.ready), llm: llm.ok(), gsv: process.platform === "win32" || !!(cfg.gsv && cfg.gsv.dir) });
   const gallery = [];
 
   function startAgent() {
     if (agent || !cfg.token) return;
     agent = Agent.create({
       server: cfg.server, token: cfg.token, pubkey: cfg.pubkey, workDir: work(), python: () => env.python(),
-      caps: lastProbe ? capsNow() : null, comfy, llm, policy: cfg.policy || { mode: "off", idleMin: 5 },   // 默认：自己点「开始」才算
+      caps: lastProbe ? capsNow() : null, comfy, llm, gsv, policy: cfg.policy || { mode: "off", idleMin: 5 },   // 默认：自己点「开始」才算
       idleSecs: o.idleSecs, ensure: (pkgs) => env.ensure(pkgs), version: o.version, gpuInfo: async () => (await probe.gpus())[0] || null, gpuApps: (ours) => probe.gpuApps(undefined, ours),
       ...(o.agentOpt || {}),
     });

@@ -126,10 +126,11 @@ function open(file, opt = {}) {
       const sid = st ? stage(st) : null;
       let total = 0;
       if (kind === "map" || kind === "record") total = (params.items || []).length || params.count || 0;
+      if (kind === "record" && params.perMember) total = 0;   // 每个人都录全部：谁来录就给谁建任务
       if (kind === "relay") total = params.totalSteps;
       if (kind === "diloco") total = params.rounds;
       const id = Number(run("insert into jobs(name,stage_id,kind,recipe_id,params,req,state,priority,created,total,note) values(?,?,?,?,?,?,?,?,?,?,?)", name, sid, kind, recipe || null, S(params), S(req), "active", priority, clock(), total, note).lastInsertRowid);
-      if (kind === "map" || kind === "record") {
+      if (kind === "map" || (kind === "record" && !params.perMember)) {
         const items = params.items || Array.from({ length: params.count || 0 }, (_, i) => ({ i }));
         items.forEach((it, i) => run("insert into tasks(job_id,kind,seq,input,state) values(?,?,?,?,?)", id, kind === "record" ? "human" : "run", i, S(it), "queued"));
       }
@@ -186,6 +187,7 @@ function open(file, opt = {}) {
     if (req.os && caps.os && req.os !== caps.os) return false;
     if (req.comfy && !caps.comfy) return false;   // 要装好 AI 引擎（ComfyUI + 画 Q版的模型）
     if (req.llm && !caps.llm) return false;       // 要能跑本地大模型（新版客户端自带 llama.cpp）
+    if (req.gsv && !caps.gsv) return false;       // 要能装 GPT-SoVITS 整合包（Windows；训练声音）
     return true;
   }
   // 领一个活
@@ -240,8 +242,17 @@ function open(file, opt = {}) {
         for (const [n, v] of Object.entries(res)) if (typeof v === "string" && /^jobs\//.test(v)) out.files[`${k}.${n}`] = v;
       }
     }
-    const ws = (J(j.params, {}) || {}).warmStart;
-    if (typeof ws === "string" && /^jobs\//.test(ws)) (out.files = out.files || {}).warmStart = ws;
+    // 参数里指向已发布模型文件的（warmStart、loraTest……）：电脑先下载到本机
+    for (const [k, v] of Object.entries(J(j.params, {}) || {})) if (typeof v === "string" && /^jobs\//.test(v)) (out.files = out.files || {})[k] = v;
+    // 训练某位老师的声音：params.voiceOf = 名字 → 这位老师录的每一句（带讲稿）和导入的录音
+    const vo = (J(j.params, {}) || {}).voiceOf;
+    if (vo) { const v = voiceData(vo); out.files = { ...(out.files || {}), ...v.files }; out.extra = { ...(out.extra || {}), texts: v.texts }; }
+    // 训练要用到现在为止某一类任务交的所有结果文件（比如 tag = "qa-math" 的讲解）：params.outputsOf
+    const of = (J(j.params, {}) || {}).outputsOf;
+    if (of) {
+      out.files = out.files || {};
+      all("select o.key from outputs o join jobs jj on jj.id=o.job_id where json_extract(jj.params,'$.tag')=? order by o.id limit 20000", String(of)).forEach((o, n) => { out.files["data" + n] = o.key; });
+    }
     if (j.kind === "relay") {
       const c = one("select * from ckpts where job_id=? and kind='relay' order by step desc, id desc limit 1", j.id);
       if (c) out.resume = { key: c.key, step: c.step };
@@ -355,6 +366,37 @@ function open(file, opt = {}) {
     if (c === "empty") run("update jobs set state='done', finished=? where id=? and state!='done'", clock(), jobId);
     return c;
   }
+  // 导入的录音：记在「导入的录音」这个任务下，算这位老师的（训练声音时一起用）
+  function importVoice({ member, key, name, size }) {
+    if (!/^imports\/[\w.\-]+$/.test(String(key || ""))) throw new Error("文件不对");
+    const m = one("select * from members where name=?", String(member || ""));
+    if (!m) throw new Error("没有叫「" + member + "」的成员（要先用邀请链接加入）");
+    const find = () => one("select * from jobs where kind='record' and json_extract(params,'$.purpose')='voice-import' order by id limit 1");
+    if (!find()) createJob({ name: "导入的录音", stage: "阶段 1 · 数据", kind: "record", params: { purpose: "voice-import", perMember: true, items: [] } });
+    return tx(() => {
+      const j = find();
+      const tid = Number(run("insert into tasks(job_id,kind,seq,input,state,member_id,finished,result) values(?,?,?,?,?,?,?,?)", j.id, "human", 0, S({ import: name }), "done", m.id, clock(), S({ imported: true })).lastInsertRowid);
+      run("insert into outputs(job_id,task_id,name,key,size,created) values(?,?,?,?,?,?)", j.id, tid, String(name || key).slice(0, 120), key, +size || 0, clock());
+      event("record", `导入了${m.name}的录音「${name}」`, { job: j.id, member: m.id });
+      return { ok: true };
+    });
+  }
+  // 某位老师的声音数据：录的每一句（有讲稿）+ 导入的整段录音（没有讲稿，要先切开、识别）
+  function voiceData(memberName) {
+    const m = one("select * from members where name=?", String(memberName || ""));
+    if (!m) return { files: {}, texts: {} };
+    const files = {}, texts = {};
+    all(`select o.key, o.name, t.input, json_extract(j.params,'$.purpose') as purpose from outputs o join tasks t on t.id=o.task_id join jobs j on j.id=o.job_id
+         where j.kind='record' and t.member_id=? and t.state='done' and json_extract(j.params,'$.purpose') like 'voice%' order by o.id limit 5000`, m.id).forEach((o, n) => {
+      if (o.purpose === "voice-import") { files["imp" + n] = o.key; return; }
+      const k = /^s(\d{3})\.webm$/.exec(o.name);
+      if (!k) return;
+      const line = ((J(o.input, {}) || {}).lines || [])[+k[1]];
+      if (!line) return;
+      files["rec" + n] = o.key; texts["rec" + n] = line;
+    });
+    return { files, texts };
+  }
   // 训练要用的人工审核结果：只给手上正领着这个任务的电脑（params.dataset 写的是哪一类审核）
   function dataset(dev, { task }) {
     const t = mine(dev, task);
@@ -381,7 +423,21 @@ function open(file, opt = {}) {
     sweep();
     return tx(() => {
       const cur = one("select t.* from tasks t join jobs j on j.id=t.job_id where t.kind='human' and t.state='leased' and t.member_id=? and j.state='active' and (? is null or t.job_id=?) limit 1", dev.member_id, jobId || null, jobId || null);
-      const t = cur || one("select t.* from tasks t join jobs j on j.id=t.job_id where t.kind='human' and t.state='queued' and j.state='active' and (? is null or t.job_id=?) order by j.priority desc, t.seq asc limit 1", jobId || null, jobId || null);
+      let t = cur || one("select t.* from tasks t join jobs j on j.id=t.job_id where t.kind='human' and t.state='queued' and j.state='active' and not coalesce(json_extract(j.params,'$.perMember'),0) and (? is null or t.job_id=?) order by j.priority desc, t.seq asc limit 1", jobId || null, jobId || null);
+      // 每个人都要录全部的（录声音：每位老师的声音单独训练）：这个人还没录的下一段，现建一个任务给他
+      if (!t) {
+        for (const pj of all("select * from jobs where kind='record' and state='active' and json_extract(params,'$.perMember') and (? is null or id=?) order by priority desc, id asc", jobId || null, jobId || null)) {
+          const items = (J(pj.params, {}) || {}).items || [];
+          const mine = new Set(all("select seq from tasks where job_id=? and member_id=? and state in ('leased','done')", pj.id, dev.member_id).map((x) => x.seq));
+          const seq = items.findIndex((_, i) => !mine.has(i));
+          if (seq < 0) continue;
+          const old = one("select * from tasks where job_id=? and member_id=? and seq=? and state='queued'", pj.id, dev.member_id, seq);
+          const id = old ? old.id : Number(run("insert into tasks(job_id,kind,seq,input,state,member_id) values(?,?,?,?,?,?)", pj.id, "human", seq, S(items[seq]), "queued", dev.member_id).lastInsertRowid);
+          run("update jobs set total=(select count(*) from tasks where job_id=?) + 0 where id=?", pj.id, pj.id);
+          t = one("select * from tasks where id=?", id);
+          break;
+        }
+      }
       if (!t) return null;
       if (!cur) run("update tasks set state='leased', device_id=?, member_id=?, lease_until=?, started=?, attempts=attempts+1 where id=?", dev.id, dev.member_id, clock() + 6 * 3600e3, clock(), t.id);
       const j = one("select * from jobs where id=?", t.job_id);
@@ -398,7 +454,7 @@ function open(file, opt = {}) {
       const pts = (result.secs || 60) / 60 * 3;
       run("update members set points=points+? where id=?", pts, dev.member_id);
       const j = one("select * from jobs where id=?", t.job_id);
-      if (j.done >= j.total) endJob(j);
+      if (j.done >= j.total && !(J(j.params, {}) || {}).perMember) endJob(j);   // 每个人都录的：一直开着，新同事来了也能录
       event("record", `${dev.member_name}录好了「${j.name}」第 ${t.seq + 1} 段`, { job: j.id, device: dev.id, member: dev.member_id });
       return { ok: true };
     });
@@ -494,7 +550,7 @@ function open(file, opt = {}) {
   return {
     db, kv, event, on: (f) => (listeners.add(f), () => listeners.delete(f)),
     adminToken, isAdmin, invite, join, auth, heartbeat, addRecipe, stage, createJob, lease, renew, checkpoint, finish, fail, sweep,
-    humanNext, humanDone, reviewNext, vote, cut, retire, addTasks, dataset, overview, jobDetail, devicesView, board, setJob, setDevice, retry,
+    humanNext, humanDone, reviewNext, vote, cut, retire, addTasks, dataset, importVoice, voiceData, overview, jobDetail, devicesView, board, setJob, setDevice, retry,
     recipe: (id) => one("select * from recipes where id=?", id), recipes: () => all("select id,name,meta,created from recipes order by created desc"),
     review: (id) => one("select * from reviews where id=?", id),
     invites: () => all("select * from invites order by created desc limit 50"),

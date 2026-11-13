@@ -96,6 +96,46 @@ node grid/tools/grid.js cycle grid/plans/qversion.json --now    # 不等攒够�
 和「画 Q版」一样优先：几台电脑自动分开做（一台画图、一台做题），做完接着做自己那种（模型不用重新加载）；开大模型前先关 ComfyUI，反过来也一样（8G 显存放不下两个）。
 留下的讲解以后用来微调老师端的答题大脑（Qwen3-VL-4B）。配方开头写 `# needs: llm`，任务参数 `llm` 写模型名和下载地址，配方从 task.json 的 `llm` 拿到本机地址（OpenAI 兼容）。
 
+### 训练答题大脑（`plans/qa.json` 里的 train，同事的 8G 显卡）
+
+新讲解攒够 100 份结果、离上次至少 6 小时 → 开一轮（`when.outputsOf`）：
+1. 底子 Qwen3-VL-4B-Instruct（老师端用的那个）4 位精度放进显卡，QLoRA 只训练很小的 LoRA（8G 够；第一次下底子约 9G，魔搭优先）
+2. 转成 llama.cpp 的 LoRA（用和客户端里 llama.cpp 同一个版本的转换脚本）
+3. 考试：GSM8K 测试集里固定的 100 道（每次一样，分数才能比），原版考一次、带 LoRA 考一次 → 答对率 acc、用中文讲的比例 zh_rate
+4. 不比原版差（差 2% 以内）、比现在发布的好 → 发布 `qa-lora`；捞捞PPT助手下次启动 AI 助手时带上（`--lora`），带上起不来就退回上一版
+
+## 录声音和表情（`plans/voice.json`，每位老师都录全部 12 段，约 10 分钟）
+
+`node grid/tools/grid.js plan grid/plans/voice.json`（只运行一次）。每位老师在软件「人工审核 → 录表情」里录（`perMember`：各录各的，一个人录完任务不结束）。
+录下来的声音用来训练这位老师的声音，表情参数用来训练「声音 → 表情」。
+
+### 训练老师的声音（`plans/voice-train.json` + `recipes/voice_train.py`，显卡 6G 以上就行）
+
+```bash
+node grid/tools/grid.js cycle grid/plans/voice-train.json                 # 设一次
+node grid/tools/grid.js voice-import 王老师 录音1.m4a 录音2.m4a            # （可选）导入手机录音机录的原文件
+node grid/tools/grid.js voice 王老师                                      # 训练王老师的声音
+node grid/tools/grid.js voice-code 王老师                                 # 声音码：只发给王老师本人
+```
+- 数据：她在「录表情」里录的每一句（有讲稿）+ 导入的整段录音（自动切开、语音识别）；至少 2 分钟，10 分钟以上效果好
+- 第一次自动装 GPT-SoVITS 整合包（和捞捞PPT助手同一个，国内存储）；步骤和它的训练界面一样：预处理 → SoVITS（音色）→ GPT（语气）
+- 训完用 api_v2 念 3 句试听（控制中心能听），能正常出声才发布成 `voice-名字`
+- **不公开**：不进公开清单；老师在捞捞PPT助手「我的声音」里填声音码才能下载、使用；码泄露了 `voice-code 名字 --new` 换一个
+
+## Q版插件（唯一要租卡的）
+
+流水线 `plans/qv-lora.json`（`recipes/qv_lora.py`，musubi-tuner 训练 Qwen-Image-Edit-2511 的 LoRA）：
+1. `node grid/tools/grid.js cycle grid/plans/qv-lora.json`（设一次）；审核攒到几百组以后，控制中心点「现在训练一次」→ 出现一个要 24G 显存的任务，等租的卡来领
+2. 租一台 24G 以上显存的 Linux（4090 / A100），用命令行版接进来，和同事的电脑一起排队领活：
+   ```bash
+   node tools/worker.js join "邀请链接" "租的4090"
+   node tools/worker.js run --hours 4      # 最多算 4 小时，到点自己停，免得忘了关机
+   ```
+3. 训完发布成 `qversion-lora-test`（试用）：同事画图时一张用现在的、一张用新的（左右随机），大家审核比
+4. `node grid/tools/grid.js ab` 看新插件胜率；赢得多就 `node grid/tools/grid.js promote` 转正（老师端换上）
+
+（只想要训练集：`node grid/tools/grid.js plan grid/plans/qv-trainset.json` → 照片 + 审核里赢的那张 + 提示词，打成一个包）
+
 配方里要用本机的 AI 引擎：开头写 `# needs: comfy`，用 `lg.comfy("info" / "upload" / "lora" / "run", ...)`；训练要审核结果：任务参数写 `"dataset": "标签"`，配方里 `lg.dataset()`。配方改了直接 `cycle` 重新签名上传，客户端不用更新。
 
 ## 训练路线（8G 显存的 5060 × 3 + 你的电脑）
@@ -120,6 +160,7 @@ node grid/tools/grid.js cycle grid/plans/qversion.json --now    # 不等攒够�
 | `shared/expr.js` | 捞捞「表情参数」标准 v1：14 个参数，画图和声音都按它走 |
 | `app/` | Electron 客户端：星图、实时面板、任务向导、录表情（`record.html`，MediaPipe face_mesh）、审核、贡献榜 |
 | `tools/grid.js` | 管理员命令行：登录、签名上传配方、按计划建任务、发邀请、设自动训练 |
+| `tools/worker.js` | 命令行版（租来的 Linux 显卡）：加入、开始算、到点自己停 |
 | `server/cycle.js` | 自动训练（不定时间：一直有活、审核攒够就训练）/ 每日一轮（定时）；评测过了才发布、老师端的发布清单 |
 | `app/ai.js` | AI 引擎（ComfyUI）：一键装、给配方画图；代码和捞捞PPT助手共用（打包时从 `pptassist/core` 拷到 `app/ppt/`） |
 

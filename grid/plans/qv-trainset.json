@@ -1,0 +1,18 @@
+{
+ "jobs": [
+  {
+   "name": "整理 Q版插件的训练集（审核里赢的图）",
+   "stage": "Q版插件",
+   "kind": "map",
+   "recipe": "../recipes/qv_export.py",
+   "recipeName": "qv_export",
+   "params": {
+    "count": 1,
+    "dataset": "qv1",
+    "minPairs": 50
+   },
+   "req": {},
+   "priority": 30
+  }
+ ]
+}

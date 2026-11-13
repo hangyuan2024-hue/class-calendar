@@ -204,9 +204,17 @@ function create(opt) {
       if (/^#\s*needs:.*\bllm\b/m.test(rc.source)) {
         if (!opt.llm) throw new Error("这台电脑的客户端太旧，跑不了本地大模型");
         c.note = "准备本地大模型…";
-        llmUrl = await opt.llm.ensure((L.job.params || {}).llm || {}, (m) => { c.note = m; log(m); emit("progress", { id: c.id, p: c.progress, note: m }); });
+        // lazy：配方自己决定什么时候开（比如先训练、训完再开大模型考试），这里不先开
+        if (!((L.job.params || {}).llm || {}).lazy) llmUrl = await opt.llm.ensure((L.job.params || {}).llm || {}, (m) => { c.note = m; log(m); emit("progress", { id: c.id, p: c.progress, note: m }); });
       }
-      const t = { kind: L.task.kind, task: L.task, input: L.task.input, job: L.job, work: dir, resume: null, parts: [], llm: llmUrl };
+      // 配方开头写「# needs: gsv」：要用 GPT-SoVITS 整合包（训练声音）；第一次自动装（几个 G）
+      let gsv = null;
+      if (/^#\s*needs:.*\bgsv\b/m.test(rc.source)) {
+        if (!opt.gsv) throw new Error("这台电脑的客户端太旧，训练不了声音");
+        c.note = "准备 GPT-SoVITS…";
+        gsv = await opt.gsv.ensure((m) => { c.note = m; log(m); emit("progress", { id: c.id, p: c.progress, note: m }); });
+      }
+      const t = { kind: L.task.kind, task: L.task, input: L.task.input, job: L.job, work: dir, resume: null, parts: [], llm: llmUrl, gsv, extra: L.extra || {} };
       if (L.resume) { const f = path.join(dir, "resume-" + path.basename(L.resume.key)); c.note = "下载存档…"; await xfer("GET", L.resume.url, f); t.resume = f; t.resumeInfo = { step: L.resume.step, round: L.resume.round }; }
       for (const [i, u] of (L.task.input.partUrls || []).entries()) { const f = path.join(dir, `part-${i}.npz`); await xfer("GET", u, f); t.parts.push(f); }
       delete t.input.partUrls;
@@ -324,6 +332,22 @@ function create(opt) {
         }).catch((e) => log("审核图片上传失败：" + e.message, "warn"));
         break;
       case "result": { const { t, ...r } = m; c.result = r; break; }
+      // 配方要换个方式开本地大模型（比如带上刚训练好的 LoRA 来考试）：{t:"llm", op:"start"|"stop"|"info", llm:{...}, lora: 本地路径}
+      case "llm": {
+        const { t, id, op, ...a } = m;
+        const reply = (x) => { try { if (c.child && c.child.stdin && !c.child.stdin.destroyed) c.child.stdin.write(JSON.stringify({ id, ...x }) + "\n"); } catch (e) {} };
+        Promise.resolve()
+          .then(async () => {
+            if (!opt.llm) throw new Error("这台电脑的客户端太旧，跑不了本地大模型");
+            if (op === "stop") { opt.llm.stop(); return {}; }
+            if (op === "info") return { version: opt.llm.version ? await opt.llm.version() : "" };
+            const spec = { ...((c.job.params || {}).llm || {}), ...(a.llm || {}) };
+            if (a.lora) { const f = path.resolve(c.dir, String(a.lora)); if (!f.startsWith(path.resolve(c.dir) + path.sep) || !fs.existsSync(f)) throw new Error("LoRA 文件要在任务文件夹里"); spec.lora = f; }
+            return { url: await opt.llm.ensure(spec, (x) => { c.note = x; emit("progress", { id: c.id, p: c.progress, note: x }); }) };
+          })
+          .then((r) => reply({ ok: true, ...r }), (e) => reply({ ok: false, error: e.message }));
+        break;
+      }
       // 配方让 AI 引擎画图：做完把结果写回配方的标准输入（一行 JSON）
       case "comfy": {
         const { t, id, op, ...a } = m;

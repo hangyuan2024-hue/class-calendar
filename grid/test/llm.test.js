@@ -43,6 +43,18 @@ const listen = (h) => new Promise((r) => { const s = http.createServer(h); s.lis
     const j3 = c.createJob({ name: "要大模型", kind: "map", recipe: "r", params: { count: 1 }, req: { llm: true }, priority: 99 });
     assert.notEqual(c.lease(c.auth(c.join({ code: inv.code, name: "丁", device: { name: "D" } }).token), { llm: false }).job.id, j3, "旧客户端不领要大模型的活");
     ok("两种活一样优先：几台电脑分开做，做完接着做自己那种（模型不用重新加载）；旧客户端不领要大模型的活");
+    // 录声音：每位老师都要录全部几段（不是大家分着录）
+    const rj = c.createJob({ name: "录声音", kind: "record", params: { perMember: true, items: [{ lines: ["一"] }, { lines: ["二"] }] }, priority: 5 });
+    const da = c.auth(A.token), db_ = c.auth(B.token);
+    const h1 = c.humanNext(da, rj); assert.equal(h1.task.seq, 0);
+    assert.equal(c.humanNext(db_, rj).task.seq, 0, "乙也从第 1 段开始（每人都录全部）");
+    assert.equal(c.humanNext(da, rj).task.id, h1.task.id, "没交之前还是这一段");
+    c.humanDone(da, { task: h1.task.id, outputs: [{ name: "s000.webm", key: "jobs/x/s000.webm" }], result: { secs: 30 } });
+    const h2 = c.humanNext(da, rj); assert.equal(h2.task.seq, 1);
+    c.humanDone(da, { task: h2.task.id, result: { secs: 30 } });
+    assert.equal(c.humanNext(da, rj), null, "甲录完了");
+    assert.equal(c.jobDetail(rj).state, "active", "一个人录完不算结束：别的老师还能录");
+    ok("录声音：每位老师都录全部几段（各录各的），一个人录完任务不结束");
   }
 
   // ---------- app/llmw.js：下载、启动、换方式重试、关掉 ----------
@@ -127,6 +139,33 @@ http.createServer((q,r)=>{r.writeHead(200);r.end("{}");}).listen(port,"127.0.0.1
   const solve = calls.find((m) => m.messages[0].role === "system");
   assert.equal(solve.chat_template_kwargs.enable_thinking, false, "讲题不用长思考（快）");
   ok(`数学讲解工厂：GSM8K 改写成中文、讲 4 遍、和标准答案对上的才留；按知识点出的新题，4 遍答案一致才留；结果文件交上去（${outs.length} 个）`);
+
+  // ---------- 训练答题大脑（没有显卡：dryRun 只检查数据、转交、考试、发布）----------
+  {
+    const spec = JSON.parse(fs.readFileSync(pf, "utf8"));
+    const tr = spec.stages.find((s) => s.key === "train");
+    tr.params = { ...tr.params, dryRun: true, minExamples: 1, evalN: 3, evalUrls: [`http://127.0.0.1:${gsm.address().port}/test.jsonl`], evalLlm: { name: "Teacher-Q4.gguf", urls: ["http://x/y.gguf"] } };
+    tr.when = { ...tr.when, outputs: 2, minHours: 0 };
+    fs.writeFileSync(pf, JSON.stringify(spec));
+    await Tools.cycle(admin, pf);
+    const seen = [];
+    const ag2 = Agent.create({ token: j.token, pubkey: j.pubkey, server: url, workDir: path.join(tmp, "w2"), python: PY, caps: { vram: 8, llm: true }, tickMs: 100, hbMs: 300, leaseEveryMs: 100, renewMs: 300,
+      llm: { ensure: async (sp) => { seen.push(sp); return `http://127.0.0.1:${llm.address().port}`; }, stop: () => seen.push("stop"), version: async () => "b1234" } });
+    app.cycle.tick();
+    const pipe = app.cycle.view().pipelines.find((x) => x.name === "答题数据工厂");
+    assert.equal(pipe.when.outputsOf, "qa-math"); assert.ok(pipe.runs.length === 1, "新结果攒够了就训练");
+    db.prepare("update jobs set state='paused' where id=?").run(job.id);   // 只看训练
+    ag2.start();
+    await until(() => db.prepare("select state from runs where id=?").get(pipe.runs[0].id).state !== "running", "训练做完");
+    ag2.stop();
+    assert.equal(db.prepare("select state from runs where id=?").get(pipe.runs[0].id).state, "done");
+    assert.equal(seen[0], "stop", "训练前先关大模型，让出显存");
+    assert.ok(!seen[1].lora && seen[2].lora && /qa-lora\.gguf$/.test(seen[2].lora), "原版考一次、带上 LoRA 考一次");
+    assert.equal(seen[1].name, "Teacher-Q4.gguf");
+    const m = await (await fetch(url + "/pub/models/manifest.json")).json();
+    assert.ok(m.models["qa-lora"] && m.models["qa-lora"].files[0].name === "lora", "考过了：发布给老师端");
+    ok(`训练答题大脑：新讲解攒够了自动开一轮；训练前先让出显存；原版和带 LoRA 各考一次（答对率 ${m.models["qa-lora"].metrics.acc}、原版 ${m.models["qa-lora"].metrics.base_acc}）；考过了发布 qa-lora`);
+  }
 
   app.close(); gsm.close(); llm.close();
   fs.rmSync(tmp, { recursive: true, force: true });

@@ -231,11 +231,13 @@ def embed(paths):
     return [base64.b64encode(v.numpy().astype(np.float16).tobytes()).decode() for v in e]
 
 
-def small(src, dst, w=512):
+def small(src, dst, w=None):
+    """转成 JPEG（默认原尺寸、高质量：以后训练 Q版插件要用原图；一张两三百 KB）。"""
     from PIL import Image
     im = Image.open(src).convert("RGB")
-    im = im.resize((w, round(im.height * w / im.width)), Image.LANCZOS)
-    im.save(dst, quality=88)
+    if w and im.width > w:
+        im = im.resize((w, round(im.height * w / im.width)), Image.LANCZOS)
+    im.save(dst, quality=93)
     return dst
 
 
@@ -268,6 +270,19 @@ if ws:
         hx = hashlib.sha256(fh.read()).hexdigest()[:12]   # 名字带内容的指纹：换了新版 ComfyUI 不会用旧的缓存
     loras.append((lg.comfy("lora", path=ws, name="qversion-%s.safetensors" % hx)["name"], float(p.get("loraStrength", 1))))
     lg.log("接上现在发布的 Q版插件")
+
+# 有在试用的新插件（租卡训出来的 qversion-lora-test）：两张里一张用现在的、一张用新的，让大家审核比一比（左右随机，不让人猜出来）
+test_loras = None
+lt = (t.get("files") or {}).get("loraTest")
+if lt and ws and os.path.getsize(lt) == os.path.getsize(ws) and open(lt, "rb").read() == open(ws, "rb").read():
+    lt = None   # 新插件已经转正了（和现在的一样）：不用再比
+if lt:
+    import hashlib
+    with open(lt, "rb") as fh:
+        hx = hashlib.sha256(fh.read()).hexdigest()[:12]
+    test_loras = [(lg.comfy("lora", path=lt, name="qversion-test-%s.safetensors" % hx)["name"], float(p.get("loraStrength", 1)))]
+    lg.log("这一组：一张用现在的、一张用新训的插件（比一比）")
+test_side = rnd.randint(0, 1)
 
 # CLIP 在画图的同时下载（第一次要下 1.7G），画完正好用
 import threading  # noqa: E402
@@ -303,12 +318,13 @@ n = int(p.get("cands", 2))
 cands = []
 for k in range(n):
     lg.progress(0.15 + 0.7 * k / n, "画第 %d/%d 张 Q版（%s）" % (k + 1, n, style))
-    f = run(qv_graph(m, pname, style, (seed * 31 + k * 101) % (2 ** 31), loras), "Q版")
+    use = test_loras if (test_loras is not None and k % 2 == test_side) else loras
+    f = run(qv_graph(m, pname, style, (seed * 31 + k * 101) % (2 ** 31), use), "Q版")
     cands.append(f)
     lg.image(f, "Q版 %d" % (k + 1))
 
 lg.progress(0.9, "算特征、交审核")
-ph_s = small(photo, os.path.join(work, "photo.jpg"))
+ph_s = small(photo, os.path.join(work, "photo.jpg"), 1024)
 cs = [small(f, os.path.join(work, "qv%d.jpg" % k)) for k, f in enumerate(cands)]
 clip_t.join()
 embs = None
@@ -321,6 +337,8 @@ else:
     lg.log("CLIP 没下下来（%s）：这次的图照常交审核，下个任务接着下" % clip_box.get("err"))
 lg.output(sheet([ph_s] + cs, os.path.join(work, "sheet-%d-%d.jpg" % (run_id, i))))
 meta = {"persona": {k: v for k, v in d.items() if k != "prompt"}, "style": style, "seed": seed, "lora": bool(loras)}
+if test_loras is not None:
+    meta["sides"] = {"a": "test" if test_side == 0 else "cur", "b": "test" if test_side == 1 else "cur"}   # 哪边是新插件
 if embs:
     meta["ep"] = embs[0]
 for a in range(0, n - 1, 2):

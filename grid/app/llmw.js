@@ -75,6 +75,7 @@ function create(o) {
     const args = ["-m", file, "--host", "127.0.0.1", "--port", String(port), "-ngl", "999", "-c", String(lite ? Math.min(ctx, 8192) : ctx), "-np", String(lite ? 1 : slots), "--jinja"];
     if (!lite) args.push("-ctk", "q8_0", "-ctv", "q8_0");   // 省一半显存（8G 显卡上下文才放得下）；不支持就退回去
     if (dev && !lite) args.push("--device", dev);
+    if (spec.lora && fs.existsSync(spec.lora)) args.push("--lora", spec.lora);   // 训练好的 LoRA（考试用）
     const p = doSpawn(exe, args, { cwd: path.dirname(exe), windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
     let tail = "";
     const keep = (d) => { tail = (tail + d.toString("utf8")).slice(-2000); };
@@ -87,7 +88,7 @@ function create(o) {
   async function ensure(spec, say = () => {}) {
     if (!ok()) throw new Error("这台电脑的客户端里没有 llama.cpp（更新到新版客户端）");
     if (starting) await starting.catch(() => {});
-    const key = safe(spec.name) + "|" + (spec.ctx || "") + "|" + (spec.slots || "");
+    const key = safe(spec.name) + "|" + (spec.ctx || "") + "|" + (spec.slots || "") + "|" + (spec.lora || "");
     if (child && cur === key && (await ping(port))) { bump(); return `http://127.0.0.1:${port}`; }
     starting = (async () => {
       const file = await fetchModel(spec, say);
@@ -112,7 +113,21 @@ function create(o) {
     return `http://127.0.0.1:${port}`;
   }
   function stop() { clearTimeout(idle); if (child) { try { child.kill(); } catch (e) {} child = null; } cur = null; }
-  return { ensure, stop, ok, running: () => !!child, PORT: port };
+  // llama.cpp 的版本号（b6xxx）：转换 LoRA 格式要用同一个版本的脚本
+  let ver;
+  function version() {
+    if (ver !== undefined || !ok()) return Promise.resolve(ver || "");
+    return new Promise((done) => {
+      let out = "";
+      let p; try { p = doSpawn(exe, ["--version"], { cwd: path.dirname(exe), windowsHide: true, stdio: ["ignore", "pipe", "pipe"] }); } catch (e) { ver = ""; return done(""); }
+      const add = (d) => { out += d.toString("utf8"); };
+      p.stdout && p.stdout.on("data", add); p.stderr && p.stderr.on("data", add);
+      const t = setTimeout(() => { try { p.kill(); } catch (e) {} }, 15000);
+      p.on("error", () => { clearTimeout(t); ver = ""; done(""); });
+      p.on("exit", () => { clearTimeout(t); const m = /version:\s*(\d+)/.exec(out); ver = m ? "b" + m[1] : ""; done(ver); });
+    });
+  }
+  return { ensure, stop, ok, version, running: () => !!child, PORT: port };
 }
 
 module.exports = { create, PORT };

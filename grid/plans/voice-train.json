@@ -1,0 +1,42 @@
+{
+  "name": "声音训练",
+  "mode": "continuous",
+  "stages": [
+    {
+      "key": "voice",
+      "name": "训练老师的声音（GPT-SoVITS）",
+      "kind": "map",
+      "recipe": "voice_train",
+      "recipeFile": "../recipes/voice_train.py",
+      "when": {
+        "tag": "voice",
+        "manual": true
+      },
+      "params": {
+        "count": 1,
+        "minSeconds": 120,
+        "sovitsEpochs": 8,
+        "gptEpochs": 15,
+        "batch": 4
+      },
+      "req": {
+        "vram": 5.5,
+        "gsv": true
+      },
+      "priority": 40
+    }
+  ],
+  "publish": {
+    "model": "voice-{member}",
+    "from": "voice",
+    "files": [
+      "gpt",
+      "sovits",
+      "ref",
+      "reftext"
+    ],
+    "releaseEqual": true,
+    "metrics": [],
+    "private": true
+  }
+}

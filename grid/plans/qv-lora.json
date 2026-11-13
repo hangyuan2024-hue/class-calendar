@@ -1,0 +1,43 @@
+{
+  "name": "Q版插件训练（租卡）",
+  "mode": "continuous",
+  "stages": [
+    {
+      "key": "lora",
+      "name": "训练 Q版插件（要 24G 以上显存，租卡）",
+      "kind": "map",
+      "recipe": "qv_lora",
+      "recipeFile": "../recipes/qv_lora.py",
+      "when": {
+        "tag": "qv1",
+        "manual": true
+      },
+      "params": {
+        "count": 1,
+        "dataset": "qv1",
+        "minPairs": 200,
+        "steps": 2500,
+        "rank": 32,
+        "alpha": 16,
+        "lr": 0.0001,
+        "resolution": [
+          768,
+          1344
+        ]
+      },
+      "req": {
+        "vram": 22
+      },
+      "priority": 50
+    }
+  ],
+  "publish": {
+    "model": "qversion-lora-test",
+    "from": "lora",
+    "files": [
+      "lora"
+    ],
+    "releaseEqual": true,
+    "metrics": []
+  }
+}

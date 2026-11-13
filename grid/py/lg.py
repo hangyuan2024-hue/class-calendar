@@ -11,6 +11,7 @@
     lg.review(kind="ab", a=图片路径, b=图片路径, question="哪个更可爱？")  # 交给大家人工审核
     lg.done(loss=0.01, ckpt=path)  # 做完（结果里的文件路径会自动上传）
     lg.comfy("run", graph={...})   # 配方开头写「# needs: comfy」：让本机的 AI 引擎（ComfyUI）画图，返回结果文件
+    lg.llm("start", lora=path)     # 配方开头写「# needs: llm」：换个方式开本地大模型（比如带上 LoRA 考试）
     lg.dataset()                   # 任务参数里写了 dataset：大家审核好的结果（训练用）
 
 客户端会每隔一小会儿看一眼「现在执行到配方的第几行」，在界面上把那一行高亮出来。
@@ -145,20 +146,15 @@ _cid = 0
 _stdin_lock = threading.Lock()
 
 
-def comfy(op, **args):
-    """让本机的 AI 引擎（ComfyUI）做事，等它做完：
-        comfy("info")                             → {"models": {"qwenEdit": 文件名, ...}, "vram": 8}
-        comfy("upload", path=图片)                → {"name": ComfyUI 里的名字}（给 LoadImage 用）
-        comfy("lora", path=插件, name="x.safetensors") → {"name": "laolao/x.safetensors"}（给 LoraLoader 用）
-        comfy("run", graph=节点图)                → {"files": [结果图片的本地路径]}
-    """
+def _call(_kind, _op, /, **args):
+    """让客户端做一件事，等它做完（一行 JSON 写到标准输入）。"""
     global _cid
     with _stdin_lock:
         _cid += 1
         my = _cid
         if "path" in args and args["path"]:
             args["path"] = os.path.abspath(args["path"])
-        _send(t="comfy", id=my, op=op, **args)
+        _send(t=_kind, id=my, op=_op, **args)
         while True:
             line = sys.stdin.readline()
             if not line:
@@ -170,10 +166,31 @@ def comfy(op, **args):
             if m.get("id") != my:
                 continue
             if not m.get("ok"):
-                raise RuntimeError("AI 引擎：" + str(m.get("error")))
+                raise RuntimeError(("AI 引擎：" if _kind == "comfy" else "本地大模型：") + str(m.get("error")))
             m.pop("ok", None)
             m.pop("id", None)
             return m
+
+
+def comfy(op, /, **args):
+    """让本机的 AI 引擎（ComfyUI）做事，等它做完：
+        comfy("info")                             → {"models": {"qwenEdit": 文件名, ...}, "vram": 8}
+        comfy("upload", path=图片)                → {"name": ComfyUI 里的名字}（给 LoadImage 用）
+        comfy("lora", path=插件, name="x.safetensors") → {"name": "laolao/x.safetensors"}（给 LoraLoader 用）
+        comfy("run", graph=节点图)                → {"files": [结果图片的本地路径]}
+    """
+    return _call("comfy", op, **args)
+
+
+def llm(op, /, **args):
+    """本地大模型（配方开头写「# needs: llm」）：
+        llm("start", llm={...可选，覆盖任务参数里的模型...}, lora=任务文件夹里的 LoRA)  → {"url": "http://127.0.0.1:端口"}
+        llm("stop")                                → 关掉（让出显存给训练）
+        llm("info")                                → {"version": "b6xxx"}（llama.cpp 的版本）
+    """
+    if "lora" in args and args["lora"]:
+        args["lora"] = os.path.abspath(args["lora"])
+    return _call("llm", op, **args)
 
 
 def dataset():
