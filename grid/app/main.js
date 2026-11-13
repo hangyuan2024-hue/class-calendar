@@ -10,6 +10,8 @@ let win = null, tray = null, quitting = false;
 const svc = createService({
   user: app.getPath("userData"),
   version: app.getVersion(),
+  // 本地大模型的程序（安装包里带的 llama.cpp Vulkan 版）
+  llamaExe: app.isPackaged ? path.join(process.resourcesPath, "llama", "llama-server.exe") : process.env.LG_LLAMA || null,
   send: (ch, d) => { if (win && !win.isDestroyed()) win.webContents.send(ch, d); },
   idleSecs: async () => powerMonitor.getSystemIdleTime(),
   setAutostart: (v) => app.setLoginItemSettings({ openAtLogin: v, args: ["--hidden"] }),

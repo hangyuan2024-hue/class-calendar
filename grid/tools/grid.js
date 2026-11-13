@@ -66,7 +66,7 @@ async function cycle(c, file) {
   }
   const spec = { ...p, stages: p.stages.map(({ recipeFile, ...s }) => s) };
   const r = await api(c, "/api/admin/pipeline", spec);
-  console.log(p.mode === "continuous" ? `「${p.name}」设好了（#${r.id}）：不定时间，大家开着就算；审核攒够了自动训练（控制中心能看进度、能「现在训练一次」）` : `每日一轮「${p.name}」设好了（#${r.id}）：每天 ${p.at || "18:30"} 自动开始`);
+  console.log(p.mode === "continuous" ? `「${p.name}」设好了（#${r.id}）：不定时间，大家开着就算${p.stages.some((x) => x.when) ? "；审核攒够了自动训练（控制中心能看进度、能「现在训练一次」）" : ""}` : `每日一轮「${p.name}」设好了（#${r.id}）：每天 ${p.at || "18:30"} 自动开始`);
   return r.id;
 }
 

@@ -82,7 +82,7 @@ function attach(core, opt = {}) {
       for (const x of spec.stages) if (x.standing && x.kind !== "map") throw new Error(`「${x.key}」：一直开着的只能是 map`);
     }
     run("insert into pipelines(name,spec,at,created) values(?,?,?,?) on conflict(name) do update set spec=excluded.spec, at=excluded.at", spec.name, S(spec), cont ? "" : spec.at || "18:30", clock());
-    core.event("pipeline", cont ? `「${spec.name}」设好了：不定时间，大家开着就算；审核攒够了自动训练` : `每日一轮「${spec.name}」设好了：每天 ${spec.at || "18:30"} 开始`);
+    core.event("pipeline", cont ? `「${spec.name}」设好了：不定时间，大家开着就算${spec.stages.some((x) => x.when) ? "；审核攒够了自动训练" : ""}` : `每日一轮「${spec.name}」设好了：每天 ${spec.at || "18:30"} 开始`);
     return one("select * from pipelines where name=?", spec.name).id;
   }
   // 配方按名字找最新上传的那个

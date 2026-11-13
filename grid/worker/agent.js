@@ -199,7 +199,14 @@ function create(opt) {
         c.note = "启动 AI 引擎（ComfyUI）…"; log("启动 AI 引擎（第一次要 1～3 分钟）");
         await opt.comfy.ensure();
       }
-      const t = { kind: L.task.kind, task: L.task, input: L.task.input, job: L.job, work: dir, resume: null, parts: [] };
+      // 配方开头写「# needs: llm」：要用本机的大模型（llama.cpp）。模型由任务参数 llm 指定，第一次先下载
+      let llmUrl = null;
+      if (/^#\s*needs:.*\bllm\b/m.test(rc.source)) {
+        if (!opt.llm) throw new Error("这台电脑的客户端太旧，跑不了本地大模型");
+        c.note = "准备本地大模型…";
+        llmUrl = await opt.llm.ensure((L.job.params || {}).llm || {}, (m) => { c.note = m; log(m); emit("progress", { id: c.id, p: c.progress, note: m }); });
+      }
+      const t = { kind: L.task.kind, task: L.task, input: L.task.input, job: L.job, work: dir, resume: null, parts: [], llm: llmUrl };
       if (L.resume) { const f = path.join(dir, "resume-" + path.basename(L.resume.key)); c.note = "下载存档…"; await xfer("GET", L.resume.url, f); t.resume = f; t.resumeInfo = { step: L.resume.step, round: L.resume.round }; }
       for (const [i, u] of (L.task.input.partUrls || []).entries()) { const f = path.join(dir, `part-${i}.npz`); await xfer("GET", u, f); t.parts.push(f); }
       delete t.input.partUrls;
@@ -255,6 +262,7 @@ function create(opt) {
     c.stopping = true;
     if (c.child) { try { c.child.kill(); } catch (e) {} }
     if (opt.comfy) { try { await opt.comfy.abort(); if (release) opt.comfy.stop(); } catch (e) {} }   // 你要用电脑了：AI 引擎也关掉，让出显存
+    if (opt.llm && release) { try { opt.llm.stop(); } catch (e) {} }
     await c.uploads.catch(() => {});
     if (release) await api("/api/fail", { task: c.id, release: true, error: reason }).catch(() => {});
     emit("done", { id: c.id, ok: false, stopped: true, why: reason });

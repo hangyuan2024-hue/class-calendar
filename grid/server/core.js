@@ -28,6 +28,7 @@ create table if not exists stages(id integer primary key, name text, sort intege
 create table if not exists jobs(id integer primary key, name text, stage_id integer, kind text, recipe_id text, params text, req text, state text, priority integer not null default 0, created integer, finished integer, done integer not null default 0, total integer not null default 0, meta text, note text);
 create table if not exists tasks(id integer primary key, job_id integer not null, kind text not null default 'run', seq integer, round integer, input text, state text not null default 'queued', attempts integer not null default 0, errors integer not null default 0, lost integer not null default 0, device_id integer, member_id integer, lease_until integer, started integer, finished integer, progress real, result text, error text);
 create index if not exists tasks_q on tasks(job_id, state);
+create index if not exists tasks_dev on tasks(device_id, started);
 create table if not exists ckpts(id integer primary key, job_id integer, task_id integer, step integer, round integer, key text, kind text, created integer, device_id integer);
 create table if not exists reviews(id integer primary key, job_id integer, task_id integer, kind text, payload text, need integer, state text not null default 'open', result text, created integer, votes integer not null default 0);
 create table if not exists votes(review_id integer, member_id integer, choice text, created integer, primary key(review_id, member_id));
@@ -184,6 +185,7 @@ function open(file, opt = {}) {
     if (req.ram && (caps.ram || 0) < req.ram) return false;
     if (req.os && caps.os && req.os !== caps.os) return false;
     if (req.comfy && !caps.comfy) return false;   // 要装好 AI 引擎（ComfyUI + 画 Q版的模型）
+    if (req.llm && !caps.llm) return false;       // 要能跑本地大模型（新版客户端自带 llama.cpp）
     return true;
   }
   // 领一个活
@@ -192,7 +194,11 @@ function open(file, opt = {}) {
     return tx(() => {
       const cur = dev.task_id && one("select * from tasks where id=? and state='leased' and device_id=?", dev.task_id, dev.id);
       if (cur) return pack(cur, dev);
-      const jobs = all("select * from jobs where state='active' and kind!='record' order by priority desc, id asc");
+      // 同样优先级的几个活：哪个现在在算的电脑少就先给哪个（几种活一起推进，比如画 Q版 和 做数学题）；
+      // 一样少就接着做这台电脑上一个做的（模型还在显存里，不用重新加载）
+      const last = (one("select job_id from tasks where device_id=? order by started desc limit 1", dev.id) || {}).job_id || 0;
+      const jobs = all(`select j.*, (select count(*) from tasks t where t.job_id=j.id and t.state='leased') as busy from jobs j where j.state='active' and j.kind!='record'
+        order by j.priority desc, busy asc, (j.id=?) desc, j.id asc`, last);
       for (const j of jobs) {
         if (!fits(J(j.req), caps)) continue;
         // 每日一轮里的任务：前面的步骤做完了才能开始

@@ -1,0 +1,22 @@
+{
+  "name": "答题数据工厂",
+  "mode": "continuous",
+  "stages": [
+    {
+      "key": "math", "name": "做数学题、写讲解（自动核对）", "kind": "map", "recipe": "qa_math", "recipeFile": "../recipes/qa_math.py",
+      "standing": true, "keep": 30,
+      "params": {
+        "per": 12, "samples": 4, "parallel": 2, "sources": ["gsm8k", "topics"], "tag": "qa-math",
+        "llm": {
+          "name": "Qwen3-8B-Q4_K_M.gguf", "ctx": 16384, "slots": 2,
+          "urls": [
+            "https://www.modelscope.cn/models/Qwen/Qwen3-8B-GGUF/resolve/master/Qwen3-8B-Q4_K_M.gguf",
+            "https://hf-mirror.com/Qwen/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q4_K_M.gguf",
+            "https://huggingface.co/Qwen/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q4_K_M.gguf"
+          ]
+        }
+      },
+      "req": { "vram": 7.5, "llm": true }, "priority": 10
+    }
+  ]
+}
