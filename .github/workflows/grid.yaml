@@ -55,6 +55,27 @@ jobs:
         env:
           PYTHON: python
         run: npm test
+      - name: 下载 llama.cpp（本地大模型，Vulkan 版：NVIDIA / AMD / Intel 显卡都能用）
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force llama-dl | Out-Null
+          # 每个版本文件名会变：按名字挑 Windows x64 的 Vulkan 版；最新版里没有就往前找
+          $tags = gh release list --repo ggml-org/llama.cpp --limit 15 --json tagName --jq '.[].tagName'
+          $pick = $null
+          foreach ($t in $tags) {
+            $names = @(gh release view $t --repo ggml-org/llama.cpp --json assets --jq '.assets[].name')
+            $pick = $names | Where-Object { $_ -match 'win' -and $_ -match 'x64' -and $_ -match 'vulkan' -and $_ -match '\.zip$' } | Select-Object -First 1
+            if ($pick) { Write-Host "使用 $t 里的 $pick"; gh release download $t --repo ggml-org/llama.cpp --pattern $pick --dir llama-dl --clobber; break }
+          }
+          if (-not $pick) { throw "没找到 llama.cpp 的 Windows Vulkan 版" }
+          Expand-Archive (Get-ChildItem llama-dl -Filter *.zip | Select-Object -First 1).FullName -DestinationPath llama-x -Force
+          $exe = Get-ChildItem llama-x -Recurse -Filter llama-server.exe | Select-Object -First 1
+          if (-not $exe) { throw "压缩包里没有 llama-server.exe" }
+          New-Item -ItemType Directory -Force llama | Out-Null
+          Copy-Item (Join-Path $exe.DirectoryName '*') llama -Recurse -Force
+          Remove-Item llama-dl, llama-x -Recurse -Force
+          Get-ChildItem llama | Select-Object Name, Length
       - name: 打包
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
