@@ -122,7 +122,7 @@ W(FF, "import sys,shutil,os\na=sys.argv\nshutil.copy(a[a.index('-i')+1],a[-1])\n
   const j = await Agent.join(inv.link, "王老师", { name: "王老师的电脑" });
   const ensured = [];
   const ag = Agent.create({ token: j.token, pubkey: j.pubkey, server: url, workDir: path.join(tmp, "w"), python: PY, caps: { vram: 6, gsv: true }, tickMs: 100, hbMs: 300, leaseEveryMs: 100, renewMs: 300,
-    gsv: { ensure: async (say) => { ensured.push(1); say("装好了"); return { dir: G, python: PY, ffmpegCmd: [PY, FF] }; } } });
+    gsv: { ensure: async (say) => { ensured.push(1); if (ensured.length === 1) await sleep(6500); say("装好了"); return { dir: G, python: PY, ffmpegCmd: [PY, FF] }; } } });
 
   // 王老师在「录声音和表情」里录了两段（每段 10 句）
   await Tools.plan(admin, path.join(ROOT, "plans", "voice.json"));

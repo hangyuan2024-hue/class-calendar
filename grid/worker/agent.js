@@ -186,7 +186,8 @@ function create(opt) {
     setState("busy", L.job.name);
     emit("task", { id: c.id, job: L.job, task: L.task, recipe: L.recipe && { id: L.recipe.id, name: L.recipe.name } });
     log(`领到任务：「${L.job.name}」`);
-    let renewTimer = null;
+    // 一领到就开始续租：第一次装 GPT-SoVITS / AI 引擎、下大文件（讲课视频）都可能要几十分钟，不续租调度中心会以为掉线了、把任务给别人
+    let renewTimer = setInterval(() => renew(c).catch(() => {}), opt.renewMs || 20000);
     try {
       const rc = await fetchRecipe(L.recipe);
       emit("source", { id: c.id, name: L.recipe.name, source: rc.source });
@@ -224,7 +225,7 @@ function create(opt) {
       // 训练要用的人工审核结果（params.dataset）
       if (L.job.params && L.job.params.dataset) { c.note = "取审核数据…"; const d = await api("/api/dataset", { task: c.id }); t.dataset = path.join(dir, "dataset.json"); fs.writeFileSync(t.dataset, JSON.stringify(d.items || [])); log(`审核数据：${(d.items || []).length} 条`); }
       fs.writeFileSync(path.join(dir, "task.json"), JSON.stringify(t));
-      renewTimer = setInterval(() => renew(c).catch(() => {}), opt.renewMs || 20000);
+      if (c.stopping) return;   // 准备的时候被叫停了（管理员暂停、你要用电脑）
       const code = await spawnPy(c, rc.file, path.join(dir, "task.json"));
       clearInterval(renewTimer);
       await c.uploads;
