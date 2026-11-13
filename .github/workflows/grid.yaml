@@ -48,7 +48,7 @@ jobs:
       - name: 装依赖
         run: |
           npm install --no-audit --no-fund
-          python -m pip install --disable-pip-version-check numpy pillow
+          python -m pip install --disable-pip-version-check numpy pillow pyyaml
       - name: 准备界面（认脸组件、表情参数标准、AI 引擎代码）
         run: npm run prepare-ui
       - name: 测试
