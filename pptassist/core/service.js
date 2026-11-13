@@ -53,7 +53,7 @@ function createService(env) {
   const eng = ENGINE.create({ mirror, ...(env.engineOpt || {}) });
   // AI 助手：本地大模型 + 正在改的 PPT（edit.deck，改完另存）
   // 捞捞自己训练的模型（捞捞算力每天训练、评测通过才发布）：后台自动下载，下次生成时才换上
-  const grid = GridModels.create({ dir: path.join(USER, "grid-models"), want: ["qversion-lora", "qa-lora"], codes: () => [profile && profile.voiceCode], onEvent: (e) => send("aiav", { stage: "gridmodel", ...e }), ...(env.gridOpt || {}) });
+  const grid = GridModels.create({ dir: path.join(USER, "grid-models"), want: ["qversion-lora", "qa-lora", "laolao-voice"], codes: () => [profile && profile.voiceCode], onEvent: (e) => send("aiav", { stage: "gridmodel", ...e }), ...(env.gridOpt || {}) });
   if (env.gridModels !== false) grid.start();
   const llm = LLM.create({ dir: P("llm", "x").slice(0, -2), exe: env.llamaExe, exeCpu: env.llamaCpuExe, mirror,
     // 捞捞算力训练、考试通过的答题 LoRA：下次启动 AI 助手时换上；带上起不来就退回上一版
@@ -428,6 +428,27 @@ function createService(env) {
       return editInfo();
     },
     aiStop() { return agent.stop(); },
+    // 捞捞说话：用捞捞智能体的专属声音（捞捞算力训的 laolao-voice）把回复念出来；要这台电脑开着 GPT-SoVITS（「我的声音」里启动）
+    laoVoiceState() { const m = grid.use("laolao-voice"); return { on: !!profile.laoSpeak, model: !!(m && m.files.gpt && m.files.sovits && m.files.ref), version: m ? m.version : null, engine: voice.state.state, gsv: !!profile.gsvDir }; },
+    setLaoSpeak(on) { profile.laoSpeak = !!on; saveProfile(); return H.laoVoiceState(); },
+    async laoSpeak(text) {
+      if (!profile.laoSpeak) return null;
+      const m = grid.use("laolao-voice");
+      if (!m || !m.files.gpt || !m.files.sovits || !m.files.ref) return { skip: "捞捞的声音还没下载好（捞捞算力训练好后自动下载）" };
+      if (voice.state.state !== "ready") {
+        if (!profile.gsvDir) return { skip: "要先在「我的声音」里装好 GPT-SoVITS，捞捞才能说话" };
+        await voice.start(profile.gsvDir, env.voiceOpt || {});
+      }
+      // 念出来的只要说的话：去掉公式、代码、markdown 符号；太长的只念前几句
+      let t = String(text || "").replace(/```[\s\S]*?```/g, "").replace(/\$\$?[^$]*\$\$?/g, "（公式）").replace(/[#*`>_~|]/g, "").replace(/\s+/g, " ").trim();
+      if (!t) return null;
+      if (t.length > 160) { const cut = t.slice(0, 160); const k = Math.max(cut.lastIndexOf("。"), cut.lastIndexOf("！"), cut.lastIndexOf("？")); t = k > 20 ? cut.slice(0, k + 1) : cut + "……"; }
+      let prompt = ""; try { prompt = fs.readFileSync(m.files.reftext, "utf8").trim(); } catch (e) {}
+      fs.mkdirSync(P("cache"), { recursive: true });
+      const wav = P("cache", `lao-${hash(t + "|" + m.version)}.wav`);
+      if (!fs.existsSync(wav)) fs.writeFileSync(wav, await voice.tts({ text: t, refWav: m.files.ref, promptText: prompt, gpt: m.files.gpt, sovits: m.files.sovits }));
+      return { url: dataUrl(wav, "audio/wav"), text: t };
+    },
     aiReset() { agent.reset(); return true; },
     async aiOcr(image) {
       if (typeof image !== "string" || !/^data:image\/(png|jpe?g|webp);base64,/.test(image)) throw new Error("图片不对");

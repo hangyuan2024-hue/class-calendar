@@ -1,5 +1,7 @@
 """捞捞声音 · 训练一位老师的声音（GPT-SoVITS 微调，同事的显卡 6G 以上就行，一次 20～60 分钟）
 用这位老师的数据：
+  · 或者网上公开的高质量录音（openVoice=aishell3：AISHELL-3，Apache-2.0，录音棚 44.1kHz；自动挑一位 26～40 岁、北方口音的女声，
+    也可以 speaker=SSB0xxx 指定；shift=2 升两个半音、音色一起变，听起来是另一个「人」）——训出来是「捞捞」智能体的专属声音，不是哪位老师的声音
   · 在「录声音和表情」里录的每一句（有讲稿，不用识别）
   · 导入的整段录音（手机录音机录的原文件）：先自动切成一句一句、语音识别出文字
 步骤和 GPT-SoVITS 自己的训练界面一样：文字转音素 → 提取声音特征 → 训练 SoVITS（音色）→ 训练 GPT（说话的节奏和语气）
@@ -29,7 +31,7 @@ GD, PY = G.get("dir"), G.get("python")
 if not GD or not PY:
     raise RuntimeError("没拿到 GPT-SoVITS 的位置")
 FF = G.get("ffmpegCmd") or [G.get("ffmpeg") or "ffmpeg"]
-MEMBER = str(p.get("voiceOf") or "")
+MEMBER = str(p.get("voiceOf") or p.get("member") or "")
 EXP = "laolao_" + hashlib.md5(MEMBER.encode("utf-8")).hexdigest()[:10]   # GPT-SoVITS 的实验名只用英文数字
 files = t.get("files") or {}
 texts = (t.get("extra") or {}).get("texts") or {}
@@ -60,9 +62,22 @@ def secs(f):
         return 0.0
 
 
-def to_wav(src, dst):
-    subprocess.run(FF + ["-y", "-v", "error", "-i", src, "-ac", "1", "-ar", "32000", "-sample_fmt", "s16", dst], check=True, cwd=work)
+def to_wav(src, dst, af=None):
+    subprocess.run(FF + ["-y", "-v", "error", "-i", src] + (["-af", af] if af else []) + ["-ac", "1", "-ar", "32000", "-sample_fmt", "s16", dst], check=True, cwd=work)
     return dst
+
+
+def shift_filter(src, semis):
+    """升 / 降几个半音，音色（共振峰）一起变、语速不变：同一个人的声音变成另一个「人」——捞捞的专属声音不和原来那位撞声"""
+    if not semis:
+        return None
+    try:
+        with wave.open(src) as w:
+            sr = w.getframerate()
+    except Exception:
+        sr = 44100
+    k = 2 ** (float(semis) / 12.0)
+    return "asetrate=%d,aresample=%d,atempo=%.6f" % (round(sr * k), sr, 1.0 / k)
 
 
 # ---------------- 1. 数据 ----------------
@@ -78,18 +93,96 @@ for k in recs:
 lg.log("录的句子：%d 句能用" % len(lines))
 
 imps = sorted(k for k in files if k.startswith("imp"))
+SV_PY = r'''
+# 每一句算一个「是谁在说」的向量（GPT-SoVITS v2Pro 自带的 ERes2NetV2 说话人模型）
+import json, sys, os
+sys.path.insert(0, os.path.join(os.getcwd(), "GPT_SoVITS"))
+import numpy as np, librosa, torch
+from sv import SV
+dev = "cuda" if torch.cuda.is_available() else "cpu"
+m = SV(dev, dev == "cuda")
+out = {}
+for f in json.load(open(sys.argv[1], encoding="utf-8")):
+    try:
+        w, _ = librosa.load(f, sr=16000)
+        t = torch.from_numpy(w).unsqueeze(0).to(dev)
+        e = m.compute_embedding3(t.half() if dev == "cuda" else t)
+        out[f] = e.float().cpu().numpy().reshape(-1).tolist()
+    except Exception as ex:
+        print("跳过", f, ex)
+json.dump(out, open(sys.argv[2], "w", encoding="utf-8"))
+'''
+
+
+def keep_main_speaker(items):
+    """讲课视频里有学生说话、别的老师插话：留下「说得最多的那个人」（老师本人），别人的句子扔掉"""
+    svck = sorted(glob.glob(os.path.join(GD, "GPT_SoVITS", "pretrained_models", "sv", "*.ckpt")))
+    if not svck or len(items) < 8 or not p.get("speakerFilter", True):
+        lg.log("不过滤说话人（%s）" % ("整合包里没有说话人模型" if not svck else "句子太少" if len(items) < 8 else "关掉了"))
+        return items, {}
+    lst_, emb_ = os.path.join(work, "sv_in.json"), os.path.join(work, "sv_out.json")
+    json.dump([x[0] for x in items], open(lst_, "w", encoding="utf-8"))
+    sp = os.path.join(work, "lg_sv.py")
+    open(sp, "w", encoding="utf-8").write(SV_PY)
+    try:
+        sh([PY, "-s", sp, lst_, emb_], label="认说话人")
+        E = json.load(open(emb_, encoding="utf-8"))
+    except Exception as e:
+        lg.log("认说话人没成功，先不过滤：%s" % str(e)[-200:])
+        return items, {}
+    import numpy as np
+    have = [x for x in items if x[0] in E]
+    if len(have) < 8:
+        return items, {}
+    M = np.array([E[x[0]] for x in have], dtype=np.float32)
+    M /= np.linalg.norm(M, axis=1, keepdims=True) + 1e-8
+    w = np.array([x[2] for x in have], dtype=np.float32)   # 按时长加权：老师说得最多
+    c = (M * w[:, None]).sum(0)
+    for _ in range(4):   # 往「说得最多的那个人」收：每次只用最像的 60% 重新算中心
+        c /= np.linalg.norm(c) + 1e-8
+        sims = M @ c
+        top = sims >= np.quantile(sims, 0.4)
+        c = (M[top] * w[top, None]).sum(0)
+    c /= np.linalg.norm(c) + 1e-8
+    sims = M @ c
+    thr = float(p.get("svMin", max(0.45, float(np.median(sims[sims >= np.quantile(sims, 0.4)])) - 0.15)))
+    kept = [x for x, s_ in zip(have, sims) if s_ >= thr]
+    lg.log("认说话人：%d 句里 %d 句是老师本人（相似度门槛 %.2f），扔掉 %d 句（学生 / 别人 / 太吵）" % (len(have), len(kept), thr, len(have) - len(kept)))
+    return kept, {x[0]: float(s_) for x, s_ in zip(have, sims)}
+
+
+def text_ok(txt, d):
+    """识别出来的文字靠不靠谱：太短、全是语气词、一个字重复好多遍、语速离谱的都不要"""
+    import re
+    t = re.sub(r"[\s，。！？、,.!?…：:；;“”\"'（）()]", "", txt)
+    if len(t) < 3:
+        return False
+    if re.fullmatch(r"[嗯啊哦呃额唉诶哎呀吧呢嘛那个这个就是]+", t):
+        return False
+    if max(t.count(ch) for ch in set(t)) > max(6, len(t) * 0.4):
+        return False
+    rate = len(t) / max(d, 0.1)
+    return 1.5 <= rate <= 9.5
+
+
 if imps:
     raw = os.path.join(work, "imp_raw")
     sliced = os.path.join(work, "imp_sliced")
     asr = os.path.join(work, "imp_asr")
     for d_ in (raw, sliced, asr):
         os.makedirs(d_, exist_ok=True)
-    for k in imps:
-        to_wav(files[k], os.path.join(raw, k + ".wav"))
+    # 讲课视频 / 课堂录音：只要声音；轻度去噪（去掉空调、风扇这类持续的底噪和低频嗡嗡声），音量统一
+    clean = p.get("clean", "highpass=f=70,afftdn=nf=-25,dynaudnorm=f=250:g=15")
+    for i, k in enumerate(imps):
+        lg.progress(0.02 + 0.03 * i / len(imps), "导入的录音 / 视频：取出声音、去噪（%d/%d）" % (i + 1, len(imps)))
+        to_wav(files[k], os.path.join(raw, k + ".wav"), clean or None)
+    raw_total = sum(secs(f) for f in glob.glob(os.path.join(raw, "*.wav")))
+    lg.log("导入的录音 / 视频：一共 %.1f 分钟" % (raw_total / 60))
     lg.progress(0.05, "导入的录音：切成一句一句")
     sh([PY, "-s", os.path.join(GD, "tools", "slice_audio.py"), raw, sliced, "-34", "4000", "300", "10", "500", "0.9", "0.25", "0", "1"], label="切分")
     lg.progress(0.08, "导入的录音：识别文字（第一次要下识别模型）")
     sh([PY, "-s", os.path.join(GD, "tools", "asr", "funasr_asr.py"), "-i", sliced, "-o", asr, "-s", "large", "-l", "zh", "-p", "float16"], label="识别")
+    got, bad_txt = [], 0
     for f in glob.glob(os.path.join(asr, "*.list")):
         with open(f, encoding="utf-8") as fh:
             for ln in fh:
@@ -97,8 +190,104 @@ if imps:
                 if len(parts) >= 4 and parts[3].strip():
                     wp = parts[0] if os.path.isabs(parts[0]) else os.path.join(sliced, os.path.basename(parts[0]))
                     d = secs(wp)
-                    if 0.8 <= d <= 20:
-                        lines.append((wp, parts[3].strip(), d))
+                    if 1.0 <= d <= 15:
+                        if text_ok(parts[3].strip(), d):
+                            got.append((wp, parts[3].strip(), d))
+                        else:
+                            bad_txt += 1
+    lg.log("识别出 %d 句能用，%d 句文字不靠谱扔掉" % (len(got), bad_txt))
+    lg.progress(0.1, "认出哪些句子是老师本人说的")
+    got, sims = keep_main_speaker(got)
+    # 挑最好的：最像老师本人的、3～12 秒的优先；太多了训练太慢，最多用 maxMinutes 分钟
+    cap = float(p.get("maxMinutes", 60)) * 60
+    got.sort(key=lambda x: (-(sims.get(x[0], 1.0)) - (0.05 if 3 <= x[2] <= 12 else 0)))
+    acc, pick = 0.0, []
+    for x in got:
+        if acc >= cap:
+            break
+        pick.append(x)
+        acc += x[2]
+    lg.log("导入的录音里挑了 %d 句、%.1f 分钟用来训练" % (len(pick), acc / 60))
+    lines += pick
+
+# 网上公开的高质量录音：AISHELL-3（Apache-2.0）。按说话人一个一个文件夹，只下要用的那一位（约 20 分钟、100～200MB）
+if p.get("openVoice") == "aishell3":
+    import concurrent.futures
+    import random
+    import re
+    bases = [x for x in str(p.get("openBase") or "").split(",") if x] or ["https://hf-mirror.com/datasets/AISHELL/AISHELL-3/resolve/main", "https://huggingface.co/datasets/AISHELL/AISHELL-3/resolve/main"]
+
+    def fetch(rel, dest, tries=4):
+        if os.path.exists(dest) and os.path.getsize(dest) > 0:
+            return dest
+        err = None
+        for k in range(tries):
+            for b in bases:
+                try:
+                    with urllib.request.urlopen(b + "/" + rel, timeout=60) as r, open(dest + ".part", "wb") as fh:
+                        shutil.copyfileobj(r, fh)
+                    os.replace(dest + ".part", dest)
+                    return dest
+                except Exception as e:
+                    err = e
+            time.sleep(1 + k * 2)
+        raise RuntimeError("下不了 %s：%s" % (rel, err))
+
+    od = os.path.join(work, "aishell3")
+    os.makedirs(od, exist_ok=True)
+    lg.progress(0.02, "下载公开录音的说明（AISHELL-3）")
+    info = {}
+    with open(fetch("spk-info.txt", os.path.join(od, "spk-info.txt")), encoding="utf-8", errors="replace") as fh:
+        for ln in fh:
+            a = ln.split()
+            if len(a) >= 4 and a[0].startswith("SSB"):
+                info[a[0]] = (a[1], a[2], a[3])
+    utts = {}
+    with open(fetch("train/content.txt", os.path.join(od, "content.txt")), encoding="utf-8", errors="replace") as fh:
+        for ln in fh:
+            a = ln.split()
+            if len(a) < 3 or not a[0].endswith(".wav"):
+                continue
+            txt = "".join(x for x in a[1:] if not re.search(r"[A-Za-z0-9%$]", x))
+            if len(txt) >= 4:
+                utts.setdefault(a[0][:7], []).append((a[0], txt))
+    spk = p.get("speaker")
+    if not spk:
+        want_g, want_age = p.get("gender", "female"), p.get("ages") or ["C", "D"]
+        cands = [s_ for s_ in utts if s_ in info and info[s_][1] == want_g and info[s_][0] in want_age and info[s_][2] == p.get("accent", "north")]
+        cands = cands or [s_ for s_ in utts if s_ in info and info[s_][1] == want_g]
+        if not cands:
+            raise RuntimeError("AISHELL-3 里没找到合适的说话人")
+        spk = max(cands, key=lambda s_: len(utts[s_]))
+    if spk not in utts:
+        raise RuntimeError("AISHELL-3 训练集里没有 %s" % spk)
+    rows = utts[spk]
+    lg.log("用 AISHELL-3 的 %s（%s）：%d 句" % (spk, " ".join(info.get(spk, ("?", "?", "?"))), len(rows)))
+    random.Random(7).shuffle(rows)
+    rows = rows[: int(p.get("maxClips", 600))]
+    done_n = [0]
+
+    def one(r):
+        src = fetch("train/wav/%s/%s" % (spk, r[0]), os.path.join(od, r[0]))
+        w = to_wav(src, os.path.join(wavs, "o_" + r[0]), shift_filter(src, p.get("shift", 0)))
+        done_n[0] += 1
+        if done_n[0] % 20 == 0:
+            lg.progress(0.02 + 0.08 * done_n[0] / len(rows), "下载公开录音：%d/%d 句" % (done_n[0], len(rows)))
+        return w, r[1], secs(w)
+
+    bad = 0
+    with concurrent.futures.ThreadPoolExecutor(8) as ex:
+        for fut in [ex.submit(one, r) for r in rows]:
+            try:
+                w, txt, d = fut.result()
+                if 0.8 <= d <= 20:
+                    lines.append((w, txt, d))
+            except Exception as e:
+                bad += 1
+                lg.log("跳过一句：%s" % str(e)[:160])
+    if bad > len(rows) // 3:
+        raise RuntimeError("公开录音下载失败太多（%d/%d 句）：网络不行，过会儿再试" % (bad, len(rows)))
+
 total = sum(x[2] for x in lines)
 lg.log("一共 %d 句、%.1f 分钟" % (len(lines), total / 60))
 if total < float(p.get("minSeconds", 120)):
@@ -176,6 +365,11 @@ SW, GW = os.path.join(GD, "SoVITS_weights_" + VER), os.path.join(GD, "GPT_weight
 os.makedirs(SW, exist_ok=True)
 os.makedirs(GW, exist_ok=True)
 e2, e1 = int(p.get("sovitsEpochs", 8)), int(p.get("gptEpochs", 15))
+# 录音越多、训得越久越像（GPT-SoVITS 官方建议的范围里）：10 分钟以上 12/20 轮，30 分钟以上 16/25 轮
+if total >= 1800:
+    e2, e1 = max(e2, 16), max(e1, 25)
+elif total >= 600:
+    e2, e1 = max(e2, 12), max(e1, 20)
 bs = int(p.get("batch", 4))
 cfg_job = {"s2_in": cfg2, "s2_out": os.path.join(work, "tmp_s2.json"), "s1_in": cfg1, "s1_out": os.path.join(work, "tmp_s1.yaml"),
            "bs": bs, "e2": e2, "e1": e1, "s2G": s2G, "s2D": s2D, "s1": s1, "exp": EXP, "exp_dir": exp_dir, "ver": VER, "SW": SW, "GW": GW}

@@ -7,6 +7,7 @@
 //   node tools/grid.js plan <计划.json>                       按计划建任务（只运行一次，运行两次会建两份）
 //   node tools/grid.js voice 老师名字                         训练这位老师的声音（用她录的和导入的录音）
 //   node tools/grid.js voice-import 老师名字 录音文件...      导入手机录音机录的原文件
+//   node tools/grid.js laolao-voice [SSB0xxx] [--shift 2] [--male]   训捞捞智能体的专属声音（公开录音 AISHELL-3 + 变声；先 cycle plans/laolao-voice.json）
 //   node tools/grid.js ab                                    新 Q版插件在审核里和现在的比，胜率多少
 //   node tools/grid.js promote                               新插件转正（qversion-lora-test → qversion-lora，老师端换上）
 //   node tools/grid.js cycle <自动训练.json> [--now]          设自动训练 / 每日一轮（签名上传用到的配方）；--now 马上跑一轮（训练一次）
@@ -89,6 +90,15 @@ if (require.main === module) {
     else if (cmd === "ab") { need(); const s = await api(c, "/api/admin/ab", { tag: a[0] || "qv1" }); console.log(`新插件 vs 现在的：比过 ${s.total} 组，新的赢 ${s.test}、现在的赢 ${s.cur}、差不多 ${s.same}、都不行 ${s.bad}${s.winRate == null ? "" : `；新的胜率 ${Math.round(s.winRate * 100)}%`}`); }
     // 训练某位老师的声音（先把「声音训练」流水线设好：cycle plans/voice-train.json）
     else if (cmd === "voice") { need(); if (!a[0]) throw new Error("用法：node tools/grid.js voice 老师名字"); const r = await api(c, "/api/admin/pipeline/run", { name: "声音训练", extra: { member: a[0], voiceOf: a[0] } }); console.log(`开始训练「${a[0]}」的声音（第 ${r.run} 轮）：等有空的电脑来领，控制中心能看进度`); }
+    // 捞捞智能体的专属声音：网上公开的高质量录音（AISHELL-3，Apache-2.0）+ 升几个半音（音色一起变），不是哪位真人老师的声音；公开发布，老师端自动下载
+    else if (cmd === "voice-open" || cmd === "laolao-voice") {
+      need();
+      const spk = a.find((x) => /^SSB\d+$/i.test(x));
+      const sh = a.indexOf("--shift");
+      const extra = { member: "捞捞", ...(spk ? { speaker: spk.toUpperCase() } : {}), ...(a.includes("--male") ? { gender: "male" } : {}), ...(sh >= 0 ? { shift: +a[sh + 1] || 0 } : {}) };
+      const r = await api(c, "/api/admin/pipeline/run", { name: "捞捞声音", extra });
+      console.log(`开始训练捞捞的专属声音（第 ${r.run} 轮${spk ? "，用 " + spk.toUpperCase() : ""}${sh >= 0 ? "，升 " + (+a[sh + 1] || 0) + " 个半音" : ""}）：领到的电脑先下约 20 分钟的录音棚录音，再训练；控制中心能听 3 句试听。训好自动发给老师端（「AI 改 PPT」里勾「捞捞说话」）`);
+    }
     // 导入老师用手机录音机录的原文件（不是微信 / QQ 语音）：node tools/grid.js voice-import 老师名字 文件1 [文件2 ...]
     else if (cmd === "voice-import") {
       need();

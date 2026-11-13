@@ -74,6 +74,67 @@
       <td>${m.state === "released" ? `<button class="btn sm" data-m="${m.id}" data-s="rejected">撤回</button>` : `<button class="btn sm" data-m="${m.id}" data-s="released">发布</button>`}</td></tr>`).join("");
     $$("#models [data-m]").forEach((b) => (b.onclick = guard(async () => { if (b.dataset.s === "rejected" && !confirm("撤回这一版？老师端会退回上一版。")) return; await api("/api/admin/model/set", { id: +b.dataset.m, state: b.dataset.s }); loadCycle(); })));
   }
+  // ---- 老师的声音：传讲课视频 / 录音、训练、声音码 ----
+  const mb = (b) => (b >= 1073741824 ? (b / 1073741824).toFixed(2) + " GB" : (b / 1048576).toFixed(1) + " MB");
+  let vList = [];
+  async function loadVoices() {
+    vList = await api("/api/admin/voices").catch(() => vList);
+    const sel = $("#vWho"), cur = sel.value;
+    sel.innerHTML = vList.map((v) => `<option>${esc(v.member)}</option>`).join("");
+    if (cur && vList.some((v) => v.member === cur)) sel.value = cur;
+    const RS = { done: "训完了", running: "训练中…", failed: "失败了" };
+    $("#voices").innerHTML = `<tr><th>老师</th><th>录的句子</th><th>导入的视频 / 录音</th><th>声音模型</th><th></th></tr>` + vList.map((v) => `<tr>
+      <td>${esc(v.member)}</td><td class="num">${v.recs}</td>
+      <td>${v.imports.map((i) => `${esc(i.name)} <span class="muted">${mb(i.size)}</span>`).join("<br>") || `<span class="muted">还没有</span>`}</td>
+      <td>${v.model ? `第 ${v.model} 版` : `<span class="muted">还没有</span>`}${v.run ? `<small>${RS[v.run.state] || v.run.state} · ${ago(v.run.created)}</small>` : ""}</td>
+      <td>${v.recs || v.imports.length ? `<button class="btn sm" data-vt="${esc(v.member)}">${v.model ? "重新训练" : "训练声音"}</button>` : ""}${v.model ? ` <button class="btn sm" data-vc="${esc(v.member)}">声音码</button>` : ""}</td></tr>`).join("");
+    $$("#voices [data-vt]").forEach((b) => (b.onclick = guard(async () => {
+      const who = b.dataset.vt;
+      const r = await api("/api/admin/pipeline/run", { name: "声音训练", extra: { member: who, voiceOf: who } });
+      toast(`开始训练${who}的声音（第 ${r.run} 轮）：等有空的电脑（6G 显存以上）来领`); loadVoices(); loadCycle();
+    })));
+    $$("#voices [data-vc]").forEach((b) => (b.onclick = guard(async () => {
+      const who = b.dataset.vc;
+      const r = await api("/api/admin/model/code", { name: "voice-" + who });
+      drawer(`<h2>${esc(who)}的声音码</h2><p><code style="font-size:20px">${esc(r.code)}</code> <button class="btn sm" id="vcCopy">复制</button></p>
+        <p class="muted">只发给${esc(who)}本人：在「捞捞PPT助手 → 我的声音」里填上，就用训练好的声音。没有这个码谁都下载不了。</p>
+        <p><button class="btn sm" id="vcNew">泄露了：换一个（旧的作废）</button></p>`);
+      $("#vcCopy").onclick = () => navigator.clipboard.writeText(r.code).then(() => toast("复制好了"));
+      $("#vcNew").onclick = guard(async () => { if (!confirm("换一个新码？旧的马上作废，要把新码重新发给老师。")) return; await api("/api/admin/model/code", { name: "voice-" + who, rotate: true }); b.click(); });
+    })));
+  }
+  $("#vAdd").onclick = guard(async () => {
+    const n = (prompt("老师的名字（以后她装捞捞算力时填同一个名字）") || "").trim(); if (!n) return;
+    await api("/api/admin/member/add", { name: n }); await loadVoices(); $("#vWho").value = n; toast(`登记好了：${n}`);
+  });
+  $("#vFiles").onchange = () => { $("#vGo").disabled = !$("#vFiles").files.length; };
+  function putFile(f, who, onProg) {
+    return new Promise((ok, bad) => {
+      const x = new XMLHttpRequest();
+      x.open("PUT", `/api/admin/upload?member=${encodeURIComponent(who)}&name=${encodeURIComponent(f.name)}`);
+      x.setRequestHeader("authorization", "Bearer " + token);
+      x.upload.onprogress = (e) => e.lengthComputable && onProg(e.loaded, e.total);
+      x.onload = () => { let j = {}; try { j = JSON.parse(x.responseText); } catch (e) {} x.status === 200 ? ok(j) : bad(new Error(j.error || "上传失败 " + x.status)); };
+      x.onerror = () => bad(new Error("网络断了，重新传这个文件"));
+      x.send(f);
+    });
+  }
+  $("#vGo").onclick = guard(async () => {
+    const who = $("#vWho").value, files = [...$("#vFiles").files];
+    if (!who) throw new Error("先选老师（没有就「登记新老师」）");
+    $("#vGo").disabled = true; $("#vBar").hidden = false;
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const f = files[i], t0 = Date.now();
+        await putFile(f, who, (a, b) => {
+          const sp = a / Math.max(1, (Date.now() - t0) / 1000);
+          $("#vBar i").style.width = Math.round((a / b) * 100) + "%";
+          $("#vProg").textContent = `第 ${i + 1}/${files.length} 个「${f.name}」：${mb(a)} / ${mb(b)}，${(sp / 1048576).toFixed(1)} MB/秒`;
+        });
+      }
+      toast(`传好了 ${files.length} 个：点「训练声音」开始训练`); $("#vFiles").value = "";
+    } finally { $("#vBar").hidden = true; $("#vProg").textContent = ""; $("#vGo").disabled = !$("#vFiles").files.length; loadVoices(); }
+  });
   async function loadInvites() {
     const list = await api("/api/admin/invites").catch(() => []);
     $("#invites").innerHTML = list.slice(0, 8).map((i) => `<div><span><code>${esc(i.code)}</code> ${esc(i.note || "")} ${i.role === "admin" ? "（管理员）" : ""}</span><span class="muted">${i.uses}/${i.max_uses} · ${i.expires < Date.now() ? "过期" : ago(i.created)}</span></div>`).join("") || `<p class="muted">还没发过邀请</p>`;
@@ -164,7 +225,7 @@
   };
   $$("[data-close]").forEach((b) => (b.onclick = () => (b.closest(".modal").hidden = true)));
 
-  function start() { $("#login").hidden = true; $("#app").hidden = false; refresh(); loadInvites(); loadCycle(); clearInterval(loadCycle.t); loadCycle.t = setInterval(loadCycle, 10000); clearInterval(start.t); start.t = setInterval(refresh, 2500); }
+  function start() { $("#login").hidden = true; $("#app").hidden = false; refresh(); loadInvites(); loadCycle(); loadVoices(); clearInterval(loadCycle.t); loadCycle.t = setInterval(() => { loadCycle(); loadVoices(); }, 10000); clearInterval(start.t); start.t = setInterval(refresh, 2500); }
   if (token) api("/api/admin/overview").then(start, () => {}); else showLogin();
   window.__ready = true;
 })();

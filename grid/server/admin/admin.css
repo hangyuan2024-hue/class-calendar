@@ -107,3 +107,12 @@ main { padding: 18px 26px 40px; display: grid; gap: 16px; }
 .pipe .run { font-size: 11px; padding: 2px 8px; border-radius: 99px; background: rgba(255, 255, 255, .06); }
 .pipe .run.done { color: var(--gr); } .pipe .run.running { color: var(--cy); } .pipe .run.failed { color: var(--rd); }
 .st.released { color: var(--gr); } .st.candidate { color: var(--am); } .st.rejected { color: var(--mut); }
+
+/* 老师的声音 */
+.voices-card { margin-bottom: 16px; }
+.vup { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 6px 0 10px; }
+.vup label { display: flex; gap: 6px; align-items: center; font-size: 13px; white-space: nowrap; }
+.vup select { min-width: 120px; }
+.vfile input { max-width: 240px; font-size: 12px; }
+.vbar { margin: 0 0 10px; }
+.voices-card code { font-family: var(--mono); color: var(--cy); }

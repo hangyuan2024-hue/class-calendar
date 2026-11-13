@@ -31,6 +31,25 @@ const ok = (m) => console.log("✓ " + m);
   assert.equal(b.src, "rec"); assert.equal(b.ms, 2000);
   await assert.rejects(H.synth("../x", "hi"), /编号不对/);
   ok("配音：用 GPT-SoVITS 念；这一段有自己的录音就用录音；编号不能乱写");
+  {
+    // 捞捞说话：用捞捞算力训的 laolao-voice 念回复（去掉公式和 markdown 符号）；没下载好就提示，不报错
+    assert.equal(await H.laoSpeak("你好"), null, "没勾「捞捞说话」就不念");
+    H.setLaoSpeak(true);
+    assert.match((await H.laoSpeak("你好")).skip, /还没下载好/);
+    const gm = path.join(user, "grid-models"), lv = path.join(gm, "laolao-voice", "3");
+    fs.mkdirSync(lv, { recursive: true });
+    for (const [k, b] of [["gpt", "g"], ["sovits", "s"], ["reftext", "你好呀"]]) fs.writeFileSync(path.join(lv, k), b);
+    fs.copyFileSync(ref, path.join(lv, "ref"));
+    fs.writeFileSync(path.join(gm, "state.json"), JSON.stringify({ current: { "laolao-voice": { version: 3, files: Object.fromEntries(["gpt", "sovits", "ref", "reftext"].map((k) => [k, path.join(lv, k)])) } }, pending: {}, checked: Date.now() }));
+    const sv3 = createService({ user, documents: user, version: "t", send() {}, pickFile: async () => null, pickDir: async () => gsv, openPath() {}, reveal() {}, openExternal() {},
+      voiceOpt: { cmd: process.execPath, args: (p) => [path.join(__dirname, "fake-gsv.js"), String(p)], waitMs: 15000 } });
+    const st3 = sv3.H.laoVoiceState(); assert.ok(st3.on && st3.model && st3.version === 3);
+    const r = await sv3.H.laoSpeak("**好的**，第 3 页的标题改好了。公式 $x^2$ 也插进去了。");
+    assert.ok(r.url.startsWith("data:audio/wav;base64,")); assert.equal(r.text, "好的，第 3 页的标题改好了。公式 （公式） 也插进去了。");
+    sv3.H.voiceStop();
+    H.setLaoSpeak(false);
+    ok("捞捞说话：用捞捞的专属声音（laolao-voice）念回复，自动启动 GPT-SoVITS；去掉公式和 markdown；没下载好只提示");
+  }
   next = path.join(__dirname, "fixtures", "sample.pptx"); await H.openPpt();
   const d = H.draft(2, { first: true });
   assert.ok(d.narration.startsWith("同学们好！这一页我们来看「冒泡排序」") && d.qa.length === 2);

@@ -382,6 +382,22 @@ function open(file, opt = {}) {
     });
   }
   // 某位老师的声音数据：录的每一句（有讲稿）+ 导入的整段录音（没有讲稿，要先切开、识别）
+  // 控制中心「老师的声音」：每位成员录了几句、导入了哪些录音 / 讲课视频
+  function voices() {
+    return all("select id, name from members where disabled=0 order by id").map((m) => {
+      const rows = all(`select o.name, o.size, o.created, json_extract(j.params,'$.purpose') as purpose from outputs o join tasks t on t.id=o.task_id join jobs j on j.id=o.job_id
+        where j.kind='record' and t.member_id=? and t.state='done' and json_extract(j.params,'$.purpose') like 'voice%' order by o.id`, m.id);
+      const imports = rows.filter((r) => r.purpose === "voice-import").map((r) => ({ name: r.name, size: r.size, created: r.created }));
+      return { member: m.name, recs: rows.filter((r) => r.purpose !== "voice-import" && /\.webm$/.test(r.name)).length, imports };
+    });
+  }
+  // 讲课视频里的老师不一定装了捞捞算力：先按名字登记成成员（以后她用邀请链接加入、填同一个名字，就是同一个人）
+  function addMember(name) {
+    name = String(name || "").trim().slice(0, 30);
+    if (!name || /[<>"'&]/.test(name)) throw new Error("名字不对");
+    if (!one("select 1 from members where name=?", name)) { run("insert into members(name,role,created) values(?,?,?)", name, "member", clock()); event("join", `登记了老师「${name}」（还没装捞捞算力也能先传她的讲课视频）`); }
+    return { ok: true, name };
+  }
   function voiceData(memberName) {
     const m = one("select * from members where name=?", String(memberName || ""));
     if (!m) return { files: {}, texts: {} };
@@ -550,7 +566,7 @@ function open(file, opt = {}) {
   return {
     db, kv, event, on: (f) => (listeners.add(f), () => listeners.delete(f)),
     adminToken, isAdmin, invite, join, auth, heartbeat, addRecipe, stage, createJob, lease, renew, checkpoint, finish, fail, sweep,
-    humanNext, humanDone, reviewNext, vote, cut, retire, addTasks, dataset, importVoice, voiceData, overview, jobDetail, devicesView, board, setJob, setDevice, retry,
+    humanNext, humanDone, reviewNext, vote, cut, retire, addTasks, dataset, importVoice, voiceData, voices, addMember, overview, jobDetail, devicesView, board, setJob, setDevice, retry,
     recipe: (id) => one("select * from recipes where id=?", id), recipes: () => all("select id,name,meta,created from recipes order by created desc"),
     review: (id) => one("select * from reviews where id=?", id),
     invites: () => all("select * from invites order by created desc limit 50"),

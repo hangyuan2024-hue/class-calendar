@@ -53,7 +53,21 @@
     bot.querySelector(".t").textContent = bot._t.replace(/<tool_call>[\s\S]*?(<\/tool_call>|$)/g, "").replace(/<\/?tool_call>?$/, "").trim();
     scroll();
   }
-  function endBot() { if (bot) { const c = bot.querySelector(".cursor"); if (c) c.remove(); if (!bot.querySelector(".t").textContent.trim()) bot.remove(); else typeset(bot); } bot = null; }
+  // 捞捞说话：一轮回复说完，用捞捞的专属声音念出来（念上一句时又来新的，就停掉上一句）
+  let said = "", player = null;
+  async function speak(t) {
+    if (!$("#laoSpeak").checked || !t.trim()) return;
+    try {
+      const r = await call("laoSpeak", t);
+      if (!r) return;
+      if (r.skip) { toast(r.skip); return; }
+      if (player) player.pause();
+      player = new Audio(r.url); player.play().catch(() => {});
+    } catch (e) { toast("捞捞说不出来：" + e.message); }
+  }
+  (async () => { try { const st = await call("laoVoiceState"); $("#laoSpeak").checked = st.on; $("#laoSpeakWrap").title = st.model ? `捞捞的专属声音（第 ${st.version} 版）：把回复念出来` : "捞捞的声音还没训练好 / 还没下载（捞捞算力训好后自动下载）"; } catch (e) {} })();
+  $("#laoSpeak").onchange = guard(async () => { const st = await call("setLaoSpeak", $("#laoSpeak").checked); if (st.on && !st.model) toast("捞捞的声音还没下载好：训练好后会自动下载"); else if (st.on && !st.gsv) toast("要先在「我的声音」里装好 GPT-SoVITS，捞捞才能说话"); });
+  function endBot() { if (bot) { const tx = bot.querySelector(".t").textContent; if (tx.trim()) said = tx; const c = bot.querySelector(".cursor"); if (c) c.remove(); if (!bot.querySelector(".t").textContent.trim()) bot.remove(); else typeset(bot); } bot = null; }
   window.cc.on("agent", (e) => {
     if (e.type === "state") return paintState(e.state);
     if (e.type === "download") { const p = e.total ? e.got / e.total : 0; $("#aiDlProg .bar i").style.width = Math.round(p * 100) + "%"; $("#aiDlProg > span").textContent = e.checking ? "校验…" : `下载 ${e.name}：${gb(e.got || 0)} / ${e.total ? gb(e.total) : "?"}${e.speed ? `，${(e.speed / 1048576).toFixed(1)}MB/秒` : ""}`; return; }
@@ -68,8 +82,8 @@
       if (e.changed) guard(refresh)();
       return;
     }
-    if (e.type === "done") { endBot(); if (e.note) add("msg bot", esc(e.note)); if (e.stopped) add("step", "停下了"); return; }
-    if (e.type === "error") { endBot(); add("msg bot err", esc(e.message)); }
+    if (e.type === "done") { endBot(); const t = said; said = ""; speak(t); if (e.note) add("msg bot", esc(e.note)); if (e.stopped) add("step", "停下了"); return; }
+    if (e.type === "error") { endBot(); said = ""; add("msg bot err", esc(e.message)); }
   });
   // 做完一步的那一行字
   function done(e) {

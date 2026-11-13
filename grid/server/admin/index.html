@@ -53,6 +53,18 @@
       <div class="card"><h2>自动训练 <small>大家开着电脑就画、审核攒够了就训练；评测变好了才发布</small></h2><div id="pipes" class="pipes"></div></div>
       <div class="card"><h2>模型版本 <small>老师端自动用「已发布」的最新一版</small></h2><table class="tbl" id="models"></table></div>
     </section>
+    <section class="card voices-card">
+      <h2>老师的声音 <small>传讲课视频 / 课堂录音（mp4、手机录音都行）→ 自动只留老师本人的声音、去噪、识别文字 → 训练；训好的声音不公开，凭声音码给老师本人</small></h2>
+      <div class="vup">
+        <label>老师<select id="vWho"></select></label>
+        <button class="btn sm" id="vAdd">＋ 登记新老师</button>
+        <label class="vfile">选视频 / 录音<input type="file" id="vFiles" multiple accept="video/*,audio/*,.mp4,.mov,.mkv,.m4a,.mp3,.wav,.aac,.flac,.amr"></label>
+        <button class="btn primary" id="vGo" disabled>上传</button>
+        <span class="muted small" id="vProg"></span>
+      </div>
+      <div class="bar vbar" hidden id="vBar"><i></i></div>
+      <table class="tbl" id="voices"></table>
+    </section>
     <section class="cols3">
       <div class="card"><h2>动态</h2><div class="feed" id="feed"></div></div>
       <div class="card"><h2>贡献榜</h2><table class="tbl" id="board"></table></div>

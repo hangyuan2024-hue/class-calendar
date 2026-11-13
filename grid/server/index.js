@@ -136,6 +136,13 @@ function create(opt = {}) {
       return { key, url: store.url("PUT", key, 3600) };
     },
     "POST /api/admin/import/done": (req, b) => core.importVoice(b),
+    // 控制中心「老师的声音」
+    "GET /api/admin/voices": () => {
+      const ms = core.db.prepare("select name, max(version) as version from models where name like 'voice-%' and state='released' group by name").all();
+      const runs = core.db.prepare("select r.id, r.state, r.created, json_extract(r.result,'$.extra.voiceOf') as who from runs r join pipelines p on p.id=r.pipeline_id where p.name='声音训练' order by r.id desc limit 200").all();
+      return core.voices().map((v) => ({ ...v, model: (ms.find((m) => m.name === "voice-" + v.member) || {}).version || null, run: runs.find((r) => r.who === v.member) || null }));
+    },
+    "POST /api/admin/member/add": (req, b) => core.addMember(b.name),
     "POST /api/admin/pipeline/enable": (req, b) => (cycle.setEnabled(+b.id, !!b.enabled), { ok: true }),
     "POST /api/admin/model/set": (req, b) => cycle.setModel(+b.id, b.state),
     "POST /api/admin/model/code": (req, b) => ({ name: String(b.name), code: cycle.codeOf(String(b.name), !!b.rotate) }),
@@ -150,6 +157,7 @@ function create(opt = {}) {
     try {
       if (req.method === "OPTIONS") { res.writeHead(204, { "access-control-allow-origin": "*", "access-control-allow-headers": "authorization, content-type", "access-control-allow-methods": "GET, POST, PUT" }); return res.end(); }
       if (u.pathname.startsWith("/blob/")) return blob(req, res, u);
+      if (req.method === "PUT" && u.pathname === "/api/admin/upload") return upload(req, res, u);
       if (u.pathname === "/pub/models/manifest.json") return json(res, 200, pubManifest());
       // 不公开的模型（老师的声音）：凭声音码拿清单和文件
       const pm = /^\/pub\/private\/([\w-]{6,40})\/manifest\.json$/.exec(u.pathname);
@@ -188,6 +196,38 @@ function create(opt = {}) {
     } catch (e) {
       json(res, 400, { error: e.message || String(e) });
     }
+  }
+
+  // 控制中心网页上传讲课视频 / 录音：PUT /api/admin/upload?member=名字&name=文件名（body 就是文件）→ 存好、登记成这位老师的录音
+  async function upload(req, res, u) {
+    try {
+      if (!core.isAdmin(tokenOf(req))) { const d = core.auth(tokenOf(req)); if (!d || d.role !== "admin") { req.resume(); return json(res, 401, { error: "要管理员口令" }); } }
+      const member = String(u.searchParams.get("member") || "");
+      const orig = String(u.searchParams.get("name") || "").slice(0, 120);
+      const name = orig.replace(/[^\w.\-]/g, "_").slice(-100);
+      if (!/\.(wav|m4a|mp3|aac|flac|ogg|opus|webm|mp4|mov|mkv|avi|flv|amr)$/i.test(name)) { req.resume(); return json(res, 400, { error: "只能传音频或视频文件" }); }
+      if (!core.db.prepare("select 1 from members where name=?").get(member)) { req.resume(); return json(res, 400, { error: "先登记这位老师" }); }
+      const len = +req.headers["content-length"] || 0;
+      if (!len) { req.resume(); return json(res, 400, { error: "文件是空的" }); }
+      const key = `imports/${Date.now()}-${crypto.randomBytes(3).toString("hex")}-${name}`;
+      if (store.kind === "local") {
+        const f = local.file(key);
+        fs.mkdirSync(path.dirname(f), { recursive: true });
+        await new Promise((ok, bad) => { const w = fs.createWriteStream(f); req.pipe(w); w.on("finish", ok); w.on("error", bad); req.on("error", bad); });
+      } else {
+        // 边收边转给 COS（预签名 PUT，要带 content-length）
+        const dst = new URL(store.url("PUT", key, 6 * 3600));
+        await new Promise((ok, bad) => {
+          const out = (dst.protocol === "https:" ? require("https") : require("http")).request(dst, { method: "PUT", headers: { "content-length": String(len) } }, (r) => {
+            let t = ""; r.on("data", (c) => { if (t.length < 400) t += c; }); r.on("end", () => (r.statusCode < 300 ? ok() : bad(new Error("存到 COS 失败：" + r.statusCode + " " + t.slice(0, 200)))));
+          });
+          out.on("error", bad); req.on("error", (e) => { out.destroy(e); bad(e); });
+          req.pipe(out);
+        });
+      }
+      core.importVoice({ member, key, name: orig || name, size: len });
+      json(res, 200, { ok: true, key, size: len });
+    } catch (e) { json(res, 400, { error: e.message || String(e) }); }
   }
 
   // 本机存储的上传 / 下载（带签名的临时链接）
