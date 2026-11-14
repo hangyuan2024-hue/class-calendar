@@ -12,29 +12,21 @@ if [ -z "$CN_S3_BUCKET" ] || [ -z "$CN_S3_KEY_ID" ] || [ -z "$CN_S3_SECRET" ] ||
 fi
 export AWS_ACCESS_KEY_ID="$CN_S3_KEY_ID" AWS_SECRET_ACCESS_KEY="$CN_S3_SECRET" AWS_DEFAULT_REGION="${CN_S3_REGION:-us-east-1}" AWS_EC2_METADATA_DISABLED=true
 export AWS_REQUEST_CHECKSUM_CALCULATION=when_required AWS_RESPONSE_CHECKSUM_VALIDATION=when_required
-aws configure set default.s3.addressing_style virtual
-# 分块：20G 的文件要 16MB 一块（最多 10000 块）；同时传 16 块
-SIZE=$(stat -c %s "$F")
-CH=$(( SIZE / 9000 / 1048576 + 1 )); [ "$CH" -lt 8 ] && CH=8
-aws configure set default.s3.multipart_threshold 8MB
-aws configure set default.s3.multipart_chunksize "${CH}MB"
-aws configure set default.s3.max_concurrent_requests 16
+# 一块一块传、失败的块单独重传、能接着上次传（cn-put.py）；同时 4 块（连接太多每个都慢，腾讯云会掐掉太慢的：UserNetworkTooSlow）
+python3 -c "import boto3" 2>/dev/null || pip install -q boto3 >&2 || pip install -q --break-system-packages boto3 >&2
 EPS=()
 # 全球加速：快很多，但腾讯云按流量另外收钱（几十 G 就是几十块）；CN_ACCEL=1 才用
 if [ "${CN_ACCEL:-0}" = "1" ]; then case "$CN_S3_ENDPOINT" in *myqcloud.com*) EPS+=("https://cos.accelerate.myqcloud.com");; esac; fi
-EPS+=("$CN_S3_ENDPOINT" "$CN_S3_ENDPOINT" "$CN_S3_ENDPOINT")
-ERR=$(mktemp); n=0
+EPS+=("$CN_S3_ENDPOINT" "$CN_S3_ENDPOINT" "$CN_S3_ENDPOINT" "$CN_S3_ENDPOINT" "$CN_S3_ENDPOINT")
+HERE="$(cd "$(dirname "$0")" && pwd)"
+n=0
 for EP in "${EPS[@]}"; do
-  n=$((n + 1)); t=$(date +%s)
-  echo "第 $n 次上传 $KEY（$(( SIZE / 1048576 )) MB，每块 ${CH}MB）→ $EP" >&2
-  if aws s3 cp "$F" "s3://$CN_S3_BUCKET/$KEY" --endpoint-url "$EP" --content-type application/octet-stream --only-show-errors \
-       --cli-connect-timeout 30 --cli-read-timeout 120 2>"$ERR"; then
-    echo "上传好了：$(( $(date +%s) - t )) 秒，平均 $(( SIZE / 1048576 / ( $(date +%s) - t + 1 ) )) MB/秒" >&2
-    rm -f "$ERR"; echo "${CN_DL_BASE%/}/$KEY"; exit 0
-  fi
-  if grep -q "BucketAccelerateNotEnabled" "$ERR"; then echo "这个桶没开「全球加速」，改走普通地址（开了会快很多：腾讯云控制台 → 存储桶 → 域名与传输管理 → 全球加速）" >&2
-  else echo "失败（$(( $(date +%s) - t )) 秒）：$(tail -c 400 "$ERR" | tr '\n' ' ')" >&2; sleep 10; fi
+  n=$((n + 1))
+  echo "第 $n 次上传 $KEY → $EP" >&2
+  python3 "$HERE/cn-put.py" "$F" "$KEY" "$EP"; rc=$?
+  if [ "$rc" = 0 ]; then echo "${CN_DL_BASE%/}/$KEY"; exit 0; fi
+  if [ "$rc" = 3 ]; then echo "这个桶没开「全球加速」，改走普通地址" >&2; continue; fi
+  echo "这次没传完，等 20 秒接着传（传好的块不重传）" >&2; sleep 20
 done
-rm -f "$ERR"
 echo "::error::$KEY 传到国内存储失败" >&2
 exit 1
