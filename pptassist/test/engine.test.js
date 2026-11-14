@@ -121,6 +121,7 @@ const PY = process.env.PYTHON || (process.platform === "win32" ? "python" : "pyt
   const fake4 = await FAKE.start({ delay: 5000 });
   const e4 = E.create({ poll: 30 }); await e4.attach(fake4.url);
   const p = e4.run("画形象", g, path.join(tmp, "out4"));
+  p.catch(() => {});   // 停的时候它可能比下面的 assert.rejects 先失败：先挂上处理，免得「没人接的失败」把测试进程弄崩（Windows 上常见）
   await new Promise((r) => setTimeout(r, 200));
   assert.equal(e4.status().job.kind, "画形象");
   await assert.rejects(e4.run("画形象", g, tmp), /还没做完/);
