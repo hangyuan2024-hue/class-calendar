@@ -12,6 +12,10 @@ const Updater = require("./updater");
 const AI = require("./ai");
 const LLMW = require("./llmw");
 const GSVW = require("./gsvw");
+const Power = require("./power");
+const Logs = require("./logs");
+const Disk = require("./disk");
+const Region = require("./region");
 
 const RECIPES = path.join(__dirname, "..", "recipes").replace(/app\.asar([\\/])/, "app.asar.unpacked$1");  // 打包后 Python 读不了 asar 里的文件
 
@@ -37,18 +41,35 @@ function createService(o) {
   // GPT-SoVITS（训练声音）：第一次用的时候自动装；训练前关掉 ComfyUI 和本地大模型
   const gsv = (o.gsvFactory || GSVW.create)({ base: () => base(), get: () => cfg.gsv, set: (v) => { cfg.gsv = { ...(cfg.gsv || {}), ...v }; save(); },
     gpuName: () => (lastProbe && lastProbe.caps && lastProbe.caps.gpu) || "", beforeStart: async () => { try { ai.stop(); } catch (e) {} try { llm.stop(); } catch (e) {} }, ...(o.gsvOpt || {}) });
-  const capsNow = () => ({ ...((lastProbe && lastProbe.caps) || {}), comfy: !!(cfg.ai && cfg.ai.ready), llm: llm.ok(), gsv: process.platform === "win32" || !!(cfg.gsv && cfg.gsv.dir) });
+  // 显存上限（设置里可以留一点给自己用）：领活的时候只说这么多
+  const capsNow = () => { const c = { ...((lastProbe && lastProbe.caps) || {}), comfy: !!(cfg.ai && cfg.ai.ready), llm: llm.ok(), gsv: process.platform === "win32" || !!(cfg.gsv && cfg.gsv.dir) }; if (cfg.set && cfg.set.vramCap && c.vram) c.vram = Math.min(c.vram, cfg.set.vramCap); return c; };
+  // ---- 设置（默认值）、日志、防休眠、硬盘、地区 ----
+  const SET0 = { autostart: true, keepAwake: true, lid: false, pauseOnBattery: true, notify: true, netLimit: 0, vramCap: 0, maxPower: 0, region: "auto", pro: false, keepTaskDays: 2, stallMin: 45 };
+  const set = () => ({ ...SET0, ...(cfg.set || {}) });
+  const logs = Logs.create({ dir: base, onLine: (l) => send("log", l) });
+  const L = (m, lv, src) => logs.add(m, lv, src);
+  const power = (o.powerFactory || Power.create)({ powerSaveBlocker: o.powerSaveBlocker, log: (m) => L(m, "info", "防休眠"), ...(o.powerOpt || {}) });
+  const region = (o.regionFactory || Region.create)({ get: () => cfg.region, set: (v) => { cfg.region = v; save(); }, pref: () => set().region, log: (m) => L(m, "info", "下载源"), ...(o.regionOpt || {}) });
+  const notify = (title, body, kind = "") => { if (!set().notify || !o.notify) return; if (kind && set()["no_" + kind]) return; try { o.notify(title, body); } catch (e) {} L(`${title}：${body}`, "info", "通知"); };
+  Agent.setNetLimit(set().netLimit);
+  if (cfg.autostart === undefined && cfg.set === undefined && o.setAutostart) { cfg.autostart = true; try { o.setAutostart(true); } catch (e) {} save(); }   // 第一次用：默认开机自启（藏在托盘里，接着上次的状态）
   const gallery = [];
 
   function startAgent() {
     if (agent || !cfg.token) return;
     agent = Agent.create({
       server: cfg.server, token: cfg.token, pubkey: cfg.pubkey, workDir: work(), python: () => env.python(),
-      caps: lastProbe ? capsNow() : null, comfy, llm, gsv, policy: cfg.policy || { mode: "off", idleMin: 5 },   // 默认：自己点「开始」才算
-      idleSecs: o.idleSecs, ensure: (pkgs) => env.ensure(pkgs), version: o.version, gpuInfo: async () => (await probe.gpus())[0] || null, gpuApps: (ours) => probe.gpuApps(undefined, ours),
+      caps: lastProbe ? capsNow() : null, comfy, llm, gsv, policy: { mode: "off", idleMin: 5, ...(cfg.policy || {}), pauseOnBattery: set().pauseOnBattery, maxPower: set().maxPower },   // 默认：自己点「开始」才算
+      idleSecs: o.idleSecs, onBattery: o.onBattery, stallMin: set().stallMin, ensure: (pkgs) => env.ensure(pkgs), version: o.version, gpuInfo: async () => (await probe.gpus())[0] || null, gpuApps: (ours) => probe.gpuApps(undefined, ours),
+      extraInfo: () => ({ region: region.current(), awake: power.status().awake, autostart: !!cfg.autostart, pro: !!set().pro, lid: !!set().lid, set: set() }),
       ...(o.agentOpt || {}),
     });
     agent.on("any", ({ k, v }) => {
+      if (k === "log") L(v.msg, v.level, "算力");
+      if (k === "state") { L(`状态：${STATE_NAMES[v.state] || v.state}${v.why ? "（" + v.why + "）" : ""}`, "info", "算力"); onState(v); }
+      if (k === "task") { taskStart[v.id] = Date.now(); }
+      if (k === "done") onDone(v);
+      if (k === "command") onCommand(v).catch((e) => L("远程命令出错：" + e.message, "error", "遥控"));
       if (k === "source") sources[v.id] = v;
       if (k === "image") {
         try { const b = fs.readFileSync(v.path); if (b.length < 3e6) v = { ...v, url: `data:image/${/png$/i.test(v.path) ? "png" : "jpeg"};base64,` + b.toString("base64") }; } catch (e) {}
@@ -60,6 +81,20 @@ function createService(o) {
     if (cfg.paused && !cfg.manual) cfg.manual = "off";   // 老版本的「暂停」= 停止
     if (cfg.manual) agent.setManual(cfg.manual);
     agent.start();
+  }
+  // 要算的时候不让电脑睡：正在算、或者能算在等任务（「开始」了 / 在定时的时间里）；停了、在等你不用电脑、拔了电就照常睡
+  const STATE_NAMES = { starting: "启动", waiting: "等着", idle: "在等任务", busy: "在算", paused: "停了", offline: "连不上调度中心" };
+  const taskStart = {};
+  function onState(v) {
+    const want = set().keepAwake && (v.state === "busy" || v.state === "idle" || (v.state === "offline" && cfg.manual === "on"));
+    power.keepAwake(want, v.state === "busy" ? "正在算" : "在等任务");
+    if (v.state === "waiting" && /拔了电源/.test(v.why || "")) notify("拔了电源，先停一下", "插上电就接着算（正在算的交给别的电脑从存档接着算）", "battery");
+    if (v.state === "waiting" && /℃/.test(v.why || "")) notify("显卡太热，歇一会儿", v.why, "temp");
+  }
+  function onDone(v) {
+    const secs = taskStart[v.id] ? (Date.now() - taskStart[v.id]) / 1000 : 0; delete taskStart[v.id];
+    if (v.ok && secs > 600) notify("算完一个大任务", `用了 ${Math.round(secs / 60)} 分钟`, "done");
+    if (!v.ok && !v.stopped) notify("任务出错了", String(v.error || v.why || "").slice(0, 120) + "（详情看「我的电脑」的日志）", "error");
   }
   const smallGpu = () => !!(lastProbe && lastProbe.caps && lastProbe.caps.vram < 7.5);
   const aiInfo = () => ({ ready: !!(cfg.ai && cfg.ai.ready), dir: (cfg.ai && cfg.ai.dir) || "", skipped: !!cfg.aiSkipped, smallGpu: smallGpu(), ram: (lastProbe && lastProbe.caps && lastProbe.caps.ram) || 0 });
@@ -211,14 +246,139 @@ function createService(o) {
   // 自动更新（只在装好的软件里开；开发和测试时 o.install 没给就不开）
   let recording = false;
   const updater = Updater.create({ dir: base, version: o.version, agent: () => agent, idleSecs: o.idleSecs, windowHidden: o.windowHidden, recording: () => recording,
-    install: o.install || (async () => { throw new Error("这个版本不能自动更新"); }), onEvent: (e) => send("update", e), ...(o.updaterOpt || {}) });
+    install: o.install || (async () => { throw new Error("这个版本不能自动更新"); }), onEvent: (e) => { send("update", e); if (e.state === "ready" && !e.waiting) L(`新版 ${e.latest} 下载好了`, "info", "更新"); },
+    notify: (t, b) => notify(t, b, "update"), ...(o.updaterOpt || {}) });
   if (o.install && o.autoUpdate !== false) updater.start();
   H.updateStatus = async () => updater.status();
   H.updateCheck = async () => updater.check();
   H.updateNow = async () => updater.now();
   H.recording = async (v) => { recording = !!v; return recording; };
+
+  // ---------- 设置 ----------
+  H.settings = async () => ({ ...set(), autostart: !!cfg.autostart, region: set().region, regionInfo: region.info(), power: power.status(), onBattery: o.onBattery ? await o.onBattery() : false, version: o.version });
+  H.setSettings = async (p = {}) => {
+    const cur = set(), next = { ...cur };
+    for (const k of Object.keys(SET0)) if (p[k] !== undefined) next[k] = typeof SET0[k] === "number" ? Math.max(0, +p[k] || 0) : typeof SET0[k] === "boolean" ? !!p[k] : String(p[k]);
+    for (const k of Object.keys(p)) if (/^no_\w+$/.test(k)) next[k] = !!p[k];
+    if (!["auto", "cn", "global"].includes(next.region)) next.region = "auto";
+    if (p.autostart !== undefined && o.setAutostart) { cfg.autostart = !!p.autostart; try { o.setAutostart(cfg.autostart); } catch (e) {} }
+    if (next.lid !== cur.lid) { const r = await power.lidKeepRunning(next.lid, cfg.lidSaved); if (!r.ok) { next.lid = cur.lid; L(r.why, "warn", "防休眠"); } else cfg.lidSaved = r.saved; }
+    cfg.set = next; save();
+    Agent.setNetLimit(next.netLimit);
+    if (next.region !== cur.region) region.detect(true).catch(() => {});
+    if (agent) { agent.setPolicy({ pauseOnBattery: next.pauseOnBattery, maxPower: next.maxPower }); agent.setCaps(capsNow()); }
+    if (!next.keepAwake) power.keepAwake(false); else if (agent) onState(agent.status());
+    L("改了设置：" + Object.keys(p).join("、"), "info", "设置");
+    return H.settings();
+  };
+  H.redetectRegion = async () => { await region.detect(true); return region.info(); };
+
+  // ---------- 日志 ----------
+  H.logDays = async () => logs.days();
+  H.logRead = async (q) => logs.read(q || {});
+  H.logRecent = async (n) => logs.recent(n || 300);
+  H.logExport = async () => { const f = logs.bundle(3, diagText()); o.reveal ? o.reveal(f) : o.openPath && o.openPath(path.dirname(f)); return f; };
+  H.logOpenDir = async () => { fs.mkdirSync(logs.dir(), { recursive: true }); o.openPath && o.openPath(logs.dir()); return true; };
+  function diagText() {
+    const c = { ...cfg }; delete c.token; delete c.pubkey;   // 口令不放进去
+    const a = agent ? agent.status() : null;
+    return ["===== 捞捞算力诊断信息 =====", `版本 ${o.version}  系统 ${os.platform()} ${os.release()}  ${os.cpus()[0] ? os.cpus()[0].model : ""}  内存 ${Math.round(os.totalmem() / 1e9)}G`,
+      "设置：" + JSON.stringify(set()), "体检：" + JSON.stringify(lastProbe && lastProbe.caps), "状态：" + JSON.stringify(a && { state: a.state, why: a.why, manual: a.manual, task: a.task && a.task.job && a.task.job.name }),
+      "配置：" + JSON.stringify(c).slice(0, 4000), "防休眠：" + JSON.stringify(power.status()), "下载源：" + JSON.stringify(region.info()), ""].join("\n");
+  }
+
+  // ---------- 硬盘和缓存 ----------
+  const disk = Disk.create({ base, lowGB: 20, parts: () => {
+    const curDir = agent && agent.current() ? agent.current().dir : "";
+    return [
+      { id: "env", name: "训练环境（Python + PyTorch）", path: path.join(base(), "env"), note: "删了要重装" },
+      { id: "ai", name: "AI 引擎和画图模型、GPT-SoVITS", path: path.join(base(), "ai"), note: "删了要重新下（几十 G）" },
+      { id: "llm", name: "本地大模型", path: path.join(base(), "llm"), cleanable: "all", note: "用到时会自动重新下" },
+      { id: "tasks", name: "任务文件（每个任务下的数据、中间结果）", path: path.join(work(), "tasks"), cleanable: "old", keepDays: 0, keep: (f) => !!curDir && path.resolve(f) === path.resolve(curDir), note: "算完的都可以删（正在算的留着）" },
+      { id: "cache", name: "缓存（下过的模型、公开数据）", path: path.join(work(), "cache"), cleanable: "all", note: "用到时会重新下" },
+      { id: "recipes", name: "配方", path: path.join(work(), "recipes"), cleanable: "all", note: "很小，用到时重新下" },
+      { id: "update", name: "新版本安装包", path: path.join(base(), "update"), cleanable: "all" },
+      { id: "logs", name: "日志", path: logs.dir(), cleanable: "old", keepDays: 1, note: "只留今天的" },
+    ];
+  } });
+  H.diskReport = async () => disk.report();
+  H.diskClean = async (id) => { const r = await disk.clean(id); L(`清理「${id}」：腾出 ${(r.freed / 1e9).toFixed(2)}G`, "info", "硬盘"); return r; };
+  // 每 6 小时：删掉几天前算完的任务文件夹；硬盘快满了提醒（一天最多一次）
+  async function housekeeping() {
+    try {
+      const curDir = agent && agent.current() ? agent.current().dir : "";
+      await disk.cleanOld(path.join(work(), "tasks"), set().keepTaskDays, (f) => !!curDir && path.resolve(f) === path.resolve(curDir));
+      const fr = await disk.free(base());
+      if (fr != null && fr < 20e9 && Date.now() - (cfg.lowDiskAt || 0) > 86400e3) { cfg.lowDiskAt = Date.now(); save(); notify("硬盘快满了", `数据文件夹所在的盘只剩 ${(fr / 1e9).toFixed(1)}G：打开捞捞算力「设置 → 硬盘」清理一下`, "disk"); }
+    } catch (e) {}
+  }
+  const hk = setInterval(housekeeping, 6 * 3600e3); hk.unref && hk.unref();
+  setTimeout(housekeeping, 120e3).unref?.();
+
+  // ---------- 控制中心遥控 ----------
+  async function onCommand(c) {
+    let ok = true, result = null;
+    try {
+      if (c.cmd === "start") result = await H.setManual("on");
+      else if (c.cmd === "stop") result = await H.setManual("off");
+      else if (c.cmd === "auto") result = await H.setManual("auto");
+      else if (c.cmd === "update") { result = await updater.now().catch((e) => { throw e; }); if (!result) { ok = false; result = updater.status().error || "现在没有新版本，或者这个版本不能自动更新"; } }
+      else if (c.cmd === "restart") { result = "马上重启"; setTimeout(() => o.restart && o.restart(), 1500); }
+      else if (c.cmd === "logs") result = await uploadLogs(c.args && c.args.days);
+      else if (c.cmd === "clean") { const a = await disk.clean("tasks"); const b = await disk.clean("cache"); result = `腾出 ${((a.freed + b.freed) / 1e9).toFixed(2)}G`; }
+      else if (c.cmd === "probe") { const r = await H.probe(); result = r.caps; }
+      else if (c.cmd === "settings") result = await H.setSettings(c.args || {});
+      else { ok = false; result = "不认识的命令"; }
+    } catch (e) { ok = false; result = e.message; }
+    L(`遥控「${c.cmd}」${ok ? "做好了" : "没做成"}：${typeof result === "string" ? result : JSON.stringify(result || "").slice(0, 200)}`, ok ? "info" : "warn", "遥控");
+    if (agent) await agent.cmdDone(c.id, ok, result);
+  }
+  async function uploadLogs(days) {
+    const f = logs.bundle(Math.min(7, +days || 2), diagText());
+    const r = await api("/api/logs/put", { name: path.basename(f) });
+    await Agent.xfer("PUT", r.url, f);
+    fs.rmSync(f, { force: true });
+    return { key: r.key };
+  }
+  H.uploadLogs = async () => uploadLogs(2);
+
+  // ---------- 专业模式：任务控制台、诊断 ----------
+  H.taskDir = async () => { const c = agent && agent.current(); if (!c) return null; o.openPath && o.openPath(c.dir); return c.dir; };
+  H.killTask = async () => { if (!agent || !agent.current()) return false; await agent.kill("在本机结束了这个任务"); return true; };
+  H.diag = async () => diagText();
+
+  // ---------- 看门狗：主循环卡住了就重开 ----------
+  const wd = setInterval(async () => {
+    if (!agent) return;
+    if (Date.now() - agent.lastTick() > (o.watchdogMs || 5 * 60e3)) {
+      L("后台好像卡住了：自动重开（正在算的交给别的电脑从存档接着算）", "error", "看门狗");
+      const a = agent; agent = null;
+      try { await Promise.race([a.stop(), new Promise((r) => setTimeout(r, 30e3))]); } catch (e) {}
+      startAgent();
+    }
+  }, o.watchdogTick || 60e3);
+  wd.unref && wd.unref();
+
+  // ---------- 每天早上 9 点：昨天帮忙算了多少 ----------
+  const daily = setInterval(async () => {
+    const d = new Date();
+    const key = d.toISOString().slice(0, 10);
+    if (d.getHours() < 9 || cfg.dailyAt === key || !agent) return;
+    cfg.dailyAt = key; save();
+    try {
+      const r = await api("/api/me/stats?days=2");
+      const y = (r.days || []).find((x) => x.day !== r.today) || null;
+      if (y && y.busySecs > 60) notify("昨天的贡献", `这台电脑昨天算了 ${(y.busySecs / 3600).toFixed(1)} 小时、做完 ${y.tasks} 个任务，谢谢！`, "daily");
+    } catch (e) {}
+  }, 10 * 60e3);
+  daily.unref && daily.unref();
+
+  if (o.detectRegion !== false) { const rt = setTimeout(() => region.detect().catch(() => {}), 30e3); rt.unref && rt.unref(); }
   if (cfg.token) startAgent();
-  return { H, shutdown: async () => { updater.stop(); if (agent) await agent.stop(); try { ai.stop(); } catch (e) {} try { llm.stop(); } catch (e) {} }, agent: () => agent, updater, ai, llm };
+  L(`启动 ${o.version}（${o.hidden ? "开机自启，藏在托盘" : "打开了窗口"}）；上次的状态：${cfg.manual || "auto"}`, "info", "软件");
+  return { H, logs, power, region, shutdown: async () => { updater.stop(); clearInterval(wd); clearInterval(daily); clearInterval(hk); if (agent) await agent.stop(); power.keepAwake(false); logs.flush(); try { ai.stop(); } catch (e) {} try { llm.stop(); } catch (e) {} }, agent: () => agent, updater, ai, llm };
 }
 
-module.exports = { createService };
+// 数据文件夹在哪（主进程启动时就要知道：找上次下好的新版安装包）
+function dataBaseOf(user) { try { return JSON.parse(fs.readFileSync(path.join(user, "grid.json"), "utf8")).dataDir || user; } catch (e) { return user; } }
+module.exports = { createService, dataBaseOf };

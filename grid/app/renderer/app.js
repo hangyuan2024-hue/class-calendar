@@ -27,6 +27,8 @@
     if (p === "board") loadBoard();
     if (p === "guide") paintGuide();
     if (p === "live") drawChart();
+    if (p === "logs") loadLogs(true);
+    if (p === "settings") loadSettings();
   }
   $$(".side a").forEach((a) => (a.onclick = () => go(a.dataset.p)));
 
@@ -310,6 +312,63 @@
     const b = $("#updNow"); if (b) b.onclick = guard(async () => { b.disabled = true; b.textContent = "正在更新…"; const ok = await call("updateNow"); if (!ok) { b.disabled = false; b.textContent = "现在就更新"; toast("这个版本不能自动更新：去官网下载新版安装包", true); } });
   }
   window.lg.on("update", paintUpdate);
+
+  // ---------- 日志 ----------
+  const lgFmt = (l, q) => { const cls = / 错误 /.test(l) ? "e" : / 注意 /.test(l) ? "w" : ""; let h = esc(l); if (q) h = h.split(esc(q)).join(`<mark>${esc(q)}</mark>`); return `<div class="${cls}">${h}</div>`; };
+  async function loadLogs(days) {
+    if (days) { const ds = await call("logDays"); const cur = $("#lgDay").value; $("#lgDay").innerHTML = ds.length ? ds.map((d) => `<option value="${d.day}">${d.day}（${(d.size / 1024).toFixed(0)}K）</option>`).join("") : `<option value="">今天</option>`; if (cur && ds.some((d) => d.day === cur)) $("#lgDay").value = cur; }
+    const q = $("#lgQ").value.trim();
+    const r = await call("logRead", { day: $("#lgDay").value, q, level: $("#lgLevel").value, limit: 2000 });
+    $("#lgView").innerHTML = r.lines.map((l) => lgFmt(l, q)).join("") || `<div class="muted">没有</div>`;
+    $("#lgInfo").textContent = `${r.day}：${r.total} 行${r.total > r.lines.length ? "（只显示最后 " + r.lines.length + " 行）" : ""}`;
+    if ($("#lgFollow").checked) $("#lgView").scrollTop = $("#lgView").scrollHeight;
+  }
+  ["#lgDay", "#lgLevel"].forEach((k) => ($(k).onchange = () => loadLogs()));
+  $("#lgQ").oninput = () => { clearTimeout(loadLogs.t); loadLogs.t = setTimeout(() => loadLogs(), 250); };
+  $("#lgExport").onclick = guard(async () => { const f = await call("logExport"); toast("导出好了：" + f); });
+  $("#lgDir").onclick = () => call("logOpenDir");
+  window.lg.on("log", (l) => {
+    if (page !== "logs" || $("#lgQ").value || $("#lgLevel").value) return;
+    const today = new Date(); const k = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    if ($("#lgDay").value && $("#lgDay").value !== k) return;
+    const t = new Date(l.t), hh = (n) => String(n).padStart(2, "0");
+    $("#lgView").insertAdjacentHTML("beforeend", lgFmt(`${hh(t.getHours())}:${hh(t.getMinutes())}:${hh(t.getSeconds())} ${l.level === "error" ? "错误" : l.level === "warn" ? "注意" : "    "} [${l.src || "软件"}] ${l.msg}`));
+    while ($("#lgView").children.length > 3000) $("#lgView").firstChild.remove();
+    if ($("#lgFollow").checked) $("#lgView").scrollTop = $("#lgView").scrollHeight;
+  });
+
+  // ---------- 设置 ----------
+  const GB = (b) => (b == null ? "—" : b >= 1e9 ? (b / 1e9).toFixed(1) + "G" : (b / 1e6).toFixed(0) + "M");
+  async function loadSettings() {
+    const st = await call("settings");
+    $$("[data-set]").forEach((el) => { const v = st[el.dataset.set]; if (el.type === "checkbox") el.checked = !!v; else el.value = v == null ? "" : v; });
+    $$("[data-no]").forEach((el) => (el.checked = !st["no_" + el.dataset.no]));
+    $$("input[name=region]").forEach((el) => (el.checked = el.value === (st.region || "auto")));
+    const ri = st.regionInfo || {};
+    $("#regionInfo").textContent = `现在用：${ri.current === "cn" ? "国内（腾讯云存储）" : "国外（GitHub）"}${ri.cnMs != null || ri.ghMs != null ? `；上次测：国内存储 ${ri.cnMs == null ? "连不上" : ri.cnMs + "ms"}，GitHub ${ri.ghMs == null ? "连不上" : ri.ghMs + "ms"}` : ""}`;
+    $("#powerInfo").textContent = `${st.power && st.power.awake ? "现在：不让电脑睡（" + (st.power.why || "要算") + "）" : "现在：电脑可以照常睡"}${st.onBattery ? " · 正在用电池" : ""}`;
+    $("#proBox").hidden = !st.pro;
+    if (st.pro) $("#proDiag").textContent = await call("diag");
+    loadDisk();
+  }
+  async function saveSet(p) { try { await call("setSettings", p); $("#setState").textContent = "保存好了 " + new Date().toLocaleTimeString(); await loadSettings(); } catch (e) { toast(e.message, true); loadSettings(); } }
+  $$("[data-set]").forEach((el) => (el.onchange = () => saveSet({ [el.dataset.set]: el.type === "checkbox" ? el.checked : +el.value })));
+  $$("[data-no]").forEach((el) => (el.onchange = () => saveSet({ ["no_" + el.dataset.no]: !el.checked })));
+  $$("input[name=region]").forEach((el) => (el.onchange = () => saveSet({ region: el.value })));
+  $("#regionGo").onclick = guard(async () => { $("#regionGo").disabled = true; try { await call("redetectRegion"); await loadSettings(); toast("测好了"); } finally { $("#regionGo").disabled = false; } });
+  async function loadDisk() {
+    $("#diskTbl").innerHTML = `<tr><td class="muted">统计中…（大文件夹要几秒）</td></tr>`;
+    const r = await call("diskReport");
+    $("#diskFree").textContent = `数据文件夹 ${r.base}，这个盘还剩 ${GB(r.free)}${r.low ? "（快满了！）" : ""}`;
+    $("#diskTbl").innerHTML = `<tr><th>哪一部分</th><th>占用</th><th></th><th></th></tr>` + r.parts.map((p) => `<tr><td>${esc(p.name)}</td><td class="num">${GB(p.bytes)}</td><td class="muted small">${esc(p.note || "")}</td><td>${p.cleanable && p.bytes ? `<button class="btn small" data-clean="${p.id}">清理</button>` : ""}</td></tr>`).join("");
+    $$("[data-clean]").forEach((b) => (b.onclick = guard(async () => { if (!confirm("清理「" + b.closest("tr").firstChild.textContent + "」？")) return; b.disabled = true; const x = await call("diskClean", b.dataset.clean); toast(`腾出 ${GB(x.freed)}`); loadDisk(); })));
+  }
+  $("#diskGo").onclick = () => loadDisk();
+  $("#proDir").onclick = guard(async () => { if (!(await call("taskDir"))) toast("现在没在算"); });
+  $("#proKill").onclick = guard(async () => { if (!confirm("结束当前任务？会交给别的电脑从存档接着算。")) return; toast((await call("killTask")) ? "结束了" : "现在没在算"); });
+  $("#proWork").onclick = () => call("openWork");
+  $("#proUpload").onclick = guard(async () => { await call("uploadLogs"); toast("交上去了：控制中心这台电脑的详情里能看到"); });
+  $("#proCheck").onclick = guard(async () => { const u = await call("updateCheck"); toast(u.state === "ready" || u.state === "downloading" ? `有新版 ${u.latest}` : u.error || "已经是最新版"); });
 
   $("#adminGo").onclick = guard(async () => { if (!(await call("openAdmin"))) toast("只有管理员能打开", true); });
 

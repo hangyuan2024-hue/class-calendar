@@ -34,6 +34,8 @@
     <a data-p="guide"><i>☰</i>任务向导<em id="navGuide" hidden></em></a>
     <a data-p="review"><i>✓</i>人工审核<em id="navReview" hidden></em></a>
     <a data-p="board"><i>♛</i>贡献榜</a>
+    <a data-p="logs"><i>▤</i>日志</a>
+    <a data-p="settings"><i>⚙</i>设置</a>
     <a id="navAdmin" data-p="admin" hidden><i>◎</i>控制中心</a>
     <div class="ver" id="verLabel"></div>
     <div class="side-foot">
@@ -150,6 +152,89 @@
       <h2>贡献榜 <small class="muted">算力每分钟 1 分，录表情每分钟 3 分，审核每票 1 分。模型开源时写进致谢名单。</small></h2>
       <div class="podium" id="podium"></div>
       <div class="glass panel"><table class="tbl" id="boardTbl"></table></div>
+    </section>
+
+    <!-- 日志 -->
+    <section class="page" id="p-logs">
+      <h2>日志 <small class="muted">每天一个文件，留 14 天。出问题时点「导出」，把文件发给维护的人</small></h2>
+      <div class="glass panel">
+        <div class="logbar">
+          <select id="lgDay"></select>
+          <select id="lgLevel"><option value="">全部</option><option value="warn">注意和错误</option><option value="error">只看错误</option></select>
+          <input id="lgQ" placeholder="搜索（比如：任务、下载、显卡）">
+          <label class="check"><input type="checkbox" id="lgFollow" checked> 跟着最新的</label>
+          <span class="grow"></span>
+          <button class="btn small" id="lgExport">导出最近 3 天</button>
+          <button class="btn small ghost" id="lgDir">打开日志文件夹</button>
+        </div>
+        <div class="logview" id="lgView"></div>
+        <p class="muted small" id="lgInfo"></p>
+      </div>
+    </section>
+
+    <!-- 设置 -->
+    <section class="page" id="p-settings">
+      <h2>设置</h2>
+      <div class="setgrid">
+        <div class="glass panel">
+          <h3>开机和睡眠</h3>
+          <label class="check"><input type="checkbox" data-set="autostart"> 开机自动启动（藏在托盘里，接着上次的状态：上次点了「开始」就接着算）</label>
+          <label class="check"><input type="checkbox" data-set="keepAwake"> 要算的时候不让电脑睡（正在算、或者在等任务时；停了照常睡）</label>
+          <label class="check"><input type="checkbox" data-set="lid"> 合上笔记本盖子也继续算（只在插着电时；关掉这个会改回原来的设置）</label>
+          <label class="check"><input type="checkbox" data-set="pauseOnBattery"> 拔了电源就停（插上电接着算）</label>
+          <p class="muted small" id="powerInfo"></p>
+        </div>
+        <div class="glass panel">
+          <h3>资源上限</h3>
+          <p class="muted small">显卡温度上限、什么时候算，在「任务向导 → 第 6 步」里设。</p>
+          <label>显存最多用 <input type="number" min="0" max="96" step="0.5" data-set="vramCap"> G（0 = 不限；留一点给自己用就设小一点，只领需要显存不超过这么多的活）</label>
+          <label>显卡功耗上限 <input type="number" min="0" max="600" step="5" data-set="maxPower"> W（0 = 不限；超过就歇一会儿）</label>
+          <label>网速上限 <input type="number" min="0" max="1000" step="1" data-set="netLimit"> MB/秒（0 = 不限；下载模型、传结果都算）</label>
+        </div>
+        <div class="glass panel">
+          <h3>下载源</h3>
+          <label class="radio"><input type="radio" name="region" value="auto"> 自动判断（同时连一下国内存储和 GitHub，看谁快）</label>
+          <label class="radio"><input type="radio" name="region" value="cn"> 国内：从捞捞的腾讯云存储下</label>
+          <label class="radio"><input type="radio" name="region" value="global"> 国外：从捞捞的 GitHub 下</label>
+          <p class="muted small" id="regionInfo"></p>
+          <button class="btn small" id="regionGo">重新测一下</button>
+        </div>
+        <div class="glass panel">
+          <h3>通知</h3>
+          <label class="check"><input type="checkbox" data-set="notify"> 右下角弹提示</label>
+          <div class="row3 small">
+            <label class="check"><input type="checkbox" data-no="done"> 算完大任务</label>
+            <label class="check"><input type="checkbox" data-no="error"> 出错</label>
+            <label class="check"><input type="checkbox" data-no="update"> 更新</label>
+            <label class="check"><input type="checkbox" data-no="battery"> 拔电</label>
+            <label class="check"><input type="checkbox" data-no="temp"> 过热</label>
+            <label class="check"><input type="checkbox" data-no="disk"> 硬盘快满</label>
+            <label class="check"><input type="checkbox" data-no="daily"> 每天早上的贡献</label>
+          </div>
+        </div>
+        <div class="glass panel wide">
+          <h3>硬盘和缓存 <small class="muted" id="diskFree"></small></h3>
+          <table class="tbl" id="diskTbl"></table>
+          <label>算完的任务文件留 <input type="number" min="0" max="30" data-set="keepTaskDays"> 天（每 6 小时自动清一次）</label>
+          <button class="btn small" id="diskGo">重新统计</button>
+        </div>
+        <div class="glass panel wide">
+          <h3>专业模式 <label class="check inline"><input type="checkbox" data-set="pro"> 打开</label></h3>
+          <div id="proBox" hidden>
+            <label>任务卡住多久算卡住 <input type="number" min="0" max="600" data-set="stallMin"> 分钟（这么久没有任何输出就结束它、交给别的电脑；0 = 不检查）</label>
+            <div class="btns">
+              <button class="btn small" id="proDir">打开当前任务的文件夹</button>
+              <button class="btn small" id="proKill">结束当前任务（交给别的电脑）</button>
+              <button class="btn small" id="proWork">打开工作文件夹</button>
+              <button class="btn small" id="proUpload">把日志交给控制中心</button>
+              <button class="btn small" id="proCheck">现在检查更新</button>
+            </div>
+            <h4>诊断信息</h4>
+            <pre class="diag" id="proDiag"></pre>
+          </div>
+        </div>
+      </div>
+      <p class="muted small" id="setState"></p>
     </section>
 
     <!-- 控制中心（管理员） -->

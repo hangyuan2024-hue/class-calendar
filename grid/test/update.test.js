@@ -41,21 +41,28 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   assert.equal(await up.maybeApply(false), false);
   ok("在录表情：不装");
   rec = false;
-  assert.equal(await up.maybeApply(false), false); assert.equal(drained, true); assert.equal(installed, null);
-  ok("没人用电脑了：先不领新任务，手上的接着算");
+  assert.equal(await up.maybeApply(false), false); assert.equal(drained, null, "等更新也照常领任务"); assert.equal(installed, null);
+  ok("没人用电脑、但手上有任务：接着算（不停、照常领任务），算完再装");
   task = null;
   assert.equal(await up.maybeApply(false), true); assert.equal(installed, s.file); assert.equal(stopped, 0);
   assert.equal(up.status().state, "installing");
   ok("手上的算完了：静默安装、自己重新打开");
+  assert.ok(fs.existsSync(s.file + ".ok"));
+  assert.equal(U.create({ dir: () => tmp, version: "0.1.5" }).pending().version, "0.1.20", "下好没装的，开机 / 退出时先装");
+  assert.equal(U.create({ dir: () => tmp, version: "0.1.20" }).pending(), null);
 
-  // 任务一直没算完：等到时间就交给别的电脑（有存档，不丢），再装
-  const up2 = U.create({ dir: () => tmp, version: "0.1.5", sources: [base + "/v.json"], agent: () => agent, idleSecs: async () => 0, windowHidden: () => true, install: async (f) => (installed = "2:" + f), maxWaitMin: 0.001 });
-  task = { id: 2 }; drained = null; installed = null;
+  // 有人一直在用电脑：下好超过 6 小时，手上没任务时先提醒 1 分钟，再装
+  const notes = [];
+  const up2 = U.create({ dir: () => tmp, version: "0.1.5", sources: [base + "/v.json"], agent: () => agent, idleSecs: async () => 0, windowHidden: () => false, install: async (f) => (installed = "2:" + f), overdueH: 0.00001, notify: (t) => notes.push(t) });
+  task = null; drained = null; installed = null;
   await up2.check();
-  assert.equal(await up2.maybeApply(false), false); assert.equal(drained, true);
-  await sleep(150);
-  assert.equal(await up2.maybeApply(false), true); assert.equal(stopped, 1); assert.ok(String(installed).startsWith("2:"));
-  ok("窗口藏在托盘里也算没人用；任务等太久就交给别的电脑从存档接着算，再更新");
+  await sleep(100);
+  assert.equal(await up2.maybeApply(false), false); assert.equal(notes.length, 1); assert.match(up2.status().waiting, /1 分钟后/);
+  ok("有人一直在用：下好 6 小时还没装上，就提前 1 分钟提醒，再装");
+  // 控制中心遥控「立刻更新」：手上的交给别的电脑接着算
+  task = { id: 3 };
+  assert.equal(await up2.now(), true); assert.equal(stopped, 1); assert.ok(String(installed).startsWith("2:"));
+  ok("「立刻更新」：手上的任务交给别的电脑从存档接着算，马上装");
 
   // 坏的安装包不装
   info = { ...info, version: "0.1.21", sha256: "0".repeat(64) };

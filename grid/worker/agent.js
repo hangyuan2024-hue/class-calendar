@@ -32,6 +32,16 @@ function verifySig(pub, msg, sig) {
 // 上传 / 下载（带 Content-Length，COS 的预签名 PUT 要它）
 // 同一个文件同时只下一次（比如刚重启时旧的下载还没停）：后来的等前面那个
 const inflight = new Map();
+// 网速上限（所有上传下载一起算，字节/秒；0 = 不限）：每秒一个额度，用完了暂停到下一秒
+const net = { bps: 0, winStart: 0, used: 0 };
+function setNetLimit(mbps) { net.bps = Math.max(0, +mbps || 0) * 1048576; }
+function throttle(stream, n) {
+  if (!net.bps) return;
+  const now = Date.now();
+  if (now - net.winStart >= 1000) { net.winStart = now; net.used = 0; }
+  net.used += n;
+  if (net.used > net.bps) { stream.pause(); setTimeout(() => stream.resume(), Math.max(50, 1000 - (Date.now() - net.winStart))); }
+}
 function xfer(method, url, file, o = {}) {
   if (method !== "GET") return xfer1(method, url, file, o);
   const k = path.resolve(file);
@@ -53,7 +63,7 @@ function xfer1(method, url, file, { onProgress, signal } = {}) {
       if (signal) signal.addEventListener("abort", () => req.destroy(new Error("停了")));
       let sent = 0;
       const rs = fs.createReadStream(file);
-      rs.on("data", (c) => { sent += c.length; onProgress && onProgress(sent, size); });
+      rs.on("data", (c) => { sent += c.length; throttle(rs, c.length); onProgress && onProgress(sent, size); });
       rs.pipe(req);
       return;
     }
@@ -67,7 +77,7 @@ function xfer1(method, url, file, { onProgress, signal } = {}) {
       const total = have + (+res.headers["content-length"] || 0);
       const ws = fs.createWriteStream(tmp, { flags: have ? "a" : "w" });
       let got = have;
-      res.on("data", (c) => { got += c.length; onProgress && onProgress(got, total); });
+      res.on("data", (c) => { got += c.length; throttle(res, c.length); onProgress && onProgress(got, total); });
       res.pipe(ws);
       // 改名失败（同一个文件另一处刚好也下完、已经改过名了）：文件在就算成功，不让整个程序崩掉
       ws.on("finish", () => { try { fs.renameSync(tmp, file); ok({ size: got }); } catch (e) { if (fs.existsSync(file)) ok({ size: fs.statSync(file).size }); else bad(e); } });
@@ -93,7 +103,8 @@ function create(opt) {
   let stopped = false, paused = false, draining = false;
   // 手动开关：auto 按挂机设置；on 手动开始（不管空闲 / 定时，一直算到点「停止」，但还是让着游戏、怕过热）；off 停止
   let manual = opt.manual || "auto";
-  let lastHb = 0, lastLease = 0;
+  let lastHb = 0, lastLease = 0, lastTick = Date.now();
+  const CMD_NAMES = { start: "开始", stop: "停止", auto: "按设置自动", update: "立刻更新", restart: "重启软件", logs: "交日志", clean: "清理缓存", probe: "重新体检" };
   const logs = [];
   let gpuNow = null;
   const emit = (k, v) => { try { ev.emit(k, v); ev.emit("any", { k, v }); } catch (e) {} };
@@ -123,7 +134,11 @@ function create(opt) {
       const idle = opt.idleSecs ? await opt.idleSecs() : 1e9;
       if (idle < (policy.idleMin || 5) * 60) return { ok: false, why: `你在用电脑，空闲 ${policy.idleMin} 分钟后开始`, active: true };
     }
+    // 笔记本拔了电源：停（插上电接着算）；「开始」了也一样，不然电池几十分钟就没了
+    if (policy.pauseOnBattery !== false && opt.onBattery && (await opt.onBattery())) return { ok: false, why: "拔了电源：插上电就接着算", battery: true };
+    if (manual !== "on" && policy.mode === "schedule" && Array.isArray(policy.days) && policy.days.length && !policy.days.includes(new Date().getDay())) return { ok: false, why: "今天不在定时算的日子里" };
     if (gpuNow && gpuNow.temp != null && gpuNow.temp >= (policy.maxTemp || 83)) return { ok: false, why: `显卡 ${gpuNow.temp}℃，凉一凉再算` };
+    if (policy.maxPower && gpuNow && gpuNow.power != null && gpuNow.power > policy.maxPower * 1.15) return { ok: false, why: `显卡功耗 ${Math.round(gpuNow.power)}W 超过上限 ${policy.maxPower}W，歇一会儿` };
     if (policy.yieldGames && opt.gpuApps) {
       const apps = await opt.gpuApps(cur && cur.child ? [cur.child.pid] : []);
       const big = apps.filter((a) => a.mem > 300 || /game|steam|\.exe$/i.test(a.name || "") && a.mem > 100);
@@ -140,11 +155,16 @@ function create(opt) {
       const g = await gate();
       if (Date.now() - lastHb > (opt.hbMs || 15000)) {
         lastHb = Date.now();
-        await api("/api/hb", { state: cur ? "busy" : g.ok ? "idle" : "waiting", info: { ...(caps || {}), gpuNow, version: opt.version || "" }, policy, live: cur ? liveOf() : null });
+        const hb = await api("/api/hb", { state: cur ? "busy" : g.ok ? "idle" : "waiting", why: g.ok ? "" : g.why, info: { ...(caps || {}), gpuNow, version: opt.version || "", ...(opt.extraInfo ? opt.extraInfo() : {}) }, policy, live: cur ? liveOf() : null });
+        // 控制中心远程遥控：开始 / 停止 / 更新 / 重启 / 取日志……交给软件去做，做完回个话
+        for (const c of (hb && hb.cmds) || []) { log("控制中心让这台电脑：" + (CMD_NAMES[c.cmd] || c.cmd)); emit("command", c); }
         if (state === "offline") setState(cur ? "busy" : "idle");
       }
+      lastTick = Date.now();
       if (cur) {
-        if (!g.ok && (paused || manual === "off" || g.active || /℃/.test(g.why))) { log("停下：" + g.why, "warn"); await stopTask(true, g.why); }
+        if (!g.ok && (paused || manual === "off" || g.active || g.battery || /℃|功耗/.test(g.why))) { log("停下：" + g.why, "warn"); await stopTask(true, g.why); }
+        // 卡住了：好久没有任何输出（日志、进度、曲线）→ 结束它，交给别的电脑从存档接着算
+        else if (opt.stallMin !== 0 && cur.child && Date.now() - (cur.lastOut || cur.started) > (opt.stallMin || 45) * 60e3 && !cur.stopping) { log(`这个任务 ${opt.stallMin || 45} 分钟没有动静，像是卡住了：结束它，交给别的电脑接着算`, "error"); await stopTask(true, "卡住了（很久没有输出）"); }
       } else if (!g.ok) setState(paused || manual === "off" ? "paused" : "waiting", g.why);
       else if (Date.now() - lastLease > (opt.leaseEveryMs || 10000)) {
         lastLease = Date.now();
@@ -188,6 +208,7 @@ function create(opt) {
     log(`领到任务：「${L.job.name}」`);
     // 一领到就开始续租：第一次装 GPT-SoVITS / AI 引擎、下大文件（讲课视频）都可能要几十分钟，不续租调度中心会以为掉线了、把任务给别人
     let renewTimer = setInterval(() => renew(c).catch(() => {}), opt.renewMs || 20000);
+    c.lastOut = Date.now();
     try {
       const rc = await fetchRecipe(L.recipe);
       emit("source", { id: c.id, name: L.recipe.name, source: rc.source });
@@ -206,22 +227,22 @@ function create(opt) {
         if (!opt.llm) throw new Error("这台电脑的客户端太旧，跑不了本地大模型");
         c.note = "准备本地大模型…";
         // lazy：配方自己决定什么时候开（比如先训练、训完再开大模型考试），这里不先开
-        if (!((L.job.params || {}).llm || {}).lazy) llmUrl = await opt.llm.ensure((L.job.params || {}).llm || {}, (m) => { c.note = m; log(m); emit("progress", { id: c.id, p: c.progress, note: m }); });
+        if (!((L.job.params || {}).llm || {}).lazy) llmUrl = await opt.llm.ensure((L.job.params || {}).llm || {}, (m) => { c.note = m; c.lastOut = Date.now(); log(m); emit("progress", { id: c.id, p: c.progress, note: m }); });
       }
       // 配方开头写「# needs: gsv」：要用 GPT-SoVITS 整合包（训练声音）；第一次自动装（几个 G）
       let gsv = null;
       if (/^#\s*needs:.*\bgsv\b/m.test(rc.source)) {
         if (!opt.gsv) throw new Error("这台电脑的客户端太旧，训练不了声音");
         c.note = "准备 GPT-SoVITS…";
-        gsv = await opt.gsv.ensure((m) => { c.note = m; log(m); emit("progress", { id: c.id, p: c.progress, note: m }); });
+        gsv = await opt.gsv.ensure((m) => { c.note = m; c.lastOut = Date.now(); log(m); emit("progress", { id: c.id, p: c.progress, note: m }); });
       }
       const t = { kind: L.task.kind, task: L.task, input: L.task.input, job: L.job, work: dir, resume: null, parts: [], llm: llmUrl, gsv, extra: L.extra || {} };
-      if (L.resume) { const f = path.join(dir, "resume-" + path.basename(L.resume.key)); c.note = "下载存档…"; await xfer("GET", L.resume.url, f); t.resume = f; t.resumeInfo = { step: L.resume.step, round: L.resume.round }; }
+      if (L.resume) { const f = path.join(dir, "resume-" + path.basename(L.resume.key)); c.note = "下载存档…"; await xfer("GET", L.resume.url, f, { onProgress: () => { c.lastOut = Date.now(); } }); t.resume = f; t.resumeInfo = { step: L.resume.step, round: L.resume.round }; }
       for (const [i, u] of (L.task.input.partUrls || []).entries()) { const f = path.join(dir, `part-${i}.npz`); await xfer("GET", u, f); t.parts.push(f); }
       delete t.input.partUrls;
       // 前面步骤的结果文件、接着训练的起点：下载到本机
       t.files = {}; t.deps = L.deps || {};
-      for (const [k, u] of Object.entries(L.fileUrls || {})) { const f = path.join(dir, "in-" + k.replace(/[^\w.\-]/g, "_")); c.note = "下载 " + k + "…"; await xfer("GET", u, f); t.files[k] = f; }
+      for (const [k, u] of Object.entries(L.fileUrls || {})) { const f = path.join(dir, "in-" + k.replace(/[^\w.\-]/g, "_")); c.note = "下载 " + k + "…"; await xfer("GET", u, f, { onProgress: () => { c.lastOut = Date.now(); } }); t.files[k] = f; }
       // 训练要用的人工审核结果（params.dataset）
       if (L.job.params && L.job.params.dataset) { c.note = "取审核数据…"; const d = await api("/api/dataset", { task: c.id }); t.dataset = path.join(dir, "dataset.json"); fs.writeFileSync(t.dataset, JSON.stringify(d.items || [])); log(`审核数据：${(d.items || []).length} 条`); }
       fs.writeFileSync(path.join(dir, "task.json"), JSON.stringify(t));
@@ -295,6 +316,7 @@ function create(opt) {
     });
   }
   function onLine(c, l, err) {
+    c.lastOut = Date.now();
     if (!l.startsWith("@@lg ")) {
       if (!l.trim()) return;
       const e = { t: Date.now(), msg: l, level: err && /error|Error|Traceback|exception/.test(l) ? "error" : err ? "warn" : "info" };
@@ -344,7 +366,7 @@ function create(opt) {
             if (op === "info") return { version: opt.llm.version ? await opt.llm.version() : "", convert: opt.llm.convertDir ? opt.llm.convertDir() : "" };
             const spec = { ...((c.job.params || {}).llm || {}), ...(a.llm || {}) };
             if (a.lora) { const f = path.resolve(c.dir, String(a.lora)); if (!f.startsWith(path.resolve(c.dir) + path.sep) || !fs.existsSync(f)) throw new Error("LoRA 文件要在任务文件夹里"); spec.lora = f; }
-            return { url: await opt.llm.ensure(spec, (x) => { c.note = x; emit("progress", { id: c.id, p: c.progress, note: x }); }) };
+            return { url: await opt.llm.ensure(spec, (x) => { c.note = x; c.lastOut = Date.now(); emit("progress", { id: c.id, p: c.progress, note: x }); }) };
           })
           .then((r) => reply({ ok: true, ...r }), (e) => reply({ ok: false, error: e.message }));
         break;
@@ -354,7 +376,7 @@ function create(opt) {
         const { t, id, op, ...a } = m;
         const reply = (x) => { try { if (c.child && c.child.stdin && !c.child.stdin.destroyed) c.child.stdin.write(JSON.stringify({ id, ...x }) + "\n"); } catch (e) {} };
         Promise.resolve()
-          .then(() => { if (!opt.comfy) throw new Error("这台电脑还没装好 AI 引擎"); return opt.comfy.call(op, a, { dir: c.dir, onMsg: (x) => { if (x && x.max) { c.note = `AI 引擎：第 ${x.value}/${x.max} 步`; emit("progress", { id: c.id, p: c.progress, note: c.note }); } } }); })
+          .then(() => { if (!opt.comfy) throw new Error("这台电脑还没装好 AI 引擎"); return opt.comfy.call(op, a, { dir: c.dir, onMsg: (x) => { c.lastOut = Date.now(); if (x && x.max) { c.note = `AI 引擎：第 ${x.value}/${x.max} 步`; emit("progress", { id: c.id, p: c.progress, note: c.note }); } } }); })
           .then((r) => reply({ ok: true, ...r }), (e) => reply({ ok: false, error: e.message }));
         break;
       }
@@ -381,6 +403,10 @@ function create(opt) {
     setCaps(c) { caps = c; lastHb = 0; },
     // 准备更新：不领新任务，手上的接着算完
     drain(v) { draining = !!v; lastLease = 0; },
+    cmdDone: (id, ok, result) => api("/api/cmd/done", { id, ok: !!ok, result: result == null ? null : result }).catch(() => {}),
+    lastTick: () => lastTick,
+    touch() { if (cur) cur.lastOut = Date.now(); },   // 准备阶段（装 GPT-SoVITS、下大文件）有进度时也算有动静
+    kill: (why) => stopTask(true, why || "被结束了"),
     get policy() { return policy; },
     status: () => ({ state, why, paused, manual, policy, task: cur ? { id: cur.id, job: cur.job, recipe: cur.recipe && { id: cur.recipe.id, name: cur.recipe.name }, progress: cur.progress, line: cur.line, fn: cur.fn, note: cur.note, started: cur.started, ckpts: cur.ckpts } : null, logs: logs.slice(-200), gpu: gpuNow }),
     // 测试用：模拟突然断电（不告诉调度中心，进程直接没了）
@@ -398,4 +424,4 @@ async function join(invite, name, device, fetchImpl = fetch) {
   return { server: inv.server, pubkey: inv.pubkey, token: j.token, device: j.device, member: j.member };
 }
 
-module.exports = { create, join, parseInvite, verifySig, xfer, probe };
+module.exports = { setNetLimit, create, join, parseInvite, verifySig, xfer, probe };

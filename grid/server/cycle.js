@@ -310,7 +310,12 @@ function attach(core, opt = {}) {
       models: all("select * from models order by name, version desc limit 60").map((m) => ({ id: m.id, name: m.name, version: m.version, state: m.state, metrics: J(m.metrics, {}), created: m.created, note: m.note, run: m.run_id })),
     };
   }
-  return { nextAt, setPipeline, startRun, tick, onJobDone, manifest, publicKeys, privateManifest, privateKeys, codeOf, setModel, view, better, released, abStats, promote, setEnabled: (id, v) => run("update pipelines set enabled=? where id=?", v ? 1 : 0, id) };
+  // 一个模型每一版的评测成绩（包括没过的）：控制中心画「越训越好」
+  function history(name) {
+    const names = name ? [name] : all("select distinct name from models order by name").map((r) => r.name);
+    return names.map((n) => ({ name: n, versions: all("select version, metrics, state, created, note from models where name=? order by version", n).map((m) => ({ version: m.version, metrics: J(m.metrics, {}), state: m.state, created: m.created, note: m.note })) }));
+  }
+  return { history, nextAt, setPipeline, startRun, tick, onJobDone, manifest, publicKeys, privateManifest, privateKeys, codeOf, setModel, view, better, released, abStats, promote, setEnabled: (id, v) => run("update pipelines set enabled=? where id=?", v ? 1 : 0, id) };
 }
 
 module.exports = { attach };

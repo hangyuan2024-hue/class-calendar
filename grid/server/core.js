@@ -36,6 +36,10 @@ create table if not exists events(id integer primary key, ts integer, type text,
 create table if not exists metrics(job_id integer, step integer, k text, v real, ts integer, device_id integer);
 create index if not exists metrics_j on metrics(job_id, k, step);
 create table if not exists outputs(id integer primary key, job_id integer, task_id integer, name text, key text, size integer, created integer);
+create table if not exists commands(id integer primary key, device_id integer not null, cmd text not null, args text, state text not null default 'queued', created integer, sent integer, done integer, ok integer, result text, by text);
+create index if not exists commands_d on commands(device_id, state);
+create table if not exists device_days(device_id integer, day text, online_secs real not null default 0, busy_secs real not null default 0, primary key(device_id, day));
+create table if not exists device_logs(id integer primary key, device_id integer, key text, name text, created integer);
 `;
 
 function open(file, opt = {}) {
@@ -98,11 +102,50 @@ function open(file, opt = {}) {
   }
 
   // 报平安：电脑的状态（显卡、温度、在不在挂机）
-  function heartbeat(dev, { info, state, policy, live } = {}) {
-    run("update devices set last_seen=?, info=coalesce(?,info), state=coalesce(?,state), policy=coalesce(?,policy), live=coalesce(?,live) where id=?", clock(), info ? S(info) : null, state || null, policy ? S(policy) : null, live ? S(live) : null, dev.id);
+  // 本地日期（按调度中心所在的时区）：贡献统计按天算
+  const dayKey = (t) => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+  function heartbeat(dev, { info, state, policy, live, why } = {}) {
+    const now = clock(), prev = one("select last_seen, state from devices where id=?", dev.id) || {};
+    // 在线时长 / 在算时长：两次心跳之间不超过 90 秒才算（中间断了的不算）
+    const gap = prev.last_seen ? (now - prev.last_seen) / 1000 : 0;
+    if (gap > 0 && gap < 90) run("insert into device_days(device_id,day,online_secs,busy_secs) values(?,?,?,?) on conflict(device_id,day) do update set online_secs=online_secs+excluded.online_secs, busy_secs=busy_secs+excluded.busy_secs", dev.id, dayKey(now), gap, prev.state === "busy" || state === "busy" ? gap : 0);
+    run("update devices set last_seen=?, info=coalesce(?,info), state=coalesce(?,state), policy=coalesce(?,policy), live=coalesce(?,live) where id=?", now, info ? S({ ...info, why: why || "" }) : null, state || null, policy ? S(policy) : null, live ? S(live) : null, dev.id);
     sweep();
-    return { time: clock() };
+    // 控制中心发给这台电脑的命令（发出去 2 分钟没回话的再发一次）
+    const cmds = all("select id, cmd, args from commands where device_id=? and (state='queued' or (state='sent' and sent<?)) order by id limit 5", dev.id, now - 120000);
+    for (const c of cmds) run("update commands set state='sent', sent=? where id=?", now, c.id);
+    return { time: now, cmds: cmds.map((c) => ({ id: c.id, cmd: c.cmd, args: J(c.args, null) })) };
   }
+  const CMDS = ["start", "stop", "auto", "update", "restart", "logs", "clean", "probe", "settings"];
+  function sendCommand(deviceId, cmd, args, by = "管理员") {
+    if (!CMDS.includes(cmd)) throw new Error("不认识的命令");
+    const d = one("select id, name from devices where id=? and disabled=0", deviceId);
+    if (!d) throw new Error("没有这台电脑");
+    run("update commands set state='dropped' where device_id=? and cmd=? and state='queued'", d.id, cmd);   // 同样的命令只留最新的
+    const id = Number(run("insert into commands(device_id,cmd,args,state,created,by) values(?,?,?,?,?,?)", d.id, cmd, args ? S(args) : null, "queued", clock(), by).lastInsertRowid);
+    return { id };
+  }
+  function commandDone(dev, { id, ok, result }) {
+    const c = one("select * from commands where id=? and device_id=?", +id, dev.id);
+    if (!c) return { ok: false };
+    run("update commands set state='done', done=?, ok=?, result=? where id=?", clock(), ok ? 1 : 0, S(result == null ? null : result).slice(0, 4000), c.id);
+    event(ok ? "cmd" : "warn", `「${dev.name}」${ok ? "做好了" : "没做成"}：${c.cmd}${ok ? "" : "（" + String(typeof result === "string" ? result : "").slice(0, 80) + "）"}`, { device: dev.id });
+    if (c.cmd === "logs" && ok && result && result.key) run("insert into device_logs(device_id,key,name,created) values(?,?,?,?)", dev.id, result.key, String(result.key).split("/").pop(), clock());
+    return { ok: true };
+  }
+  function commandsOf(deviceId) { return all("select id, cmd, state, created, done, ok, result from commands where device_id=? order by id desc limit 20", deviceId).map((c) => ({ ...c, result: J(c.result, null) })); }
+  // 贡献统计：按天、按电脑（在线、在算、做完的任务）；members 汇总
+  function stats(days = 14, deviceId = null) {
+    const since = dayKey(clock() - (days - 1) * 86400e3);
+    const dd = all(`select x.device_id, x.day, x.online_secs, x.busy_secs, d.name as device, m.name as member from device_days x join devices d on d.id=x.device_id join members m on m.id=d.member_id where x.day>=? ${deviceId ? "and x.device_id=?" : ""} order by x.day`, ...(deviceId ? [since, deviceId] : [since]));
+    const tk = all(`select device_id, finished, started, state from tasks where finished>=? and device_id is not null ${deviceId ? "and device_id=?" : ""} and state='done'`, ...(deviceId ? [clock() - days * 86400e3, deviceId] : [clock() - days * 86400e3]));
+    const tasksBy = {};
+    for (const t of tk) { const k = t.device_id + "|" + dayKey(t.finished); tasksBy[k] = (tasksBy[k] || 0) + 1; }
+    const rows = dd.map((r) => ({ deviceId: r.device_id, device: r.device, member: r.member, day: r.day, onlineSecs: Math.round(r.online_secs), busySecs: Math.round(r.busy_secs), tasks: tasksBy[r.device_id + "|" + r.day] || 0 }));
+    return { today: dayKey(clock()), since, rows };
+  }
+  function addDeviceLog(dev, key, name) { return { key, name }; }
+  function deviceLogs(deviceId) { return all("select id, key, name, created from device_logs where device_id=? order by id desc limit 10", deviceId); }
 
   // ---------- 配方（训练 / 生成的 Python 代码，管理员签名） ----------
   function addRecipe({ name, key, sig, meta, id }) {
@@ -578,7 +621,7 @@ function open(file, opt = {}) {
   return {
     db, kv, event, on: (f) => (listeners.add(f), () => listeners.delete(f)),
     adminToken, isAdmin, invite, join, auth, heartbeat, addRecipe, stage, createJob, lease, renew, checkpoint, finish, fail, sweep,
-    humanNext, humanDone, reviewNext, vote, cut, retire, addTasks, dataset, importVoice, voiceData, voices, addMember, overview, jobDetail, devicesView, board, setJob, setDevice, retry,
+    humanNext, humanDone, reviewNext, vote, cut, retire, addTasks, dataset, importVoice, voiceData, voices, addMember, sendCommand, commandDone, commandsOf, stats, deviceLogs, overview, jobDetail, devicesView, board, setJob, setDevice, retry,
     recipe: (id) => one("select * from recipes where id=?", id), recipes: () => all("select id,name,meta,created from recipes order by created desc"),
     review: (id) => one("select * from reviews where id=?", id),
     invites: () => all("select * from invites order by created desc limit 50"),

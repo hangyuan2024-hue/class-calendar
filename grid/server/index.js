@@ -80,6 +80,10 @@ function create(opt = {}) {
       return { key, url: store.url("PUT", key, 6 * 3600) };
     },
     "POST /api/get": (req, b, dev) => { if (!keyOk(b.key, dev)) throw new Error("没有权限"); return { url: store.url("GET", b.key, 3600) }; },
+    // 遥控命令做完了；交日志（拿一个上传地址：logs/<电脑>/<时间>-文件名）；这台电脑自己的贡献统计
+    "POST /api/cmd/done": (req, b, dev) => core.commandDone(dev, b),
+    "POST /api/logs/put": (req, b, dev) => { const name = String(b.name || "log.txt").replace(/[^\w.\-]/g, "_").slice(-80); const key = `logs/${dev.id}/${Date.now()}-${name}`; return { key, url: store.url("PUT", key, 3600) }; },
+    "GET /api/me/stats": (req, b, dev, u) => core.stats(Math.min(60, +u.searchParams.get("days") || 14), dev.id),
     "GET /api/me": (req, b, dev) => ({ device: { id: dev.id, name: dev.name }, member: { id: dev.member_id, name: dev.member_name, role: dev.role }, board: core.board().find((x) => x.id === dev.member_id) || null }),
     "GET /api/overview": (req, b, dev) => core.overview(false),
     "GET /api/board": () => core.board(),
@@ -106,6 +110,12 @@ function create(opt = {}) {
     "POST /api/admin/job/set": (req, b) => core.setJob(b.id, b),
     "POST /api/admin/job/retry": (req, b) => core.retry(b.id),
     "POST /api/admin/device/set": (req, b) => core.setDevice(b.id, b),
+    // 控制中心遥控某台电脑：开始 / 停止 / 自动 / 立刻更新 / 重启软件 / 交日志 / 清理缓存 / 重新体检 / 改设置
+    "POST /api/admin/device/cmd": (req, b) => core.sendCommand(+b.id, String(b.cmd || ""), b.args || null),
+    "GET /api/admin/device": (req, b, dev, u) => { const id = +u.searchParams.get("id"); return { commands: core.commandsOf(id), logs: core.deviceLogs(id).map((l) => ({ ...l, url: store.url("GET", l.key, 1800) })), stats: core.stats(14, id) }; },
+    "GET /api/admin/stats": (req, b, dev, u) => core.stats(Math.min(90, +u.searchParams.get("days") || 14)),
+    // 模型各版的评测成绩（画「越训越好」的曲线）
+    "GET /api/admin/model/history": (req, b, dev, u) => cycle.history ? cycle.history(String(u.searchParams.get("name") || "")) : [],
     "POST /api/admin/invite": (req, b) => { const inv = core.invite(b); const pub = core.kv.get("pubkey"); return { ...inv, link: inviteLink(b.server || publicBase, inv.code, pub) }; },
     "GET /api/admin/invites": () => core.invites(),
     "GET /api/admin/recipes": () => core.recipes(),

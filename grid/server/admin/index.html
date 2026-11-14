@@ -65,6 +65,11 @@
       <div class="bar vbar" hidden id="vBar"><i></i></div>
       <table class="tbl" id="voices"></table>
     </section>
+    <section class="card stats-card">
+      <h2>贡献统计 <small>每台电脑每天在算多久（心跳统计，断线的时间不算）</small> <select id="stDays"><option value="7">最近 7 天</option><option value="14" selected>最近 14 天</option><option value="30">最近 30 天</option></select></h2>
+      <canvas id="stBars" style="height:200px"></canvas>
+      <table class="tbl" id="stTbl"></table>
+    </section>
     <section class="cols3">
       <div class="card"><h2>动态</h2><div class="feed" id="feed"></div></div>
       <div class="card"><h2>贡献榜</h2><table class="tbl" id="board"></table></div>

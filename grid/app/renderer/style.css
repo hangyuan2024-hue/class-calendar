@@ -200,3 +200,20 @@ main { overflow-y: auto; padding: 22px 26px 40px; }
 .runctl .seg button.on[data-m=off] { background: rgba(255, 93, 122, .85); color: #fff; }
 .runctl small { display: block; color: var(--mut); font-size: 11px; margin-top: 5px; line-height: 1.4; }
 .runctl.wide { margin-top: 10px; } .runctl.wide .seg button { padding: 8px 0; font-size: 13px; }
+
+/* 日志 */
+.logbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.logbar input { width: 260px; } .logbar .grow { flex: 1; }
+.logview { height: calc(100vh - 260px); min-height: 300px; overflow: auto; font-family: var(--mono); font-size: 12px; line-height: 1.55; background: rgba(0, 0, 0, .25); border-radius: 10px; padding: 10px 12px; white-space: pre-wrap; word-break: break-all; }
+.logview .e { color: var(--rd); } .logview .w { color: var(--am); } .logview mark { background: rgba(54, 226, 255, .3); color: #fff; }
+/* 设置 */
+.setgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 14px; }
+.setgrid .wide { grid-column: 1 / -1; }
+.setgrid h3 { margin: 0 0 10px; font-size: 15px; } .setgrid h4 { margin: 12px 0 6px; font-size: 13px; color: var(--mut); }
+.setgrid label { display: block; margin: 8px 0; font-size: 13px; line-height: 1.6; }
+.setgrid input[type=number] { width: 80px; padding: 4px 8px; }
+.setgrid .check.inline { display: inline-flex; margin: 0 0 0 12px; font-weight: normal; font-size: 12px; }
+.setgrid .row3 label { display: inline-flex; margin: 4px 14px 4px 0; }
+.diag { font-family: var(--mono); font-size: 11px; background: rgba(0, 0, 0, .25); border-radius: 8px; padding: 10px; max-height: 260px; overflow: auto; white-space: pre-wrap; word-break: break-all; }
+.logbar .check { display: inline-flex; gap: 6px; align-items: center; width: auto; margin: 0; white-space: nowrap; }
+.logbar select { width: auto; }

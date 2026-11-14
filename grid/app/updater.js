@@ -1,9 +1,12 @@
-// 自动更新：不打断干活。
-//   1. 每 2 小时（和启动后 1 分钟）看一眼官网的 download/grid-version.json（国内走官网的国内加速，海外 / 失败走 GitHub）
-//   2. 有新版：后台下载安装包（国内存储优先，断了接着下），核对大小和 sha256
-//   3. 等「合适的时候」再装：不领新任务，手上的任务算完（最多等 maxWaitMin 分钟，超时就把任务交给别的电脑接着算——有存档，不丢）；
-//      而且没人在用这个软件（窗口藏着，或者 3 分钟没动鼠标键盘），也没在录表情
-//   4. 静默安装（/S），装完自己重新打开（--force-run），接着挂机。训练环境和数据在另一个文件夹，不受影响。
+// 自动更新：不打断干活，也不因为等更新就不干活。
+//   1. 启动后 20 秒、之后每 20 分钟看一眼 download/grid-version.json（国内走官网，海外 / 失败走 GitHub）；控制中心也能遥控「立刻更新」
+//   2. 有新版：后台下载安装包（断了接着下），核对大小和 sha256，下好了记一个 .ok
+//   3. 什么时候装（装一次大约 20 秒，装完自己打开、接着刚才的状态）：
+//        · 手上没有任务、而且没人在用（窗口藏着，或者 3 分钟没动鼠标键盘），没在录表情 → 马上装
+//        · 下好超过 6 小时一直没等到：手上没有任务时提前 1 分钟提醒，然后装（有人在用也装）
+//        · 手上有任务：接着算，不停、不领新任务这种事不做；算完了再看上面两条
+//        · 下次开机（或者退出软件时）发现下好了还没装 → 先装
+//   4. 静默安装（/S），装完自己重新打开（--force-run）。训练环境和数据在另一个文件夹，不受影响。
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -34,6 +37,7 @@ function create(o) {
       if (!newer(info.version, o.version)) { set({ state: "idle", latest: info.version, error: "" }); return st; }
       const file = path.join(dir(), `LaolaoGrid-Setup-${info.version}.exe`);
       if (st.state === "ready" && st.file === file && fs.existsSync(file)) return st;
+      if (fs.existsSync(file + ".ok") && fs.existsSync(file)) { set({ state: "ready", latest: info.version, notes: info.notes || "", file, progress: 1, error: "", readyAt: st.readyAt || Date.now() }); return st; }
       fs.mkdirSync(dir(), { recursive: true });
       // 旧的安装包删掉
       for (const f of fs.readdirSync(dir())) if (!f.startsWith(`LaolaoGrid-Setup-${info.version}.exe`)) fs.rmSync(path.join(dir(), f), { force: true });
@@ -50,44 +54,55 @@ function create(o) {
         set({ state: "idle", error: "下载的安装包不完整，过一会儿重新下" });
         return st;
       }
-      set({ state: "ready", file, progress: 1, error: "" });
+      try { fs.writeFileSync(file + ".ok", info.version); } catch (e) {}
+      set({ state: "ready", file, progress: 1, error: "", readyAt: Date.now(), noticeAt: 0 });
       return st;
     } finally { busy = false; }
   }
 
-  // 现在能不能装：没人在用、没在录表情；手上的活先放下（drain），算完或者超时交出去
-  let drainSince = 0;
+  // 现在能不能装（见文件开头）
   async function maybeApply(force) {
     if (st.state !== "ready" || applying) return false;
+    const a = o.agent && o.agent();
     if (!force) {
+      if (a && a.current()) { if (st.waiting !== "等手上的任务算完就更新（接着算，不耽误）") set({ waiting: "等手上的任务算完就更新（接着算，不耽误）" }); return false; }
       if (o.recording && o.recording()) return false;
       const idle = o.idleSecs ? await o.idleSecs() : 1e9;
-      if (!(o.windowHidden && o.windowHidden()) && idle < 180) return false;
-    }
-    const a = o.agent && o.agent();
-    if (a) {
-      if (!drainSince) { drainSince = Date.now(); a.drain(true); set({ state: "ready", waiting: "等手上的任务算完…" }); }
-      if (a.current()) {
-        if (!force && Date.now() - drainSince < (o.maxWaitMin || 30) * 60e3) return false;
-        await a.stop();  // 超时：交给别的电脑从存档接着算
+      const quiet = (o.windowHidden && o.windowHidden()) || idle >= 180;
+      const overdue = st.readyAt && Date.now() - st.readyAt > (o.overdueH || 6) * 3600e3;
+      if (!quiet && !overdue) { if (st.waiting !== "等你不用电脑时自动更新（大约 20 秒）") set({ waiting: "等你不用电脑时自动更新（大约 20 秒）" }); return false; }
+      if (!quiet) {
+        if (!st.noticeAt) { set({ noticeAt: Date.now(), waiting: "1 分钟后自动重启更新（大约 20 秒）" }); o.notify && o.notify("捞捞算力 1 分钟后更新", `新版 ${st.latest} 已下载好，1 分钟后自动重启更新，大约 20 秒`); return false; }
+        if (Date.now() - st.noticeAt < 60e3) return false;
       }
     }
+    if (a) { a.drain(true); if (a.current()) { if (!force) { a.drain(false); return false; } await a.stop(); } }   // 只在装的那一下不领新任务；遥控「立刻更新」就把手上的交给别人接着算
     applying = true;
     set({ state: "installing" });
     try { await o.install(st.file); return true; }
-    catch (e) { applying = false; drainSince = 0; if (a) a.drain(false); set({ state: "ready", error: "安装失败：" + e.message }); return false; }
+    catch (e) { applying = false; if (a) a.drain(false); set({ state: "ready", error: "安装失败：" + e.message }); return false; }
+  }
+  // 上次下好还没装的（开机 / 退出时用）
+  function pending() {
+    try {
+      for (const f of fs.readdirSync(dir())) {
+        const m = /^LaolaoGrid-Setup-(\d+\.\d+\.\d+)\.exe$/.exec(f);
+        if (m && newer(m[1], o.version) && fs.existsSync(path.join(dir(), f + ".ok"))) return { version: m[1], file: path.join(dir(), f) };
+      }
+    } catch (e) {}
+    return null;
   }
 
   function start() {
     if (timer) return;
-    setTimeout(() => check().catch(() => {}), o.firstDelayMs != null ? o.firstDelayMs : 60e3);
+    setTimeout(() => check().catch(() => {}), o.firstDelayMs != null ? o.firstDelayMs : 20e3);
     timer = setInterval(async () => {
-      if (Date.now() - st.checked > (o.everyMs || 2 * 3600e3)) await check().catch(() => {});
+      if (Date.now() - st.checked > (o.everyMs || 20 * 60e3)) await check().catch(() => {});
       await maybeApply(false).catch(() => {});
     }, o.tickMs || 30e3);
   }
   function stop() { clearInterval(timer); timer = null; }
-  return { check, maybeApply, start, stop, status: () => ({ ...st }), now: () => maybeApply(true) };
+  return { check, maybeApply, start, stop, pending, status: () => ({ ...st }), now: async () => { if (st.state !== "ready") await check(); return maybeApply(true); } };
 }
 
 module.exports = { create, newer, SOURCES };
