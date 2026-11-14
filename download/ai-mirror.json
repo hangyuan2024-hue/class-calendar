@@ -7,6 +7,10 @@
    "src": "https://github.com/Comfy-Org/ComfyUI/releases/download/v0.45.0/ComfyUI_windows_portable_nvidia.7z",
    "size": 2071479423,
    "sha256": "60c12e8c7af778047ad0413722dd3dc0f6ca773a41cbf5cb229ee9bc92c44a6f",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-comfyui/ComfyUI_windows_portable_nvidia.7z.p001",
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-comfyui/ComfyUI_windows_portable_nvidia.7z.p002"
+   ],
    "pkg": "comfyui",
    "ver": "v0.45.0"
   },
@@ -35,6 +39,14 @@
    "src": "https://huggingface.co/lj1995/GPT-SoVITS-windows-package/resolve/main/GPT-SoVITS-v5-20261005.7z",
    "size": 10869111823,
    "sha256": "2c1cd034af0e76854a8023d0f1fd6156ef2414bcfd5c88aae3309e1263e0fffe",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-gsv/GPT-SoVITS-v5-20261005.7z.p001",
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-gsv/GPT-SoVITS-v5-20261005.7z.p002",
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-gsv/GPT-SoVITS-v5-20261005.7z.p003",
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-gsv/GPT-SoVITS-v5-20261005.7z.p004",
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-gsv/GPT-SoVITS-v5-20261005.7z.p005",
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-gsv/GPT-SoVITS-v5-20261005.7z.p006"
+   ],
    "pkg": "gsv",
    "ver": "20261005"
   },
@@ -45,6 +57,14 @@
    "src": "https://huggingface.co/lj1995/GPT-SoVITS-windows-package/resolve/main/GPT-SoVITS-v5-20261005nvidia50x0.7z",
    "size": 10644626883,
    "sha256": "27b269fc1c53823dc9d404ada83f4444b300e455011db9861ec72e01b6fc5d5e",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-gsv/GPT-SoVITS-v5-20261005nvidia50x0.7z.p001",
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-gsv/GPT-SoVITS-v5-20261005nvidia50x0.7z.p002",
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-gsv/GPT-SoVITS-v5-20261005nvidia50x0.7z.p003",
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-gsv/GPT-SoVITS-v5-20261005nvidia50x0.7z.p004",
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-gsv/GPT-SoVITS-v5-20261005nvidia50x0.7z.p005",
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-gsv/GPT-SoVITS-v5-20261005nvidia50x0.7z.p006"
+   ],
    "pkg": "gsv50",
    "ver": "20261005"
   },
@@ -75,6 +95,9 @@
    "src": "https://codeload.github.com/Kosinkadink/ComfyUI-VideoHelperSuite/zip/4d907bee61e92c2e65af3bd6383a4e4d356126d1",
    "size": 116108,
    "sha256": "5114977eefb133c76592a5213c45ad3caa1ad7b1c2e4a77905b5ff0c48ca4363",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-nodes/ComfyUI-VideoHelperSuite-4d907bee61e92c2e65af3bd6383a4e4d356126d1.zip"
+   ],
    "node": "ComfyUI-VideoHelperSuite",
    "commit": "4d907bee61e92c2e65af3bd6383a4e4d356126d1"
   },
@@ -95,6 +118,13 @@
    "src": "https://huggingface.co/Comfy-Org/HunyuanVideo_1.5_repackaged/resolve/main/split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors",
    "size": 9384670680,
    "sha256": "cb5636d852a0ea6a9075ab1bef496c0db7aef13c02350571e388aea959c5c0b4",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-portrait/qwen_2.5_vl_7b_fp8_scaled.safetensors.p001",
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-portrait/qwen_2.5_vl_7b_fp8_scaled.safetensors.p002",
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-portrait/qwen_2.5_vl_7b_fp8_scaled.safetensors.p003",
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-portrait/qwen_2.5_vl_7b_fp8_scaled.safetensors.p004",
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-portrait/qwen_2.5_vl_7b_fp8_scaled.safetensors.p005"
+   ],
    "model": "qwenClip"
   },
   "ai/models/diffusion_models/qwen_image_edit_2511_fp8mixed.safetensors": {
@@ -104,6 +134,19 @@
    "src": "https://huggingface.co/Comfy-Org/Qwen-Image-Edit_ComfyUI/resolve/main/split_files/diffusion_models/qwen_image_edit_2511_fp8mixed.safetensors",
    "size": 20533762817,
    "sha256": "c9fdc158e46d3b61ef75f21ae866ca2fe808bf4a53643120d1c1e87c19280a4e",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-portrait/qwen_image_edit_2511_fp8mixed.safetensors.p001",
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-portrait/qwen_image_edit_2511_fp8mixed.safetensors.p002",
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-portrait/qwen_image_edit_2511_fp8mixed.safetensors.p003",
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-portrait/qwen_image_edit_2511_fp8mixed.safetensors.p004",
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-portrait/qwen_image_edit_2511_fp8mixed.safetensors.p005",
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-portrait/qwen_image_edit_2511_fp8mixed.safetensors.p006",
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-portrait/qwen_image_edit_2511_fp8mixed.safetensors.p007",
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-portrait/qwen_image_edit_2511_fp8mixed.safetensors.p008",
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-portrait/qwen_image_edit_2511_fp8mixed.safetensors.p009",
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-portrait/qwen_image_edit_2511_fp8mixed.safetensors.p010",
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-portrait/qwen_image_edit_2511_fp8mixed.safetensors.p011"
+   ],
    "model": "qwenEdit"
   },
   "ai/models/loras/Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors": {
@@ -113,6 +156,9 @@
    "src": "https://huggingface.co/lightx2v/Qwen-Image-Edit-2511-Lightning/resolve/main/Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors",
    "size": 849608296,
    "sha256": "22226e8d05d354bb356627d428809f5afd7819399b077238a2b70a82883a904f",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-portrait/Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors"
+   ],
    "model": "qwenFast"
   },
   "ai/models/vae/qwen_image_vae.safetensors": {
@@ -122,6 +168,9 @@
    "src": "https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/vae/qwen_image_vae.safetensors",
    "size": 253806246,
    "sha256": "a70580f0213e67967ee9c95f05bb400e8fb08307e017a924bf3441223e023d1f",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-portrait/qwen_image_vae.safetensors"
+   ],
    "model": "qwenVae"
   },
   "ai/models/diffusion_models/Wan2_1-InfiniteTalk_Single_Q8.gguf": {
@@ -194,6 +243,9 @@
    "src": "pip:colorama-0.4.6-py2.py3-none-any.whl",
    "size": 25335,
    "sha256": "4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-grid/colorama-0.4.6-py2.py3-none-any.whl"
+   ],
    "pkg": "gridwheel",
    "ver": "2.11.0+cu128"
   },
@@ -204,6 +256,9 @@
    "src": "pip:numpy-2.4.6-cp311-cp311-win_amd64.whl",
    "size": 12608406,
    "sha256": "1e254a00cdf42b1e4d5b3d68d33af63268d41340d8885df2ab6470f2e1500147",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-grid/numpy-2.4.6-cp311-cp311-win_amd64.whl"
+   ],
    "pkg": "gridwheel",
    "ver": "2.11.0+cu128"
   },
@@ -214,6 +269,9 @@
    "src": "pip:pillow-13.0.0-cp311-cp311-win_amd64.whl",
    "size": 7278471,
    "sha256": "d7710eb676e9bb68965cb045be0d333b4c0d7f9dfbaa7fbf121385b1588683d3",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-grid/pillow-13.0.0-cp311-cp311-win_amd64.whl"
+   ],
    "pkg": "gridwheel",
    "ver": "2.11.0+cu128"
   },
@@ -224,6 +282,9 @@
    "src": "pip:python-3.11.9-amd64.exe",
    "size": 26216840,
    "sha256": "5ee42c4eee1e6b4464bb23722f90b45303f79442df63083f05322f1785f5fdde",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-grid/python-3.11.9-amd64.exe"
+   ],
    "pkg": "gridpy",
    "ver": "2.11.0+cu128"
   },
@@ -234,6 +295,9 @@
    "src": "pip:safetensors-0.8.0-cp310-abi3-win_amd64.whl",
    "size": 355540,
    "sha256": "096ec1a98435df7beb08853bb5aa9081a84f23d0adc67ed1a0a10550f608373f",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-grid/safetensors-0.8.0-cp310-abi3-win_amd64.whl"
+   ],
    "pkg": "gridwheel",
    "ver": "2.11.0+cu128"
   },
@@ -244,6 +308,9 @@
    "src": "pip:setuptools-78.1.0-py3-none-any.whl",
    "size": 1256108,
    "sha256": "3e386e96793c8702ae83d17b853fb93d3e09ef82ec62722e61da5cd22376dcd8",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-grid/setuptools-78.1.0-py3-none-any.whl"
+   ],
    "pkg": "gridwheel",
    "ver": "2.11.0+cu128"
   },
@@ -254,6 +321,9 @@
    "src": "pip:sympy-1.14.0-py3-none-any.whl",
    "size": 6299353,
    "sha256": "e091cc3e99d2141a0ba2847328f5479b05d94a6635cb96148ccb3f34671bd8f5",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-grid/sympy-1.14.0-py3-none-any.whl"
+   ],
    "pkg": "gridwheel",
    "ver": "2.11.0+cu128"
   },
@@ -264,6 +334,10 @@
    "src": "pip:torch-2.11.0+cu128-cp311-cp311-win_amd64.whl",
    "size": 2753148611,
    "sha256": "90ef0c2454e5296a9fb021ddd42252e4ce1abe2c0a4988a173ef90a6cded0bf5",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-grid/torch-2.11.0+cu128-cp311-cp311-win_amd64.whl.p001",
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-grid/torch-2.11.0+cu128-cp311-cp311-win_amd64.whl.p002"
+   ],
    "pkg": "gridwheel",
    "ver": "2.11.0+cu128"
   },
@@ -274,6 +348,9 @@
    "src": "pip:torchvision-0.26.0+cu128-cp311-cp311-win_amd64.whl",
    "size": 9313819,
    "sha256": "d26091b15cd6e3c74c148d9b68c9a901ad6fb9b0f66fa3ea3ab09f04132a07d3",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-grid/torchvision-0.26.0+cu128-cp311-cp311-win_amd64.whl"
+   ],
    "pkg": "gridwheel",
    "ver": "2.11.0+cu128"
   },
@@ -284,6 +361,9 @@
    "src": "pip:tqdm-4.70.1-py3-none-any.whl",
    "size": 80199,
    "sha256": "c293e525e6fef9c20e8728fd4612df02a0aa31bb5fe91ecd93e123b1b7bffa73",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-grid/tqdm-4.70.1-py3-none-any.whl"
+   ],
    "pkg": "gridwheel",
    "ver": "2.11.0+cu128"
   },
@@ -294,6 +374,9 @@
    "src": "pip:typing_extensions-4.16.0-py3-none-any.whl",
    "size": 45571,
    "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-grid/typing_extensions-4.16.0-py3-none-any.whl"
+   ],
    "pkg": "gridwheel",
    "ver": "2.11.0+cu128"
   },
@@ -304,6 +387,9 @@
    "src": "pip:filelock-4.2.10-py3-none-any.whl",
    "size": 218040,
    "sha256": "9479aaeb4db20b5a53e3da28493edd24720b66b8a0b84030aa56ccdf243d6857",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-grid/filelock-4.2.10-py3-none-any.whl"
+   ],
    "pkg": "gridwheel",
    "ver": "2.11.0+cu128"
   },
@@ -314,6 +400,9 @@
    "src": "pip:filelock-4.2.4-py3-none-any.whl",
    "size": 162475,
    "sha256": "301241438c57936ef93f4243a94f2559022268bfcf9b375a9a72eb0f8db8358e",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-grid/filelock-4.2.4-py3-none-any.whl"
+   ],
    "pkg": "gridwheel",
    "ver": "2.11.0+cu128"
   },
@@ -324,6 +413,9 @@
    "src": "pip:fsspec-2026.9.0-py3-none-any.whl",
    "size": 221738,
    "sha256": "8dd6e646e99ea382bd85f97a45e6b526a442d79423a7dc673f1e2756d05fcb5f",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-grid/fsspec-2026.9.0-py3-none-any.whl"
+   ],
    "pkg": "gridwheel",
    "ver": "2.11.0+cu128"
   },
@@ -334,6 +426,9 @@
    "src": "pip:jinja2-3.1.6-py3-none-any.whl",
    "size": 134899,
    "sha256": "85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-grid/jinja2-3.1.6-py3-none-any.whl"
+   ],
    "pkg": "gridwheel",
    "ver": "2.11.0+cu128"
   },
@@ -344,6 +439,9 @@
    "src": "pip:markupsafe-3.0.3-cp311-cp311-win_amd64.whl",
    "size": 15077,
    "sha256": "de8a88e63464af587c950061a5e6a67d3632e36df62b986892331d4620a35c01",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-grid/markupsafe-3.0.3-cp311-cp311-win_amd64.whl"
+   ],
    "pkg": "gridwheel",
    "ver": "2.11.0+cu128"
   },
@@ -354,6 +452,9 @@
    "src": "pip:markupsafe-3.0.4-cp311-cp311-win_amd64.whl",
    "size": 14328,
    "sha256": "fdb4ca07ab75ffadab4a8b135ad59cdbb3156b99310f3d565370da74a15d6bd3",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-grid/markupsafe-3.0.4-cp311-cp311-win_amd64.whl"
+   ],
    "pkg": "gridwheel",
    "ver": "2.11.0+cu128"
   },
@@ -364,6 +465,9 @@
    "src": "pip:mpmath-1.3.0-py3-none-any.whl",
    "size": 536198,
    "sha256": "a0b2b9fe80bbcd81a6647ff13108738cfb482d481d826cc0e02f5b35e5c88d2c",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-grid/mpmath-1.3.0-py3-none-any.whl"
+   ],
    "pkg": "gridwheel",
    "ver": "2.11.0+cu128"
   },
@@ -374,6 +478,9 @@
    "src": "pip:networkx-3.6.1-py3-none-any.whl",
    "size": 2068504,
    "sha256": "d47fbf302e7d9cbbb9e2555a0d267983d2aa476bac30e90dfbe5669bd57f3762",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-grid/networkx-3.6.1-py3-none-any.whl"
+   ],
    "pkg": "gridwheel",
    "ver": "2.11.0+cu128"
   },
@@ -384,6 +491,10 @@
    "src": "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct-GGUF/resolve/main/Qwen3VL-4B-Instruct-Q4_K_M.gguf",
    "size": 2497281664,
    "sha256": "66358cb18bb6b3b1b6675aa412c7a88ef01d228f481184d13668e5201c730a0a",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-llm/Qwen3VL-4B-Instruct-Q4_K_M.gguf.p001",
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-llm/Qwen3VL-4B-Instruct-Q4_K_M.gguf.p002"
+   ],
    "model": "llmMain"
   },
   "ai/llm/mmproj-Qwen3VL-4B-Instruct-F16.gguf": {
@@ -393,8 +504,167 @@
    "src": "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct-GGUF/resolve/main/mmproj-Qwen3VL-4B-Instruct-F16.gguf",
    "size": 836180256,
    "sha256": "256f3a43bd4205ffef48d6b92715e1e70b5b0e9aef06522584967513a9985331",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-llm/mmproj-Qwen3VL-4B-Instruct-F16.gguf"
+   ],
    "model": "llmMmproj"
+  },
+  "ai/grid/clip-vit-large-patch14/config.json": {
+   "group": "grid",
+   "name": "config.json",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/grid/clip-vit-large-patch14/config.json",
+   "src": "hf:openai/clip-vit-large-patch14/config.json",
+   "size": 4519,
+   "sha256": "8a09b467700c58138c29d53c605b34ebc69beaadd13274a8a2af8ad2c2f4032a",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-grid/clip-vit-large-patch14--config.json"
+   ],
+   "model": "clip"
+  },
+  "ai/grid/clip-vit-large-patch14/model.safetensors": {
+   "group": "grid",
+   "name": "model.safetensors",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/grid/clip-vit-large-patch14/model.safetensors",
+   "src": "hf:openai/clip-vit-large-patch14/model.safetensors",
+   "size": 1710540580,
+   "sha256": "a2bf730a0c7debf160f7a6b50b3aaf3703e7e88ac73de7a314903141db026dcb",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-grid/clip-vit-large-patch14--model.safetensors"
+   ],
+   "model": "clip"
+  },
+  "ai/grid/clip-vit-large-patch14/preprocessor_config.json": {
+   "group": "grid",
+   "name": "preprocessor_config.json",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/grid/clip-vit-large-patch14/preprocessor_config.json",
+   "src": "hf:openai/clip-vit-large-patch14/preprocessor_config.json",
+   "size": 316,
+   "sha256": "910e70b3956ac9879ebc90b22fb3bc8a75b6a0677814500101a4c072bd7857bd",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-grid/clip-vit-large-patch14--preprocessor_config.json"
+   ],
+   "model": "clip"
+  },
+  "ai/qabase/Qwen3-VL-4B-Instruct/chat_template.json": {
+   "group": "qabase",
+   "name": "chat_template.json",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/qabase/Qwen3-VL-4B-Instruct/chat_template.json",
+   "src": "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct/resolve/main/chat_template.json",
+   "size": 5502,
+   "sha256": "6f8a6a55027e3da5160105556cda5dd69f6423f1c32645f6730d32de7773d0c4",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-qabase/chat_template.json"
+   ],
+   "model": "qaBase"
+  },
+  "ai/qabase/Qwen3-VL-4B-Instruct/config.json": {
+   "group": "qabase",
+   "name": "config.json",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/qabase/Qwen3-VL-4B-Instruct/config.json",
+   "src": "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct/resolve/main/config.json",
+   "size": 1505,
+   "sha256": "edac7703329133edfc53e46ac0081835144c99d7eebf28b71c732694d435224d",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-qabase/config.json"
+   ],
+   "model": "qaBase"
+  },
+  "ai/qabase/Qwen3-VL-4B-Instruct/generation_config.json": {
+   "group": "qabase",
+   "name": "generation_config.json",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/qabase/Qwen3-VL-4B-Instruct/generation_config.json",
+   "src": "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct/resolve/main/generation_config.json",
+   "size": 269,
+   "sha256": "8469742d1fce0de951c8909b26a2c0c0d8490837ce476efb114da9e0cefc4d44",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-qabase/generation_config.json"
+   ],
+   "model": "qaBase"
+  },
+  "ai/qabase/Qwen3-VL-4B-Instruct/merges.txt": {
+   "group": "qabase",
+   "name": "merges.txt",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/qabase/Qwen3-VL-4B-Instruct/merges.txt",
+   "src": "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct/resolve/main/merges.txt",
+   "size": 1671839,
+   "sha256": "599bab54075088774b1733fde865d5bd747cbcc7a547c5bc12610e874e26f5e3",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-qabase/merges.txt"
+   ],
+   "model": "qaBase"
+  },
+  "ai/qabase/Qwen3-VL-4B-Instruct/model.safetensors.index.json": {
+   "group": "qabase",
+   "name": "model.safetensors.index.json",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/qabase/Qwen3-VL-4B-Instruct/model.safetensors.index.json",
+   "src": "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct/resolve/main/model.safetensors.index.json",
+   "size": 64742,
+   "sha256": "58a7841d7bff2548dd91577d216274a83cf1b500bc6a534b809d6c1b1707cf2b",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-qabase/model.safetensors.index.json"
+   ],
+   "model": "qaBase"
+  },
+  "ai/qabase/Qwen3-VL-4B-Instruct/preprocessor_config.json": {
+   "group": "qabase",
+   "name": "preprocessor_config.json",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/qabase/Qwen3-VL-4B-Instruct/preprocessor_config.json",
+   "src": "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct/resolve/main/preprocessor_config.json",
+   "size": 390,
+   "sha256": "27225450ac9c6529872ee1924fcb0962ff5634834f817040f444118116f4e516",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-qabase/preprocessor_config.json"
+   ],
+   "model": "qaBase"
+  },
+  "ai/qabase/Qwen3-VL-4B-Instruct/tokenizer.json": {
+   "group": "qabase",
+   "name": "tokenizer.json",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/qabase/Qwen3-VL-4B-Instruct/tokenizer.json",
+   "src": "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct/resolve/main/tokenizer.json",
+   "size": 7032403,
+   "sha256": "a5d85b6dcc535e6b93115a9ef287e6132fdbf30270da6218194ba742261173c7",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-qabase/tokenizer.json"
+   ],
+   "model": "qaBase"
+  },
+  "ai/qabase/Qwen3-VL-4B-Instruct/tokenizer_config.json": {
+   "group": "qabase",
+   "name": "tokenizer_config.json",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/qabase/Qwen3-VL-4B-Instruct/tokenizer_config.json",
+   "src": "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct/resolve/main/tokenizer_config.json",
+   "size": 10868,
+   "sha256": "c2da771801886ad9ae98181793ffd3dfb7f1af30f6f7c6a4e15d7dbba52e2399",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-qabase/tokenizer_config.json"
+   ],
+   "model": "qaBase"
+  },
+  "ai/qabase/Qwen3-VL-4B-Instruct/video_preprocessor_config.json": {
+   "group": "qabase",
+   "name": "video_preprocessor_config.json",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/qabase/Qwen3-VL-4B-Instruct/video_preprocessor_config.json",
+   "src": "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct/resolve/main/video_preprocessor_config.json",
+   "size": 385,
+   "sha256": "7768af27c1fafa9cc9011c1dc20067e03f8915e03b63504550e11d5066986d13",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-qabase/video_preprocessor_config.json"
+   ],
+   "model": "qaBase"
+  },
+  "ai/qabase/Qwen3-VL-4B-Instruct/vocab.json": {
+   "group": "qabase",
+   "name": "vocab.json",
+   "url": "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/qabase/Qwen3-VL-4B-Instruct/vocab.json",
+   "src": "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct/resolve/main/vocab.json",
+   "size": 2776833,
+   "sha256": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-qabase/vocab.json"
+   ],
+   "model": "qaBase"
   }
  },
- "at": "2026-11-12T09:51:14.583Z"
+ "at": "2026-11-14T09:26:42.210Z"
 }
