@@ -20,7 +20,8 @@ aws configure set default.s3.multipart_threshold 8MB
 aws configure set default.s3.multipart_chunksize "${CH}MB"
 aws configure set default.s3.max_concurrent_requests 16
 EPS=()
-case "$CN_S3_ENDPOINT" in *myqcloud.com*) EPS+=("https://cos.accelerate.myqcloud.com");; esac
+# 全球加速：快很多，但腾讯云按流量另外收钱（几十 G 就是几十块）；CN_ACCEL=1 才用
+if [ "${CN_ACCEL:-0}" = "1" ]; then case "$CN_S3_ENDPOINT" in *myqcloud.com*) EPS+=("https://cos.accelerate.myqcloud.com");; esac; fi
 EPS+=("$CN_S3_ENDPOINT" "$CN_S3_ENDPOINT" "$CN_S3_ENDPOINT")
 ERR=$(mktemp); n=0
 for EP in "${EPS[@]}"; do

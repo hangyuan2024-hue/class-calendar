@@ -8,6 +8,9 @@
 #   llm       AI 助手（对话改 PPT）的本地大模型 Qwen3-VL-4B（约 3.3G）
 #   grid      捞捞算力的训练环境：Python 3.11 安装包 + PyTorch（CUDA 12.8 版）和要用的 Python 包（Windows 版，约 3.5G）
 #             + 给 Q版打分用的 CLIP ViT-L/14（openai/clip-vit-large-patch14，MIT，约 1.7G），放在 ai/grid/clip-vit-large-patch14/
+#   gridllm   捞捞算力「答题数据工厂」的出题老师 Qwen3-8B（GGUF Q4_K_M，Apache-2.0，约 5G）
+#   qabase    捞捞算力训练答题大脑的底子 Qwen3-VL-4B-Instruct（Hugging Face 格式，Apache-2.0，约 9G）
+# 同时可以放一份到自己 GitHub 仓库的 Release（mirror-<组名>）：国外的电脑从 GitHub 下，国内的从腾讯云下；超过 1.9G 的切块
 # 只在 Actions 页面手动点「Run workflow」时运行（文件大，搬一次要几个小时）；已经搬过、大小一样的会跳过。
 # 搬完写官网的 download/ai-mirror.json（软件读这个文件知道国内地址），再让「网站国内加速」同步一次。
 # 用的 Secrets 和捞捞编程的安装包一样：CN_S3_ENDPOINT、CN_S3_REGION、CN_S3_BUCKET、CN_S3_KEY_ID、CN_S3_SECRET、CN_DL_BASE。
@@ -18,9 +21,17 @@ on:
   workflow_dispatch:
     inputs:
       what:
-        description: "搬哪些（逗号隔开）：grid,llm,comfyui,portrait,talk,nodes,gsv,hy3d"
-        default: "grid,llm,comfyui,portrait,talk,nodes,gsv,hy3d"
+        description: "搬哪些（逗号隔开）：grid,gridllm,qabase,llm,comfyui,portrait,talk,nodes,gsv,hy3d"
+        default: "grid,gridllm,qabase,llm,comfyui,portrait,nodes,gsv"
         required: true
+      github:
+        description: "同时放一份到自己 GitHub 的 Release（国外的电脑从这里下）：只放捞捞算力要用的这几组（逗号隔开；空 = 不放）"
+        default: "grid,gridllm,qabase,llm,comfyui,portrait,nodes,gsv"
+        required: false
+      accel:
+        description: "上传国内存储时用「全球加速」（快很多，但腾讯云按流量另外收钱：几十 G 就是几十块）"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -71,6 +82,9 @@ jobs:
       CN_S3_KEY_ID: ${{ secrets.CN_S3_KEY_ID }}
       CN_S3_SECRET: ${{ secrets.CN_S3_SECRET }}
       CN_DL_BASE: ${{ secrets.CN_DL_BASE }}
+      CN_ACCEL: ${{ inputs.accel && '1' || '0' }}
+      GH_TOKEN: ${{ github.token }}
+      GH_GROUPS: ${{ inputs.github }}
       ITEM: ${{ toJSON(matrix.item) }}
     steps:
       - uses: actions/checkout@v4
@@ -84,7 +98,15 @@ jobs:
           aws configure set default.s3.addressing_style virtual
           HAVE=$(aws s3api head-object --bucket "$B" --key "$KEY" --endpoint-url "$EP" --query ContentLength --output text 2>/dev/null || echo 0)
           echo "存储里：$HAVE 字节；源文件：$SIZE 字节"
-          if [ "$SIZE" != "0" ] && [ "$HAVE" = "$SIZE" ]; then echo "skip=1" >> "$GITHUB_OUTPUT"; echo "已经有了，跳过"; else echo "skip=0" >> "$GITHUB_OUTPUT"; fi
+          G=$(echo "$ITEM" | jq -r .group); NAME=$(echo "$ITEM" | jq -r .name | tr -c 'A-Za-z0-9._+-' '_')
+          WANTGH=0; case ",$GH_GROUPS," in *",$G,"*) WANTGH=1;; esac
+          GHOK=1
+          if [ "$WANTGH" = 1 ]; then
+            A=$(gh release view "mirror-$G" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[] | "\(.name) \(.size)"' 2>/dev/null || true)
+            if [ "$SIZE" -le $((1900 * 1048576)) ] 2>/dev/null; then printf '%s\n' "$A" | grep -qx "$NAME $SIZE" || GHOK=0; else printf '%s\n' "$A" | grep -q "^$NAME\.p001 " || GHOK=0; fi
+          fi
+          echo "wantgh=$WANTGH" >> "$GITHUB_OUTPUT"
+          if [ "$SIZE" != "0" ] && [ "$HAVE" = "$SIZE" ] && [ "$GHOK" = 1 ]; then echo "skip=1" >> "$GITHUB_OUTPUT"; echo "国内存储和 GitHub 都有了，跳过"; else echo "skip=0" >> "$GITHUB_OUTPUT"; echo "cos=$([ "$SIZE" != "0" ] && [ "$HAVE" = "$SIZE" ] && echo 1 || echo 0)" >> "$GITHUB_OUTPUT"; fi
       - name: 腾出硬盘空间（大文件要二十几 G）
         if: steps.have.outputs.skip != '1' && matrix.item.size > 8000000000
         run: |
@@ -103,20 +125,26 @@ jobs:
           ls -l "$F"
           SIZE=$(echo "$ITEM" | jq -r '.size // 0')
           if [ "$SIZE" != "0" ] && [ "$(stat -c %s "$F")" != "$SIZE" ]; then echo "::error::下载的大小不对"; exit 1; fi
-      - name: 传到国内存储
+      - name: 传到国内存储（和自己的 GitHub）
         if: steps.have.outputs.skip != '1'
         run: |
           set -euo pipefail
-          F="$RUNNER_TEMP/m/file"; KEY=$(echo "$ITEM" | jq -r .key)
+          F="$RUNNER_TEMP/m/file"; KEY=$(echo "$ITEM" | jq -r .key); G=$(echo "$ITEM" | jq -r .group); NAME=$(echo "$ITEM" | jq -r .name)
           SHA=$(sha256sum < "$F" | cut -d' ' -f1); SIZE=$(stat -c %s "$F")
-          URL=$(bash .github/workflows/cn-put.sh "$F" "$KEY")
-          mkdir -p r; echo "$ITEM" | jq --arg u "$URL" --arg s "$SHA" --argjson n "$SIZE" '. + {cn: $u, sha256: $s, size: $n}' > r/item.json
+          if [ "${{ steps.have.outputs.cos }}" = "1" ]; then URL="$(printf '%s' "$CN_DL_BASE" | tr -d '[:space:]' | sed 's#/*$##')/$KEY"; echo "国内存储已经有了"; else URL=$(bash .github/workflows/cn-put.sh "$F" "$KEY"); fi
+          GHU='[]'
+          if [ "${{ steps.have.outputs.wantgh }}" = "1" ]; then GHU=$(bash .github/workflows/gh-put.sh "$F" "$G" "$NAME"); fi
+          mkdir -p r; echo "$ITEM" | jq --arg u "$URL" --arg s "$SHA" --argjson n "$SIZE" --argjson g "$GHU" '. + {cn: $u, sha256: $s, size: $n, gh: $g}' > r/item.json
           cat r/item.json
       - name: 跳过的也记一笔
         if: steps.have.outputs.skip == '1'
         run: |
           KEY=$(echo "$ITEM" | jq -r .key)
-          mkdir -p r; echo "$ITEM" | jq --arg u "$(printf '%s' "$CN_DL_BASE" | tr -d '[:space:]' | sed 's#/*$##')/$KEY" '. + {cn: $u, sha256: ""}' > r/item.json
+          G=$(echo "$ITEM" | jq -r .group); N=$(echo "$ITEM" | jq -r .name | tr -c 'A-Za-z0-9._+-' '_'); SIZE=$(echo "$ITEM" | jq -r '.size // 0')
+          GHU='[]'
+          if [ "${{ steps.have.outputs.wantgh }}" = "1" ]; then B="https://github.com/$GITHUB_REPOSITORY/releases/download/mirror-$G"
+            if [ "$SIZE" -le $((1900 * 1048576)) ]; then GHU="[\"$B/$N\"]"; else K=$(( (SIZE + 1900 * 1048576 - 1) / (1900 * 1048576) )); GHU=$(seq -f "%03g" 1 $K | jq -R --arg b "$B/$N.p" '$b + .' | jq -sc .); fi; fi
+          mkdir -p r; echo "$ITEM" | jq --arg u "$(printf '%s' "$CN_DL_BASE" | tr -d '[:space:]' | sed 's#/*$##')/$KEY" --argjson g "$GHU" '. + {cn: $u, sha256: "", gh: $g}' > r/item.json
       - uses: actions/upload-artifact@v4
         with:
           name: r-${{ matrix.item.id }}
@@ -135,6 +163,9 @@ jobs:
       CN_S3_KEY_ID: ${{ secrets.CN_S3_KEY_ID }}
       CN_S3_SECRET: ${{ secrets.CN_S3_SECRET }}
       CN_DL_BASE: ${{ secrets.CN_DL_BASE }}
+      CN_ACCEL: ${{ inputs.accel && '1' || '0' }}
+      GH_TOKEN: ${{ github.token }}
+      GH_GROUPS: ${{ inputs.github }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -170,14 +201,19 @@ jobs:
             if [ "$HAVE" = "$SIZE" ]; then URL="$BASE/$KEY"; echo "已经有了：$n"
             else URL=$(bash .github/workflows/cn-put.sh "$f" "$KEY") || { bad=1; continue; }; fi
             case "$n" in *.exe) PK=gridpy;; *) PK=gridwheel;; esac
+            GHU='[]'; case ",$GH_GROUPS," in *",grid,"*) GHU=$(bash .github/workflows/gh-put.sh "$f" grid "$n") || { bad=1; GHU='[]'; };; esac
             i=$((i+1))
-            jq -n --arg k "$KEY" --arg n "$n" --arg u "$URL" --arg s "$SHA" --argjson z "$SIZE" --arg p "$PK" --arg v "$TV" \
-              '{group:"grid", key:$k, name:$n, cn:$u, url:("pip:" + $n), size:$z, sha256:$s, pkg:$p, ver:$v}' > "r/$i.json"
+            jq -n --arg k "$KEY" --arg n "$n" --arg u "$URL" --arg s "$SHA" --argjson z "$SIZE" --arg p "$PK" --arg v "$TV" --argjson g "$GHU" \
+              '{group:"grid", key:$k, name:$n, cn:$u, url:("pip:" + $n), size:$z, sha256:$s, pkg:$p, ver:$v, gh:$g}' > "r/$i.json"
           done
           for f in clip/*; do
             n=$(basename "$f"); KEY="ai/grid/clip-vit-large-patch14/$n"; SIZE=$(stat -c %s "$f")
             HAVE=$(aws s3api head-object --bucket "$B" --key "$KEY" --endpoint-url "$EP" --query ContentLength --output text 2>/dev/null || echo 0)
             if [ "$HAVE" = "$SIZE" ]; then echo "已经有了：clip/$n"; else bash .github/workflows/cn-put.sh "$f" "$KEY" >/dev/null || bad=1; fi
+            GHU='[]'; case ",$GH_GROUPS," in *",grid,"*) GHU=$(bash .github/workflows/gh-put.sh "$f" grid "clip-vit-large-patch14--$n") || { bad=1; GHU='[]'; };; esac
+            i=$((i+1)); SHA=$(sha256sum < "$f" | cut -d' ' -f1)
+            jq -n --arg k "$KEY" --arg n "$n" --arg u "$(printf '%s' "$CN_DL_BASE" | tr -d '[:space:]' | sed 's#/*$##')/$KEY" --arg s "$SHA" --argjson z "$SIZE" --argjson g "$GHU" \
+              '{group:"grid", key:$k, name:$n, cn:$u, url:("hf:openai/clip-vit-large-patch14/" + $n), size:$z, sha256:$s, model:"clip", gh:$g}' > "r/$i.json"
           done
           echo "传了 $i 个文件"; [ "$bad" = 0 ] || { echo "::error::有文件没传上去，再跑一次（传好的会跳过）"; exit 1; }
       - uses: actions/upload-artifact@v4
@@ -208,7 +244,7 @@ jobs:
           git -C "$PUB" config user.name "github-actions[bot]"
           git -C "$PUB" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           for ATTEMPT in 1 2 3; do
-            if [ "$ATTEMPT" -gt 1 ]; then git fetch --no-tags origin "$BRANCH"; git -C "$PUB" reset --hard FETCH_HEAD; fi
+            if [ "$ATTEMPT" -gt 1 ]; then git -C "$PUB" fetch --no-tags origin "$BRANCH"; git -C "$PUB" reset --hard FETCH_HEAD; fi
             node -e '
               const fs = require("fs"), path = require("path");
               const out = process.argv[1], dir = process.argv[2];
@@ -217,7 +253,8 @@ jobs:
               let n = 0;
               for (const f of walk(dir).filter((f) => f.endsWith(".json"))) {
                 const it = JSON.parse(fs.readFileSync(f, "utf8")); const old = m.files[it.key] || {};
-                m.files[it.key] = { group: it.group, name: it.name, url: it.cn, src: it.url, size: it.size, sha256: it.sha256 || (old.size === it.size ? old.sha256 || "" : ""),
+                const ghu = Array.isArray(it.gh) && it.gh.length ? it.gh : old.size === it.size && old.gh ? old.gh : undefined;
+                m.files[it.key] = { group: it.group, name: it.name, url: it.cn, src: it.url, size: it.size, sha256: it.sha256 || (old.size === it.size ? old.sha256 || "" : ""), ...(ghu ? { gh: ghu } : {}),
                   ...(it.model ? { model: it.model } : {}), ...(it.node ? { node: it.node, commit: it.commit } : {}), ...(it.pkg ? { pkg: it.pkg, ver: it.ver } : {}) };
                 n++;
               }
