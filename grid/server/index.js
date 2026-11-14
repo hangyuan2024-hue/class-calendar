@@ -82,6 +82,7 @@ function create(opt = {}) {
     "POST /api/get": (req, b, dev) => { if (!keyOk(b.key, dev)) throw new Error("没有权限"); return { url: store.url("GET", b.key, 3600) }; },
     // 遥控命令做完了；交日志（拿一个上传地址：logs/<电脑>/<时间>-文件名）；这台电脑自己的贡献统计
     "POST /api/cmd/done": (req, b, dev) => core.commandDone(dev, b),
+    "POST /api/lane": (req, b, dev) => core.laneDevice(dev, b),
     "POST /api/logs/put": (req, b, dev) => { const name = String(b.name || "log.txt").replace(/[^\w.\-]/g, "_").slice(-80); const key = `logs/${dev.id}/${Date.now()}-${name}`; return { key, url: store.url("PUT", key, 3600) }; },
     "GET /api/me/stats": (req, b, dev, u) => core.stats(Math.min(60, +u.searchParams.get("days") || 14), dev.id),
     "GET /api/me": (req, b, dev) => ({ device: { id: dev.id, name: dev.name }, member: { id: dev.member_id, name: dev.member_name, role: dev.role }, board: core.board().find((x) => x.id === dev.member_id) || null }),
@@ -253,7 +254,19 @@ function create(opt = {}) {
       let n = 0, bad = false;
       req.on("data", (c) => { n += c.length; if (n > maxBlob && !bad) { bad = true; req.destroy(); w.destroy(); fs.rm(tmp, () => {}); } });
       req.pipe(w);
-      w.on("finish", () => { if (bad) return; fs.renameSync(tmp, f); json(res, 200, { ok: true, size: n }); });
+      // Windows：同一个文件正在被别人下载时改名会失败（EPERM / EBUSY），等一会儿再试；实在不行别让整个调度中心崩掉
+      w.on("finish", async () => {
+        if (bad) return;
+        for (let i = 0; ; i++) {
+          try { fs.renameSync(tmp, f); return json(res, 200, { ok: true, size: n }); }
+          catch (e) {
+            if (i < 40 && /EPERM|EBUSY|EACCES/.test(e.code || "")) { await new Promise((r) => setTimeout(r, 100 + i * 25)); continue; }
+            fs.rm(tmp, () => {});
+            let same = false; try { same = fs.statSync(f).size === n; } catch (e2) {}
+            return same ? json(res, 200, { ok: true, size: n }) : json(res, 500, { error: "存文件失败：" + e.message });
+          }
+        }
+      });
       w.on("error", (e) => json(res, 500, { error: e.message }));
       return;
     }
