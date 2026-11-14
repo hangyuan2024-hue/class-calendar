@@ -121,7 +121,7 @@ jobs:
           git -C "$PUB" config user.name "github-actions[bot]"
           git -C "$PUB" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           for ATTEMPT in 1 2 3; do
-            if [ "$ATTEMPT" -gt 1 ]; then git -C "$PUB" fetch --no-tags origin "$BRANCH"; git -C "$PUB" reset --hard FETCH_HEAD; fi
+            if [ "$ATTEMPT" -gt 1 ]; then git fetch --no-tags origin "$BRANCH"; git -C "$PUB" reset --hard FETCH_HEAD; fi
             mkdir -p "$PUB/download"
             echo "{\"version\": \"${V}\", \"url\": \"${URL}\", \"cn\": \"${CN}\", \"size\": ${SIZE}, \"sha256\": \"${SHA}\", \"notes\": \"捞捞算力 ${V}\", \"at\": \"$(date -u +%FT%TZ)\"}" > "$PUB/download/grid-version.json"
             cat "$PUB/download/grid-version.json"
