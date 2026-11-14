@@ -174,11 +174,42 @@ def train(base):
     opt = torch.optim.AdamW([x for x in model.parameters() if x.requires_grad], lr=float(p.get("lr", 1e-4)), weight_decay=0.0)
     warm = max(1, steps // 20)
     sched = torch.optim.lr_scheduler.LambdaLR(opt, lambda s: min(1.0, (s + 1) / warm) * max(0.1, 0.5 * (1 + __import__("math").cos(3.14159 * min(1.0, s / steps)))))
+    # 存档：每隔 ckptMin 分钟存一次（LoRA 的参数 + 优化器 + 训到哪了），训完也存一次。
+    # 中途停了（同事要用电脑、断网、重开软件、换电脑），下次从最近的存档接着训，不从头来。
+    trainable = [(n, x) for n, x in model.named_parameters() if x.requires_grad]
+    fp = hashlib.md5(json.dumps([len(data), epochs, accum, int(p.get("rank", 16)), max_len, [d[0][:16] for d in data[:3]], len(trainable)]).encode("utf-8")).hexdigest()
+    ckpt_min = float(p.get("ckptMin", 20))
+
+    def save_ck(ep, k, step):
+        f = os.path.join(work, "ckpt-%d.pt" % step)
+        torch.save({"fp": fp, "lora": {n: x.detach().to("cpu") for n, x in trainable}, "opt": opt.state_dict(), "sched": sched.state_dict(), "ep": ep, "k": k, "step": step}, f)
+        lg.checkpoint(f, step)
+
+    start_ep, start_k, step = 0, 0, 0
+    if t.get("resume"):
+        try:
+            ck = torch.load(t["resume"], map_location="cpu")
+            if ck.get("fp") == fp:
+                with torch.no_grad():
+                    for n, x in trainable:
+                        x.copy_(ck["lora"][n].to(x.device, x.dtype))
+                opt.load_state_dict(ck["opt"])
+                sched.load_state_dict(ck["sched"])
+                start_ep, start_k, step = int(ck["ep"]), int(ck["k"]), int(ck["step"])
+                lg.log("从第 %d/%d 步的存档接着训练（不用从头来）" % (step, steps) if start_ep < epochs else "存档里已经训完了：直接转格式、考试")
+            else:
+                lg.log("存档和这次的数据对不上，从头训练")
+        except Exception as e:
+            lg.log("存档读不了（%s），从头训练" % str(e)[:160])
+
     model.train()
-    step, run_loss, n_tok, t1 = 0, 0.0, 0, time.time()
-    for ep in range(epochs):
-        random.Random(ep).shuffle(data)
-        for k, (ids, labels) in enumerate(data):
+    run_loss, n_tok, t1, last_ck = 0.0, 0, time.time(), time.time()
+    order0 = list(data)
+    for ep in range(start_ep, epochs):
+        order = list(order0)
+        random.Random(ep).shuffle(order)   # 每一轮的顺序只由轮数决定：接着训的时候知道训到哪条了
+        for k in range(start_k if ep == start_ep else 0, len(order)):
+            ids, labels = order[k]
             x = torch.tensor([ids], device="cuda")
             y = torch.tensor([labels], device="cuda")
             with torch.autocast("cuda", dtype=torch.bfloat16):
@@ -195,6 +226,11 @@ def train(base):
                 lg.metric(step, loss=run_loss, tok_s=n_tok / max(time.time() - t1, 1e-6))
                 lg.progress(0.1 + 0.6 * step / steps, "训练：第 %d/%d 步（每秒 %d 字）" % (step, steps, n_tok / max(time.time() - t1, 1e-6)))
                 run_loss = 0.0
+                if time.time() - last_ck > ckpt_min * 60:
+                    save_ck(ep, k + 1, step)
+                    last_ck = time.time()
+    if start_ep < epochs:
+        save_ck(epochs, 0, step)   # 训完了也存一次：后面转格式、考试出了问题，下次直接从这里开始
     out = os.path.join(work, "peft")
     model.save_pretrained(out)
     del model

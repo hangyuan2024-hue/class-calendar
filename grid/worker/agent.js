@@ -64,11 +64,27 @@ async function xferAny(srcs, file, o = {}) {
   }
   throw err || new Error("没有能下载的地址");
 }
+// 传文件断了（socket hang up、连接被重置、超时、存储临时 5xx）：等一会儿再试，下载从断的地方接着下；试 6 次还不行才算失败。
+// 以前断一次整个任务就算出错、从头再来（训练了几个小时的也一样）
+async function xferRetry(method, url, file, o = {}) {
+  let err = null;
+  const tries = o.tries || 6;
+  for (let i = 0; i < tries; i++) {
+    try { return await xfer1(method, url, file, o); } catch (e) {
+      err = e;
+      if (o.signal && o.signal.aborted) throw e;
+      // 只重试「连上了又断了 / 卡住了」这种临时的；地址不通（连接被拒绝、域名不对）、存储报错交给下一个下载地址
+      if (!/^(ECONNRESET|ETIMEDOUT|EPIPE|ECONNABORTED|EAI_AGAIN|UND_ERR_SOCKET)$/.test(netCode(e)) && !/socket hang up|aborted/i.test(e.message || "")) throw e;
+      if (i < tries - 1) await sleep(o.retryMs != null ? o.retryMs : Math.min(30000, 2000 * 2 ** i));
+    }
+  }
+  const n = new Error(`${method === "PUT" ? "上传" : "下载"}断了 ${tries} 次：${netWhy(err)}`); n.net = isNet(err); n.cause = err; throw n;
+}
 function xfer(method, url, file, o = {}) {
-  if (method !== "GET") return xfer1(method, url, file, o);
+  if (method !== "GET") return xferRetry(method, url, file, o);
   const k = path.resolve(file);
   if (inflight.has(k)) return inflight.get(k);
-  const p = xfer1(method, url, file, o).finally(() => inflight.delete(k));
+  const p = xferRetry(method, url, file, o).finally(() => inflight.delete(k));
   inflight.set(k, p);
   return p;
 }
@@ -82,6 +98,7 @@ function xfer1(method, url, file, { onProgress, signal } = {}) {
         let b = ""; res.on("data", (c) => (b += c)); res.on("end", () => (res.statusCode < 300 ? ok({ size }) : bad(new Error(`上传失败 ${res.statusCode} ${b.slice(0, 200)}`))));
       });
       req.on("error", bad);
+      req.setTimeout(120000, () => req.destroy(Object.assign(new Error("上传卡住了（2 分钟没动静）"), { code: "ETIMEDOUT" })));
       if (signal) signal.addEventListener("abort", () => req.destroy(new Error("停了")));
       let sent = 0;
       const rs = fs.createReadStream(file);
@@ -104,8 +121,11 @@ function xfer1(method, url, file, { onProgress, signal } = {}) {
       // 改名失败（同一个文件另一处刚好也下完、已经改过名了）：文件在就算成功，不让整个程序崩掉
       ws.on("finish", () => { try { fs.renameSync(tmp, file); ok({ size: got }); } catch (e) { if (fs.existsSync(file)) ok({ size: fs.statSync(file).size }); else bad(e); } });
       ws.on("error", bad);
+      res.on("error", (e) => { ws.destroy(); bad(e); });
+      res.on("aborted", () => { ws.destroy(); bad(Object.assign(new Error("下载断了（socket hang up）"), { code: "ECONNRESET" })); });
     });
     req.on("error", bad);
+    req.setTimeout(120000, () => req.destroy(Object.assign(new Error("下载卡住了（2 分钟没动静）"), { code: "ETIMEDOUT" })));
     if (signal) signal.addEventListener("abort", () => req.destroy(new Error("停了")));
   });
 }
@@ -166,6 +186,8 @@ function create(opt) {
   const work = opt.workDir;
   fs.mkdirSync(path.join(work, "recipes"), { recursive: true });
   fs.mkdirSync(path.join(work, "tasks"), { recursive: true });
+  // 下载缓存（任务要用的输入文件）：10 天没用到的清掉
+  try { const d = path.join(work, "cache", "inputs"); for (const f of fs.readdirSync(d)) { const x = path.join(d, f); try { if (Date.now() - fs.statSync(x).mtimeMs > 10 * 86400e3) fs.rmSync(x, { force: true }); } catch (e) {} } } catch (e) {}
   const python = () => (typeof opt.python === "function" ? opt.python() : opt.python) || (process.platform === "win32" ? "python" : "python3");
   let policy = { mode: "always", idleMin: 5, from: "22:00", to: "08:00", maxTemp: 83, yieldGames: true, ...(opt.policy || {}) };
   let caps = opt.caps || null;
@@ -353,7 +375,21 @@ function create(opt) {
       delete t.input.partUrls;
       // 前面步骤的结果文件、接着训练的起点：下载到本机
       t.files = {}; t.deps = L.deps || {};
-      for (const [k, u] of Object.entries(L.fileUrls || {})) { const f = path.join(dir, "in-" + k.replace(/[^\w.\-]/g, "_")); c.note = "下载 " + k + "…"; await xfer("GET", u, f, { onProgress: () => { c.lastOut = Date.now(); } }); t.files[k] = f; }
+      // 存储里的文件不会变（每个都是新名字）：按存储路径记在本机，同一个任务重来、下一轮再用到，不用重下
+      const inCache = path.join(work, "cache", "inputs");
+      fs.mkdirSync(inCache, { recursive: true });
+      for (const [k, u] of Object.entries(L.fileUrls || {})) {
+        const f = path.join(dir, "in-" + k.replace(/[^\w.\-]/g, "_"));
+        const key = (L.files || {})[k];
+        const cf = key ? path.join(inCache, crypto.createHash("sha1").update(String(key)).digest("hex") + path.extname(String(key)).slice(0, 12)) : null;
+        c.note = "下载 " + k + "…";
+        try {
+          if (cf && fs.existsSync(cf)) { try { const now = new Date(); fs.utimesSync(cf, now, now); } catch (e) {} }
+          else await xfer("GET", u, cf || f, { onProgress: () => { c.lastOut = Date.now(); } });
+          if (cf) { fs.mkdirSync(path.dirname(f), { recursive: true }); try { fs.linkSync(cf, f); } catch (e) { fs.copyFileSync(cf, f); } }
+        } catch (e) { throw new Error(`下载要用的文件「${k}」失败：${e.message}`); }
+        t.files[k] = f;
+      }
       // 训练要用的人工审核结果（params.dataset）
       if (L.job.params && L.job.params.dataset) { c.note = "取审核数据…"; const d = await api("/api/dataset", { task: c.id }); t.dataset = path.join(dir, "dataset.json"); fs.writeFileSync(t.dataset, JSON.stringify(d.items || [])); log(`审核数据：${(d.items || []).length} 条`); }
       fs.writeFileSync(path.join(dir, "task.json"), JSON.stringify(t));
@@ -382,7 +418,7 @@ function create(opt) {
       emit("done", { id: c.id, ok: r.ok, secs, result });
     } catch (e) {
       clearInterval(renewTimer);
-      if (!c.stopping) { log("出错：" + e.message, "error"); await api("/api/fail", { task: c.id, error: e.message + "\n" + c.logs.slice(-20).map((l) => l.msg).join("\n") }).catch(() => {}); emit("done", { id: c.id, ok: false, error: e.message }); }
+      if (!c.stopping) { log("出错：" + e.message, "error"); await api("/api/fail", { task: c.id, error: c.logs.slice(-20).map((l) => l.msg).join("\n") + "\n出错：" + e.message }).catch(() => {}); emit("done", { id: c.id, ok: false, error: e.message }); }
     } finally {
       clearInterval(renewTimer);
       if (cur === c) cur = null;

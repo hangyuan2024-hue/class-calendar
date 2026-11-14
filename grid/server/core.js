@@ -325,6 +325,11 @@ function open(file, opt = {}) {
       const c = one("select * from ckpts where job_id=? and kind='relay' order by step desc, id desc limit 1", j.id);
       if (c) out.resume = { key: c.key, step: c.step };
     }
+    // 一个人算的大任务（比如训练答题大脑，几个小时）：配方存过档的，换电脑 / 重来时从最近的存档接着算，不从头来
+    if (j.kind === "map") {
+      const c = one("select * from ckpts where task_id=? and kind='part' order by step desc, id desc limit 1", t.id);
+      if (c) out.resume = { key: c.key, step: c.step };
+    }
     if (j.kind === "diloco") {
       const c = one("select * from ckpts where job_id=? and kind='global' and round=? order by id desc limit 1", j.id, t.round);
       if (c) out.resume = { key: c.key, round: c.round };

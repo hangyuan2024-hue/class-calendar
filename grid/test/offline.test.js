@@ -122,6 +122,54 @@ function flakyFetch() {
   ok("断网期间被别的电脑接走：原来那台连回来就停下，不重复交；接手的从存档算完");
   await b.stop(); await c.stop();
 
+  // ---------- 5：传文件断了（socket hang up）：自动重试、接着下，不让整个任务失败 ----------
+  {
+    const http = require("http");
+    const body = Buffer.alloc(300000, 7);
+    let n = 0;
+    const fsrv = http.createServer((q, r) => {
+      n++;
+      if (n <= 2) return q.socket.destroy();   // 前两次直接挂断：客户端看到的就是 socket hang up
+      if (n === 3) { r.writeHead(200, { "content-length": body.length }); r.write(body.subarray(0, 100000)); return setTimeout(() => q.socket.destroy(), 50); }   // 第三次传一半断了
+      const m = /bytes=(\d+)-/.exec(q.headers.range || "");
+      const from = m ? +m[1] : 0;
+      r.writeHead(m ? 206 : 200, { "content-length": body.length - from }); r.end(body.subarray(from));
+    }).listen(0, "127.0.0.1");
+    await new Promise((r) => fsrv.on("listening", r));
+    const f = path.join(tmp, "dl.bin");
+    await Agent.xfer("GET", `http://127.0.0.1:${fsrv.address().port}/x`, f, { retryMs: 50 });
+    assert.ok(fs.readFileSync(f).equals(body), "下载的内容要完整");
+    assert.ok(n >= 4);
+    fsrv.close();
+    ok("下载被挂断（socket hang up）、传一半断了：自动重试、从断的地方接着下，内容完整");
+  }
+
+  // ---------- 6：一个人算的大任务（map）中途出错 / 停下：下次从它自己的存档接着算 ----------
+  {
+    const rf = path.join(tmp, "ck_map.py");
+    fs.writeFileSync(rf, [
+      "import os, lg",
+      "t = lg.task()",
+      "if t.get('resume'):",
+      "    lg.log('resume %s' % open(t['resume']).read())",
+      "    lg.done(ok=1)",
+      "else:",
+      "    f = os.path.join(lg.work_dir(), 'ck-7.txt'); open(f, 'w').write('7'); lg.checkpoint(f, 7)",
+      "    import time; time.sleep(1.5)",
+      "    raise SystemExit('boom')",
+    ].join("\n"));
+    const pf = path.join(tmp, "plan3.json");
+    fs.writeFileSync(pf, JSON.stringify({ jobs: [{ name: "存档接着算", stage: "阶段 2 · 训练", kind: "map", recipe: rf, params: { count: 1 }, priority: 9 }] }));
+    const [j3] = await Tools.plan(admin, pf);
+    const d = boot(await join("赵六"), "d", flakyFetch());
+    const dl = []; d.on("log", (l) => dl.push(l.msg));
+    d.start();
+    await until(() => app.core.overview(true).jobs.find((j) => j.id === j3).state === "done", 30000, "存档接着算");
+    assert.ok(dl.some((m) => m === "resume 7"), "第二次应该拿到第一次的存档：" + dl.slice(-10).join(" | "));
+    ok("一个人算的大任务出错重来：从它自己最近的存档接着算（训练答题大脑不再从头训）");
+    await d.stop();
+  }
+
   await app.close();
   console.log("断网测试：全部通过");
   process.exit(0);
