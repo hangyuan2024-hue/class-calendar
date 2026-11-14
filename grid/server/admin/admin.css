@@ -116,3 +116,4 @@ main { padding: 18px 26px 40px; display: grid; gap: 16px; }
 .vfile input { max-width: 240px; font-size: 12px; }
 .vbar { margin: 0 0 10px; }
 .voices-card code { font-family: var(--mono); color: var(--cy); }
+.errbox { white-space: pre-wrap; word-break: break-all; font-family: var(--mono); font-size: 12px; color: var(--rd); background: rgba(255, 80, 80, .06); border: 1px solid rgba(255, 80, 80, .25); border-radius: 8px; padding: 8px 10px; max-height: 220px; overflow: auto; margin: 6px 0; }
