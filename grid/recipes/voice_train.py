@@ -217,24 +217,45 @@ if p.get("openVoice") == "aishell3":
     import re
     bases = [x for x in str(p.get("openBase") or "").split(",") if x] or (["https://huggingface.co/datasets/AISHELL/AISHELL-3/resolve/main", "https://hf-mirror.com/datasets/AISHELL/AISHELL-3/resolve/main"] if lg.region() == "global" else ["https://hf-mirror.com/datasets/AISHELL/AISHELL-3/resolve/main", "https://huggingface.co/datasets/AISHELL/AISHELL-3/resolve/main"])
 
-    def fetch(rel, dest, tries=4):
+    def fetch(rel, dest, tries=5):
         if os.path.exists(dest) and os.path.getsize(dest) > 0:
             return dest
         err = None
         for k in range(tries):
             for b in bases:
                 try:
-                    with urllib.request.urlopen(b + "/" + rel, timeout=60) as r, open(dest + ".part", "wb") as fh:
+                    req = urllib.request.Request(b + "/" + rel, headers={"User-Agent": "laolao-grid"})
+                    with urllib.request.urlopen(req, timeout=60) as r, open(dest + ".part", "wb") as fh:
                         shutil.copyfileobj(r, fh)
                     os.replace(dest + ".part", dest)
                     return dest
                 except Exception as e:
                     err = e
-            time.sleep(1 + k * 2)
-        raise RuntimeError("下不了 %s：%s" % (rel, err))
+            time.sleep(2 + k * 4)
+        raise RuntimeError("下不了 %s：%s（hf-mirror / Hugging Face 连不稳；跑一次 Actions「AI 组件搬到国内存储」带上 voicedata，就从自己的存储下）" % (rel, err))
 
     od = os.path.join(work, "aishell3")
     os.makedirs(od, exist_ok=True)
+    # 先从自己的存储下打好的包（国内腾讯云 / 国外自己的 GitHub）：说明 + 选好的那一位的全部录音，一个文件
+    pack = [m for m in lg.mirror(model="aishell3") if m.get("sources")]
+    if pack and not os.path.exists(os.path.join(od, "pick.txt")):
+        try:
+            import tarfile
+            tp = os.path.join(work, "aishell3.tar")
+            lg.progress(0.02, "从自己的存储下公开录音（AISHELL-3）")
+            lg.download(pack[0]["sources"], tp, "公开录音")
+            with tarfile.open(tp) as tf:
+                for m_ in tf.getmembers():
+                    n_ = os.path.basename(m_.name)
+                    if m_.isfile() and n_ and m_.name.startswith("aishell3/") and "/" not in m_.name[9:]:
+                        with tf.extractfile(m_) as src_, open(os.path.join(od, n_), "wb") as dst_:
+                            shutil.copyfileobj(src_, dst_)
+            os.remove(tp)
+            lg.log("公开录音从自己的存储下好了")
+        except Exception as e:
+            lg.log("自己的存储里的公开录音没下成（%s），改从 hf-mirror / Hugging Face 下" % e)
+    if not p.get("speaker") and os.path.exists(os.path.join(od, "pick.txt")):
+        p["speaker"] = open(os.path.join(od, "pick.txt"), encoding="utf-8").read().strip() or None
     lg.progress(0.02, "下载公开录音的说明（AISHELL-3）")
     info = {}
     with open(fetch("spk-info.txt", os.path.join(od, "spk-info.txt")), encoding="utf-8", errors="replace") as fh:

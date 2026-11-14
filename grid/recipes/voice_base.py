@@ -140,6 +140,30 @@ def cer(ref, hyp):
 OB = [x for x in str(p.get("openBase") or "").split(",") if x] or (["https://huggingface.co/datasets/AISHELL/AISHELL-3/resolve/main", "https://hf-mirror.com/datasets/AISHELL/AISHELL-3/resolve/main"] if lg.region() == "global" else ["https://hf-mirror.com/datasets/AISHELL/AISHELL-3/resolve/main", "https://huggingface.co/datasets/AISHELL/AISHELL-3/resolve/main"])
 OD = os.path.join(work, "aishell3")
 os.makedirs(OD, exist_ok=True)
+# 先从自己的存储下打好的包（国内腾讯云 / 国外自己的 GitHub）：训练集 80 位 × 40 句 + 测试集 12 位 × 6 句，一个文件；
+# 有包就只用包里的录音（不再一句一句去 hf-mirror / Hugging Face 下，那边经常断）
+PACKED = os.path.exists(os.path.join(OD, "pack.txt"))
+if not PACKED:
+    _pk = [m for m in lg.mirror(model="aishell3Base") if m.get("sources")]
+    if _pk:
+        try:
+            import tarfile
+            _tp = os.path.join(work, "aishell3-base.tar")
+            lg.log("从自己的存储下公开录音（AISHELL-3）")
+            lg.download(_pk[0]["sources"], _tp, "公开录音")
+            with tarfile.open(_tp) as tf:
+                for m_ in tf.getmembers():
+                    rel = m_.name.split("/", 1)[1] if m_.name.startswith("aishell3/") else ""
+                    if not m_.isfile() or not rel or ".." in rel.split("/"):
+                        continue
+                    dst = os.path.join(OD, *rel.split("/"))
+                    os.makedirs(os.path.dirname(dst), exist_ok=True)
+                    with tf.extractfile(m_) as src_, open(dst, "wb") as out_:
+                        shutil.copyfileobj(src_, out_)
+            os.remove(_tp)
+            PACKED = os.path.exists(os.path.join(OD, "pack.txt"))
+        except Exception as e:
+            lg.log("自己的存储里的公开录音没下成（%s），改从 hf-mirror / Hugging Face 下" % e)
 
 
 def fetch(rel, dest, tries=4):
@@ -150,7 +174,7 @@ def fetch(rel, dest, tries=4):
     for k in range(tries):
         for b in OB:
             try:
-                with urllib.request.urlopen(b + "/" + rel, timeout=60) as r, open(dest + ".part", "wb") as fh:
+                with urllib.request.urlopen(urllib.request.Request(b + "/" + rel, headers={"User-Agent": "laolao-grid"}), timeout=60) as r, open(dest + ".part", "wb") as fh:
                     shutil.copyfileobj(r, fh)
                 os.replace(dest + ".part", dest)
                 return dest
@@ -169,6 +193,8 @@ def aishell_index(split):
                 continue
             txt = "".join(x for x in a[1:] if not re.search(r"[A-Za-z0-9%$]", x))
             if len(txt) >= 4:
+                if PACKED and not os.path.exists(os.path.join(OD, split, a[0][:7], a[0])):
+                    continue
                 utts.setdefault(a[0][:7], []).append((a[0], txt))
     return utts
 

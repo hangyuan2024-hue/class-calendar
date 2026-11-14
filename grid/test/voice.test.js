@@ -15,6 +15,7 @@ const ROOT = path.join(__dirname, "..");
 const PY = process.env.PYTHON || "python3";
 const ok = (m) => console.log("✓", m);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+process.env.LG_MIRROR = "off";   // 配方别去读真的组件镜像清单
 process.env.NO_PROXY = process.env.no_proxy = "127.0.0.1,localhost" + (process.env.NO_PROXY ? "," + process.env.NO_PROXY : "");
 const until = async (f, what, ms = 90000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { const v = await f(); if (v) return v; await sleep(100); } throw new Error("等太久了：" + what); };
 const W = (f, s) => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, s); };
@@ -261,6 +262,27 @@ W(FF, "import sys,shutil,os\na=sys.argv\nshutil.copy(a[a.index('-i')+1],a[-1])\n
   const pub2 = await (await fetch(url + "/pub/models/manifest.json")).json();
   assert.ok(pub2.models["laolao-voice"] && pub2.models["laolao-voice"].files.map((f) => f.name).join() === "gpt,sovits,ref,reftext", "捞捞的声音公开发布，老师端自动下载");
   ok(`捞捞的专属声音：自动挑了 SSB0002（26～40 岁、北方、女），只下这一位的 ${res2.clips} 句，升 2 个半音（变成另一个「人」）；第一个地址坏了换下一个；公开发布 laolao-voice`);
+
+  // 同事电脑连 hf-mirror / Hugging Face 不稳（SSL EOF）：先从自己的存储下打好的包（说明 + 挑中那一位的录音），一个文件
+  const tarDir = path.join(tmp, "pack"); fs.mkdirSync(path.join(tarDir, "aishell3"), { recursive: true });
+  fs.copyFileSync(path.join(OD, "spk-info.txt"), path.join(tarDir, "aishell3", "spk-info.txt"));
+  fs.writeFileSync(path.join(tarDir, "aishell3", "content.txt"), content.filter((l) => l.startsWith("SSB0001")).join("\n") + "\n");
+  fs.writeFileSync(path.join(tarDir, "aishell3", "pick.txt"), "SSB0001\n");
+  for (const f of fs.readdirSync(path.join(OD, "train", "wav", "SSB0001"))) fs.copyFileSync(path.join(OD, "train", "wav", "SSB0001", f), path.join(tarDir, "aishell3", f));
+  require("child_process").execFileSync("tar", ["-cf", path.join(OD, "aishell3-laolao.tar"), "-C", tarDir, "aishell3"]);
+  W(path.join(OD, "ai-mirror.json"), JSON.stringify({ files: { "ai/voicedata/aishell3-laolao.tar": { group: "voicedata", name: "aishell3-laolao.tar", url: `http://127.0.0.1:${fsrv.address().port}/aishell3-laolao.tar`, model: "aishell3" } } }));
+  process.env.LG_MIRROR = `http://127.0.0.1:${fsrv.address().port}/ai-mirror.json`;
+  hits.length = 0;
+  const rP = await Tools.api(admin, "/api/admin/pipeline/run", { name: "捞捞声音", extra: { openBase: "http://127.0.0.1:1/nothing" } });
+  ag.start();
+  await until(() => app.core.db.prepare("select state from runs where id=?").get(rP.run).state !== "running", "从自己的存储下公开录音").catch((e) => { console.log(app.core.db.prepare("select error from tasks where error is not null order by id desc limit 2").all()); throw e; });
+  ag.stop();
+  process.env.LG_MIRROR = "off";
+  assert.equal(app.core.db.prepare("select state from runs where id=?").get(rP.run).state, "done", "hf-mirror / Hugging Face 都连不上也能训");
+  const resP = JSON.parse(app.core.db.prepare("select result from tasks t join jobs j on j.id=t.job_id where j.run_id=?").get(rP.run).result);
+  assert.equal(resP.clips, 30, "用的是包里选好的那一位（SSB0001）的 30 句");
+  assert.ok(hits.some((h) => /aishell3-laolao\.tar/.test(h)) && hits.every((h) => !/\/train\//.test(h)), "只下了一个包，没再一句一句去下");
+  ok("公开录音先从自己的存储下打好的包：hf-mirror / Hugging Face 连不上（SSL 断开）也能训捞捞的声音");
 
   // ---------- 声音底座：练习（念难句子、自动打分）→ 攒够了用所有老师 + 公开录音接着训整个模型 → 考试 → 发布 ----------
   const pools = app.core.db.prepare("select name from outputs where name like 'voicepool-%'").all();

@@ -176,11 +176,14 @@ def mirror(model=None, group=None):
     global _mirror_cache
     import json as _json
     import urllib.request
+    if _mirror_cache is None and os.environ.get("LG_MIRROR") == "off":
+        _mirror_cache = {}
     if _mirror_cache is None:
         cn = ["https://www.laolaokechengbiao.cn/download/ai-mirror.json", "https://cdn.jsdelivr.net/gh/hangyuan2024-hue/class-calendar@main/download/ai-mirror.json"]
         gl = ["https://raw.githubusercontent.com/hangyuan2024-hue/class-calendar/main/download/ai-mirror.json"]
         _mirror_cache = {}
-        for u in (gl + cn if region() == "global" else cn + gl):
+        own = os.environ.get("LG_MIRROR")  # 测试用：换一个清单地址
+        for u in ([own] if own else gl + cn if region() == "global" else cn + gl):
             try:
                 with urllib.request.urlopen(urllib.request.Request(u + "?t=%d" % time.time(), headers={"User-Agent": "laolao-grid"}), timeout=20) as r:
                     _mirror_cache = _json.loads(r.read().decode("utf-8")).get("files") or {}
@@ -193,7 +196,7 @@ def mirror(model=None, group=None):
             continue
         if group and v.get("group") != group:
             continue
-        if not str(v.get("url", "")).startswith("https://"):
+        if not str(v.get("url", "")).startswith(("https://", "http://127.0.0.1")):
             continue
         gh = v.get("gh") or []
         ghs = (gh[0] if len(gh) == 1 else {"parts": gh}) if gh else None
