@@ -63,9 +63,10 @@
     if (!c) return;
     const RS = { done: "完成", running: "进行中", failed: "失败" };
     $("#pipes").innerHTML = c.pipelines.map((p) => `<div class="pipe"><b>${esc(p.name)}</b><small>${p.mode === "continuous" ? `不定时间：大家开着就算${p.when && p.when.manual ? " · 点「现在训练一次」才训练" : ""}${p.when && !p.when.manual ? ` · ${p.when.outputsOf || p.when.outputsLike ? "新数据" : "新审核"} <b>${p.when.fresh}</b>/${p.when.need} ${p.when.outputsOf || p.when.outputsLike ? "份" : "条"}就训练一次` : ""}${p.standing.length ? ` · ${p.standing.map((j) => `${esc(j.name)} 已做 ${j.done} 个${j.state === "paused" ? "（停下了）" : ""}`).join("，")}` : ""}` : `每天 ${esc(p.at)}`} · ${p.stages.map(esc).join(" → ")}${p.enabled ? "" : " · 已停用"}</small>
-      <div class="runs">${p.runs.map((r) => `<span class="run ${r.state}" title="第 ${r.id} 轮">${esc(r.day.slice(5))} ${RS[r.state] || r.state}</span>`).join("") || `<span class="muted small">还没跑过</span>`}
+      <div class="runs">${p.runs.map((r) => `<span class="run ${r.state}${r.job ? " click" : ""}"${r.job ? ` data-rj="${r.job}"` : ""} title="第 ${r.id} 轮${r.job ? "：点开看进度和出错信息" : ""}">${esc(r.day.slice(5))} ${RS[r.state] || r.state}</span>`).join("") || `<span class="muted small">还没跑过</span>`}
       <button class="btn sm" data-run="${p.id}">${p.mode === "continuous" ? "现在训练一次" : "现在跑一轮"}</button><button class="btn sm" data-en="${p.id}" data-v="${p.enabled ? 0 : 1}">${p.enabled ? "停用" : "启用"}</button></div></div>`).join("") || `<p class="muted">还没设每日一轮：node tools/grid.js cycle 每日一轮.json</p>`;
     $$("#pipes [data-run]").forEach((b) => (b.onclick = guard(async () => { const r = await api("/api/admin/pipeline/run", { id: +b.dataset.run }); toast(`第 ${r.run} 轮开始了`); refresh(); loadCycle(); })));
+    $$("#pipes [data-rj]").forEach((el) => (el.onclick = () => openJob(+el.dataset.rj)));
     $$("#pipes [data-en]").forEach((b) => (b.onclick = guard(async () => { await api("/api/admin/pipeline/enable", { id: +b.dataset.en, enabled: b.dataset.v === "1" }); loadCycle(); })));
     const MS = { released: "已发布", candidate: "等你确认", rejected: "没发布" };
     const active = new Set(); const seen = new Set();

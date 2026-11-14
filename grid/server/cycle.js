@@ -305,7 +305,12 @@ function attach(core, opt = {}) {
         return { id: p.id, name: p.name, at: p.at, mode: cont ? "continuous" : "daily", enabled: !!p.enabled, stages: spec.stages.map((s) => s.name || s.key),
           when: w ? { ...w, need: whenNeed(w), fresh: whenCount(w) - (((J(last && last.result, {}) || {}).marks || {})[whenKey(w)] || 0) } : null,
           standing: cont ? all("select j.id, j.name, j.state, j.done from jobs j join runs r on r.id=j.run_id where r.pipeline_id=? and r.state='standing' and j.state!='done' order by j.id desc limit 3", p.id) : [],
-          runs: all("select id, day, state, created, finished from runs where pipeline_id=? and state!='standing' order by id desc limit 7", p.id) };
+          // job：点这一轮的标签打开哪个任务（有没做完的就开那个，比如失败的；都做完了开最后一个）
+          runs: all("select id, day, state, created, finished from runs where pipeline_id=? and state!='standing' order by id desc limit 7", p.id).map((r) => {
+            const js = all("select id, state from jobs where run_id=? order by id", r.id);
+            const pick = js.find((j) => j.state !== "done") || js[js.length - 1];
+            return { ...r, job: pick ? pick.id : null };
+          }) };
       }),
       models: all("select * from models order by name, version desc limit 60").map((m) => ({ id: m.id, name: m.name, version: m.version, state: m.state, metrics: J(m.metrics, {}), created: m.created, note: m.note, run: m.run_id })),
     };

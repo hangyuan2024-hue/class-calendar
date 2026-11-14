@@ -106,6 +106,7 @@ main { padding: 18px 26px 40px; display: grid; gap: 16px; }
 .pipe .runs { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .pipe .run { font-size: 11px; padding: 2px 8px; border-radius: 99px; background: rgba(255, 255, 255, .06); }
 .pipe .run.done { color: var(--gr); } .pipe .run.running { color: var(--cy); } .pipe .run.failed { color: var(--rd); }
+.pipe .run.click { cursor: pointer; } .pipe .run.click:hover { background: rgba(54, 226, 255, .14); text-decoration: underline; }
 .st.released { color: var(--gr); } .st.candidate { color: var(--am); } .st.rejected { color: var(--mut); }
 
 /* 老师的声音 */
