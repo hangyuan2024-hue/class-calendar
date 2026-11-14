@@ -190,6 +190,7 @@
           <label>显存最多用 <input type="number" min="0" max="96" step="0.5" data-set="vramCap"> G（0 = 不限；留一点给自己用就设小一点，只领需要显存不超过这么多的活）</label>
           <label>显卡功耗上限 <input type="number" min="0" max="600" step="5" data-set="maxPower"> W（0 = 不限；超过就歇一会儿）</label>
           <label>网速上限 <input type="number" min="0" max="1000" step="1" data-set="netLimit"> MB/秒（0 = 不限；下载模型、传结果都算）</label>
+          <label class="check"><input type="checkbox" data-set="multiGpu"> 有好几块 NVIDIA 显卡时都用上（每块各领各的任务；第 2 块起只做训练、评测这类）</label>
         </div>
         <div class="glass panel">
           <h3>下载源</h3>

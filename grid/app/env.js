@@ -5,7 +5,7 @@
 const fs = require("fs");
 const path = require("path");
 const { spawn, execFile } = require("child_process");
-const { xfer } = require("../worker/agent");
+const { xfer, xferAny } = require("../worker/agent");
 
 const PY_VER = "3.11.9";
 const PY_URLS = [
@@ -27,7 +27,16 @@ const MIRROR = [
   "https://raw.githubusercontent.com/hangyuan2024-hue/class-calendar/main/download/ai-mirror.json",
 ];
 
-function create({ dir, onEvent, python: given, mirror = MIRROR, fetchImpl, basePkgs = BASE_PKGS }) {
+// 在国外：官方的源排前面（国内镜像在国外反而慢）
+const first = (arr, re) => [...arr.filter((x) => re.test(JSON.stringify(x))), ...arr.filter((x) => !re.test(JSON.stringify(x)))];
+// 一个文件：国内存储（url）和自己 GitHub 的 Release（gh，可能切成几块）按地区排
+const srcOf = (x, region) => { const gh = Array.isArray(x.gh) && x.gh.length ? (x.gh.length === 1 ? x.gh[0] : { parts: x.gh }) : null; return (region === "global" ? [gh, x.url] : [x.url, gh]).filter(Boolean); };
+
+function create({ dir, onEvent, python: given, mirror = MIRROR, fetchImpl, basePkgs = BASE_PKGS, region: regionFn }) {
+  const region = () => (regionFn ? regionFn() : "cn");
+  const PYU = () => (region() === "global" ? first(PY_URLS, /python\.org/) : PY_URLS);
+  const TORCHS = () => (region() === "global" ? first(TORCH, /download\.pytorch\.org/) : TORCH);
+  const PIPS = () => (region() === "global" ? ["https://pypi.org/simple", ...PIP] : PIP);
   const pyDir = path.join(dir, "python");
   const pyExe = () => given || (process.platform === "win32" ? path.join(pyDir, "python.exe") : "python3");
   let child = null, cancelled = false;
@@ -71,7 +80,7 @@ function create({ dir, onEvent, python: given, mirror = MIRROR, fetchImpl, baseP
       let have = -1; try { have = fs.statSync(f).size; } catch (e) {}
       if (have !== w.size) {
         say("wheels", `从你的国内存储下载 ${w.name}（${(w.size / 1048576).toFixed(0)} MB）`);
-        await xfer("GET", w.url, f, { onProgress: (a) => say("wheels", null, { progress: total ? (done + a) / total : 0 }) });
+        await xferAny(srcOf(w, region()), f, { onProgress: (a) => say("wheels", null, { progress: total ? (done + a) / total : 0 }) });
         if (w.sha256 && (await sha256(f)) !== w.sha256) { fs.rmSync(f, { force: true }); throw new Error(w.name + " 下载坏了，再点一次「一键安装」"); }
       }
       done += w.size || 0;
@@ -101,9 +110,9 @@ function create({ dir, onEvent, python: given, mirror = MIRROR, fetchImpl, baseP
       if (process.platform !== "win32") throw new Error("这台电脑不是 Windows：自己装好 Python 3.10 以上，在设置里选它");
       const inst = path.join(dir, `python-${PY_VER}-amd64.exe`);
       let got = false;
-      for (const u of [M.python && M.python.url, ...PY_URLS].filter(Boolean)) {
+      for (const u of [...(M.python ? srcOf(M.python, region()) : []), ...PYU()].filter(Boolean)) {
         if (cancelled) throw new Error("取消了");
-        try { say("python", "下载 Python " + PY_VER + "：" + new URL(u).host); await xfer("GET", u, inst, { onProgress: (a, b) => say("python", null, { progress: b ? a / b : 0 }) }); got = true; break; }
+        try { say("python", "下载 Python " + PY_VER + "：" + (typeof u === "string" ? new URL(u).host : "GitHub")); await xferAny([u], inst, { onProgress: (a, b) => say("python", null, { progress: b ? a / b : 0 }) }); got = true; break; }
         catch (e) { say("python", "这个地址不行：" + e.message); }
       }
       if (!got) throw new Error("Python 安装包下载不下来，检查一下网络");
@@ -125,7 +134,7 @@ function create({ dir, onEvent, python: given, mirror = MIRROR, fetchImpl, baseP
     const want = needTorch ? M.wheels : M.wheels.filter((w) => !/^torch(vision)?-/i.test(w.name));
     if (want.length) { try { wd = await pullWheels(want); } catch (e) { if (cancelled) throw e; say("wheels", "国内存储下载出错，改走公共镜像：" + e.message); } }
     if (wd) { try { await pip([...basePkgs, "--no-index", "-f", wd], "pkgs"); ok = true; } catch (e) { if (cancelled) throw e; say("pkgs", "本地的包装不上，改走镜像"); } }
-    if (!ok) for (const idx of PIP) { try { await pip([...basePkgs, "-i", idx], "pkgs"); ok = true; break; } catch (e) { if (cancelled) throw e; say("pkgs", "换一个镜像再试"); } }
+    if (!ok) for (const idx of PIPS()) { try { await pip([...basePkgs, "-i", idx], "pkgs"); ok = true; break; } catch (e) { if (cancelled) throw e; say("pkgs", "换一个镜像再试"); } }
     if (!ok) throw new Error("装 numpy 这些基础包失败");
     say("pkgs", "基础的包装好了", { done: true });
     // 3. PyTorch（CUDA 12.8 版，50 系显卡要它）
@@ -143,8 +152,8 @@ function create({ dir, onEvent, python: given, mirror = MIRROR, fetchImpl, baseP
           ok = !!(cv && cv !== "cpu");
         } catch (e) { if (cancelled) throw e; say("torch", "本地的装不上，改走镜像"); }
       }
-      if (!ok) for (const idx of PIP) { try { await pip(["filelock", "typing-extensions", "sympy", "networkx", "jinja2", "fsspec", "-i", idx], "torch"); break; } catch (e) { if (cancelled) throw e; } }
-      for (const src of ok ? [] : TORCH) {
+      if (!ok) for (const idx of PIPS()) { try { await pip(["filelock", "typing-extensions", "sympy", "networkx", "jinja2", "fsspec", "-i", idx], "torch"); break; } catch (e) { if (cancelled) throw e; } }
+      for (const src of ok ? [] : TORCHS()) {
         try {
           say("torch", "从 " + new URL(src[1]).host + " 下载 CUDA 版的 PyTorch（约 3G）");
           await pip(["torch", "torchvision", "--no-deps", "--force-reinstall", ...(src[0] === "-f" ? ["--no-index", "-f", src[1]] : ["--index-url", src[1]])], "torch");
@@ -161,7 +170,7 @@ function create({ dir, onEvent, python: given, mirror = MIRROR, fetchImpl, baseP
   // 配方要用的包（配方开头写 # requires: diffusers==0.35 transformers）
   async function ensure(pkgs) {
     if (!pkgs || !pkgs.length) return;
-    for (const idx of PIP) { try { await run(pyExe(), ["-m", "pip", "install", ...pkgs, "-i", idx], "pkgs"); return; } catch (e) {} }
+    for (const idx of PIPS()) { try { await run(pyExe(), ["-m", "pip", "install", ...pkgs, "-i", idx], "pkgs"); return; } catch (e) {} }
     throw new Error("装不上：" + pkgs.join(" "));
   }
   function cancel() { cancelled = true; if (child) try { child.kill(); } catch (e) {} }

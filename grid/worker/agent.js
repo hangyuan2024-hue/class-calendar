@@ -42,6 +42,28 @@ function throttle(stream, n) {
   net.used += n;
   if (net.used > net.bps) { stream.pause(); setTimeout(() => stream.resume(), Math.max(50, 1000 - (Date.now() - net.winStart))); }
 }
+// 按顺序试几个地址：字符串就直接下；{ parts: [...] }（GitHub 上切块的）每块下好再接起来
+async function xferAny(srcs, file, o = {}) {
+  let err = null;
+  for (const s of (srcs || []).filter(Boolean)) {
+    try {
+      if (typeof s === "string") { await xfer("GET", s, file, o); return file; }
+      if (!s.parts || !s.parts.length) continue;
+      const dir = file + ".parts"; fs.mkdirSync(dir, { recursive: true });
+      let before = 0;
+      for (let i = 0; i < s.parts.length; i++) {
+        const pf = path.join(dir, String(i + 1).padStart(3, "0"));
+        await xfer("GET", s.parts[i], pf, { ...o, onProgress: (a, b) => o.onProgress && o.onProgress(before + a, 0) });
+        before += fs.statSync(pf).size;
+      }
+      fs.rmSync(file + ".part", { force: true });
+      for (let i = 0; i < s.parts.length; i++) fs.appendFileSync(file + ".part", fs.readFileSync(path.join(dir, String(i + 1).padStart(3, "0"))));
+      fs.renameSync(file + ".part", file); fs.rmSync(dir, { recursive: true, force: true });
+      return file;
+    } catch (e) { err = e; }
+  }
+  throw err || new Error("没有能下载的地址");
+}
 function xfer(method, url, file, o = {}) {
   if (method !== "GET") return xfer1(method, url, file, o);
   const k = path.resolve(file);
@@ -103,7 +125,7 @@ function create(opt) {
   let stopped = false, paused = false, draining = false;
   // 手动开关：auto 按挂机设置；on 手动开始（不管空闲 / 定时，一直算到点「停止」，但还是让着游戏、怕过热）；off 停止
   let manual = opt.manual || "auto";
-  let lastHb = 0, lastLease = 0, lastTick = Date.now();
+  let lastHb = 0, lastLease = 0, lastTick = Date.now(), extraEnv = {};
   const CMD_NAMES = { start: "开始", stop: "停止", auto: "按设置自动", update: "立刻更新", restart: "重启软件", logs: "交日志", clean: "清理缓存", probe: "重新体检" };
   const logs = [];
   let gpuNow = null;
@@ -236,7 +258,7 @@ function create(opt) {
         c.note = "准备 GPT-SoVITS…";
         gsv = await opt.gsv.ensure((m) => { c.note = m; c.lastOut = Date.now(); log(m); emit("progress", { id: c.id, p: c.progress, note: m }); });
       }
-      const t = { kind: L.task.kind, task: L.task, input: L.task.input, job: L.job, work: dir, resume: null, parts: [], llm: llmUrl, gsv, extra: L.extra || {} };
+      const t = { kind: L.task.kind, task: L.task, input: L.task.input, job: L.job, work: dir, resume: null, parts: [], llm: llmUrl, gsv, extra: L.extra || {}, region: opt.region ? opt.region() : "cn" };
       if (L.resume) { const f = path.join(dir, "resume-" + path.basename(L.resume.key)); c.note = "下载存档…"; await xfer("GET", L.resume.url, f, { onProgress: () => { c.lastOut = Date.now(); } }); t.resume = f; t.resumeInfo = { step: L.resume.step, round: L.resume.round }; }
       for (const [i, u] of (L.task.input.partUrls || []).entries()) { const f = path.join(dir, `part-${i}.npz`); await xfer("GET", u, f); t.parts.push(f); }
       delete t.input.partUrls;
@@ -300,7 +322,7 @@ function create(opt) {
 
   function spawnPy(c, file, taskFile) {
     return new Promise((ok) => {
-      const env = { ...process.env, ...(opt.env || {}), PYTHONPATH: PY_DIR + path.delimiter + (process.env.PYTHONPATH || ""), PYTHONUNBUFFERED: "1", PYTHONIOENCODING: "utf-8", LG_TASK: taskFile, LG_RECIPE: file };
+      const env = { ...process.env, ...(opt.env || {}), ...extraEnv, PYTHONPATH: PY_DIR + path.delimiter + (process.env.PYTHONPATH || ""), PYTHONUNBUFFERED: "1", PYTHONIOENCODING: "utf-8", LG_TASK: taskFile, LG_RECIPE: file };
       const child = c.child = spawn(python(), ["-u", file], { cwd: c.dir, env, windowsHide: true });
       const lines = (s, err) => {
         let buf = "";
@@ -405,6 +427,7 @@ function create(opt) {
     drain(v) { draining = !!v; lastLease = 0; },
     cmdDone: (id, ok, result) => api("/api/cmd/done", { id, ok: !!ok, result: result == null ? null : result }).catch(() => {}),
     lastTick: () => lastTick,
+    setEnv: (e) => { extraEnv = { ...(e || {}) }; },
     touch() { if (cur) cur.lastOut = Date.now(); },   // 准备阶段（装 GPT-SoVITS、下大文件）有进度时也算有动静
     kill: (why) => stopTask(true, why || "被结束了"),
     get policy() { return policy; },
@@ -424,4 +447,4 @@ async function join(invite, name, device, fetchImpl = fetch) {
   return { server: inv.server, pubkey: inv.pubkey, token: j.token, device: j.device, member: j.member };
 }
 
-module.exports = { setNetLimit, create, join, parseInvite, verifySig, xfer, probe };
+module.exports = { setNetLimit, xferAny, create, join, parseInvite, verifySig, xfer, probe };

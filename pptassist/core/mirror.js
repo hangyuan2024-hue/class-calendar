@@ -7,7 +7,16 @@ const SOURCES = [
   "https://raw.githubusercontent.com/hangyuan2024-hue/class-calendar/main/download/ai-mirror.json",
 ];
 
+// 没告诉在哪：看电脑的时区（中国时区算国内）
+const tzRegion = () => { try { return new Date().getTimezoneOffset() === -480 || /^Asia\/(Shanghai|Chongqing|Harbin|Urumqi|Hong_Kong|Macau|Taipei)$/.test(Intl.DateTimeFormat().resolvedOptions().timeZone) ? "cn" : "global"; } catch (e) { return "cn"; } };
+// 一个文件的下载地址：国内存储（url）和自己 GitHub 的 Release（gh：一个地址，或者切成几块）按地区排
+function sourcesOf(x, region) {
+  const gh = Array.isArray(x.gh) && x.gh.length ? (x.gh.length === 1 ? x.gh[0] : { parts: x.gh }) : null;
+  return (region === "global" ? [gh, x.url] : [x.url, gh]).filter(Boolean);
+}
+
 function create(opt = {}) {
+  const region = () => (typeof opt.region === "function" ? opt.region() : opt.region) || tzRegion();
   const doFetch = opt.fetch || fetch;
   const sources = opt.sources || SOURCES;
   let cache = null, at = 0, failAt = 0;
@@ -43,7 +52,7 @@ function create(opt = {}) {
     const parts = groups[best].sort((a, b) => a.name.localeCompare(b.name));
     return { ver, name: best, parts, size: parts.reduce((s, x) => s + (x.size || 0), 0) };
   }
-  return { load, list, model, node, pkg };
+  return { load, list, model, node, pkg, region, sources: (x) => sourcesOf(x, region()) };
 }
 
-module.exports = { create, SOURCES };
+module.exports = { create, SOURCES, sourcesOf, tzRegion };

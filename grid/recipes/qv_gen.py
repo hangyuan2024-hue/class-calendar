@@ -201,8 +201,25 @@ def fetch(urls, dest, note):
 
 def clip_dir():
     d = os.path.abspath(os.path.join(work, "..", "..", "cache", "clip-vit-large-patch14"))
+    bases = list(CLIP_BASES)
+    if lg.region() == "global":   # 在国外：官方的先
+        bases = [b for b in bases if "huggingface.co" in b] + [b for b in bases if "huggingface.co" not in b]
+    # 自己 GitHub 上的（国外的电脑）：组件镜像清单里有就用（切块的大文件交给 lg.download）
+    gh = {}
+    try:
+        for x in lg.mirror(model="clip"):
+            gh[x["name"]] = [s for s in x["sources"] if not (isinstance(s, str) and "myqcloud" in s)]
+    except Exception:
+        pass
     for f in CLIP_FILES:
-        fetch([b + f for b in CLIP_BASES], os.path.join(d, f), "下载 CLIP（只下一次，约 1.7G）")
+        dest = os.path.join(d, f)
+        if lg.region() == "global" and gh.get(f) and not os.path.exists(dest):
+            try:
+                lg.download(gh[f], dest, "从 GitHub 下载 CLIP（只下一次）")
+                continue
+            except Exception as e:
+                lg.log("GitHub 上的 CLIP 下不了，换别的地址：%s" % str(e)[:120])
+        fetch([b + f for b in bases], dest, "下载 CLIP（只下一次，约 1.7G）")
     return d
 
 

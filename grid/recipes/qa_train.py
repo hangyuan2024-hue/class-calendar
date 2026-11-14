@@ -71,15 +71,36 @@ def base_dir():
         return d
     lg.progress(0.02, "下载底子 %s（第一次，约 9G）" % BASE_REPO)
     err = None
-    try:   # 魔搭：国内快
-        from modelscope import snapshot_download
-        snapshot_download(BASE_REPO, local_dir=d)
+    # ① 组件镜像（国内：自己的腾讯云存储；国外：自己的 GitHub）：整个文件夹都在才用
+    try:
+        fs_ = lg.mirror(model="qaBase") if BASE_REPO == "Qwen/Qwen3-VL-4B-Instruct" else []
+        if fs_ and any(x["name"].endswith(".safetensors") for x in fs_):
+            os.makedirs(d, exist_ok=True)
+            for i, x in enumerate(fs_):
+                lg.progress(0.02 + 0.05 * i / len(fs_), "从组件镜像下载底子：%s" % x["name"])
+                lg.download(x["sources"], os.path.join(d, x["name"]), "下载 %s" % x["name"])
     except Exception as e:
         err = e
-        lg.log("魔搭下载不行（%s），换 hf-mirror" % str(e)[:120])
-        os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
-        from huggingface_hub import snapshot_download as hf_dl
-        hf_dl(BASE_REPO, local_dir=d)
+        lg.log("组件镜像里的底子下不了（%s），换魔搭 / Hugging Face" % str(e)[:160])
+    if not glob.glob(os.path.join(d, "*.safetensors")):
+        def ms():
+            from modelscope import snapshot_download
+            snapshot_download(BASE_REPO, local_dir=d)
+
+        def hf(endpoint):
+            os.environ["HF_ENDPOINT"] = endpoint
+            from huggingface_hub import snapshot_download as hf_dl
+            hf_dl(BASE_REPO, local_dir=d)
+        # ② 国内：魔搭 → hf-mirror；国外：Hugging Face 官方 → 魔搭
+        order = [lambda: hf("https://huggingface.co"), ms] if lg.region() == "global" else [ms, lambda: hf("https://hf-mirror.com")]
+        for fn in order:
+            try:
+                fn()
+                if glob.glob(os.path.join(d, "*.safetensors")):
+                    break
+            except Exception as e:
+                err = e
+                lg.log("这个源下载不行（%s），换下一个" % str(e)[:120])
     if not glob.glob(os.path.join(d, "*.safetensors")):
         raise RuntimeError("底子没下载下来：%s" % err)
     open(os.path.join(d, ".ok"), "w").close()
@@ -88,15 +109,15 @@ def base_dir():
 
 # 老师端用的量化模型（llama.cpp 格式，考试用）：先找国内存储清单里的那个，找不到再问 hf-mirror / 魔搭有哪些文件
 def teacher_gguf():
-    for u in ["https://www.laolaokechengbiao.cn/download/ai-mirror.json", "https://cdn.jsdelivr.net/gh/hangyuan2024-hue/class-calendar@main/download/ai-mirror.json"]:
-        try:
-            m = json.loads(get(u + "?t=%d" % time.time(), 20))
-            hit = [v for v in (m.get("files") or {}).values() if v.get("model") == "llmMain" and str(v.get("url", "")).startswith("https://")]
-            if hit:
-                h = hit[0]
-                return {"name": h["name"], "size": h.get("size") or 0, "urls": [h["url"]]}
-        except Exception:
-            pass
+    try:   # 组件镜像（国内腾讯云 / 国外自己的 GitHub，已经按地区排好；GitHub 上切块的 llama.cpp 不认，只用整个文件的地址）
+        hit = lg.mirror(model="llmMain")
+        if hit:
+            h = hit[0]
+            urls = [s for s in h["sources"] if isinstance(s, str)]
+            if urls:
+                return {"name": h["name"], "size": h.get("size") or 0, "urls": urls}
+    except Exception:
+        pass
     names = []
     try:
         names = [x["rfilename"] for x in json.loads(get("https://hf-mirror.com/api/models/" + GGUF_REPO, 30)).get("siblings", [])]

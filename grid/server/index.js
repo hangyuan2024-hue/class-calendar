@@ -254,19 +254,7 @@ function create(opt = {}) {
       let n = 0, bad = false;
       req.on("data", (c) => { n += c.length; if (n > maxBlob && !bad) { bad = true; req.destroy(); w.destroy(); fs.rm(tmp, () => {}); } });
       req.pipe(w);
-      // Windows：同一个文件正在被别人下载时改名会失败（EPERM / EBUSY），等一会儿再试；实在不行别让整个调度中心崩掉
-      w.on("finish", async () => {
-        if (bad) return;
-        for (let i = 0; ; i++) {
-          try { fs.renameSync(tmp, f); return json(res, 200, { ok: true, size: n }); }
-          catch (e) {
-            if (i < 40 && /EPERM|EBUSY|EACCES/.test(e.code || "")) { await new Promise((r) => setTimeout(r, 100 + i * 25)); continue; }
-            fs.rm(tmp, () => {});
-            let same = false; try { same = fs.statSync(f).size === n; } catch (e2) {}
-            return same ? json(res, 200, { ok: true, size: n }) : json(res, 500, { error: "存文件失败：" + e.message });
-          }
-        }
-      });
+      w.on("finish", () => { if (bad) return; fs.renameSync(tmp, f); json(res, 200, { ok: true, size: n }); });
       w.on("error", (e) => json(res, 500, { error: e.message }));
       return;
     }

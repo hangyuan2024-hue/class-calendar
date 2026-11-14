@@ -167,7 +167,7 @@ function create(opt = {}) {
       const hit = m.pick ? m.pick[tier].map((w) => cn.find((x) => x.name.includes(w))).find(Boolean) : cn.find((x) => x.name === m.name);
       if (hit) {
         const p = m.pick ? hit.src && hit.src.split("/resolve/main/")[1] : m.path;
-        return { name: hit.name, size: hit.size || 0, sha256: hit.sha256 || "", urls: [hit.url, ...(p ? hf.map((h) => `${h}/${m.repo}/resolve/main/${p}`) : [])] };
+        return { name: hit.name, size: hit.size || 0, sha256: hit.sha256 || "", urls: [...(mirror.sources ? mirror.sources(hit) : [hit.url]), ...(p ? hf.map((h) => `${h}/${m.repo}/resolve/main/${p}`) : [])] };
       }
     }
     if (!m.pick) return { name: m.name, size: 0, urls: hf.map((h) => `${h}/${m.repo}/resolve/main/${m.path}`) };
@@ -235,7 +235,7 @@ function create(opt = {}) {
         say("下载 " + p.dir);
         const zip = path.join(rt.nodes, p.dir + "-" + p.commit.slice(0, 7) + ".zip");
         const cnZip = mirror ? await mirror.node(p.dir, p.commit).catch(() => null) : null;
-        await download([...(cnZip ? [cnZip.url] : []), ...gh.map((g) => `${g}https://github.com/${p.repo}/archive/${p.commit}.zip`)], zip, null, null, cnZip ? { size: cnZip.size, sha256: cnZip.sha256 } : {});
+        await download([...(cnZip ? (mirror.sources ? mirror.sources(cnZip) : [cnZip.url]) : []), ...gh.map((g) => `${g}https://github.com/${p.repo}/archive/${p.commit}.zip`)], zip, null, null, cnZip ? { size: cnZip.size, sha256: cnZip.sha256 } : {});
         say("解压 " + p.dir);
         await runPy(rt, ["-c", UNZIP, zip, dest]);
         fs.rmSync(zip, { force: true });

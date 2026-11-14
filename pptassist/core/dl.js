@@ -11,7 +11,12 @@ async function download(urls, dest, { fetch: doFetch = fetch, onProg, signal, lo
   const part = dest + ".part";
   let lastErr = null;
   for (const u of urls.filter(Boolean)) {
-    for (let attempt = 0; attempt < 3; attempt++) {
+    // GitHub 上超过 2G 的切成了几块：{ parts: [地址1, 地址2…] }，每块单独下（能续传），下完按顺序接起来
+    if (typeof u === "object") {
+      if (!u.parts || !u.parts.length) continue;
+      try { await downloadParts(u.parts, dest, { fetch: doFetch, onProg, signal, log, total: want.size }); } catch (e) { lastErr = e; if (signal && signal.aborted) throw e; log && log("从 GitHub 分块下载出错：" + e.message); continue; }
+    }
+    else for (let attempt = 0; attempt < 3; attempt++) {
       if (signal && signal.aborted) throw new Error("已经停了");
       let have = 0; try { have = fs.statSync(part).size; } catch (e) {}
       if (want.size && have > want.size) { fs.rmSync(part, { force: true }); have = 0; }
@@ -54,6 +59,27 @@ async function download(urls, dest, { fetch: doFetch = fetch, onProg, signal, lo
     }
   }
   throw new Error("下载失败：" + (lastErr ? lastErr.message : "") + "（网络不好可以过一会儿再点，已经下的部分不会丢）");
+}
+
+async function downloadParts(parts, dest, { fetch: doFetch, onProg, signal, log, total = 0 }) {
+  const dir = dest + ".parts";
+  fs.mkdirSync(dir, { recursive: true });
+  let before = 0;
+  for (let i = 0; i < parts.length; i++) {
+    const pf = path.join(dir, String(i + 1).padStart(3, "0"));
+    await download([parts[i]], pf, { fetch: doFetch, signal, log, onProg: (m) => onProg && !m.done && onProg({ got: before + (m.got || 0), total, speed: m.speed }) });
+    before += fs.statSync(pf).size;
+  }
+  const tmp = dest + ".part";
+  fs.rmSync(tmp, { force: true });
+  for (let i = 0; i < parts.length; i++) {
+    const pf = path.join(dir, String(i + 1).padStart(3, "0"));
+    await new Promise((ok, bad) => { const w = fs.createWriteStream(tmp, { flags: "a" }); fs.createReadStream(pf).on("error", bad).pipe(w).on("finish", ok).on("error", bad); });
+  }
+  fs.renameSync(tmp, dest);
+  fs.rmSync(dir, { recursive: true, force: true });
+  onProg && onProg({ got: before, total: total || before, done: true });
+  return dest;
 }
 
 function sha256(file, signal) {

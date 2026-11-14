@@ -137,7 +137,7 @@ def cer(ref, hyp):
 
 
 # ---------------- 公开录音 AISHELL-3（Apache-2.0）：只下用到的人 ----------------
-OB = [x for x in str(p.get("openBase") or "").split(",") if x] or ["https://hf-mirror.com/datasets/AISHELL/AISHELL-3/resolve/main", "https://huggingface.co/datasets/AISHELL/AISHELL-3/resolve/main"]
+OB = [x for x in str(p.get("openBase") or "").split(",") if x] or (["https://huggingface.co/datasets/AISHELL/AISHELL-3/resolve/main", "https://hf-mirror.com/datasets/AISHELL/AISHELL-3/resolve/main"] if lg.region() == "global" else ["https://hf-mirror.com/datasets/AISHELL/AISHELL-3/resolve/main", "https://huggingface.co/datasets/AISHELL/AISHELL-3/resolve/main"])
 OD = os.path.join(work, "aishell3")
 os.makedirs(OD, exist_ok=True)
 

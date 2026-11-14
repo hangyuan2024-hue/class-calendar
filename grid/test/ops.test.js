@@ -91,6 +91,34 @@ const Tools = require("../tools/grid");
     ok("下载源：同时连国内存储和 GitHub，谁通谁快用谁（都一样看时区）；国内先 COS，国外先 GitHub；能手动定死");
   }
 
+  // ---------- 组件镜像：国内先腾讯云、国外先自己的 GitHub；GitHub 上切块的接起来 ----------
+  {
+    const blob = Buffer.from(Array.from({ length: 5000 }, (_, i) => i % 251));
+    const cuts = [blob.subarray(0, 2000), blob.subarray(2000, 4000), blob.subarray(4000)];
+    const hits = [];
+    const srv = http.createServer((q, r) => { hits.push(q.url); const m = /^\/gh\/p(\d)$/.exec(q.url); if (m) return r.end(cuts[+m[1] - 1]); if (q.url === "/cos/f") return r.end(blob); r.statusCode = 404; r.end(); });
+    await new Promise((r) => srv.listen(0, "127.0.0.1", r));
+    const b = `http://127.0.0.1:${srv.address().port}`;
+    const M = require("../app/ppt/mirror.js");
+    const x = { url: b + "/cos/f", gh: [b + "/gh/p1", b + "/gh/p2", b + "/gh/p3"] };
+    assert.deepEqual(M.sourcesOf(x, "cn"), [b + "/cos/f", { parts: x.gh }]);
+    assert.deepEqual(M.sourcesOf(x, "global"), [{ parts: x.gh }, b + "/cos/f"]);
+    assert.deepEqual(M.sourcesOf({ url: "c", gh: ["g"] }, "global"), ["g", "c"]);
+    const f1 = path.join(tmp, "mir", "a.bin");
+    await Agent.xferAny(M.sourcesOf(x, "global"), f1);
+    assert.ok(fs.readFileSync(f1).equals(blob)); assert.deepEqual(hits.splice(0), ["/gh/p1", "/gh/p2", "/gh/p3"], "国外：从 GitHub 分三块下、接起来");
+    const DL = require("../app/ppt/dl.js");
+    const f2 = path.join(tmp, "mir", "b.bin");
+    await DL.download([{ parts: [b + "/gh/p1", b + "/gh/bad", b + "/gh/p3"] }, b + "/cos/f"], f2, { want: { size: blob.length } });
+    assert.ok(fs.readFileSync(f2).equals(blob), "GitHub 有一块坏了：换国内存储");
+    const f3 = path.join(tmp, "mir", "c.bin");
+    // 要异步跑：同步的话这边的小服务器回不了话（卡死）
+    try { await require("util").promisify(require("child_process").execFile)(process.env.PYTHON || "python3", ["-c", `import sys; sys.path.insert(0, ${JSON.stringify(path.join(__dirname, "..", "py"))}); import lg; lg.download([{"parts": ${JSON.stringify(x.gh)}}], ${JSON.stringify(f3)})`]); } catch (e) { console.log(String(e.stderr)); throw e; }
+    assert.ok(fs.readFileSync(f3).equals(blob), "配方里（lg.download）也认切块的");
+    srv.close();
+    ok("组件镜像：国内先腾讯云、国外先自己的 GitHub；GitHub 上超过 2G 切成的几块按顺序接起来（客户端、AI 引擎安装、配方都认），一块坏了换别的源");
+  }
+
   // ---------- 调度中心 + 客户端：设置、拔电暂停、功耗上限、遥控、统计 ----------
   const app = Server.create({ data: path.join(tmp, "srv"), noTick: true });
   const port = await app.listen(0, "127.0.0.1");
@@ -169,7 +197,7 @@ const Tools = require("../tools/grid");
     await until(() => ag.status().logs.some((l) => /像是卡住了/.test(l.msg)), "卡住检测", 30000);
     await ag.stop();
     const t = app.core.db.prepare("select state, lost, error from tasks where job_id=(select id from jobs where name='卡住的任务')").get();
-    assert.equal(t.state, "queued", "交回去给别的电脑");
+    assert.ok(["queued", "leased"].includes(t.state), "交回去排队（可能马上又被领走），不算失败：" + t.state);
     ok("卡住检测：任务很久没有任何输出（日志、进度）就结束它，交给别的电脑接着算");
   }
 
@@ -184,6 +212,31 @@ const Tools = require("../tools/grid");
     assert.ok(svc2.logs.read({ q: "卡住" }).total >= 1);
     await svc2.shutdown();
     ok("看门狗：后台主循环 5 分钟没转就自动重开（测试里缩短了）");
+  }
+
+  // 多显卡：两块 NVIDIA 显卡 → 两个工位，各领各的任务（第 2 块只用 CUDA_VISIBLE_DEVICES=1）
+  {
+    app.core.db.prepare("update jobs set state='paused' where name='卡住的任务'").run();   // 上面卡住测试留下的，别让它来抢
+    const two = [{ name: "RTX 4090", vram: 24, temp: 50 }, { name: "RTX 3090", vram: 24, temp: 50 }];
+    const svc3 = createService({ user: path.join(tmp, "me3"), version: "t", python: process.env.PYTHON || "python3", send: () => {}, detectRegion: false, gpuList: async () => two,
+      agentOpt: { tickMs: 100, hbMs: 200, leaseEveryMs: 100, renewMs: 200, gpuInfo: async () => two[0], gpuApps: async () => [] } });
+    const inv4 = await Tools.api(admin, "/api/admin/invite", { maxUses: 1, server: url });
+    await svc3.H.join(inv4.link, "小强", "双卡工作站");
+    await until(() => svc3.lanes().length === 1, "第 2 块显卡的工位");
+    const r = path.join(tmp, "cuda.py");
+    fs.writeFileSync(r, "import os, time, lg\ntime.sleep(1.5)\nlg.done(cuda=os.environ.get('CUDA_VISIBLE_DEVICES', ''))\n");
+    fs.writeFileSync(path.join(tmp, "cj.json"), JSON.stringify({ jobs: [{ name: "双卡任务", kind: "map", recipe: r, params: { count: 2 } }] }));
+    await Tools.plan(admin, path.join(tmp, "cj.json"));
+    await svc.H.setManual("off");
+    await svc3.H.setManual("on");
+    const jid = app.core.db.prepare("select id from jobs where name='双卡任务'").get().id;
+    await until(() => app.core.db.prepare("select count(*) as n from tasks where job_id=? and state='done'").get(jid).n === 2, "两块显卡各做一个", 30000);
+    const rs = app.core.db.prepare("select t.result, d.name from tasks t join devices d on d.id=t.device_id where t.job_id=?").all(jid);
+    if (new Set(rs.map((x) => x.name)).size < 2) console.log("主工位：", JSON.stringify({ st: svc3.agent().status().state, why: svc3.agent().status().why, logs: svc3.agent().status().logs.slice(-5) }));
+    assert.deepEqual(rs.map((x) => JSON.parse(x.result).cuda).sort(), ["0", "1"], "各用各的显卡：" + JSON.stringify(rs));
+    assert.ok(rs.some((x) => /双卡工作站 · 第 2 块显卡/.test(x.name)));
+    await svc3.shutdown();
+    ok("多显卡：两块显卡就开两个工位（控制中心里是两台），同时各领各的任务、各用各的显卡");
   }
 
   // 模型每一版的评测（包括没过的）

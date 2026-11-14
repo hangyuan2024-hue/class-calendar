@@ -94,6 +94,17 @@ function open(file, opt = {}) {
       return { token, device: d.id, member: { id: m.id, name: m.name, role: inv.role === "admin" ? "admin" : m.role } };
     });
   }
+  // 一台电脑有好几块显卡：每块多开一个「工位」（同一个人，名字是「电脑名 · 第 N 块显卡」），各领各的任务；重复要的给同一个工位换新口令
+  function laneDevice(dev, { gpu, name, info } = {}) {
+    const g = Math.max(1, Math.min(15, +gpu || 1));
+    const nm = `${String(name || dev.name).slice(0, 30)} · 第 ${g + 1} 块显卡`;
+    const token = "dev_" + rid(24);
+    const ex = one("select id from devices where member_id=? and name=? and disabled=0", dev.member_id, nm);
+    if (ex) run("update devices set token_hash=?, info=?, last_seen=? where id=?", hash(token), S(info || {}), clock(), ex.id);
+    else { run("insert into devices(member_id,name,token_hash,info,state,policy,last_seen,created) values(?,?,?,?,?,?,?,?)", dev.member_id, nm, hash(token), S(info || {}), "online", "{}", clock(), clock()); event("join", `「${dev.name}」的第 ${g + 1} 块显卡也来帮忙了`, { device: dev.id, member: dev.member_id }); }
+    const d = one("select id from devices where token_hash=?", hash(token));
+    return { token, device: d.id, name: nm };
+  }
   function auth(token) {
     if (!token) return null;
     const d = one("select d.*, m.name as member_name, m.role as role, m.disabled as m_disabled from devices d join members m on m.id=d.member_id where d.token_hash=?", hash(token));
@@ -621,7 +632,7 @@ function open(file, opt = {}) {
   return {
     db, kv, event, on: (f) => (listeners.add(f), () => listeners.delete(f)),
     adminToken, isAdmin, invite, join, auth, heartbeat, addRecipe, stage, createJob, lease, renew, checkpoint, finish, fail, sweep,
-    humanNext, humanDone, reviewNext, vote, cut, retire, addTasks, dataset, importVoice, voiceData, voices, addMember, sendCommand, commandDone, commandsOf, stats, deviceLogs, overview, jobDetail, devicesView, board, setJob, setDevice, retry,
+    humanNext, humanDone, reviewNext, vote, cut, retire, addTasks, dataset, importVoice, voiceData, voices, addMember, laneDevice, sendCommand, commandDone, commandsOf, stats, deviceLogs, overview, jobDetail, devicesView, board, setJob, setDevice, retry,
     recipe: (id) => one("select * from recipes where id=?", id), recipes: () => all("select id,name,meta,created from recipes order by created desc"),
     review: (id) => one("select * from reviews where id=?", id),
     invites: () => all("select * from invites order by created desc limit 50"),

@@ -63,7 +63,7 @@ async function install(kind, parent, { mirror, gpu = "", onMsg, signal, fetch: d
   if (kind === "gsv" && /RTX\s*50\d0/i.test(gpu)) kk = "gsv50";
   let p = mirror ? (await mirror.pkg(kk)) || (kk !== kind ? await mirror.pkg(kind) : null) : null;
   let parts;
-  if (p) parts = p.parts.map((x) => ({ name: x.name, size: x.size, sha256: x.sha256, urls: [x.url] }));
+  if (p) parts = p.parts.map((x) => ({ name: x.name, size: x.size, sha256: x.sha256, urls: mirror.sources ? mirror.sources(x) : [x.url] }));
   else if (FALLBACK[kind]) parts = [{ name: FALLBACK[kind].name, size: 0, urls: FALLBACK[kind].urls }];
   else throw new Error(`国内存储里还没有${NAMES[kind]}的整合包：先在 GitHub 仓库的 Actions 里运行一次「AI 组件搬到国内存储」`);
   const size = parts.reduce((s, x) => s + (x.size || 0), 0);

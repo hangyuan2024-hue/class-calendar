@@ -18,6 +18,7 @@
 """
 import json
 import os
+import shutil
 import sys
 import threading
 import time
@@ -111,9 +112,28 @@ def download(url, dest, note=None):
     if os.path.exists(dest) and os.path.getsize(dest) > 0:
         return dest
     os.makedirs(os.path.dirname(os.path.abspath(dest)), exist_ok=True)
-    urls = [url] if isinstance(url, str) else list(url)
+    urls = [url] if isinstance(url, (str, dict)) else list(url)
     err = None
     for u in urls:
+        # GitHub 上超过 2G 的切成了几块：{"parts": [地址1, 地址2…]}，每块下好再按顺序接起来
+        if isinstance(u, dict):
+            try:
+                ps = []
+                for i, pu in enumerate(u.get("parts") or []):
+                    ps.append(download(pu, dest + ".p%03d" % (i + 1), note and "%s（第 %d/%d 块）" % (note, i + 1, len(u["parts"]))))
+                if not ps:
+                    continue
+                with open(dest + ".part", "wb") as out:
+                    for pf in ps:
+                        with open(pf, "rb") as fh:
+                            shutil.copyfileobj(fh, out, 8 << 20)
+                os.replace(dest + ".part", dest)
+                for pf in ps:
+                    os.remove(pf)
+                return dest
+            except Exception as e:
+                err = e
+                continue
         tmp = dest + ".part"
         try:
             req = urllib.request.Request(u, headers={"User-Agent": "laolao-grid"})
@@ -140,6 +160,46 @@ def download(url, dest, note=None):
             except OSError:
                 pass
     raise IOError("下载失败：%s（%s）" % (os.path.basename(dest), err))
+
+
+def region():
+    """这台电脑在国内（cn）还是国外（global）：客户端测过的（同时连国内存储和 GitHub，看谁快）"""
+    return (task() or {}).get("region") or "cn"
+
+
+_mirror_cache = None
+
+
+def mirror(model=None, group=None):
+    """组件镜像清单（download/ai-mirror.json）里的文件：[{name, size, sha256, sources}]，
+    sources 已经按地区排好：国内先腾讯云存储，国外先自己 GitHub 的 Release（超过 2G 的是 {"parts": [...]}）。读不到就是空的。"""
+    global _mirror_cache
+    import json as _json
+    import urllib.request
+    if _mirror_cache is None:
+        cn = ["https://www.laolaokechengbiao.cn/download/ai-mirror.json", "https://cdn.jsdelivr.net/gh/hangyuan2024-hue/class-calendar@main/download/ai-mirror.json"]
+        gl = ["https://raw.githubusercontent.com/hangyuan2024-hue/class-calendar/main/download/ai-mirror.json"]
+        _mirror_cache = {}
+        for u in (gl + cn if region() == "global" else cn + gl):
+            try:
+                with urllib.request.urlopen(urllib.request.Request(u + "?t=%d" % time.time(), headers={"User-Agent": "laolao-grid"}), timeout=20) as r:
+                    _mirror_cache = _json.loads(r.read().decode("utf-8")).get("files") or {}
+                    break
+            except Exception:
+                pass
+    out = []
+    for key, v in _mirror_cache.items():
+        if model and v.get("model") != model:
+            continue
+        if group and v.get("group") != group:
+            continue
+        if not str(v.get("url", "")).startswith("https://"):
+            continue
+        gh = v.get("gh") or []
+        ghs = (gh[0] if len(gh) == 1 else {"parts": gh}) if gh else None
+        src = [x for x in ([ghs, v["url"]] if region() == "global" else [v["url"], ghs]) if x]
+        out.append(dict(v, key=key, sources=src))
+    return out
 
 
 _cid = 0

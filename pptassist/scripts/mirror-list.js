@@ -81,6 +81,20 @@ const GROUPS = {
     }
     return out;
   },
+  // 捞捞算力「答题数据工厂」的出题老师：通义千问 Qwen3-8B（GGUF Q4_K_M，Apache-2.0）
+  async gridllm() {
+    const repo = "Qwen/Qwen3-8B-GGUF";
+    const hit = (await hfTree(repo)).find((x) => /Q4_K_M\.gguf$/i.test(x.path));
+    if (!hit) throw new Error(repo + " 里没找到 Q4_K_M");
+    return [{ id: "gridllm", url: `${HF}/${repo}/resolve/main/${hit.path}`, key: `ai/llm/${base(hit.path)}`, name: base(hit.path), size: sizeOf(hit), model: "gridTeacher" }];
+  },
+  // 捞捞算力训练答题大脑的底子：Qwen3-VL-4B-Instruct（Hugging Face 格式，Apache-2.0）：整个文件夹
+  async qabase() {
+    const repo = "Qwen/Qwen3-VL-4B-Instruct";
+    const files = (await hfTree(repo)).filter((x) => !/(^|\/)(\.gitattributes|README\.md)$/i.test(x.path) && !x.path.includes("/"));
+    if (!files.some((x) => x.path.endsWith(".safetensors"))) throw new Error(repo + " 里没有 safetensors");
+    return files.map((x) => ({ id: "qabase-" + x.path.replace(/[^\w.-]/g, "_"), url: `${HF}/${repo}/resolve/main/${x.path}`, key: `ai/qabase/Qwen3-VL-4B-Instruct/${x.path}`, name: x.path, size: sizeOf(x), model: "qaBase" }));
+  },
   // Hunyuan3D-2 WinPortable（可能分成好几卷：.7z.001、.7z.002……）
   async hy3d() {
     const rel = await gh("/repos/YanWenKun/Hunyuan3D-2-WinPortable/releases/latest");

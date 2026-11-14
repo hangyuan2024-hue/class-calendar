@@ -215,7 +215,7 @@ if p.get("openVoice") == "aishell3":
     import concurrent.futures
     import random
     import re
-    bases = [x for x in str(p.get("openBase") or "").split(",") if x] or ["https://hf-mirror.com/datasets/AISHELL/AISHELL-3/resolve/main", "https://huggingface.co/datasets/AISHELL/AISHELL-3/resolve/main"]
+    bases = [x for x in str(p.get("openBase") or "").split(",") if x] or (["https://huggingface.co/datasets/AISHELL/AISHELL-3/resolve/main", "https://hf-mirror.com/datasets/AISHELL/AISHELL-3/resolve/main"] if lg.region() == "global" else ["https://hf-mirror.com/datasets/AISHELL/AISHELL-3/resolve/main", "https://huggingface.co/datasets/AISHELL/AISHELL-3/resolve/main"])
 
     def fetch(rel, dest, tries=4):
         if os.path.exists(dest) and os.path.getsize(dest) > 0:

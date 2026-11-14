@@ -29,7 +29,7 @@ function find(root) {
 function create(o) {
   const INSTALL = o.installer || require(path.join(__dirname, "ppt", "installer.js"));
   const MIRROR = o.mirrorMod || require(path.join(__dirname, "ppt", "mirror.js"));
-  const mirror = o.mirror || MIRROR.create();
+  const mirror = o.mirror || MIRROR.create(o.mirrorOpt || {});
   let busy = null;
   const parent = () => path.join(o.base(), "ai");
   async function ensure(say = () => {}) {

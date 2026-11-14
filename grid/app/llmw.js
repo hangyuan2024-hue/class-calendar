@@ -35,7 +35,12 @@ function create(o) {
     if (!name || !/\.gguf$/i.test(name)) throw new Error("任务没说用哪个模型（llm.name）");
     const f = path.join(dir(), name);
     if (fs.existsSync(f) && (!spec.size || fs.statSync(f).size === spec.size)) return f;
-    const urls = (spec.urls || []).filter((u) => /^https?:\/\//.test(u));
+    // 组件镜像里有这个模型（spec.mirrorModel，比如 gridTeacher）：按地区排好的地址放最前面（国内腾讯云 / 国外自己的 GitHub）
+    let mirrored = [];
+    if (spec.mirrorModel && o.mirror) { try { const hit = (await o.mirror.model(spec.mirrorModel))[0]; if (hit && (!spec.size || !hit.size || hit.size === spec.size)) mirrored = o.mirror.sources(hit); } catch (e) {} }
+    let urls = (spec.urls || []).filter((u) => /^https?:\/\//.test(u));
+    if (o.region && o.region() === "global") urls = [...urls.filter((u) => /huggingface\.co/.test(u)), ...urls.filter((u) => !/huggingface\.co/.test(u))];
+    urls = [...mirrored, ...urls];
     if (!urls.length) throw new Error("任务没给模型的下载地址");
     let last = 0;
     say(`下载本地大模型 ${name}（第一次，约 ${spec.size ? (spec.size / 1e9).toFixed(1) + "G" : "几个 G"}；断了会接着下）`);
