@@ -46,6 +46,8 @@ function open(file, opt = {}) {
   const db = new DatabaseSync(file);
   db.exec("pragma journal_mode=wal; pragma busy_timeout=5000;");
   db.exec(SCHEMA);
+  // 掉线时任务回到队列，记下是哪台电脑丢的：它连回来时，只要还没别人领走，就把任务还给它（断网期间算的不白算）
+  try { db.exec("alter table tasks add column prev_dev integer"); } catch (e) {}
   const q = (sql) => db.prepare(sql);
   const one = (sql, ...a) => q(sql).get(...a);
   const all = (sql, ...a) => q(sql).all(...a);
@@ -212,7 +214,7 @@ function open(file, opt = {}) {
       const d = one("select d.name, m.name as mn from devices d join members m on m.id=d.member_id where d.id=?", k.device_id) || {};
       // 掉线不怪任务：只记一笔；连着掉线太多次（可能是任务本身把电脑搞崩了）才放一边
       if (k.lost + 1 >= MAX_LOST) { run("update tasks set state='failed', device_id=null, error=? where id=?", `换了 ${k.lost + 1} 台电脑都没算完`, k.id); event("fail", `「${k.jname}」有个任务换了 ${k.lost + 1} 次电脑都没算完，先放一边`, { job: k.job_id }); continue; }
-      run("update tasks set state='queued', device_id=null, lease_until=null, lost=lost+1 where id=?", k.id);
+      run("update tasks set state='queued', prev_dev=device_id, device_id=null, lease_until=null, lost=lost+1 where id=?", k.id);
       if (k.device_id) run("update devices set task_id=null where id=? and task_id=?", k.device_id, k.id);
       event("lost", `${d.mn || ""}的「${d.name || "电脑"}」掉线了，「${k.jname}」的任务交给下一台接着算`, { job: k.job_id, device: k.device_id });
     }
@@ -263,7 +265,7 @@ function open(file, opt = {}) {
         // 失败过的任务，排在后面再试；一台电脑不重复领自己刚失败的
         const t = one("select * from tasks where job_id=? and state='queued' and kind in ('run','merge') order by errors asc, case kind when 'merge' then 0 else 1 end, round asc, seq asc limit 1", j.id);
         if (!t) continue;
-        run("update tasks set state='leased', device_id=?, member_id=?, lease_until=?, started=?, attempts=attempts+1, progress=0 where id=?", dev.id, dev.member_id, clock() + leaseMs, clock(), t.id);
+        run("update tasks set state='leased', device_id=?, member_id=?, lease_until=?, started=?, attempts=attempts+1, progress=0, prev_dev=null where id=?", dev.id, dev.member_id, clock() + leaseMs, clock(), t.id);
         run("update devices set task_id=? where id=?", t.id, dev.id);
         const tt = one("select * from tasks where id=?", t.id);
         event("lease", `${dev.member_name}的「${dev.name}」开始算「${j.name}」${label(j, tt)}`, { job: j.id, device: dev.id });
@@ -331,8 +333,19 @@ function open(file, opt = {}) {
   }
   function mine(dev, taskId) {
     const t = one("select * from tasks where id=?", taskId);
+    if (t && t.state === "queued" && t.prev_dev === dev.id) return reclaim(dev, t);
     if (!t || t.state !== "leased" || t.device_id !== dev.id) return null;
     return t;
+  }
+  // 这台电脑断网超过租约、任务被收回去了，但还没有别的电脑领走：它连回来了，任务还给它，接着算
+  function reclaim(dev, t) {
+    const j = one("select * from jobs where id=?", t.job_id);
+    if (!j || j.state !== "active") return null;
+    const r = run("update tasks set state='leased', device_id=?, member_id=?, lease_until=?, prev_dev=null, lost=max(lost-1,0) where id=? and state='queued' and prev_dev=?", dev.id, dev.member_id, clock() + leaseMs, t.id, dev.id);
+    if (!Number(r.changes)) return null;
+    run("update devices set task_id=? where id=?", t.id, dev.id);
+    event("back", `${dev.member_name || ""}的「${dev.name || "电脑"}」连回来了，「${j.name}」还给它接着算`, { job: j.id, device: dev.id });
+    return one("select * from tasks where id=?", t.id);
   }
   // 续约，顺便报进度和曲线
   function renew(dev, { task, progress, metrics, live } = {}) {
@@ -492,7 +505,7 @@ function open(file, opt = {}) {
   function fail(dev, { task, error, release }) {
     const t = mine(dev, task);
     if (!t) return { ok: true };
-    run("update tasks set state='queued', device_id=null, lease_until=null, error=?, errors=errors+? where id=?", String(error || "").slice(0, 2000), release ? 0 : 1, t.id);
+    run("update tasks set state='queued', device_id=null, prev_dev=null, lease_until=null, error=?, errors=errors+? where id=?", String(error || "").slice(0, 2000), release ? 0 : 1, t.id);
     run("update devices set task_id=null where id=?", dev.id);
     const j = one("select * from jobs where id=?", t.job_id);
     if (!release && t.errors + 1 >= MAX_ATTEMPTS) run("update tasks set state='failed' where id=?", t.id);

@@ -121,7 +121,7 @@ function createService(o) {
   const STATE_NAMES = { starting: "启动", waiting: "等着", idle: "在等任务", busy: "在算", paused: "停了", offline: "连不上调度中心" };
   const taskStart = {};
   function onState(v) {
-    const on = (x) => x.state === "busy" || x.state === "idle" || (x.state === "offline" && cfg.manual === "on");
+    const on = (x) => x.state === "busy" || x.state === "idle" || (x.state === "offline" && (cfg.manual === "on" || x.running));
     const want = set().keepAwake && (on(v) || lanes.some((a) => on(a.status())));
     power.keepAwake(want, v.state === "busy" ? "正在算" : "在等任务");
     if (v.state === "waiting" && /拔了电源/.test(v.why || "")) notify("拔了电源，先停一下", "插上电就接着算（正在算的交给别的电脑从存档接着算）", "battery");

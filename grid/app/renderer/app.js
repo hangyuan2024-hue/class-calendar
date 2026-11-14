@@ -52,7 +52,9 @@
     const p = $("#statePill");
     p.className = "pill " + st.state;
     p.innerHTML = `<b>${STATE[st.state] || st.state}</b>${esc(st.why || "")}`;
-    $("#navBusy").hidden = st.state !== "busy"; $("#navBusy").className = "dot";
+    const running = st.state === "busy" || (st.state === "offline" && st.running);   // 断网了但手上的还在算
+    $("#navBusy").hidden = !running; $("#navBusy").className = "dot";
+    if (running && st.state === "offline") { $("#lvWhy").textContent = st.why || ""; return; }
     if (st.state !== "busy") { $("#lvJob").textContent = st.state === "paused" ? "已暂停" : "等下一个任务"; $("#lvWhy").textContent = st.why || ""; $("#lvBar").style.width = "0%"; $("#lvPct").textContent = ""; }
   }
   // 手动开关：开始（一直算到点停止）/ 自动（按挂机设置）/ 停止（正在算的交给别人从存档接着算）

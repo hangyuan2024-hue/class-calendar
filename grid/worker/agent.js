@@ -110,6 +110,56 @@ function xfer1(method, url, file, { onProgress, signal } = {}) {
   });
 }
 
+// ---- 网络问题：连不上 / 断了 / 超时（和调度中心明确拒绝分开：网络问题等连上了再交，不丢结果） ----
+const NET_CODES = {
+  ECONNREFUSED: "调度中心没开（连接被拒绝）", ENOTFOUND: "找不到调度中心的地址（域名解析失败）", EAI_AGAIN: "域名解析失败（这台电脑可能没网）",
+  ETIMEDOUT: "连接超时", ECONNRESET: "连接被断开", EPIPE: "连接被断开", EHOSTUNREACH: "到不了调度中心的服务器", ENETUNREACH: "这台电脑没网",
+  UND_ERR_CONNECT_TIMEOUT: "连接超时（端口没放行或服务器没开）", UND_ERR_SOCKET: "连接被断开", UND_ERR_HEADERS_TIMEOUT: "调度中心没回应",
+  CERT_HAS_EXPIRED: "调度中心的 HTTPS 证书过期了", ERR_TLS_CERT_ALTNAME_INVALID: "HTTPS 证书和域名对不上",
+  DEPTH_ZERO_SELF_SIGNED_CERT: "调度中心的 HTTPS 证书不受信任", SELF_SIGNED_CERT_IN_CHAIN: "调度中心的 HTTPS 证书不受信任", UNABLE_TO_VERIFY_LEAF_SIGNATURE: "调度中心的 HTTPS 证书不受信任",
+  ERR_SSL_WRONG_VERSION_NUMBER: "地址写成了 https，但服务器只有 http（或者被拦了）", EPROTO: "HTTPS 握手失败（证书没申请下来，或者被拦了）",
+};
+function netCode(e) {
+  for (let x = e, i = 0; x && i < 6; i++) {
+    if (x.code && NET_CODES[x.code]) return x.code;
+    x = (x.errors && x.errors[0]) || x.cause;
+  }
+  for (let x = e, i = 0; x && i < 6; i++) { if (x.code) return x.code; x = (x.errors && x.errors[0]) || x.cause; }
+  return "";
+}
+function netWhy(e) {
+  if (e && (e.name === "TimeoutError" || /aborted due to timeout/i.test(e.message || ""))) return "调度中心 20 秒没回应";
+  const code = netCode(e);
+  return NET_CODES[code] ? `${NET_CODES[code]}（${code}）` : code ? `网络出错（${code}）` : String((e && e.message) || e);
+}
+function isNet(e) {
+  if (!e || e.status) return false;
+  if (e.net) return true;
+  if (e.name === "TimeoutError") return true;
+  const code = netCode(e);
+  return !!(NET_CODES[code] || /^(E[A-Z]+|UND_ERR_\w+)$/.test(code) || /fetch failed|socket hang up|network|aborted due to timeout/i.test(e.message || ""));
+}
+// 换一套新的网络连接：Node 自带的 fetch 会复用老连接，电脑睡醒、换 Wi-Fi、校园网重新登录以后，老连接可能一直坏着，
+// 表现就是一直「fetch failed」、重开软件才好。连续连不上时自动换一套（就是重开软件那一下），不用重开。
+function resetConnections() {
+  try {
+    const sym = Symbol.for("undici.globalDispatcher.1");
+    const old = globalThis[sym];
+    if (!old || typeof old.constructor !== "function") return false;
+    globalThis[sym] = new old.constructor();
+    try { const p = old.close(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+    return true;
+  } catch (e) { return false; }
+}
+// 这台电脑能不能上网（连不上调度中心时用来说清楚是哪边的问题）
+const NET_PROBES = ["https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/download/grid-version.json", "https://api.github.com/zen"];
+async function canReachInternet(urls = NET_PROBES) {
+  if (!urls.length) return null;
+  try { await Promise.any(urls.map((u) => fetch(u, { signal: AbortSignal.timeout(6000) }).then((r) => { r.body && r.body.cancel && r.body.cancel().catch(() => {}); return true; }))); return true; } catch (e) { return false; }
+}
+function netErr(e) { const n = new Error(netWhy(e)); n.net = true; n.cause = e; return n; }
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 function create(opt) {
   const ev = new EventEmitter();
   const server = opt.server.replace(/\/+$/, "");
@@ -130,14 +180,52 @@ function create(opt) {
   const logs = [];
   let gpuNow = null;
   const emit = (k, v) => { try { ev.emit(k, v); ev.emit("any", { k, v }); } catch (e) {} };
-  const setState = (s, w = "") => { if (s !== state || w !== why) { state = s; why = w; emit("state", { state, why }); } };
+  const setState = (s, w = "") => { if (s !== state || w !== why) { state = s; why = w; emit("state", { state, why, running: !!cur }); } };
   const log = (msg, level = "info") => { const l = { t: Date.now(), msg: String(msg), level }; logs.push(l); if (logs.length > 500) logs.shift(); emit("log", l); };
 
+  let netFails = 0, lastReset = 0, netNote = "", resets = 0;
   async function api(p, body, { method, timeout = 20000 } = {}) {
-    const r = await (opt.fetch || fetch)(server + p, { method: method || (body ? "POST" : "GET"), headers: { authorization: "Bearer " + opt.token, "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(timeout) });
+    let r;
+    try { r = await (opt.fetch || fetch)(server + p, { method: method || (body ? "POST" : "GET"), headers: { authorization: "Bearer " + opt.token, "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(timeout) }); }
+    catch (e) {
+      if (!isNet(e)) throw e;
+      netFails++;
+      if (netFails === 1) {   // 刚断：看看是这台电脑没网，还是只是连不上调度中心
+        netNote = "";
+        const probes = opt.netProbe || (opt.fetch ? [] : NET_PROBES);
+        canReachInternet(probes).then((ok) => { if (netFails) netNote = ok === true ? "这台电脑能上网，是调度中心那边或去调度中心的路上有问题" : ok === false ? "这台电脑现在上不了网（看看 Wi-Fi、校园网是不是要重新登录）" : ""; }).catch(() => {});
+      }
+      if (netFails >= 3 && Date.now() - lastReset > 60000) {
+        lastReset = Date.now();
+        if (resetConnections()) { resets++; log("连续连不上调度中心：换了一套新的网络连接再试（相当于重开软件）", "warn"); }
+      }
+      throw netErr(e);
+    }
+    if (netFails) { if (netFails >= 3) log(`又连上调度中心了（断了 ${netFails} 次请求）`, "ok"); netFails = 0; netNote = ""; }
     const j = await r.json().catch(() => ({}));
     if (!r.ok) { const e = new Error(j.error || "调度中心出错 " + r.status); e.status = r.status; throw e; }
     return j;
+  }
+
+  // 连不上调度中心时：东西先留在本机，等连上了再交（每次等 5 秒，越等越久，最多 1 分钟一次）。
+  //   skip()：等的时候已经不需要了（比如有了更新的存档）就不交了
+  async function whenOnline(c, what, fn, skip) {
+    let wait = 5000, told = false;
+    const t0 = Date.now();
+    for (;;) {
+      if (told && skip && skip()) return undefined;
+      try {
+        const r = await fn();
+        if (told) log(`${what}：连上了，交上去了`, "ok");
+        if (c && c.waitNet === what) c.waitNet = "";
+        return r;
+      } catch (e) {
+        if (!isNet(e) || stopped || (c && c.stopping && !c.finishing && !opt.uploadWhileStopping) || Date.now() - t0 > (opt.offlineMaxMs || 48 * 3600e3)) throw e;
+        if (!told) { log(`${what}：连不上调度中心（${e.message}），先存在本机，连上了自动交`, "warn"); told = true; }
+        if (c) { c.waitNet = what; c.lastOut = Date.now(); }   // 在等网，不是卡住了
+        await sleep(opt.retryMs ? opt.retryMs : wait); wait = Math.min(wait * 2, 60000);
+      }
+    }
   }
 
   // ---- 什么时候能算 ----
@@ -184,7 +272,8 @@ function create(opt) {
       }
       lastTick = Date.now();
       if (cur) {
-        if (!g.ok && (paused || manual === "off" || g.active || g.battery || /℃|功耗/.test(g.why))) { log("停下：" + g.why, "warn"); await stopTask(true, g.why); }
+        if (cur.finishing) { /* 已经算完了，只等着交结果：不用停 */ }
+        else if (!g.ok && (paused || manual === "off" || g.active || g.battery || /℃|功耗/.test(g.why))) { log("停下：" + g.why, "warn"); await stopTask(true, g.why); }
         // 卡住了：好久没有任何输出（日志、进度、曲线）→ 结束它，交给别的电脑从存档接着算
         else if (opt.stallMin !== 0 && cur.child && Date.now() - (cur.lastOut || cur.started) > (opt.stallMin || 45) * 60e3 && !cur.stopping) { log(`这个任务 ${opt.stallMin || 45} 分钟没有动静，像是卡住了：结束它，交给别的电脑接着算`, "error"); await stopTask(true, "卡住了（很久没有输出）"); }
       } else if (!g.ok) setState(paused || manual === "off" ? "paused" : "waiting", g.why);
@@ -196,7 +285,7 @@ function create(opt) {
       }
     } catch (e) {
       if (e.status === 401) { setState("offline", e.message); emit("kicked", e.message); }
-      else setState("offline", "连不上调度中心：" + e.message);
+      else { const w = (isNet(e) ? e.message : netWhy(e)) + (netNote ? "；" + netNote : ""); setState("offline", cur ? `连不上调度中心：${w}。手上的还在接着算，结果先存在本机，连上了自动交` : "连不上调度中心：" + w); }
     }
   }
   let timer = null;
@@ -270,27 +359,32 @@ function create(opt) {
       fs.writeFileSync(path.join(dir, "task.json"), JSON.stringify(t));
       if (c.stopping) return;   // 准备的时候被叫停了（管理员暂停、你要用电脑）
       const code = await spawnPy(c, rc.file, path.join(dir, "task.json"));
-      clearInterval(renewTimer);
+      if (code === 0 && c.result) c.finishing = true;   // 算完了：接下来只是交结果，点「停止」、断网都不丢；续约也接着报，免得被收回
+      else clearInterval(renewTimer);
       await c.uploads;
-      if (c.stopping) return;
+      if (c.stopping && !c.finishing) return;
       if (code !== 0 || !c.result) throw new Error((c.logs.filter((l) => l.level === "error").slice(-6).map((l) => l.msg).join("\n")) || `配方退出码 ${code}`);
       // 结果里的文件：上传，换成存储地址
       const result = {};
       for (const [k, v] of Object.entries(c.result)) {
         if (!(v && v.$file)) { result[k] = v; continue; }
-        result[k] = await put(c, v.$file, k);
+        result[k] = await whenOnline(c, "上传结果「" + k + "」", () => put(c, v.$file, k));
         // 发布给老师端要用：大小和 sha256
         result[k + "_size"] = fs.statSync(v.$file).size;
         result[k + "_sha256"] = await new Promise((ok, bad) => { const h = crypto.createHash("sha256"); fs.createReadStream(v.$file).on("data", (d) => h.update(d)).on("end", () => ok(h.digest("hex"))).on("error", bad); });
       }
       const secs = (Date.now() - c.started) / 1000;
-      const r = await api("/api/done", { task: c.id, result, outputs: c.outputs, reviews: c.reviews, secs, metrics: c.metrics.splice(0) });
+      const doneMetrics = c.metrics.splice(0);
+      clearInterval(renewTimer); c.submitting = true;   // 要交结果了：不再续约（断网等太久被收回的，连回来交的时候调度中心会还给它）
+      if (state === "offline") { c.note = "算完了，等连上调度中心交结果"; emit("progress", { id: c.id, p: c.progress, note: c.note }); }
+      const r = await whenOnline(c, "交结果", () => api("/api/done", { task: c.id, result, outputs: c.outputs, reviews: c.reviews, secs, metrics: doneMetrics }));
       log(r.ok ? `做完了「${L.job.name}」，用了 ${Math.round(secs)} 秒` : r.why, r.ok ? "ok" : "warn");
       emit("done", { id: c.id, ok: r.ok, secs, result });
     } catch (e) {
       clearInterval(renewTimer);
       if (!c.stopping) { log("出错：" + e.message, "error"); await api("/api/fail", { task: c.id, error: e.message + "\n" + c.logs.slice(-20).map((l) => l.msg).join("\n") }).catch(() => {}); emit("done", { id: c.id, ok: false, error: e.message }); }
     } finally {
+      clearInterval(renewTimer);
       if (cur === c) cur = null;
       if (!opt.keepTaskDirs) fs.rm(dir, { recursive: true, force: true }, () => {});
       lastLease = 0;
@@ -299,18 +393,21 @@ function create(opt) {
   }
   async function put(c, file, name) {
     const r = await api("/api/put", { job: c.job.id, task: c.id, name: path.basename(file), prefix: name });
-    await xfer("PUT", r.url, file);
+    try { await xfer("PUT", r.url, file); } catch (e) { throw isNet(e) ? netErr(e) : e; }
     return r.key;
   }
   async function renew(c) {
     const ms = c.metrics.splice(0);
     const r = await api("/api/renew", { task: c.id, progress: c.progress, metrics: ms, live: liveOf() });
-    if (r.cancel && !c.stopping) { log("停下：" + r.why, "warn"); await stopTask(false, r.why); }
+    // 只管这一个任务：交结果前后还在路上的续约回来说「任务已经结束」，不能把下一个任务停了
+    if (r.cancel && !c.stopping && cur === c && !c.submitting) { log("停下：" + r.why, "warn"); await stopTask(false, r.why); }
   }
   // 停下当前任务；release=true 告诉调度中心「我要用电脑了，交给别人」
   async function stopTask(release, reason) {
     const c = cur;
     if (!c || c.stopping) return;
+    // 已经算完了、只差交结果：不扔掉，交完就停（renew 说「已经给别人了」除外）
+    if (c.finishing && release) { log("这个任务已经算完了，交完结果就停", "warn"); return; }
     c.stopping = true;
     if (c.child) { try { c.child.kill(); } catch (e) {} }
     if (opt.comfy) { try { await opt.comfy.abort(); if (release) opt.comfy.stop(); } catch (e) {} }   // 你要用电脑了：AI 引擎也关掉，让出显存
@@ -355,10 +452,14 @@ function create(opt) {
       case "progress": c.progress = m.p; if (m.note) c.note = m.note; emit("progress", { id: c.id, p: m.p, note: m.note }); break;
       case "image": emit("image", { id: c.id, path: m.path, caption: m.caption, job: c.job.name }); break;
       case "ckpt":
+        c.lastCkpt = m.step;
         c.uploads = c.uploads.then(async () => {
           if (c.stopping && !opt.uploadWhileStopping) return;
-          const key = await put(c, m.path, "ckpt-" + m.step);
-          await api("/api/ckpt", { task: c.id, step: m.step, key });
+          // 断网的时候存档会攒起来：只交最新的一个，旧的不交了
+          const stale = () => (c.lastCkpt != null && m.step < c.lastCkpt) || !!c.result;
+          const key = await whenOnline(c, "存档", () => put(c, m.path, "ckpt-" + m.step), stale);
+          if (key === undefined) { if (opt.pruneCkpts !== false) fs.rm(m.path, { force: true }, () => {}); return; }
+          if ((await whenOnline(c, "存档", () => api("/api/ckpt", { task: c.id, step: m.step, key }), stale)) === undefined) { if (opt.pruneCkpts !== false) fs.rm(m.path, { force: true }, () => {}); return; }
           c.ckpts++;
           emit("ckpt", { id: c.id, step: m.step });
           log(`存档：第 ${m.step} 步`, "ok");
@@ -366,13 +467,13 @@ function create(opt) {
         }).catch((e) => log("存档上传失败：" + e.message, "warn"));
         break;
       case "output":
-        c.uploads = c.uploads.then(async () => { const key = await put(c, m.path, "out"); c.outputs.push({ name: m.name, key, size: fs.statSync(m.path).size }); }).catch((e) => log("结果上传失败：" + e.message, "warn"));
+        c.uploads = c.uploads.then(async () => { const key = await whenOnline(c, "上传结果文件", () => put(c, m.path, "out")); c.outputs.push({ name: m.name, key, size: fs.statSync(m.path).size }); }).catch((e) => log("结果上传失败：" + e.message, "warn"));
         break;
       case "review":
         c.uploads = c.uploads.then(async () => {
           const { t, ...r } = m;
           c.put = c.put || {};   // 同一张图（比如参考照片）只传一次
-          for (const k of ["a", "b", "ref", "img", "audio"]) if (r[k] && fs.existsSync(r[k])) r[k] = c.put[r[k]] = c.put[r[k]] || await put(c, r[k], "rv");
+          for (const k of ["a", "b", "ref", "img", "audio"]) if (r[k] && fs.existsSync(r[k])) r[k] = c.put[r[k]] = c.put[r[k]] || await whenOnline(c, "上传审核图片", () => put(c, r[k], "rv"));
           c.reviews.push(r);
         }).catch((e) => log("审核图片上传失败：" + e.message, "warn"));
         break;
@@ -431,7 +532,7 @@ function create(opt) {
     touch() { if (cur) cur.lastOut = Date.now(); },   // 准备阶段（装 GPT-SoVITS、下大文件）有进度时也算有动静
     kill: (why) => stopTask(true, why || "被结束了"),
     get policy() { return policy; },
-    status: () => ({ state, why, paused, manual, policy, task: cur ? { id: cur.id, job: cur.job, recipe: cur.recipe && { id: cur.recipe.id, name: cur.recipe.name }, progress: cur.progress, line: cur.line, fn: cur.fn, note: cur.note, started: cur.started, ckpts: cur.ckpts } : null, logs: logs.slice(-200), gpu: gpuNow }),
+    status: () => ({ state, why, running: !!cur, paused, manual, policy, task: cur ? { id: cur.id, job: cur.job, recipe: cur.recipe && { id: cur.recipe.id, name: cur.recipe.name }, progress: cur.progress, line: cur.line, fn: cur.fn, note: cur.note, started: cur.started, ckpts: cur.ckpts } : null, logs: logs.slice(-200), gpu: gpuNow }),
     // 测试用：模拟突然断电（不告诉调度中心，进程直接没了）
     crash() { stopped = true; clearInterval(timer); timer = null; if (cur) { cur.stopping = true; try { cur.child && cur.child.kill("SIGKILL"); } catch (e) {} } },
     current: () => cur,
@@ -447,4 +548,4 @@ async function join(invite, name, device, fetchImpl = fetch) {
   return { server: inv.server, pubkey: inv.pubkey, token: j.token, device: j.device, member: j.member };
 }
 
-module.exports = { setNetLimit, xferAny, create, join, parseInvite, verifySig, xfer, probe };
+module.exports = { setNetLimit, xferAny, create, join, parseInvite, verifySig, xfer, probe, netWhy, isNet, resetConnections };
