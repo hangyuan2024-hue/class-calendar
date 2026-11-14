@@ -125,7 +125,7 @@ def train(base):
     tok = proc.tokenizer
     bnb = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_use_double_quant=True, bnb_4bit_compute_dtype=torch.bfloat16)
     model = AutoModelForImageTextToText.from_pretrained(base, quantization_config=bnb, device_map={"": 0}, torch_dtype=torch.bfloat16)
-    model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)
+    model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True, gradient_checkpointing_kwargs={"use_reentrant": False})
     cfg = LoraConfig(r=int(p.get("rank", 16)), lora_alpha=int(p.get("alpha", 32)), lora_dropout=0.05, bias="none", task_type="CAUSAL_LM",
                      target_modules=r".*language_model.*\.(q_proj|k_proj|v_proj|o_proj|gate_proj|up_proj|down_proj)")
     model = get_peft_model(model, cfg)
@@ -182,34 +182,43 @@ def train(base):
 
 
 # ---------------- 4. 转成 llama.cpp 的格式（老师端直接加载）----------------
-def to_gguf(base, adir):
-    ver = (lg.llm("info").get("version") or "").strip()
-    tag = ver if re.fullmatch(r"b\d+", ver) else "master"
+def converter():
+    """llama.cpp 的 LoRA 转换脚本：①客户端自带的（和 llama-server 同一版，不用联网）②下过的 ③从镜像下源码（GitHub 在国内常常连不上）"""
+    info = lg.llm("info") or {}
+    if info.get("convert") and os.path.exists(os.path.join(info["convert"], "convert_lora_to_gguf.py")):
+        lg.log("用客户端自带的 llama.cpp 转换脚本（%s）" % (info.get("version") or "?"))
+        return info["convert"]
+    ver = (info.get("version") or "").strip()
+    m = re.fullmatch(r"b(\d+)", ver)
+    tag = ver if m and int(m.group(1)) >= 1000 else "master"   # 「b1」这种是没认出版本号
     src = os.path.join(CACHE, "llama-src-" + tag)
     if not os.path.exists(os.path.join(src, "convert_lora_to_gguf.py")):
-        lg.progress(0.72, "下载 llama.cpp 的转换脚本（%s）" % tag)
+        lg.progress(0.02, "下载 llama.cpp 的转换脚本（%s）" % tag)
         ref = ("refs/tags/" + tag) if tag != "master" else "refs/heads/master"
         tgz = os.path.join(CACHE, "llama-%s.tar.gz" % tag)
         err = None
-        for u in ["https://ghfast.top/https://github.com/ggml-org/llama.cpp/archive/%s.tar.gz" % ref,
-                  "https://gh-proxy.com/https://github.com/ggml-org/llama.cpp/archive/%s.tar.gz" % ref,
-                  "https://github.com/ggml-org/llama.cpp/archive/%s.tar.gz" % ref]:
+        gh = "https://github.com/ggml-org/llama.cpp/archive/%s.tar.gz" % ref
+        for u in [x + gh for x in ("https://ghfast.top/", "https://gh-proxy.com/", "https://ghproxy.net/", "https://gh.llkk.cc/", "")]:
             try:
                 lg.download(u, tgz)
                 break
             except Exception as e:
                 err = e
         if not os.path.exists(tgz):
-            raise RuntimeError("llama.cpp 源码下载失败：%s" % err)
+            raise RuntimeError("llama.cpp 转换脚本下载失败（客户端更新到最新版就自带了，不用下）：%s" % err)
         tmp = src + ".tmp"
         shutil.rmtree(tmp, ignore_errors=True)
         with tarfile.open(tgz) as tf:
-            want = [m for m in tf.getmembers() if re.search(r"/(convert_lora_to_gguf\.py|convert_hf_to_gguf\.py|gguf-py/.*)$", m.name) and ".." not in m.name]
+            want = [m for m in tf.getmembers() if re.search(r"^[^/]+/([^/]+\.py|gguf-py/.*)$", m.name) and ".." not in m.name]
             tf.extractall(tmp, members=want)
         top = os.path.join(tmp, os.listdir(tmp)[0])
         os.replace(top, src)
         shutil.rmtree(tmp, ignore_errors=True)
         os.remove(tgz)
+    return src
+
+
+def to_gguf(base, adir, src):
     out = os.path.join(work, "qa-lora.gguf")
     env = dict(os.environ, PYTHONPATH=os.path.join(src, "gguf-py") + os.pathsep + os.environ.get("PYTHONPATH", ""), PYTHONIOENCODING="utf-8")
     r = subprocess.run([sys.executable, os.path.join(src, "convert_lora_to_gguf.py"), "--base", base, "--outtype", "f16", "--outfile", out, adir],
@@ -310,9 +319,10 @@ if p.get("dryRun"):   # 测试用：不真的训练（没有显卡的电脑上�
     gguf = os.path.join(work, "qa-lora.gguf")
     open(gguf, "wb").write(b"GGUF" + b"\0" * 60)
 else:
+    conv = converter()   # 先准备好转换脚本：下不来就别白训两个小时
     base = base_dir()
     adir = train(base)
-    gguf = to_gguf(base, adir)
+    gguf = to_gguf(base, adir, conv)
 spec = dict(p.get("evalLlm") or teacher_gguf(), ctx=int(p.get("evalCtx", 8192)), slots=2)
 qs = exam_set()
 lg.progress(0.8, "考试：原版")

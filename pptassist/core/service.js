@@ -53,7 +53,7 @@ function createService(env) {
   const eng = ENGINE.create({ mirror, ...(env.engineOpt || {}) });
   // AI 助手：本地大模型 + 正在改的 PPT（edit.deck，改完另存）
   // 捞捞自己训练的模型（捞捞算力每天训练、评测通过才发布）：后台自动下载，下次生成时才换上
-  const grid = GridModels.create({ dir: path.join(USER, "grid-models"), want: ["qversion-lora", "qa-lora", "laolao-voice"], codes: () => [profile && profile.voiceCode], onEvent: (e) => send("aiav", { stage: "gridmodel", ...e }), ...(env.gridOpt || {}) });
+  const grid = GridModels.create({ dir: path.join(USER, "grid-models"), want: ["qversion-lora", "qa-lora", "laolao-voice", "voice-base"], codes: () => [profile && profile.voiceCode], onEvent: (e) => send("aiav", { stage: "gridmodel", ...e }), ...(env.gridOpt || {}) });
   if (env.gridModels !== false) grid.start();
   const llm = LLM.create({ dir: P("llm", "x").slice(0, -2), exe: env.llamaExe, exeCpu: env.llamaCpuExe, mirror,
     // 捞捞算力训练、考试通过的答题 LoRA：下次启动 AI 助手时换上；带上起不来就退回上一版
@@ -644,8 +644,15 @@ function createService(env) {
           if (!fs.existsSync(wav)) { const b = await voice.tts({ text, refWav: tm.files.ref, promptText: tm.prompt, gpt: tm.files.gpt, sovits: tm.files.sovits }); fs.writeFileSync(wav, b); }
         } else {
           if (!v || !fs.existsSync(P(v.ref))) throw new Error("还没有老师的声音：先在「我的声音」里上传一段录音");
-          wav = P("cache", `tts-${key}-${hash(text + "|" + v.prompt + "|" + v.seconds)}.wav`); src = "tts";
-          if (!fs.existsSync(wav)) { const b = await voice.tts({ text, refWav: P(v.ref), promptText: v.prompt }); fs.writeFileSync(wav, b); }
+          // 没训练过自己声音的老师：用捞捞算力训的「声音底座」（所有老师的录音一起训的，更像老师上课说话）+ 她这段录音；底座和本机整合包对不上就用整合包自带的
+          const vb = grid.use("voice-base");
+          wav = P("cache", `tts-${key}-${hash(text + "|" + v.prompt + "|" + v.seconds + "|" + (vb ? vb.version : 0))}.wav`); src = "tts";
+          if (!fs.existsSync(wav)) {
+            let b = null;
+            if (vb && vb.files.gpt && vb.files.sovits) { try { b = await voice.tts({ text, refWav: P(v.ref), promptText: v.prompt, gpt: vb.files.gpt, sovits: vb.files.sovits }); } catch (e) { b = null; } }
+            if (!b) b = await voice.tts({ text, refWav: P(v.ref), promptText: v.prompt });
+            fs.writeFileSync(wav, b);
+          }
         }
       }
       const w = MEDIA.readWav(fs.readFileSync(wav));

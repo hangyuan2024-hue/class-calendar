@@ -32,8 +32,13 @@ function wav(f, sec = 1.5, hz = 509) {
 // ---------- 假的 GPT-SoVITS 整合包 ----------
 const G = path.join(tmp, "GPT-SoVITS");
 const need = (keys) => `import os,sys\nmiss=[k for k in ${JSON.stringify(keys)} if not os.environ.get(k)]\nassert not miss, "缺环境变量 %s" % miss\n`;
-W(path.join(G, "api_v2.py"), `import sys,json,http.server
+W(path.join(G, "api_v2.py"), `import sys,json,http.server,struct,math
 port=int(sys.argv[sys.argv.index("-p")+1])
+def wav(text):
+    n=32000; pcm=b"".join(struct.pack("<h",int(math.sin(2*math.pi*509*i/32000)*8000)) for i in range(n))
+    t=text.encode("utf-8"); t+=b"\\0"*(len(t)%2)
+    body=b"WAVE"+b"fmt "+struct.pack("<IHHIIHH",16,1,1,32000,64000,2,16)+b"lgtx"+struct.pack("<I",len(t))+t+b"data"+struct.pack("<I",len(pcm))+pcm
+    return b"RIFF"+struct.pack("<I",len(body))+body
 class H(http.server.BaseHTTPRequestHandler):
   def log_message(self,*a): pass
   def do_GET(self):
@@ -41,7 +46,9 @@ class H(http.server.BaseHTTPRequestHandler):
   def do_POST(self):
     n=int(self.headers.get("Content-Length",0)); b=json.loads(self.rfile.read(n))
     assert b["ref_audio_path"] and b["prompt_text"]
-    self.send_response(200); self.end_headers(); self.wfile.write(b"RIFF"+b"\\0"*9000)
+    txt=b["text"]
+    if "银行" in txt and int(b.get("seed",1))%3==0: txt=txt.replace("银行","银航")
+    self.send_response(200); self.end_headers(); self.wfile.write(wav(txt))
 http.server.HTTPServer(("127.0.0.1",port),H).serve_forever()
 `);
 const PDS = path.join(G, "GPT_SoVITS", "prepare_datasets");
@@ -77,7 +84,11 @@ for f in os.listdir(i): shutil.copy(os.path.join(i,f),os.path.join(o,"cut_"+f))
 `);
 W(path.join(G, "tools", "asr", "funasr_asr.py"), `import sys,os
 a=sys.argv; i=a[a.index("-i")+1]; o=a[a.index("-o")+1]
-open(os.path.join(o,os.path.basename(i)+".list"),"w",encoding="utf-8").write("\\n".join("%s|x|ZH|导入录音里识别出来的一句话"%os.path.join(i,f) for f in sorted(os.listdir(i))))
+def said(f):
+    b=open(f,"rb").read(); k=b.find(b"lgtx")
+    if k<0: return "导入录音里识别出来的一句话"
+    n=int.from_bytes(b[k+4:k+8],"little"); return b[k+8:k+8+n].rstrip(b"\\0").decode("utf-8")
+open(os.path.join(o,os.path.basename(i)+".list"),"w",encoding="utf-8").write("\\n".join("%s|x|ZH|%s"%(os.path.join(i,f),said(os.path.join(i,f))) for f in sorted(os.listdir(i))))
 `);
 // 假的说话人模型：声音高的（学生）和低的（老师）是两个人
 W(path.join(G, "GPT_SoVITS", "pretrained_models", "sv", "pretrained_eres2netv2w24s4ep4.ckpt"), "x");
@@ -111,7 +122,7 @@ class SV:
 `);
 // 假的 ffmpeg：输入本来就是 wav，照抄
 const FF = path.join(tmp, "ff.py");
-W(FF, "import sys,shutil,os\na=sys.argv\nshutil.copy(a[a.index('-i')+1],a[-1])\nif '-af' in a: open(os.path.join(os.path.dirname(a[0]),'af.log'),'a').write(a[a.index('-af')+1]+'\\n')\n");
+W(FF, "import sys,shutil,os\na=sys.argv\nshutil.copy(a[a.index('-i')+1],a[-1])\nif '-af' in a:\n  d=os.path.join(os.path.dirname(a[0]),'af'); os.makedirs(d,exist_ok=True)\n  open(os.path.join(d,os.path.basename(a[-1])+'.txt'),'w').write(a[a.index('-af')+1])\n");   // 一句一个文件：几个 ffmpeg 同时跑，往一个文件追加在 Windows 上会丢行
 
 (async () => {
   const app = Server.create({ data: path.join(tmp, "server"), leaseMs: 5000, noTick: true });
@@ -122,7 +133,7 @@ W(FF, "import sys,shutil,os\na=sys.argv\nshutil.copy(a[a.index('-i')+1],a[-1])\n
   const j = await Agent.join(inv.link, "王老师", { name: "王老师的电脑" });
   const ensured = [];
   const ag = Agent.create({ token: j.token, pubkey: j.pubkey, server: url, workDir: path.join(tmp, "w"), python: PY, caps: { vram: 6, gsv: true }, tickMs: 100, hbMs: 300, leaseEveryMs: 100, renewMs: 300,
-    gsv: { ensure: async (say) => { ensured.push(1); say("装好了"); return { dir: G, python: PY, ffmpegCmd: [PY, FF] }; } } });
+    gsv: { ensure: async (say) => { ensured.push(1); if (ensured.length === 1) await sleep(6500); say("装好了"); return { dir: G, python: PY, ffmpegCmd: [PY, FF] }; } } });
 
   // 王老师在「录声音和表情」里录了两段（每段 10 句）
   await Tools.plan(admin, path.join(ROOT, "plans", "voice.json"));
@@ -193,7 +204,8 @@ W(FF, "import sys,shutil,os\na=sys.argv\nshutil.copy(a[a.index('-i')+1],a[-1])\n
   assert.equal(app.core.db.prepare("select state from runs where id=?").get(r3.run).state, "done");
   const res3 = JSON.parse(app.core.db.prepare("select result from tasks t join jobs j on j.id=t.job_id where j.run_id=?").get(r3.run).result);
   assert.equal(res3.clips, 10, "学生说话的 2 段扔掉了");
-  const af0 = fs.readFileSync(path.join(tmp, "af.log"), "utf8");
+  const afAll = () => fs.readdirSync(path.join(tmp, "af")).map((x) => fs.readFileSync(path.join(tmp, "af", x), "utf8"));
+  const af0 = afAll().join("\n");
   assert.match(af0, /highpass=f=70,afftdn/, "导入的录音先去噪");
   const li2 = (await Tools.api(admin, "/api/admin/voices")).find((v) => v.member === "李老师");
   assert.equal(li2.model, 1); assert.equal(li2.run.state, "done");
@@ -221,9 +233,12 @@ W(FF, "import sys,shutil,os\na=sys.argv\nshutil.copy(a[a.index('-i')+1],a[-1])\n
     for (let i = 1; i <= n; i++) {
       const id = `${spk}${String(i).padStart(4, "0")}.wav`;
       content.push(`${id}\t同 tong2 学 xue2 们 men5 好 hao3 第 di4 ${i} 句`);
-      if (spk === "SSB0002") wav(path.join(OD, "train", "wav", spk, id), 2.5);
+      wav(path.join(OD, "train", "wav", spk, id), 3.5);
     }
   W(path.join(OD, "train", "content.txt"), content.join("\n") + "\n");
+  const tcontent = [];
+  for (const spk of ["SSB0101", "SSB0102", "SSB0103"]) for (let i = 1; i <= 3; i++) { const id = `${spk}${String(i).padStart(4, "0")}.wav`; tcontent.push(`${id}\t大 da4 家 jia1 好 hao3`); wav(path.join(OD, "test", "wav", spk, id), 4); }
+  W(path.join(OD, "test", "content.txt"), tcontent.join("\n") + "\n");
   const hits = [];
   const http = require("http");
   const fsrv = http.createServer((q, s_) => { const fp = path.join(OD, decodeURIComponent(q.url.split("?")[0])); hits.push(q.url); if (fs.existsSync(fp) && fs.statSync(fp).isFile()) { s_.writeHead(200); s_.end(fs.readFileSync(fp)); } else { s_.writeHead(404); s_.end(); } });
@@ -241,12 +256,57 @@ W(FF, "import sys,shutil,os\na=sys.argv\nshutil.copy(a[a.index('-i')+1],a[-1])\n
   const res2 = JSON.parse(app.core.db.prepare("select result from tasks t join jobs j on j.id=t.job_id where j.run_id=?").get(r2.run).result);
   assert.equal(res2.clips, 12, "挑的是 26～40 岁、北方口音的女声（SSB0002），12 句都用上");
   assert.ok(hits.every((h) => !/SSB000[134]/.test(h)), "别人的录音不下载");
-  const af = fs.readFileSync(path.join(tmp, "af.log"), "utf8").trim().split("\n").filter((x) => /^asetrate/.test(x));
+  const af = afAll().filter((x) => /^asetrate/.test(x));
   assert.equal(af.length, 12); assert.match(af[0], /^asetrate=35919,aresample=32000,atempo=0\.8908/, "升 2 个半音、音色一起变、语速不变");
   const pub2 = await (await fetch(url + "/pub/models/manifest.json")).json();
   assert.ok(pub2.models["laolao-voice"] && pub2.models["laolao-voice"].files.map((f) => f.name).join() === "gpt,sovits,ref,reftext", "捞捞的声音公开发布，老师端自动下载");
-  fsrv.close();
   ok(`捞捞的专属声音：自动挑了 SSB0002（26～40 岁、北方、女），只下这一位的 ${res2.clips} 句，升 2 个半音（变成另一个「人」）；第一个地址坏了换下一个；公开发布 laolao-voice`);
+
+  // ---------- 声音底座：练习（念难句子、自动打分）→ 攒够了用所有老师 + 公开录音接着训整个模型 → 考试 → 发布 ----------
+  const pools = app.core.db.prepare("select name from outputs where name like 'voicepool-%'").all();
+  assert.ok(pools.length >= 2, "训练老师声音的时候，清洗好的录音交给了声音数据池");
+  const bp = JSON.parse(fs.readFileSync(path.join(ROOT, "plans", "voice-base.json"), "utf8"));
+  const bpf = path.join(tmp, "vb.json");
+  const small = { drill: { sentences: 3, refs: 2, tries: 3, seed: 5 }, train: { aishellSpeakers: 2, clipsPer: 4, minSeconds: 20, evalSentences: 3, evalRefs: 3, seed: 7 } };
+  fs.writeFileSync(bpf, JSON.stringify({ ...bp, stages: bp.stages.map((s) => ({ ...s, keep: 1, req: { ...s.req, vram: 5.5 }, recipeFile: path.join(ROOT, "recipes", "voice_base.py"), params: { ...s.params, ...small[s.key], openBase: ob.join(",") } })) }));
+  await Tools.cycle(admin, bpf);
+  const C = app.cycle;
+  C.tick();
+  const dj = app.core.db.prepare("select id from jobs where json_extract(params,'$.mode')='drill'").get();
+  assert.ok(dj, "练习一直开着");
+  ag.start();
+  await until(() => app.core.db.prepare("select count(*) as n from tasks where job_id=? and state='done'").get(dj.id).n >= 1, "练习做完一个").catch((e) => { console.log(app.core.db.prepare("select error from tasks where error is not null").all().slice(-2)); throw e; });
+  ag.stop();
+  await sleep(300);
+  const dres = JSON.parse(app.core.db.prepare("select result from tasks where job_id=? and state='done'").get(dj.id).result);
+  assert.ok(dres.tried === 3 * 2 * 3, "3 句 × 2 个声音 × 念 3 遍");
+  assert.ok(dres.kept >= 1 && dres.kept <= 6, "每句每个声音只留念得最好的一遍");
+  const dk = app.core.db.prepare("select key from outputs where name like 'voicedrill-%'").get();
+  assert.ok(dk, "最好的句子交上去了");
+  ok(`声音练习：念难句子 ${dres.tried} 遍、识别回文字算错字率（${(dres.cer * 100).toFixed(1)}%）、比像不像 → 留 ${dres.kept} 句念得最好的`);
+
+  const run = (await Tools.api(admin, "/api/admin/pipeline/run", { name: "声音底座" })).run;
+  ag.start();
+  await until(() => app.core.db.prepare("select state from runs where id=?").get(run).state !== "running", "训练声音底座", 120000).catch((e) => { console.log(app.core.db.prepare("select error from tasks where error is not null").all().slice(-2)); throw e; });
+  ag.stop();
+  await sleep(300);
+  assert.equal(app.core.db.prepare("select state from runs where id=?").get(run).state, "done");
+  const bres = JSON.parse(app.core.db.prepare("select t.result from tasks t join jobs j on j.id=t.job_id where j.run_id=? and t.state='done'").get(run).result);
+  assert.equal(bres.teachers, 2, "王老师、李老师（同一位老师交了好几份只用最新的）");
+  assert.ok(bres.speakers >= 4 && bres.cer === 0 && bres.base_cer === 0);
+  const vb = app.core.db.prepare("select * from models where name='voice-base' order by version desc").get();
+  assert.ok(vb && vb.state === "released" && !vb.private, "声音底座公开发布");
+  ok(`声音底座：${bres.teachers} 位老师 + 公开录音、${bres.speakers} 个说话人一起接着训整个模型 → 没参加训练的声音念考题（新旧都比）→ 发布 voice-base`);
+
+  // 再训练李老师的声音：从声音底座接着训
+  const r4 = await Tools.api(admin, "/api/admin/pipeline/run", { name: "声音训练", extra: { member: "李老师", voiceOf: "李老师" } });
+  ag.start();
+  await until(() => app.core.db.prepare("select state from runs where id=?").get(r4.run).state !== "running", "从底座训练李老师").catch((e) => { console.log(app.core.db.prepare("select error from tasks where error is not null").all().slice(-2)); throw e; });
+  ag.stop();
+  const res4 = JSON.parse(app.core.db.prepare("select t.result from tasks t join jobs j on j.id=t.job_id where j.run_id=? and t.state='done'").get(r4.run).result);
+  assert.equal(res4.base, "voice-base", "老师的声音从底座接着训");
+  ok("老师自己的声音：从声音底座接着训（底座越好，老师的声音越像）");
+  fsrv.close();
 
   app.close();
   fs.rmSync(tmp, { recursive: true, force: true });

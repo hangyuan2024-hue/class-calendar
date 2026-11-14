@@ -1,0 +1,59 @@
+{
+  "name": "声音底座",
+  "mode": "continuous",
+  "stages": [
+    {
+      "key": "drill",
+      "name": "声音练习：念难句子、自动打分（多音字、公式、英文词、问句）",
+      "kind": "map",
+      "recipe": "voice_base",
+      "recipeFile": "../recipes/voice_base.py",
+      "standing": true,
+      "keep": 4,
+      "params": {
+        "mode": "drill",
+        "tag": "voice-drill",
+        "modelOf": "voice-base",
+        "sentences": 12,
+        "refs": 4,
+        "tries": 3
+      },
+      "req": { "vram": 5.5, "gsv": true },
+      "priority": 5
+    },
+    {
+      "key": "train",
+      "name": "训练声音底座（所有老师 + 公开录音，整个模型接着训）",
+      "kind": "map",
+      "recipe": "voice_base",
+      "recipeFile": "../recipes/voice_base.py",
+      "when": { "outputsLike": "voice", "outputs": 20, "minHours": 12 },
+      "params": {
+        "count": 1,
+        "mode": "train",
+        "modelOf": "voice-base",
+        "voicePool": true,
+        "maxHours": 10,
+        "aishellSpeakers": 40,
+        "clipsPer": 60,
+        "drillRatio": 0.15,
+        "sovitsEpochs": 4,
+        "gptEpochs": 8,
+        "batch": 4,
+        "evalSentences": 16,
+        "evalRefs": 6
+      },
+      "req": { "vram": 7.5, "gsv": true },
+      "priority": 40
+    }
+  ],
+  "publish": {
+    "model": "voice-base",
+    "from": "train",
+    "files": ["gpt", "sovits", "info"],
+    "metrics": [
+      { "k": "cer", "better": "lower", "vs": "base_cer", "tol": 0.003 },
+      { "k": "sim", "better": "higher", "vs": "base_sim", "tol": 0.005 }
+    ]
+  }
+}

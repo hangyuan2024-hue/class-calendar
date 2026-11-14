@@ -45,7 +45,9 @@ function post(port, pathName, body, timeoutMs) {
 function create({ log = () => {}, onState = () => {} } = {}) {
   let proc = null, port = 0, state = "off", lastErr = "", tail = [], cfg = null;
   const set = (s, e) => { state = s; if (e !== undefined) lastErr = e; onState({ state, error: lastErr, port }); };
+  let lastStart = null;
   async function start(dir, opt = {}) {
+    lastStart = [dir, opt];
     if (proc && cfg && cfg.dir === dir && state === "ready") return { state, port };
     stop();
     const info = opt.cmd ? { ok: true, dir, python: opt.cmd } : inspect(dir);
@@ -89,6 +91,8 @@ function create({ log = () => {}, onState = () => {} } = {}) {
   async function tts({ text, refWav, promptText, speed = 1.0, gpt, sovits }) {
     if (state !== "ready") throw new Error("老师的声音还没准备好：先在「我的声音」里启动 GPT-SoVITS");
     if (gpt || sovits) await weights(gpt, sovits);
+    // 之前换成了别的模型（捞捞的声音、声音底座），这次要整合包自带的：重开一下（api_v2 没有「换回默认」）
+    else if ((loaded.gpt || loaded.sovits) && lastStart) { stop(); await start(...lastStart); }
     const r = await post(port, "/tts", {
       text: String(text), text_lang: "zh", ref_audio_path: refWav, prompt_text: String(promptText || ""), prompt_lang: "zh",
       text_split_method: "cut5", batch_size: 1, media_type: "wav", streaming_mode: false, speed_factor: speed, parallel_infer: true, repetition_penalty: 1.35,

@@ -115,7 +115,11 @@ function create(o) {
   function stop() { clearTimeout(idle); if (child) { try { child.kill(); } catch (e) {} child = null; } cur = null; }
   // llama.cpp 的版本号（b6xxx）：转换 LoRA 格式要用同一个版本的脚本
   let ver;
+  // 和 llama-server 一起打包的转换脚本（convert_lora_to_gguf.py + gguf-py）：训练答题大脑以后转格式用，不用再上 GitHub 下
+  function convertDir() { const d = exe ? path.join(path.dirname(exe), "convert") : ""; return d && fs.existsSync(path.join(d, "convert_lora_to_gguf.py")) ? d : ""; }
   function version() {
+    // 打包时写下的版本号（发布名 bNNNN）最准；没有再问 llama-server --version
+    if (ver === undefined && exe) { try { const v = fs.readFileSync(path.join(path.dirname(exe), "version.txt"), "utf8").trim(); if (/^b\d+$/.test(v)) ver = v; } catch (e) {} }
     if (ver !== undefined || !ok()) return Promise.resolve(ver || "");
     return new Promise((done) => {
       let out = "";
@@ -124,10 +128,10 @@ function create(o) {
       p.stdout && p.stdout.on("data", add); p.stderr && p.stderr.on("data", add);
       const t = setTimeout(() => { try { p.kill(); } catch (e) {} }, 15000);
       p.on("error", () => { clearTimeout(t); ver = ""; done(""); });
-      p.on("exit", () => { clearTimeout(t); const m = /version:\s*(\d+)/.exec(out); ver = m ? "b" + m[1] : ""; done(ver); });
+      p.on("exit", () => { clearTimeout(t); const m = /version:\s*(\d+)/.exec(out); ver = m && +m[1] >= 1000 ? "b" + m[1] : ""; done(ver); });
     });
   }
-  return { ensure, stop, ok, version, running: () => !!child, PORT: port };
+  return { ensure, stop, ok, version, convertDir, running: () => !!child, PORT: port };
 }
 
 module.exports = { create, PORT };

@@ -289,6 +289,39 @@ if p.get("openVoice") == "aishell3":
         raise RuntimeError("公开录音下载失败太多（%d/%d 句）：网络不行，过会儿再试" % (bad, len(rows)))
 
 total = sum(x[2] for x in lines)
+
+
+def write_pool(items, who):
+    """清洗好的句子打成一个数据包交上去（voicepool-*.tar：flac + 文字）：攒进「声音数据池」，训练所有老师共用的声音底座"""
+    import tarfile
+    if not items or p.get("pool", True) is False:
+        return 0
+    pd = os.path.join(work, "pool")
+    os.makedirs(pd, exist_ok=True)
+    rows = []
+    for i, (w, txt, d) in enumerate(items):
+        fn = "%05d.flac" % i
+        try:
+            subprocess.run(FF + ["-y", "-v", "error", "-i", w, "-c:a", "flac", os.path.join(pd, fn)], check=True, cwd=work)
+        except Exception:
+            continue
+        rows.append("%s|%s|%s|%.2f" % (fn, who, txt.replace("|", " "), d))
+    with open(os.path.join(pd, "list.tsv"), "w", encoding="utf-8") as fh:
+        fh.write("\n".join(rows) + "\n")
+    out = os.path.join(work, "voicepool-%s-%d.tar" % (EXP, int(time.time())))
+    with tarfile.open(out, "w") as tf:
+        for fn in os.listdir(pd):
+            tf.add(os.path.join(pd, fn), arcname=fn)
+    lg.output(out)
+    lg.log("交给声音数据池：%d 句（%.1f 分钟）" % (len(rows), sum(x[2] for x in items) / 60))
+    return len(rows)
+
+
+# 这位老师自己的录音（不是公开录音）攒进声音数据池
+pooled = write_pool(lines, MEMBER) if MEMBER and p.get("openVoice") != "aishell3" else 0
+if p.get("poolOnly"):
+    lg.done(skip="只整理了%s的录音交给声音数据池（%d 句），这次不训练" % (MEMBER, pooled), pooled=pooled)
+    raise SystemExit(0)
 lg.log("一共 %d 句、%.1f 分钟" % (len(lines), total / 60))
 if total < float(p.get("minSeconds", 120)):
     lg.done(skip="%s的录音还不够（%.1f 分钟，至少要 %.0f 分钟）：多录几段再训" % (MEMBER, total / 60, float(p.get("minSeconds", 120)) / 60), seconds=round(total, 1))
@@ -325,6 +358,19 @@ if VER == "v2Pro" and not sv:
     miss.append("sv")
 if miss:
     raise RuntimeError("GPT-SoVITS 整合包里缺：%s（版本 %s）" % ("、".join(miss), VER))
+FROM = "official"
+# 有「声音底座」（大家的录音一起训出来的，比官方的更像老师说话）：从它接着训；版本对不上就还用官方的
+if files.get("m_gpt") and files.get("m_sovits"):
+    try:
+        bv = json.load(open(files["m_info"], encoding="utf-8")).get("version") if files.get("m_info") else None
+    except Exception:
+        bv = None
+    if bv in (None, VER):
+        s1, s2G = files["m_gpt"], files["m_sovits"]
+        FROM = "voice-base"
+        lg.log("从声音底座接着训（%s）" % (bv or "版本没写"))
+    else:
+        lg.log("声音底座是 %s 的，这台电脑的整合包是 %s：还用官方的预训练模型" % (bv, VER))
 lg.log("GPT-SoVITS 版本：%s" % VER)
 
 exp_dir = os.path.join(GD, "logs", EXP)
@@ -456,4 +502,4 @@ try:
         raise RuntimeError("新模型念出来的声音不对（%d/%d 句正常）" % (ok, len(samples)))
 finally:
     api.kill()
-lg.done(gpt=gpt, sovits=sov, ref=ref_wav, reftext=ref_txt, version=VER, clips=len(lines), minutes=round(total / 60, 1), mins=round((time.time() - t0) / 60, 1))
+lg.done(gpt=gpt, sovits=sov, ref=ref_wav, reftext=ref_txt, version=VER, base=FROM, clips=len(lines), minutes=round(total / 60, 1), mins=round((time.time() - t0) / 60, 1))

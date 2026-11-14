@@ -87,6 +87,17 @@ http.createServer((q,r)=>{r.writeHead(200);r.end("{}");}).listen(port,"127.0.0.1
     L.stop(); assert.equal(L.running(), false);
     await assert.rejects(LLMW.create({ exe: null, base: () => tmp }).ensure(spec), /没有 llama.cpp/);
     files.close();
+    // 和 llama-server 一起打包的转换脚本、版本号（version.txt 最准；--version 认出「1」这种不算）
+    const ld = path.join(tmp, "llama-pack"); fs.mkdirSync(path.join(ld, "convert"), { recursive: true });
+    const fexe = path.join(ld, "llama-server.exe"); fs.writeFileSync(fexe, "");
+    assert.equal(LLMW.create({ exe: fexe, base: () => tmp }).convertDir(), "", "没有转换脚本就空着（配方自己下）");
+    fs.writeFileSync(path.join(ld, "convert", "convert_lora_to_gguf.py"), "");
+    fs.writeFileSync(path.join(ld, "version.txt"), "b7012");
+    const lw = LLMW.create({ exe: fexe, base: () => tmp });
+    assert.equal(lw.convertDir(), path.join(ld, "convert"));
+    assert.equal(await lw.version(), "b7012");
+    const lw1 = LLMW.create({ exe: process.execPath, base: () => tmp, spawn: () => { const { EventEmitter } = require("events"); const e = new EventEmitter(); const so = new EventEmitter(); e.stdout = so; e.stderr = new EventEmitter(); e.kill = () => {}; setTimeout(() => { so.emit("data", Buffer.from("version: 1 (abc)")); e.emit("exit", 0); }, 10); return e; } });
+    assert.equal(await lw1.version(), "", "「version: 1」认不出版本：不当真");
     ok("本地大模型：第一次下载（一个地址不行换下一个）、开 llama-server、两块显卡只用独显、省显存的参数不行就换方式、下过的不再下、开着的不重开");
   }
 

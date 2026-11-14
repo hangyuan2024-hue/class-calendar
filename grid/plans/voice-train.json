@@ -17,7 +17,8 @@
         "minSeconds": 120,
         "sovitsEpochs": 8,
         "gptEpochs": 15,
-        "batch": 4
+        "batch": 4,
+        "modelOf": "voice-base"
       },
       "req": {
         "vram": 5.5,

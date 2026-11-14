@@ -341,7 +341,7 @@ function create(opt) {
           .then(async () => {
             if (!opt.llm) throw new Error("这台电脑的客户端太旧，跑不了本地大模型");
             if (op === "stop") { opt.llm.stop(); return {}; }
-            if (op === "info") return { version: opt.llm.version ? await opt.llm.version() : "" };
+            if (op === "info") return { version: opt.llm.version ? await opt.llm.version() : "", convert: opt.llm.convertDir ? opt.llm.convertDir() : "" };
             const spec = { ...((c.job.params || {}).llm || {}), ...(a.llm || {}) };
             if (a.lora) { const f = path.resolve(c.dir, String(a.lora)); if (!f.startsWith(path.resolve(c.dir) + path.sep) || !fs.existsSync(f)) throw new Error("LoRA 文件要在任务文件夹里"); spec.lora = f; }
             return { url: await opt.llm.ensure(spec, (x) => { c.note = x; emit("progress", { id: c.id, p: c.progress, note: x }); }) };

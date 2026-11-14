@@ -121,8 +121,10 @@ function attach(core, opt = {}) {
   // 随时模式：某一类审核一共定下来多少条（训练开一轮时记下来，下次看新攒了多少）
   const reviewsDone = (tag) => one("select count(*) as n from reviews where state='done' and json_extract(payload,'$.tag')=?", String(tag)).n;
   // 「攒够了才训练」看什么：审核结果（tag + reviews）或者某一类任务交的结果文件（outputsOf + outputs）
-  const whenKey = (w) => (w.outputsOf ? "out:" + w.outputsOf : w.tag);
-  const whenCount = (w) => (w.outputsOf ? one("select count(*) as n from outputs o join jobs j on j.id=o.job_id where json_extract(j.params,'$.tag')=?", String(w.outputsOf)).n : reviewsDone(w.tag));
+  // outputsLike：按结果文件的名字前缀数（比如 "voice" → 各处交上来的 voicepool- / voicedrill- 数据包）
+  const whenKey = (w) => (w.outputsLike ? "like:" + w.outputsLike : w.outputsOf ? "out:" + w.outputsOf : w.tag);
+  const whenCount = (w) => (w.outputsLike ? one("select count(*) as n from outputs where name like ?", String(w.outputsLike) + "%").n
+    : w.outputsOf ? one("select count(*) as n from outputs o join jobs j on j.id=o.job_id where json_extract(j.params,'$.tag')=?", String(w.outputsOf)).n : reviewsDone(w.tag));
   const whenNeed = (w) => w.outputs || w.reviews || 1;
   // extra：这一轮额外的参数（比如训练谁的声音 {member: "杭远"}），会并进每个步骤的参数，发布的模型名里 {member} 也换成它
   function startRun(pid, why = "到点了", extra = {}) {
@@ -132,7 +134,7 @@ function attach(core, opt = {}) {
     const stages = cont ? spec.stages.filter((x) => !x.standing) : spec.stages;
     if (!stages.length) throw new Error("没有要开一轮的步骤");
     const marks = {};
-    for (const x of stages) if (x.when && (x.when.tag || x.when.outputsOf)) marks[whenKey(x.when)] = whenCount(x.when);
+    for (const x of stages) if (x.when && (x.when.tag || x.when.outputsOf || x.when.outputsLike)) marks[whenKey(x.when)] = whenCount(x.when);
     extra = Object.fromEntries(Object.entries(extra || {}).filter(([k, v]) => /^\w{1,30}$/.test(k) && ["string", "number", "boolean"].includes(typeof v)));
     const rid = Number(run("insert into runs(pipeline_id,day,state,jobs,created,result) values(?,?,?,?,?,?)", pid, day(), "running", "{}", clock(), S({ marks, why, extra })).lastInsertRowid);
     const ids = {};
@@ -223,7 +225,7 @@ function attach(core, opt = {}) {
       const now = whenCount(w), fresh = now - (marks[whenKey(w)] || 0);
       if (fresh < whenNeed(w)) continue;
       if (last && clock() - last.created < (w.minHours || 0) * 3600e3) continue;
-      startRun(p.id, `新的审核攒够了 ${fresh} 条`);
+      startRun(p.id, w.outputsLike || w.outputsOf ? `新的数据攒够了 ${fresh} 份` : `新的审核攒够了 ${fresh} 条`);
       return;
     }
   }

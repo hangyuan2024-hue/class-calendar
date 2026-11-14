@@ -253,6 +253,18 @@ function open(file, opt = {}) {
       out.files = out.files || {};
       all("select o.key from outputs o join jobs jj on jj.id=o.job_id where json_extract(jj.params,'$.tag')=? order by o.id limit 20000", String(of)).forEach((o, n) => { out.files["data" + n] = o.key; });
     }
+    // 声音数据池：所有任务交上来的、名字以 voicepool- / voicedrill- 开头的数据包（各位老师清洗好的录音、练习里念得最好的句子）
+    const P_ = J(j.params, {}) || {};
+    if (P_.voicePool) {
+      out.files = out.files || {};
+      all("select key, name from outputs where name like 'voicepool-%' or name like 'voicedrill-%' order by id limit 5000").forEach((o, n) => { out.files[(o.name.startsWith("voicedrill-") ? "drill" : "pool") + n] = o.key; });
+    }
+    // 用某个已发布模型的最新一版（比如声音底座 voice-base）：文件下载到本机，叫 m_文件名
+    if (P_.modelOf) {
+      let m = null;
+      try { m = one("select files from models where name=? and state='released' order by version desc limit 1", String(P_.modelOf)); } catch (e) {}
+      if (m) for (const f of J(m.files, []) || []) (out.files = out.files || {})["m_" + f.name] = f.key;
+    }
     if (j.kind === "relay") {
       const c = one("select * from ckpts where job_id=? and kind='relay' order by step desc, id desc limit 1", j.id);
       if (c) out.resume = { key: c.key, step: c.step };

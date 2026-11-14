@@ -8,7 +8,10 @@
       "kind": "map",
       "recipe": "voice_train",
       "recipeFile": "../recipes/voice_train.py",
-      "when": { "tag": "voice", "manual": true },
+      "when": {
+        "tag": "voice",
+        "manual": true
+      },
       "params": {
         "count": 1,
         "member": "捞捞",
@@ -18,16 +21,29 @@
         "sovitsEpochs": 8,
         "gptEpochs": 15,
         "batch": 4,
-        "samples": ["你好，我是捞捞，今天要改哪一页？", "好的，第三页的标题已经改好了，你看看行不行。", "这道题我们一步一步来，先看已知条件。"]
+        "samples": [
+          "你好，我是捞捞，今天要改哪一页？",
+          "好的，第三页的标题已经改好了，你看看行不行。",
+          "这道题我们一步一步来，先看已知条件。"
+        ],
+        "modelOf": "voice-base"
       },
-      "req": { "vram": 5.5, "gsv": true },
+      "req": {
+        "vram": 5.5,
+        "gsv": true
+      },
       "priority": 40
     }
   ],
   "publish": {
     "model": "laolao-voice",
     "from": "voice",
-    "files": ["gpt", "sovits", "ref", "reftext"],
+    "files": [
+      "gpt",
+      "sovits",
+      "ref",
+      "reftext"
+    ],
     "releaseEqual": true,
     "metrics": []
   }
