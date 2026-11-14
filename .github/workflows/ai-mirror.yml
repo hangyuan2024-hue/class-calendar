@@ -162,7 +162,7 @@ jobs:
   grid:
     if: contains(inputs.what, 'grid')
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 350   # 从美国传到广州有时很慢（CLIP 1.6G 传了 3 小时还没完）；没传完的下次接着传
     env:
       CN_S3_ENDPOINT: ${{ secrets.CN_S3_ENDPOINT }}
       CN_S3_REGION: ${{ secrets.CN_S3_REGION }}

@@ -94,13 +94,30 @@ try:
 
     tags = {}
     last = time.time()
-    with concurrent.futures.ThreadPoolExecutor(WORKERS) as ex:
-        for n, et in ex.map(part, range(1, N + 1)):
+    # 卡住看门狗：STALL 秒一块都没传完（跨境网络卡死、连接挂住），这次先退出，cn-put.sh 等一会儿接着传（传好的块不重传）
+    STALL = int(os.environ.get("CN_PUT_STALL", "1200"))
+    ex = concurrent.futures.ThreadPoolExecutor(WORKERS)
+    futs = [ex.submit(part, n) for n in range(1, N + 1)]
+    pending = set(futs)
+    while pending:
+        fin, pending = concurrent.futures.wait(pending, timeout=STALL, return_when=concurrent.futures.FIRST_COMPLETED)
+        if not fin:
+            log("%d 秒一块都没传完（网络卡住了），这次先停，等会儿接着传：已经传好 %d/%d 块" % (STALL, len(tags), N))
+            sys.stderr.flush()
+            os._exit(1)
+        for f in fin:
+            try:
+                n, et = f.result()
+            except Exception as e:   # 一块传了 8 次都不行：这次先停（线程还在跑，直接退出），cn-put.sh 等会儿接着传
+                log("失败：%s" % e)
+                sys.stderr.flush()
+                os._exit(3 if "AccelerateNotEnabled" in str(e) else 1)
             tags[n] = et
-            if time.time() - last > 30:
-                last = time.time()
-                el = max(1, time.time() - t0)
-                log("传了 %d/%d 块，%.1f MB/秒" % (len(tags), N, sent[0] / el / 1048576))
+        if time.time() - last > 30:
+            last = time.time()
+            el = max(1, time.time() - t0)
+            log("传了 %d/%d 块，%.2f MB/秒，预计还要 %d 分钟" % (len(tags), N, sent[0] / el / 1048576, (N - len(tags)) * CH / max(1, sent[0] / el) / 60))
+    ex.shutdown(wait=False)
     c.complete_multipart_upload(Bucket=B, Key=KEY, UploadId=up, MultipartUpload={"Parts": [{"PartNumber": n, "ETag": tags[n]} for n in sorted(tags)]})
     el = max(1, time.time() - t0)
     log("上传好了：%d 秒，平均 %.1f MB/秒" % (el, sent[0] / el / 1048576))
