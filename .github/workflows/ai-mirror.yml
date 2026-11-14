@@ -10,6 +10,7 @@
 #             + 给 Q版打分用的 CLIP ViT-L/14（openai/clip-vit-large-patch14，MIT，约 1.7G），放在 ai/grid/clip-vit-large-patch14/
 #   gridllm   捞捞算力「答题数据工厂」的出题老师 Qwen3-8B（GGUF Q4_K_M，Apache-2.0，约 5G）
 #   qabase    捞捞算力训练答题大脑的底子 Qwen3-VL-4B-Instruct（Hugging Face 格式，Apache-2.0，约 9G）
+#   voicedata 捞捞声音用的公开录音 AISHELL-3（Apache-2.0）里挑中的那一位，打成一个包（约 100～300M）
 # 同时可以放一份到自己 GitHub 仓库的 Release（mirror-<组名>）：国外的电脑从 GitHub 下，国内的从腾讯云下；超过 1.9G 的切块
 # 只在 Actions 页面手动点「Run workflow」时运行（文件大，搬一次要几个小时）；已经搬过、大小一样的会跳过。
 # 搬完写官网的 download/ai-mirror.json（软件读这个文件知道国内地址），再让「网站国内加速」同步一次。
@@ -21,12 +22,12 @@ on:
   workflow_dispatch:
     inputs:
       what:
-        description: "搬哪些（逗号隔开）：grid,gridllm,qabase,llm,comfyui,portrait,talk,nodes,gsv,hy3d"
-        default: "grid,gridllm,qabase,llm,comfyui,portrait,nodes,gsv"
+        description: "搬哪些（逗号隔开）：grid,gridllm,qabase,voicedata,llm,comfyui,portrait,talk,nodes,gsv,hy3d"
+        default: "grid,gridllm,qabase,voicedata,llm,comfyui,portrait,nodes,gsv"
         required: true
       github:
         description: "同时放一份到自己 GitHub 的 Release（国外的电脑从这里下）：只放捞捞算力要用的这几组（逗号隔开；空 = 不放）"
-        default: "grid,gridllm,qabase,llm,comfyui,portrait,nodes,gsv"
+        default: "grid,gridllm,qabase,voicedata,llm,comfyui,portrait,nodes,gsv"
         required: false
       accel:
         description: "上传国内存储时用「全球加速」（快很多，但腾讯云按流量另外收钱：几十 G 就是几十块）"
@@ -58,9 +59,13 @@ jobs:
           WHAT: ${{ inputs.what }}
         run: |
           # grid（训练环境）不在这里列，下面单独一个任务用 pip 下载
-          WHAT=$(echo "$WHAT" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^grid$' | grep -v '^$' | paste -sd, - || true)
-          if [ -z "$WHAT" ]; then echo "items=[]" >> "$GITHUB_OUTPUT"; exit 0; fi
-          items=$(node pptassist/scripts/mirror-list.js "$WHAT")
+          # voicedata（捞捞声音、声音底座用的公开录音包）不是现成的文件，在这里列，下载那一步用 build-*.py 现做
+          VD='[]'
+          if echo ",$WHAT," | tr -d ' ' | grep -q ',voicedata,'; then VD='[{"group":"voicedata","id":"voicedata-aishell3","url":"","build":"aishell3","key":"ai/voicedata/aishell3-laolao.tar","name":"aishell3-laolao.tar","size":0,"model":"aishell3"},{"group":"voicedata","id":"voicedata-aishell3base","url":"","build":"aishell3base","key":"ai/voicedata/aishell3-base.tar","name":"aishell3-base.tar","size":0,"model":"aishell3Base"}]'; fi
+          WHAT=$(echo "$WHAT" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^grid$' | grep -v '^voicedata$' | grep -v '^$' | paste -sd, - || true)
+          if [ -z "$WHAT" ] && [ "$VD" = '[]' ]; then echo "items=[]" >> "$GITHUB_OUTPUT"; exit 0; fi
+          items='[]'; [ -n "$WHAT" ] && items=$(node pptassist/scripts/mirror-list.js "$WHAT")
+          items=$(jq -c -n --argjson a "$items" --argjson b "$VD" '$a + $b')
           echo "items=$items" >> "$GITHUB_OUTPUT"
           echo "$items" | node -e 'const a=JSON.parse(require("fs").readFileSync(0,"utf8"));let t=0;for(const x of a){t+=x.size||0;console.log(x.group.padEnd(9),((x.size||0)/1e9).toFixed(2).padStart(7)+"G ",x.key)}console.log("一共",a.length,"个，约",(t/1e9).toFixed(1)+"G")'
 
@@ -118,6 +123,8 @@ jobs:
           set -euo pipefail
           URL=$(echo "$ITEM" | jq -r .url)
           mkdir -p "$RUNNER_TEMP/m"; F="$RUNNER_TEMP/m/file"
+          BUILD=$(echo "$ITEM" | jq -r '.build // ""')
+          if [ -n "$BUILD" ]; then python3 ".github/workflows/build-$BUILD.py" "$F"; ls -l "$F"; exit 0; fi
           for i in 1 2 3 4 5; do
             if curl -fL --retry 5 --retry-all-errors --retry-delay 10 -C - -o "$F" "$URL"; then break; fi
             echo "下载断了，第 $i 次接着下"; sleep 20
