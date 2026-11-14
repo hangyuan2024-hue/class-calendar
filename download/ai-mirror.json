@@ -108,6 +108,9 @@
    "src": "https://codeload.github.com/kijai/ComfyUI-WanVideoWrapper/zip/088128b224242e110d3906c6750e9a3a348a659b",
    "size": 19168405,
    "sha256": "2d071807fa2ab1b1b2e77f1e5b2241dffd9d369691645012848fcdb7cb506616",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-nodes/ComfyUI-WanVideoWrapper-088128b224242e110d3906c6750e9a3a348a659b.zip"
+   ],
    "node": "ComfyUI-WanVideoWrapper",
    "commit": "088128b224242e110d3906c6750e9a3a348a659b"
   },
@@ -666,5 +669,5 @@
    "model": "qaBase"
   }
  },
- "at": "2026-11-14T09:26:42.210Z"
+ "at": "2026-11-14T16:12:02.032Z"
 }
