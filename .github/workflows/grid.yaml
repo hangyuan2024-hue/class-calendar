@@ -66,7 +66,7 @@ jobs:
           foreach ($t in $tags) {
             $names = @(gh release view $t --repo ggml-org/llama.cpp --json assets --jq '.assets[].name')
             $pick = $names | Where-Object { $_ -match 'win' -and $_ -match 'x64' -and $_ -match 'vulkan' -and $_ -match '\.zip$' } | Select-Object -First 1
-            if ($pick) { Write-Host "使用 $t 里的 $pick"; gh release download $t --repo ggml-org/llama.cpp --pattern $pick --dir llama-dl --clobber; break }
+            if ($pick) { $tag = $t; Write-Host "使用 $t 里的 $pick"; gh release download $t --repo ggml-org/llama.cpp --pattern $pick --dir llama-dl --clobber; break }
           }
           if (-not $pick) { throw "没找到 llama.cpp 的 Windows Vulkan 版" }
           Expand-Archive (Get-ChildItem llama-dl -Filter *.zip | Select-Object -First 1).FullName -DestinationPath llama-x -Force
@@ -75,6 +75,18 @@ jobs:
           New-Item -ItemType Directory -Force llama | Out-Null
           Copy-Item (Join-Path $exe.DirectoryName '*') llama -Recurse -Force
           Remove-Item llama-dl, llama-x -Recurse -Force
+          # 同一版的转换脚本（训练答题大脑以后把 LoRA 转成 llama.cpp 格式；客户端自带，不用在国内连 GitHub）
+          Set-Content llama/version.txt $tag -NoNewline -Encoding ascii
+          New-Item -ItemType Directory -Force llama-src | Out-Null
+          gh release download $tag --repo ggml-org/llama.cpp --archive tar.gz --dir llama-src --clobber
+          tar -xzf (Get-ChildItem llama-src -Filter *.tar.gz | Select-Object -First 1).FullName -C llama-src
+          $root = Get-ChildItem llama-src -Directory | Select-Object -First 1
+          New-Item -ItemType Directory -Force llama/convert | Out-Null
+          Copy-Item (Join-Path $root.FullName '*.py') llama/convert -Force
+          Copy-Item (Join-Path $root.FullName 'gguf-py') llama/convert/gguf-py -Recurse -Force
+          Get-ChildItem $root.FullName -Directory | Where-Object { $_.Name -like 'convert*' } | ForEach-Object { Copy-Item $_.FullName (Join-Path llama/convert $_.Name) -Recurse -Force }
+          if (-not (Test-Path llama/convert/convert_lora_to_gguf.py)) { throw "源码里没有 convert_lora_to_gguf.py" }
+          Remove-Item llama-src -Recurse -Force
           Get-ChildItem llama | Select-Object Name, Length
       - name: 打包
         env:
@@ -121,7 +133,7 @@ jobs:
           git -C "$PUB" config user.name "github-actions[bot]"
           git -C "$PUB" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           for ATTEMPT in 1 2 3; do
-            if [ "$ATTEMPT" -gt 1 ]; then git fetch --no-tags origin "$BRANCH"; git -C "$PUB" reset --hard FETCH_HEAD; fi
+            if [ "$ATTEMPT" -gt 1 ]; then git -C "$PUB" fetch --no-tags origin "$BRANCH"; git -C "$PUB" reset --hard FETCH_HEAD; fi
             mkdir -p "$PUB/download"
             echo "{\"version\": \"${V}\", \"url\": \"${URL}\", \"cn\": \"${CN}\", \"size\": ${SIZE}, \"sha256\": \"${SHA}\", \"notes\": \"捞捞算力 ${V}\", \"at\": \"$(date -u +%FT%TZ)\"}" > "$PUB/download/grid-version.json"
             cat "$PUB/download/grid-version.json"
