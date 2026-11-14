@@ -213,7 +213,11 @@ const until = async (f, what, ms = 60000) => { const t0 = Date.now(); while (Dat
     const g3 = genJob();
     assert.ok(/^jobs\//.test(JSON.parse(g3.params).loraTest), "画图的活带上了试用插件");
     graphs.length = 0;
-    await until(() => doneOf(g3.id) >= 1, "带试用插件画 1 组");
+    // Windows 的测试机慢（每画一张都要起 Python）：多等一会儿；等不到就把现场打出来
+    await until(() => doneOf(g3.id) >= 1, "带试用插件画 1 组", 180000).catch((e) => {
+      console.log("现场：", JSON.stringify({ tasks: db.prepare("select id, job_id, state, error, device_id from tasks where job_id=? or state in ('leased','failed') order by id desc limit 12").all(g3.id), jobs: db.prepare("select id, name, state from jobs order by id desc limit 6").all(), devs: db.prepare("select name, state, task_id, info from devices").all().map((d) => ({ ...d, info: (JSON.parse(d.info || "{}").why || "") })) }));
+      throw e;
+    });
     const loraOf = (g) => Object.values(g).filter((n) => n.class_type === "LoraLoaderModelOnly" && /qversion-test/.test(n.inputs.lora_name)).length;
     const qg = graphs.filter((g) => g["20"].inputs.image1);
     assert.equal(qg.slice(0, 2).filter((g) => loraOf(g)).length, 1, "两张里一张用新插件");
