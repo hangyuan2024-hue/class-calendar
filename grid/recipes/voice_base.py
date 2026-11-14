@@ -39,6 +39,9 @@ MODE = p.get("mode", "drill")
 t0 = time.time()
 ENV = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1", _CUDA_VISIBLE_DEVICES="0", CUDA_VISIBLE_DEVICES="0", hz="25hz", is_half=str(p.get("half", True)),
            PYTHONPATH=os.pathsep.join([GD, os.path.join(GD, "GPT_SoVITS")]))
+# GPT-SoVITS 里的识别（funasr）、pydub 要在 PATH 里找 ffmpeg：整合包自带的那个所在的文件夹放到最前面（不然一直报「Couldn't find ffmpeg」）
+_ffd = [os.path.dirname(x) for x in [G.get("ffmpeg") or ""] if x and os.path.isabs(x)]
+ENV["PATH"] = os.pathsep.join(_ffd + [GD, os.path.join(GD, "runtime"), ENV.get("PATH", "")])
 rnd = random.Random(int(p.get("seed", 0)) or None)
 
 
