@@ -19,6 +19,7 @@ import socket
 import subprocess
 import tarfile
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 import wave
@@ -172,16 +173,63 @@ def fetch(rel, dest, tries=4):
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     err = None
     for k in range(tries):
+        missing = 0
         for b in OB:
             try:
                 with urllib.request.urlopen(urllib.request.Request(b + "/" + rel, headers={"User-Agent": "laolao-grid"}), timeout=60) as r, open(dest + ".part", "wb") as fh:
                     shutil.copyfileobj(r, fh)
                 os.replace(dest + ".part", dest)
                 return dest
+            except urllib.error.HTTPError as e:
+                err = e
+                missing += e.code == 404
             except Exception as e:
                 err = e
+        if missing == len(OB):   # 每个地址都说没有这个文件：再试也没用，马上跳过
+            raise FileNotFoundError("没有这个文件 %s" % rel)
         time.sleep(1 + k * 2)
     raise RuntimeError("下不了 %s：%s" % (rel, err))
+
+
+# Hugging Face 上的 AISHELL-3 并不是每一句都有录音：content.txt 列了全部句子，wav 只传了一部分（有的人一句都没有）。
+# 所以先问一下（Hugging Face / hf-mirror 的文件列表接口）哪些说话人、哪些句子真的有文件，只挑有的；
+# 问不到列表就一句一句试，没有的（404）马上跳过、多试几句补够。
+_LIST = {}
+
+
+def _api_bases():
+    out = []
+    for b in OB:
+        m = re.match(r"(https?://[^/]+)/datasets/([^/]+/[^/]+)/resolve/([^/]+)/?$", b)
+        if m:
+            out.append("%s/api/datasets/%s/tree/%s" % m.groups())
+    return out
+
+
+def listed(rel_dir):
+    """rel_dir 下面实际有哪些（文件名或文件夹名）；问不到返回 None"""
+    if rel_dir in _LIST:
+        return _LIST[rel_dir]
+    names = None
+    for a in _api_bases():
+        try:
+            got, url = set(), a + "/" + rel_dir
+            for _ in range(50):
+                with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "laolao-grid"}), timeout=30) as r:
+                    arr = json.loads(r.read().decode("utf-8"))
+                    link = r.headers.get("Link") or ""
+                for x in arr:
+                    got.add(str(x.get("path", "")).rstrip("/").rsplit("/", 1)[-1])
+                m = re.search(r'<([^>]+)>;\s*rel="next"', link)
+                if not m:
+                    break
+                url = m.group(1)
+            names = got
+            break
+        except Exception:
+            names = None
+    _LIST[rel_dir] = names
+    return names
 
 
 def aishell_index(split):
@@ -196,6 +244,13 @@ def aishell_index(split):
                 if PACKED and not os.path.exists(os.path.join(OD, split, a[0][:7], a[0])):
                     continue
                 utts.setdefault(a[0][:7], []).append((a[0], txt))
+    if not PACKED:
+        have = listed("%s/wav" % split)
+        if have is not None:
+            n0 = len(utts)
+            utts = {k: v for k, v in utts.items() if k in have}
+            if len(utts) < n0:
+                lg.log("公开录音（%s）：%d 位说话人里 %d 位在网上有录音，只用这些" % (split, n0, len(utts)))
     return utts
 
 
@@ -207,8 +262,14 @@ def aishell_clips(split, spks, per, r):
     for s_ in spks:
         rows = list(idx.get(s_, []))
         r.shuffle(rows)
-        jobs += [(s_, u, txt) for u, txt in rows[:per]]
-    out = []
+        have = None if PACKED else listed("%s/wav/%s" % (split, s_))
+        if have is not None:
+            rows = [x for x in rows if x[0] in have]
+            jobs += [(s_, u, txt) for u, txt in rows[:per]]
+        else:   # 不知道哪些有：多试几句（没有的马上跳过），每人最多留 per 句
+            jobs += [(s_, u, txt) for u, txt in rows[: per * (1 if PACKED else 3)]]
+    out, miss, bad = [], [0], [0]
+    got = {}
 
     def one(j):
         s_, u, txt = j
@@ -220,9 +281,18 @@ def aishell_clips(split, spks, per, r):
     with concurrent.futures.ThreadPoolExecutor(8) as ex:
         for fut in [ex.submit(one, j) for j in jobs]:
             try:
-                out.append(fut.result())
+                w = fut.result()
+                if got.get(w[2], 0) < per:
+                    got[w[2]] = got.get(w[2], 0) + 1
+                    out.append(w)
+            except FileNotFoundError:
+                miss[0] += 1
             except Exception as e:
-                lg.log("跳过一句公开录音：%s" % str(e)[:160])
+                bad[0] += 1
+                if bad[0] <= 3:
+                    lg.log("跳过一句公开录音：%s" % str(e)[:160])
+    if miss[0] or bad[0]:
+        lg.log("公开录音：下好 %d 句；%d 句网上没有、%d 句没下成，都跳过了" % (len(out), miss[0], bad[0]))
     return out
 
 
@@ -408,7 +478,7 @@ if MODE == "drill":
     lg.progress(0.02, "下几位公开录音的说话人当参考声音")
     idx_spk = sorted(aishell_index("train"))
     rnd.shuffle(idx_spk)
-    clips = aishell_clips("train", idx_spk[: n_r * 2], 3, rnd)
+    clips = aishell_clips("train", idx_spk[: n_r * 3], 3, rnd)
     refs = pick_refs(clips, n_r, rnd)
     if not refs:
         raise RuntimeError("没有能用的参考声音")
