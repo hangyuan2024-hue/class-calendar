@@ -83,8 +83,11 @@ W(path.join(G, "tools", "slice_audio.py"), `import sys,os,shutil
 i,o=sys.argv[1],sys.argv[2]
 for f in os.listdir(i): shutil.copy(os.path.join(i,f),os.path.join(o,"cut_"+f))
 `);
+// 假的识别：显卡上（float16）直接崩掉、不留 Python 报错（就像显存不够时 Windows 上那样）；只有换 CPU（float32、看不到显卡）才认得出来
 W(path.join(G, "tools", "asr", "funasr_asr.py"), `import sys,os
 a=sys.argv; i=a[a.index("-i")+1]; o=a[a.index("-o")+1]
+if a[a.index("-p")+1] == "float16": print("model is built", flush=True); os._exit(1)
+if os.environ.get("CUDA_VISIBLE_DEVICES", "x") != "": os._exit(2)
 def said(f):
     b=open(f,"rb").read(); k=b.find(b"lgtx")
     if k<0: return "导入录音里识别出来的一句话"

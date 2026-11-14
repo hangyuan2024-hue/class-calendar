@@ -43,6 +43,16 @@ _ffd = [os.path.dirname(x) for x in [G.get("ffmpeg") or ""] if x and os.path.isa
 ENV["PATH"] = os.pathsep.join(_ffd + [GD, os.path.join(GD, "runtime"), ENV.get("PATH", "")])
 
 
+def exit_why(rc):
+    """退出码说成人话：Windows 上程序直接崩掉（没有 Python 报错）一般是显存 / 内存不够或者显卡驱动出问题"""
+    u = rc & 0xFFFFFFFF
+    known = {0xC0000005: "程序崩了：访问内存出错，多半是显存不够或显卡驱动的问题", 0xC0000409: "程序崩了（0xC0000409），多半是显存不够",
+             0xC00000FD: "程序崩了：栈溢出", 0xC0000017: "内存不够", 0xE06D7363: "程序崩了（C++ 异常）"}
+    if u in known:
+        return "%s，退出码 0x%08X" % (known[u], u)
+    return "退出码 %d" % rc
+
+
 def sh(args, env=None, label="", cwd=None):
     lg.log("运行：%s" % " ".join(os.path.basename(str(a)) if i < 2 else str(a) for i, a in enumerate(args))[:240])
     pr = subprocess.Popen([str(a) for a in args], cwd=cwd or GD, env=env or ENV, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace")
@@ -53,8 +63,9 @@ def sh(args, env=None, label="", cwd=None):
         if line and time.time() - last > 15:
             last = time.time()
             lg.log("%s：%s" % (label, line[-160:]))
-    if pr.wait() != 0:
-        raise RuntimeError("%s失败：\n%s" % (label, "\n".join(tail[-10:])))
+    rc = pr.wait()
+    if rc != 0:
+        raise RuntimeError("%s失败（%s）：\n%s" % (label, exit_why(rc), "\n".join(tail[-10:])))
 
 
 def secs(f):
@@ -184,7 +195,12 @@ if imps:
     lg.progress(0.05, "导入的录音：切成一句一句")
     sh([PY, "-s", os.path.join(GD, "tools", "slice_audio.py"), raw, sliced, "-34", "4000", "300", "10", "500", "0.9", "0.25", "0", "1"], label="切分")
     lg.progress(0.08, "导入的录音：识别文字（第一次要下识别模型）")
-    sh([PY, "-s", os.path.join(GD, "tools", "asr", "funasr_asr.py"), "-i", sliced, "-o", asr, "-s", "large", "-l", "zh", "-p", "float16"], label="识别")
+    _cmd = [PY, "-s", os.path.join(GD, "tools", "asr", "funasr_asr.py"), "-i", sliced, "-o", asr, "-s", "large", "-l", "zh"]
+    try:
+        sh(_cmd + ["-p", "float16"], label="识别")
+    except RuntimeError as e:   # 显卡上识别不行（显存不够、驱动问题）：换 CPU 再识别一次
+        lg.log("显卡上识别失败（%s），换 CPU 再识别一次" % str(e).split("\n")[0][:160])
+        sh(_cmd + ["-p", "float32"], env=dict(ENV, CUDA_VISIBLE_DEVICES="", _CUDA_VISIBLE_DEVICES=""), label="识别（CPU）")
     got, bad_txt = [], 0
     for f in glob.glob(os.path.join(asr, "*.list")):
         with open(f, encoding="utf-8") as fh:

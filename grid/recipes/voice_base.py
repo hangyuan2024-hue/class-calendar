@@ -45,6 +45,16 @@ ENV["PATH"] = os.pathsep.join(_ffd + [GD, os.path.join(GD, "runtime"), ENV.get("
 rnd = random.Random(int(p.get("seed", 0)) or None)
 
 
+def exit_why(rc):
+    """退出码说成人话：Windows 上程序直接崩掉（没有 Python 报错）一般是显存 / 内存不够或者显卡驱动出问题"""
+    u = rc & 0xFFFFFFFF
+    known = {0xC0000005: "程序崩了：访问内存出错，多半是显存不够或显卡驱动的问题", 0xC0000409: "程序崩了（0xC0000409），多半是显存不够",
+             0xC00000FD: "程序崩了：栈溢出", 0xC0000017: "内存不够", 0xE06D7363: "程序崩了（C++ 异常）"}
+    if u in known:
+        return "%s，退出码 0x%08X" % (known[u], u)
+    return "退出码 %d" % rc
+
+
 def sh(args, env=None, label="", cwd=None):
     lg.log("运行：%s" % " ".join(os.path.basename(str(a)) if i < 2 else str(a) for i, a in enumerate(args))[:240])
     pr = subprocess.Popen([str(a) for a in args], cwd=cwd or GD, env=env or ENV, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace")
@@ -55,8 +65,9 @@ def sh(args, env=None, label="", cwd=None):
         if line and time.time() - last > 15:
             last = time.time()
             lg.log("%s：%s" % (label, line[-160:]))
-    if pr.wait() != 0:
-        raise RuntimeError("%s失败：\n%s" % (label, "\n".join(tail[-10:])))
+    rc = pr.wait()
+    if rc != 0:
+        raise RuntimeError("%s失败（%s）：\n%s" % (label, exit_why(rc), "\n".join(tail[-10:])))
 
 
 def secs(f):
@@ -335,7 +346,12 @@ lg.log("GPT-SoVITS %s，从「%s」开始" % (VER, base_name))
 
 # ---------------- 念：起一个 api_v2，换权重、念 ----------------
 class Api:
+    """GPT-SoVITS 的念句子服务（api_v2）。识别前先关掉、让出显存，要念的时候自动再开（并换回刚才的模型）"""
     def __init__(self):
+        self.proc, self.w = None, None
+        self.start()
+
+    def start(self):
         s = socket.socket()
         s.bind(("127.0.0.1", 0))
         self.port = s.getsockname()[1]
@@ -352,11 +368,24 @@ class Api:
                 time.sleep(0.5)
         raise RuntimeError("api_v2 起得太慢")
 
+    def ensure(self):
+        if self.proc is None or self.proc.poll() is not None:
+            self.start()
+            if self.w:
+                self._set(*self.w)
+
     def weights(self, gpt, sov):
+        self.w = (gpt, sov)
+        if self.proc is None or self.proc.poll() is not None:
+            self.start()
+        self._set(gpt, sov)
+
+    def _set(self, gpt, sov):
         for k, v in (("set_gpt_weights", gpt), ("set_sovits_weights", sov)):
             urllib.request.urlopen(self.base + "/%s?weights_path=%s" % (k, urllib.parse.quote(v)), timeout=300).read()
 
     def tts(self, text, ref, prompt, out, seed=-1):
+        self.ensure()
         body = {"text": text, "text_lang": "zh", "ref_audio_path": ref, "prompt_text": prompt, "prompt_lang": "zh", "text_split_method": "cut5", "media_type": "wav", "seed": seed}
         req = urllib.request.Request(self.base + "/tts", data=json.dumps(body).encode("utf-8"), headers={"Content-Type": "application/json"})
         with urllib.request.urlopen(req, timeout=600) as r:
@@ -369,16 +398,24 @@ class Api:
 
     def close(self):
         try:
-            self.proc.kill()
+            if self.proc is not None:
+                self.proc.kill()
+                self.proc.wait(timeout=30)
         except Exception:
             pass
+        self.proc = None
 
 
 def asr(folder):
     """识别一个文件夹里的每段声音：{文件名: 文字}"""
     o = os.path.join(work, "asr_" + os.path.basename(folder))
     os.makedirs(o, exist_ok=True)
-    sh([PY, "-s", os.path.join(GD, "tools", "asr", "funasr_asr.py"), "-i", folder, "-o", o, "-s", "large", "-l", "zh", "-p", "float16"], label="识别")
+    cmd = [PY, "-s", os.path.join(GD, "tools", "asr", "funasr_asr.py"), "-i", folder, "-o", o, "-s", "large", "-l", "zh"]
+    try:
+        sh(cmd + ["-p", "float16"], label="识别")
+    except RuntimeError as e:   # 显卡上识别不行（显存不够、驱动问题）：换 CPU 再识别一次（慢一些，几十句也就几分钟）
+        lg.log("显卡上识别失败（%s），换 CPU 再识别一次" % str(e).split("\n")[0][:160])
+        sh(cmd + ["-p", "float32"], env=dict(ENV, CUDA_VISIBLE_DEVICES="", _CUDA_VISIBLE_DEVICES=""), label="识别（CPU）")
     res = {}
     for f in glob.glob(os.path.join(o, "*.list")):
         with open(f, encoding="utf-8") as fh:
@@ -460,6 +497,7 @@ def speak_and_grade(api, sents, refs, tries, outdir, label):
                         rows.append({"sent": s_, "ref": rw, "spk": rs, "wav": out})
                 except Exception as e:
                     lg.log("念不出来：%s" % str(e)[:120])
+    api.close()   # 念完了：先关掉念句子的服务，把显存让给识别和比像不像（6G 的显卡放不下两个）；下次要念时自动再开
     text = asr(outdir)
     E = embed([x["wav"] for x in rows] + sorted({x["ref"] for x in rows}))
     for x in rows:
