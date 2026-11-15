@@ -424,8 +424,11 @@
         // 地上的光圈 + 名字牌（i、j、lo、hi…）
         const m = marks[i];
         const txt = m ? m.join(",") : "";
-        c.ring.material.opacity = txt ? 0.85 : 0; c.ring.visible = !!txt;
-        if (txt) c.ring.material.color.set(MARK_COL[m[0]] || "#22d3ee");
+        //   正在比较 / 交换的两个，脚下一起亮光圈（颜色和状态一样：比较青色、交换粉色），不只是带 i、j 名字的那一个
+        const pair = s === "cmp" || s === "swap";
+        c.ring.material.opacity = txt || pair ? 0.85 : 0; c.ring.visible = !!txt || pair;
+        if (pair) c.ring.material.color.setHex(s === "cmp" ? PAL.cmp : PAL.swap);
+        else if (txt) c.ring.material.color.set(MARK_COL[m[0]] || "#22d3ee");
         if (txt !== c.tagText) {
           if (c.tag) { world.remove(c.tag); c.tag.material.map.dispose(); c.tag.material.dispose(); c.tag = null; }
           if (txt) { c.tag = labelSprite(txt.length > 7 ? txt.slice(0, 7) + "…" : txt, MARK_COL[m[0]] || "#22d3ee", (txt.length > 3 ? 1.2 : 0.9) * Math.max(0.8, scaleK)); c.tag.position.set(c.x, 0.03, 1.45); world.add(c.tag); }
