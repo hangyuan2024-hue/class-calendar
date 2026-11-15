@@ -165,7 +165,7 @@ function face(o = {}) {
   ok("管理员移出这台电脑：客户端马上知道，停下");
 
   await svc.shutdown(); app.close();
-  fs.rmSync(tmp, { recursive: true, force: true });
+  try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch (e) {}   // Windows 上文件可能还没放开：清不掉也不算测试失败
   console.log("客户端：全部通过");
   process.exit(0);
 })().catch((e) => { console.error(e); process.exit(1); });

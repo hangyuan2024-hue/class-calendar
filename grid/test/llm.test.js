@@ -179,7 +179,7 @@ http.createServer((q,r)=>{r.writeHead(200);r.end("{}");}).listen(port,"127.0.0.1
   }
 
   app.close(); gsm.close(); llm.close();
-  fs.rmSync(tmp, { recursive: true, force: true });
+  try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch (e) {}   // Windows 上文件可能还没放开：清不掉也不算测试失败
   console.log("本地大模型 + 答题数据工厂：全部通过");
   process.exit(0);
 })().catch((e) => { console.error(e); process.exit(1); });

@@ -334,7 +334,7 @@ W(FF, "import sys,shutil,os\na=sys.argv\nshutil.copy(a[a.index('-i')+1],a[-1])\n
   fsrv.close();
 
   app.close();
-  fs.rmSync(tmp, { recursive: true, force: true });
+  try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch (e) {}   // Windows 上文件可能还没放开：清不掉也不算测试失败
   console.log("训练老师的声音：全部通过");
   process.exit(0);
 })().catch((e) => { console.error(e); process.exit(1); });

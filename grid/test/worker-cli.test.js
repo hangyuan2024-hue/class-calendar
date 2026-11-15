@@ -33,7 +33,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   assert.ok(logs.some((l) => /领到任务/.test(l)) && logs.some((l) => /在租来的卡上算/.test(l)));
   console.log("✓ 命令行版：加入（邀请链接）、按显卡领活、做完、停止");
   app.close();
-  fs.rmSync(tmp, { recursive: true, force: true });
+  try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch (e) {}   // Windows 上文件可能还没放开：清不掉也不算测试失败
   console.log("命令行版（租卡）：全部通过");
   process.exit(0);
 })().catch((e) => { console.error(e); process.exit(1); });

@@ -471,7 +471,8 @@ function create(opt) {
     // 已经算完了、只差交结果：不扔掉，交完就停（renew 说「已经给别人了」除外）
     if (c.finishing && release) { log("这个任务已经算完了，交完结果就停", "warn"); return; }
     c.stopping = true;
-    if (c.child) { try { await killTree(c.child.pid); c.child.kill(); } catch (e) {} }
+    // 先马上停掉配方本身（和以前一样快）；它开的子程序在配方退出时由 spawnPy 按「父进程号 + 时间」一起收掉
+    if (c.child) { try { c.child.kill(); } catch (e) {} }
     if (opt.comfy) { try { await opt.comfy.abort(); if (release) opt.comfy.stop(); } catch (e) {} }   // 你要用电脑了：AI 引擎也关掉，让出显存
     if (opt.llm && release) { try { opt.llm.stop(); } catch (e) {} }
     await c.uploads.catch(() => {});
@@ -608,7 +609,7 @@ function create(opt) {
     get policy() { return policy; },
     status: () => ({ state, why, running: !!cur, paused, manual, policy, task: cur ? { id: cur.id, job: cur.job, recipe: cur.recipe && { id: cur.recipe.id, name: cur.recipe.name }, progress: cur.progress, line: cur.line, fn: cur.fn, note: cur.note, started: cur.started, ckpts: cur.ckpts } : null, logs: logs.slice(-200), gpu: gpuNow }),
     // 测试用：模拟突然断电（不告诉调度中心，进程直接没了）
-    crash() { stopped = true; clearInterval(timer); timer = null; if (cur) { cur.stopping = true; try { if (cur.child) { killTree(cur.child.pid); cur.child.kill("SIGKILL"); } } catch (e) {} } },
+    crash() { stopped = true; clearInterval(timer); timer = null; if (cur) { cur.stopping = true; try { cur.child && cur.child.kill("SIGKILL"); } catch (e) {} } },
     current: () => cur,
   };
 }

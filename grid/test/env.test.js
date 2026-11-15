@@ -58,7 +58,7 @@ function wheel(dir, name, ver) {
   assert.ok(!fs.existsSync(path.join(tmp, "env", "wheels", path.basename(files[0]))));
   ok("下载的文件和 sha256 对不上：删掉，不装坏的");
 
-  srv.close(); fs.rmSync(tmp, { recursive: true, force: true });
+  srv.close(); try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch (e) {}   // Windows 上文件可能还没放开：清不掉也不算测试失败
   console.log("训练环境：全部通过");
   process.exit(0);
 })().catch((e) => { console.error(e); process.exit(1); });

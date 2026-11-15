@@ -239,9 +239,9 @@ const until = async (f, what, ms = 60000) => { const t0 = Date.now(); while (Dat
     assert.ok(res.pairs >= 1 && /jobs\//.test(res.trainset), "打包好了");
     ok(`整理 Q版插件的训练集：${res.pairs} 组（照片 → 审核里赢的那张 + 提示词）`);
   }
-  big.stop(); small.stop();
+  await big.stop(); await small.stop();
   app.close();
-  fs.rmSync(tmp, { recursive: true, force: true });
+  try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch (e) {}   // Windows 上文件可能还没放开：清不掉也不算测试失败
   console.log("Q版自动训练：全部通过");
   process.exit(0);
 })().catch((e) => { console.error(e); process.exit(1); });

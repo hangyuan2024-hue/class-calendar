@@ -89,7 +89,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   ok("上一轮还没跑完：到点也不开新的一轮（不叠在一起）");
 
   agents.forEach((a) => a.stop()); app.close();
-  fs.rmSync(tmp, { recursive: true, force: true });
+  try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch (e) {}   // Windows 上文件可能还没放开：清不掉也不算测试失败
   console.log("每日一轮：全部通过");
   process.exit(0);
 })().catch((e) => { console.error(e); process.exit(1); });

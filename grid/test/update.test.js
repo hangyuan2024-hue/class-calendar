@@ -76,6 +76,6 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   assert.equal(s.state, "idle");
   ok("已经是最新版：什么也不做");
 
-  srv.close(); fs.rmSync(tmp, { recursive: true, force: true });
+  srv.close(); try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch (e) {}   // Windows 上文件可能还没放开：清不掉也不算测试失败
   console.log("自动更新：全部通过");
 })().catch((e) => { console.error(e); process.exit(1); });
