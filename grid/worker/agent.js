@@ -387,7 +387,11 @@ function create(opt) {
     emit("task", { id: c.id, job: L.job, task: L.task, recipe: L.recipe && { id: L.recipe.id, name: L.recipe.name } });
     log(`领到任务：「${L.job.name}」`);
     // 一领到就开始续租：第一次装 GPT-SoVITS / AI 引擎、下大文件（讲课视频）都可能要几十分钟，不续租调度中心会以为掉线了、把任务给别人
-    let renewTimer = setInterval(() => renew(c).catch(() => {}), opt.renewMs || 20000);
+    let renewTimer = setInterval(() => {
+      renew(c).catch(() => {});
+      // 本地大模型「10 分钟没人用就关」：任务一直在直接问它（不经过客户端），所以任务还在算就替它报个平安，别中途被关掉
+      if (c.needsLlm && opt.llm && opt.llm.touch) { try { opt.llm.touch(); } catch (e) {} }
+    }, opt.renewMs || 20000);
     c.lastOut = Date.now();
     try {
       const rc = await fetchRecipe(L.recipe);
@@ -410,6 +414,7 @@ function create(opt) {
       let llmUrl = null;
       if (/^#\s*needs:.*\bllm\b/m.test(rc.source)) {
         if (!opt.llm) throw new Error("这台电脑的客户端太旧，跑不了本地大模型");
+        c.needsLlm = true;
         c.note = "准备本地大模型…";
         // lazy：配方自己决定什么时候开（比如先训练、训完再开大模型考试），这里不先开
         if (!((L.job.params || {}).llm || {}).lazy) llmUrl = await opt.llm.ensure((L.job.params || {}).llm || {}, (m) => { c.note = m; c.lastOut = Date.now(); log(m); emit("progress", { id: c.id, p: c.progress, note: m }); });
@@ -422,7 +427,27 @@ function create(opt) {
         gsv = await opt.gsv.ensure((m) => { c.note = m; c.lastOut = Date.now(); log(m); emit("progress", { id: c.id, p: c.progress, note: m }); });
       }
       const t = { kind: L.task.kind, task: L.task, input: L.task.input, job: L.job, work: dir, resume: null, parts: [], llm: llmUrl, gsv, extra: L.extra || {}, region: opt.region ? opt.region() : "cn" };
-      if (L.resume) { const f = path.join(dir, "resume-" + path.basename(L.resume.key)); c.note = "下载存档…"; await xfer("GET", L.resume.url, f, { onProgress: () => { c.lastOut = Date.now(); } }); t.resume = f; t.resumeInfo = { step: L.resume.step, round: L.resume.round }; }
+      // 下载的时候在界面上、日志里报进度（大存档、录音几百 M 到几 G，不报就像卡在 0% 不动了）
+      const dlProg = (what) => {
+        let lastEmit = 0, lastLog = 0, t0 = Date.now();
+        return (got, total) => {
+          c.lastOut = Date.now();
+          if (Date.now() - lastEmit < 1000) return;
+          lastEmit = Date.now();
+          const mb = (x) => (x / 1048576).toFixed(0) + "M";
+          const sp = got / Math.max(1, (Date.now() - t0) / 1000);
+          c.note = total ? `${what}：${Math.round((got / total) * 100)}%（${mb(got)}/${mb(total)}，${mb(sp)}/秒）` : `${what}：${mb(got)}（${mb(sp)}/秒）`;
+          emit("progress", { id: c.id, p: c.progress, note: c.note });
+          if (Date.now() - lastLog > 60000) { lastLog = Date.now(); log(c.note); }
+        };
+      };
+      if (L.resume) {
+        const f = path.join(dir, "resume-" + path.basename(L.resume.key));
+        log(`下载上次的存档（第 ${L.resume.step || 0} 步）…`);
+        await xfer("GET", L.resume.url, f, { onProgress: dlProg("下载存档") });
+        log(`存档下好了（${(fs.statSync(f).size / 1048576).toFixed(0)}M）`);
+        t.resume = f; t.resumeInfo = { step: L.resume.step, round: L.resume.round };
+      }
       for (const [i, u] of (L.task.input.partUrls || []).entries()) { const f = path.join(dir, `part-${i}.npz`); await xfer("GET", u, f); t.parts.push(f); }
       delete t.input.partUrls;
       // 前面步骤的结果文件、接着训练的起点：下载到本机
@@ -430,14 +455,18 @@ function create(opt) {
       // 存储里的文件不会变（每个都是新名字）：按存储路径记在本机，同一个任务重来、下一轮再用到，不用重下
       const inCache = path.join(work, "cache", "inputs");
       fs.mkdirSync(inCache, { recursive: true });
+      const nIn = Object.keys(L.fileUrls || {}).length;
+      if (nIn > 3) log(`下载要用的文件：${nIn} 个…`);
+      let iIn = 0;
       for (const [k, u] of Object.entries(L.fileUrls || {})) {
+        iIn++;
         const f = path.join(dir, "in-" + k.replace(/[^\w.\-]/g, "_"));
         const key = (L.files || {})[k];
         const cf = key ? path.join(inCache, crypto.createHash("sha1").update(String(key)).digest("hex") + path.extname(String(key)).slice(0, 12)) : null;
         c.note = "下载 " + k + "…";
         try {
           if (cf && fs.existsSync(cf)) { try { const now = new Date(); fs.utimesSync(cf, now, now); } catch (e) {} }
-          else await xfer("GET", u, cf || f, { onProgress: () => { c.lastOut = Date.now(); } });
+          else await xfer("GET", u, cf || f, { onProgress: dlProg(nIn > 1 ? `下载要用的文件（${iIn}/${nIn}）${k}` : `下载 ${k}`) });
           if (cf) { fs.mkdirSync(path.dirname(f), { recursive: true }); try { fs.linkSync(cf, f); } catch (e) { fs.copyFileSync(cf, f); } }
         } catch (e) { throw new Error(`下载要用的文件「${k}」失败：${e.message}`); }
         t.files[k] = f;
@@ -502,7 +531,9 @@ function create(opt) {
     if (opt.comfy) { try { await opt.comfy.abort(); if (release) opt.comfy.stop(); } catch (e) {} }   // 你要用电脑了：AI 引擎也关掉，让出显存
     if (opt.llm && release) { try { opt.llm.stop(); } catch (e) {} }
     await c.uploads.catch(() => {});
-    if (release) await api("/api/fail", { task: c.id, release: true, error: reason }).catch(() => {});
+    // 不管是自己停的还是调度中心叫停的（活被暂停了、换成新的活了）：都告诉调度中心「这台电脑空出来了」，
+    // 不然调度中心以为它还在算这个任务，不给它派新活（任务已经给了别人的，调度中心会忽略）
+    await api("/api/fail", { task: c.id, release: true, error: reason || "停下了" }).catch(() => {});
     emit("done", { id: c.id, ok: false, stopped: true, why: reason });
   }
 
@@ -532,8 +563,9 @@ function create(opt) {
       child.stdin.on("error", () => {});
       child.on("error", (e) => { onLine(c, "启动 Python 失败：" + e.message, true); ok(-1); });
       child.on("exit", (code) => {
-        // 配方退出了：它开的子程序（要是没收好）一起收掉，再算这个任务结束
-        killTree(child.pid, t0, Date.now()).then((n) => { if (n) log(`收掉了配方留在后台的 ${n} 个程序`); }).catch(() => {}).finally(() => ok(code == null ? -1 : code));
+        // 配方退出了：马上算这个任务结束（不等），它开的子程序（要是没收好）在后台一起收掉
+        ok(code == null ? -1 : code);
+        killTree(child.pid, t0, Date.now()).then((n) => { if (n) log(`收掉了配方留在后台的 ${n} 个程序`); }).catch(() => {});
       });
     });
   }

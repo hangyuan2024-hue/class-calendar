@@ -136,7 +136,9 @@ function create(o) {
       p.on("exit", () => { clearTimeout(t); const m = /version:\s*(\d+)/.exec(out); ver = m && +m[1] >= 1000 ? "b" + m[1] : ""; done(ver); });
     });
   }
-  return { ensure, stop, ok, version, convertDir, running: () => !!child, PORT: port };
+  // 任务还在用（配方直接问 llama-server，不经过 ensure）：续一下「没人用就关」的计时
+  function touch() { if (child) bump(); }
+  return { ensure, stop, ok, version, convertDir, touch, running: () => !!child, PORT: port };
 }
 
 module.exports = { create, PORT };

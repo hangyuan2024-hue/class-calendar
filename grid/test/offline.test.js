@@ -208,6 +208,24 @@ function flakyFetch() {
     await g.stop();
   }
 
+  // ---------- 9：任务一直在用本地大模型：不会被「10 分钟没人用就关」中途关掉 ----------
+  {
+    const rf = path.join(tmp, "llm_long.py");
+    fs.writeFileSync(rf, ["# needs: llm", "import time, lg", "t = lg.task()", "time.sleep(1.5)", "lg.done(ok=1)"].join("\n"));
+    const pf = path.join(tmp, "plan5.json");
+    fs.writeFileSync(pf, JSON.stringify({ jobs: [{ name: "一直问大模型", stage: "阶段 2 · 训练", kind: "map", recipe: rf, params: { count: 1, llm: { lazy: true } }, priority: 9 }] }));
+    const [j5] = await Tools.plan(admin, pf);
+    let touched = 0;
+    const cred = await join("周九");
+    const h = Agent.create({ server: cred.server, token: cred.token, pubkey: cred.pubkey, workDir: path.join(tmp, "h"), python: PY, caps: { gpu: "RTX 5060", vram: 8, ram: 32, llm: true }, tickMs: 150, hbMs: 300, leaseEveryMs: 150, renewMs: 200,
+      llm: { ensure: async () => "http://127.0.0.1:1", stop: () => {}, touch: () => { touched++; } } });
+    h.start();
+    await until(() => app.core.overview(true).jobs.find((j) => j.id === j5).state === "done", 30000, "一直问大模型");
+    assert.ok(touched >= 3, "任务在算的时候要一直替大模型报平安：" + touched);
+    ok("任务一直在问本地大模型：替它续着「没人用就关」的计时，不会中途被关掉（以前 10 分钟一到就连不上了）");
+    await h.stop();
+  }
+
   await app.close();
   console.log("断网测试：全部通过");
   process.exit(0);
