@@ -502,6 +502,8 @@ function create(opt) {
         });
       };
       lines(child.stdout, false); lines(child.stderr, true);
+      // 配方已经退出了，迟到的回复（比如 AI 引擎画完的图）写不进去：忽略，别让整个客户端崩掉（Windows 上是 EPIPE）
+      child.stdin.on("error", () => {});
       child.on("error", (e) => { onLine(c, "启动 Python 失败：" + e.message, true); ok(-1); });
       child.on("exit", (code) => {
         // 配方退出了：它开的子程序（要是没收好）一起收掉，再算这个任务结束
