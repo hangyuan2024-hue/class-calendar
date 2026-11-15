@@ -170,6 +170,32 @@ function flakyFetch() {
     await d.stop();
   }
 
+  // ---------- 7：配方开的子程序不留在后台；模型缓存不放 C 盘 ----------
+  {
+    const rf = path.join(tmp, "orphan.py");
+    fs.writeFileSync(rf, [
+      "import os, sys, subprocess, lg",
+      "t = lg.task()",
+      "p = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(120)'])",
+      "open(os.path.join(lg.work_dir(), '..', '..', 'kid.pid'), 'w').write(str(p.pid))",
+      "lg.log('HF_HOME=' + os.environ.get('HF_HOME', ''))",
+      "lg.done(ok=1)",
+    ].join("\n"));
+    const pf = path.join(tmp, "plan4.json");
+    fs.writeFileSync(pf, JSON.stringify({ jobs: [{ name: "留了子程序", stage: "阶段 2 · 训练", kind: "map", recipe: rf, params: { count: 1 }, priority: 9 }] }));
+    const [j4] = await Tools.plan(admin, pf);
+    const e = boot(await join("钱七"), "e", flakyFetch());
+    const el = []; e.on("log", (l) => el.push(l.msg));
+    e.start();
+    await until(() => app.core.overview(true).jobs.find((j) => j.id === j4).state === "done", 30000, "留了子程序");
+    const kidFile = path.join(tmp, "e", "kid.pid");
+    const kid = +fs.readFileSync(kidFile, "utf8");
+    await until(() => { try { process.kill(kid, 0); return false; } catch (x) { return true; } }, 5000, "子程序被收掉");
+    assert.ok(el.some((m) => m.startsWith("HF_HOME=" + path.join(tmp, "e", "cache", "hf"))), "模型缓存应该在数据文件夹里：" + el.filter((m) => /HF_HOME/.test(m)).join());
+    ok("配方退出时留在后台的子程序被一起收掉（不再一直占内存、显存）；模型缓存放在数据文件夹里，不占 C 盘");
+    await e.stop();
+  }
+
   await app.close();
   console.log("断网测试：全部通过");
   process.exit(0);

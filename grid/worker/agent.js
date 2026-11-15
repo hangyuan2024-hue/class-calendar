@@ -6,7 +6,7 @@ const path = require("path");
 const http = require("http");
 const https = require("https");
 const crypto = require("crypto");
-const { spawn } = require("child_process");
+const { spawn, execFile } = require("child_process");
 const { EventEmitter } = require("events");
 const probe = require("./probe");
 
@@ -179,6 +179,32 @@ async function canReachInternet(urls = NET_PROBES) {
 }
 function netErr(e) { const n = new Error(netWhy(e)); n.net = true; n.cause = e; return n; }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// 配方自己开的子程序（念句子的服务、识别、训练……）要跟着配方一起收掉：Windows 上只杀配方本身的话，
+// 它开的子程序会留在后台，一直占着显存和内存（一个就是几百 M 到几 G），攒多了后面的任务就内存不够、显存不够。
+//   配方还在跑（停任务）：taskkill /T 连子程序一起杀；
+//   配方已经退出：Windows 会记着子程序的「父进程号」，找出在配方运行期间、由它开出来的子程序，连同它们的子程序一起杀
+//   （按创建时间筛，进程号被别的程序重用了也不会误杀）。
+function killTree(pid, since, until) {
+  if (!pid) return Promise.resolve();
+  if (process.platform !== "win32") {   // Linux / macOS：配方在自己的进程组里，整组杀掉
+    try { process.kill(-pid, "SIGKILL"); } catch (e) {}
+    return Promise.resolve();
+  }
+  const tk = (k) => new Promise((done) => execFile("taskkill", ["/F", "/T", "/PID", String(k)], { windowsHide: true, timeout: 20000 }, () => done()));
+  if (!until) return tk(pid);
+  return new Promise((done) => {
+    const ps = "Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,@{n='t';e={$_.CreationDate.ToUniversalTime().ToString('o')}} | ConvertTo-Json -Compress";
+    execFile("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", ps], { windowsHide: true, timeout: 30000, maxBuffer: 32 << 20 }, async (err, out) => {
+      let kids = [];
+      try {
+        kids = [].concat(JSON.parse(out || "[]")).filter((x) => x && x.ParentProcessId === pid && x.t && Date.parse(x.t) >= since - 3000 && Date.parse(x.t) <= until + 1000).map((x) => x.ProcessId);
+      } catch (e) {}
+      for (const k of kids) await tk(k);
+      done(kids.length);
+    });
+  });
+}
 
 function create(opt) {
   const ev = new EventEmitter();
@@ -445,7 +471,7 @@ function create(opt) {
     // 已经算完了、只差交结果：不扔掉，交完就停（renew 说「已经给别人了」除外）
     if (c.finishing && release) { log("这个任务已经算完了，交完结果就停", "warn"); return; }
     c.stopping = true;
-    if (c.child) { try { c.child.kill(); } catch (e) {} }
+    if (c.child) { try { await killTree(c.child.pid); c.child.kill(); } catch (e) {} }
     if (opt.comfy) { try { await opt.comfy.abort(); if (release) opt.comfy.stop(); } catch (e) {} }   // 你要用电脑了：AI 引擎也关掉，让出显存
     if (opt.llm && release) { try { opt.llm.stop(); } catch (e) {} }
     await c.uploads.catch(() => {});
@@ -455,8 +481,17 @@ function create(opt) {
 
   function spawnPy(c, file, taskFile) {
     return new Promise((ok) => {
-      const env = { ...process.env, ...(opt.env || {}), ...extraEnv, PYTHONPATH: PY_DIR + path.delimiter + (process.env.PYTHONPATH || ""), PYTHONUNBUFFERED: "1", PYTHONIOENCODING: "utf-8", LG_TASK: taskFile, LG_RECIPE: file };
-      const child = c.child = spawn(python(), ["-u", file], { cwd: c.dir, env, windowsHide: true });
+      // 模型缓存、临时文件都放到数据文件夹里（不放 C 盘）：识别模型、Hugging Face / 魔搭下的模型一个就是几 G，C 盘满了连虚拟内存都涨不了
+      const cacheDir = path.join(work, "cache");
+      const cacheEnv = {};
+      for (const [k, sub] of [["HF_HOME", "hf"], ["MODELSCOPE_CACHE", "modelscope"], ["TORCH_HOME", "torch"], ["XDG_CACHE_HOME", "xdg"], ["PIP_CACHE_DIR", "pip"], ["TEMP", "tmp"], ["TMP", "tmp"]]) {
+        if (opt.keepCacheEnv && process.env[k]) continue;
+        cacheEnv[k] = path.join(cacheDir, sub);
+        try { fs.mkdirSync(cacheEnv[k], { recursive: true }); } catch (e) {}
+      }
+      const env = { ...process.env, ...cacheEnv, ...(opt.env || {}), ...extraEnv, PYTHONPATH: PY_DIR + path.delimiter + (process.env.PYTHONPATH || ""), PYTHONUNBUFFERED: "1", PYTHONIOENCODING: "utf-8", LG_TASK: taskFile, LG_RECIPE: file };
+      const t0 = Date.now();
+      const child = c.child = spawn(python(), ["-u", file], { cwd: c.dir, env, windowsHide: true, detached: process.platform !== "win32" });
       const lines = (s, err) => {
         let buf = "";
         s.on("data", (d) => {
@@ -467,7 +502,10 @@ function create(opt) {
       };
       lines(child.stdout, false); lines(child.stderr, true);
       child.on("error", (e) => { onLine(c, "启动 Python 失败：" + e.message, true); ok(-1); });
-      child.on("exit", (code) => ok(code == null ? -1 : code));
+      child.on("exit", (code) => {
+        // 配方退出了：它开的子程序（要是没收好）一起收掉，再算这个任务结束
+        killTree(child.pid, t0, Date.now()).then((n) => { if (n) log(`收掉了配方留在后台的 ${n} 个程序`); }).catch(() => {}).finally(() => ok(code == null ? -1 : code));
+      });
     });
   }
   function onLine(c, l, err) {
@@ -570,7 +608,7 @@ function create(opt) {
     get policy() { return policy; },
     status: () => ({ state, why, running: !!cur, paused, manual, policy, task: cur ? { id: cur.id, job: cur.job, recipe: cur.recipe && { id: cur.recipe.id, name: cur.recipe.name }, progress: cur.progress, line: cur.line, fn: cur.fn, note: cur.note, started: cur.started, ckpts: cur.ckpts } : null, logs: logs.slice(-200), gpu: gpuNow }),
     // 测试用：模拟突然断电（不告诉调度中心，进程直接没了）
-    crash() { stopped = true; clearInterval(timer); timer = null; if (cur) { cur.stopping = true; try { cur.child && cur.child.kill("SIGKILL"); } catch (e) {} } },
+    crash() { stopped = true; clearInterval(timer); timer = null; if (cur) { cur.stopping = true; try { if (cur.child) { killTree(cur.child.pid); cur.child.kill("SIGKILL"); } } catch (e) {} } },
     current: () => cur,
   };
 }

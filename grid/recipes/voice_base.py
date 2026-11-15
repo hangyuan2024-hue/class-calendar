@@ -45,6 +45,35 @@ ENV["PATH"] = os.pathsep.join(_ffd + [GD, os.path.join(GD, "runtime"), ENV.get("
 rnd = random.Random(int(p.get("seed", 0)) or None)
 
 
+def mem():
+    """这台电脑的内存：(可用内存 G, 总内存 G, 还能再要的内存 G = 剩下的「已提交」额度，含虚拟内存)；拿不到返回 None"""
+    try:
+        if os.name == "nt":
+            import ctypes
+
+            class MS(ctypes.Structure):
+                _fields_ = [("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong), ("ullTotalPhys", ctypes.c_ulonglong), ("ullAvailPhys", ctypes.c_ulonglong),
+                            ("ullTotalPageFile", ctypes.c_ulonglong), ("ullAvailPageFile", ctypes.c_ulonglong), ("ullTotalVirtual", ctypes.c_ulonglong),
+                            ("ullAvailVirtual", ctypes.c_ulonglong), ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
+            m = MS()
+            m.dwLength = ctypes.sizeof(MS)
+            ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(m))
+            g = 1024 ** 3
+            return (m.ullAvailPhys / g, m.ullTotalPhys / g, m.ullAvailPageFile / g)
+        v = {}
+        for ln in open("/proc/meminfo"):
+            k, x = ln.split(":")
+            v[k] = int(x.split()[0]) / 1024 ** 2
+        return (v.get("MemAvailable", 0), v.get("MemTotal", 0), v.get("MemAvailable", 0) + v.get("SwapFree", 0))
+    except Exception:
+        return None
+
+
+def mem_text():
+    m = mem()
+    return "内存可用 %.1f/%.0f G，还能再要 %.1f G（含虚拟内存）" % m if m else "内存情况拿不到"
+
+
 def exit_why(rc):
     """退出码说成人话：Windows 上程序直接崩掉（没有 Python 报错）一般是显存 / 内存不够或者显卡驱动出问题"""
     u = rc & 0xFFFFFFFF
@@ -356,7 +385,8 @@ class Api:
         s.bind(("127.0.0.1", 0))
         self.port = s.getsockname()[1]
         s.close()
-        self.proc = subprocess.Popen([PY, "-s", "api_v2.py", "-a", "127.0.0.1", "-p", str(self.port)], cwd=GD, env=ENV, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.logf = os.path.join(work, "api_v2.log")
+        self.proc = subprocess.Popen([PY, "-s", "api_v2.py", "-a", "127.0.0.1", "-p", str(self.port)], cwd=GD, env=ENV, stdout=open(self.logf, "ab"), stderr=subprocess.STDOUT)
         self.base = "http://127.0.0.1:%d" % self.port
         for _ in range(480):
             try:
@@ -364,7 +394,12 @@ class Api:
                 return
             except Exception:
                 if self.proc.poll() is not None:
-                    raise RuntimeError("api_v2 没起来")
+                    tail = ""
+                    try:
+                        tail = "\n".join(open(self.logf, encoding="utf-8", errors="replace").read().splitlines()[-8:])
+                    except Exception:
+                        pass
+                    raise RuntimeError("念句子的服务（api_v2）没起来（%s；%s）：\n%s" % (exit_why(self.proc.returncode), mem_text(), tail))
                 time.sleep(0.5)
         raise RuntimeError("api_v2 起得太慢")
 
@@ -411,11 +446,17 @@ def asr(folder):
     o = os.path.join(work, "asr_" + os.path.basename(folder))
     os.makedirs(o, exist_ok=True)
     cmd = [PY, "-s", os.path.join(GD, "tools", "asr", "funasr_asr.py"), "-i", folder, "-o", o, "-s", "large", "-l", "zh"]
+    lg.log("识别前：" + mem_text())
     try:
         sh(cmd + ["-p", "float16"], label="识别")
     except RuntimeError as e:   # 显卡上识别不行（显存不够、驱动问题）：换 CPU 再识别一次（慢一些，几十句也就几分钟）
-        lg.log("显卡上识别失败（%s），换 CPU 再识别一次" % str(e).split("\n")[0][:160])
-        sh(cmd + ["-p", "float32"], env=dict(ENV, CUDA_VISIBLE_DEVICES="", _CUDA_VISIBLE_DEVICES=""), label="识别（CPU）")
+        lg.log("显卡上识别失败（%s），换 CPU 再识别一次；%s" % (str(e).split("\n")[0][:160], mem_text()))
+        try:
+            sh(cmd + ["-p", "float32"], env=dict(ENV, CUDA_VISIBLE_DEVICES="", _CUDA_VISIBLE_DEVICES=""), label="识别（CPU）")
+        except RuntimeError as e2:
+            if "not enough memory" in str(e2) or "alloc_cpu" in str(e2) or "MemoryError" in str(e2):
+                raise RuntimeError("这台电脑内存不够，识别模型加载不起来（%s）。关掉浏览器等占内存的程序，或者把虚拟内存调大（C 盘也要留够空间）；这个任务会交给别的电脑" % mem_text())
+            raise
     res = {}
     for f in glob.glob(os.path.join(o, "*.list")):
         with open(f, encoding="utf-8") as fh:
