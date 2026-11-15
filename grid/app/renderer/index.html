@@ -215,9 +215,26 @@
         </div>
         <div class="glass panel wide">
           <h3>硬盘和缓存 <small class="muted" id="diskFree"></small></h3>
+          <div class="warnbox" id="diskMoveBox" hidden>
+            <div id="diskMoveTip"></div>
+            <div class="btns"><button class="btn small" id="diskMoveAlt"></button><button class="btn small" id="diskMovePick">搬到别的文件夹…</button></div>
+            <div class="muted small" id="diskMoveLog"></div>
+          </div>
           <table class="tbl" id="diskTbl"></table>
-          <label>算完的任务文件留 <input type="number" min="0" max="30" data-set="keepTaskDays"> 天（每 6 小时自动清一次）</label>
-          <button class="btn small" id="diskGo">重新统计</button>
+          <label>算完的任务文件留 <input type="number" min="0" max="30" data-set="keepTaskDays"> 天（每小时自动清一次）</label>
+          <label class="check"><input type="checkbox" data-set="autoClean"> 硬盘剩不到 20G 时自动清理（算完的任务文件、临时文件、旧日志、旧安装包，不删模型）</label>
+          <div class="btns">
+            <button class="btn small" id="diskAll">一键清理（不删模型和训练环境）</button>
+            <button class="btn small" id="diskGo">重新统计</button>
+          </div>
+        </div>
+        <div class="glass panel wide">
+          <h3>内存和显存 <small class="muted" id="memNow"></small></h3>
+          <label class="check"><input type="checkbox" data-set="memAuto"> 每个任务开始前，关掉这个任务用不上的画图引擎、本地大模型（让出显存和内存）</label>
+          <label>画图引擎连续开了 <input type="number" min="0" max="72" data-set="aiRecycleH"> 小时，就在两个任务之间重启一次（开久了会越占越多内存；0 = 不重启）</label>
+          <label>可用内存低于 <input type="number" min="0" max="80" data-set="memLowPct"> % 时，两个任务之间先释放一下（0 = 不管）</label>
+          <label class="check"><input type="checkbox" data-set="sweep"> 自动收掉捞捞留在后台的程序（任务出错、软件被关掉时留下的；每 30 分钟查一次）</label>
+          <div class="btns"><button class="btn small" id="memGo">现在释放内存</button></div>
         </div>
         <div class="glass panel wide">
           <h3>专业模式 <label class="check inline"><input type="checkbox" data-set="pro"> 打开</label></h3>

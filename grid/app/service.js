@@ -15,6 +15,7 @@ const GSVW = require("./gsvw");
 const Power = require("./power");
 const Logs = require("./logs");
 const Disk = require("./disk");
+const Mem = require("./mem");
 const Region = require("./region");
 
 const RECIPES = path.join(__dirname, "..", "recipes").replace(/app\.asar([\\/])/, "app.asar.unpacked$1");  // 打包后 Python 读不了 asar 里的文件
@@ -28,6 +29,10 @@ function createService(o) {
   const send = (ch, d) => { try { o.send(ch, d); } catch (e) {} };
   // 训练环境（Python + PyTorch，约 6G）和工作文件（模型、存档、数据）放哪：默认软件自己的文件夹（一般在 C 盘），可以换到别的盘
   const base = () => cfg.dataDir || dir;
+  // 换过数据文件夹：原来位置（一般在 C 盘）的训练环境、模型、任务文件还留着，硬盘页可以清掉（软件自己的设置不动）
+  const OLD_PARTS = ["env", "ai", "work", "llm", "update"];
+  const MOVE_PARTS = ["env", "ai", "llm", "work"];
+  const oldBaseLeft = () => !!cfg.dataDir && path.resolve(cfg.dataDir).toLowerCase() !== path.resolve(dir).toLowerCase() && OLD_PARTS.some((x) => fs.existsSync(path.join(dir, x)));
   const work = () => path.join(base(), "work");
   // 下载源按地区排：国内先腾讯云，国外先自己的 GitHub（region 在下面建，这里用到时已经有了）
   const regionNow = () => { try { return region.current(); } catch (e) { return "cn"; } };
@@ -36,7 +41,7 @@ function createService(o) {
   let agent = null, lastProbe = cfg.probe || null, sources = {};
   // AI 引擎（ComfyUI + 画 Q版的模型），装在数据文件夹的 ai 里
   const ai = (o.aiFactory || AI.create)({ get: () => cfg.ai, set: (v) => { cfg.ai = v; save(); }, onEvent: (e) => send("ai", e),
-    vram: () => (lastProbe && lastProbe.caps && lastProbe.caps.vram) || 0, gpuName: () => (lastProbe && lastProbe.caps && lastProbe.caps.gpu) || "", mirrorOpt: { region: regionNow }, ...(o.aiOpt || {}) });
+    vram: () => (lastProbe && lastProbe.caps && lastProbe.caps.vram) || 0, gpuName: () => (lastProbe && lastProbe.caps && lastProbe.caps.gpu) || "", mirrorOpt: { region: regionNow }, engineOpt: { env: () => cacheEnvOf(work()) }, ...(o.aiOpt || {}) });
   // 本地大模型（llama.cpp 跟着安装包走）；和 ComfyUI 抢显存：开一个先关另一个
   const llmMirror = (() => { try { return require(path.join(__dirname, "ppt", "mirror.js")).create({ region: regionNow }); } catch (e) { return null; } })();
   const llm = (o.llmFactory || LLMW.create)({ exe: o.llamaExe, base: () => base(), mirror: llmMirror, region: regionNow, beforeStart: async () => { try { ai.stop(); } catch (e) {} }, ...(o.llmOpt || {}) });
@@ -47,7 +52,8 @@ function createService(o) {
   // 显存上限（设置里可以留一点给自己用）：领活的时候只说这么多
   const capsNow = () => { const c = { ...((lastProbe && lastProbe.caps) || {}), comfy: !!(cfg.ai && cfg.ai.ready), llm: llm.ok(), gsv: process.platform === "win32" || !!(cfg.gsv && cfg.gsv.dir) }; if (cfg.set && cfg.set.vramCap && c.vram) c.vram = Math.min(c.vram, cfg.set.vramCap); return c; };
   // ---- 设置（默认值）、日志、防休眠、硬盘、地区 ----
-  const SET0 = { autostart: true, keepAwake: true, lid: false, pauseOnBattery: true, notify: true, netLimit: 0, vramCap: 0, maxPower: 0, region: "auto", pro: false, keepTaskDays: 2, stallMin: 45, multiGpu: true };
+  const SET0 = { autostart: true, keepAwake: true, lid: false, pauseOnBattery: true, notify: true, netLimit: 0, vramCap: 0, maxPower: 0, region: "auto", pro: false, keepTaskDays: 2, stallMin: 45, multiGpu: true,
+    memAuto: true, aiRecycleH: 6, memLowPct: 12, sweep: true, autoClean: true };
   const set = () => ({ ...SET0, ...(cfg.set || {}) });
   const logs = Logs.create({ dir: base, onLine: (l) => send("log", l) });
   const L = (m, lv, src) => logs.add(m, lv, src);
@@ -55,13 +61,18 @@ function createService(o) {
   const region = (o.regionFactory || Region.create)({ get: () => cfg.region, set: (v) => { cfg.region = v; save(); }, pref: () => set().region, log: (m) => L(m, "info", "下载源"), ...(o.regionOpt || {}) });
   const notify = (title, body, kind = "") => { if (!set().notify || !o.notify) return; if (kind && set()["no_" + kind]) return; try { o.notify(title, body); } catch (e) {} L(`${title}：${body}`, "info", "通知"); };
   Agent.setNetLimit(set().netLimit);
+  // ---- 内存和显存（24 小时开着也不越用越满）：任务开始前关掉用不上的引擎、画图引擎开久了重启、收后台残留 ----
+  let curNeeds = [];
+  const mem = (o.memFactory || Mem.create)({ base, ai, llm, set, log: (m) => L(m, "info", "内存"), busy: () => (agent && agent.current() ? curNeeds : []), ...(o.memOpt || {}) });
+  const beforeTask = async (x) => { if (x.lane == null) curNeeds = x.needs || []; await mem.beforeTask(x); };
+  if (!o.noMemTimers) mem.start();
   if (cfg.autostart === undefined && cfg.set === undefined && o.setAutostart) { cfg.autostart = true; try { o.setAutostart(true); } catch (e) {} save(); }   // 第一次用：默认开机自启（藏在托盘里，接着上次的状态）
   const gallery = [];
 
   function startAgent() {
     if (agent || !cfg.token) return;
     agent = Agent.create({
-      server: cfg.server, token: cfg.token, pubkey: cfg.pubkey, workDir: work(), python: () => env.python(),
+      server: cfg.server, token: cfg.token, pubkey: cfg.pubkey, workDir: work(), python: () => env.python(), minFreeGB: o.minFreeGB != null ? o.minFreeGB : 10, beforeTask,
       caps: lastProbe ? capsNow() : null, comfy, llm, gsv, policy: { mode: "off", idleMin: 5, ...(cfg.policy || {}), pauseOnBattery: set().pauseOnBattery, maxPower: set().maxPower },   // 默认：自己点「开始」才算
       idleSecs: o.idleSecs, onBattery: o.onBattery, stallMin: set().stallMin, region: regionNow, ensure: (pkgs) => env.ensure(pkgs), version: o.version, gpuInfo: async () => (await probe.gpus())[0] || null, gpuApps: (ours) => probe.gpuApps(undefined, ours),
       env: lanes.length ? { CUDA_VISIBLE_DEVICES: "0" } : {},
@@ -102,7 +113,7 @@ function createService(o) {
         const r = await agent.api("/api/lane", { gpu: i, name: cfg.deviceName, info: { gpu: g.name, vram: g.vram } });
         ln = cfg.lanes[i] = { token: r.token, device: r.device, name: r.name }; save();
       }
-      const a = Agent.create({ server: cfg.server, token: ln.token, pubkey: cfg.pubkey, workDir: path.join(work(), "gpu" + i), python: () => env.python(),
+      const a = Agent.create({ server: cfg.server, token: ln.token, pubkey: cfg.pubkey, workDir: path.join(work(), "gpu" + i), python: () => env.python(), minFreeGB: o.minFreeGB != null ? o.minFreeGB : 10, beforeTask,
         caps: { ...capsNow(), gpu: g.name, vram: cfg.set && cfg.set.vramCap ? Math.min(g.vram, cfg.set.vramCap) : g.vram, comfy: false, llm: false, gsv: false, lane: i },
         policy: { mode: "off", idleMin: 5, ...(cfg.policy || {}), pauseOnBattery: set().pauseOnBattery, maxPower: set().maxPower },
         idleSecs: o.idleSecs, onBattery: o.onBattery, stallMin: set().stallMin, region: regionNow, ensure: (pkgs) => env.ensure(pkgs), version: o.version,
@@ -179,6 +190,57 @@ function createService(o) {
       env = mkEnv();
       startAgent();
       return H.probe();
+    },
+    // 把数据文件夹整个搬到别的盘：已经装好的训练环境、AI 引擎和模型、本地大模型、任务文件一起搬，不用重新下几十 G
+    async moveDataDir(pick) {
+      const d = pick || (o.pickDir ? await o.pickDir("把数据文件夹搬到哪？（建议 D 盘根目录，会自动建 LaolaoGrid 文件夹）") : null);
+      if (!d) return null;
+      const to = path.basename(d).toLowerCase() === "laolaogrid" ? d : path.join(d, "LaolaoGrid");
+      if (!/^[\x20-\x7e]+$/.test(to) || /\s/.test(to)) throw new Error("路径里不能有中文和空格：选 D 盘根目录就行（会自动建 LaolaoGrid 文件夹）");
+      const from = base();
+      if (path.resolve(to).toLowerCase() === path.resolve(from).toLowerCase()) throw new Error("已经在这里了");
+      if ((path.resolve(to) + path.sep).toLowerCase().startsWith((path.resolve(from) + path.sep).toLowerCase())) throw new Error("不能搬到原来文件夹的里面");
+      fs.mkdirSync(to, { recursive: true });
+      fs.accessSync(to, fs.constants.W_OK);
+      const parts = MOVE_PARTS.filter((x) => fs.existsSync(path.join(from, x)));
+      let need = 0;
+      for (const x of parts) need += await Disk.sizeOf(path.join(from, x), 5e6);
+      const free = await disk.free(to);
+      if (free != null && free < need + 5e9) throw new Error(`目标盘只剩 ${(free / 1e9).toFixed(1)}G，要搬的有 ${(need / 1e9).toFixed(1)}G：换一个空间大的盘`);
+      const say = (m) => { L(m, "info", "搬家"); send("move", { msg: m }); };
+      say(`开始搬家：${from} → ${to}（${(need / 1e9).toFixed(1)}G，先停下手上的任务）`);
+      if (agent) { await agent.stop(); agent = null; }
+      await stopLanes();
+      try { await ai.stop(); } catch (e) {}
+      try { llm.stop(); } catch (e) {}
+      await new Promise((r) => setTimeout(r, o.moveSettleMs != null ? o.moveSettleMs : 3000));   // 等引擎的程序完全退出、放开文件
+      try {
+        for (const x of parts) {
+          say(`搬「${x}」…`);
+          await fs.promises.cp(path.join(from, x), path.join(to, x), { recursive: true, force: true, preserveTimestamps: true });
+        }
+      } catch (e) {
+        say("搬家没成功（原来的数据没动，还在原来的地方）：" + e.message);
+        for (const x of parts) { try { fs.rmSync(path.join(to, x), { recursive: true, force: true }); } catch (e2) {} }
+        startAgent(); startLanes().catch(() => {});
+        throw new Error("搬家没成功（原来的数据没动）：" + e.message);
+      }
+      // 设置里记着的绝对路径（ComfyUI、GPT-SoVITS 装在哪）跟着改
+      const fixPaths = (v) => {
+        if (typeof v === "string") { const a = path.resolve(from), lv = v.toLowerCase(); return lv === a.toLowerCase() || lv.startsWith(a.toLowerCase() + path.sep) || lv.startsWith(a.toLowerCase() + "/") ? path.join(to, v.slice(a.length)) : v; }
+        if (Array.isArray(v)) return v.map(fixPaths);
+        if (v && typeof v === "object") { const r = {}; for (const [k, x] of Object.entries(v)) r[k] = fixPaths(x); return r; }
+        return v;
+      };
+      for (const k of Object.keys(cfg)) if (k !== "dataDir") cfg[k] = fixPaths(cfg[k]);
+      cfg.dataDir = to; save();
+      for (const x of parts) { try { fs.rmSync(path.join(from, x), { recursive: true, force: true, maxRetries: 5, retryDelay: 500 }); } catch (e) { say(`原来的「${x}」没删干净（有文件被占用）：设置 → 硬盘里「换盘前留在原来位置的数据」可以再清一次`); } }
+      env = mkEnv();
+      let envOk = null;
+      try { envOk = await env.check(); cfg.envOk = envOk; save(); } catch (e) {}
+      startAgent(); startLanes().catch(() => {});
+      say(`搬好了：以后都在 ${to}${envOk && envOk.ok === false ? "（训练环境要在「任务向导 ②」重新装一下）" : ""}`);
+      return { to, moved: parts, bytes: need, envOk: !!(envOk && envOk.ok) };
     },
     // ---- ② 装环境 ----
     envCheck: async () => { const r = await env.check(); cfg.envOk = r; save(); return r; },
@@ -309,6 +371,8 @@ function createService(o) {
     return H.settings();
   };
   H.redetectRegion = async () => { await region.detect(true); return region.info(); };
+  H.memStatus = async () => mem.status();
+  H.memFree = async () => { const r = await mem.freeNow(); L(`手动释放：${r.stopped.length ? "关掉了" + r.stopped.join("、") + "，" : ""}收掉 ${r.swept} 个后台残留，内存多了 ${(r.freed / 1e9).toFixed(1)}G`, "info", "内存"); return r; };
 
   // ---------- 日志 ----------
   H.logDays = async () => logs.days();
@@ -332,13 +396,39 @@ function createService(o) {
       { id: "ai", name: "AI 引擎和画图模型、GPT-SoVITS", path: path.join(base(), "ai"), note: "删了要重新下（几十 G）" },
       { id: "llm", name: "本地大模型", path: path.join(base(), "llm"), cleanable: "all", note: "用到时会自动重新下" },
       { id: "tasks", name: "任务文件（每个任务下的数据、中间结果）", path: path.join(work(), "tasks"), cleanable: "old", keepDays: 0, keep: (f) => !!curDir && path.resolve(f) === path.resolve(curDir), note: "算完的都可以删（正在算的留着）" },
+      { id: "tmp", name: "临时文件", path: path.join(work(), "cache", "tmp"), cleanable: "all", keep: () => !!curDir || lanes.some((l) => l.current()), note: "算完就没用了（正在算的时候先不清）" },
       { id: "cache", name: "缓存（下过的模型、公开数据）", path: path.join(work(), "cache"), cleanable: "all", note: "用到时会重新下" },
       { id: "recipes", name: "配方", path: path.join(work(), "recipes"), cleanable: "all", note: "很小，用到时重新下" },
       { id: "update", name: "新版本安装包", path: path.join(base(), "update"), cleanable: "all" },
+      ...(ai.comfyDir && ai.comfyDir() ? [{ id: "comfyout", name: "画图引擎生成的图（ComfyUI 的 output）", path: path.join(ai.comfyDir(), "output"), cleanable: "old", keepDays: 0, keep: () => !!(ai.status().running), note: "交上去以后就没用了（画图引擎开着的时候先不清）" }] : []),
       { id: "logs", name: "日志", path: logs.dir(), cleanable: "old", keepDays: 1, note: "只留今天的" },
+      ...(oldBaseLeft() ? [{ id: "oldbase", name: "换盘前留在原来位置的数据", path: dir, only: OLD_PARTS, cleanable: "all", note: "数据文件夹已经换到 " + base() + "，这些用不上了" }] : []),
     ];
   } });
-  H.diskReport = async () => disk.report();
+  // 数据文件夹在不在系统盘（C 盘）上；别的盘哪个空间最大（建议搬过去）
+  async function driveInfo() {
+    if (process.platform !== "win32") return { onSys: false, alt: null };
+    const sys = (process.env.SystemDrive || "C:").toUpperCase();
+    const onSys = path.resolve(base()).toUpperCase().startsWith(sys);
+    let alt = null;
+    for (const L0 of "DEFGHIJKLMNOPQRSTUVWXYZ") {
+      const root = L0 + ":\\";
+      if (root.toUpperCase().startsWith(sys)) continue;
+      const fr = await disk.free(root);
+      if (fr != null && fr > 30e9 && (!alt || fr > alt.free)) alt = { drive: L0 + ":", root, free: fr };
+    }
+    return { onSys, alt };
+  }
+  H.diskReport = async () => ({ ...(await disk.report()), ...(await driveInfo()) });
+  // 一键清理（不删模型和训练环境）：算完的任务文件、临时文件、旧日志、旧安装包、配方、换盘前的旧数据
+  const SAFE = ["tasks", "tmp", "logs", "update", "recipes", "oldbase"];
+  H.diskCleanAll = async () => {
+    let freed = 0;
+    const have = new Set((await disk.report()).parts.map((p) => p.id));
+    for (const id of SAFE) if (have.has(id)) { try { freed += (await disk.clean(id)).freed; } catch (e) {} }
+    L(`一键清理：腾出 ${(freed / 1e9).toFixed(2)}G`, "info", "硬盘");
+    return { freed };
+  };
   H.diskClean = async (id) => { const r = await disk.clean(id); L(`清理「${id}」：腾出 ${(r.freed / 1e9).toFixed(2)}G`, "info", "硬盘"); return r; };
   // 每 6 小时：删掉几天前算完的任务文件夹；硬盘快满了提醒（一天最多一次）
   async function housekeeping() {
@@ -346,11 +436,20 @@ function createService(o) {
       const curDir = agent && agent.current() ? agent.current().dir : "";
       await disk.cleanOld(path.join(work(), "tasks"), set().keepTaskDays, (f) => !!curDir && path.resolve(f) === path.resolve(curDir));
       for (const a of lanes) { const c = a.current(); await disk.cleanOld(path.join(work(), "gpu" + (lanes.indexOf(a) + 1), "tasks"), set().keepTaskDays, (f) => !!c && path.resolve(f) === path.resolve(c.dir)); }
-      const fr = await disk.free(base());
+      // 临时文件：一天以前的都清；没在算的时候，一小时以前的也清
+      const busyNow = !!curDir || lanes.some((l) => l.current());
+      await disk.cleanOld(path.join(work(), "cache", "tmp"), busyNow ? 1 : 1 / 24, () => false);
+      try { ai.tidyOld && ai.tidyOld(); } catch (e) {}
+      let fr = await disk.free(base());
+      if (fr != null && fr < 20e9 && set().autoClean) {   // 快满了：先自动清一遍不要紧的（不删模型）
+        const r = await H.diskCleanAll().catch(() => ({ freed: 0 }));
+        if (r.freed > 0) L(`硬盘快满了：自动清理腾出 ${(r.freed / 1e9).toFixed(2)}G`, "warn", "硬盘");
+        fr = await disk.free(base());
+      }
       if (fr != null && fr < 20e9 && Date.now() - (cfg.lowDiskAt || 0) > 86400e3) { cfg.lowDiskAt = Date.now(); save(); notify("硬盘快满了", `数据文件夹所在的盘只剩 ${(fr / 1e9).toFixed(1)}G：打开捞捞算力「设置 → 硬盘」清理一下`, "disk"); }
     } catch (e) {}
   }
-  const hk = setInterval(housekeeping, 6 * 3600e3); hk.unref && hk.unref();
+  const hk = setInterval(housekeeping, 3600e3); hk.unref && hk.unref();   // 每小时一次（24 小时开着的电脑攒得快）
   setTimeout(housekeeping, 120e3).unref?.();
 
   // ---------- 控制中心遥控 ----------
@@ -419,5 +518,15 @@ function createService(o) {
 }
 
 // 数据文件夹在哪（主进程启动时就要知道：找上次下好的新版安装包）
+// 模型缓存、临时文件放到数据文件夹（和配方用的同一套），不占 C 盘：ComfyUI 的插件下模型、Python 的临时文件都会用到
+function cacheEnvOf(work) {
+  const c = path.join(work, "cache"), out = {};
+  for (const [k, sub] of [["HF_HOME", "hf"], ["MODELSCOPE_CACHE", "modelscope"], ["TORCH_HOME", "torch"], ["XDG_CACHE_HOME", "xdg"], ["PIP_CACHE_DIR", "pip"], ["TEMP", "tmp"], ["TMP", "tmp"]]) {
+    out[k] = path.join(c, sub);
+    try { fs.mkdirSync(out[k], { recursive: true }); } catch (e) {}
+  }
+  return out;
+}
+
 function dataBaseOf(user) { try { return JSON.parse(fs.readFileSync(path.join(user, "grid.json"), "utf8")).dataDir || user; } catch (e) { return user; } }
 module.exports = { createService, dataBaseOf };

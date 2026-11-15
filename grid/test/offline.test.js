@@ -196,6 +196,18 @@ function flakyFetch() {
     await e.stop();
   }
 
+  // ---------- 8：硬盘快满了：先不领新任务，说清楚哪个盘剩多少 ----------
+  {
+    const cred = await join("孙八");
+    const g = Agent.create({ server: cred.server, token: cred.token, pubkey: cred.pubkey, workDir: path.join(tmp, "g"), python: PY, caps: { gpu: "RTX 5060", vram: 8, ram: 32 }, tickMs: 150, hbMs: 300, minFreeGB: 1e9 });
+    const gs = []; g.on("state", (x) => gs.push(x));
+    g.start();
+    await until(() => gs.some((x) => x.state === "waiting" && /只剩 .*G：先不领新任务/.test(x.why)), 5000, "硬盘快满了");
+    assert.ok(!g.current(), "硬盘快满了不该领任务");
+    ok("硬盘快满了：先不领新任务，告诉你是哪个盘、还剩多少");
+    await g.stop();
+  }
+
   await app.close();
   console.log("断网测试：全部通过");
   process.exit(0);

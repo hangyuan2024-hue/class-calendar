@@ -28,18 +28,30 @@ function create(o) {
   const parts = () => o.parts().filter((x) => x.path);
   async function report() {
     const out = [];
-    for (const p of parts()) out.push({ ...p, bytes: fs.existsSync(p.path) ? await sizeOf(p.path) : 0 });
+    for (const p of parts()) out.push({ ...p, keep: undefined, bytes: await bytesOf(p) });
     const f = await free(o.base());
     return { parts: out, free: f, base: o.base(), low: f != null && f < (o.lowGB || 20) * 1e9 };
   }
   // 清理一部分：tasks 只删算完的（正在算的留着）、超过 keepDays 天的；cache 整个删；logs 只留今天
+  // only：这个文件夹里只算（只删）这几个子文件夹（比如换盘前的旧数据：软件自己的设置、缓存不动）
+  async function bytesOf(p) {
+    if (!fs.existsSync(p.path)) return 0;
+    if (!p.only) return sizeOf(p.path);
+    let t = 0;
+    for (const x of p.only) if (fs.existsSync(path.join(p.path, x))) t += await sizeOf(path.join(p.path, x));
+    return t;
+  }
   async function clean(id) {
     const p = parts().find((x) => x.id === id);
     if (!p || !p.cleanable) throw new Error("这一项不能删");
-    const before = fs.existsSync(p.path) ? await sizeOf(p.path) : 0;
+    const before = await bytesOf(p);
+    if (p.only) {
+      for (const x of p.only) { try { fs.rmSync(path.join(p.path, x), { recursive: true, force: true, maxRetries: 3 }); } catch (e) {} }
+      return { id, freed: Math.max(0, before - (await bytesOf(p))) };
+    }
     if (p.cleanable === "old") await cleanOld(p.path, p.keepDays != null ? p.keepDays : 0, p.keep || (() => false));
     else { for (const e of fs.existsSync(p.path) ? fs.readdirSync(p.path) : []) { if (p.keep && p.keep(path.join(p.path, e))) continue; fs.rmSync(path.join(p.path, e), { recursive: true, force: true }); } }
-    const after = fs.existsSync(p.path) ? await sizeOf(p.path) : 0;
+    const after = await bytesOf(p);
     return { id, freed: Math.max(0, before - after) };
   }
   async function cleanOld(dir, keepDays, keep) {

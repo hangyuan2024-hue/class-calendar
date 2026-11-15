@@ -351,7 +351,7 @@
     $("#powerInfo").textContent = `${st.power && st.power.awake ? "现在：不让电脑睡（" + (st.power.why || "要算") + "）" : "现在：电脑可以照常睡"}${st.onBattery ? " · 正在用电池" : ""}`;
     $("#proBox").hidden = !st.pro;
     if (st.pro) $("#proDiag").textContent = await call("diag");
-    loadDisk();
+    loadDisk(); loadMem();
   }
   async function saveSet(p) { try { await call("setSettings", p); $("#setState").textContent = "保存好了 " + new Date().toLocaleTimeString(); await loadSettings(); } catch (e) { toast(e.message, true); loadSettings(); } }
   $$("[data-set]").forEach((el) => (el.onchange = () => saveSet({ [el.dataset.set]: el.type === "checkbox" ? el.checked : +el.value })));
@@ -362,10 +362,47 @@
     $("#diskTbl").innerHTML = `<tr><td class="muted">统计中…（大文件夹要几秒）</td></tr>`;
     const r = await call("diskReport");
     $("#diskFree").textContent = `数据文件夹 ${r.base}，这个盘还剩 ${GB(r.free)}${r.low ? "（快满了！）" : ""}`;
+    // 数据文件夹在 C 盘：AI 引擎和画图模型就有几十 G，C 盘很容易满。建议整个搬到空间大的盘（装好的一起搬，不用重新下）
+    const ai = r.parts.find((p) => p.id === "ai");
+    $("#diskMoveBox").hidden = !r.onSys;
+    if (r.onSys) {
+      $("#diskMoveTip").textContent = `数据文件夹在系统盘（C 盘）上${ai && ai.bytes ? `，光 AI 引擎和画图模型就占了 ${GB(ai.bytes)}` : ""}；C 盘满了 Windows 会变卡、出错。建议整个搬到别的盘：已经装好的训练环境、模型一起搬，不用重新下（搬的时候会先停下手上的任务，几十 G 要十几分钟）。`;
+      $("#diskMoveAlt").hidden = !r.alt;
+      if (r.alt) { $("#diskMoveAlt").textContent = `搬到 ${r.alt.drive} 盘（还剩 ${GB(r.alt.free)}）`; $("#diskMoveAlt").dataset.root = r.alt.root; }
+    }
     $("#diskTbl").innerHTML = `<tr><th>哪一部分</th><th>占用</th><th></th><th></th></tr>` + r.parts.map((p) => `<tr><td>${esc(p.name)}</td><td class="num">${GB(p.bytes)}</td><td class="muted small">${esc(p.note || "")}</td><td>${p.cleanable && p.bytes ? `<button class="btn small" data-clean="${p.id}">清理</button>` : ""}</td></tr>`).join("");
     $$("[data-clean]").forEach((b) => (b.onclick = guard(async () => { if (!confirm("清理「" + b.closest("tr").firstChild.textContent + "」？")) return; b.disabled = true; const x = await call("diskClean", b.dataset.clean); toast(`腾出 ${GB(x.freed)}`); loadDisk(); })));
   }
   $("#diskGo").onclick = () => loadDisk();
+  const doMove = async (root) => {
+    if (!confirm("把数据文件夹整个搬过去？会先停下手上的任务，搬完自动接着算。")) return;
+    $$("#diskMoveBox button").forEach((b) => (b.disabled = true));
+    try { const r = await call("moveDataDir", root); if (r) { toast(`搬好了：${r.to}`); S = await call("status"); } loadDisk(); }
+    finally { $$("#diskMoveBox button").forEach((b) => (b.disabled = false)); }
+  };
+  $("#diskMoveAlt").onclick = guard(() => doMove($("#diskMoveAlt").dataset.root));
+  $("#diskMovePick").onclick = guard(() => doMove(null));
+  window.lg.on("move", (m) => { $("#diskMoveLog").textContent = m.msg; });
+  $("#diskAll").onclick = guard(async () => {
+    if (!confirm("一键清理：算完的任务文件、临时文件、旧日志、旧安装包、配方（用到时重新下），以及换盘前留在原来位置的数据。模型和训练环境不动。清理？")) return;
+    $("#diskAll").disabled = true;
+    try { const x = await call("diskCleanAll"); toast(`腾出 ${GB(x.freed)}`); loadDisk(); } finally { $("#diskAll").disabled = false; }
+  });
+  async function loadMem() {
+    try {
+      const m = await call("memStatus");
+      const h = m.aiSince ? `，已经开了 ${((Date.now() - m.aiSince) / 3600e3).toFixed(1)} 小时` : "";
+      $("#memNow").textContent = `可用内存 ${GB(m.free)} / ${GB(m.total)}；画图引擎${m.ai ? "开着" + h : "没开"}；本地大模型${m.llm ? "开着" : "没开"}` + (m.lastSweep ? `；上次检查后台残留：${new Date(m.lastSweep.at).toLocaleTimeString()}，收掉 ${m.lastSweep.n} 个` : "");
+    } catch (e) {}
+  }
+  $("#memGo").onclick = guard(async () => {
+    $("#memGo").disabled = true;
+    try {
+      const r = await call("memFree");
+      toast(`${r.stopped.length ? "关掉了" + r.stopped.join("、") + "；" : ""}收掉 ${r.swept} 个后台残留；内存多了 ${GB(r.freed)}`);
+      loadMem();
+    } finally { $("#memGo").disabled = false; }
+  });
   $("#proDir").onclick = guard(async () => { if (!(await call("taskDir"))) toast("现在没在算"); });
   $("#proKill").onclick = guard(async () => { if (!confirm("结束当前任务？会交给别的电脑从存档接着算。")) return; toast((await call("killTask")) ? "结束了" : "现在没在算"); });
   $("#proWork").onclick = () => call("openWork");

@@ -99,7 +99,9 @@ function create(opt = {}) {
     const port = o.port || 18188;
     const args = ["-s", path.join(rt.comfy, "main.py"), "--listen", "127.0.0.1", "--port", String(port), "--disable-auto-launch", "--preview-method", "none"];
     if (o.lowvram) args.push("--lowvram");
-    const env = { ...process.env, PYTHONIOENCODING: "utf-8", PYTHONUTF8: "1", HF_ENDPOINT: hf[0] };
+    // opt.env：调用方给的额外环境变量（比如把模型缓存、临时文件放到数据盘，不占 C 盘）
+    const extra = typeof opt.env === "function" ? (opt.env() || {}) : (opt.env || {});
+    const env = { ...process.env, ...extra, PYTHONIOENCODING: "utf-8", PYTHONUTF8: "1", HF_ENDPOINT: hf[0] };
     proc = doSpawn(rt.python, args, { cwd: rt.comfy, env, windowsHide: true });
     proc.stdout && proc.stdout.on("data", (d) => addLog(d.toString("utf8")));
     proc.stderr && proc.stderr.on("data", (d) => addLog(d.toString("utf8")));

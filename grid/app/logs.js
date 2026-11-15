@@ -10,7 +10,7 @@ const timeOf = (t) => { const d = new Date(t); return `${pad(d.getHours())}:${pa
 
 function create(o) {
   const dir = () => path.join(o.dir(), "logs");
-  const keepDays = o.keepDays || 14;
+  const keepDays = o.keepDays || 7;   // 24 小时开着的电脑日志攒得快：留一周
   let buf = [], timer = null, lastClean = 0;
   const recent = [];   // 最近 2000 行放内存里，界面直接看
 

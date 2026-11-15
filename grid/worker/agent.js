@@ -282,8 +282,29 @@ function create(opt) {
     const a = minutes(policy.from), b = minutes(policy.to), x = d.getHours() * 60 + d.getMinutes();
     return a <= b ? x >= a && x < b : x >= a || x < b;
   }
+  // 硬盘：系统盘（C 盘）或数据文件夹所在的盘快满了，先不领新任务；只剩 3G 以下，手上的也停（C 盘写满了 Windows 会出问题）
+  let diskAt = 0, diskNow = null;
+  async function diskCheck() {
+    if (!opt.minFreeGB) return null;
+    if (Date.now() - diskAt < 60000) return diskNow;
+    diskAt = Date.now();
+    const sys = process.platform === "win32" ? (process.env.SystemDrive || "C:") + "\\" : "/";
+    const drives = [[sys, process.platform === "win32" ? (process.env.SystemDrive || "C:").replace(":", "") + " 盘" : "系统盘"], [work, "数据文件夹所在的盘"]];
+    diskNow = null;
+    for (const [p, name] of drives) {
+      try {
+        const s = await fs.promises.statfs(p);
+        const gb = (s.bavail * s.bsize) / 1e9;
+        if (gb < opt.minFreeGB && (!diskNow || gb < diskNow.gb)) diskNow = { gb, name };
+      } catch (e) {}
+    }
+    return diskNow;
+  }
+
   async function gate() {
     if (paused) return { ok: false, why: "你点了暂停" };
+    const dk = await diskCheck();
+    if (dk) return { ok: false, why: `${dk.name}只剩 ${dk.gb.toFixed(1)}G：先不领新任务。打开「设置 → 硬盘」清理一下，或者把数据文件夹换到空间大的盘`, disk: true, diskCritical: dk.gb < 3 };
     if (draining) return { ok: false, why: "有新版本：手上的算完就自动更新" };
     if (manual === "off") return { ok: false, why: "你点了停止" };
     if (manual !== "on" && policy.mode === "off") return { ok: false, why: "想算的时候点「开始」" };
@@ -321,7 +342,7 @@ function create(opt) {
       lastTick = Date.now();
       if (cur) {
         if (cur.finishing) { /* 已经算完了，只等着交结果：不用停 */ }
-        else if (!g.ok && (paused || manual === "off" || g.active || g.battery || /℃|功耗/.test(g.why))) { log("停下：" + g.why, "warn"); await stopTask(true, g.why); }
+        else if (!g.ok && (paused || manual === "off" || g.active || g.battery || g.diskCritical || /℃|功耗/.test(g.why))) { log("停下：" + g.why, "warn"); await stopTask(true, g.why); }
         // 卡住了：好久没有任何输出（日志、进度、曲线）→ 结束它，交给别的电脑从存档接着算
         else if (opt.stallMin !== 0 && cur.child && Date.now() - (cur.lastOut || cur.started) > (opt.stallMin || 45) * 60e3 && !cur.stopping) { log(`这个任务 ${opt.stallMin || 45} 分钟没有动静，像是卡住了：结束它，交给别的电脑接着算`, "error"); await stopTask(true, "卡住了（很久没有输出）"); }
       } else if (!g.ok) setState(paused || manual === "off" ? "paused" : "waiting", g.why);
@@ -374,6 +395,11 @@ function create(opt) {
       // 配方开头写「# requires: diffusers==0.35.1 transformers」：先把要的包装好（装过的 pip 会跳过）
       const req = (/^#\s*requires:\s*(.+)$/m.exec(rc.source) || [])[1];
       if (req && opt.ensure && !ensured.has(req.trim())) { c.note = "装配方要的包…"; log("装配方要的包：" + req); await opt.ensure(req.trim().split(/\s+/)); ensured.add(req.trim()); }
+      // 开始之前：这个配方用不上的 AI 引擎（上一个任务留下的画图引擎、本地大模型）关掉，内存不够了也先释放一下
+      if (opt.beforeTask) {
+        const needs = ((/^#\s*needs:(.*)$/m.exec(rc.source) || [])[1] || "").split(/[\s,，]+/).filter(Boolean);
+        try { await opt.beforeTask({ needs, job: L.job, lane: opt.caps && opt.caps.lane }); } catch (e) { log("释放内存没成功：" + e.message, "warn"); }
+      }
       // 配方开头写「# needs: comfy」：要用本机的 AI 引擎画图，先把它开起来
       if (/^#\s*needs:.*\bcomfy\b/m.test(rc.source)) {
         if (!opt.comfy) throw new Error("这台电脑还没装好 AI 引擎");
@@ -523,7 +549,7 @@ function create(opt) {
     }
     let m; try { m = JSON.parse(l.slice(5)); } catch (e) { return; }
     switch (m.t) {
-      case "log": { const e = { t: Date.now(), msg: m.msg, level: "info" }; c.logs.push(e); log(m.msg); break; }
+      case "log": { const e = { t: Date.now(), msg: m.msg, level: "info" }; c.logs.push(e); if (c.logs.length > 200) c.logs.shift(); log(m.msg); break; }   // 训练几十个小时的任务：只留最近 200 行，不越攒越多
       case "line": c.line = m.line; c.fn = m.fn; emit("line", { id: c.id, line: m.line, fn: m.fn }); break;
       case "metric": { const { t, ...rest } = m; c.metrics.push(rest); c.lastMetric = rest; emit("metric", { id: c.id, ...rest }); break; }
       case "progress": c.progress = m.p; if (m.note) c.note = m.note; emit("progress", { id: c.id, p: m.p, note: m.note }); break;

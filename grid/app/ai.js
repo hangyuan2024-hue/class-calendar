@@ -83,10 +83,30 @@ function create(o) {
     try { fs.rmSync(path.join(r.comfy, "output", "laolao-grid"), { recursive: true, force: true }); } catch (e) {}
     if (inputs) { try { const d = path.join(r.comfy, "input"); for (const f of fs.readdirSync(d)) if (/^lg-/.test(f)) fs.rmSync(path.join(d, f), { force: true }); } catch (e) {} }
   }
+  // 训练出来的插件每发一版就多一个文件：只留最近用到的 4 个（每个几十到几百 M），旧版本删掉
+  function pruneLoras(d, keepFile) {
+    try {
+      const fsx = fs.readdirSync(d).filter((x) => /\.(safetensors|pt|ckpt)$/i.test(x)).map((x) => ({ f: path.join(d, x), t: fs.statSync(path.join(d, x)).mtimeMs }));
+      try { const now = new Date(); fs.utimesSync(keepFile, now, now); } catch (e) {}
+      fsx.sort((a, b) => b.t - a.t);
+      for (const x of fsx.slice(o.keepLoras || 4)) if (path.resolve(x.f) !== path.resolve(keepFile)) fs.rmSync(x.f, { force: true });
+    } catch (e) {}
+  }
+  // 每小时：ComfyUI 的 output 里我们的图（laolao、laolao-grid）一天前的清掉；没开着的时候 temp 也清掉
+  function tidyOld() {
+    const r = rt(); if (!r) return;
+    const cut = Date.now() - 86400e3;
+    for (const sub of ["laolao", "laolao-grid"]) {
+      const d = path.join(r.comfy, "output", sub);
+      try { for (const x of fs.readdirSync(d)) { const f = path.join(d, x); if (fs.statSync(f).mtimeMs < cut) fs.rmSync(f, { recursive: true, force: true }); } } catch (e) {}
+    }
+    if (!eng.status().running) { try { fs.rmSync(path.join(r.comfy, "temp"), { recursive: true, force: true }); } catch (e) {} }
+  }
+  let since = 0;   // 画图引擎这次是什么时候开的（开久了在两个任务之间重启一次）
   async function up() {
     const r = rt();
     if (!r || !st().ready) throw new Error("这台电脑还没装好 AI 引擎（任务向导第 4 步）");
-    if (!eng.status().running) await eng.start(r, { port: PORT, lowvram: vram() <= 8 });
+    if (!eng.status().running) { await eng.start(r, { port: PORT, lowvram: vram() <= 8 }); since = Date.now(); }
     bump();
     return r;
   }
@@ -107,6 +127,7 @@ function create(o) {
       fs.mkdirSync(d, { recursive: true });
       const dest = path.join(d, name);
       if (!fs.existsSync(dest) || fs.statSync(dest).size !== fs.statSync(f).size) fs.copyFileSync(f, dest);
+      pruneLoras(d, dest);
       return { name: "laolao/" + name };
     }
     if (op === "run") {
@@ -119,7 +140,7 @@ function create(o) {
     }
     throw new Error("没有这个操作：" + op);
   }
-  return { check, install, useDir, cancel, ensure, call, stop: () => { clearTimeout(idle); return eng.stop(); }, abort: () => eng.cancel().catch(() => {}), status: () => eng.status(), PORT };
+  return { check, install, useDir, cancel, ensure, call, tidyOld, comfyDir: () => { const r = rt(); return r ? r.comfy : ""; }, stop: () => { clearTimeout(idle); return eng.stop(); }, abort: () => eng.cancel().catch(() => {}), status: () => eng.status(), runningSince: () => (eng.status().running ? since : 0), PORT };
 }
 
 module.exports = { create, PORT, FEATURE };
