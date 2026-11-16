@@ -60,6 +60,11 @@ function create({ dir, onEvent, python: given, mirror = MIRROR, fetchImpl, baseP
   });
   const out = (cmd, args) => new Promise((ok) => execFile(cmd, args, { windowsHide: true, timeout: 60000 }, (e, so) => ok(e ? null : String(so))));
 
+  // 系统里登记的 Python 3.11 装在哪（只看当前用户的；没有返回 null）
+  const regPython = () => new Promise((ok) => execFile("reg", ["query", `HKCU\\Software\\Python\\PythonCore\\${PY_VER.split(".").slice(0, 2).join(".")}\\InstallPath`, "/ve"], { windowsHide: true, timeout: 15000 }, (e, so) => {
+    const m = /REG_SZ\s+(.+)/.exec(String(so || "")); ok(e || !m ? null : m[1].trim().replace(/[\\/]+$/, ""));
+  }));
+
   // 国内存储里有的：Python 安装包（gridpy）、wheel（gridwheel）；读不到就是空的，照旧走镜像
   async function fromMirror() {
     for (const u of mirror || []) {
@@ -125,7 +130,22 @@ function create({ dir, onEvent, python: given, mirror = MIRROR, fetchImpl, baseP
       }
       if (!got) throw new Error("Python 安装包下载不下来，检查一下网络");
       say("python", "安装 Python（只装在捞捞算力自己的文件夹里）");
-      await run(inst, ["/quiet", "InstallAllUsers=0", `TargetDir=${pyDir}`, "Include_launcher=0", "PrependPath=0", "Include_test=0", "Include_doc=0", "Shortcuts=0", "AssociateFiles=0"], "python");
+      const instArgs = ["/quiet", "InstallAllUsers=0", `TargetDir=${pyDir}`, "Include_launcher=0", "PrependPath=0", "Include_test=0", "Include_doc=0", "Shortcuts=0", "AssociateFiles=0"];
+      await run(inst, instArgs, "python");
+      // 坑：Windows 上同一个版本的 Python 只能装一份。数据文件夹换过盘（或者旧文件夹被删了），系统里还登记着「已经装过」，
+      // 安装程序就什么都不做、也不报错 → python.exe 根本不在。认出来：把旧的登记卸掉，再装到现在的位置
+      if (!(await out(exe, ["--version"]))) {
+        const where = await regPython();
+        const alive = where && fs.existsSync(path.join(where, "python.exe"));
+        if (alive && !/laolaogrid/i.test(where)) {
+          fs.rmSync(inst, { force: true });
+          throw new Error(`这台电脑上已经装了一份 Python ${PY_VER}（在 ${where}），同一个版本不能装第二份：到 Windows「设置 → 应用」里把「Python ${PY_VER}」卸载了再点「一键安装」（自己还要用它的话，装一个别的版本就不冲突）`);
+        }
+        say("python", `系统里还登记着以前装的 Python（${where || "位置已经不在了"}），所以这次没真的装上：先卸掉旧的登记，再装到 ${pyDir}`);
+        await run(inst, ["/uninstall", "/quiet"], "python").catch(() => {});
+        await run(inst, instArgs, "python");
+        if (!(await out(exe, ["--version"]))) { fs.rmSync(inst, { force: true }); throw new Error(`Python 没装上（${exe} 不在）：到 Windows「设置 → 应用」里把「Python ${PY_VER}」卸载了，再点「一键安装」`); }
+      }
       fs.rmSync(inst, { force: true });
     }
     say("python", "Python 好了", { done: true });
@@ -143,7 +163,7 @@ function create({ dir, onEvent, python: given, mirror = MIRROR, fetchImpl, baseP
     if (want.length) { try { wd = await pullWheels(want); } catch (e) { if (cancelled) throw e; say("wheels", "国内存储下载出错，改走公共镜像：" + e.message); } }
     if (wd) { try { await pip([...basePkgs, "--no-index", "-f", wd], "pkgs"); ok = true; } catch (e) { if (cancelled) throw e; say("pkgs", "本地的包装不上，改走镜像"); } }
     if (!ok) for (const idx of PIPS()) { try { await pip([...basePkgs, "-i", idx], "pkgs"); ok = true; break; } catch (e) { if (cancelled) throw e; say("pkgs", "换一个镜像再试"); } }
-    if (!ok) throw new Error("装 numpy 这些基础包失败");
+    if (!ok) throw new Error("装 numpy 这些基础包失败（" + pipWhy(lastOut.length ? lastOut : ["没有输出"]) + "）");
     say("pkgs", "基础的包装好了", { done: true });
     // 3. PyTorch（CUDA 12.8 版，50 系显卡要它）
     //    坑：普通的 pip 源（清华、PyPI）上 Windows 的 torch 是「CPU 版」，混着源装就会装成看不到显卡的那个。
