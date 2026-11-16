@@ -224,6 +224,14 @@ function create(opt) {
   // 手动开关：auto 按挂机设置；on 手动开始（不管空闲 / 定时，一直算到点「停止」，但还是让着游戏、怕过热）；off 停止
   let manual = opt.manual || "auto";
   let lastHb = 0, lastLease = 0, lastTick = Date.now(), extraEnv = {};
+  // 这台电脑自己的毛病（包装不上、引擎起不来、显存被占）：歇一会儿再领，别 2 秒一个把任务挨个领来弄失败
+  let hold = { until: 0, why: "", n: 0 };
+  const HOLD_MIN = opt.holdMin || [5, 15, 30, 60];
+  function holdOff(why) {
+    const m = HOLD_MIN[Math.min(hold.n, HOLD_MIN.length - 1)];
+    hold = { until: Date.now() + m * 60e3, why, n: hold.n + 1 };
+    log(`这台电脑现在算不了：${why}。${m} 分钟后自动再试（修好了点「开始」马上试）`, "error");
+  }
   const CMD_NAMES = { start: "开始", stop: "停止", auto: "按设置自动", update: "立刻更新", restart: "重启软件", logs: "交日志", clean: "清理缓存", probe: "重新体检" };
   const logs = [];
   let gpuNow = null;
@@ -307,6 +315,7 @@ function create(opt) {
     if (dk) return { ok: false, why: `${dk.name}只剩 ${dk.gb.toFixed(1)}G：先不领新任务。打开「设置 → 硬盘」清理一下，或者把数据文件夹换到空间大的盘`, disk: true, diskCritical: dk.gb < 3 };
     if (draining) return { ok: false, why: "有新版本：手上的算完就自动更新" };
     if (manual === "off") return { ok: false, why: "你点了停止" };
+    if (hold.until > Date.now()) return { ok: false, why: `这台电脑现在算不了：${hold.why}（${Math.ceil((hold.until - Date.now()) / 60e3)} 分钟后自动再试）`, hold: true };
     if (manual !== "on" && policy.mode === "off") return { ok: false, why: "想算的时候点「开始」" };
     if (manual !== "on" && policy.mode === "schedule" && !inWindow()) return { ok: false, why: `只在 ${policy.from}～${policy.to} 算` };
     if (manual !== "on" && policy.mode === "idle") {
@@ -475,11 +484,13 @@ function create(opt) {
       if (L.job.params && L.job.params.dataset) { c.note = "取审核数据…"; const d = await api("/api/dataset", { task: c.id }); t.dataset = path.join(dir, "dataset.json"); fs.writeFileSync(t.dataset, JSON.stringify(d.items || [])); log(`审核数据：${(d.items || []).length} 条`); }
       fs.writeFileSync(path.join(dir, "task.json"), JSON.stringify(t));
       if (c.stopping) return;   // 准备的时候被叫停了（管理员暂停、你要用电脑）
+      c.spawned = true;   // 到这里准备工作（下配方、装包、开引擎、下输入文件）都过了
       const code = await spawnPy(c, rc.file, path.join(dir, "task.json"));
       if (code === 0 && c.result) c.finishing = true;   // 算完了：接下来只是交结果，点「停止」、断网都不丢；续约也接着报，免得被收回
       else clearInterval(renewTimer);
       await c.uploads;
       if (c.stopping && !c.finishing) return;
+      if (c.unfit && (code !== 0 || !c.result)) { await c.uploads.catch(() => {}); throw new Error(c.unfit); }
       if (code !== 0 || !c.result) throw new Error((c.logs.filter((l) => l.level === "error").slice(-6).map((l) => l.msg).join("\n")) || `配方退出码 ${code}`);
       // 结果里的文件：上传，换成存储地址
       const result = {};
@@ -497,9 +508,18 @@ function create(opt) {
       const r = await whenOnline(c, "交结果", () => api("/api/done", { task: c.id, result, outputs: c.outputs, reviews: c.reviews, secs, metrics: doneMetrics }));
       log(r.ok ? `做完了「${L.job.name}」，用了 ${Math.round(secs)} 秒` : r.why, r.ok ? "ok" : "warn");
       emit("done", { id: c.id, ok: r.ok, secs, result });
+      hold.n = 0;
     } catch (e) {
       clearInterval(renewTimer);
-      if (!c.stopping) { log("出错：" + e.message, "error"); await api("/api/fail", { task: c.id, error: c.logs.slice(-20).map((l) => l.msg).join("\n") + "\n出错：" + e.message }).catch(() => {}); emit("done", { id: c.id, ok: false, error: e.message }); }
+      if (!c.stopping) {
+        log("出错：" + e.message, "error");
+        // 配方还没开始跑就出错（包装不上、引擎起不来、文件下不下来）：是这台电脑的问题，不是任务的问题
+        //   → 任务还给调度中心（不算它失败），这台电脑歇一会儿再试
+        const prep = !c.spawned || !!c.unfit;
+        await api("/api/fail", { task: c.id, ...(prep ? { release: true, env: true } : {}), error: c.logs.slice(-20).map((l) => l.msg).join("\n") + "\n出错：" + e.message }).catch(() => {});
+        emit("done", { id: c.id, ok: false, error: e.message });
+        if (prep) holdOff(e.message.split("\n")[0].slice(0, 200));
+      }
     } finally {
       clearInterval(renewTimer);
       if (cur === c) cur = null;
@@ -613,6 +633,8 @@ function create(opt) {
         }).catch((e) => log("审核图片上传失败：" + e.message, "warn"));
         break;
       case "result": { const { t, ...r } = m; c.result = r; break; }
+      // 配方说「这台电脑现在算不了」（显存被别的程序占了、训练慢得不正常）：不算任务失败，交给别的电脑从存档接着算，这台歇一会儿
+      case "unfit": c.unfit = String(m.why || "这台电脑现在算不了这个任务"); log(c.unfit, "error"); break;
       // 配方要换个方式开本地大模型（比如带上刚训练好的 LoRA 来考试）：{t:"llm", op:"start"|"stop"|"info", llm:{...}, lora: 本地路径}
       case "llm": {
         const { t, id, op, ...a } = m;
@@ -652,6 +674,7 @@ function create(opt) {
     setManual(m) {
       manual = ["on", "off"].includes(m) ? m : "auto";
       lastLease = 0;
+      if (manual === "on") hold.until = 0;   // 点「开始」：修好了，马上再试
       if (manual === "off") { if (cur) stopTask(true, "你点了停止"); setState("paused", "你点了停止"); }
       else setState("idle", manual === "on" ? "手动开始了" : "");
       setTimeout(tick, 0);

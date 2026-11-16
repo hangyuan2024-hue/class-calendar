@@ -141,6 +141,20 @@ def train(base):
 
     if not torch.cuda.is_available():
         raise RuntimeError("PyTorch 看不到显卡")
+    # 显存：只用现在真正空着的。被别的程序占掉太多就不在这台电脑上训（硬训会溢出到共享内存，一步要几十分钟）
+    unfit = getattr(lg, "unfit", lambda why: None)        # 旧版客户端的 lg 没有这两个：自己顶上
+    if hasattr(lg, "gpu_guard"):
+        free_g, total_g = lg.gpu_guard()
+    else:
+        fr, tt = torch.cuda.mem_get_info()
+        torch.cuda.set_per_process_memory_fraction(max(0.3, min(0.98, (fr - 2 ** 29) / tt)))
+        free_g, total_g = fr / 2 ** 30, tt / 2 ** 30
+    lg.log("显存：一共 %.1fG，现在空着 %.1fG%s" % (total_g, free_g, "（别的程序占了 %.1fG）" % (total_g - free_g) if total_g - free_g > 0.8 else ""))
+    need_g = float(p.get("needVram", 5.5))
+    if free_g < need_g:
+        why = "显存只空着 %.1fG（训练要 %.1fG 左右，别的程序占了 %.1fG）：关掉占显存的程序（游戏、浏览器里的视频、别的 AI 软件）再算" % (free_g, need_g, total_g - free_g)
+        unfit(why)
+        raise RuntimeError(why)
     lg.progress(0.08, "把底子放进显卡（4 位精度）")
     proc = AutoProcessor.from_pretrained(base)
     tok = proc.tokenizer
@@ -204,28 +218,79 @@ def train(base):
 
     model.train()
     run_loss, n_tok, t1, last_ck = 0.0, 0, time.time(), time.time()
+    OOM = getattr(torch, "OutOfMemoryError", None) or torch.cuda.OutOfMemoryError
+    cap, n_oom, n_skip = max_len, 0, 0          # 显存不够时把最长的讲解截短一点再来
+    w_tok, w_t, slow, speeds = 0, time.time(), 0, []
+    slow_tok = float(p.get("slowTok", 40))      # 每秒不到这么多字 = 慢得不正常（8G 显卡正常是几百）
     order0 = list(data)
     for ep in range(start_ep, epochs):
         order = list(order0)
         random.Random(ep).shuffle(order)   # 每一轮的顺序只由轮数决定：接着训的时候知道训到哪条了
         for k in range(start_k if ep == start_ep else 0, len(order)):
             ids, labels = order[k]
-            x = torch.tensor([ids], device="cuda")
-            y = torch.tensor([labels], device="cuda")
-            with torch.autocast("cuda", dtype=torch.bfloat16):
-                loss = model(input_ids=x, labels=y).loss / accum
-            loss.backward()
-            run_loss += loss.item()
+            lv = None
+            while True:
+                if len(ids) > cap:
+                    ids, labels = ids[:cap], labels[:cap]
+                if sum(1 for v in labels if v != -100) < 4:      # 截短以后没剩下要学的字：这条跳过
+                    n_skip += 1
+                    break
+                try:
+                    x = torch.tensor([ids], device="cuda")
+                    y = torch.tensor([labels], device="cuda")
+                    with torch.autocast("cuda", dtype=torch.bfloat16):
+                        loss = model(input_ids=x, labels=y).loss / accum
+                    loss.backward()
+                    lv = loss.item()
+                    break
+                except OOM:
+                    x = y = loss = None
+                    torch.cuda.empty_cache()
+                    n_oom += 1
+                    if min(cap, len(ids)) <= 256:
+                        why = "显存不够：256 个字的讲解都放不下（别的程序占着显存）。关掉占显存的程序再算"
+                        unfit(why)
+                        raise RuntimeError(why)
+                    cap = max(256, int(min(cap, len(ids)) * 0.8))
+                    lg.log("显存不够：这之后最长的讲解截到 %d 个字再训（不会溢出到共享内存拖慢几十倍）" % cap)
+            if lv is None:
+                continue
+            run_loss += lv
             n_tok += len(ids)
+            w_tok += len(ids)
+            # 一步（16 条）10 分钟还没走完：不等了（正常一步是几十秒）
+            el = time.time() - w_t
+            if el > float(p.get("slowSecs", 600)) and w_tok / el < slow_tok:
+                if step > 0 and (k + 1) % accum == 0:
+                    save_ck(ep, k + 1, step)
+                fr, tt = [v / 2 ** 30 for v in torch.cuda.mem_get_info()]
+                why = ("这台电脑训练慢得不正常（每秒 %d 字，正常是几百；显存空着 %.1f/%.1fG）：换别的电脑接着训。"
+                       "这台电脑请插上电源、把电源模式调到「最佳性能」、关掉占显卡的程序" % (w_tok / el, fr, tt))
+                unfit(why)
+                raise RuntimeError(why)
             if (k + 1) % accum == 0:
                 torch.nn.utils.clip_grad_norm_([x for x in model.parameters() if x.requires_grad], 1.0)
                 opt.step()
                 sched.step()
                 opt.zero_grad(set_to_none=True)
                 step += 1
-                lg.metric(step, loss=run_loss, tok_s=n_tok / max(time.time() - t1, 1e-6))
-                lg.progress(0.1 + 0.6 * step / steps, "训练：第 %d/%d 步（每秒 %d 字）" % (step, steps, n_tok / max(time.time() - t1, 1e-6)))
+                sp = w_tok / max(time.time() - w_t, 1e-6)       # 这一步的速度（不是从头算的平均）
+                speeds = (speeds + [sp])[-20:]
+                left_h = (steps - step) * (time.time() - w_t) / 3600.0
+                w_tok, w_t = 0, time.time()
+                lg.metric(step, loss=run_loss, tok_s=sp)
+                lg.progress(0.1 + 0.6 * step / steps, "训练：第 %d/%d 步（每秒 %d 字，还要 %s）" % (step, steps, sp, ("%.1f 小时" % left_h) if left_h >= 1 else ("%d 分钟" % max(1, left_h * 60))))
                 run_loss = 0.0
+                # 慢得不正常（显存溢出到共享内存、电脑在省电模式、显卡被别的程序占着）：别在这台电脑上空耗几天
+                slow = slow + 1 if sp < slow_tok else 0
+                if slow == 2:
+                    fr, tt = [v / 2 ** 30 for v in torch.cuda.mem_get_info()]
+                    lg.log("训练慢得不正常：每秒只有 %d 字（正常是几百）。显存空着 %.1f/%.1fG。常见原因：没插电源或开着省电/安静模式、别的程序在用显卡" % (sp, fr, tt))
+                if slow >= int(p.get("slowSteps", 4)):
+                    save_ck(ep, k + 1, step)
+                    why = "这台电脑训练慢得不正常（每秒 %d 字，正常几百，照这样还要 %.0f 小时）：存档已经交了，换别的电脑接着训。这台电脑请插上电源、把电源模式调到「最佳性能」、关掉占显卡的程序" % (sp, left_h)
+                    unfit(why)
+                    raise RuntimeError(why)
                 if time.time() - last_ck > ckpt_min * 60:
                     save_ck(ep, k + 1, step)
                     last_ck = time.time()

@@ -42,12 +42,20 @@ function create({ dir, onEvent, python: given, mirror = MIRROR, fetchImpl, baseP
   let child = null, cancelled = false;
   const say = (stage, msg, extra = {}) => onEvent && onEvent({ stage, msg, ...extra });
 
+  // pip 的临时文件和缓存放在数据文件夹里（默认在 C 盘的用户文件夹：C 盘满了就什么都装不上）
+  const pipEnv = () => {
+    const e = { ...process.env, PYTHONIOENCODING: "utf-8", PIP_DISABLE_PIP_VERSION_CHECK: "1" };
+    try { const tmp = path.join(dir, "tmp"), cache = path.join(dir, "pip-cache"); fs.mkdirSync(tmp, { recursive: true }); fs.mkdirSync(cache, { recursive: true }); Object.assign(e, { TEMP: tmp, TMP: tmp, TMPDIR: tmp, PIP_CACHE_DIR: cache }); } catch (x) {}
+    return e;
+  };
+  let lastOut = [];   // 最近一次命令的最后几十行输出：出错时用来说清楚原因
   const run = (cmd, args, stage) => new Promise((ok, bad) => {
     say(stage, "$ " + [path.basename(cmd), ...args].join(" "), { cmd: true });
-    child = spawn(cmd, args, { windowsHide: true, env: { ...process.env, PYTHONIOENCODING: "utf-8", PIP_DISABLE_PIP_VERSION_CHECK: "1" } });
-    const pipe = (s) => { let b = ""; s.on("data", (d) => { b += d.toString("utf8"); let i; while ((i = b.search(/[\r\n]/)) >= 0) { const l = b.slice(0, i); b = b.slice(i + 1); if (l.trim()) say(stage, l); } }); };
+    lastOut = [];
+    child = spawn(cmd, args, { windowsHide: true, env: pipEnv() });
+    const pipe = (s) => { let b = ""; s.on("data", (d) => { b += d.toString("utf8"); let i; while ((i = b.search(/[\r\n]/)) >= 0) { const l = b.slice(0, i); b = b.slice(i + 1); if (l.trim()) { say(stage, l); lastOut.push(l.trim()); if (lastOut.length > 40) lastOut.shift(); } } }); };
     pipe(child.stdout); pipe(child.stderr);
-    child.on("error", bad);
+    child.on("error", (e) => { lastOut.push(String(e.message)); bad(e); });
     child.on("exit", (c) => { child = null; c === 0 ? ok() : bad(new Error(`${path.basename(cmd)} 退出码 ${c}`)); });
   });
   const out = (cmd, args) => new Promise((ok) => execFile(cmd, args, { windowsHide: true, timeout: 60000 }, (e, so) => ok(e ? null : String(so))));
@@ -168,13 +176,41 @@ function create({ dir, onEvent, python: given, mirror = MIRROR, fetchImpl, baseP
     return check();
   }
   // 配方要用的包（配方开头写 # requires: diffusers==0.35 transformers）
+  // 哪些还没装、或者版本不对（不联网、不动硬盘）；查不了返回 null
+  const MISSING_PY = "import sys,json\ntry:\n from packaging.requirements import Requirement\nexcept Exception:\n from pip._vendor.packaging.requirements import Requirement\nfrom importlib.metadata import version\nbad=[]\nfor s in sys.argv[1:]:\n try:\n  r=Requirement(s);v=version(r.name)\n  if r.specifier and not r.specifier.contains(v,prereleases=True): bad.append(s)\n except Exception: bad.append(s)\nprint(json.dumps(bad))";
+  async function missing(pkgs) {
+    const r = await out(pyExe(), ["-c", MISSING_PY, ...pkgs]);
+    try { const j = JSON.parse(r.trim().split("\n").pop()); return Array.isArray(j) ? j : null; } catch (e) { return null; }
+  }
+  // pip 的报错翻成人话
+  function pipWhy(lines) {
+    const all = lines.join("\n");
+    if (/No space left|Errno 28|not enough space|磁盘空间不足/i.test(all)) return "硬盘满了：到「设置 → 硬盘」清理一下，或者把数据文件夹搬到别的盘";
+    if (/WinError 5\b|WinError 32|Permission denied|Access is denied|拒绝访问|另一个程序正在使用/i.test(all)) return "文件被别的程序占着（杀毒软件，或者上一个任务还没退干净）：重启一下客户端再试";
+    if (/ENOENT|No such file|cannot find|找不到指定/i.test(all)) return "训练环境的 Python 找不到了：到「任务向导」第 2 步点「一键安装」重装";
+    if (/No module named pip/i.test(all)) return "训练环境里的 pip 坏了：到「任务向导」第 2 步点「一键安装」重装";
+    if (/ConnectionError|ReadTimeout|ConnectTimeout|ProxyError|SSLError|Max retries|Temporary failure|getaddrinfo|Network is unreachable/i.test(all)) return "连不上下载包的镜像：检查一下网络（开着代理的话关掉再试）";
+    if (/No matching distribution|Could not find a version/i.test(all)) return "镜像上没有合适的版本：" + (lines.filter((l) => /^ERROR/.test(l)).pop() || "").slice(0, 160);
+    if (/ResolutionImpossible|conflict/i.test(all)) return "和已经装的包版本冲突：" + (lines.filter((l) => /^ERROR/.test(l)).pop() || "").slice(0, 160);
+    return (lines.filter((l) => /^ERROR|Error:|错误/.test(l)).pop() || lines[lines.length - 1] || "没有输出").slice(0, 200);
+  }
   async function ensure(pkgs) {
     if (!pkgs || !pkgs.length) return;
-    for (const idx of PIPS()) { try { await run(pyExe(), ["-m", "pip", "install", ...pkgs, "-i", idx], "pkgs"); return; } catch (e) {} }
-    throw new Error("装不上：" + pkgs.join(" "));
+    const exe = pyExe();
+    if (path.isAbsolute(exe) && !fs.existsSync(exe)) throw new Error(`装不上：${pkgs.join(" ")}（训练环境的 Python 不在了：${exe}。到「任务向导」第 2 步点「一键安装」重装）`);
+    // 已经装好、版本也对：不叫 pip（不联网也能算；以前每次开机都要连一次镜像，连不上就整个任务失败）
+    const miss = await missing(pkgs);
+    if (miss && !miss.length) return;
+    const need = miss && miss.length ? miss : pkgs;
+    let why = "";
+    for (const idx of PIPS()) {
+      try { await run(exe, ["-m", "pip", "install", ...need, "-i", idx], "pkgs"); return; }
+      catch (e) { if (cancelled) throw e; why = pipWhy(lastOut.length ? lastOut : [e.message]); if (/硬盘满了|Python 找不到|pip 坏了/.test(why)) break; }
+    }
+    throw new Error("装不上：" + need.join(" ") + "（" + why + "）");
   }
   function cancel() { cancelled = true; if (child) try { child.kill(); } catch (e) {} }
-  return { check, install, ensure, cancel, python: pyExe };
+  return { check, install, ensure, missing, cancel, python: pyExe };
 }
 
 module.exports = { create, PY_VER };

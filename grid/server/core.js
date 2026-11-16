@@ -11,6 +11,7 @@ const { DatabaseSync } = require("node:sqlite");
 
 const LEASE_MS = 120000;
 const MAX_ATTEMPTS = 5;   // 出错几次放一边
+const ENV_ERR = /出错：(装不上：|这台电脑还没装好|这台电脑的客户端太旧)/;   // 是那台电脑自己的环境问题，不算任务失败
 const MAX_LOST = 30;      // 掉线几次放一边
 const now = () => Date.now();
 const J = (s, d = null) => { try { return s == null ? d : JSON.parse(s); } catch (e) { return d; } };
@@ -48,6 +49,8 @@ function open(file, opt = {}) {
   db.exec(SCHEMA);
   // 掉线时任务回到队列，记下是哪台电脑丢的：它连回来时，只要还没别人领走，就把任务还给它（断网期间算的不白算）
   try { db.exec("alter table tasks add column prev_dev integer"); } catch (e) {}
+  // 以前某台电脑环境坏了（包装不上），2 秒一个把任务挨个弄「失败」：这些不是任务的错，记的失败次数清掉、放一边的放回来
+  try { db.exec("update tasks set state=case state when 'failed' then 'queued' else state end, errors=0, error=null where state in ('queued','failed') and errors>0 and (error like '%出错：装不上：%' or error like '%出错：这台电脑还没装好%' or error like '%出错：这台电脑的客户端太旧%')"); } catch (e) {}
   const q = (sql) => db.prepare(sql);
   const one = (sql, ...a) => q(sql).get(...a);
   const all = (sql, ...a) => q(sql).all(...a);
@@ -507,14 +510,18 @@ function open(file, opt = {}) {
       .map((r) => ({ id: r.id, job: r.job_id, kind: r.kind, payload: J(r.payload, {}), result: J(r.result, {}), created: r.created }));
   }
   // 出错了；release=true 是老师要用电脑了（不算失败次数）
-  function fail(dev, { task, error, release }) {
+  // env=true 是那台电脑自己的环境有问题（包装不上、引擎起不来）：也不算任务失败，交给别的电脑
+  function fail(dev, { task, error, release, env }) {
     const t = mine(dev, task);
     if (!t) return { ok: true };
+    // 旧版客户端不会说 env：从报错认出来（包装不上、没装引擎、客户端太旧，都是那台电脑的事）
+    if (!release && ENV_ERR.test(String(error || ""))) env = true;
+    if (env) release = true;
     run("update tasks set state='queued', device_id=null, prev_dev=null, lease_until=null, error=?, errors=errors+? where id=?", String(error || "").slice(0, 2000), release ? 0 : 1, t.id);
     run("update devices set task_id=null where id=?", dev.id);
     const j = one("select * from jobs where id=?", t.job_id);
     if (!release && t.errors + 1 >= MAX_ATTEMPTS) run("update tasks set state='failed' where id=?", t.id);
-    event(release ? "release" : "error", release ? `${dev.member_name}的「${dev.name}」要用电脑了，「${j.name}」交给别人接着算` : `${dev.member_name}的「${dev.name}」算「${j.name}」出错了：${String(error || "").split("\n").filter(Boolean).pop() || "没说原因"}`, { job: j.id, device: dev.id });
+    event(release && !env ? "release" : "error", release ? env ? `${dev.member_name}的「${dev.name}」现在算不了「${j.name}」（这台电脑的环境有问题，任务交给别人）：${String(error || "").split("\n").filter(Boolean).pop() || "没说原因"}` : `${dev.member_name}的「${dev.name}」要用电脑了，「${j.name}」交给别人接着算` : `${dev.member_name}的「${dev.name}」算「${j.name}」出错了：${String(error || "").split("\n").filter(Boolean).pop() || "没说原因"}`, { job: j.id, device: dev.id });
     return { ok: true };
   }
 

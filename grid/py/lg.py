@@ -274,6 +274,24 @@ def dataset():
         return json.load(f)
 
 
+def unfit(why):
+    """这台电脑现在算不了这个任务（不是任务的错）：告诉客户端后再 raise。任务不记失败，交给别的电脑从存档接着算。"""
+    _send(t="unfit", why=str(why))
+
+
+def gpu_guard(reserve_gb=0.5):
+    """只用显卡「专用显存」里现在空着的部分，返回（空着几 G，一共几 G）。
+    Windows 上显存不够时驱动会悄悄把多出来的放进「共享内存」：不报错，但慢几十上百倍（显卡占用 99%、功耗却很低）。
+    设了上限以后，超了会明明白白报「显存不够」，配方可以接住、把这一条截短再来。"""
+    import torch
+    free, total = torch.cuda.mem_get_info()
+    try:
+        torch.cuda.set_per_process_memory_fraction(max(0.3, min(0.98, (free - reserve_gb * 2 ** 30) / total)))
+    except Exception:
+        pass
+    return free / 2 ** 30, total / 2 ** 30
+
+
 def done(**result):
     """结果里值是文件路径的（ckpt、delta、global 等），客户端会上传后换成存储里的地址。"""
     for k, v in list(result.items()):
