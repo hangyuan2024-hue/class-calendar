@@ -209,21 +209,32 @@
   async function openDev(id, quiet) {
     const d = ov && ov.devices.find((x) => x.id === id);
     if (!d) return;
+    const was = open;
     open = { kind: "dev", id };
     const L = d.live || {};
     let src = null;
     if (L.recipeId) { src = srcCache[L.recipeId] || (srcCache[L.recipeId] = await api("/api/admin/recipe?id=" + L.recipeId).then((r) => r.source).catch(() => null)); }
     const info = d.info || {};
+    // 每几秒刷新一次：你正在看的位置不能动（以前一刷新就跳回最上面，根本没法往下看）
+    //   同一台电脑刷新时：下半部分（统计、遥控记录）先留着旧的，等新的到了再换；代码和日志滚到哪儿也记着
+    const same = !!(was && was.kind === "dev" && was.id === id && !$("#drawer").hidden);
+    const keepMore = same && $("#devMore") && !/读取遥控记录/.test($("#devMore").innerHTML) ? $("#devMore").innerHTML : "";
+    const keep = same ? { top: $("#drawer").scrollTop, code: $("#dCode") ? $("#dCode").scrollTop : null, line: openDev.line, logs: $("#drawerBody .logs") ? $("#drawerBody .logs").scrollTop : null } : null;
     const body = `<h1>${esc(d.member)} · ${esc(d.name)}</h1><div class="sub">${d.online ? "在线" : "离线（" + (d.lastSeen ? ago(d.lastSeen) : "") + "）"} · ${esc(d.gpu || "")} ${d.vram ? d.vram + "G" : ""} · 内存 ${d.ram || "—"}G · 驱动 ${esc(info.driver || "—")} · 累计算了 ${dur(d.secs)}、${d.tasks} 个任务</div>
       ${info.why && !d.task ? `<p class="muted">现在：${esc(info.why)}</p>` : ""}
       <div class="acts2 remote">${[["start", "▶ 开始"], ["stop", "■ 停止"], ["auto", "⟳ 按设置自动"], ["update", "立刻更新"], ["restart", "重启软件"], ["logs", "取日志"], ["clean", "清理缓存"], ["probe", "重新体检"]].map(([c, t]) => `<button class="btn sm" data-cmd="${c}">${t}</button>`).join("")}
         <button class="btn sm" data-a="kick">移出训练网</button></div>
-      <div id="devMore"><p class="muted small">读取遥控记录、日志、统计…</p></div>
+      <div id="devMore">${keepMore || `<p class="muted small">读取遥控记录、日志、统计…</p>`}</div>
       ${d.task ? `<div class="sec"><h2>正在算「${esc(d.task.name)}」 <small>${Math.round((d.task.progress || 0) * 100)}% · ${fnName(L.fn)} 第 ${L.line || "—"} 行${L.gpu ? ` · ${L.gpu.temp}℃ · 占用 ${L.gpu.util}% · 显存 ${(+L.gpu.used || 0).toFixed(1)}/${L.gpu.vram}G · ${Math.round(L.gpu.power || 0)}W` : ""}</small></h2>
         ${src ? `<div class="code" id="dCode">${src.split("\n").map((l, i) => `<div class="${i + 1 === L.line ? "hit" : ""}"><span>${i + 1}</span>${esc(l)}</div>`).join("")}</div>` : ""}
         <div class="sec"><h2>日志</h2><div class="logs">${(L.logs || []).map((l) => `<div>${esc(l.msg)}</div>`).join("")}</div></div></div>` : `<p class="muted">现在没在算。</p>`}`;
     drawer(body);
-    const hit = $("#dCode .hit"); if (hit) $("#dCode").scrollTop = hit.offsetTop - 150;
+    const hit = $("#dCode .hit");
+    // 代码：执行到的行没变就不动（你可能正在翻别处）；行变了才跟过去
+    if ($("#dCode")) { if (keep && keep.code != null && keep.line === L.line) $("#dCode").scrollTop = keep.code; else if (hit) $("#dCode").scrollTop = hit.offsetTop - 150; }
+    openDev.line = L.line;
+    if (keep && keep.logs != null && $("#drawerBody .logs")) $("#drawerBody .logs").scrollTop = keep.logs;
+    if (keep) $("#drawer").scrollTop = keep.top;
     $$("#drawerBody [data-cmd]").forEach((b) => (b.onclick = guard(async () => {
       const c = b.dataset.cmd;
       if (["stop", "restart", "update"].includes(c) && d.task && !confirm(`「${d.name}」正在算「${d.task.name}」：${c === "stop" ? "停止" : c === "restart" ? "重启" : "更新"}会把它交给别的电脑从存档接着算。继续？`)) return;
@@ -240,7 +251,9 @@
         <div class="sec"><h2>遥控记录</h2>${x.commands.length ? `<table class="tbl">${x.commands.map((c) => `<tr><td>${CN[c.cmd] || esc(c.cmd)}</td><td>${c.state === "done" ? (c.ok ? "✓ 做好了" : "✗ 没做成") : CS[c.state] || c.state}</td><td class="muted small">${esc(typeof c.result === "string" ? c.result : c.result && c.result.key ? "日志已交" : "")}</td><td class="muted">${ago(c.created)}</td></tr>`).join("")}</table>` : `<p class="muted">还没遥控过</p>`}</div>
         <div class="sec"><h2>交上来的日志 <small>点「取日志」，十几秒后这里出现</small></h2>${x.logs.length ? x.logs.map((l) => `<div><a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.name)}</a> <span class="muted">${ago(l.created)}</span></div>`).join("") : `<p class="muted">还没有</p>`}</div>
         <div class="sec"><h2>这台的设置</h2><p class="muted small">开机自启 ${info.autostart ? "开" : "关"} · 防休眠 ${set.keepAwake === false ? "关" : "开"}${info.awake ? "（现在不让睡）" : ""} · 合盖继续 ${set.lid ? "开" : "关"} · 拔电暂停 ${set.pauseOnBattery === false ? "关" : "开"} · 下载源 ${info.region === "cn" ? "国内" : info.region === "global" ? "国外" : "—"}${set.vramCap ? " · 显存上限 " + set.vramCap + "G" : ""}${set.netLimit ? " · 网速上限 " + set.netLimit + "MB/s" : ""}${set.maxPower ? " · 功耗上限 " + set.maxPower + "W" : ""}${info.pro ? " · 专业模式" : ""}</p></div>`;
+      const top = $("#drawer").scrollTop;
       window.LaoChart.bars($("#devBars"), days, [{ name: "在算", color: "#36e2ff", vals: busy }, { name: "在线没活", color: "#a78bfa66", vals: online }], { fmt: hm });
+      $("#drawer").scrollTop = top;
     }).catch(() => {});
     $$("#drawerBody [data-a=kick]").forEach((b) => (b.onclick = guard(async () => { if (!confirm(`把「${d.name}」移出训练网？它正在算的任务会交给别人。`)) return; await api("/api/admin/device/set", { id, disabled: true }); closeDrawer(); refresh(); })));
   }
