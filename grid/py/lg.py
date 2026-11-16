@@ -71,6 +71,15 @@ def work_dir():
     return d
 
 
+def cache_dir(name=""):
+    """跨任务一直留着的缓存文件夹（下过的公开数据包、解压好的录音……）：下一个任务直接用，不用每次重下。
+    客户端会清（设置 → 硬盘 → 缓存）；旧客户端没有这个，就放在任务文件夹里（和以前一样，用完就删）"""
+    d = task().get("cache") or os.path.join(work_dir(), "cache")
+    d = os.path.join(d, name) if name else d
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
 def log(*a):
     _send(t="log", msg=" ".join(str(x) for x in a))
 

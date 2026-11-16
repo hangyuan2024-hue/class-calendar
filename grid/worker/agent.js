@@ -426,7 +426,7 @@ function create(opt) {
         c.note = "准备 GPT-SoVITS…";
         gsv = await opt.gsv.ensure((m) => { c.note = m; c.lastOut = Date.now(); log(m); emit("progress", { id: c.id, p: c.progress, note: m }); });
       }
-      const t = { kind: L.task.kind, task: L.task, input: L.task.input, job: L.job, work: dir, resume: null, parts: [], llm: llmUrl, gsv, extra: L.extra || {}, region: opt.region ? opt.region() : "cn" };
+      const t = { kind: L.task.kind, task: L.task, input: L.task.input, job: L.job, work: dir, cache: opt.cacheDir || path.join(work, "cache", "shared"), resume: null, parts: [], llm: llmUrl, gsv, extra: L.extra || {}, region: opt.region ? opt.region() : "cn" };
       // 下载的时候在界面上、日志里报进度（大存档、录音几百 M 到几 G，不报就像卡在 0% 不动了）
       const dlProg = (what) => {
         let lastEmit = 0, lastLog = 0, t0 = Date.now();

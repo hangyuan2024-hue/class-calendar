@@ -72,7 +72,7 @@ function createService(o) {
   function startAgent() {
     if (agent || !cfg.token) return;
     agent = Agent.create({
-      server: cfg.server, token: cfg.token, pubkey: cfg.pubkey, workDir: work(), python: () => env.python(), minFreeGB: o.minFreeGB != null ? o.minFreeGB : 10, beforeTask,
+      server: cfg.server, token: cfg.token, pubkey: cfg.pubkey, workDir: work(), cacheDir: path.join(work(), "cache", "shared"), python: () => env.python(), minFreeGB: o.minFreeGB != null ? o.minFreeGB : 10, beforeTask,
       caps: lastProbe ? capsNow() : null, comfy, llm, gsv, policy: { mode: "off", idleMin: 5, ...(cfg.policy || {}), pauseOnBattery: set().pauseOnBattery, maxPower: set().maxPower },   // 默认：自己点「开始」才算
       idleSecs: o.idleSecs, onBattery: o.onBattery, stallMin: set().stallMin, region: regionNow, ensure: (pkgs) => env.ensure(pkgs), version: o.version, gpuInfo: async () => (await probe.gpus())[0] || null, gpuApps: (ours) => probe.gpuApps(undefined, ours),
       env: lanes.length ? { CUDA_VISIBLE_DEVICES: "0" } : {},
@@ -113,7 +113,7 @@ function createService(o) {
         const r = await agent.api("/api/lane", { gpu: i, name: cfg.deviceName, info: { gpu: g.name, vram: g.vram } });
         ln = cfg.lanes[i] = { token: r.token, device: r.device, name: r.name }; save();
       }
-      const a = Agent.create({ server: cfg.server, token: ln.token, pubkey: cfg.pubkey, workDir: path.join(work(), "gpu" + i), python: () => env.python(), minFreeGB: o.minFreeGB != null ? o.minFreeGB : 10, beforeTask,
+      const a = Agent.create({ server: cfg.server, token: ln.token, pubkey: cfg.pubkey, workDir: path.join(work(), "gpu" + i), cacheDir: path.join(work(), "cache", "shared"), python: () => env.python(), minFreeGB: o.minFreeGB != null ? o.minFreeGB : 10, beforeTask,
         caps: { ...capsNow(), gpu: g.name, vram: cfg.set && cfg.set.vramCap ? Math.min(g.vram, cfg.set.vramCap) : g.vram, comfy: false, llm: false, gsv: false, lane: i },
         policy: { mode: "off", idleMin: 5, ...(cfg.policy || {}), pauseOnBattery: set().pauseOnBattery, maxPower: set().maxPower },
         idleSecs: o.idleSecs, onBattery: o.onBattery, stallMin: set().stallMin, region: regionNow, ensure: (pkgs) => env.ensure(pkgs), version: o.version,

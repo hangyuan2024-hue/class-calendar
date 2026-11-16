@@ -182,32 +182,43 @@ def cer(ref, hyp):
 
 # ---------------- 公开录音 AISHELL-3（Apache-2.0）：只下用到的人 ----------------
 OB = [x for x in str(p.get("openBase") or "").split(",") if x] or (["https://huggingface.co/datasets/AISHELL/AISHELL-3/resolve/main", "https://hf-mirror.com/datasets/AISHELL/AISHELL-3/resolve/main"] if lg.region() == "global" else ["https://hf-mirror.com/datasets/AISHELL/AISHELL-3/resolve/main", "https://huggingface.co/datasets/AISHELL/AISHELL-3/resolve/main"])
-OD = os.path.join(work, "aishell3")
-os.makedirs(OD, exist_ok=True)
+# 打好的公开录音包（1G 左右）解压到跨任务的缓存里：同一台电脑下一次、解压一次，后面的任务直接用（以前每个任务都重下一遍）
+OD = os.path.join(lg.cache_dir() if hasattr(lg, "cache_dir") else work, "aishell3-base")
+os.makedirs(os.path.dirname(OD), exist_ok=True)
 # 先从自己的存储下打好的包（国内腾讯云 / 国外自己的 GitHub）：训练集 80 位 × 40 句 + 测试集 12 位 × 6 句，一个文件；
 # 有包就只用包里的录音（不再一句一句去 hf-mirror / Hugging Face 下，那边经常断）
 PACKED = os.path.exists(os.path.join(OD, "pack.txt"))
+if PACKED:
+    lg.log("公开录音：用这台电脑上次下好的（不用重下）")
 if not PACKED:
     _pk = [m for m in lg.mirror(model="aishell3Base") if m.get("sources")]
     if _pk:
         try:
             import tarfile
             _tp = os.path.join(work, "aishell3-base.tar")
-            lg.log("从自己的存储下公开录音（AISHELL-3）")
+            lg.log("从自己的存储下公开录音（AISHELL-3，只在这台电脑第一次用到时下）")
             lg.download(_pk[0]["sources"], _tp, "公开录音")
+            _tmp = OD + ".part-%d" % os.getpid()   # 先解压到临时文件夹，整个好了再改名：同时有两个任务在解压也不会弄坏
+            shutil.rmtree(_tmp, ignore_errors=True)
             with tarfile.open(_tp) as tf:
                 for m_ in tf.getmembers():
                     rel = m_.name.split("/", 1)[1] if m_.name.startswith("aishell3/") else ""
                     if not m_.isfile() or not rel or ".." in rel.split("/"):
                         continue
-                    dst = os.path.join(OD, *rel.split("/"))
+                    dst = os.path.join(_tmp, *rel.split("/"))
                     os.makedirs(os.path.dirname(dst), exist_ok=True)
                     with tf.extractfile(m_) as src_, open(dst, "wb") as out_:
                         shutil.copyfileobj(src_, out_)
             os.remove(_tp)
+            if os.path.exists(os.path.join(OD, "pack.txt")):
+                shutil.rmtree(_tmp, ignore_errors=True)
+            else:
+                shutil.rmtree(OD, ignore_errors=True)
+                os.replace(_tmp, OD)
             PACKED = os.path.exists(os.path.join(OD, "pack.txt"))
         except Exception as e:
             lg.log("自己的存储里的公开录音没下成（%s），改从 hf-mirror / Hugging Face 下" % e)
+os.makedirs(OD, exist_ok=True)
 
 
 def fetch(rel, dest, tries=4):

@@ -253,7 +253,7 @@ if p.get("openVoice") == "aishell3":
             time.sleep(2 + k * 4)
         raise RuntimeError("下不了 %s：%s（hf-mirror / Hugging Face 连不稳；跑一次 Actions「AI 组件搬到国内存储」带上 voicedata，就从自己的存储下）" % (rel, err))
 
-    od = os.path.join(work, "aishell3")
+    od = os.path.join(lg.cache_dir() if hasattr(lg, "cache_dir") else work, "aishell3-laolao")   # 跨任务留着：下一次就够了
     os.makedirs(od, exist_ok=True)
     # 先从自己的存储下打好的包（国内腾讯云 / 国外自己的 GitHub）：说明 + 选好的那一位的全部录音，一个文件
     pack = [m for m in lg.mirror(model="aishell3") if m.get("sources")]
