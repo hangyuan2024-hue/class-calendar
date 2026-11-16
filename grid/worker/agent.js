@@ -301,7 +301,7 @@ function create(opt) {
     const win = process.platform === "win32";
     const sysDrive = (opt.sysDrive || process.env.SystemDrive || "C:");
     const sys = win || opt.sysDrive ? sysDrive + "\\" : "/";
-    const onSys = win || opt.sysDrive ? (/^[A-Za-z]:/.test(work) ? work : path.resolve(work)).toUpperCase().startsWith(sysDrive.toUpperCase()) : true;
+    const onSys = opt.dataOnSys != null ? !!opt.dataOnSys : win || opt.sysDrive ? (/^[A-Za-z]:/.test(work) ? work : path.resolve(work)).toUpperCase().startsWith(sysDrive.toUpperCase()) : true;
     const sysMin = onSys ? opt.minFreeGB : Math.min(opt.minFreeGB, opt.sysMinFreeGB != null ? opt.sysMinFreeGB : 2);
     const drives = [[opt.sysPath || sys, win || opt.sysDrive ? sysDrive.replace(":", "") + " 盘" : "系统盘", sysMin, !onSys], [work, "数据文件夹所在的盘", opt.minFreeGB, false]];
     diskNow = null;

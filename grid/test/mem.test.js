@@ -128,7 +128,7 @@ const ok = (m) => console.log("✓", m);
     assert.ok(!fs.existsSync(path.join(small, "grid.json")) || !JSON.parse(fs.readFileSync(path.join(small, "grid.json"), "utf8")).dataDir);
     ok("第一次用：数据文件夹自动放到空间最大的非系统盘（不放 C 盘）；已经装过的不动；别的盘都不到 60G 就还放原处");
     const hc = path.join(tmp, "home", ".cache", "huggingface"); fs.mkdirSync(hc, { recursive: true }); fs.writeFileSync(path.join(hc, "m.bin"), Buffer.alloc(5000));
-    const svc = createService({ user: path.join(tmp, "u2"), version: "t", python: "python3", send: () => {}, detectRegion: false, noMemTimers: true, autoDrive: false, homeCaches: () => [{ name: "HuggingFace 模型", path: hc }] });
+    const svc = createService({ user: path.join(tmp, "u2"), version: "t", python: "python3", send: () => {}, detectRegion: false, noMemTimers: true, homeCaches: () => [{ name: "HuggingFace 模型", path: hc }] });
     const rep = await svc.H.diskReport();
     const part = rep.parts.find((x) => /留在 C 盘的旧缓存/.test(x.name));
     assert.ok(part && part.bytes === 5000, JSON.stringify(rep.parts.map((x) => [x.id, x.bytes])));

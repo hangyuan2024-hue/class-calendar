@@ -21,6 +21,7 @@ if (app.isPackaged) {
 }
 const svc = createService({
   user: app.getPath("userData"),
+  autoDrive: true,
   version: app.getVersion(),
   // 本地大模型的程序（安装包里带的 llama.cpp Vulkan 版）
   llamaExe: app.isPackaged ? path.join(process.resourcesPath, "llama", "llama-server.exe") : process.env.LG_LLAMA || null,

@@ -212,15 +212,14 @@ function flakyFetch() {
   {
     const cred = await join("赵九");
     let cFree = 7.9e9;
-    const statfs = async (p) => ({ bsize: 1, bavail: /^C:/i.test(p) ? cFree : 228e9 });
-    const mk = (workDir) => Agent.create({ server: cred.server, token: cred.token, pubkey: cred.pubkey, workDir, python: PY, caps: { gpu: "RTX 5060", vram: 8, ram: 32 }, tickMs: 150, hbMs: 300, minFreeGB: 10, sysDrive: "C:", sysPath: "C:\\", statfs });
-    const h = mk("E:\\laolao\\date\\LaolaoGrid\\work");
-    assert.ok((await h.gate()).ok !== false || !/盘/.test((await h.gate()).why || ""), "数据在 E 盘：C 盘剩 7.9G 不该拦：" + (await h.gate()).why);
-    const c = mk("C:\\Users\\x\\AppData\\Roaming\\LaolaoGrid\\work");
-    assert.match((await c.gate()).why, /C 盘只剩 7\.9G：先不领新任务/);
+    const statfs = async (p) => ({ bsize: 1, bavail: p === "C:\\" ? cFree : 228e9 });
+    // 工作文件夹用真实的临时文件夹（打包的机器上没有 E 盘），「数据在不在 C 盘」直接告诉它
+    const mk = (name, dataOnSys) => Agent.create({ server: cred.server, token: cred.token, pubkey: cred.pubkey, workDir: path.join(tmp, name), python: PY, caps: { gpu: "RTX 5060", vram: 8, ram: 32 }, tickMs: 150, hbMs: 300, minFreeGB: 10, sysDrive: "C:", sysPath: "C:\\", dataOnSys, statfs });
+    const g1 = await mk("h1", false).gate();
+    assert.ok(!/盘/.test(g1.why || ""), "数据在 E 盘：C 盘剩 7.9G 不该拦：" + g1.why);
+    assert.match((await mk("h2", true).gate()).why, /C 盘只剩 7\.9G：先不领新任务/);
     cFree = 1e9;
-    const h2 = mk("E:\\laolao\\date\\LaolaoGrid\\work");
-    assert.match((await h2.gate()).why, /C 盘快写满了（只剩 1\.0G）：捞捞的数据已经不在这个盘上/);
+    assert.match((await mk("h3", false).gate()).why, /C 盘快写满了（只剩 1\.0G）：捞捞的数据已经不在这个盘上/);
     ok("数据文件夹换到 E 盘以后：C 盘只剩 7.9G 照常算（以前不让算）；数据还在 C 盘的照旧提醒；C 盘快写满才停，并说明不是捞捞占的");
   }
 

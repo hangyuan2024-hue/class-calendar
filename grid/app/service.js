@@ -31,7 +31,7 @@ function createService(o) {
   // 第一次用（还什么都没装）：数据文件夹直接放到空间最大的非系统盘（X:\\LaolaoGrid），不放 C 盘。
   //   以前默认放 C 盘的用户文件夹，训练环境 + AI 引擎 + 模型几十 G，好几个人的 C 盘被装满
   (function autoDataDir() {
-    if (cfg.dataDir || o.autoDrive === false) return;
+    if (cfg.dataDir || !(o.autoDrive || o.drives)) return;   // 只在正式的客户端里（main.js 传 autoDrive）；测试里不碰打包机器的真硬盘
     if (["env", "ai", "llm", "work"].some((x) => fs.existsSync(path.join(dir, x)))) return;   // 已经在这儿装过东西：不动（设置里可以整个搬走）
     let drives = null;
     if (o.drives) drives = o.drives();
