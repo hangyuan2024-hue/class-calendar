@@ -254,7 +254,18 @@ function create(opt = {}) {
       let n = 0, bad = false;
       req.on("data", (c) => { n += c.length; if (n > maxBlob && !bad) { bad = true; req.destroy(); w.destroy(); fs.rm(tmp, () => {}); } });
       req.pipe(w);
-      w.on("finish", () => { if (bad) return; fs.renameSync(tmp, f); json(res, 200, { ok: true, size: n }); });
+      // 换成正式名字。Windows 上目标文件正被别人读着（或者同一个文件同时传了两遍）时改名会被拒绝（EPERM / EBUSY）：
+      // 等一下再试；实在不行，目标已经在而且一样大就算传好了。绝不能让一次改名失败把整个调度中心弄崩
+      w.on("finish", () => {
+        if (bad) return;
+        let tries = 0;
+        const put = () => fs.rename(tmp, f, (e) => {
+          if (!e) return json(res, 200, { ok: true, size: n });
+          if (["EPERM", "EBUSY", "EACCES"].includes(e.code) && ++tries < 20) return setTimeout(put, 100);
+          fs.stat(f, (e2, st) => { fs.rm(tmp, () => {}); if (!e2 && st.size === n) json(res, 200, { ok: true, size: n }); else json(res, 500, { error: "存文件失败：" + e.message }); });
+        });
+        put();
+      });
       w.on("error", (e) => json(res, 500, { error: e.message }));
       return;
     }
