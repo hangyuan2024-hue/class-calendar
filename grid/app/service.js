@@ -203,6 +203,8 @@ function createService(o) {
       if (!d) return null;
       let to = path.basename(d).toLowerCase() === "laolaogrid" ? d : path.join(d, "LaolaoGrid");
       if (!/^[\x20-\x7e]+$/.test(to) || /\s/.test(to)) throw new Error("路径里不能有中文和空格：选 D 盘根目录就行（会自动建 LaolaoGrid 文件夹）");
+      // 已经装过东西了：连训练环境、模型一起搬过去（以前只改位置不搬：新位置是空的，任务全都「装不上」，还得重下几十 G）
+      if (path.resolve(to).toLowerCase() !== path.resolve(base()).toLowerCase() && MOVE_PARTS.some((x) => fs.existsSync(path.join(base(), x)))) { await H.moveDataDir(d); return H.probe(); }
       fs.mkdirSync(to, { recursive: true });
       fs.accessSync(to, fs.constants.W_OK);
       if (agent) { await agent.stop(); agent = null; }

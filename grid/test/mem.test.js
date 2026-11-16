@@ -108,6 +108,12 @@ const ok = (m) => console.log("✓", m);
     assert.strictEqual(cfg.ai.dir, path.join(to, "ai", "ComfyUI_windows_portable"));
     assert.strictEqual(cfg.gsv.dir, path.join(to, "ai", "gsv"));
     await assert.rejects(() => svc.H.moveDataDir(path.join(to, "sub")), /里面|已经/);
+    // 向导里的「换个地方」：已经装过东西 → 也是整个搬过去，不是只改个位置
+    const svc2 = createService({ user: me, version: "t", python: "python3", send: () => {}, detectRegion: false, noMemTimers: true, moveSettleMs: 0, pickDir: async () => path.join(tmp, "F") });
+    await svc2.H.pickDataDir();
+    const to2 = path.join(tmp, "F", "LaolaoGrid");
+    assert.ok(fs.existsSync(path.join(to2, "env/py/python.txt")) && !fs.existsSync(path.join(to, "env")), "换个地方也要搬");
+    assert.strictEqual(JSON.parse(fs.readFileSync(path.join(me, "grid.json"), "utf8")).dataDir, to2);
     ok("把数据文件夹搬到别的盘：训练环境、AI 引擎和模型、本地大模型、任务文件一起搬，记着的路径跟着改，原来的删掉（不用重新下几十 G）");
     try { fs.rmSync(tmp, { recursive: true, force: true }); } catch (e) {}
   }

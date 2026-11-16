@@ -190,7 +190,7 @@
   function paintProbe(r) {
     $("#probeOut").innerHTML = r.items.map((i) => `<div class="${i.state}"><small>${esc(i.name)}</small><b>${esc(i.value)}</b>${i.tip ? `<p>${esc(i.tip)}</p>` : ""}</div>`).join("");
   }
-  $("#dataDirBtn").onclick = guard(async () => { const r = await call("pickDataDir"); if (!r) return; paintProbe(r); S = await call("status"); paintGuide(); toast("换好了：以后训练环境和数据都放在 " + S.dataDir); });
+  $("#dataDirBtn").onclick = guard(async () => { const r = await call("pickDataDir"); if (!r) return; paintProbe(r); S = await call("status"); paintGuide(); toast("换好了（已经装好的一起搬过去了）：以后训练环境和数据都放在 " + S.dataDir); });
   $("#probeGo").onclick = guard(async () => { $("#probeGo").disabled = true; $("#probeGo").textContent = "体检中…"; try { const r = await call("probe"); paintProbe(r); S = await call("status"); paintGuide(); toast(r.ok ? "体检通过" : "有几项要处理，看红色的提示"); } finally { $("#probeGo").disabled = false; $("#probeGo").textContent = "重新体检"; } });
   const term = (box, e) => {
     box.hidden = false;
@@ -382,6 +382,7 @@
   };
   $("#diskMoveAlt").onclick = guard(() => doMove($("#diskMoveAlt").dataset.root));
   $("#diskMovePick").onclick = guard(() => doMove(null));
+  $("#diskMoveAny").onclick = guard(async () => { $("#diskMoveAny").disabled = true; try { await doMove(null); } finally { $("#diskMoveAny").disabled = false; } });
   window.lg.on("move", (m) => { $("#diskMoveLog").textContent = m.msg; });
   $("#diskAll").onclick = guard(async () => {
     if (!confirm("一键清理：算完的任务文件、临时文件、旧日志、旧安装包、配方（用到时重新下），以及换盘前留在原来位置的数据。模型和训练环境不动。清理？")) return;
