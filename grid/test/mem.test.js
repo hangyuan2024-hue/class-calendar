@@ -111,6 +111,34 @@ const ok = (m) => console.log("✓", m);
     ok("把数据文件夹搬到别的盘：训练环境、AI 引擎和模型、本地大模型、任务文件一起搬，记着的路径跟着改，原来的删掉（不用重新下几十 G）");
     try { fs.rmSync(tmp, { recursive: true, force: true }); } catch (e) {}
   }
+  // 6. 第一次用：数据文件夹自动放到空间最大的非系统盘；已经装过东西的不动；留在 C 盘的旧缓存列出来可以删
+  {
+    const { createService } = require("../app/service");
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "lg-auto-"));
+    const D = path.join(tmp, "D"), E2 = path.join(tmp, "E"); fs.mkdirSync(D); fs.mkdirSync(E2);
+    const drives = () => [{ root: D, free: 80e9 }, { root: E2, free: 228e9 }];
+    const me = path.join(tmp, "me");
+    createService({ user: me, version: "t", python: "python3", send: () => {}, detectRegion: false, noMemTimers: true, drives });
+    assert.strictEqual(JSON.parse(fs.readFileSync(path.join(me, "grid.json"), "utf8")).dataDir, path.join(E2, "LaolaoGrid"));
+    const old = path.join(tmp, "old"); fs.mkdirSync(path.join(old, "env"), { recursive: true });
+    createService({ user: old, version: "t", python: "python3", send: () => {}, detectRegion: false, noMemTimers: true, drives });
+    assert.ok(!fs.existsSync(path.join(old, "grid.json")) || !JSON.parse(fs.readFileSync(path.join(old, "grid.json"), "utf8")).dataDir);
+    const small = path.join(tmp, "small");
+    createService({ user: small, version: "t", python: "python3", send: () => {}, detectRegion: false, noMemTimers: true, drives: () => [{ root: D, free: 20e9 }] });
+    assert.ok(!fs.existsSync(path.join(small, "grid.json")) || !JSON.parse(fs.readFileSync(path.join(small, "grid.json"), "utf8")).dataDir);
+    ok("第一次用：数据文件夹自动放到空间最大的非系统盘（不放 C 盘）；已经装过的不动；别的盘都不到 60G 就还放原处");
+    const hc = path.join(tmp, "home", ".cache", "huggingface"); fs.mkdirSync(hc, { recursive: true }); fs.writeFileSync(path.join(hc, "m.bin"), Buffer.alloc(5000));
+    const svc = createService({ user: path.join(tmp, "u2"), version: "t", python: "python3", send: () => {}, detectRegion: false, noMemTimers: true, autoDrive: false, homeCaches: () => [{ name: "HuggingFace 模型", path: hc }] });
+    const rep = await svc.H.diskReport();
+    const part = rep.parts.find((x) => /留在 C 盘的旧缓存/.test(x.name));
+    assert.ok(part && part.bytes === 5000, JSON.stringify(rep.parts.map((x) => [x.id, x.bytes])));
+    await svc.H.diskCleanAll();
+    assert.ok(fs.existsSync(path.join(hc, "m.bin")), "一键清理不碰");
+    await svc.H.diskClean(part.id);
+    assert.ok(!fs.existsSync(path.join(hc, "m.bin")));
+    ok("旧版本留在 C 盘用户文件夹里的模型缓存：硬盘页列出来、能单独删（一键清理和自动清理不碰）");
+    try { fs.rmSync(tmp, { recursive: true, force: true }); } catch (e) {}
+  }
   console.log("内存和硬盘：全部通过");
   process.exit(0);
 })().catch((e) => { console.error(e); process.exit(1); });

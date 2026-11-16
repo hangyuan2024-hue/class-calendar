@@ -28,6 +28,26 @@ function createService(o) {
   const save = () => fs.writeFileSync(CFG, JSON.stringify(cfg, null, 1));
   const send = (ch, d) => { try { o.send(ch, d); } catch (e) {} };
   // 训练环境（Python + PyTorch，约 6G）和工作文件（模型、存档、数据）放哪：默认软件自己的文件夹（一般在 C 盘），可以换到别的盘
+  // 第一次用（还什么都没装）：数据文件夹直接放到空间最大的非系统盘（X:\\LaolaoGrid），不放 C 盘。
+  //   以前默认放 C 盘的用户文件夹，训练环境 + AI 引擎 + 模型几十 G，好几个人的 C 盘被装满
+  (function autoDataDir() {
+    if (cfg.dataDir || o.autoDrive === false) return;
+    if (["env", "ai", "llm", "work"].some((x) => fs.existsSync(path.join(dir, x)))) return;   // 已经在这儿装过东西：不动（设置里可以整个搬走）
+    let drives = null;
+    if (o.drives) drives = o.drives();
+    else if (process.platform === "win32") {
+      const sys = (process.env.SystemDrive || "C:").toUpperCase();
+      drives = [];
+      for (const L0 of "DEFGHIJKLMNOPQRSTUVWXYZ") {
+        if ((L0 + ":") === sys) continue;
+        try { const st = fs.statfsSync(L0 + ":\\"); drives.push({ root: L0 + ":\\", free: st.bavail * st.bsize }); } catch (e) {}
+      }
+    }
+    const best = (drives || []).filter((d) => d.free > 60e9).sort((a, b) => b.free - a.free)[0];
+    if (!best) return;
+    const to = path.join(best.root, "LaolaoGrid");
+    try { fs.mkdirSync(to, { recursive: true }); fs.accessSync(to, fs.constants.W_OK); cfg.dataDir = to; cfg.dataDirAuto = true; fs.writeFileSync(CFG, JSON.stringify(cfg, null, 1)); } catch (e) {}
+  })();
   const base = () => cfg.dataDir || dir;
   // 换过数据文件夹：原来位置（一般在 C 盘）的训练环境、模型、任务文件还留着，硬盘页可以清掉（软件自己的设置不动）
   const OLD_PARTS = ["env", "ai", "work", "llm", "update"];
@@ -402,9 +422,21 @@ function createService(o) {
       { id: "update", name: "新版本安装包", path: path.join(base(), "update"), cleanable: "all" },
       ...(ai.comfyDir && ai.comfyDir() ? [{ id: "comfyout", name: "画图引擎生成的图（ComfyUI 的 output）", path: path.join(ai.comfyDir(), "output"), cleanable: "old", keepDays: 0, keep: () => !!(ai.status().running), note: "交上去以后就没用了（画图引擎开着的时候先不清）" }] : []),
       { id: "logs", name: "日志", path: logs.dir(), cleanable: "old", keepDays: 1, note: "只留今天的" },
+      // 旧版本（0.1.46 以前）把模型缓存下到了 C 盘的用户文件夹；现在都放数据文件夹里了，这些可以删
+      ...homeCaches().map((c, i) => ({ id: "home" + i, name: "留在 C 盘的旧缓存：" + c.name, path: c.path, cleanable: "all", note: "现在的缓存都在数据文件夹里；你自己的 Python 程序要用的话会重新下" })),
       ...(oldBaseLeft() ? [{ id: "oldbase", name: "换盘前留在原来位置的数据", path: dir, only: OLD_PARTS, cleanable: "all", note: "数据文件夹已经换到 " + base() + "，这些用不上了" }] : []),
     ];
   } });
+  function homeCaches() {
+    if (o.homeCaches) return o.homeCaches();
+    const h = os.homedir(), out = [];
+    for (const [name, p] of [["HuggingFace 模型", path.join(h, ".cache", "huggingface")], ["ModelScope 模型", path.join(h, ".cache", "modelscope")], ["PyTorch 模型", path.join(h, ".cache", "torch")],
+      ["pip 安装包", process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, "pip", "Cache") : path.join(h, ".cache", "pip")]]) {
+      if (path.resolve(p).toLowerCase().startsWith(path.resolve(base()).toLowerCase())) continue;
+      if (fs.existsSync(p)) out.push({ name, path: p });
+    }
+    return out;
+  }
   // 数据文件夹在不在系统盘（C 盘）上；别的盘哪个空间最大（建议搬过去）
   async function driveInfo() {
     if (process.platform !== "win32") return { onSys: false, alt: null };

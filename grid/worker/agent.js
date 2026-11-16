@@ -290,20 +290,26 @@ function create(opt) {
     const a = minutes(policy.from), b = minutes(policy.to), x = d.getHours() * 60 + d.getMinutes();
     return a <= b ? x >= a && x < b : x >= a || x < b;
   }
-  // 硬盘：系统盘（C 盘）或数据文件夹所在的盘快满了，先不领新任务；只剩 3G 以下，手上的也停（C 盘写满了 Windows 会出问题）
+  // 硬盘：数据文件夹所在的盘快满了，先不领新任务；只剩 3G 以下，手上的也停。
+  //   系统盘（C 盘）：数据文件夹就在 C 盘上才按同一条线卡；已经换到别的盘了，捞捞不再往 C 盘写东西，
+  //   C 盘剩得少也照常算（以前换到 E 盘了还提示「C 盘只剩 7.9G」不让算），只在快写满（2G 以下，Windows 自己会出问题）时停
   let diskAt = 0, diskNow = null;
   async function diskCheck() {
     if (!opt.minFreeGB) return null;
     if (Date.now() - diskAt < 60000) return diskNow;
     diskAt = Date.now();
-    const sys = process.platform === "win32" ? (process.env.SystemDrive || "C:") + "\\" : "/";
-    const drives = [[sys, process.platform === "win32" ? (process.env.SystemDrive || "C:").replace(":", "") + " 盘" : "系统盘"], [work, "数据文件夹所在的盘"]];
+    const win = process.platform === "win32";
+    const sysDrive = (opt.sysDrive || process.env.SystemDrive || "C:");
+    const sys = win || opt.sysDrive ? sysDrive + "\\" : "/";
+    const onSys = win || opt.sysDrive ? (/^[A-Za-z]:/.test(work) ? work : path.resolve(work)).toUpperCase().startsWith(sysDrive.toUpperCase()) : true;
+    const sysMin = onSys ? opt.minFreeGB : Math.min(opt.minFreeGB, opt.sysMinFreeGB != null ? opt.sysMinFreeGB : 2);
+    const drives = [[opt.sysPath || sys, win || opt.sysDrive ? sysDrive.replace(":", "") + " 盘" : "系统盘", sysMin, !onSys], [work, "数据文件夹所在的盘", opt.minFreeGB, false]];
     diskNow = null;
-    for (const [p, name] of drives) {
+    for (const [p, name, min, sysOnly] of drives) {
       try {
-        const s = await fs.promises.statfs(p);
+        const s = await (opt.statfs || fs.promises.statfs)(p);
         const gb = (s.bavail * s.bsize) / 1e9;
-        if (gb < opt.minFreeGB && (!diskNow || gb < diskNow.gb)) diskNow = { gb, name };
+        if (gb < min && (!diskNow || gb < diskNow.gb)) diskNow = { gb, name, sysOnly };
       } catch (e) {}
     }
     return diskNow;
@@ -312,7 +318,7 @@ function create(opt) {
   async function gate() {
     if (paused) return { ok: false, why: "你点了暂停" };
     const dk = await diskCheck();
-    if (dk) return { ok: false, why: `${dk.name}只剩 ${dk.gb.toFixed(1)}G：先不领新任务。打开「设置 → 硬盘」清理一下，或者把数据文件夹换到空间大的盘`, disk: true, diskCritical: dk.gb < 3 };
+    if (dk) return { ok: false, why: dk.sysOnly ? `${dk.name}快写满了（只剩 ${dk.gb.toFixed(1)}G）：捞捞的数据已经不在这个盘上，是别的东西占的。清一下${dk.name}（回收站、下载、微信文件），不然 Windows 自己会出问题` : `${dk.name}只剩 ${dk.gb.toFixed(1)}G：先不领新任务。打开「设置 → 硬盘」清理一下，或者把数据文件夹换到空间大的盘`, disk: true, diskCritical: dk.gb < 3 };
     if (draining) return { ok: false, why: "有新版本：手上的算完就自动更新" };
     if (manual === "off") return { ok: false, why: "你点了停止" };
     if (hold.until > Date.now()) return { ok: false, why: `这台电脑现在算不了：${hold.why}（${Math.ceil((hold.until - Date.now()) / 60e3)} 分钟后自动再试）`, hold: true };
@@ -668,7 +674,7 @@ function create(opt) {
 
   return {
     on: (k, f) => (ev.on(k, f), () => ev.off(k, f)),
-    start, stop, api, upload,
+    start, stop, api, upload, gate,
     pause(v) { paused = !!v; if (paused && cur) stopTask(true, "你点了暂停"); setState(paused ? "paused" : "idle"); lastLease = 0; },
     // 手动开始 / 停止 / 恢复自动。停止时正在算的交给别的电脑从存档接着算
     setManual(m) {
