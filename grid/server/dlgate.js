@@ -150,6 +150,8 @@ function create(o) {
     const ip = cleanIp(ipRaw);
     if (req.method !== "GET" && req.method !== "HEAD") return say(res, 405, "只能下载", "method");
     if (!okPath(key)) return say(res, 404, "没有这个文件", "path");
+    // 腾讯云不让用桶的默认域名分发安卓 / 苹果安装包（DownloadForbidden，要绑备案过的自己的域名）：直接告诉软件去官网下，别白跳一趟
+    if (/\.(apk|ipa)$/i.test(key)) return say(res, 403, "手机安装包请从官网下载：https://www.laolaokechengbiao.cn/download/", "apk");
     if (!ready) return say(res, 503, "下载门口还没配好存储（DL_COS_*），先从 GitHub 下：" + cfg.github, "nocfg");
     const rg = region(ip);
     if (!(rg === "LAN" || cfg.allow.includes(rg))) { refuse(ip, "foreign"); return say(res, 403, "这个下载线路只对中国大陆开放。海外请从 GitHub 下载：" + cfg.github + "\nThis mirror serves mainland China only. Please download from GitHub: " + cfg.github, "foreign"); }

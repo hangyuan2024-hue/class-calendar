@@ -40,6 +40,7 @@ const ok = (m) => console.log("✓ " + m);
   r = await get("ai/../grid/x", "223.5.5.5"); assert.equal(r.status, 404);
   r = await get("ai/nope.bin", "223.5.5.5"); assert.equal(r.status, 404);
   r = await get("android/a.apk", "1.1.1.1", {}, "HEAD"); assert.equal(r.status, 403);
+  r = await get("android/a.apk", "223.5.5.5"); assert.equal(r.status, 403); assert.equal(r.headers.get("x-lz-dl"), "apk");   // COS 默认域名不让发 apk
   ok("国内 IP → 302 到 COS 的临时链接（6 小时失效）；海外 IPv4 / IPv6 → 403，告诉他去 GitHub；训练的文件、乱写的路径、不存在的文件都不给");
 
   // 断点续传 / 测速：按 Range 记账；HEAD 不记
@@ -60,7 +61,8 @@ const ok = (m) => console.log("✓ " + m);
   r = await get("ai/models/x.safetensors", "119.29.29.29"); assert.equal(r.status, 302);
   r = await get("ai/models/x.safetensors", "119.29.29.29"); assert.equal(r.status, 302);
   r = await get("code/LaolaoCode-Setup-1.0.24.exe", "240e:1::1"); assert.equal(r.status, 429); assert.equal(r.headers.get("x-lz-dl"), "budget"); assert.match(await r.text(), /流量用完了/);
-  r = await get("android/a.apk", "240e:1::1"); assert.equal(r.status, 302);    // 小文件还给（7M 在额度里）
+  SIZE["ai/small.json"] = 7e6;
+  r = await get("ai/small.json", "240e:1::1"); assert.equal(r.status, 302);    // 小文件还给（7M 在额度里）
   ok("刹车：同一个文件同一个网络一天最多 2 遍（续传也算）；一个网络一天最多 3.5G；全站一天最多 6G，到了就停到明天");
 
   // 控制中心看账
@@ -70,8 +72,8 @@ const ok = (m) => console.log("✓ " + m);
   const d0 = a.days[0];
   assert.equal(a.ready, true); assert.equal(a.days.length, 3); assert.ok(a.ipList.v4 > 3000 && a.ipList.v6 > 1000);
   assert.ok(d0.gb > 5 && d0.gb <= 6 && Math.abs(d0.yuan - d0.gb * 0.5) < 0.02);
-  assert.deepStrictEqual(d0.refused, { foreign: 3, repeat: 2, ip: 1, budget: 1 });
-  assert.equal(d0.foreign.length, 3); assert.equal(d0.ips[0].region, "CN");
+  assert.deepStrictEqual(d0.refused, { foreign: 2, repeat: 2, ip: 1, budget: 1 });
+  assert.equal(d0.foreign.length, 2); assert.equal(d0.ips[0].region, "CN");
   assert.equal((await fetch(`http://127.0.0.1:${port}/api/admin/dl`)).status, 401);
   // 重开：今天的账还在
   app.close();
@@ -81,7 +83,7 @@ const ok = (m) => console.log("✓ " + m);
   r = await fetch(`http://127.0.0.1:${p2}/dl/ai/models/x.safetensors`, { redirect: "manual", headers: { "x-forwarded-for": "223.5.5.5" } }); assert.equal(r.status, 503);
   // 不是本机 Caddy 转过来的：X-Forwarded-For 不能信（不然海外的人自己写一个国内 IP 就过了）
   app2.close();
-  ok(`控制中心看账（/api/admin/dl）：今天发出 ${d0.gb}G、估计 ${d0.yuan} 元、谁下得最多、拦了多少（海外 3 / 反复 2 / 单 IP 1 / 全站 1）；要管理员口令；重开账还在；没配存储就 503`);
+  ok(`控制中心看账（/api/admin/dl）：今天发出 ${d0.gb}G、估计 ${d0.yuan} 元、谁下得最多、拦了多少（海外 2 / 反复 2 / 单 IP 1 / 全站 1）；要管理员口令；重开账还在；没配存储就 503`);
 
   // X-Forwarded-For 只信本机的代理
   const tmp3 = fs.mkdtempSync(path.join(os.tmpdir(), "dl3-"));
