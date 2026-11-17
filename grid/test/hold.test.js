@@ -103,6 +103,21 @@ const until = async (f, ms, what) => { const t0 = Date.now(); while (!(await f()
     await a.stop();
   }
 
+  // ---------- 可有可无的输入文件（opt_ 开头，比如接着上一版训的起点）下不到：任务照常算 ----------
+  {
+    const rc = path.join(tmp, "optfile.py");
+    fs.writeFileSync(rc, "import lg\nt = lg.task()\nlg.done(has=int('opt_prev' in (t.get('files') or {})))\n");
+    const planFile = path.join(tmp, "p4.json");
+    fs.writeFileSync(planFile, JSON.stringify({ jobs: [{ name: "带可选文件", kind: "map", recipe: rc, params: { count: 1, opt_prev: "jobs/0/0/no-such-file.zip" }, priority: 9 }] }));
+    const [jobId] = await Tools.plan(admin, planFile);
+    const cred = await join("可选");
+    const a = Agent.create({ server: cred.server, token: cred.token, pubkey: cred.pubkey, workDir: path.join(tmp, "c"), python: PY, caps: { gpu: "x", vram: 8, ram: 32 }, tickMs: 100, hbMs: 300, leaseEveryMs: 100, renewMs: 300, xferTries: 1 });
+    a.start();
+    await until(async () => (await tasksOf(jobId)).every((t) => t.state === "done"), 30000, "可选文件下不到也算完");
+    ok("可有可无的输入文件下不到（上一版的参数被清掉了）：不带它，任务照常算完");
+    await a.stop();
+  }
+
   // ---------- 旧版客户端（不会说 env）报「装不上」：调度中心也不记任务失败；以前记错的清掉 ----------
   {
     const rc = path.join(tmp, "plain.py");
@@ -117,6 +132,36 @@ const until = async (f, ms, what) => { const t0 = Date.now(); while (!(await f()
     const ts = await tasksOf(jobId);
     assert.ok(ts.every((t) => !t.errors));
     ok("旧版客户端报「装不上」：调度中心认得出来，也不记任务失败");
+  }
+  // ---------- 只给小显卡的活（req.maxVram）：8G 的不领，6G 的领 ----------
+  {
+    const rc = path.join(tmp, "lite.py");
+    fs.writeFileSync(rc, "import lg\nt = lg.task()\nlg.done(ok=1)\n");
+    const planFile = path.join(tmp, "p5.json");
+    fs.writeFileSync(planFile, JSON.stringify({ jobs: [{ name: "小显卡的活", kind: "map", recipe: rc, params: { count: 1 }, req: { vram: 3.5, maxVram: 7.4 }, priority: 99 }] }));
+    await Tools.plan(admin, planFile);
+    const inv2 = await Tools.api(admin, "/api/admin/invite", { maxUses: 30, server: url });
+    const lease = async (n, vram) => { const cred = await Agent.join(inv2.link, n, { name: n, info: { gpu: "x", vram } }); return fetch(cred.server + "/api/lease", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + cred.token }, body: JSON.stringify({ caps: { gpu: "x", vram } }) }).then((r) => r.json()); };
+    const nm = (r) => r && r.task && r.task.job && r.task.job.name;
+    // 把前面留下的别的活先领走，再看这一个归谁
+    const drain = async (n, vram) => { for (let i = 0; i < 8; i++) { const r = await lease(n + i, vram); if (!r.task || nm(r) === "小显卡的活") return nm(r); } return "还有别的"; };
+    assert.notStrictEqual(await drain("大卡", 8), "小显卡的活");
+    assert.notStrictEqual(nm(await lease("太小", 2)), "小显卡的活");
+    assert.strictEqual(nm(await lease("小卡", 6)), "小显卡的活");
+    ok("只给小显卡的活：8G 的不来抢、2G 的做不了，6G 的领到了");
+  }
+  // ---------- 训练环境根本没装上：不去领任务；装好了马上能领 ----------
+  {
+    let why = "训练环境还没装好：到「任务向导」第 2 步点「一键安装」";
+    const j = await Agent.join(inv.link, "没装环境的", { name: "新电脑", info: { gpu: "RTX 5060", vram: 8, ram: 16 } });
+    const a = Agent.create({ server: url, token: j.token, pubkey: j.pubkey, workDir: path.join(tmp, "w-noenv"), python: PY, caps: { gpu: "RTX 5060", vram: 8, ram: 16 }, tickMs: 100, hbMs: 300, manual: "on", envReady: () => why });
+    const g = await a.gate(); assert.strictEqual(g.ok, false); assert.strictEqual(g.env, true); assert.match(g.why, /一键安装/);
+    const logs = []; a.on("log", (l) => logs.push(l.msg));
+    a.start(); await sleep(900);
+    assert.ok(!logs.some((m) => /领到|开始做/.test(m)), logs.join("|"));
+    why = null; assert.strictEqual((await a.gate()).ok, true);
+    a.stop();
+    ok("训练环境没装上（Python 不在了）：不去领任务，界面上写着去哪装；装好了马上能领");
   }
   await app.close();
   console.log("环境坏了不连累任务：全部通过");

@@ -15,6 +15,7 @@
     <button data-step="slides"><i>3</i><span>选页和内容<small>讲解词、问答</small></span></button>
     <button data-step="ai"><i>4</i><span>AI 改 PPT<small>说一句就改、拍照插公式</small></span></button>
     <button data-step="make"><i>5</i><span>生成 PPT<small>配音、视频、写进去</small></span></button>
+    <button data-step="show"><i>✦</i><span>成品展示<small>捞小智：讲题、做 PPT、办事</small></span></button>
   </nav>
   <div class="side-more">
     <small>更多</small>
@@ -184,8 +185,51 @@
         </div>
         <div class="card">
           <div class="card-h"><b>这份 PPT</b><span class="grow"></span><small class="muted" id="aiCount"></small></div>
+          <div class="ai-prev" id="aiPrev" hidden title="这一页现在的样子（预览；动画和个别字体以 PowerPoint 里的为准）"></div>
           <ol class="ai-outline" id="aiOutline"></ol>
           <div class="ai-hist" id="aiHist"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 成品展示：捞小智 -->
+  <section class="page" id="pg-show" hidden>
+    <header><h1>成品展示 · 捞小智</h1><p>捞捞算力训练出来的几样本事合在一起的样子：<b>讲题</b>（答题大脑）、<b>做 PPT</b>、<b>办教务的事</b>（模拟的教务系统，数据都是编的）、<b>开口说话</b>（声音克隆）、<b>公仔形象</b>。没上传自己照片和声音的，用默认的捞捞。哪一样训练出了新版，这里自动换上。</p></header>
+    <div class="card ai-bar">
+      <span class="pill" id="shPill">没启动</span><span class="muted" id="shModel"></span>
+      <button class="btn sm pri" id="shDl" hidden>下载模型</button><button class="btn sm" id="shGo" hidden>启动</button>
+      <label class="muted" id="shSpeakWrap"><input type="checkbox" id="shSpeak"> 开口说话</label>
+      <span class="grow"></span>
+      <span class="muted">现在是</span>
+      <select id="shRole" title="换一个身份试试：学生、教师（辅导员）、教务员能办的事不一样"></select>
+      <button class="btn sm" id="shNew" title="清空对话，重新开始">新对话</button>
+    </div>
+    <div class="ai-grid">
+      <div class="card chat">
+        <div class="sh-top"><div class="sh-stage" id="shStage"></div><div class="sh-who"><b id="shName">捞小智</b><span class="muted" id="shMe"></span><span class="muted" id="shVoice"></span></div></div>
+        <div class="sh-deck" id="shDeck" hidden></div>
+        <div class="chat-log" id="shLog"></div>
+        <div class="chat-in">
+          <textarea id="shText" rows="2" placeholder="问一道题、让它做一份 PPT（做完接着说怎么改）、或者办一件教务的事（Enter 发送）"></textarea>
+          <button class="btn pri" id="shSend">发送</button><button class="btn" id="shStop" hidden>停下</button>
+        </div>
+      </div>
+      <div class="ai-side">
+        <div class="card">
+          <div class="card-h"><b>成品</b><span class="pill ok" id="shBuild">第 0 版</span><span class="grow"></span><button class="btn sm" id="shCheck" title="现在就去看有没有训练出新版">看有没有新版</button></div>
+          <div class="sh-parts" id="shParts"></div>
+          <div class="sh-log" id="shHist"></div>
+        </div>
+        <div class="card" id="shPptCard">
+          <div class="card-h"><b>PPT</b><span class="grow"></span><button class="btn sm" id="shPptExam" title="8 道题：真的做一份 PPT、再照着改，做完程序核对，看现在这版模型做 PPT 的本事怎么样">考一考它</button><button class="btn sm" id="shPptPick" title="打开老师自己的 .pptx，让捞小智照着说的改（不动原文件）">打开一份让它改</button></div>
+          <div class="row"><span id="shPptName" class="muted" style="white-space:pre-line">还没有 PPT：让它做一份，或者打开一份让它改</span></div>
+          <div class="row" id="shPptBtns" hidden><button class="btn sm pri" id="shPptShow">收起预览</button><button class="btn sm" id="shPptOpen">用 PowerPoint 打开</button><button class="btn sm" id="shPptDir">在文件夹里看</button></div>
+        </div>
+        <div class="card">
+          <div class="card-h"><b>教务系统（模拟）</b><span class="grow"></span><button class="btn sm" id="shCampusReset" title="把申请都清掉，恢复成刚造出来的样子">恢复原样</button></div>
+          <div class="muted" id="shCampus"></div>
+          <div class="sh-reqs" id="shReqs"></div>
         </div>
       </div>
     </div>
@@ -291,6 +335,8 @@
 <script src="mathjax-config.js"></script>
 <script src="vendor/mathjax/tex-svg.js" id="MathJax-script"></script>
 <script src="chat.js"></script>
+<script src="deckview.js"></script>
+<script src="show.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

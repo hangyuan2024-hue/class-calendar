@@ -21,6 +21,7 @@
     for (const p of $$(".page")) p.hidden = p.id !== "pg-" + step;
     if (step === "make") paintJobs();
     if (step === "ai") window.dispatchEvent(new Event("lao-ai-show"));
+    window.dispatchEvent(new CustomEvent("lao-show", { detail: step === "show" }));
     if (av) av.setManual(step !== "avatar");   // 不在这一页就别一直画
   }
   $("#steps").onclick = (e) => { const b = e.target.closest("button"); if (b) go(b.dataset.step); };
@@ -881,6 +882,7 @@
     $("#openXz").onclick = guard(() => call("openSite", "xiaozhi"));
     $("#openNext").onclick = guard(() => call("openSite", "next"));
     window.__lao = { renderVideo };   // 测试用
+    window.LaoApp = { spec: () => ({ ...spec }), face: () => faceImg, go };   // 成品展示用现在这个形象
     window.__ready = true;
   })().catch((e) => toast("启动出错：" + e.message, true));
 })();

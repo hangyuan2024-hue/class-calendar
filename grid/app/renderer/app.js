@@ -18,6 +18,7 @@
   // ---------- 页面切换 ----------
   function go(p) {
     page = p;
+    window.dispatchEvent(new CustomEvent("lg-page", { detail: p }));   // 成品展示（show.js）靠它知道进来 / 离开了
     document.querySelector("main").scrollTop = 0;
     if (p !== "record") Promise.resolve(call("recording", false)).catch(() => {});
     $$(".side a").forEach((a) => a.classList.toggle("on", a.dataset.p === p || (p === "record" && a.dataset.p === "guide")));

@@ -322,6 +322,8 @@ function create(opt) {
     if (draining) return { ok: false, why: "有新版本：手上的算完就自动更新" };
     if (manual === "off") return { ok: false, why: "你点了停止" };
     if (hold.until > Date.now()) return { ok: false, why: `这台电脑现在算不了：${hold.why}（${Math.ceil((hold.until - Date.now()) / 60e3)} 分钟后自动再试）`, hold: true };
+    // 训练环境根本没装上（Python 不在了、数据文件夹搬过）：不去领任务。以前是领来 → 装包失败 → 还回去 → 歇一会儿再领，白折腾调度中心
+    if (opt.envReady) { let w = null; try { w = await opt.envReady(); } catch (e) {} if (w) return { ok: false, why: String(w), env: true }; }
     if (manual !== "on" && policy.mode === "off") return { ok: false, why: "想算的时候点「开始」" };
     if (manual !== "on" && policy.mode === "schedule" && !inWindow()) return { ok: false, why: `只在 ${policy.from}～${policy.to} 算` };
     if (manual !== "on" && policy.mode === "idle") {
@@ -346,6 +348,8 @@ function create(opt) {
     if (stopped) return;
     try {
       if (opt.gpuInfo) { const g = await opt.gpuInfo().catch(() => null); if (g) { gpuNow = g; emit("gpu", g); } }
+      // 记账：配方在跑的时候，显卡到底用了多少（算完写进日志和曲线：哪些时间显卡在空等）
+      if (cur && cur.spawned && !cur.ranAt && gpuNow && gpuNow.util != null) { const a = cur.acct || (cur.acct = { n: 0, sum: 0, idle: 0 }); a.n++; a.sum += +gpuNow.util || 0; if ((+gpuNow.util || 0) < 20) a.idle++; }
       const g = await gate();
       if (Date.now() - lastHb > (opt.hbMs || 15000)) {
         lastHb = Date.now();
@@ -483,7 +487,11 @@ function create(opt) {
           if (cf && fs.existsSync(cf)) { try { const now = new Date(); fs.utimesSync(cf, now, now); } catch (e) {} }
           else await xfer("GET", u, cf || f, { onProgress: dlProg(nIn > 1 ? `下载要用的文件（${iIn}/${nIn}）${k}` : `下载 ${k}`) });
           if (cf) { fs.mkdirSync(path.dirname(f), { recursive: true }); try { fs.linkSync(cf, f); } catch (e) { fs.copyFileSync(cf, f); } }
-        } catch (e) { throw new Error(`下载要用的文件「${k}」失败：${e.message}`); }
+        } catch (e) {
+          // opt_ 开头的是「有就用、没有也行」的文件（比如接着上一版训的起点）：下不到就不带，任务照常算
+          if (/^opt_/.test(k)) { log(`可有可无的文件「${k}」没下到（${e.message}），不带它接着算`); continue; }
+          throw new Error(`下载要用的文件「${k}」失败：${e.message}`);
+        }
         t.files[k] = f;
       }
       // 训练要用的人工审核结果（params.dataset）
@@ -491,12 +499,16 @@ function create(opt) {
       fs.writeFileSync(path.join(dir, "task.json"), JSON.stringify(t));
       if (c.stopping) return;   // 准备的时候被叫停了（管理员暂停、你要用电脑）
       c.spawned = true;   // 到这里准备工作（下配方、装包、开引擎、下输入文件）都过了
+      c.spawnAt = Date.now();
       const code = await spawnPy(c, rc.file, path.join(dir, "task.json"));
+      c.ranAt = Date.now();
       if (code === 0 && c.result) c.finishing = true;   // 算完了：接下来只是交结果，点「停止」、断网都不丢；续约也接着报，免得被收回
       else clearInterval(renewTimer);
       await c.uploads;
       if (c.stopping && !c.finishing) return;
       if (c.unfit && (code !== 0 || !c.result)) { await c.uploads.catch(() => {}); throw new Error(c.unfit); }
+      // 算出来的图 / 要审核的那一组没传上去：不能当成做完了交（以前就这样悄悄少了一组），任务还回去重做，不记它失败
+      if (code === 0 && c.result && c.lostUpload) { c.finishing = false; c.soft = true; throw new Error(c.lostUpload); }
       if (code !== 0 || !c.result) throw new Error((c.logs.filter((l) => l.level === "error").slice(-6).map((l) => l.msg).join("\n")) || `配方退出码 ${code}`);
       // 结果里的文件：上传，换成存储地址
       const result = {};
@@ -508,11 +520,17 @@ function create(opt) {
         result[k + "_sha256"] = await new Promise((ok, bad) => { const h = crypto.createHash("sha256"); fs.createReadStream(v.$file).on("data", (d) => h.update(d)).on("end", () => ok(h.digest("hex"))).on("error", bad); });
       }
       const secs = (Date.now() - c.started) / 1000;
+      // 这次的时间都花在哪了：准备（下文件、装包、开引擎）/ 真正在算 / 上传；显卡平均占用。记进曲线（控制中心的任务详情里能看）
+      c.ranAt = c.ranAt || Date.now();
+      const acct = { prep: (c.spawnAt - c.started) / 1000, run: (c.ranAt - c.spawnAt) / 1000, up: (Date.now() - c.ranAt) / 1000, gpu: c.acct && c.acct.n >= 3 ? c.acct.sum / c.acct.n : null, idle: c.acct && c.acct.n >= 3 ? c.acct.idle / c.acct.n : null };
+      const stepNo = (L.task.seq != null ? L.task.seq : c.id) + 1;
+      c.metrics.push({ step: stepNo, "账本_准备秒": Math.round(acct.prep), "账本_计算秒": Math.round(acct.run), "账本_上传秒": Math.round(acct.up), ...(acct.gpu != null ? { "账本_显卡占用": Math.round(acct.gpu) } : {}) });
       const doneMetrics = c.metrics.splice(0);
       clearInterval(renewTimer); c.submitting = true;   // 要交结果了：不再续约（断网等太久被收回的，连回来交的时候调度中心会还给它）
       if (state === "offline") { c.note = "算完了，等连上调度中心交结果"; emit("progress", { id: c.id, p: c.progress, note: c.note }); }
       const r = await whenOnline(c, "交结果", () => api("/api/done", { task: c.id, result, outputs: c.outputs, reviews: c.reviews, secs, metrics: doneMetrics }));
-      log(r.ok ? `做完了「${L.job.name}」，用了 ${Math.round(secs)} 秒` : r.why, r.ok ? "ok" : "warn");
+      const mm = (x) => (x >= 90 ? (x / 60).toFixed(1) + " 分钟" : Math.round(x) + " 秒");
+      log(r.ok ? `做完了「${L.job.name}」，用了 ${mm(secs)}：准备 ${mm(acct.prep)}、计算 ${mm(acct.run)}、上传 ${mm(acct.up)}${acct.gpu != null ? `；显卡平均占用 ${Math.round(acct.gpu)}%${acct.idle > 0.3 ? `（有 ${Math.round(acct.idle * 100)}% 的时间显卡基本空着）` : ""}` : ""}` : r.why, r.ok ? "ok" : "warn");
       emit("done", { id: c.id, ok: r.ok, secs, result });
       hold.n = 0;
     } catch (e) {
@@ -522,7 +540,7 @@ function create(opt) {
         // 配方还没开始跑就出错（包装不上、引擎起不来、文件下不下来）：是这台电脑的问题，不是任务的问题
         //   → 任务还给调度中心（不算它失败），这台电脑歇一会儿再试
         const prep = !c.spawned || !!c.unfit;
-        await api("/api/fail", { task: c.id, ...(prep ? { release: true, env: true } : {}), error: c.logs.slice(-20).map((l) => l.msg).join("\n") + "\n出错：" + e.message }).catch(() => {});
+        await api("/api/fail", { task: c.id, ...(prep ? { release: true, env: true } : c.soft ? { release: true } : {}), error: c.logs.slice(-20).map((l) => l.msg).join("\n") + "\n出错：" + e.message }).catch(() => {});
         emit("done", { id: c.id, ok: false, error: e.message });
         if (prep) holdOff(e.message.split("\n")[0].slice(0, 200));
       }
@@ -628,7 +646,7 @@ function create(opt) {
         }).catch((e) => log("存档上传失败：" + e.message, "warn"));
         break;
       case "output":
-        c.uploads = c.uploads.then(async () => { const key = await whenOnline(c, "上传结果文件", () => put(c, m.path, "out")); c.outputs.push({ name: m.name, key, size: fs.statSync(m.path).size }); }).catch((e) => log("结果上传失败：" + e.message, "warn"));
+        c.uploads = c.uploads.then(async () => { const key = await whenOnline(c, "上传结果文件", () => put(c, m.path, "out")); c.outputs.push({ name: m.name, key, size: fs.statSync(m.path).size }); }).catch((e) => { c.lostUpload = "结果文件没传上去：" + e.message; log("结果上传失败：" + e.message, "warn"); });
         break;
       case "review":
         c.uploads = c.uploads.then(async () => {
@@ -636,7 +654,7 @@ function create(opt) {
           c.put = c.put || {};   // 同一张图（比如参考照片）只传一次
           for (const k of ["a", "b", "ref", "img", "audio"]) if (r[k] && fs.existsSync(r[k])) r[k] = c.put[r[k]] = c.put[r[k]] || await whenOnline(c, "上传审核图片", () => put(c, r[k], "rv"));
           c.reviews.push(r);
-        }).catch((e) => log("审核图片上传失败：" + e.message, "warn"));
+        }).catch((e) => { c.lostUpload = "要审核的图片没传上去：" + e.message; log("审核图片上传失败：" + e.message, "warn"); });
         break;
       case "result": { const { t, ...r } = m; c.result = r; break; }
       // 配方说「这台电脑现在算不了」（显存被别的程序占了、训练慢得不正常）：不算任务失败，交给别的电脑从存档接着算，这台歇一会儿

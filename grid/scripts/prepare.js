@@ -13,3 +13,12 @@ const ppt = path.join(R, "..", "pptassist", "core"), pout = path.join(R, "app", 
 fs.mkdirSync(pout, { recursive: true });
 for (const f of ["engine.js", "workflows.js", "dl.js", "installer.js", "mirror.js"]) fs.copyFileSync(path.join(ppt, f), path.join(pout, f));
 console.log("pptassist/core 的 AI 引擎代码 → app/ppt");
+// 成品展示「捞小智」（讲题 + 做 PPT + 办教务的事 + 说话）：也是和捞捞PPT助手同一份代码
+for (const f of ["chat.js", "agent.js", "xiaozhi.js", "campus.js", "pptedit.js", "pptx.js", "deck.js", "pptview.js", "latex2omml.js", "gridmodels.js", "voice.js", "media.js"]) fs.copyFileSync(path.join(ppt, f), path.join(pout, f));
+// 展示里的 PPT 预览（大图 + 缩略图）
+fs.copyFileSync(path.join(R, "..", "pptassist", "renderer", "deckview.js"), path.join(R, "app", "renderer", "deckview.js"));
+// 展示里的公仔形象：3D 小舞台（avatar3d.js）+ three.js
+fs.copyFileSync(path.join(R, "..", "pptassist", "renderer", "avatar3d.js"), path.join(R, "app", "renderer", "avatar3d.js"));
+fs.mkdirSync(path.join(R, "app", "renderer", "vendor", "three"), { recursive: true });
+fs.copyFileSync(path.join(R, "node_modules", "three", "build", "three.min.js"), path.join(R, "app", "renderer", "vendor", "three", "three.min.js"));
+console.log("成品展示的代码、公仔形象 → app/ppt、app/renderer");

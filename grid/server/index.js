@@ -13,6 +13,7 @@ const crypto = require("crypto");
 const Core = require("./core");
 const Store = require("./store");
 const Cycle = require("./cycle");
+const Gate = require("./dlgate");
 
 function arg(name, d) { const i = process.argv.indexOf("--" + name); return i > 0 ? process.argv[i + 1] : process.env["GRID_" + name.toUpperCase()] || d; }
 
@@ -30,6 +31,8 @@ function create(opt = {}) {
   const ADMIN_DIR = path.join(__dirname, "admin");
   const maxBlob = opt.maxBlob || 40e9;
   const cycle = Cycle.attach(core, opt);
+  // 下载门口：安装包、AI 组件只给中国大陆的 IP，转到 COS 的临时链接（见 dlgate.js）
+  const gate = Gate.create({ env, dataDir, ...(opt.gate || {}), log: (m) => { try { core.event && core.event("info", m); } catch (e) {} console.log(m); } });
   const tickTimer = opt.noTick ? null : setInterval(() => { try { cycle.tick(); } catch (e) {} }, opt.tickMs || 30000);
   // 老师端读的发布清单：每个文件给一个固定地址（/pub/<key>），真正下载时再转到临时链接
   const pubManifest = () => { const m = cycle.manifest(); for (const v of Object.values(m.models)) v.files = v.files.map((f) => ({ ...f, url: `${publicBase}/pub/${f.key}` })); return m; };
@@ -159,6 +162,7 @@ function create(opt = {}) {
     "POST /api/admin/model/code": (req, b) => ({ name: String(b.name), code: cycle.codeOf(String(b.name), !!b.rotate) }),
     "POST /api/admin/ab": (req, b) => cycle.abStats(b.tag || "qv1"),
     "POST /api/admin/model/promote": (req, b) => cycle.promote(String(b.from), String(b.to), b.note),
+    "GET /api/admin/dl": (req, b, dev, u) => gate.stats(+u.searchParams.get("days") || 7),
     "POST /api/admin/geturl": (req, b) => { if (!Store.okKey(b.key)) throw new Error("文件名不对"); return { url: store.url("GET", b.key, 3600) }; },
   };
 
@@ -168,6 +172,7 @@ function create(opt = {}) {
     try {
       if (req.method === "OPTIONS") { res.writeHead(204, { "access-control-allow-origin": "*", "access-control-allow-headers": "authorization, content-type", "access-control-allow-methods": "GET, POST, PUT" }); return res.end(); }
       if (u.pathname.startsWith("/blob/")) return blob(req, res, u);
+      if (u.pathname.startsWith("/dl/")) { let key; try { key = decodeURIComponent(u.pathname.slice(4)); } catch (e) { key = ""; } return await gate.handle(req, res, key, Gate.clientIp(req)); }
       if (req.method === "PUT" && u.pathname === "/api/admin/upload") return upload(req, res, u);
       if (u.pathname === "/pub/models/manifest.json") return json(res, 200, pubManifest());
       // 不公开的模型（老师的声音）：凭声音码拿清单和文件
@@ -299,7 +304,8 @@ function create(opt = {}) {
     core, store, server,
     listen(port, host) { return new Promise((ok) => server.listen(port, host, () => { if (!opt.public) publicBase = `http://${host === "0.0.0.0" || !host ? "127.0.0.1" : host}:${server.address().port}`; ok(server.address().port); })); },
     setPublic(u) { publicBase = u; },
-    close() { clearInterval(tickTimer); server.close(); core.close(); },
+    close() { clearInterval(tickTimer); gate.close(); server.close(); core.close(); },
+    gate,
     cycle,
   };
 }

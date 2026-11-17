@@ -84,6 +84,8 @@ function createService(o) {
   // ---- 内存和显存（24 小时开着也不越用越满）：任务开始前关掉用不上的引擎、画图引擎开久了重启、收后台残留 ----
   let curNeeds = [];
   const mem = (o.memFactory || Mem.create)({ base, ai, llm, set, log: (m) => L(m, "info", "内存"), busy: () => (agent && agent.current() ? curNeeds : []), ...(o.memOpt || {}) });
+  // 训练环境在不在：Python 的文件都没有了（没装过、数据文件夹搬过、被杀毒软件删了）就别去领任务
+  const envReady = () => { if (o.envReady) return o.envReady(); const exe = env.python(); return process.platform === "win32" && path.isAbsolute(exe) && !fs.existsSync(exe) ? "训练环境还没装好（Python 不在 " + path.dirname(exe) + "）：到「任务向导」第 2 步点「一键安装」，装好自动开始" : null; };
   const beforeTask = async (x) => { if (x.lane == null) curNeeds = x.needs || []; await mem.beforeTask(x); };
   if (!o.noMemTimers) mem.start();
   if (cfg.autostart === undefined && cfg.set === undefined && o.setAutostart) { cfg.autostart = true; try { o.setAutostart(true); } catch (e) {} save(); }   // 第一次用：默认开机自启（藏在托盘里，接着上次的状态）
@@ -92,7 +94,7 @@ function createService(o) {
   function startAgent() {
     if (agent || !cfg.token) return;
     agent = Agent.create({
-      server: cfg.server, token: cfg.token, pubkey: cfg.pubkey, workDir: work(), cacheDir: path.join(work(), "cache", "shared"), python: () => env.python(), minFreeGB: o.minFreeGB != null ? o.minFreeGB : 10, beforeTask,
+      server: cfg.server, token: cfg.token, pubkey: cfg.pubkey, workDir: work(), cacheDir: path.join(work(), "cache", "shared"), python: () => env.python(), envReady, minFreeGB: o.minFreeGB != null ? o.minFreeGB : 10, beforeTask,
       caps: lastProbe ? capsNow() : null, comfy, llm, gsv, policy: { mode: "off", idleMin: 5, ...(cfg.policy || {}), pauseOnBattery: set().pauseOnBattery, maxPower: set().maxPower },   // 默认：自己点「开始」才算
       idleSecs: o.idleSecs, onBattery: o.onBattery, stallMin: set().stallMin, region: regionNow, ensure: (pkgs) => env.ensure(pkgs), version: o.version, gpuInfo: async () => (await probe.gpus())[0] || null, gpuApps: (ours) => probe.gpuApps(undefined, ours),
       env: lanes.length ? { CUDA_VISIBLE_DEVICES: "0" } : {},
@@ -133,7 +135,7 @@ function createService(o) {
         const r = await agent.api("/api/lane", { gpu: i, name: cfg.deviceName, info: { gpu: g.name, vram: g.vram } });
         ln = cfg.lanes[i] = { token: r.token, device: r.device, name: r.name }; save();
       }
-      const a = Agent.create({ server: cfg.server, token: ln.token, pubkey: cfg.pubkey, workDir: path.join(work(), "gpu" + i), cacheDir: path.join(work(), "cache", "shared"), python: () => env.python(), minFreeGB: o.minFreeGB != null ? o.minFreeGB : 10, beforeTask,
+      const a = Agent.create({ server: cfg.server, token: ln.token, pubkey: cfg.pubkey, workDir: path.join(work(), "gpu" + i), cacheDir: path.join(work(), "cache", "shared"), python: () => env.python(), envReady, minFreeGB: o.minFreeGB != null ? o.minFreeGB : 10, beforeTask,
         caps: { ...capsNow(), gpu: g.name, vram: cfg.set && cfg.set.vramCap ? Math.min(g.vram, cfg.set.vramCap) : g.vram, comfy: false, llm: false, gsv: false, lane: i },
         policy: { mode: "off", idleMin: 5, ...(cfg.policy || {}), pauseOnBattery: set().pauseOnBattery, maxPower: set().maxPower },
         idleSecs: o.idleSecs, onBattery: o.onBattery, stallMin: set().stallMin, region: regionNow, ensure: (pkgs) => env.ensure(pkgs), version: o.version,
@@ -515,6 +517,44 @@ function createService(o) {
   H.uploadLogs = async () => uploadLogs(2);
 
   // ---------- 专业模式：任务控制台、诊断 ----------
+  // ---------- 成品展示「捞小智」（app/show.js）：就在算力客户端里试训练出来的成品；新版一发布自动换上 ----------
+  const show = (o.showFactory || require("./show").create)({
+    dir: () => path.join(work(), "show"), server: () => cfg.server, llm, log: (m) => L(m, "info", "展示"), send: (e) => send("show", e),
+    busy: () => { const c = agent && agent.current(); return c ? c.job || "任务" : null; },
+    gsvDir: () => { const r = gsv.inspect((cfg.gsv || {}).dir) || gsv.find(path.join(base(), "ai", "LaolaoAI-GPT-SoVITS")); return r ? r.dir : null; },
+    // 没打开过展示的电脑不去下模型（不白占同事的硬盘和流量）；打开过一次以后，新版在后台先下好
+    used: () => !!cfg.showUsed,
+    llmName: async () => { const hit = (await llmMirror.model("llmMain"))[0]; return hit && hit.name; }, ...(o.showOpt || {}) });
+  const showSt = async () => ({ ...(await show.state()), paused: cfg.manual === "off", joined: !!cfg.token, fullscreen: o.isFullscreen ? !!o.isFullscreen() : false });
+  Object.assign(H, {
+    showState: showSt,
+    async showSend(text) { await show.send(text); return showSt(); },
+    showStop: async () => show.stop(),
+    showReset: async () => show.reset(),
+    async showRole(r) { await show.setRole(r); return showSt(); },
+    async showCheck() { await show.fuse("手动"); return showSt(); },
+    async showApprove(id, ok) { await show.approve(id, ok); return showSt(); },
+    async showCampusReset() { await show.campusReset(); return showSt(); },
+    async showOpenPpt(reveal) { const lp = show.lastPpt(); if (!lp || !fs.existsSync(lp.file)) throw new Error("还没有做好的 PPT"); if (reveal) o.reveal && o.reveal(lp.file); else o.openPath && o.openPath(lp.file); return true; },
+    showSlides: async (rev) => show.slides(rev),
+    async showPptExam() { const r = await show.pptExam(); return { exam: r, state: await showSt() }; },
+    async showPptTheme(k) { await show.pptTheme(String(k)); return true; },
+    async showPptUndo() { return show.pptUndo(); },
+    async showPickPpt() { const f = o.pickFile ? await o.pickFile(["pptx"], "打开一份 PPT（.pptx），让捞小智改", "PowerPoint") : null; if (!f) return null; await show.openPpt(f); return showSt(); },
+    showSpeak: async (text) => show.speak(text),
+    setShowSpeak: async (on) => show.setSpeak(on),
+    // 进了展示页 / 离开：进来的时候马上看一眼有没有新版，开着的时候 3 分钟看一次
+    async showActive(on) { if (on && !cfg.showUsed) { cfg.showUsed = true; save(); } show.setActive(!!on); return showSt(); },
+    // 展示要用显卡：先把计算停下（手上的任务交给别人从存档接着算）；看完点「接着算」恢复成原来的样子
+    async showPause(on) {
+      if (on) { if (cfg.manual !== "off") { cfg.showPrev = cfg.manual || "auto"; await H.setManual("off"); } }
+      else if (cfg.manual === "off" && cfg.showPrev) { const m = cfg.showPrev; delete cfg.showPrev; await H.setManual(m); }
+      return showSt();
+    },
+    // 装声音组件（GPT-SoVITS 整合包，几个 G）：装过就直接返回
+    async showInstallVoice() { await gsv.ensure((m) => send("show", { type: "note", text: m })); return showSt(); },
+    async showFullscreen(on) { if (o.fullscreen) o.fullscreen(!!on); return !!on; },
+  });
   H.taskDir = async () => { const c = agent && agent.current(); if (!c) return null; o.openPath && o.openPath(c.dir); return c.dir; };
   H.killTask = async () => { if (!agent || !agent.current()) return false; await agent.kill("在本机结束了这个任务"); return true; };
   H.diag = async () => diagText();
@@ -548,7 +588,7 @@ function createService(o) {
   if (o.detectRegion !== false) { const rt = setTimeout(() => region.detect().catch(() => {}), 30e3); rt.unref && rt.unref(); }
   if (cfg.token) startAgent();
   L(`启动 ${o.version}（${o.hidden ? "开机自启，藏在托盘" : "打开了窗口"}）；上次的状态：${cfg.manual || "auto"}`, "info", "软件");
-  return { H, logs, power, region, lanes: () => lanes, shutdown: async () => { updater.stop(); clearInterval(wd); clearInterval(daily); clearInterval(hk); await stopLanes(); if (agent) await agent.stop(); power.keepAwake(false); logs.flush(); try { ai.stop(); } catch (e) {} try { llm.stop(); } catch (e) {} }, agent: () => agent, updater, ai, llm };
+  return { H, logs, power, region, lanes: () => lanes, shutdown: async () => { try { show.shutdown(); } catch (e) {} updater.stop(); clearInterval(wd); clearInterval(daily); clearInterval(hk); await stopLanes(); if (agent) await agent.stop(); power.keepAwake(false); logs.flush(); try { ai.stop(); } catch (e) {} try { llm.stop(); } catch (e) {} }, agent: () => agent, updater, ai, llm };
 }
 
 // 数据文件夹在哪（主进程启动时就要知道：找上次下好的新版安装包）

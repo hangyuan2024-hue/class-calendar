@@ -46,6 +46,28 @@ const ok = (m) => console.log("✓ " + m);
     const st3 = sv3.H.laoVoiceState(); assert.ok(st3.on && st3.model && st3.version === 3);
     const r = await sv3.H.laoSpeak("**好的**，第 3 页的标题改好了。公式 $x^2$ 也插进去了。");
     assert.ok(r.url.startsWith("data:audio/wav;base64,")); assert.equal(r.text, "好的，第 3 页的标题改好了。公式 （公式） 也插进去了。");
+    // 成品展示：没上传自己声音的用默认的捞捞声音开口说话，带每一帧的响度（形象跟着张嘴）；状态里有成品第几版、身份、教务数据
+    const ss = await sv3.H.showState();
+    assert.equal(ss.voice.who, "own"); assert.match(ss.voice.label, /老师自己的声音/); assert.equal(ss.who.role, "student"); assert.equal(ss.campus.student, 360);
+    assert.equal(ss.product.parts.find((x) => x.key === "laolao-voice").version, 3); assert.equal(ss.product.build, 1);
+    assert.equal((await sv3.H.showSpeak("明天有 **3** 次课。")).who, "own");
+    // 一位什么都没上传的新老师：用默认的捞捞
+    const user2 = fs.mkdtempSync(path.join(os.tmpdir(), "lppt-new-"));
+    fs.cpSync(gm, path.join(user2, "grid-models"), { recursive: true });
+    fs.writeFileSync(path.join(user2, "grid-models", "state.json"), fs.readFileSync(path.join(gm, "state.json"), "utf8").split(JSON.stringify(gm).slice(1, -1)).join(JSON.stringify(path.join(user2, "grid-models")).slice(1, -1)));
+    const sv4 = createService({ user: user2, documents: user2, version: "t", send() {}, pickFile: async () => null, pickDir: async () => gsv, openPath() {}, reveal() {}, openExternal() {}, gridModels: false,
+      voiceOpt: { cmd: process.execPath, args: (p) => [path.join(__dirname, "fake-gsv.js"), String(p)], waitMs: 15000 } });
+    const s4 = await sv4.H.showState();
+    assert.equal(s4.voice.who, "laolao"); assert.match(s4.voice.label, /默认的捞捞声音（第 3 版）/); assert.equal(s4.avatar.own, false);
+    assert.match((await sv4.H.showSpeak("你好")).skip, /装好 GPT-SoVITS/);
+    await sv4.H.pickGsvDir();
+    const sp = await sv4.H.showSpeak("明天有 **3** 次课。");
+    assert.ok(sp.url.startsWith("data:audio/wav;base64,") && sp.who === "laolao" && sp.text === "明天有 3 次课。" && sp.ms > 0 && Array.isArray(sp.levels) && sp.levels.length > 0);
+    assert.equal((await sv4.H.setShowSpeak(false)).on, false); assert.equal(await sv4.H.showSpeak("你好"), null);
+    assert.equal((await sv4.H.showRole("staff")).who.me.role, "教务员");
+    await assert.rejects(async () => sv4.H.showOpenPpt(), /还没有做好的 PPT/);
+    sv4.H.voiceStop();
+    ok("成品展示：上传过声音的老师用自己的声音；什么都没上传的用默认的捞捞声音开口说话（带口型响度）；能关掉；状态里有成品第几版、身份、模拟教务的数据");
     sv3.H.voiceStop();
     H.setLaoSpeak(false);
     ok("捞捞说话：用捞捞的专属声音（laolao-voice）念回复，自动启动 GPT-SoVITS；去掉公式和 markdown；没下载好只提示");

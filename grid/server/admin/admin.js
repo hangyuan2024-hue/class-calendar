@@ -204,6 +204,20 @@
   }
   if ($("#stDays")) $("#stDays").onchange = loadStats;
 
+  // ---- 下载流量（下载门口记的账） ----
+  async function loadDl() {
+    const d = await api("/api/admin/dl?days=14").catch(() => null);
+    if (!d || !$("#dlBars")) return;
+    const L = d.limits, days = d.days.slice().reverse(), t = d.days[0] || {};
+    $("#dlLimits").textContent = !d.ready ? "还没配好：在 /etc/laolao-grid.env 填 DL_COS_*（见说明）" : `上限：全站每天 ${L.dailyGB}G · 每个网络每天 ${L.ipGB}G · 同一文件每天 ${L.repeat} 遍 · 放行 ${L.allow.join("、")}`;
+    window.LaoChart.bars($("#dlBars"), days.map((x) => x.day.slice(5)), [{ name: "GB", color: window.LaoChart.COLORS[0], vals: days.map((x) => x.gb) }], { fmt: (v) => v.toFixed(1) + "G" });
+    const RG = { CN: "国内", XX: "海外", LAN: "内网" };
+    $("#dlIps").innerHTML = "<tr><th>IP</th><th>地区</th><th>今天</th></tr>" + (t.ips || []).map((x) => `<tr><td>${esc(x.ip)}</td><td>${RG[x.region] || x.region}</td><td>${x.gb}G</td></tr>`).join("") || "";
+    $("#dlFiles").innerHTML = "<tr><th>文件</th><th>次数</th><th>几个网络</th><th>今天</th></tr>" + (t.files || []).map((x) => `<tr><td title="${esc(x.key)}">${esc(x.key.split("/").pop())}</td><td>${x.n}</td><td>${x.ips}</td><td>${x.gb}G</td></tr>`).join("");
+    const r = t.refused || {}, w = d.days.reduce((s, x) => s + (x.yuan || 0), 0);
+    $("#dlRefused").textContent = `今天发出 ${t.gb || 0}G（约 ${t.yuan || 0} 元），14 天约 ${w.toFixed(1)} 元。拦下：海外 ${r.foreign || 0} 次、反复下同一个文件 ${r.repeat || 0} 次、单个网络超量 ${r.ip || 0} 次、全站到上限 ${r.budget || 0} 次` + ((t.foreign || []).length ? `；海外来的 IP：${t.foreign.slice(0, 5).map((x) => x.ip).join("、")}` : "");
+  }
+
   // ---- 抽屉：电脑实时 ----
   const srcCache = {};
   async function openDev(id, quiet) {
@@ -293,7 +307,7 @@
   };
   $$("[data-close]").forEach((b) => (b.onclick = () => (b.closest(".modal").hidden = true)));
 
-  function start() { $("#login").hidden = true; $("#app").hidden = false; refresh(); loadInvites(); loadCycle(); loadVoices(); loadStats(); clearInterval(loadStats.t); loadStats.t = setInterval(loadStats, 60000); clearInterval(loadCycle.t); loadCycle.t = setInterval(() => { loadCycle(); loadVoices(); }, 10000); clearInterval(start.t); start.t = setInterval(refresh, 2500); }
+  function start() { $("#login").hidden = true; $("#app").hidden = false; refresh(); loadInvites(); loadCycle(); loadVoices(); loadStats(); loadDl(); clearInterval(loadStats.t); loadStats.t = setInterval(() => { loadStats(); loadDl(); }, 60000); clearInterval(loadCycle.t); loadCycle.t = setInterval(() => { loadCycle(); loadVoices(); }, 10000); clearInterval(start.t); start.t = setInterval(refresh, 2500); }
   if (token) api("/api/admin/overview").then(start, () => {}); else showLogin();
   window.__ready = true;
 })();

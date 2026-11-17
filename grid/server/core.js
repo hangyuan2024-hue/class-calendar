@@ -242,6 +242,7 @@ function open(file, opt = {}) {
     if (!req) return true;
     if (req.gpu && !(caps.gpu && caps.vram)) return false;
     if (req.vram && (caps.vram || 0) < req.vram) return false;
+    if (req.maxVram && (caps.vram || 0) > req.maxVram) return false;   // 只给小显卡做的活（大显卡去做更吃显存的那一档，别来抢）
     if (req.ram && (caps.ram || 0) < req.ram) return false;
     if (req.os && caps.os && req.os !== caps.os) return false;
     if (req.comfy && !caps.comfy) return false;   // 要装好 AI 引擎（ComfyUI + 画 Q版的模型）
@@ -323,6 +324,19 @@ function open(file, opt = {}) {
       let m = null;
       try { m = one("select files from models where name=? and state='released' order by version desc limit 1", String(P_.modelOf)); } catch (e) {}
       if (m) for (const f of J(m.files, []) || []) (out.files = out.files || {})["m_" + f.name] = f.key;
+    }
+    // 接着上一版训（params.warmStart = 模型名）：把现在发布的那一版训练时交的 peft 包带上（文件名 opt_ 开头 = 下不到也不算错），
+    //   再告诉它上一版用了多少条数据 → 这一轮只训新增的 + 抽一部分旧的，不用每次把全部数据从头训一遍
+    if (P_.warmStart) {
+      try {
+        const m = one("select run_id from models where name=? and state='released' order by version desc limit 1", String(P_.warmStart));
+        const r = m && one("select jobs from runs where id=?", m.run_id);
+        for (const jid of Object.values(J(r && r.jobs, {}) || {})) {
+          const jj = one("select meta from jobs where id=?", jid);
+          const res = ((J(jj && jj.meta, {}) || {}).result) || {};
+          if (res.peft && typeof res.peft === "string") { (out.files = out.files || {}).opt_prev_peft = res.peft; out.extra = { ...(out.extra || {}), prevExamples: +res.examples || 0, prev: { hp: res.hp || {}, base_acc: res.base_acc, base_zh_rate: res.base_zh_rate, base_name: res.base_name, acc: res.acc } }; }
+        }
+      } catch (e) {}
     }
     if (j.kind === "relay") {
       const c = one("select * from ckpts where job_id=? and kind='relay' order by step desc, id desc limit 1", j.id);

@@ -24,7 +24,15 @@
     $("#aiDl").hidden = A.model.ready; $("#aiGo").hidden = !A.model.ready || A.llm.status === "ready" || A.llm.status === "starting";
     paintEdit(A.edit);
   }
+  // 旁边的小预览：点大纲里哪一页就看哪一页
+  let prevNo = 0;
+  async function preview(no) {
+    const box = $("#aiPrev");
+    try { const r = await call("aiPreview", no); if (!r) { box.hidden = true; return; } prevNo = r.no; box.innerHTML = r.svg; box.hidden = false; for (const li of document.querySelectorAll("#aiOutline li")) li.classList.toggle("on", +li.dataset.no === r.no); }
+    catch (e) { box.hidden = true; }
+  }
   function paintEdit(ed) {
+    if (!ed) { $("#aiPrev").hidden = true; prevNo = 0; } else if (!prevNo) setTimeout(() => preview(1), 0);
     $("#aiFile").textContent = ed ? ed.file.split(/[\\/]/).pop() + (ed.saved ? "" : "（改过，还没保存）") : "还没打开 PPT：先去「选页和内容」打开一个";
     $("#aiSaveBtn").disabled = !ed || ed.saved; $("#aiUndoBtn").disabled = !ed || !ed.history.length;
     $("#aiOutline").innerHTML = ed ? ed.outline.map((s) => `<li class="${s.hidden ? "hid" : ""}" data-no="${s.no}"><b>${s.no}</b><span>${esc(s.title || "（没有标题）")}</span>${s.formulas ? `<i>∑×${s.formulas}</i>` : ""}</li>`).join("") : "";
@@ -80,6 +88,8 @@
       el.className = "step " + (e.ok ? "ok" : "bad");
       el.textContent = e.ok ? done(e) : `${e.say}：${(e.result && e.result.error) || "没成功"}`;
       if (e.changed) guard(refresh)();
+      // 改了哪一页，旁边的预览就跳到哪一页
+      if (e.ok && e.changed) { const r = e.result || {}; setTimeout(() => preview(r.no || r.to || (r.pages && r.pages[0]) || (e.args && e.args.slide) || prevNo || 1), 150); }
       return;
     }
     if (e.type === "done") { endBot(); const t = said; said = ""; speak(t); if (e.note) add("msg bot", esc(e.note)); if (e.stopped) add("step", "停下了"); return; }
@@ -94,6 +104,8 @@
     if (e.name === "add_slide") return `加好了第 ${r.no} 页「${e.args.title || ""}」`;
     if (e.name === "insert_formula") return `第 ${r.no} 页插好了公式 ${r.text || ""}` + (r.note ? `（${r.note}）` : "");
     if (e.name === "undo") return r.undone ? `撤销了：${r.undone}` : "没有可以撤销的了";
+    if (e.name === "check_ppt") return r.ok ? "检查了一遍：版面没问题" : `检查了一遍：有 ${(r.issues || []).length} 处要改`;
+    if (e.name === "edit_slide" || e.name === "set_theme" || e.name === "set_font_size" || e.name === "format_text" || e.name === "insert_table" || e.name === "insert_image" || e.name === "delete_shape" || e.name === "set_notes" || e.name === "copy_slide") return e.say + "：好了" + (r.warn ? `（${r.warn}）` : r.note ? `（${r.note}）` : r.converted ? `（${r.converted}）` : "");
     return e.say.replace(/^改/, "改好了") + "";
   }
   function typeset(el) {
@@ -166,7 +178,7 @@
     paintEdit(r.edit); toast(`插到第 ${r.no} 页了` + (r.note ? "：" + r.note : ""), !!r.note);
     add("step ok", esc(`第 ${r.no} 页插好了公式 ${r.text}`));
   });
-  $("#aiOutline").onclick = (e) => { const li = e.target.closest("li"); if (li) $("#ocrSlide").value = li.dataset.no; };
+  $("#aiOutline").onclick = (e) => { const li = e.target.closest("li"); if (li) { $("#ocrSlide").value = li.dataset.no; preview(+li.dataset.no); } };
 
   // ---------- 撤销、保存 ----------
   $("#aiUndoBtn").onclick = guard(async () => { const r = await call("aiUndo"); if (r) { paintEdit(r.edit); toast(r.undone ? "撤销了：" + r.undone : "没有可以撤销的了"); if (r.undone) add("step ok", esc("撤销了：" + r.undone)); } });

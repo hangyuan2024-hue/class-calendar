@@ -1,0 +1,227 @@
+// 捞捞PPT助手 · 成品展示：「捞小智」——把捞捞算力训练出来的几样本事合在一个对话里
+//   · 学术问答：本地大模型 + 最新一版答题 LoRA（考试通过才发布的）
+//   · 做 PPT：按老师的要求从头做一份（12 种版式、8 套配色，版式引擎 core/deck.js 排版），做完接着说怎么改就怎么改
+//     （换版式、重写一页、加页删页、换配色、调字号、标重点、公式、表格、图片、备注…和「AI 改 PPT」是同一套工具），界面上实时看每一页
+//   · 办事：模拟教务后端（core/campus.js）——查课表 / 成绩 / 考试、请假、调课、借教室、选课、开证明、审批
+//   · 说话：捞捞的专属声音（或者老师自己的声音）把回复念出来；形象用老师自己的，没有就用默认的捞捞
+//   「成品第几版」= 这几样各自的版本合起来；哪一样出了新版（捞捞算力训练、考试通过、发布），这里自动换上、记一笔
+"use strict";
+const fs = require("fs");
+const path = require("path");
+const AGENT = require("./agent");
+const EDIT = require("./pptedit");
+const DECK = require("./deck");
+const CAMPUS = require("./campus");
+
+const PARTS = [
+  { key: "qa-lora", name: "学术问答", what: "答题大脑：一步一步讲题", metric: "acc", metricName: "考试答对率", base: "base_acc" },
+  { key: "laolao-voice", name: "捞捞的声音", what: "默认声音：没上传自己声音的老师用它" },
+  { key: "voice-base", name: "声音克隆底座", what: "照着老师的一段录音学她说话" },
+  { key: "qversion-lora", name: "Q版形象", what: "照着照片画 Q版 / 3D 公仔" },
+];
+function create(o) {
+  const dir = o.dir;
+  fs.mkdirSync(dir, { recursive: true });
+  const now = o.now || (() => new Date());
+  const campus = o.campus || CAMPUS.create({ file: path.join(dir, "campus.json"), now });
+  const HIST = path.join(dir, "product.json");
+  let hist = { seen: {}, log: [] };
+  try { hist = { ...hist, ...JSON.parse(fs.readFileSync(HIST, "utf8")) }; } catch (e) {}
+  let role = o.role || "student";
+  const actor = () => { const I = campus.identities(); return I[role] || I.student; };
+  const outDir = path.join(dir, "ppt"), LAST = path.join(outDir, "last.json");
+
+  // ---------- PPT：从头做一份、接着改、打开老师自己的 ----------
+  // cur：现在手上的这一份 { d: 编辑器（core/pptedit.js）, file, title, pages, rev: 每存一次加一（界面看它变没变） }
+  let cur = null, revs = 0;
+  const stamp = () => { const t = now(), p = (n) => String(n).padStart(2, "0"); return `${p(t.getMonth() + 1)}${p(t.getDate())}-${p(t.getHours())}${p(t.getMinutes())}${p(t.getSeconds())}`; };
+  const safe = (t) => String(t || "").replace(/[\\/:*?"<>|\s]+/g, "_").slice(0, 40) || "ppt";
+  // 每改一步就存盘。老师正开着这个文件（Windows 上写不进去）：另存成一个新名字，告诉她
+  async function saveCur() {
+    const buf = await cur.d.save(); let note = null;
+    fs.mkdirSync(path.dirname(cur.file), { recursive: true });
+    try { fs.writeFileSync(cur.file, buf); }
+    catch (e) {
+      if (!["EBUSY", "EPERM", "EACCES"].includes(e.code)) throw e;
+      const base = cur.file.replace(/(-改\d+)?\.pptx$/i, ""); let k = 2, f;
+      do { f = `${base}-改${k++}.pptx`; } while (fs.existsSync(f) && k < 200);
+      fs.writeFileSync(f, buf); cur.file = f;
+      note = `原来的文件正开着、写不进去，改好的另存成了「${path.basename(f)}」（关掉 PowerPoint 里旧的那个，打开这个）`;
+    }
+    cur.pages = await cur.d.count(); cur.rev = ++revs;
+    try { fs.writeFileSync(LAST, JSON.stringify({ file: cur.file, title: cur.title })); } catch (e) {}
+    return note ? { saved_as: path.basename(cur.file), note } : null;
+  }
+  async function makePpt({ title, subtitle, theme, color, slides } = {}) {
+    title = String(title || "").trim();
+    if (!title) throw new Error("要有标题（title）");
+    // 小模型有时候把一页写成一句话（"标题：要点；要点"）：也认
+    const list = (Array.isArray(slides) ? slides : []).map((x) => { if (typeof x !== "string") return x; const m = /^(.{1,30}?)[：:]\s*(.+)$/s.exec(x.trim()); return m ? { title: m[1], lines: m[2].split(/[；;\n]/) } : { title: x.trim() }; }).filter((x) => x && typeof x === "object" && !Array.isArray(x)).slice(0, 40);
+    if (!list.length) throw new Error("至少要有一页内容（slides 里写每一页的 title 和内容）");
+    const d = await EDIT.load(await DECK.blank({ theme: DECK.THEMES[theme] ? theme : "blue", color, title, now: now() }));
+    const skipped = []; let at = 0;
+    if (DECK.layoutKey(list[0].layout) !== "cover") { await d.addDesigned(0, { layout: "cover", title, sub: subtitle }); at = 1; }
+    const n0 = at;
+    for (const [i, s] of list.entries()) {
+      try { const r = await d.addDesigned(at, i === 0 && !n0 ? { sub: subtitle, ...s } : s, { first: at === 0 }); at += r.pages || 1; }
+      catch (e) { skipped.push(`第 ${i + 1} 页「${String(s.title || "").slice(0, 20)}」没做出来：${e.message}`); }
+    }
+    if (at <= n0 && n0) throw new Error("一页内容都没做出来。" + skipped.join("；"));
+    fs.mkdirSync(outDir, { recursive: true });
+    // 重新打开一遍：做的过程不算「改动」（不然老师说撤销，会把最后一页撤掉）
+    cur = { d: await EDIT.load(await d.save()), file: path.join(outDir, `${safe(title)}-${stamp()}.pptx`), title, own: true };
+    await saveCur();
+    const chk = await cur.d.check(), ol = await cur.d.outline();
+    return { ok: true, file: path.basename(cur.file), pages: cur.pages, theme: (await cur.d.theme()).name, outline: ol.map((x) => `${x.no}. ${x.title}（${(DECK.LAYOUTS[x.layout] || "").replace(/（.*$/, "")}）`),
+      ...(skipped.length ? { skipped } : {}), ...(chk.issues.length ? { issues: chk.issues.slice(0, 6) } : {}),
+      note: "做好了，界面上可以直接看每一页、也可以用 PowerPoint 打开。还想改哪里直接说：比如「第 3 页改成两栏对比」「换成绿色的」「字大一点」「加一页练习题」" };
+  }
+  // 打开老师自己的 .pptx 接着改：不动原文件，改的存在展示的文件夹里
+  async function openPpt(file) {
+    const buf = fs.readFileSync(file), d = await EDIT.load(buf);
+    const name = path.basename(file).replace(/\.pptx$/i, "");
+    fs.mkdirSync(outDir, { recursive: true });
+    cur = { d, file: path.join(outDir, `${safe(name)}-改-${stamp()}.pptx`), title: name, own: false, from: file };
+    await saveCur(); agent.reset();
+    return lastPpt();
+  }
+  const lastPpt = () => (cur ? { file: cur.file, title: cur.title, pages: cur.pages, rev: cur.rev, own: !!cur.own } : null);
+  // 上次做到一半的那一份：重开以后接着改
+  const boot = (async () => { try { const l = JSON.parse(fs.readFileSync(LAST, "utf8")); if (l && l.file && fs.existsSync(l.file)) { cur = { d: await EDIT.load(fs.readFileSync(l.file)), file: l.file, title: l.title || path.basename(l.file), own: true }; cur.pages = await cur.d.count(); cur.rev = ++revs; } } catch (e) { cur = null; } })();
+  // 给界面画的：每一页一张 SVG。rev 和界面手上的一样（没变过）就返回 null
+  async function slides(rev) {
+    await boot;
+    if (!cur) return { none: true };
+    if (rev != null && +rev === cur.rev) return null;
+    const svgs = []; for (let i = 1; i <= cur.pages; i++) { try { svgs.push(await cur.d.preview(i)); } catch (e) { svgs.push(""); } }
+    const th = await cur.d.theme();
+    return { rev: cur.rev, name: path.basename(cur.file), title: cur.title, pages: cur.pages, theme: th.key, theme_name: th.name, designed: await cur.d.designed(), svgs,
+      themes: Object.entries(DECK.THEMES).map(([k, v]) => ({ key: k, name: v.name, bg: "#" + v.c[0], main: "#" + v.c[4], dark: "#" + v.c[3] })) };
+  }
+  // 界面上直接点的（不经过模型）：换配色、撤销
+  async function pptTheme(key) { await boot; if (!cur) throw new Error("还没有 PPT"); if (agent.busy()) throw new Error("它正在改，等它改完"); const r = await cur.d.setTheme({ theme: key }); await saveCur(); return r; }
+  async function pptUndo() { await boot; if (!cur) throw new Error("还没有 PPT"); if (agent.busy()) throw new Error("它正在改，等它改完"); const l = await cur.d.undo(); if (!l) throw new Error("没有可以撤销的了"); await saveCur(); return { undone: l }; }
+
+  // ---------- 智能体 ----------
+  const RE_PPT = /ppt|课件|幻灯|演示文稿|讲义|这一页|上一页|下一页|最后一页|第\s*[0-9一二三四五六七八九十两]+\s*页|封面|标题|配色|颜色|版式|排版|字号|字体|字大|字小|大一点|小一点|加粗|标红|高亮|标出|表格|备注|讲稿|撤销|改回|大纲|要点|两栏|卡片|步骤图|加一页|删掉/i;
+  const RE_CAMPUS = /课表|上课|有课|成绩|绩点|学分|考试|请假|销假|调课|停课|补课|教室|选课|退课|证明|审批|批准|驳回|申请|规定|校历|教务|辅导员|学籍|明天|后天|下周|这周|本周/;
+  const PPT_NAMES = AGENT.TOOLS.map((t) => t.name);
+  // 这一句带哪些工具（4B 的模型上下文有限，三十多个工具全带上它既慢又容易选错）：
+  //   手上没有 PPT：做 PPT + 教务；手上有：说的是 PPT 的事带改 PPT 的那一套，说的是教务的事带教务的，分不清就都带
+  let lastKind = "";
+  function pick(text) {
+    const names = new Set(["make_ppt"]), ppt = RE_PPT.test(text), cam = RE_CAMPUS.test(text);
+    // 两样都没提（「再简单一点」「好的」）：接着上一句说的那件事
+    const kind = ppt && cam ? "both" : ppt ? "ppt" : cam ? "campus" : lastKind || (cur ? "ppt" : "campus");
+    lastKind = kind;
+    if (cur && kind !== "campus") for (const n of PPT_NAMES) names.add(n);
+    if (!cur || kind !== "ppt") for (const t of campusTools) names.add(t.name);
+    return names;
+  }
+  const SYS = (names) => {
+    const w = campus.who(actor());
+    const t = now(), tm = new Date(t); tm.setDate(tm.getDate() + 1);
+    const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const hasEdit = !names || names.has("edit_slide"), hasCampus = !names || campusTools.some((x) => names.has(x.name));
+    return `你是「捞小智」，捞捞课程表的校园智能体：会讲题、会做 PPT 和改 PPT、会帮师生办教务的事。你在这台电脑上运行，不联网。
+
+现在和你说话的是：${w.role} ${w.name}（${w.role === "学生" ? `学号 ${w.id}，${w.class}` : w.role === "教师" ? `工号 ${w.id}，${w.dept}${w.counselor_of && w.counselor_of.length ? "，" + w.counselor_of.join("、") + "辅导员" : ""}` : "教务处"}）。
+今天是 ${w.today} ${w.weekday}，${w.term}第 ${w.week} 周；明天是 ${ymd(tm)}。
+${cur ? `现在手上的 PPT：「${cur.title}」，一共 ${cur.pages} 页（界面上能看到每一页）。对方说「这一页」「改一下」「换个颜色」指的就是它。` : "现在手上还没有 PPT。"}
+
+你会三类事，按对方说的挑：
+一、讲题和学术问题：直接回答。一步一步讲清楚，每一步说明为什么；算式写清楚，公式用 LaTeX（$...$）；最后给出答案。不知道的就说不知道，不要编。
+二、PPT：
+   · 对方要「做一份 PPT / 课件」→ 先想好整份怎么讲，再调用 make_ppt 一次做完。一般 8～12 页（对方说了几页就按他说的）：开头一页讲「这节课学什么」，中间按 2～3 个部分讲（每部分可以用 section 开头），结尾一页 summary 小结。
+     每一页挑合适的版式，不要整份都是 bullets：并列的几个概念用 cards，有先后的过程用 steps，两样东西比一比用 compare，数据用 table，代码用 code，公式用 formula，最重要的一句话用 statement。
+     每页只讲一件事：标题一句话说清结论；要点 3～5 条、每条不超过 25 个字。
+     内容要准：概念、公式、代码、数据只写有把握的；拿不准的在回答里告诉对方「第几页的什么请核对」，不要编。
+     做完告诉对方一共几页、每页讲什么；工具结果里有 issues（版面问题）就先改掉。
+${hasEdit ? `   · 对方要改手上这份 PPT → 用改 PPT 的工具，照他说的改，不要重新做一份（除非他说「重做」）。\n${AGENT.PPT_RULES.split("\n").map((l) => "     " + l).join("\n")}` : "   · 要改 PPT，得先有一份：让对方说要做什么内容的，或者在界面上点「打开 PPT」。"}
+${hasCampus ? `三、办教务的事（课表、成绩、考试、请假、调课、借教室、选课、开证明、审批、查规定）：必须调用工具去查、去办，不要凭空回答，也不要编造课程、教室、日期。
+   · 日期一律写成 YYYY-MM-DD；「明天」「下周三」先按上面的今天换算好。
+   · 要提交申请（请假、调课、借教室）而信息不全（日期、原因、哪门课）时，先问清楚再提交；信息齐了就直接提交，不用反复确认。
+   · 提交以后，把申请编号、现在到哪一步（谁审批）、要注意的事（缺哪些课、有没有考试、要补什么材料）告诉对方。
+   · 工具报错了，把原因照实告诉对方，再给一个能办成的办法。
+   · 只办现在这个人有权限办的事；别人的成绩、别人的申请不能看、不能改。` : "三、办教务的事（课表、成绩、请假、调课、借教室…）：对方问到再办。"}
+
+回答用简体中文，口语化、简短；不要输出 JSON 和代码（公式的 LaTeX、讲题时的代码除外）。`;
+  };
+  const campusTools = campus.tools(actor);
+  const tools = [
+    { name: "make_ppt", desc: "按要求从头做一份新的 PPT（.pptx）。title 整份的标题，subtitle 副标题（课程、章节），theme 配色（" + Object.entries(DECK.THEMES).map(([k, v]) => `${k} ${v.name}`).join(" / ") + "，不写用 blue），slides 每一页（封面不用写，会自动加）",
+      params: { title: { type: "string" }, subtitle: { type: "string" }, theme: { type: "string", enum: Object.keys(DECK.THEMES) }, slides: { type: "array", items: { type: "object", properties: AGENT.PAGE } } }, req: ["title", "slides"], changes: true,
+      say: (a) => `做一份 PPT「${a.title || ""}」（${Array.isArray(a.slides) ? a.slides.length + 1 : "?"} 页）`, run: makePpt },
+    ...campusTools,
+  ];
+  const isPpt = new Set(PPT_NAMES);
+  let tap = null;       // 考试的时候看它调了哪些工具
+  const agent = AGENT.create({ llm: o.llm, deck: () => (cur ? cur.d : null), tools, system: SYS, pick, onEvent: (e) => { if (tap) try { tap(e); } catch (x) {} if (o.onEvent) o.onEvent(e); }, maxRounds: o.maxRounds || 10, maxResult: o.maxResult || 3500,
+    // 改了手上这份 PPT：马上存盘（界面上的预览跟着变）
+    onChanged: async (name) => (isPpt.has(name) && cur ? saveCur() : null) });
+
+  // ---------- 考一考它做 PPT、改 PPT 的本事 ----------
+  // 8 道固定的题：真的让现在这版模型去做、去改，做完由程序（版式引擎、大纲、主题）核对，不靠人看。
+  //   老师端没法知道一版模型「会不会做 PPT」，这个分数就是答案；以后训练 PPT 的本事，也拿它当考试。
+  const EXAM = [
+    { q: "做一份讲「冒泡排序」的 PPT，8 页左右，给大一学生上 C 语言课用", what: "从头做一份", ok: async (d, x) => { if (!x.made) return "没有调用 make_ppt"; const ol = await d.outline(), ks = new Set(ol.map((s) => s.layout)), c = await d.check();
+      if (ol.length < 6 || ol.length > 12) return `要 8 页左右，做了 ${ol.length} 页`; if (ks.size < 4) return `版式太单一（只用了 ${[...ks].join("、")}）`; if (c.issues.length) return `版面有 ${c.issues.length} 处问题：${c.issues[0].problem}`; return null; } },
+    { q: "把第 3 页改成两栏对比", what: "换版式", ok: async (d) => ((await d.outline())[2].layout === "compare" ? null : "第 3 页没有变成两栏对比") },
+    { q: "整份换成绿色的", what: "换配色", ok: async (d) => ((await d.theme()).key === "green" ? null : "配色没有换成绿色") },
+    { q: "把第 2 页的标题改成「今天学什么」", what: "改标题", ok: async (d) => ((await d.outline())[1].title === "今天学什么" ? null : `第 2 页的标题现在是「${(await d.outline())[1].title}」`) },
+    { q: "在最后加一页课后练习，出 3 道题", what: "加一页", ok: async (d, x) => { const ol = await d.outline(); return ol.length <= x.pages0 ? "页数没有变多" : !ol[ol.length - 1].texts.join("").trim() ? "加的那一页是空的" : null; } },
+    { q: "给第 2 页写一段讲稿放在备注里", what: "写备注", ok: async (d) => ((await d.notes(2)).trim().length >= 8 ? null : "第 2 页没有备注") },
+    { q: "刚才那一步不要了，撤销", what: "撤销", ok: async (d) => ((await d.notes(2)).trim() ? "备注还在，没有撤销" : null) },
+    { q: "明天有什么课？", what: "中间问教务的事", ok: async (d, x) => (x.tools.includes("get_timetable") ? null : "没有去查课表（" + (x.tools.join("、") || "没调工具") + "）") },
+  ];
+  const EXAMF = path.join(dir, "ppt-exam.json");
+  const lastExam = () => { try { return JSON.parse(fs.readFileSync(EXAMF, "utf8")); } catch (e) { return null; } };
+  async function pptExam() {
+    await boot; if (agent.busy()) throw new Error("它正在回答，等它说完再考");
+    agent.reset(); cur = null; lastKind = "";
+    const items = [], t0 = Date.now();
+    try {
+      for (const it of EXAM) {
+        const x = { tools: [], made: false, pages0: cur ? cur.pages : 0 }, s0 = Date.now();
+        tap = (e) => { if (e.type === "tool" && e.stage === "done") { x.tools.push(e.name); if (e.name === "make_ppt" && e.ok) x.made = true; } };
+        if (o.onEvent) o.onEvent({ type: "exam", q: it.q, no: items.length + 1, total: EXAM.length });
+        let why = null;
+        try { await agent.send(it.q, []); why = cur ? await it.ok(cur.d, x) : "没有做出 PPT"; } catch (e) { why = "出错：" + e.message; }
+        items.push({ q: it.q, what: it.what, ok: !why, ...(why ? { why } : {}), tools: x.tools, secs: Math.round((Date.now() - s0) / 1000) });
+        if (!cur && items.length === 1) break;        // 第一题就没做出来：后面的都是改这一份，考不了
+      }
+    } finally { tap = null; }
+    const st = o.grid ? o.grid.status() : { current: {} }, qa = st.current["qa-lora"];
+    const r = { at: now().getTime(), score: items.filter((i) => i.ok).length, total: EXAM.length, secs: Math.round((Date.now() - t0) / 1000), qa: qa ? qa.version : 0, items, file: cur ? path.basename(cur.file) : null };
+    try { fs.writeFileSync(EXAMF, JSON.stringify(r)); } catch (e) {}
+    return r;
+  }
+
+  // ---------- 成品第几版 ----------
+  // grid：core/gridmodels.js 的实例。每次看一眼各样的版本；和上次记的不一样就记一笔（哪一样、从第几版到第几版、成绩）
+  function product() {
+    const st = o.grid ? o.grid.status() : { current: {}, pending: {}, checked: 0 };
+    let changed = false;
+    const parts = PARTS.map((p) => {
+      const c = st.current[p.key] || null, pend = st.pending[p.key] || null;
+      const v = c ? c.version : 0, m = (c && c.metrics) || {};
+      if (v && hist.seen[p.key] !== v) {
+        hist.log.push({ at: now().getTime(), key: p.key, name: p.name, from: hist.seen[p.key] || 0, to: v, ...(p.metric && m[p.metric] != null ? { metric: m[p.metric], base: m[p.base] } : {}) });
+        hist.seen[p.key] = v; changed = true;
+      }
+      return { key: p.key, name: p.name, what: p.what, version: v, pending: pend, ready: !!c, ...(p.metric && m[p.metric] != null ? { metricName: p.metricName, metric: m[p.metric], base: m[p.base] != null ? m[p.base] : null } : {}) };
+    });
+    if (changed) { hist.log = hist.log.slice(-60); try { fs.writeFileSync(HIST, JSON.stringify(hist)); } catch (e) {} }
+    // 成品第几版：每样每出一版加一（从记录里数），所以只会往上涨
+    return { build: hist.log.length, parts, log: hist.log.slice(-12).reverse(), checked: st.checked || 0 };
+  }
+
+  return {
+    send: async (text, images) => { await boot; return agent.send(text, images); }, stop: () => agent.stop(), reset: () => agent.reset(), busy: () => agent.busy(), history: () => agent.history(),
+    setRole(r) { if (!["student", "teacher", "staff"].includes(r)) throw new Error("身份只有：学生、教师、教务员"); if (r !== role) { role = r; lastKind = ""; agent.reset(); } return who(); },
+    who, product, campus, makePpt, openPpt, lastPpt, slides, pptTheme, pptUndo, pptExam, lastExam, pick, tools, ready: () => boot, deck: () => (cur ? cur.d : null),
+  };
+  function who() { const I = campus.identities(); return { role, me: campus.who(actor()), roles: ["student", "teacher", "staff"].map((k) => ({ key: k, name: { student: "学生", teacher: "教师（辅导员）", staff: "教务员" }[k], who: I[k].name, note: I[k].note })) }; }
+}
+
+module.exports = { create, PARTS };

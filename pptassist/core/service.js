@@ -15,6 +15,7 @@ const INSTALL = require("./installer");
 const LLM = require("./llm");
 const GridModels = require("./gridmodels");
 const AGENT = require("./agent");
+const XIAOZHI = require("./xiaozhi");
 const EDIT = require("./pptedit");
 const WF = require("./workflows");
 
@@ -60,6 +61,24 @@ function createService(env) {
     lora: () => { const q = grid.use("qa-lora"); return (q && q.files && q.files.lora) || null; }, onLoraFail: () => grid.rollback("qa-lora"), onState: (st) => send("agent", { type: "state", state: st }), ...(env.llmOpt || {}) });
   let edit = null;   // { deck, file, saved }
   const agent = AGENT.create({ llm, deck: () => (edit ? edit.deck : null), fileName: () => (edit ? path.basename(edit.file) : ""), onEvent: (e) => send("agent", e) });
+  // 成品展示「捞小智」：讲题 + 做 PPT + 办教务的事（模拟教务后端）合在一个对话里；用的是同一个本地大模型和最新发布的各样模型
+  const show = XIAOZHI.create({ dir: P("show"), llm, grid, onEvent: (e) => send("show", e), ...(env.showOpt || {}) });
+  // 念出来的只要说的话：去掉公式、代码、markdown 符号；太长的只念前几句
+  const sayable = (text, max = 160) => {
+    let t = String(text || "").replace(/```[\s\S]*?```/g, "").replace(/\$\$?[^$]*\$\$?/g, "（公式）").replace(/[#*`>_~|]/g, "").replace(/\s+/g, " ").trim();
+    if (t.length > max) { const cut = t.slice(0, max); const k = Math.max(cut.lastIndexOf("。"), cut.lastIndexOf("！"), cut.lastIndexOf("？")); t = k > 20 ? cut.slice(0, k + 1) : cut + "……"; }
+    return t;
+  };
+  // 成品展示用谁的声音：老师自己的（训练过的 / 上传的录音）优先；没有就用默认的捞捞
+  function showVoice() {
+    const tm = trainedVoice();
+    if (tm) return { who: "own", label: "老师自己的声音（捞捞算力训练的）", ref: tm.files.ref, prompt: tm.prompt, gpt: tm.files.gpt, sovits: tm.files.sovits, tag: "t" + tm.version };
+    const v = profile.voice;
+    if (v && fs.existsSync(P(v.ref))) { const vb = grid.use("voice-base"); return { who: "own", label: "老师自己的声音（照着上传的录音学的）", ref: P(v.ref), prompt: v.prompt || "", gpt: vb && vb.files.gpt, sovits: vb && vb.files.sovits, tag: "r" + v.seconds + (vb ? vb.version : 0) }; }
+    const m = grid.use("laolao-voice");
+    if (m && m.files.gpt && m.files.sovits && m.files.ref) { let prompt = ""; try { prompt = fs.readFileSync(m.files.reftext, "utf8").trim(); } catch (e) {} return { who: "laolao", label: `默认的捞捞声音（第 ${m.version} 版）`, ref: m.files.ref, prompt, gpt: m.files.gpt, sovits: m.files.sovits, tag: "l" + m.version }; }
+    return null;
+  }
   async function ensureDeck() {
     if (edit && doc && edit.file === doc.file) return edit.deck;
     if (!doc) return null;
@@ -421,6 +440,7 @@ function createService(env) {
     // 老师说一句（可以带图片：data:image/…;base64）。回复和每一步进度通过 agent 事件发给界面
     async aiSend(text, images = []) {
       const imgs = (Array.isArray(images) ? images : []).filter((u) => typeof u === "string" && /^data:image\/(png|jpe?g|webp);base64,/.test(u) && u.length < 12e6).slice(0, 3);
+      if (show.busy()) throw new Error("「成品展示」那边还在回答，等它说完");
       await ensureDeck();
       const before = edit ? edit.deck.history().length : 0;
       await agent.send(text, imgs);
@@ -428,6 +448,57 @@ function createService(env) {
       return editInfo();
     },
     aiStop() { return agent.stop(); },
+    // ---------- 成品展示 ----------
+    async showState() {
+      await show.ready();
+      const a = await H.aiState(), v = showVoice(), lp = show.lastPpt(), me = show.who();
+      const actor = show.campus.identities()[me.role];
+      return { who: me, product: show.product(), llm: a.llm, model: a.model, exe: a.exe, busy: show.busy(),
+        voice: { on: profile.showSpeak !== false, who: v ? v.who : null, label: v ? v.label : "还没有声音：捞捞的声音训练好后会自动下载", gsv: !!profile.gsvDir, engine: voice.state.state },
+        avatar: { own: !!(profile.avatar || profile.face), spec: profile.avatar || null },
+        ppt: lp ? { name: path.basename(lp.file), title: lp.title, pages: lp.pages, rev: lp.rev } : null, exam: show.lastExam(),
+        requests: show.campus.myRequests(actor).requests.slice(0, 8), pending: show.campus.pending(actor).requests.slice(0, 8), campus: show.campus.stats() };
+    },
+    async showSend(text, images) {
+      if (agent.busy()) throw new Error("「AI 改 PPT」那边还在回答，等它说完");
+      const imgs = (Array.isArray(images) ? images : []).filter((u) => typeof u === "string" && /^data:image\/(png|jpeg|webp);base64,/.test(u)).slice(0, 2);
+      await show.send(String(text || "").slice(0, 4000), imgs);
+      return H.showState();
+    },
+    showStop() { return show.stop(); },
+    showReset() { show.reset(); return true; },
+    showRole(r) { show.setRole(r); return H.showState(); },
+    async showCheck() { await grid.check(); for (const k of XIAOZHI.PARTS) grid.use(k.key); return H.showState(); },
+    showApprove(id, ok) { show.campus.approveNext(String(id), ok !== false); return H.showState(); },
+    showCampusReset() { show.campus.reset(); show.reset(); return H.showState(); },
+    showSlides: (rev) => show.slides(rev),
+    async showPptExam() { if (agent.busy()) throw new Error("「AI 改 PPT」那边还在回答，等它说完"); const r = await show.pptExam(); return { exam: r, state: await H.showState() }; },
+    async showPptTheme(k) { await show.pptTheme(String(k)); return true; },
+    showPptUndo: () => show.pptUndo(),
+    async showPickPpt() { const f = await env.pickFile(["pptx"], "打开一份 PPT（.pptx），让捞小智改", "PowerPoint"); if (!f) return null; await show.openPpt(f); return H.showState(); },
+    showOpenPpt(reveal) { const lp = show.lastPpt(); if (!lp || !fs.existsSync(lp.file)) throw new Error("还没有做好的 PPT"); if (reveal) env.reveal(lp.file); else env.openPath(lp.file); return true; },
+    async setShowSpeak(on) { profile.showSpeak = !!on; saveProfile(); return (await H.showState()).voice; },
+    // 把回复念出来：返回声音和每一帧的响度（形象跟着张嘴）
+    async showSpeak(text) {
+      if (profile.showSpeak === false) return null;
+      const v = showVoice();
+      if (!v) return { skip: "还没有声音：捞捞的声音训练好后会自动下载" };
+      const t = sayable(text); if (!t) return null;
+      if (voice.state.state !== "ready") {
+        if (!profile.gsvDir) return { skip: "要先在「我的声音」里装好 GPT-SoVITS，才能开口说话" };
+        await voice.start(profile.gsvDir, env.voiceOpt || {});
+      }
+      fs.mkdirSync(P("cache"), { recursive: true });
+      const wav = P("cache", `show-${hash(t + "|" + v.tag)}.wav`);
+      if (!fs.existsSync(wav)) {
+        let b = null;
+        if (v.gpt && v.sovits) { try { b = await voice.tts({ text: t, refWav: v.ref, promptText: v.prompt, gpt: v.gpt, sovits: v.sovits }); } catch (e) { if (v.who !== "own") throw e; } }
+        if (!b) b = await voice.tts({ text: t, refWav: v.ref, promptText: v.prompt });
+        fs.writeFileSync(wav, b);
+      }
+      const w = MEDIA.readWav(fs.readFileSync(wav));
+      return { url: dataUrl(wav, "audio/wav"), text: t, who: v.who, ms: Math.round(w.seconds * 1000), levels: MEDIA.lipLevels(w.samples, w.rate, 25) };
+    },
     // 捞捞说话：用捞捞智能体的专属声音（捞捞算力训的 laolao-voice）把回复念出来；要这台电脑开着 GPT-SoVITS（「我的声音」里启动）
     laoVoiceState() { const m = grid.use("laolao-voice"); return { on: !!profile.laoSpeak, model: !!(m && m.files.gpt && m.files.sovits && m.files.ref), version: m ? m.version : null, engine: voice.state.state, gsv: !!profile.gsvDir }; },
     setLaoSpeak(on) { profile.laoSpeak = !!on; saveProfile(); return H.laoVoiceState(); },
@@ -459,6 +530,8 @@ function createService(env) {
       const r = await d.insertFormula(slide, latex, { where: o.where, size: o.size }); edit.saved = false;
       return { ...r, edit: await editInfo() };
     },
+    // 一页现在的样子（SVG），给旁边的小预览
+    async aiPreview(no) { const d = await ensureDeck(); if (!d) return null; const n = Math.max(1, Math.min(await d.count(), +no || 1)); return { no: n, svg: await d.preview(n) }; },
     async aiUndo() { const d = await ensureDeck(); if (!d) return null; const l = await d.undo(); if (l) edit.saved = false; return { undone: l, edit: await editInfo() }; },
     async aiPickImage() {
       const f = await env.pickFile(["png", "jpg", "jpeg", "webp"], "选一张照片（公式、板书、截图）", "图片"); if (!f) return null;

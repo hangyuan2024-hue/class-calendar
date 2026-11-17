@@ -74,6 +74,7 @@ function create(o) {
         if (!rel) continue;
         // 管理员撤回了：清单里的版本比现在用的旧，也要换回去
         if (cur && cur.version === rel.version) { delete st.pending[name]; continue; }
+        if (st.bad && st.bad[name] === rel.version) continue;   // 这一版在这台电脑上用不了（退回过）
         if (st.pending[name] && st.pending[name].version === rel.version) continue;
         const vd = path.join(dir, name.replace(/[^\w.\-]/g, (ch) => "_" + ch.charCodeAt(0).toString(16)), String(rel.version));
         fs.mkdirSync(vd, { recursive: true });
@@ -117,7 +118,9 @@ function create(o) {
   function rollback(name) {
     const prev = st.prev && st.prev[name];
     if (!prev) return false;
-    st.current[name] = prev; delete st.prev[name]; save();
+    // 记住坏的是哪一版：下次看清单时不再把它下回来（不然会 换上 → 出问题 → 退回 → 又换上 来回折腾），等更新的一版
+    st.bad = st.bad || {}; if (st.current[name]) st.bad[name] = st.current[name].version;
+    st.current[name] = prev; delete st.prev[name]; delete st.pending[name]; save();
     log({ name, version: prev.version, stage: "rollback" });
     return true;
   }

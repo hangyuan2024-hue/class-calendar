@@ -37,6 +37,16 @@ if [ ! -f /etc/laolao-grid.env ]; then
 #GRID_COS_KEY_ID=
 #GRID_COS_SECRET=
 #GRID_COS_PREFIX=grid
+# 下载门口（安装包、AI 组件只给中国大陆，见 server/dlgate.js、server/dl-https.sh）：只读的密钥；不填就用上面那一套
+#DL_COS_ENDPOINT=https://cos.ap-guangzhou.myqcloud.com
+#DL_COS_REGION=ap-guangzhou
+#DL_COS_BUCKET=你的桶名-1250000000
+#DL_COS_KEY_ID=
+#DL_COS_SECRET=
+# 刹车：全站一天最多多少 G、一个网络一天最多多少 G、同一个文件同一个网络一天最多几遍
+#DL_DAILY_GB=50
+#DL_IP_GB=40
+#DL_REPEAT=4
 EOF
   chmod 600 /etc/laolao-grid.env
 fi

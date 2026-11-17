@@ -38,6 +38,9 @@ const svc = createService({
   restart: () => { quitting = true; app.relaunch({ args: process.argv.slice(1).filter((a) => a !== "--hidden").concat(win && win.isVisible() ? [] : ["--hidden"]) }); app.exit(0); },
   reveal: (f) => shell.showItemInFolder(f),
   openPath: (f) => shell.openPath(f),
+  // 成品展示的全屏模式
+  fullscreen: (v) => { if (win && !win.isDestroyed()) win.setFullScreen(!!v); },
+  isFullscreen: () => !!(win && !win.isDestroyed() && win.isFullScreen()),
   windowHidden: () => !win || win.isDestroyed() || !win.isVisible() || win.isMinimized(),
   // 静默安装新版（/S），装完自己打开（--force-run）；只有装好的软件才自动更新
   install: app.isPackaged ? async (file) => {
@@ -47,6 +50,7 @@ const svc = createService({
     setTimeout(() => app.quit(), 300);
   } : null,
   pickDir: async (title) => { const r = await dialog.showOpenDialog(win, { title, properties: ["openDirectory", "createDirectory"] }); return r.canceled ? null : r.filePaths[0]; },
+  pickFile: async (exts, title, kind) => { const r = await dialog.showOpenDialog(win, { title, properties: ["openFile"], filters: [{ name: kind || "文件", extensions: exts }] }); return r.canceled ? null : r.filePaths[0]; },
   openAdmin: (u) => {
     const w = new BrowserWindow({ width: 1400, height: 900, title: "捞捞算力 · 控制中心", backgroundColor: "#060a16", autoHideMenuBar: true, webPreferences: { contextIsolation: true, sandbox: true } });
     w.webContents.setWindowOpenHandler(() => ({ action: "deny" }));

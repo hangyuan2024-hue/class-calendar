@@ -60,8 +60,58 @@ lg.log("讲解：%d 条（去掉了重复的）" % len(rows))
 if len(rows) < int(p.get("minExamples", 300)):
     lg.done(skip="讲解还不够（%d 条，要 %d 条），先攒着" % (len(rows), int(p.get("minExamples", 300))), examples=len(rows))
     raise SystemExit(0)
+# ---- 接着上一版训（不用每一轮都把全部数据从头训一遍）----
+# 调度中心带来了现在发布的那一版（opt_prev_peft）和它当时用了多少条（prevExamples）：
+#   这一轮只训「新增的 + 从旧的里抽一部分复习」（防止学了新的忘了旧的），从上一版的参数接着往下训。
+#   数据是按交上来的先后排的，所以前 prevExamples 条就是上一版见过的。
+#   新增的比旧的还多、上一版拿不到、参数对不上：就和以前一样从头训全部。考试把关不变：不比现在发布的好不发布。
+WARM = None
+ALL_ROWS = list(rows)
+_prev = (t.get("files") or {}).get("opt_prev_peft")
+_pn = int((t.get("extra") or {}).get("prevExamples") or 0)
+_total = len(rows)
+if _prev and p.get("warm", True) and 0 < _pn < len(rows) <= int(p.get("maxExamples", 8000)):
+    new_rows, old_rows = rows[_pn:], rows[:_pn]
+    if len(new_rows) <= len(old_rows):
+        random.Random(len(rows)).shuffle(old_rows)
+        replay = old_rows[: max(int(p.get("replayMin", 600)), int(len(new_rows) * float(p.get("replay", 2))))]
+        WARM = {"zip": _prev, "new": len(new_rows), "replay": len(replay)}
+        rows = new_rows + replay
 random.Random(0).shuffle(rows)
 rows = rows[: int(p.get("maxExamples", 8000))]
+
+# ---- 训练参数自己进化（不用人调）----
+# 每一轮从「现在发布的那一版」用的参数出发，有一半的轮次改动其中一个（学习率、训几遍、复习多少）试一试。
+# 考试把关：改了以后考得更好 → 这一版发布，它的参数成为下一轮的起点；没更好 → 不发布，下一轮还从原来的参数出发。
+# 好的改动留下、坏的自动淘汰，一轮一轮往好的方向走。
+PREV = (t.get("extra") or {}).get("prev") or {}
+HP = {"lr": float(p.get("lr", 1e-4)), "epochs": int(p.get("epochs", 2)), "replay": float(p.get("replay", 2))}
+TRY = None
+if p.get("evolve", True):
+    for _k, _v in (PREV.get("hp") or {}).items():
+        if _k in HP and isinstance(_v, (int, float)) and _v > 0:
+            HP[_k] = type(HP[_k])(_v)
+    _rng = random.Random("hp-%d" % _total)
+    if PREV.get("hp") is not None and _rng.random() < float(p.get("evolveRate", 0.5)):
+        _k = _rng.choice(["lr", "lr", "epochs", "replay"])
+        _old = HP[_k]
+        if _k == "lr":
+            HP[_k] = min(4e-4, max(2e-5, _old * _rng.choice([0.67, 1.5])))
+        elif _k == "epochs":
+            HP[_k] = min(3, max(1, _old + _rng.choice([-1, 1])))
+        else:
+            HP[_k] = min(6.0, max(0.5, _old * _rng.choice([0.5, 2.0])))
+        if HP[_k] != _old:
+            TRY = "%s：%s → %s" % ({"lr": "学习率", "epochs": "训几遍", "replay": "复习旧数据的倍数"}[_k], ("%g" % _old), ("%g" % HP[_k]))
+            lg.log("这一轮试一个改动（考得更好就留下，没更好就淘汰）：" + TRY)
+if WARM and HP["replay"] != float(p.get("replay", 2)):
+    # 复习的倍数变了：重新挑一遍
+    _new, _old_rows = ALL_ROWS[_pn:], ALL_ROWS[:_pn]
+    random.Random(_total).shuffle(_old_rows)
+    _rp = _old_rows[: max(int(p.get("replayMin", 600)), int(len(_new) * HP["replay"]))]
+    WARM["replay"] = len(_rp)
+    rows = _new + _rp
+    random.Random(0).shuffle(rows)
 
 
 # ---------------- 2. 底子（Hugging Face 格式，训练用）----------------
@@ -160,10 +210,37 @@ def train(base):
     tok = proc.tokenizer
     bnb = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_use_double_quant=True, bnb_4bit_compute_dtype=torch.bfloat16)
     model = AutoModelForImageTextToText.from_pretrained(base, quantization_config=bnb, device_map={"": 0}, torch_dtype=torch.bfloat16)
-    model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True, gradient_checkpointing_kwargs={"use_reentrant": False})
+    # 梯度检查点是拿时间换显存的（慢三成左右）：8G 的卡必须开；显存空着 14G 以上的大卡关掉它，白捡这三成
+    gck = p.get("gradCkpt", "auto")
+    gck = (free_g < float(p.get("gradCkptBelow", 14))) if gck == "auto" else bool(gck)
+    if not gck:
+        lg.log("显存够大（空着 %.1fG）：关掉省显存模式，训练更快" % free_g)
+    model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=gck, **({"gradient_checkpointing_kwargs": {"use_reentrant": False}} if gck else {}))
     cfg = LoraConfig(r=int(p.get("rank", 16)), lora_alpha=int(p.get("alpha", 32)), lora_dropout=0.05, bias="none", task_type="CAUSAL_LM",
                      target_modules=r".*language_model.*\.(q_proj|k_proj|v_proj|o_proj|gate_proj|up_proj|down_proj)")
     model = get_peft_model(model, cfg)
+    global WARM
+    if WARM:
+        try:
+            import zipfile
+            from peft import get_peft_model_state_dict, set_peft_model_state_dict
+            from safetensors.torch import load_file
+            pd = os.path.join(work, "prev-peft")
+            with zipfile.ZipFile(WARM["zip"]) as z:
+                z.extractall(pd)
+            sd = load_file(glob.glob(os.path.join(pd, "**", "adapter_model.safetensors"), recursive=True)[0])
+            mine = get_peft_model_state_dict(model)
+            # 先核对再动手：名字、形状都一样才用（参数规模改过就对不上）
+            if set(sd) != set(mine) or any(tuple(sd[k].shape) != tuple(mine[k].shape) for k in sd):
+                raise RuntimeError("和现在的设置对不上（参数规模改过？）")
+            set_peft_model_state_dict(model, sd)
+            lg.log("接着上一版训：这一轮只训新增的 %d 条 + 复习旧的 %d 条（以前每一轮都把全部 %d 条从头训）" % (WARM["new"], WARM["replay"], _total))
+        except Exception as e:
+            lg.log("上一版的参数用不了（%s）：这一轮照旧，用全部 %d 条从头训" % (str(e)[:160], _total))
+            WARM = None
+            rows[:] = ALL_ROWS
+            random.Random(0).shuffle(rows)
+            del rows[int(p.get("maxExamples", 8000)):]
     n_train = sum(x.numel() for x in model.parameters() if x.requires_grad)
     lg.log("要训练的参数：%.1f M（底子 4B 不动）" % (n_train / 1e6))
 
@@ -183,15 +260,18 @@ def train(base):
         data.append((ids, labels))
     lg.log("能用的：%d 条（太长的截到 %d 个字）" % (len(data), max_len))
 
-    epochs, accum = int(p.get("epochs", 2)), int(p.get("accum", 16))
+    epochs, accum = int(HP["epochs"]), int(p.get("accum", 16))
+    # 留一小部分不训，只用来测（验证集）：训着训着它不再变好，就是学到头了 → 提前停，不白算后面的
+    n_val = min(int(p.get("valMax", 64)), int(len(data) * float(p.get("valPart", 0.03)))) if p.get("earlyStop", True) else 0
+    val, data = (data[:n_val], data[n_val:]) if n_val >= 8 else ([], data)
     steps = max(1, (len(data) * epochs) // accum)
-    opt = torch.optim.AdamW([x for x in model.parameters() if x.requires_grad], lr=float(p.get("lr", 1e-4)), weight_decay=0.0)
+    opt = torch.optim.AdamW([x for x in model.parameters() if x.requires_grad], lr=float(HP["lr"]), weight_decay=0.0)
     warm = max(1, steps // 20)
     sched = torch.optim.lr_scheduler.LambdaLR(opt, lambda s: min(1.0, (s + 1) / warm) * max(0.1, 0.5 * (1 + __import__("math").cos(3.14159 * min(1.0, s / steps)))))
     # 存档：每隔 ckptMin 分钟存一次（LoRA 的参数 + 优化器 + 训到哪了），训完也存一次。
     # 中途停了（同事要用电脑、断网、重开软件、换电脑），下次从最近的存档接着训，不从头来。
     trainable = [(n, x) for n, x in model.named_parameters() if x.requires_grad]
-    fp = hashlib.md5(json.dumps([len(data), epochs, accum, int(p.get("rank", 16)), max_len, [d[0][:16] for d in data[:3]], len(trainable)]).encode("utf-8")).hexdigest()
+    fp = hashlib.md5(json.dumps([len(data) + len(val), epochs, accum, int(p.get("rank", 16)), max_len, [d[0][:16] for d in data[:3]], len(trainable)]).encode("utf-8")).hexdigest()
     ckpt_min = float(p.get("ckptMin", 20))
 
     def save_ck(ep, k, step):
@@ -217,83 +297,162 @@ def train(base):
             lg.log("存档读不了（%s），从头训练" % str(e)[:160])
 
     model.train()
-    run_loss, n_tok, t1, last_ck = 0.0, 0, time.time(), time.time()
+    run_loss, last_ck = 0.0, time.time()
     OOM = getattr(torch, "OutOfMemoryError", None) or torch.cuda.OutOfMemoryError
-    cap, n_oom, n_skip = max_len, 0, 0          # 显存不够时把最长的讲解截短一点再来
-    w_tok, w_t, slow, speeds = 0, time.time(), 0, []
+    w_tok, w_t, slow = 0, time.time(), 0
     slow_tok = float(p.get("slowTok", 40))      # 每秒不到这么多字 = 慢得不正常（8G 显卡正常是几百）
-    order0 = list(data)
+    # ---- 把显卡用满：按「字数预算」拼批 ----
+    # 以前一次只喂一条：短的讲解（两三百字）也独占一次计算，显卡大半空着。现在长短差不多的拼成一批一起算：
+    #   一批的大小 = 条数 × 最长那条的字数，不超过预算。预算从「一条最长的」起步（显存占用和以前一样），
+    #   显存还有富余就自动加（大显存的卡会一路加上去），放不下（OOM）就退回去并记住这个上限。
+    pad_id = getattr(tok, "pad_token_id", None)
+    if pad_id is None:
+        pad_id = getattr(tok, "eos_token_id", None) or 0
+    budget = int(p.get("tokBudget", max_len))
+    top = int(p.get("maxBudget", max_len * 8))          # 预算最多加到这儿
+    max_bs = int(p.get("maxBatch", accum))
+    auto = bool(p.get("autoBatch", True))
+    lim = max(1.0, (free_g - 0.5)) * 2 ** 30               # 这次训练最多能用的显存
+    peak_of = getattr(torch.cuda, "max_memory_allocated", None)
+    reset_peak = getattr(torch.cuda, "reset_peak_memory_stats", lambda: None)
+    n_oom, n_skip, n_batch, n_ex, since = 0, 0, 0, 0, 0
+    best, stale, stop_early = [float("inf"), 0, None], 0, False
+    val_every = int(p.get("valEvery", 0)) or max(5, steps // 10)
+
+    def val_loss():
+        model.eval()
+        tot, cnt, i = 0.0, 0, 0
+        vs = sorted(val, key=lambda d: -len(d[0]))
+        with torch.no_grad():
+            while i < len(vs):
+                n, width = 0, 0
+                while i + n < len(vs) and n < max_bs:
+                    w2 = max(width, min(len(vs[i + n][0]), budget))
+                    if n and (n + 1) * w2 > budget:
+                        break
+                    n, width = n + 1, w2
+                b = [(ids[:width], labels[:width]) for ids, labels in vs[i:i + n]]
+                x = torch.tensor([ids + [pad_id] * (width - len(ids)) for ids, _ in b], device="cuda")
+                m = torch.tensor([[1] * len(ids) + [0] * (width - len(ids)) for ids, _ in b], device="cuda")
+                y = torch.tensor([labels + [-100] * (width - len(labels)) for _, labels in b], device="cuda")
+                with torch.autocast("cuda", dtype=torch.bfloat16):
+                    tot += model(input_ids=x, attention_mask=m, labels=y).loss.item() * len(b)
+                cnt += len(b)
+                i += n
+        model.train()
+        return tot / max(1, cnt)
+
+    bucket = int(p.get("bucket", 128))
     for ep in range(start_ep, epochs):
-        order = list(order0)
+        order = list(data)
         random.Random(ep).shuffle(order)   # 每一轮的顺序只由轮数决定：接着训的时候知道训到哪条了
-        for k in range(start_k if ep == start_ep else 0, len(order)):
-            ids, labels = order[k]
-            lv = None
-            while True:
-                if len(ids) > cap:
-                    ids, labels = ids[:cap], labels[:cap]
-                if sum(1 for v in labels if v != -100) < 4:      # 截短以后没剩下要学的字：这条跳过
-                    n_skip += 1
+        # 每 128 条里按长短排一下（长的在前）：一批里长短接近，补的空位少；最长的先上，显存够不够一开始就知道
+        order = [d for i in range(0, len(order), bucket) for d in sorted(order[i:i + bucket], key=lambda d: -len(d[0]))]
+        k = start_k if ep == start_ep else 0
+        while k < len(order) and not stop_early:
+            # 从第 k 条往后拼一批
+            n, width = 0, 0
+            while k + n < len(order) and n < max_bs:
+                w2 = max(width, min(len(order[k + n][0]), budget))
+                if n and (n + 1) * w2 > budget:
                     break
-                try:
-                    x = torch.tensor([ids], device="cuda")
-                    y = torch.tensor([labels], device="cuda")
-                    with torch.autocast("cuda", dtype=torch.bfloat16):
-                        loss = model(input_ids=x, labels=y).loss / accum
-                    loss.backward()
-                    lv = loss.item()
-                    break
-                except OOM:
-                    x = y = loss = None
-                    torch.cuda.empty_cache()
-                    n_oom += 1
-                    if min(cap, len(ids)) <= 256:
-                        why = "显存不够：256 个字的讲解都放不下（别的程序占着显存）。关掉占显存的程序再算"
-                        unfit(why)
-                        raise RuntimeError(why)
-                    cap = max(256, int(min(cap, len(ids)) * 0.8))
-                    lg.log("显存不够：这之后最长的讲解截到 %d 个字再训（不会溢出到共享内存拖慢几十倍）" % cap)
-            if lv is None:
+                n, width = n + 1, w2
+            batch = [(ids[:width], labels[:width]) for ids, labels in order[k:k + n]]
+            batch = [(ids, labels) for ids, labels in batch if sum(1 for v in labels if v != -100) >= 4]   # 截短以后没剩下要学的字：跳过
+            n_skip += n - len(batch)
+            if not batch:
+                k += n
                 continue
+            try:
+                x = torch.tensor([ids + [pad_id] * (width - len(ids)) for ids, _ in batch], device="cuda")
+                m = torch.tensor([[1] * len(ids) + [0] * (width - len(ids)) for ids, _ in batch], device="cuda")
+                y = torch.tensor([labels + [-100] * (width - len(labels)) for _, labels in batch], device="cuda")
+                with torch.autocast("cuda", dtype=torch.bfloat16):
+                    loss = model(input_ids=x, attention_mask=m, labels=y).loss * (len(batch) / float(accum))
+                loss.backward()
+                lv = loss.item()
+            except OOM:
+                x = m = y = loss = None
+                torch.cuda.empty_cache()
+                n_oom += 1
+                used = len(batch) * width
+                if used <= 256:
+                    why = "显存不够：256 个字的讲解都放不下（别的程序占着显存）。关掉占显存的程序再算"
+                    unfit(why)
+                    raise RuntimeError(why)
+                budget = max(256, int(used * 0.8))
+                top = budget                                   # 记住：以后不再往上加
+                lg.log("显存不够：一批最多 %d 个字（不会溢出到共享内存拖慢几十倍）" % budget)
+                continue                                       # 同一个位置按新的预算重拼
+            k += n
+            n_batch += 1
+            n_ex += len(batch)
+            since += len(batch)
+            real = sum(len(ids) for ids, _ in batch)
             run_loss += lv
-            n_tok += len(ids)
-            w_tok += len(ids)
-            # 一步（16 条）10 分钟还没走完：不等了（正常一步是几十秒）
+            w_tok += real
+            # 一步 10 分钟还没走完：不等了（正常一步是几十秒）
             el = time.time() - w_t
             if el > float(p.get("slowSecs", 600)) and w_tok / el < slow_tok:
-                if step > 0 and (k + 1) % accum == 0:
-                    save_ck(ep, k + 1, step)
                 fr, tt = [v / 2 ** 30 for v in torch.cuda.mem_get_info()]
                 why = ("这台电脑训练慢得不正常（每秒 %d 字，正常是几百；显存空着 %.1f/%.1fG）：换别的电脑接着训。"
                        "这台电脑请插上电源、把电源模式调到「最佳性能」、关掉占显卡的程序" % (w_tok / el, fr, tt))
                 unfit(why)
                 raise RuntimeError(why)
-            if (k + 1) % accum == 0:
+            if since >= accum or (k >= len(order) and ep == epochs - 1):
+                since = 0
                 torch.nn.utils.clip_grad_norm_([x for x in model.parameters() if x.requires_grad], 1.0)
                 opt.step()
                 sched.step()
                 opt.zero_grad(set_to_none=True)
                 step += 1
                 sp = w_tok / max(time.time() - w_t, 1e-6)       # 这一步的速度（不是从头算的平均）
-                speeds = (speeds + [sp])[-20:]
-                left_h = (steps - step) * (time.time() - w_t) / 3600.0
+                left_h = max(0, steps - step) * (time.time() - w_t) / 3600.0
                 w_tok, w_t = 0, time.time()
-                lg.metric(step, loss=run_loss, tok_s=sp)
-                lg.progress(0.1 + 0.6 * step / steps, "训练：第 %d/%d 步（每秒 %d 字，还要 %s）" % (step, steps, sp, ("%.1f 小时" % left_h) if left_h >= 1 else ("%d 分钟" % max(1, left_h * 60))))
+                lg.metric(step, loss=run_loss, tok_s=sp, batch=budget)
+                lg.progress(0.1 + 0.6 * min(1.0, step / float(steps)), "训练：第 %d/%d 步（每秒 %d 字，一批 %d 字，还要 %s）" % (min(step, steps), steps, sp, budget, ("%.1f 小时" % left_h) if left_h >= 1 else ("%d 分钟" % max(1, left_h * 60))))
                 run_loss = 0.0
+                # 显存还有富余：一批再多放点（每步最多加四分之一）
+                if auto and budget < top and peak_of:
+                    pk = peak_of()
+                    if pk and pk < 0.7 * lim:
+                        budget = min(top, int(budget * 1.25))
+                        reset_peak()
+                        if n_batch < 200 or step % 50 == 0:
+                            lg.log("显存还有富余（用了 %.1f/%.1fG）：一批加到 %d 个字" % (pk / 2 ** 30, lim / 2 ** 30, budget))
+                # 隔一段测一次验证集：比最好的那次还好就记下这份参数；连着几次都没更好、而且已经训过四成 → 提前停
+                if val and (step % val_every == 0 or step >= steps):
+                    v = val_loss()
+                    w_t = time.time()                      # 测验证集的时间不算进训练速度
+                    lg.metric(step, val=v)
+                    if v < best[0] - 1e-4:
+                        best[0], best[1], best[2] = v, step, {n: x.detach().to("cpu").clone() for n, x in trainable}
+                        stale = 0
+                    else:
+                        stale += 1
+                    if stale >= int(p.get("patience", 2)) and step >= 0.4 * steps and step < steps:
+                        lg.log("验证集连着 %d 次没再变好（最好是第 %d 步）：学到头了，提前停，省下后面 %d 步" % (stale, best[1], steps - step))
+                        stop_early = True
                 # 慢得不正常（显存溢出到共享内存、电脑在省电模式、显卡被别的程序占着）：别在这台电脑上空耗几天
                 slow = slow + 1 if sp < slow_tok else 0
                 if slow == 2:
                     fr, tt = [v / 2 ** 30 for v in torch.cuda.mem_get_info()]
                     lg.log("训练慢得不正常：每秒只有 %d 字（正常是几百）。显存空着 %.1f/%.1fG。常见原因：没插电源或开着省电/安静模式、别的程序在用显卡" % (sp, fr, tt))
                 if slow >= int(p.get("slowSteps", 4)):
-                    save_ck(ep, k + 1, step)
+                    save_ck(ep, k, step)
                     why = "这台电脑训练慢得不正常（每秒 %d 字，正常几百，照这样还要 %.0f 小时）：存档已经交了，换别的电脑接着训。这台电脑请插上电源、把电源模式调到「最佳性能」、关掉占显卡的程序" % (sp, left_h)
                     unfit(why)
                     raise RuntimeError(why)
                 if time.time() - last_ck > ckpt_min * 60:
-                    save_ck(ep, k + 1, step)
+                    save_ck(ep, k, step)
                     last_ck = time.time()
+    lg.log("训练用了 %d 批（%d 条，平均一批 %.1f 条）%s%s" % (n_batch, n_ex, n_ex / float(max(1, n_batch)), "；显存不够退了 %d 次" % n_oom if n_oom else "", "；跳过 %d 条" % n_skip if n_skip else ""))
+    # 最后的参数不如中途最好的那次：用最好的那次
+    if best[2] is not None and best[1] != step:
+        with torch.no_grad():
+            for n, x in trainable:
+                x.copy_(best[2][n].to(x.device, x.dtype))
+        lg.log("用验证集上最好的那一次（第 %d 步）的参数" % best[1])
     if start_ep < epochs:
         save_ck(epochs, 0, step)   # 训完了也存一次：后面转格式、考试出了问题，下次直接从这里开始
     out = os.path.join(work, "peft")
@@ -447,12 +606,17 @@ else:
     gguf = to_gguf(base, adir, conv)
 spec = dict(p.get("evalLlm") or teacher_gguf(), ctx=int(p.get("evalCtx", 8192)), slots=2)
 qs = exam_set()
-lg.progress(0.8, "考试：原版")
-acc0, zh0 = exam(lg.llm("start", llm=spec)["url"], qs, "原版")
+_bn = "%s|%d" % (spec.get("name") or "", len(qs))
+if p.get("reuseBase", True) and PREV.get("base_name") == _bn and isinstance(PREV.get("base_acc"), (int, float)) and isinstance(PREV.get("base_zh_rate"), (int, float)):
+    acc0, zh0 = float(PREV["base_acc"]), float(PREV["base_zh_rate"])
+    lg.log("原版的成绩用上一轮考的（同一套题、同一个原版：答对 %.0f%%），不重复考，省一半考试时间" % (acc0 * 100))
+else:
+    lg.progress(0.8, "考试：原版")
+    acc0, zh0 = exam(lg.llm("start", llm=spec)["url"], qs, "原版")
 lg.progress(0.9, "考试：带上新训的 LoRA")
 acc1, zh1 = exam(lg.llm("start", llm=spec, lora=gguf)["url"], qs, "新训的")
 lg.llm("stop")
 lg.log("答对率：原版 %.0f%% → 新训的 %.0f%%；用中文讲：%.0f%% → %.0f%%" % (acc0 * 100, acc1 * 100, zh0 * 100, zh1 * 100))
 zf = shutil.make_archive(os.path.join(work, "qa-lora-peft"), "zip", adir)
 lg.done(lora=gguf, peft=zf, acc=round(acc1, 4), base_acc=round(acc0, 4), zh_rate=round(zh1, 4), base_zh_rate=round(zh0, 4),
-        examples=len(rows), mins=round((time.time() - t0) / 60, 1))
+        examples=_total, trained=len(rows), warm=bool(WARM), hp=HP, tried=TRY, base_name=_bn, mins=round((time.time() - t0) / 60, 1))

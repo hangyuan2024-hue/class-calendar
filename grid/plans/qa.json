@@ -38,6 +38,40 @@
       "priority": 10
     },
     {
+      "key": "mathlite",
+      "name": "做数学题（4～7G 的小显卡：小一号的模型，只做有标准答案的题）",
+      "kind": "map",
+      "recipe": "qa_math",
+      "recipeFile": "../recipes/qa_math.py",
+      "standing": true,
+      "keep": 20,
+      "params": {
+        "per": 12,
+        "samples": 4,
+        "parallel": 1,
+        "sources": [
+          "gsm8k"
+        ],
+        "tag": "qa-math",
+        "llm": {
+          "name": "Qwen3-4B-Q4_K_M.gguf",
+          "ctx": 8192,
+          "slots": 1,
+          "urls": [
+            "https://www.modelscope.cn/models/Qwen/Qwen3-4B-GGUF/resolve/master/Qwen3-4B-Q4_K_M.gguf",
+            "https://hf-mirror.com/Qwen/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q4_K_M.gguf",
+            "https://huggingface.co/Qwen/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q4_K_M.gguf"
+          ]
+        }
+      },
+      "req": {
+        "vram": 3.5,
+        "maxVram": 7.4,
+        "llm": true
+      },
+      "priority": 10
+    },
+    {
       "key": "train",
       "name": "训练答题大脑（同事显卡，QLoRA）",
       "kind": "map",
@@ -51,6 +85,7 @@
       "params": {
         "count": 1,
         "outputsOf": "qa-math",
+        "warmStart": "qa-lora",
         "minExamples": 300,
         "maxExamples": 8000,
         "epochs": 2,

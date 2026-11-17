@@ -33,9 +33,15 @@ async function disk(dir) {
 }
 
 // 体检的结论：每一项 ok / warn / bad，加一句怎么办
-async function full({ dir, server, fetchImpl = fetch, smi } = {}) {
+// 装了多大的内存条：系统报的总比标称的少一点（硬件、核显占着一块，16G 的条常常报 15.x、甚至 13.9），按标称的算
+//   不然 16G 的电脑被当成「15G，内存太小」，明明能算的任务也不发给它
+function ramNominal(gib) {
+  for (const c of [4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256]) if (c >= gib - 0.05 && c - gib <= Math.max(1.2, c * 0.14)) return c;
+  return Math.round(gib);
+}
+async function full({ dir, server, fetchImpl = fetch, smi, ram: o_ram } = {}) {
   const g = await gpus(smi);
-  const ramGB = Math.round(os.totalmem() / 2 ** 30);
+  const ramGB = ramNominal(o_ram != null ? o_ram : os.totalmem() / 2 ** 30);
   const freeGB = await disk(dir || os.homedir());
   const items = [];
   const gpu = g[0];
@@ -47,7 +53,7 @@ async function full({ dir, server, fetchImpl = fetch, smi } = {}) {
     items.push({ k: "temp", name: "显卡温度", state: gpu.temp == null || gpu.temp < 80 ? "ok" : "warn", value: gpu.temp == null ? "—" : gpu.temp + "℃", tip: gpu.temp >= 80 ? "温度偏高：清清灰、机箱别贴墙" : "" });
     if (gpu.pcie) items.push({ k: "pcie", name: "显卡接口", state: "ok", value: gpu.pcie, tip: "" });
   }
-  items.push({ k: "ram", name: "内存", state: ramGB >= 32 ? "ok" : ramGB >= 16 ? "warn" : "bad", value: ramGB + "G", tip: ramGB >= 32 ? "" : ramGB >= 16 ? "16G 能做大部分任务；大模型生成数据要 32G 以上" : "内存太小，只能做人工审核和录表情" });
+  items.push({ k: "ram", name: "内存", state: ramGB >= 32 ? "ok" : ramGB >= 12 ? "warn" : "bad", value: ramGB + "G", tip: ramGB >= 32 ? "" : ramGB >= 16 ? "16G 能做大部分任务；大模型生成数据要 32G 以上" : ramGB >= 12 ? "内存偏小：小一点的任务能做，算的时候别同时开大型软件" : "内存太小，只能做人工审核和录表情" });
   items.push({ k: "disk", name: "硬盘剩余", state: freeGB == null || freeGB >= 80 ? "ok" : freeGB >= 40 ? "warn" : "bad", value: freeGB == null ? "—" : freeGB + "G", tip: freeGB != null && freeGB < 80 ? "大模型和数据要 80G 左右：点下面「换个地方」放到空间大的盘（比如 D 盘）" : "" });
   let rtt = null, speed = null;
   if (server) {
@@ -60,4 +66,4 @@ async function full({ dir, server, fetchImpl = fetch, smi } = {}) {
   return { items, caps, gpus: g, rtt, speed, at: Date.now(), ok: !items.some((i) => i.state === "bad") };
 }
 
-module.exports = { gpus, gpuApps, full, disk, smiPath };
+module.exports = { gpus, gpuApps, full, disk, smiPath, ramNominal };

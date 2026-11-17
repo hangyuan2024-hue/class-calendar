@@ -145,6 +145,15 @@ const ok = (m) => console.log("✓", m);
     ok("旧版本留在 C 盘用户文件夹里的模型缓存：硬盘页列出来、能单独删（一键清理和自动清理不碰）");
     try { fs.rmSync(tmp, { recursive: true, force: true }); } catch (e) {}
   }
+  {
+    // 16G 的内存条系统常常报 15.x（核显、硬件占着一块）：按标称的算，不能当成「15G，内存太小」把它挡在外面
+    const P = require("../worker/probe");
+    assert.deepStrictEqual([15.4, 13.9, 15.9, 31.2, 7.6, 11.8, 63.7, 20].map(P.ramNominal), [16, 16, 16, 32, 8, 12, 64, 20]);
+    const r = await P.full({ dir: os.tmpdir(), ram: 15.4, smi: "no-such-smi" });
+    const it = r.items.find((x) => x.k === "ram"); assert.strictEqual(r.caps.ram, 16); assert.strictEqual(it.value, "16G"); assert.strictEqual(it.state, "warn"); assert.ok(!/太小/.test(it.tip));
+    assert.strictEqual((await P.full({ dir: os.tmpdir(), ram: 7.7, smi: "no-such-smi" })).items.find((x) => x.k === "ram").state, "bad");
+    ok("内存按标称的算：报 15.4G 的就是 16G 的电脑（能做大部分任务），不再说「内存太小」");
+  }
   console.log("内存和硬盘：全部通过");
   process.exit(0);
 })().catch((e) => { console.error(e); process.exit(1); });

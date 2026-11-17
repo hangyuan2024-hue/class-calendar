@@ -44,7 +44,9 @@ const Tools = require("../tools/grid");
   // FAKE_UPDATE=1：假装官网上有新版（截图看「新版已下载」的样子）
   const fakeExe = Buffer.alloc(2e6, 1);
   const fakeUpd = process.env.FAKE_UPDATE ? { install: async () => {}, updaterOpt: { sources: [`http://127.0.0.1:${uiPort}/__v.json`], firstDelayMs: 500, tickMs: 1000, maxWaitMin: 999 } } : {};
-  const svc = createService({ user, version: "0.1.5", python: PY, ...fakeUpd, send: (ch, d) => { EV.push({ ch, d }); if (EV.length > 3000) EV.splice(0, 1000), (EV.base = (EV.base || 0) + 1000); },
+  // UI_SVC_OPT=某个.js：再带几样选项（成品展示用假的大模型、假的声音组件截图时用）
+  const extra = process.env.UI_SVC_OPT ? require(path.resolve(process.env.UI_SVC_OPT))({ tmp, url }) : {};
+  const svc = createService({ user, version: "0.1.5", python: PY, ...fakeUpd, ...extra, send: (ch, d) => { EV.push({ ch, d }); if (EV.length > 3000) EV.splice(0, 1000), (EV.base = (EV.base || 0) + 1000); },
     agentOpt: { tickMs: 400, hbMs: 1500, renewMs: 1500, gpuInfo: async () => ({ name: "NVIDIA GeForce RTX 5060", vram: 8, used: 6.1, temp: 71, util: 93, power: 131, driver: "581.57" }), gpuApps: async () => [] } });
   fs.writeFileSync(path.join(tmp, "invite.txt"), invAdmin.link);
   console.log(JSON.stringify({ tmp, url, invite: invAdmin.link, adminToken: app.core.adminToken() }));
