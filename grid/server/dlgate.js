@@ -70,7 +70,8 @@ function create(o) {
   const cfg = { dailyGB: num("DAILY_GB", 50), ipGB: num("IP_GB", 40), repeat: num("REPEAT", 4), ttl: num("TTL", 6 * 3600),
     allow: String(env.DL_ALLOW || "CN").toUpperCase().split(/[,\s]+/).filter(Boolean),
     prefixes: String(env.DL_PREFIXES || "ai/,android/,code/,desktop/,ppt/,grid-dl/").split(/[,\s]+/).filter(Boolean),
-    github: env.DL_GITHUB || "https://github.com/hangyuan2024-hue/class-calendar/releases" };
+    github: env.DL_GITHUB || "https://github.com/hangyuan2024-hue/class-calendar/releases",
+    apk: env.DL_APK || "https://www.laolaokechengbiao.cn/download/class-calendar.apk" };
   const dir = path.join(o.dataDir, "dl"); fs.mkdirSync(dir, { recursive: true });
   const now = o.now || (() => Date.now());
   const log = o.log || (() => {});
@@ -150,8 +151,10 @@ function create(o) {
     const ip = cleanIp(ipRaw);
     if (req.method !== "GET" && req.method !== "HEAD") return say(res, 405, "只能下载", "method");
     if (!okPath(key)) return say(res, 404, "没有这个文件", "path");
-    // 腾讯云不让用桶的默认域名分发安卓 / 苹果安装包（DownloadForbidden，要绑备案过的自己的域名）：直接告诉软件去官网下，别白跳一趟
-    if (/\.(apk|ipa)$/i.test(key)) return say(res, 403, "手机安装包请从官网下载：https://www.laolaokechengbiao.cn/download/", "apk");
+    // 腾讯云不让用桶的默认域名分发安卓 / 苹果安装包（DownloadForbidden，要绑备案过的自己的域名）：
+    // 安卓的转到官网自己的那份（www 绑在国内加速的网站桶上，能下；每次发版都会更新成最新的），苹果的没有
+    if (/\.apk$/i.test(key)) { res.writeHead(302, { location: cfg.apk, "cache-control": "no-store", "access-control-allow-origin": "*", "x-lz-dl": "apk" }); return res.end(); }
+    if (/\.ipa$/i.test(key)) return say(res, 404, "没有苹果安装包", "ipa");
     if (!ready) return say(res, 503, "下载门口还没配好存储（DL_COS_*），先从 GitHub 下：" + cfg.github, "nocfg");
     const rg = region(ip);
     if (!(rg === "LAN" || cfg.allow.includes(rg))) { refuse(ip, "foreign"); return say(res, 403, "这个下载线路只对中国大陆开放。海外请从 GitHub 下载：" + cfg.github + "\nThis mirror serves mainland China only. Please download from GitHub: " + cfg.github, "foreign"); }

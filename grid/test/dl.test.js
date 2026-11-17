@@ -39,8 +39,8 @@ const ok = (m) => console.log("✓ " + m);
   r = await get("grid/jobs/1/secret.bin", "223.5.5.5"); assert.equal(r.status, 404);            // 训练的东西不从这里出
   r = await get("ai/../grid/x", "223.5.5.5"); assert.equal(r.status, 404);
   r = await get("ai/nope.bin", "223.5.5.5"); assert.equal(r.status, 404);
-  r = await get("android/a.apk", "1.1.1.1", {}, "HEAD"); assert.equal(r.status, 403);
-  r = await get("android/a.apk", "223.5.5.5"); assert.equal(r.status, 403); assert.equal(r.headers.get("x-lz-dl"), "apk");   // COS 默认域名不让发 apk
+  r = await get("android/a.apk", "1.1.1.1", {}, "HEAD"); assert.equal(r.status, 302);   // apk 海外也转官网（官网本来就公开）
+  r = await get("android/a.apk", "223.5.5.5"); assert.equal(r.status, 302); assert.equal(r.headers.get("location"), "https://www.laolaokechengbiao.cn/download/class-calendar.apk");   // COS 默认域名不让发 apk：转官网那份
   ok("国内 IP → 302 到 COS 的临时链接（6 小时失效）；海外 IPv4 / IPv6 → 403，告诉他去 GitHub；训练的文件、乱写的路径、不存在的文件都不给");
 
   // 断点续传 / 测速：按 Range 记账；HEAD 不记
@@ -91,7 +91,7 @@ const ok = (m) => console.log("✓ " + m);
   const req = { socket: { remoteAddress: "8.8.4.4" }, headers: { "x-forwarded-for": "223.5.5.5" }, method: "GET" };
   let code = 0; const res = { writeHead: (c) => { code = c; }, end: () => {} };
   assert.equal(G.clientIp(req), "8.8.4.4");
-  await app3.gate.handle(req, res, "android/a.apk", G.clientIp(req)); assert.equal(code, 403);
+  await app3.gate.handle(req, res, "ai/models/x.safetensors", G.clientIp(req)); assert.equal(code, 403);
   assert.equal(G.clientIp({ socket: { remoteAddress: "::ffff:127.0.0.1" }, headers: { "x-forwarded-for": "1.1.1.1, 223.5.5.5" } }), "223.5.5.5");
   app3.close();
   ok("X-Forwarded-For 只信本机的 HTTPS 代理：海外的人自己在请求里写一个国内 IP 也不行");
