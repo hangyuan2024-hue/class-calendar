@@ -34,7 +34,7 @@ let s="";process.stdin.on("data",(c)=>s+=c).on("end",()=>{let j;try{j=JSON.parse
  const mb=(n)=>Math.round((n||0)/1048576);
  for(const f of j.files||[]){let x=`${T[f.state]||f.state}  ${f.key}`;
   if(f.state==="copying"){const w=30,k=Math.round((f.pct||0)/100*w);x+=`
-     ${f.phase}  [${"#".repeat(k)}${"-".repeat(w-k)}] ${f.pct||0}%  ${mb(f.got)}/${mb(f.size)}MB  ${((f.speed||0)/1048576).toFixed(1)}MB/s`+(f.speed>0?`  还要约 ${Math.ceil((f.size-f.got)/f.speed/60)} 分钟`:"");}
+     ${f.phase}${f.via&&f.phase!=="从 GitHub 下载"?"（"+f.via+"）":""}  [${"#".repeat(k)}${"-".repeat(w-k)}] ${f.pct||0}%  ${mb(f.got)}/${mb(f.size)}MB  ${(f.speed||0)>=1048576?((f.speed)/1048576).toFixed(1)+"MB/s":Math.round((f.speed||0)/1024)+"KB/s"}`+(f.speed>0?`  还要约 ${Math.ceil((f.size-f.got)/f.speed/60)} 分钟`:"");}
   else if(f.why)x+=`（${f.why}）`; console.log(x);}
  if(!(j.files||[]).length&&!j.running)console.log("!! 一个版本文件都没读到：这台服务器连不上 GitHub？");
  if(!j.running&&!(j.files||[]).some((f)=>f.state==="copying"))console.log("@done");});')
