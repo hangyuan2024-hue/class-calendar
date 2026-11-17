@@ -58,7 +58,8 @@ async function full({ dir, server, fetchImpl = fetch, smi, ram: o_ram } = {}) {
   let rtt = null, speed = null;
   if (server) {
     try {
-      const t0 = Date.now(); const r = await fetchImpl(server + "/api/ping", { signal: AbortSignal.timeout(8000) }); await r.json(); rtt = Date.now() - t0;
+      // 测 2 次取快的：第一次带着建连接、DNS 的时间，偶尔会慢一大截（电脑正忙的时候尤其明显）
+      for (let i = 0; i < 2; i++) { const t0 = Date.now(); const r = await fetchImpl(server + "/api/ping", { signal: AbortSignal.timeout(8000) }); await r.json(); const d = Date.now() - t0; rtt = rtt == null ? d : Math.min(rtt, d); }
     } catch (e) {}
     items.push({ k: "net", name: "到调度中心", state: rtt == null ? "bad" : rtt < 300 ? "ok" : "warn", value: rtt == null ? "连不上" : rtt + " 毫秒", tip: rtt == null ? "检查网络，或者问管理员调度中心开着没有" : rtt >= 300 ? "网络有点慢，不影响算，只是传文件慢" : "" });
   }
