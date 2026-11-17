@@ -23,6 +23,10 @@ done
 if [ -z "${CN_S3_BUCKET:-}" ] || [ -z "${CN_S3_KEY_ID:-}" ] || [ -z "${CN_S3_SECRET:-}" ] || [ -z "${CN_S3_ENDPOINT:-}" ] || [ -z "${CN_DL_BASE:-}" ]; then
   echo "没配国内存储（CN_S3_*），跳过" >&2; echo ""; exit 0
 fi
+# 桶已经改成私有读：以前填的桶公开地址（…myqcloud.com）现在打不开（AccessDenied），一律换成调度中心的下载门口
+case "$CN_DL_BASE" in *myqcloud.com*|*aliyuncs.com*|*volces.com*)
+  echo "::notice::CN_DL_BASE 还是存储桶的公开地址（桶已私有，打不开），这次改用 https://dl.laolaokechengbiao.cn/dl；请到 Secrets 里改掉" >&2
+  CN_DL_BASE="https://dl.laolaokechengbiao.cn/dl";; esac
 export AWS_ACCESS_KEY_ID="$CN_S3_KEY_ID" AWS_SECRET_ACCESS_KEY="$CN_S3_SECRET" AWS_DEFAULT_REGION="${CN_S3_REGION:-us-east-1}" AWS_EC2_METADATA_DISABLED=true
 # 新版 aws 命令默认加 CRC 校验头，国内几家的 S3 接口不认：只在必须时才加
 export AWS_REQUEST_CHECKSUM_CALCULATION=when_required AWS_RESPONSE_CHECKSUM_VALIDATION=when_required
@@ -42,7 +46,8 @@ EPS=()
 # 国内地址填的是调度中心的「下载门口」（…/dl）：传不上也没关系，香港的调度中心会自己从 GitHub 搬过去（server/dlrelay.js），
 # 这里只试一次，不再干等 9 分钟
 GATE=""; case "$CN_DL_BASE" in */dl|*/dl/) case "$CN_DL_BASE" in *myqcloud.com*) ;; *) GATE=1;; esac;; esac
-if [ -n "$GATE" ]; then EPS+=("$CN_S3_ENDPOINT"); else
+# 这里先试「全球加速」（美国 → 腾讯海外节点 → 内网到广州，快）；加速没开（1 秒内报错）才走一次普通地址；加速超时就不再干等
+if [ -n "$GATE" ]; then case "$CN_S3_ENDPOINT" in *myqcloud.com*) EPS+=("https://cos.accelerate.myqcloud.com");; esac; EPS+=("$CN_S3_ENDPOINT"); else
   case "$CN_S3_ENDPOINT" in *myqcloud.com*) EPS+=("https://cos.accelerate.myqcloud.com");; esac
   EPS+=("$CN_S3_ENDPOINT" "$CN_S3_ENDPOINT")
 fi
@@ -60,6 +65,7 @@ for EP in "${EPS[@]}"; do
   elif grep -qi "AccessDenied\|SignatureDoesNotMatch\|InvalidAccessKeyId" "$ERR"; then why="密钥不对或没有权限：检查 CN_S3_KEY_ID / CN_S3_SECRET"
   else why="$(tail -c 300 "$ERR" | tr '\n' ' ')"; fi
   echo "第 $n 次失败（$EP，$(( $(date +%s) - t )) 秒）：$why" >&2
+  if [ -n "$GATE" ] && [ $rc -eq 124 ]; then break; fi   # 有调度中心兜底：超时了就交给它搬，不再干等
   [ $n -lt ${#EPS[@]} ] && sleep 5
 done
 rm -f "$ERR"
