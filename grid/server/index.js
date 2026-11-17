@@ -165,7 +165,7 @@ function create(opt = {}) {
     "POST /api/admin/ab": (req, b) => cycle.abStats(b.tag || "qv1"),
     "POST /api/admin/model/promote": (req, b) => cycle.promote(String(b.from), String(b.to), b.note),
     "GET /api/admin/dl": (req, b, dev, u) => ({ ...gate.stats(+u.searchParams.get("days") || 7), relay: relay.status() }),
-    "POST /api/admin/dl/relay": () => relay.run(),
+    "POST /api/admin/dl/relay": (req, b, dev, u) => (u.searchParams.get("wait") === "0" ? relay.kick() : relay.run()),
     "POST /api/admin/geturl": (req, b) => { if (!Store.okKey(b.key)) throw new Error("文件名不对"); return { url: store.url("GET", b.key, 3600) }; },
   };
 

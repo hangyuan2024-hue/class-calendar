@@ -40,12 +40,20 @@ function create(o) {
     try { const r = await doFetch(presign("HEAD", key, 300, false), { method: "HEAD", signal: AbortSignal.timeout(15000) }); if (r.status === 404 || r.status === 403) return -1; return r.ok ? +(r.headers.get("content-length") || 0) : null; } catch (e) { return null; }
   }
   // 从 GitHub 下到本地，边下边算 sha256
-  async function download(url, file, want) {
+  // 进度：每过 10% 记一行日志（journalctl 和控制中心「动态」里能看到），status() 里随时有百分比和速度
+  function tick(it, n, total) {
+    it.got = n; const now = Date.now();
+    if (!it.t0) { it.t0 = now; it.n0 = 0; }
+    if (now - (it.ts || 0) >= 2000) { it.speed = Math.round(((n - (it.nPrev || 0)) / Math.max(1, now - (it.ts || it.t0))) * 1000); it.ts = now; it.nPrev = n; }
+    const pct = total ? Math.floor((n / total) * 100) : 0, step = Math.floor(pct / 10);
+    if (total && step > (it.step || 0)) { it.step = step; log(`安装包中转：${it.key} ${it.phase} ${pct}%（${Math.round(n / 1048576)}/${Math.round(total / 1048576)}MB，${((it.speed || 0) / 1048576).toFixed(1)}MB/s）`); }
+  }
+  async function download(url, file, want, it) {
     const r = await doFetch(url, { redirect: "follow", signal: AbortSignal.timeout(60 * 60e3) });
     if (!r.ok || !r.body) throw new Error("从 GitHub 下载失败：" + r.status);
     const h = crypto.createHash("sha256"), out = fs.createWriteStream(file);
     let n = 0;
-    for await (const chunk of r.body) { h.update(chunk); n += chunk.length; if (!out.write(chunk)) await new Promise((ok) => out.once("drain", ok)); }
+    for await (const chunk of r.body) { h.update(chunk); n += chunk.length; if (it) tick(it, n, want.size); if (!out.write(chunk)) await new Promise((ok) => out.once("drain", ok)); }
     await new Promise((ok, bad) => out.end((e) => (e ? bad(e) : ok())));
     const sha = h.digest("hex");
     if (want.size && n !== want.size) throw new Error(`下载的大小不对：${n}，应该是 ${want.size}`);
@@ -53,7 +61,7 @@ function create(o) {
     return n;
   }
   // 整个文件一次 PUT 上去（预签名的临时地址；最大 5GB，安装包够用）
-  function putFile(url, file, size) {
+  function putFile(url, file, size, it) {
     return new Promise((ok, bad) => {
       const u = new URL(url), mod = u.protocol === "https:" ? https : http;
       const req = mod.request(u, { method: "PUT", headers: { "content-length": size, "content-type": "application/octet-stream" }, timeout: 30 * 60e3 }, (res) => {
@@ -61,16 +69,19 @@ function create(o) {
       });
       req.on("timeout", () => req.destroy(new Error("传到存储超时")));
       req.on("error", bad);
-      fs.createReadStream(file).on("error", bad).pipe(req);
+      let n = 0; const rs = fs.createReadStream(file);
+      if (it) rs.on("data", (c) => { n += c.length; tick(it, n, size); });
+      rs.on("error", bad).pipe(req);
     });
   }
   async function copy(key, it) {
-    it.state = "copying"; it.why = ""; it.at = Date.now();
+    Object.assign(it, { key, state: "copying", why: "", at: Date.now(), phase: "从 GitHub 下载", got: 0, step: 0, t0: 0, ts: 0, nPrev: 0, speed: 0 });
     const tmp = path.join(dir, key.replace(/[^\w.-]/g, "_") + ".part");
     try {
       log(`安装包中转：${key} 存储里还没有，从 GitHub 搬过来（${Math.round((it.size || 0) / 1048576)}MB）`);
-      const n = await download(it.url, tmp, it);
-      await put(presign("PUT", key, 3 * 3600, true), tmp, n);
+      const n = await download(it.url, tmp, it, it);
+      Object.assign(it, { phase: "传到国内存储", got: 0, step: 0, t0: 0, ts: 0, nPrev: 0, speed: 0 });
+      await put(presign("PUT", key, 3 * 3600, true), tmp, n, it);
       it.state = "ok"; it.done = Date.now();
       log(`安装包中转：${key} 搬好了，国内下载走存储（用了 ${Math.round((it.done - it.at) / 1000)} 秒）`);
     } catch (e) { it.state = "failed"; it.why = e.message; log(`安装包中转：${key} 没搬成：${e.message}（10 分钟后再试）`); }
@@ -82,6 +93,7 @@ function create(o) {
     running = (async () => {
       lastRun = Date.now();
       if (!cos.endpoint || !cos.bucket || !readKey.keyId) return status();   // 没配存储：什么都不做
+      const todo = [];
       for (const app of APPS) {
         const m = await manifest(app);
         if (!m || !m.version || !/^https?:\/\//.test(m.url || "")) continue;
@@ -94,8 +106,11 @@ function create(o) {
         if (have != null && have > 0 && (!it.size || have === it.size)) { it.state = "ok"; continue; }
         if (have == null) { it.state = "?"; it.why = "问不到存储"; continue; }
         it.state = "missing";
-        if (canWrite) await copy(key, it); else it.why = "还没配中转用的写入密钥（DLW_COS_*），搬不了";
+        if (canWrite) { it.why = "排队中"; todo.push([key, it]); } else it.why = "还没配中转用的写入密钥（DLW_COS_*），搬不了";
       }
+      // 小的先搬（捞捞编程 1.5GB 放最后，别让它挡住别的）
+      todo.sort((a, b) => (a[1].size || 0) - (b[1].size || 0));
+      for (const [key, it] of todo) await copy(key, it);
       return status();
     })().finally(() => { running = null; });
     return running;
@@ -107,12 +122,15 @@ function create(o) {
     if (!it && !running && Date.now() - lastRun > 60e3) run().catch(() => {});
     return null;
   }
-  const status = () => ({ canWrite, lastRun, files: [...known.entries()].map(([key, v]) => ({ key, app: v.app, version: v.version, state: v.state, why: v.why || "", inManifest: v.inManifest, size: v.size })) });
+  const status = () => ({ canWrite, lastRun, running: !!running, files: [...known.entries()].map(([key, v]) => ({ key, app: v.app, version: v.version, state: v.state, why: v.why || "", inManifest: v.inManifest, size: v.size,
+    ...(v.state === "copying" ? { phase: v.phase, got: v.got || 0, pct: v.size ? Math.floor(((v.got || 0) / v.size) * 100) : 0, speed: v.speed || 0 } : {}) })) });
+  // 不等搬完就返回（dl-relay.sh 用它开个头，然后每几秒问一次进度）
+  function kick() { run().catch(() => {}); return status(); }
 
   const timer = o.noTimer ? null : setInterval(() => run().catch(() => {}), o.everyMs || 10 * 60e3);
   if (timer && timer.unref) timer.unref();
   if (!o.noTimer) setTimeout(() => run().catch(() => {}), 30000).unref();
-  return { run, status, fallbackOf, close() { clearInterval(timer); }, KEY_OF };
+  return { run, kick, status, fallbackOf, close() { clearInterval(timer); }, KEY_OF };
 }
 
 module.exports = { create, KEY_OF, APPS };

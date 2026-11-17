@@ -7,6 +7,8 @@ if [ "$(id -u)" != 0 ]; then echo "要用 sudo 运行"; exit 1; fi
 ENVF=/etc/laolao-grid.env
 DATA=/var/lib/laolao-grid
 PORT="${PORT:-8787}"
+# 只看进度（不改密钥）：sudo bash dl-relay.sh --watch
+if [ "${1:-}" != "--watch" ]; then
 echo "安装包中转要一把「只能写」安装包文件夹的密钥（腾讯云 访问管理 → 新建子用户 laolao-relay，按说明贴自定义策略）。"
 read -r -p "SecretId：" KID; read -r -s -p "SecretKey（输入时不显示）：" KSEC; echo
 if [ -z "$KID" ] || [ -z "$KSEC" ]; then echo "没输入，什么都没改"; exit 1; fi
@@ -15,14 +17,32 @@ sed -i '/^DLW_COS_/d' "$ENVF"
 printf '\n# 安装包中转用的写入密钥（只能往安装包文件夹里写）\nDLW_COS_KEY_ID=%s\nDLW_COS_SECRET=%s\n' "$KID" "$KSEC" >> "$ENVF"
 unset KSEC
 systemctl restart laolao-grid; sleep 3
+echo "密钥存好了，调度中心重启了。"
+fi
 TOKEN=$(tail -1 "$DATA/admin.txt" 2>/dev/null || true)
-echo "密钥存好了，调度中心重启了。现在去 GitHub 看一眼有没有要搬的（大文件要几分钟，搬完才会回来）…"
-OUT=$(curl -s --max-time 1800 -X POST -H "authorization: Bearer $TOKEN" "http://127.0.0.1:$PORT/api/admin/dl/relay" || true)
-echo "$OUT" | node -e '
-let s="";process.stdin.on("data",(c)=>s+=c).on("end",()=>{let j;try{j=JSON.parse(s)}catch(e){console.log("!! 没拿到结果："+s.slice(0,300));return}
- if(!j.canWrite){console.log("!! 写入密钥没生效：看看 /etc/laolao-grid.env 里 DLW_COS_* 有没有写上");}
- const T={ok:"已经在国内存储",missing:"存储里没有",copying:"正在搬",failed:"没搬成","?":"不知道"};
- for(const f of j.files||[])console.log(`${T[f.state]||f.state}  ${f.key}${f.why?"（"+f.why+"）":""}`);
- if(!(j.files||[]).length)console.log("!! 一个版本文件都没读到：这台服务器连不上 GitHub？");});'
+API="http://127.0.0.1:$PORT/api/admin/dl"
+echo "去 GitHub 看一眼有没有要搬的，下面每 3 秒刷新一次进度（按 Ctrl+C 只是不看了，后台照样搬）："
+curl -s --max-time 20 -X POST -H "authorization: Bearer $TOKEN" "$API/relay?wait=0" >/dev/null || true
+sleep 2
+while :; do
+  OUT=$(curl -s --max-time 10 -H "authorization: Bearer $TOKEN" "$API?days=1" || true)
+  LINE=$(printf '%s' "$OUT" | node -e '
+let s="";process.stdin.on("data",(c)=>s+=c).on("end",()=>{let j;try{j=JSON.parse(s).relay}catch(e){console.log("!! 调度中心没回话："+s.slice(0,200));console.log("@done");return}
+ if(!j){console.log("!! 调度中心还是旧版本：先 cd /opt/laolao && sudo git pull && sudo systemctl restart laolao-grid");console.log("@done");return}
+ if(!j.canWrite)console.log("!! 写入密钥没生效：看看 /etc/laolao-grid.env 里 DLW_COS_* 有没有写上");
+ const T={ok:"✓ 已经在国内存储",missing:"… 排队",copying:"→ 正在搬",failed:"✗ 没搬成","?":"? 问不到存储"};
+ const mb=(n)=>Math.round((n||0)/1048576);
+ for(const f of j.files||[]){let x=`${T[f.state]||f.state}  ${f.key}`;
+  if(f.state==="copying"){const w=30,k=Math.round((f.pct||0)/100*w);x+=`
+     ${f.phase}  [${"#".repeat(k)}${"-".repeat(w-k)}] ${f.pct||0}%  ${mb(f.got)}/${mb(f.size)}MB  ${((f.speed||0)/1048576).toFixed(1)}MB/s`+(f.speed>0?`  还要约 ${Math.ceil((f.size-f.got)/f.speed/60)} 分钟`:"");}
+  else if(f.why)x+=`（${f.why}）`; console.log(x);}
+ if(!(j.files||[]).length&&!j.running)console.log("!! 一个版本文件都没读到：这台服务器连不上 GitHub？");
+ if(!j.running&&!(j.files||[]).some((f)=>f.state==="copying"))console.log("@done");});')
+  clear 2>/dev/null || true
+  date "+%H:%M:%S"
+  printf '%s\n' "$LINE" | grep -v '^@done$' || true
+  printf '%s' "$LINE" | grep -q '^@done$' && break
+  sleep 3
+done
 echo
-echo "以后每 10 分钟自动看一次；有新版本会自己搬。搬的记录在控制中心「动态」里。"
+echo "这一轮看完了。以后每 10 分钟自动看一次；有新版本会自己搬。想再看进度：sudo bash /opt/laolao/grid/server/dl-relay.sh --watch"
