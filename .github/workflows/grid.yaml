@@ -17,6 +17,20 @@ on:
       - "pptassist/core/dl.js"
       - "pptassist/core/installer.js"
       - "pptassist/core/mirror.js"
+      # 成品展示也是同一份代码
+      - "pptassist/core/chat.js"
+      - "pptassist/core/agent.js"
+      - "pptassist/core/xiaozhi.js"
+      - "pptassist/core/campus.js"
+      - "pptassist/core/pptedit.js"
+      - "pptassist/core/pptx.js"
+      - "pptassist/core/deck.js"
+      - "pptassist/core/pptview.js"
+      - "pptassist/renderer/deckview.js"
+      - "pptassist/core/gridmodels.js"
+      - "pptassist/core/voice.js"
+      - "pptassist/core/media.js"
+      - "pptassist/renderer/avatar3d.js"
   workflow_dispatch:
 
 permissions:

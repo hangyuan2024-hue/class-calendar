@@ -8,7 +8,8 @@
 #   CN_S3_REGION    地域：ap-guangzhou / oss-cn-hangzhou / cn-beijing
 #   CN_S3_BUCKET    存储桶名字
 #   CN_S3_KEY_ID / CN_S3_SECRET  访问密钥（建议单独建一个只能写这个桶的子账号）
-#   CN_DL_BASE      公开下载地址前缀，比如 https://<桶名>.cos.ap-guangzhou.myqcloud.com（有自己的加速域名就填域名）
+#   CN_DL_BASE      下载地址前缀：填 https://dl.laolaokechengbiao.cn/dl（调度中心的「下载门口」，只给中国大陆、按量刹车）。
+#                   不要再填桶的公开地址：桶已经改成私有读，那种链接打不开，而且公开链接谁都能下、会被刷流量
 # 同一个前缀下只留最新的 3 个版本（捞捞编程 1 个），省存储费。
 set -uo pipefail
 # 捞捞编程约 1.5GB：留最新 2 个版本（其他留 3 个）。只留 1 个时，刚发新版就把上一版删了，
@@ -38,8 +39,13 @@ echo "开始传到国内存储：$KEY（$(( $(wc -c < "$F") / 1048576 )) MB）" 
 # 所以顺序是：① 全球加速（没开会 1 秒内报 BucketAccelerateNotEnabled，直接跳过）② ③ 普通地址，每次最多等 3 分钟。
 # 3 次都不行就跳过国内存储，照常发布（App 和官网会从网站 download/、jsDelivr、GitHub 下载）。
 EPS=()
-case "$CN_S3_ENDPOINT" in *myqcloud.com*) EPS+=("https://cos.accelerate.myqcloud.com");; esac
-EPS+=("$CN_S3_ENDPOINT" "$CN_S3_ENDPOINT")
+# 国内地址填的是调度中心的「下载门口」（…/dl）：传不上也没关系，香港的调度中心会自己从 GitHub 搬过去（server/dlrelay.js），
+# 这里只试一次，不再干等 9 分钟
+GATE=""; case "$CN_DL_BASE" in */dl|*/dl/) case "$CN_DL_BASE" in *myqcloud.com*) ;; *) GATE=1;; esac;; esac
+if [ -n "$GATE" ]; then EPS+=("$CN_S3_ENDPOINT"); else
+  case "$CN_S3_ENDPOINT" in *myqcloud.com*) EPS+=("https://cos.accelerate.myqcloud.com");; esac
+  EPS+=("$CN_S3_ENDPOINT" "$CN_S3_ENDPOINT")
+fi
 ERR=$(mktemp)
 n=0
 for EP in "${EPS[@]}"; do
@@ -58,6 +64,7 @@ for EP in "${EPS[@]}"; do
 done
 rm -f "$ERR"
 echo "用了 $(( $(date +%s) - T0 )) 秒" >&2
+if [ -z "$ok" ] && [ -n "$GATE" ]; then echo "::notice::这次没直接传上国内存储：调度中心会在 10 分钟内从 GitHub 搬过去，搬好之前下载门口先转 GitHub" >&2; echo "${CN_DL_BASE%/}/$KEY"; exit 0; fi
 if [ -z "$ok" ]; then echo "::warning::上传到国内存储失败（原因见上面几行），这次 App 更新会改从网站 download/ 或 GitHub 下载" >&2; echo ""; exit 0; fi
 # 清理：同一个文件夹里按时间只留最新 3 个
 DIR="${KEY%/*}/"
