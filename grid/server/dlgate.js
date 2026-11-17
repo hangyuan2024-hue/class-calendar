@@ -147,10 +147,34 @@ function create(o) {
   const say = (res, code, text, why) => { const b = Buffer.from(text + "\n"); res.writeHead(code, { "content-type": "text/plain; charset=utf-8", "content-length": b.length, "cache-control": "no-store", "access-control-allow-origin": "*", "x-lz-dl": why }); res.end(b); };
   const refuse = (ip, why) => { const u = usage(); u.refused[why] = (u.refused[why] || 0) + 1; if (why === "foreign") u.foreign[ip] = (u.foreign[ip] || 0) + 1; dirty = true; };
 
+  // 官网「下载」按钮用的固定地址 /dl/latest/<软件>：门口自己去查最新版，网页上什么都不用测、不用读版本文件。
+  // 海外的、存储没配好的、查不到版本的：直接转 GitHub（不给海外的人看「只对中国大陆开放」）
+  const GH_LATEST = {
+    desktop: "https://github.com/hangyuan2024-hue/class-calendar/releases/latest/download/LaolaoKechengbiao-Setup.exe",
+    code: "https://github.com/hangyuan2024-hue/class-calendar/releases/download/laolao-code/LaolaoCode-Setup.exe",
+    ppt: "https://github.com/hangyuan2024-hue/class-calendar/releases/download/laolao-ppt/LaolaoPPT-Setup.exe",
+    grid: "https://github.com/hangyuan2024-hue/class-calendar/releases/download/laolao-grid/LaolaoGrid-Setup.exe",
+  };
+  const go = (res, url, why) => { res.writeHead(302, { location: url, "cache-control": "no-store", "access-control-allow-origin": "*", "x-lz-dl": why }); res.end(); };
+
   // GET/HEAD /dl/<key>
   async function handle(req, res, key, ipRaw) {
     const ip = cleanIp(ipRaw);
-    if (req.method !== "GET" && req.method !== "HEAD") return say(res, 405, "只能下载", "method");
+    if (req.method !== "GET" && req.method !== "HEAD" && req.method !== "OPTIONS") return say(res, 405, "只能下载", "method");
+    if (req.method === "OPTIONS") { res.writeHead(204, { "access-control-allow-origin": "*", "access-control-allow-methods": "GET, HEAD", "access-control-max-age": "86400" }); return res.end(); }
+    // 官网看下载门口通不通（能跨域读，所以结果是准的）
+    if (key === "ping") return say(res, 200, "ok", "ping");
+    const lm = /^latest\/(\w+)$/.exec(key);
+    if (lm) {
+      const app = lm[1];
+      if (app === "apk") return go(res, cfg.apk, "apk");
+      if (!GH_LATEST[app]) return say(res, 404, "没有这个软件", "path");
+      const rg0 = region(ip);
+      const info = o.relay && o.relay.latest ? await o.relay.latest(app).catch(() => null) : null;
+      if (!(rg0 === "LAN" || cfg.allow.includes(rg0))) return go(res, (info && info.url) || GH_LATEST[app], "foreign-gh");
+      if (!ready || !info) return go(res, (info && info.url) || GH_LATEST[app], "gh");
+      key = info.key;
+    }
     if (!okPath(key)) return say(res, 404, "没有这个文件", "path");
     // 腾讯云不让用桶的默认域名分发安卓 / 苹果安装包（DownloadForbidden，要绑备案过的自己的域名）：
     // 安卓的转到官网自己的那份（www 绑在国内加速的网站桶上，能下；每次发版都会更新成最新的），苹果的没有

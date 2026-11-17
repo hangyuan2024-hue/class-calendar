@@ -147,10 +147,19 @@ const ok = (m) => console.log("✓ " + m);
     r = await fetch(`http://127.0.0.1:${p2}/dl/ppt/LaolaoPPT-Setup-1.0.16.exe`, { redirect: "manual", headers: { "x-forwarded-for": "223.5.5.5" } });
     assert.equal(r.status, 302); assert.equal(r.headers.get("x-lz-dl"), "ok"); assert.match(r.headers.get("location"), /\/cos\/ppt%2FLaolaoPPT-Setup-1\.0\.16\.exe\?m=GET$/);
     st = await a2.relay.run(); assert.equal(puts.length, 1);   // 已经有了：不重复搬
+    // 官网按钮的固定地址：/dl/latest/<软件>（国内 → 存储；海外 → GitHub；安卓 → 官网的那份）、/dl/ping
+    const at = (p_, ip) => fetch(`http://127.0.0.1:${p2}/dl/${p_}`, { redirect: "manual", headers: { "x-forwarded-for": ip } });
+    r = await at("latest/ppt", "223.5.5.5"); assert.equal(r.status, 302); assert.equal(r.headers.get("x-lz-dl"), "ok"); assert.match(r.headers.get("location"), /\/cos\/ppt%2FLaolaoPPT-Setup-1\.0\.16\.exe\?m=GET$/);
+    r = await at("latest/ppt", "8.8.8.8"); assert.equal(r.status, 302); assert.equal(r.headers.get("x-lz-dl"), "foreign-gh"); assert.match(r.headers.get("location"), /\/gh\/LaolaoPPT-Setup\.exe$/);
+    r = await at("latest/grid", "223.5.5.5"); assert.equal(r.headers.get("x-lz-dl"), "relay");   // 存储里没有（上面下坏了没传）：先转 GitHub
+    r = await at("latest/desktop", "223.5.5.5"); assert.equal(r.headers.get("x-lz-dl"), "gh"); assert.match(r.headers.get("location"), /releases\/latest\/download\/LaolaoKechengbiao-Setup\.exe$/);   // 查不到版本：GitHub 最新版
+    r = await at("latest/apk", "223.5.5.5"); assert.equal(r.headers.get("x-lz-dl"), "apk");
+    r = await at("latest/xyz", "223.5.5.5"); assert.equal(r.status, 404);
+    r = await at("ping", "8.8.8.8"); assert.equal(r.status, 200); assert.equal(r.headers.get("access-control-allow-origin"), "*"); assert.equal((await r.text()).trim(), "ok");
     const adm = await (await fetch(`http://127.0.0.1:${p2}/api/admin/dl`, { headers: { authorization: "Bearer " + a2.core.adminToken() } })).json();
     assert.equal(adm.relay.canWrite, true); assert.equal(adm.relay.files.length, 2);
     a2.close(); srv.close();
-    ok("安装包中转：存储里没有的新版本，门口先转 GitHub；配了写入密钥就从 GitHub 搬过来（核对 sha256，下坏了不传；先试全球加速，没开就走普通线路），之后走国内存储；已有的不重复搬；grid/ 下面只放行安装包");
+    ok("安装包中转：存储里没有的新版本，门口先转 GitHub；配了写入密钥就从 GitHub 搬过来（核对 sha256，下坏了不传；先试全球加速，没开就走普通线路），之后走国内存储；已有的不重复搬；grid/ 下面只放行安装包；官网按钮的 /dl/latest/<软件> 和 /dl/ping");
   }
   console.log("下载门口：全部通过");
 })().catch((e) => { console.error(e); process.exit(1); });

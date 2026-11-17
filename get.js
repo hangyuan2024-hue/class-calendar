@@ -172,34 +172,37 @@
   })();
   window.CCGet = { plat, info };
   // 6.9.8 国内：电脑版、捞捞编程走国内存储 / 加速镜像；安卓走国内存储或官网自己的副本（不走 GitHub）
-  // 7.6.5 国内存储还是海外：先比一比这台设备连「国内存储」和「GitHub」哪个快（时区不可靠：有人电脑设的是海外时区，
-  // 也有人开过代理）。时区在国内的偏向国内存储，时区在海外的要国内存储明显不慢才用。
   let cnChosen = false;
-  const timeTo = (u, ms) => new Promise((ok) => {
-    const t0 = performance.now(), ctl = new AbortController(), t = setTimeout(() => { ctl.abort(); ok(Infinity); }, ms || 5000);
-    fetch(u, { method: "HEAD", mode: "no-cors", cache: "no-store", signal: ctl.signal }).then(() => { clearTimeout(t); ok(performance.now() - t0); }, () => { clearTimeout(t); ok(Infinity); });
-  });
-  async function nearCn(cnUrl) {
-    if (!/^https:\/\//.test(cnUrl || "")) return !overseas;
-    const [a, b] = await Promise.all([timeTo(cnUrl), timeTo("https://github.githubassets.com/favicons/favicon.png?t=" + Date.now())]);
-    if (a === Infinity) return false;
-    if (b === Infinity) return true;
-    return overseas ? a <= b * 1.3 : a <= b * 3;
-  }
-  (async () => {
-    const dv0 = await getJson("download/desktop-version.json");
-    if (!(await nearCn(dv0 && dv0.cn))) return;
-    cnChosen = true;
-    const m = await getJson("download/mirrors.json"); if (m && Array.isArray(m.gh) && m.gh.length) MIR = m;
-    const [dv, cv, pv] = await Promise.all([getJson("download/desktop-version.json"), getJson("download/code-version.json"), $$('[data-get="ppt"]').length ? getJson("download/ppt-version.json") : null]);
-    const [pe, pc, pp] = await Promise.all([(plat.desktop || plat.windows) && $$('[data-get="exe"], [data-get="auto"]').length ? cnPick(dv, EXE_GH) : null, $$('[data-get="code"]').length ? cnPick(cv, CODE_GH) : null, $$('[data-get="ppt"]').length ? cnPick(pv, PPT_GH) : null]);
-    if (pe) { EXE = pe.url; exeHow = pe.how; }
-    if (pc) { CODE = pc.url; codeHow = pc.how; }
-    if (pp) { PPT = pp.url; pptHow = pp.how; }
+  // 7.7 国内（时区在国内）：按钮直接指向下载门口的固定地址 /dl/latest/<软件>，点了就下，不用等网页测速、不用读版本文件。
+  // 门口自己决定：国内存储里有 → 国内存储；新版本还没搬到 → GitHub；其实人在海外 → GitHub。
+  // 以前要等后台测完速才换掉 GitHub 地址，测的时候 / 测错了点下去就是 GitHub，国内一直转圈。
+  // 门口不通（服务器在维护）才退回下面原来的办法。
+  const GATE = ((window.APP_CONFIG && window.APP_CONFIG.DL_GATE) || "https://dl.laolaokechengbiao.cn/dl").replace(/\/+$/, "") + "/";
+  const gateUp = async () => {
+    for (let i = 0; i < 2; i++) {
+      const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 6000);
+      try { const r = await fetch(GATE + "ping?t=" + Date.now(), { cache: "no-store", signal: ctl.signal }); if (r.ok && /ok/.test(await r.text())) return true; } catch (e) {} finally { clearTimeout(t); }
+    }
+    return false;
+  };
+  async function apkCn() {
     const v = await info.ready;
     if (v && /^https:\/\//.test(v.cn || "")) { apk = v.cn; }
     else if (v && apk !== backupApk) { apk = backupApk; backupApk = v.url ? new URL(v.url, root).href : originalApk; }   // 国内用官网副本，GitHub 当备用线路
     apply();
+  }
+  (async () => {
+    if (overseas) return;   // 海外：GitHub，或者下面的海外线路（分段下载）
+    EXE = GATE + "latest/desktop"; CODE = GATE + "latest/code"; PPT = GATE + "latest/ppt"; exeHow = codeHow = pptHow = "国内线路"; cnChosen = true; apply();
+    if (await gateUp()) return apkCn();
+    // 下载门口不通（服务器在维护）：退回 GitHub 加速镜像，都不通才用 GitHub 原地址
+    EXE = EXE_GH; CODE = CODE_GH; PPT = PPT_GH; exeHow = codeHow = pptHow = ""; apply();
+    const m = await getJson("download/mirrors.json"); if (m && Array.isArray(m.gh) && m.gh.length) MIR = m;
+    const [pe, pc, pp] = await Promise.all([cnPick(null, EXE_GH), $$('[data-get="code"]').length ? cnPick(null, CODE_GH) : null, $$('[data-get="ppt"]').length ? cnPick(null, PPT_GH) : null]);
+    if (pe) { EXE = pe.url; exeHow = pe.how; }
+    if (pc) { CODE = pc.url; codeHow = pc.how; }
+    if (pp) { PPT = pp.url; pptHow = pp.how; }
+    await apkCn();
   })();
   // 海外线路能不能下载安装包（中转还没更新时这里会失败，就一直用 GitHub）
   if (plat.desktop || plat.windows) (async () => {

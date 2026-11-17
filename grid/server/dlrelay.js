@@ -117,6 +117,7 @@ function create(o) {
 
   // 只读 GitHub 上的版本文件（4 个小 JSON，一两秒），记下每个安装包在 GitHub 的地址；不碰存储
   let scanning = null, lastScan = 0;
+  const latestOf = new Map();   // app → 最新版的 key（官网的「下载」按钮用 /dl/latest/<app>，不用自己读版本文件）
   function scan() {
     if (scanning) return scanning;
     scanning = (async () => {
@@ -127,7 +128,7 @@ function create(o) {
         const key = m.cn && m.cn.startsWith(base) ? decodeURIComponent(m.cn.slice(base.length)) : KEY_OF[app](m.version);
         const it = known.get(key) || { app, version: m.version, url: m.url, size: +m.size || 0, sha256: m.sha256 || "", state: "?", inManifest: !!(m.cn && m.cn.startsWith(base)) };
         Object.assign(it, { url: m.url, size: +m.size || it.size, sha256: m.sha256 || it.sha256, inManifest: !!(m.cn && m.cn.startsWith(base)) });
-        known.set(key, it); found.push([key, it]);
+        known.set(key, it); found.push([key, it]); latestOf.set(app, key);
       }
       lastScan = Date.now();
       return found;
@@ -163,6 +164,13 @@ function create(o) {
     if (!running && Date.now() - lastRun > 60e3) run().catch(() => {});   // 顺便催一下中转（只是读版本文件、问存储，很快）
     return it && it.state !== "ok" ? it.url : null;
   }
+  // 官网下载按钮问：这个软件最新版在存储里叫什么、GitHub 上的原地址是什么（版本文件 10 分钟内读过就不再读）
+  async function latest(app) {
+    if (!APPS.includes(app)) return null;
+    if (!latestOf.has(app) || Date.now() - lastScan > 10 * 60e3) await Promise.race([scan().catch(() => {}), new Promise((ok) => setTimeout(ok, 10e3).unref())]);
+    const key = latestOf.get(app); if (!key) return null;
+    const it = known.get(key); return { key, url: it.url, version: it.version };
+  }
   const status = () => ({ canWrite, lastRun, running: !!running, files: [...known.entries()].map(([key, v]) => ({ key, app: v.app, version: v.version, state: v.state, why: v.why || "", inManifest: v.inManifest, size: v.size,
     ...(v.state === "copying" ? { via: v.via || "", phase: v.phase, got: v.got || 0, pct: v.size ? Math.floor(((v.got || 0) / v.size) * 100) : 0, speed: v.speed || 0 } : {}) })) });
   // 不等搬完就返回（dl-relay.sh 用它开个头，然后每几秒问一次进度）
@@ -171,7 +179,7 @@ function create(o) {
   const timer = o.noTimer ? null : setInterval(() => run().catch(() => {}), o.everyMs || 10 * 60e3);
   if (timer && timer.unref) timer.unref();
   if (!o.noTimer) setTimeout(() => run().catch(() => {}), 30000).unref();
-  return { run, kick, status, fallbackOf, close() { clearInterval(timer); }, KEY_OF };
+  return { run, kick, status, fallbackOf, latest, close() { clearInterval(timer); }, KEY_OF };
 }
 
 module.exports = { create, KEY_OF, APPS };
