@@ -96,8 +96,10 @@ let rnd = seed; const rand = () => ((rnd = (rnd * 1103515245 + 12345) % 21474836
   ok(`接力训练：最后的模型和一台电脑从头算到尾的完全一样（一位都不差）；中途换了 ${resumes} 次电脑接着算`);
 
   const dd = app.core.jobDetail(dlId);
-  const losses = dd.curves.loss.map((x) => x[1]);
-  assert.equal(losses.length, 6);
+  // 合并那一步算完、曲线已经报上去了，交结果之前被拔了电源：别的电脑会把这一轮重算一遍，同一轮就有两个点。按轮数去重，留后算的那个
+  const byRound = new Map(); for (const [step, v] of dd.curves.loss) byRound.set(step, v);
+  const losses = [...byRound.keys()].sort((a, b) => a - b).map((k) => byRound.get(k));
+  assert.deepStrictEqual([...byRound.keys()].sort((a, b) => a - b), [1, 2, 3, 4, 5, 6]);
   assert.ok(losses[5] < losses[0], "误差没降：" + losses);
   const merged = app.core.db.prepare("select input from tasks where job_id=? and kind='merge'").all(dlId).map((r) => JSON.parse(r.input).parts.length);
   ok(`DiLoCo：6 轮都合并了，每轮用了 ${merged.join("/")} 份，误差 ${losses[0].toFixed(3)} → ${losses[5].toFixed(3)}`);
