@@ -22,12 +22,16 @@ fi
 TOKEN=$(tail -1 "$DATA/admin.txt" 2>/dev/null || true)
 API="http://127.0.0.1:$PORT/api/admin/dl"
 echo "去 GitHub 看一眼有没有要搬的，下面每 3 秒刷新一次进度（按 Ctrl+C 只是不看了，后台照样搬）："
-curl -s --max-time 20 -X POST -H "authorization: Bearer $TOKEN" "$API/relay?wait=0" >/dev/null || true
+# 调度中心刚重启时要几秒才起来：等它能回话再开始（最多 60 秒）
+for i in $(seq 1 30); do
+  curl -sf --max-time 10 -X POST -H "authorization: Bearer $TOKEN" "$API/relay?wait=0" >/dev/null && break
+  [ "$i" = 1 ] && echo "等调度中心起来…"; sleep 2
+done
 sleep 2
 while :; do
   OUT=$(curl -s --max-time 10 -H "authorization: Bearer $TOKEN" "$API?days=1" || true)
   LINE=$(printf '%s' "$OUT" | node -e '
-let s="";process.stdin.on("data",(c)=>s+=c).on("end",()=>{let j;try{j=JSON.parse(s).relay}catch(e){console.log("!! 调度中心没回话："+s.slice(0,200));console.log("@done");return}
+let s="";process.stdin.on("data",(c)=>s+=c).on("end",()=>{let j;try{j=JSON.parse(s).relay}catch(e){console.log("… 调度中心没回话，再等等："+s.slice(0,120));console.log("@noreply");return}
  if(!j){console.log("!! 调度中心还是旧版本：先 cd /opt/laolao && sudo git pull && sudo systemctl restart laolao-grid");console.log("@done");return}
  if(!j.canWrite)console.log("!! 写入密钥没生效：看看 /etc/laolao-grid.env 里 DLW_COS_* 有没有写上");
  const T={ok:"✓ 已经在国内存储",missing:"… 排队",copying:"→ 正在搬",failed:"✗ 没搬成","?":"? 问不到存储"};
@@ -36,12 +40,15 @@ let s="";process.stdin.on("data",(c)=>s+=c).on("end",()=>{let j;try{j=JSON.parse
   if(f.state==="copying"){const w=30,k=Math.round((f.pct||0)/100*w);x+=`
      ${f.phase}${f.via&&f.phase!=="从 GitHub 下载"?"（"+f.via+"）":""}  [${"#".repeat(k)}${"-".repeat(w-k)}] ${f.pct||0}%  ${mb(f.got)}/${mb(f.size)}MB  ${(f.speed||0)>=1048576?((f.speed)/1048576).toFixed(1)+"MB/s":Math.round((f.speed||0)/1024)+"KB/s"}`+(f.speed>0?`  还要约 ${Math.ceil((f.size-f.got)/f.speed/60)} 分钟`:"");}
   else if(f.why)x+=`（${f.why}）`; console.log(x);}
- if(!(j.files||[]).length&&!j.running)console.log("!! 一个版本文件都没读到：这台服务器连不上 GitHub？");
+ if(!(j.files||[]).length&&!j.running&&j.lastRun)console.log("!! 一个版本文件都没读到：这台服务器连不上 GitHub？");
+ if(!(j.files||[]).length&&(j.running||!j.lastRun)){console.log("… 正在看 GitHub 上的版本文件");return;}
  if(!j.running&&!(j.files||[]).some((f)=>f.state==="copying"))console.log("@done");});')
   clear 2>/dev/null || true
   date "+%H:%M:%S"
-  printf '%s\n' "$LINE" | grep -v '^@done$' || true
-  printf '%s' "$LINE" | grep -q '^@done$' && break
+  # 不用管道判断（set -o pipefail 下 grep -q 提前退出会让判断失灵，进度一直刷不停）
+  L="${LINE//@done/}"; printf '%s\n' "${L//@noreply/}"
+  case "$LINE" in *@done*) break;; esac
+  case "$LINE" in *@noreply*) NR=$((${NR:-0} + 1)); if [ "$NR" -ge 20 ]; then echo "!! 调度中心一分钟都没回话：sudo systemctl status laolao-grid 看看"; break; fi;; *) NR=0;; esac
   sleep 3
 done
 echo

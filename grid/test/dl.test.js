@@ -136,6 +136,8 @@ const ok = (m) => console.log("✓ " + m);
     // 2. 配了写入密钥：搬过来（核对 sha256），之后门口转去存储；下坏了的不传
     const a2 = Server.create({ data: tmpR, noTick: true, env: { ...env, DLW_COS_KEY_ID: "wk", DLW_COS_SECRET: "ws" }, gate: { noRefresh: true, presign }, relay: { presign } });
     const p2 = await a2.listen(0, "127.0.0.1");
+    r = await fetch(`http://127.0.0.1:${p2}/dl/ppt/LaolaoPPT-Setup-1.0.16.exe`, { redirect: "manual", headers: { "x-forwarded-for": "223.5.5.5" } });
+    assert.equal(r.headers.get("x-lz-dl"), "relay");   // 搬之前：门口记下了「存储里没有」
     st = await a2.relay.run();
     assert.equal(st.files.find((f) => f.key === "ppt/LaolaoPPT-Setup-1.0.16.exe").state, "ok");
     const g = st.files.find((f) => f.key === "grid/LaolaoGrid-Setup-0.1.58.exe"); assert.equal(g.state, "failed"); assert.match(g.why, /sha256 对不上/);

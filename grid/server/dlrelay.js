@@ -32,9 +32,9 @@ function create(o) {
   // 香港 → 广州走公网，晚上跨境经常只剩十几 KB/s（148MB 要传两个多小时）。腾讯云存储桶开了「全球加速」时，
   // 走 cos.accelerate.myqcloud.com：在香港就进腾讯内网，再到广州，快很多（加速流量另收一点钱，约 0.5 元/GB）。
   // 先试加速；桶没开会马上报 BucketAccelerateNotEnabled，就退回普通地址（1 小时内不再试）。DL_ACCEL=0 关掉。
-  const accelEp = env.DL_ACCEL !== "0" && /myqcloud\.com/.test(cos.endpoint) ? "https://cos.accelerate.myqcloud.com" : "";
+  const accelEp = /^https?:\/\//.test(env.DL_ACCEL || "") ? env.DL_ACCEL : env.DL_ACCEL !== "0" && /myqcloud\.com/.test(cos.endpoint) ? "https://cos.accelerate.myqcloud.com" : "";
   let accelOffUntil = 0;
-  const minKBps = +env.DL_MIN_KBPS || 100;   // 传了 2 分钟平均还不到这个速度：停下，说清楚原因（不然一个文件能卡几个小时）
+  const minKBps = +env.DL_MIN_KBPS || 100, slowSecs = +env.DL_SLOW_SECS || 120;   // 传了 2 分钟平均还不到这个速度：停下，说清楚原因（不然一个文件能卡几个小时）
   // key → { app, version, url（GitHub）, size, sha256, state: ok / missing / copying / failed, why }
   const known = new Map();
   let running = null, lastRun = 0;
@@ -47,12 +47,14 @@ function create(o) {
   }
   // 从 GitHub 下到本地，边下边算 sha256
   // 进度：每过 10% 记一行日志（journalctl 和控制中心「动态」里能看到），status() 里随时有百分比和速度
+  const fmtSpeed = (b) => (b >= 1048576 ? (b / 1048576).toFixed(1) + "MB/s" : Math.round(b / 1024) + "KB/s");
   function tick(it, n, total) {
     it.got = n; const now = Date.now();
-    if (!it.t0) { it.t0 = now; it.n0 = 0; }
-    if (now - (it.ts || 0) >= 2000) { it.speed = Math.round(((n - (it.nPrev || 0)) / Math.max(1, now - (it.ts || it.t0))) * 1000); it.ts = now; it.nPrev = n; }
+    if (!it.t0) { it.t0 = now; it.ts = now; it.nPrev = 0; }
+    // 每 2 秒按这 2 秒传了多少算一次速度（刚开始那一下不算：会把缓冲区一下子塞满，看着特别快）
+    if (now - it.ts >= 2000) { it.speed = Math.round(((n - it.nPrev) / (now - it.ts)) * 1000); it.ts = now; it.nPrev = n; }
     const pct = total ? Math.floor((n / total) * 100) : 0, step = Math.floor(pct / 10);
-    if (total && step > (it.step || 0)) { it.step = step; log(`安装包中转：${it.key} ${it.phase} ${pct}%（${Math.round(n / 1048576)}/${Math.round(total / 1048576)}MB，${((it.speed || 0) / 1048576).toFixed(1)}MB/s）`); }
+    if (total && step > (it.step || 0)) { it.step = step; log(`安装包中转：${it.key} ${it.phase}${it.via && it.phase !== "从 GitHub 下载" ? "（" + it.via + "）" : ""} ${pct}%（${Math.round(n / 1048576)}/${Math.round(total / 1048576)}MB${it.speed ? "，" + fmtSpeed(it.speed) : ""}）`); }
   }
   async function download(url, file, want, it) {
     const r = await doFetch(url, { redirect: "follow", signal: AbortSignal.timeout(60 * 60e3) });
@@ -77,7 +79,7 @@ function create(o) {
       const t0 = Date.now();
       const watch = setInterval(() => {
         const sec = (Date.now() - t0) / 1000, kbps = n / 1024 / sec;
-        if (sec >= 120 && kbps < minKBps) { const e = new Error(`香港往广州存储传得太慢（平均 ${kbps.toFixed(0)}KB/s），停了。到腾讯云 存储桶 → 域名与传输管理 → 全球加速 打开，下一轮自动走加速`); e.code = "TooSlow"; req.destroy(e); }
+        if (sec >= slowSecs && kbps < minKBps) { const e = new Error(`香港往广州存储传得太慢（平均 ${kbps.toFixed(0)}KB/s），停了。到腾讯云 存储桶 → 域名与传输管理 → 全球加速 打开，下一轮自动走加速`); e.code = "TooSlow"; req.destroy(e); }
       }, 10000);
       req.on("close", () => clearInterval(watch));
       req.on("timeout", () => req.destroy(new Error("传到存储超时")));
@@ -99,8 +101,11 @@ function create(o) {
         it.via = useAccel ? "全球加速" : "普通线路";
         await put(presign("PUT", key, 6 * 3600, true, useAccel ? accelEp : ""), tmp, n, it);
       } catch (e) {
-        if (!useAccel || !/BucketAccelerateNotEnabled|AccelerateNotEnabled|InvalidAccelerate/i.test(e.code + e.message)) throw e;
-        accelOffUntil = Date.now() + 3600e3; log("安装包中转：存储桶没开「全球加速」，这次走普通线路（香港到广州晚上可能很慢）");
+        if (!useAccel) throw e;
+        // 加速线路出任何问题（没开、签名不认、连不上…）都退回普通线路再试一次；没开的话 1 小时内不再试加速
+        const off = /AccelerateNotEnabled|InvalidAccelerate/i.test((e.code || "") + e.message);
+        if (off) accelOffUntil = Date.now() + 3600e3;
+        log(`安装包中转：全球加速没走通（${off ? "存储桶没开全球加速" : e.message}），这次走普通线路（香港到广州晚上可能很慢）`);
         Object.assign(it, { got: 0, step: 0, t0: 0, ts: 0, nPrev: 0, speed: 0, via: "普通线路" });
         await put(presign("PUT", key, 6 * 3600, true), tmp, n, it);
       }
@@ -110,19 +115,32 @@ function create(o) {
     finally { fs.rm(tmp, { force: true }, () => {}); }
   }
 
-  async function run() {
-    if (running) return running;
-    running = (async () => {
-      lastRun = Date.now();
-      if (!cos.endpoint || !cos.bucket || !readKey.keyId) return status();   // 没配存储：什么都不做
-      const todo = [];
+  // 只读 GitHub 上的版本文件（4 个小 JSON，一两秒），记下每个安装包在 GitHub 的地址；不碰存储
+  let scanning = null, lastScan = 0;
+  function scan() {
+    if (scanning) return scanning;
+    scanning = (async () => {
+      const found = [];
       for (const app of APPS) {
         const m = await manifest(app);
         if (!m || !m.version || !/^https?:\/\//.test(m.url || "")) continue;
         const key = m.cn && m.cn.startsWith(base) ? decodeURIComponent(m.cn.slice(base.length)) : KEY_OF[app](m.version);
         const it = known.get(key) || { app, version: m.version, url: m.url, size: +m.size || 0, sha256: m.sha256 || "", state: "?", inManifest: !!(m.cn && m.cn.startsWith(base)) };
         Object.assign(it, { url: m.url, size: +m.size || it.size, sha256: m.sha256 || it.sha256, inManifest: !!(m.cn && m.cn.startsWith(base)) });
-        known.set(key, it);
+        known.set(key, it); found.push([key, it]);
+      }
+      lastScan = Date.now();
+      return found;
+    })().finally(() => { scanning = null; });
+    return scanning;
+  }
+  async function run() {
+    if (running) return running;
+    running = (async () => {
+      lastRun = Date.now();
+      if (!cos.endpoint || !cos.bucket || !readKey.keyId) return status();   // 没配存储：什么都不做
+      const todo = [];
+      for (const [key, it] of await scan()) {
         if (it.state === "copying") continue;
         const have = await cosSize(key);
         if (have != null && have > 0 && (!it.size || have === it.size)) { it.state = "ok"; continue; }
@@ -137,12 +155,13 @@ function create(o) {
     })().finally(() => { running = null; });
     return running;
   }
-  // 下载门口问：这个文件存储里没有，先转去哪（GitHub 的原地址）；顺便催一下中转
-  function fallbackOf(key) {
+  // 下载门口问：这个文件存储里没有，先转去哪（GitHub 的原地址）；顺便催一下中转。
+  // 调度中心刚重启、还没读过版本文件时：当场读一次（最多等 10 秒），不让人看到 404
+  async function fallbackOf(key) {
+    if (!known.has(key) && Date.now() - lastScan > 30e3) await Promise.race([scan().catch(() => {}), new Promise((ok) => setTimeout(ok, 10e3).unref())]);
     const it = known.get(key);
-    if (it && it.state !== "ok") { if (!running && Date.now() - lastRun > 60e3) run().catch(() => {}); return it.url; }
-    if (!it && !running && Date.now() - lastRun > 60e3) run().catch(() => {});
-    return null;
+    if (!running && Date.now() - lastRun > 60e3) run().catch(() => {});   // 顺便催一下中转（只是读版本文件、问存储，很快）
+    return it && it.state !== "ok" ? it.url : null;
   }
   const status = () => ({ canWrite, lastRun, running: !!running, files: [...known.entries()].map(([key, v]) => ({ key, app: v.app, version: v.version, state: v.state, why: v.why || "", inManifest: v.inManifest, size: v.size,
     ...(v.state === "copying" ? { via: v.via || "", phase: v.phase, got: v.got || 0, pct: v.size ? Math.floor(((v.got || 0) / v.size) * 100) : 0, speed: v.speed || 0 } : {}) })) });

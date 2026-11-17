@@ -159,12 +159,14 @@ function create(o) {
     if (!ready) return say(res, 503, "下载门口还没配好存储（DL_COS_*），先从 GitHub 下：" + cfg.github, "nocfg");
     const rg = region(ip);
     if (!(rg === "LAN" || cfg.allow.includes(rg))) { refuse(ip, "foreign"); return say(res, 403, "这个下载线路只对中国大陆开放。海外请从 GitHub 下载：" + cfg.github + "\nThis mirror serves mainland China only. Please download from GitHub: " + cfg.github, "foreign"); }
-    const size = await sizeOf(key);
+    let size = await sizeOf(key);
     if (size === -1) {
       // 新版本刚发、中转还没搬到存储：先转去 GitHub，不让人看到 404（中转搬好以后自动走国内存储）
-      const fb = o.relay && o.relay.fallbackOf(key);
+      const fb = o.relay && (await o.relay.fallbackOf(key));
       if (fb) { res.writeHead(302, { location: fb, "cache-control": "no-store", "access-control-allow-origin": "*", "x-lz-dl": "relay" }); return res.end(); }
-      return say(res, 404, "没有这个文件", "missing");
+      // 中转说已经搬好了（或者根本不归它管）：「没有」是之前记下的，再问一次存储，别让刚搬好的文件 1 分钟内都 404
+      sizes.delete(key); size = await sizeOf(key);
+      if (size === -1) return say(res, 404, "没有这个文件", "missing");
     }
     const n = req.method === "HEAD" ? 0 : want(req.headers.range, size);
     const u = usage();
