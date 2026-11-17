@@ -147,7 +147,7 @@ def qv_graph(m, photo_name, style, sd, loras):
 # ---------------- CLIP 特征（给 Q版打分模型用；CPU 上算，不和 AI 引擎抢显存）----------------
 CLIP_FILES = ["config.json", "preprocessor_config.json", "model.safetensors"]
 CLIP_BASES = p.get("clipBases") or [
-    "https://laolao-1518432293.cos.ap-guangzhou.myqcloud.com/ai/grid/clip-vit-large-patch14/",
+    "https://dl.laolaokechengbiao.cn/dl/ai/grid/clip-vit-large-patch14/",
     "https://hf-mirror.com/openai/clip-vit-large-patch14/resolve/main/",
     "https://huggingface.co/openai/clip-vit-large-patch14/resolve/main/",
 ]

@@ -216,6 +216,8 @@
     $("#dlFiles").innerHTML = "<tr><th>文件</th><th>次数</th><th>几个网络</th><th>今天</th></tr>" + (t.files || []).map((x) => `<tr><td title="${esc(x.key)}">${esc(x.key.split("/").pop())}</td><td>${x.n}</td><td>${x.ips}</td><td>${x.gb}G</td></tr>`).join("");
     const r = t.refused || {}, w = d.days.reduce((s, x) => s + (x.yuan || 0), 0);
     $("#dlRefused").textContent = `今天发出 ${t.gb || 0}G（约 ${t.yuan || 0} 元），14 天约 ${w.toFixed(1)} 元。拦下：海外 ${r.foreign || 0} 次、反复下同一个文件 ${r.repeat || 0} 次、单个网络超量 ${r.ip || 0} 次、全站到上限 ${r.budget || 0} 次` + ((t.foreign || []).length ? `；海外来的 IP：${t.foreign.slice(0, 5).map((x) => x.ip).join("、")}` : "");
+    const rl = d.relay || {}, T = { ok: "已在国内存储", missing: "存储里没有", copying: "正在从 GitHub 搬", failed: "没搬成", "?": "不知道" };
+    $("#dlRelay").textContent = !rl.canWrite ? "安装包中转：还没配写入密钥（sudo bash /opt/laolao/grid/server/dl-relay.sh）" : "安装包中转：" + ((rl.files || []).map((f) => `${f.key.split("/").pop()} ${T[f.state] || f.state}${f.why ? "（" + f.why + "）" : ""}`).join("；") || "还没看过");
   }
 
   // ---- 抽屉：电脑实时 ----

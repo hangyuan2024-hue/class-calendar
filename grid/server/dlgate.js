@@ -123,7 +123,7 @@ function create(o) {
   // 文件多大（问一下 COS，记 6 小时）
   const sizes = new Map();
   async function sizeOf(key) {
-    const c = sizes.get(key); if (c && now() - c.at < 6 * 3600e3) return c.size;
+    const c = sizes.get(key); if (c && now() - c.at < (c.size === -1 ? 60e3 : 6 * 3600e3)) return c.size;   // 没有的只记 1 分钟（中转随时会搬好）
     let size = null;
     try {
       const r = await doFetch(presign("HEAD", key, 300), { method: "HEAD", signal: AbortSignal.timeout(15000) });
@@ -142,7 +142,8 @@ function create(o) {
     return Math.max(0, b - a + 1);
   }
 
-  const okPath = (key) => Store.okKey(key) && cfg.prefixes.some((p) => key.startsWith(p));
+  // 捞捞算力的安装包放在 grid/ 下面（和训练的东西同一个文件夹）：只放行安装包本身
+  const okPath = (key) => Store.okKey(key) && (cfg.prefixes.some((p) => key.startsWith(p)) || /^grid\/LaolaoGrid-Setup-[\w.]+\.exe$/.test(key));
   const say = (res, code, text, why) => { const b = Buffer.from(text + "\n"); res.writeHead(code, { "content-type": "text/plain; charset=utf-8", "content-length": b.length, "cache-control": "no-store", "access-control-allow-origin": "*", "x-lz-dl": why }); res.end(b); };
   const refuse = (ip, why) => { const u = usage(); u.refused[why] = (u.refused[why] || 0) + 1; if (why === "foreign") u.foreign[ip] = (u.foreign[ip] || 0) + 1; dirty = true; };
 
@@ -159,7 +160,12 @@ function create(o) {
     const rg = region(ip);
     if (!(rg === "LAN" || cfg.allow.includes(rg))) { refuse(ip, "foreign"); return say(res, 403, "这个下载线路只对中国大陆开放。海外请从 GitHub 下载：" + cfg.github + "\nThis mirror serves mainland China only. Please download from GitHub: " + cfg.github, "foreign"); }
     const size = await sizeOf(key);
-    if (size === -1) return say(res, 404, "没有这个文件", "missing");
+    if (size === -1) {
+      // 新版本刚发、中转还没搬到存储：先转去 GitHub，不让人看到 404（中转搬好以后自动走国内存储）
+      const fb = o.relay && o.relay.fallbackOf(key);
+      if (fb) { res.writeHead(302, { location: fb, "cache-control": "no-store", "access-control-allow-origin": "*", "x-lz-dl": "relay" }); return res.end(); }
+      return say(res, 404, "没有这个文件", "missing");
+    }
     const n = req.method === "HEAD" ? 0 : want(req.headers.range, size);
     const u = usage();
     if (u.bytes + n > cfg.dailyGB * GB) { refuse(ip, "budget"); if (!u.braked) { u.braked = now(); dirty = true; log(`下载门口：今天已经发出 ${(u.bytes / GB).toFixed(1)}G，到了上限 ${cfg.dailyGB}G，暂停国内线路到明天`); } return say(res, 429, `今天国内下载线路的流量用完了，明天再来；着急的话先从 GitHub 下：${cfg.github}`, "budget"); }

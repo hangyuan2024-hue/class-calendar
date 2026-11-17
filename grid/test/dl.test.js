@@ -95,5 +95,58 @@ const ok = (m) => console.log("✓ " + m);
   assert.equal(G.clientIp({ socket: { remoteAddress: "::ffff:127.0.0.1" }, headers: { "x-forwarded-for": "1.1.1.1, 223.5.5.5" } }), "223.5.5.5");
   app3.close();
   ok("X-Forwarded-For 只信本机的 HTTPS 代理：海外的人自己在请求里写一个国内 IP 也不行");
+  // ---------- 安装包中转：GitHub 上发了新版、存储里还没有 → 门口先转去 GitHub；中转从 GitHub 搬过来、核对 sha256、传到存储；之后走存储 ----------
+  {
+    const http = require("http"), crypto = require("crypto");
+    const blob = crypto.randomBytes(300000), sha = crypto.createHash("sha256").update(blob).digest("hex");
+    const cosStore = new Map(), puts = [];
+    // 假的 GitHub（版本文件 + 安装包）和假的存储（HEAD / GET / PUT），都在本机
+    const srv = http.createServer((q, r) => {
+      const u = new URL(q.url, "http://x");
+      if (u.pathname === "/raw/download/ppt-version.json") { r.setHeader("content-type", "application/json"); return r.end(JSON.stringify({ version: "1.0.16", url: `http://127.0.0.1:${srv.address().port}/gh/LaolaoPPT-Setup.exe`, cn: "", size: blob.length, sha256: sha })); }
+      if (u.pathname === "/raw/download/grid-version.json") { r.setHeader("content-type", "application/json"); return r.end(JSON.stringify({ version: "0.1.58", url: `http://127.0.0.1:${srv.address().port}/gh/bad.exe`, cn: "https://dl.laolaokechengbiao.cn/dl/grid/LaolaoGrid-Setup-0.1.58.exe", size: blob.length, sha256: sha })); }
+      if (u.pathname.startsWith("/raw/")) { r.statusCode = 404; return r.end(); }
+      if (u.pathname === "/gh/LaolaoPPT-Setup.exe") return r.end(blob);
+      if (u.pathname === "/gh/bad.exe") return r.end(Buffer.concat([blob.subarray(1), Buffer.from("x")]));   // 下坏了：sha256 对不上
+      if (u.pathname.startsWith("/cos/")) {
+        const key = decodeURIComponent(u.pathname.slice(5));
+        if (q.method === "PUT") { const cs = []; q.on("data", (c) => cs.push(c)); q.on("end", () => { puts.push({ key, w: u.searchParams.get("w") }); cosStore.set(key, Buffer.concat(cs)); r.end(); }); return; }
+        const b = cosStore.get(key); if (!b) { r.statusCode = 404; return r.end(); }
+        r.setHeader("content-length", b.length); return r.end(q.method === "HEAD" ? undefined : b);
+      }
+      r.statusCode = 404; r.end();
+    });
+    await new Promise((ok_) => srv.listen(0, "127.0.0.1", ok_));
+    const P = srv.address().port;
+    const presign = (method, key, ttl, w) => `http://127.0.0.1:${P}/cos/${encodeURIComponent(key)}?m=${method}${w ? "&w=1" : ""}`;
+    const env = { DL_COS_ENDPOINT: "https://cos.ap-guangzhou.myqcloud.com", DL_COS_REGION: "ap-guangzhou", DL_COS_BUCKET: "b-1", DL_COS_KEY_ID: "k", DL_COS_SECRET: "s", DL_REPO_RAW: `http://127.0.0.1:${P}/raw` };
+    const tmpR = fs.mkdtempSync(path.join(os.tmpdir(), "dlr-"));
+    // 1. 还没配写入密钥：只看不搬；门口先转去 GitHub
+    const a1 = Server.create({ data: tmpR, noTick: true, env, gate: { noRefresh: true, presign }, relay: { presign } });
+    const p1 = await a1.listen(0, "127.0.0.1");
+    let st = await a1.relay.run();
+    assert.equal(st.canWrite, false);
+    const ppt = st.files.find((f) => f.key === "ppt/LaolaoPPT-Setup-1.0.16.exe");
+    assert.ok(ppt && ppt.state === "missing" && /写入密钥/.test(ppt.why) && ppt.inManifest === false, JSON.stringify(st));
+    r = await fetch(`http://127.0.0.1:${p1}/dl/ppt/LaolaoPPT-Setup-1.0.16.exe`, { redirect: "manual", headers: { "x-forwarded-for": "223.5.5.5" } });
+    assert.equal(r.status, 302); assert.equal(r.headers.get("x-lz-dl"), "relay"); assert.match(r.headers.get("location"), /\/gh\/LaolaoPPT-Setup\.exe$/);
+    r = await fetch(`http://127.0.0.1:${p1}/dl/grid/jobs/1/x.bin`, { redirect: "manual", headers: { "x-forwarded-for": "223.5.5.5" } }); assert.equal(r.status, 404);   // grid/ 下面只放行安装包
+    a1.close();
+    // 2. 配了写入密钥：搬过来（核对 sha256），之后门口转去存储；下坏了的不传
+    const a2 = Server.create({ data: tmpR, noTick: true, env: { ...env, DLW_COS_KEY_ID: "wk", DLW_COS_SECRET: "ws" }, gate: { noRefresh: true, presign }, relay: { presign } });
+    const p2 = await a2.listen(0, "127.0.0.1");
+    st = await a2.relay.run();
+    assert.equal(st.files.find((f) => f.key === "ppt/LaolaoPPT-Setup-1.0.16.exe").state, "ok");
+    const g = st.files.find((f) => f.key === "grid/LaolaoGrid-Setup-0.1.58.exe"); assert.equal(g.state, "failed"); assert.match(g.why, /sha256 对不上/);
+    assert.ok(cosStore.get("ppt/LaolaoPPT-Setup-1.0.16.exe").equals(blob)); assert.ok(!cosStore.has("grid/LaolaoGrid-Setup-0.1.58.exe"));
+    assert.deepStrictEqual(puts, [{ key: "ppt/LaolaoPPT-Setup-1.0.16.exe", w: "1" }]);   // 用的是写入密钥
+    r = await fetch(`http://127.0.0.1:${p2}/dl/ppt/LaolaoPPT-Setup-1.0.16.exe`, { redirect: "manual", headers: { "x-forwarded-for": "223.5.5.5" } });
+    assert.equal(r.status, 302); assert.equal(r.headers.get("x-lz-dl"), "ok"); assert.match(r.headers.get("location"), /\/cos\/ppt%2FLaolaoPPT-Setup-1\.0\.16\.exe\?m=GET$/);
+    st = await a2.relay.run(); assert.equal(puts.length, 1);   // 已经有了：不重复搬
+    const adm = await (await fetch(`http://127.0.0.1:${p2}/api/admin/dl`, { headers: { authorization: "Bearer " + a2.core.adminToken() } })).json();
+    assert.equal(adm.relay.canWrite, true); assert.equal(adm.relay.files.length, 2);
+    a2.close(); srv.close();
+    ok("安装包中转：存储里没有的新版本，门口先转 GitHub；配了写入密钥就从 GitHub 搬过来（核对 sha256，下坏了不传），之后走国内存储；已有的不重复搬；grid/ 下面只放行安装包");
+  }
   console.log("下载门口：全部通过");
 })().catch((e) => { console.error(e); process.exit(1); });
