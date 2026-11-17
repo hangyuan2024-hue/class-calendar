@@ -128,7 +128,8 @@ let rnd = seed; const rand = () => ((rnd = (rnd * 1103515245 + 12345) % 21474836
   const jid = await Tools.plan(admin, (fs.writeFileSync(planFile, JSON.stringify({ jobs: [{ name: "签名测试", kind: "map", recipe: path.join(ROOT, "recipes/demo_avatar.py"), params: { count: 1 } }] })), planFile));
   const L = await bad.api("/api/lease", { caps: {} });
   let err = null; bad.on("log", (l) => { if (l.level === "error") err = l.msg; });
-  await (async () => { const a2 = bad; a2.start(); await sleep(1500); await a2.stop(); })();
+  // 等它真的领到、核对完签名（Windows 上第一次查硬盘空间要调 PowerShell，比 1.5 秒慢）：最多等 20 秒
+  bad.start(); for (let i = 0; i < 200 && !err; i++) await sleep(100); await bad.stop();
   ok("签名核对：拿错的公钥（相当于别人冒充管理员发的配方）→ 不跑：" + (err || "").slice(0, 40));
   assert.match(err || "", /签名不对/);
 
