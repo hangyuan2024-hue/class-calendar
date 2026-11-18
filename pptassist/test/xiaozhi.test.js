@@ -141,7 +141,7 @@ function fakeLlama(port, st) {
 
   // 5. 成品第几版：哪一样出了新版就记一笔，只涨不跌；重开还在
   let p = xz.product();
-  assert.equal(p.build, 0); assert.equal(p.parts.length, 4); assert.ok(p.parts.every((x) => !x.ready));
+  assert.equal(p.build, 0); assert.equal(p.parts.length, 5); assert.ok(p.parts.some((x) => x.key === "chat-lora")); assert.ok(p.parts.every((x) => !x.ready));
   gridSt = { current: { "qa-lora": { version: 12, metrics: { acc: 0.71, base_acc: 0.64 } }, "laolao-voice": { version: 3, metrics: {} } }, pending: { "qa-lora": 13 }, checked: 5 };
   p = xz.product();
   assert.equal(p.build, 2); const qa = p.parts.find((x) => x.key === "qa-lora");

@@ -520,7 +520,8 @@ function createService(o) {
   // ---------- 成品展示「捞小智」（app/show.js）：就在算力客户端里试训练出来的成品；新版一发布自动换上 ----------
   const show = (o.showFactory || require("./show").create)({
     dir: () => path.join(work(), "show"), server: () => cfg.server, llm, log: (m) => L(m, "info", "展示"), send: (e) => send("show", e),
-    busy: () => { const c = agent && agent.current(); return c ? c.job || "任务" : null; },
+    // 正在算的任务名（c.job 是整个任务信息，要取 name；以前直接拿来显示成了 [object Object]）；已经在停的不算
+    busy: () => { const c = agent && agent.current(); return c && !c.stopping ? (c.job && c.job.name) || "任务" : null; },
     gsvDir: () => { const r = gsv.inspect((cfg.gsv || {}).dir) || gsv.find(path.join(base(), "ai", "LaolaoAI-GPT-SoVITS")); return r ? r.dir : null; },
     // 没打开过展示的电脑不去下模型（不白占同事的硬盘和流量）；打开过一次以后，新版在后台先下好
     used: () => !!cfg.showUsed,
@@ -542,6 +543,8 @@ function createService(o) {
     async showPptUndo() { return show.pptUndo(); },
     async showPickPpt() { const f = o.pickFile ? await o.pickFile(["pptx"], "打开一份 PPT（.pptx），让捞小智改", "PowerPoint") : null; if (!f) return null; await show.openPpt(f); return showSt(); },
     showSpeak: async (text) => show.speak(text),
+    showHear: async (b64) => show.hear(b64),
+    async showCall(on) { show.setCall(!!on); return showSt(); },
     setShowSpeak: async (on) => show.setSpeak(on),
     // 进了展示页 / 离开：进来的时候马上看一眼有没有新版，开着的时候 3 分钟看一次
     async showActive(on) { if (on && !cfg.showUsed) { cfg.showUsed = true; save(); } show.setActive(!!on); return showSt(); },

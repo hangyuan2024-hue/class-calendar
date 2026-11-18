@@ -5,6 +5,9 @@
   3. 考试：同一套题（GSM8K 测试集里固定的 100 道，MIT 许可），原版考一次、带 LoRA 考一次
      → 答对率（acc）、用中文讲的比例（zh_rate）；不比原版差、比现在发布的好，才发布给老师端
 要在新版客户端上跑（自带 llama.cpp）；第一次要下底子（约 9G，魔搭优先）和老师端用的量化模型（约 2.5G）。
+同一个配方也训「口语对话大脑」（params.exam = "chat"，数据来自 chat_gen.py）：打电话时说话像人——短、念得出来、听错字也懂。
+  考试换成一套固定的口语考题（下面的 CHAT_EXAM：讲概念、口头算题、带识别错字的问法、闲聊、没说清楚的话）：
+  acc = 关键信息说对了的比例，speak = 念得出来的比例（规则检查，和 chat_gen.py 的一样）
 """
 # needs: llm
 # requires: transformers>=4.57,<5 peft>=0.17 bitsandbytes>=0.45 accelerate modelscope sentencepiece protobuf
@@ -30,8 +33,17 @@ work = lg.work_dir()
 CACHE = os.path.abspath(os.path.join(work, "..", "..", "cache"))
 BASE_REPO = p.get("baseRepo", "Qwen/Qwen3-VL-4B-Instruct")
 GGUF_REPO = p.get("ggufRepo", "Qwen/Qwen3-VL-4B-Instruct-GGUF")
-SYSTEM = p.get("system") or ("你是一位耐心的中国中小学数学老师。讲题要一步一步来，每一步说清楚为什么这样做，用学生听得懂的话；"
-                             "算式写清楚；最后一行写「答案：」并把最终答案放在 \\boxed{} 里。")
+CHAT = p.get("exam") == "chat"
+NAME = p.get("name") or ("chat-lora" if CHAT else "qa-lora")
+# 语音通话的规则：和 chat_gen.py、成品展示打电话时加给捞小智的那一段一字不差（测试里核对）
+SPOKEN = """现在是语音通话：你说的每一句都会被念出来。
+· 说口语、用短句，一次说两三句，先说最要紧的；要讲的内容很长，先讲第一步，再问对方要不要接着讲。
+· 不要用列表、标题、加粗、表格、表情、链接和代码；不要写 LaTeX 和数学符号，公式和数字按读法说（比如「x 的平方」「三分之二」「根号二」）。
+· 对方的话是语音识别出来的，可能有同音错字、没有标点、夹着「嗯」「那个」：按最可能的意思理解；实在听不懂、或者有好几种意思，就简单问一句。
+· 不知道的就说不知道，不要编。"""
+SYSTEM = p.get("system") or (("你是「捞小智」，捞捞课程表的校园智能体，会讲题、做 PPT、办教务的事。\n" + SPOKEN) if CHAT else
+                             ("你是一位耐心的中国中小学数学老师。讲题要一步一步来，每一步说清楚为什么这样做，用学生听得懂的话；"
+                              "算式写清楚；最后一行写「答案：」并把最终答案放在 \\boxed{} 里。"))
 t0 = time.time()
 
 
@@ -49,10 +61,13 @@ for k, f in sorted((t.get("files") or {}).items()):
         for line in fh:
             try:
                 r = json.loads(line)
-                q = r["messages"][1]["content"]
-            except (ValueError, KeyError, IndexError):
+                q = "\n".join(m["content"] for m in r["messages"] if m["role"] == "user")
+                last = r["messages"][-1]
+                if not q or last["role"] != "assistant":
+                    continue
+            except (ValueError, KeyError, IndexError, TypeError):
                 continue
-            h = hashlib.md5((q + r["messages"][2]["content"][:50]).encode("utf-8")).hexdigest()
+            h = hashlib.md5((q + last["content"][:50]).encode("utf-8")).hexdigest()
             if h not in seen:
                 seen.add(h)
                 rows.append(r["messages"])
@@ -513,7 +528,7 @@ def converter():
 
 
 def to_gguf(base, adir, src):
-    out = os.path.join(work, "qa-lora.gguf")
+    out = os.path.join(work, NAME + ".gguf")
     env = dict(os.environ, PYTHONPATH=os.path.join(src, "gguf-py") + os.pathsep + os.environ.get("PYTHONPATH", ""), PYTHONIOENCODING="utf-8")
     r = subprocess.run([sys.executable, os.path.join(src, "convert_lora_to_gguf.py"), "--base", base, "--outtype", "f16", "--outfile", out, adir],
                        capture_output=True, text=True, encoding="utf-8", errors="replace", env=env)
@@ -552,7 +567,149 @@ def num(a):
         return None
 
 
+# ---- 口语考试（exam = chat）：念不念得出来、认数字 —— 和 chat_gen.py 里的一字不差（测试里核对）----
+LIMIT = {"explain": 220, "math": 170, "chat": 100, "clarify": 60, "followup": 200}
+
+
+BAD = [
+    (re.compile(r"\n"), "分了好几段"),
+    (re.compile(r"[#*`|$\\^_~<>\[\]{}]"), "带符号"),
+    (re.compile(r"https?://|www\."), "带链接"),
+    (re.compile(r"(^|[。！？\s])\s*(\d+[.、)](?!\d)|[-•·])\s*\S"), "像列表"),
+    (re.compile(r"[²³√≤≥≠×÷π∑∫±→⇒°%/+=]"), "数学符号没按读法说"),
+    (re.compile(r"[\U0001F300-\U0001FAFF☀-➿]"), "带表情"),
+    (re.compile(r"以下是|如下[：:]|总结如下|见下"), "像在写文章"),
+]
+
+
+def zh_ratio(s):
+    t = re.sub(r"\s", "", s)
+    return len(re.findall(r"[一-鿿]", t)) / max(len(t), 1)
+
+
+def speakable(s, kind, english=False):
+    """念得出来返回 None；不行返回原因"""
+    s = (s or "").strip()
+    if len(s) < 6:
+        return "太短"
+    if len(s) > LIMIT.get(kind, 220):
+        return "太长（%d 字）" % len(s)
+    for rx, why in BAD:
+        if rx.search(s):
+            return why
+    if s.count("：") + s.count(":") > 2:
+        return "冒号太多（像在列条目）"
+    if not english and zh_ratio(s) < 0.6:
+        return "中文太少"
+    if not re.search(r"[。！？?!…~～）)」]$", s):
+        return "话没说完"
+    if kind == "clarify" and not re.search(r"[？?]|吗|呢", s):
+        return "没听清的时候要先问一句"
+    return None
+
+
+CN = {"零": 0, "〇": 0, "一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
+
+
+UNIT = {"十": 10, "百": 100, "千": 1000, "万": 10000}
+
+
+def cn_num(s):
+    total, sec, num = 0, 0, 0
+    for ch in s:
+        if ch in CN:
+            num = CN[ch]
+        elif ch in UNIT:
+            u = UNIT[ch]
+            if u == 10000:
+                total += (sec + num) * u
+                sec, num = 0, 0
+            else:
+                sec += (num or 1) * u
+                num = 0
+    return total + sec + num
+
+
+def numbers_in(s):
+    out = set()
+    for m in re.findall(r"-?\d+(?:\.\d+)?", s.replace(",", "")):
+        try:
+            out.add(round(float(m), 6))
+        except ValueError:
+            pass
+    for m in re.findall(r"[零〇一二两三四五六七八九十百千万]+", s):
+        if any(c in CN for c in m) or m in ("十",):
+            out.add(float(cn_num(m)))
+    for a, b in re.findall(r"([零一二两三四五六七八九十百千]+)分之([零一二两三四五六七八九十百千]+)", s):
+        if cn_num(a):
+            out.add(round(cn_num(b) / cn_num(a), 6))
+    return out
+
+
+# 固定的口语考题：q 问法（有的带识别错字）、kind 场景、keys 要说到的关键信息（每组里说到一个就算；"#12" = 要说出 12 这个数）
+CHAT_EXAM = [
+    ("冒泡排序是怎么排的", "explain", [["相邻", "挨着"], ["交换", "换"]]),
+    ("嗯那个 冒泡排续是怎么回事", "explain", [["相邻", "挨着"], ["交换", "换"]]),
+    ("二分查找是啥意思", "explain", [["一半", "中间"]]),
+    ("递归是什么", "explain", [["自己"]]),
+    ("书组和链表有啥区别", "explain", [["数组"], ["链表"]]),
+    ("寒数的参数是干嘛用的", "explain", [["函数"]]),
+    ("栈是什么样的", "explain", [["先进后出", "后进先出", "后放进去的先", "最后放进去的最先"]]),
+    ("队列和栈有什么不一样", "explain", [["先进先出", "先来先", "排队"]]),
+    ("光合作用是什么", "explain", [["二氧化碳"], ["氧"]]),
+    ("那个 牛顿第二定律讲的啥", "explain", [["加速度"], ["质量"]]),
+    ("欧姆定律是什么", "explain", [["电流"], ["电压"], ["电阻"]]),
+    ("勾股定理怎么用", "explain", [["平方"], ["斜边", "直角"]]),
+    ("等差数列是什么意思", "explain", [["差"], ["相等", "一样", "相同", "固定", "不变"]]),
+    ("惯性是什么", "explain", [["保持", "维持"]]),
+    ("质数是什么", "explain", [["本身", "自己"]]),
+    ("嗯 导数有什么意义", "explain", [["变化", "斜率", "快慢"]]),
+    ("现在完成时怎么用", "explain", [["have", "has"]]),
+    ("比喻和拟人有什么区别", "explain", [["像", "比作", "当成"], ["人"]]),
+    ("怎么背单词比较快", "explain", [["复习", "重复", "多看", "反复", "遍"]]),
+    ("考前怎么复习", "explain", [["错题", "重点", "复习", "计划"]]),
+    ("鸡兔同笼头三十五个脚九十四只兔子有几只", "math", [["#12"]]),
+    ("一个长方形长五米宽二米周长是多少", "math", [["#14"]]),
+    ("三加五乘二等于几", "math", [["#13"]]),
+    ("一百减三十七是多少", "math", [["#63"]]),
+    ("十二的一半再乘三是多少", "math", [["#18"]]),
+    ("一本书三十块打八折多少钱", "math", [["#24"]]),
+    ("二十个苹果分给四个人每人几个", "math", [["#5"]]),
+    ("嗯 x 加三等于十 x 是多少", "math", [["#7"]]),
+    ("那个 方城 x 平房等于四怎么解", "math", [["#2"]]),
+    ("一个正方形边长六厘米面积是多少", "math", [["#36"]]),
+    ("你是谁", "chat", [["捞小智"]]),
+    ("明天考试好紧张", "chat", [["别", "不要", "放松", "深呼吸", "没关系", "相信", "加油"]]),
+    ("谢谢你啊", "chat", [["不客气", "不用谢", "客气", "随时"]]),
+    ("今天好累啊", "chat", [["休息", "辛苦", "累"]]),
+    ("你会干什么", "chat", [["讲题", "题"], ["PPT", "ppt", "课件", "教务", "请假", "课表"]]),
+    ("帮我弄一下那个", "clarify", []),
+    ("把它发给我", "clarify", []),
+    ("明天那个改一下", "clarify", []),
+    ("给我订一个", "clarify", []),
+    ("你看着办吧", "clarify", []),
+]
+
+
+def chat_hit(reply, kind, keys):
+    if kind == "clarify":
+        return bool(re.search(r"[？?]|吗|呢", reply))
+    low = reply.lower()
+    for g in keys:
+        ok = False
+        for k in g:
+            if k.startswith("#"):
+                ok = ok or float(k[1:]) in numbers_in(reply)
+            else:
+                ok = ok or k.lower() in low
+        if not ok:
+            return False
+    return True
+
+
 def exam_set():
+    if CHAT:
+        return [(q, (kind, keys)) for q, kind, keys in CHAT_EXAM]
     f = os.path.join(CACHE, "gsm8k-test.jsonl")
     if not os.path.exists(f):
         for u in p.get("evalUrls") or ["https://cdn.jsdelivr.net/gh/openai/grade-school-math@master/grade_school_math/data/test.jsonl",
@@ -574,7 +731,8 @@ def exam(url, qs, label):
     todo = list(qs)
 
     def ask(q):
-        body = {"messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": q + "\n（请用中文讲解）"}], "temperature": 0, "max_tokens": 1200}
+        body = {"messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": q if CHAT else q + "\n（请用中文讲解）"}], "temperature": 0, "max_tokens": 400 if CHAT else 1200,
+                **({"chat_template_kwargs": {"enable_thinking": False}} if CHAT else {})}
         req = urllib.request.Request(url + "/v1/chat/completions", data=json.dumps(body).encode("utf-8"), headers={"Content-Type": "application/json"})
         with urllib.request.urlopen(req, timeout=600) as r:
             return json.loads(r.read().decode("utf-8"))["choices"][0]["message"].get("content") or ""
@@ -591,8 +749,14 @@ def exam(url, qs, label):
                 s = ""
             with lock:
                 done[0] += 1
-                right[0] += num(boxed(s)) == ref and ref is not None
-                zh[0] += len(re.findall(r"[一-鿿]", s)) > len(s) * 0.15
+                if CHAT:   # 关键信息说对了没有；念不念得出来（zh 这一项记的是 speak）
+                    kind, keys = ref
+                    s = re.sub(r"<think>.*?</think>", "", s, flags=re.S).strip()
+                    right[0] += chat_hit(s, kind, keys)
+                    zh[0] += speakable(s, kind) is None
+                else:
+                    right[0] += num(boxed(s)) == ref and ref is not None
+                    zh[0] += len(re.findall(r"[一-鿿]", s)) > len(s) * 0.15
                 if done[0] % 10 == 0:
                     lg.log("%s：考了 %d/%d 道" % (label, done[0], len(qs)))
 
@@ -610,7 +774,7 @@ if p.get("dryRun"):   # 测试用：不真的训练（没有显卡的电脑上�
     adir = os.path.join(work, "peft")
     os.makedirs(adir, exist_ok=True)
     open(os.path.join(adir, "adapter_config.json"), "w").write("{}")
-    gguf = os.path.join(work, "qa-lora.gguf")
+    gguf = os.path.join(work, NAME + ".gguf")
     open(gguf, "wb").write(b"GGUF" + b"\0" * 60)
 else:
     conv = converter()   # 先准备好转换脚本：下不来就别白训两个小时
@@ -629,7 +793,12 @@ else:
 lg.progress(0.9, "考试：带上新训的 LoRA")
 acc1, zh1 = exam(lg.llm("start", llm=spec, lora=gguf)["url"], qs, "新训的")
 lg.llm("stop")
-lg.log("答对率：原版 %.0f%% → 新训的 %.0f%%；用中文讲：%.0f%% → %.0f%%" % (acc0 * 100, acc1 * 100, zh0 * 100, zh1 * 100))
-zf = shutil.make_archive(os.path.join(work, "qa-lora-peft"), "zip", adir)
-lg.done(lora=gguf, peft=zf, acc=round(acc1, 4), base_acc=round(acc0, 4), zh_rate=round(zh1, 4), base_zh_rate=round(zh0, 4),
-        examples=_total, trained=len(rows), warm=bool(WARM), hp=HP, tried=TRY, base_name=_bn, mins=round((time.time() - t0) / 60, 1))
+zf = shutil.make_archive(os.path.join(work, NAME + "-peft"), "zip", adir)
+if CHAT:
+    lg.log("关键信息说对：原版 %.0f%% → 新训的 %.0f%%；念得出来：%.0f%% → %.0f%%" % (acc0 * 100, acc1 * 100, zh0 * 100, zh1 * 100))
+    lg.done(lora=gguf, peft=zf, acc=round(acc1, 4), base_acc=round(acc0, 4), speak=round(zh1, 4), base_speak=round(zh0, 4), base_zh_rate=round(zh0, 4),
+            examples=_total, trained=len(rows), warm=bool(WARM), hp=HP, tried=TRY, base_name=_bn, mins=round((time.time() - t0) / 60, 1))
+else:
+    lg.log("答对率：原版 %.0f%% → 新训的 %.0f%%；用中文讲：%.0f%% → %.0f%%" % (acc0 * 100, acc1 * 100, zh0 * 100, zh1 * 100))
+    lg.done(lora=gguf, peft=zf, acc=round(acc1, 4), base_acc=round(acc0, 4), zh_rate=round(zh1, 4), base_zh_rate=round(zh0, 4),
+            examples=_total, trained=len(rows), warm=bool(WARM), hp=HP, tried=TRY, base_name=_bn, mins=round((time.time() - t0) / 60, 1))

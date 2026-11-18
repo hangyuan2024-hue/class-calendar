@@ -1,0 +1,103 @@
+{
+  "name": "口语对话工厂",
+  "mode": "continuous",
+  "stages": [
+    {
+      "key": "talk",
+      "name": "造口语对话（打电话时怎么说话，自动检查）",
+      "kind": "map",
+      "recipe": "chat_gen",
+      "recipeFile": "../recipes/chat_gen.py",
+      "standing": true,
+      "keep": 20,
+      "params": {
+        "per": 16,
+        "parallel": 2,
+        "tries": 2,
+        "noise": 0.35,
+        "followup": 0.3,
+        "mix": {
+          "explain": 5,
+          "math": 2,
+          "chat": 2,
+          "clarify": 1
+        },
+        "tag": "chat",
+        "llm": {
+          "name": "Qwen3-8B-Q4_K_M.gguf",
+          "ctx": 16384,
+          "slots": 2,
+          "urls": [
+            "https://www.modelscope.cn/models/Qwen/Qwen3-8B-GGUF/resolve/master/Qwen3-8B-Q4_K_M.gguf",
+            "https://hf-mirror.com/Qwen/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q4_K_M.gguf",
+            "https://huggingface.co/Qwen/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q4_K_M.gguf"
+          ],
+          "mirrorModel": "gridTeacher"
+        }
+      },
+      "req": {
+        "vram": 7.5,
+        "llm": true
+      },
+      "priority": 9
+    },
+    {
+      "key": "train",
+      "name": "训练口语对话大脑（同事显卡，QLoRA）",
+      "kind": "map",
+      "recipe": "qa_train",
+      "recipeFile": "../recipes/qa_train.py",
+      "when": {
+        "outputsOf": "chat",
+        "outputs": 80,
+        "minHours": 6
+      },
+      "params": {
+        "count": 1,
+        "exam": "chat",
+        "name": "chat-lora",
+        "outputsOf": "chat",
+        "warmStart": "chat-lora",
+        "minExamples": 400,
+        "maxExamples": 8000,
+        "epochs": 2,
+        "rank": 16,
+        "lr": 0.0001,
+        "maxLen": 768,
+        "llm": {
+          "lazy": true,
+          "ctx": 8192,
+          "slots": 2
+        }
+      },
+      "req": {
+        "vram": 7.5,
+        "llm": true
+      },
+      "priority": 19
+    }
+  ],
+  "publish": {
+    "model": "chat-lora",
+    "from": "train",
+    "files": [
+      "lora"
+    ],
+    "metrics": [
+      {
+        "k": "acc",
+        "better": "higher",
+        "tol": 0.03,
+        "min": "base_acc",
+        "minTol": 0.03
+      },
+      {
+        "k": "speak",
+        "better": "higher",
+        "tol": 0.03,
+        "min": "base_speak",
+        "minTol": 0.0
+      }
+    ]
+  }
+}

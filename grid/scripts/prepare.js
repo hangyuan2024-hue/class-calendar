@@ -17,8 +17,8 @@ console.log("pptassist/core 的 AI 引擎代码 → app/ppt");
 for (const f of ["chat.js", "agent.js", "xiaozhi.js", "campus.js", "pptedit.js", "pptx.js", "deck.js", "pptview.js", "latex2omml.js", "gridmodels.js", "voice.js", "media.js"]) fs.copyFileSync(path.join(ppt, f), path.join(pout, f));
 // 展示里的 PPT 预览（大图 + 缩略图）
 fs.copyFileSync(path.join(R, "..", "pptassist", "renderer", "deckview.js"), path.join(R, "app", "renderer", "deckview.js"));
-// 展示里的公仔形象：3D 小舞台（avatar3d.js）+ three.js
-fs.copyFileSync(path.join(R, "..", "pptassist", "renderer", "avatar3d.js"), path.join(R, "app", "renderer", "avatar3d.js"));
+// 展示里的形象：捞小智（app/renderer/zhi3d.js，自带）+ three.js
+fs.rmSync(path.join(R, "app", "renderer", "avatar3d.js"), { force: true });   // 以前的公仔不用了
 fs.mkdirSync(path.join(R, "app", "renderer", "vendor", "three"), { recursive: true });
 fs.copyFileSync(path.join(R, "node_modules", "three", "build", "three.min.js"), path.join(R, "app", "renderer", "vendor", "three", "three.min.js"));
-console.log("成品展示的代码、公仔形象 → app/ppt、app/renderer");
+console.log("成品展示的代码、three.js → app/ppt、app/renderer");

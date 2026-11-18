@@ -116,9 +116,10 @@
         </div>
         <div class="glass sh-chat">
           <div class="sh-log" id="shLog"></div>
+          <div class="sh-callbar" id="shCallBar" hidden><span class="dot" id="shCallDot"></span><b id="shCallSt">在听…</b><span class="lvl"><i id="shCallLvl"></i></span><span class="muted small grow" id="shCallTip"></span><button class="btn small" id="shHang">挂断</button></div>
           <div class="sh-in">
             <textarea id="shText" rows="2" placeholder="问一道题、让它做一份 PPT（做完接着说怎么改）、或者办一件教务的事（Enter 发送）"></textarea>
-            <button class="btn primary" id="shSend">发送</button><button class="btn" id="shStop" hidden>停下</button>
+            <button class="btn" id="shCall" title="像打电话一样：一直听着，你说完一停它就回答；它说话的时候你一开口就能打断">📞 打电话</button><button class="btn primary" id="shSend">发送</button><button class="btn" id="shStop" hidden>停下</button>
           </div>
         </div>
         <div class="sh-side">
@@ -317,7 +318,7 @@
 <script src="starmap.js"></script>
 <script src="app.js"></script>
 <script src="vendor/three/three.min.js"></script>
-<script src="avatar3d.js"></script>
+<script src="zhi3d.js"></script>
 <script src="deckview.js"></script>
 <script src="show.js"></script>
 </body>

@@ -4,6 +4,8 @@
 //   · 说话：捞捞的专属声音（GPT-SoVITS + 最新发布的 laolao-voice），一句一句边答边合成
 //   「自动融合」：盯着调度中心的发布清单。哪一样训练、考试通过、发布了新版 → 后台下载、核对 → 下一句话就用新版
 //   （答题 LoRA 换了就重新带上它启动大模型；声音下一句就用新的），并且在界面上记一笔「成品第几版」。不用人点。
+//   · 打电话：界面上一直听着，说完一停就把这句话（wav）送到本机的听写（app/hear.js，FunASR）变成文字，再按语音通话的规矩回答；
+//     这时候大模型带的是「口语对话」LoRA（chat-lora，训练、考试通过才有；没有就还用答题 LoRA），挂了电话换回答题 LoRA
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -21,8 +23,9 @@ function create(o) {
   const emit = (e) => { try { o.send && o.send(e); } catch (x) {} };
   const log = o.log || (() => {});
   let cur = null;       // { dir, models, xz }：数据文件夹搬了就重新来
-  let speakOn = true, active = false, timer = null, url = null, lastBuild = -1, checking = null;
+  let speakOn = true, active = false, timer = null, url = null, lastBuild = -1, checking = null, calling = false;
   const voice = VOICE.create({});
+  const ear = (o.hearFactory || require("./hear").create)({ log: (m) => log("听写：" + m), ...(o.hearOpt || {}) });
 
   function S() {
     const dir = o.dir();
@@ -39,10 +42,12 @@ function create(o) {
         // 文件名用组件镜像里的那个（和训练答题大脑时考试用的是同一个文件，不重复下 2.5G）
         const spec = { ...LLM_SPEC };
         if (o.llmName) { try { const n = await o.llmName(); if (n && /\.gguf$/i.test(n)) spec.name = n; } catch (e) {} }
-        for (let i = 0; i < 2; i++) {
-          const q = models.use("qa-lora"), lora = q && q.files && q.files.lora;
+        for (let i = 0; i < 3; i++) {
+          // 打电话的时候优先带口语对话 LoRA（没训练好就用答题 LoRA）；换了 LoRA，llmw 会自己重启大模型
+          const c = calling ? models.use("chat-lora") : null, key = c && c.files && c.files.lora ? "chat-lora" : "qa-lora";
+          const q = key === "chat-lora" ? c : models.use("qa-lora"), lora = q && q.files && q.files.lora;
           try { url = await o.llm.ensure({ ...spec, ...(lora ? { lora } : {}) }, say); return; }
-          catch (e) { if (!lora || i) throw e; log("带上新的答题 LoRA 启动不了（" + e.message + "）：退回上一版"); models.rollback("qa-lora"); }
+          catch (e) { if (!lora || i === 2) throw e; log(`带上新的${key === "chat-lora" ? "口语对话" : "答题"} LoRA 启动不了（${e.message}）：退回上一版`); models.rollback(key); }
         }
       },
       chat: (m, opt) => { try { o.llm.touch && o.llm.touch(); } catch (e) {} return CHAT.chatAt(url, m, opt); },
@@ -114,10 +119,23 @@ function create(o) {
   // 说过的话留 200 段，再多删旧的
   function tidy() { try { const d = path.join(S().dir, "say"); const fsx = fs.readdirSync(d).map((f) => ({ f: path.join(d, f), t: fs.statSync(path.join(d, f)).mtimeMs })).sort((a, b) => b.t - a.t); for (const x of fsx.slice(200)) fs.rmSync(x.f, { force: true }); } catch (e) {} }
 
+  // ---------- 打电话 ----------
+  function setCall(on) { calling = !!on; S().xz.setVoice(calling); if (!calling) { try { ear.stop(); } catch (e) {} } return callInfo(); }
+  function callInfo() { const c = S().models.use("chat-lora"); return { on: calling, lora: c && c.files && c.files.lora ? c.version : null, ear: !!(o.gsvDir && o.gsvDir()) }; }
+  // 界面上录到的一句话（16k 单声道 wav 的 base64）→ 文字
+  async function hear(b64) {
+    const wav = Buffer.from(String(b64 || ""), "base64");
+    if (wav.length < 44 || wav.toString("ascii", 0, 4) !== "RIFF") throw new Error("录到的声音格式不对");
+    if (wav.length > 8 * 1048576) throw new Error("这句话太长了，分几句说");
+    const dir = o.gsvDir ? o.gsvDir() : null;
+    if (!dir) throw new Error("打电话要用声音组件（GPT-SoVITS，里面带听写）：先点「装上声音组件」");
+    return { text: await ear.hear(dir, wav, (m) => emit({ type: "note", text: m })) };
+  }
+
   async function state() {
     const { xz } = S(); await xz.ready();
     const me = xz.who(), actor = xz.campus.identities()[me.role], lp = xz.lastPpt();
-    return { who: me, product: xz.product(), busy: xz.busy(), voice: voiceInfo(), llm: { ok: !!(o.llm && o.llm.ok()), running: !!(o.llm && o.llm.running && o.llm.running()) },
+    return { who: me, product: xz.product(), busy: xz.busy(), voice: voiceInfo(), call: callInfo(), llm: { ok: !!(o.llm && o.llm.ok()), running: !!(o.llm && o.llm.running && o.llm.running()) },
       task: o.busy ? o.busy() : null, ppt: lp ? { name: path.basename(lp.file), title: lp.title, pages: lp.pages, rev: lp.rev } : null, exam: xz.lastExam(),
       requests: xz.campus.myRequests(actor).requests.slice(0, 8), pending: xz.campus.pending(actor).requests.slice(0, 8), campus: xz.campus.stats() };
   }
@@ -132,7 +150,7 @@ function create(o) {
   }
   schedule();
   return {
-    state, send, speak, fuse, product, setActive,
+    state, send, speak, fuse, product, setActive, hear, setCall,
     stop: () => S().xz.stop(), reset: () => { S().xz.reset(); return true; },
     setRole: async (r) => { S().xz.setRole(r); return state(); },
     setSpeak: (on) => { speakOn = !!on; if (!speakOn) { try { voice.stop(); } catch (e) {} } return voiceInfo(); },
@@ -144,7 +162,7 @@ function create(o) {
     pptExam: async () => { const t = o.busy ? o.busy() : null; if (t) throw new Error(`这台电脑正在算「${t}」，显卡腾不出来：先点「暂停计算」再考`); return S().xz.pptExam(); },
     slides: (rev) => S().xz.slides(rev), pptTheme: (k) => S().xz.pptTheme(k), pptUndo: () => S().xz.pptUndo(),
     openPpt: async (file) => { if (!/\.pptx$/i.test(String(file || ""))) throw new Error("只能打开 .pptx（老版本的 .ppt 先在 PowerPoint 里另存成 .pptx）"); await S().xz.openPpt(file); return state(); },
-    shutdown: () => { clearInterval(timer); try { voice.stop(); } catch (e) {} if (cur) { try { cur.models.stop(); } catch (e) {} } tidy(); },
+    shutdown: () => { clearInterval(timer); try { voice.stop(); } catch (e) {} try { ear.stop(); } catch (e) {} if (cur) { try { cur.models.stop(); } catch (e) {} } tidy(); },
     LLM_SPEC,
   };
 }

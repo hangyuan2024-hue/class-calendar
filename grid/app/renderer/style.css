@@ -255,6 +255,16 @@ body.show-full .sh-grid.deck { grid-template-columns: minmax(520px, 1.5fr) minma
 .sh-log { flex: 1; overflow: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
 .sh-in { display: flex; gap: 8px; align-items: flex-end; border-top: 1px solid var(--line); padding: 10px 12px; }
 .sh-in textarea { flex: 1; resize: none; }
+.sh-callbar { display: flex; gap: 10px; align-items: center; padding: 8px 12px; border-top: 1px solid var(--line); background: rgba(62, 240, 161, .06); }
+.sh-callbar .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sh-callbar .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--gr); box-shadow: 0 0 10px var(--gr); flex: none; }
+.sh-callbar[data-st="hear"] .dot, .sh-callbar[data-st="think"] .dot { background: var(--am); box-shadow: 0 0 10px var(--am); animation: shPulse 1s infinite; }
+.sh-callbar[data-st="talk"] .dot { background: var(--cy); box-shadow: 0 0 10px var(--cy); }
+.sh-callbar[data-st="speech"] .dot { background: var(--rd); box-shadow: 0 0 12px var(--rd); }
+.sh-callbar .lvl { width: 70px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .08); overflow: hidden; flex: none; }
+.sh-callbar .lvl i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--gr), var(--cy)); transition: width .08s; }
+#shCall.on { border-color: var(--rd); color: var(--rd); }
+@keyframes shPulse { 50% { opacity: .35; } }
 .sh-msg { max-width: 88%; padding: 9px 13px; border-radius: 14px; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }
 .sh-msg.me { align-self: flex-end; background: linear-gradient(135deg, #1fb6ff, #7a5cff); color: #fff; border-bottom-right-radius: 4px; }
 .sh-msg.bot { align-self: flex-start; background: rgba(255, 255, 255, .06); border: 1px solid var(--line); border-bottom-left-radius: 4px; }

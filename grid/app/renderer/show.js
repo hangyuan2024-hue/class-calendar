@@ -11,7 +11,7 @@
   const pct = (v) => Math.round(v * 100) + "%";
   const when = (t) => { const d = new Date(t), p = (n) => String(n).padStart(2, "0"); return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; };
   // 默认的捞捞公仔（和捞捞PPT助手里没上传照片时的那个一样）
-  const DOLL = { look: 9, photoFace: true, faceStyle: "doll", rig: false, grid: false, body: "chibi", tech: true, stage: false, collar: "#f7f8fb", shell: "#eef1f6", hairStyle: "ponytail", bangs: "full", eyeStyle: "open", faceShape: "round", bottom: "pants", skin: "#f6d3bf", hair: "#2a1d18", top: "#3d4f6e", pants: "#2c2d38", shoes: "#26252b", eye: "#3a2418", glassesColor: "#3b3b46", accent: "#22d3ee", glasses: false, blush: true, earrings: false, antenna: false, earpods: true };
+  // 形象：捞小智（捞捞编程「冒泡排序」舞台上飞着讲解的那个小机器人，见 zhi3d.js）
   const EX = {
     student: [["讲题", ["鸡兔同笼，头 35 个、脚 94 只，各有几只？", "用通俗的话讲讲什么是冒泡排序"]], ["做 PPT", ["做一份讲「冒泡排序」的 PPT，8 页左右"]], ["办事", ["明天有什么课？", "我后天要请一天事假，回家办事", "查一下我上学期的成绩和绩点", "周四下午哪间教室空着？我们班想开班会", "帮我开一份在读证明"]]],
     teacher: [["讲题", ["出三道一元二次方程的练习题，带答案"]], ["做 PPT", ["做一份「期中复习：数组」的课件，7 页"]], ["办事", ["有没有等我审批的申请？", "我这周有哪些课？", "下周的课我要出差，想调到周六上午"]]],
@@ -67,14 +67,14 @@
   function stage() {
     const host = $("#shStage");
     if (av) return;
-    try { if (window.LaoAvatar && window.THREE) av = window.LaoAvatar.create(host, { ...DOLL }, { transparent: true }); } catch (e) { av = null; }
+    try { if (window.LaoZhi && window.THREE) av = window.LaoZhi.create(host); } catch (e) { av = null; }
     if (!av && !host.querySelector(".sh-fallback")) host.innerHTML = `<div class="sh-fallback">捞</div>`;
     if (av) setTimeout(() => { try { av.mood("wave", 2); } catch (e) {} }, 300);
   }
 
   // ---------- 实时合成：回复一边出来，一句一句送去合成声音，按顺序念，公仔跟着张嘴 ----------
-  const sp = { gen: 0, sent: 0, text: "", synth: Promise.resolve(), play: Promise.resolve(), player: null, told: false };
-  function spReset() { sp.gen++; sp.sent = 0; sp.text = ""; sp.synth = Promise.resolve(); sp.play = Promise.resolve(); if (sp.player) { try { sp.player.pause(); } catch (e) {} sp.player = null; } cancelAnimationFrame(lip.raf); if (av) try { av.talk(0); } catch (e) {} $("#shStage").classList.remove("talk"); $("#shSub").textContent = ""; }
+  const sp = { gen: 0, sent: 0, text: "", synth: Promise.resolve(), play: Promise.resolve(), player: null, told: false, q: 0 };   // q：排着没念完的句数（打电话时判断它是不是还在说）
+  function spReset() { sp.gen++; sp.q = 0; sp.sent = 0; sp.text = ""; sp.synth = Promise.resolve(); sp.play = Promise.resolve(); if (sp.player) { try { sp.player.pause(); } catch (e) {} sp.player = null; } cancelAnimationFrame(lip.raf); if (av) try { av.talk(0); } catch (e) {} $("#shStage").classList.remove("talk"); $("#shSub").textContent = ""; }
   function lip(levels, ms, player) {
     cancelAnimationFrame(lip.raf);
     const t0 = performance.now(), host = $("#shStage");
@@ -92,9 +92,13 @@
   function sayOne(sentence) {
     if (!S || !S.voice.on || sentence.replace(/[\s，。！？、,.!?：:；;（）()]/g, "").length < 2) return;
     const gen = sp.gen;
+    sp.q++;
     // 合成一句接一句排着做（声音引擎一次做一句）；念也按顺序
     const job = (sp.synth = sp.synth.then(() => (gen === sp.gen ? call("showSpeak", sentence).catch((e) => ({ skip: "说不出来：" + msgOf(e) })) : null)));
     sp.play = sp.play.then(async () => {
+      try { await play1(); } finally { if (gen === sp.gen) sp.q = Math.max(0, sp.q - 1); }
+    });
+    async function play1() {
       const r = await job;
       if (gen !== sp.gen || !r) return;
       if (r.skip) { if (!sp.told) { sp.told = true; toast(r.skip); } return; }
@@ -106,7 +110,7 @@
         a.onended = end; a.onerror = end; a.onpause = () => { if (a !== sp.player || gen !== sp.gen) end(); };
         a.play().catch(end);
       });
-    });
+    }
   }
   // 从还没念的那一段里切出完整的句子
   function spFeed(all, flush) {
@@ -228,6 +232,112 @@
   $("#shPause").onclick = guard(async () => { $("#shPause").disabled = true; try { S = await call("showPause", true); for (let i = 0; i < 20 && S.task; i++) { await new Promise((r) => setTimeout(r, 500)); S = await call("showState"); } paint(); } finally { $("#shPause").disabled = false; } });
   $("#shResume").onclick = guard(async () => { S = await call("showPause", false); paint(); toast("接着算了"); });
 
+  // ---------- 打电话：一直听着；说完一停（0.75 秒没声音）就把这句话送去听写、回答；它说话的时候你一开口就打断它 ----------
+  //   能量检测：安静的时候慢慢学背景噪声有多大，比它大好几倍才算有人说话；它自己在说话的时候门槛再抬高（防止听到自己的声音），
+  //   要连着 0.25 秒都够大才算打断。麦克风开了回声消除。录到的话转成 16k 单声道 wav 送到本机听写，不上网。
+  const FRAME = 2048, END_MS = 750, MAX_MS = 20000, MIN_MS = 350;
+  const cl = { on: false, st: "off", ctx: null, stream: null, src: null, node: null, rate: 48000, floor: 0.004, pre: [], buf: null, voiced: 0, quiet: 0, speechFrames: 0, lvl: 0, seq: 0 };
+  const frameMs = () => (FRAME / cl.rate) * 1000;
+  const speaking = () => sp.q > 0 || !!(sp.player && !sp.player.paused && !sp.player.ended);
+  const ST = { listen: "在听…", speech: "在听你说…", hear: "听写中…", think: "在想…", talk: "在说（你一开口就能打断）" };
+  function callSt(st) { cl.st = st; const b = $("#shCallBar"); b.dataset.st = st; $("#shCallSt").textContent = ST[st] || ""; }
+  function onAudio(ev) {
+    if (!cl.on) return;
+    const x = ev.inputBuffer.getChannelData(0);
+    let e = 0; for (let i = 0; i < x.length; i++) e += x[i] * x[i];
+    const rms = Math.sqrt(e / x.length);
+    cl.lvl = cl.lvl * 0.6 + rms * 0.4;
+    $("#shCallLvl").style.width = Math.min(100, Math.round(Math.sqrt(cl.lvl) * 260)) + "%";
+    const reply = busy || speaking();
+    if ((cl.st === "think" || cl.st === "talk") && !reply) callSt("listen");
+    else if (cl.st === "think" && speaking()) callSt("talk");
+    if (cl.st === "hear") return;   // 正在听写上一句：先不录
+    const f = new Float32Array(x);
+    if (!cl.buf) {
+      cl.pre.push(f); if (cl.pre.length > Math.ceil(300 / frameMs())) cl.pre.shift();   // 开口前留 0.3 秒，不吃掉第一个字
+      const thr = reply ? Math.max(cl.floor * 8, 0.04) : Math.max(cl.floor * 3.5, 0.012);
+      if (rms > thr) cl.voiced++; else { cl.voiced = 0; if (!reply) cl.floor = Math.min(0.05, cl.floor * 0.97 + rms * 0.03); }
+      if (cl.voiced >= Math.ceil((reply ? 250 : 120) / frameMs())) {
+        if (reply) { spReset(); call("showStop").catch(() => {}); }   // 打断它
+        cl.buf = cl.pre.slice(); cl.pre = []; cl.quiet = 0; cl.speechFrames = cl.voiced; cl.voiced = 0;
+        callSt("speech");
+      }
+      return;
+    }
+    cl.buf.push(f);
+    if (rms > Math.max(cl.floor * 2.5, 0.008)) { cl.quiet = 0; cl.speechFrames++; } else cl.quiet++;
+    if (cl.quiet * frameMs() >= END_MS || cl.buf.length * frameMs() >= MAX_MS) finishUtt();
+  }
+  function finishUtt() {
+    const frames = cl.buf; cl.buf = null;
+    if (cl.speechFrames * frameMs() < MIN_MS) { callSt(busy || speaking() ? "talk" : "listen"); return; }   // 咳嗽、碰了一下桌子
+    const n = frames.reduce((a, b) => a + b.length, 0), all = new Float32Array(n);
+    let k = 0; for (const b of frames) { all.set(b, k); k += b.length; }
+    const wav = toWav(all, cl.rate), seq = ++cl.seq;
+    callSt("hear");
+    (async () => {
+      let text = "";
+      try { text = ((await call("showHear", wav)) || {}).text || ""; }
+      catch (e) { toast(msgOf(e), true); }
+      if (!cl.on || seq !== cl.seq) return;
+      text = text.trim();
+      if (text.replace(/[\s，。！？、,.!?嗯啊呃哦]/g, "").length < 1) { callSt("listen"); return; }
+      for (let i = 0; i < 100 && busy; i++) await new Promise((r) => setTimeout(r, 50));   // 刚打断的那一句还在收尾
+      callSt("think");
+      await send(text);
+      if (cl.on && cl.st === "think") callSt(speaking() ? "talk" : "listen");
+    })();
+  }
+  // 降到 16k（每一段取平均，顺带滤掉高频）→ 16 位 wav → base64
+  function toWav(x, rate) {
+    const r = rate / 16000, n = Math.floor(x.length / r), pcm = new Int16Array(n);
+    for (let i = 0; i < n; i++) { const a = Math.floor(i * r), b = Math.max(a + 1, Math.floor((i + 1) * r)); let s = 0; for (let j = a; j < b; j++) s += x[j]; const v = Math.max(-1, Math.min(1, s / (b - a))); pcm[i] = v < 0 ? v * 0x8000 : v * 0x7fff; }
+    const u8 = new Uint8Array(44 + n * 2), dv = new DataView(u8.buffer);
+    const str = (o, t) => { for (let i = 0; i < t.length; i++) u8[o + i] = t.charCodeAt(i); };
+    str(0, "RIFF"); dv.setUint32(4, 36 + n * 2, true); str(8, "WAVE"); str(12, "fmt "); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+    dv.setUint32(24, 16000, true); dv.setUint32(28, 32000, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true); str(36, "data"); dv.setUint32(40, n * 2, true);
+    new Uint8Array(u8.buffer, 44).set(new Uint8Array(pcm.buffer));
+    let bin = ""; for (let i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+    return btoa(bin);
+  }
+  async function callOn() {
+    if (cl.on) return;
+    if (!S) await refresh();
+    if (S && S.task) return toast(`这台电脑正在算「${S.task}」，显卡腾不出来：先点「暂停计算」再打电话`, true);
+    if (S && S.call && !S.call.ear) return toast("打电话要用声音组件（GPT-SoVITS，里面带听写）：先点「装上声音组件」", true);
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } }); }
+    catch (e) { return toast("用不了麦克风：" + (e.name === "NotAllowedError" ? "没有允许用麦克风" : e.name === "NotFoundError" ? "这台电脑没有麦克风" : msgOf(e)), true); }
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    Object.assign(cl, { on: true, stream, ctx, rate: ctx.sampleRate, floor: 0.004, pre: [], buf: null, voiced: 0, quiet: 0, lvl: 0 });
+    cl.src = ctx.createMediaStreamSource(stream);
+    cl.node = ctx.createScriptProcessor(FRAME, 1, 1);
+    cl.node.onaudioprocess = onAudio;
+    cl.src.connect(cl.node); cl.node.connect(ctx.destination);   // 不接到输出 Chromium 不跑它（输出是静音的）
+    $("#shCallBar").hidden = false; $("#shCall").classList.add("on"); $("#shCall").textContent = "📞 挂断";
+    const h = document.querySelector(".sh-hello"); if (h) h.remove();
+    callSt("listen");
+    try {
+      S = await call("showCall", true);
+      if (!S.voice.on) S.voice = await call("setShowSpeak", true);
+      paint();
+      const c = S.call || {};
+      $("#shCallTip").textContent = (c.lora ? `口语对话第 ${c.lora} 版` : "口语对话大脑还在训练，先用答题大脑") + (S.voice.model ? "" : " · 捞捞的声音还没训练好，回答只出字");
+    } catch (e) { toast(msgOf(e), true); }
+    add("sh-step fuse", "✦ 电话接通了：直接说就行，说完停一下它就回答；它说话的时候你一开口就能打断");
+  }
+  async function callOff() {
+    if (!cl.on) return;
+    cl.on = false; cl.buf = null; cl.seq++;
+    try { cl.node.disconnect(); cl.src.disconnect(); } catch (e) {}
+    try { cl.stream.getTracks().forEach((t) => t.stop()); } catch (e) {}
+    try { await cl.ctx.close(); } catch (e) {}
+    $("#shCallBar").hidden = true; $("#shCall").classList.remove("on"); $("#shCall").textContent = "📞 打电话"; cl.st = "off";
+    try { S = await call("showCall", false); paint(); } catch (e) {}
+  }
+  $("#shCall").onclick = () => (cl.on ? callOff() : callOn());
+  $("#shHang").onclick = () => callOff();
+
   // ---------- 全屏展示 ----------
   async function setFull(v) {
     full = !!v;
@@ -246,11 +356,11 @@
     shown = on;
     clearInterval(timer);
     if (av) try { av.setManual(!shown); } catch (x) {}
-    if (!shown) { if (full) setFull(false); spReset(); call("showActive", false).catch(() => {}); return; }
+    if (!shown) { if (full) setFull(false); callOff(); spReset(); call("showActive", false).catch(() => {}); return; }
     $("#navShow").hidden = true;
     stage();
     guard(async () => { S = await call("showActive", true); paint(); hello(); if (deck && S.ppt) { await deck.refresh(); showDeck(true); } })();
     timer = setInterval(() => { if (!busy) refresh(); }, 15000);
   });
-  window.__lgShow = { send, state: () => S, setFull, speech: sp, deck };   // 测试用
+  window.__lgShow = { send, state: () => S, setFull, speech: sp, deck, call: cl, callOn, callOff };   // 测试用
 })();

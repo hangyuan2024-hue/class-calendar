@@ -18,7 +18,14 @@ const PARTS = [
   { key: "laolao-voice", name: "捞捞的声音", what: "默认声音：没上传自己声音的老师用它" },
   { key: "voice-base", name: "声音克隆底座", what: "照着老师的一段录音学她说话" },
   { key: "qversion-lora", name: "Q版形象", what: "照着照片画 Q版 / 3D 公仔" },
+  { key: "chat-lora", name: "口语对话", what: "打电话时说话像人：短、念得出来，听错字也懂", metric: "acc", metricName: "口语考试说对", base: "base_acc" },
 ];
+// 打电话（实时语音对话）时加给捞小智的规则：和训练口语对话大脑时用的一字不差（grid/recipes/chat_gen.py、qa_train.py；测试里核对）
+const SPOKEN = `现在是语音通话：你说的每一句都会被念出来。
+· 说口语、用短句，一次说两三句，先说最要紧的；要讲的内容很长，先讲第一步，再问对方要不要接着讲。
+· 不要用列表、标题、加粗、表格、表情、链接和代码；不要写 LaTeX 和数学符号，公式和数字按读法说（比如「x 的平方」「三分之二」「根号二」）。
+· 对方的话是语音识别出来的，可能有同音错字、没有标点、夹着「嗯」「那个」：按最可能的意思理解；实在听不懂、或者有好几种意思，就简单问一句。
+· 不知道的就说不知道，不要编。`;
 function create(o) {
   const dir = o.dir;
   fs.mkdirSync(dir, { recursive: true });
@@ -28,6 +35,7 @@ function create(o) {
   let hist = { seen: {}, log: [] };
   try { hist = { ...hist, ...JSON.parse(fs.readFileSync(HIST, "utf8")) }; } catch (e) {}
   let role = o.role || "student";
+  let voiceMode = false;   // 打电话：说的话都会被念出来，按 SPOKEN 的规则说
   const actor = () => { const I = campus.identities(); return I[role] || I.student; };
   const outDir = path.join(dir, "ppt"), LAST = path.join(outDir, "last.json");
 
@@ -145,7 +153,7 @@ ${hasCampus ? `三、办教务的事（课表、成绩、考试、请假、调�
    · 工具报错了，把原因照实告诉对方，再给一个能办成的办法。
    · 只办现在这个人有权限办的事；别人的成绩、别人的申请不能看、不能改。` : "三、办教务的事（课表、成绩、请假、调课、借教室…）：对方问到再办。"}
 
-回答用简体中文，口语化、简短；不要输出 JSON 和代码（公式的 LaTeX、讲题时的代码除外）。`;
+回答用简体中文，口语化、简短；不要输出 JSON 和代码（公式的 LaTeX、讲题时的代码除外）。${voiceMode ? `\n\n${SPOKEN}\n（上面讲题、PPT、教务的规则照旧；只是说的话要按语音通话来：不写 LaTeX、不列条目、不长篇大论。）` : ""}`;
   };
   const campusTools = campus.tools(actor);
   const tools = [
@@ -220,8 +228,10 @@ ${hasCampus ? `三、办教务的事（课表、成绩、考试、请假、调�
     send: async (text, images) => { await boot; return agent.send(text, images); }, stop: () => agent.stop(), reset: () => agent.reset(), busy: () => agent.busy(), history: () => agent.history(),
     setRole(r) { if (!["student", "teacher", "staff"].includes(r)) throw new Error("身份只有：学生、教师、教务员"); if (r !== role) { role = r; lastKind = ""; agent.reset(); } return who(); },
     who, product, campus, makePpt, openPpt, lastPpt, slides, pptTheme, pptUndo, pptExam, lastExam, pick, tools, ready: () => boot, deck: () => (cur ? cur.d : null),
+    // 打电话模式：开着时每一句都按语音通话的规则说
+    setVoice(v) { voiceMode = !!v; return voiceMode; }, voice: () => voiceMode,
   };
   function who() { const I = campus.identities(); return { role, me: campus.who(actor()), roles: ["student", "teacher", "staff"].map((k) => ({ key: k, name: { student: "学生", teacher: "教师（辅导员）", staff: "教务员" }[k], who: I[k].name, note: I[k].note })) }; }
 }
 
-module.exports = { create, PARTS };
+module.exports = { create, PARTS, SPOKEN };

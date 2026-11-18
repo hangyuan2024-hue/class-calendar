@@ -86,7 +86,7 @@ function xfer(method, url, file, o = {}) {
   if (inflight.has(k)) return inflight.get(k);
   // 大文件（32M 以上）切成 8M 一块，6 条连接同时下：跨境线路、有的宽带是「每条连接」限速，一条连接下几百 M 的存档要几个小时。
   // 服务器不支持分段（或者文件小）就照旧一条连接下
-  const p = xferPar(url, file, o).then((r) => r || xferRetry(method, url, file, o)).finally(() => inflight.delete(k));
+  const p = xferPar(url, file, o).then((r) => r || (o.signal && o.signal.aborted ? Promise.reject(new Error("停了")) : xferRetry(method, url, file, o))).finally(() => inflight.delete(k));
   inflight.set(k, p);
   return p;
 }
@@ -121,7 +121,7 @@ async function xferPar(url, file, { onProgress, signal } = {}) {
   if (!PAR.conns || PAR.conns < 2) return null;
   const tmp = file + ".part", meta = file + ".parts.json";
   let first;
-  try { first = await getRes(url, { range: `bytes=0-${PAR.chunk - 1}` }, signal); } catch (e) { return null; }
+  try { first = await getRes(url, { range: `bytes=0-${PAR.chunk - 1}` }, signal); } catch (e) { if (signal && signal.aborted) throw e; return null; }
   const { res, url: real } = first;
   if (res.statusCode === 416) { res.resume(); return null; }
   // 整个文件一条连接下（服务器不支持分段）。中途断了交给原来的办法（等一会儿重下）
@@ -553,7 +553,8 @@ function create(opt) {
   async function runTask(L) {
     const dir = path.join(work, "tasks", String(L.task.id));
     fs.mkdirSync(dir, { recursive: true });
-    const c = cur = { id: L.task.id, task: L.task, job: L.job, recipe: L.recipe, dir, started: Date.now(), progress: 0, logs: [], metrics: [], lastMetric: null, line: null, fn: null, note: "", uploads: Promise.resolve(), result: null, outputs: [], reviews: [], ckpts: 0, stopping: false };
+    // ctl：点「停止」/「暂停计算」时扳下它，正在下的存档、文件马上断开（下好的块留着，下回接着下），不然要等几个小时的下载下完才算停
+    const c = cur = { id: L.task.id, task: L.task, job: L.job, recipe: L.recipe, dir, started: Date.now(), progress: 0, logs: [], metrics: [], lastMetric: null, line: null, fn: null, note: "", uploads: Promise.resolve(), result: null, outputs: [], reviews: [], ckpts: 0, stopping: false, ctl: new AbortController() };
     setState("busy", L.job.name);
     emit("task", { id: c.id, job: L.job, task: L.task, recipe: L.recipe && { id: L.recipe.id, name: L.recipe.name } });
     log(`领到任务：「${L.job.name}」`);
@@ -619,13 +620,13 @@ function create(opt) {
         else {
           log(`下载上次的存档（第 ${L.resume.step || 0} 步）…`);
           const t0 = Date.now();
-          await xfer("GET", L.resume.url, f, { onProgress: dlProg("下载存档") });
+          await xfer("GET", L.resume.url, f, { onProgress: dlProg("下载存档"), signal: c.ctl.signal });
           const mb = fs.statSync(f).size / 1048576;
           log(`存档下好了（${mb.toFixed(0)}M，${Math.round((Date.now() - t0) / 1000)} 秒，平均 ${(mb / Math.max(1, (Date.now() - t0) / 1000)).toFixed(1)}M/秒，从 ${new URL(L.resume.url).host}）`);
         }
         t.resume = f; t.resumeInfo = { step: L.resume.step, round: L.resume.round };
       }
-      for (const [i, u] of (L.task.input.partUrls || []).entries()) { const f = path.join(dir, `part-${i}.npz`); await xfer("GET", u, f); t.parts.push(f); }
+      for (const [i, u] of (L.task.input.partUrls || []).entries()) { const f = path.join(dir, `part-${i}.npz`); await xfer("GET", u, f, { signal: c.ctl.signal }); t.parts.push(f); }
       delete t.input.partUrls;
       // 前面步骤的结果文件、接着训练的起点：下载到本机
       t.files = {}; t.deps = L.deps || {};
@@ -643,7 +644,7 @@ function create(opt) {
         c.note = "下载 " + k + "…";
         try {
           if (cf && fs.existsSync(cf)) { try { const now = new Date(); fs.utimesSync(cf, now, now); } catch (e) {} }
-          else await xfer("GET", u, cf || f, { onProgress: dlProg(nIn > 1 ? `下载要用的文件（${iIn}/${nIn}）${k}` : `下载 ${k}`) });
+          else await xfer("GET", u, cf || f, { onProgress: dlProg(nIn > 1 ? `下载要用的文件（${iIn}/${nIn}）${k}` : `下载 ${k}`), signal: c.ctl.signal });
           if (cf) { fs.mkdirSync(path.dirname(f), { recursive: true }); try { fs.linkSync(cf, f); } catch (e) { fs.copyFileSync(cf, f); } }
         } catch (e) {
           // opt_ 开头的是「有就用、没有也行」的文件（比如接着上一版训的起点）：下不到就不带，任务照常算
@@ -728,6 +729,7 @@ function create(opt) {
     // 已经算完了、只差交结果：不扔掉，交完就停（renew 说「已经给别人了」除外）
     if (c.finishing && release) { log("这个任务已经算完了，交完结果就停", "warn"); return; }
     c.stopping = true;
+    try { c.ctl.abort(); } catch (e) {}   // 正在下载的（存档、要用的文件）马上断开
     // 先马上停掉配方本身（和以前一样快）；它开的子程序在配方退出时由 spawnPy 按「父进程号 + 时间」一起收掉
     if (c.child) { try { c.child.kill(); } catch (e) {} }
     if (opt.comfy) { try { await opt.comfy.abort(); if (release) opt.comfy.stop(); } catch (e) {} }   // 你要用电脑了：AI 引擎也关掉，让出显存
