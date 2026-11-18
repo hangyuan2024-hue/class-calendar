@@ -184,6 +184,19 @@ def teacher_gguf():
 
 
 # ---------------- 3. 训练（QLoRA）----------------
+def small_opt(sd, torch):
+    """存档里优化器的两组数（一阶、二阶动量）改用半精度存：存档小三分之一（379M → 约 250M），
+    接着训的时候 PyTorch 读进来会自动转回和参数一样的全精度。LoRA 参数本身照旧全精度（压了会让训练变差）。
+    出任何意外就原样存。"""
+    try:
+        st = {}
+        for i, s in sd["state"].items():
+            st[i] = {k: (v.to(torch.bfloat16) if k != "step" and torch.is_tensor(v) and v.is_floating_point() and v.dim() > 0 else v) for k, v in s.items()}
+        return {"state": st, "param_groups": sd["param_groups"]}
+    except Exception:
+        return sd
+
+
 def train(base):
     import torch
     from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
@@ -276,7 +289,7 @@ def train(base):
 
     def save_ck(ep, k, step):
         f = os.path.join(work, "ckpt-%d.pt" % step)
-        torch.save({"fp": fp, "lora": {n: x.detach().to("cpu") for n, x in trainable}, "opt": opt.state_dict(), "sched": sched.state_dict(), "ep": ep, "k": k, "step": step}, f)
+        torch.save({"fp": fp, "lora": {n: x.detach().to("cpu") for n, x in trainable}, "opt": small_opt(opt.state_dict(), torch), "sched": sched.state_dict(), "ep": ep, "k": k, "step": step}, f)
         lg.checkpoint(f, step)
 
     start_ep, start_k, step = 0, 0, 0

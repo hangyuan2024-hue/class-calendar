@@ -136,7 +136,7 @@ function face(o = {}) {
   const rd = app.core.jobDetail(recJob);
   assert.equal(rd.state, "done"); assert.equal(rd.outputs.length, 4);
   const pj = rd.outputs.find((o) => /s000\.json$/.test(o.key));
-  assert.equal(JSON.parse(fs.readFileSync(path.join(tmp, "server", "blobs", ...pj.key.split("/")), "utf8")).names.length, 14);
+  assert.equal((await (await fetch(app.store.url("GET", pj.key, 600))).json()).names.length, 14);   // 通过调度中心给的链接取（两种存储都一样）
   ok("录表情：每句的录音 + 表情参数先存本机，交的时候一起上传（没有视频）；任务完成");
 
   // ---- 审核 ----

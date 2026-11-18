@@ -63,9 +63,66 @@ function cos(cfg) {
     kind: "cos",
     url(method, key, ttl = 3600) {
       if (!okKey(key)) throw new Error("文件名不对：" + key);
-      return presign({ endpoint: cfg.endpoint, region: cfg.region, bucket: cfg.bucket, keyId: cfg.keyId, secret: cfg.secret, method, key: `${prefix}/${key}`, ttl });
+      return presign({ endpoint: cfg.endpoint, region: cfg.region, bucket: cfg.bucket, keyId: cfg.keyId, secret: cfg.secret, method, key: `${prefix}/${key}`, ttl, virtual: !cfg.pathStyle });
     },
   };
 }
 
-module.exports = { local, cos, presign, okKey };
+// 新文件放广州 COS、旧文件留在本机磁盘（调度中心在香港：香港到内地晚上只有十几 KB/s，几百 M 的存档要下几个小时）
+//   · 各台电脑上传（PUT）：直接传到 COS（广州），不经过香港
+//   · 下载（GET）：本机磁盘上有（以前的文件、调度中心自己写的配方 / 录音）→ 照旧本机；没有 → COS 的临时链接
+//   · COS 往外下载要流量费：每发一个下载链接，按文件大小记一笔（宁可多记：假设都下完了），
+//     今天记满 dailyGB → 新上传的改回存本机磁盘（慢，但不花钱），第二天恢复。已经在 COS 上的文件只能从 COS 下
+function hybrid(loc, remote, opt = {}) {
+  const dailyGB = opt.dailyGB != null ? +opt.dailyGB : 20;
+  const dir = opt.dir ? path.join(opt.dir, "cosuse") : null;
+  if (dir) fs.mkdirSync(dir, { recursive: true });
+  const sizeOf = opt.sizeOf || (() => Promise.resolve(-1));
+  const toRemote = opt.remotePut || (() => true);   // 哪些新文件放 COS（各台电脑传的训练文件）；别的（网页上传的录音、配方）留本机
+  const log = opt.log || (() => {});
+  const day = () => new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10);   // 按北京时间算天
+  let today = day(), use = { bytes: 0, links: 0, put: 0, putLocal: 0, warned: false };
+  const file = (d) => dir && path.join(dir, d + ".json");
+  try { if (dir) use = { ...use, ...JSON.parse(fs.readFileSync(file(today), "utf8")) }; } catch (e) {}
+  const sizes = new Map();   // key → 字节（问过 COS 的；最多记 5000 个）
+  let dirty = false;
+  const roll = () => { const d = day(); if (d !== today) { flush(); today = d; use = { bytes: 0, links: 0, put: 0, putLocal: 0, warned: false }; } };
+  function flush() { if (!dir || !dirty) return; dirty = false; try { fs.writeFileSync(file(today), JSON.stringify(use)); } catch (e) {} }
+  const timer = setInterval(flush, 30000); if (timer.unref) timer.unref();
+  const over = () => dailyGB > 0 && use.bytes >= dailyGB * 1073741824;
+  function count(key) {
+    roll(); use.links++; dirty = true;
+    const add = (n) => {
+      if (!(n > 0)) return;
+      roll(); use.bytes += n; dirty = true;
+      if (over() && !use.warned) { use.warned = true; log(`广州存储今天的下载流量到上限了（约 ${dailyGB}G）：新上传的文件先存香港本机，明天恢复`); }
+    };
+    if (sizes.has(key)) return add(sizes.get(key));
+    sizeOf(key).then((n) => { if (n > 0) { if (sizes.size > 5000) sizes.delete(sizes.keys().next().value); sizes.set(key, n); } add(n); }, () => {});
+  }
+  return {
+    kind: "hybrid",
+    url(method, key, ttl = 3600) {
+      if (!okKey(key)) throw new Error("文件名不对：" + key);
+      if (method === "PUT") {
+        if (!toRemote(key)) return loc.url(method, key, ttl);
+        roll(); dirty = true;
+        if (over()) { use.putLocal++; return loc.url(method, key, ttl); }
+        use.put++; sizes.delete(key);
+        // 同一个名字以前存在本机：删掉旧的，免得以后读到旧的（读的时候本机优先）
+        if (loc.exists(key)) { try { fs.rmSync(loc.file(key), { force: true }); } catch (e) {} }
+        return remote.url(method, key, ttl);
+      }
+      if (loc.exists(key)) return loc.url(method, key, ttl);
+      if (method === "GET") count(key);
+      return remote.url(method, key, ttl);
+    },
+    // 调度中心自己读写的（配方、老师传的录音、/pub/ 转发）：本机磁盘
+    check: loc.check, file: loc.file, exists: loc.exists, size: loc.size,
+    onLocal: (key) => loc.exists(key),
+    usage() { roll(); return { day: today, gb: +(use.bytes / 1073741824).toFixed(2), links: use.links, put: use.put, putLocal: use.putLocal, dailyGB, over: over() }; },
+    close() { clearInterval(timer); flush(); },
+  };
+}
+
+module.exports = { local, cos, hybrid, presign, okKey };

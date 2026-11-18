@@ -84,17 +84,139 @@ function xfer(method, url, file, o = {}) {
   if (method !== "GET") return xferRetry(method, url, file, o);
   const k = path.resolve(file);
   if (inflight.has(k)) return inflight.get(k);
-  const p = xferRetry(method, url, file, o).finally(() => inflight.delete(k));
+  // 大文件（32M 以上）切成 8M 一块，6 条连接同时下：跨境线路、有的宽带是「每条连接」限速，一条连接下几百 M 的存档要几个小时。
+  // 服务器不支持分段（或者文件小）就照旧一条连接下
+  const p = xferPar(url, file, o).then((r) => r || xferRetry(method, url, file, o)).finally(() => inflight.delete(k));
   inflight.set(k, p);
   return p;
 }
+
+// 上传时带上文件类型：存到腾讯云 COS 上的图片、录音，控制中心里才能直接显示、播放（本机存储下载时按扩展名自己补，不受影响）
+const MIME = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp", gif: "image/gif", wav: "audio/wav", webm: "audio/webm", mp3: "audio/mpeg", m4a: "audio/mp4", ogg: "audio/ogg", mp4: "video/mp4", json: "application/json", txt: "text/plain; charset=utf-8", log: "text/plain; charset=utf-8" };
+function mimeOf(file) { const m = /\.([a-z0-9]+)$/i.exec(String(file)); return m ? MIME[m[1].toLowerCase()] || "" : ""; }
+
+// ---- 分段并行下载 ----
+const PAR = { chunk: 8 * 1048576, conns: 6, tries: 10 };   // 8M 一块、6 条连接；一块连着 10 次一点都下不到才算失败
+function setParallel(o) { Object.assign(PAR, o || {}); }
+// 发一个请求，跟着跳转走；返回 { res, url }（最后的地址：分段的时候直接用它，不用每块都跳一次）
+function getRes(url, headers, signal, hops = 0) {
+  return new Promise((ok, bad) => {
+    if (signal && signal.aborted) return bad(new Error("停了"));
+    const u = new URL(url), mod = u.protocol === "https:" ? https : http;
+    const req = mod.get(u, { headers }, (res) => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && hops < 5) { res.resume(); return getRes(new URL(res.headers.location, u).href, headers, signal, hops + 1).then(ok, bad); }
+      ok({ res, url: u.href });
+    });
+    req.on("error", bad);
+    req.setTimeout(60000, () => req.destroy(Object.assign(new Error("下载卡住了（1 分钟没动静）"), { code: "ETIMEDOUT" })));
+    if (signal) signal.addEventListener("abort", () => req.destroy(new Error("停了")));
+  });
+}
+// 第一个请求直接要前 8M（不额外试探，不多一个来回）：
+//   · 文件不超过 8M：这一个请求就下完了
+//   · 服务器不支持分段（回 200 整个文件）：就用这个请求一条连接下完（和以前一样）
+//   · 更大的：这个请求当第 1 块，其它块 6 条连接同时下
+// 返回 null = 交给原来的办法（连不上 / 断了：它会等一会儿再试）；成功返回 { size }
+async function xferPar(url, file, { onProgress, signal } = {}) {
+  if (!PAR.conns || PAR.conns < 2) return null;
+  const tmp = file + ".part", meta = file + ".parts.json";
+  let first;
+  try { first = await getRes(url, { range: `bytes=0-${PAR.chunk - 1}` }, signal); } catch (e) { return null; }
+  const { res, url: real } = first;
+  if (res.statusCode === 416) { res.resume(); return null; }
+  // 整个文件一条连接下（服务器不支持分段）。中途断了交给原来的办法（等一会儿重下）
+  if (res.statusCode === 200) {
+    const total = +res.headers["content-length"] || 0;
+    let got = 0, lastData = Date.now();
+    const ws = fs.createWriteStream(tmp);
+    const dog = setInterval(() => { if (Date.now() - lastData > 120000) res.destroy(Object.assign(new Error("下载卡住了（2 分钟没动静）"), { code: "ETIMEDOUT" })); }, 1000);
+    try {
+      for await (const c of res) { lastData = Date.now(); got += c.length; if (!ws.write(c)) await new Promise((ok) => ws.once("drain", ok)); onProgress && onProgress(got, total || got); }
+      await new Promise((ok, bad) => ws.end((e) => (e ? bad(e) : ok())));
+    } catch (e) { ws.destroy(); clearInterval(dog); if (signal && signal.aborted) throw e; return null; }
+    clearInterval(dog);
+    if (total && got !== total) return null;
+    try { fs.renameSync(tmp, file); } catch (e) { if (!fs.existsSync(file)) throw e; }
+    return { size: got };
+  }
+  if (res.statusCode !== 206) { res.resume(); throw new Error(`下载失败 ${res.statusCode}`); }
+  const m = /^bytes (\d+)-(\d+)\/(\d+)\s*$/.exec(res.headers["content-range"] || "");
+  if (!m || +m[1] !== 0) { res.resume(); return null; }
+  const size = +m[3];
+  const etag = String(res.headers.etag || "");
+  // 上次下了一半（同一个文件、同样大小、同样的 ETag）：已经下好的块不再下
+  let done = new Set();
+  try { const j = JSON.parse(fs.readFileSync(meta, "utf8")); if (j.size === size && j.etag === etag && j.chunk === PAR.chunk && fs.existsSync(tmp) && fs.statSync(tmp).size === size) done = new Set(j.done); } catch (e) {}
+  if (!done.size) { fs.rmSync(tmp, { force: true }); const fd0 = fs.openSync(tmp, "w"); fs.ftruncateSync(fd0, size); fs.closeSync(fd0); }
+  const n = Math.max(1, Math.ceil(size / PAR.chunk));
+  const todo = []; for (let i = 0; i < n; i++) if (!done.has(i)) todo.push(i);
+  let got = [...done].reduce((a, i) => a + Math.min(PAR.chunk, size - i * PAR.chunk), 0);
+  const save = () => { try { fs.writeFileSync(meta, JSON.stringify({ size, etag, chunk: PAR.chunk, done: [...done] })); } catch (e) {} };
+  const fd = fs.openSync(tmp, "r+");
+  let fatal = null;
+  // 一块出了不能重试的错（链接过期）、或者外面喊停：其它几条连接马上一起停，不在后台接着下
+  const inner = new AbortController(), stopAll = () => { if (!inner.signal.aborted) inner.abort(); };
+  const onAbort = () => { stopAll(); try { res.destroy(); } catch (e) {} };
+  if (signal) { if (signal.aborted) onAbort(); else signal.addEventListener("abort", onAbort); }
+  let firstRes = done.has(0) ? (res.destroy(), null) : res;
+  async function one(i) {
+    const a = i * PAR.chunk, b = Math.min(size, a + PAR.chunk) - 1;
+    let pos = a;   // 这一块下到哪了：断了从这里接着要，不从头再下
+    for (let t = 0; ; ) {
+      if (fatal) throw fatal;
+      if (inner.signal.aborted) throw new Error("停了");
+      if (pos > b) { done.add(i); save(); return; }   // 这一块的字节都到了（连接最后没好好结束也不要紧）
+      const from = pos;
+      try {
+        let r;
+        if (i === 0 && firstRes) { r = firstRes; firstRes = null; }   // 第 1 块：就是一开始那个请求
+        else {
+          ({ res: r } = await getRes(real, { range: `bytes=${pos}-${b}` }, inner.signal));
+          if (r.statusCode === 403 || r.statusCode === 404) { r.resume(); throw Object.assign(new Error(`下载失败 ${r.statusCode}（链接过期了？）`), { fatal: true }); }
+          if (r.statusCode !== 206 || !new RegExp("^bytes " + pos + "-").test(r.headers["content-range"] || "")) { r.resume(); throw new Error("分段下载失败 " + r.statusCode); }
+        }
+        let lastData = Date.now();
+        // 30 秒一个字节都没来：当成断了（不然连接半死不活时会一直等下去）
+        const dog = setInterval(() => { if (Date.now() - lastData > (PAR.stallMs || 30000)) r.destroy(Object.assign(new Error("下载卡住了"), { code: "ETIMEDOUT" })); }, 1000);
+        try {
+          for await (const c of r) {
+            lastData = Date.now();
+            const k = Math.min(c.length, b + 1 - pos); if (k <= 0) break;
+            await new Promise((ok, bad) => fs.write(fd, c, 0, k, pos, (e) => (e ? bad(e) : ok())));
+            pos += k; got += k; onProgress && onProgress(got, size);
+            if (net.bps) { const now = Date.now(); if (now - net.winStart >= 1000) { net.winStart = now; net.used = 0; } net.used += k; if (net.used > net.bps) await sleep(Math.max(50, 1000 - (Date.now() - net.winStart))); }   // 设了网速上限
+          }
+        } finally { clearInterval(dog); }
+        if (pos !== b + 1) throw new Error("这一块没下完（断了）");   // 断了的连接：要么报错，要么提前结束，字节数对不上
+        done.add(i); save(); return;
+      } catch (e) {
+        if (e.fatal) { fatal = e; stopAll(); throw e; }
+        if (fatal) throw fatal;
+        if (inner.signal.aborted) throw e;
+        if (pos > b) continue;   // 字节都到了，只是连接收尾出了点问题：算这块下好了
+        t = pos > from ? 0 : t + 1;   // 这次有进展：马上接着要；一点都没下到：等一会儿再试，越等越久
+        if (t > PAR.tries) { stopAll(); throw e; }
+        await sleep(t ? Math.min(20000, 1000 * 2 ** (t - 1)) : 300);
+      }
+    }
+  }
+  try {
+    const q = todo.slice();
+    await Promise.all(Array.from({ length: Math.min(PAR.conns, q.length) }, async () => { while (q.length) await one(q.shift()); }));
+  } catch (e) { stopAll(); try { if (firstRes) firstRes.destroy(); } catch (e2) {} throw fatal || e; }
+  finally { if (signal) signal.removeEventListener("abort", onAbort); fs.closeSync(fd); }
+  try { fs.renameSync(tmp, file); } catch (e) { if (!fs.existsSync(file)) throw e; }
+  fs.rmSync(meta, { force: true });
+  return { size };
+}
+
 function xfer1(method, url, file, { onProgress, signal } = {}) {
   return new Promise((ok, bad) => {
     const u = new URL(url);
     const mod = u.protocol === "https:" ? https : http;
     if (method === "PUT") {
       const size = fs.statSync(file).size;
-      const req = mod.request(u, { method: "PUT", headers: { "content-length": size } }, (res) => {
+      const req = mod.request(u, { method: "PUT", headers: { "content-length": size, ...(mimeOf(file) ? { "content-type": mimeOf(file) } : {}) } }, (res) => {
         let b = ""; res.on("data", (c) => (b += c)); res.on("end", () => (res.statusCode < 300 ? ok({ size }) : bad(new Error(`上传失败 ${res.statusCode} ${b.slice(0, 200)}`))));
       });
       req.on("error", bad);
@@ -210,6 +332,36 @@ function create(opt) {
   const ev = new EventEmitter();
   const server = opt.server.replace(/\/+$/, "");
   const work = opt.workDir;
+  // 自己传上去的存档在这台电脑上留最近 2 个：任务回到这台电脑（暂停后接着算、重启、转出去又转回来）就不用再从服务器下一遍
+  // （几百 M 的存档，网不好的时候要下几个小时）。用之前和服务器上的核对大小、ETag（MD5），对不上就照常下载
+  const ckDir = path.join(work, "cache", "ckpt");
+  const ckName = (key) => String(key).replace(/[^\w.\-]+/g, "_").slice(-150);
+  function keepCkpt(file, key) {
+    if (opt.pruneCkpts === false) return;
+    try {
+      fs.mkdirSync(ckDir, { recursive: true });
+      const to = path.join(ckDir, ckName(key));
+      try { fs.renameSync(file, to); } catch (e) { fs.copyFileSync(file, to); fs.rmSync(file, { force: true }); }
+      try { const t = new Date(); fs.utimesSync(to, t, t); } catch (e) {}   // 按「什么时候留下的」排先后
+      const keepN = opt.keepCkpts != null ? opt.keepCkpts : 2, keepB = (opt.keepCkptsGB != null ? opt.keepCkptsGB : 4) * 1073741824;
+      let total = 0;
+      fs.readdirSync(ckDir).map((n) => { const f = path.join(ckDir, n); const st = fs.statSync(f); return { f, t: st.mtimeMs, b: st.size }; }).sort((a, b) => b.t - a.t)
+        .forEach((x, i) => { total += x.b; if (i >= keepN || (i > 0 && total > keepB)) fs.rmSync(x.f, { force: true }); });
+    } catch (e) { fs.rm(file, { force: true }, () => {}); }
+  }
+  async function cachedCkpt(key, url) {
+    const f = path.join(ckDir, ckName(key));
+    let st; try { st = fs.statSync(f); } catch (e) { return null; }
+    try {
+      const { res } = await getRes(url, { range: "bytes=0-0" });
+      res.resume();
+      const m = /\/(\d+)\s*$/.exec(res.headers["content-range"] || ""), size = m ? +m[1] : +res.headers["content-length"] || 0;
+      if (!(res.statusCode === 206 || res.statusCode === 200) || size !== st.size) return null;
+      const et = /^"?([0-9a-f]{32})"?$/i.exec(String(res.headers.etag || ""));
+      if (et) { const h = crypto.createHash("md5"); for await (const c of fs.createReadStream(f)) h.update(c); if (h.digest("hex") !== et[1].toLowerCase()) return null; }
+      return f;
+    } catch (e) { return null; }
+  }
   fs.mkdirSync(path.join(work, "recipes"), { recursive: true });
   fs.mkdirSync(path.join(work, "tasks"), { recursive: true });
   // 下载缓存（任务要用的输入文件）：10 天没用到的清掉
@@ -462,9 +614,15 @@ function create(opt) {
       };
       if (L.resume) {
         const f = path.join(dir, "resume-" + path.basename(L.resume.key));
-        log(`下载上次的存档（第 ${L.resume.step || 0} 步）…`);
-        await xfer("GET", L.resume.url, f, { onProgress: dlProg("下载存档") });
-        log(`存档下好了（${(fs.statSync(f).size / 1048576).toFixed(0)}M）`);
+        const mine = await cachedCkpt(L.resume.key, L.resume.url);
+        if (mine) { fs.copyFileSync(mine, f); log(`上次的存档（第 ${L.resume.step || 0} 步）这台电脑上就有，核对过和服务器上的一样，不用下载`); }
+        else {
+          log(`下载上次的存档（第 ${L.resume.step || 0} 步）…`);
+          const t0 = Date.now();
+          await xfer("GET", L.resume.url, f, { onProgress: dlProg("下载存档") });
+          const mb = fs.statSync(f).size / 1048576;
+          log(`存档下好了（${mb.toFixed(0)}M，${Math.round((Date.now() - t0) / 1000)} 秒，平均 ${(mb / Math.max(1, (Date.now() - t0) / 1000)).toFixed(1)}M/秒，从 ${new URL(L.resume.url).host}）`);
+        }
         t.resume = f; t.resumeInfo = { step: L.resume.step, round: L.resume.round };
       }
       for (const [i, u] of (L.task.input.partUrls || []).entries()) { const f = path.join(dir, `part-${i}.npz`); await xfer("GET", u, f); t.parts.push(f); }
@@ -642,7 +800,7 @@ function create(opt) {
           c.ckpts++;
           emit("ckpt", { id: c.id, step: m.step });
           log(`存档：第 ${m.step} 步`, "ok");
-          if (opt.pruneCkpts !== false) fs.rm(m.path, { force: true }, () => {});
+          keepCkpt(m.path, key);
         }).catch((e) => log("存档上传失败：" + e.message, "warn"));
         break;
       case "output":
@@ -710,6 +868,7 @@ function create(opt) {
     drain(v) { draining = !!v; lastLease = 0; },
     cmdDone: (id, ok, result) => api("/api/cmd/done", { id, ok: !!ok, result: result == null ? null : result }).catch(() => {}),
     lastTick: () => lastTick,
+    _ckpt: { keep: keepCkpt, cached: cachedCkpt, dir: ckDir },   // 测试用
     setEnv: (e) => { extraEnv = { ...(e || {}) }; },
     touch() { if (cur) cur.lastOut = Date.now(); },   // 准备阶段（装 GPT-SoVITS、下大文件）有进度时也算有动静
     kill: (why) => stopTask(true, why || "被结束了"),
@@ -730,4 +889,4 @@ async function join(invite, name, device, fetchImpl = fetch) {
   return { server: inv.server, pubkey: inv.pubkey, token: j.token, device: j.device, member: j.member };
 }
 
-module.exports = { setNetLimit, xferAny, create, join, parseInvite, verifySig, xfer, probe, netWhy, isNet, resetConnections };
+module.exports = { setNetLimit, setParallel, xferAny, create, join, parseInvite, verifySig, xfer, probe, netWhy, isNet, resetConnections };

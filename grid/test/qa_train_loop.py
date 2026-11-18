@@ -7,8 +7,8 @@ import ast, os, sys, types, tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = open(os.path.join(HERE, "..", "recipes", "qa_train.py"), encoding="utf-8").read()
-FN = next(n for n in ast.parse(SRC).body if isinstance(n, ast.FunctionDef) and n.name == "train")
-CODE = compile(ast.Module(body=[FN], type_ignores=[]), "qa_train.py", "exec")
+FNS = [n for n in ast.parse(SRC).body if isinstance(n, ast.FunctionDef) and n.name in ("train", "small_opt")]
+CODE = compile(ast.Module(body=FNS, type_ignores=[]), "qa_train.py", "exec")
 
 
 class OOM(RuntimeError):

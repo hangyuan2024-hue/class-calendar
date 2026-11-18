@@ -89,7 +89,9 @@ let rnd = seed; const rand = () => ((rnd = (rnd * 1103515245 + 12345) % 21474836
   // 接力的最终存档 == 对照
   const rd = app.core.jobDetail(relayId);
   const last = app.core.db.prepare("select key from ckpts where job_id=? and kind='relay' order by step desc, id desc limit 1").get(relayId).key;
-  const got = path.join(tmp, "server", "blobs", ...last.split("/"));
+  // 通过调度中心给的链接取（本机磁盘、广州 COS 两种存储都一样）
+  const got = path.join(tmp, "relay-final.npz");
+  fs.writeFileSync(got, Buffer.from(await (await fetch(app.store.url("GET", last, 600))).arrayBuffer()));
   const cmp = execFileSync(PY, ["-c", "import numpy as np,sys\na=np.load(sys.argv[1]);b=np.load(sys.argv[2])\nprint(int(a['step']), int(b['step']), max(float(abs(a[k]-b[k]).max()) for k in a.files))", got, path.join(ref, refFile)]).toString().trim().split(" ");
   assert.equal(cmp[0], "300"); assert.equal(+cmp[2], 0, "和一台电脑算的不一样：差 " + cmp[2]);
   const resumes = app.core.db.prepare("select coalesce(sum(lost),0) as n from tasks where job_id=?").get(relayId).n;

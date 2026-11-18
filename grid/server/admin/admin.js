@@ -217,6 +217,9 @@
     const r = t.refused || {}, w = d.days.reduce((s, x) => s + (x.yuan || 0), 0);
     $("#dlRefused").textContent = `今天发出 ${t.gb || 0}G（约 ${t.yuan || 0} 元），14 天约 ${w.toFixed(1)} 元。拦下：海外 ${r.foreign || 0} 次、反复下同一个文件 ${r.repeat || 0} 次、单个网络超量 ${r.ip || 0} 次、全站到上限 ${r.budget || 0} 次` + ((t.foreign || []).length ? `；海外来的 IP：${t.foreign.slice(0, 5).map((x) => x.ip).join("、")}` : "");
     const rl = d.relay || {}, T = { ok: "已在国内存储", missing: "存储里没有", copying: "正在搬", failed: "没搬成", "?": "不知道" };
+    const sd = d.store || {};
+    $("#dlStore").textContent = sd.kind === "hybrid" ? `训练文件：新的放广州存储（各台电脑直接传、直接下）、旧的在香港。广州存储今天发出的下载约 ${sd.gb}G / 上限 ${sd.dailyGB}G${sd.over ? "（到上限了：新上传的先存香港，明天恢复）" : ""}；今天新文件 ${sd.put} 个放广州${sd.putLocal ? "、" + sd.putLocal + " 个放香港" : ""}`
+      : sd.kind === "cos" ? "训练文件：全部放腾讯云存储" : "训练文件：都在香港这台服务器上（内地电脑晚上下载慢）。要放广州存储：sudo bash /opt/laolao/grid/server/grid-cos.sh";
     $("#dlRelay").textContent = !rl.canWrite ? "安装包中转：还没配写入密钥（sudo bash /opt/laolao/grid/server/dl-relay.sh）" : "安装包中转：" + ((rl.files || []).map((f) => `${f.key.split("/").pop()} ${T[f.state] || f.state}${f.state === "copying" ? ` ${f.phase || ""} ${f.pct || 0}%（${((f.speed || 0) / 1048576).toFixed(1)}MB/s）` : ""}${f.why ? "（" + f.why + "）" : ""}`).join("；") || "还没看过");
     clearTimeout(loadDl.t); if (rl.running || (rl.files || []).some((f) => f.state === "copying")) loadDl.t = setTimeout(loadDl, 5000);   // 搬的时候 5 秒刷新一次进度
   }

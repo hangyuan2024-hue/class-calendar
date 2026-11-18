@@ -28,7 +28,13 @@ function create(opt = {}) {
   const base = () => publicBase;
   const local = Store.local(path.join(dataDir, "blobs"), secret, base);
   const env = opt.env || process.env;
-  const store = env.GRID_COS_BUCKET ? Store.cos({ endpoint: env.GRID_COS_ENDPOINT, region: env.GRID_COS_REGION, bucket: env.GRID_COS_BUCKET, keyId: env.GRID_COS_KEY_ID, secret: env.GRID_COS_SECRET, prefix: env.GRID_COS_PREFIX }) : local;
+  // 配了腾讯云 COS（GRID_COS_*）：默认「新文件放 COS、旧文件留本机」（见 store.js 的 hybrid）；GRID_COS_MODE=all 全部放 COS
+  const remote = env.GRID_COS_BUCKET ? Store.cos({ endpoint: env.GRID_COS_ENDPOINT, region: env.GRID_COS_REGION, bucket: env.GRID_COS_BUCKET, keyId: env.GRID_COS_KEY_ID, secret: env.GRID_COS_SECRET, prefix: env.GRID_COS_PREFIX, pathStyle: env.GRID_COS_PATHSTYLE === "1" }) : null;
+  const store = !remote ? local : env.GRID_COS_MODE === "all" ? remote : Store.hybrid(local, remote, {
+    dailyGB: env.GRID_COS_DAILY_GB, dir: dataDir, log: (m) => console.log(m),
+    remotePut: (k) => /^(jobs|logs)\//.test(k),   // 各台电脑传的训练文件、日志放 COS；控制中心网页上传的录音、配方照旧本机（浏览器直接传 COS 会被跨域拦）
+    sizeOf: async (key) => { try { const r = await fetch(remote.url("HEAD", key, 300), { method: "HEAD", signal: AbortSignal.timeout(15000) }); return r.ok ? +(r.headers.get("content-length") || 0) : -1; } catch (e) { return -1; } },
+  });
   const ADMIN_DIR = path.join(__dirname, "admin");
   const maxBlob = opt.maxBlob || 40e9;
   const cycle = Cycle.attach(core, opt);
@@ -67,7 +73,7 @@ function create(opt = {}) {
     "POST /api/lease": (req, b, dev) => {
       const r = core.lease(dev, b.caps || {});
       if (r && r.recipe) r.recipe.url = store.url("GET", r.recipe.key, 3600);
-      if (r && r.resume) r.resume.url = store.url("GET", r.resume.key, 3600);
+      if (r && r.resume) r.resume.url = store.url("GET", r.resume.key, 12 * 3600);   // 存档几百 M，网慢时要下很久：链接给 12 小时，别下到一半过期
       if (r && r.deps) for (const d of Object.values(r.deps)) d.outputs = (d.outputs || []).map((o) => ({ ...o, url: store.url("GET", o.key, 6 * 3600) }));
       if (r && r.files) r.fileUrls = Object.fromEntries(Object.entries(r.files).map(([k, v]) => [k, store.url("GET", v, 6 * 3600)]));
       if (r && r.task.kind === "merge") r.task.input.partUrls = (r.task.input.parts || []).map((k) => store.url("GET", k, 3600));
@@ -133,12 +139,12 @@ function create(opt = {}) {
       if (!pub) throw new Error("还没设管理员公钥（node tools/keys.js init）");
       if (!verify(pub, id, b.sig)) throw new Error("签名不对");
       const key = `recipes/${id}.py`;
-      if (store.kind === "local") { fs.mkdirSync(path.dirname(local.file(key)), { recursive: true }); fs.writeFileSync(local.file(key), src); }
+      if (store.kind !== "cos") { fs.mkdirSync(path.dirname(local.file(key)), { recursive: true }); fs.writeFileSync(local.file(key), src); }
       else { const r = await fetch(store.url("PUT", key, 600), { method: "PUT", body: src }); if (!r.ok) throw new Error("传到 COS 失败：" + r.status); }
       return core.addRecipe({ id, name: b.name || "配方", key, sig: b.sig, meta: b.meta || {} });
     },
     "POST /api/admin/pubkey": (req, b) => { if (core.kv.get("pubkey") && !b.force) throw new Error("已经设过公钥了"); core.kv.set("pubkey", b.pubkey); return { ok: true }; },
-    "GET /api/admin/recipe": (req, b, dev, u) => { const r = core.recipe(u.searchParams.get("id")); if (!r) throw new Error("没有"); return { ...r, source: store.kind === "local" && local.exists(r.key) ? fs.readFileSync(local.file(r.key), "utf8") : null, url: store.url("GET", r.key, 600) }; },
+    "GET /api/admin/recipe": (req, b, dev, u) => { const r = core.recipe(u.searchParams.get("id")); if (!r) throw new Error("没有"); return { ...r, source: store.kind !== "cos" && local.exists(r.key) ? fs.readFileSync(local.file(r.key), "utf8") : null, url: store.url("GET", r.key, 600) }; },
     "GET /api/admin/export": (req, b, dev, u) => ({ reviews: core.exportReviews(+u.searchParams.get("job")), outputs: core.outputs(+u.searchParams.get("job")) }),
     // 每日一轮、模型版本
     "GET /api/admin/cycle": () => cycle.view(),
@@ -164,7 +170,22 @@ function create(opt = {}) {
     "POST /api/admin/model/code": (req, b) => ({ name: String(b.name), code: cycle.codeOf(String(b.name), !!b.rotate) }),
     "POST /api/admin/ab": (req, b) => cycle.abStats(b.tag || "qv1"),
     "POST /api/admin/model/promote": (req, b) => cycle.promote(String(b.from), String(b.to), b.note),
-    "GET /api/admin/dl": (req, b, dev, u) => ({ ...gate.stats(+u.searchParams.get("days") || 7), relay: relay.status() }),
+    // 配好 COS 以后自检：往 COS 传一个小文件、读回来、核对（grid-cos.sh 用）
+    "POST /api/admin/store/test": async () => {
+      if (!remote) return { ok: false, why: "还没配 GRID_COS_*" };
+      const key = `jobs/0/selftest/${Date.now()}.txt`, body = "laolao " + crypto.randomBytes(8).toString("hex");
+      const step = async (what, fn) => { try { return await fn(); } catch (e) { throw new Error(what + "：" + (e.message || e)); } };
+      try {
+        const put = await step("传", () => fetch(remote.url("PUT", key, 300), { method: "PUT", body, signal: AbortSignal.timeout(20000) }));
+        if (!put.ok) return { ok: false, why: `传不上去：${put.status} ${((await put.text()).match(/<Code>([^<]+)/) || [])[1] || ""}（看看子用户的策略里有没有 PutObject、资源是不是 grid/jobs/*）` };
+        const get = await step("读", () => fetch(remote.url("GET", key, 300), { signal: AbortSignal.timeout(20000) }));
+        if (!get.ok) return { ok: false, why: `读不回来：${get.status} ${((await get.text()).match(/<Code>([^<]+)/) || [])[1] || ""}（策略里要有 GetObject）` };
+        if ((await get.text()) !== body) return { ok: false, why: "读回来的内容不对" };
+        const head = await step("问大小", () => fetch(remote.url("HEAD", key, 300), { method: "HEAD", signal: AbortSignal.timeout(20000) }));
+        return { ok: true, head: head.ok, kind: store.kind, why: head.ok ? "" : "问不到文件大小（策略里加上 HeadObject，不然每天的流量统计不准）" };
+      } catch (e) { return { ok: false, why: e.message }; }
+    },
+    "GET /api/admin/dl": (req, b, dev, u) => ({ ...gate.stats(+u.searchParams.get("days") || 7), relay: relay.status(), store: { kind: store.kind, ...(store.usage ? store.usage() : {}) } }),
     "POST /api/admin/dl/relay": (req, b, dev, u) => (u.searchParams.get("wait") === "0" ? relay.kick() : relay.run()),
     "POST /api/admin/geturl": (req, b) => { if (!Store.okKey(b.key)) throw new Error("文件名不对"); return { url: store.url("GET", b.key, 3600) }; },
   };
@@ -191,7 +212,7 @@ function create(opt = {}) {
         const code = u.searchParams.get("c");
         if (!cycle.publicKeys().has(key) && !(code && cycle.privateKeys(code).has(key))) return json(res, 404, { error: "没有这个文件" });
         u.searchParams.delete("c");
-        if (store.kind === "local") { u.searchParams.set("exp", String(Math.floor(Date.now() / 1000) + 600)); return blob(Object.assign(req, { method: req.method === "HEAD" ? "HEAD" : "GET" }), res, new URL(store.url("GET", key, 600))); }
+        if (store.kind === "local" || (store.kind === "hybrid" && local.exists(key))) { u.searchParams.set("exp", String(Math.floor(Date.now() / 1000) + 600)); return blob(Object.assign(req, { method: req.method === "HEAD" ? "HEAD" : "GET" }), res, new URL(store.url("GET", key, 600))); }
         res.writeHead(302, { location: store.url("GET", key, 6 * 3600) }); return res.end();
       }
       if (u.pathname === "/" || u.pathname === "/admin") { res.writeHead(302, { location: "/admin/" }); return res.end(); }
@@ -213,6 +234,7 @@ function create(opt = {}) {
       const out = await route(req, b, dev, u);
       json(res, 200, out == null ? null : out);
     } catch (e) {
+      if (res.headersSent) { try { res.destroy(); } catch (e2) {} return; }   // 已经开始回了（比如文件发到一半出错）：断开就行，不能让整个调度中心崩掉
       json(res, 400, { error: e.message || String(e) });
     }
   }
@@ -229,7 +251,7 @@ function create(opt = {}) {
       const len = +req.headers["content-length"] || 0;
       if (!len) { req.resume(); return json(res, 400, { error: "文件是空的" }); }
       const key = `imports/${Date.now()}-${crypto.randomBytes(3).toString("hex")}-${name}`;
-      if (store.kind === "local") {
+      if (store.kind !== "cos") {
         const f = local.file(key);
         fs.mkdirSync(path.dirname(f), { recursive: true });
         await new Promise((ok, bad) => { const w = fs.createWriteStream(f); req.pipe(w); w.on("finish", ok); w.on("error", bad); req.on("error", bad); });
@@ -253,7 +275,7 @@ function create(opt = {}) {
   function blob(req, res, u) {
     const key = decodeURIComponent(u.pathname.slice(6));
     const method = req.method === "HEAD" ? "GET" : req.method;
-    if (store.kind !== "local" || !local.check(method, key, u.searchParams.get("exp"), u.searchParams.get("sig"))) return json(res, 403, { error: "链接过期或不对" });
+    if (store.kind === "cos" || !local.check(method, key, u.searchParams.get("exp"), u.searchParams.get("sig"))) return json(res, 403, { error: "链接过期或不对" });
     const f = local.file(key);
     if (req.method === "PUT") {
       fs.mkdirSync(path.dirname(f), { recursive: true });
@@ -282,7 +304,9 @@ function create(opt = {}) {
       const range = /bytes=(\d+)-(\d*)/.exec(req.headers.range || "");
       const type = /\.(png)$/i.test(f) ? "image/png" : /\.jpe?g$/i.test(f) ? "image/jpeg" : /\.webm$/i.test(f) ? "audio/webm" : /\.wav$/i.test(f) ? "audio/wav" : /\.json$/i.test(f) ? "application/json" : /\.py$/.test(f) ? "text/plain; charset=utf-8" : "application/octet-stream";
       if (range) {
-        const a = +range[1], z = range[2] ? +range[2] : st.size - 1;
+        // 要的范围超过文件大小：按文件实际大小给（新版客户端第一下要「前 8M」，小文件也这么要）；起点都超了回 416
+        const a = +range[1], z = Math.min(range[2] ? +range[2] : st.size - 1, st.size - 1);
+        if (a > z) { res.writeHead(416, { "content-range": `bytes */${st.size}` }); return res.end(); }
         res.writeHead(206, { "content-type": type, "content-length": z - a + 1, "content-range": `bytes ${a}-${z}/${st.size}`, "accept-ranges": "bytes" });
         return req.method === "HEAD" ? res.end() : fs.createReadStream(f, { start: a, end: z }).pipe(res);
       }
@@ -307,7 +331,7 @@ function create(opt = {}) {
     core, store, server,
     listen(port, host) { return new Promise((ok) => server.listen(port, host, () => { if (!opt.public) publicBase = `http://${host === "0.0.0.0" || !host ? "127.0.0.1" : host}:${server.address().port}`; ok(server.address().port); })); },
     setPublic(u) { publicBase = u; },
-    close() { clearInterval(tickTimer); gate.close(); relay.close(); server.close(); core.close(); },
+    close() { clearInterval(tickTimer); gate.close(); relay.close(); if (store.close) store.close(); server.close(); core.close(); },
     gate, relay,
     cycle,
   };
@@ -333,7 +357,7 @@ if (require.main === module) {
   app.listen(port, arg("host", "0.0.0.0")).then((p) => {
     const t = app.core.adminToken();
     fs.writeFileSync(path.join(path.resolve(arg("data", "data")), "admin.txt"), `管理员口令（控制中心登录用，不要发给别人）：\n${t}\n`);
-    console.log(`捞捞算力 · 调度中心已启动：端口 ${p}，存储：${app.store.kind === "cos" ? "腾讯云 COS" : "本机磁盘"}`);
+    console.log(`捞捞算力 · 调度中心已启动：端口 ${p}，存储：${app.store.kind === "cos" ? "腾讯云 COS" : app.store.kind === "hybrid" ? `新文件放腾讯云 COS、旧文件在本机磁盘（COS 每天下载上限 ${app.store.usage().dailyGB}G）` : "本机磁盘"}`);
     console.log(`控制中心：http://<这台服务器的地址>:${p}/admin/`);
     console.log(`管理员口令在 ${path.join(path.resolve(arg("data", "data")), "admin.txt")}`);
   });

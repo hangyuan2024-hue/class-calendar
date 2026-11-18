@@ -31,6 +31,7 @@ if [ ! -f /etc/laolao-grid.env ]; then
   cat > /etc/laolao-grid.env <<'EOF'
 # 大文件放腾讯云 COS（推荐）：填好这几项，sudo systemctl restart laolao-grid。不填就存在服务器硬盘上（/var/lib/laolao-grid/blobs）
 # 建议单独建一个只能读写这个桶的子账号；桶里放在 grid/ 前缀下，和安装包、AI 组件分开
+# （推荐用 sudo bash grid-cos.sh 配：密钥隐藏输入、自动自检、不通自动撤回；新文件放 COS、旧文件留本机，每天下载有上限 GRID_COS_DAILY_GB）
 #GRID_COS_ENDPOINT=https://cos.ap-guangzhou.myqcloud.com
 #GRID_COS_REGION=ap-guangzhou
 #GRID_COS_BUCKET=你的桶名-1250000000
