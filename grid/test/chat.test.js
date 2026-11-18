@@ -25,7 +25,7 @@ const listen = (h) => new Promise((r) => { const s = http.createServer(h); s.lis
   const spokenPy = (s) => /SPOKEN = """([\s\S]*?)"""/.exec(s)[1];
   const gen = src("recipes/chat_gen.py"), tr = src("recipes/qa_train.py");
   assert.equal(spokenPy(gen), spokenPy(tr), "chat_gen.py 和 qa_train.py 的语音通话规则要一样");
-  const XZ = require(path.join(ROOT, "..", "pptassist", "core", "xiaozhi.js"));
+  const XZ = require(path.join(ROOT, "app", "ppt", "xiaozhi.js"));   // 打包前从 pptassist/core 拷过来（npm run prepare-ui），用 grid 自己装的依赖
   assert.equal(XZ.SPOKEN, spokenPy(gen), "成品展示打电话时加的规则要和训练时的一样");
   const fnSrc = (s, name) => { const m = new RegExp(`\\n(def ${name}\\([\\s\\S]*?)\\n\\n\\n`).exec(s); return m && m[1]; };
   for (const f of ["speakable", "zh_ratio", "cn_num", "numbers_in"]) assert.equal(fnSrc(tr, f), fnSrc(gen, f), `检查规则 ${f} 两边要一样`);
