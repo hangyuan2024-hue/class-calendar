@@ -1,6 +1,6 @@
 # 捞捞算力 · 成品展示「打电话」的耳朵：把听到的一段话（16k 单声道 wav）变成文字
 #   用 GPT-SoVITS 整合包自带的 FunASR（达摩院 Paraformer 中文识别 + 断句 + 加标点），整合包的 Python 跑，不用另外装。
-#   第一次用的时候从魔搭（国内）下识别模型（几百 M），以后直接用。
+#   第一次用的时候从魔搭（ModelScope）下识别模型（几百 M，魔搭连不上就从 HuggingFace 下），以后直接用。
 #   默认用 CPU（一句话不到一秒），显卡留给大模型和声音；设 LG_ASR_DEVICE=cuda 改用显卡。
 #   POST /asr（body 是 wav）→ {"text": "..."}；GET /ping → ok。模型加载好了才开始监听，端口能连上就是准备好了。
 import argparse, json, os, sys, tempfile, traceback
@@ -11,6 +11,27 @@ ap.add_argument("--port", type=int, default=9881)
 ap.add_argument("--fake", action="store_true")   # 测试用：不加载模型，回 wav 的长度
 a = ap.parse_args()
 sys.path.insert(0, os.getcwd())                   # cwd 是整合包的文件夹：tools.asr 在里面
+
+
+# Python 3.12 起没有 distutils，FunASR 有几处还在用：借 setuptools 里的那份（整合包自己的听写也是这么做的）
+try:
+    import distutils  # noqa
+except Exception:
+    try:
+        import setuptools._distutils as _d, setuptools._distutils.util as _du, setuptools._distutils.version as _dv
+        sys.modules.setdefault("distutils", _d); sys.modules.setdefault("distutils.util", _du); sys.modules.setdefault("distutils.version", _dv)
+    except Exception:
+        pass
+
+PARA = "speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-pytorch"
+VAD = "speech_fsmn_vad_zh-cn-16k-common-pytorch"
+PUNC = "punc_ct-transformer_zh-cn-common-vocab272727-pytorch"
+
+
+def why(e):
+    t = (str(e) or type(e).__name__).strip().splitlines()[0][:200]
+    # 下载失败时 FunASR 报的是「not registered」，看不出是网的问题
+    return "下载识别模型失败（连不上）" if "not registered" in t else t
 
 
 def load():
@@ -24,7 +45,16 @@ def load():
                 dev = "cpu"
     except Exception:
         dev = "cpu"
-    # 新版整合包：tools/asr/funasr_asr.py 有 create_damo_model(device)（默认的 Fun-ASR-Nano 太大，打电话用达摩 Paraformer 就够了）
+    errs = []
+
+    def auto(**kw):
+        from funasr import AutoModel
+        try:
+            return AutoModel(device=dev, disable_update=True, **kw)
+        except TypeError:   # 很老的 funasr 不认 disable_update
+            return AutoModel(device=dev, **kw)
+
+    # 1. 新版整合包：tools/asr/funasr_asr.py 有 create_damo_model(device)（默认的 Fun-ASR-Nano 太大，打电话用达摩 Paraformer 就够了）
     try:
         import tools.asr.funasr_asr as F
         if hasattr(F, "create_damo_model"):
@@ -32,23 +62,25 @@ def load():
             print("耳朵准备好了（整合包的达摩 Paraformer，" + dev + "）", flush=True)
             return m
     except Exception as e:
-        print("整合包的听写用不了（" + str(e) + "），自己加载", flush=True)
-    # 老版整合包：模型在 tools/asr/models 里就用它，没有就从魔搭下
-    from funasr import AutoModel
+        errs.append("整合包的听写：" + why(e))
+    # 2. 魔搭：模型已经在 tools/asr/models 里就直接用，没有就下
     R = "tools/asr/models/"
-    loc = lambda d, mid: R + d if os.path.isdir(R + d) else mid
-    kw = dict(model_revision="v2.0.4", vad_model_revision="v2.0.4", punc_model_revision="v2.0.4", device=dev, disable_update=True)
+    loc = lambda d: R + d if os.path.isdir(R + d) else "iic/" + d
     try:
-        m = AutoModel(model=loc("speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-pytorch", "iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-pytorch"),
-                      vad_model=loc("speech_fsmn_vad_zh-cn-16k-common-pytorch", "iic/speech_fsmn_vad_zh-cn-16k-common-pytorch"),
-                      punc_model=loc("punc_ct-transformer_zh-cn-common-vocab272727-pytorch", "iic/punc_ct-transformer_zh-cn-common-vocab272727-pytorch"), **kw)
-    except TypeError:   # 很老的 funasr 不认 disable_update
-        kw.pop("disable_update")
-        m = AutoModel(model=loc("speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-pytorch", "iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-pytorch"),
-                      vad_model=loc("speech_fsmn_vad_zh-cn-16k-common-pytorch", "iic/speech_fsmn_vad_zh-cn-16k-common-pytorch"),
-                      punc_model=loc("punc_ct-transformer_zh-cn-common-vocab272727-pytorch", "iic/punc_ct-transformer_zh-cn-common-vocab272727-pytorch"), **kw)
-    print("耳朵准备好了（达摩 Paraformer，" + dev + "）", flush=True)
-    return m
+        m = auto(model=loc(PARA), model_revision="v2.0.4", vad_model=loc(VAD), vad_model_revision="v2.0.4", punc_model=loc(PUNC), punc_model_revision="v2.0.4")
+        print("耳朵准备好了（达摩 Paraformer，魔搭，" + dev + "）", flush=True)
+        return m
+    except Exception as e:
+        errs.append("魔搭：" + why(e))
+    # 3. 魔搭连不上（比如在国外）：从 HuggingFace 下同一套模型
+    try:
+        m = auto(model="paraformer-zh", vad_model="fsmn-vad", punc_model="ct-punc", hub="hf")
+        print("耳朵准备好了（达摩 Paraformer，HuggingFace，" + dev + "）", flush=True)
+        return m
+    except Exception as e:
+        errs.append("HuggingFace：" + why(e))
+    print("ERROR: 听写模型加载不了：" + "；".join(errs), flush=True)
+    sys.exit(1)
 
 
 M = load()

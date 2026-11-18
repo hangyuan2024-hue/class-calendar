@@ -28,7 +28,7 @@ function create(o = {}) {
     dirNow = dir;
     starting = (async () => {
       port = await freePort(); tail = [];
-      say("第一次打电话：正在准备听写（加载识别模型，第一次要从国内下几百 M）…");
+      say("第一次打电话：正在准备听写（加载识别模型，第一次要从魔搭下载几百 M，网慢要等几分钟）…");
       const args = o.args ? o.args(port) : ["-u", SCRIPT, "--port", String(port)];
       const me = spawn(py, args, { cwd: dir, windowsHide: true, env: { ...process.env, PYTHONIOENCODING: "utf-8", ...(o.env || {}) } });
       proc = me;
@@ -36,7 +36,9 @@ function create(o = {}) {
       const keep = (d) => { for (const l of String(d).split(/\r?\n/)) if (l.trim()) { tail.push(l); if (tail.length > 30) tail.shift(); log(l); } };
       me.stdout.on("data", keep); me.stderr.on("data", keep);
       me.on("error", (e) => { dead = "启动不了听写：" + e.message; });
-      me.on("exit", (c) => { dead = dead || "听写退出了（" + c + "）：" + (tail.slice(-3).join(" ") || "没有输出"); if (proc === me) proc = null; });
+      me.on("exit", (c) => { dead = dead || explain(c); if (proc === me) proc = null; });
+      // 退出的原因：asr_server.py 自己写的「ERROR: …」最清楚；没有就取最后几行（跳过 FunASR 列的那一长串「  - 某模块没装」）
+      const explain = (c) => { const e = tail.filter((l) => /^ERROR: /.test(l)).pop(); return e ? e.slice(7) : "听写退出了（" + c + "）：" + (tail.filter((l) => !/^\s+- /.test(l)).slice(-3).join(" ") || "没有输出"); };
       const t0 = Date.now(), waitMs = o.waitMs || 10 * 60e3;
       while (Date.now() - t0 < waitMs) {
         if (dead) throw new Error(dead);
