@@ -649,10 +649,14 @@ function create(opt) {
         } catch (e) {
           // opt_ 开头的是「有就用、没有也行」的文件（比如接着上一版训的起点）：下不到就不带，任务照常算
           if (/^opt_/.test(k)) { log(`可有可无的文件「${k}」没下到（${e.message}），不带它接着算`); continue; }
+          // data0、data1… 是「到现在为止这一类任务交的所有结果」（几百个）：个别一个在存储里找不到（404）不该让整轮训练起不来，
+          // 跳过它（配方只读存在的），日志里记一笔；别的错（断网、链接过期）照旧报错重试
+          if (/^data\d+$/.test(k) && /\b404\b/.test(e.message) && !c.ctl.signal.aborted) { c.missing = (c.missing || 0) + 1; log(`数据文件「${k}」存储里找不到（404），跳过它`); continue; }
           throw new Error(`下载要用的文件「${k}」失败：${e.message}`);
         }
         t.files[k] = f;
       }
+      if (c.missing) log(`有 ${c.missing} 个数据文件找不到，已跳过，用其余 ${nIn - c.missing} 个继续`);
       // 训练要用的人工审核结果（params.dataset）
       if (L.job.params && L.job.params.dataset) { c.note = "取审核数据…"; const d = await api("/api/dataset", { task: c.id }); t.dataset = path.join(dir, "dataset.json"); fs.writeFileSync(t.dataset, JSON.stringify(d.items || [])); log(`审核数据：${(d.items || []).length} 条`); }
       fs.writeFileSync(path.join(dir, "task.json"), JSON.stringify(t));
