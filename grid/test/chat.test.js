@@ -21,7 +21,7 @@ const listen = (h) => new Promise((r) => { const s = http.createServer(h); s.lis
 
 (async () => {
   // ---------- 三份规则一字不差 ----------
-  const src = (f) => fs.readFileSync(path.join(ROOT, f), "utf8");
+  const src = (f) => fs.readFileSync(path.join(ROOT, f), "utf8").replace(/\r\n/g, "\n");   // Windows 上 git 取出来是 \r\n（Python 读的时候会变回 \n）
   const spokenPy = (s) => /SPOKEN = """([\s\S]*?)"""/.exec(s)[1];
   const gen = src("recipes/chat_gen.py"), tr = src("recipes/qa_train.py");
   assert.equal(spokenPy(gen), spokenPy(tr), "chat_gen.py 和 qa_train.py 的语音通话规则要一样");
