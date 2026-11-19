@@ -32,7 +32,7 @@ const until = async (f, ms, what) => { const t0 = Date.now(); while (!(await f()
   const state = async (id) => (await Tools.api(admin, "/api/admin/job?id=" + id, null, "GET"));
   await until(async () => (await state(j1)).state === "done", 30000, "造数据做完");
   // 弄丢其中一个结果文件（存储里找不到）
-  const blobs = []; (function walk(d) { for (const f of fs.readdirSync(d, { withFileTypes: true })) f.isDirectory() ? walk(path.join(d, f.name)) : /r\d\.txt$/.test(f.name) && blobs.push(path.join(d, f.name)); })(path.join(tmp, "server", "blobs"));
+  const blobs = []; (function walk(d) { for (const f of fs.readdirSync(d, { withFileTypes: true })) f.isDirectory() ? walk(path.join(d, f.name)) : /r\d(-[0-9a-f]{8})?\.txt$/.test(f.name) && blobs.push(path.join(d, f.name)); })(path.join(tmp, "server", "blobs"));
   assert.equal(blobs.length, 4);
   fs.rmSync(blobs[1]);
   const plan2 = path.join(tmp, "p2.json");

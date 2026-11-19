@@ -106,11 +106,13 @@ function hybrid(loc, remote, opt = {}) {
       if (!okKey(key)) throw new Error("文件名不对：" + key);
       if (method === "PUT") {
         if (!toRemote(key)) return loc.url(method, key, ttl);
+        // 同一个名字本机已经有了：新的也传到本机，传完一下子换掉旧的（先写临时文件再改名）。
+        //   以前这里是「先把本机的旧文件删掉、再让它传到 COS」：发了地址就删，新的要是没传完（断网、关电脑、换了一台电脑），
+        //   已经登记过的文件就两边都没有了 → 下载 404、所有电脑卡住。现在上传的名字每次都不一样（index.js），这里一般碰不到；碰到了也不删
+        if (loc.exists(key)) return loc.url(method, key, ttl);
         roll(); dirty = true;
         if (over()) { use.putLocal++; return loc.url(method, key, ttl); }
         use.put++; sizes.delete(key);
-        // 同一个名字以前存在本机：删掉旧的，免得以后读到旧的（读的时候本机优先）
-        if (loc.exists(key)) { try { fs.rmSync(loc.file(key), { force: true }); } catch (e) {} }
         return remote.url(method, key, ttl);
       }
       if (loc.exists(key)) return loc.url(method, key, ttl);

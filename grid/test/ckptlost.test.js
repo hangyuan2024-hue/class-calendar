@@ -51,8 +51,16 @@ async function setup(name, env) {
     await S.api("/api/fail", { task: t.task.id, error: "x" });
     fs.rmSync(S.app.store.file(k3));
     t = await S.lease(); assert.equal(t.resume, null, "存档全没了：这一轮从头算，不卡住");
+    // 根本原因那一头：上传的名字每次都不一样（同名再传不会盖掉 / 删掉已经登记的）；没存上的文件不让登记
+    const p1 = await S.api("/api/put", { job: t.job.id, task: t.task.id, name: "out-qa-math-12-176.jsonl", prefix: "out" });
+    const p2 = await S.api("/api/put", { job: t.job.id, task: t.task.id, name: "out-qa-math-12-176.jsonl", prefix: "out" });
+    assert.notEqual(p1.key, p2.key, "同一个文件名传两次：两个不同的存储名字"); assert.match(p1.key, /^jobs\/\d+\/\d+\/out-out-qa-math-12-176-[0-9a-f]{8}\.jsonl$/, "名字还认得出来、扩展名不变");
+    await assert.rejects(S.api("/api/ckpt", { task: t.task.id, step: 900, key: p1.key }), /存档文件在存储里找不到/, "拿了地址没传：不让登记成存档");
+    await assert.rejects(S.api("/api/done", { task: t.task.id, result: { ok: 1 }, outputs: [{ name: "a.jsonl", key: p1.key, size: 1 }] }), /结果文件没存上/, "结果文件没存上：不收这次结果");
+    assert.ok((await (await fetch(p1.url, { method: "PUT", body: "结果" })).ok));
+    assert.equal((await S.api("/api/done", { task: t.task.id, result: { ok: 1 }, outputs: [{ name: "a.jsonl", key: p1.key, size: 6 }] })).ok, true, "存上了：照常收");
     S.app.close();
-    ok("本机存储：最近的存档在存储里找不到了 → 标成丢失、退回更早的存档（控制中心记一笔）；全没了就从头算；不再一直发同一个坏存档");
+    ok("本机存储：最近的存档在存储里找不到了 → 标成丢失、退回更早的存档（控制中心记一笔）；全没了就从头算。根上：上传名字每次不同、没存上的存档 / 结果不让登记");
   }
 
   // ---------- 腾讯云 COS（混合存储）：只有确定的 404 才算丢了；COS 出错 / 连不上照旧发 ----------

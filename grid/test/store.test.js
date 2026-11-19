@@ -56,12 +56,14 @@ process.env.NO_PROXY = process.env.no_proxy = "127.0.0.1,localhost";
   const r0 = await fetch(fix(og)); assert.equal(r0.status, 200); assert.ok(Buffer.from(await r0.arrayBuffer()).equals(oldBody));
   ok("以前存在本机的文件照旧能下");
 
-  // 4. 同名重传：本机的旧副本删掉，以后读到的是 COS 上新的
+  // 4. 同名重传：拿了上传地址却没传（断网、关电脑）→ 旧的还在（以前是发地址就把旧的删了 → 两边都没有、404）；传完了以新的为准
+  const pu = app.store.url("PUT", "jobs/1/1/ckpt-100-old.pt", 600);
+  assert.ok(pu.includes(`:${port}/blob/`), "本机已经有这个名字：新的也传本机（传完一下子换掉），不先删旧的");
+  const rk = await fetch(fix(app.store.url("GET", "jobs/1/1/ckpt-100-old.pt", 600))); assert.equal(rk.status, 200, "拿了地址还没传：旧的照样能下"); assert.ok(Buffer.from(await rk.arrayBuffer()).equals(oldBody));
   const newer = crypto.randomBytes(3000), nf = path.join(tmp, "newer.pt"); fs.writeFileSync(nf, newer);
-  await Agent.xfer("PUT", app.store.url("PUT", "jobs/1/1/ckpt-100-old.pt", 600), nf);
-  assert.ok(!fs.existsSync(path.join(data, "blobs", "jobs", "1", "1", "ckpt-100-old.pt")));
-  const r1 = await fetch(app.store.url("GET", "jobs/1/1/ckpt-100-old.pt", 600)); assert.ok(Buffer.from(await r1.arrayBuffer()).equals(newer));
-  ok("同一个名字重传：以新的为准（本机的旧副本删掉）");
+  await Agent.xfer("PUT", fix(pu), nf);
+  const r1 = await fetch(fix(app.store.url("GET", "jobs/1/1/ckpt-100-old.pt", 600))); assert.ok(Buffer.from(await r1.arrayBuffer()).equals(newer));
+  ok("同一个名字重传：发上传地址时不删旧的（没传完旧的还在）；传完以新的为准");
 
   // 5. 自检：通的；策略没配写入 → 说清楚原因
   const token = app.core.adminToken();
@@ -77,7 +79,7 @@ process.env.NO_PROXY = process.env.no_proxy = "127.0.0.1,localhost";
   // 6. 控制中心看得到今天的用量
   await sleep(300);
   let d = await api("/api/admin/dl?days=1");
-  assert.equal(d.store.kind, "hybrid"); assert.ok(d.store.links >= 2 && d.store.put >= 2 && d.store.dailyGB === 20, JSON.stringify(d.store));
+  assert.equal(d.store.kind, "hybrid"); assert.ok(d.store.links >= 1 && d.store.put >= 2 && d.store.dailyGB === 20, JSON.stringify(d.store));
   assert.ok(d.store.gb >= 0.019, "按文件大小记了下载量：" + d.store.gb);
   ok(`控制中心：今天广州存储发出下载约 ${d.store.gb}G / 上限 20G，新文件 ${d.store.put} 个放广州`);
 

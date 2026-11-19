@@ -95,14 +95,26 @@ function create(opt = {}) {
       return { task: r };
     },
     "POST /api/renew": (req, b, dev) => core.renew(dev, b),
-    "POST /api/ckpt": (req, b, dev) => core.checkpoint(dev, b),
-    "POST /api/done": (req, b, dev) => core.finish(dev, b),
+    // 登记之前核对文件真的在存储里（确定不在才拒）：不让数据库里记一个根本没存上的文件
+    "POST /api/ckpt": async (req, b, dev) => { if (Store.okKey(b.key) && (await blobGone(b.key)) === true) throw new Error("存档文件在存储里找不到（没传完？）：这个存档不算，下一个存档照常交"); return core.checkpoint(dev, b); },
+    "POST /api/done": async (req, b, dev) => {
+      const keys = new Set();
+      for (const o of Array.isArray(b.outputs) ? b.outputs : []) if (o && Store.okKey(o.key) && /^jobs\//.test(o.key)) keys.add(o.key);
+      for (const v of Object.values((b.result && typeof b.result === "object") ? b.result : {})) if (typeof v === "string" && Store.okKey(v) && /^jobs\//.test(v)) keys.add(v);
+      const ks = [...keys].slice(0, 400), gone = [];
+      for (let i = 0; i < ks.length; i += 8) (await Promise.all(ks.slice(i, i + 8).map(async (k) => ((await blobGone(k)) === true ? k : null)))).forEach((k) => k && gone.push(k));
+      if (gone.length) { console.log(`任务 #${b.task} 交结果：${gone.length} 个结果文件在存储里找不到（${gone.slice(0, 3).join("、")}）：不收，重算`); throw new Error(`结果文件没存上（${gone.length} 个，比如 ${gone[0].split("/").pop()}）：这次不算，重新算一遍`); }
+      return core.finish(dev, b);
+    },
     "POST /api/fail": (req, b, dev) => core.fail(dev, b),
     // 上传：要一个临时上传链接（放在 jobs/<任务>/<小任务>/ 下面）
     "POST /api/put": (req, b, dev) => {
       const name = String(b.name || "").replace(/[^\w.\-]/g, "_").slice(0, 120);
       if (!name || !b.job) throw new Error("缺文件名");
-      const key = `jobs/${+b.job}/${b.task ? +b.task : "x"}/${b.prefix ? String(b.prefix).replace(/[^\w\-]/g, "") + "-" : ""}${name}`;
+      // 每次上传都是一个新名字（结尾加一段随机的）：同一个任务重来、两台电脑交同名文件，都不会盖掉 / 删掉已经登记的那一份
+      //   以前名字是固定的（jobs/任务/编号/out-xxx.jsonl）：同名再传时旧的会被删（见 store.js），新的没传完 → 已经登记的文件就没了（404）
+      const ext = (/\.[\w]{1,12}$/.exec(name) || [""])[0], stem = name.slice(0, name.length - ext.length);
+      const key = `jobs/${+b.job}/${b.task ? +b.task : "x"}/${b.prefix ? String(b.prefix).replace(/[^\w\-]/g, "") + "-" : ""}${stem}-${crypto.randomBytes(4).toString("hex")}${ext}`;
       return { key, url: store.url("PUT", key, 6 * 3600) };
     },
     "POST /api/get": (req, b, dev) => { if (!keyOk(b.key, dev)) throw new Error("没有权限"); return { url: store.url("GET", b.key, 3600) }; },
