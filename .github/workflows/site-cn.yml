@@ -2,9 +2,10 @@
 # 域名没有备案：桶放在「中国香港」地域（不用备案就能绑自己的域名），国内访问香港比访问 GitHub 快很多。
 # 没配 Secrets（CN_SITE_BUCKET 等）就跳过，不影响别的。
 # 需要的 Secrets（Settings → Secrets and variables → Actions）：
-#   CN_S3_ENDPOINT / CN_S3_REGION / CN_S3_KEY_ID / CN_S3_SECRET   和安装包用的同一套（见 .github/workflows/cn-upload.sh）
-#   CN_SITE_BUCKET   放网站的存储桶（单独建一个，比如 laolao-site-1250000000，访问权限「公有读私有写」，开「静态网站」）
-#   CN_SITE_ENDPOINT / CN_SITE_REGION  网站桶和安装包桶不在一个地域时填（域名没备案：网站桶放「中国香港」，填 https://cos.ap-hongkong.myqcloud.com 和 ap-hongkong）
+#   CN_SITE_BUCKET   放网站的存储桶：**一定要单独一个桶**（比如 laolao-site-1250000000，访问权限「公有读私有写」，开「静态网站」）。
+#                    最后一步会删掉桶里「仓库里没有」的文件：和安装包、捞捞算力训练文件放同一个桶，会把它们删光（2026-11-18 出过事）
+#   CN_SITE_ENDPOINT / CN_SITE_REGION  网站桶的地域（域名没备案：网站桶放「中国香港」，填 https://cos.ap-hongkong.myqcloud.com 和 ap-hongkong）
+#   CN_SITE_KEY_ID / CN_SITE_SECRET    只能读写网站桶的子用户密钥（CAM 子用户 laolao-site）；没填就用 CN_S3_KEY_ID / CN_S3_SECRET（安装包那一套）
 # 缓存：网页（.html）、版本文件（.json）、sw.js 每次都向服务器确认有没有新的；其他文件缓存 10 分钟（和 GitHub Pages 一样）。
 # CDN 的缓存配置要选「遵循源站」，不然网站更新后国内要等 CDN 自己过期。
 name: 网站国内加速
@@ -35,8 +36,8 @@ jobs:
     env:
       CN_S3_ENDPOINT: ${{ secrets.CN_SITE_ENDPOINT || secrets.CN_S3_ENDPOINT }}
       CN_S3_REGION: ${{ secrets.CN_SITE_REGION || secrets.CN_S3_REGION }}
-      CN_S3_KEY_ID: ${{ secrets.CN_S3_KEY_ID }}
-      CN_S3_SECRET: ${{ secrets.CN_S3_SECRET }}
+      CN_S3_KEY_ID: ${{ secrets.CN_SITE_KEY_ID || secrets.CN_S3_KEY_ID }}
+      CN_S3_SECRET: ${{ secrets.CN_SITE_SECRET || secrets.CN_S3_SECRET }}
       CN_SITE_BUCKET: ${{ secrets.CN_SITE_BUCKET }}
       CN_S3_BUCKET: ${{ secrets.CN_S3_BUCKET }}
     steps:
@@ -88,8 +89,16 @@ jobs:
             --cache-control "no-cache" --only-show-errors
           # 4. 删掉仓库里已经没有的文件（放在最后：新文件都传完了才删旧的，访问不会断）
           #    网站和安装包 / 训练文件在同一个桶里：不删（多留几个旧网页文件没关系；删错了训练文件、安装包就麻烦了）
+          #    再保险一道：桶里有不是网站的东西（训练文件、AI 镜像、安装包）也不删——不管 Secrets 怎么填的
+          OTHER=""
+          for pre in grid/jobs/ grid/logs/ ai/ grid/LaolaoGrid ppt/LaolaoPPT code/LaolaoCode desktop/ android/; do
+            n=$(aws s3api list-objects-v2 --bucket "$CN_SITE_BUCKET" $EP --prefix "$pre" --max-keys 1 --query 'KeyCount' --output text 2>/dev/null || echo "?")
+            if [ "$n" != "0" ]; then OTHER="$OTHER $pre($n)"; fi
+          done
           if [ -n "$CN_S3_BUCKET" ] && [ "$CN_S3_BUCKET" = "$CN_SITE_BUCKET" ]; then
             echo "::warning::网站和安装包、训练文件在同一个存储桶里：只上传不删除（建议给网站单独建一个桶，填 CN_SITE_BUCKET）"
+          elif [ -n "$OTHER" ]; then
+            echo "::warning::网站桶里有不是网站的文件（$OTHER），或者查不了：只上传不删除。网站要放单独的桶"
           else
             aws s3 sync . "$S3" $EP "${SKIP[@]}" --delete --size-only --only-show-errors
           fi
