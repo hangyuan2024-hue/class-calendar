@@ -338,20 +338,37 @@ function open(file, opt = {}) {
         }
       } catch (e) {}
     }
+    const rs = resumeOf(t, j);
+    if (rs) out.resume = rs;
+    return out;
+  }
+  // 从哪个存档接着算：最近的那个（存储里找不到、标成 lost 的不算）
+  function resumeOf(t, j) {
     if (j.kind === "relay") {
       const c = one("select * from ckpts where job_id=? and kind='relay' order by step desc, id desc limit 1", j.id);
-      if (c) out.resume = { key: c.key, step: c.step };
+      if (c) return { key: c.key, step: c.step };
     }
     // 一个人算的大任务（比如训练答题大脑，几个小时）：配方存过档的，换电脑 / 重来时从最近的存档接着算，不从头来
     if (j.kind === "map") {
       const c = one("select * from ckpts where task_id=? and kind='part' order by step desc, id desc limit 1", t.id);
-      if (c) out.resume = { key: c.key, step: c.step };
+      if (c) return { key: c.key, step: c.step };
     }
     if (j.kind === "diloco") {
       const c = one("select * from ckpts where job_id=? and kind='global' and round=? order by id desc limit 1", j.id, t.round);
-      if (c) out.resume = { key: c.key, round: c.round };
+      if (c) return { key: c.key, round: c.round };
     }
-    return out;
+    return null;
+  }
+  // 存档在存储里找不到了（调度中心自己核对过，是确定的 404）：标成 lost，以后不再发给任何电脑；返回下一个能用的（更早的存档，没有就 null = 从头算）
+  //   以前：一直把这个坏存档发出去，每台电脑都「下载失败 404」、过几分钟再领、再失败，整个训练卡死
+  function lostCkpt(taskId, key) {
+    const t = one("select * from tasks where id=?", taskId); if (!t) return null;
+    const j = one("select * from jobs where id=?", t.job_id);
+    const c = one("select * from ckpts where key=? order by id desc limit 1", key);
+    run("update ckpts set kind='lost-'||kind where key=? and kind not like 'lost-%'", key);
+    const next = resumeOf(t, j);
+    event("ckpt", `「${j.name}」的存档${c && c.step != null ? `（第 ${c.step} 步）` : ""}在存储里找不到了：${next ? `退回${next.step != null ? `第 ${next.step} 步` : "上一个"}的存档接着算` : "没有更早的存档，这一轮从头算"}`, { job: j.id });
+    return next;
   }
   function mine(dev, taskId) {
     const t = one("select * from tasks where id=?", taskId);
@@ -670,7 +687,7 @@ function open(file, opt = {}) {
 
   return {
     db, kv, event, on: (f) => (listeners.add(f), () => listeners.delete(f)),
-    adminToken, isAdmin, invite, join, auth, heartbeat, addRecipe, stage, createJob, lease, renew, checkpoint, finish, fail, sweep,
+    adminToken, isAdmin, invite, join, auth, heartbeat, addRecipe, stage, createJob, lease, renew, checkpoint, lostCkpt, finish, fail, sweep,
     humanNext, humanDone, reviewNext, vote, cut, retire, addTasks, dataset, importVoice, voiceData, voices, addMember, laneDevice, sendCommand, commandDone, commandsOf, stats, deviceLogs, overview, jobDetail, devicesView, board, setJob, setDevice, retry,
     recipe: (id) => one("select * from recipes where id=?", id), recipes: () => all("select id,name,meta,created from recipes order by created desc"),
     review: (id) => one("select * from reviews where id=?", id),

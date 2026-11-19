@@ -64,14 +64,29 @@ function create(opt = {}) {
     return out;
   };
 
+  // 存储里确定没有这个文件：true；在：false；说不准（网络问题、没权限）：null —— 说不准的时候当作还在，不随便扔存档
+  async function blobGone(key) {
+    try {
+      if (local.exists(key)) return false;
+      if (!remote || store.kind === "local") return true;
+      const r = await fetch(remote.url("HEAD", key, 300), { method: "HEAD", signal: AbortSignal.timeout(15000) });
+      return r.status === 404 ? true : r.ok ? false : null;
+    } catch (e) { return null; }
+  }
   const routes = {
     // ---- 不用登录 ----
     "GET /api/ping": () => ({ ok: true, name: "捞捞算力", time: Date.now(), store: store.kind }),
     "POST /api/join": async (req, b) => core.join(b),
     // ---- 电脑（成员） ----
     "POST /api/hb": (req, b, dev) => core.heartbeat(dev, b),
-    "POST /api/lease": (req, b, dev) => {
+    "POST /api/lease": async (req, b, dev) => {
       const r = core.lease(dev, b.caps || {});
+      // 发存档之前先核对它在存储里还在：确定不在了（404）就标掉、退回更早的存档（或者从头算），不让所有电脑一起卡在同一个 404 上
+      for (let i = 0; r && r.resume && i < 8; i++) {
+        if ((await blobGone(r.resume.key)) !== true) break;
+        console.log(`任务 #${r.task.id} 的存档 ${r.resume.key} 在存储里找不到了：标成丢失，换更早的存档`);
+        r.resume = core.lostCkpt(r.task.id, r.resume.key);
+      }
       if (r && r.recipe) r.recipe.url = store.url("GET", r.recipe.key, 3600);
       if (r && r.resume) r.resume.url = store.url("GET", r.resume.key, 12 * 3600);   // 存档几百 M，网慢时要下很久：链接给 12 小时，别下到一半过期
       if (r && r.deps) for (const d of Object.values(r.deps)) d.outputs = (d.outputs || []).map((o) => ({ ...o, url: store.url("GET", o.key, 6 * 3600) }));
