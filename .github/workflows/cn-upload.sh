@@ -10,7 +10,7 @@
 #   CN_S3_KEY_ID / CN_S3_SECRET  访问密钥（建议单独建一个只能写这个桶的子账号）
 #   CN_DL_BASE      下载地址前缀：填 https://dl.laolaokechengbiao.cn/dl（调度中心的「下载门口」，只给中国大陆、按量刹车）。
 #                   不要再填桶的公开地址：桶已经改成私有读，那种链接打不开，而且公开链接谁都能下、会被刷流量
-# 同一个前缀下只留最新的 3 个版本（捞捞编程 1 个），省存储费。
+# 同一种安装包只留最新的 3 个版本（捞捞编程 2 个），省存储费（见 cn-clean.sh：只删同名不同版本的，文件夹里别的东西不碰）。
 set -uo pipefail
 # 捞捞编程约 1.5GB：留最新 2 个版本（其他留 3 个）。只留 1 个时，刚发新版就把上一版删了，
 # 正在下载 / 刚检查过更新的人会拿到 NoSuchKey（App 会换别的线路，但浏览器里直接打开的链接就 404 了）
@@ -72,10 +72,6 @@ rm -f "$ERR"
 echo "用了 $(( $(date +%s) - T0 )) 秒" >&2
 if [ -z "$ok" ] && [ -n "$GATE" ]; then echo "::notice::这次没直接传上国内存储：调度中心会在 10 分钟内从 GitHub 搬过去，搬好之前下载门口先转 GitHub" >&2; echo "${CN_DL_BASE%/}/$KEY"; exit 0; fi
 if [ -z "$ok" ]; then echo "::warning::上传到国内存储失败（原因见上面几行），这次 App 更新会改从网站 download/ 或 GitHub 下载" >&2; echo ""; exit 0; fi
-# 清理：同一个文件夹里按时间只留最新 3 个
-DIR="${KEY%/*}/"
-aws s3api list-objects-v2 --bucket "$CN_S3_BUCKET" --prefix "$DIR" --endpoint-url "$CN_S3_ENDPOINT" --query 'sort_by(Contents,&LastModified)[].Key' --output text 2>/dev/null \
-  | tr '\t' '\n' | grep -v '^None$' | head -n -"$KEEP" | while read -r old; do
-    [ -n "$old" ] && [ "$old" != "$KEY" ] && aws s3 rm "s3://$CN_S3_BUCKET/$old" --endpoint-url "$CN_S3_ENDPOINT" --only-show-errors >&2
-  done
+# 清理：同一种安装包只留最新几个（只删名字一样、版本号不同的；文件夹里别的东西不碰——grid/ 下面还有捞捞算力的训练文件）
+CN_S3_BUCKET="$CN_S3_BUCKET" CN_S3_ENDPOINT="$CN_S3_ENDPOINT" bash "$(dirname "$0")/cn-clean.sh" "$KEY" "$KEEP"
 echo "${CN_DL_BASE%/}/$KEY"
