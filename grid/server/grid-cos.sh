@@ -19,13 +19,27 @@ if [ "${1:-}" = "--off" ]; then
   exit 0
 fi
 
-# 存储桶、地域默认和下载门口（DL_COS_*）用的一样
-BUCKET_DEF=$(get DL_COS_BUCKET); BUCKET_DEF=${BUCKET_DEF:-laolao-1518432293}
-REGION_DEF=$(get DL_COS_REGION); REGION_DEF=${REGION_DEF:-ap-guangzhou}
-echo "训练文件放广州存储，要一把「只能读写训练文件夹」的密钥（腾讯云 访问管理 → 新建子用户 laolao-grid-store，按说明贴自定义策略）。"
-read -r -p "SecretId：" KID; read -r -s -p "SecretKey（输入时不显示）：" KSEC; echo
+# 训练文件放单独的桶（laolao-grid-APPID），不要和安装包（DL_COS_BUCKET）放一个桶：
+#   2026-11-18/19 出过事——打包后清理旧安装包时，把同一个桶 grid/ 文件夹里的训练文件全删了
+DLB=$(get DL_COS_BUCKET); DLB=${DLB:-laolao-1518432293}
+CUR=$(get GRID_COS_BUCKET)
+if [ -n "$CUR" ] && [ "$CUR" != "$DLB" ]; then BUCKET_DEF=$CUR; else BUCKET_DEF="laolao-grid-${DLB##*-}"; fi
+REGION_DEF=$(get GRID_COS_REGION); REGION_DEF=${REGION_DEF:-$(get DL_COS_REGION)}; REGION_DEF=${REGION_DEF:-ap-guangzhou}
+echo "训练文件放广州存储，要一把「只能读写训练文件夹」的密钥（腾讯云 访问管理 → 子用户 laolao-grid-store，策略见 grid-store-policy.json）。"
+OLD_KID=$(get GRID_COS_KEY_ID); OLD_KSEC=$(get GRID_COS_SECRET)
+if [ -n "$OLD_KID" ]; then
+  read -r -p "SecretId（直接回车 = 继续用现在这把 ${OLD_KID:0:6}…）：" KID
+  if [ -z "$KID" ]; then KID=$OLD_KID; KSEC=$OLD_KSEC; else read -r -s -p "SecretKey（输入时不显示）：" KSEC; echo; fi
+else
+  read -r -p "SecretId：" KID; read -r -s -p "SecretKey（输入时不显示）：" KSEC; echo
+fi
+unset OLD_KSEC
 if [ -z "$KID" ] || [ -z "$KSEC" ]; then echo "没输入，什么都没改"; exit 1; fi
 read -r -p "存储桶名字（直接回车 = $BUCKET_DEF）：" BUCKET; BUCKET=${BUCKET:-$BUCKET_DEF}
+if [ "$BUCKET" = "$DLB" ]; then
+  echo "注意：$BUCKET 是放安装包的桶。训练文件和安装包放一起，以前被打包后的清理误删过，建议用单独的桶（$BUCKET_DEF）。"
+  read -r -p "还是要用 $BUCKET 吗？（输入 yes 继续，直接回车 = 不改）：" Y; [ "$Y" = "yes" ] || { echo "什么都没改"; exit 1; }
+fi
 read -r -p "地域（直接回车 = $REGION_DEF）：" REGION; REGION=${REGION:-$REGION_DEF}
 read -r -p "每天最多让大家从广州存储下多少 G（超了新文件先存这台服务器，第二天恢复；直接回车 = 20，约 10 元）：" CAP; CAP=${CAP:-20}
 case "$CAP" in ''|*[!0-9]*) echo "上限要填数字"; exit 1;; esac

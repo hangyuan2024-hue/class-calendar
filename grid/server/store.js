@@ -33,7 +33,8 @@ function local(dir, secret, base) {
 }
 
 // AWS SigV4 查询串预签名（COS 的 S3 兼容接口一样用）
-function presign({ endpoint, region, bucket, keyId, secret, method, key, ttl = 3600, now = new Date(), virtual = true }) {
+// headers：要一起签名的请求头（比如存储桶之间复制用的 x-amz-copy-source）；不给就只签 host（和以前一样）
+function presign({ endpoint, region, bucket, keyId, secret, method, key, ttl = 3600, now = new Date(), virtual = true, headers = null }) {
   const u = new URL(endpoint);
   const host = virtual ? `${bucket}.${u.host}` : u.host;
   const p = (virtual ? "" : `/${bucket}`) + "/" + key.split("/").map((s) => encodeURIComponent(s).replace(/[!'()*]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase())).join("/");
@@ -47,9 +48,12 @@ function presign({ endpoint, region, bucket, keyId, secret, method, key, ttl = 3
     "X-Amz-Expires": String(ttl),
     "X-Amz-SignedHeaders": "host",
   };
+  const hs = Object.entries(headers || {}).map(([k, v]) => [String(k).toLowerCase().trim(), String(v).trim()]).sort((a, b) => (a[0] < b[0] ? -1 : 1));
+  if (hs.length) q["X-Amz-SignedHeaders"] = ["host", ...hs.map((x) => x[0])].sort().join(";");
   const enc = (s) => encodeURIComponent(s).replace(/[!'()*]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase());
   const qs = Object.keys(q).sort().map((k) => `${enc(k)}=${enc(q[k])}`).join("&");
-  const creq = [method, p, qs, `host:${host}`, "", "host", "UNSIGNED-PAYLOAD"].join("\n");
+  const canon = [["host", host], ...hs].sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([k, v]) => `${k}:${v}\n`).join("");
+  const creq = [method, p, qs, canon, q["X-Amz-SignedHeaders"], "UNSIGNED-PAYLOAD"].join("\n");
   const sts = ["AWS4-HMAC-SHA256", amzDate, scope, crypto.createHash("sha256").update(creq).digest("hex")].join("\n");
   const h = (k, d) => crypto.createHmac("sha256", k).update(d).digest();
   const kSig = h(h(h(h("AWS4" + secret, day), region), "s3"), "aws4_request");
@@ -60,10 +64,10 @@ function presign({ endpoint, region, bucket, keyId, secret, method, key, ttl = 3
 function cos(cfg) {
   const prefix = (cfg.prefix || "grid").replace(/\/+$/, "");
   return {
-    kind: "cos",
-    url(method, key, ttl = 3600) {
+    kind: "cos", bucket: cfg.bucket, prefix,
+    url(method, key, ttl = 3600, headers = null) {
       if (!okKey(key)) throw new Error("文件名不对：" + key);
-      return presign({ endpoint: cfg.endpoint, region: cfg.region, bucket: cfg.bucket, keyId: cfg.keyId, secret: cfg.secret, method, key: `${prefix}/${key}`, ttl, virtual: !cfg.pathStyle });
+      return presign({ endpoint: cfg.endpoint, region: cfg.region, bucket: cfg.bucket, keyId: cfg.keyId, secret: cfg.secret, method, key: `${prefix}/${key}`, ttl, virtual: !cfg.pathStyle, headers });
     },
   };
 }

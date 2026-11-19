@@ -1,0 +1,21 @@
+{
+  "version": "2.0",
+  "statement": [
+    {
+      "effect": "allow",
+      "action": ["cos:PutObject", "cos:GetObject", "cos:HeadObject"],
+      "resource": [
+        "qcs::cos:ap-guangzhou:uid/1518432293:laolao-grid-1518432293/grid/jobs/*",
+        "qcs::cos:ap-guangzhou:uid/1518432293:laolao-grid-1518432293/grid/logs/*"
+      ]
+    },
+    {
+      "effect": "allow",
+      "action": ["cos:GetObject", "cos:HeadObject"],
+      "resource": [
+        "qcs::cos:ap-guangzhou:uid/1518432293:laolao-1518432293/grid/jobs/*",
+        "qcs::cos:ap-guangzhou:uid/1518432293:laolao-1518432293/grid/logs/*"
+      ]
+    }
+  ]
+}
