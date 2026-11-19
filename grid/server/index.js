@@ -73,6 +73,33 @@ function create(opt = {}) {
       return r.status === 404 ? true : r.ok ? false : null;
     } catch (e) { return null; }
   }
+  // 看门狗：广州存储里放一个小文件，每 20 分钟看一眼还在不在。捞捞算力自己从来不删训练文件，它不见了 = 有别的程序在删这个桶里的东西
+  //   （2026-11-18 出过事：网站国内加速的同步带 --delete，网站桶和训练文件是同一个桶，每次同步把 grid/jobs/ 全删了，过了一天才发现）
+  //   → 控制中心的动态里报警、服务器日志里写清楚，再放一个新的接着看
+  const CANARY = "jobs/_canary/keep-me.txt";
+  let canaryPlanted = false;
+  async function canary() {
+    if (!remote) return { skip: true };
+    let r = null;
+    try { r = await fetch(remote.url("HEAD", CANARY, 300), { method: "HEAD", signal: AbortSignal.timeout(15000) }); } catch (e) { return { unsure: true }; }
+    if (r.ok) { canaryPlanted = true; return { ok: true }; }
+    if (r.status !== 404) return { unsure: true, status: r.status };
+    let alarm = false;
+    if (canaryPlanted) {
+      alarm = true;
+      const m = "警告：广州存储里的训练文件被别的程序删了（看门狗文件不见了；捞捞算力自己不删）。查一下有没有别的程序在同步 / 清理这个存储桶（比如网站同步的 --delete、桶的生命周期规则）";
+      console.log(m); try { core.event("warn", m); } catch (e) {}
+    }
+    try {
+      const body = `捞捞算力看门狗：别删我。放进来的时间 ${new Date().toISOString()}\n`;
+      const p = await fetch(remote.url("PUT", CANARY, 300), { method: "PUT", headers: { "Content-Type": "text/plain; charset=utf-8", "Content-Length": String(Buffer.byteLength(body)) }, body, signal: AbortSignal.timeout(15000) });
+      canaryPlanted = p.ok;
+    } catch (e) { /* 下次再放 */ }
+    return { alarm, planted: canaryPlanted };
+  }
+  const canaryTimer = opt.noTick || !remote ? null : setInterval(() => canary().catch(() => {}), opt.canaryMs || 20 * 60e3);
+  if (canaryTimer && canaryTimer.unref) canaryTimer.unref();
+  if (!opt.noTick && remote) setTimeout(() => canary().catch(() => {}), 10e3).unref();
   const routes = {
     // ---- 不用登录 ----
     "GET /api/ping": () => ({ ok: true, name: "捞捞算力", time: Date.now(), store: store.kind }),
@@ -358,7 +385,8 @@ function create(opt = {}) {
     core, store, server,
     listen(port, host) { return new Promise((ok) => server.listen(port, host, () => { if (!opt.public) publicBase = `http://${host === "0.0.0.0" || !host ? "127.0.0.1" : host}:${server.address().port}`; ok(server.address().port); })); },
     setPublic(u) { publicBase = u; },
-    close() { clearInterval(tickTimer); gate.close(); relay.close(); if (store.close) store.close(); server.close(); core.close(); },
+    canary,
+    close() { clearInterval(tickTimer); clearInterval(canaryTimer); gate.close(); relay.close(); if (store.close) store.close(); server.close(); core.close(); },
     gate, relay,
     cycle,
   };
