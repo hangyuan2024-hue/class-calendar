@@ -6,6 +6,8 @@
 //   （答题 LoRA 换了就重新带上它启动大模型；声音下一句就用新的），并且在界面上记一笔「成品第几版」。不用人点。
 //   · 打电话：界面上一直听着，说完一停就把这句话（wav）送到本机的听写（app/hear.js，FunASR）变成文字，再按语音通话的规矩回答；
 //     这时候大模型带的是「口语对话」LoRA（chat-lora，训练、考试通过才有；没有就还用答题 LoRA），挂了电话换回答题 LoRA
+//   · 检测报告（app/ppt/checkup.js）：头皮检测结果的统一接口——合作方接口 / 导入文件 / 捞捞自己的看图 + 问卷，插头可换；
+//     看图要大模型带上视觉组件（mmproj，约 0.8G，第一次用才下载），带上以后这次开着就一直带着（不来回重启）
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -17,13 +19,18 @@ const LLM_SPEC = { name: "Qwen3VL-4B-Instruct-Q4_K_M.gguf", mirrorModel: "llmMai
   "https://www.modelscope.cn/models/Qwen/Qwen3-VL-4B-Instruct-GGUF/resolve/master/Qwen3VL-4B-Instruct-Q4_K_M.gguf",
   "https://hf-mirror.com/Qwen/Qwen3-VL-4B-Instruct-GGUF/resolve/main/Qwen3VL-4B-Instruct-Q4_K_M.gguf",
   "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct-GGUF/resolve/main/Qwen3VL-4B-Instruct-Q4_K_M.gguf"] };
+// 看图组件（同一个模型的视觉部分）：只有检测报告看照片的时候才下载、才带上
+const MMPROJ_SPEC = { name: "mmproj-Qwen3VL-4B-Instruct-F16.gguf", mirrorModel: "llmMmproj", urls: [
+  "https://www.modelscope.cn/models/Qwen/Qwen3-VL-4B-Instruct-GGUF/resolve/master/mmproj-Qwen3VL-4B-Instruct-F16.gguf",
+  "https://hf-mirror.com/Qwen/Qwen3-VL-4B-Instruct-GGUF/resolve/main/mmproj-Qwen3VL-4B-Instruct-F16.gguf",
+  "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct-GGUF/resolve/main/mmproj-Qwen3VL-4B-Instruct-F16.gguf"] };
 
 function create(o) {
   const XZ = PPT("xiaozhi.js"), GM = PPT("gridmodels.js"), VOICE = PPT("voice.js"), MEDIA = PPT("media.js"), CHAT = PPT("chat.js");
   const emit = (e) => { try { o.send && o.send(e); } catch (x) {} };
   const log = o.log || (() => {});
   let cur = null;       // { dir, models, xz }：数据文件夹搬了就重新来
-  let speakOn = true, active = false, timer = null, url = null, lastBuild = -1, checking = null, calling = false;
+  let speakOn = true, active = false, timer = null, url = null, lastBuild = -1, checking = null, calling = false, eyes = false;
   const voice = VOICE.create({});
   const ear = (o.hearFactory || require("./hear").create)({ log: (m) => log("听写：" + m), ...(o.hearOpt || {}) });
 
@@ -37,10 +44,11 @@ function create(o) {
       onEvent: (e) => { if (e.stage === "download") emit({ type: "note", text: `有新版：正在下载「${nameOf(e.name)}」第 ${e.version} 版…` }); }, ...(o.modelsOpt || {}) });
     const llm = {
       // 每一句之前都看一眼：答题 LoRA 换了新版，就带上新版重新启动（llmw 发现 LoRA 路径变了会自己重启）；带上起不来就退回上一版
-      start: async () => {
+      start: async (opt) => {
         const say = (m) => emit({ type: "note", text: m });
+        if (opt && opt.eyes) eyes = true;
         // 文件名用组件镜像里的那个（和训练答题大脑时考试用的是同一个文件，不重复下 2.5G）
-        const spec = { ...LLM_SPEC };
+        const spec = { ...LLM_SPEC, ...(eyes ? { mmproj: MMPROJ_SPEC } : {}) };
         if (o.llmName) { try { const n = await o.llmName(); if (n && /\.gguf$/i.test(n)) spec.name = n; } catch (e) {} }
         for (let i = 0; i < 3; i++) {
           // 打电话的时候优先带口语对话 LoRA（没训练好就用答题 LoRA）；换了 LoRA，llmw 会自己重启大模型
@@ -52,7 +60,7 @@ function create(o) {
       },
       chat: (m, opt) => { try { o.llm.touch && o.llm.touch(); } catch (e) {} return CHAT.chatAt(url, m, opt); },
     };
-    const xz = XZ.create({ dir, llm, grid: models, onEvent: (e) => emit(e), now: o.now, ...(o.xzOpt || {}) });
+    const xz = XZ.create({ dir, llm, grid: models, onEvent: (e) => emit(e), now: o.now, log: (m) => log(m), ...(o.xzOpt || {}) });
     cur = { dir, models, xz };
     lastBuild = xz.product().build;
     return cur;
@@ -148,6 +156,16 @@ function create(o) {
     fuse("说完一句").catch(() => {});
     return state();
   }
+  // ---------- 检测报告（界面右边那张卡片直接点的；对话里问由捞小智调工具） ----------
+  const CK = () => S().xz.checkup;
+  async function checkupScan(a = {}) {
+    const t = o.busy ? o.busy() : null;
+    if (t && Array.isArray(a.images) && a.images.length && (a.source || CK().config().source) !== "partner") throw new Error(`这台电脑正在算「${t}」，显卡腾不出来看照片：先点「暂停计算」再测（只答问卷不用显卡）`);
+    if (S().xz.busy()) throw new Error("捞小智正在回答，等它说完再测");
+    const r = await CK().scan({ images: a.images, answers: a.answers, source: a.source });
+    return { report: r, view: CK().view() };
+  }
+
   schedule();
   return {
     state, send, speak, fuse, product, setActive, hear, setCall,
@@ -157,14 +175,17 @@ function create(o) {
     approve: async (id, ok) => { S().xz.campus.approveNext(String(id), ok !== false); return state(); },
     campusReset: async () => { S().xz.campus.reset(); S().xz.reset(); return state(); },
     lastPpt: () => S().xz.lastPpt(),
+    checkupView: (base) => CK().view({ base: base || undefined }), checkupScan, checkupConfig: (c) => CK().setConfig(c || {}),
+    checkupImport: (file) => CK().importFile(file), checkupDemo: () => CK().demo(), checkupWipe: () => CK().wipe(), checkupRemove: (id) => CK().remove(String(id)),
+    checkupPhoto: (f) => CK().photo(f),
     // PPT 预览：每一页一张 SVG（rev 没变就返回 null）；界面上直接点的换配色、撤销；打开老师自己的 .pptx 让它改
     // 考一考现在这版模型做 PPT、改 PPT 的本事（8 道题，程序核对）
     pptExam: async () => { const t = o.busy ? o.busy() : null; if (t) throw new Error(`这台电脑正在算「${t}」，显卡腾不出来：先点「暂停计算」再考`); return S().xz.pptExam(); },
     slides: (rev) => S().xz.slides(rev), pptTheme: (k) => S().xz.pptTheme(k), pptUndo: () => S().xz.pptUndo(),
     openPpt: async (file) => { if (!/\.pptx$/i.test(String(file || ""))) throw new Error("只能打开 .pptx（老版本的 .ppt 先在 PowerPoint 里另存成 .pptx）"); await S().xz.openPpt(file); return state(); },
     shutdown: () => { clearInterval(timer); try { voice.stop(); } catch (e) {} try { ear.stop(); } catch (e) {} if (cur) { try { cur.models.stop(); } catch (e) {} } tidy(); },
-    LLM_SPEC,
+    LLM_SPEC, MMPROJ_SPEC,
   };
 }
 
-module.exports = { create, LLM_SPEC };
+module.exports = { create, LLM_SPEC, MMPROJ_SPEC };

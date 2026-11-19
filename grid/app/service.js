@@ -556,6 +556,15 @@ function createService(o) {
     },
     // 装声音组件（GPT-SoVITS 整合包，几个 G）：装过就直接返回
     async showInstallVoice() { await gsv.ensure((m) => send("show", { type: "note", text: m })); return showSt(); },
+    // 检测报告：看、做一次检测、设置数据来源（合作方接口 / 捞捞自己的）、导入合作方导出的文件、演示数据、全部删除
+    showCheckup: async (base) => show.checkupView(base),
+    showCheckupScan: async (a) => show.checkupScan(a || {}),
+    showCheckupConfig: async (c) => show.checkupConfig(c),
+    async showCheckupImport() { const f = o.pickFile ? await o.pickFile(["json", "csv", "txt"], "导入检测结果（合作方导出的 JSON，或 Excel 另存的 CSV）", "检测结果") : null; if (!f) return null; const r = show.checkupImport(f); return { added: r.added, view: show.checkupView() }; },
+    async showCheckupDemo() { show.checkupDemo(); return show.checkupView(); },
+    async showCheckupWipe() { show.checkupWipe(); return show.checkupView(); },
+    async showCheckupRemove(id) { show.checkupRemove(id); return show.checkupView(); },
+    showCheckupPhoto: async (f) => show.checkupPhoto(f),
     async showFullscreen(on) { if (o.fullscreen) o.fullscreen(!!on); return !!on; },
   });
   H.taskDir = async () => { const c = agent && agent.current(); if (!c) return null; o.openPath && o.openPath(c.dir); return c.dir; };

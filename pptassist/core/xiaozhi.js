@@ -4,6 +4,8 @@
 //     （换版式、重写一页、加页删页、换配色、调字号、标重点、公式、表格、图片、备注…和「AI 改 PPT」是同一套工具），界面上实时看每一页
 //   · 办事：模拟教务后端（core/campus.js）——查课表 / 成绩 / 考试、请假、调课、借教室、选课、开证明、审批
 //   · 说话：捞捞的专属声音（或者老师自己的声音）把回复念出来；形象用老师自己的，没有就用默认的捞捞
+//   · 检测报告（core/checkup.js）：头皮检测的结果统一成一种报告（合作方接口 / 导入文件 / 捞捞自己的看图 + 问卷，插头可换），
+//     能查最近一次、和上周比、看某一项的变化
 //   「成品第几版」= 这几样各自的版本合起来；哪一样出了新版（捞捞算力训练、考试通过、发布），这里自动换上、记一笔
 "use strict";
 const fs = require("fs");
@@ -12,6 +14,7 @@ const AGENT = require("./agent");
 const EDIT = require("./pptedit");
 const DECK = require("./deck");
 const CAMPUS = require("./campus");
+const CHECKUP = require("./checkup");
 
 const PARTS = [
   { key: "qa-lora", name: "学术问答", what: "答题大脑：一步一步讲题", metric: "acc", metricName: "考试答对率", base: "base_acc" },
@@ -38,6 +41,15 @@ function create(o) {
   let voiceMode = false;   // 打电话：说的话都会被念出来，按 SPOKEN 的规则说
   const actor = () => { const I = campus.identities(); return I[role] || I.student; };
   const outDir = path.join(dir, "ppt"), LAST = path.join(outDir, "last.json");
+  // 检测报告：本机看图用同一个大模型（能看图的那版要带视觉组件，llm.start({ eyes: true })）
+  let lastImgs = [];
+  const look = o.look || (async (imgs, prompt) => {
+    if (o.llm.look) return o.llm.look(imgs, prompt);
+    await o.llm.start({ eyes: true });
+    const r = await o.llm.chat([{ role: "user", content: [...imgs.map((u) => ({ type: "image_url", image_url: { url: u } })), { type: "text", text: prompt }] }], { temperature: 0.1, maxTokens: 700 });
+    return r.content || "";
+  });
+  const checkup = o.checkup || CHECKUP.create({ dir, now, look, log: o.log });
 
   // ---------- PPT：从头做一份、接着改、打开老师自己的 ----------
   // cur：现在手上的这一份 { d: 编辑器（core/pptedit.js）, file, title, pages, rev: 每存一次加一（界面看它变没变） }
@@ -117,27 +129,30 @@ function create(o) {
   // 这一句带哪些工具（4B 的模型上下文有限，三十多个工具全带上它既慢又容易选错）：
   //   手上没有 PPT：做 PPT + 教务；手上有：说的是 PPT 的事带改 PPT 的那一套，说的是教务的事带教务的，分不清就都带
   let lastKind = "";
-  function pick(text) {
-    const names = new Set(["make_ppt"]), ppt = RE_PPT.test(text), cam = RE_CAMPUS.test(text);
-    // 两样都没提（「再简单一点」「好的」）：接着上一句说的那件事
-    const kind = ppt && cam ? "both" : ppt ? "ppt" : cam ? "campus" : lastKind || (cur ? "ppt" : "campus");
+  //   说的是检测报告（头皮、比上周有什么进步…）或者发来了照片说头发的事：带检测的工具
+  function pick(text, imgs) {
+    const names = new Set(["make_ppt"]), ppt = RE_PPT.test(text), cam = RE_CAMPUS.test(text), chk = checkup.RE.test(text) || !!(imgs && imgs.length && /头|发/.test(text));
+    // 都没提（「再简单一点」「好的」）：接着上一句说的那件事
+    const kind = [ppt && "ppt", cam && "campus", chk && "check"].filter(Boolean).join("+") || lastKind || (cur ? "ppt" : "campus");
     lastKind = kind;
-    if (cur && kind !== "campus") for (const n of PPT_NAMES) names.add(n);
-    if (!cur || kind !== "ppt") for (const t of campusTools) names.add(t.name);
+    const has = (k) => kind.split("+").includes(k);
+    if (cur && (has("ppt") || (!has("campus") && !has("check")))) for (const n of PPT_NAMES) names.add(n);
+    if (has("campus") || (!cur && !has("check"))) for (const t of campusTools) names.add(t.name);
+    if (has("check")) for (const t of checkTools) names.add(t.name);
     return names;
   }
   const SYS = (names) => {
     const w = campus.who(actor());
     const t = now(), tm = new Date(t); tm.setDate(tm.getDate() + 1);
     const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    const hasEdit = !names || names.has("edit_slide"), hasCampus = !names || campusTools.some((x) => names.has(x.name));
+    const hasEdit = !names || names.has("edit_slide"), hasCampus = !names || campusTools.some((x) => names.has(x.name)), hasCheck = !names || checkTools.some((x) => names.has(x.name));
     return `你是「捞小智」，捞捞课程表的校园智能体：会讲题、会做 PPT 和改 PPT、会帮师生办教务的事。你在这台电脑上运行，不联网。
 
 现在和你说话的是：${w.role} ${w.name}（${w.role === "学生" ? `学号 ${w.id}，${w.class}` : w.role === "教师" ? `工号 ${w.id}，${w.dept}${w.counselor_of && w.counselor_of.length ? "，" + w.counselor_of.join("、") + "辅导员" : ""}` : "教务处"}）。
 今天是 ${w.today} ${w.weekday}，${w.term}第 ${w.week} 周；明天是 ${ymd(tm)}。
 ${cur ? `现在手上的 PPT：「${cur.title}」，一共 ${cur.pages} 页（界面上能看到每一页）。对方说「这一页」「改一下」「换个颜色」指的就是它。` : "现在手上还没有 PPT。"}
 
-你会三类事，按对方说的挑：
+你会${hasCheck ? "四" : "三"}类事，按对方说的挑：
 一、讲题和学术问题：直接回答。一步一步讲清楚，每一步说明为什么；算式写清楚，公式用 LaTeX（$...$）；最后给出答案。不知道的就说不知道，不要编。
 二、PPT：
    · 对方要「做一份 PPT / 课件」→ 先想好整份怎么讲，再调用 make_ppt 一次做完。一般 8～12 页（对方说了几页就按他说的）：开头一页讲「这节课学什么」，中间按 2～3 个部分讲（每部分可以用 section 开头），结尾一页 summary 小结。
@@ -152,15 +167,23 @@ ${hasCampus ? `三、办教务的事（课表、成绩、考试、请假、调�
    · 提交以后，把申请编号、现在到哪一步（谁审批）、要注意的事（缺哪些课、有没有考试、要补什么材料）告诉对方。
    · 工具报错了，把原因照实告诉对方，再给一个能办成的办法。
    · 只办现在这个人有权限办的事；别人的成绩、别人的申请不能看、不能改。` : "三、办教务的事（课表、成绩、请假、调课、借教室…）：对方问到再办。"}
-
+${hasCheck ? `四、${checkup.profile.name}报告（${checkup.profile.dims.map((d) => d.name).join("、")}）：必须调用工具去查，不要编等级、日期和变化。
+   · 问「最近测得怎么样」→ checkup_latest；问「比上周有什么进步 / 要调整什么」→ checkup_compare；问某一项的变化 → checkup_trend；问以前测过几次 → checkup_history。
+   · 要自测：先 checkup_quiz 拿题目，一题一题问，答完调 checkup_scan；对方这次发来了头皮照片，也调 checkup_scan。
+   · 回答先说结论：哪几项进步了、哪几项要注意；再给一两条日常护理建议（工具结果里有 advice 就照着说）。
+   · 结果里有 demo 就说明「这是演示数据」；有 fallback 就照实说这次用的是哪种分析；有 mixed 就提醒两次来源不同、仅供参考。
+   · 这是护理参考，不是医学诊断：不要说得了什么病，不要推荐药品；有重度、疼痛或者掉发很多，建议去看皮肤科医生。
+` : ""}
 回答用简体中文，口语化、简短；不要输出 JSON 和代码（公式的 LaTeX、讲题时的代码除外）。${voiceMode ? `\n\n${SPOKEN}\n（上面讲题、PPT、教务的规则照旧；只是说的话要按语音通话来：不写 LaTeX、不列条目、不长篇大论。）` : ""}`;
   };
   const campusTools = campus.tools(actor);
+  const checkTools = checkup.tools(() => lastImgs);
   const tools = [
     { name: "make_ppt", desc: "按要求从头做一份新的 PPT（.pptx）。title 整份的标题，subtitle 副标题（课程、章节），theme 配色（" + Object.entries(DECK.THEMES).map(([k, v]) => `${k} ${v.name}`).join(" / ") + "，不写用 blue），slides 每一页（封面不用写，会自动加）",
       params: { title: { type: "string" }, subtitle: { type: "string" }, theme: { type: "string", enum: Object.keys(DECK.THEMES) }, slides: { type: "array", items: { type: "object", properties: AGENT.PAGE } } }, req: ["title", "slides"], changes: true,
       say: (a) => `做一份 PPT「${a.title || ""}」（${Array.isArray(a.slides) ? a.slides.length + 1 : "?"} 页）`, run: makePpt },
     ...campusTools,
+    ...checkTools,
   ];
   const isPpt = new Set(PPT_NAMES);
   let tap = null;       // 考试的时候看它调了哪些工具
@@ -225,9 +248,9 @@ ${hasCampus ? `三、办教务的事（课表、成绩、考试、请假、调�
   }
 
   return {
-    send: async (text, images) => { await boot; return agent.send(text, images); }, stop: () => agent.stop(), reset: () => agent.reset(), busy: () => agent.busy(), history: () => agent.history(),
+    send: async (text, images) => { await boot; lastImgs = Array.isArray(images) ? images.slice(0, 6) : []; return agent.send(text, images); }, stop: () => agent.stop(), reset: () => agent.reset(), busy: () => agent.busy(), history: () => agent.history(),
     setRole(r) { if (!["student", "teacher", "staff"].includes(r)) throw new Error("身份只有：学生、教师、教务员"); if (r !== role) { role = r; lastKind = ""; agent.reset(); } return who(); },
-    who, product, campus, makePpt, openPpt, lastPpt, slides, pptTheme, pptUndo, pptExam, lastExam, pick, tools, ready: () => boot, deck: () => (cur ? cur.d : null),
+    who, product, campus, checkup, makePpt, openPpt, lastPpt, slides, pptTheme, pptUndo, pptExam, lastExam, pick, tools, ready: () => boot, deck: () => (cur ? cur.d : null),
     // 打电话模式：开着时每一句都按语音通话的规则说
     setVoice(v) { voiceMode = !!v; return voiceMode; }, voice: () => voiceMode,
   };

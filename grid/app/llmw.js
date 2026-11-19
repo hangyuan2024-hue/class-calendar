@@ -43,11 +43,11 @@ function create(o) {
     urls = [...mirrored, ...urls];
     if (!urls.length) throw new Error("任务没给模型的下载地址");
     let last = 0;
-    say(`下载本地大模型 ${name}（第一次，约 ${spec.size ? (spec.size / 1e9).toFixed(1) + "G" : "几个 G"}；断了会接着下）`);
+    say(`下载${spec.label || "本地大模型"} ${name}（第一次，约 ${spec.size ? (spec.size / 1e9).toFixed(1) + "G" : "几个 G"}；断了会接着下）`);
     await DL.download(urls, f, { want: { size: spec.size || 0, sha256: spec.sha256 || "" }, onProg: (p) => {
       if (!p.got || Date.now() - last < 3000) return; last = Date.now();
       const pct = p.total ? Math.floor((p.got / p.total) * 100) : 0;
-      say(`下载本地大模型：${pct}%${p.speed ? `，${(p.speed / 1e6).toFixed(1)}M/秒` : ""}`);
+      say(`下载${spec.label || "本地大模型"}：${pct}%${p.speed ? `，${(p.speed / 1e6).toFixed(1)}M/秒` : ""}`);
     } });
     return f;
   }
@@ -81,6 +81,7 @@ function create(o) {
     if (!lite) args.push("-ctk", "q8_0", "-ctv", "q8_0");   // 省一半显存（8G 显卡上下文才放得下）；不支持就退回去
     if (dev && !lite) args.push("--device", dev);
     if (spec.lora && fs.existsSync(spec.lora)) args.push("--lora", spec.lora);   // 训练好的 LoRA（考试用）
+    if (spec.mmFile) args.push("--mmproj", spec.mmFile);   // 看图要的视觉组件（spec.mmproj：Qwen3-VL 的 mmproj，约 0.8G；只有要看图时才带）
     const p = doSpawn(exe, args, { cwd: path.dirname(exe), windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
     let tail = "";
     const keep = (d) => { tail = (tail + d.toString("utf8")).slice(-2000); };
@@ -93,17 +94,18 @@ function create(o) {
   async function ensure(spec, say = () => {}) {
     if (!ok()) throw new Error("这台电脑的客户端里没有 llama.cpp（更新到新版客户端）");
     if (starting) await starting.catch(() => {});
-    const key = safe(spec.name) + "|" + (spec.ctx || "") + "|" + (spec.slots || "") + "|" + (spec.lora || "");
+    const key = safe(spec.name) + "|" + (spec.ctx || "") + "|" + (spec.slots || "") + "|" + (spec.lora || "") + "|" + (spec.mmproj ? safe(spec.mmproj.name) : "");
     if (child && cur === key && (await ping(port))) { bump(); return `http://127.0.0.1:${port}`; }
     starting = (async () => {
       const file = await fetchModel(spec, say);
+      const mmFile = spec.mmproj ? await fetchModel({ label: "看图组件", ...spec.mmproj }, say) : null;
       stop();
       if (o.beforeStart) await o.beforeStart();   // 关掉 ComfyUI，让出显存
       const dev = await listDevices();
       if (dev) say(`用独立显卡（${dev}）`);
       for (const lite of [false, true]) {
         say(lite ? "换一种省事的方式再启动一次…" : "启动本地大模型（把模型放进显卡，大约半分钟）");
-        child = launch(file, spec, lite, dev);
+        child = launch(file, { ...spec, mmFile }, lite, dev);
         const c = child;
         let dead = false;
         c.on("exit", () => { dead = true; if (child === c) child = null; });

@@ -133,6 +133,13 @@
             <div id="shPptName" class="muted small">还没有 PPT：让它做一份，或者打开一份让它改</div>
             <div class="btns" id="shPptBtns" hidden><button class="btn small primary" id="shPptShow">看 PPT</button><button class="btn small" id="shPptOpen" title="用 PowerPoint / WPS 打开">打开</button><button class="btn small" id="shPptDir" title="在文件夹里看">文件夹</button></div>
           </div>
+          <div class="glass sh-card" id="ckCard">
+            <div class="sh-card-h"><b id="ckTitle">检测报告</b><span class="grow"></span><button class="btn small primary" id="ckScanBtn" title="传头皮照片、答几道自测题；按设置走合作方接口或者捞捞自己的分析">做一次检测</button><button class="btn small" id="ckImport" title="导入合作方导出的结果（JSON，或 Excel 另存的 CSV）">导入</button><button class="btn small" id="ckSetBtn">设置</button></div>
+            <div id="ckBody" class="muted small">加载中…</div>
+            <div id="ckScan" hidden></div>
+            <div id="ckSet" hidden></div>
+            <div class="muted small ck-foot" id="ckFoot"></div>
+          </div>
           <div class="glass sh-card">
             <div class="sh-card-h"><b>教务系统（模拟）</b><span class="grow"></span><button class="btn small" id="shCampusReset">恢复原样</button></div>
             <div class="muted small" id="shCampus"></div>
@@ -320,6 +327,7 @@
 <script src="vendor/three/three.min.js"></script>
 <script src="zhi3d.js"></script>
 <script src="deckview.js"></script>
+<script src="checkup.js"></script>
 <script src="show.js"></script>
 </body>
 </html>
