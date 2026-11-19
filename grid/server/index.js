@@ -74,7 +74,7 @@ function create(opt = {}) {
     } catch (e) { return null; }
   }
   // 看门狗：广州存储里放一个小文件，每 20 分钟看一眼还在不在。捞捞算力自己从来不删训练文件，它不见了 = 有别的程序在删这个桶里的东西
-  //   （2026-11-18 出过事：网站国内加速的同步带 --delete，网站桶和训练文件是同一个桶，每次同步把 grid/jobs/ 全删了，过了一天才发现）
+  //   （2026-11-18 出过事：打包上传安装包后的清理（.github/workflows/cn-upload.sh）按「grid/ 文件夹只留最新 3 个」删，把 grid/jobs/ 的训练文件全删了，过了一天才发现）
   //   → 控制中心的动态里报警、服务器日志里写清楚，再放一个新的接着看
   const CANARY = "jobs/_canary/keep-me.txt";
   let canaryPlanted = false;
@@ -87,7 +87,7 @@ function create(opt = {}) {
     let alarm = false;
     if (canaryPlanted) {
       alarm = true;
-      const m = "警告：广州存储里的训练文件被别的程序删了（看门狗文件不见了；捞捞算力自己不删）。查一下有没有别的程序在同步 / 清理这个存储桶（比如网站同步的 --delete、桶的生命周期规则）";
+      const m = "警告：广州存储里的训练文件被别的程序删了（看门狗文件不见了；捞捞算力自己不删）。查一下有没有别的程序在清理 / 同步这个存储桶（打包后清理旧安装包的脚本、带 --delete 的同步、桶的生命周期规则）";
       console.log(m); try { core.event("warn", m); } catch (e) {}
     }
     try {

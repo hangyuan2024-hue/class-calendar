@@ -87,7 +87,7 @@ async function setup(name, env) {
     for (const k of [...objs.keys()]) if (k.endsWith(k7)) objs.delete(k);
     t = await S.lease(); assert.equal(t.resume.step, 300, "COS 上确定没有了（404）：退回第 300 步");
     void k3;
-    // 看门狗：放一个小文件；有别的程序把它删了（网站同步的 --delete 就是这样删光 grid/jobs/ 的）→ 控制中心报警，再放一个
+    // 看门狗：放一个小文件；有别的程序把它删了（打包后清理旧安装包的脚本就是这样删光 grid/jobs/ 的）→ 控制中心报警，再放一个
     let r = await S.app.canary(); assert.equal(r.planted, true);
     const ck = [...objs.keys()].find((k) => k.endsWith("jobs/_canary/keep-me.txt")); assert.ok(ck, "看门狗文件放在 grid/jobs/ 下面（训练文件的权限够）");
     assert.deepEqual(await S.app.canary(), { ok: true }, "还在：不打扰");
@@ -98,14 +98,16 @@ async function setup(name, env) {
     S.app.close(); cosSrv.close();
     ok("COS 上的存档：确定 404 才标成丢失、退回更早的；COS 出错 / 没权限的时候照旧发。看门狗：存储里的文件被别的程序删了 → 控制中心报警");
   }
-  // ---------- 根因：网站国内加速的同步（--delete）不许删训练文件、安装包、AI 镜像；和安装包同一个桶时干脆不删 ----------
+  // ---------- 多一道保险：网站国内加速的同步（--delete）不许删训练文件、安装包、AI 镜像；和安装包同一个桶时干脆不删（真正的根因见 cnclean.test.js） ----------
   {
     const y = fs.readFileSync(path.join(__dirname, "..", "..", ".github", "workflows", "site-cn.yml"), "utf8").replace(/\r\n/g, "\n");
     for (const ex of ["grid/jobs/*", "grid/logs/*", "ai/*", "*.exe", "*.apk"]) assert.ok(y.includes(`--exclude "${ex}"`), "网站同步要排除 " + ex);
     const del = y.split("\n").filter((l) => /--delete/.test(l) && !/^\s*#/.test(l));
     assert.equal(del.length, 1); assert.match(del[0], /"\$\{SKIP\[@\]\}"/, "--delete 那一步带着排除列表");
     assert.match(y, /if \[ -n "\$CN_S3_BUCKET" \] && \[ "\$CN_S3_BUCKET" = "\$CN_SITE_BUCKET" \]; then[\s\S]*?else\s+aws s3 sync[^\n]*--delete/, "网站和安装包同一个桶：不跑 --delete");
-    ok("网站国内加速的同步：排除训练文件（grid/jobs、grid/logs）、AI 镜像、安装包；和安装包同一个桶时只传不删");
+    assert.match(y, /for pre in grid\/jobs\/ grid\/logs\/ ai\/[^\n]*\n[\s\S]*?list-objects-v2[\s\S]*?elif \[ -n "\$OTHER" \]/, "桶里有训练文件 / 安装包 / AI 镜像：不删（不管 Secrets 怎么填）");
+    assert.match(y, /CN_S3_KEY_ID: \$\{\{ secrets\.CN_SITE_KEY_ID \|\| secrets\.CN_S3_KEY_ID \}\}/, "网站可以用只管网站桶的密钥");
+    ok("网站国内加速的同步：排除训练文件（grid/jobs、grid/logs）、AI 镜像、安装包；和安装包同一个桶、或者桶里有这些东西时只传不删；网站用单独的密钥");
   }
   quiet("存档丢失：全部通过");
   process.exit(0);
