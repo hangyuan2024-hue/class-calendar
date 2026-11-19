@@ -21,7 +21,7 @@ const until = async (f, ms, what) => { const t0 = Date.now(); while (!(await f()
   const admin = await Tools.login(url, app.core.adminToken());
   const inv = await Tools.api(admin, "/api/admin/invite", { maxUses: 10, server: url });
   const gen = path.join(tmp, "gen.py"), use = path.join(tmp, "use.py");
-  fs.writeFileSync(gen, "import lg, os\nt = lg.task()\nn = t['input'].get('i', 0)\nf = os.path.join(lg.work_dir(), 'r%d.txt' % n)\nopen(f, 'w').write('结果 %d' % n)\nlg.output(f)\nlg.done(ok=1)\n");
+  fs.writeFileSync(gen, "import lg, os\nt = lg.task()\nn = t['input'].get('i', 0)\nf = os.path.join(lg.work_dir(), 'r%d.txt' % n)\nopen(f, 'w', encoding='utf-8').write('结果 %d' % n)\nlg.output(f)\nlg.done(ok=1)\n");
   fs.writeFileSync(use, "import lg\nt = lg.task()\nk = sorted(k for k in t['files'] if k.startswith('data'))\nlg.done(n=len(k), texts=sorted(open(t['files'][x], encoding='utf-8').read() for x in k))\n");
   const plan1 = path.join(tmp, "p1.json");
   fs.writeFileSync(plan1, JSON.stringify({ jobs: [{ name: "造数据", kind: "map", recipe: gen, params: { count: 4, tag: "T" }, priority: 3 }] }));
