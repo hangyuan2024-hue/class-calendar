@@ -38,6 +38,7 @@ jobs:
       CN_S3_KEY_ID: ${{ secrets.CN_S3_KEY_ID }}
       CN_S3_SECRET: ${{ secrets.CN_S3_SECRET }}
       CN_SITE_BUCKET: ${{ secrets.CN_SITE_BUCKET }}
+      CN_S3_BUCKET: ${{ secrets.CN_S3_BUCKET }}
     steps:
       - name: 没配国内网站存储就跳过
         id: chk
@@ -68,7 +69,10 @@ jobs:
           S3="s3://$CN_SITE_BUCKET"; EP="--endpoint-url $CN_S3_ENDPOINT"
           # 不放到网站上的：源代码、安卓 / 电脑版 / 捞捞编程的工程、测试、说明文档
           SKIP=(--exclude ".git*" --exclude ".github/*" --exclude "android/*" --exclude "laolao-android/*" --exclude "desktop/*" --exclude "coder/*" --exclude "pptassist/*"
-                --exclude "test/*" --exclude "*.md" --exclude "learn/courses_app/*" --exclude "learn/runtime/*" --exclude "*/node_modules/*")
+                --exclude "test/*" --exclude "*.md" --exclude "learn/courses_app/*" --exclude "learn/runtime/*" --exclude "*/node_modules/*"
+                # 不是网站的东西，别的程序放在桶里的（排除了的 --delete 也不会删）：捞捞算力的训练文件、日志，AI 组件镜像，各个安装包
+                #   2026-11-18 出过事：网站桶和训练文件是同一个桶，每次同步的 --delete 都把 grid/jobs/ 下的存档、数据全删了（登记了却 404、训练卡死）
+                --exclude "grid/jobs/*" --exclude "grid/logs/*" --exclude "ai/*" --exclude "*.exe" --exclude "*.apk" --exclude "*.tar" --exclude "*.gguf" --exclude "*.7z" --exclude "*.blockmap")
           # 文件类型要写对：模块脚本（.mjs）、wasm 类型不对浏览器会拒绝加载
           TYPED=(--exclude "*.mjs" --exclude "*.wasm" --exclude "*.webmanifest" --exclude "*.woff2" --exclude "*.woff")
           FRESH=(--exclude "*.html" --exclude "*.json" --exclude "sw.js" --exclude "*/sw.js")
@@ -83,5 +87,10 @@ jobs:
           aws s3 sync . "$S3" $EP "${SKIP[@]}" --exclude "*" --include "*.html" --include "*.json" --include "sw.js" --include "*/sw.js" \
             --cache-control "no-cache" --only-show-errors
           # 4. 删掉仓库里已经没有的文件（放在最后：新文件都传完了才删旧的，访问不会断）
-          aws s3 sync . "$S3" $EP "${SKIP[@]}" --delete --size-only --only-show-errors
+          #    网站和安装包 / 训练文件在同一个桶里：不删（多留几个旧网页文件没关系；删错了训练文件、安装包就麻烦了）
+          if [ -n "$CN_S3_BUCKET" ] && [ "$CN_S3_BUCKET" = "$CN_SITE_BUCKET" ]; then
+            echo "::warning::网站和安装包、训练文件在同一个存储桶里：只上传不删除（建议给网站单独建一个桶，填 CN_SITE_BUCKET）"
+          else
+            aws s3 sync . "$S3" $EP "${SKIP[@]}" --delete --size-only --only-show-errors
+          fi
           echo "已同步到国内存储：$CN_SITE_BUCKET"
