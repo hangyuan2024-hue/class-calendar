@@ -828,7 +828,13 @@ function create(opt) {
       lines(child.stdout, false); lines(child.stderr, true);
       // 配方已经退出了，迟到的回复（比如 AI 引擎画完的图）写不进去：忽略，别让整个客户端崩掉（Windows 上是 EPIPE）
       child.stdin.on("error", () => {});
-      child.on("error", (e) => { onLine(c, "启动 Python 失败：" + e.message, true); ok(-1); });
+      // Python 根本打不开（训练环境没装好 / 被删了 / 数据文件夹搬过）：是这台电脑的事，不记任务失败，任务还回去，这台歇着等修好
+      //   （以前记成任务失败，同一个任务在同一台电脑上失败 5 次就停了，别的电脑也接不了）
+      child.on("error", (e) => {
+        onLine(c, "启动 Python 失败：" + e.message, true);
+        if (!c.unfit) c.unfit = `训练环境的 Python 打不开（${python()}）：到「任务向导」第 2 步点「一键安装」重新装一下训练环境`;
+        ok(-1);
+      });
       child.on("exit", (code) => {
         // 配方退出了：马上算这个任务结束（不等），它开的子程序（要是没收好）在后台一起收掉
         ok(code == null ? -1 : code);

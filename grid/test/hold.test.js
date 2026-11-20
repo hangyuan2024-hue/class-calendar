@@ -103,6 +103,27 @@ const until = async (f, ms, what) => { const t0 = Date.now(); while (!(await f()
     await a.stop();
   }
 
+  // ---------- 训练环境的 Python 打不开（spawn ENOENT）：任务不记失败，这台歇着 ----------
+  {
+    const rc = path.join(tmp, "nopy.py");
+    fs.writeFileSync(rc, "import lg\nt = lg.task()\nlg.done(ok=1)\n");
+    const planFile = path.join(tmp, "p-nopy.json");
+    fs.writeFileSync(planFile, JSON.stringify({ jobs: [{ name: "Python 打不开", kind: "map", recipe: rc, params: { count: 2 }, priority: 4 }] }));
+    const [jobId] = await Tools.plan(admin, planFile);
+    const cred = await join("没装好");
+    const a = Agent.create({ server: cred.server, token: cred.token, pubkey: cred.pubkey, workDir: path.join(tmp, "nopy"), python: path.join(tmp, "nowhere", "python.exe"), caps: { gpu: "RTX 4060", vram: 8, ram: 32 }, tickMs: 100, hbMs: 300, leaseEveryMs: 100, renewMs: 300, holdMin: [10] });
+    const states = []; a.on("state", (s) => states.push(s));
+    let n = 0; a.on("task", () => n++);
+    a.start();
+    await until(() => states.some((s) => /现在算不了：训练环境的 Python 打不开.*一键安装/.test(s.why || "")), 10000, "歇着");
+    await sleep(600);
+    const ts = await tasksOf(jobId);
+    assert.strictEqual(n, 1);
+    assert.ok(ts.every((t) => !t.errors && t.state === "queued"), JSON.stringify(ts.map((t) => [t.state, t.errors])));
+    ok("训练环境的 Python 打不开：任务不记失败、留给别的电脑，这台歇着，状态里写怎么修（以前同一个任务在这台电脑上失败 5 次就停了）");
+    await a.stop();
+  }
+
   // ---------- 可有可无的输入文件（opt_ 开头，比如接着上一版训的起点）下不到：任务照常算 ----------
   {
     const rc = path.join(tmp, "optfile.py");

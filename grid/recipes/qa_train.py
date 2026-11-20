@@ -130,13 +130,38 @@ if WARM and HP["replay"] != float(p.get("replay", 2)):
 
 
 # ---------------- 2. 底子（Hugging Face 格式，训练用）----------------
+def base_missing(d):
+    """底子缺了哪些文件：按 model.safetensors.index.json 里列的分片一个个核对（空文件也算缺）。
+    以前只看「有没有 .safetensors」：组件镜像只下好了第 1 片、第 2 片没下下来，也当成下好了、写了 .ok，
+    这台电脑以后每次都在「把底子放进显卡」时报 model-00002-of-00002.safetensors 找不到，任务一次次记失败。"""
+    has = lambda n: os.path.exists(os.path.join(d, n)) and os.path.getsize(os.path.join(d, n)) > 0
+    need = ["config.json"]
+    idx = os.path.join(d, "model.safetensors.index.json")
+    if os.path.exists(idx):
+        try:
+            with open(idx, encoding="utf-8") as f:
+                need += sorted(set(json.load(f)["weight_map"].values()))
+        except Exception:
+            return ["model.safetensors.index.json（文件坏了）"]
+    elif not has("model.safetensors"):
+        return [n for n in need if not has(n)] + ["model.safetensors（或 model.safetensors.index.json）"]
+    return [n for n in need if not has(n)]
+
+
 def base_dir():
     d = os.path.join(CACHE, "hf", BASE_REPO.replace("/", "__"))
-    if os.path.exists(os.path.join(d, ".ok")):
+    ok = os.path.join(d, ".ok")
+    miss = base_missing(d) if os.path.isdir(d) else ["全部"]
+    if not miss:
+        if not os.path.exists(ok):
+            open(ok, "w").close()
         return d
-    lg.progress(0.02, "下载底子 %s（第一次，约 9G）" % BASE_REPO)
+    if os.path.exists(ok):
+        os.remove(ok)
+        lg.log("这台电脑上的底子不完整（缺 %s）：只补下缺的，不用整个重下" % "、".join(miss[:4]))
+    lg.progress(0.02, "下载底子 %s（第一次约 9G；已经有的文件不再下）" % BASE_REPO)
     err = None
-    # ① 组件镜像（国内：自己的腾讯云存储；国外：自己的 GitHub）：整个文件夹都在才用
+    # ① 组件镜像（国内：自己的腾讯云存储；国外：自己的 GitHub）：下过的文件 lg.download 会跳过
     try:
         fs_ = lg.mirror(model="qaBase") if BASE_REPO == "Qwen/Qwen3-VL-4B-Instruct" else []
         if fs_ and any(x["name"].endswith(".safetensors") for x in fs_):
@@ -146,8 +171,12 @@ def base_dir():
                 lg.download(x["sources"], os.path.join(d, x["name"]), "下载 %s" % x["name"])
     except Exception as e:
         err = e
-        lg.log("组件镜像里的底子下不了（%s），换魔搭 / Hugging Face" % str(e)[:160])
-    if not glob.glob(os.path.join(d, "*.safetensors")):
+        lg.log("组件镜像里的底子没下全（%s），缺的换魔搭 / Hugging Face 补" % str(e)[:160])
+    miss = base_missing(d)
+    if miss:
+        if err is None:
+            lg.log("组件镜像里少了这些文件：%s（请管理员把它们补进组件镜像）；先从魔搭 / Hugging Face 补" % "、".join(miss[:4]))
+
         def ms():
             from modelscope import snapshot_download
             snapshot_download(BASE_REPO, local_dir=d)
@@ -156,19 +185,23 @@ def base_dir():
             os.environ["HF_ENDPOINT"] = endpoint
             from huggingface_hub import snapshot_download as hf_dl
             hf_dl(BASE_REPO, local_dir=d)
-        # ② 国内：魔搭 → hf-mirror；国外：Hugging Face 官方 → 魔搭
+        # ② 国内：魔搭 → hf-mirror；国外：Hugging Face 官方 → 魔搭（都只下缺的）
         order = [lambda: hf("https://huggingface.co"), ms] if lg.region() == "global" else [ms, lambda: hf("https://hf-mirror.com")]
         for fn in order:
             try:
                 fn()
-                if glob.glob(os.path.join(d, "*.safetensors")):
+                if not base_missing(d):
                     break
             except Exception as e:
                 err = e
                 lg.log("这个源下载不行（%s），换下一个" % str(e)[:120])
-    if not glob.glob(os.path.join(d, "*.safetensors")):
-        raise RuntimeError("底子没下载下来：%s" % err)
-    open(os.path.join(d, ".ok"), "w").close()
+    miss = base_missing(d)
+    if miss:
+        # 这台电脑下不全底子（网不通、硬盘满了）：是这台电脑的事，不记任务失败，交给别的电脑从存档接着训
+        why = "底子没下全（缺 %s）：%s" % ("、".join(miss[:4]), err)
+        getattr(lg, "unfit", lambda w: None)(why)
+        raise RuntimeError(why)
+    open(ok, "w").close()
     return d
 
 

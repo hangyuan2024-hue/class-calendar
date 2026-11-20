@@ -112,6 +112,22 @@ def to_wav(src, dst):
     return dst
 
 
+BAD = []
+
+
+def try_wav(src, dst):
+    """数据池里的一句转不了（文件坏了、是空的）：跳过这一句，记下来，不让整轮训练失败。
+    以前一句坏的 0003.flac 就让「训练声音底座」整个任务失败，同一台电脑失败 5 次后整轮停掉。"""
+    try:
+        w = to_wav(src, dst)
+        if secs(w) > 0.2:
+            return w
+    except Exception:
+        pass
+    BAD.append(os.path.basename(os.path.dirname(src)) + "/" + os.path.basename(src))
+    return None
+
+
 # ---------------- 难句子：多音字、数学、英文词、课堂问句、长句（数字写成汉字：考的是念，不是认数字）----------------
 ZH = "零一二三四五六七八九"
 
@@ -600,10 +616,15 @@ if MODE == "drill":
     for i, x in enumerate(keep):
         fn = "%04d.flac" % i
         try:
+            if secs(x["wav"]) < 0.5:          # 念出来是空的 / 坏的：不交
+                continue
             subprocess.run(FF + ["-y", "-v", "error", "-i", x["wav"], "-c:a", "flac", os.path.join(pd, fn)], check=True, cwd=work)
             lines.append("%s|drill-%s|%s|%.2f" % (fn, x["spk"], x["sent"], secs(x["wav"])))
         except Exception:
-            pass
+            try:
+                os.remove(os.path.join(pd, fn))
+            except OSError:
+                pass
     if lines:
         open(os.path.join(pd, "list.tsv"), "w", encoding="utf-8").write("\n".join(lines) + "\n")
         out = os.path.join(work, "voicedrill-%d-%d.tar" % (int(time.time()), rnd.randint(0, 9999)))
@@ -656,8 +677,8 @@ lg.log("声音数据池：%d 位老师 %d 句；练习里最好的句子 %d 句"
 held = []
 for who, rows in teach.items():
     for x in rows:
-        w = to_wav(x[0], os.path.join(wavs, "h_%s.wav" % hashlib.md5(x[0].encode()).hexdigest()[:10]))
-        if 3 <= secs(w) <= 9:
+        w = try_wav(x[0], os.path.join(wavs, "h_%s.wav" % hashlib.md5(x[0].encode()).hexdigest()[:10]))
+        if w and 3 <= secs(w) <= 9:
             held.append((w, x[1], who))
             rows.remove(x)
             break
@@ -676,7 +697,9 @@ if not held:
 items = []
 for who, rows in teach.items():
     for i, (f, txt, spk, _) in enumerate(rows):
-        items.append((to_wav(f, os.path.join(wavs, "t_%s_%05d.wav" % (hashlib.md5(who.encode("utf-8")).hexdigest()[:8], i))), txt, "t_" + hashlib.md5(who.encode("utf-8")).hexdigest()[:8]))
+        w = try_wav(f, os.path.join(wavs, "t_%s_%05d.wav" % (hashlib.md5(who.encode("utf-8")).hexdigest()[:8], i)))
+        if w:
+            items.append((w, txt, "t_" + hashlib.md5(who.encode("utf-8")).hexdigest()[:8]))
 own = sum(secs(x[0]) for x in items)
 cap = float(p.get("maxHours", 10)) * 3600
 r_.shuffle(drill)
@@ -684,7 +707,9 @@ dsec, dcap = 0.0, max(60.0, float(p.get("drillRatio", 0.15)) * min(cap, own + su
 for i, (f, txt, spk, _) in enumerate(drill):
     if dsec >= dcap:
         break
-    w = to_wav(f, os.path.join(wavs, "d_%05d.wav" % i))
+    w = try_wav(f, os.path.join(wavs, "d_%05d.wav" % i))
+    if not w:
+        continue
     dsec += secs(w)
     items.append((w, txt, spk))
 acc = sum(secs(x[0]) for x in items)
@@ -696,6 +721,8 @@ for w, txt, spk in open_clips:
         items.append((w, txt, spk))
         acc += d
 items = [x for x in items if 0.8 <= secs(x[0]) <= 20]
+if BAD:
+    lg.log("数据池里有 %d 句录音坏了（转不成 wav），跳过：%s%s" % (len(BAD), "、".join(BAD[:5]), " 等" if len(BAD) > 5 else ""))
 hours = sum(secs(x[0]) for x in items) / 3600
 spks = len({x[2] for x in items})
 lg.log("训练集：%d 句、%.2f 小时、%d 个说话人（老师 %.1f 分钟，练习 %.1f 分钟）" % (len(items), hours, spks, own / 60, dsec / 60))
