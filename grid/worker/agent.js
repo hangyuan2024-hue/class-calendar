@@ -83,10 +83,16 @@ async function xferRetry(method, url, file, o = {}) {
 function xfer(method, url, file, o = {}) {
   if (method !== "GET") return xferRetry(method, url, file, o);
   const k = path.resolve(file);
-  if (inflight.has(k)) return inflight.get(k);
+  if (inflight.has(k)) {
+    const old = inflight.get(k);
+    // 同一个文件正在下：一起等它。但那次已经被「停止」了（还在后台断开连接）：等它收完尾，再重新下（下好的部分接着用）
+    if (!(old.sig && old.sig.aborted)) return old;
+    return old.catch(() => {}).then(() => xfer(method, url, file, o));
+  }
   // 大文件（32M 以上）切成 8M 一块，6 条连接同时下：跨境线路、有的宽带是「每条连接」限速，一条连接下几百 M 的存档要几个小时。
   // 服务器不支持分段（或者文件小）就照旧一条连接下
   const p = xferPar(url, file, o).then((r) => r || (o.signal && o.signal.aborted ? Promise.reject(new Error("停了")) : xferRetry(method, url, file, o))).finally(() => inflight.delete(k));
+  p.sig = o.signal || null;
   inflight.set(k, p);
   return p;
 }
@@ -645,6 +651,10 @@ function create(opt) {
     fs.mkdirSync(dir, { recursive: true });
     // ctl：点「停止」/「暂停计算」时扳下它，正在下的存档、文件马上断开（下好的块留着，下回接着下），不然要等几个小时的下载下完才算停
     const c = cur = { id: L.task.id, task: L.task, job: L.job, recipe: L.recipe, dir, started: Date.now(), progress: 0, logs: [], metrics: [], lastMetric: null, line: null, fn: null, note: "", uploads: Promise.resolve(), result: null, outputs: [], reviews: [], ckpts: 0, stopping: false, ctl: new AbortController() };
+    // 点「停止」：下载马上算结束，不等 Windows 把连接真的关掉（以前 CI 的 Windows 上偶尔要好几秒）；连接在后台自己断开
+    const stopP = new Promise((_, bad) => c.ctl.signal.addEventListener("abort", () => bad(new Error("停了")), { once: true }));
+    stopP.catch(() => {});
+    const dl = (p) => { p.catch(() => {}); return Promise.race([p, stopP]); };
     setState("busy", L.job.name);
     emit("task", { id: c.id, job: L.job, task: L.task, recipe: L.recipe && { id: L.recipe.id, name: L.recipe.name } });
     log(`领到任务：「${L.job.name}」`);
@@ -710,13 +720,13 @@ function create(opt) {
         else {
           log(`下载上次的存档（第 ${L.resume.step || 0} 步）…`);
           const t0 = Date.now();
-          await xfer("GET", L.resume.url, f, { onProgress: dlProg("下载存档"), signal: c.ctl.signal });
+          await dl(xfer("GET", L.resume.url, f, { onProgress: dlProg("下载存档"), signal: c.ctl.signal }));
           const mb = fs.statSync(f).size / 1048576;
           log(`存档下好了（${mb.toFixed(0)}M，${Math.round((Date.now() - t0) / 1000)} 秒，平均 ${(mb / Math.max(1, (Date.now() - t0) / 1000)).toFixed(1)}M/秒，从 ${new URL(L.resume.url).host}）`);
         }
         t.resume = f; t.resumeInfo = { step: L.resume.step, round: L.resume.round };
       }
-      for (const [i, u] of (L.task.input.partUrls || []).entries()) { const f = path.join(dir, `part-${i}.npz`); await xfer("GET", u, f, { signal: c.ctl.signal }); t.parts.push(f); }
+      for (const [i, u] of (L.task.input.partUrls || []).entries()) { const f = path.join(dir, `part-${i}.npz`); await dl(xfer("GET", u, f, { signal: c.ctl.signal })); t.parts.push(f); }
       delete t.input.partUrls;
       // 前面步骤的结果文件、接着训练的起点：下载到本机
       t.files = {}; t.deps = L.deps || {};
@@ -734,7 +744,7 @@ function create(opt) {
         c.note = "下载 " + k + "…";
         try {
           if (cf && fs.existsSync(cf)) { try { const now = new Date(); fs.utimesSync(cf, now, now); } catch (e) {} }
-          else await xfer("GET", u, cf || f, { onProgress: dlProg(nIn > 1 ? `下载要用的文件（${iIn}/${nIn}）${k}` : `下载 ${k}`), signal: c.ctl.signal });
+          else await dl(xfer("GET", u, cf || f, { onProgress: dlProg(nIn > 1 ? `下载要用的文件（${iIn}/${nIn}）${k}` : `下载 ${k}`), signal: c.ctl.signal }));
           if (cf) { fs.mkdirSync(path.dirname(f), { recursive: true }); try { fs.linkSync(cf, f); } catch (e) { fs.copyFileSync(cf, f); } }
         } catch (e) {
           // opt_ 开头的是「有就用、没有也行」的文件（比如接着上一版训的起点）：下不到就不带，任务照常算

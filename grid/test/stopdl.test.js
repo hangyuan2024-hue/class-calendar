@@ -38,7 +38,7 @@ const until = async (f, ms, what) => { const t0 = Date.now(); while (!(await f()
   await sleep(2500);   // 下了一部分
   const t0 = Date.now();
   a.setManual("off");   // 点「停止」
-  await until(() => !a.current(), 5000, "停止以后这台电脑空出来");
+  await until(() => !a.current(), 10000, "停止以后这台电脑空出来");   // 真正的要求在下面：3 秒内；这里多等一会儿，慢的时候能看到实际用了几秒
   const secs = (Date.now() - t0) / 1000;
   assert.ok(secs < 3, "停止要马上生效，用了 " + secs + " 秒");
   assert.equal(a.status().state, "paused");
