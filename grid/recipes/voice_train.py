@@ -236,11 +236,14 @@ if p.get("openVoice") == "aishell3":
     import re
     bases = [x for x in str(p.get("openBase") or "").split(",") if x] or (["https://huggingface.co/datasets/AISHELL/AISHELL-3/resolve/main", "https://hf-mirror.com/datasets/AISHELL/AISHELL-3/resolve/main"] if lg.region() == "global" else ["https://hf-mirror.com/datasets/AISHELL/AISHELL-3/resolve/main", "https://huggingface.co/datasets/AISHELL/AISHELL-3/resolve/main"])
 
+    import urllib.error
+
     def fetch(rel, dest, tries=5):
         if os.path.exists(dest) and os.path.getsize(dest) > 0:
             return dest
         err = None
         for k in range(tries):
+            missing = 0
             for b in bases:
                 try:
                     req = urllib.request.Request(b + "/" + rel, headers={"User-Agent": "laolao-grid"})
@@ -248,10 +251,38 @@ if p.get("openVoice") == "aishell3":
                         shutil.copyfileobj(r, fh)
                     os.replace(dest + ".part", dest)
                     return dest
+                except urllib.error.HTTPError as e:
+                    err = e
+                    missing += e.code == 404
                 except Exception as e:
                     err = e
+            if missing:   # 连得上的地址说没有这个文件（连不上的那个，比如国内上不了 huggingface.co，不算）：再试也没用，马上跳过（不是网络问题）
+                raise FileNotFoundError(rel)
             time.sleep(2 + k * 4)
         raise RuntimeError("下不了 %s：%s（hf-mirror / Hugging Face 连不稳；跑一次 Actions「AI 组件搬到国内存储」带上 voicedata，就从自己的存储下）" % (rel, err))
+
+    # Hugging Face 上的 AISHELL-3 并不是每一句都有录音（content.txt 列了全部句子，wav 只传了一部分）：
+    #   先问文件列表，只下真有的；以前照着 content.txt 一句句下，一大半是 404，「跳过一句」刷满日志，还可能被当成网络不行整轮失败
+    def listed(rel_dir):
+        for b in bases:
+            m = re.match(r"(https?://[^/]+)/datasets/([^/]+/[^/]+)/resolve/([^/]+)/?$", b)
+            if not m:
+                continue
+            try:
+                got, url = set(), "%s/api/datasets/%s/tree/%s/%s" % (m.group(1), m.group(2), m.group(3), rel_dir)
+                for _ in range(50):
+                    with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "laolao-grid"}), timeout=30) as r:
+                        arr = json.loads(r.read().decode("utf-8"))
+                        link = r.headers.get("Link") or ""
+                    got |= {str(x.get("path", "")).rstrip("/").rsplit("/", 1)[-1] for x in arr}
+                    nx = re.search(r'<([^>]+)>;\s*rel="next"', link)
+                    if not nx:
+                        break
+                    url = nx.group(1)
+                return got
+            except Exception:
+                continue
+        return None
 
     od = os.path.join(lg.cache_dir() if hasattr(lg, "cache_dir") else work, "aishell3-laolao")   # 跨任务留着：下一次就够了
     os.makedirs(od, exist_ok=True)
@@ -298,13 +329,25 @@ if p.get("openVoice") == "aishell3":
         cands = cands or [s_ for s_ in utts if s_ in info and info[s_][1] == want_g]
         if not cands:
             raise RuntimeError("AISHELL-3 里没找到合适的说话人")
-        spk = max(cands, key=lambda s_: len(utts[s_]))
+        cands.sort(key=lambda s_: -len(utts[s_]))
+        spk = cands[0]
+        # 本机没有现成的包：挑一位网上真有足够录音的（按句子多少往下试几位）
+        if not all(os.path.exists(os.path.join(od, r_[0])) for r_ in utts[spk][:5]):
+            for s_ in cands[:12]:
+                h_ = listed("train/wav/%s" % s_)
+                if h_ is None or len(h_) >= int(p.get("minClips", 150)):
+                    spk = s_
+                    break
     if spk not in utts:
         raise RuntimeError("AISHELL-3 训练集里没有 %s" % spk)
     rows = utts[spk]
-    lg.log("用 AISHELL-3 的 %s（%s）：%d 句" % (spk, " ".join(info.get(spk, ("?", "?", "?"))), len(rows)))
+    have = None if all(os.path.exists(os.path.join(od, r_[0])) for r_ in rows[:5]) else listed("train/wav/%s" % spk)
+    if have is not None:
+        rows = [r_ for r_ in rows if r_[0] in have]
+    lg.log("用 AISHELL-3 的 %s（%s）：%d 句%s" % (spk, " ".join(info.get(spk, ("?", "?", "?"))), len(rows), "（网上真有录音的）" if have is not None else ""))
     random.Random(7).shuffle(rows)
-    rows = rows[: int(p.get("maxClips", 600))]
+    MAXC = int(p.get("maxClips", 600))
+    rows = rows[: MAXC if have is not None else MAXC * 2]   # 问不到列表：多试一些，没有的马上跳过
     done_n = [0]
 
     def one(r):
@@ -315,17 +358,25 @@ if p.get("openVoice") == "aishell3":
             lg.progress(0.02 + 0.08 * done_n[0] / len(rows), "下载公开录音：%d/%d 句" % (done_n[0], len(rows)))
         return w, r[1], secs(w)
 
-    bad = 0
+    bad, gone, got_open = 0, 0, []
     with concurrent.futures.ThreadPoolExecutor(8) as ex:
         for fut in [ex.submit(one, r) for r in rows]:
             try:
                 w, txt, d = fut.result()
                 if 0.8 <= d <= 20:
-                    lines.append((w, txt, d))
+                    got_open.append((w, txt, d))
+            except FileNotFoundError:
+                gone += 1                                   # 网上就没有这句：不算网络不行
             except Exception as e:
                 bad += 1
-                lg.log("跳过一句：%s" % str(e)[:160])
-    if bad > len(rows) // 3:
+                if bad <= 5:
+                    lg.log("跳过一句：%s" % str(e)[:160])
+    lines += got_open[:MAXC]
+    if gone:
+        lg.log("网上没有的 %d 句跳过了（AISHELL-3 在 Hugging Face 上只传了一部分录音）" % gone)
+    if bad > 5:
+        lg.log("还有 %d 句因为网络没下下来，跳过了" % (bad - 5))
+    if bad > (len(rows) - gone) // 3:
         raise RuntimeError("公开录音下载失败太多（%d/%d 句）：网络不行，过会儿再试" % (bad, len(rows)))
 
 total = sum(x[2] for x in lines)

@@ -255,7 +255,7 @@ def fetch(rel, dest, tries=4):
                 missing += e.code == 404
             except Exception as e:
                 err = e
-        if missing == len(OB):   # 每个地址都说没有这个文件：再试也没用，马上跳过
+        if missing:   # 连得上的地址说没有这个文件（连不上的那个，比如国内上不了 huggingface.co，不算）：再试也没用，马上跳过
             raise FileNotFoundError("没有这个文件 %s" % rel)
         time.sleep(1 + k * 2)
     raise RuntimeError("下不了 %s：%s" % (rel, err))

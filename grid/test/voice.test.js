@@ -240,6 +240,8 @@ W(FF, "import sys,shutil,os\na=sys.argv\nshutil.copy(a[a.index('-i')+1],a[-1])\n
       wav(path.join(OD, "train", "wav", spk, id), 3.5);
     }
   W(path.join(OD, "train", "content.txt"), content.join("\n") + "\n");
+  // 网上只传了一部分录音：SSB0002 有 5 句是 404（以前算成「网络不行」，超过三分之一整轮失败）
+  for (let i = 8; i <= 12; i++) fs.rmSync(path.join(OD, "train", "wav", "SSB0002", `SSB0002${String(i).padStart(4, "0")}.wav`));
   const tcontent = [];
   for (const spk of ["SSB0101", "SSB0102", "SSB0103"]) for (let i = 1; i <= 3; i++) { const id = `${spk}${String(i).padStart(4, "0")}.wav`; tcontent.push(`${id}\t大 da4 家 jia1 好 hao3`); wav(path.join(OD, "test", "wav", spk, id), 4); }
   W(path.join(OD, "test", "content.txt"), tcontent.join("\n") + "\n");
@@ -258,13 +260,13 @@ W(FF, "import sys,shutil,os\na=sys.argv\nshutil.copy(a[a.index('-i')+1],a[-1])\n
   ag.stop();
   assert.equal(app.core.db.prepare("select state from runs where id=?").get(r2.run).state, "done");
   const res2 = JSON.parse(app.core.db.prepare("select result from tasks t join jobs j on j.id=t.job_id where j.run_id=?").get(r2.run).result);
-  assert.equal(res2.clips, 12, "挑的是 26～40 岁、北方口音的女声（SSB0002），12 句都用上");
+  assert.equal(res2.clips, 7, "挑的是 26～40 岁、北方口音的女声（SSB0002）；网上没有的 5 句跳过，不算网络不行，有的 7 句都用上");
   assert.ok(hits.every((h) => !/SSB000[134]/.test(h)), "别人的录音不下载");
   const af = afAll().filter((x) => /^asetrate/.test(x));
-  assert.equal(af.length, 12); assert.match(af[0], /^asetrate=35919,aresample=32000,atempo=0\.8908/, "升 2 个半音、音色一起变、语速不变");
+  assert.equal(af.length, 7); assert.match(af[0], /^asetrate=35919,aresample=32000,atempo=0\.8908/, "升 2 个半音、音色一起变、语速不变");
   const pub2 = await (await fetch(url + "/pub/models/manifest.json")).json();
   assert.ok(pub2.models["laolao-voice"] && pub2.models["laolao-voice"].files.map((f) => f.name).join() === "gpt,sovits,ref,reftext", "捞捞的声音公开发布，老师端自动下载");
-  ok(`捞捞的专属声音：自动挑了 SSB0002（26～40 岁、北方、女），只下这一位的 ${res2.clips} 句，升 2 个半音（变成另一个「人」）；第一个地址坏了换下一个；公开发布 laolao-voice`);
+  ok(`捞捞的专属声音：自动挑了 SSB0002（26～40 岁、北方、女），只下这一位的 ${res2.clips} 句，升 2 个半音（变成另一个「人」）；第一个地址坏了换下一个；网上没有的句子（404）直接跳过、不算失败；公开发布 laolao-voice`);
 
   // 同事电脑连 hf-mirror / Hugging Face 不稳（SSL EOF）：先从自己的存储下打好的包（说明 + 挑中那一位的录音），一个文件
   const tarDir = path.join(tmp, "pack"); fs.mkdirSync(path.join(tarDir, "aishell3"), { recursive: true });
