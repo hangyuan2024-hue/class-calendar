@@ -120,12 +120,13 @@ const JPG = Buffer.from("ffd8ffe000104a46494600010100000100010000ffd9", "hex");
     const disco = 40000 + Math.floor(Math.random() * 20000);
     let bAsk = 0, bLive = null;
     const bInj = [];
-    const mk = (name, extra) => createService({ user: path.join(tmp, name), version: "t", send: () => {}, lan: true, lanOpt: { port: 0, host: "127.0.0.1", discoPort: disco }, ...extra });
-    const me = mk("lanA", {});
-    const peer = mk("lanB", { assistAsk: async () => { bAsk++; return "control"; }, capture: async () => ({ jpeg: JPG, w: 800, h: 600 }),
+    // 同一台电脑上开两个：各听各的 UDP 端口（Windows 上两个程序共用一个端口时，发过来的只有一个收得到）
+    const mk = (name, dp, extra) => createService({ user: path.join(tmp, name), version: "t", send: () => {}, lan: true, lanOpt: { port: 0, host: "127.0.0.1", discoPort: dp }, ...extra });
+    const me = mk("lanA", disco + 1, {});
+    const peer = mk("lanB", disco, { assistAsk: async () => { bAsk++; return "control"; }, capture: async () => ({ jpeg: JPG, w: 800, h: 600 }),
       injectorFactory: () => ({ send: (e) => bInj.push(...Inject.clean(e)), close() {} }), assistLive: (x) => { bLive = x; }, assistOpt: { fps: 20 } });
     await sleep(300);
-    const list = await me.lan.discover({ ms: 400, targets: ["127.0.0.1"] });
+    const list = await me.lan.discover({ ms: 400, targets: [`127.0.0.1:${disco}`] });
     const p = list.find((x) => x.port === peer.lan.port());
     assert.ok(p, "找到了对方：" + JSON.stringify(list));
     assert.ok(p.accepts);

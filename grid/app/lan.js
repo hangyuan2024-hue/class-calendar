@@ -129,7 +129,8 @@ function create(o = {}) {
     await new Promise((ok) => sock.bind(0, () => { try { sock.setBroadcast(true); } catch (e) {} ok(); }));
     const dst = targets || [...new Set(["255.255.255.255", ...broadcasts()])];
     const msg = Buffer.from("LAOLAO-WHO?" + nonce);
-    for (const a of dst) { try { sock.send(msg, o.discoPort != null && targets ? o.discoPort : DISCO, a); } catch (e) {} }
+    // 目标可以写「地址:端口」（同一台电脑上开两个做测试时用；真的局域网里都是 47820）
+    for (const a of dst) { const m = /^(.+):(\d+)$/.exec(a); try { sock.send(msg, m ? +m[2] : DISCO, m ? m[1] : a); } catch (e) {} }
     await new Promise((ok) => setTimeout(ok, ms));
     try { sock.close(); } catch (e) {}
     return [...found.values()].sort((a, b) => String(a.name).localeCompare(String(b.name)));
