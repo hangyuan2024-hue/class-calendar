@@ -51,7 +51,7 @@
     $("#devs").innerHTML = ov.devices.map((d) => `<div class="dev ${d.state}" data-dev="${d.id}"><i class="dot"></i><b>${esc(d.member)} · ${esc(d.name)}</b>${d.version ? ` <span class="ver ${cmpVer(d.version, newest) < 0 ? "old" : ""}" title="${cmpVer(d.version, newest) < 0 ? "不是最新版：空闲时会自动更新" : "最新版"}">v${esc(d.version)}</span>` : ""}
       <small>${esc(d.gpu || "没有显卡信息")}${d.vram ? " · " + d.vram + "G" : ""}${d.ram ? " · 内存 " + d.ram + "G" : ""}</small>
       <small>${d.online ? (d.task ? "在算「" + esc(d.task.name) + "」" : d.state === "waiting" ? "等空闲" : "在线，等任务") : "离线 · " + (d.lastSeen ? ago(d.lastSeen) : "")} · 累计 ${dur(d.secs)}</small>
-      ${d.live && d.task ? `<div class="line">${fnName(d.live.fn)} 第 ${d.live.line || "—"} 行${d.live.gpu ? ` · ${d.live.gpu.temp}℃ ${d.live.gpu.util}%` : ""}</div><div class="bar"><i style="width:${(d.task.progress || 0) * 100}%"></i></div>` : ""}</div>`).join("") || `<p class="muted">还没有电脑加入：点「发邀请」</p>`;
+      ${d.live && d.task ? `<div class="line">${fnName(d.live.fn)} 第 ${d.live.line || "—"} 行${d.live.gpu ? ` · ${d.live.gpu.temp}℃ ${d.live.gpu.util}%` : ""}${d.live.pace != null && d.live.pace < 1 ? ` · 密度 ${Math.round(d.live.pace * 100)}%` : ""}</div><div class="bar"><i style="width:${(d.task.progress || 0) * 100}%"></i></div>` : ""}</div>`).join("") || `<p class="muted">还没有电脑加入：点「发邀请」</p>`;
     $$("#devs [data-dev]").forEach((el) => (el.onclick = () => openDev(+el.dataset.dev)));
     $("#feed").innerHTML = ov.events.map((e) => `<div class="${e.type}"><time>${hhmm(e.ts)}</time><span>${esc(e.msg)}</span></div>`).join("");
     $("#board").innerHTML = `<tr><th>#</th><th>名字</th><th>积分</th><th>算力</th><th>审核</th><th>录表情</th></tr>` + ov.board.map((m, i) => `<tr><td>${i + 1}</td><td>${esc(m.name)}</td><td class="num">${Math.round(m.points)}</td><td>${dur(m.secs)}</td><td>${m.reviews}</td><td>${m.records}</td></tr>`).join("");
@@ -245,7 +245,7 @@
       <div class="acts2 remote">${[["start", "▶ 开始"], ["stop", "■ 停止"], ["auto", "⟳ 按设置自动"], ["update", "立刻更新"], ["restart", "重启软件"], ["logs", "取日志"], ["clean", "清理缓存"], ["probe", "重新体检"]].map(([c, t]) => `<button class="btn sm" data-cmd="${c}">${t}</button>`).join("")}
         <button class="btn sm" data-a="kick">移出训练网</button></div>
       <div id="devMore">${keepMore || `<p class="muted small">读取遥控记录、日志、统计…</p>`}</div>
-      ${d.task ? `<div class="sec"><h2>正在算「${esc(d.task.name)}」 <small>${Math.round((d.task.progress || 0) * 100)}% · ${fnName(L.fn)} 第 ${L.line || "—"} 行${L.gpu ? ` · ${L.gpu.temp}℃ · 占用 ${L.gpu.util}% · 显存 ${(+L.gpu.used || 0).toFixed(1)}/${L.gpu.vram}G · ${Math.round(L.gpu.power || 0)}W` : ""}</small></h2>
+      ${d.task ? `<div class="sec"><h2>正在算「${esc(d.task.name)}」 <small>${Math.round((d.task.progress || 0) * 100)}% · ${fnName(L.fn)} 第 ${L.line || "—"} 行${L.gpu ? ` · ${L.gpu.temp}℃ · 占用 ${L.gpu.util}% · 显存 ${(+L.gpu.used || 0).toFixed(1)}/${L.gpu.vram}G · ${Math.round(L.gpu.power || 0)}W` : ""}${L.pace != null && L.pace < 1 ? ` · 太热，训练密度 ${Math.round(L.pace * 100)}%` : ""}</small></h2>
         ${src ? `<div class="code" id="dCode">${src.split("\n").map((l, i) => `<div class="${i + 1 === L.line ? "hit" : ""}"><span>${i + 1}</span>${esc(l)}</div>`).join("")}</div>` : ""}
         <div class="sec"><h2>日志</h2><div class="logs">${(L.logs || []).map((l) => `<div>${esc(l.msg)}</div>`).join("")}</div></div></div>` : `<p class="muted">现在没在算。</p>`}`;
     drawer(body);

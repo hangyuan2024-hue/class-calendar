@@ -387,6 +387,55 @@ function create(opt) {
   const CMD_NAMES = { start: "开始", stop: "停止", auto: "按设置自动", update: "立刻更新", restart: "重启软件", logs: "交日志", clean: "清理缓存", probe: "重新体检" };
   const logs = [];
   let gpuNow = null;
+  // ---- 显卡温度：自动调训练密度 ----
+  //   以前：一到上限（83℃）就停、把任务还回去；凉一点又领回来、把大模型重新放进显卡（半分钟），没算几道题又到 83℃，
+  //   散热差的电脑一直在「启动 → 停下」里打转，几乎没真正算。
+  //   现在：快到上限时让配方算一会儿歇一会儿（密度 100% → 最低 15%），温度稳在上限下面；凉下来再一点点加回去。
+  //   配方不用改：lg.metric / lg.progress（每一步、每一道题都会调）里自己按密度歇。
+  //   真压不住（最低密度还超温 3 分钟、或超过上限 5℃）才停，停了要等凉到上限下 8℃ 才再领，不再来回折腾。
+  //   这台电脑合适的密度记下来，下一个任务直接从这里开始。
+  const PACE_MIN = 0.15;
+  const thermalFile = path.join(work, "thermal.json");
+  const th = { duty: 1, at: 0, hotSince: 0, cool: false, told: 0, toldDuty: 1 };
+  try { const j = JSON.parse(fs.readFileSync(thermalFile, "utf8")); if (Date.now() - j.t < 7 * 86400e3 && j.duty > 0) th.duty = Math.max(PACE_MIN, Math.min(1, +j.duty)); } catch (e) {}
+  const saveThermal = () => { try { fs.writeFileSync(thermalFile, JSON.stringify({ duty: th.duty, t: Date.now() })); } catch (e) {} };
+  const pct = (d) => Math.round(d * 100) + "%";
+  function writePace(c) {
+    if (!c || !c.paceFile) return;
+    try { fs.writeFileSync(c.paceFile + ".tmp", JSON.stringify({ duty: th.duty, t: Date.now() })); fs.renameSync(c.paceFile + ".tmp", c.paceFile); } catch (e) {}
+  }
+  // 每次拿到显卡读数（2 秒一次）调一下。返回 why 表示压不住了、要停
+  function thermal(c) {
+    const T = policy.maxTemp || 83, g = gpuNow || {};
+    const temp = g.temp != null ? +g.temp : null;
+    const overPower = !!(policy.maxPower && g.power != null && g.power > policy.maxPower * 1.15);
+    if (temp == null && !overPower) return null;
+    const now = Date.now();
+    if (temp != null && temp >= T + 5) return `显卡 ${temp}℃，比上限 ${T}℃ 高太多`;
+    if (now - th.at >= (opt.paceEveryMs || 8000)) {
+      th.at = now;
+      let d = th.duty;
+      if (temp != null && temp >= T + 1) d *= 0.6;              // 已经超了：一下子放慢很多
+      else if ((temp != null && temp >= T - 1) || overPower) d *= 0.8;   // 快到了：放慢一点
+      else if (temp != null && temp <= T - 6) d += 0.1;         // 凉快：加回去
+      else if (temp != null && temp <= T - 4) d += 0.04;
+      d = Math.round(Math.max(PACE_MIN, Math.min(1, d)) * 100) / 100;
+      if (d !== th.duty) {
+        th.duty = d; writePace(c); emit("pace", { duty: d, temp });
+        if (Math.abs(d - th.toldDuty) >= 0.1 || (d === 1 && th.toldDuty < 1) || now - th.told > 120000) {
+          th.told = now; th.toldDuty = d;
+          log(d >= 1 ? `显卡 ${temp}℃，凉下来了：恢复全速` : `显卡 ${temp != null ? temp + "℃" : Math.round(g.power) + "W"}：训练密度调到 ${pct(d)}（算一会儿歇一会儿，温度压在 ${T}℃ 以下）`, d >= 1 ? "ok" : "info");
+        }
+      }
+    }
+    // 最低密度了还在上限以上（或者配方不会歇）：3 分钟压不下来就停
+    const over = (temp != null && temp >= T) || overPower;
+    const cantSlow = th.duty <= PACE_MIN + 1e-9 || (c && th.duty < 1 && !c.paced && now - (c.slowAt || now) > (opt.heatStopMs || 180000) / 3);
+    if (c && th.duty < 1 && !c.slowAt) c.slowAt = now;
+    if (over && cantSlow) { th.hotSince = th.hotSince || now; if (now - th.hotSince > (opt.heatStopMs || 180000)) return c && !c.paced ? `显卡 ${temp}℃，这个任务没法放慢` : `显卡 ${temp}℃，密度降到最低还是太热`; }
+    else th.hotSince = 0;
+    return null;
+  }
   const emit = (k, v) => { try { ev.emit(k, v); ev.emit("any", { k, v }); } catch (e) {} };
   const setState = (s, w = "") => { if (s !== state || w !== why) { state = s; why = w; emit("state", { state, why, running: !!cur }); } };
   const log = (msg, level = "info") => { const l = { t: Date.now(), msg: String(msg), level }; logs.push(l); if (logs.length > 500) logs.shift(); emit("log", l); };
@@ -485,8 +534,13 @@ function create(opt) {
     // 笔记本拔了电源：停（插上电接着算）；「开始」了也一样，不然电池几十分钟就没了
     if (policy.pauseOnBattery !== false && opt.onBattery && (await opt.onBattery())) return { ok: false, why: "拔了电源：插上电就接着算", battery: true };
     if (manual !== "on" && policy.mode === "schedule" && Array.isArray(policy.days) && policy.days.length && !policy.days.includes(new Date().getDay())) return { ok: false, why: "今天不在定时算的日子里" };
-    if (gpuNow && gpuNow.temp != null && gpuNow.temp >= (policy.maxTemp || 83)) return { ok: false, why: `显卡 ${gpuNow.temp}℃，凉一凉再算` };
-    if (policy.maxPower && gpuNow && gpuNow.power != null && gpuNow.power > policy.maxPower * 1.15) return { ok: false, why: `显卡功耗 ${Math.round(gpuNow.power)}W 超过上限 ${policy.maxPower}W，歇一会儿` };
+    // 温度、功耗：正在算的时候由 thermal() 调密度，不在这里一刀切停掉；没在算的时候，太热了先不领
+    if (!cur && gpuNow && gpuNow.temp != null) {
+      const T = policy.maxTemp || 83, lim = th.cool ? T - 8 : T;
+      if (gpuNow.temp >= lim) return { ok: false, why: th.cool ? `显卡 ${gpuNow.temp}℃，凉到 ${lim}℃ 再接着算` : `显卡 ${gpuNow.temp}℃，凉一凉再算` };
+      th.cool = false;
+    }
+    if (!cur && policy.maxPower && gpuNow && gpuNow.power != null && gpuNow.power > policy.maxPower * 1.15) return { ok: false, why: `显卡功耗 ${Math.round(gpuNow.power)}W 超过上限 ${policy.maxPower}W，歇一会儿` };
     if (policy.yieldGames && opt.gpuApps) {
       const apps = await opt.gpuApps(cur && cur.child ? [cur.child.pid] : []);
       const big = apps.filter((a) => a.mem > 300 || /game|steam|\.exe$/i.test(a.name || "") && a.mem > 100);
@@ -512,7 +566,9 @@ function create(opt) {
       }
       lastTick = Date.now();
       if (cur) {
+        const hot = cur.child && !cur.finishing && !cur.stopping ? thermal(cur) : null;
         if (cur.finishing) { /* 已经算完了，只等着交结果：不用停 */ }
+        else if (hot) { th.cool = true; th.hotSince = 0; saveThermal(); log("停下：" + hot + `，等凉到 ${(policy.maxTemp || 83) - 8}℃ 再接着算`, "warn"); await stopTask(true, hot); }
         else if (!g.ok && (paused || manual === "off" || g.active || g.battery || g.diskCritical || /℃|功耗/.test(g.why))) { log("停下：" + g.why, "warn"); await stopTask(true, g.why); }
         // 卡住了：好久没有任何输出（日志、进度、曲线）→ 结束它，交给别的电脑从存档接着算
         else if (opt.stallMin !== 0 && cur.child && Date.now() - (cur.lastOut || cur.started) > (opt.stallMin || 45) * 60e3 && !cur.stopping) { log(`这个任务 ${opt.stallMin || 45} 分钟没有动静，像是卡住了：结束它，交给别的电脑接着算`, "error"); await stopTask(true, "卡住了（很久没有输出）"); }
@@ -534,7 +590,7 @@ function create(opt) {
 
   function liveOf() {
     if (!cur) return null;
-    return { job: cur.job.name, jobId: cur.job.id, recipe: cur.recipe && cur.recipe.name, recipeId: cur.recipe && cur.recipe.id, line: cur.line, fn: cur.fn, progress: cur.progress, note: cur.note, logs: cur.logs.slice(-12), metric: cur.lastMetric, gpu: gpuNow, started: cur.started };
+    return { job: cur.job.name, jobId: cur.job.id, recipe: cur.recipe && cur.recipe.name, recipeId: cur.recipe && cur.recipe.id, line: cur.line, fn: cur.fn, progress: cur.progress, note: cur.note, logs: cur.logs.slice(-12), metric: cur.lastMetric, gpu: gpuNow, pace: th.duty, started: cur.started };
   }
 
   // ---- 跑一个任务 ----
@@ -661,6 +717,8 @@ function create(opt) {
       if (L.job.params && L.job.params.dataset) { c.note = "取审核数据…"; const d = await api("/api/dataset", { task: c.id }); t.dataset = path.join(dir, "dataset.json"); fs.writeFileSync(t.dataset, JSON.stringify(d.items || [])); log(`审核数据：${(d.items || []).length} 条`); }
       fs.writeFileSync(path.join(dir, "task.json"), JSON.stringify(t));
       if (c.stopping) return;   // 准备的时候被叫停了（管理员暂停、你要用电脑）
+      c.paceFile = path.join(dir, "pace.json"); writePace(c);
+      if (th.duty < 1) log(`这台电脑上次在 ${pct(th.duty)} 的训练密度下温度刚好：从这里开始，凉快就慢慢加上去`);
       c.spawned = true;   // 到这里准备工作（下配方、装包、开引擎、下输入文件）都过了
       c.spawnAt = Date.now();
       const code = await spawnPy(c, rc.file, path.join(dir, "task.json"));
@@ -691,6 +749,7 @@ function create(opt) {
       const doneMetrics = c.metrics.splice(0);
       clearInterval(renewTimer); c.submitting = true;   // 要交结果了：不再续约（断网等太久被收回的，连回来交的时候调度中心会还给它）
       if (state === "offline") { c.note = "算完了，等连上调度中心交结果"; emit("progress", { id: c.id, p: c.progress, note: c.note }); }
+      saveThermal();
       const r = await whenOnline(c, "交结果", () => api("/api/done", { task: c.id, result, outputs: c.outputs, reviews: c.reviews, secs, metrics: doneMetrics }));
       const mm = (x) => (x >= 90 ? (x / 60).toFixed(1) + " 分钟" : Math.round(x) + " 秒");
       log(r.ok ? `做完了「${L.job.name}」，用了 ${mm(secs)}：准备 ${mm(acct.prep)}、计算 ${mm(acct.run)}、上传 ${mm(acct.up)}${acct.gpu != null ? `；显卡平均占用 ${Math.round(acct.gpu)}%${acct.idle > 0.3 ? `（有 ${Math.round(acct.idle * 100)}% 的时间显卡基本空着）` : ""}` : ""}` : r.why, r.ok ? "ok" : "warn");
@@ -755,7 +814,7 @@ function create(opt) {
         cacheEnv[k] = path.join(cacheDir, sub);
         try { fs.mkdirSync(cacheEnv[k], { recursive: true }); } catch (e) {}
       }
-      const env = { ...process.env, ...cacheEnv, ...(opt.env || {}), ...extraEnv, PYTHONPATH: PY_DIR + path.delimiter + (process.env.PYTHONPATH || ""), PYTHONUNBUFFERED: "1", PYTHONIOENCODING: "utf-8", LG_TASK: taskFile, LG_RECIPE: file };
+      const env = { ...process.env, ...cacheEnv, ...(opt.env || {}), ...extraEnv, PYTHONPATH: PY_DIR + path.delimiter + (process.env.PYTHONPATH || ""), PYTHONUNBUFFERED: "1", PYTHONIOENCODING: "utf-8", LG_TASK: taskFile, LG_RECIPE: file, ...(c.paceFile ? { LG_PACE: c.paceFile } : {}) };
       const t0 = Date.now();
       const child = c.child = spawn(python(), ["-u", file], { cwd: c.dir, env, windowsHide: true, detached: process.platform !== "win32" });
       const lines = (s, err) => {
@@ -821,6 +880,7 @@ function create(opt) {
         }).catch((e) => { c.lostUpload = "要审核的图片没传上去：" + e.message; log("审核图片上传失败：" + e.message, "warn"); });
         break;
       case "result": { const { t, ...r } = m; c.result = r; break; }
+      case "paced": c.paced = true; break;   // 配方真的按密度歇了（自己跑外部程序的配方不会）
       // 配方说「这台电脑现在算不了」（显存被别的程序占了、训练慢得不正常）：不算任务失败，交给别的电脑从存档接着算，这台歇一会儿
       case "unfit": c.unfit = String(m.why || "这台电脑现在算不了这个任务"); log(c.unfit, "error"); break;
       // 配方要换个方式开本地大模型（比如带上刚训练好的 LoRA 来考试）：{t:"llm", op:"start"|"stop"|"info", llm:{...}, lora: 本地路径}

@@ -84,12 +84,53 @@ def log(*a):
     _send(t="log", msg=" ".join(str(x) for x in a))
 
 
+_pace = {"at": 0.0, "mt": None, "d": 1.0, "told": False}
+_pace_tl = threading.local()
+
+
+def pace():
+    """跟着显卡温度放慢：客户端把「训练密度」（0.15～1）写在 LG_PACE 指向的文件里。
+    密度 0.6 就是：算 0.6 秒歇 0.4 秒。lg.metric / lg.progress 会自己调，配方不用管；
+    一步很久才报一次的配方，也可以在循环里自己调 lg.pace()。"""
+    f = os.environ.get("LG_PACE")
+    if not f:
+        return
+    now = time.time()
+    if now - _pace["at"] > 1.0:
+        _pace["at"] = now
+        try:
+            mt = os.path.getmtime(f)
+            if mt != _pace["mt"]:
+                with open(f, encoding="utf-8") as fh:
+                    _pace["d"] = max(0.15, min(1.0, float(json.load(fh).get("duty", 1))))
+                _pace["mt"] = mt
+        except Exception:
+            pass
+    d = _pace["d"]
+    last = getattr(_pace_tl, "last", None)
+    owe = getattr(_pace_tl, "owe", 0.0)
+    if d < 0.999 and last is not None:
+        owe = min(owe + (now - last) * (1 - d) / d, 60.0)   # 每个线程按自己算了多久来歇；很短的步子攒够了一起歇
+        if owe > 0.05:
+            if not _pace["told"]:
+                _pace["told"] = True
+                _send(t="paced", d=d)
+            time.sleep(owe)
+            owe = 0.0
+    else:
+        owe = 0.0
+    _pace_tl.owe = owe
+    _pace_tl.last = time.time()
+
+
 def metric(step, **kv):
     _send(t="metric", step=int(step), **{k: float(v) for k, v in kv.items() if v is not None})
+    pace()
 
 
 def progress(p, note=None):
     _send(t="progress", p=max(0.0, min(1.0, float(p))), note=note)
+    pace()
 
 
 def checkpoint(path, step, **extra):
