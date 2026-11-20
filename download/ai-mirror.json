@@ -715,7 +715,7 @@
    "url": "https://dl.laolaokechengbiao.cn/dl/ai/voicedata/aishell3-laolao.tar",
    "src": "",
    "size": 33669120,
-   "sha256": "1e9e3406932e73642b46ee6f1b21e100295ff1d29240635da82217be7cd6c5a3",
+   "sha256": "e655ef49bda09a8f93160e27a025d48ca77a4494766d314da4984244cfc20aaf",
    "gh": [
     "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-voicedata/aishell3-laolao.tar"
    ],
@@ -727,12 +727,12 @@
    "url": "https://dl.laolaokechengbiao.cn/dl/ai/voicedata/aishell3-base.tar",
    "src": "",
    "size": 1019402240,
-   "sha256": "a1c29b0d28b9817493870a335d5cf9226d6ab8b6b9b0ad9f6af39376293fbbe8",
+   "sha256": "1ce6082c05c1c4e070aeaf91521159ccdfda45951102b4df5dcba3766adeb527",
    "gh": [
     "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-voicedata/aishell3-base.tar"
    ],
    "model": "aishell3Base"
   }
  },
- "at": "2026-11-14T17:21:01.120Z"
+ "at": "2026-11-20T16:31:32.306Z"
 }
