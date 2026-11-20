@@ -51,7 +51,7 @@
     $("#devs").innerHTML = ov.devices.map((d) => `<div class="dev ${d.state}" data-dev="${d.id}"><i class="dot"></i><b>${esc(d.member)} · ${esc(d.name)}</b>${d.version ? ` <span class="ver ${cmpVer(d.version, newest) < 0 ? "old" : ""}" title="${cmpVer(d.version, newest) < 0 ? "不是最新版：空闲时会自动更新" : "最新版"}">v${esc(d.version)}</span>` : ""}
       <small>${esc(d.gpu || "没有显卡信息")}${d.vram ? " · " + d.vram + "G" : ""}${d.ram ? " · 内存 " + d.ram + "G" : ""}</small>
       <small>${d.online ? (d.task ? "在算「" + esc(d.task.name) + "」" : d.state === "waiting" ? "等空闲" : "在线，等任务") : "离线 · " + (d.lastSeen ? ago(d.lastSeen) : "")} · 累计 ${dur(d.secs)}</small>
-      ${d.live && d.task ? `<div class="line">${fnName(d.live.fn)} 第 ${d.live.line || "—"} 行${d.live.gpu ? ` · ${d.live.gpu.temp}℃ ${d.live.gpu.util}%` : ""}${d.live.pace != null && d.live.pace < 1 ? ` · 密度 ${Math.round(d.live.pace * 100)}%` : ""}</div><div class="bar"><i style="width:${(d.task.progress || 0) * 100}%"></i></div>` : ""}</div>`).join("") || `<p class="muted">还没有电脑加入：点「发邀请」</p>`;
+      ${d.live && d.task ? `<div class="line">${fnName(d.live.fn)} 第 ${d.live.line || "—"} 行${d.live.gpu ? ` · ${d.live.gpu.temp}℃ ${d.live.gpu.util}%` : ""}${d.live.quiet ? " · 睡眠模式" : ""}${d.live.pace != null && d.live.pace < 1 ? ` · 密度 ${Math.round(d.live.pace * 100)}%` : ""}</div><div class="bar"><i style="width:${(d.task.progress || 0) * 100}%"></i></div>` : ""}</div>`).join("") || `<p class="muted">还没有电脑加入：点「发邀请」</p>`;
     $$("#devs [data-dev]").forEach((el) => (el.onclick = () => openDev(+el.dataset.dev)));
     $("#feed").innerHTML = ov.events.map((e) => `<div class="${e.type}"><time>${hhmm(e.ts)}</time><span>${esc(e.msg)}</span></div>`).join("");
     $("#board").innerHTML = `<tr><th>#</th><th>名字</th><th>积分</th><th>算力</th><th>审核</th><th>录表情</th></tr>` + ov.board.map((m, i) => `<tr><td>${i + 1}</td><td>${esc(m.name)}</td><td class="num">${Math.round(m.points)}</td><td>${dur(m.secs)}</td><td>${m.reviews}</td><td>${m.records}</td></tr>`).join("");
@@ -243,9 +243,10 @@
     const body = `<h1>${esc(d.member)} · ${esc(d.name)}</h1><div class="sub">${d.online ? "在线" : "离线（" + (d.lastSeen ? ago(d.lastSeen) : "") + "）"} · ${esc(d.gpu || "")} ${d.vram ? d.vram + "G" : ""} · 内存 ${d.ram || "—"}G · 驱动 ${esc(info.driver || "—")} · 累计算了 ${dur(d.secs)}、${d.tasks} 个任务</div>
       ${info.why && !d.task ? `<p class="muted">现在：${esc(info.why)}</p>` : ""}
       <div class="acts2 remote">${[["start", "▶ 开始"], ["stop", "■ 停止"], ["auto", "⟳ 按设置自动"], ["update", "立刻更新"], ["restart", "重启软件"], ["logs", "取日志"], ["clean", "清理缓存"], ["probe", "重新体检"]].map(([c, t]) => `<button class="btn sm" data-cmd="${c}">${t}</button>`).join("")}
+        <button class="btn sm" data-a="assist" data-m="control">🖥 远程协助</button><button class="btn sm" data-a="assist" data-m="view">👁 只看屏幕</button>
         <button class="btn sm" data-a="kick">移出训练网</button></div>
       <div id="devMore">${keepMore || `<p class="muted small">读取遥控记录、日志、统计…</p>`}</div>
-      ${d.task ? `<div class="sec"><h2>正在算「${esc(d.task.name)}」 <small>${Math.round((d.task.progress || 0) * 100)}% · ${fnName(L.fn)} 第 ${L.line || "—"} 行${L.gpu ? ` · ${L.gpu.temp}℃ · 占用 ${L.gpu.util}% · 显存 ${(+L.gpu.used || 0).toFixed(1)}/${L.gpu.vram}G · ${Math.round(L.gpu.power || 0)}W` : ""}${L.pace != null && L.pace < 1 ? ` · 太热，训练密度 ${Math.round(L.pace * 100)}%` : ""}</small></h2>
+      ${d.task ? `<div class="sec"><h2>正在算「${esc(d.task.name)}」 <small>${Math.round((d.task.progress || 0) * 100)}% · ${fnName(L.fn)} 第 ${L.line || "—"} 行${L.gpu ? ` · ${L.gpu.temp}℃ · 占用 ${L.gpu.util}% · 显存 ${(+L.gpu.used || 0).toFixed(1)}/${L.gpu.vram}G · ${Math.round(L.gpu.power || 0)}W` : ""}${L.quiet ? " · 睡眠模式（安静慢算）" : ""}${L.pace != null && L.pace < 1 ? ` · ${L.quiet ? "" : "太热，"}训练密度 ${Math.round(L.pace * 100)}%` : ""}</small></h2>
         ${src ? `<div class="code" id="dCode">${src.split("\n").map((l, i) => `<div class="${i + 1 === L.line ? "hit" : ""}"><span>${i + 1}</span>${esc(l)}</div>`).join("")}</div>` : ""}
         <div class="sec"><h2>日志</h2><div class="logs">${(L.logs || []).map((l) => `<div>${esc(l.msg)}</div>`).join("")}</div></div></div>` : `<p class="muted">现在没在算。</p>`}`;
     drawer(body);
@@ -270,11 +271,21 @@
       $("#devMore").innerHTML = `<div class="sec"><h2>最近 14 天 <small>在算 / 在线没活（小时）</small></h2><canvas id="devBars" style="height:170px"></canvas></div>
         <div class="sec"><h2>遥控记录</h2>${x.commands.length ? `<table class="tbl">${x.commands.map((c) => `<tr><td>${CN[c.cmd] || esc(c.cmd)}</td><td>${c.state === "done" ? (c.ok ? "✓ 做好了" : "✗ 没做成") : CS[c.state] || c.state}</td><td class="muted small">${esc(typeof c.result === "string" ? c.result : c.result && c.result.key ? "日志已交" : "")}</td><td class="muted">${ago(c.created)}</td></tr>`).join("")}</table>` : `<p class="muted">还没遥控过</p>`}</div>
         <div class="sec"><h2>交上来的日志 <small>点「取日志」，十几秒后这里出现</small></h2>${x.logs.length ? x.logs.map((l) => `<div><a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.name)}</a> <span class="muted">${ago(l.created)}</span></div>`).join("") : `<p class="muted">还没有</p>`}</div>
-        <div class="sec"><h2>这台的设置</h2><p class="muted small">开机自启 ${info.autostart ? "开" : "关"} · 防休眠 ${set.keepAwake === false ? "关" : "开"}${info.awake ? "（现在不让睡）" : ""} · 合盖继续 ${set.lid ? "开" : "关"} · 拔电暂停 ${set.pauseOnBattery === false ? "关" : "开"} · 下载源 ${info.region === "cn" ? "国内" : info.region === "global" ? "国外" : "—"}${set.vramCap ? " · 显存上限 " + set.vramCap + "G" : ""}${set.netLimit ? " · 网速上限 " + set.netLimit + "MB/s" : ""}${set.maxPower ? " · 功耗上限 " + set.maxPower + "W" : ""}${info.pro ? " · 专业模式" : ""}</p></div>`;
+        <div class="sec"><h2>这台的设置</h2><p class="muted small">开机自启 ${info.autostart ? "开" : "关"} · 防休眠 ${set.keepAwake === false ? "关" : "开"}${info.awake ? "（现在不让睡）" : ""} · 合盖继续 ${set.lid ? "开" : "关"} · 拔电暂停 ${set.pauseOnBattery === false ? "关" : "开"} · 下载源 ${info.region === "cn" ? "国内" : info.region === "global" ? "国外" : "—"}${set.vramCap ? " · 显存上限 " + set.vramCap + "G" : ""}${set.netLimit ? " · 网速上限 " + set.netLimit + "MB/s" : ""}${set.maxPower ? " · 功耗上限 " + set.maxPower + "W" : ""}${info.pro ? " · 专业模式" : ""}${set.quiet === false ? " · 睡眠模式 关" : ` · 睡眠模式 ${set.quietFrom || "23:00"}～${set.quietTo || "07:00"}`}${set.perfBoost === false ? "" : " · 训练时最佳性能"}${set.assist === false ? " · 不接受远程协助" : ""}</p>${(info.avoid || []).length ? `<p class="muted small">这台做这些任务太慢，暂时不派给它：${info.avoid.map(esc).join("、")}</p>` : ""}</div>`;
       const top = $("#drawer").scrollTop;
       window.LaoChart.bars($("#devBars"), days, [{ name: "在算", color: "#36e2ff", vals: busy }, { name: "在线没活", color: "#a78bfa66", vals: online }], { fmt: hm });
       $("#drawer").scrollTop = top;
     }).catch(() => {});
+    // 远程协助：对方电脑会弹窗问，同意了才开始；新窗口里看画面、操控
+    $$("#drawerBody [data-a=assist]").forEach((b) => (b.onclick = guard(async () => {
+      const mode = b.dataset.m;
+      if (!confirm(`向「${d.member} · ${d.name}」发远程协助请求（${mode === "view" ? "只看屏幕" : "查看和操控"}）？\n对方电脑会弹窗问，对方同意了才开始；对方屏幕上一直显示「正在被远程协助」，随时能结束。`)) return;
+      const w = window.open("about:blank", "_blank", "width=1280,height=820");
+      const r = await api("/api/admin/device/assist", { id, mode });
+      const u = `/admin/assist.html#s=${encodeURIComponent(r.s)}&t=${encodeURIComponent(token)}&name=${encodeURIComponent(d.member + " · " + d.name)}`;
+      if (w) w.location = u; else location.href = u;
+      if (!r.online) toast("这台现在离线：上线后才会收到请求（90 秒内没回应会自动取消）");
+    })));
     $$("#drawerBody [data-a=kick]").forEach((b) => (b.onclick = guard(async () => { if (!confirm(`把「${d.name}」移出训练网？它正在算的任务会交给别人。`)) return; await api("/api/admin/device/set", { id, disabled: true }); closeDrawer(); refresh(); })));
   }
   function drawer(html) { $("#drawer").hidden = false; const sc = $("#drawer").scrollTop; $("#drawerBody").innerHTML = html; $("#drawer").scrollTop = sc; }

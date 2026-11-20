@@ -86,7 +86,41 @@ function create(o = {}) {
     } catch (e) { return { ok: false, why: "改电源设置没成功：" + e.message }; }
   }
 
-  return { keepAwake, lidKeepRunning, lidAc, status: () => ({ awake, why, helper: !!helper }) };
+  // ---- 训练时临时切到「最佳性能」，算完切回原来的（设置里能关；睡眠模式时段、拔了电都不切） ----
+  //   Windows 11 / 10 的「电源模式」滑块是叠加方案（overlay）：最佳性能 = ded574b5-…；没有滑块的老电脑换成「高性能」电源计划。
+  //   切之前记下原来的（叠加方案 + 电源计划），切回时按记下的恢复；软件崩了也存在设置里，下次打开先恢复。
+  const BEST = "ded574b5-45a0-4f42-8737-46345c09c238", NONE = "00000000-0000-0000-0000-000000000000";
+  const GUID = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i;
+  async function scheme() { const m = GUID.exec(await run("powercfg", ["/getactivescheme"])); return m ? m[1].toLowerCase() : null; }
+  async function overlay() {
+    try {
+      const out = await run("reg", ["query", "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Power\\User\\PowerSchemes", "/v", "ActiveOverlayAcPowerScheme"]);
+      const m = GUID.exec(out); return m ? m[1].toLowerCase() : NONE;
+    } catch (e) { return NONE; }
+  }
+  // on=true：返回要记下的 { scheme, overlay, how }；on=false：按 saved 恢复
+  async function perfBoost(on, saved) {
+    if (!isWin) return { ok: false, why: "只有 Windows 能切" };
+    try {
+      if (on) {
+        const before = { scheme: await scheme(), overlay: await overlay() };
+        if (before.overlay === BEST) return { ok: true, saved: null, how: "已经是最佳性能" };
+        try { await run("powercfg", ["/overlaysetactive", BEST]); log("训练中：电源模式临时切到「最佳性能」（算完切回）"); return { ok: true, saved: { ...before, how: "overlay" } }; }
+        catch (e) {
+          await run("powercfg", ["/setactive", "SCHEME_MIN"]);
+          log("训练中：电源计划临时切到「高性能」（算完切回）");
+          return { ok: true, saved: { ...before, how: "scheme" } };
+        }
+      }
+      if (!saved) return { ok: true, saved: null };
+      if (saved.how === "overlay") await run("powercfg", ["/overlaysetactive", saved.overlay || NONE]);
+      if (saved.how === "scheme" && saved.scheme) await run("powercfg", ["/setactive", saved.scheme]);
+      log("电源模式切回原来的");
+      return { ok: true, saved: null };
+    } catch (e) { return { ok: false, why: "切电源模式没成功：" + e.message }; }
+  }
+
+  return { keepAwake, lidKeepRunning, lidAc, perfBoost, status: () => ({ awake, why, helper: !!helper }) };
 }
 
 module.exports = { create, PS };

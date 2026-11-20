@@ -130,7 +130,8 @@ ok = lambda m: print("✓", m)
 r = run(params={"autoBatch": False})
 assert r["err"] is None, r["err"]
 steps = [x for x in r["sent"] if x[0] == "metric"]
-assert len(steps) == 4 and ("frac", 0.81) in r["sent"], (len(steps), r["sent"][:3])
+# 显存上限：空着 7G，Windows 留 1.3G、别的系统留 0.8G（CUDA 自己和桌面要用，不然会溢出到共享内存）
+assert len(steps) == 4 and ("frac", 0.71 if os.name == "nt" else 0.78) in r["sent"], (len(steps), r["sent"][:3])
 assert "还要" in [x for x in r["sent"] if x[0] == "progress"][-1][1]
 ok("正常：训完 4 步；只用现在空着的显存（7G 里留 0.5G）；进度里写着还要多久")
 

@@ -355,9 +355,24 @@
     loadDisk(); loadMem();
   }
   async function saveSet(p) { try { await call("setSettings", p); $("#setState").textContent = "保存好了 " + new Date().toLocaleTimeString(); await loadSettings(); } catch (e) { toast(e.message, true); loadSettings(); } }
-  $$("[data-set]").forEach((el) => (el.onchange = () => saveSet({ [el.dataset.set]: el.type === "checkbox" ? el.checked : +el.value })));
+  $$("[data-set]").forEach((el) => (el.onchange = () => saveSet({ [el.dataset.set]: el.type === "checkbox" ? el.checked : el.type === "time" ? el.value : +el.value })));
   $$("[data-no]").forEach((el) => (el.onchange = () => saveSet({ ["no_" + el.dataset.no]: !el.checked })));
   $$("input[name=region]").forEach((el) => (el.onchange = () => saveSet({ region: el.value })));
+  // 同局域网远程协助：搜人 → 点「远程协助 / 只看」→ 对方同意后自动弹出看画面的窗口
+  let lanPeers = [];
+  $("#lanScan").onclick = guard(async () => {
+    $("#lanScan").disabled = true; $("#lanTbl").innerHTML = `<tr><td class="muted">搜索中…</td></tr>`;
+    try { lanPeers = await call("lanScan"); }
+    finally { $("#lanScan").disabled = false; }
+    const e = (x) => String(x == null ? "" : x).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+    $("#lanTbl").innerHTML = lanPeers.length ? lanPeers.map((p, i) => `<tr><td>${e(p.member ? p.member + " · " : "")}${e(p.name)}<div class="muted small">${e(p.ip)}</div></td><td>${p.accepts ? `<button class="btn small" data-lan="${i}" data-m="control">远程协助</button> <button class="btn small" data-lan="${i}" data-m="view">只看屏幕</button>` : `<span class="muted small">对方关了远程协助</span>`}</td></tr>`).join("")
+      : `<tr><td class="muted">没找到：对方要开着捞捞算力、和你在同一个网络里；有的校园网不让电脑之间直接连，那就用控制中心里的远程协助</td></tr>`;
+    $$("#lanTbl [data-lan]").forEach((b) => (b.onclick = guard(async () => {
+      const p = lanPeers[+b.dataset.lan];
+      await call("lanAssist", p, b.dataset.m);
+      toast(`请求发过去了：等「${p.name}」点同意，画面会在新窗口里出来`);
+    })));
+  });
   $("#regionGo").onclick = guard(async () => { $("#regionGo").disabled = true; try { await call("redetectRegion"); await loadSettings(); toast("测好了"); } finally { $("#regionGo").disabled = false; } });
   async function loadDisk() {
     $("#diskTbl").innerHTML = `<tr><td class="muted">统计中…（大文件夹要几秒）</td></tr>`;

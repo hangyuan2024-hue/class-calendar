@@ -323,14 +323,53 @@ def unfit(why):
 def gpu_guard(reserve_gb=0.5):
     """只用显卡「专用显存」里现在空着的部分，返回（空着几 G，一共几 G）。
     Windows 上显存不够时驱动会悄悄把多出来的放进「共享内存」：不报错，但慢几十上百倍（显卡占用 99%、功耗却很低）。
-    设了上限以后，超了会明明白白报「显存不够」，配方可以接住、把这一条截短再来。"""
+    设了上限以后，超了会明明白白报「显存不够」，配方可以接住、把一批改小再来。
+
+    留多少余量：PyTorch 的上限只管它自己分的显存；CUDA 本身（cuBLAS、量化库）还要 0.3～0.5G 在上限外面，
+    Windows 桌面、浏览器也会随时多要一点。以前只留 0.5G：8G 的笔记本空着 6.7G，训练一路涨到 7.7/8G，
+    别的程序一要显存就溢出到共享内存，每秒只剩几个字。现在 Windows 上至少留 1.3G（Linux 0.8G），
+    而且边训边看：别的程序又占了显存、空的不到 0.4G，就把训练的上限往下收，配方接到「显存不够」会自己把一批改小。"""
     import torch
     free, total = torch.cuda.mem_get_info()
+    G = 2 ** 30
+    keep = max(float(reserve_gb), float(os.environ.get("LG_VRAM_RESERVE", 1.3 if os.name == "nt" else 0.8)))
+    frac = max(0.3, min(0.95, (free - keep * G) / total))
     try:
-        torch.cuda.set_per_process_memory_fraction(max(0.3, min(0.98, (free - reserve_gb * 2 ** 30) / total)))
+        torch.cuda.set_per_process_memory_fraction(frac)
     except Exception:
         pass
-    return free / 2 ** 30, total / 2 ** 30
+    _gpu_watch_start(frac, total)
+    return free / G, total / G
+
+
+_gw = {"on": False, "frac": None, "told": 0.0}
+
+
+def _gpu_watch_start(frac, total):
+    """后台每 5 秒看一眼整张卡还空着多少：快满了就把训练的上限收一点（每次 0.4G，最少留三成）。"""
+    _gw["frac"] = frac
+    if _gw["on"]:
+        return
+    _gw["on"] = True
+
+    def run():
+        import torch
+        G = 2 ** 30
+        while True:
+            time.sleep(float(os.environ.get("LG_VRAM_WATCH_S", 5)))
+            try:
+                free, tot = torch.cuda.mem_get_info()
+                # 收了以后要等训练那边真的松出来（下一次「显存不够」时它会把一批改小）：30 秒内不再收第二次
+                if free < 0.4 * G and _gw["frac"] > 0.3 and time.time() - _gw.get("at", 0) > float(os.environ.get("LG_VRAM_COOL_S", 30)):
+                    _gw["at"] = time.time()
+                    _gw["frac"] = max(0.3, _gw["frac"] - 0.4 * G / tot)
+                    torch.cuda.set_per_process_memory_fraction(_gw["frac"])
+                    if time.time() - _gw["told"] > 60:
+                        _gw["told"] = time.time()
+                        log("别的程序在用显存（整张卡只空着 %.1fG）：训练让出一点，上限收到 %.1fG（不溢出到共享内存，不然会慢几十倍）" % (free / G, _gw["frac"] * tot / G))
+            except Exception:
+                pass
+    threading.Thread(target=run, daemon=True).start()
 
 
 def done(**result):

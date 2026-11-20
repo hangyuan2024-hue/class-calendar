@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>正在被远程协助</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #7f1d1d; color: #fff; font: 14px/1 "Microsoft YaHei UI", system-ui, sans-serif; -webkit-app-region: drag; user-select: none; overflow: hidden; }
+  .row { height: 100%; display: flex; align-items: center; gap: 10px; padding: 0 8px 0 14px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: #fca5a5; animation: b 1.2s infinite; }
+  @keyframes b { 50% { opacity: .3; } }
+  .t { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  button { -webkit-app-region: no-drag; background: #fff; color: #7f1d1d; border: 0; border-radius: 6px; padding: 7px 14px; font: bold 14px "Microsoft YaHei UI", system-ui; cursor: pointer; }
+</style></head>
+<body><div class="row"><span class="dot"></span><span class="t" id="t">正在被远程协助</span><button id="end">结束协助</button></div>
+<script>
+  const q = new URLSearchParams(location.search);
+  document.getElementById("t").textContent = `正在被「${q.get("by") || "管理员"}」远程协助（${q.get("mode") === "view" ? "只看屏幕" : "能操控鼠标键盘"}）`;
+  document.getElementById("end").onclick = () => window.bar.end();
+</script></body></html>

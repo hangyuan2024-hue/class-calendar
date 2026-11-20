@@ -25,9 +25,9 @@ const until = async (f, ms, what) => { const t0 = Date.now(); while (!(await f()
   const inv = await Tools.api(admin, "/api/admin/invite", { maxUses: 10, server: url });
   const join = (n) => Agent.join(inv.link, n, { name: n + "的电脑", info: { gpu: "RTX 4060", vram: 8 } });
   const tasksOf = async (id) => (await Tools.api(admin, "/api/admin/job?id=" + id, null, "GET")).tasks;
-  const plan = async (name, src, count = 1) => {
+  const plan = async (name, src, count = 1, priority = 5) => {
     const rc = path.join(tmp, name + ".py"); fs.writeFileSync(rc, src);
-    const pf = path.join(tmp, name + ".json"); fs.writeFileSync(pf, JSON.stringify({ jobs: [{ name, kind: "map", recipe: rc, params: { count }, priority: 5 }] }));
+    const pf = path.join(tmp, name + ".json"); fs.writeFileSync(pf, JSON.stringify({ jobs: [{ name, kind: "map", recipe: rc, params: { count }, priority }] }));
     return (await Tools.plan(admin, pf))[0];
   };
   const base = { python: PY, caps: { gpu: "RTX 4060", vram: 8, ram: 32 }, tickMs: 100, hbMs: 300, leaseEveryMs: 100, renewMs: 300, paceEveryMs: 150, heatStopMs: 1500, gpuApps: async () => [], policy: { maxTemp: 83 } };
@@ -103,6 +103,48 @@ const until = async (f, ms, what) => { const t0 = Date.now(); while (!(await f()
     assert.ok(Date.now() - t0 < 1000);
     await a.stop();
     ok("比上限高 5℃ 以上：不等，马上停");
+  }
+
+  // ---------- 4. 睡眠模式：晚上照样算，但密度最多 50%、温度压到 70℃ ----------
+  {
+    const hm = (d) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    const now = new Date(), from = hm(new Date(now - 60e3)), to = hm(new Date(+now + 3600e3));
+    await plan("睡眠", "import lg, time, json, os\nt = lg.task()\nt0 = time.time()\nfor i in range(40):\n    time.sleep(0.05)\n    lg.progress((i + 1) / 40.0)\nlg.done(secs=time.time() - t0, d=json.load(open(os.environ['LG_PACE']))['duty'])\n", 1, 9);
+    const cred = await join("丁2");
+    let temp = 55, duty = 0.5;   // 配方一开始读到的就是睡眠模式的 50%
+    const a = Agent.create({ ...base, server: cred.server, token: cred.token, pubkey: cred.pubkey, workDir: path.join(tmp, "d"), policy: { maxTemp: 83, quiet: { on: true, from, to } },
+      gpuInfo: async () => { temp += ((55 + 25 * duty) - temp) * 0.5; return { temp: Math.round(temp) }; } });
+    const logs = []; let result = null, maxT = 0;
+    a.on("log", (l) => logs.push(l.msg)); a.on("pace", (p) => { duty = Math.min(p.duty, 0.5); }); a.on("done", (d) => { if (d.ok) result = d.result; });
+    a.on("gpu", (g) => { if (a.current()) maxT = Math.max(maxT, g.temp); });
+    a.start();
+    await until(() => result, 30000, "算完");
+    await a.stop();
+    assert.ok(result.d <= 0.5, "密度最多 50%：" + result.d);
+    assert.ok(result.secs > 40 * 0.05 * 1.7, "真的慢下来了：" + result.secs);
+    assert.ok(logs.some((m) => /现在是睡眠模式：密度最多 50%/.test(m)), logs.join("\n"));
+    assert.ok(maxT <= 72, "温度压在 70℃ 附近：" + maxT);
+    assert.strictEqual(a.quiet().maxTemp, 70);
+    ok(`睡眠模式（${from}～${to}）：照样算完，密度最多 50%、显卡最高 ${maxT}℃（平时全速会到 80℃）`);
+  }
+
+  // ---------- 5. 慢电脑：做某类任务慢得不正常 → 6 小时内不再领这一类，先做别的 ----------
+  {
+    const slowJob = await plan("慢训练", "import lg, sys\nt = lg.task()\nlg.unfit('这台电脑训练慢得不正常（每秒 12 字，正常是几百）：换别的电脑接着训')\nsys.exit(1)\n", 2, 9);
+    const lightJob = await plan("轻活", "import lg\nt = lg.task()\nlg.done(ok=1)\n", 3, 8);
+    const cred = await join("慢电脑");
+    const a = Agent.create({ ...base, server: cred.server, token: cred.token, pubkey: cred.pubkey, workDir: path.join(tmp, "e"), gpuInfo: async () => ({ temp: 50 }) });
+    const logs = [], states = []; a.on("log", (l) => logs.push(l.msg)); a.on("state", (s) => states.push(s.why || ""));
+    a.start();
+    await until(async () => (await tasksOf(lightJob)).every((t) => t.state === "done"), 30000, () => "轻活做完：" + logs.join("\n"));
+    await a.stop();
+    const sl = await tasksOf(slowJob);
+    assert.ok(sl.every((t) => !t.errors && t.state === "queued"), "慢的那类不记失败、留给别的电脑：" + JSON.stringify(sl.map((t) => [t.state, t.errors])));
+    assert.strictEqual(logs.filter((m) => /^领到任务：「慢训练」/.test(m)).length, 1, "慢的那类只领了一次");
+    assert.ok(logs.some((m) => /做「慢训练」太慢：6 小时内不再领这一类/.test(m)));
+    assert.ok(!states.some((w) => /分钟后自动再试/.test(w)), "不是整台电脑歇着：轻活照样做");
+    assert.deepStrictEqual(a.avoiding().map((x) => x.recipe), ["慢训练"]);
+    ok("慢电脑做训练慢得不正常：这一类 6 小时内不再派给它（只领了一次），3 个轻活照样做完；训练留给别的电脑");
   }
 
   await app.close();

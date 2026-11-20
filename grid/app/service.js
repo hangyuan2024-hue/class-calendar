@@ -17,6 +17,9 @@ const Logs = require("./logs");
 const Disk = require("./disk");
 const Mem = require("./mem");
 const Region = require("./region");
+const Assist = require("./assist");
+const Inject = require("./inject");
+const Lan = require("./lan");
 
 const RECIPES = path.join(__dirname, "..", "recipes").replace(/app\.asar([\\/])/, "app.asar.unpacked$1");  // 打包后 Python 读不了 asar 里的文件
 
@@ -73,7 +76,11 @@ function createService(o) {
   const capsNow = () => { const c = { ...((lastProbe && lastProbe.caps) || {}), comfy: !!(cfg.ai && cfg.ai.ready), llm: llm.ok(), gsv: process.platform === "win32" || !!(cfg.gsv && cfg.gsv.dir) }; if (cfg.set && cfg.set.vramCap && c.vram) c.vram = Math.min(c.vram, cfg.set.vramCap); return c; };
   // ---- 设置（默认值）、日志、防休眠、硬盘、地区 ----
   const SET0 = { autostart: true, keepAwake: true, lid: false, pauseOnBattery: true, notify: true, netLimit: 0, vramCap: 0, maxPower: 0, region: "auto", pro: false, keepTaskDays: 2, stallMin: 45, multiGpu: true,
-    memAuto: true, aiRecycleH: 6, memLowPct: 12, sweep: true, autoClean: true };
+    memAuto: true, aiRecycleH: 6, memLowPct: 12, sweep: true, autoClean: true,
+    // 睡眠模式：晚上照样算，但温度压到 70℃、密度最多 50%，风扇少转；训练时临时「最佳性能」；训练环境不见了自动重装；允许别人发远程协助请求（每次都要自己同意）
+    quiet: true, quietFrom: "23:00", quietTo: "07:00", perfBoost: true, autoRepair: true, assist: true };
+  const HHMM = /^([01]?\d|2[0-3]):[0-5]\d$/;
+  const quietPolicy = () => { const s_ = set(); return { on: !!s_.quiet, from: HHMM.test(s_.quietFrom) ? s_.quietFrom : "23:00", to: HHMM.test(s_.quietTo) ? s_.quietTo : "07:00" }; };
   const set = () => ({ ...SET0, ...(cfg.set || {}) });
   const logs = Logs.create({ dir: base, onLine: (l) => send("log", l) });
   const L = (m, lv, src) => logs.add(m, lv, src);
@@ -86,16 +93,55 @@ function createService(o) {
   const mem = (o.memFactory || Mem.create)({ base, ai, llm, set, log: (m) => L(m, "info", "内存"), busy: () => (agent && agent.current() ? curNeeds : []), ...(o.memOpt || {}) });
   // 训练环境在不在：Python 的文件都没有了（没装过、数据文件夹搬过、被杀毒软件删了）就别去领任务
   const envReady = () => { if (o.envReady) return o.envReady(); const exe = env.python(); return process.platform === "win32" && path.isAbsolute(exe) && !fs.existsSync(exe) ? "训练环境还没装好（Python 不在 " + path.dirname(exe) + "）：到「任务向导」第 2 步点「一键安装」，装好自动开始" : null; };
+  // 同一时间只装一份（手动点「一键安装」和自动修复撞上时，等同一个）
+  let envBusy = null;
+  const envInstallOnce = () => envBusy || (envBusy = env.install().finally(() => { envBusy = null; }));
+  // ---- 自动修复：以前装好过的训练环境不见了（被杀毒软件删了、数据文件夹搬过）→ 插着电的时候自动重装一遍；6 小时最多试一次 ----
+  async function autoRepair() {
+    if (!cfg.token || !set().autoRepair || envBusy || !(cfg.envOk && cfg.envOk.ok)) return null;
+    const why = envReady();
+    if (!why) return null;
+    if (!/^[\x20-\x7e]+$/.test(base()) || /\s/.test(base())) return null;
+    if (o.onBattery && (await o.onBattery().catch(() => false))) return null;
+    if (Date.now() - (cfg.autoRepairAt || 0) < 6 * 3600e3) return null;
+    cfg.autoRepairAt = Date.now(); save();
+    L(`训练环境不见了（${why.split("：")[0]}）：自动重新装一遍（约 3.5G，从国内存储下）`, "warn", "自动修复");
+    notify("自动修复训练环境", "训练环境不见了，正在自动重新装，装好接着算", "env");
+    try {
+      const r = await envInstallOnce(); cfg.envOk = r; save();
+      L(r.ok ? "训练环境自动装好了，接着算" : "自动装完了但还不能用：到「任务向导」第 2 步看一下", r.ok ? "ok" : "warn", "自动修复");
+      return r;
+    } catch (e) { L("自动重装训练环境没成功：" + e.message + "（到「任务向导」第 2 步点「一键安装」）", "error", "自动修复"); return { ok: false }; }
+  }
+  const repairTimer = o.noMemTimers ? null : setInterval(() => autoRepair().catch(() => {}), 10 * 60e3);
+  if (repairTimer && repairTimer.unref) repairTimer.unref();
   const beforeTask = async (x) => { if (x.lane == null) curNeeds = x.needs || []; await mem.beforeTask(x); };
   if (!o.noMemTimers) mem.start();
   if (cfg.autostart === undefined && cfg.set === undefined && o.setAutostart) { cfg.autostart = true; try { o.setAutostart(true); } catch (e) {} save(); }   // 第一次用：默认开机自启（藏在托盘里，接着上次的状态）
   const gallery = [];
 
+  // ---------- 远程协助（被协助的这一边）：每次都弹窗问；设置里能整个关掉 ----------
+  //   弹窗、截屏、屏幕上的红条由 main.js（Electron）提供；测试里传假的
+  const assistDev = Assist.create({
+    log: (m) => L(m, "info", "远程协助"),
+    allowed: () => !!set().assist,
+    ask: async (q) => { if (o.assistAsk) return o.assistAsk(q); return null; },
+    capture: async (maxW) => { if (!o.capture) throw new Error("这里截不了屏"); return o.capture(maxW); },
+    injector: () => (o.injectorFactory || Inject.create)({ log: (m) => L(m, "warn", "远程协助") }),
+    onLive: (x) => { L(`正在被「${x.by}」远程协助（${x.mode === "view" ? "只看" : "查看和操控"}）`, "warn", "远程协助"); notify("正在被远程协助", `${x.by}（${x.mode === "view" ? "只看屏幕" : "能操控"}）；屏幕上方红条里点「结束」随时停`); try { o.assistLive && o.assistLive(x); } catch (e) {} },
+    onEnd: (x) => { notify("远程协助结束了", x.why); try { o.assistEnd && o.assistEnd(x); } catch (e) {} },
+    ...(o.assistOpt || {}),
+  });
+  // 同局域网：找人、直接发起（画面不经过调度中心）
+  const myName = () => ({ name: cfg.deviceName || os.hostname(), member: (cfg.member && cfg.member.name) || "" });
+  const lan = (o.lanFactory || Lan.create)({ log: (m) => L(m, "info", "局域网"), me: myName, accepts: () => !!set().assist, onAsk: (req) => assistDev.handle(req), ...(o.lanOpt || {}) });
+  if ((o.autoDrive || o.lan) && !o.noLan) lan.start().catch((e) => L("局域网远程协助没开起来：" + e.message, "warn", "局域网"));
+
   function startAgent() {
     if (agent || !cfg.token) return;
     agent = Agent.create({
       server: cfg.server, token: cfg.token, pubkey: cfg.pubkey, workDir: work(), cacheDir: path.join(work(), "cache", "shared"), python: () => env.python(), envReady, minFreeGB: o.minFreeGB != null ? o.minFreeGB : 10, beforeTask,
-      caps: lastProbe ? capsNow() : null, comfy, llm, gsv, policy: { mode: "off", idleMin: 5, ...(cfg.policy || {}), pauseOnBattery: set().pauseOnBattery, maxPower: set().maxPower },   // 默认：自己点「开始」才算
+      caps: lastProbe ? capsNow() : null, comfy, llm, gsv, policy: { mode: "off", idleMin: 5, ...(cfg.policy || {}), pauseOnBattery: set().pauseOnBattery, maxPower: set().maxPower, quiet: quietPolicy() },   // 默认：自己点「开始」才算
       idleSecs: o.idleSecs, onBattery: o.onBattery, stallMin: set().stallMin, region: regionNow, ensure: (pkgs) => env.ensure(pkgs), version: o.version, gpuInfo: async () => (await probe.gpus())[0] || null, gpuApps: (ours) => probe.gpuApps(undefined, ours),
       env: lanes.length ? { CUDA_VISIBLE_DEVICES: "0" } : {},
       extraInfo: () => ({ lanes: lanes.length, region: region.current(), awake: power.status().awake, autostart: !!cfg.autostart, pro: !!set().pro, lid: !!set().lid, set: set() }),
@@ -107,6 +153,7 @@ function createService(o) {
       if (k === "task") { taskStart[v.id] = Date.now(); }
       if (k === "done") onDone(v);
       if (k === "command") onCommand(v).catch((e) => L("远程命令出错：" + e.message, "error", "遥控"));
+      if (k === "quiet") boostCheck().catch(() => {});
       if (k === "source") sources[v.id] = v;
       if (k === "image") {
         try { const b = fs.readFileSync(v.path); if (b.length < 3e6) v = { ...v, url: `data:image/${/png$/i.test(v.path) ? "png" : "jpeg"};base64,` + b.toString("base64") }; } catch (e) {}
@@ -137,7 +184,7 @@ function createService(o) {
       }
       const a = Agent.create({ server: cfg.server, token: ln.token, pubkey: cfg.pubkey, workDir: path.join(work(), "gpu" + i), cacheDir: path.join(work(), "cache", "shared"), python: () => env.python(), envReady, minFreeGB: o.minFreeGB != null ? o.minFreeGB : 10, beforeTask,
         caps: { ...capsNow(), gpu: g.name, vram: cfg.set && cfg.set.vramCap ? Math.min(g.vram, cfg.set.vramCap) : g.vram, comfy: false, llm: false, gsv: false, lane: i },
-        policy: { mode: "off", idleMin: 5, ...(cfg.policy || {}), pauseOnBattery: set().pauseOnBattery, maxPower: set().maxPower },
+        policy: { mode: "off", idleMin: 5, ...(cfg.policy || {}), pauseOnBattery: set().pauseOnBattery, maxPower: set().maxPower, quiet: quietPolicy() },
         idleSecs: o.idleSecs, onBattery: o.onBattery, stallMin: set().stallMin, region: regionNow, ensure: (pkgs) => env.ensure(pkgs), version: o.version,
         env: { CUDA_VISIBLE_DEVICES: String(i) }, gpuInfo: async () => (o.gpuList ? await o.gpuList() : await probe.gpus())[i] || null, gpuApps: async () => [],
         extraInfo: () => ({ lane: i, main: cfg.device, region: region.current() }), ...(o.agentOpt || {}) });
@@ -159,7 +206,29 @@ function createService(o) {
     power.keepAwake(want, v.state === "busy" ? "正在算" : "在等任务");
     if (v.state === "waiting" && /拔了电源/.test(v.why || "")) notify("拔了电源，先停一下", "插上电就接着算（正在算的交给别的电脑从存档接着算）", "battery");
     if (v.state === "waiting" && /℃/.test(v.why || "")) notify("显卡太热，歇一会儿", v.why, "temp");
+    boostCheck().catch(() => {});
   }
+  // ---- 训练时临时「最佳性能」：正在算 + 插着电 + 不在睡眠模式 + 设置里开着；否则切回原来的 ----
+  let boostBusy = Promise.resolve();
+  function boostCheck() {
+    boostBusy = boostBusy.then(async () => {
+      const busy = !!(agent && agent.current()) || lanes.some((a) => a.current && a.current());
+      const quiet = !!(agent && agent.quiet && agent.quiet());
+      const battery = o.onBattery ? await o.onBattery().catch(() => false) : false;
+      const want = !!(set().perfBoost && busy && !quiet && !battery);
+      if (want && !cfg.boostSaved && !cfg.boostOn) {
+        const r = await power.perfBoost(true);
+        if (r.ok) { cfg.boostOn = true; cfg.boostSaved = r.saved; save(); } else L(r.why, "warn", "电源");
+      } else if (!want && cfg.boostOn) {
+        const r = await power.perfBoost(false, cfg.boostSaved);
+        if (!r.ok) L(r.why, "warn", "电源");
+        cfg.boostOn = false; cfg.boostSaved = null; save();
+      }
+    }).catch(() => {});
+    return boostBusy;
+  }
+  // 上次没切回去（软件崩了、强制关机）：一打开先切回原来的
+  if (cfg.boostOn) { power.perfBoost(false, cfg.boostSaved).then(() => { cfg.boostOn = false; cfg.boostSaved = null; save(); }).catch(() => {}); }
   function onDone(v) {
     const secs = taskStart[v.id] ? (Date.now() - taskStart[v.id]) / 1000 : 0; delete taskStart[v.id];
     if (v.ok && secs > 600) notify("算完一个大任务", `用了 ${Math.round(secs / 60)} 分钟`, "done");
@@ -270,7 +339,7 @@ function createService(o) {
     envCheck: async () => { const r = await env.check(); cfg.envOk = r; save(); return r; },
     async envInstall() {
       if (!/^[\x20-\x7e]+$/.test(base()) || /\s/.test(base())) throw new Error("现在的位置（" + base() + "）里有中文或空格，装 PyTorch 会出错：先在第 1 步点「换个地方」，选 D 盘");
-      const r = await env.install(); cfg.envOk = r; save(); return r; },
+      const r = await envInstallOnce(); cfg.envOk = r; save(); return r; },
     envCancel: async () => env.cancel(),
     async usePython(p) { cfg.python = p || ""; save(); return H.envCheck(); },
     // ---- ③ 跑通测试（本机自带的测试配方，不用签名） ----
@@ -382,17 +451,31 @@ function createService(o) {
     const cur = set(), next = { ...cur };
     for (const k of Object.keys(SET0)) if (p[k] !== undefined) next[k] = typeof SET0[k] === "number" ? Math.max(0, +p[k] || 0) : typeof SET0[k] === "boolean" ? !!p[k] : String(p[k]);
     for (const k of Object.keys(p)) if (/^no_\w+$/.test(k)) next[k] = !!p[k];
+    for (const k of ["quietFrom", "quietTo"]) if (!HHMM.test(next[k])) next[k] = cur[k];
     if (!["auto", "cn", "global"].includes(next.region)) next.region = "auto";
     if (p.autostart !== undefined && o.setAutostart) { cfg.autostart = !!p.autostart; try { o.setAutostart(cfg.autostart); } catch (e) {} }
     if (next.lid !== cur.lid) { const r = await power.lidKeepRunning(next.lid, cfg.lidSaved); if (!r.ok) { next.lid = cur.lid; L(r.why, "warn", "防休眠"); } else cfg.lidSaved = r.saved; }
     cfg.set = next; save();
     Agent.setNetLimit(next.netLimit);
     if (next.region !== cur.region) region.detect(true).catch(() => {});
-    if (agent) { agent.setPolicy({ pauseOnBattery: next.pauseOnBattery, maxPower: next.maxPower }); agent.setCaps(capsNow()); }
+    if (agent) { agent.setPolicy({ pauseOnBattery: next.pauseOnBattery, maxPower: next.maxPower, quiet: quietPolicy() }); agent.setCaps(capsNow()); }
+    for (const a of lanes) a.setPolicy({ quiet: quietPolicy() });
+    boostCheck().catch(() => {});
     if (!next.keepAwake) power.keepAwake(false); else if (agent) onState(agent.status());
     if (next.multiGpu !== cur.multiGpu) { if (next.multiGpu) startLanes().catch(() => {}); else await stopLanes(); }
     L("改了设置：" + Object.keys(p).join("、"), "info", "设置");
     return H.settings();
+  };
+  // ---- 远程协助 / 同局域网 ----
+  H.assistStatus = async () => ({ current: assistDev.current(), allowed: !!set().assist, lanPort: lan.port() });
+  H.assistEnd = async () => { assistDev.end("你点了结束"); return true; };
+  H.lanScan = async () => lan.discover();
+  H.lanAssist = async (peer, mode) => {
+    if (!peer || !peer.ip || !peer.port) throw new Error("先搜一下同局域网的电脑");
+    const r = await lan.assist(peer, mode === "view" ? "view" : "control");
+    L(`向「${peer.member ? peer.member + " · " : ""}${peer.name}」发了远程协助请求（${mode === "view" ? "只看" : "查看和操控"}），等对方同意`, "info", "局域网");
+    if (o.openViewer) o.openViewer(r.url, `远程协助 · ${peer.name}`);
+    return r;
   };
   H.redetectRegion = async () => { await region.detect(true); return region.info(); };
   H.memStatus = async () => mem.status();
@@ -501,6 +584,11 @@ function createService(o) {
       else if (c.cmd === "clean") { const a = await disk.clean("tasks"); const b = await disk.clean("cache"); result = `腾出 ${((a.freed + b.freed) / 1e9).toFixed(2)}G`; }
       else if (c.cmd === "probe") { const r = await H.probe(); result = r.caps; }
       else if (c.cmd === "settings") result = await H.setSettings(c.args || {});
+      else if (c.cmd === "assist") {
+        const a = c.args || {};
+        const via = from || agent;
+        result = await assistDev.handle({ transport: (name, b) => via.api("/api/assist/" + name, b, { timeout: name === "take" ? 20000 : 15000 }), s: a.s, token: a.token, mode: a.mode, by: a.by || "管理员", where: "通过控制中心" });
+      }
       else { ok = false; result = "不认识的命令"; }
     } catch (e) { ok = false; result = e.message; }
     L(`遥控「${c.cmd}」${ok ? "做好了" : "没做成"}：${typeof result === "string" ? result : JSON.stringify(result || "").slice(0, 200)}`, ok ? "info" : "warn", "遥控");
@@ -600,7 +688,7 @@ function createService(o) {
   if (o.detectRegion !== false) { const rt = setTimeout(() => region.detect().catch(() => {}), 30e3); rt.unref && rt.unref(); }
   if (cfg.token) startAgent();
   L(`启动 ${o.version}（${o.hidden ? "开机自启，藏在托盘" : "打开了窗口"}）；上次的状态：${cfg.manual || "auto"}`, "info", "软件");
-  return { H, logs, power, region, lanes: () => lanes, shutdown: async () => { try { show.shutdown(); } catch (e) {} updater.stop(); clearInterval(wd); clearInterval(daily); clearInterval(hk); await stopLanes(); if (agent) await agent.stop(); power.keepAwake(false); logs.flush(); try { ai.stop(); } catch (e) {} try { llm.stop(); } catch (e) {} }, agent: () => agent, updater, ai, llm };
+  return { H, logs, power, region, autoRepair, boostCheck, assistDev, lan, lanes: () => lanes, shutdown: async () => { try { show.shutdown(); } catch (e) {} try { assistDev.end("软件关了"); lan.stop(); } catch (e) {} clearInterval(repairTimer); if (cfg.boostOn) { try { await power.perfBoost(false, cfg.boostSaved); cfg.boostOn = false; cfg.boostSaved = null; save(); } catch (e) {} } updater.stop(); clearInterval(wd); clearInterval(daily); clearInterval(hk); await stopLanes(); if (agent) await agent.stop(); power.keepAwake(false); logs.flush(); try { ai.stop(); } catch (e) {} try { llm.stop(); } catch (e) {} }, agent: () => agent, updater, ai, llm };
 }
 
 // 数据文件夹在哪（主进程启动时就要知道：找上次下好的新版安装包）

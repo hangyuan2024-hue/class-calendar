@@ -1,13 +1,13 @@
 // 捞捞算力 · Electron 主进程：开窗口、托盘（关掉窗口后台照样算）、开机自启、空闲时间、控制中心窗口
 "use strict";
-const { app, BrowserWindow, ipcMain, shell, Menu, Tray, powerMonitor, powerSaveBlocker, nativeImage, session, dialog, Notification } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, Menu, Tray, powerMonitor, powerSaveBlocker, nativeImage, session, dialog, Notification, desktopCapturer, screen } = require("electron");
 const path = require("path");
 const { createService } = require("./service");
 
 app.setPath("userData", path.join(app.getPath("appData"), "LaolaoGrid"));
 if (!app.requestSingleInstanceLock()) app.quit();
 app.setAppUserModelId("cn.laolao.grid");   // Windows 通知要这个
-let win = null, tray = null, quitting = false;
+let win = null, tray = null, quitting = false, bar = null;
 const hidden = process.argv.includes("--hidden");
 // 上次下好还没装的新版：一开机就装（大约 20 秒，装完自己打开），免得一直用旧版
 const Updater = require("./updater");
@@ -53,10 +53,52 @@ const svc = createService({
   pickFile: async (exts, title, kind) => { const r = await dialog.showOpenDialog(win, { title, properties: ["openFile"], filters: [{ name: kind || "文件", extensions: exts }] }); return r.canceled ? null : r.filePaths[0]; },
   openAdmin: (u) => {
     const w = new BrowserWindow({ width: 1400, height: 900, title: "捞捞算力 · 控制中心", backgroundColor: "#060a16", autoHideMenuBar: true, webPreferences: { contextIsolation: true, sandbox: true } });
-    w.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+    // 控制中心里点「远程协助」会开一个新窗口看画面：只放行这一种
+    const origin = new URL(u).origin;
+    w.webContents.setWindowOpenHandler(({ url }) => (url === "about:blank" || url.startsWith(origin + "/admin/assist.html") ? { action: "allow", overrideBrowserWindowOptions: { width: 1280, height: 820, backgroundColor: "#060a16", autoHideMenuBar: true, webPreferences: { contextIsolation: true, sandbox: true } } } : { action: "deny" }));
     w.loadURL(u);
   },
+  // ---- 远程协助（被协助的这一边）：弹窗问、截主屏幕、屏幕上方的红条 ----
+  assistAsk: async ({ by, mode, where, timeoutMs }) => {
+    const ac = new AbortController();
+    const t = setTimeout(() => ac.abort(), timeoutMs || 85000);
+    try { if (!win || win.isDestroyed()) createWindow(); win.show(); win.focus(); win.flashFrame(true); } catch (e) {}
+    const buttons = mode === "view" ? ["允许他看我的屏幕", "拒绝"] : ["允许查看和操控", "只允许查看", "拒绝"];
+    try {
+      const r = await dialog.showMessageBox(win, { type: "question", title: "远程协助请求", message: `${by} 想远程协助你的电脑`,
+        detail: `${where ? where + "\n\n" : ""}${mode === "view" ? "对方只能看你的屏幕，不能动你的电脑。" : "「允许查看和操控」：对方能看你的屏幕、动你的鼠标和键盘。\n「只允许查看」：对方只能看。"}\n\n同意后屏幕上方会一直显示红条，你随时可以点「结束协助」。85 秒不回应自动拒绝。`,
+        buttons, defaultId: buttons.length - 1, cancelId: buttons.length - 1, noLink: true, signal: ac.signal });
+      const i = r.response;
+      return mode === "view" ? (i === 0 ? "view" : null) : i === 0 ? "control" : i === 1 ? "view" : null;
+    } finally { clearTimeout(t); try { win.flashFrame(false); } catch (e) {} }
+  },
+  capture: async (maxW) => {
+    const d = screen.getPrimaryDisplay();
+    const W = Math.min(maxW || 1600, Math.round(d.size.width * d.scaleFactor)), H = Math.round((W * d.size.height) / d.size.width);
+    const srcs = await desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: W, height: H } });
+    const src = srcs.find((x) => x.display_id === String(d.id)) || srcs[0];
+    if (!src) throw new Error("找不到屏幕");
+    const sz = src.thumbnail.getSize();
+    return { jpeg: src.thumbnail.toJPEG(60), w: sz.width, h: sz.height };
+  },
+  assistLive: ({ by, mode }) => {
+    try { if (bar && !bar.isDestroyed()) bar.destroy(); } catch (e) {}
+    const wa = screen.getPrimaryDisplay().workArea;
+    bar = new BrowserWindow({ width: 600, height: 46, x: Math.round(wa.x + wa.width / 2 - 300), y: wa.y + 4, frame: false, resizable: false, minimizable: false, maximizable: false, fullscreenable: false, alwaysOnTop: true, skipTaskbar: true, backgroundColor: "#7f1d1d",
+      webPreferences: { preload: path.join(__dirname, "bar-preload.js"), contextIsolation: true, sandbox: true } });
+    bar.setAlwaysOnTop(true, "screen-saver");
+    bar.on("close", (e) => { if (!quitting && svc.assistDev.current()) e.preventDefault(); });   // 红条关不掉：要结束点「结束协助」
+    bar.loadFile(path.join(__dirname, "renderer", "assist-bar.html"), { query: { by: String(by || ""), mode: String(mode || "") } });
+  },
+  assistEnd: () => { try { if (bar && !bar.isDestroyed()) bar.destroy(); } catch (e) {} bar = null; },
+  // 同局域网发起协助：本机开一个窗口看对方画面（页面由本机的捞捞算力提供，只给本机）
+  openViewer: (url, title) => {
+    const w = new BrowserWindow({ width: 1280, height: 820, title: title || "远程协助", backgroundColor: "#060a16", autoHideMenuBar: true, webPreferences: { contextIsolation: true, sandbox: true } });
+    w.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+    w.loadURL(url);
+  },
 });
+ipcMain.on("assist-end", (ev) => { if (bar && !bar.isDestroyed() && ev.sender === bar.webContents) svc.H.assistEnd(); });
 ipcMain.handle("call", async (ev, method, args) => {
   if (!win || ev.sender !== win.webContents) throw new Error("拒绝");
   if (!Object.prototype.hasOwnProperty.call(svc.H, method)) throw new Error("不支持的操作：" + method);

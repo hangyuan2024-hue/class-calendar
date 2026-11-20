@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>捞捞 · 远程协助</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #060a16; color: #e6ebff; font: 14px/1.5 "Microsoft YaHei UI", "PingFang SC", system-ui, sans-serif; overflow: hidden; }
+  header { height: 48px; display: flex; align-items: center; gap: 12px; padding: 0 14px; background: #0d1430; border-bottom: 1px solid #1f2a55; }
+  header b { font-size: 15px; }
+  .pill { padding: 2px 10px; border-radius: 99px; background: #1b2550; color: #9fb0ff; font-size: 12px; }
+  .pill.live { background: #0f3b2e; color: #5eead4; }
+  .pill.view { background: #3b2a0f; color: #fbbf24; }
+  .grow { flex: 1; }
+  button { background: #1b2550; color: #e6ebff; border: 1px solid #2c3a75; border-radius: 8px; padding: 5px 12px; cursor: pointer; font: inherit; }
+  button:hover { background: #24306a; }
+  button.end { background: #7f1d1d; border-color: #b91c1c; }
+  #stage { position: absolute; top: 48px; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; outline: none; }
+  #scr { max-width: 100%; max-height: 100%; user-select: none; -webkit-user-drag: none; cursor: default; image-rendering: auto; }
+  #msg { position: absolute; inset: 48px 0 0 0; display: flex; align-items: center; justify-content: center; text-align: center; color: #9fb0ff; font-size: 16px; padding: 30px; pointer-events: none; }
+  #kb { position: absolute; left: -9999px; top: 0; width: 10px; height: 10px; opacity: 0; }
+  .muted { color: #7f8bb3; font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <b id="who">远程协助</b>
+  <span class="pill" id="st">连接中…</span>
+  <span class="muted" id="info"></span>
+  <span class="grow"></span>
+  <button id="win" title="按一下 Windows 键">⊞ Win</button>
+  <button id="cad" title="Ctrl+Shift+Esc：打开任务管理器">任务管理器</button>
+  <button id="fit" title="原始大小 / 适应窗口">适应窗口</button>
+  <button class="end" id="end">结束协助</button>
+</header>
+<div id="stage" tabindex="0"><img id="scr" alt=""></div>
+<div id="msg">正在等对方同意…<br><span class="muted">对方电脑上会弹出一个窗口，问要不要允许你远程协助</span></div>
+<textarea id="kb" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
+<script>
+(() => {
+  // 两种用法：调度中心的控制中心（#s=会话&t=管理员口令）；同局域网直连（#s=会话&k=本机钥匙，页面由自己的捞捞算力提供）
+  const h = new URLSearchParams(location.hash.slice(1));
+  const S = h.get("s") || "", T = h.get("t") || "", K = h.get("k") || "";
+  let token = T; try { if (!token && !K) token = localStorage.getItem("lgAdmin") || ""; } catch (e) {}
+  const P = K ? "/lan/v/" : "/api/admin/assist/";
+  const H = K ? { "x-lan-key": K, "content-type": "application/json" } : { authorization: "Bearer " + token, "content-type": "application/json" };
+  const $ = (q) => document.querySelector(q);
+  $("#who").textContent = "远程协助 · " + (h.get("name") || "");
+  const api = async (p, body) => {
+    const r = await fetch(P + p, { method: body ? "POST" : "GET", headers: H, body: body ? JSON.stringify(body) : undefined });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || r.status);
+    return j;
+  };
+  let state = "asking", mode = "control", n = 0, done = false, frames = 0, lastT = 0, natural = false;
+  const NAMES = { asking: "等对方同意", live: "协助中", rejected: "对方拒绝了", ended: "已结束", expired: "对方没回应", gone: "会话没了" };
+  function show(st, why) {
+    state = st;
+    $("#st").textContent = NAMES[st] || st;
+    $("#st").className = "pill" + (st === "live" ? (mode === "view" ? " view" : " live") : "");
+    if (st === "live") { $("#msg").style.display = n ? "none" : "flex"; $("#msg").innerHTML = "对方同意了，等第一帧画面…"; }
+    else if (st !== "asking") { done = true; $("#msg").style.display = "flex"; $("#msg").innerHTML = (NAMES[st] || st) + (why ? "：" + why : "") + "<br><span class='muted'>可以关掉这个窗口了</span>"; $("#scr").style.opacity = 0.3; }
+    $("#info").textContent = st === "live" ? (mode === "view" ? "只能看，不能操控" : "可以操控：点画面以后键盘输入会发过去") : "";
+  }
+  // 取画面：长轮询，有新的一帧马上换上
+  async function loop() {
+    while (!done) {
+      try {
+        const r = await api(`view?s=${encodeURIComponent(S)}&after=${n}`);
+        mode = r.mode || mode;
+        if (r.frame) { n = r.frame.n; $("#scr").src = "data:image/jpeg;base64," + r.frame.jpeg; frames++; $("#msg").style.display = "none"; }
+        if (r.state !== state || r.state !== "live") show(r.state, r.why);
+      } catch (e) { $("#st").textContent = "连不上：" + e.message; await new Promise((ok) => setTimeout(ok, 1500)); }
+    }
+  }
+  setInterval(() => { if (state === "live") { $("#info").textContent = (mode === "view" ? "只能看，不能操控" : "可以操控") + ` · ${frames} 帧/秒`; frames = 0; } }, 1000);
+
+  // ---- 鼠标键盘：攒一小批（40 毫秒）一起发 ----
+  let q = [], lastMove = null;
+  setInterval(async () => {
+    if (lastMove) { q.push(lastMove); lastMove = null; }
+    if (!q.length || state !== "live" || mode !== "control") { q = []; return; }
+    const ev = q; q = [];
+    try { await api("input", { s: S, ev }); } catch (e) {}
+  }, 40);
+  const img = $("#scr");
+  const pos = (e) => { const r = img.getBoundingClientRect(); return { x: Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)), y: Math.max(0, Math.min(1, (e.clientY - r.top) / r.height)) }; };
+  img.addEventListener("mousemove", (e) => { lastMove = { t: "move", ...pos(e) }; });
+  img.addEventListener("mousedown", (e) => { e.preventDefault(); $("#kb").focus(); lastMove = null; q.push({ t: "down", b: e.button, ...pos(e) }); });
+  img.addEventListener("mouseup", (e) => { e.preventDefault(); q.push({ t: "up", b: e.button, ...pos(e) }); });
+  img.addEventListener("contextmenu", (e) => e.preventDefault());
+  img.addEventListener("wheel", (e) => { e.preventDefault(); q.push({ t: "wheel", d: e.deltaY > 0 ? -120 : 120 }); }, { passive: false });
+  // 键盘：字（包括中文输入法打出来的）走 text；功能键、组合键（Ctrl+C 这些）走按键码
+  const VK = { Backspace: 8, Tab: 9, Enter: 13, NumpadEnter: 13, ShiftLeft: 16, ShiftRight: 16, ControlLeft: 17, ControlRight: 17, AltLeft: 18, AltRight: 18, Pause: 19, CapsLock: 20, Escape: 27, Space: 32,
+    PageUp: 33, PageDown: 34, End: 35, Home: 36, ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40, PrintScreen: 44, Insert: 45, Delete: 46, MetaLeft: 91, MetaRight: 92, ContextMenu: 93,
+    Semicolon: 186, Equal: 187, Comma: 188, Minus: 189, Period: 190, Slash: 191, Backquote: 192, BracketLeft: 219, Backslash: 220, BracketRight: 221, Quote: 222, NumLock: 144, ScrollLock: 145 };
+  const vkOf = (e) => { const c = e.code || ""; if (VK[c]) return VK[c]; let m; if ((m = /^Key([A-Z])$/.exec(c))) return m[1].charCodeAt(0); if ((m = /^Digit(\d)$/.exec(c))) return 48 + +m[1]; if ((m = /^F(\d{1,2})$/.exec(c))) return 111 + +m[1]; if ((m = /^Numpad(\d)$/.exec(c))) return 96 + +m[1]; return 0; };
+  const kb = $("#kb");
+  const special = (e) => e.ctrlKey || e.altKey || e.metaKey || e.key.length > 1;
+  kb.addEventListener("keydown", (e) => {
+    if (e.isComposing || e.key === "Process") return;                 // 输入法正在拼：等它打完
+    if (!special(e)) return;                                          // 普通字：让它进输入框，下面 input 事件发
+    e.preventDefault();
+    const vk = vkOf(e); if (vk) q.push({ t: "key", vk, down: true });
+  });
+  kb.addEventListener("keyup", (e) => { if (e.key === "Process") return; if (!(e.key.length > 1 || e.ctrlKey || e.altKey || e.metaKey) && !["ControlLeft", "ControlRight", "AltLeft", "AltRight", "ShiftLeft", "ShiftRight", "MetaLeft", "MetaRight"].includes(e.code)) return; const vk = vkOf(e); if (vk) q.push({ t: "key", vk, down: false }); });
+  kb.addEventListener("input", (e) => { if (e.isComposing) return; if (kb.value) { q.push({ t: "text", s: kb.value }); kb.value = ""; } });
+  kb.addEventListener("compositionend", () => { if (kb.value) { q.push({ t: "text", s: kb.value }); kb.value = ""; } });
+  $("#stage").addEventListener("click", () => kb.focus());
+  const tap = (...vks) => { for (const v of vks) q.push({ t: "key", vk: v, down: true }); for (const v of vks.slice().reverse()) q.push({ t: "key", vk: v, down: false }); };
+  $("#win").onclick = () => tap(91);
+  $("#cad").onclick = () => tap(17, 16, 27);
+  $("#fit").onclick = () => { natural = !natural; img.style.maxWidth = img.style.maxHeight = natural ? "none" : "100%"; $("#stage").style.overflow = natural ? "auto" : "hidden"; $("#fit").textContent = natural ? "原始大小" : "适应窗口"; };
+  $("#end").onclick = async () => { try { await api("end", { s: S }); } catch (e) {} show("ended", "你结束了"); };
+  addEventListener("beforeunload", () => { try { navigator.sendBeacon && fetch(P + "end", { method: "POST", headers: H, body: JSON.stringify({ s: S }), keepalive: true }); } catch (e) {} });
+  show("asking");
+  loop();
+})();
+</script>
+</body>
+</html>

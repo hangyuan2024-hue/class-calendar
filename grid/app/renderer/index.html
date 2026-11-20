@@ -243,6 +243,20 @@
           <p class="muted small" id="powerInfo"></p>
         </div>
         <div class="glass panel">
+          <h3>睡眠模式和自动修复</h3>
+          <label class="check"><input type="checkbox" data-set="quiet"> 睡眠模式：晚上照样算，但显卡温度压到 70℃、最多一半速度，风扇少转</label>
+          <label>从 <input type="time" data-set="quietFrom"> 到 <input type="time" data-set="quietTo">（第二天）</label>
+          <label class="check"><input type="checkbox" data-set="perfBoost"> 训练时把电源模式临时切到「最佳性能」，算完切回原来的（插着电、不在睡眠模式时）</label>
+          <label class="check"><input type="checkbox" data-set="autoRepair"> 训练环境不见了自动重新装（插着电时，6 小时最多一次）</label>
+          <label class="check"><input type="checkbox" data-set="assist"> 允许管理员和同局域网的同学发「远程协助」请求（每次都会弹窗问你，你点同意才开始）</label>
+        </div>
+        <div class="glass panel">
+          <h3>同局域网远程协助</h3>
+          <p class="muted small">找到同一个 Wi-Fi / 校园网里开着捞捞算力的电脑，点一下发协助请求。对方每次都要点同意；画面直接在两台电脑之间传，不经过服务器，更快。第一次用时 Windows 防火墙会问，选「允许」。</p>
+          <button class="btn small" id="lanScan">搜索同局域网的电脑</button>
+          <table class="tbl" id="lanTbl"></table>
+        </div>
+        <div class="glass panel">
           <h3>资源上限</h3>
           <p class="muted small">显卡温度上限、什么时候算，在「任务向导 → 第 6 步」里设。</p>
           <label>显存最多用 <input type="number" min="0" max="96" step="0.5" data-set="vramCap"> G（0 = 不限；留一点给自己用就设小一点，只领需要显存不超过这么多的活）</label>

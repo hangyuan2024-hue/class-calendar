@@ -15,6 +15,7 @@ const Store = require("./store");
 const Cycle = require("./cycle");
 const Gate = require("./dlgate");
 const Relay = require("./dlrelay");
+const AssistRelay = require("../shared/assist-relay");
 
 function arg(name, d) { const i = process.argv.indexOf("--" + name); return i > 0 ? process.argv[i + 1] : process.env["GRID_" + name.toUpperCase()] || d; }
 
@@ -100,7 +101,27 @@ function create(opt = {}) {
   const canaryTimer = opt.noTick || !remote ? null : setInterval(() => canary().catch(() => {}), opt.canaryMs || 20 * 60e3);
   if (canaryTimer && canaryTimer.unref) canaryTimer.unref();
   if (!opt.noTick && remote) setTimeout(() => canary().catch(() => {}), 10e3).unref();
+  // 远程协助：调度中心只转发画面和鼠标键盘；对方电脑每次都弹窗问，同意了才开始（见 shared/assist-relay.js）
+  const assist = AssistRelay.create({ noTimer: !!opt.noTick, ...(opt.assist || {}), log: (m) => { try { core.event("info", m); } catch (e) {} } });
+  const mySession = (b, dev) => { const x = assist.get(b.s); if (!x || x.device !== dev.id) throw new Error("协助会话不对"); return b; };
   const routes = {
+    // ---- 远程协助 ----
+    "POST /api/admin/device/assist": (req, b) => {
+      const d = core.db.prepare("select d.id, d.name, d.last_seen, m.name as member from devices d left join members m on m.id=d.member_id where d.id=? and d.disabled=0").get(+b.id);
+      if (!d) throw new Error("没有这台电脑");
+      const s = assist.start({ device: d.id, name: `${d.member || ""} · ${d.name}`, by: String(b.by || "管理员").slice(0, 40), mode: b.mode });
+      core.sendCommand(d.id, "assist", { s: s.id, token: s.token, mode: s.mode, by: s.by });
+      return { s: s.id, online: Date.now() - (d.last_seen || 0) < 60e3 };
+    },
+    "GET /api/admin/assist/status": (req, b, dev, u) => assist.status(u.searchParams.get("s")),
+    "GET /api/admin/assist/view": (req, b, dev, u) => assist.view(u.searchParams.get("s"), +u.searchParams.get("after") || 0),
+    "POST /api/admin/assist/input": (req, b) => assist.input(b.s, b.ev),
+    "POST /api/admin/assist/end": (req, b) => assist.end(b.s, "管理员结束了"),
+    "GET /api/admin/assist/list": () => assist.list(),
+    "POST /api/assist/answer": (req, b, dev) => assist.answer(mySession(b, dev)),
+    "POST /api/assist/frame": (req, b, dev) => assist.frame(mySession(b, dev)),
+    "POST /api/assist/take": (req, b, dev) => assist.take(mySession(b, dev)),
+    "POST /api/assist/end": (req, b, dev) => assist.end(mySession(b, dev).s, b.why ? String(b.why).slice(0, 60) : "对方结束了", b.token),
     // ---- 不用登录 ----
     "GET /api/ping": () => ({ ok: true, name: "捞捞算力", time: Date.now(), store: store.kind }),
     "POST /api/join": async (req, b) => core.join(b),
@@ -270,6 +291,7 @@ function create(opt = {}) {
         res.writeHead(302, { location: store.url("GET", key, 6 * 3600) }); return res.end();
       }
       if (u.pathname === "/" || u.pathname === "/admin") { res.writeHead(302, { location: "/admin/" }); return res.end(); }
+      if (u.pathname === "/admin/assist.html") return staticFile(res, path.join(__dirname, "..", "shared"), "assist-viewer.html");
       if (u.pathname.startsWith("/admin/")) return staticFile(res, ADMIN_DIR, u.pathname.slice(7) || "index.html");
       const route = routes[`${req.method} ${u.pathname}`];
       if (!route) return json(res, 404, { error: "没有这个接口" });
@@ -386,7 +408,8 @@ function create(opt = {}) {
     listen(port, host) { return new Promise((ok) => server.listen(port, host, () => { if (!opt.public) publicBase = `http://${host === "0.0.0.0" || !host ? "127.0.0.1" : host}:${server.address().port}`; ok(server.address().port); })); },
     setPublic(u) { publicBase = u; },
     canary,
-    close() { clearInterval(tickTimer); clearInterval(canaryTimer); gate.close(); relay.close(); if (store.close) store.close(); server.close(); core.close(); },
+    assist,
+    close() { assist.close(); clearInterval(tickTimer); clearInterval(canaryTimer); gate.close(); relay.close(); if (store.close) store.close(); server.close(); core.close(); },
     gate, relay,
     cycle,
   };

@@ -132,7 +132,7 @@ function open(file, opt = {}) {
     for (const c of cmds) run("update commands set state='sent', sent=? where id=?", now, c.id);
     return { time: now, cmds: cmds.map((c) => ({ id: c.id, cmd: c.cmd, args: J(c.args, null) })) };
   }
-  const CMDS = ["start", "stop", "auto", "update", "restart", "logs", "clean", "probe", "settings"];
+  const CMDS = ["start", "stop", "auto", "update", "restart", "logs", "clean", "probe", "settings", "assist"];
   function sendCommand(deviceId, cmd, args, by = "管理员") {
     if (!CMDS.includes(cmd)) throw new Error("不认识的命令");
     const d = one("select id, name from devices where id=? and disabled=0", deviceId);
@@ -261,8 +261,12 @@ function open(file, opt = {}) {
       const last = (one("select job_id from tasks where device_id=? order by started desc limit 1", dev.id) || {}).job_id || 0;
       const jobs = all(`select j.*, (select count(*) from tasks t where t.job_id=j.id and t.state='leased') as busy from jobs j where j.state='active' and j.kind!='record'
         order by j.priority desc, busy asc, (j.id=?) desc, j.id asc`, last);
+      // 这台电脑做某类任务慢得不正常、自己说了「先别给我这一类」（caps.avoid：配方名）：跳过，给它别的活
+      const avoid = new Set(Array.isArray(caps.avoid) ? caps.avoid.map(String).slice(0, 50) : []);
+      const recipeName = (id) => (one("select name from recipes where id=?", id) || {}).name;
       for (const j of jobs) {
         if (!fits(J(j.req), caps)) continue;
+        if (avoid.size && j.recipe_id && avoid.has(recipeName(j.recipe_id))) continue;
         // 每日一轮里的任务：前面的步骤做完了才能开始
         const deps = J(j.deps, []) || [];
         if (deps.length && one(`select count(*) as n from jobs where id in (${deps.map(Number).join(",")}) and state!='done'`).n) continue;
