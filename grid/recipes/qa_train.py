@@ -1101,10 +1101,23 @@ def exam_set():
     return [(q["question"], num(q["answer"].split("####")[-1])) for q in qs[: int(p.get("evalN", 100))]]
 
 
+def paired(a, b):
+    """同一套题、两个版本逐题比（a 是旧的、b 是新的，"1"=对）→ (平均涨了多少, 90% 把握的下限)
+    只看两边不一样的那些题：从错变对 +1、从对变错 -1；题少、差别小的时候下限会是负的（说不准是不是真的变好）"""
+    n = min(len(a), len(b))
+    if not n:
+        return 0.0, 0.0
+    d = [(1 if b[i] == "1" else 0) - (1 if a[i] == "1" else 0) for i in range(n)]
+    mean = sum(d) / n
+    var = sum((x - mean) ** 2 for x in d) / max(1, n - 1)
+    return round(mean, 4), round(mean - 1.645 * (var / n) ** 0.5, 4)
+
+
 def exam(url, qs, label):
     right, zh, done = [0], [0], [0]
     lock = threading.Lock()
-    todo = list(qs)
+    todo = list(enumerate(qs))
+    bits = ["0"] * len(qs)
 
     def ask(q):
         body = {"messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": q if CHAT else q + "\n（请用中文讲解）"}], "temperature": 0, "max_tokens": 400 if CHAT else 1200,
@@ -1118,7 +1131,7 @@ def exam(url, qs, label):
             with lock:
                 if not todo:
                     return
-                q, ref = todo.pop()
+                idx, (q, ref) = todo.pop()
             try:
                 s = ask(q)
             except Exception:
@@ -1128,11 +1141,13 @@ def exam(url, qs, label):
                 if CHAT:   # 关键信息说对了没有；念不念得出来（zh 这一项记的是 speak）
                     kind, keys = ref
                     s = re.sub(r"<think>.*?</think>", "", s, flags=re.S).strip()
-                    right[0] += chat_hit(s, kind, keys)
+                    hit = bool(chat_hit(s, kind, keys))
                     zh[0] += speakable(s, kind) is None
                 else:
-                    right[0] += num(boxed(s)) == ref and ref is not None
+                    hit = bool(num(boxed(s)) == ref and ref is not None)
                     zh[0] += len(re.findall(r"[一-鿿]", s)) > len(s) * 0.15
+                right[0] += hit
+                bits[idx] = "1" if hit else "0"
                 if done[0] % 10 == 0:
                     lg.log("%s：考了 %d/%d 道" % (label, done[0], len(qs)))
 
@@ -1141,7 +1156,7 @@ def exam(url, qs, label):
         x.start()
     for x in ths:
         x.join()
-    return right[0] / len(qs), zh[0] / len(qs)
+    return right[0] / len(qs), zh[0] / len(qs), "".join(bits)
 
 
 # ---------------- 开始 ----------------
@@ -1189,21 +1204,30 @@ if GROUND:
     raise SystemExit(0)
 qs = exam_set()
 _bn = "%s|%d%s" % (spec.get("name") or "", len(qs), "|" + STACK_SIG if STACK_SIG else "")
-if p.get("reuseBase", True) and PREV.get("base_name") == _bn and isinstance(PREV.get("base_acc"), (int, float)) and isinstance(PREV.get("base_zh_rate"), (int, float)):
-    acc0, zh0 = float(PREV["base_acc"]), float(PREV["base_zh_rate"])
+same = PREV.get("base_name") == _bn
+if p.get("reuseBase", True) and same and isinstance(PREV.get("base_acc"), (int, float)) and isinstance(PREV.get("base_zh_rate"), (int, float)) and len(PREV.get("base_items") or "") == len(qs):
+    acc0, zh0, bits0 = float(PREV["base_acc"]), float(PREV["base_zh_rate"]), PREV["base_items"]
     lg.log("原版的成绩用上一轮考的（同一套题、同一个原版：答对 %.0f%%），不重复考，省一半考试时间" % (acc0 * 100))
 else:
     lg.progress(0.8, "考试：原版")
-    acc0, zh0 = exam(llm_start(llm=spec, **STACK_ARG)["url"], qs, "原版")
+    acc0, zh0, bits0 = exam(llm_start(llm=spec, **STACK_ARG)["url"], qs, "原版")
 lg.progress(0.9, "考试：带上新训的 LoRA")
-acc1, zh1 = exam(llm_start(llm=spec, lora=gguf, **STACK_ARG)["url"], qs, "新训的")
+acc1, zh1, bits1 = exam(llm_start(llm=spec, lora=gguf, **STACK_ARG)["url"], qs, "新训的")
 lg.llm("stop")
+# 逐题比（不是只看总分差几分：100 道题的总分天然会上下差 5 分左右）：
+#   gain / gain_lo：比原版平均涨了多少、有 90% 把握至少涨了多少；cur_gain / cur_lo：比现在发布的那一版（它考试时每道题的对错记着，同一套题、同一个底才比）
+gain, gain_lo = paired(bits0, bits1)
+cur_items = PREV.get("items") if same and len(PREV.get("items") or "") == len(qs) else None
+cur_gain, cur_lo = paired(cur_items, bits1) if cur_items else (gain, gain_lo)
+lg.log("逐题比：比原版平均%s %.1f 分（有把握的下限 %.1f）；比现在发布的%s %.1f 分（下限 %.1f）%s" % (
+    "涨" if gain >= 0 else "降", abs(gain) * 100, gain_lo * 100, "涨" if cur_gain >= 0 else "降", abs(cur_gain) * 100, cur_lo * 100, "" if cur_items else "（没有能逐题比的上一版：和原版比）"))
+STAT = dict(items=bits1, base_items=bits0, gain=gain, gain_lo=gain_lo, cur_gain=cur_gain, cur_lo=cur_lo, zero=0, n=len(qs))
 zf = shutil.make_archive(os.path.join(work, NAME + "-peft"), "zip", adir)
 if CHAT:
     lg.log("关键信息说对：原版 %.0f%% → 新训的 %.0f%%；念得出来：%.0f%% → %.0f%%" % (acc0 * 100, acc1 * 100, zh0 * 100, zh1 * 100))
-    lg.done(lora=gguf, peft=zf, acc=round(acc1, 4), base_acc=round(acc0, 4), speak=round(zh1, 4), base_speak=round(zh0, 4), base_zh_rate=round(zh0, 4),
+    lg.done(lora=gguf, peft=zf, acc=round(acc1, 4), base_acc=round(acc0, 4), speak=round(zh1, 4), base_speak=round(zh0, 4), base_zh_rate=round(zh0, 4), **STAT,
             examples=_total, trained=len(rows), warm=bool(WARM), hp=HP, tried=TRY, base_name=_bn, mins=round((time.time() - t0) / 60, 1))
 else:
     lg.log("答对率：原版 %.0f%% → 新训的 %.0f%%；用中文讲：%.0f%% → %.0f%%" % (acc0 * 100, acc1 * 100, zh0 * 100, zh1 * 100))
-    lg.done(lora=gguf, peft=zf, acc=round(acc1, 4), base_acc=round(acc0, 4), zh_rate=round(zh1, 4), base_zh_rate=round(zh0, 4),
+    lg.done(lora=gguf, peft=zf, acc=round(acc1, 4), base_acc=round(acc0, 4), zh_rate=round(zh1, 4), base_zh_rate=round(zh0, 4), **STAT,
             examples=_total, trained=len(rows), warm=bool(WARM), hp=HP, tried=TRY, base_name=_bn, mins=round((time.time() - t0) / 60, 1))

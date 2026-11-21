@@ -33,8 +33,10 @@ const until = async (f, ms, what) => { const t0 = Date.now(); while (!(await f()
   await until(async () => (await state(j1)).state === "done", 30000, "造数据做完");
   // 弄丢其中一个结果文件（存储里找不到）
   const blobs = []; (function walk(d) { for (const f of fs.readdirSync(d, { withFileTypes: true })) f.isDirectory() ? walk(path.join(d, f.name)) : /r\d(-[0-9a-f]{8})?\.txt$/.test(f.name) && blobs.push(path.join(d, f.name)); })(path.join(tmp, "server", "blobs"));
-  assert.equal(blobs.length, 4);
-  fs.rmSync(blobs[1]);
+  // 机器忙时同一个小任务可能被收回重做、多存一份：按 r0..r3 分组，丢掉其中一个的全部副本
+  const byName = {}; for (const b of blobs) (byName[path.basename(b).match(/r\d/)[0]] ||= []).push(b);
+  assert.equal(Object.keys(byName).length, 4);
+  for (const b of byName.r1) fs.rmSync(b);
   const plan2 = path.join(tmp, "p2.json");
   fs.writeFileSync(plan2, JSON.stringify({ jobs: [{ name: "用结果", kind: "map", recipe: use, params: { count: 1, outputsOf: "T" }, priority: 3 }] }));
   const [j2] = await Tools.plan(admin, plan2);

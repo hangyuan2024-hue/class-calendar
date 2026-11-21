@@ -151,6 +151,8 @@ function createService(o) {
       server: cfg.server, token: cfg.token, pubkey: cfg.pubkey, workDir: work(), cacheDir: path.join(work(), "cache", "shared"), python: () => env.python(), envReady, minFreeGB: o.minFreeGB != null ? o.minFreeGB : 10, beforeTask,
       caps: lastProbe ? capsNow() : null, comfy, llm, gsv, policy: { mode: "off", idleMin: 5, ...(cfg.policy || {}), pauseOnBattery: set().pauseOnBattery, maxPower: set().maxPower, quiet: quietPolicy() },   // 默认：自己点「开始」才算
       idleSecs: o.idleSecs, onBattery: o.onBattery, stallMin: set().stallMin, region: regionNow, ensure: (pkgs) => env.ensure(pkgs), version: o.version, gpuInfo: async () => (await probe.gpus())[0] || null, gpuApps: (ours) => probe.gpuApps(undefined, ours),
+      // 我们自己能腾出来的显存：本地大模型（成品展示 / 造数据开着的）训练开始前会关掉
+      vramOwn: async () => { if (!llm.running || !llm.running()) return 0; try { const pid = llm.pid && llm.pid(), a = (await probe.gpuApps(undefined, [])).find((x) => x.pid === pid); if (a && a.mem) return a.mem / 1024; } catch (e) {} return llm.loadedGB ? llm.loadedGB() : 0; },
       env: lanes.length ? { CUDA_VISIBLE_DEVICES: "0" } : {},
       extraInfo: () => ({ lanes: lanes.length, region: region.current(), awake: power.status().awake, autostart: !!cfg.autostart, pro: !!set().pro, lid: !!set().lid, set: set() }),
       ...(o.agentOpt || {}),
@@ -213,6 +215,8 @@ function createService(o) {
   const cpuThreads = () => Math.max(1, Math.floor(require("os").cpus().length * Math.min(100, Math.max(10, set().cpuPct || 50)) / 100));
   async function startCpuLane() {
     if (!set().cpuLane || !agent || lanes.some((a) => a.laneKind === "cpu")) return;
+    // 调度中心报了版本、而且还是老的（认不得 CPU 工位）：先不开
+    if (agent.serverProto && agent.serverProto() != null && agent.serverProto() < 2) { L("调度中心还是旧版，不认得 CPU 工位：先不开（调度中心更新以后自动开）", "warn", "CPU"); return; }
     const c0 = capsNow();
     if (!c0.vram || !llm.ok()) return;
     cfg.lanes = cfg.lanes || {};
@@ -479,7 +483,8 @@ function createService(o) {
   };
   // 自动更新（只在装好的软件里开；开发和测试时 o.install 没给就不开）
   let recording = false;
-  const updater = Updater.create({ dir: base, version: o.version, agent: () => agent, idleSecs: o.idleSecs, windowHidden: o.windowHidden, recording: () => recording,
+  const updater = Updater.create({ dir: base, version: o.version, agent: () => agent,
+    gate: async (v) => (agent && agent.api ? agent.api("/api/update-gate", { version: v }) : { ok: true }), idleSecs: o.idleSecs, windowHidden: o.windowHidden, recording: () => recording,
     install: o.install || (async () => { throw new Error("这个版本不能自动更新"); }), onEvent: (e) => { send("update", e); if (e.state === "ready" && !e.waiting) L(`新版 ${e.latest} 下载好了`, "info", "更新"); },
     notify: (t, b) => notify(t, b, "update"), ...(EDITION.open ? { sources: Updater.OPEN_SOURCES } : {}), ...(o.updaterOpt || {}) });
   if (o.install && o.autoUpdate !== false) updater.start();

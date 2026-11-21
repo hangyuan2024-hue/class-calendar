@@ -127,6 +127,9 @@ function create(opt = {}) {
     "GET /api/admin/assist/view": (req, b, dev, u) => assist.view(u.searchParams.get("s"), +u.searchParams.get("after") || 0),
     "POST /api/admin/assist/input": (req, b) => assist.input(b.s, b.ev),
     "POST /api/admin/assist/end": (req, b) => assist.end(b.s, "管理员结束了"),
+    // 客户端分批更新：看每个新版推到哪一档；停推的看过了没问题可以接着推（stage: half / all），也能手动停（paused）
+    "GET /api/admin/rollouts": () => core.rollouts(),
+    "POST /api/admin/rollout": (req, b) => core.setRollout(b.version, b.stage),
     "GET /api/admin/assist/list": () => assist.list(),
     "POST /api/assist/answer": (req, b, dev) => assist.answer(mySession(b, dev)),
     "POST /api/assist/frame": (req, b, dev) => assist.frame(mySession(b, dev)),
@@ -136,7 +139,8 @@ function create(opt = {}) {
     "GET /api/ping": () => ({ ok: true, name: "捞捞算力", time: Date.now(), store: store.kind }),
     "POST /api/join": async (req, b) => core.join(b),
     // ---- 电脑（成员） ----
-    "POST /api/hb": (req, b, dev) => core.heartbeat(dev, b),
+    // proto：调度中心认得哪些新东西（2 = CPU 工位、按真正空着的显存派活、分批推新版）。客户端的新功能要调度中心认得才打开
+    "POST /api/hb": (req, b, dev) => ({ ...(core.heartbeat(dev, b) || {}), proto: 2 }),
     "POST /api/lease": async (req, b, dev) => {
       const r = core.lease(dev, b.caps || {});
       // 发存档之前先核对它在存储里还在：确定不在了（404）就标掉、退回更早的存档（或者从头算），不让所有电脑一起卡在同一个 404 上
@@ -179,6 +183,7 @@ function create(opt = {}) {
     // 遥控命令做完了；交日志（拿一个上传地址：logs/<电脑>/<时间>-文件名）；这台电脑自己的贡献统计
     "POST /api/cmd/done": (req, b, dev) => core.commandDone(dev, b),
     "POST /api/lane": (req, b, dev) => core.laneDevice(dev, b),
+    "POST /api/update-gate": (req, b, dev) => core.updateGate(dev, b),
     "POST /api/logs/put": (req, b, dev) => { const name = String(b.name || "log.txt").replace(/[^\w.\-]/g, "_").slice(-80); const key = `logs/${dev.id}/${Date.now()}-${name}`; return { key, url: store.url("PUT", key, 3600) }; },
     "GET /api/me/stats": (req, b, dev, u) => core.stats(Math.min(60, +u.searchParams.get("days") || 14), dev.id),
     "GET /api/me": (req, b, dev) => ({ device: { id: dev.id, name: dev.name }, member: { id: dev.member_id, name: dev.member_name, role: dev.role }, board: core.board().find((x) => x.id === dev.member_id) || null }),

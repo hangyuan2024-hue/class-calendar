@@ -413,6 +413,7 @@ function create(opt) {
   const CMD_NAMES = { start: "开始", stop: "停止", auto: "按设置自动", update: "立刻更新", restart: "重启软件", logs: "交日志", clean: "清理缓存", probe: "重新体检" };
   const logs = [];
   let gpuNow = null;
+  let serverProto = null;   // 调度中心报的版本（老的不报：null）
   // ---- 显卡温度：自动调训练密度 ----
   //   以前：一到上限（83℃）就停、把任务还回去；凉一点又领回来、把大模型重新放进显卡（半分钟），没算几道题又到 83℃，
   //   散热差的电脑一直在「启动 → 停下」里打转，几乎没真正算。
@@ -615,6 +616,7 @@ function create(opt) {
         lastHb = Date.now();
         const hb = await api("/api/hb", { state: cur ? "busy" : g.ok ? "idle" : "waiting", why: g.ok ? "" : g.why, info: { ...(caps || {}), gpuNow, avoid: avoidNow(), quiet: !!quietNow(), version: opt.version || "", ...(opt.extraInfo ? opt.extraInfo() : {}) }, policy, live: cur ? liveOf() : null });
         // 控制中心远程遥控：开始 / 停止 / 更新 / 重启 / 取日志……交给软件去做，做完回个话
+        if (hb && hb.proto != null) serverProto = +hb.proto || 0;
         for (const c of (hb && hb.cmds) || []) { log("控制中心让这台电脑：" + (CMD_NAMES[c.cmd] || c.cmd)); emit("command", c); }
         if (state === "offline") setState(cur ? "busy" : "idle");
       }
@@ -630,7 +632,10 @@ function create(opt) {
       else if (Date.now() - lastLease > (opt.leaseEveryMs || 10000)) {
         lastLease = Date.now();
         const av = avoidNow();
-        const r = await api("/api/lease", { caps: av.length ? { ...(caps || {}), avoid: av } : caps || {} });
+        // 真正空着的显存（G）：显卡总量 - 已用 + 我们自己能腾出来的（本地大模型、画图引擎，训练开始前会关掉）。调度中心按它派吃显存的活（req.needFree）
+        let vf = null;
+        if (gpuNow && gpuNow.vram && gpuNow.used != null) { let own = 0; try { own = opt.vramOwn ? +(await opt.vramOwn()) || 0 : 0; } catch (e) {} vf = Math.round(Math.max(0, gpuNow.vram - gpuNow.used + own) * 10) / 10; }
+        const r = await api("/api/lease", { caps: { ...(caps || {}), ...(av.length ? { avoid: av } : {}), ...(vf != null ? { vramFree: vf } : {}) } });
         if (r.task) runTask(r.task).catch((e) => log("任务出错：" + e.message, "error"));
         else setState("idle", "现在没有要算的");
       }
@@ -995,7 +1000,7 @@ function create(opt) {
 
   return {
     on: (k, f) => (ev.on(k, f), () => ev.off(k, f)),
-    start, stop, api, upload, gate,
+    start, stop, api, upload, gate, serverProto: () => serverProto,
     pause(v) { paused = !!v; if (paused && cur) stopTask(true, "你点了暂停"); setState(paused ? "paused" : "idle"); lastLease = 0; },
     // 手动开始 / 停止 / 恢复自动。停止时正在算的交给别的电脑从存档接着算
     setManual(m) {

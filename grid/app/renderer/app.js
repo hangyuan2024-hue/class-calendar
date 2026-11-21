@@ -307,10 +307,11 @@
   // ---------- 自动更新 ----------
   function paintUpdate(u) {
     const el = $("#updPill");
-    if (!u || !["downloading", "ready", "installing"].includes(u.state)) { el.hidden = true; return; }
+    if (!u || !["downloading", "ready", "installing", "held"].includes(u.state)) { el.hidden = true; return; }
     el.hidden = false;
     if (u.state === "downloading") el.innerHTML = `<b>正在下载新版 ${esc(u.latest)}</b>后台下载，不影响干活<div class="bar"><i style="width:${(u.progress || 0) * 100}%"></i></div>`;
     if (u.state === "ready") el.innerHTML = `<b>新版 ${esc(u.latest)} 已下载</b>${esc(u.waiting || "等你不用电脑时自动更新（手上的任务先算完）")}<button class="btn ghost small" id="updNow">现在就更新</button>`;
+    if (u.state === "held") el.innerHTML = `<b>有新版 ${esc(u.latest)}</b>${esc(u.waiting || "新版先在别的电脑上试，没问题再推给你")}<button class="btn ghost small" id="updNow">现在就更新</button>`;
     if (u.state === "installing") el.innerHTML = `<b>正在更新到 ${esc(u.latest)}…</b>一会儿自己重新打开`;
     const b = $("#updNow"); if (b) b.onclick = guard(async () => { b.disabled = true; b.textContent = "正在更新…"; const ok = await call("updateNow"); if (!ok) { b.disabled = false; b.textContent = "现在就更新"; toast("这个版本不能自动更新：去官网下载新版安装包", true); } });
   }
@@ -424,7 +425,7 @@
   $("#proKill").onclick = guard(async () => { if (!confirm("结束当前任务？会交给别的电脑从存档接着算。")) return; toast((await call("killTask")) ? "结束了" : "现在没在算"); });
   $("#proWork").onclick = () => call("openWork");
   $("#proUpload").onclick = guard(async () => { await call("uploadLogs"); toast("交上去了：控制中心这台电脑的详情里能看到"); });
-  $("#proCheck").onclick = guard(async () => { const u = await call("updateCheck"); toast(u.state === "ready" || u.state === "downloading" ? `有新版 ${u.latest}` : u.error || "已经是最新版"); });
+  $("#proCheck").onclick = guard(async () => { const u = await call("updateCheck"); toast(u.state === "ready" || u.state === "downloading" ? `有新版 ${u.latest}` : u.state === "held" ? u.waiting || `有新版 ${u.latest}，先在别的电脑上试` : u.error || "已经是最新版"); });
 
   $("#adminGo").onclick = guard(async () => { if (!(await call("openAdmin"))) toast("只有管理员能打开", true); });
 

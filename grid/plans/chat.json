@@ -76,7 +76,8 @@
       },
       "req": {
         "vram": 7.5,
-        "llm": true
+        "llm": true,
+        "needFree": 5.5
       },
       "priority": 19
     }
@@ -92,9 +93,27 @@
       {
         "k": "acc",
         "better": "higher",
-        "tol": 0.03,
+        "tol": 9,
         "min": "base_acc",
-        "minTol": 0.03
+        "minTol": 0.05
+      },
+      {
+        "k": "gain_lo",
+        "better": "higher",
+        "tol": 9,
+        "min": -0.02
+      },
+      {
+        "k": "cur_lo",
+        "better": "higher",
+        "tol": 9,
+        "min": -0.02
+      },
+      {
+        "k": "cur_gain",
+        "better": "higher",
+        "tol": 0,
+        "vs": "zero"
       },
       {
         "k": "speak",

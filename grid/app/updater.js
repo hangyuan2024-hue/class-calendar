@@ -1,4 +1,5 @@
 // 自动更新：不打断干活，也不因为等更新就不干活。
+//   0. 分批推：下载前先问调度中心这一台能不能换（先一台试 → 一半 → 全部，新版出错多就停推）；遥控「立刻更新」不问
 //   1. 启动后 20 秒、之后每 20 分钟看一眼 download/grid-version.json（国内走官网，海外 / 失败走 GitHub）；控制中心也能遥控「立刻更新」
 //   2. 有新版：后台下载安装包（断了接着下），核对大小和 sha256，下好了记一个 .ok
 //   3. 什么时候装（装一次大约 20 秒，装完自己打开、接着刚才的状态）：
@@ -26,7 +27,7 @@ function create(o) {
   const set = (p) => { st = { ...st, ...p }; o.onEvent && o.onEvent({ ...st }); };
   const fetchJson = async (u) => { const r = await (o.fetch || fetch)(u + "?t=" + Date.now(), { cache: "no-store", signal: AbortSignal.timeout(15000) }); if (!r.ok) throw new Error(r.status); return r.json(); };
 
-  async function check() {
+  async function check(force) {
     if (busy || applying) return st;
     busy = true;
     try {
@@ -35,6 +36,12 @@ function create(o) {
       set({ checked: Date.now() });
       if (!info || !info.version) { set({ state: st.state === "ready" ? "ready" : "idle", error: "查不到新版本：" + (err ? err.message : "") }); return st; }
       if (!newer(info.version, o.version)) { set({ state: "idle", latest: info.version, error: "" }); return st; }
+      // 分批推：先问调度中心「这一台现在能不能换新版」（先一台试 → 一半 → 全部；新版出错多就停推）；遥控「立刻更新」不问
+      if (o.gate && !force) {
+        let g = null;
+        try { g = await o.gate(info.version); } catch (e) { g = null; }   // 老调度中心没有这个接口：照旧更新
+        if (g && g.ok === false) { set({ state: "held", latest: info.version, waiting: g.why || "新版先在别的电脑上试", error: "" }); return st; }
+      }
       const file = path.join(dir(), `LaolaoGrid-Setup-${info.version}.exe`);
       if (st.state === "ready" && st.file === file && fs.existsSync(file)) return st;
       if (fs.existsSync(file + ".ok") && fs.existsSync(file)) { set({ state: "ready", latest: info.version, notes: info.notes || "", file, progress: 1, error: "", readyAt: st.readyAt || Date.now() }); return st; }
@@ -102,7 +109,7 @@ function create(o) {
     }, o.tickMs || 30e3);
   }
   function stop() { clearInterval(timer); timer = null; }
-  return { check, maybeApply, start, stop, pending, status: () => ({ ...st }), now: async () => { if (st.state !== "ready") await check(); return maybeApply(true); } };
+  return { check, maybeApply, start, stop, pending, status: () => ({ ...st }), now: async () => { if (st.state !== "ready") await check(true); return maybeApply(true); } };
 }
 
 // 通用版（自己搭调度中心的人用）：单独的版本文件，和内部版各更各的

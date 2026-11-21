@@ -75,6 +75,7 @@ function create(o) {
     });
   }
 
+  let loadedGB = 0;
   function launch(file, spec, lite, dev) {
     const ctx = Math.max(2048, +spec.ctx || 16384), slots = Math.max(1, +spec.slots || 2);
     // CPU 版（o.cpu：CPU 工位用）：不放进显卡，线程数按 o.threads()（默认一半核心）
@@ -114,6 +115,7 @@ function create(o) {
       for (const lite of [false, true]) {
         say(lite ? "换一种省事的方式再启动一次…" : "启动本地大模型（把模型放进显卡，大约半分钟）");
         child = launch(file, { ...spec, mmFile }, lite, dev);
+        loadedGB = o.cpu ? 0 : ((() => { try { return fs.statSync(file).size; } catch (e) { return 0; } })() + (mmFile ? (() => { try { return fs.statSync(mmFile).size; } catch (e) { return 0; } })() : 0)) / 2 ** 30 + 0.8;
         const c = child;
         let dead = false;
         c.on("exit", () => { dead = true; if (child === c) child = null; });
@@ -150,7 +152,8 @@ function create(o) {
   function touch() { if (child) bump(); }
   // 准备组件页用：只下载不启动；下好了没有
   const hasModel = (spec) => { try { const f = path.join(dir(), safe(spec.name)); return fs.existsSync(f) && (!spec.size || fs.statSync(f).size === spec.size); } catch (e) { return false; } };
-  return { ensure, stop, ok, version, convertDir, touch, running: () => !!child, PORT: port, prefetch: (spec, say = () => {}) => fetchModel(spec, say), hasModel };
+  // 现在放在显卡里的大约有多大（模型文件 + 上下文，G）：调度中心算「真正空着的显存」时，这部分算可以腾出来的（训练开始前会关掉它）
+  return { ensure, stop, ok, version, convertDir, touch, running: () => !!child, pid: () => (child ? child.pid : null), loadedGB: () => (child ? Math.round(loadedGB * 10) / 10 : 0), PORT: port, prefetch: (spec, say = () => {}) => fetchModel(spec, say), hasModel };
 }
 
 module.exports = { create, PORT };

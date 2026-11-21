@@ -111,6 +111,63 @@ function open(file, opt = {}) {
     const d = one("select id from devices where token_hash=?", hash(token));
     return { token, device: d.id, name: nm, ...(cpu ? { cpu: true } : {}) };
   }
+  // ---------- 客户端新版本分批推（灰度）：先一台试 → 一半 → 全部；新版出错比旧版多就停下不再推 ----------
+  //   客户端下载新版前先问一句（POST /api/update-gate {version}）；老调度中心没有这个接口，客户端照旧直接更新
+  //   每一档至少 rolloutMin 分钟（默认 60）；看这一档里已经换上新版的电脑：出错占比比还在旧版的电脑高出 15 个百分点以上 → 停推
+  //   一直没算出几个任务（证据不够）：最多等 rolloutWaitMin（默认 180）分钟，没出错就往下推
+  db.exec("create table if not exists rollout(version text primary key, stage text, started integer, stage_at integer, canary text, note text)");
+  const RO_MIN = (opt.rolloutMin != null ? opt.rolloutMin : 60) * 60e3, RO_WAIT = (opt.rolloutWaitMin != null ? opt.rolloutWaitMin : 180) * 60e3;
+  const verOf = (d) => { try { return String((JSON.parse(d.info || "{}") || {}).version || ""); } catch (e) { return ""; } };
+  function rolloutHealth(version, since) {
+    const devs = all("select id, info from devices where disabled=0");
+    const nv = devs.filter((d) => verOf(d) === version).map((d) => d.id), ov = devs.filter((d) => verOf(d) && verOf(d) !== version).map((d) => d.id);
+    const rate = (ids) => {
+      if (!ids.length) return { n: 0, err: 0 };
+      const q = ids.join(",");
+      const done = one(`select count(*) as n from tasks where state='done' and finished>=? and device_id in (${q})`, since).n;
+      const err = one(`select count(*) as n from events where type='error' and ts>=? and device_id in (${q})`, since).n;
+      return { n: done + err, err, rate: done + err ? err / (done + err) : 0 };
+    };
+    return { newer: rate(nv), older: rate(ov), devices: nv.length };
+  }
+  function updateGate(dev, { version } = {}) {
+    const v = String(version || "").slice(0, 30);
+    if (!/^\d+\.\d+\.\d+$/.test(v)) return { ok: true };
+    const now = clock();
+    let r = one("select * from rollout where version=?", v);
+    if (!r) {
+      run("insert into rollout(version,stage,started,stage_at,canary,note) values(?,?,?,?,?,?)", v, "canary", now, now, JSON.stringify([dev.id]), "");
+      event("update", `新版 ${v} 先给「${dev.member_name}的${dev.name}」试，没问题再推给大家`, { device: dev.id });
+      return { ok: true, stage: "canary" };
+    }
+    // 往下推一档（或者停推）
+    if ((r.stage === "canary" || r.stage === "half") && now - r.stage_at >= RO_MIN) {
+      const h = rolloutHealth(v, r.stage_at);
+      const enough = h.newer.n >= 3, waited = now - r.stage_at >= RO_WAIT;
+      if (enough && h.newer.rate > (h.older.n ? h.older.rate : 0) + 0.15) {
+        run("update rollout set stage='paused', stage_at=?, note=? where version=?", now, `新版出错占比 ${Math.round(h.newer.rate * 100)}%，旧版 ${Math.round((h.older.rate || 0) * 100)}%`, v);
+        event("update", `新版 ${v} 在试的电脑上出错比旧版多（${h.newer.err}/${h.newer.n} 对 ${h.older.err}/${h.older.n}）：先不推给别人了，看看控制中心的出错信息`, {});
+      } else if (enough || waited) {
+        const next = r.stage === "canary" ? "half" : "all";
+        run("update rollout set stage=?, stage_at=? where version=?", next, now, v);
+        event("update", `新版 ${v} ${next === "half" ? "试了没问题：推给一半的电脑" : "一半的电脑也没问题：推给所有电脑"}（新版 ${h.newer.err}/${h.newer.n} 出错，旧版 ${h.older.err}/${h.older.n}）`, {});
+      }
+      r = one("select * from rollout where version=?", v);
+    }
+    const canary = JSON.parse(r.canary || "[]");
+    if (r.stage === "all" || canary.includes(dev.id)) return { ok: true, stage: r.stage };
+    if (r.stage === "half" && dev.id % 2 === 0) return { ok: true, stage: r.stage };
+    if (r.stage === "paused") return { ok: false, stage: r.stage, why: `新版 ${v} 在试的电脑上出错多，先不更新（${r.note}）` };
+    return { ok: false, stage: r.stage, why: r.stage === "canary" ? `新版 ${v} 先在一台电脑上试，没问题再推给你（大约一小时）` : `新版 ${v} 先推给一半的电脑，没问题再推给你（大约一小时）` };
+  }
+  // 管理员：停推的版本接着推（看过了没问题）/ 直接推给所有人
+  function setRollout(version, stage) {
+    if (!["canary", "half", "all", "paused"].includes(stage)) throw new Error("没有这一档");
+    run("update rollout set stage=?, stage_at=? where version=?", stage, clock(), String(version));
+    return one("select * from rollout where version=?", String(version));
+  }
+  const rollouts = () => all("select * from rollout order by started desc limit 10");
+
   function auth(token) {
     if (!token) return null;
     const d = one("select d.*, m.name as member_name, m.role as role, m.disabled as m_disabled from devices d join members m on m.id=d.member_id where d.token_hash=?", hash(token));
@@ -246,6 +303,8 @@ function open(file, opt = {}) {
     if (!req) return true;
     if (req.gpu && !(caps.gpu && caps.vram)) return false;
     if (req.vram && (caps.vram || 0) < req.vram) return false;
+    // 要真正空着这么多显存才派（训练）：客户端报的是「总量 - 已用 + 自己能腾出来的」；别的程序占着就先不派，免得派过去再失败（老客户端不报就不管）
+    if (req.needFree && caps.vramFree != null && +caps.vramFree < req.needFree) return false;
     if (req.maxVram && (caps.vram || 0) > req.maxVram) return false;   // 只给小显卡做的活（大显卡去做更吃显存的那一档，别来抢）
     if (req.ram && (caps.ram || 0) < req.ram) return false;
     if (req.os && caps.os && req.os !== caps.os) return false;
@@ -354,7 +413,7 @@ function open(file, opt = {}) {
         for (const jid of Object.values(J(r && r.jobs, {}) || {})) {
           const jj = one("select meta from jobs where id=?", jid);
           const res = ((J(jj && jj.meta, {}) || {}).result) || {};
-          if (res.peft && typeof res.peft === "string") { (out.files = out.files || {}).opt_prev_peft = res.peft; out.extra = { ...(out.extra || {}), prevExamples: +res.examples || 0, prev: { hp: res.hp || {}, base_acc: res.base_acc, base_zh_rate: res.base_zh_rate, base_name: res.base_name, acc: res.acc } }; }
+          if (res.peft && typeof res.peft === "string") { (out.files = out.files || {}).opt_prev_peft = res.peft; out.extra = { ...(out.extra || {}), prevExamples: +res.examples || 0, prev: { hp: res.hp || {}, base_acc: res.base_acc, base_zh_rate: res.base_zh_rate, base_name: res.base_name, acc: res.acc, ...(typeof res.items === "string" ? { items: res.items } : {}), ...(typeof res.base_items === "string" ? { base_items: res.base_items } : {}) } }; }
         }
       } catch (e) {}
     }
@@ -708,7 +767,7 @@ function open(file, opt = {}) {
   return {
     db, kv, event, on: (f) => (listeners.add(f), () => listeners.delete(f)),
     adminToken, isAdmin, invite, join, auth, heartbeat, addRecipe, stage, createJob, lease, renew, checkpoint, lostCkpt, finish, fail, sweep,
-    humanNext, humanDone, reviewNext, vote, cut, retire, addTasks, dataset, importVoice, voiceData, voices, addMember, laneDevice, sendCommand, commandDone, commandsOf, stats, deviceLogs, overview, jobDetail, devicesView, board, setJob, setDevice, retry,
+    humanNext, humanDone, reviewNext, vote, cut, retire, addTasks, dataset, importVoice, voiceData, voices, addMember, laneDevice, updateGate, setRollout, rollouts, sendCommand, commandDone, commandsOf, stats, deviceLogs, overview, jobDetail, devicesView, board, setJob, setDevice, retry,
     recipe: (id) => one("select * from recipes where id=?", id), recipes: () => all("select id,name,meta,created from recipes order by created desc"),
     review: (id) => one("select * from reviews where id=?", id),
     invites: () => all("select * from invites order by created desc limit 50"),
