@@ -217,6 +217,8 @@ function createService(o) {
     if (!c0.vram || !llm.ok()) return;
     cfg.lanes = cfg.lanes || {};
     let ln = cfg.lanes.cpu;
+    // 以前在旧版调度中心上登记过（被当成「第 2 块显卡」）：换成新版的 CPU 工位重新登记一次
+    if (ln && ln.token && !/· CPU$/.test(ln.name || "")) { L(`CPU 工位以前登记成了「${ln.name}」（旧版调度中心）：重新登记`, "info", "CPU"); ln = null; }
     if (!ln || !ln.token) {
       const r = await agent.api("/api/lane", { gpu: "cpu", name: cfg.deviceName, info: { cpu: require("os").cpus().length, ram: c0.ram } });
       // 旧版调度中心不认得 CPU 工位（会当成第 2 块显卡，把显卡的活派给它）：回的不是 cpu: true 就不开，等调度中心更新
