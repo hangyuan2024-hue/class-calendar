@@ -57,6 +57,7 @@ function createXz(o) {
     busy: () => null, used: () => true,
     gsvDir: () => { const r = gsv.inspect((cfg.gsv || {}).dir) || gsv.find(path.join(base(), "ai", "LaolaoAI-GPT-SoVITS")); return r ? r.dir : null; },
     llmName: async () => { if (!mirror) return null; try { const hit = (await mirror.model("llmMain"))[0]; return hit && hit.name; } catch (e) { return null; } },
+    gsvEnsure: (say) => gsv.ensure((m) => say(m)), base,
     ...(o.showOpt || {}) });
 
   const st = async () => ({ ...(await show.state()), paused: false, joined: true, fullscreen: o.isFullscreen ? !!o.isFullscreen() : false, app: { version: o.version || "", trial: true } });
@@ -91,6 +92,9 @@ function createXz(o) {
     async showCheckupRemove(id) { show.checkupRemove(id); return show.checkupView(); },
     showCheckupPhoto: async (f) => show.checkupPhoto(f),
     async showFullscreen(on) { if (o.fullscreen) o.fullscreen(!!on); return !!on; },
+    showPrep: async () => show.prepStatus(),
+    showPrepRun: async (opt) => show.prepRun(opt || {}),
+    async showVoicePref(v) { return show.setVoicePref(v); },
     openSite: async () => { o.openExternal && o.openExternal("https://www.laolaokechengbiao.cn/xiaozhi/"); return true; },
   };
   return { H, show, llm, gsv, shutdown: () => { try { show.shutdown(); } catch (e) {} try { llm.stop(); } catch (e) {} } };

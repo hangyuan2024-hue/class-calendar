@@ -140,7 +140,9 @@ function create(o) {
   }
   // 任务还在用（配方直接问 llama-server，不经过 ensure）：续一下「没人用就关」的计时
   function touch() { if (child) bump(); }
-  return { ensure, stop, ok, version, convertDir, touch, running: () => !!child, PORT: port };
+  // 准备组件页用：只下载不启动；下好了没有
+  const hasModel = (spec) => { try { const f = path.join(dir(), safe(spec.name)); return fs.existsSync(f) && (!spec.size || fs.statSync(f).size === spec.size); } catch (e) { return false; } };
+  return { ensure, stop, ok, version, convertDir, touch, running: () => !!child, PORT: port, prefetch: (spec, say = () => {}) => fetchModel(spec, say), hasModel };
 }
 
 module.exports = { create, PORT };

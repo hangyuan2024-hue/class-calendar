@@ -12,7 +12,7 @@
   <main>
     <div class="xz-trial" id="xzTrial">
       <b>体验版</b>
-      <span>捞小智用的模型<b>还没有正式训练好</b>：讲题、口语对话、捞捞的声音都还在用「临时版」（没训练过的底子、电脑自带的朗读）。捞捞算力每训练、考试通过一版，这里会<b>自动下载、自动换上</b>，不用重装。第一次提问要先下载大模型（约 2.5G）。教务数据是虚构的演示数据。</span>
+      <span>捞小智用的模型<b>还没有正式训练好</b>：讲题、口语对话、捞捞的声音都还在用「临时版」（没训练过的底子、Kokoro 中文女声）。捞捞算力每训练、考试通过一版，这里会<b>自动下载、自动换上</b>，不用重装。第一次打开会先下载要用的组件。教务数据是虚构的演示数据。</span>
       <button class="btn small" id="xzSite">官网</button>
       <button class="btn small" id="xzHide" title="收起">×</button>
     </div>
@@ -22,14 +22,21 @@
         <span class="sh-build" id="shBuild">成品 第 0 版</span>
         <span class="grow"></span>
         <label class="muted sh-chk"><input type="checkbox" id="shSpeak" checked> 开口说话</label>
+        <select id="shVoicePick" title="用哪种声音：Kokoro 女声不用装别的；真人感要先装好声音组件"><option value="kokoro">声音：Kokoro 女声</option><option value="real">声音：真人感（声音组件）</option></select>
         <select id="shRole" title="换一个身份试试：学生、教师（辅导员）、教务员能办的事不一样"></select>
         <button class="btn small" id="shNew">新对话</button>
         <button class="btn small primary" id="shFull" title="全屏展示（Esc 退出）">⛶ 全屏展示</button>
       </div>
       <div class="warnbox" id="shBusy" hidden><span id="shBusyTip"></span><div class="btns"><button class="btn small primary" id="shPause">暂停计算，开始展示</button></div></div>
       <div class="warnbox ok" id="shPaused" hidden>为了展示，这台电脑的计算先停着（手上的任务交给别人从存档接着算了）。<div class="btns"><button class="btn small" id="shResume">看完了，接着算</button></div></div>
+      <div class="sh-prep glass" id="shPrep" hidden>
+        <div class="hd"><b>先准备好捞小智要用的组件</b><span class="muted small">都从国内存储下载，断了会接着下；只下这一次</span></div>
+        <div class="list"></div>
+        <div class="ft"><span class="tip muted small"></span><span class="grow"></span><button class="btn primary go">开始准备</button><button class="btn use" hidden>开始使用</button></div>
+      </div>
       <div class="sh-grid">
         <div class="glass sh-stagebox">
+          <button class="btn small sh-deck-x" id="shDeckClose" hidden title="关掉 PPT，回到捞小智">✕ 关闭 PPT</button>
           <div class="sh-deck" id="shDeck" hidden></div>
           <div class="sh-stage" id="shStage"></div>
           <div class="sh-sub" id="shSub"></div>

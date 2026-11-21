@@ -66,8 +66,8 @@
     Z.g.scale.setScalar(1.25);
 
     // ---------- 表情、动作 ----------
-    const COLORS = { "": 0x5eead4, happy: 0x5eead4, think: 0x5eead4, wow: 0xfde68a, sad: 0xfb7185 };
-    let face = "", act = "", actUntil = 0, level = 0, levelT = 0;
+    const COLORS = { "": 0x5eead4, happy: 0x5eead4, think: 0x5eead4, wow: 0xfde68a, sad: 0xfb7185, listen: 0x67e8f9, love: 0xf9a8d4, confused: 0xc4b5fd };
+    let face = "", act = "", actUntil = 0, actAt = 0, level = 0, levelT = 0, mode = "";   // mode：一直保持的状态（在听 / 在想 / 在说），act：一下子的动作
     function setFace(m) {
       face = COLORS[m] != null ? m : "";
       const c = COLORS[face];
@@ -77,14 +77,21 @@
       else if (face === "wow") smile.scale.set(0.7, 1.4, 1);
       else if (face === "think") smile.scale.set(0.8, 0.3, 1);
       else if (face === "sad") smile.rotation.z = 0;
+      else if (face === "love") smile.scale.set(1.4, 1.5, 1);
+      else if (face === "confused") smile.scale.set(0.6, 0.35, 1);
+      else if (face === "listen") smile.scale.set(0.9, 0.6, 1);
     }
+    const MODE_FACE = { listen: "listen", think: "think", talk: "happy" };
     setFace("");
     // 展示页用的名字（和以前的公仔一样）→ 捞小智的动作
-    const MOODS = { wave: ["wave", "happy"], point: ["point", ""], gesture: ["gesture", ""], nod: ["nod", "happy"], think: ["think", "think"], happy: ["hop", "happy"], wow: ["hop", "wow"], sad: ["", "sad"], idle: ["", ""] };
+    const MOODS = { wave: ["wave", "happy"], point: ["point", ""], gesture: ["gesture", ""], nod: ["nod", "happy"], think: ["think", "think"], happy: ["hop", "happy"], wow: ["hop", "wow"], sad: ["droop", "sad"], idle: ["", ""],
+      listen: ["listen", "listen"], explain: ["explain", ""], celebrate: ["spin", "happy"], confused: ["tilt", "confused"], love: ["hop", "love"], bow: ["bow", "happy"], shake: ["shake", ""] };
     function mood(m, secs) {
       const [a, f] = MOODS[m] || ["", ""];
-      act = a; actUntil = performance.now() + clamp(+secs || 2, 0.5, 10) * 1000; setFace(f);
+      act = a; actAt = performance.now(); actUntil = actAt + clamp(+secs || 2, 0.5, 10) * 1000; setFace(f || MODE_FACE[mode] || "");
     }
+    // 一直保持的状态：listen 在听（歪头、凑近、眼睛亮）、think 在想（往上看）、talk 在说、"" 平时
+    function setMode(m) { mode = MODE_FACE[m] != null ? m : ""; if (!act) setFace(MODE_FACE[mode] || ""); }
 
     // 眼睛跟着鼠标
     let lookX = 0, lookY = 0, lookTX = 0, lookTY = 0;
@@ -110,14 +117,22 @@
       if (now - lastDraw < 30) return;   // 最多 33 帧 / 秒：这台电脑的显卡还要算任务
       lastDraw = now;
       const dt = Math.min(0.05, (now - last) / 1000); last = now; const t = now / 1000;
-      if (act && now > actUntil) { act = ""; setFace(""); }
+      if (act && now > actUntil) { act = ""; setFace(MODE_FACE[mode] || ""); }
+      const ak = act ? (now - actAt) / 1000 : 0;   // 这个动作做了几秒
       // 浮着
       const bob = Math.sin(t * 1.6) * 0.06;
       Z.g.position.y = bob + (act === "hop" ? Math.abs(Math.sin((now / 1000) * 7)) * 0.15 : 0);
       Z.g.rotation.z = Math.sin(t * 0.9) * 0.04;
+      // 转一圈（庆祝）、往前凑（在听）、垂头（难过）
+      Z.g.rotation.y = act === "spin" ? Math.min(1, ak / 0.9) * Math.PI * 2 : lerp(Z.g.rotation.y % (Math.PI * 2), 0, 0.2);
+      Z.g.position.z = lerp(Z.g.position.z, mode === "listen" || act === "listen" ? 0.35 : 0, 0.08);
+      if (act === "droop") Z.g.position.y -= 0.08;
       // 看鼠标 / 想事情的时候往上看
       lookX = lerp(lookX, act === "think" ? 0.35 : lookTX, 0.08); lookY = lerp(lookY, act === "think" ? -0.6 : lookTY, 0.08);
-      Z.head.rotation.y = lookX * 0.35; Z.head.rotation.x = lookY * 0.18 + (act === "nod" ? Math.sin(t * 9) * 0.18 : 0);
+      Z.head.rotation.y = lookX * 0.35 + (act === "shake" ? Math.sin(t * 11) * 0.3 : 0);
+      Z.head.rotation.x = lookY * 0.18 + (act === "nod" ? Math.sin(t * 9) * 0.18 : 0) + (act === "bow" ? Math.sin(Math.min(1, ak / 1.2) * Math.PI) * 0.5 : 0) + (act === "droop" ? 0.25 : 0);
+      // 歪头：在听的时候轻轻歪，没听懂的时候歪得多
+      Z.head.rotation.z = lerp(Z.head.rotation.z, act === "tilt" ? -0.32 : mode === "listen" || act === "listen" ? 0.16 + Math.sin(t * 1.3) * 0.03 : 0, 0.1);
       eyeG.position.x = lookX * 0.03; eyeG.position.y = -lookY * 0.02;
       // 手：招手、指一下、比划；平时跟着身子轻轻晃
       const [hl, hr] = hands;
@@ -125,13 +140,17 @@
       if (act === "wave") hr.position.set(0.62 + Math.sin(t * 10) * 0.06, 0.18 + Math.cos(t * 10) * 0.05, 0.12);
       else if (act === "point") hr.position.set(0.7, 0.02, 0.3);
       else if (act === "gesture") { hr.position.set(0.58, -0.08 + Math.sin(t * 6) * 0.08, 0.2); hl.position.set(-0.58, -0.08 + Math.cos(t * 6) * 0.08, 0.2); }
+      else if (act === "explain") { const k = Math.sin(t * 2.2); hr.position.set(0.6 + Math.max(0, k) * 0.12, -0.02 + k * 0.08, 0.22 + Math.max(0, k) * 0.12); hl.position.set(-0.58, -0.1 + Math.sin(t * 4.4) * 0.05, 0.16); }
+      else if (act === "spin" || (act === "hop" && face === "love")) { hr.position.set(0.6, 0.25, 0.1); hl.position.set(-0.6, 0.25, 0.1); }
+      else if (act === "tilt") { hr.position.set(0.32, 0.12, 0.34); }
+      else if (act === "listen" || mode === "listen") { hr.position.set(0.5, 0.02, 0.26); }
       else hr.position.set(0.56, -0.18 + Math.sin(t * 1.6 + 2) * 0.03, 0.08);
       // 眨眼
       if (now > nextBlink) { blinkT = 0; nextBlink = now + 2600 + Math.random() * 3200; }
       let ey = face === "happy" && !level ? 0.35 : face === "think" ? 0.5 : 1;
       if (blinkT >= 0) { blinkT += dt; const k = blinkT / 0.14; ey *= k < 1 ? 1 - Math.sin(k * Math.PI) * 0.9 : 1; if (k >= 1) blinkT = -1; }
-      const ex = face === "wow" ? 1.4 : 1;
-      eyes.forEach((e) => e.scale.set(ex, ey * (face === "wow" ? 1.1 : 1), 1));
+      const ex = face === "wow" ? 1.4 : face === "listen" ? 1.15 : 1;
+      eyes.forEach((e, i) => e.scale.set(ex, ey * (face === "wow" ? 1.1 : face === "listen" ? 1.12 : face === "confused" ? (i ? 0.6 : 1.15) : 1), 1));
       // 说话：嘴跟着音量一张一合，眼睛亮一点
       level = lerp(level, levelT, 0.45);
       const talking = level > 0.04;
@@ -141,7 +160,7 @@
       const pulse = 0.75 + Math.sin(t * 3.2) * 0.25 + level * 0.6;
       tipGlow.scale.setScalar(0.3 + pulse * 0.12); tipGlow.material.opacity = clamp(pulse, 0.3, 1);
       jet.scale.set(0.5 + Math.sin(t * 18) * 0.04, 0.72 + Math.sin(t * 13) * 0.06, 1);
-      ring.material.opacity = 0.14 + Math.sin(t * 1.6) * 0.04 + level * 0.12;
+      ring.material.opacity = 0.14 + Math.sin(t * 1.6) * 0.04 + level * 0.12 + (mode === "listen" ? 0.1 + Math.sin(t * 4) * 0.06 : 0);
       renderer.render(scene, camera);
     }
     raf = requestAnimationFrame(frame);
@@ -149,7 +168,7 @@
     return {
       ok: true,
       talk(v) { levelT = clamp(+v || 0, 0, 1); },
-      mood,
+      mood, setMode,
       dispose() { dead = true; cancelAnimationFrame(raf); root.removeEventListener("pointermove", onMove); if (ro) ro.disconnect(); try { renderer.dispose(); } catch (e) {} renderer.domElement.remove(); },
     };
   }

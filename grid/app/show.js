@@ -34,6 +34,12 @@ function create(o) {
   const voice = VOICE.create({});
   // 捞捞的声音还没训练好 / 这台电脑没装声音组件：先用电脑自带的中文朗读，训练好了自动换上
   const sys = (o.sysTtsFactory || PPT("systts.js").create)(o.sysTtsOpt || {});
+  // 好听的临时声音（Kokoro）和「真人感」声音（声音组件 + 公开录音）：文件放在数据文件夹的 tts/ 里
+  const tbase = () => (o.base ? o.base() : path.dirname(o.dir()));
+  const kok = (o.kokoroFactory || require("./kokoro").create)({ base: tbase, log: (m) => log(m), ...(o.kokoroOpt || {}) });
+  const real = (o.realFactory || require("./realvoice").create)({ base: tbase, log: (m) => log(m), ...(o.realOpt || {}) });
+  let voicePref = "kokoro";
+  try { voicePref = JSON.parse(fs.readFileSync(path.join(o.dir(), "voice-pref.json"), "utf8")).pref === "real" ? "real" : "kokoro"; } catch (e) {}
   let sysSt = { ok: false, why: "" };
   const sysCheck = () => sys.available().then((st) => { sysSt = st; return st; }).catch(() => sysSt);
   const ear = (o.hearFactory || require("./hear").create)({ log: (m) => log("听写：" + m), ...(o.hearOpt || {}) });
@@ -115,51 +121,131 @@ function create(o) {
     if (t.length > max) { const cut = t.slice(0, max); const k = Math.max(cut.lastIndexOf("。"), cut.lastIndexOf("！"), cut.lastIndexOf("？")); t = k > 20 ? cut.slice(0, k + 1) : cut + "……"; }
     return t;
   };
-  function voiceInfo() {
+  // 现在用哪种声音：训练好的捞捞声音（要声音组件）＞ 真人感（声音组件 + 公开录音，用户选了才用）＞ Kokoro 中文女声 ＞ 电脑自带朗读
+  function engineNow() {
     const m = S().models.use("laolao-voice");
     const ok = !!(m && m.files && m.files.gpt && m.files.sovits && m.files.ref);
     const gsv = o.gsvDir ? o.gsvDir() : null;
-    const real = ok && !!gsv, temp = !real && !!sysSt.ok;
-    const label = real ? `捞捞的声音（第 ${m.version} 版）`
-      : ok ? (temp ? `临时用电脑自带的朗读（捞捞的声音第 ${m.version} 版已下好，这台电脑装上声音组件就换上）` : `捞捞的声音第 ${m.version} 版（这台电脑还没装声音组件）`)
-      : temp ? "临时用电脑自带的朗读（捞捞的声音训练、考试通过后自动换上）"
-      : `捞捞的声音还没训练好${sysSt.why ? "，" + sysSt.why : ""}：回答先只出字（训练、考试通过后自动下载）`;
-    return { on: speakOn, model: ok, version: ok ? m.version : null, gsv: !!gsv, engine: voice.state.state, can: real || temp, temp, label };
+    if (ok && gsv) return { eng: "trained", m, gsv };
+    if (voicePref === "real" && gsv && real.ready()) return { eng: "real", m, gsv, ok };
+    if (kok.ready()) return { eng: "kokoro", m, gsv, ok };
+    if (sysSt.ok) return { eng: "sys", m, gsv, ok };
+    return { eng: null, m, gsv, ok };
   }
-  // 电脑自带朗读念一句
+  function voiceInfo() {
+    const e = engineNow(), m = e.m, ok = e.eng === "trained" || !!e.ok;
+    const after = ok ? `（捞捞的声音第 ${m.version} 版已下好，这台电脑装上声音组件就换上）` : "（捞捞的声音训练、考试通过后自动换上）";
+    const label = e.eng === "trained" ? `捞捞的声音（第 ${m.version} 版）`
+      : e.eng === "real" ? "真人感声音（声音组件照着公开录音说）" + after
+      : e.eng === "kokoro" ? "好听的临时声音（Kokoro 中文女声）" + after
+      : e.eng === "sys" ? "临时用电脑自带的朗读" + after
+      : ok ? `捞捞的声音第 ${m.version} 版（这台电脑还没装声音组件）` : `捞捞的声音还没训练好${sysSt.why ? "，" + sysSt.why : ""}：回答先只出字（训练、考试通过后自动下载）`;
+    return { on: speakOn, model: ok, version: ok ? m.version : null, gsv: !!e.gsv, engine: voice.state.state, can: !!e.eng, temp: e.eng !== "trained" && !!e.eng, kind: e.eng, pref: voicePref,
+      choices: { kokoro: kok.ready(), real: !!(e.gsv && real.ready()) }, label };
+  }
+  const cacheWav = (t, tag) => path.join(S().dir, "say", crypto.createHash("sha1").update(t + "|" + tag).digest("hex").slice(0, 20) + ".wav");
+  function pack(buf, t, extra) { const w = MEDIA.readWav(buf); return { wav: buf.toString("base64"), text: t, ms: Math.round(w.seconds * 1000), levels: MEDIA.lipLevels(w.samples, w.rate, 25), ...extra }; }
+  async function cached(t, tag, make) {
+    fs.mkdirSync(path.join(S().dir, "say"), { recursive: true });
+    const f = cacheWav(t, tag);
+    if (!fs.existsSync(f)) fs.writeFileSync(f, await make());
+    return fs.readFileSync(f);
+  }
   async function speakSys(t) {
     const st = await sysCheck();
     if (!st.ok) return null;
-    const cache = path.join(S().dir, "say"); fs.mkdirSync(cache, { recursive: true });
-    const wav = path.join(cache, crypto.createHash("sha1").update(t + "|sys").digest("hex").slice(0, 20) + ".wav");
-    if (!fs.existsSync(wav)) fs.writeFileSync(wav, await sys.tts(t));
-    const buf = fs.readFileSync(wav), w = MEDIA.readWav(buf);
-    return { wav: buf.toString("base64"), text: t, version: 0, temp: true, ms: Math.round(w.seconds * 1000), levels: MEDIA.lipLevels(w.samples, w.rate, 25) };
+    return pack(await cached(t, "sys", () => sys.tts(t)), t, { version: 0, temp: true, kind: "sys" });
   }
+  async function speakKokoro(t) {
+    if (!kok.ready()) return null;
+    try { return pack(await cached(t, "kokoro" + (o.kokoroOpt && o.kokoroOpt.voice || ""), () => kok.tts(t)), t, { version: 0, temp: true, kind: "kokoro" }); }
+    catch (e) { log("Kokoro 声音出错：" + e.message); return null; }
+  }
+  // 临时声音：Kokoro，不行再电脑自带
+  const speakTemp = async (t) => (await speakKokoro(t)) || (await speakSys(t));
   async function speak(text) {
     if (!speakOn) return null;
-    const m = S().models.use("laolao-voice");
     const t = sayable(text); if (!t) return null;
+    await sysCheck();
+    const e = engineNow();
+    if (e.eng === "trained" || e.eng === "real") {
+      try {
+        if (voice.state.state !== "ready") await voice.start(e.gsv, o.voiceOpt || {});
+        if (e.eng === "trained") {
+          const m = e.m; let prompt = ""; try { prompt = fs.readFileSync(m.files.reftext, "utf8").trim(); } catch (x) {}
+          return pack(await cached(t, "v" + m.version, () => voice.tts({ text: t, refWav: m.files.ref, promptText: prompt, gpt: m.files.gpt, sovits: m.files.sovits })), t, { version: m.version, kind: "trained" });
+        }
+        const r = real.ref();
+        return pack(await cached(t, "real|" + r.wav, () => voice.tts({ text: t, refWav: r.wav, promptText: r.text })), t, { version: 0, temp: true, kind: "real" });
+      } catch (x) {
+        log("声音组件说不了（" + x.message + "）：这一句先用临时声音");
+        const r = await speakTemp(t); if (r) return r;
+        throw x;
+      }
+    }
+    const r = await speakTemp(t);
+    if (r) return r;
     const dir = o.gsvDir ? o.gsvDir() : null;
-    if (!m || !m.files || !m.files.gpt || !m.files.sovits || !m.files.ref || !dir) {
-      const r = await speakSys(t);
-      if (r) return r;
-      return { skip: !dir && m && m.files && m.files.gpt ? "这台电脑还没装声音组件（GPT-SoVITS）：领过一次训练声音的任务就有了，或者点「装上声音组件」" : voiceInfo().label };
-    }
-    if (voice.state.state !== "ready") {
-      // 捞捞的声音起不来：这一句先用电脑自带的念，别不出声
-      try { await voice.start(dir, o.voiceOpt || {}); }
-      catch (e) { log("声音组件启动不了：" + e.message + "（先用电脑自带朗读）"); const r = await speakSys(t); if (r) return r; throw e; }
-    }
-    let prompt = ""; try { prompt = fs.readFileSync(m.files.reftext, "utf8").trim(); } catch (e) {}
-    const cache = path.join(S().dir, "say"); fs.mkdirSync(cache, { recursive: true });
-    const wav = path.join(cache, crypto.createHash("sha1").update(t + "|" + m.version).digest("hex").slice(0, 20) + ".wav");
-    if (!fs.existsSync(wav)) fs.writeFileSync(wav, await voice.tts({ text: t, refWav: m.files.ref, promptText: prompt, gpt: m.files.gpt, sovits: m.files.sovits }));
-    const buf = fs.readFileSync(wav), w = MEDIA.readWav(buf);
-    return { wav: buf.toString("base64"), text: t, version: m.version, ms: Math.round(w.seconds * 1000), levels: MEDIA.lipLevels(w.samples, w.rate, 25) };
+    return { skip: !dir && e.ok ? "这台电脑还没装声音组件（GPT-SoVITS）：领过一次训练声音的任务就有了，或者点「装上声音组件」" : voiceInfo().label };
   }
+  function setVoicePref(v) { voicePref = v === "real" ? "real" : "kokoro"; try { fs.writeFileSync(path.join(o.dir(), "voice-pref.json"), JSON.stringify({ pref: voicePref })); } catch (e) {} return voiceInfo(); }
   // 说过的话留 200 段，再多删旧的
   function tidy() { try { const d = path.join(S().dir, "say"); const fsx = fs.readdirSync(d).map((f) => ({ f: path.join(d, f), t: fs.statSync(path.join(d, f)).mtimeMs })).sort((a, b) => b.t - a.t); for (const x of fsx.slice(200)) fs.rmSync(x.f, { force: true }); } catch (e) {} }
+
+  // ---------- 准备组件：打开展示时先把要用的都下好，必需的下好了才开放使用 ----------
+  const PREP = [
+    { key: "llm", name: "本地大模型", what: "讲题、做 PPT、办事", size: "约 2.5G", required: true },
+    { key: "voice", name: "好听的声音", what: "Kokoro 中文女声，本机合成", size: "约 330M", required: true },
+    { key: "gsv", name: "声音组件", what: "打电话的听写、真人感声音（GPT-SoVITS）", size: "约 8G", required: false },
+    { key: "ear", name: "听写模型", what: "打电话时把你说的话变成字", size: "约 1G", required: false, after: "gsv" },
+    { key: "real", name: "真人感声音的参考录音", what: "公开录音 AISHELL-3 里的一位女声", size: "约 200M", required: false, after: "gsv" },
+  ];
+  const prep = { running: false, st: {} };
+  const llmSpec = async () => { const spec = { ...LLM_SPEC }; if (o.llmName) { try { const n = await o.llmName(); if (n && /\.gguf$/i.test(n)) spec.name = n; } catch (e) {} } return spec; };
+  async function isReady(key) {
+    const dir = o.gsvDir ? o.gsvDir() : null;
+    if (key === "llm") return o.llm && o.llm.hasModel ? o.llm.hasModel(await llmSpec()) : true;
+    if (key === "voice") return kok.ready();
+    if (key === "gsv") return !!dir;
+    if (key === "ear") return !!(dir && ear.ready(dir));
+    if (key === "real") return real.ready();
+    return false;
+  }
+  async function prepStatus() {
+    const items = [];
+    for (const p of PREP) { const r = await isReady(p.key); const s = prep.st[p.key] || {}; items.push({ ...p, state: r ? "ready" : s.state || "missing", pct: r ? 100 : s.pct != null ? s.pct : null, text: s.text || "", err: s.err || "" }); }
+    const open = items.filter((x) => x.required).every((x) => x.state === "ready");
+    return { items, open, running: prep.running, optional: !!prep.optional };
+  }
+  const pctIn = (m) => { const x = /(\d{1,3})%/.exec(String(m || "")); return x ? Math.min(100, +x[1]) : null; };
+  async function prepRun(opt = {}) {
+    if (prep.running) return prepStatus();
+    prep.running = true; prep.optional = opt.all !== false;
+    const tell = async () => emit({ type: "prep", prep: await prepStatus() });
+    (async () => {
+      try {
+        for (const p of PREP) {
+          if (!p.required && !prep.optional) continue;
+          if (await isReady(p.key)) continue;
+          if (p.after && !(await isReady(p.after))) { prep.st[p.key] = { state: "error", err: "要先装好声音组件" }; continue; }
+          prep.st[p.key] = { state: "running", pct: 0, text: "" }; await tell();
+          let lastT = 0;
+          const say = (m, x) => { const pct = x && x.pct != null ? x.pct : pctIn(m); prep.st[p.key] = { state: "running", pct: pct != null ? pct : prep.st[p.key].pct, text: String(m || "") }; if (Date.now() - lastT > 800) { lastT = Date.now(); tell(); } };
+          try {
+            const dir = o.gsvDir ? o.gsvDir() : null;
+            if (p.key === "llm") { if (!o.llm.prefetch) throw new Error("这个版本不能先下载大模型"); await o.llm.prefetch(await llmSpec(), say); }
+            else if (p.key === "voice") await kok.ensure(say);
+            else if (p.key === "gsv") { if (!o.gsvEnsure) throw new Error("这里装不了声音组件"); await o.gsvEnsure(say); }
+            else if (p.key === "ear") { if (!(await ear.warm(dir, say))) throw new Error("听写模型没准备好（检查网络后再试）"); }
+            else if (p.key === "real") await real.ensure(say);
+            prep.st[p.key] = { state: "ready", pct: 100 };
+          } catch (e) { prep.st[p.key] = { state: "error", err: e.message }; log(`准备组件「${p.name}」没成：${e.message}`); }
+          await tell();
+        }
+      } finally { prep.running = false; await tell(); }
+    })();
+    return prepStatus();
+  }
 
   // ---------- 打电话 ----------
   function setCall(on) {
@@ -182,7 +268,7 @@ function create(o) {
   async function state() {
     const { xz } = S(); await xz.ready(); await sysCheck();
     const me = xz.who(), actor = xz.campus.identities()[me.role], lp = xz.lastPpt();
-    return { who: me, product: xz.product(), busy: xz.busy(), voice: voiceInfo(), call: callInfo(), llm: { ok: !!(o.llm && o.llm.ok()), running: !!(o.llm && o.llm.running && o.llm.running()) },
+    return { who: me, product: xz.product(), busy: xz.busy(), voice: voiceInfo(), prep: await prepStatus(), call: callInfo(), llm: { ok: !!(o.llm && o.llm.ok()), running: !!(o.llm && o.llm.running && o.llm.running()) },
       task: o.busy ? o.busy() : null, ppt: lp ? { name: path.basename(lp.file), title: lp.title, pages: lp.pages, rev: lp.rev } : null, exam: xz.lastExam(),
       requests: xz.campus.myRequests(actor).requests.slice(0, 8), pending: xz.campus.pending(actor).requests.slice(0, 8), campus: xz.campus.stats() };
   }
@@ -208,7 +294,7 @@ function create(o) {
   schedule();
   sysCheck();
   return {
-    state, send, speak, fuse, product, setActive, hear, setCall,
+    state, send, speak, fuse, product, setActive, hear, setCall, prepStatus, prepRun, setVoicePref,
     stop: () => S().xz.stop(), reset: () => { S().xz.reset(); return true; },
     setRole: async (r) => { S().xz.setRole(r); return state(); },
     setSpeak: (on) => { speakOn = !!on; if (!speakOn) { try { voice.stop(); } catch (e) {} } return voiceInfo(); },
@@ -223,7 +309,7 @@ function create(o) {
     pptExam: async () => { const t = o.busy ? o.busy() : null; if (t) throw new Error(`这台电脑正在算「${t}」，显卡腾不出来：先点「暂停计算」再考`); return S().xz.pptExam(); },
     slides: (rev) => S().xz.slides(rev), pptTheme: (k) => S().xz.pptTheme(k), pptUndo: () => S().xz.pptUndo(),
     openPpt: async (file) => { if (!/\.pptx$/i.test(String(file || ""))) throw new Error("只能打开 .pptx（老版本的 .ppt 先在 PowerPoint 里另存成 .pptx）"); await S().xz.openPpt(file); return state(); },
-    shutdown: () => { clearInterval(timer); try { voice.stop(); } catch (e) {} try { ear.stop(); } catch (e) {} if (cur) { try { cur.models.stop(); } catch (e) {} } tidy(); },
+    shutdown: () => { clearInterval(timer); try { kok.stop(); } catch (e) {} try { voice.stop(); } catch (e) {} try { ear.stop(); } catch (e) {} if (cur) { try { cur.models.stop(); } catch (e) {} } tidy(); },
     LLM_SPEC, MMPROJ_SPEC,
   };
 }

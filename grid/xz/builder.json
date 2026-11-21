@@ -2,8 +2,16 @@
   "appId": "cn.laolaokechengbiao.xiaozhi",
   "productName": "捞小智",
   "copyright": "捞捞",
-  "extraMetadata": { "name": "laolao-xiaozhi", "productName": "捞小智", "main": "xz/main.js", "description": "捞小智：捞捞的 AI 助教（体验版）" },
-  "directories": { "output": "dist-xz", "buildResources": "build" },
+  "extraMetadata": {
+    "name": "laolao-xiaozhi",
+    "productName": "捞小智",
+    "main": "xz/main.js",
+    "description": "捞小智：捞捞的 AI 助教（体验版）"
+  },
+  "directories": {
+    "output": "dist-xz",
+    "buildResources": "build"
+  },
   "files": [
     "package.json",
     "xz/**",
@@ -13,6 +21,9 @@
     "app/gsvw.js",
     "app/hear.js",
     "app/region.js",
+    "app/kokoro.js",
+    "app/tts-worker.js",
+    "app/realvoice.js",
     "app/preload.js",
     "app/ppt/agent.js",
     "app/ppt/campus.js",
@@ -44,16 +55,25 @@
     "!node_modules/7zip-bin/linux/**",
     "!node_modules/7zip-bin/mac/**",
     "!node_modules/7zip-bin/win/ia32/**",
-    "!node_modules/7zip-bin/win/arm64/**"
+    "!node_modules/7zip-bin/win/arm64/**",
+    "!node_modules/sherpa-onnx-win-ia32/**",
+    "!node_modules/sherpa-onnx-win-arm64/**",
+    "!node_modules/sherpa-onnx-linux-*/**",
+    "!node_modules/sherpa-onnx-darwin-*/**"
   ],
   "asarUnpack": [
     "py/**",
     "node_modules/7zip-bin/index.js",
     "node_modules/7zip-bin/package.json",
     "node_modules/7zip-bin/LICENSE.txt",
-    "node_modules/7zip-bin/win/x64/**"
+    "node_modules/7zip-bin/win/x64/**",
+    "node_modules/sherpa-onnx-win-x64/**"
   ],
-  "win": { "target": "nsis", "icon": "build/icon.ico", "artifactName": "LaolaoXiaozhi-Setup.exe" },
+  "win": {
+    "target": "nsis",
+    "icon": "build/icon.ico",
+    "artifactName": "LaolaoXiaozhi-Setup.exe"
+  },
   "nsis": {
     "oneClick": false,
     "perMachine": false,
@@ -63,5 +83,14 @@
     "installerIcon": "build/icon.ico",
     "uninstallerIcon": "build/icon.ico"
   },
-  "extraResources": [{ "from": "llama", "to": "llama", "filter": ["llama-server.exe", "*.dll"] }]
+  "extraResources": [
+    {
+      "from": "llama",
+      "to": "llama",
+      "filter": [
+        "llama-server.exe",
+        "*.dll"
+      ]
+    }
+  ]
 }

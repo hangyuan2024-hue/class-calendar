@@ -31,6 +31,7 @@ function config(pkg) {
   files.push("!app/ppt/**");
   for (const f of KEEP_PPT) files.push("app/ppt/" + f);
   for (const f of DROP) files.push("!" + f);
+  files.push("!node_modules/sherpa-onnx*/**", "!app/kokoro.js", "!app/tts-worker.js", "!app/realvoice.js");   // 好听的声音只给捞小智用
   b.files = files;
   b.asarUnpack = (b.asarUnpack || []).map((f) => (f === "recipes/**" ? "recipes/*.py" : f));
   return b;

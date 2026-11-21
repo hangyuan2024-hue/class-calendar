@@ -31,6 +31,9 @@
     $("#shMe").textContent = `现在是 ${me.role} ${me.name}${me.class ? " · " + me.class : me.dept ? " · " + me.dept : ""}`;
     $("#shVoice").textContent = "声音：" + S.voice.label;
     $("#shVoiceInstall").hidden = !(S.voice.model && !S.voice.gsv);
+    const vp = $("#shVoicePick");
+    if (vp) { vp.value = S.voice.kind === "real" ? "real" : "kokoro"; vp.querySelector('[value="real"]').disabled = !(S.voice.choices && S.voice.choices.real); vp.hidden = S.voice.kind === "trained"; }
+    if (S.prep) paintPrep(S.prep);
     $("#shChips").innerHTML = P.parts.map((p) => `<span class="sh-chip ${p.ready ? "" : "off"}">${esc(p.name)}<b>${p.ready ? "第 " + p.version + " 版" : "训练中"}</b></span>`).join("");
     $("#shParts").innerHTML = P.parts.map((p) => `<div class="sh-part ${p.ready ? "" : "tmp"}"><b>${esc(p.name)}</b><span class="v">${p.ready ? `第 ${p.version} 版` : "临时版在用"}${p.pending ? ` <span class="new">→ 第 ${p.pending} 版已下好</span>` : ""}</span><small>${esc(p.what)}${!p.ready && p.temp ? `<br>现在${esc(p.temp)}，训练、考试通过后自动换上` : ""}${p.metric != null ? ` · ${esc(p.metricName)} ${pct(p.metric)}${p.base != null ? `（没训练前 ${pct(p.base)}）` : ""}` : ""}</small></div>`).join("");
     $("#shHist").innerHTML = P.log.length ? P.log.map((l) => `<div><i>${when(l.at)}</i>${esc(l.name)} ${l.from ? `第 ${l.from} 版 → ` : ""}第 ${l.to} 版${l.metric != null ? `，${pct(l.metric)}` : ""}</div>`).join("") : `<div>还没有发布过的模型：训练、考试通过一版，这里自动记一笔、自动换上</div>`;
@@ -45,6 +48,23 @@
     $("#shPaused").hidden = !(S.paused && !S.task);
     $("#shTicker").innerHTML = `<span><b>成品 第 ${P.build} 版</b></span>` + P.parts.map((p) => `<span>${esc(p.name)} <b>${p.ready ? "第 " + p.version + " 版" : "训练中"}</b>${p.metric != null ? " " + esc(p.metricName) + " " + pct(p.metric) : ""}</span>`).join("") + `<span class="live">● 自动融合：训练出新版就自动换上</span>` + `<span>${S.task ? "这台电脑：正在算「" + esc(S.task) + "」" : S.paused ? "这台电脑：计算先停着" : "这台电脑：空着，可以展示"}</span>`;
   }
+  // ---------- 准备组件：必需的下好了才开放使用；声音组件这些可以边用边下 ----------
+  let prepAsked = false, prepWasOpen = null;
+  function paintPrep(P) {
+    const box = $("#shPrep"); if (!box) return;
+    const ST = { ready: "✓ 好了", running: "下载中", missing: "还没下", error: "没成", waiting: "排队" };
+    box.querySelector(".list").innerHTML = P.items.map((x) => `<div class="pi ${x.state}"><div class="t"><b>${esc(x.name)}</b>${x.required ? `<em>必需</em>` : `<em class="opt">打电话、真人声音要用</em>`}<span class="grow"></span><span class="st">${ST[x.state] || x.state}${x.state === "running" && x.pct != null ? " " + x.pct + "%" : ""}</span></div><small>${esc(x.what)} · ${esc(x.size)}</small>${x.state === "running" ? `<div class="bar"><i style="width:${x.pct || 0}%"></i></div><small class="msg">${esc(x.text || "")}</small>` : ""}${x.state === "error" ? `<small class="err">${esc(x.err)}</small>` : ""}</div>`).join("");
+    const needLeft = P.items.filter((x) => x.required && x.state !== "ready").length, optLeft = P.items.filter((x) => !x.required && x.state !== "ready").length;
+    box.querySelector(".go").hidden = P.running || (!needLeft && !optLeft);
+    box.querySelector(".go").textContent = P.items.some((x) => x.state === "error") ? "重新下载没成的" : "开始准备";
+    box.querySelector(".use").hidden = !!needLeft;
+    box.querySelector(".tip").textContent = needLeft ? `先下好标着「必需」的 ${needLeft} 样才能开始用；其他的可以开始用以后接着在后台下。` : optLeft ? "必需的都好了，可以开始用了。打电话和真人感声音要用的还在后台下，下好了自动能用。" : "全部准备好了。";
+    box.hidden = !!(P.open && (prepWasOpen !== false || box.dataset.closed === "1"));
+    document.querySelector("#p-show .sh-grid").classList.toggle("locked", !P.open);
+    if (P.open && prepWasOpen === false) { toast("组件准备好了：可以开始问捞小智了"); box.dataset.closed = "1"; box.hidden = true; }
+    prepWasOpen = P.open;
+    if (!P.open && !P.running && !prepAsked) { prepAsked = true; call("showPrepRun", { all: true }).then(paintPrep).catch((e) => toast(msgOf(e), true)); }
+  }
   function hello() {
     const l = $("#shLog"); if (l.children.length || !S) return;
     const d = document.createElement("div"); d.className = "sh-hello";
@@ -55,7 +75,7 @@
 
   // ---------- PPT 预览：做好 / 改好的每一页直接画出来；有 PPT 的时候它占大块，公仔缩到左下角 ----------
   let deckOn = false;
-  const showDeck = (v) => { deckOn = !!v && deck && deck.has(); $("#shDeck").hidden = !deckOn; document.querySelector(".sh-stagebox").classList.toggle("deck", deckOn); document.querySelector(".sh-grid").classList.toggle("deck", deckOn); $("#shPptShow").textContent = deckOn ? "看形象" : "看 PPT"; setTimeout(() => window.dispatchEvent(new Event("resize")), 60); };
+  const showDeck = (v) => { deckOn = !!v && deck && deck.has(); $("#shDeck").hidden = !deckOn; const dc = $("#shDeckClose"); if (dc) dc.hidden = !deckOn; document.querySelector(".sh-stagebox").classList.toggle("deck", deckOn); document.querySelector(".sh-grid").classList.toggle("deck", deckOn); $("#shPptShow").textContent = deckOn ? "看形象" : "看 PPT"; setTimeout(() => window.dispatchEvent(new Event("resize")), 60); };
   const deck = window.LaoDeckView ? window.LaoDeckView.create($("#shDeck"), {
     load: (rev) => call("showSlides", rev), theme: (k) => call("showPptTheme", k), undo: async () => { const r = await call("showPptUndo"); toast("撤销了：" + r.undone); },
     open: () => call("showOpenPpt", false), reveal: () => call("showOpenPpt", true), onError: (e) => toast(msgOf(e), true),
@@ -89,6 +109,19 @@
     lip.raf = requestAnimationFrame(tick);
   }
   function b64url(b64) { const bin = atob(b64), u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); return URL.createObjectURL(new Blob([u8], { type: "audio/wav" })); }
+  // 说一句话时配一个动作：看内容挑（高兴、抱歉、问题、打招呼），别的轮着比划、点头、指一下
+  const GEST = ["explain", "nod", "gesture", "point"];
+  let gi = 0;
+  function moodOf(t) {
+    if (/你好|欢迎|再见|拜拜|早上好|晚上好/.test(t)) return ["wave", 2];
+    if (/恭喜|太棒|真棒|厉害|做好了|搞定|完成了|成功/.test(t)) return ["celebrate", 1.6];
+    if (/抱歉|对不起|不好意思|没办法|做不到|失败|出错/.test(t)) return ["sad", 2];
+    if (/[？?]\s*$/.test(t)) return ["confused", 1.8];
+    if (/[！!]/.test(t)) return ["happy", 1.4];
+    return [GEST[gi++ % GEST.length], 2.4];
+  }
+  function act(m, secs) { if (av) try { av.mood(m, secs); } catch (e) {} }
+  function avMode(m) { if (av && av.setMode) try { av.setMode(m); } catch (e) {} }
   function sayOne(sentence) {
     if (!S || !S.voice.on || sentence.replace(/[\s，。！？、,.!?：:；;（）()]/g, "").length < 2) return;
     const gen = sp.gen;
@@ -106,7 +139,7 @@
         const url = b64url(r.wav), a = new Audio(url);
         sp.player = a;
         const end = () => { URL.revokeObjectURL(url); done(); };
-        a.onplay = () => { $("#shSub").textContent = r.text; lip(r.levels || [], r.ms || 0, a); };
+        a.onplay = () => { $("#shSub").textContent = r.text; lip(r.levels || [], r.ms || 0, a); const [m, secs] = moodOf(r.text || ""); act(m, Math.min(secs, Math.max(1, (r.ms || 2000) / 1000))); };
         a.onended = end; a.onerror = end; a.onpause = () => { if (a !== sp.player || gen !== sp.gen) end(); };
         a.play().catch(end);
       });
@@ -171,7 +204,9 @@
     }
     if (e.type === "exam") { endBot(); said = ""; add("sh-msg me", esc(`第 ${e.no} / ${e.total} 题：${e.q}`)); return; }
     if (e.type === "ear") { onEar(e); return; }
+    if (e.type === "prep") { if (S) S.prep = e.prep; paintPrep(e.prep); if (e.prep.open && S && !e.prep.running) refresh(); return; }
     if (e.type === "note") { if (shown) { const k = "note"; const el = steps.get(k) || add("sh-step run", ""); steps.set(k, el); el.textContent = e.text; scroll(); } return; }
+    if (e.type === "delta") { if (!cl.on) avMode("talk"); }
     if (e.type === "delta") { const n = steps.get("note"); if (n) { n.remove(); steps.delete("note"); } return botText(e.text); }
     if (e.type === "tool") {
       endBot();
@@ -186,13 +221,15 @@
       if (e.ok && e.changed && deck && PPT_TOOL.test(e.name)) { const r = e.result || {}; deck.refresh(e.name === "make_ppt" ? 1 : r.no || r.to || (r.pages && r.pages[0]) || (e.args && e.args.slide) || null).then(() => showDeck(true)); }
       return;
     }
-    if (e.type === "done") { endBot(); said = ""; if (e.note) add("sh-msg bot", esc(e.note)); if (e.stopped) add("sh-step", "停下了"); return; }
+    if (e.type === "done") { if (!cl.on) avMode(""); endBot(); said = ""; if (e.note) add("sh-msg bot", esc(e.note)); if (e.stopped) add("sh-step", "停下了"); return; }
     if (e.type === "error") { endBot(); said = ""; add("sh-msg bot err", esc(e.message)); }
   });
   async function send(text) {
     text = (text != null ? text : $("#shText").value).trim();
     if (!text || busy) return;
+    if (S && S.prep && !S.prep.open) { toast("组件还在准备：上面的「必需」两样下好了就能用", true); return; }
     $("#shText").value = "";
+    if (!cl.on) { avMode("think"); act("think", 1.5); }
     const h = document.querySelector(".sh-hello"); if (h) h.remove();
     spReset(); said = "";
     add("sh-msg me", esc(text));
@@ -213,6 +250,12 @@
   $("#shVoiceInstall").onclick = guard(async () => { const b = $("#shVoiceInstall"); b.disabled = true; b.textContent = "正在装（几个 G，可以先接着用）…"; try { S = await call("showInstallVoice"); paint(); toast("声音组件装好了"); } finally { b.disabled = false; b.textContent = "装上声音组件"; } });
   $("#shCheck").onclick = guard(async () => { const b = $("#shCheck"); b.disabled = true; b.textContent = "正在看…"; try { const n = S ? S.product.build : 0; S = await call("showCheck"); paint(); toast(S.product.build > n ? `有新版：成品现在是第 ${S.product.build} 版` : "没有新版：现在用的就是最新的"); } finally { b.disabled = false; b.textContent = "看有没有新版"; } });
   $("#shPptOpen").onclick = guard(() => call("showOpenPpt", false));
+  if ($("#shVoicePick")) $("#shVoicePick").onchange = guard(async () => { S.voice = await call("showVoicePref", $("#shVoicePick").value); spReset(); paint(); toast("声音换成：" + S.voice.label); });
+  if ($("#shDeckClose")) $("#shDeckClose").onclick = () => showDeck(false);
+  if ($("#shPrep")) {
+    $("#shPrep .go").onclick = guard(async () => { prepAsked = true; paintPrep(await call("showPrepRun", { all: true })); });
+    $("#shPrep .use").onclick = () => { $("#shPrep").dataset.closed = "1"; $("#shPrep").hidden = true; };
+  }
   $("#shPptShow").onclick = guard(async () => { if (!deckOn) { await deck.refresh(); showDeck(true); } else showDeck(false); });
   $("#shPptPick").onclick = guard(async () => { const r = await call("showPickPpt"); if (!r) return; S = r; clear(); paint(); await deck.refresh(); showDeck(true); add("sh-step ok", esc(`打开了「${S.ppt.title}」（${S.ppt.pages} 页）：说要怎么改吧，比如「第 2 页的要点改成卡片」「整份换成绿色」。原来的文件不会动`)); });
   $("#shPptDir").onclick = guard(() => call("showOpenPpt", true));
@@ -242,11 +285,26 @@
   const frameMs = () => (FRAME / cl.rate) * 1000;
   const speaking = () => sp.q > 0 || !!(sp.player && !sp.player.paused && !sp.player.ended);
   const ST = { prep: "准备听写…", listen: "在听…", speech: "在听你说…", hear: "听写中…", think: "在想…", talk: "在说（你一开口就能打断）" };
-  function callSt(st) { cl.st = st; const b = $("#shCallBar"); b.dataset.st = st; $("#shCallSt").textContent = st === "prep" && cl.earPct != null ? `准备听写 ${cl.earPct}%` : st === "hear" && cl.earPct != null && !cl.earOk ? `听写准备中 ${cl.earPct}%` : ST[st] || ""; }
+  // 提示音：接通（两声上扬）、轮到你说（一声）、听到你说完了（一声低的）；自己的提示音不当成有人说话
+  let bctx = null, muteUntil = 0;
+  function beep(kind) {
+    try {
+      bctx = bctx || new (window.AudioContext || window.webkitAudioContext)();
+      const c = bctx, t = c.currentTime + 0.02;
+      const tones = kind === "start" ? [[660, 0, 0.1], [990, 0.12, 0.16]] : kind === "turn" ? [[880, 0, 0.11]] : [[520, 0, 0.08]];
+      for (const [f, d, len] of tones) { const o = c.createOscillator(), g = c.createGain(); o.type = "sine"; o.frequency.value = f; g.gain.setValueAtTime(0.0001, t + d); g.gain.exponentialRampToValueAtTime(0.2, t + d + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, t + d + len); o.connect(g); g.connect(c.destination); o.start(t + d); o.stop(t + d + len + 0.03); }
+      muteUntil = performance.now() + 450;
+    } catch (e) {}
+  }
+  function callSt(st) {
+    const prev = cl.st;
+    if (cl.on && st === "listen" && (prev === "think" || prev === "talk")) beep("turn");
+    cl.st = st;
+    avMode(st === "listen" || st === "speech" || st === "prep" ? "listen" : st === "hear" || st === "think" ? "think" : st === "talk" ? "talk" : ""); const b = $("#shCallBar"); b.dataset.st = st; $("#shCallSt").textContent = st === "prep" && cl.earPct != null ? `准备听写 ${cl.earPct}%` : st === "hear" && cl.earPct != null && !cl.earOk ? `听写准备中 ${cl.earPct}%` : ST[st] || ""; }
   // 听写模型的准备进度（第一次要下几百 M）：电话条上显示百分比，说明写在右边；准备好了换回原来的说明
   let callTip = "";
   function onEar(e) {
-    if (e.done) { cl.earOk = true; cl.earPct = null; if (cl.on) { $("#shCallTip").textContent = callTip; if (cl.st === "prep") callSt("listen"); else callSt(cl.st); } return; }
+    if (e.done) { const was = cl.earOk; cl.earOk = true; cl.earPct = null; if (cl.on) { $("#shCallTip").textContent = callTip; if (cl.st === "prep") callSt("listen"); else callSt(cl.st); if (!was) beep("start"); } return; }
     cl.earOk = false; if (e.pct != null) cl.earPct = e.pct;
     if (!cl.on) return;
     $("#shCallTip").textContent = e.text + "。可以先说，准备好就回答你；也可以先打字";
@@ -263,6 +321,7 @@
     if ((cl.st === "think" || cl.st === "talk") && !reply) callSt("listen");
     else if (cl.st === "think" && speaking()) callSt("talk");
     if (cl.st === "hear") return;   // 正在听写上一句：先不录
+    if (performance.now() < muteUntil) return;   // 自己的提示音
     const f = new Float32Array(x);
     if (!cl.buf) {
       cl.pre.push(f); if (cl.pre.length > Math.ceil(300 / frameMs())) cl.pre.shift();   // 开口前留 0.3 秒，不吃掉第一个字
@@ -285,6 +344,7 @@
     const n = frames.reduce((a, b) => a + b.length, 0), all = new Float32Array(n);
     let k = 0; for (const b of frames) { all.set(b, k); k += b.length; }
     const wav = toWav(all, cl.rate), seq = ++cl.seq;
+    beep("got");
     callSt("hear");
     (async () => {
       let text = "";
@@ -337,6 +397,7 @@
       cl.earOk = !!c.earReady; if (c.earPct != null) cl.earPct = c.earPct;
       $("#shCallTip").textContent = c.earReady ? callTip : "正在准备听写（第一次要下载识别模型，几百 M，只下这一次）。可以先说，准备好就回答你；也可以先打字";
       if (!c.earReady && cl.st === "listen") callSt("prep");
+      else if (c.earReady) beep("start");
     } catch (e) { toast(msgOf(e), true); }
     add("sh-step fuse", "✦ 电话接通了：直接说就行，说完停一下它就回答；它说话的时候你一开口就能打断");
   }
@@ -346,7 +407,7 @@
     try { cl.node.disconnect(); cl.src.disconnect(); } catch (e) {}
     try { cl.stream.getTracks().forEach((t) => t.stop()); } catch (e) {}
     try { await cl.ctx.close(); } catch (e) {}
-    $("#shCallBar").hidden = true; $("#shCall").classList.remove("on"); $("#shCall").textContent = "📞 打电话"; cl.st = "off";
+    $("#shCallBar").hidden = true; $("#shCall").classList.remove("on"); $("#shCall").textContent = "📞 打电话"; cl.st = "off"; avMode("");
     try { S = await call("showCall", false); paint(); } catch (e) {}
   }
   $("#shCall").onclick = () => (cl.on ? callOff() : callOn());

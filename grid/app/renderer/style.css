@@ -340,3 +340,17 @@ body.show-full .sh-ticker b { color: var(--cy); font-weight: 600; } body.show-fu
 .ck-q .ops { display: flex; flex-wrap: wrap; gap: 4px 12px; } .ck-panel .ck-q .ops label { display: inline-flex; align-items: center; gap: 4px; color: var(--tx); }
 .ck-foot { margin-top: 8px; font-size: 11px; line-height: 1.5; }
 .sh-ck { align-self: flex-start; width: min(320px, 92%); border: 1px solid var(--line2); border-radius: 14px; padding: 6px 10px 2px; background: rgba(10, 17, 36, .6); }
+
+/* 准备组件、关闭 PPT、选声音 */
+.sh-prep { margin: 0 0 14px; padding: 18px 20px; border: 1px solid rgba(54, 226, 255, .35); }
+.sh-prep .hd { display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; } .sh-prep .hd b { font-size: 17px; }
+.sh-prep .list { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 10px; }
+.sh-prep .pi { padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255, 255, 255, .02); }
+.sh-prep .pi .t { display: flex; align-items: center; gap: 8px; } .sh-prep .pi em { font-style: normal; font-size: 11px; padding: 1px 7px; border-radius: 99px; background: rgba(54, 226, 255, .15); color: var(--cy); } .sh-prep .pi em.opt { background: rgba(255, 255, 255, .06); color: var(--mut); }
+.sh-prep .pi .st { font-size: 12.5px; color: var(--mut); } .sh-prep .pi.ready .st { color: var(--gr); } .sh-prep .pi.running .st { color: var(--cy); } .sh-prep .pi.error .st { color: var(--rd); }
+.sh-prep .pi small { display: block; color: var(--mut); margin-top: 4px; } .sh-prep .pi small.err { color: var(--rd); } .sh-prep .pi small.msg { color: var(--tx); opacity: .8; }
+.sh-prep .bar { height: 6px; margin-top: 8px; border-radius: 99px; background: rgba(255, 255, 255, .08); overflow: hidden; } .sh-prep .bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--cy), var(--vi)); transition: width .4s; }
+.sh-prep .ft { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+.sh-grid.locked { pointer-events: none; opacity: .35; filter: blur(1px); }
+.sh-stagebox { position: relative; } .sh-deck-x { position: absolute; top: 10px; right: 10px; z-index: 5; }
+#shVoicePick { max-width: 210px; }

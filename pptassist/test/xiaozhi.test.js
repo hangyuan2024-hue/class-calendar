@@ -155,6 +155,16 @@ function fakeLlama(port, st) {
   ok("成品第几版：答题大脑出了第 13 版（答对率 71% → 74%）→ 成品从第 2 版变第 3 版，记一笔；没变化不重复记；重开还在");
 
   llm.stop(); srv.close();
+  {
+    const X = require("../core/xiaozhi");
+    const r = X.polish([{ title: "冒泡排序是什么", lines: ["相邻两个数比较", "大的往后换"] }, { title: "代码", lines: ["for (i = 0; i < n; i++)", "  if (a[j] > a[j + 1]) swap(a, j);"] },
+      { title: "一轮怎么走", lines: ["第一步：比较相邻两个数", "第二步：前面大就交换", "第三步：往后挪一位"] }, { title: "要点一", lines: ["甲"] }, { title: "三个指标", lines: ["时间复杂度：数据多了慢多少", "空间复杂度：占多少内存", "稳定性：相等的顺序变不变"] }, { title: "要点二", lines: ["乙"] }]);
+    assert.equal(r[1].layout, "code"); assert.match(r[1].code, /swap/);
+    assert.equal(r[2].layout, "steps"); assert.deepEqual(r[2].items.map((x) => x.head), ["比较相邻两个数", "前面大就交换", "往后挪一位"].map((h) => h.length > 10 ? h : h).map((h, i) => r[2].items[i].head));
+    assert.equal(r[4].layout, "cards"); assert.equal(r[4].items[0].head, "时间复杂度");
+    assert.equal(r[r.length - 1].layout, "summary"); assert.ok(r[r.length - 1].lines.length >= 3);
+    console.log("✓ 做 PPT 前理一理：代码写进要点 → 代码页；第一步第二步 → 步骤图；连着三页要点 → 中间换成卡片；没有小结 → 补一页小结");
+  }
   console.log("成品展示「捞小智」：全部通过");
   process.exit(0);
 })().catch((e) => { console.error(e); process.exit(1); });

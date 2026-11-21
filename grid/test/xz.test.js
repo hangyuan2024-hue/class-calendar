@@ -21,10 +21,15 @@ const { createXz, SOURCES, pickBase } = require("../xz/service");
   await new Promise((d) => srv.listen(0, "127.0.0.1", d));
   const base = `http://127.0.0.1:${srv.address().port}`;
   const ensured = [];
-  const llm = { ok: () => true, running: () => false, touch() {}, stop() {}, ensure: async (spec) => { ensured.push(spec); throw new Error("测试里不启动大模型"); } };
-  const gsv = { inspect: () => null, find: () => null, ensure: async () => ({}) };
-  const xz = createXz({ user: path.join(tmp, "user"), dataDir: path.join(tmp, "data"), llmFactory: () => llm, gsvFactory: () => gsv, sources: [base + "/dl/models/manifest.json"], noDetect: true,
-    showOpt: { sysTtsFactory: () => ({ available: async () => ({ ok: false, why: "测试" }), tts: async () => Buffer.alloc(0) }), hearOpt: { python: "none" } } });
+  let llmHave = false, kokHave = false;
+  const llm = { ok: () => true, running: () => false, touch() {}, stop() {}, ensure: async (spec) => { ensured.push(spec); throw new Error("测试里不启动大模型"); },
+    hasModel: () => llmHave, prefetch: async (spec, say) => { say("下载本地大模型：40%，3.0M/秒"); await new Promise((r) => setTimeout(r, 300)); llmHave = true; } };
+  const MEDIA = require("../../pptassist/core/media");
+  const kokoro = { ready: () => kokHave, stop() {}, ensure: async (say) => { say("下载好听的声音：50%", { pct: 50 }); await new Promise((r) => setTimeout(r, 300)); kokHave = true; }, tts: async () => MEDIA.writeWav(new Float32Array(24000).map((_, i) => Math.sin(i / 9) * 0.3), 24000) };
+  const evs = [];
+  const gsv = { inspect: () => null, find: () => null, ensure: async () => { throw new Error("测试里装不了声音组件"); } };
+  const xz = createXz({ user: path.join(tmp, "user"), dataDir: path.join(tmp, "data"), llmFactory: () => llm, gsvFactory: () => gsv, sources: [base + "/dl/models/manifest.json"], noDetect: true, send: (ch, d) => evs.push(d),
+    showOpt: { kokoroFactory: () => kokoro, sysTtsFactory: () => ({ available: async () => ({ ok: false, why: "测试" }), tts: async () => Buffer.alloc(0) }), hearOpt: { python: "none" } } });
   const missing = [...used].filter((m) => typeof xz.H[m] !== "function");
   assert.deepEqual(missing, [], "捞小智电脑版缺这些后台功能：" + missing.join("、"));
   ok(`界面上用到的 ${used.size} 个后台功能，捞小智电脑版都有`);
@@ -34,6 +39,24 @@ const { createXz, SOURCES, pickBase } = require("../xz/service");
   assert.equal(st.task, null); assert.equal(st.paused, false); assert.equal(st.app.trial, true);
   assert.ok(st.product.parts.every((p) => !p.ready && p.temp));
   ok("打开就能用：不领任务、不暂停计算；还没训练好的每样都写着临时用什么");
+
+  // 2b. 先准备组件：必需的（大模型、好听的声音）下好了才开放；进度一直报
+  let pp = await xz.H.showPrep();
+  assert.equal(pp.open, false); assert.deepEqual(pp.items.filter((x) => x.required).map((x) => x.key), ["llm", "voice"]);
+  await xz.H.showPrepRun({ all: true });
+  for (let i = 0; i < 50 && (await xz.H.showPrep()).running; i++) await new Promise((r) => setTimeout(r, 100));
+  pp = await xz.H.showPrep();
+  assert.equal(pp.open, true, JSON.stringify(pp.items));
+  assert.ok(evs.some((e) => e.type === "prep" && e.prep.items.some((x) => x.key === "llm" && x.state === "running" && x.pct === 40)), "大模型下载进度报给界面");
+  assert.equal(pp.items.find((x) => x.key === "gsv").state, "error", "声音组件在测试里装不了：记下原因，不挡着开放");
+  ok("打开先准备组件：大模型、好听的声音下好才开放（进度报给界面）；声音组件这些可选的没成也不挡着");
+  // 2c. 声音：没训练好、没装声音组件 → 用 Kokoro 女声，好听的临时声音
+  st = await xz.H.showState();
+  assert.equal(st.voice.kind, "kokoro"); assert.match(st.voice.label, /Kokoro/);
+  const sp = await xz.H.showSpeak("你好，我是捞小智。");
+  assert.equal(sp.kind, "kokoro"); assert.ok(sp.ms > 900 && sp.levels.length > 5);
+  assert.equal((await xz.H.showVoicePref("real")).kind, "kokoro", "选了真人感但还没装声音组件：先照旧用 Kokoro");
+  ok("回答有声音：没训练好时用 Kokoro 中文女声（带口型）；真人感要装好声音组件才用");
 
   // 3. 新版从公开清单下载、换上
   const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");

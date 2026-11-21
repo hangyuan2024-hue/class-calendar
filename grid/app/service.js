@@ -614,7 +614,8 @@ function createService(o) {
     gsvDir: () => { const r = gsv.inspect((cfg.gsv || {}).dir) || gsv.find(path.join(base(), "ai", "LaolaoAI-GPT-SoVITS")); return r ? r.dir : null; },
     // 没打开过展示的电脑不去下模型（不白占同事的硬盘和流量）；打开过一次以后，新版在后台先下好
     used: () => !!cfg.showUsed,
-    llmName: async () => { const hit = (await llmMirror.model("llmMain"))[0]; return hit && hit.name; }, ...(o.showOpt || {}) });
+    llmName: async () => { const hit = (await llmMirror.model("llmMain"))[0]; return hit && hit.name; },
+    gsvEnsure: (say) => gsv.ensure((m) => say(m)), base: () => base(), ...(o.showOpt || {}) });
   const showSt = async () => ({ ...(await show.state()), paused: cfg.manual === "off", joined: !!cfg.token, fullscreen: o.isFullscreen ? !!o.isFullscreen() : false });
   if (show) Object.assign(H, {
     showState: showSt,
@@ -655,6 +656,9 @@ function createService(o) {
     async showCheckupRemove(id) { show.checkupRemove(id); return show.checkupView(); },
     showCheckupPhoto: async (f) => show.checkupPhoto(f),
     async showFullscreen(on) { if (o.fullscreen) o.fullscreen(!!on); return !!on; },
+    showPrep: async () => show.prepStatus(),
+    showPrepRun: async (opt) => show.prepRun(opt || {}),
+    async showVoicePref(v) { return show.setVoicePref(v); },
   });
   H.taskDir = async () => { const c = agent && agent.current(); if (!c) return null; o.openPath && o.openPath(c.dir); return c.dir; };
   H.killTask = async () => { if (!agent || !agent.current()) return false; await agent.kill("在本机结束了这个任务"); return true; };
