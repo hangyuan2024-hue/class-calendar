@@ -24,6 +24,8 @@
     "app/kokoro.js",
     "app/tts-worker.js",
     "app/realvoice.js",
+    "app/avatar.js",
+    "app/ai3d/**",
     "app/preload.js",
     "app/ppt/agent.js",
     "app/ppt/campus.js",
@@ -42,11 +44,13 @@
     "app/ppt/systts.js",
     "app/ppt/voice.js",
     "app/ppt/xiaozhi.js",
+    "app/ppt/ai3d.js",
     "app/renderer/style.css",
     "app/renderer/show.js",
     "app/renderer/checkup.js",
     "app/renderer/zhi3d.js",
     "app/renderer/deckview.js",
+    "app/renderer/avatar3d.js",
     "app/renderer/icon.png",
     "app/renderer/vendor/three/**",
     "py/asr_server.py",
@@ -59,7 +63,8 @@
     "!node_modules/sherpa-onnx-win-ia32/**",
     "!node_modules/sherpa-onnx-win-arm64/**",
     "!node_modules/sherpa-onnx-linux-*/**",
-    "!node_modules/sherpa-onnx-darwin-*/**"
+    "!node_modules/sherpa-onnx-darwin-*/**",
+    "!app/ai3d/**/__pycache__/**"
   ],
   "asarUnpack": [
     "py/**",
@@ -67,7 +72,8 @@
     "node_modules/7zip-bin/package.json",
     "node_modules/7zip-bin/LICENSE.txt",
     "node_modules/7zip-bin/win/x64/**",
-    "node_modules/sherpa-onnx-win-x64/**"
+    "node_modules/sherpa-onnx-win-x64/**",
+    "app/ai3d/**"
   ],
   "win": {
     "target": "nsis",

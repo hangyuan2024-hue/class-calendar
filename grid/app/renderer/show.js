@@ -90,7 +90,33 @@
     try { if (window.LaoZhi && window.THREE) av = window.LaoZhi.create(host); } catch (e) { av = null; }
     if (!av && !host.querySelector(".sh-fallback")) host.innerHTML = `<div class="sh-fallback">捞</div>`;
     if (av) setTimeout(() => { try { av.mood("wave", 2); } catch (e) {} }, 300);
+    if (!stage.tried) { stage.tried = true; loadAvatar(); }   // 只在第一次自动看一眼；之后换形象走 lg-avatar 事件
   }
+  // 老师的 3D 小人（avatar.glb）：用捞捞PPT助手同一份渲染代码（avatar3d.js）；捞小智的表情、动作对到它会的那几个上
+  const MAP3D = { wave: "wave", celebrate: "wave", happy: "wave", love: "wave", wow: "wave", point: "point", explain: "gesture", gesture: "gesture", nod: "nod", bow: "nod", listen: "nod", think: "think", confused: "think", sad: "idle", shake: "idle", idle: "idle" };
+  function wrap3d(a) {
+    let mode = "";
+    return { ok: true, talk: (v) => a.talk(v), mood: (m, secs) => a.mood(MAP3D[m] || "idle", secs),
+      setMode: (m) => { if (m === mode) return; mode = m; if (m === "think") a.mood("think", 20); else if (m === "listen") a.mood("nod", 1.2); else a.mood("idle", 0.5); },
+      setManual: (v) => a.setManual(v), dispose: () => a.dispose() };
+  }
+  async function loadAvatar() {
+    let b64 = null; try { b64 = await call("showAvatarModel"); } catch (e) { return; }
+    const host = $("#shStage");
+    if (!b64) { if (av && av.is3d) { try { av.dispose(); } catch (e) {} av = null; host.innerHTML = ""; stage(); } return; }
+    if (!window.LaoAvatar || !window.THREE || !window.THREE.GLTFLoader) return;
+    try {
+      const bin = atob(b64), u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      if (av) try { av.dispose(); } catch (e) {}
+      av = null; host.innerHTML = "";
+      const a = window.LaoAvatar.create(host, window.LaoAvatar.sanitize({}), { transparent: true });
+      try { await a.setAi(u8.buffer); } catch (e) { try { a.dispose(); } catch (x) {} host.innerHTML = ""; stage(); throw e; }
+      av = wrap3d(a); av.is3d = true;
+      window.dispatchEvent(new Event("resize"));
+      setTimeout(() => { try { av.mood("wave", 2); } catch (e) {} }, 400);
+    } catch (e) { toast("3D 形象读不出来：" + msgOf(e), true); }
+  }
+  window.addEventListener("lg-avatar", () => loadAvatar());
 
   // ---------- 实时合成：回复一边出来，一句一句送去合成声音，按顺序念，公仔跟着张嘴 ----------
   const sp = { gen: 0, sent: 0, text: "", synth: Promise.resolve(), play: Promise.resolve(), player: null, told: false, q: 0 };   // q：排着没念完的句数（打电话时判断它是不是还在说）

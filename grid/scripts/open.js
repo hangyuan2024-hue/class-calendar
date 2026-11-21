@@ -12,7 +12,7 @@ const R = path.join(__dirname, "..");
 
 const KEEP_RECIPES = ["probe_gpu.py", "demo_relay.py", "demo_diloco.py", "demo_avatar.py", "demo_cycle.py"];
 // 通用版客户端用得到的共用代码（AI 引擎、下载、组件镜像）；别的（捞小智、改 PPT、模拟教务、检测报告）不带
-const KEEP_PPT = ["engine.js", "workflows.js", "mirror.js", "installer.js", "dl.js"];
+const KEEP_PPT = ["engine.js", "workflows.js", "mirror.js", "installer.js", "dl.js"];   // （ai3d.js 是捞小智的 3D 小人用的，通用版不带）
 const DROP = ["app/show.js", "app/renderer/show.js", "app/renderer/checkup.js", "app/renderer/zhi3d.js", "app/renderer/deckview.js"];
 
 function config(pkg) {
@@ -31,7 +31,7 @@ function config(pkg) {
   files.push("!app/ppt/**");
   for (const f of KEEP_PPT) files.push("app/ppt/" + f);
   for (const f of DROP) files.push("!" + f);
-  files.push("!node_modules/sherpa-onnx*/**", "!app/kokoro.js", "!app/tts-worker.js", "!app/realvoice.js");   // 好听的声音只给捞小智用
+  files.push("!node_modules/sherpa-onnx*/**", "!app/kokoro.js", "!app/tts-worker.js", "!app/realvoice.js", "!app/avatar.js", "!app/ai3d/**", "!app/renderer/avatar3d.js");   // 好听的声音只给捞小智用
   b.files = files;
   b.asarUnpack = (b.asarUnpack || []).map((f) => (f === "recipes/**" ? "recipes/*.py" : f));
   return b;

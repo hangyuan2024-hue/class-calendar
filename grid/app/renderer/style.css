@@ -354,3 +354,10 @@ body.show-full .sh-ticker b { color: var(--cy); font-weight: 600; } body.show-fu
 .sh-grid.locked { pointer-events: none; opacity: .35; filter: blur(1px); }
 .sh-stagebox { position: relative; } .sh-deck-x { position: absolute; top: 10px; right: 10px; z-index: 5; }
 #shVoicePick { max-width: 210px; }
+/* 捞小智的形象卡片 */
+.av-steps { margin-top: 10px; display: grid; gap: 8px; }
+.av-st { padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; display: grid; gap: 4px; }
+.av-st.done { border-color: rgba(62, 240, 161, .45); } .av-st.done b::after { content: " ✓"; color: var(--gr); }
+.av-st.off { opacity: .45; } .av-st .btn { justify-self: start; }
+.av-cands { display: flex; gap: 6px; flex-wrap: wrap; } .av-cands img { width: 72px; height: 96px; object-fit: contain; background: #fff; border-radius: 8px; cursor: pointer; border: 2px solid transparent; } .av-cands img.on { border-color: var(--cy); }
+.av-msg { min-height: 1.2em; }

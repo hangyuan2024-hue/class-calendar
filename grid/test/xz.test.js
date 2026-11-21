@@ -9,7 +9,7 @@ const { createXz, SOURCES, pickBase } = require("../xz/service");
 (async () => {
   // 1. 界面里调用的每个后台功能，捞小智电脑版都有
   const used = new Set();
-  for (const f of ["show.js", "checkup.js"]) for (const m of fs.readFileSync(path.join(R, "app", "renderer", f), "utf8").matchAll(/call\("(\w+)"/g)) used.add(m[1]);
+  for (const f of ["show.js", "checkup.js", "avatar-ui.js"]) for (const m of fs.readFileSync(path.join(R, "app", "renderer", f), "utf8").matchAll(/call\("(\w+)"/g)) used.add(m[1]);
   for (const m of fs.readFileSync(path.join(R, "xz", "renderer", "xz.js"), "utf8").matchAll(/call\("(\w+)"/g)) used.add(m[1]);
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "lg-xz-"));
   // 假的公开清单
@@ -77,7 +77,7 @@ const { createXz, SOURCES, pickBase } = require("../xz/service");
 
   // 5. 页面引用的文件都在
   const html = fs.readFileSync(path.join(R, "xz", "renderer", "index.html"), "utf8");
-  for (const m of html.matchAll(/(?:src|href)="([^"]+)"/g)) assert.ok(fs.existsSync(path.join(R, "xz", "renderer", m[1])) || /vendor\/three|deckview\.js/.test(m[1]), "页面引用的文件不在：" + m[1]);
+  for (const m of html.matchAll(/(?:src|href)="([^"]+)"/g)) assert.ok(fs.existsSync(path.join(R, "xz", "renderer", m[1])) || /vendor\/three|deckview\.js|avatar3d\.js/.test(m[1]), "页面引用的文件不在：" + m[1]);
   for (const id of new Set([...fs.readFileSync(path.join(R, "app", "renderer", "show.js"), "utf8").matchAll(/\$\("#(\w+)"\)/g)].map((m) => m[1]))) assert.ok(html.includes(`id="${id}"`), "页面里少了 #" + id);
   assert.match(html, /还没有正式训练好/);
   ok("页面：show.js 要的元素都在、引用的文件都在；顶上写明「还没有正式训练好」");

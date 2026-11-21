@@ -656,6 +656,7 @@ function createService(o) {
     async showCheckupRemove(id) { show.checkupRemove(id); return show.checkupView(); },
     showCheckupPhoto: async (f) => show.checkupPhoto(f),
     async showFullscreen(on) { if (o.fullscreen) o.fullscreen(!!on); return !!on; },
+    ...(() => { const AV = require("./avatar"); const av = AV.create({ base: () => base(), pickFile: o.pickFile, gpuName: () => (lastProbe && lastProbe.caps && lastProbe.caps.gpu) || "", mirrorOpt: { region: regionNow }, log: (m) => L(m, "info", "形象") }); return AV.handlers(av, (e) => send("show", e)); })(),
     showPrep: async () => show.prepStatus(),
     showPrepRun: async (opt) => show.prepRun(opt || {}),
     async showVoicePref(v) { return show.setVoicePref(v); },

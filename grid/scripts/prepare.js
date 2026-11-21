@@ -14,11 +14,15 @@ fs.mkdirSync(pout, { recursive: true });
 for (const f of ["engine.js", "workflows.js", "dl.js", "installer.js", "mirror.js"]) fs.copyFileSync(path.join(ppt, f), path.join(pout, f));
 console.log("pptassist/core 的 AI 引擎代码 → app/ppt");
 // 成品展示「捞小智」（讲题 + 做 PPT + 办教务的事 + 说话）：也是和捞捞PPT助手同一份代码
-for (const f of ["chat.js", "agent.js", "xiaozhi.js", "campus.js", "checkup.js", "pptedit.js", "pptx.js", "deck.js", "pptview.js", "latex2omml.js", "gridmodels.js", "voice.js", "media.js", "systts.js"]) fs.copyFileSync(path.join(ppt, f), path.join(pout, f));
+for (const f of ["chat.js", "agent.js", "xiaozhi.js", "campus.js", "checkup.js", "pptedit.js", "pptx.js", "deck.js", "pptview.js", "latex2omml.js", "gridmodels.js", "voice.js", "media.js", "systts.js", "ai3d.js"]) fs.copyFileSync(path.join(ppt, f), path.join(pout, f));
 // 展示里的 PPT 预览（大图 + 缩略图）
 fs.copyFileSync(path.join(R, "..", "pptassist", "renderer", "deckview.js"), path.join(R, "app", "renderer", "deckview.js"));
 // 展示里的形象：捞小智（app/renderer/zhi3d.js，自带）+ three.js
-fs.rmSync(path.join(R, "app", "renderer", "avatar3d.js"), { force: true });   // 以前的公仔不用了
+// 老师的 3D 小人（捞捞形象工坊做的 avatar.glb）：和捞捞PPT助手同一份渲染代码 + 工坊的 Python 代码
+fs.copyFileSync(path.join(R, "..", "pptassist", "renderer", "avatar3d.js"), path.join(R, "app", "renderer", "avatar3d.js"));
+fs.rmSync(path.join(R, "app", "ai3d"), { recursive: true, force: true });
+fs.cpSync(path.join(R, "..", "pptassist", "ai3d", "lao3d"), path.join(R, "app", "ai3d", "lao3d"), { recursive: true, filter: (f) => !/__pycache__|\.pyc$/.test(f) });
 fs.mkdirSync(path.join(R, "app", "renderer", "vendor", "three"), { recursive: true });
 fs.copyFileSync(path.join(R, "node_modules", "three", "build", "three.min.js"), path.join(R, "app", "renderer", "vendor", "three", "three.min.js"));
+fs.copyFileSync(path.join(R, "node_modules", "three", "examples", "js", "loaders", "GLTFLoader.js"), path.join(R, "app", "renderer", "vendor", "three", "GLTFLoader.js"));
 console.log("成品展示的代码、three.js → app/ppt、app/renderer");

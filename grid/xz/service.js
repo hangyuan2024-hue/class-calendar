@@ -92,6 +92,7 @@ function createXz(o) {
     async showCheckupRemove(id) { show.checkupRemove(id); return show.checkupView(); },
     showCheckupPhoto: async (f) => show.checkupPhoto(f),
     async showFullscreen(on) { if (o.fullscreen) o.fullscreen(!!on); return !!on; },
+    ...require(path.join(APP, "avatar")).handlers(require(path.join(APP, "avatar")).create({ base, pickFile: o.pickFile, gpuName: () => gpu, mirrorOpt: { region: regionNow }, log }), (e) => send("show", e)),
     showPrep: async () => show.prepStatus(),
     showPrepRun: async (opt) => show.prepRun(opt || {}),
     async showVoicePref(v) { return show.setVoicePref(v); },

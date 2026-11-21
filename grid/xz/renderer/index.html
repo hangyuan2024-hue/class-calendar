@@ -57,6 +57,18 @@
             <div class="sh-parts" id="shParts"></div>
             <div class="sh-hist" id="shHist"></div>
           </div>
+          <div class="glass sh-card" id="avCard">
+            <div class="sh-card-h"><b>捞小智的形象</b><span class="grow"></span><span class="muted small" id="avNow">机器人捞小智</span></div>
+            <div class="btns"><button class="btn small primary" id="avMake">换成老师的 3D 小人</button><button class="btn small" id="avImport" title="导入做好的 avatar.glb（比如捞捞PPT助手里做的）">导入 3D 形象</button><button class="btn small" id="avRobot" hidden>换回机器人</button></div>
+            <div class="av-steps" id="avSteps" hidden>
+              <div class="av-st" data-s="engine"><b>① 装 3D 引擎</b><span class="muted small">Hunyuan3D-2，约 10G，要 NVIDIA 显卡（8G 以上显存更稳）</span><button class="btn small" id="avInstall">装 3D 引擎</button></div>
+              <div class="av-st" data-s="photo"><b>② 上传老师的照片</b><label class="check small"><input type="checkbox" id="avConsent"> 照片里是我本人，或者我已经得到照片里的人同意，只用来做捞小智的形象（只在这台电脑上处理，不上传）</label><button class="btn small" id="avPhoto">选照片</button></div>
+              <div class="av-st" data-s="draw"><b>③ 画 Q版立绘，挑一张</b><span class="muted small">几分钟</span><button class="btn small" id="avDraw">画 3 张</button><div class="av-cands" id="avCands"></div></div>
+              <div class="av-st" data-s="build"><b>④ 做成 3D 小人</b><span class="muted small">几分钟，做好自动换上；会眨眼、会张嘴说话、会做动作</span><button class="btn small primary" id="avBuild">做成 3D</button></div>
+              <div class="muted small av-msg" id="avMsg"></div>
+              <div class="btns"><button class="btn small" id="avStop" hidden>停下</button><span class="grow"></span><button class="btn small" id="avWipe" title="照片、立绘、3D 模型全部删掉，授权也撤回">删除照片和模型</button></div>
+            </div>
+          </div>
           <div class="glass sh-card" id="shPptCard">
             <div class="sh-card-h"><b>PPT</b><span class="grow"></span><button class="btn small" id="shPptExam" title="8 道题：真的做一份 PPT、再照着改，做完程序核对，看现在这版模型做 PPT 的本事怎么样">考一考它</button><button class="btn small" id="shPptPick" title="打开老师自己的 .pptx，让捞小智照着说的改（不动原文件）">打开 PPT 让它改</button></div>
             <div id="shPptName" class="muted small">还没有 PPT：让它做一份，或者打开一份让它改</div>
@@ -83,10 +95,13 @@
 <a id="navShow" hidden></a>
 <div id="toast" class="toast" hidden></div>
 <script src="../../app/renderer/vendor/three/three.min.js"></script>
+<script src="../../app/renderer/vendor/three/GLTFLoader.js"></script>
+<script src="../../app/renderer/avatar3d.js"></script>
 <script src="../../app/renderer/zhi3d.js"></script>
 <script src="../../app/renderer/deckview.js"></script>
 <script src="../../app/renderer/checkup.js"></script>
 <script src="../../app/renderer/show.js"></script>
+<script src="../../app/renderer/avatar-ui.js"></script>
 <script src="xz.js"></script>
 </body>
 </html>
