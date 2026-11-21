@@ -567,7 +567,10 @@ def train(base):
                 n_oom += 1
                 used = len(batch) * width
                 if used <= 256:
-                    who = vram_users()
+                    try:
+                        who = vram_users()
+                    except Exception:   # 查不到是谁占的（没有 nvidia-smi）：照样说显存不够
+                        who = ""
                     why = "显存不够：256 个字的讲解都放不下（别的程序占着显存%s）。关掉占显存的程序再算" % ("：" + who if who else "")
                     unfit(why)
                     raise RuntimeError(why)
