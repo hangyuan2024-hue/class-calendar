@@ -13,7 +13,7 @@ const ok = (m) => console.log("✓", m);
 const fs = require("fs");
 class GenerationConfig { constructor(o) { Object.assign(this, o); } }
 class OfflineTts { constructor(c) { fs.appendFileSync(${JSON.stringify(logf)}, "load " + c.model.kokoro.model.split(/[\\\\/]/).pop() + "\\n"); this.sampleRate = 24000; }
-  generate({ text, generationConfig }) { if (text === "崩") process.exit(3); fs.appendFileSync(${JSON.stringify(logf)}, "say " + text + " " + generationConfig.sid + "\\n"); return { samples: new Float32Array([...text].length * 100 + generationConfig.sid), sampleRate: 24000 }; } }
+  generate({ text, generationConfig, enableExternalBuffer }) { if (enableExternalBuffer !== false) throw new Error("External buffers are not allowed"); if (text === "崩") process.exit(3); fs.appendFileSync(${JSON.stringify(logf)}, "say " + text + " " + generationConfig.sid + "\\n"); return { samples: new Float32Array([...text].length * 100 + generationConfig.sid), sampleRate: 24000 }; } }
 function writeWave(f, { samples, sampleRate }) { const n = samples.length, b = Buffer.alloc(44 + n * 2); b.write("RIFF", 0); b.writeUInt32LE(36 + n * 2, 4); b.write("WAVEfmt ", 8); b.writeUInt32LE(16, 16); b.writeUInt16LE(1, 20); b.writeUInt16LE(1, 22); b.writeUInt32LE(sampleRate, 24); b.writeUInt32LE(sampleRate * 2, 28); b.writeUInt16LE(2, 32); b.writeUInt16LE(16, 34); b.write("data", 36); b.writeUInt32LE(n * 2, 40); fs.writeFileSync(f, b); }
 module.exports = { OfflineTts, GenerationConfig, writeWave };`);
   const base = path.join(tmp, "data");

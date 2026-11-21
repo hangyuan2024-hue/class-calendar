@@ -30,7 +30,8 @@ function handle(line) {
     if (!tts) throw new Error("还没加载模型");
     // 2.x：tts.generate({ text, generationConfig: new GenerationConfig({ sid, speed }) })；老版本：generate({ text, sid, speed })
     const text = String(m.text || ""), sid = m.sid | 0, speed = +m.speed || 1.0;
-    const a = S.GenerationConfig ? tts.generate({ text, generationConfig: new S.GenerationConfig({ sid, speed, silenceScale: 0.2 }) }) : tts.generate({ text, sid, speed });
+    // enableExternalBuffer: false —— Electron 不许原生模块把内存直接交给 JS（报「External buffers are not allowed」），让它复制一份
+    const a = S.GenerationConfig ? tts.generate({ text, generationConfig: new S.GenerationConfig({ sid, speed, silenceScale: 0.2 }), enableExternalBuffer: false }) : tts.generate({ text, sid, speed, enableExternalBuffer: false });
     S.writeWave(m.out, { samples: a.samples, sampleRate: a.sampleRate });
     reply({ id: m.id, ok: true });
   } catch (e) { reply({ id: m.id, error: String((e && e.message) || e) }); }
