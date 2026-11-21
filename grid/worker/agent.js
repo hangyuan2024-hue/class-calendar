@@ -392,12 +392,12 @@ function create(opt) {
   //   偶尔慢一次（没插电、有人在打游戏）不该整类任务好几个小时不领：第一次只歇 1 小时，连着慢才 3 小时、6 小时；这一类做成一次就清零
   const avoidN = {};
   try { Object.assign(avoidN, JSON.parse(fs.readFileSync(avoidFile + ".n", "utf8")) || {}); } catch (e) {}
-  function avoidRecipe(name, why) {
-    const steps = opt.avoidSteps || [1, 3, 6], n = avoidN[name] || 0, h = opt.avoidH || steps[Math.min(n, steps.length - 1)];
+  function avoidRecipe(name, why, steps0) {
+    const steps = steps0 || opt.avoidSteps || [1, 3, 6], n = avoidN[name] || 0, h = opt.avoidH || steps[Math.min(n, steps.length - 1)];
     avoidN[name] = n + 1;
     avoid[name] = { until: Date.now() + h * 3600e3, why: String(why || "").slice(0, 200) };
     try { fs.writeFileSync(avoidFile, JSON.stringify(avoid)); fs.writeFileSync(avoidFile + ".n", JSON.stringify(avoidN)); } catch (e) {}
-    log(`这台电脑做「${name}」太慢：${h} 小时内不再领这一类，先做别的（生成数据、做题这些轻活照样做）${n ? "" : "；插上电源、关掉占显卡的程序，到时间自动再试"}`, "warn");
+    log(`这台电脑${/显存/.test(String(why)) ? "现在显存不够做" : "做"}「${name}」${/显存/.test(String(why)) ? "" : "太慢"}：${h >= 1 ? h + " 小时" : Math.round(h * 60) + " 分钟"}内不再领这一类，先做别的（生成数据、做题这些轻活照样做）${n ? "" : "；关掉占显卡的程序，到时间自动再试"}`, "warn");
   }
   function avoidDone(name) {
     if (!name || (!avoidN[name] && !avoid[name])) return;
@@ -826,7 +826,10 @@ function create(opt) {
         await api("/api/fail", { task: c.id, ...(prep ? { release: true, env: true } : c.soft ? { release: true } : {}), error: c.logs.slice(-20).map((l) => l.msg).join("\n") + "\n出错：" + e.message }).catch(() => {});
         emit("done", { id: c.id, ok: false, error: e.message });
         const slow = !!(c.unfit && /慢得不正常|太慢|慢了/.test(c.unfit) && c.recipe && c.recipe.name);
+        // 显存不够（被别的程序占着）：只是这一类吃显存的活现在做不了，别的活（做题、搜题、造数据）照样领，不用整台电脑歇着
+        const vram = !!(c.unfit && /显存/.test(c.unfit) && c.recipe && c.recipe.name);
         if (slow) avoidRecipe(c.recipe.name, c.unfit);
+        else if (vram) avoidRecipe(c.recipe.name, c.unfit, opt.vramAvoidSteps || [0.5, 1, 3]);
         else if (prep) holdOff(e.message.split("\n")[0].slice(0, 200));
       }
     } finally {

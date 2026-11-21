@@ -79,7 +79,9 @@ function create(o) {
     const ctx = Math.max(2048, +spec.ctx || 16384), slots = Math.max(1, +spec.slots || 2);
     // CPU 版（o.cpu：CPU 工位用）：不放进显卡，线程数按 o.threads()（默认一半核心）
     const args = ["-m", file, "--host", "127.0.0.1", "--port", String(port), "-ngl", o.cpu ? "0" : "999", "-c", String(lite ? Math.min(ctx, 8192) : ctx), "-np", String(lite ? 1 : slots), "--jinja"];
-    if (o.cpu) args.push("-t", String(Math.max(1, +(o.threads ? o.threads() : 0) || Math.floor(require("os").cpus().length / 2) || 1)));
+    // CPU 版：-ngl 0 还不够（Vulkan 版照样会在显卡上开计算缓冲、把大的矩阵乘法搬上显卡，占掉一两 G 显存，同一台电脑的训练就说「显存不够」）
+    //   → 加 --device none 一点都不碰显卡；老版本 llama.cpp 不认得这个参数：第二次（lite）不带它再试
+    if (o.cpu) { args.push("-t", String(Math.max(1, +(o.threads ? o.threads() : 0) || Math.floor(require("os").cpus().length / 2) || 1))); if (!lite) args.push("--device", "none"); }
     if (!lite) args.push("-ctk", "q8_0", "-ctv", "q8_0");   // 省一半显存（8G 显卡上下文才放得下）；不支持就退回去
     if (dev && !lite && !o.cpu) args.push("--device", dev);
     // 底座的永久层（base-stack：合进底座的几个 LoRA，各带比例）：排在最前面，编号 0、1、2…

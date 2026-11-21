@@ -147,6 +147,24 @@ const until = async (f, ms, what) => { const t0 = Date.now(); while (!(await f()
     ok("慢电脑做训练慢得不正常：这一类先歇 1 小时（连着慢才加长），不再派给它（只领了一次），3 个轻活照样做完；训练留给别的电脑");
   }
 
+  // ---------- 6. 显存被别的程序占着：只是吃显存的那一类先不领（半小时），做题、搜题这些照样领，不是整台电脑歇着 ----------
+  {
+    const bigJob = await plan("训练大脑", "import lg, sys\nt = lg.task()\nlg.unfit('出错：显存不够：256 个字的讲解都放不下（别的程序占着显存）。关掉占显存的程序再算')\nsys.exit(1)\n", 2, 9);
+    const lightJob = await plan("搜题", "import lg\nt = lg.task()\nlg.done(ok=1)\n", 3, 8);
+    const cred = await join("显存被占的电脑");
+    const a = Agent.create({ ...base, server: cred.server, token: cred.token, pubkey: cred.pubkey, workDir: path.join(tmp, "f"), gpuInfo: async () => ({ temp: 50 }) });
+    const logs = [], states = []; a.on("log", (l) => logs.push(l.msg)); a.on("state", (s) => states.push(s.why || ""));
+    a.start();
+    await until(async () => (await tasksOf(lightJob)).every((t) => t.state === "done"), 30000, () => "搜题做完：" + logs.join("\n"));
+    await a.stop();
+    const bl = await tasksOf(bigJob);
+    assert.ok(bl.every((t) => !t.errors && t.state === "queued"), "训练不记失败、留给别的电脑：" + JSON.stringify(bl.map((t) => [t.state, t.errors])));
+    assert.strictEqual(logs.filter((m) => /^领到任务：「训练大脑」/.test(m)).length, 1, "训练只领了一次");
+    assert.ok(logs.some((m) => /现在显存不够做「训练大脑」：30 分钟内不再领这一类/.test(m)), logs.join("\n"));
+    assert.ok(!states.some((w) => /分钟后自动再试/.test(w)), "不是整台电脑歇着：搜题照样做");
+    ok("显存被占着：训练这一类 30 分钟内先不领（不记失败、留给别的电脑），搜题这些照样做，不是整台电脑歇着");
+  }
+
   await app.close();
   console.log("全部通过");
   process.exit(0);
