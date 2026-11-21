@@ -790,6 +790,10 @@ function create(opt) {
       if (c.unfit && (code !== 0 || !c.result)) { await c.uploads.catch(() => {}); throw new Error(c.unfit); }
       // 算出来的图 / 要审核的那一组没传上去：不能当成做完了交（以前就这样悄悄少了一组），任务还回去重做，不记它失败
       if (code === 0 && c.result && c.lostUpload) { c.finishing = false; c.soft = true; throw new Error(c.lostUpload); }
+      // 配方是被系统结束的（不是配方自己出错）：关机 / 重启 / 注销 / 睡眠（Windows 退出码 0x40010004），Ctrl+C、关掉窗口（0xC000013A），
+      //   被任务管理器结束（1）——这种不算任务失败，任务还给调度中心，从存档接着算
+      const KILLED = { 1073807364: "电脑在关机、重启、注销或睡眠，配方被系统结束了", 3221225786: "配方被 Ctrl+C 或关窗口结束了", [-1073741510]: "配方被 Ctrl+C 或关窗口结束了" };
+      if (code !== 0 && KILLED[code] && !c.result) { c.soft = true; throw new Error(KILLED[code] + "（不算任务出错，交给别的电脑从存档接着算）"); }
       if (code !== 0 || !c.result) throw new Error((c.logs.filter((l) => l.level === "error").slice(-6).map((l) => l.msg).join("\n")) || `配方退出码 ${code}`);
       // 结果里的文件：上传，换成存储地址
       const result = {};
