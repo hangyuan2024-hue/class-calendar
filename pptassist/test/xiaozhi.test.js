@@ -165,6 +165,12 @@ function fakeLlama(port, st) {
     assert.equal(r[r.length - 1].layout, "summary"); assert.ok(r[r.length - 1].lines.length >= 3);
     console.log("✓ 做 PPT 前理一理：代码写进要点 → 代码页；第一步第二步 → 步骤图；连着三页要点 → 中间换成卡片；没有小结 → 补一页小结");
   }
+  {
+    const X = require("../core/xiaozhi");
+    const d = X.days2w(new Date("2026-11-21T10:00:00+08:00").getTime());
+    assert.match(d, /2026-11-21 本周六（今天）/); assert.match(d, /2026-11-27 下周五/); assert.ok(!/2026-11-20/.test(d), "过去的日子不列");
+    console.log("✓ 提示里列出这两周每一天是星期几：「下周五」直接照抄 2026-11-27，不让小模型自己算");
+  }
   console.log("成品展示「捞小智」：全部通过");
   process.exit(0);
 })().catch((e) => { console.error(e); process.exit(1); });

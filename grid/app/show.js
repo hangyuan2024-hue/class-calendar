@@ -14,6 +14,45 @@ const path = require("path");
 const crypto = require("crypto");
 const PPT = (f) => require(path.join(__dirname, "ppt", f));
 
+// ---------- 数字怎么念：交给声音之前先换成汉字（不让语音模型自己猜，有时会念成「1 百二十 3」） ----------
+//   学号、电话、编号这种长数字（5 位以上，或者 0 开头）一位一位念：「二零二五零一…」；年份也一位一位念：「二零二六年」；
+//   日期「2026-11-27」→「二零二六年十一月二十七日」；时间「8:30」→「八点三十分」；百分数、小数；别的 4 位以内按数值念：「35」→「三十五」
+const DIG = "零一二三四五六七八九";
+const digitsZh = (x) => [...String(x)].map((c) => DIG[+c]).join("");
+function natZh(n) {
+  n = Math.floor(+n);
+  if (!(n >= 0) || n > 9999) return digitsZh(n);
+  if (n === 0) return "零";
+  const u = ["", "十", "百", "千"], str = String(n);
+  let out = "", zero = false;
+  for (let i = 0; i < str.length; i++) { const d = +str[i], pos = str.length - 1 - i; if (!d) { zero = true; continue; } if (zero && out) out += "零"; zero = false; out += DIG[d] + u[pos]; }
+  return out.replace(/^一十/, "十");
+}
+const numZh = (x) => (x.length >= 5 || (x.length > 1 && x[0] === "0") ? digitsZh(x) : natZh(+x));
+function speakNums(t) {
+  return String(t)
+    .replace(/(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})日?/g, (_, y, m, d) => `${digitsZh(y)}年${natZh(m)}月${natZh(d)}日`)
+    .replace(/(\d{1,2})月(\d{1,2})[日号]/g, (_, m, d) => `${natZh(m)}月${natZh(d)}日`)
+    .replace(/(\d{4})\s*年/g, (_, y) => digitsZh(y) + "年")
+    // 编号类的数字不管几位都一位一位念：「教室 301」「301 教室」「学号 2025…」「验证码 0815」
+    .replace(/(学号|工号|编号|电话|手机|号码|验证码|密码|代码|房间号|房号|房间|教室|座位号|座位|车次|课程号|班级号)(\s*[:：]?\s*[A-Za-z]?)(\d+)/g, (_, a, b, d) => a + b + digitsZh(d))
+    .replace(/(\d{3,4})(?=\s*(?:教室|室|房|号楼|号房|班))/g, (d) => digitsZh(d))
+    .replace(/(\d{1,2}):(\d{2})/g, (_, h, m) => natZh(h) + "点" + (+m ? natZh(m) + "分" : ""))
+    .replace(/(\d+)(?:\.(\d+))?\s*%/g, (_, a, b) => "百分之" + numZh(a) + (b ? "点" + digitsZh(b) : ""))
+    .replace(/(\d+)\.(\d+)/g, (_, a, b) => numZh(a) + "点" + digitsZh(b))
+    .replace(/\d+/g, numZh)
+    .replace(/(^|[^一-龥])二(?=[个位次天本张条门节只件块种周年月人])/g, "$1两");
+}
+
+// ---------- 听写常见的听错：编程、计算机课上的词（Paraformer 不认识的英文名、同音字） ----------
+const ASR_FIX = [
+  [/(Pardon|帕顿|拍森|派森|排森|怕森|派生)\s*(语言)?/gi, "Python$2"], [/(加瓦|假哇|嘉娃)(语言)?/g, "Java$2"],
+  [/(?:C|c|西|希|吸)\s*(?:加加|＋＋|\+\+)/g, "C++"], [/(?:C|c)\s*(?:元|圆|园|源|原)(?!素|旦)/g, "C语言"], [/(?:希|吸)\s*语言/g, "C语言"],
+  [/硬件城/g, "硬件层"], [/内核城/g, "内核层"], [/系统调用城/g, "系统调用层"], [/数据解构/g, "数据结构"], [/算发/g, "算法"],
+  [/置针/g, "指针"], [/指真/g, "指针"], [/驱东/g, "驱动"], [/冒泡排续/g, "冒泡排序"], [/链表(?:饭|反)转/g, "链表反转"],
+];
+const fixAsr = (t) => ASR_FIX.reduce((s, [a, b]) => s.replace(a, b), String(t || ""));
+
 // 讲题用的底子：和答题 LoRA 训练时用的是同一个（通义千问 Qwen3-VL-4B 的 Q4 量化版）
 const LLM_SPEC = { name: "Qwen3VL-4B-Instruct-Q4_K_M.gguf", mirrorModel: "llmMain", ctx: 16384, slots: 1, urls: [
   "https://www.modelscope.cn/models/Qwen/Qwen3-VL-4B-Instruct-GGUF/resolve/master/Qwen3VL-4B-Instruct-Q4_K_M.gguf",
@@ -118,6 +157,7 @@ function create(o) {
   // ---------- 说话 ----------
   const sayable = (text, max = 200) => {
     let t = String(text || "").replace(/```[\s\S]*?```/g, "").replace(/\$\$?[^$]*\$\$?/g, "（公式）").replace(/<tool_call>[\s\S]*?(<\/tool_call>|$)/g, "").replace(/[#*`>_~|]/g, "").replace(/\s+/g, " ").trim();
+    t = speakNums(t);
     if (t.length > max) { const cut = t.slice(0, max); const k = Math.max(cut.lastIndexOf("。"), cut.lastIndexOf("！"), cut.lastIndexOf("？")); t = k > 20 ? cut.slice(0, k + 1) : cut + "……"; }
     return t;
   };
@@ -280,7 +320,7 @@ function create(o) {
     if (wav.length > 8 * 1048576) throw new Error("这句话太长了，分几句说");
     const dir = o.gsvDir ? o.gsvDir() : null;
     if (!dir) throw new Error("打电话要用声音组件（GPT-SoVITS，里面带听写）：先点「装上声音组件」");
-    return { text: await ear.hear(dir, wav, earSay) };
+    return { text: fixAsr(await ear.hear(dir, wav, earSay)) };
   }
 
   async function state() {
@@ -332,4 +372,4 @@ function create(o) {
   };
 }
 
-module.exports = { create, LLM_SPEC, MMPROJ_SPEC };
+module.exports = { create, LLM_SPEC, MMPROJ_SPEC, speakNums, fixAsr };

@@ -65,6 +65,22 @@ function polish(list) {
   return out;
 }
 
+// 这两周每一天：「2026-11-21 周六（今天）、2026-11-22 周日、2026-11-23 下周一…」（小模型自己算星期几常错）
+const WD = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+function days2w(t) {
+  const d0 = new Date(t); d0.setHours(12, 0, 0, 0);
+  const mon = new Date(d0); mon.setDate(d0.getDate() - ((d0.getDay() + 6) % 7));   // 这周一
+  const out = [];
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(mon); d.setDate(mon.getDate() + i);
+    if (d < new Date(d0.getTime() - 86400e3 * 0.5)) continue;   // 已经过去的不列
+    const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const name = (i < 7 ? "本" : "下") + WD[d.getDay()];
+    out.push(`${ymd} ${name}${ymd === `${d0.getFullYear()}-${String(d0.getMonth() + 1).padStart(2, "0")}-${String(d0.getDate()).padStart(2, "0")}` ? "（今天）" : ""}`);
+  }
+  return out.join("、");
+}
+
 function create(o) {
   const dir = o.dir;
   fs.mkdirSync(dir, { recursive: true });
@@ -186,6 +202,7 @@ function create(o) {
 
 现在和你说话的是：${w.role} ${w.name}（${w.role === "学生" ? `学号 ${w.id}，${w.class}` : w.role === "教师" ? `工号 ${w.id}，${w.dept}${w.counselor_of && w.counselor_of.length ? "，" + w.counselor_of.join("、") + "辅导员" : ""}` : "教务处"}）。
 今天是 ${w.today} ${w.weekday}，${w.term}第 ${w.week} 周；明天是 ${ymd(tm)}。
+这两周每一天的日期（一周从周一开始；说「下周五」就是下面写着「下周五」的那天，直接照抄，不要自己算）：${days2w(t)}
 ${cur ? `现在手上的 PPT：「${cur.title}」，一共 ${cur.pages} 页（界面上能看到每一页）。对方说「这一页」「改一下」「换个颜色」指的就是它。` : "现在手上还没有 PPT。"}
 
 你会${hasCheck ? "四" : "三"}类事，按对方说的挑：
@@ -214,7 +231,8 @@ ${hasCheck ? `四、${checkup.profile.name}报告（${checkup.profile.dims.map((
    · 结果里有 demo 就说明「这是演示数据」；有 fallback 就照实说这次用的是哪种分析；有 mixed 就提醒两次来源不同、仅供参考。
    · 这是护理参考，不是医学诊断：不要说得了什么病，不要推荐药品；有重度、疼痛或者掉发很多，建议去看皮肤科医生。
 ` : ""}
-回答用简体中文，口语化、简短；不要输出 JSON 和代码（公式的 LaTeX、讲题时的代码除外）。${voiceMode ? `\n\n${SPOKEN}\n（上面讲题、PPT、教务的规则照旧；只是说的话要按语音通话来：不写 LaTeX、不列条目、不长篇大论。）` : ""}`;
+回答用简体中文，口语化；不要输出 JSON 和代码（公式的 LaTeX、讲题时的代码除外）。
+回答要有内容：讲题、讲知识至少讲清楚一个完整的点——是什么、为什么、举一个具体的例子（五到八句话）。对方说了想学什么就直接讲下去，不要只说一两句就反问「你从哪一步开始」；讲完一个点，最后再问一句要不要接着讲下一步。办事、闲聊照常简短。${voiceMode ? `\n\n${SPOKEN}\n（上面讲题、PPT、教务的规则照旧；只是说的话要按语音通话来：不写 LaTeX、不列条目。讲知识时一次讲完一个完整的点，四到六句，比上面「两三句」可以多一点，讲完再问要不要接着讲；不要每次都反问对方从哪开始。）` : ""}`;
   };
   const campusTools = campus.tools(actor);
   const checkTools = checkup.tools(() => lastImgs);
@@ -297,4 +315,4 @@ ${hasCheck ? `四、${checkup.profile.name}报告（${checkup.profile.dims.map((
   function who() { const I = campus.identities(); return { role, me: campus.who(actor()), roles: ["student", "teacher", "staff"].map((k) => ({ key: k, name: { student: "学生", teacher: "教师（辅导员）", staff: "教务员" }[k], who: I[k].name, note: I[k].note })) }; }
 }
 
-module.exports = { create, PARTS, SPOKEN, polish };
+module.exports = { create, PARTS, SPOKEN, polish, days2w };

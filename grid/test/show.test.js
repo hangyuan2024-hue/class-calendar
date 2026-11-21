@@ -167,3 +167,17 @@ const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
   console.log("成品展示：全部通过");
   process.exit(0);
 })().catch((e) => { console.error(e); process.exit(1); });
+
+// 数字怎么念、听写常见的听错（不用起服务，单独核对）
+{
+  const S = require("../app/show");
+  const a = require("assert");
+  a.equal(S.speakNums("学号202501010101。"), "学号二零二五零一零一零一零一。");
+  a.equal(S.speakNums("下周五是2026-11-27"), "下周五是二零二六年十一月二十七日");
+  a.equal(S.speakNums("头35个、脚94只，2个答案"), "头三十五个、脚九十四只，两个答案");
+  a.equal(S.speakNums("8:30 在301教室，正确率85.5%"), "八点三十分 在三零一教室，正确率百分之八十五点五");
+  a.equal(S.speakNums("第11周"), "第十一周");
+  a.equal(S.fixAsr("Pardon语言有什么用？C元呢？硬件城。"), "Python语言有什么用？C语言呢？硬件层。");
+  a.equal(S.fixAsr("公元前"), "公元前", "不是 C 开头的不动");
+  console.log("✓ 数字：长编号、学号、年份、教室一位一位念，个数按数值念，日期时间百分数念对；听写常见的听错（Python、C语言、硬件层）改回来");
+}
