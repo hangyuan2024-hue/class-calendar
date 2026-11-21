@@ -120,7 +120,24 @@ function create(o = {}) {
     if (r.status !== 200) throw new Error("没听清（" + (j.error || r.body.slice(0, 200)) + "）");
     return String(j.text || "").trim();
   }
-  return { start, hear, stop, warm, ready, get running() { return !!proc && !starting; }, get preparing() { return !!starting; }, progress: () => pct };
+  // 长录音（课程视频的音轨，16k 单声道 wav 文件）→ 一句一句带时间 [{ start, end, text }]（秒）
+  async function segments(dir, wavFile, say) {
+    const p = await start(dir, say);
+    touch();
+    const size = fs.statSync(wavFile).size;
+    const r = await new Promise((resolve, reject) => {
+      const req = http.request({ host: "127.0.0.1", port: p, path: "/asr?ts=1", method: "POST", headers: { "Content-Type": "audio/wav", "Content-Length": size }, timeout: 3 * 3600e3 }, (res) => {
+        const cs = []; res.on("data", (c) => cs.push(c)); res.on("end", () => resolve({ status: res.statusCode, body: Buffer.concat(cs).toString("utf8") }));
+      });
+      req.on("timeout", () => req.destroy(new Error("听写等太久了")));
+      req.on("error", reject);
+      fs.createReadStream(wavFile).pipe(req);
+    });
+    let j = {}; try { j = JSON.parse(r.body); } catch (e) {}
+    if (r.status !== 200) throw new Error("听写没成（" + (j.error || r.body.slice(0, 200)) + "）");
+    return Array.isArray(j.segments) ? j.segments : [];
+  }
+  return { start, hear, segments, stop, warm, ready, get running() { return !!proc && !starting; }, get preparing() { return !!starting; }, progress: () => pct };
 }
 
 module.exports = { create, SCRIPT, pctOf, MARK, ASR_MODELS, MODELS_OK };

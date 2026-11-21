@@ -247,7 +247,7 @@ ${hasCheck ? `四、${checkup.profile.name}报告（${checkup.profile.dims.map((
   const webTools = o.web === false ? [] : (o.webTools || require("./websearch").tools(o.webOpt || {}));
   // 先核对再回答：本机知识库（dir/kb 里的 .txt / .md）+ 需要时联网；照资料答、逐句核对（core/ground.js）
   const GROUND = require("./ground");
-  const kb = o.kb || GROUND.kb(path.join(dir, "kb"));
+  const kb = o.kb || GROUND.kb(path.join(dir, "kb"), o.kbOpt || {});
   // 捞捞思维导图（学习捞捞队的模块）：只走它公开的本机接口 / 存下来的 map.json，不改它的代码（core/mindmap.js）
   const mindmap = o.mindmap === false ? null : (o.mindmap || require("./mindmap").create(o.mindmapOpt || {}));
   const mindmapTools = mindmap ? mindmap.tools() : [];

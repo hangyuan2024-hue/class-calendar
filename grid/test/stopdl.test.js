@@ -42,7 +42,10 @@ const until = async (f, ms, what) => { const t0 = Date.now(); while (!(await f()
   const secs = (Date.now() - t0) / 1000;
   assert.ok(secs < 3, "停止要马上生效，用了 " + secs + " 秒");
   assert.equal(a.status().state, "paused");
-  const tasks = (await Tools.api(admin, "/api/admin/job?id=" + jobId, null, "GET")).tasks;
+  // 还任务是电脑发给调度中心的一个请求：Windows 上慢的时候比「电脑空出来」晚几百毫秒到，等它到（最多 5 秒）
+  const back = (ts) => ts.every((t) => t.state === "queued" || t.state === "pending" || t.state === "ready" || !t.device);
+  let tasks = [];
+  for (let i = 0; i < 100; i++) { tasks = (await Tools.api(admin, "/api/admin/job?id=" + jobId, null, "GET")).tasks; if (back(tasks)) break; await sleep(50); }
   assert.ok(tasks.every((t) => t.state === "queued" || t.state === "pending" || t.state === "ready" || !t.device), "任务还给了调度中心：" + JSON.stringify(tasks.map((t) => [t.state, t.device])));
   ok(`下载 24M 的文件到一半点「停止」：${secs.toFixed(1)} 秒就停了，任务还给调度中心（以前要等下载下完）`);
 

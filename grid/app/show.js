@@ -111,6 +111,22 @@ function create(o) {
     try { const m = cur && cur.models; if (m && (m.use("qa-lora") || m.use("base-stack") || (calling && m.use("chat-lora")))) return false; } catch (e) {}
     return true;
   }
+  // 知识库里的视频、录音 → 带时间的文字稿：ffmpeg 抽成 16k 单声道 wav（用声音组件自带的 ffmpeg），本机听写分句带时间
+  async function transcribe(file, say = () => {}) {
+    const gd = o.gsvDir && o.gsvDir();
+    if (!gd) throw new Error("听写组件还没装好：先在成品展示里接一次电话（会自动准备好）");
+    const ff = o.ffmpeg || [path.join(gd, "ffmpeg.exe"), path.join(gd, "runtime", "ffmpeg.exe"), path.join(gd, "ffmpeg")].find((x) => fs.existsSync(x)) || (() => { try { return PPT("media.js").ffmpegPath(); } catch (e) { return "ffmpeg"; } })();
+    const wav = path.join(require("os").tmpdir(), `lx-kb-${process.pid}-${Date.now()}.wav`);
+    say(`把「${path.basename(file)}」的声音抽出来`);
+    await new Promise((resolve, reject) => {
+      const p = require("child_process").spawn(ff, ["-y", "-i", file, "-vn", "-ac", "1", "-ar", "16000", "-f", "wav", wav], { windowsHide: true, stdio: ["ignore", "ignore", "pipe"] });
+      let err = ""; p.stderr.on("data", (d) => (err = (err + d).slice(-600)));
+      p.on("error", (e) => reject(new Error("抽声音没成：" + e.message)));
+      p.on("exit", (c) => (c === 0 && fs.existsSync(wav) ? resolve() : reject(new Error("抽声音没成：" + err.split(/\r?\n/).filter(Boolean).slice(-1)[0]))));
+    });
+    try { say(`听写「${path.basename(file)}」（一小时的视频要几分钟到十几分钟）`); return await ear.segments(gd, wav, say); }
+    finally { fs.rmSync(wav, { force: true }); }
+  }
   // 底座的永久层：发布的 base-stack = stack（哪几个 LoRA、各是第几版、比例多少）+ bundle（这些 LoRA 的 .gguf 打成的包）
   //   第一次用时解压到 bundle 旁边；→ { layers, loras: [{ path, scale }] }
   async function baseStack(models) {
@@ -174,7 +190,7 @@ function create(o) {
         return CHAT.chatAt(url, m, { ...opt, ...(bigNow ? { onDelta: noThink(opt.onDelta) } : {}), ...(Object.keys(extra).length ? { extra } : {}) });
       },
     };
-    const xz = XZ.create({ dir, llm, grid: models, onEvent: (e) => emit(e), now: o.now, log: (m) => log(m), ...(o.xzOpt || {}) });
+    const xz = XZ.create({ dir, llm, grid: models, kbOpt: { transcribe }, onEvent: (e) => emit(e), now: o.now, log: (m) => log(m), ...(o.xzOpt || {}) });
     cur = { dir, models, xz, llm };
     lastBuild = xz.product().build;
     return cur;
@@ -311,6 +327,19 @@ function create(o) {
     log("试声音：" + out.map((x) => `${x.name} ${x.ok ? "能用（" + x.ms + " 毫秒）" : "不行：" + x.err}`).join("；"));
     return { results: out, play };
   }
+  // 声音自动考试（core/voiceexam.js）：现在用的声音念几句固定的话 → 本机听写回来 → 错字率、数字念对没有
+  async function voiceExam() {
+    const gd = o.gsvDir ? o.gsvDir() : null;
+    if (!gd) throw new Error("听写组件还没装好：先在成品展示里接一次电话（会自动准备好）");
+    const e = engineNow();
+    const r = await PPT("voiceexam.js").run({ say: (t) => sayable(t),
+      synth: async (t) => { const x = await speak(t); if (!x || !x.wav) throw new Error((x && x.skip) || "现在没有能用的声音"); return Buffer.from(x.wav, "base64"); },
+      hear: (wav) => ear.hear(gd, wav) });
+    const out = { ...r, engine: e.eng, at: Date.now() };
+    try { fs.writeFileSync(path.join(o.dir(), "voice-exam.json"), JSON.stringify(out)); } catch (x) {}
+    log(`声音考试（${e.eng}）：错字率 ${Math.round(r.cer * 100)}%，数字念对 ${r.numOk == null ? "—" : Math.round(r.numOk * 100) + "%"}`);
+    return out;
+  }
   function setVoicePref(v) { voicePref = v === "real" ? "real" : "kokoro"; try { fs.writeFileSync(path.join(o.dir(), "voice-pref.json"), JSON.stringify({ pref: voicePref })); } catch (e) {} return voiceInfo(); }
   // 说过的话留 200 段，再多删旧的
   function tidy() { try { const d = path.join(S().dir, "say"); const fsx = fs.readdirSync(d).map((f) => ({ f: path.join(d, f), t: fs.statSync(path.join(d, f)).mtimeMs })).sort((a, b) => b.t - a.t); for (const x of fsx.slice(200)) fs.rmSync(x.f, { force: true }); } catch (e) {} }
@@ -423,9 +452,21 @@ function create(o) {
   const mm = () => S().xz.mindmap;
   return {
     apiInfo: () => api.info(), apiConnect: async () => { if (!mm()) throw new Error("没有带思维导图的接入"); return api.connect(mm()); }, apiDisconnect: async () => api.disconnect(mm()),
-    state, send, speak, fuse, product, setActive, hear, setCall, prepStatus, prepRun, setVoicePref, voiceTest,
+    state, send, speak, fuse, product, setActive, hear, setCall, prepStatus, prepRun, setVoicePref, voiceTest, voiceExam,
     // 知识库：捞小智「先核对再回答」查的本机资料（一个文件夹，放 .txt / .md）
-    kb: async () => { const x = S().xz, k = x.kb; fs.mkdirSync(k.dir, { recursive: true }); let maps = null; try { maps = x.mindmap ? (await x.mindmap.list()).maps.map((m) => m.title) : null; } catch (e) {} return { dir: k.dir, files: k.list(), maps }; },
+    kb: async () => { const x = S().xz, k = x.kb; fs.mkdirSync(k.dir, { recursive: true }); let maps = null; try { maps = x.mindmap ? (await x.mindmap.list()).maps.map((m) => m.title) : null; } catch (e) {}
+      let r = null; try { r = await k.refresh({}); } catch (e) {}
+      return { dir: k.dir, files: k.list(), maps, status: k.status(), errors: r ? r.errors : [] }; },
+    // 联网考试（core/webexam.js）：第一次录快照（要上网），以后都按快照考，分数能和上一版比
+    webExam: async (mode) => {
+      const t = o.busy ? o.busy() : null;
+      if (t) throw new Error(`这台电脑正在算「${t}」，先暂停计算再考`);
+      const { llm } = S(), dir = path.join(o.dir(), "webexam");
+      const m = mode === "record" || !fs.existsSync(path.join(dir, "record.json")) ? "record" : "replay";
+      return PPT("webexam.js").run({ dir, mode: m, llm, onProgress: (i, n) => emit({ type: "note", text: `联网考试：第 ${i}/${n} 道` }) });
+    },
+    // 整理知识库：读新放进来的文件，视频、录音听写成带时间的文字稿（慢，点了才做）
+    kbImport: async () => { const k = S().xz.kb; const r = await k.refresh({ media: true, say: (m) => emit({ type: "note", text: m }) }); return { ...r, status: k.status() }; },
     // 训练任务要开始了：把显存让出来（声音组件、听写；本地大模型由 service 关）
     releaseGpu: () => { try { voice.stop(); } catch (e) {} try { ear.stop(); } catch (e) {} },
     apiStop: () => api.stop(false),

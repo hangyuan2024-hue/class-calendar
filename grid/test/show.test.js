@@ -44,7 +44,12 @@ const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
     tts: async (t) => { sysSaid++; return MEDIA.writeWav(new Float32Array(22050).map((_, i) => Math.sin(i / 8) * 0.3), 22050); } });
   const ev = [];
   const extracted = [];
+  // 假的 ffmpeg：把最后一个参数写成一段 1 秒的静音 wav
+  const ffDir = path.join(tmp, "ff"); fs.mkdirSync(ffDir, { recursive: true });
+  fs.writeFileSync(path.join(ffDir, "ff.js"), `const MEDIA = require(${JSON.stringify(path.join(__dirname, "..", "..", "pptassist", "core", "media.js"))}); require("fs").writeFileSync(process.argv[process.argv.length - 1], MEDIA.writeWav(new Float32Array(16000), 16000));`);
+  fs.writeFileSync(path.join(ffDir, "ffmpeg"), `#!/bin/sh\nexec "${process.execPath}" "${path.join(ffDir, "ff.js")}" "$@"\n`, { mode: 0o755 });
   const show = Show.create({ dir: () => path.join(tmp, "work", "show"), server: () => base, llm, send: (e) => ev.push(e),
+    ffmpeg: path.join(ffDir, "ffmpeg"),
     extract: async (file, dir) => { extracted.push(file); fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(path.join(dir, "layer0-qa-lora-v2.gguf"), "GGUF"); }, busy: () => task, used: () => used, gsvDir: () => (hasGsv ? gsv : null), sysTtsFactory,
     voiceOpt: { cmd: process.execPath, args: (p) => [path.join(__dirname, "..", "..", "pptassist", "test", "fake-gsv.js"), String(p)], waitMs: 15000 },
     hearOpt: { python: process.env.PYTHON || "python3", args: (p) => ["-u", require("../app/hear").SCRIPT, "--port", String(p), "--fake"], waitMs: 20000 } });
@@ -185,6 +190,21 @@ const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
   const gq2 = reqs.filter((b) => b.messages && b.messages[0] && b.messages[0].content === require("../app/ppt/ground.js").ANSWER_SYS);
   assert.ok(gq2.length && gq2.every((b) => JSON.stringify(b.lora) === JSON.stringify([{ id: 0, scale: 0.7 }, { id: 1, scale: 1 }])), "查资料时底座永久层照原比例写上：" + JSON.stringify(gq2.map((b) => b.lora)));
   ok("底座永久层发布了：挂上（×0.7），已经合进去的答题 LoRA 不再单独挂；查资料时永久层照原比例；训练用的包不下");
+
+  // 声音自动考试、知识库里的视频听写、联网考试
+  {
+    const was = hasGsv; hasGsv = true;
+    const ve = await show.voiceExam();
+    assert.equal(ve.total, 8); assert.equal(ve.failed, 0); assert.ok(ve.cer >= 0 && fs.existsSync(path.join(tmp, "work", "show", "voice-exam.json")));
+    const kbd = path.join(tmp, "work", "show", "kb");
+    fs.writeFileSync(path.join(kbd, "第五讲.mp4"), "fake");
+    const k0 = await show.kb();
+    assert.deepEqual(k0.status.media, ["第五讲.mp4"], "视频不点整理不听写");
+    const ki = await show.kbImport();
+    assert.equal(ki.done, 1, JSON.stringify(ki)); assert.deepEqual(ki.status.media, []);
+    hasGsv = was;
+    ok("声音自动考试（合成 → 听写回来比）；知识库里的视频点「整理」才听写，抽声音用声音组件的 ffmpeg");
+  }
 
   // 7. 换身份、审批、重开还在
   st = await show.setRole("teacher"); assert.equal(st.who.me.role, "教师");

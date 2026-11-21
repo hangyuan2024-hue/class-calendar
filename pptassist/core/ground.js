@@ -65,25 +65,73 @@ function rank(query, docs, { k1 = 1.4, b = 0.75 } = {}) {
   }).sort((a, c) => c.score - a.score);
 }
 
-// ---------------- 本机知识库：一个文件夹，放 .txt / .md（以后加 Word、PPT、PDF 的文字） ----------------
-function kb(dir) {
-  let cache = null, sig = "";
-  const files = () => { try { return fs.readdirSync(dir).filter((f) => /\.(txt|md)$/i.test(f)).sort(); } catch (e) { return []; } };
+// ---------------- 本机知识库：一个文件夹，放学校自己的资料 ----------------
+//   .txt .md .docx .pptx .pdf .html，视频和录音（听写成带时间的文字稿）；校规按条切（core/kbfiles.js）
+//   读出来的文字缓存在 .cache 里；「资料说明.json」可以写每份资料的日期、是否废止、来源
+function kb(dir, opt = {}) {
+  const KF = require("./kbfiles");
+  const CACHE = path.join(dir, ".cache"), META = path.join(dir, "资料说明.json");
+  const files = () => { try { return fs.readdirSync(dir).filter((f) => !f.startsWith(".") && f !== "资料说明.json" && KF.SUPPORTED(f)).sort(); } catch (e) { return []; } };
+  const sigOf = (f) => { try { const st = fs.statSync(path.join(dir, f)); return st.size + ":" + Math.round(st.mtimeMs); } catch (e) { return ""; } };
+  const cf = (f) => path.join(CACHE, Buffer.from(f).toString("base64url").slice(0, 180) + ".json");
+  const readCache = (f) => { try { const c = JSON.parse(fs.readFileSync(cf(f), "utf8")); return c.sig === sigOf(f) ? c : null; } catch (e) { return null; } };
+  const meta = () => { try { return JSON.parse(fs.readFileSync(META, "utf8")) || {}; } catch (e) { return {}; } };
+  // 读还没读过的文件（视频、录音只在 media: true 时听写，慢）→ { done, pending: [没听写的视频], errors: [{ file, error }] }
+  let busy = null;
+  async function refresh({ media = false, say = () => {} } = {}) {
+    if (busy) return busy;
+    busy = (async () => {
+      const out = { done: 0, pending: [], errors: [] };
+      for (const f of files()) {
+        if (readCache(f)) continue;
+        if (KF.AV.test(f) && !media) { out.pending.push(f); continue; }
+        try {
+          say(`读「${f}」`);
+          const x = await KF.extract(path.join(dir, f), { transcribe: opt.transcribe, say });
+          fs.mkdirSync(CACHE, { recursive: true });
+          fs.writeFileSync(cf(f), JSON.stringify({ sig: sigOf(f), file: f, ...x }));
+          out.done++;
+        } catch (e) { out.errors.push({ file: f, error: e.message }); }
+      }
+      return out;
+    })();
+    try { return await busy; } finally { busy = null; }
+  }
+  let cache = null, csig = "";
   function load() {
-    const fl = files(), s = fl.map((f) => { try { const st = fs.statSync(path.join(dir, f)); return f + ":" + st.size + ":" + st.mtimeMs; } catch (e) { return f; } }).join("|");
-    if (cache && s === sig) return cache;
+    const cst = (f) => { try { return Math.round(fs.statSync(cf(f)).mtimeMs); } catch (e) { return 0; } };
+    const fl = files(), m = meta(), s = fl.map((f) => f + ":" + sigOf(f) + ":" + cst(f)).join("|") + "|" + JSON.stringify(m);
+    if (cache && s === csig) return cache;
     const out = [];
-    for (const f of fl) { let t = ""; try { t = fs.readFileSync(path.join(dir, f), "utf8"); } catch (e) {} chunks(t).forEach((text, j) => out.push({ title: f.replace(/\.(txt|md)$/i, ""), src: "知识库：" + f, text, j })); }
-    cache = out; sig = s;
+    for (const f of fl) {
+      // .txt / .md 不用等「读一遍」：直接读（也按条切）
+      let c = readCache(f);
+      if (!c && /\.(txt|md)$/i.test(f)) { try { const t = fs.readFileSync(path.join(dir, f), "utf8"), arts = KF.byArticle(t); c = { title: f.replace(/\.(txt|md)$/i, ""), segs: arts || [{ text: t }], kind: arts ? "rules" : "text" }; } catch (e) {} }
+      const info = m[f] || {};
+      if (!c || info.abolished) continue;
+      const title = c.title || f.replace(/\.[^.]+$/, ""), date = info.date || c.date || null;
+      for (const sg of c.segs) {
+        const parts = c.kind === "video" || /^rules/.test(c.kind) ? [sg.text] : chunks(sg.text);
+        parts.forEach((text, j) => out.push({ title: title + (sg.loc ? " " + sg.loc : ""), src: "知识库：" + f + (sg.loc ? " " + sg.loc : ""), text, j, date, kind: c.kind, ...(sg.t != null ? { t: sg.t } : {}), ...(info.source ? { by: info.source } : {}) }));
+      }
+    }
+    cache = out; csig = s;
     return out;
   }
   return {
     dir,
     list: () => files(),
+    status: () => { const fl = files(); return { files: fl.length, read: fl.filter((f) => readCache(f)).length, media: fl.filter((f) => KF.AV.test(f) && !readCache(f)) }; },
+    refresh,
     add(name, text) { fs.mkdirSync(dir, { recursive: true }); const f = String(name || "资料").replace(/[\\/:*?"<>|]/g, "_").slice(0, 60) + (/\.(txt|md)$/i.test(name) ? "" : ".txt"); fs.writeFileSync(path.join(dir, f), String(text || "")); return f; },
     remove(name) { const f = path.join(dir, path.basename(String(name || ""))); if (fs.existsSync(f)) fs.unlinkSync(f); },
-    // 至少对上两个词（相邻两字 / 英文词），只对上零散的单字不算相关
-    find(q, n = 4) { const all = load(); return rank(q, all).filter((r) => r.score > 0.5 && r.big >= 2).slice(0, n).map((r) => all[r.i]); },
+    // 至少对上两个词（相邻两字 / 英文词），只对上零散的单字不算相关；日期新的稍微靠前
+    find(q, n = 4) {
+      const all = load(), now = Date.now();
+      return rank(q, all).filter((r) => r.score > 0.5 && r.big >= 2)
+        .map((r) => { const d = all[r.i].date ? Date.parse(all[r.i].date) : NaN; return { ...r, score: r.score * (isNaN(d) ? 1 : 1 + 0.15 * Math.max(0, 1 - (now - d) / (3 * 365 * 864e5))) }; })
+        .sort((a, b) => b.score - a.score).slice(0, n).map((r) => all[r.i]);
+    },
   };
 }
 
@@ -111,7 +159,7 @@ function ruleCheck(sent, mats) {
   for (const c of citesOf(sent)) if (c < 1 || c > mats.length) return `标的出处 [${c}] 不存在`;
   return null;
 }
-const matText = (mats) => mats.map((m, i) => `[${i + 1}] ${m.title ? "（" + m.title + "）" : ""}${m.text}`).join("\n\n");
+const matText = (mats) => mats.map((m, i) => `[${i + 1}] ${m.title ? "（" + m.title + (m.date ? "，" + m.date : "") + "）" : ""}${m.text}`).join("\n\n");
 const numbered = (ss) => ss.map((s, i) => `第${i + 1}句：${s}`).join("\n");
 
 // ---------------- 流水线 ----------------
@@ -126,6 +174,7 @@ function create(o) {
   };
 
   async function gather(q, { web } = {}) {
+    if (o.kb && o.kb.refresh) { try { await o.kb.refresh({ say }); } catch (e) {} }   // 新放进来的文件先读一遍（视频除外）
     const mats = o.kb ? o.kb.find(q, 4) : [];
     // 别的本机资料（思维导图……）：{ chunks: async () => [{ title, src, text }] }，和知识库一起按问题排，挑最相关的
     for (const so of o.sources || []) {
@@ -140,7 +189,10 @@ function create(o) {
       try {
         const rs = (await o.web.search(q)).slice(0, 4);
         const pages = [];
-        for (const r of rs.slice(0, 2)) { try { const p = await o.web.read(r.url); pages.push(...chunks(p.text).map((text) => ({ title: p.title || r.title, src: r.url, text }))); } catch (e) {} }
+        // 前三个网页一起读，每个最多等 o.readMs（默认 8 秒），超时的跳过
+        const lim = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("太慢")), ms))]);
+        const got = await Promise.allSettled(rs.slice(0, 3).map((r) => lim(o.web.read(r.url), o.readMs || 8000).then((p) => ({ r, p }))));
+        for (const g of got) if (g.status === "fulfilled") { const { r, p } = g.value; pages.push(...chunks(p.text).map((text) => ({ title: p.title || r.title, src: r.url, text, ...(p.date ? { date: p.date } : {}) }))); }
         for (const r of rs) if (r.snippet) pages.push({ title: r.title, src: r.url, text: r.snippet });
         rank(q, pages).slice(0, 5 - mats.length).forEach((r) => r.score > 0 && mats.push(pages[r.i]));
       } catch (e) { say("联网没成：" + e.message); }

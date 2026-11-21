@@ -280,9 +280,35 @@
   if ($("#shDeckClose")) $("#shDeckClose").onclick = () => showDeck(false);
   if ($("#shKb")) $("#shKb").onclick = guard(async () => {
     const k = await call("showKb", true);
-    add("sh-step ok", esc(`知识库里有 ${k.files.length} 份资料${k.files.length ? "：" + k.files.slice(0, 8).join("、") : ""}。`) + "<br>"
+    add("sh-step ok", esc(`知识库里有 ${k.files.length} 份资料${k.files.length ? "：" + k.files.slice(0, 8).join("、") : ""}。`)
+      + ((k.errors || []).length ? "<br>" + esc("有几份读不了：" + k.errors.map((x) => x.file + "（" + x.error + "）").join("；")) : "") + "<br>"
       + esc(k.maps ? (k.maps.length ? `也连上了捞捞思维导图：${k.maps.length} 张导图（${k.maps.slice(0, 6).join("、")}）。` : "捞捞思维导图里还没有导图（在捞捞课程表电脑版里打开「思维导图」做一张）。") : "") + "<br>"
-      + esc("把讲义、学生手册、通知存成 .txt 或 .md 放进刚打开的文件夹。问事实类的问题时捞小智会先查它们和你的思维导图，照资料回答、逐句核对，资料里没有就直说没有。也可以直接说「把我的××导图做成 PPT」「把这节课整理成思维导图」。"));
+      + esc("能放：Word、PPT、PDF、网页（另存为 .html）、.txt、视频和录音（听写成带时间的文字稿）。校规、手册会按条查，回答时说「依据第几条」；想写日期、标「已废止」，在文件夹里放一个「资料说明.json」。")+ "<br>" + esc("把讲义、学生手册、通知放进刚打开的文件夹。问事实类的问题时捞小智会先查它们和你的思维导图，照资料回答、逐句核对，资料里没有就直说没有。也可以直接说「把我的××导图做成 PPT」「把这节课整理成思维导图」。"));
+  });
+  // 知识库里还有没听写的视频 / 录音：问一句要不要现在听写
+  const kbMedia = async (k) => {
+    const m = (k.status && k.status.media) || [];
+    if (!m.length || !confirm(`知识库里有 ${m.length} 个视频 / 录音还没听写（${m.slice(0, 3).join("、")}${m.length > 3 ? "…" : ""}）。现在在这台电脑上听写成文字稿吗？一小时的视频要几分钟到十几分钟。`)) return;
+    const r = await call("showKbImport");
+    add("sh-step " + (r.errors.length ? "err" : "ok"), esc(`听写完了 ${r.done} 个` + (r.errors.length ? `；没成：${r.errors.map((x) => x.file + "（" + x.error + "）").join("；")}` : "") + "。以后问到课上讲过的内容，会说「见第几分几秒」。"));
+  };
+  if ($("#shKb")) { const o0 = $("#shKb").onclick; $("#shKb").onclick = guard(async () => { await o0(); const k = await call("showKb", false); await kbMedia(k); }); }
+  if ($("#shVoiceExam")) $("#shVoiceExam").onclick = guard(async () => {
+    const b = $("#shVoiceExam"); b.disabled = true; b.textContent = "考声音中…";
+    try {
+      const r = await call("showVoiceExam");
+      add("sh-step " + (r.failed ? "err" : "ok"), esc(`声音考试（${{ trained: "捞捞的声音", real: "真人感", kokoro: "Kokoro", sys: "电脑自带" }[r.engine] || r.engine}）：错字率 ${Math.round(r.cer * 100)}%，数字念对 ${r.numOk == null ? "—" : Math.round(r.numOk * 100) + "%"}${r.failed ? `，${r.failed} 句没合成出来` : ""}。`)
+        + r.items.filter((x) => x.cer > 0.1 || x.nums === false || x.error).slice(0, 5).map((x) => "<br>" + esc("✗ " + x.text + " → " + (x.error || "听成：" + x.heard))).join(""));
+    } finally { b.disabled = false; b.textContent = "声音考试"; }
+  });
+  if ($("#shWebExam")) $("#shWebExam").onclick = guard(async () => {
+    const b = $("#shWebExam"); b.disabled = true; b.textContent = "考试中…";
+    try {
+      const r = await call("showWebExam");
+      const pc = (x) => Math.round(x * 100) + "%";
+      add("sh-step ok", esc(`${r.mode === "record" ? "第一次：上网做了一遍、存成快照" : "按快照考的（和上次比得了）"}：${r.total} 道，答对 ${pc(r.acc)}，出处对 ${pc(r.cite)}，说「资料里没有」${pc(r.abstain)}，平均 ${r.secs} 秒一道。`)
+        + r.items.filter((x) => !x.right).slice(0, 5).map((x) => "<br>" + esc("✗ " + x.q + (x.error ? "（" + x.error + "）" : x.abstained ? "（说资料里没有）" : "（答成：" + x.answer.slice(0, 40) + "）"))).join(""));
+    } finally { b.disabled = false; b.textContent = "联网考试"; }
   });
   if ($("#shMm")) $("#shMm").onclick = guard(async () => {
     const b = $("#shMm"), cur = await call("showApi");

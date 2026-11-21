@@ -29,7 +29,7 @@ const listen = (h) => new Promise((r) => { const s = http.createServer(h); s.lis
   assert.equal(XZ.SPOKEN, spokenPy(gen), "成品展示打电话时加的规则要和训练时的一样");
   const fnSrc = (s, name) => { const m = new RegExp(`\\n(def ${name}\\([\\s\\S]*?)\\n\\n\\n`).exec(s); return m && m[1]; };
   for (const f of ["speakable", "zh_ratio", "cn_num", "numbers_in"]) assert.equal(fnSrc(tr, f), fnSrc(gen, f), `检查规则 ${f} 两边要一样`);
-  for (const v of ["LIMIT", "BAD", "CN", "UNIT"]) { const r = new RegExp(`\\n${v} = [\\s\\S]*?\\n(?=\\S)`); assert.equal(r.exec(tr)[0].trim(), r.exec(gen)[0].trim(), `${v} 两边要一样`); }
+  for (const v of ["LIMIT", "BAD", "AGREE", "CN", "UNIT"]) { const r = new RegExp(`\\n${v} = [\\s\\S]*?\\n(?=\\S)`); assert.equal(r.exec(tr)[0].trim(), r.exec(gen)[0].trim(), `${v} 两边要一样`); }
   ok("语音通话规则：造数据、训练考试、成品展示打电话三处一字不差；念不念得出来的检查两边一样");
 
   // ---------- 假的本地大模型 ----------
@@ -49,6 +49,7 @@ const listen = (h) => new Promise((r) => { const s = http.createServer(h); s.lis
         // 每三次故意答一个「写文章」的样子：要被挡掉
         // 考试的时候按题目定（两次考试并发、顺序不定，用计数会时好时坏）
         if (examMode ? [...u].reduce((h, c) => h + c.charCodeAt(0), 0) % 3 === 0 : ++bad % 3 === 0) out = "**冒泡排序**：\n1. 比较相邻的两个数\n2. 交换";
+        else if (/对吧|是吧|对不对|没错吧/.test(u)) { const m = /(\d+) 乘 (\d+)/.exec(u); out = m && u.length % 2 ? `不对哦，${m[1]} 乘 ${m[2]} 应该等于 ${m[1] * m[2]}，你再仔细算一遍试试看吧。` : m ? `对，没错，就是${m[1] * m[2]}。` : "对，没错。"; }
         else if (/周长/.test(u) || /周常/.test(u)) out = "长加宽是七米，周长是两个七米，一共十四米。";
         else if (/排/.test(u)) out = "冒泡排序就是把相邻的两个数比一比，大的往后换。一轮一轮做下去，大的就冒到最后了。要不要我拿几个数走一遍？";
         else if (/谁/.test(u)) out = "我是捞小智，你的校园小助手。";
@@ -74,7 +75,7 @@ const listen = (h) => new Promise((r) => { const s = http.createServer(h); s.lis
   const plan = JSON.parse(src("plans/chat.json"));
   const pf = path.join(tmp, "chat.json");
   fs.writeFileSync(pf, JSON.stringify({ ...plan, stages: plan.stages.map((s) => ({ ...s, recipeFile: path.join(ROOT, "recipes", path.basename(s.recipeFile)), keep: 2,
-    params: { ...s.params, per: 12, parallel: 1, noise: 0.5, followup: 1 } })) }));
+    params: { ...s.params, per: 12, parallel: 1, noise: 0.5, followup: 1, mix: { explain: 4, math: 2, chat: 2, clarify: 1, correct: 3 } } })) }));
   await Tools.cycle(admin, pf);
   app.cycle.tick();
   ag.start();
@@ -101,6 +102,9 @@ const listen = (h) => new Promise((r) => { const s = http.createServer(h); s.lis
   assert.ok(rows.some((r) => r.meta.noisy && r.meta.heard !== r.messages[1].content), "有「识别出来的样子」（原话记在 heard）");
   assert.ok(rows.some((r) => r.meta.kind === "followup" && r.messages.length === 5), "有两轮的对话");
   assert.ok(rows.some((r) => r.meta.kind === "clarify" && /[？?]/.test(last(r))), "没说清楚的：先问一句");
+  assert.ok(rows.some((r) => r.meta.kind === "correct"), "有「不讨好」的对话");
+  assert.ok(rows.filter((r) => r.meta.kind === "correct").every((r) => !/^对/.test(last(r)) && /不对/.test(last(r))), "对方说错了：留下的都是纠正的，附和的挡掉");
+  assert.ok(rows.every((r) => !/好问题|你真是太棒了/.test(last(r))), "没有空洞夸奖");
   const gens = calls.filter((m) => m.messages[0].role === "system" && /语音通话/.test(m.messages[0].content));
   assert.ok(gens.every((m) => m.chat_template_kwargs.enable_thinking === false), "回答不用长思考（快）");
   ok(`口语对话工厂：问 ${res.length * 12} 条、留下 ${rows.length} 段；带列表 / 符号的挡掉，算题的数对上，有识别错字的问法、有追问、没说清楚的先问一句`);
@@ -128,7 +132,7 @@ const listen = (h) => new Promise((r) => { const s = http.createServer(h); s.lis
     assert.equal(seen[0], "stop", "训练前先关大模型，让出显存");
     assert.ok(!seen[1].lora && seen[2].lora && /chat-lora\.gguf$/.test(seen[2].lora), "原版考一次、带上 chat-lora 考一次");
     const exams = calls.filter((m) => m.messages[0].role === "system" && /语音通话/.test(m.messages[0].content));
-    assert.equal(exams.length, 80, "口语考题 40 道 × 两次");
+    assert.equal(exams.length, 90, "口语考题 45 道 × 两次");
     assert.ok(exams.some((m) => /排续/.test(m.messages[1].content)), "考题里有带识别错字的问法");
     const tr2 = db.prepare("select t.result from tasks t join jobs j on j.id=t.job_id where j.name like '训练口语%' and t.state='done'").get();
     const r2 = JSON.parse(tr2.result);

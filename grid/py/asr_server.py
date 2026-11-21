@@ -102,6 +102,23 @@ def recognize(path):
     return t.strip()
 
 
+def segments(path):
+    """长录音（课程视频的音轨）→ 一句一句带时间：[{start, end, text}]（秒）"""
+    if M is None:
+        n = max(1, os.path.getsize(path) // 32000)
+        return [{"start": k * 30.0, "end": k * 30.0 + 29, "text": "（假的识别：第 %d 段）" % (k + 1)} for k in range(min(n, 200))]
+    r = M.generate(input=path, sentence_timestamp=True, batch_size_s=300)
+    out = []
+    for x in r or []:
+        for s in x.get("sentence_info") or []:
+            t = (s.get("text") or "").strip()
+            if t:
+                out.append({"start": round(s.get("start", 0) / 1000.0, 2), "end": round(s.get("end", 0) / 1000.0, 2), "text": t})
+        if not x.get("sentence_info") and x.get("text"):   # 老版本没有分句：整段一句
+            out.append({"start": 0.0, "end": 0.0, "text": x["text"].strip()})
+    return out
+
+
 class H(BaseHTTPRequestHandler):
     def log_message(self, *x):
         pass
@@ -118,7 +135,7 @@ class H(BaseHTTPRequestHandler):
         self.reply(200, {"ok": True})
 
     def do_POST(self):
-        if self.path != "/asr":
+        if self.path not in ("/asr", "/asr?ts=1"):
             return self.reply(404, {"error": "没有这个地址"})
         n = int(self.headers.get("Content-Length") or 0)
         body = self.rfile.read(n) if n else b""
@@ -127,7 +144,10 @@ class H(BaseHTTPRequestHandler):
         f = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
         try:
             f.write(body); f.close()
-            self.reply(200, {"text": recognize(f.name)})
+            if self.path.endswith("ts=1"):
+                self.reply(200, {"segments": segments(f.name)})
+            else:
+                self.reply(200, {"text": recognize(f.name)})
         except Exception as e:
             traceback.print_exc()
             self.reply(500, {"error": str(e)})

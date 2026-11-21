@@ -36,27 +36,69 @@ function parseBing(html) {
   }
   return out;
 }
+// 取网页：缓存（搜索 10 分钟、网页 30 分钟）；快照（o.snapshot = { dir, mode: "record" | "replay" }）——
+//   record：真的上网，顺便把每个网址拿到的内容存下来；replay：只从存下来的读、不上网（联网考试用：网上的内容会变，考同一份快照分数才能比）
+const CACHE = new Map();
+const snapKey = (url) => require("crypto").createHash("sha1").update(url).digest("hex");
 async function get(url, o = {}) {
+  const ttl = o.cacheMs != null ? o.cacheMs : 30 * 60e3, hit = CACHE.get(url);
+  if (ttl && hit && Date.now() - hit.at < ttl) return hit.v;
+  const sn = o.snapshot, sf = sn && require("path").join(sn.dir, snapKey(url) + ".json");
+  if (sn && sn.mode === "replay") {
+    let v; try { v = JSON.parse(require("fs").readFileSync(sf, "utf8")); } catch (e) { throw new Error("快照里没有这个网页"); }
+    return v;
+  }
   const r = await (o.fetch || fetch)(url, { headers: { "User-Agent": UA, "Accept-Language": "zh-CN,zh;q=0.9", Accept: "text/html,application/xhtml+xml" }, redirect: "follow", signal: AbortSignal.timeout(o.timeoutMs || 15000) });
   if (!r.ok) throw new Error("打不开（" + r.status + "）");
   const buf = Buffer.from(await r.arrayBuffer()).subarray(0, o.maxBytes || 1.5e6);
   const ct = r.headers.get("content-type") || "";
   let cs = (/charset=([\w-]+)/i.exec(ct) || [])[1] || (/<meta[^>]+charset=["']?([\w-]+)/i.exec(buf.toString("latin1").slice(0, 3000)) || [])[1] || "utf-8";
   cs = /gb/i.test(cs) ? "gbk" : cs.toLowerCase();
-  try { return { html: new TextDecoder(cs).decode(buf), ct, url: r.url || url }; } catch (e) { return { html: buf.toString("utf8"), ct, url: r.url || url }; }
+  let v;
+  try { v = { html: new TextDecoder(cs).decode(buf), ct, url: r.url || url }; } catch (e) { v = { html: buf.toString("utf8"), ct, url: r.url || url }; }
+  if (ttl) { CACHE.set(url, { at: Date.now(), v }); if (CACHE.size > 200) CACHE.delete(CACHE.keys().next().value); }
+  if (sn && sn.mode === "record") { try { require("fs").mkdirSync(sn.dir, { recursive: true }); require("fs").writeFileSync(sf, JSON.stringify(v)); } catch (e) {} }
+  return v;
 }
-// 搜网页 → [{ title, url, snippet }]
+// 搜索词发出去之前抹掉个人信息：手机号、身份证号、学号（长串数字）、邮箱
+function scrub(q) {
+  return String(q || "").replace(/[\w.+-]+@[\w-]+\.[\w.]+/g, " ").replace(/\b\d{17}[\dXx]\b/g, " ").replace(/\b1[3-9]\d{9}\b/g, " ").replace(/\b\d{8,}\b/g, " ").replace(/\s+/g, " ").trim();
+}
+// 别的搜索网站（必应不行时换着用）：标题在 <h3><a href> 里的通用写法
+function parseH3(html) {
+  const out = [];
+  for (const m of String(html).matchAll(/<h3[^>]*>\s*<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<\/h3>([\s\S]{0,1500})/g)) {
+    const url = unent(m[1]);
+    if (!publicUrl(url)) continue;
+    const p = /<p[^>]*>([\s\S]*?)<\/p>|<div[^>]+class="[^"]*(?:abstract|summary|res-desc|txt-info|str_info)[^"]*"[^>]*>([\s\S]*?)<\/div>/.exec(m[3]);
+    out.push({ title: text(m[2]).slice(0, 120), url, snippet: text(p ? p[1] || p[2] : "").slice(0, 300) });
+  }
+  return out;
+}
+const ENGINES = [
+  { name: "必应", base: "https://cn.bing.com/search?setmkt=zh-CN&ensearch=0&q=", parse: parseBing },
+  { name: "必应国际", base: "https://www.bing.com/search?setlang=zh-Hans&q=", parse: parseBing },
+  { name: "360 搜索", base: "https://www.so.com/s?q=", parse: parseH3 },
+  { name: "搜狗", base: "https://www.sogou.com/web?query=", parse: parseH3 },
+];
+// 搜网页 → [{ title, url, snippet }]：一家不行换下一家；同一台电脑每分钟最多 o.perMin 次（默认 12，别给人家网站添麻烦）
+const recent = [];
 async function search(q, o = {}) {
-  q = String(q || "").trim().slice(0, 200);
+  q = scrub(String(q || "").trim().slice(0, 200));
   if (!q) throw new Error("要搜什么（query）");
+  const now = Date.now();
+  while (recent.length && now - recent[0] > 60e3) recent.shift();
+  if (!(o.snapshot && o.snapshot.mode === "replay") && recent.length >= (o.perMin || 12)) throw new Error("搜得太频繁了，等一会儿再搜");
+  recent.push(now);
   let last = null;
-  for (const base of o.bases || ["https://cn.bing.com/search?setmkt=zh-CN&ensearch=0&q=", "https://www.bing.com/search?setlang=zh-Hans&q="]) {
+  const engines = o.engines || (o.bases ? o.bases.map((b) => ({ name: "", base: b, parse: parseBing })) : ENGINES);
+  for (const e of engines) {
     try {
-      const { html } = await get(base + encodeURIComponent(q), o);
-      const r = parseBing(html);
-      if (r.length) return r.slice(0, o.n || 6);
+      const { html } = await get(e.base + encodeURIComponent(q), { ...o, cacheMs: o.cacheMs != null ? o.cacheMs : 10 * 60e3 });
+      const r = e.parse(html);
+      if (r.length) return r.slice(0, o.n || 6).map((x) => ({ ...x, ...(e.name ? { engine: e.name } : {}) }));
       last = new Error("没搜到结果");
-    } catch (e) { last = e; }
+    } catch (x) { last = x; }
   }
   throw new Error("联网搜索没成：" + (last ? last.message : "") + "（这台电脑能上网吗？）");
 }
@@ -66,13 +108,23 @@ async function read(url, o = {}) {
   if (!publicUrl(url)) throw new Error("只能读公开的网页（http / https 开头）");
   const { html, ct, url: final } = await get(url, o);
   if (!/html|text\/plain|^$/i.test(ct)) throw new Error("这不是网页（" + ct.split(";")[0] + "），读不了");
+  const x = extractHtml(html);
+  return { title: x.title, url: final, text: x.text.slice(0, o.maxChars || 5000), ...(x.date ? { date: x.date } : {}) };
+}
+// 网页 → { title, text, date }：去掉导航、页脚、脚本；挑正文那一块（article / main / 类名像正文的 div，挑字最多、链接最少的）
+function extractHtml(html) {
   const title = text((/<title[^>]*>([\s\S]*?)<\/title>/i.exec(html) || [])[1] || "").slice(0, 120);
   let body = String(html).replace(/<head[\s\S]*?<\/head>/i, " ").replace(/<(script|style|noscript|svg|nav|footer|header|aside|form|iframe|title)[\s\S]*?<\/\1>/gi, " ");
-  const main = /<(article|main)[^>]*>([\s\S]*?)<\/\1>/i.exec(body);
-  if (main && text(main[2]).length > 100) body = main[2];
+  const cands = [];
+  for (const m of body.matchAll(/<(article|main)[^>]*>([\s\S]*?)<\/\1>/gi)) cands.push(m[2]);
+  for (const m of body.matchAll(/<div[^>]+(?:class|id)="[^"]*(?:content|article|detail|text|v_news|news_con|wp_articlecontent|zw|正文)[^"]*"[^>]*>([\s\S]*?)<\/div>\s*(?=<\/div>|<div|$)/gi)) cands.push(m[1]);
+  const score = (h) => { const t = text(h); const links = text((h.match(/<a[\s\S]*?<\/a>/gi) || []).join(" ")); return t.length - 2 * links.length; };
+  const best = cands.filter((c) => text(c).length > 100).sort((a, b) => score(b) - score(a))[0];
+  if (best) body = best;
   body = body.replace(/<\/(p|div|li|h[1-6]|tr|br)>|<br\s*\/?>/gi, "\n");
   const t = unent(body.replace(/<[^>]+>/g, " ")).split("\n").map((l) => l.replace(/\s+/g, " ").trim()).filter((l) => l.length >= 2).join("\n");
-  return { title, url: final, text: t.slice(0, o.maxChars || 5000) };
+  const dm = /(20\d\d)[-年/.](\d{1,2})[-月/.](\d{1,2})/.exec(text(String(html).slice(0, 200000)));
+  return { title, text: t, ...(dm ? { date: `${dm[1]}-${dm[2].padStart(2, "0")}-${dm[3].padStart(2, "0")}` } : {}) };
 }
 // 给捞小智的两个工具
 function tools(o = {}) {
@@ -83,4 +135,4 @@ function tools(o = {}) {
       say: (a) => { let h = ""; try { h = new URL(a.url).hostname; } catch (e) {} return `读网页 ${h}`; }, run: async (a) => read(a.url, o) },
   ];
 }
-module.exports = { search, read, tools, parseBing, publicUrl, realUrl };
+module.exports = { search, read, tools, parseBing, parseH3, publicUrl, realUrl, extractHtml, scrub, ENGINES, _cache: CACHE, _recent: recent };

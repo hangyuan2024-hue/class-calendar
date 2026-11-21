@@ -8,6 +8,8 @@
   · math    口头算题：出一道小应用题 → 先在纸上认真解一遍（\\boxed{} 里的答案）→ 口语讲解里的答案和它对得上才留
   · chat    闲聊、鼓励、问它是谁（考试紧张、学不进去…）
   · clarify 没说清楚的话（「帮我弄一下那个」）→ 要先问一句、很短
+  · correct 「不讨好」：对方说了一句错的话（「三角形内角和是三百六十度对吧」，正确答案程序知道）→ 必须纠正、说出对的数，不能开口就附和
+  · 所有回答都不能有空洞夸奖（「好问题」「你真是太棒了」）
   · 一部分讲解再追问一句（「能再简单点吗」「举个例子呗」），两轮的对话
   · 三成左右把学生那句改成「识别出来的样子」（同音错字、去掉标点、加「嗯」「那个」），回答不变：学会听错字也懂
 留下来的是「对话 + 口语回答」，以后用来微调口语对话大脑（qa_train.py，exam=chat）。
@@ -54,7 +56,7 @@ def ask(messages, temperature=0.7, max_tokens=600, think=False):
 
 # ---------------- 念不念得出来（规则检查，不靠模型自己说） ----------------
 # 场景 → 最多多少个字（太长了打电话听着累）
-LIMIT = {"explain": 220, "math": 170, "chat": 100, "clarify": 60, "followup": 200}
+LIMIT = {"explain": 220, "math": 170, "chat": 100, "clarify": 60, "followup": 200, "correct": 120}
 BAD = [
     (re.compile(r"\n"), "分了好几段"),
     (re.compile(r"[#*`|$\\^_~<>\[\]{}]"), "带符号"),
@@ -63,7 +65,10 @@ BAD = [
     (re.compile(r"[²³√≤≥≠×÷π∑∫±→⇒°%/+=]"), "数学符号没按读法说"),
     (re.compile(r"[\U0001F300-\U0001FAFF☀-➿]"), "带表情"),
     (re.compile(r"以下是|如下[：:]|总结如下|见下"), "像在写文章"),
+    (re.compile(r"你(真|可)?(是)?太(棒|聪明|厉害)了|好问题|非常好的问题|问得(真|太|很)?好"), "空洞夸奖"),
 ]
+# 附和：开口就说「对」「没错」（对方说错了还附和 = 讨好）
+AGREE = re.compile(r"^\s*(对|是的|没错|嗯对|对的|是啊|对呀|没问题|嗯嗯)[，,。！!\s]")
 
 
 def zh_ratio(s):
@@ -199,8 +204,25 @@ VAGUE = ["帮我弄一下那个", "明天那个改一下", "就是上次那个",
 FOLLOW = ["能再说简单一点吗", "举个例子呗", "那为什么是这样", "嗯然后呢", "没听懂再讲一遍", "这个考试会考吗", "有什么好记的办法吗"]
 
 
+# 「不讨好」：对方说了一句错的话（答案程序知道），要纠正，不能附和
+FACTS = [("三角形的内角和是三百六十度", 180), ("一小时有一百分钟", 60), ("一天有二十个小时", 24), ("一年有十个月", 12), ("一千克等于一百克", 1000),
+         ("一米等于十厘米", 100), ("水在一个标准大气压下五十度就开了", 100), ("正方形有三条边", 4), ("一周有八天", 7), ("直角是九十五度", 90)]
+
+
+def false_claim(r):
+    tail = r.choice(["对吧", "是吧", "没错吧", "对不对"])
+    if r.random() < 0.5:
+        a, b = r.randint(3, 19), r.randint(3, 19)
+        return "%d 乘 %d 等于 %d %s" % (a, b, a * b + r.choice([-10, -2, -1, 1, 2, 10]), tail), a * b
+    s, truth = r.choice(FACTS)
+    return s + tail, truth
+
+
 def gen_question(kind):
     who = rnd.choice(WHO)
+    if kind == "correct":
+        q, truth = false_claim(rnd)
+        return q, {"truth": truth}
     if kind == "chat":
         base = rnd.choice(CHAT)
         return ask([{"role": "user", "content": "下面这句话是一个%s对着校园智能助手随口说的。换一种说法再说一遍，意思不变，口语，只输出这一句：\n%s" % (who, base)}], temperature=0.9, max_tokens=60) or base, {"seed": base}
@@ -233,7 +255,7 @@ def answer(msgs, kind, english):
             cands.append(s)
     if not cands:
         return None, whys[0] if whys else "没答"
-    ideal = {"explain": 110, "math": 80, "chat": 40, "clarify": 25, "followup": 100}.get(kind, 90)
+    ideal = {"explain": 110, "math": 80, "chat": 40, "clarify": 25, "followup": 100, "correct": 50}.get(kind, 90)
     return min(cands, key=lambda s: abs(len(s) - ideal)), None
 
 
@@ -267,10 +289,12 @@ def one(kind):
     a, why = answer(msgs, kind, english)
     if a and kind == "math" and ref not in numbers_in(a):
         a, why = None, "答错"
+    if a and kind == "correct" and (float(meta["truth"]) not in numbers_in(a) or AGREE.match(a)):
+        a, why = None, "附和了说错的话"
     with lock:
         stats["问"] += 1
         if not a:
-            stats["答错" if why == "答错" else "念不出来"] += 1
+            stats["答错" if why in ("答错", "附和了说错的话") else "念不出来"] += 1
             why_n[why] = why_n.get(why, 0) + 1
             return
     rows = [{"messages": [{"role": "system", "content": SYSTEM}] + msgs + [{"role": "assistant", "content": a}], "meta": dict(meta, kind=kind, noisy=noisy, heard=q if noisy else None)}]
@@ -287,7 +311,7 @@ def one(kind):
         kept.extend(rows)
 
 
-MIX = p.get("mix") or {"explain": 5, "math": 2, "chat": 2, "clarify": 1}
+MIX = p.get("mix") or {"explain": 5, "math": 2, "chat": 2, "clarify": 1, "correct": 1}
 bag = [k for k, n in MIX.items() for _ in range(int(n))]
 todo = [rnd.choice(bag) for _ in range(PER)]
 total = len(todo)

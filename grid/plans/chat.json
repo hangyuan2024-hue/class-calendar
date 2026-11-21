@@ -20,7 +20,8 @@
           "explain": 5,
           "math": 2,
           "chat": 2,
-          "clarify": 1
+          "clarify": 1,
+          "correct": 1
         },
         "tag": "chat",
         "llm": {

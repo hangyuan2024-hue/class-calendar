@@ -18,7 +18,8 @@
     "@mediapipe/face_mesh": "0.4.1633559619",
     "7zip-bin": "5.2.0",
     "jszip": "^3.10.1",
-    "sherpa-onnx-node": "2.0.2"
+    "sherpa-onnx-node": "2.0.2",
+    "pdfjs-dist": "4.10.38"
   },
   "devDependencies": {
     "electron": "^33.2.1",
