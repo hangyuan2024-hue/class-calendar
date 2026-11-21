@@ -165,6 +165,22 @@ const until = async (f, ms, what) => { const t0 = Date.now(); while (!(await f()
     ok("显存被占着：训练这一类 30 分钟内先不领（不记失败、留给别的电脑），搜题这些照样做，不是整台电脑歇着");
   }
 
+  // ---------- 7. 显卡出错（驱动、50 系显卡要新版的包）：一样只是训练先不领，别的活照样做 ----------
+  {
+    const bigJob = await plan("训练大脑2", "import lg, sys\nt = lg.task()\nlg.unfit('显卡出错（CUDA error: an illegal memory access was encountered）：先更新 NVIDIA 显卡驱动、重启电脑；这台电脑先不领训练，别的活照样做')\nsys.exit(1)\n", 2, 9);
+    const lightJob = await plan("搜题2", "import lg\nt = lg.task()\nlg.done(ok=1)\n", 2, 8);
+    const cred = await join("显卡出错的电脑");
+    const a = Agent.create({ ...base, server: cred.server, token: cred.token, pubkey: cred.pubkey, workDir: path.join(tmp, "g"), gpuInfo: async () => ({ temp: 50 }) });
+    const logs = []; a.on("log", (l) => logs.push(l.msg));
+    a.start();
+    await until(async () => (await tasksOf(lightJob)).every((t) => t.state === "done"), 30000, () => "搜题做完：" + logs.join("\n"));
+    await a.stop();
+    assert.strictEqual(logs.filter((m) => /^领到任务：「训练大脑2」/.test(m)).length, 1, "训练只领了一次（不是出错了马上又领回来）");
+    assert.ok((await tasksOf(bigJob)).every((t) => !t.errors && t.state === "queued"));
+    assert.ok(logs.some((m) => /现在显卡出错做不了「训练大脑2」：30 分钟内不再领这一类/.test(m)), logs.join("\n"));
+    ok("显卡出错：训练这一类先不领（不记失败、留给别的电脑，不会出错了马上又领回来），别的活照样做");
+  }
+
   await app.close();
   console.log("全部通过");
   process.exit(0);

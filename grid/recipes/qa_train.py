@@ -14,7 +14,7 @@
   acc = 关键信息说对了的比例，speak = 念得出来的比例（规则检查，和 chat_gen.py 的一样）
 """
 # needs: llm
-# requires: transformers>=4.57,<5 peft>=0.17 bitsandbytes>=0.45 accelerate modelscope sentencepiece protobuf
+# requires: transformers>=4.57,<5 peft>=0.17 bitsandbytes>=0.46 accelerate modelscope sentencepiece protobuf
 import glob
 import hashlib
 import json
@@ -326,6 +326,52 @@ def merged_base(base):
     return d
 
 
+def vram_users():
+    """谁在占显存：nvidia-smi 列出用显卡的程序（自己这个训练进程不算）→「llama-server.exe 1.8G（捞捞自己的本地大模型）、xxx.exe」"""
+    try:
+        out = subprocess.run(["nvidia-smi", "--query-compute-apps=pid,process_name,used_gpu_memory", "--format=csv,noheader,nounits"],
+                             capture_output=True, text=True, timeout=10).stdout
+    except Exception:
+        return ""
+    items = []
+    for line in out.splitlines():
+        parts = [x.strip() for x in line.split(",")]
+        if len(parts) < 3 or not parts[0].isdigit() or int(parts[0]) == os.getpid():
+            continue
+        name = os.path.basename(parts[1].replace("\\", "/"))
+        mb = parts[2]
+        note = "（捞捞自己的本地大模型：成品展示或 CPU 工位，更新客户端就不占了）" if "llama-server" in name.lower() else "（ComfyUI 画图引擎）" if "comfy" in parts[1].lower() else ""
+        items.append((float(mb) if mb.replace(".", "").isdigit() else 0, "%s%s%s" % (name, " %.1fG" % (float(mb) / 1024) if mb.replace(".", "").isdigit() else "", note)))
+    items.sort(key=lambda x: -x[0])
+    return "、".join(x[1] for x in items[:4])
+
+
+def cuda_why(e):
+    """显卡（CUDA）出错 → 说清楚是哪一种、怎么办（报错最后一行「CUDA kernel errors might be asynchronously reported…」只是套话，真正的原因在前面）"""
+    msg = str(e)
+    first = next((l.strip() for l in msg.splitlines() if l.strip() and "asynchronously reported" not in l and "CUDA_LAUNCH_BLOCKING" not in l and "TORCH_USE_CUDA_DSA" not in l), msg[:200])
+    name, cap = "", (0, 0)
+    try:
+        import torch
+        name = torch.cuda.get_device_name(0)
+        cap = torch.cuda.get_device_capability(0)
+    except Exception:
+        pass
+    bnb_v = ""
+    try:
+        import bitsandbytes
+        bnb_v = getattr(bitsandbytes, "__version__", "")
+    except Exception:
+        pass
+    low = msg.lower()
+    if "out of memory" in low:
+        who = vram_users()
+        return "显存不够（%s）：关掉占显存的程序（%s）再算" % (first[:160], who or "游戏、浏览器视频、别的 AI 软件")
+    if "no kernel image" in low or ("not compatible" in low and cap[0] >= 12):
+        return "显卡出错：这块显卡（%s，算力 %d.%d）需要更新版的 PyTorch / bitsandbytes（现在 bitsandbytes %s）：到「任务向导」第 2 步点「一键安装」重新装训练环境" % (name, cap[0], cap[1], bnb_v or "没装")
+    return "显卡出错（%s）：先更新 NVIDIA 显卡驱动、重启电脑；这台电脑先不领训练，别的活照样做" % first[:200]
+
+
 def train(base):
     import torch
     from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
@@ -521,7 +567,8 @@ def train(base):
                 n_oom += 1
                 used = len(batch) * width
                 if used <= 256:
-                    why = "显存不够：256 个字的讲解都放不下（别的程序占着显存）。关掉占显存的程序再算"
+                    who = vram_users()
+                    why = "显存不够：256 个字的讲解都放不下（别的程序占着显存%s）。关掉占显存的程序再算" % ("：" + who if who else "")
                     unfit(why)
                     raise RuntimeError(why)
                 budget = max(256, int(used * 0.8))
@@ -1105,7 +1152,17 @@ if p.get("dryRun"):   # 测试用：不真的训练（没有显卡的电脑上�
 else:
     conv = converter()   # 先准备好转换脚本：下不来就别白训两个小时
     base = merged_base(base_dir())
-    adir = train(base)
+    try:
+        adir = train(base)
+    except Exception as _e:
+        # 显卡出错（驱动、显存、50 系显卡要新版的包……）：不是任务的错，交给别的电脑训，这台电脑先不领训练
+        if re.search(r"CUDA|cuda|cuBLAS|CUBLAS|cudnn|NVML", str(_e)):
+            import traceback
+            lg.log("显卡出错的详细信息：" + "".join(traceback.format_exception_only(type(_e), _e))[-800:])
+            _why = cuda_why(_e)
+            getattr(lg, "unfit", lambda w: None)(_why)
+            raise RuntimeError(_why)
+        raise
     gguf = to_gguf(base, adir, conv)
 spec = dict(p.get("evalLlm") or teacher_gguf(), ctx=int(p.get("evalCtx", 8192)), slots=2)
 if GROUND:
