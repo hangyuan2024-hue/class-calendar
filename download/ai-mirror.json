@@ -732,7 +732,19 @@
     "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-voicedata/aishell3-base.tar"
    ],
    "model": "aishell3Base"
+  },
+  "ai/asr/funasr-zh-v2.0.4.tar": {
+   "group": "asr",
+   "name": "funasr-zh-v2.0.4.tar",
+   "url": "https://dl.laolaokechengbiao.cn/dl/ai/asr/funasr-zh-v2.0.4.tar",
+   "src": "",
+   "size": 1189601280,
+   "sha256": "9e599bda13cd608f4867e3aab6bc6eb9b25c58f510511219ac631b11d16881be",
+   "gh": [
+    "https://github.com/hangyuan2024-hue/class-calendar/releases/download/mirror-asr/funasr-zh-v2.0.4.tar"
+   ],
+   "model": "asrZh"
   }
  },
- "at": "2026-11-21T04:10:36.580Z"
+ "at": "2026-11-21T04:22:51.508Z"
 }
