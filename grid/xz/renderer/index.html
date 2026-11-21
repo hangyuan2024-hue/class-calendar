@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: file:; media-src 'self' blob: data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>捞小智</title>
+<link rel="stylesheet" href="../../app/renderer/style.css">
+<link rel="stylesheet" href="xz.css">
+</head>
+<body class="xz">
+<div class="shell xz-shell">
+  <main>
+    <div class="xz-trial" id="xzTrial">
+      <b>体验版</b>
+      <span>捞小智用的模型<b>还没有正式训练好</b>：讲题、口语对话、捞捞的声音都还在用「临时版」（没训练过的底子、电脑自带的朗读）。捞捞算力每训练、考试通过一版，这里会<b>自动下载、自动换上</b>，不用重装。第一次提问要先下载大模型（约 2.5G）。教务数据是虚构的演示数据。</span>
+      <button class="btn small" id="xzSite">官网</button>
+      <button class="btn small" id="xzHide" title="收起">×</button>
+    </div>
+    <section class="page on" id="p-show">
+      <div class="sh-head">
+        <h2>捞小智 <small class="muted">讲题、做 PPT、办教务的事、打电话 · 训练出新版自动换上</small></h2>
+        <span class="sh-build" id="shBuild">成品 第 0 版</span>
+        <span class="grow"></span>
+        <label class="muted sh-chk"><input type="checkbox" id="shSpeak" checked> 开口说话</label>
+        <select id="shRole" title="换一个身份试试：学生、教师（辅导员）、教务员能办的事不一样"></select>
+        <button class="btn small" id="shNew">新对话</button>
+        <button class="btn small primary" id="shFull" title="全屏展示（Esc 退出）">⛶ 全屏展示</button>
+      </div>
+      <div class="warnbox" id="shBusy" hidden><span id="shBusyTip"></span><div class="btns"><button class="btn small primary" id="shPause">暂停计算，开始展示</button></div></div>
+      <div class="warnbox ok" id="shPaused" hidden>为了展示，这台电脑的计算先停着（手上的任务交给别人从存档接着算了）。<div class="btns"><button class="btn small" id="shResume">看完了，接着算</button></div></div>
+      <div class="sh-grid">
+        <div class="glass sh-stagebox">
+          <div class="sh-deck" id="shDeck" hidden></div>
+          <div class="sh-stage" id="shStage"></div>
+          <div class="sh-sub" id="shSub"></div>
+          <div class="sh-me"><b>捞小智</b><span class="muted" id="shMe"></span><span class="muted" id="shVoice"></span><button class="btn small" id="shVoiceInstall" hidden>装上声音组件</button></div>
+          <div class="sh-chips" id="shChips"></div>
+        </div>
+        <div class="glass sh-chat">
+          <div class="sh-log" id="shLog"></div>
+          <div class="sh-callbar" id="shCallBar" hidden><span class="dot" id="shCallDot"></span><b id="shCallSt">在听…</b><span class="lvl"><i id="shCallLvl"></i></span><span class="muted small grow" id="shCallTip"></span><button class="btn small" id="shHang">挂断</button></div>
+          <div class="sh-in">
+            <textarea id="shText" rows="2" placeholder="问一道题、让它做一份 PPT（做完接着说怎么改）、或者办一件教务的事（Enter 发送）"></textarea>
+            <button class="btn" id="shCall" title="像打电话一样：一直听着，你说完一停它就回答；它说话的时候你一开口就能打断">📞 打电话</button><button class="btn primary" id="shSend">发送</button><button class="btn" id="shStop" hidden>停下</button>
+          </div>
+        </div>
+        <div class="sh-side">
+          <div class="glass sh-card">
+            <div class="sh-card-h"><b>现在的成品</b><span class="grow"></span><button class="btn small" id="shCheck">看有没有新版</button></div>
+            <div class="sh-parts" id="shParts"></div>
+            <div class="sh-hist" id="shHist"></div>
+          </div>
+          <div class="glass sh-card" id="shPptCard">
+            <div class="sh-card-h"><b>PPT</b><span class="grow"></span><button class="btn small" id="shPptExam" title="8 道题：真的做一份 PPT、再照着改，做完程序核对，看现在这版模型做 PPT 的本事怎么样">考一考它</button><button class="btn small" id="shPptPick" title="打开老师自己的 .pptx，让捞小智照着说的改（不动原文件）">打开 PPT 让它改</button></div>
+            <div id="shPptName" class="muted small">还没有 PPT：让它做一份，或者打开一份让它改</div>
+            <div class="btns" id="shPptBtns" hidden><button class="btn small primary" id="shPptShow">看 PPT</button><button class="btn small" id="shPptOpen" title="用 PowerPoint / WPS 打开">打开</button><button class="btn small" id="shPptDir" title="在文件夹里看">文件夹</button></div>
+          </div>
+          <div class="glass sh-card" id="ckCard">
+            <div class="sh-card-h"><b id="ckTitle">检测报告</b><span class="grow"></span><button class="btn small primary" id="ckScanBtn" title="传头皮照片、答几道自测题；按设置走合作方接口或者捞捞自己的分析">做一次检测</button><button class="btn small" id="ckImport" title="导入合作方导出的结果（JSON，或 Excel 另存的 CSV）">导入</button><button class="btn small" id="ckSetBtn">设置</button></div>
+            <div id="ckBody" class="muted small">加载中…</div>
+            <div id="ckScan" hidden></div>
+            <div id="ckSet" hidden></div>
+            <div class="muted small ck-foot" id="ckFoot"></div>
+          </div>
+          <div class="glass sh-card">
+            <div class="sh-card-h"><b>教务系统（模拟）</b><span class="grow"></span><button class="btn small" id="shCampusReset">恢复原样</button></div>
+            <div class="muted small" id="shCampus"></div>
+            <div class="sh-reqs" id="shReqs"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sh-ticker" id="shTicker"></div>
+    </section>
+  </main>
+</div>
+<a id="navShow" hidden></a>
+<div id="toast" class="toast" hidden></div>
+<script src="../../app/renderer/vendor/three/three.min.js"></script>
+<script src="../../app/renderer/zhi3d.js"></script>
+<script src="../../app/renderer/deckview.js"></script>
+<script src="../../app/renderer/checkup.js"></script>
+<script src="../../app/renderer/show.js"></script>
+<script src="xz.js"></script>
+</body>
+</html>

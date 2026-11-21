@@ -4,9 +4,10 @@ const { app, BrowserWindow, ipcMain, shell, Menu, Tray, powerMonitor, powerSaveB
 const path = require("path");
 const { createService } = require("./service");
 
-app.setPath("userData", path.join(app.getPath("appData"), "LaolaoGrid"));
+const EDITION = require("./edition");   // 通用版和内部版装在同一台电脑上也互不干扰：各用各的数据文件夹
+app.setPath("userData", path.join(app.getPath("appData"), EDITION.open ? "LaolaoGridOpen" : "LaolaoGrid"));
 if (!app.requestSingleInstanceLock()) app.quit();
-app.setAppUserModelId("cn.laolao.grid");   // Windows 通知要这个
+app.setAppUserModelId(EDITION.open ? "cn.laolao.grid.open" : "cn.laolao.grid");   // Windows 通知要这个
 let win = null, tray = null, quitting = false, bar = null;
 const hidden = process.argv.includes("--hidden");
 // 上次下好还没装的新版：一开机就装（大约 20 秒，装完自己打开），免得一直用旧版
@@ -109,7 +110,7 @@ const syncUi = (m) => { if (win && !win.isDestroyed()) win.webContents.send("age
 function show() { if (!win) createWindow(); else { win.show(); win.focus(); } }
 function createWindow() {
   Menu.setApplicationMenu(null);
-  win = new BrowserWindow({ width: 1380, height: 880, minWidth: 1100, minHeight: 700, title: "捞捞算力", backgroundColor: "#050914", show: false,
+  win = new BrowserWindow({ width: 1380, height: 880, minWidth: 1100, minHeight: 700, title: EDITION.open ? "捞捞算力 通用版" : "捞捞算力", backgroundColor: "#050914", show: false,
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: true, nodeIntegration: false, backgroundThrottling: false } });
   win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   win.webContents.on("will-navigate", (e) => e.preventDefault());

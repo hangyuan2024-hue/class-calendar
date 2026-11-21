@@ -54,6 +54,15 @@ def load():
         except TypeError:   # 很老的 funasr 不认 disable_update
             return AutoModel(device=dev, **kw)
 
+    R = "tools/asr/models/"
+    # 0. 捞捞算力从国内存储下好的三个模型（grid/app/hear.js）：都在就直接用本地的，不联网
+    if all(os.path.isdir(R + d) for d in (PARA, VAD, PUNC)):
+        try:
+            m = auto(model=R + PARA, vad_model=R + VAD, punc_model=R + PUNC)
+            print("耳朵准备好了（达摩 Paraformer，本地，" + dev + "）", flush=True)
+            return m
+        except Exception as e:
+            errs.append("本地模型：" + why(e))
     # 1. 新版整合包：tools/asr/funasr_asr.py 有 create_damo_model(device)（默认的 Fun-ASR-Nano 太大，打电话用达摩 Paraformer 就够了）
     try:
         import tools.asr.funasr_asr as F
@@ -64,7 +73,6 @@ def load():
     except Exception as e:
         errs.append("整合包的听写：" + why(e))
     # 2. 魔搭：模型已经在 tools/asr/models 里就直接用，没有就下
-    R = "tools/asr/models/"
     loc = lambda d: R + d if os.path.isdir(R + d) else "iic/" + d
     try:
         m = auto(model=loc(PARA), model_revision="v2.0.4", vad_model=loc(VAD), vad_model_revision="v2.0.4", punc_model=loc(PUNC), punc_model_revision="v2.0.4")

@@ -170,6 +170,7 @@
       return;
     }
     if (e.type === "exam") { endBot(); said = ""; add("sh-msg me", esc(`第 ${e.no} / ${e.total} 题：${e.q}`)); return; }
+    if (e.type === "ear") { onEar(e); return; }
     if (e.type === "note") { if (shown) { const k = "note"; const el = steps.get(k) || add("sh-step run", ""); steps.set(k, el); el.textContent = e.text; scroll(); } return; }
     if (e.type === "delta") { const n = steps.get("note"); if (n) { n.remove(); steps.delete("note"); } return botText(e.text); }
     if (e.type === "tool") {
@@ -240,8 +241,17 @@
   const cl = { on: false, st: "off", ctx: null, stream: null, src: null, node: null, rate: 48000, floor: 0.004, pre: [], buf: null, voiced: 0, quiet: 0, speechFrames: 0, lvl: 0, seq: 0 };
   const frameMs = () => (FRAME / cl.rate) * 1000;
   const speaking = () => sp.q > 0 || !!(sp.player && !sp.player.paused && !sp.player.ended);
-  const ST = { listen: "在听…", speech: "在听你说…", hear: "听写中…", think: "在想…", talk: "在说（你一开口就能打断）" };
-  function callSt(st) { cl.st = st; const b = $("#shCallBar"); b.dataset.st = st; $("#shCallSt").textContent = ST[st] || ""; }
+  const ST = { prep: "准备听写…", listen: "在听…", speech: "在听你说…", hear: "听写中…", think: "在想…", talk: "在说（你一开口就能打断）" };
+  function callSt(st) { cl.st = st; const b = $("#shCallBar"); b.dataset.st = st; $("#shCallSt").textContent = st === "prep" && cl.earPct != null ? `准备听写 ${cl.earPct}%` : st === "hear" && cl.earPct != null && !cl.earOk ? `听写准备中 ${cl.earPct}%` : ST[st] || ""; }
+  // 听写模型的准备进度（第一次要下几百 M）：电话条上显示百分比，说明写在右边；准备好了换回原来的说明
+  let callTip = "";
+  function onEar(e) {
+    if (e.done) { cl.earOk = true; cl.earPct = null; if (cl.on) { $("#shCallTip").textContent = callTip; if (cl.st === "prep") callSt("listen"); else callSt(cl.st); } return; }
+    cl.earOk = false; if (e.pct != null) cl.earPct = e.pct;
+    if (!cl.on) return;
+    $("#shCallTip").textContent = e.text + "。可以先说，准备好就回答你；也可以先打字";
+    if (cl.st === "listen") callSt("prep"); else callSt(cl.st);
+  }
   function onAudio(ev) {
     if (!cl.on) return;
     const x = ev.inputBuffer.getChannelData(0);
@@ -323,7 +333,10 @@
       if (!S.voice.on) S.voice = await call("setShowSpeak", true);
       paint();
       const c = S.call || {};
-      $("#shCallTip").textContent = (c.lora ? `口语对话第 ${c.lora} 版` : "口语对话大脑还在训练，先用答题大脑") + (S.voice.can ? (S.voice.temp ? " · 先用电脑自带的声音说话" : "") : " · 这台电脑还出不了声，回答只出字");
+      callTip = (c.lora ? `口语对话第 ${c.lora} 版` : "口语对话大脑还在训练，先用答题大脑") + (S.voice.can ? (S.voice.temp ? " · 先用电脑自带的声音说话" : "") : " · 这台电脑还出不了声，回答只出字");
+      cl.earOk = !!c.earReady; if (c.earPct != null) cl.earPct = c.earPct;
+      $("#shCallTip").textContent = c.earReady ? callTip : "正在准备听写（第一次要下载识别模型，几百 M，只下这一次）。可以先说，准备好就回答你；也可以先打字";
+      if (!c.earReady && cl.st === "listen") callSt("prep");
     } catch (e) { toast(msgOf(e), true); }
     add("sh-step fuse", "✦ 电话接通了：直接说就行，说完停一下它就回答；它说话的时候你一开口就能打断");
   }

@@ -40,12 +40,22 @@ function create(opt = {}) {
   const maxBlob = opt.maxBlob || 40e9;
   const cycle = Cycle.attach(core, opt);
   // 下载门口：安装包、AI 组件只给中国大陆的 IP，转到 COS 的临时链接（见 dlgate.js）
-  const relay = Relay.create({ env, dataDir, noTimer: !!opt.noTick, ...(opt.relay || {}), log: (m) => { try { core.event && core.event("info", m); } catch (e) {} console.log(m); } });
-  const gate = Gate.create({ env, dataDir, relay, ...(opt.gate || {}), log: (m) => { try { core.event && core.event("info", m); } catch (e) {} console.log(m); } });
+  // 通用版（别人自己搭的调度中心，server/edition.json 里 open: true）：不搬捞捞的安装包，也不开下载门口
+  const OPEN = opt.open != null ? !!opt.open : (() => { try { return !!JSON.parse(fs.readFileSync(path.join(__dirname, "edition.json"), "utf8")).open; } catch (e) { return false; } })();
+  const relay = Relay.create({ env, dataDir, noTimer: !!opt.noTick || OPEN, ...(opt.relay || {}), log: (m) => { try { core.event && core.event("info", m); } catch (e) {} console.log(m); } });
+  const gate = Gate.create({ env, dataDir, relay, ...(OPEN ? { noRefresh: true } : {}), ...(opt.gate || {}), log: (m) => { try { core.event && core.event("info", m); } catch (e) {} console.log(m); } });
   const tickTimer = opt.noTick ? null : setInterval(() => { try { cycle.tick(); } catch (e) {} }, opt.tickMs || 30000);
   // 老师端读的发布清单：每个文件给一个固定地址（/pub/<key>），真正下载时再转到临时链接
   const pubManifest = () => { const m = cycle.manifest(); for (const v of Object.values(m.models)) v.files = v.files.map((f) => ({ ...f, url: `${publicBase}/pub/${f.key}` })); return m; };
 
+  const dlManifest = (req) => {
+    const proto = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim() === "https" ? "https" : "http";
+    const host = String(req.headers["x-forwarded-host"] || req.headers.host || "").split(",")[0].trim();
+    const m = cycle.manifest(), out = { updated: m.updated, models: {} };
+    for (const [name, v] of Object.entries(m.models)) out.models[name] = { version: v.version, metrics: v.metrics, at: v.at,
+      files: v.files.map((f, i) => ({ name: f.name, size: f.size, sha256: f.sha256, url: `${proto}://${host}/dl/models/${encodeURIComponent(name)}/${v.version}/${i}${(path.extname(String(f.key || "")) || "").replace(/[^\w.]/g, "")}` })) };
+    return out;
+  };
   const json = (res, code, obj) => { const b = Buffer.from(JSON.stringify(obj)); res.writeHead(code, { "content-type": "application/json; charset=utf-8", "content-length": b.length, "cache-control": "no-store", "access-control-allow-origin": "*" }); res.end(b); };
   const body = (req, limit = 4e6) => new Promise((ok, bad) => {
     let n = 0; const cs = [];
@@ -271,6 +281,17 @@ function create(opt = {}) {
     try {
       if (req.method === "OPTIONS") { res.writeHead(204, { "access-control-allow-origin": "*", "access-control-allow-headers": "authorization, content-type", "access-control-allow-methods": "GET, POST, PUT" }); return res.end(); }
       if (u.pathname.startsWith("/blob/")) return blob(req, res, u);
+      // 捞小智电脑版读的公开发布清单（走 dl 域名的 HTTPS；只给公开发布的模型，不带存储路径和备注）
+      if (u.pathname === "/dl/models/manifest.json") return json(res, 200, dlManifest(req));
+      const dm = /^\/dl\/models\/([\w.-]{1,60})\/(\d{1,9})\/(\d{1,3})(\.[\w]{1,10})?$/.exec(u.pathname);
+      if (dm) {
+        const m = cycle.manifest().models[dm[1]];
+        const f = m && String(m.version) === dm[2] ? m.files[+dm[3]] : null;
+        if (!f || !cycle.publicKeys().has(f.key)) return json(res, 404, { error: "没有这个文件" });
+        if (store.kind === "local" || (store.kind === "hybrid" && local.exists(f.key))) return blob(Object.assign(req, { method: req.method === "HEAD" ? "HEAD" : "GET" }), res, new URL(store.url("GET", f.key, 600)));
+        res.writeHead(302, { location: store.url("GET", f.key, 6 * 3600) }); return res.end();
+      }
+      if (u.pathname.startsWith("/dl/") && OPEN) return json(res, 404, { error: "没有这个文件" });
       if (u.pathname.startsWith("/dl/")) { let key; try { key = decodeURIComponent(u.pathname.slice(4)); } catch (e) { key = ""; } return await gate.handle(req, res, key, Gate.clientIp(req)); }
       if (req.method === "PUT" && u.pathname === "/api/admin/upload") return upload(req, res, u);
       if (u.pathname === "/pub/models/manifest.json") return json(res, 200, pubManifest());

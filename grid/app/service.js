@@ -24,6 +24,7 @@ const Lan = require("./lan");
 const RECIPES = path.join(__dirname, "..", "recipes").replace(/app\.asar([\\/])/, "app.asar.unpacked$1");  // 打包后 Python 读不了 asar 里的文件
 
 function createService(o) {
+  const EDITION = o.edition || require("./edition");   // 通用版：没有成品展示，新版本查通用版的版本文件
   const dir = o.user;
   fs.mkdirSync(dir, { recursive: true });
   const CFG = path.join(dir, "grid.json");
@@ -242,7 +243,7 @@ function createService(o) {
     // ---- 加入 ----
     async status() {
       return {
-        joined: !!cfg.token, server: cfg.server || "", dataDir: base(), me: cfg.member || null, deviceId: cfg.device || null, recorded: cfg.recorded || 0, deviceName: cfg.deviceName || "", version: o.version,
+        joined: !!cfg.token, server: cfg.server || "", dataDir: base(), me: cfg.member || null, deviceId: cfg.device || null, recorded: cfg.recorded || 0, deviceName: cfg.deviceName || "", version: o.version, edition: EDITION.open ? "open" : "",
         agent: agent ? agent.status() : null, lanes: lanes.map((a) => { const x = a.status(); return { state: x.state, why: x.why, task: x.task && { job: x.task.job, progress: x.task.progress }, gpu: x.gpu }; }), probe: lastProbe, policy: cfg.policy || (agent && agent.policy) || null, paused: cfg.manual === "off", manual: cfg.manual || "auto",
         python: cfg.python || "", env: cfg.envOk || null, testResult: cfg.testResult || null, consent: cfg.consent || null, autostart: !!cfg.autostart,
         ai: aiInfo(),
@@ -438,7 +439,7 @@ function createService(o) {
   let recording = false;
   const updater = Updater.create({ dir: base, version: o.version, agent: () => agent, idleSecs: o.idleSecs, windowHidden: o.windowHidden, recording: () => recording,
     install: o.install || (async () => { throw new Error("这个版本不能自动更新"); }), onEvent: (e) => { send("update", e); if (e.state === "ready" && !e.waiting) L(`新版 ${e.latest} 下载好了`, "info", "更新"); },
-    notify: (t, b) => notify(t, b, "update"), ...(o.updaterOpt || {}) });
+    notify: (t, b) => notify(t, b, "update"), ...(EDITION.open ? { sources: Updater.OPEN_SOURCES } : {}), ...(o.updaterOpt || {}) });
   if (o.install && o.autoUpdate !== false) updater.start();
   H.updateStatus = async () => updater.status();
   H.updateCheck = async () => updater.check();
@@ -606,7 +607,7 @@ function createService(o) {
 
   // ---------- 专业模式：任务控制台、诊断 ----------
   // ---------- 成品展示「捞小智」（app/show.js）：就在算力客户端里试训练出来的成品；新版一发布自动换上 ----------
-  const show = (o.showFactory || require("./show").create)({
+  const show = EDITION.open ? null : (o.showFactory || require("./show").create)({
     dir: () => path.join(work(), "show"), server: () => cfg.server, llm, log: (m) => L(m, "info", "展示"), send: (e) => send("show", e),
     // 正在算的任务名（c.job 是整个任务信息，要取 name；以前直接拿来显示成了 [object Object]）；已经在停的不算
     busy: () => { const c = agent && agent.current(); return c && !c.stopping ? (c.job && c.job.name) || "任务" : null; },
@@ -615,7 +616,7 @@ function createService(o) {
     used: () => !!cfg.showUsed,
     llmName: async () => { const hit = (await llmMirror.model("llmMain"))[0]; return hit && hit.name; }, ...(o.showOpt || {}) });
   const showSt = async () => ({ ...(await show.state()), paused: cfg.manual === "off", joined: !!cfg.token, fullscreen: o.isFullscreen ? !!o.isFullscreen() : false });
-  Object.assign(H, {
+  if (show) Object.assign(H, {
     showState: showSt,
     async showSend(text) { await show.send(text); return showSt(); },
     showStop: async () => show.stop(),

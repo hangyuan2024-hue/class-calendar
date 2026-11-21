@@ -143,7 +143,7 @@ function create(o) {
   }
 
   // 捞捞算力的安装包放在 grid/ 下面（和训练的东西同一个文件夹）：只放行安装包本身
-  const okPath = (key) => Store.okKey(key) && (cfg.prefixes.some((p) => key.startsWith(p)) || /^grid\/LaolaoGrid-Setup-[\w.]+\.exe$/.test(key));
+  const okPath = (key) => Store.okKey(key) && (cfg.prefixes.some((p) => key.startsWith(p)) || /^grid\/LaolaoGrid-(Open-)?Setup-[\w.]+\.exe$|^grid\/LaolaoGrid-Open-Server-[\w.]+\.zip$|^xiaozhi\/LaolaoXiaozhi-Setup-[\w.]+\.exe$/.test(key));
   const say = (res, code, text, why) => { const b = Buffer.from(text + "\n"); res.writeHead(code, { "content-type": "text/plain; charset=utf-8", "content-length": b.length, "cache-control": "no-store", "access-control-allow-origin": "*", "x-lz-dl": why }); res.end(b); };
   const refuse = (ip, why) => { const u = usage(); u.refused[why] = (u.refused[why] || 0) + 1; if (why === "foreign") u.foreign[ip] = (u.foreign[ip] || 0) + 1; dirty = true; };
 

@@ -1,0 +1,7 @@
+/* 捞小智电脑版：没有左边栏，整页就是捞小智 */
+.xz-shell { display: block; height: 100vh; }
+.xz-shell main { height: 100vh; }
+.xz-trial { display: flex; align-items: center; gap: 12px; margin: 0 0 14px; padding: 10px 14px; border-radius: 12px; border: 1px solid rgba(255, 191, 71, .45); background: rgba(255, 191, 71, .09); font-size: 13px; line-height: 1.6; }
+.xz-trial > b:first-child { flex: none; padding: 2px 10px; border-radius: 99px; background: var(--am); color: #1a1200; }
+.xz-trial span { flex: 1; color: var(--tx); } .xz-trial span b { color: var(--am); }
+body.show-full .xz-trial { display: none; }

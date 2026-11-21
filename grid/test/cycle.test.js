@@ -55,6 +55,15 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   assert.equal(buf.length, f1.size); assert.equal(crypto.createHash("sha256").update(buf).digest("hex"), f1.sha256);
   assert.equal((await fetch(url + "/pub/jobs/1/1/whatever.npz")).status, 404);
   ok("老师端：发布清单能读、模型文件能下（大小、sha256 对得上）；没发布的文件下不了");
+  // 捞小智电脑版读的公开清单（dl 域名）：一样能下，但不带存储路径、备注
+  const d1 = await (await fetch(url + "/dl/models/manifest.json", { headers: { "x-forwarded-proto": "https", "x-forwarded-host": "dl.example.cn" } })).json();
+  const df = d1.models["demo-curve"].files[0];
+  assert.ok(/^https:\/\/dl\.example\.cn\/dl\/models\/demo-curve\/1\/0(\.\w+)?$/.test(df.url), df.url);
+  assert.ok(!("key" in df) && !("note" in d1.models["demo-curve"]) && !JSON.stringify(d1).includes("jobs/"), "不带存储路径和备注");
+  const db = Buffer.from(await (await fetch(url + new URL(df.url).pathname)).arrayBuffer());
+  assert.equal(crypto.createHash("sha256").update(db).digest("hex"), df.sha256);
+  assert.equal((await fetch(url + "/dl/models/demo-curve/9/0")).status, 404); assert.equal((await fetch(url + "/dl/models/demo-curve/1/7")).status, 404);
+  ok("捞小智电脑版：走 dl 域名的公开清单能读、能下，看不到内部存储路径；版本、序号不对就 404");
 
   // 第 2 天：接着第 1 版训练，分数更高 → 发布第 2 版
   now += 24 * 3600e3; C.tick();

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<script src="../noframe.js?v=20261023-v715"></script>
+<script src="../i18n.js?v=20261023-v700"></script>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://br-brave-deer-5873ae6f.supabase2.aidap-global.cn-beijing.volces.com https://*.workers.dev https://github.githubassets.com https://ghfast.top https://gh-proxy.com https://ghproxy.net https://*.jsdelivr.net https://*.myqcloud.com https://*.aliyuncs.com https://*.volces.com; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a1433">
+<title>捞捞算力 通用版 · 用自己的服务器搭训练网</title>
+<meta name="description" content="捞捞算力通用版：用自己的服务器搭一个训练网，几台电脑一起训练模型，一台停了下一台接着算。免费下载客户端和调度中心。">
+<link rel="canonical" href="https://www.laolaokechengbiao.cn/suanli/">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../studio-v2.css?v=20261008-org1">
+<link rel="stylesheet" href="../home-v6.css?v=20261019-v65">
+<link rel="stylesheet" href="../fonts.css?v=20261023-v698">
+<link rel="stylesheet" href="../home-v7.css?v=20261023-v699">
+<link rel="stylesheet" href="../board.css?v=20261023-v700">
+<link rel="stylesheet" href="../home-v8.css?v=20261023-v716">
+<style>
+  .sl-steps { display: grid; gap: 16px; counter-reset: s; max-width: 980px; }
+  .sl-step { padding: 22px 24px; border-radius: 20px; border: 1px solid var(--edge, #e6e2da); background: #fff; }
+  .sl-step h3 { margin: 0 0 8px; font-size: 19px; } .sl-step h3::before { counter-increment: s; content: counter(s); display: inline-grid; place-items: center; width: 30px; height: 30px; margin-right: 10px; border-radius: 50%; background: #2f5fd0; color: #fff; font-size: 15px; }
+  .sl-step p, .sl-step li { font-size: 14.5px; line-height: 1.85; color: var(--muted, #4d5a60); } .sl-step ul { margin: 6px 0 0; padding-left: 1.2em; }
+  .sl-step pre { margin: 10px 0 0; padding: 14px 16px; border-radius: 12px; background: #0f1830; color: #dfe8ff; font-size: 13.5px; line-height: 1.7; overflow-x: auto; white-space: pre; }
+  .sl-step code { font-family: ui-monospace, Consolas, monospace; } .sl-step p code, .sl-step li code { padding: 1px 6px; border-radius: 6px; background: #eef2fb; color: #2f5fd0; font-size: 13px; }
+  .sl-dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; max-width: 980px; }
+  .sl-dl .bd-card small { display: block; margin-top: 10px; color: var(--muted, #5d6b70); font-size: 13px; line-height: 1.7; }
+  .sl-tbl { width: 100%; max-width: 980px; border-collapse: collapse; font-size: 14.5px; } .sl-tbl th, .sl-tbl td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--edge, #e6e2da); vertical-align: top; line-height: 1.7; } .sl-tbl th { color: #2f5fd0; white-space: nowrap; }
+  .s-button-sl { background: #2f5fd0; } .s-button-sl:hover { background: #244bb0; }
+  @media (max-width: 760px) { .sl-dl { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body class="studio-public v8-board" data-root="../" style="--bd-accent:#2f5fd0;--bd-hi:#9fb8ff">
+<header class="s-header">
+  <a class="s-brand" href="../app.html" aria-label="捞捞调度首页"><span class="s-brand-icon"><img src="../brand/laolao-mark.svg" alt=""></span><span>捞捞调度<span class="s-brand-sub">捞捞算力</span></span></a>
+  <button class="v7-burger" type="button" aria-expanded="false" aria-controls="siteNav" aria-label="打开菜单"><i></i><i></i><i></i></button>
+  <nav class="s-nav" id="siteNav" aria-label="网站导航"><a href="../app.html#showcase">作品展映</a>
+    <div class="v7-dd"><button type="button" class="v7-dd-btn" aria-expanded="false" aria-controls="ddProd">三大板块</button>
+      <div class="v7-menu" id="ddProd">
+        <a href="../index.html?guest=1"><span class="v7-mi cal">▦</span><span><b>捞捞课程表</b><small>课表、作业、班级消息、签到和提醒</small></span></a>
+        <a href="../learn/"><span class="v7-mi learn">✺</span><span><b>捞捞学习</b><small>思维导图、课内学习、错题和公式</small></span></a>
+        <a href="../code/"><span class="v7-mi code">&lt;/&gt;</span><span><b>捞捞编程</b><small>自带编译器，按 F5 运行，不懂就问本地模型</small></span></a>
+        <a href="../ppt/"><span class="v7-mi ppt">▶</span><span><b>捞捞PPT助手</b><small>给老师：自己的分身走进课件，自动讲解、回答提问</small></span></a>
+        <a href="../xiaozhi/"><span class="v7-mi xz">✦</span><span><b>捞小智</b><small>捞捞的智能体 · 内测准备中</small></span></a>
+        <a class="v7-mfoot" href="../app.html#products">三个板块的详细介绍</a>
+      </div></div>
+    <a href="../app.html#team">团队</a><a href="../app.html#open">开源共建</a>
+    <div class="v7-dd"><button type="button" class="v7-dd-btn" aria-expanded="false" aria-controls="ddGet">下载</button>
+      <div class="v7-menu v7-menu-get" id="ddGet">
+        <div class="v7-mg"><span class="v7-mh">捞捞课程表</span>
+          <a href="../download/class-calendar.apk"><span class="v7-mi cal">▯</span><span><b>安卓 App</b><small>约 6 MB</small></span></a>
+          <a href="https://github.com/hangyuan2024-hue/class-calendar/releases/latest/download/LaolaoKechengbiao-Setup.exe"><span class="v7-mi cal">▣</span><span><b>Windows 电脑版</b><small>约 100 MB · Win10 / 11</small></span></a>
+          <a href="../app.html#get"><span class="v7-mi cal">✳</span><span><b>微信小程序 · 网页版</b><small>扫码打开，或者直接在浏览器用</small></span></a></div>
+        <div class="v7-mg"><span class="v7-mh">老师和编程</span>
+          <a href="https://github.com/hangyuan2024-hue/class-calendar/releases/download/laolao-ppt/LaolaoPPT-Setup.exe"><span class="v7-mi ppt">▶</span><span><b>捞捞PPT助手</b><small>Windows 10 / 11</small></span></a>
+          <a data-get="code" href="https://github.com/hangyuan2024-hue/class-calendar/releases/download/laolao-code/LaolaoCode-Setup.exe"><span class="v7-mi code">&lt;/&gt;</span><span><b>捞捞编程</b><small>约 1.5 GB · 自带编译器和本地模型</small></span></a></div>
+      </div></div>
+    <div class="v8-nav-extra"><button class="lang-btn" type="button" data-lang-toggle>EN</button><a href="../app.html#login" data-acct-login>登录 / 注册</a><button type="button" data-acct-open hidden>账号管理</button></div>
+  </nav>
+  <div class="s-header-actions"><button class="s-login-link lang-btn" type="button" data-lang-toggle>EN</button><a class="s-login-link" href="../app.html#login" data-acct-login>登录</a><button class="v8-acct-btn" type="button" data-acct-btn hidden></button><a class="s-button s-button-small " href="#enter">进入捞小智 <span aria-hidden="true">↗</span></a></div>
+</header>
+<main class="bd-main" id="main">
+  <section class="bd-hero">
+    <div>
+      <span class="s-kicker">LAOLAO GRID · OPEN</span>
+      <h1>捞捞算力 通用版，<br><span>用自己的服务器搭训练网。</span></h1>
+      <p class="lead">把实验室、宿舍里闲着的电脑连成一台「训练机」：每台电脑空闲时领任务，一台关机了，下一台从最近的存档接着算。通用版和捞捞团队自己的训练网完全分开，你的任务、数据、模型都在你自己的服务器上。</p>
+      <div class="bd-acts"><a class="s-button s-button-sl" href="#download">免费下载 <span aria-hidden="true">↓</span></a><small>客户端：Windows 10 / 11 · 64 位<br>调度中心：Linux 云服务器，2 核 2G 就够</small></div>
+    </div>
+  </section>
+
+  <section class="bd-sec" aria-labelledby="sl-what">
+    <span class="s-kicker">01 / HOW IT WORKS</span>
+    <h2 id="sl-what">一个训练网<span>由三部分组成</span></h2>
+    <table class="sl-tbl">
+      <tr><th>调度中心</th><td>装在你的云服务器上：派活、记账、存进度，带一个控制中心网页（看每台电脑实时跑到哪一行）。</td></tr>
+      <tr><th>管理员命令行</th><td>在你自己的电脑上：生成配方签名的私钥、发邀请链接、签名配方、建任务。私钥只存在你电脑上。</td></tr>
+      <tr><th>客户端</th><td>每台出力的电脑装一个：粘贴邀请链接加入，空闲时领任务、跑配方（Python）、定时上传存档。</td></tr>
+    </table>
+    <div class="bd-grid" style="margin-top:20px">
+      <div class="bd-card"><span class="ic" style="background:#e8edff;color:#2f5fd0">⇄</span><h3>一台停了，下一台接着算</h3><p>每台电脑 20 秒报一次平安，2 分钟没消息，任务就交给下一台，从最近的存档接着算。支持拆小任务、接力训练、多台同时训练（DiLoCo）。</p></div>
+      <div class="bd-card"><span class="ic" style="background:#f1e8ff;color:#7a4bd8">✓</span><h3>配方必须签名</h3><p>在别人电脑上运行的代码，必须由管理员的私钥签名（Ed25519），签名不对客户端就不运行。就算服务器被攻破，也没法让大家的电脑运行别的代码。</p></div>
+      <div class="bd-card"><span class="ic" style="background:#e3f7f0;color:#11946f">☾</span><h3>对电脑主人友好</h3><p>默认自己点「开始」才算；主人一用电脑就让出显卡；按显卡温度自动放慢；随时暂停、退出。</p></div>
+    </div>
+  </section>
+
+  <section class="bd-sec" id="download" aria-labelledby="sl-dl">
+    <span class="s-kicker">02 / DOWNLOAD</span>
+    <h2 id="sl-dl">下载<span>通用版</span></h2>
+    <div class="sl-dl">
+      <div class="bd-card"><h3>调度中心（服务器）</h3><p>装到你的 Linux 云服务器上。压缩包里有 README 搭建说明、管理员命令行和示例配方。</p>
+        <div class="bd-acts" style="margin-top:14px"><a class="s-button s-button-sl" id="slServer" href="https://github.com/hangyuan2024-hue/class-calendar/releases/download/laolao-grid-open/LaolaoGrid-Open-Server.zip">下载调度中心 <span aria-hidden="true">↓</span></a></div><small id="slServerMeta">LaolaoGrid-Open-Server.zip</small></div>
+      <div class="bd-card"><h3>客户端（出力的电脑）</h3><p>每台出力的 Windows 电脑装一个，打开后粘贴你发的邀请链接。</p>
+        <div class="bd-acts" style="margin-top:14px"><a class="s-button s-button-sl" id="slClient" href="https://github.com/hangyuan2024-hue/class-calendar/releases/download/laolao-grid-open/LaolaoGrid-Open-Setup.exe">下载客户端 <span aria-hidden="true">↓</span></a></div><small id="slClientMeta">Windows 10 / 11 · 64 位。安装时如果 Windows 提示「已保护你的电脑」，点「更多信息 → 仍要运行」。</small></div>
+    </div>
+  </section>
+
+  <section class="bd-sec" id="setup" aria-labelledby="sl-setup">
+    <span class="s-kicker">03 / SETUP</span>
+    <h2 id="sl-setup">在服务器上<span>搭调度中心</span></h2>
+    <div class="sl-steps">
+      <div class="sl-step"><h3>准备一台服务器</h3><ul><li>Linux 云服务器，2 核 2G 就够（Ubuntu 22.04 以上、Debian 12、CentOS Stream 9 都可以）</li><li>在云服务商的控制台 → 防火墙，放行端口 <code>8787</code></li><li>有域名的话推荐用 HTTPS：先把域名解析到这台服务器，放行 <code>80</code> 和 <code>443</code></li></ul></div>
+      <div class="sl-step"><h3>上传压缩包，运行安装脚本</h3><p>把下载的 <code>LaolaoGrid-Open-Server.zip</code> 传到服务器上（云控制台的「上传文件」或 <code>scp</code> 都行），在服务器上运行：</p>
+<pre><code>sudo mkdir -p /opt/laolao-grid-open
+sudo unzip LaolaoGrid-Open-Server.zip -d /opt/laolao-grid-open
+sudo bash /opt/laolao-grid-open/laolao-grid/server/deploy.sh</code></pre>
+        <p>有域名时，最后一行换成这一行（自动申请 HTTPS 证书）：</p>
+<pre><code>sudo DOMAIN=grid.你的域名.cn bash /opt/laolao-grid-open/laolao-grid/server/deploy.sh</code></pre>
+        <p>脚本会自动装 Node.js 22、设成开机自启，最后打印<b>调度中心地址</b>、<b>控制中心</b>（地址后面加 <code>/admin/</code>）和<b>管理员口令</b>。口令只留给自己，不要发给别人、不要截图。</p></div>
+      <div class="sl-step"><h3>在你自己的电脑上：生成签名密钥</h3><p>装 <a href="https://nodejs.org/zh-cn" rel="noopener">Node.js 22</a> 以上，把压缩包解压，进到 <code>laolao-grid</code> 文件夹：</p>
+<pre><code>node tools/grid.js login https://grid.你的域名.cn 管理员口令</code></pre>
+        <p>这一步在你电脑上生成配方签名的私钥（不会上传），只把公钥告诉调度中心。</p></div>
+      <div class="sl-step"><h3>发邀请，让大家加入</h3>
+<pre><code>node tools/grid.js invite 张三</code></pre>
+        <p>把打印出来的邀请链接发给张三。他装好客户端、粘贴链接、勾选同意，按「任务向导」装好训练环境就能出力了。控制中心网页里也能发邀请。</p></div>
+      <div class="sl-step"><h3>试运行</h3>
+<pre><code>node tools/grid.js job plans/demo.json</code></pre>
+        <p>会建几个示例任务：测每台电脑的显卡、生成 + 人工审核、接力训练（关掉一台看下一台接着算）、多台一起训练。之后照着 <code>recipes/demo_relay.py</code> 写你自己的配方，用 <code>node tools/grid.js job 你的计划.json</code> 自动签名、上传、建任务。</p></div>
+      <div class="sl-step"><h3>以后更新</h3><p>下载新版压缩包，解压覆盖原来的文件夹，然后 <code>sudo systemctl restart laolao-grid</code>。任务、租约、存档都在数据库里，重启后原样接着算。</p></div>
+    </div>
+  </section>
+
+  <section class="bd-sec" aria-labelledby="sl-know">
+    <span class="s-kicker">04 / GOOD TO KNOW</span>
+    <h2 id="sl-know">用之前<span>要知道</span></h2>
+    <ul class="xz-note" style="max-width:860px;padding-left:20px;font-size:14px;line-height:1.9;color:var(--muted,#5d6b70)">
+      <li>通用版不带捞捞自己的训练配方和训练计划，只带示例；你的训练网里跑什么，由你写、你签名。</li>
+      <li>只邀请你认识的人；要在别人电脑上运行代码，先征得对方同意（客户端加入时会让对方勾选同意）。</li>
+      <li>服务器上的密钥（对象存储等）只在服务器上输入，不要发到聊天里。</li>
+      <li>训练环境（Python、PyTorch）和 AI 组件从国内镜像下载，第一次要下几 G。</li>
+    </ul>
+  </section>
+</main>
+<footer class="s-footer"><a class="s-brand" href="../app.html"><span class="s-brand-icon"><img src="../brand/laolao-mark.svg" alt=""></span><span>捞捞调度<span class="s-brand-sub">认真生活，也自在生长。</span></span></a><p>捞捞算力 通用版</p><div><a href="../index.html?guest=1">工作台 ↗</a><a href="../ppt/">捞捞PPT助手</a><a href="../code/">捞捞编程</a><a href="../privacy.html">隐私</a></div></footer>
+<script src="../config.js"></script>
+<script src="../auth.js?v=20261023-v715"></script>
+<script src="../board.js?v=20261019-v65"></script>
+<script src="../home-v7.js?v=20261023-v699"></script>
+<script src="../site-account.js?v=20261023-v700"></script>
+<script src="../site-config.js?v=20261111-xz"></script>
+<script src="dl.js?v=20261121"></script>
+</body>
+</html>

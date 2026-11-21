@@ -218,6 +218,7 @@ W(FF, "import sys,shutil,os\na=sys.argv\nshutil.copy(a[a.index('-i')+1],a[-1])\n
   // 不公开：公开清单里没有；凭声音码才能下载
   const pubm = await (await fetch(url + "/pub/models/manifest.json")).json();
   assert.ok(!pubm.models["voice-王老师"], "老师的声音不进公开清单");
+  assert.ok(!(await (await fetch(url + "/dl/models/manifest.json")).json()).models["voice-王老师"], "dl 公开清单里也没有");
   const code = (await Tools.api(admin, "/api/admin/model/code", { name: "voice-王老师" })).code;
   const pm = await (await fetch(`${url}/pub/private/${code}/manifest.json`)).json();
   const m = pm.models["voice-王老师"];

@@ -98,7 +98,16 @@ function create(o) {
   const product = () => S().xz.product();
   // 开着展示的时候每 3 分钟看一次；没开着的时候半小时看一次（新版先下好，打开就能用）
   function schedule() { clearInterval(timer); if (!active && o.used && !o.used()) return; timer = setInterval(() => fuse("定时").catch(() => {}), active ? (o.activeMs || 3 * 60e3) : (o.idleMs || 30 * 60e3)); timer.unref && timer.unref(); }
-  function setActive(v) { active = !!v; schedule(); if (active) fuse("打开展示").catch(() => {}); return active; }
+  function setActive(v) { active = !!v; schedule(); if (active) { fuse("打开展示").catch(() => {}); earPrefetch(); } return active; }
+  // 听写模型（几百 M）：打开展示时就在后台先下好（只在还没下过的时候；下好后 10 分钟没人用自己关），不用等到打电话说完第一句才开始下
+  const earSay = (m, p) => emit({ type: "ear", text: m, pct: p && p.pct != null ? p.pct : null, done: !!(p && p.done) });
+  function earPrefetch() {
+    const dir = o.gsvDir ? o.gsvDir() : null;
+    if (!dir || ear.ready(dir) || ear.running || ear.preparing || o.noEarPrefetch || (o.busy && o.busy())) return false;   // 这台电脑在算任务时不抢内存
+    log("后台先准备听写（第一次打电话要用）");
+    ear.warm(dir, earSay);
+    return true;
+  }
 
   // ---------- 说话 ----------
   const sayable = (text, max = 200) => {
@@ -153,8 +162,13 @@ function create(o) {
   function tidy() { try { const d = path.join(S().dir, "say"); const fsx = fs.readdirSync(d).map((f) => ({ f: path.join(d, f), t: fs.statSync(path.join(d, f)).mtimeMs })).sort((a, b) => b.t - a.t); for (const x of fsx.slice(200)) fs.rmSync(x.f, { force: true }); } catch (e) {} }
 
   // ---------- 打电话 ----------
-  function setCall(on) { calling = !!on; S().xz.setVoice(calling); if (!calling) { try { ear.stop(); } catch (e) {} } return callInfo(); }
-  function callInfo() { const c = S().models.use("chat-lora"); return { on: calling, lora: c && c.files && c.files.lora ? c.version : null, ear: !!(o.gsvDir && o.gsvDir()) }; }
+  function setCall(on) {
+    calling = !!on; S().xz.setVoice(calling);
+    const dir = o.gsvDir ? o.gsvDir() : null;
+    if (calling && dir && !ear.running) ear.warm(dir, earSay);   // 一接通就准备听写（第一次下模型时界面上看得到进度），不等第一句说完
+    return callInfo();
+  }
+  function callInfo() { const c = S().models.use("chat-lora"); return { on: calling, lora: c && c.files && c.files.lora ? c.version : null, ear: !!(o.gsvDir && o.gsvDir()), earReady: !!ear.running, earPct: ear.progress() }; }
   // 界面上录到的一句话（16k 单声道 wav 的 base64）→ 文字
   async function hear(b64) {
     const wav = Buffer.from(String(b64 || ""), "base64");
@@ -162,7 +176,7 @@ function create(o) {
     if (wav.length > 8 * 1048576) throw new Error("这句话太长了，分几句说");
     const dir = o.gsvDir ? o.gsvDir() : null;
     if (!dir) throw new Error("打电话要用声音组件（GPT-SoVITS，里面带听写）：先点「装上声音组件」");
-    return { text: await ear.hear(dir, wav, (m) => emit({ type: "note", text: m })) };
+    return { text: await ear.hear(dir, wav, earSay) };
   }
 
   async function state() {

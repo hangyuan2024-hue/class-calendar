@@ -48,6 +48,13 @@
   @media (max-width: 860px) { .pp-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pp-xz { grid-template-columns: 1fr; } }
   @media (max-width: 520px) { .pp-steps { grid-template-columns: 1fr; } }
   .s-button-xz { background: #7a4bd8; } .s-button-xz:hover { background: #6438c4; }
+  .xz-pc { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+  .xz-trial { padding: 18px 20px; border-radius: 18px; background: #fff7e6; border: 1px solid #f3d08a; color: #6b4a00; font-size: 14.5px; line-height: 1.8; }
+  .xz-trial b { color: #8a5a00; }
+  .xz-trial .t { display: inline-block; margin-bottom: 6px; padding: 2px 10px; border-radius: 99px; background: #f5a623; color: #fff; font-weight: 800; font-size: 13px; }
+  .xz-dl small { display: block; margin-top: 10px; color: var(--muted, #5d6b70); font-size: 13px; line-height: 1.7; }
+  .xz-parts { margin: 12px 0 0; padding: 0 0 0 1.2em; font-size: 14px; line-height: 1.9; color: var(--muted, #5d6b70); }
+  @media (max-width: 760px) { .xz-pc { grid-template-columns: 1fr; } }
   .s-button-xz[aria-disabled="true"] { background: #4a3d6e; color: #c9bdf0; cursor: not-allowed; pointer-events: none; }
   .xz-st { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 14px; padding: 5px 12px; border-radius: 99px; background: rgba(198, 174, 252, .14); color: #d9cbff; font-size: 13px; font-weight: 700; }
   .xz-st i { width: 8px; height: 8px; border-radius: 50%; background: #f5b545; } .xz-st.on i { background: #3ad08b; }
@@ -107,6 +114,30 @@
     </div>
   </section>
 
+  <section class="bd-sec" id="pc" aria-labelledby="xz-pc">
+    <span class="s-kicker">NEW / WINDOWS</span>
+    <h2 id="xz-pc">捞小智<span>电脑版（体验版）</span></h2>
+    <div class="xz-pc">
+      <div class="bd-card xz-dl">
+        <h3>装在自己电脑上，在本机运行</h3>
+        <p>讲题、做 PPT 并接着改、办教务的事（模拟演示数据）、像打电话一样语音对话。大模型在你自己的电脑上跑，对话不上传。</p>
+        <ul class="xz-parts">
+          <li>Windows 10 / 11 · 64 位；有独立显卡更快（NVIDIA / AMD / Intel 都行）</li>
+          <li>第一次提问要先下载大模型，约 2.5G（国内存储，断了会接着下）</li>
+          <li>语音通话和捞捞的声音要再装声音组件（软件里一键装）</li>
+        </ul>
+        <div class="bd-acts" style="margin-top:16px"><a class="s-button s-button-xz" id="xzPcGo" href="https://github.com/hangyuan2024-hue/class-calendar/releases/download/laolao-xiaozhi/LaolaoXiaozhi-Setup.exe">下载电脑版 <span aria-hidden="true">↓</span></a><small id="xzPcMeta">Windows 10 / 11 · 64 位</small></div>
+        <small>安装时如果 Windows 提示「已保护你的电脑」，点「更多信息 → 仍要运行」。</small>
+      </div>
+      <div class="xz-trial">
+        <span class="t">体验版</span><br>
+        捞小智用的模型<b>还没有正式训练好</b>。现在讲题用的是没训练过的底子，口语对话先借用答题大脑，声音先用电脑自带的朗读。<br>
+        这些模型正在<b><a href="../suanli/" style="color:#8a5a00">捞捞算力</a></b>上训练：每训练、考试通过一版，电脑版会<b>自动下载、自动换上</b>，不用重新安装。软件右边的「现在的成品」能看到每一样是临时版还是第几版。<br>
+        回答由 AI 生成，可能有错，仅供参考。
+      </div>
+    </div>
+  </section>
+
   <section class="bd-sec" aria-labelledby="xz-what">
     <span class="s-kicker">01 / WHAT IT HELPS</span>
     <h2 id="xz-what">它能<span>帮你做什么</span></h2>
@@ -122,6 +153,7 @@
     <h2 id="xz-where">从哪里<span>进入</span></h2>
     <div class="bd-grid">
       <div class="bd-card"><span class="ic">🌐</span><h3>就在这一页</h3><p>开放以后，点上面的按钮进入。</p></div>
+      <div class="bd-card"><span class="tag beta">体验版</span><span class="ic" style="background:#f1e8ff;color:#7a4bd8">▣</span><h3>电脑版</h3><p>Windows 上装一个，在本机运行。<a href="#pc" style="color:#7a4bd8">下载 →</a></p></div>
       <div class="bd-card"><span class="ic" style="background:#dff6f8;color:#0b8ea0">▶</span><h3>捞捞PPT助手里</h3><p>电脑版左边栏的「捞小智」，点一下就到这里。</p></div>
       <div class="bd-card"><span class="tag plan" style="background:#fff3dc;color:#b26a00">规划中</span><span class="ic">📱</span><h3>课程表和小程序</h3><p>之后在捞捞课程表的网页版、App、微信小程序里也放一个入口。</p></div>
     </div>
@@ -132,7 +164,8 @@
     <h2 id="xz-know">用之前<span>要知道</span></h2>
     <ul class="xz-note">
       <li>捞小智的回答由 AI 生成，可能有错，<b>仅供参考</b>；作业、考试、通知以老师和学校的为准。</li>
-      <li>和捞捞PPT助手不一样，捞小智的对话要发到云端的智能体平台去处理。<b>不要发身份证号、密码、银行卡号</b>这类信息，也不要发别人的照片和隐私。</li>
+      <li>电脑版在你自己的电脑上运行，对话不上传；只会去捞捞的服务器查有没有训练好的新版模型。</li>
+      <li>和捞捞PPT助手不一样，网页上的捞小智对话要发到云端的智能体平台去处理。<b>不要发身份证号、密码、银行卡号</b>这类信息，也不要发别人的照片和隐私。</li>
       <li>它不替你写作业、不替你考试：讲题时先给思路，你自己写出来才记得住。</li>
       <li>未成年的同学请在家长或老师的指导下使用。</li>
     </ul>
@@ -146,5 +179,6 @@
 <script src="../site-account.js?v=20261023-v700"></script>
 <script src="../site-config.js?v=20261111-xz"></script>
 <script src="xz.js?v=20261111"></script>
+<script src="dl.js?v=20261121"></script>
 </body>
 </html>

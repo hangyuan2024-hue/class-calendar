@@ -429,8 +429,17 @@
   $("#adminGo").onclick = guard(async () => { if (!(await call("openAdmin"))) toast("只有管理员能打开", true); });
 
   // ---------- 启动 ----------
+  // 通用版（自己搭调度中心的训练网用）：没有成品展示，加入页的说明不提捞捞的模型
+  function edition() {
+    document.title = "捞捞算力 通用版";
+    document.querySelectorAll('[data-p="show"], #p-show').forEach((el) => el.remove());
+    const sub = $("#joinPage .sub"); if (sub) sub.textContent = "几台电脑一起训练模型：一台停了，下一台接着算。（通用版：加入你们自己搭的训练网）";
+    const c = $("#jConsent"); if (c && c.parentNode) c.parentNode.lastChild.textContent = " 我同意：用这台电脑的空闲算力帮这个训练网训练模型；录表情时只上传表情参数和录音，不上传视频；随时可以暂停或退出。";
+    const b = $(".brand b"); if (b) b.textContent = "捞捞算力 通用版";
+  }
   async function boot() {
     S = await call("status");
+    if (S.edition === "open") edition();
     if (!S.joined) { $("#joinPage").hidden = false; $("#appShell").hidden = true; return; }
     $("#joinPage").hidden = true; $("#appShell").hidden = false;
     $("#meName").textContent = `${S.me ? S.me.name : ""} · ${S.deviceName}`;

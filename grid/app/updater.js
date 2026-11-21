@@ -105,4 +105,9 @@ function create(o) {
   return { check, maybeApply, start, stop, pending, status: () => ({ ...st }), now: async () => { if (st.state !== "ready") await check(); return maybeApply(true); } };
 }
 
-module.exports = { create, newer, SOURCES };
+// 通用版（自己搭调度中心的人用）：单独的版本文件，和内部版各更各的
+const OPEN_SOURCES = [
+  "https://www.laolaokechengbiao.cn/download/grid-open-version.json",
+  "https://raw.githubusercontent.com/hangyuan2024-hue/class-calendar/main/download/grid-open-version.json",
+];
+module.exports = { create, newer, SOURCES, OPEN_SOURCES };
