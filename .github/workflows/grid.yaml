@@ -33,6 +33,8 @@ on:
       - "pptassist/core/systts.js"
       - "pptassist/core/checkup.js"
       - "pptassist/renderer/avatar3d.js"
+      - "pptassist/core/ai3d.js"
+      - "pptassist/ai3d/**"
   workflow_dispatch:
 
 permissions:
