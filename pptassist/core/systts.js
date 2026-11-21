@@ -22,11 +22,29 @@ $s.Speak([IO.File]::ReadAllText($env:LG_TTS_IN,[Text.Encoding]::UTF8))
 $s.Dispose()
 [Console]::Out.Write('OK:'+$v.VoiceInfo.Name)`;
 
+// 另一套：Windows 10/11 的 OneCore 语音（系统设置「语音」里装的中文语音，比如晓晓、慧慧、瑶瑶、康康）。
+//   老的 System.Speech 只认「桌面版」语音，很多电脑上没有中文的；OneCore 的中文语音更常见，走 WinRT
+const PS_ONECORE = `$ErrorActionPreference='Stop'
+Add-Type -AssemblyName System.Runtime.WindowsRuntime
+$null=[Windows.Media.SpeechSynthesis.SpeechSynthesizer,Windows.Media.SpeechSynthesis,ContentType=WindowsRuntime]
+$vs=[Windows.Media.SpeechSynthesis.SpeechSynthesizer]::AllVoices|Where-Object{$_.Language -like 'zh*'}
+$v=($vs|Where-Object{$_.Gender -eq 'Female'}|Select-Object -First 1); if(-not $v){$v=$vs|Select-Object -First 1}
+if(-not $v){[Console]::Out.Write('NOZH');exit 3}
+if(-not $env:LG_TTS_OUT){[Console]::Out.Write('OK:'+$v.DisplayName);exit 0}
+$s=New-Object Windows.Media.SpeechSynthesis.SpeechSynthesizer
+$s.Voice=$v
+$m=([System.WindowsRuntimeSystemExtensions].GetMethods()|Where-Object{$_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation\`1'})[0]
+$t=$m.MakeGenericMethod([Windows.Media.SpeechSynthesis.SpeechSynthesisStream]).Invoke($null,@($s.SynthesizeTextToStreamAsync([IO.File]::ReadAllText($env:LG_TTS_IN,[Text.Encoding]::UTF8))))
+$t.Wait()
+$rs=[System.IO.WindowsRuntimeStreamExtensions]::AsStreamForRead($t.Result)
+$fs=[IO.File]::Create($env:LG_TTS_OUT); $rs.CopyTo($fs); $fs.Close(); $rs.Close()
+[Console]::Out.Write('OK:'+$v.DisplayName)`;
+
 // 跑一次 PowerShell：env 里放输入输出文件；返回 { code, out }
-function runPs(env, o = {}) {
+function runPs(env, o = {}, script = PS) {
   return new Promise((resolve) => {
     let out = "", done = false;
-    const enc = Buffer.from(PS, "utf16le").toString("base64");
+    const enc = Buffer.from(script, "utf16le").toString("base64");
     let p;
     try { p = (o.spawn || spawn)("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", enc], { windowsHide: true, env: { ...process.env, ...env }, stdio: ["ignore", "pipe", "pipe"] }); }
     catch (e) { resolve({ code: -1, out: String(e.message) }); return; }
@@ -41,18 +59,23 @@ function runPs(env, o = {}) {
 
 function create(o = {}) {
   const platform = o.platform || process.platform;
-  const run = o.run || ((env) => runPs(env, o));
+  const run = o.run || ((env, kind) => runPs(env, o, kind === "onecore" ? PS_ONECORE : PS));
   let avail = null, chain = Promise.resolve();
   const state = { ok: false, name: null, why: platform === "win32" ? "还没看过" : "只有 Windows 电脑自带中文朗读" };
 
   // 这台电脑有没有中文朗读声音（只看一次）
   function available() {
     if (platform !== "win32") return Promise.resolve(state);
-    if (!avail) avail = run({ LG_TTS_OUT: "", LG_TTS_IN: "", LG_TTS_RATE: "0" }).then((r) => {
-      if (r.code === 0 && /^OK:/.test(r.out)) { state.ok = true; state.name = r.out.slice(3).trim(); state.why = ""; }
-      else { state.ok = false; state.why = /NOZH/.test(r.out) ? "这台电脑没有中文朗读声音" : "电脑自带朗读打不开"; }
+    // 先看老的桌面版语音，没有中文的再看 OneCore（Windows 10/11 设置里装的中文语音）
+    if (!avail) avail = (async () => {
+      for (const kind of ["sapi", "onecore"]) {
+        const r = await run({ LG_TTS_OUT: "", LG_TTS_IN: "", LG_TTS_RATE: "0" }, kind).catch((e) => ({ code: -1, out: String(e.message) }));
+        if (r.code === 0 && /^OK:/.test(r.out)) { state.ok = true; state.kind = kind; state.name = r.out.slice(3).trim(); state.why = ""; return state; }
+        state.why = /NOZH/.test(r.out) ? "这台电脑没有中文朗读声音（Windows 设置 → 时间和语言 → 语音，可以添加中文语音）" : "电脑自带朗读打不开：" + String(r.out || "").slice(0, 120);
+      }
+      state.ok = false;
       return state;
-    });
+    })();
     return avail;
   }
   // 念一句 → wav（Buffer）
@@ -64,7 +87,7 @@ function create(o = {}) {
       const inF = tmp + ".txt", outF = tmp + ".wav";
       fs.writeFileSync(inF, String(text || ""), "utf8");
       try {
-        const r = await run({ LG_TTS_IN: inF, LG_TTS_OUT: outF, LG_TTS_RATE: String(o.rate != null ? o.rate : 0) });
+        const r = await run({ LG_TTS_IN: inF, LG_TTS_OUT: outF, LG_TTS_RATE: String(o.rate != null ? o.rate : 0) }, s.kind || "sapi");
         if (r.code !== 0 || !fs.existsSync(outF)) throw new Error("电脑自带朗读没念出来" + (r.out ? "：" + r.out.slice(0, 200) : ""));
         return fs.readFileSync(outF);
       } finally { fs.rmSync(inF, { force: true }); fs.rmSync(outF, { force: true }); }
@@ -75,4 +98,4 @@ function create(o = {}) {
   return { available, tts, state: () => state };
 }
 
-module.exports = { create, PS };
+module.exports = { create, PS, PS_ONECORE };

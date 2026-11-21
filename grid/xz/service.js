@@ -96,6 +96,7 @@ function createXz(o) {
     showPrep: async () => show.prepStatus(),
     showPrepRun: async (opt) => show.prepRun(opt || {}),
     async showVoicePref(v) { return show.setVoicePref(v); },
+    showVoiceTest: async () => show.voiceTest(),
     openSite: async () => { o.openExternal && o.openExternal("https://www.laolaokechengbiao.cn/xiaozhi/"); return true; },
   };
   return { H, show, llm, gsv, shutdown: () => { try { show.shutdown(); } catch (e) {} try { llm.stop(); } catch (e) {} } };

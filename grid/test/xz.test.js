@@ -57,6 +57,10 @@ const { createXz, SOURCES, pickBase } = require("../xz/service");
   assert.equal(sp.kind, "kokoro"); assert.ok(sp.ms > 900 && sp.levels.length > 5);
   assert.equal((await xz.H.showVoicePref("real")).kind, "kokoro", "选了真人感但还没装声音组件：先照旧用 Kokoro");
   ok("回答有声音：没训练好时用 Kokoro 中文女声（带口型）；真人感要装好声音组件才用");
+  const vt = await xz.H.showVoiceTest();
+  assert.deepEqual(vt.results.map((x) => [x.kind, x.ok]), [["kokoro", true], ["sys", false], ["real", false]]);
+  assert.ok(vt.play && vt.play.wav && /还没装声音组件/.test(vt.results[2].err));
+  ok("「试一下声音」：每种声音试一句，能用的放出来，不能用的写清原因");
 
   // 3. 新版从公开清单下载、换上
   const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");

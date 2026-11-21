@@ -66,7 +66,12 @@ function create(o) {
   const pend = new Map();
   function worker() {
     if (wk) return wk;
-    const p = (o.spawn || spawn)(o.node || process.execPath, [o.workerScript || path.join(__dirname, "tts-worker.js")], { windowsHide: true, stdio: ["pipe", "pipe", "pipe"], env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", ...(o.env || {}) } });
+    // 打包后：小进程和语音库都解压在 app.asar.unpacked 里（Electron 当 Node 用时读 asar 里的原生模块不稳），从那里跑、从那里加载
+    const un = (f) => f.replace(/app\.asar([\\/])/, "app.asar.unpacked$1");
+    const script = o.workerScript || un(path.join(__dirname, "tts-worker.js"));
+    const lib = un(path.join(__dirname, "..", "node_modules", "sherpa-onnx-node"));
+    const env = { ...process.env, ELECTRON_RUN_AS_NODE: "1", ...(fs.existsSync(lib) ? { LG_SHERPA: lib } : {}), ...(o.env || {}) };
+    const p = (o.spawn || spawn)(o.node || process.execPath, [script], { windowsHide: true, stdio: ["pipe", "pipe", "pipe"], env });
     let buf = "", err = "";
     p.stdout.setEncoding("utf8");
     p.stdout.on("data", (d) => { buf += d; let i; while ((i = buf.indexOf("\n")) >= 0) { const l = buf.slice(0, i); buf = buf.slice(i + 1); let m; try { m = JSON.parse(l); } catch (e) { continue; } const w = pend.get(m.id); if (w) { pend.delete(m.id); m.error ? w.bad(new Error(m.error)) : w.ok(m); } } });

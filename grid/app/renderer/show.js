@@ -278,6 +278,15 @@
   $("#shPptOpen").onclick = guard(() => call("showOpenPpt", false));
   if ($("#shVoicePick")) $("#shVoicePick").onchange = guard(async () => { S.voice = await call("showVoicePref", $("#shVoicePick").value); spReset(); paint(); toast("声音换成：" + S.voice.label); });
   if ($("#shDeckClose")) $("#shDeckClose").onclick = () => showDeck(false);
+  if ($("#shVoiceTest")) $("#shVoiceTest").onclick = guard(async () => {
+    const b = $("#shVoiceTest"); b.disabled = true; b.textContent = "试声音中…";
+    try {
+      const r = await call("showVoiceTest");
+      add("sh-step " + (r.play ? "ok" : "err"), esc("试声音：") + r.results.map((x) => `<br>${x.ok ? "✓" : "✗"} ${esc(x.name)}：${x.ok ? "能用（合成一句 " + (x.ms / 1000).toFixed(1) + " 秒）" : esc(x.err)}`).join(""));
+      if (r.play) { const url = b64url(r.play.wav), a = new Audio(url); sp.player = a; a.onplay = () => lip(r.play.levels || [], r.play.ms || 0, a); a.onended = () => URL.revokeObjectURL(url); a.play().catch(() => toast("声音放不出来：看看电脑的音量、耳机", true)); }
+      else toast("三种声音都不能用：把上面那段截图发给维护的人", true);
+    } finally { b.disabled = false; b.textContent = "试一下声音"; }
+  });
   if ($("#shPrep")) {
     $("#shPrep .go").onclick = guard(async () => { prepAsked = true; paintPrep(await call("showPrepRun", { all: true })); });
     $("#shPrep .use").onclick = () => { $("#shPrep").dataset.closed = "1"; $("#shPrep").hidden = true; };

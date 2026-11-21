@@ -156,10 +156,11 @@ function create(o) {
     if (!st.ok) return null;
     return pack(await cached(t, "sys", () => sys.tts(t)), t, { version: 0, temp: true, kind: "sys" });
   }
+  let voiceErr = "";   // 最近一次声音出错的原因（界面上说清楚，不再只报声音的名字）
   async function speakKokoro(t) {
     if (!kok.ready()) return null;
-    try { return pack(await cached(t, "kokoro" + (o.kokoroOpt && o.kokoroOpt.voice || ""), () => kok.tts(t)), t, { version: 0, temp: true, kind: "kokoro" }); }
-    catch (e) { log("Kokoro 声音出错：" + e.message); return null; }
+    try { const r = pack(await cached(t, "kokoro" + (o.kokoroOpt && o.kokoroOpt.voice || ""), () => kok.tts(t)), t, { version: 0, temp: true, kind: "kokoro" }); voiceErr = ""; return r; }
+    catch (e) { voiceErr = "Kokoro 声音出错：" + e.message; log(voiceErr); return null; }
   }
   // 临时声音：Kokoro，不行再电脑自带
   const speakTemp = async (t) => (await speakKokoro(t)) || (await speakSys(t));
@@ -186,7 +187,24 @@ function create(o) {
     const r = await speakTemp(t);
     if (r) return r;
     const dir = o.gsvDir ? o.gsvDir() : null;
-    return { skip: !dir && e.ok ? "这台电脑还没装声音组件（GPT-SoVITS）：领过一次训练声音的任务就有了，或者点「装上声音组件」" : voiceInfo().label };
+    return { skip: !dir && e.ok ? "这台电脑还没装声音组件（GPT-SoVITS）：领过一次训练声音的任务就有了，或者点「装上声音组件」" : voiceErr ? voiceErr + (sysSt.ok ? "" : "；" + (sysSt.why || "电脑自带朗读也用不了")) + "。点「试一下声音」看详细原因" : voiceInfo().label };
+  }
+  // 试一下声音：每种都试一句，告诉界面哪种能用、不能用的原因；能用的第一种的声音一起返回（界面上直接放出来）
+  async function voiceTest() {
+    const t = "你好，我是捞小智，很高兴见到你。", out = [];
+    let play = null;
+    const tryOne = async (kind, name, fn) => {
+      const t0 = Date.now();
+      try { const r = await fn(); if (!r) throw new Error("没准备好"); out.push({ kind, name, ok: true, ms: Date.now() - t0 }); if (!play) play = r; }
+      catch (e) { out.push({ kind, name, ok: false, err: String(e.message || e).slice(0, 300) }); }
+    };
+    await tryOne("kokoro", "Kokoro 中文女声", async () => { if (!kok.ready()) throw new Error("声音模型还没下好（在上面的「准备组件」里下）"); return pack(await kok.tts(t), t, { kind: "kokoro" }); });
+    const st = await sysCheck(); sys.state && Object.assign(sysSt, st);
+    await tryOne("sys", "Windows 自带的中文朗读" + (st.name ? "（" + st.name + "）" : ""), async () => { if (!st.ok) throw new Error(st.why || "这台电脑没有"); return pack(await sys.tts(t), t, { kind: "sys" }); });
+    const dir = o.gsvDir ? o.gsvDir() : null;
+    await tryOne("real", "真人感（声音组件）", async () => { if (!dir) throw new Error("还没装声音组件"); const r = real.ref(); if (!r) throw new Error("还没下参考录音"); if (voice.state.state !== "ready") await voice.start(dir, o.voiceOpt || {}); return pack(await voice.tts({ text: t, refWav: r.wav, promptText: r.text }), t, { kind: "real" }); });
+    log("试声音：" + out.map((x) => `${x.name} ${x.ok ? "能用（" + x.ms + " 毫秒）" : "不行：" + x.err}`).join("；"));
+    return { results: out, play };
   }
   function setVoicePref(v) { voicePref = v === "real" ? "real" : "kokoro"; try { fs.writeFileSync(path.join(o.dir(), "voice-pref.json"), JSON.stringify({ pref: voicePref })); } catch (e) {} return voiceInfo(); }
   // 说过的话留 200 段，再多删旧的
@@ -294,7 +312,7 @@ function create(o) {
   schedule();
   sysCheck();
   return {
-    state, send, speak, fuse, product, setActive, hear, setCall, prepStatus, prepRun, setVoicePref,
+    state, send, speak, fuse, product, setActive, hear, setCall, prepStatus, prepRun, setVoicePref, voiceTest,
     stop: () => S().xz.stop(), reset: () => { S().xz.reset(); return true; },
     setRole: async (r) => { S().xz.setRole(r); return state(); },
     setSpeak: (on) => { speakOn = !!on; if (!speakOn) { try { voice.stop(); } catch (e) {} } return voiceInfo(); },

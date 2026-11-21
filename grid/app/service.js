@@ -660,6 +660,7 @@ function createService(o) {
     showPrep: async () => show.prepStatus(),
     showPrepRun: async (opt) => show.prepRun(opt || {}),
     async showVoicePref(v) { return show.setVoicePref(v); },
+    showVoiceTest: async () => show.voiceTest(),
   });
   H.taskDir = async () => { const c = agent && agent.current(); if (!c) return null; o.openPath && o.openPath(c.dir); return c.dir; };
   H.killTask = async () => { if (!agent || !agent.current()) return false; await agent.kill("在本机结束了这个任务"); return true; };
