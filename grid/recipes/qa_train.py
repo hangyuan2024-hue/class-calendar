@@ -31,6 +31,16 @@ import urllib.request
 
 import lg
 
+
+def llm_start(**kw):
+    """开本地大模型；要挂底座永久层却没挂上（旧版客户端不认得 base）→ 这台电脑做不了，交给别的电脑"""
+    r = lg.llm("start", **kw)
+    if kw.get("base") and r.get("base") != len(kw["base"]):
+        why = "这台电脑的客户端太旧，挂不上底座永久层：更新客户端以后再领这个任务"
+        getattr(lg, "unfit", lambda w: None)(why)
+        raise RuntimeError(why)
+    return r
+
 t = lg.task()
 p = t["job"]["params"]
 work = lg.work_dir()
@@ -1107,9 +1117,9 @@ if GROUND:
         lg.log("原版的成绩用上一轮考的（同一套题、同一个原版），不重复考")
     else:
         lg.progress(0.8, "考试：原版")
-        r0 = ground_exam(lg.llm("start", llm=spec, **STACK_ARG)["url"], qs, "原版")
+        r0 = ground_exam(llm_start(llm=spec, **STACK_ARG)["url"], qs, "原版")
     lg.progress(0.9, "考试：带上新训的 LoRA")
-    r1 = ground_exam(lg.llm("start", llm=spec, lora=gguf, **STACK_ARG)["url"], qs, "新训的")
+    r1 = ground_exam(llm_start(llm=spec, lora=gguf, **STACK_ARG)["url"], qs, "新训的")
     lg.llm("stop")
     zf = shutil.make_archive(os.path.join(work, NAME + "-peft"), "zip", adir)
     lg.log("该答的答对：%.0f%% → %.0f%%；没有就说没有：%.0f%% → %.0f%%；错句抓出来：%.0f%% → %.0f%%；对的不冤枉：%.0f%% → %.0f%%" % tuple(
@@ -1124,9 +1134,9 @@ if p.get("reuseBase", True) and PREV.get("base_name") == _bn and isinstance(PREV
     lg.log("原版的成绩用上一轮考的（同一套题、同一个原版：答对 %.0f%%），不重复考，省一半考试时间" % (acc0 * 100))
 else:
     lg.progress(0.8, "考试：原版")
-    acc0, zh0 = exam(lg.llm("start", llm=spec, **STACK_ARG)["url"], qs, "原版")
+    acc0, zh0 = exam(llm_start(llm=spec, **STACK_ARG)["url"], qs, "原版")
 lg.progress(0.9, "考试：带上新训的 LoRA")
-acc1, zh1 = exam(lg.llm("start", llm=spec, lora=gguf, **STACK_ARG)["url"], qs, "新训的")
+acc1, zh1 = exam(llm_start(llm=spec, lora=gguf, **STACK_ARG)["url"], qs, "新训的")
 lg.llm("stop")
 zf = shutil.make_archive(os.path.join(work, NAME + "-peft"), "zip", adir)
 if CHAT:

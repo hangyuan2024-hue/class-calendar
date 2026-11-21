@@ -109,7 +109,7 @@ function open(file, opt = {}) {
     if (ex) run("update devices set token_hash=?, info=?, last_seen=? where id=?", hash(token), S(info || {}), clock(), ex.id);
     else { run("insert into devices(member_id,name,token_hash,info,state,policy,last_seen,created) values(?,?,?,?,?,?,?,?)", dev.member_id, nm, hash(token), S(info || {}), "online", "{}", clock(), clock()); event("join", `「${dev.name}」的${cpu ? " CPU" : `第 ${g + 1} 块显卡`}也来帮忙了`, { device: dev.id, member: dev.member_id }); }
     const d = one("select id from devices where token_hash=?", hash(token));
-    return { token, device: d.id, name: nm };
+    return { token, device: d.id, name: nm, ...(cpu ? { cpu: true } : {}) };
   }
   function auth(token) {
     if (!token) return null;

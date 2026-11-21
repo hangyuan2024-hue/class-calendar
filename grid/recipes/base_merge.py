@@ -26,6 +26,16 @@ import zipfile
 
 import lg
 
+
+def llm_start(**kw):
+    """开本地大模型；要挂底座永久层却没挂上（旧版客户端不认得 base）→ 这台电脑做不了，交给别的电脑"""
+    r = lg.llm("start", **kw)
+    if kw.get("base") and r.get("base") != len(kw["base"]):
+        why = "这台电脑的客户端太旧，挂不上底座永久层：更新客户端以后再领这个任务"
+        getattr(lg, "unfit", lambda w: None)(why)
+        raise RuntimeError(why)
+    return r
+
 t = lg.task()
 p = t["job"]["params"]
 work = lg.work_dir()
@@ -211,13 +221,13 @@ if not S:
 spec = dict(p.get("llm") or {})
 arg = lambda layers: {"base": [{"path": l["gguf_path"], "scale": float(l.get("scale", 1))} for l in layers]} if layers else {}
 lg.progress(0.1, "回归考试：现在的底座")
-r0 = exam(lg.llm("start", llm=spec, **arg(old_layers))["url"], S, "现在的底座（%d 层）" % len(old_layers))
+r0 = exam(llm_start(llm=spec, **arg(old_layers))["url"], S, "现在的底座（%d 层）" % len(old_layers))
 best = None
 scales = [float(x) for x in (p.get("scales") or [1.0, 0.7, 0.5])]
 for n, sc in enumerate(scales):
     lg.progress(0.2 + 0.7 * n / len(scales), "回归考试：新合进去的按 ×%s" % sc)
     cand = old_layers + [dict(x, scale=sc) for x in new]
-    r = exam(lg.llm("start", llm=spec, **arg(cand))["url"], S, "合进去 ×%s" % sc)
+    r = exam(llm_start(llm=spec, **arg(cand))["url"], S, "合进去 ×%s" % sc)
     worse = [k for k in r if r[k] < r0[k] - TOL]
     gain = sum(r[k] - r0[k] for k in r)
     if worse:

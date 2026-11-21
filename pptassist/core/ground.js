@@ -73,7 +73,8 @@ function kb(dir, opt = {}) {
   const CACHE = path.join(dir, ".cache"), META = path.join(dir, "资料说明.json");
   const files = () => { try { return fs.readdirSync(dir).filter((f) => !f.startsWith(".") && f !== "资料说明.json" && KF.SUPPORTED(f)).sort(); } catch (e) { return []; } };
   const sigOf = (f) => { try { const st = fs.statSync(path.join(dir, f)); return st.size + ":" + Math.round(st.mtimeMs); } catch (e) { return ""; } };
-  const cf = (f) => path.join(CACHE, Buffer.from(f).toString("base64url").slice(0, 180) + ".json");
+  // 缓存文件名用哈希（中文文件名转出来很长，Windows 上整条路径超过 260 个字符会出问题）
+  const cf = (f) => path.join(CACHE, require("crypto").createHash("sha1").update(f).digest("hex") + ".json");
   const readCache = (f) => { try { const c = JSON.parse(fs.readFileSync(cf(f), "utf8")); return c.sig === sigOf(f) ? c : null; } catch (e) { return null; } };
   const meta = () => { try { return JSON.parse(fs.readFileSync(META, "utf8")) || {}; } catch (e) { return {}; } };
   // 读还没读过的文件（视频、录音只在 media: true 时听写，慢）→ { done, pending: [没听写的视频], errors: [{ file, error }] }

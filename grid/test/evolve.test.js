@@ -31,7 +31,8 @@ const h = (s) => [...String(s)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 
     const inv = c.invite({ maxUses: 5 });
     const A = c.join({ code: inv.code, name: "甲", device: { name: "大显卡" } }), N = c.join({ code: inv.code, name: "乙", device: { name: "没显卡" } });
     const lane = c.laneDevice(c.auth(A.token), { gpu: "cpu", name: "大显卡" });
-    assert.equal(lane.name, "大显卡 · CPU");
+    assert.equal(lane.name, "大显卡 · CPU"); assert.equal(lane.cpu, true, "新版调度中心回 cpu: true（客户端看到才开 CPU 工位）");
+    assert.ok(!c.laneDevice(c.auth(A.token), { gpu: 1, name: "大显卡" }).cpu);
     const gpuCaps = { vram: 8, llm: true }, cpuCaps = { vram: 0, llm: true, cpuOnly: true };
     assert.equal(c.lease(c.auth(A.token), gpuCaps).job.id, jg, "显卡工位：领显卡的活");
     assert.equal(c.lease(c.auth(A.token), gpuCaps).job.id, jg, "显卡工位不领 CPU 的活（留给 CPU）");

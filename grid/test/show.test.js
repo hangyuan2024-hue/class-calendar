@@ -47,9 +47,9 @@ const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
   // 假的 ffmpeg：把最后一个参数写成一段 1 秒的静音 wav
   const ffDir = path.join(tmp, "ff"); fs.mkdirSync(ffDir, { recursive: true });
   fs.writeFileSync(path.join(ffDir, "ff.js"), `const MEDIA = require(${JSON.stringify(path.join(__dirname, "..", "..", "pptassist", "core", "media.js"))}); require("fs").writeFileSync(process.argv[process.argv.length - 1], MEDIA.writeWav(new Float32Array(16000), 16000));`);
-  fs.writeFileSync(path.join(ffDir, "ffmpeg"), `#!/bin/sh\nexec "${process.execPath}" "${path.join(ffDir, "ff.js")}" "$@"\n`, { mode: 0o755 });
+
   const show = Show.create({ dir: () => path.join(tmp, "work", "show"), server: () => base, llm, send: (e) => ev.push(e),
-    ffmpeg: path.join(ffDir, "ffmpeg"),
+    ffmpeg: [process.execPath, path.join(ffDir, "ff.js")],   // 用 node 跑假的 ffmpeg（Windows 上不能直接跑 sh 脚本）
     extract: async (file, dir) => { extracted.push(file); fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(path.join(dir, "layer0-qa-lora-v2.gguf"), "GGUF"); }, busy: () => task, used: () => used, gsvDir: () => (hasGsv ? gsv : null), sysTtsFactory,
     voiceOpt: { cmd: process.execPath, args: (p) => [path.join(__dirname, "..", "..", "pptassist", "test", "fake-gsv.js"), String(p)], waitMs: 15000 },
     hearOpt: { python: process.env.PYTHON || "python3", args: (p) => ["-u", require("../app/hear").SCRIPT, "--port", String(p), "--fake"], waitMs: 20000 } });

@@ -219,6 +219,8 @@ function createService(o) {
     let ln = cfg.lanes.cpu;
     if (!ln || !ln.token) {
       const r = await agent.api("/api/lane", { gpu: "cpu", name: cfg.deviceName, info: { cpu: require("os").cpus().length, ram: c0.ram } });
+      // 旧版调度中心不认得 CPU 工位（会当成第 2 块显卡，把显卡的活派给它）：回的不是 cpu: true 就不开，等调度中心更新
+      if (!r || r.cpu !== true) { L("调度中心还是旧版，不认得 CPU 工位：先不开（调度中心更新以后自动开）", "warn", "CPU"); return; }
       ln = cfg.lanes.cpu = { token: r.token, device: r.device, name: r.name }; save();
     }
     cpuLlm = cpuLlm || (o.cpuLlmFactory || LLMW.create)({ exe: o.llamaExe, base: () => base(), mirror: llmMirror, region: regionNow, cpu: true, port: 18299, threads: cpuThreads, ...(o.llmOpt || {}) });

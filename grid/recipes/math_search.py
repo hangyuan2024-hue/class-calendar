@@ -19,6 +19,16 @@ from fractions import Fraction
 
 import lg
 
+
+def llm_start(**kw):
+    """开本地大模型；要挂底座永久层却没挂上（旧版客户端不认得 base）→ 这台电脑做不了，交给别的电脑"""
+    r = lg.llm("start", **kw)
+    if kw.get("base") and r.get("base") != len(kw["base"]):
+        why = "这台电脑的客户端太旧，挂不上底座永久层：更新客户端以后再领这个任务"
+        getattr(lg, "unfit", lambda w: None)(why)
+        raise RuntimeError(why)
+    return r
+
 t = lg.task()
 p = t["job"]["params"]
 i = int(t["input"].get("i", 0))
@@ -201,7 +211,7 @@ ver = ((t.get("extra") or {}).get("models") or {})
 if files.get("m_qa-lora_lora") and not any(n == "qa-lora" and v >= int(ver.get("qa-lora", 0)) for n, v in absorbed):
     lora = files["m_qa-lora_lora"]
 if base or lora:
-    URL = lg.llm("start", **({"base": base} if base else {}), **({"lora": lora} if lora else {}))["url"].rstrip("/")
+    URL = llm_start(**({"base": base} if base else {}), **({"lora": lora} if lora else {}))["url"].rstrip("/")
     lg.log("用现在发布的模型做题：底座永久层 %d 层%s" % (len(base), "，加答题 LoRA 第 %s 版" % ver.get("qa-lora") if lora else ""))
 else:
     URL = (t.get("llm") or "").rstrip("/")

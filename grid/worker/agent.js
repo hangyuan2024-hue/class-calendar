@@ -966,7 +966,7 @@ function create(opt) {
             if (a.lora) spec.lora = inDir(a.lora);
             // 底座的永久层（base-stack：合进底座的几个 LoRA，各带比例）：一直按比例挂着
             if (Array.isArray(a.base)) spec.baseLoras = a.base.slice(0, 16).map((x) => ({ path: inDir(x.path), scale: Math.max(0, Math.min(2, +x.scale || 1)) }));
-            return { url: await opt.llm.ensure(spec, (x) => { c.note = x; c.lastOut = Date.now(); emit("progress", { id: c.id, p: c.progress, note: x }); }) };
+            return { url: await opt.llm.ensure(spec, (x) => { c.note = x; c.lastOut = Date.now(); emit("progress", { id: c.id, p: c.progress, note: x }); }), base: (spec.baseLoras || []).length };
           })
           .then((r) => reply({ ok: true, ...r }), (e) => reply({ ok: false, error: e.message }));
         break;

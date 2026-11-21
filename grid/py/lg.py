@@ -306,7 +306,12 @@ def llm(op, /, **args):
     # base=[{"path": ..., "scale": 0.7}, ...]：底座的永久层（合进底座的几个 LoRA），一直按比例挂着
     if args.get("base"):
         args["base"] = [{"path": os.path.abspath(x["path"]), "scale": float(x.get("scale", 1))} for x in args["base"]]
-    return _call("llm", op, **args)
+    r = _call("llm", op, **args)
+    # 要挂底座永久层，客户端却没挂上（旧版客户端不认得 base）：这台电脑现在做不了，交给别的电脑（不算任务失败）
+    if op == "start" and args.get("base") and isinstance(r, dict) and r.get("base") != len(args["base"]):
+        unfit("这台电脑的客户端太旧，挂不上底座永久层：更新客户端以后再领这个任务")
+        raise RuntimeError("客户端太旧，挂不上底座永久层")
+    return r
 
 
 def dataset():

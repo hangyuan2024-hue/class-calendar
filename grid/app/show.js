@@ -119,7 +119,8 @@ function create(o) {
     const wav = path.join(require("os").tmpdir(), `lx-kb-${process.pid}-${Date.now()}.wav`);
     say(`把「${path.basename(file)}」的声音抽出来`);
     await new Promise((resolve, reject) => {
-      const p = require("child_process").spawn(ff, ["-y", "-i", file, "-vn", "-ac", "1", "-ar", "16000", "-f", "wav", wav], { windowsHide: true, stdio: ["ignore", "ignore", "pipe"] });
+      const [cmd, ...pre] = Array.isArray(ff) ? ff : [ff];   // o.ffmpeg 可以是 [程序, 前面固定的参数…]（测试用 node 跑一个假的）
+      const p = require("child_process").spawn(cmd, [...pre, "-y", "-i", file, "-vn", "-ac", "1", "-ar", "16000", "-f", "wav", wav], { windowsHide: true, stdio: ["ignore", "ignore", "pipe"] });
       let err = ""; p.stderr.on("data", (d) => (err = (err + d).slice(-600)));
       p.on("error", (e) => reject(new Error("抽声音没成：" + e.message)));
       p.on("exit", (c) => (c === 0 && fs.existsSync(wav) ? resolve() : reject(new Error("抽声音没成：" + err.split(/\r?\n/).filter(Boolean).slice(-1)[0]))));
