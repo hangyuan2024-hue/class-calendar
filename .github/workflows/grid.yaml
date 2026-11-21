@@ -37,6 +37,9 @@ on:
       - "pptassist/core/websearch.js"
       - "pptassist/core/ground.js"
       - "pptassist/core/mindmap.js"
+      - "pptassist/core/kbfiles.js"
+      - "pptassist/core/webexam.js"
+      - "pptassist/core/voiceexam.js"
       - "learn/mindmap/js/map-files.cjs"
       - "pptassist/ai3d/**"
   workflow_dispatch:
