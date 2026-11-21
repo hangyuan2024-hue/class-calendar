@@ -91,13 +91,16 @@ const until = async (f, ms, what) => { const t0 = Date.now(); while (!(await f()
     const states = []; a.on("state", (s) => states.push(s));
     let n = 0; a.on("task", () => n++);
     a.start();
-    await until(() => states.some((s) => /现在算不了：显存只空着 3\.0G/.test(s.why || "")), 10000, "歇着");
+    // 显存被占：只是这一类吃显存的活先不领（别的活照样领，见 thermal.test.js），整台电脑不歇着
+    await until(() => a.avoiding().some((x) => /显存只空着/.test(x.why || "")), 10000, "这一类先不领");
     await sleep(600);
     const ts = await tasksOf(jobId);
     assert.strictEqual(n, 1);
     assert.ok(ts.every((t) => !t.errors && t.state === "queued"), JSON.stringify(ts.map((t) => [t.state, t.errors])));
-    ok("配方发现显存被占 / 慢得不正常：任务不记失败、留给别的电脑，这台电脑歇着");
+    assert.ok(!states.some((s) => /分钟后自动再试/.test(s.why || "")), "整台电脑不歇着");
+    ok("配方发现显存被占：任务不记失败、留给别的电脑，这一类先不领（整台电脑不歇着，别的活照样做）");
     a.setManual("on");
+    assert.ok(!a.avoiding().some((x) => /显存/.test(x.why || "")), "点开始：显存那一条马上清掉");
     await until(() => n >= 2, 5000, "点开始马上再试");
     ok("修好以后点「开始」：不用等，马上再试");
     await a.stop();

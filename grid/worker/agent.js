@@ -997,7 +997,12 @@ function create(opt) {
     setManual(m) {
       manual = ["on", "off"].includes(m) ? m : "auto";
       lastLease = 0;
-      if (manual === "on") hold.until = 0;   // 点「开始」：修好了，马上再试
+      if (manual === "on") {   // 点「开始」：修好了（关掉了占显存的程序），马上再试
+        hold.until = 0;
+        let ch = false;
+        for (const k of Object.keys(avoid)) if (/显存/.test(avoid[k].why || "")) { delete avoid[k]; ch = true; }
+        if (ch) { try { fs.writeFileSync(avoidFile, JSON.stringify(avoid)); } catch (e) {} }
+      }
       if (manual === "off") { if (cur) stopTask(true, "你点了停止"); setState("paused", "你点了停止"); }
       else setState("idle", manual === "on" ? "手动开始了" : "");
       setTimeout(tick, 0);
