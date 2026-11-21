@@ -17,11 +17,11 @@ const CAMPUS = require("./campus");
 const CHECKUP = require("./checkup");
 
 const PARTS = [
-  { key: "qa-lora", name: "学术问答", what: "答题大脑：一步一步讲题", metric: "acc", metricName: "考试答对率", base: "base_acc" },
-  { key: "laolao-voice", name: "捞捞的声音", what: "默认声音：没上传自己声音的老师用它" },
-  { key: "voice-base", name: "声音克隆底座", what: "照着老师的一段录音学她说话" },
-  { key: "qversion-lora", name: "Q版形象", what: "照着照片画 Q版 / 3D 公仔" },
-  { key: "chat-lora", name: "口语对话", what: "打电话时说话像人：短、念得出来，听错字也懂", metric: "acc", metricName: "口语考试说对", base: "base_acc" },
+  { key: "qa-lora", name: "学术问答", what: "答题大脑：一步一步讲题", temp: "先用没训练过的底子（通义千问 4B）讲题", metric: "acc", metricName: "考试答对率", base: "base_acc" },
+  { key: "laolao-voice", name: "捞捞的声音", what: "默认声音：没上传自己声音的老师用它", temp: "先用电脑自带的中文朗读" },
+  { key: "voice-base", name: "声音克隆底座", what: "照着老师的一段录音学她说话", temp: "先用声音组件自带的底子" },
+  { key: "qversion-lora", name: "Q版形象", what: "照着照片画 Q版 / 3D 公仔", temp: "先用画图引擎原本的画法" },
+  { key: "chat-lora", name: "口语对话", what: "打电话时说话像人：短、念得出来，听错字也懂", temp: "先用答题大脑接电话", metric: "acc", metricName: "口语考试说对", base: "base_acc" },
 ];
 // 打电话（实时语音对话）时加给捞小智的规则：和训练口语对话大脑时用的一字不差（grid/recipes/chat_gen.py、qa_train.py；测试里核对）
 const SPOKEN = `现在是语音通话：你说的每一句都会被念出来。
@@ -240,7 +240,7 @@ ${hasCheck ? `四、${checkup.profile.name}报告（${checkup.profile.dims.map((
         hist.log.push({ at: now().getTime(), key: p.key, name: p.name, from: hist.seen[p.key] || 0, to: v, ...(p.metric && m[p.metric] != null ? { metric: m[p.metric], base: m[p.base] } : {}) });
         hist.seen[p.key] = v; changed = true;
       }
-      return { key: p.key, name: p.name, what: p.what, version: v, pending: pend, ready: !!c, ...(p.metric && m[p.metric] != null ? { metricName: p.metricName, metric: m[p.metric], base: m[p.base] != null ? m[p.base] : null } : {}) };
+      return { key: p.key, name: p.name, what: p.what, temp: p.temp, version: v, pending: pend, ready: !!c, ...(p.metric && m[p.metric] != null ? { metricName: p.metricName, metric: m[p.metric], base: m[p.base] != null ? m[p.base] : null } : {}) };
     });
     if (changed) { hist.log = hist.log.slice(-60); try { fs.writeFileSync(HIST, JSON.stringify(hist)); } catch (e) {} }
     // 成品第几版：每样每出一版加一（从记录里数），所以只会往上涨

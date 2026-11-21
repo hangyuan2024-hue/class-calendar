@@ -263,7 +263,7 @@ audio { width: 100%; margin-top: 6px; }
 .sh-part { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; }
 .sh-part b { font-size: 14px; } .sh-part small { color: var(--faint); grid-column: 1 / -1; }
 .sh-part .v { font-size: 12.5px; color: var(--sub); white-space: nowrap; }
-.sh-part.off { opacity: .6; }
+.sh-part.off { opacity: .6; } .sh-part.tmp .v { color: #e0a43a; }
 .sh-part .new { color: var(--cy); }
 .sh-log { margin-top: 10px; display: grid; gap: 4px; font-size: 12.5px; color: var(--sub); max-height: 130px; overflow: auto; }
 .sh-log i { color: var(--faint); font-style: normal; margin-right: 6px; }

@@ -32,6 +32,10 @@ function create(o) {
   let cur = null;       // { dir, models, xz }：数据文件夹搬了就重新来
   let speakOn = true, active = false, timer = null, url = null, lastBuild = -1, checking = null, calling = false, eyes = false;
   const voice = VOICE.create({});
+  // 捞捞的声音还没训练好 / 这台电脑没装声音组件：先用电脑自带的中文朗读，训练好了自动换上
+  const sys = (o.sysTtsFactory || PPT("systts.js").create)(o.sysTtsOpt || {});
+  let sysSt = { ok: false, why: "" };
+  const sysCheck = () => sys.available().then((st) => { sysSt = st; return st; }).catch(() => sysSt);
   const ear = (o.hearFactory || require("./hear").create)({ log: (m) => log("听写：" + m), ...(o.hearOpt || {}) });
 
   function S() {
@@ -106,17 +110,38 @@ function create(o) {
     const m = S().models.use("laolao-voice");
     const ok = !!(m && m.files && m.files.gpt && m.files.sovits && m.files.ref);
     const gsv = o.gsvDir ? o.gsvDir() : null;
-    return { on: speakOn, model: ok, version: ok ? m.version : null, gsv: !!gsv, engine: voice.state.state,
-      label: !ok ? "捞捞的声音还没训练好（训练、考试通过后自动下载）" : !gsv ? `捞捞的声音第 ${m.version} 版（这台电脑还没装声音组件）` : `捞捞的声音（第 ${m.version} 版）` };
+    const real = ok && !!gsv, temp = !real && !!sysSt.ok;
+    const label = real ? `捞捞的声音（第 ${m.version} 版）`
+      : ok ? (temp ? `临时用电脑自带的朗读（捞捞的声音第 ${m.version} 版已下好，这台电脑装上声音组件就换上）` : `捞捞的声音第 ${m.version} 版（这台电脑还没装声音组件）`)
+      : temp ? "临时用电脑自带的朗读（捞捞的声音训练、考试通过后自动换上）"
+      : `捞捞的声音还没训练好${sysSt.why ? "，" + sysSt.why : ""}：回答先只出字（训练、考试通过后自动下载）`;
+    return { on: speakOn, model: ok, version: ok ? m.version : null, gsv: !!gsv, engine: voice.state.state, can: real || temp, temp, label };
+  }
+  // 电脑自带朗读念一句
+  async function speakSys(t) {
+    const st = await sysCheck();
+    if (!st.ok) return null;
+    const cache = path.join(S().dir, "say"); fs.mkdirSync(cache, { recursive: true });
+    const wav = path.join(cache, crypto.createHash("sha1").update(t + "|sys").digest("hex").slice(0, 20) + ".wav");
+    if (!fs.existsSync(wav)) fs.writeFileSync(wav, await sys.tts(t));
+    const buf = fs.readFileSync(wav), w = MEDIA.readWav(buf);
+    return { wav: buf.toString("base64"), text: t, version: 0, temp: true, ms: Math.round(w.seconds * 1000), levels: MEDIA.lipLevels(w.samples, w.rate, 25) };
   }
   async function speak(text) {
     if (!speakOn) return null;
     const m = S().models.use("laolao-voice");
-    if (!m || !m.files || !m.files.gpt || !m.files.sovits || !m.files.ref) return { skip: "捞捞的声音还没训练好（训练、考试通过后自动下载）" };
     const t = sayable(text); if (!t) return null;
     const dir = o.gsvDir ? o.gsvDir() : null;
-    if (!dir) return { skip: "这台电脑还没装声音组件（GPT-SoVITS）：领过一次训练声音的任务就有了，或者点「装上声音组件」" };
-    if (voice.state.state !== "ready") await voice.start(dir, o.voiceOpt || {});
+    if (!m || !m.files || !m.files.gpt || !m.files.sovits || !m.files.ref || !dir) {
+      const r = await speakSys(t);
+      if (r) return r;
+      return { skip: !dir && m && m.files && m.files.gpt ? "这台电脑还没装声音组件（GPT-SoVITS）：领过一次训练声音的任务就有了，或者点「装上声音组件」" : voiceInfo().label };
+    }
+    if (voice.state.state !== "ready") {
+      // 捞捞的声音起不来：这一句先用电脑自带的念，别不出声
+      try { await voice.start(dir, o.voiceOpt || {}); }
+      catch (e) { log("声音组件启动不了：" + e.message + "（先用电脑自带朗读）"); const r = await speakSys(t); if (r) return r; throw e; }
+    }
     let prompt = ""; try { prompt = fs.readFileSync(m.files.reftext, "utf8").trim(); } catch (e) {}
     const cache = path.join(S().dir, "say"); fs.mkdirSync(cache, { recursive: true });
     const wav = path.join(cache, crypto.createHash("sha1").update(t + "|" + m.version).digest("hex").slice(0, 20) + ".wav");
@@ -141,7 +166,7 @@ function create(o) {
   }
 
   async function state() {
-    const { xz } = S(); await xz.ready();
+    const { xz } = S(); await xz.ready(); await sysCheck();
     const me = xz.who(), actor = xz.campus.identities()[me.role], lp = xz.lastPpt();
     return { who: me, product: xz.product(), busy: xz.busy(), voice: voiceInfo(), call: callInfo(), llm: { ok: !!(o.llm && o.llm.ok()), running: !!(o.llm && o.llm.running && o.llm.running()) },
       task: o.busy ? o.busy() : null, ppt: lp ? { name: path.basename(lp.file), title: lp.title, pages: lp.pages, rev: lp.rev } : null, exam: xz.lastExam(),
@@ -167,6 +192,7 @@ function create(o) {
   }
 
   schedule();
+  sysCheck();
   return {
     state, send, speak, fuse, product, setActive, hear, setCall,
     stop: () => S().xz.stop(), reset: () => { S().xz.reset(); return true; },

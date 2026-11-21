@@ -25,7 +25,7 @@
     $("#shPill").textContent = t; $("#shPill").className = "pill " + c;
     $("#shModel").textContent = S.model.ready ? S.model.name : `${S.model.name}：还没下载`;
     $("#shDl").hidden = S.model.ready; $("#shGo").hidden = !S.model.ready || S.llm.status === "ready" || S.llm.status === "starting";
-    $("#shSpeak").checked = S.voice.on; $("#shSpeakWrap").title = S.voice.label + (S.voice.gsv ? "" : "（要先在「我的声音」里装好 GPT-SoVITS）");
+    $("#shSpeak").checked = S.voice.on; $("#shSpeakWrap").title = S.voice.label + (S.voice.gsv || S.voice.temp ? "" : "（要先在「我的声音」里装好 GPT-SoVITS）");
     $("#shVoice").textContent = "声音：" + S.voice.label;
     const sel = $("#shRole");
     if (sel.options.length !== S.who.roles.length) sel.innerHTML = S.who.roles.map((r) => `<option value="${r.key}">${esc(r.name)}：${esc(r.who)}</option>`).join("");
@@ -36,7 +36,7 @@
     // 成品
     const P = S.product;
     $("#shBuild").textContent = `第 ${P.build} 版`;
-    $("#shParts").innerHTML = P.parts.map((p) => `<div class="sh-part ${p.ready ? "" : "off"}"><b>${esc(p.name)}</b><span class="v">${p.ready ? `第 ${p.version} 版` : "还没训练好"}${p.pending ? ` <span class="new">→ 第 ${p.pending} 版已下好，下次用时换上</span>` : ""}</span><small>${esc(p.what)}${p.metric != null ? ` · ${esc(p.metricName)} ${pct(p.metric)}${p.base != null ? `（没训练前 ${pct(p.base)}）` : ""}` : ""}</small></div>`).join("");
+    $("#shParts").innerHTML = P.parts.map((p) => `<div class="sh-part ${p.ready ? "" : "tmp"}"><b>${esc(p.name)}</b><span class="v">${p.ready ? `第 ${p.version} 版` : "临时版在用"}${p.pending ? ` <span class="new">→ 第 ${p.pending} 版已下好，下次用时换上</span>` : ""}</span><small>${esc(p.what)}${!p.ready && p.temp ? `<br>现在${esc(p.temp)}，训练、考试通过后自动换上` : ""}${p.metric != null ? ` · ${esc(p.metricName)} ${pct(p.metric)}${p.base != null ? `（没训练前 ${pct(p.base)}）` : ""}` : ""}</small></div>`).join("");
     $("#shHist").innerHTML = P.log.length ? P.log.map((l) => `<div><i>${when(l.at)}</i>${esc(l.name)} ${l.from ? `第 ${l.from} 版 → ` : ""}第 ${l.to} 版${l.metric != null ? `，${pct(l.metric)}` : ""}</div>`).join("") : `<div>还没有记录：捞捞算力每训练、考试通过一版，这里记一笔${P.checked ? "（上次看：" + when(P.checked) + "）" : ""}</div>`;
     // 做好的 PPT
     $("#shPptBtns").hidden = !S.ppt; $("#shPptName").textContent = (S.ppt ? `${S.ppt.title}（${S.ppt.pages} 页）` : "还没有 PPT：让它做一份，或者打开一份让它改") + (S.exam ? "\n" + examLine(S.exam) : "");
@@ -162,7 +162,7 @@
   const clear = () => { log().innerHTML = ""; bot = null; said = ""; steps.clear(); };
   $("#shNew").onclick = guard(async () => { await call("showReset"); clear(); hello(); });
   $("#shRole").onchange = guard(async () => { S = await call("showRole", $("#shRole").value); clear(); paint(); hello(); });
-  $("#shSpeak").onchange = guard(async () => { S.voice = await call("setShowSpeak", $("#shSpeak").checked); paint(); if (S.voice.on && !S.voice.who) toast(S.voice.label); else if (S.voice.on && !S.voice.gsv) toast("要先在「我的声音」里装好 GPT-SoVITS，才能开口说话"); });
+  $("#shSpeak").onchange = guard(async () => { S.voice = await call("setShowSpeak", $("#shSpeak").checked); paint(); if (S.voice.on && !S.voice.who) toast(S.voice.label); else if (S.voice.on && !S.voice.gsv && !S.voice.temp) toast("要先在「我的声音」里装好 GPT-SoVITS，才能开口说话"); });
   $("#shDl").onclick = guard(async () => { $("#shDl").disabled = true; try { await call("aiDownload"); await call("aiStart"); } finally { $("#shDl").disabled = false; refresh(); } });
   $("#shGo").onclick = guard(async () => { $("#shGo").disabled = true; try { await call("aiStart"); } finally { $("#shGo").disabled = false; refresh(); } });
   $("#shCheck").onclick = guard(async () => { const b = $("#shCheck"); b.disabled = true; b.textContent = "正在看…"; try { const n = S ? S.product.build : 0; S = await call("showCheck"); paint(); toast(S.product.build > n ? `有新版：成品现在是第 ${S.product.build} 版` : "没有新版：现在用的就是最新的"); } finally { b.disabled = false; b.textContent = "看有没有新版"; } });

@@ -40,6 +40,27 @@ const PROFILES = {
   },
 };
 
+// ---------- 分区实拍：专业头皮检测仪，每个部位白光、偏振光、紫外光各拍一张（合作方要的就是这一套：5 个部位 × 3 种光 = 15 张）----------
+//   白光：看出油、头屑、发量、发丝；偏振光：去掉反光，看泛红、红血丝、毛囊；紫外光：看卟啉（橙红色小点，细菌和油脂堆积）、残留
+const ZONES = [
+  { key: "front", name: "前额", alias: ["前额", "额头", "发际线", "前部", "front", "frontal", "forehead", "hairline"] },
+  { key: "top", name: "头顶", alias: ["头顶", "顶部", "中间", "top", "vertex", "crown"] },
+  { key: "left", name: "左侧", alias: ["左侧", "左边", "左颞", "left", "left_temporal"] },
+  { key: "right", name: "右侧", alias: ["右侧", "右边", "右颞", "right", "right_temporal"] },
+  { key: "back", name: "后枕", alias: ["后枕", "后脑", "枕部", "后部", "back", "occipital", "nape"] },
+];
+const LIGHTS = [
+  { key: "white", name: "白光", alias: ["白光", "white", "rgb", "normal"], see: "出油、头屑、发量、发丝粗细" },
+  { key: "polarized", name: "偏振光", alias: ["偏振光", "偏振", "polarized", "polar", "pol"], see: "泛红、红血丝、毛囊（去掉了反光）" },
+  { key: "uv", name: "紫外光", alias: ["紫外光", "紫外", "uv", "ultraviolet", "wood"], see: "卟啉（橙红色小点）、残留" },
+];
+const findIn = (list, v) => { const s = String(v == null ? "" : v).trim(), low = s.toLowerCase(); if (!s) return null; return list.find((x) => x.key === low || x.name === s || x.alias.some((a) => a.toLowerCase() === low)) || list.find((x) => x.alias.some((a) => /[一-龥]/.test(a) && s.includes(a))) || null; };
+const zoneOf = (v) => findIn(ZONES, v), lightOf = (v) => findIn(LIGHTS, v);
+// 按拍摄顺序自动标：检测仪一般是一个部位换三种光拍完再换下一个部位（前额 白 偏 紫、头顶 白 偏 紫……）
+function autoLabel(n, zones = ZONES.map((z) => z.key)) {
+  return Array.from({ length: n }, (_, i) => ({ zone: zones[Math.floor(i / LIGHTS.length)] || null, light: LIGHTS[i % LIGHTS.length].key }));
+}
+
 // 等级的各种写法 → 1～4（越大越好）；认不出 → null（信息不足）
 const LEVEL_WORDS = [
   [4, /^(正常|良好|健康|无|没有|好|优|优秀|理想|normal|good|healthy|none|ok|excellent|a)$/i],
@@ -102,8 +123,32 @@ function normalize(raw, profile, map = {}) {
     }
   }
   if (!items || !items.length) throw new Error("结果里找不到检测项目（设置里可以填「字段对应」告诉它在哪）");
-  const out = new Map();
+  // 按部位分组的 [{ zone: "头顶", items: [...] }, …]：摊平成一项一项，每项带上部位
+  const ZK = ["zone", "region", "area", "part", "position", "部位", "分区", "区域"];
+  const zoneField = (it) => (m.zone ? pick(it, m.zone) : first(it, ZK));
+  if (items.every((g) => g && typeof g === "object" && zoneField(g) != null && Object.values(g).some((v) => Array.isArray(v) && v.length && typeof v[0] === "object"))) {
+    items = items.flatMap((g) => { const z = zoneField(g); const arr = Object.values(g).find((v) => Array.isArray(v) && v.length && typeof v[0] === "object"); return arr.map((x) => ({ ...x, __zone: z })); });
+  }
+  const out = new Map(), perZone = new Map();
   for (const it of items) {
+    const zRaw = it.__zone != null ? it.__zone : zoneField(it);
+    if (zRaw != null && zRaw !== "" && !Array.isArray(zRaw)) {
+      // 某一项在某个部位的结果：先按部位记下，后面合成这一项的总等级（取最差的那个部位）、关注部位
+      const k = m.key ? pick(it, m.key) : first(it, ["key", "code", "id", "item", "type", "dimension", "dim", "indicator"]);
+      const nm = m.name ? pick(it, m.name) : first(it, ["name", "title", "label_name", "item_name", "名称", "项目"]);
+      const d = dimOf(profile, k) || dimOf(profile, nm);
+      const key = d ? d.key : String(k || nm || "").trim().slice(0, 30);
+      if (!key) continue;
+      const lvRaw = m.level ? pick(it, m.level) : first(it, ["level", "grade", "result", "status", "label", "等级", "结果", "score", "value"]);
+      const level = toLevel(lvRaw, { levels: m.levels, scoreHigherWorse: m.scoreHigherWorse, gradeOneIsBest: m.gradeOneIsBest, scale: m.scale });
+      const z = zoneOf(zRaw), zn = z ? z.name : String(zRaw).slice(0, 10);
+      const e = perZone.get(key) || { key, name: d ? d.name : String(nm || k).slice(0, 20), zones: {}, notes: [] };
+      e.zones[zn] = level;
+      const note = String((m.note ? pick(it, m.note) : first(it, ["note", "desc", "description", "detail", "说明", "描述"])) || "").slice(0, 120);
+      if (note) e.notes.push(`${zn}：${note}`);
+      perZone.set(key, e);
+      continue;
+    }
     if (!it || typeof it !== "object") continue;
     const k = m.key ? pick(it, m.key) : first(it, ["key", "code", "id", "item", "type", "dimension", "dim", "indicator"]);
     const nm = m.name ? pick(it, m.name) : first(it, ["name", "title", "label_name", "item_name", "名称", "项目"]);
@@ -115,6 +160,15 @@ function normalize(raw, profile, map = {}) {
     const regions = asList(m.regions ? pick(it, m.regions) : first(it, ["regions", "areas", "parts", "positions", "部位", "关注部位"]));
     const note = String((m.note ? pick(it, m.note) : first(it, ["note", "desc", "description", "detail", "说明", "描述"])) || "").slice(0, 200);
     out.set(key, { key, name: d ? d.name : String(nm || k).slice(0, 20), level, label: labelOf(level), regions, note });
+  }
+  for (const e of perZone.values()) {
+    const lvs = Object.values(e.zones).filter((x) => x != null);
+    const worst = lvs.length ? Math.min(...lvs) : null;
+    const hit = Object.entries(e.zones).filter(([, v]) => v != null && v < 4).sort((a, b) => a[1] - b[1]).map(([z]) => z);
+    const had = out.get(e.key);
+    // 合作方另外给了这一项的总等级：用他们的；没给：取最差的那个部位
+    const level = had && had.level != null ? had.level : worst;
+    out.set(e.key, { key: e.key, name: e.name, level, label: labelOf(level), regions: [...new Set([...(had ? had.regions : []), ...hit])].slice(0, 12), note: (had && had.note) || e.notes.slice(0, 3).join("；").slice(0, 200), zones: e.zones });
   }
   // 检测时间：外层或者 data 这一层里找（{ data: { time, result: [...] } } 这种）
   const TK = ["at", "time", "date", "created_at", "test_time", "日期", "检测时间"];
@@ -200,7 +254,8 @@ function create(o = {}) {
   function config() {
     const p = cfg.partner;
     return { source: cfg.source, consent: { ...cfg.consent }, keepPhotos: cfg.keepPhotos, profile: profile.name, disclaimer: DISCLAIMER,
-      partner: { url: p.url, name: p.name, method: p.method, body: p.body, imageField: p.imageField, auth: p.auth, hasToken: !!p.token, extra: p.extra, map: p.map, timeoutMs: p.timeoutMs, ready: partnerReady() },
+      partner: { url: p.url, name: p.name, method: p.method, body: p.body, imageField: p.imageField, auth: p.auth, hasToken: !!p.token, extra: p.extra, map: p.map, codes: p.codes || {}, minPhotos: p.minPhotos || 0, fieldPattern: p.fieldPattern || "{zone}_{light}", labeled: p.labeled || "auto", timeoutMs: p.timeoutMs, ready: partnerReady() },
+      zones: ZONES.map((z) => ({ key: z.key, name: z.name })), lights: LIGHTS.map((l) => ({ key: l.key, name: l.name, see: l.see })),
       local: { eyes: !!look, quiz: QUIZ.map((x) => ({ key: x.key, name: dimName(x.key), q: x.q, options: x.options.map((a) => a[0]) })) },
       sources: [{ key: "auto", name: "自动：有合作方接口就用，连不上自动换成捞捞自己的" }, { key: "partner", name: "只用合作方接口" }, { key: "local", name: "只用捞捞自己的分析（看图 + 问卷）" }] };
   }
@@ -212,11 +267,12 @@ function create(o = {}) {
     if (c.partner) {
       const p = c.partner;
       if (p.url != null) { const u = String(p.url).trim(); if (u && !/^https?:\/\/[^\s]+$/i.test(u)) throw new Error("接口地址要以 http:// 或 https:// 开头"); n.partner.url = u; }
-      for (const k of ["name", "method", "body", "imageField", "auth"]) if (p[k] != null) n.partner[k] = String(p[k]).trim().slice(0, 200);
+      for (const k of ["name", "method", "body", "imageField", "auth", "fieldPattern", "labeled"]) if (p[k] != null) n.partner[k] = String(p[k]).trim().slice(0, 200);
       if (p.token != null && p.token !== "") n.partner.token = String(p.token).trim();      // 空的不覆盖（界面上看不到原口令）
       if (p.clearToken) n.partner.token = "";
+      if (p.minPhotos != null) n.partner.minPhotos = Math.max(0, Math.min(15, +p.minPhotos || 0));
       if (p.timeoutMs != null) n.partner.timeoutMs = Math.max(3000, Math.min(300000, +p.timeoutMs || 60000));
-      for (const k of ["extra", "map"]) if (p[k] != null) { let v = p[k]; if (typeof v === "string") { v = v.trim(); if (!v) v = {}; else { try { v = JSON.parse(v); } catch (e) { throw new Error(`「${k === "map" ? "字段对应" : "额外参数"}」不是正确的 JSON`); } } } if (!v || typeof v !== "object" || Array.isArray(v)) throw new Error(`「${k === "map" ? "字段对应" : "额外参数"}」要写成 {…}`); n.partner[k] = v; }
+      for (const k of ["extra", "map", "codes"]) if (p[k] != null) { let v = p[k]; if (typeof v === "string") { v = v.trim(); if (!v) v = {}; else { try { v = JSON.parse(v); } catch (e) { throw new Error(`「${k === "map" ? "字段对应" : "额外参数"}」不是正确的 JSON`); } } } if (!v || typeof v !== "object" || Array.isArray(v)) throw new Error(`「${k === "map" ? "字段对应" : "额外参数"}」要写成 {…}`); n.partner[k] = v; }
       if (!["json", "multipart"].includes(n.partner.body)) n.partner.body = "json";
       n.partner.method = /^put$/i.test(n.partner.method) ? "PUT" : "POST";
     }
@@ -231,17 +287,33 @@ function create(o = {}) {
     const p = cfg.partner;
     if (!partnerReady()) throw new Error("还没填合作方的接口地址");
     if (!cfg.consent.partner) throw new Error("没有同意把照片发给合作方");
-    const raw = images.map((u) => String(u).replace(/^data:[^,]*,/, ""));
+    const need = +p.minPhotos || 0;
+    if (need && images.length < need) throw Object.assign(new Error(`${p.name || "合作方"}要求拍够 ${need} 张（现在 ${images.length} 张）：每个部位白光、偏振光、紫外光各一张`), { retake: true });
+    const raw = images.map((x) => String(x.url).replace(/^data:[^,]*,/, ""));
+    // 照片带了部位、光源（分区实拍）：每张都标上；部位 / 光源的叫法可以按合作方的改（设置里 codes）
+    const labeled = p.labeled !== "off" && images.some((x) => x.zone || x.light);
+    const code = (kind, k) => ((p.codes || {})[kind] || {})[k] || k;
+    const tag = (x) => ({ zone: x.zone ? code("zones", x.zone) : null, zone_name: x.zone ? (zoneOf(x.zone) || {}).name || x.zone : null, light: x.light ? code("lights", x.light) : null, light_name: x.light ? (lightOf(x.light) || {}).name || x.light : null });
     const headers = {};
     if (p.token) headers[p.auth || "Authorization"] = /^authorization$/i.test(p.auth || "Authorization") && !/^\w+\s/.test(p.token) ? "Bearer " + p.token : p.token;
     let body;
     if (p.body === "multipart") {
       const B = "----laolao" + Date.now().toString(36), parts = [];
       for (const [k, v] of Object.entries(p.extra || {})) parts.push(Buffer.from(`--${B}\r\nContent-Disposition: form-data; name="${k}"\r\n\r\n${typeof v === "object" ? JSON.stringify(v) : v}\r\n`));
-      raw.forEach((b, i) => { parts.push(Buffer.from(`--${B}\r\nContent-Disposition: form-data; name="${p.imageField || "images"}"; filename="photo${i + 1}.jpg"\r\nContent-Type: image/jpeg\r\n\r\n`)); parts.push(Buffer.from(b, "base64")); parts.push(Buffer.from("\r\n")); });
+      raw.forEach((b, i) => {
+        // 分区实拍：字段名默认「部位_光源」（front_white…），合作方要别的样子在设置里写 fieldPattern，比如 "{zone}-{light}"
+        const t = tag(images[i]);
+        const field = labeled && t.zone && t.light ? String(p.fieldPattern || "{zone}_{light}").replace("{zone}", t.zone).replace("{light}", t.light) : p.imageField || "images";
+        parts.push(Buffer.from(`--${B}\r\nContent-Disposition: form-data; name="${field}"; filename="${labeled && t.zone ? `${t.zone}_${t.light || i + 1}` : "photo" + (i + 1)}.jpg"\r\nContent-Type: image/jpeg\r\n\r\n`)); parts.push(Buffer.from(b, "base64")); parts.push(Buffer.from("\r\n"));
+      });
+      if (labeled) parts.push(Buffer.from(`--${B}\r\nContent-Disposition: form-data; name="photos"\r\n\r\n${JSON.stringify(images.map((x) => tag(x)))}\r\n`));
       parts.push(Buffer.from(`--${B}--\r\n`));
       body = Buffer.concat(parts); headers["Content-Type"] = "multipart/form-data; boundary=" + B;
-    } else { body = JSON.stringify({ ...(p.extra || {}), [p.imageField || "images"]: raw }); headers["Content-Type"] = "application/json"; }
+    } else {
+      const imgs = labeled ? raw.map((b, i) => ({ ...tag(images[i]), image: b })) : raw;
+      body = JSON.stringify({ ...(p.extra || {}), [p.imageField || "images"]: imgs, ...(labeled ? { zones: ZONES.length, lights: LIGHTS.map((l) => code("lights", l.key)) } : {}) });
+      headers["Content-Type"] = "application/json";
+    }
     const ac = new AbortController(), t = setTimeout(() => ac.abort(), p.timeoutMs || 60000);
     let res, text;
     try { res = await fetchFn(p.url, { method: p.method || "POST", headers, body, signal: ac.signal }); text = await res.text(); }
@@ -249,6 +321,11 @@ function create(o = {}) {
     finally { clearTimeout(t); }
     if (res.status === 401 || res.status === 403) throw new Error(`合作方接口拒绝了（${res.status}）：口令不对或者没有权限了`);
     if (res.status === 402 || res.status === 429) throw new Error(`合作方接口不给用了（${res.status}）：额度用完或者太频繁`);
+    // 合作方说照片不合格（400 / 422，或者 200 但 code 不是 0、带了 msg）：原话转告用户重拍，不悄悄换成别的分析
+    let j = null; try { j = JSON.parse(text); } catch (e) {}
+    const said = j && typeof j === "object" ? first(j, ["msg", "message", "error", "errmsg", "detail"]) || (j.data && first(j.data, ["msg", "message"])) : null;
+    const bizErr = j && typeof j === "object" && j.code != null && Number.isFinite(+j.code) && +j.code !== 0 && +j.code !== 200 && said && !/^(ok|success|成功)$/i.test(String(said));
+    if ((res.status === 400 || res.status === 422 || bizErr) && said) throw Object.assign(new Error(`${p.name || "合作方"}说：${String(said).slice(0, 160)}`), { retake: true });
     if (!res.ok) throw new Error(`合作方接口出错（${res.status}）：${String(text || "").slice(0, 120)}`);
     const r = normalize(text, profile, p.map);
     return { dims: r.dims, at: r.at, sourceName: p.name || "合作方" };
@@ -292,7 +369,11 @@ where 写在照片的哪一块看到的（比如「发际线」「头顶」「�
     if (images.length) {
       if (!look) why = "这台电脑上的看图模型还没准备好，这次只用问卷";
       else {
-        const txt = await look(images.slice(0, 4), LOOK_PROMPT());
+        // 分区实拍：每个部位挑白光那张（看出油、头屑、发量最准），最多 4 张；告诉模型第几张是哪个部位
+        const white = images.filter((x) => x.zone && (!x.light || x.light === "white"));
+        const use = (white.length ? white : images).slice(0, 4);
+        const label = use.some((x) => x.zone) ? "\n这几张依次是：" + use.map((x, i) => `第 ${i + 1} 张 ${(zoneOf(x.zone) || {}).name || "未标部位"}${x.light ? "（" + ((lightOf(x.light) || {}).name || x.light) + "）" : ""}`).join("，") + "。where 就写部位名。" : "";
+        const txt = await look(use.map((x) => x.url), LOOK_PROMPT() + label);
         seen = parseLook(txt);
       }
     }
@@ -308,8 +389,13 @@ where 写在照片的哪一块看到的（比如「发际线」「头顶」「�
   // ---------- 做一次检测：按设置选插头；合作方不行了自动换成我们自己的 ----------
   async function scan({ images = [], answers = {}, source } = {}) {
     if (!cfg.consent.local) throw new Error("先同意「检测照片和报告保存在这台电脑上」才能检测");
-    images = (Array.isArray(images) ? images : []).filter((u) => /^data:image\/(png|jpe?g|webp|gif|bmp);base64,/i.test(String(u))).slice(0, 6);
-    for (const u of images) if (u.length > 12 * 1048576) throw new Error("照片太大了（一张不要超过 9M）");
+    // 照片：data URL，或者分区实拍的 { url, zone, light }（5 个部位 × 3 种光，最多 15 张）
+    images = (Array.isArray(images) ? images : []).map((x) => (typeof x === "string" ? { url: x } : x && typeof x === "object" ? { url: String(x.url || x.data || ""), zone: (zoneOf(x.zone) || {}).key || null, light: (lightOf(x.light) || {}).key || null } : null))
+      .filter((x) => x && /^data:image\/(png|jpe?g|webp|gif|bmp);base64,/i.test(x.url));
+    const MAXN = images.some((x) => x.zone) ? ZONES.length * LIGHTS.length : 6;
+    if (images.length > MAXN) images = images.slice(0, MAXN);
+    for (const x of images) if (x.url.length > 12 * 1048576) throw new Error("照片太大了（一张不要超过 9M）");
+    const dup = new Set(); for (const x of images) if (x.zone && x.light) { const k = x.zone + "/" + x.light; if (dup.has(k)) throw new Error(`「${(zoneOf(x.zone) || {}).name}·${(lightOf(x.light) || {}).name}」有两张：改一下其中一张的部位或光源`); dup.add(k); }
     const want = source || cfg.source;
     let r = null, fallback = "", src = "local";
     const canPartner = partnerReady() && cfg.consent.partner && images.length;
@@ -317,7 +403,7 @@ where 写在照片的哪一块看到的（比如「发际线」「头顶」「�
     if ((want === "partner" || want === "auto") && canPartner) {
       try { r = await partnerScan(images); src = "partner"; }
       catch (e) {
-        if (want === "partner") throw e;
+        if (want === "partner" || e.retake) throw e;
         fallback = `${cfg.partner.name || "合作方"}的接口这次没用上（${e.message}），自动换成了捞捞自己的分析`;
         log("检测：" + fallback);
       }
@@ -330,7 +416,7 @@ where 写在照片的哪一块看到的（比如「发际线」「头顶」「�
     const photos = [];
     if (cfg.keepPhotos && images.length) {
       fs.mkdirSync(PH, { recursive: true });
-      images.forEach((u, i) => { const m = /^data:image\/(\w+);base64,(.*)$/s.exec(u); if (!m) return; const f = `${id}-${i + 1}.${m[1] === "jpeg" ? "jpg" : m[1]}`; fs.writeFileSync(path.join(PH, f), Buffer.from(m[2], "base64")); photos.push(f); });
+      images.forEach((x, i) => { const u = typeof x === "string" ? x : x.url; const m = /^data:image\/(\w+);base64,(.*)$/s.exec(u); if (!m) return; const f = `${id}-${i + 1}${x.zone ? "-" + x.zone : ""}${x.light ? "-" + x.light : ""}.${m[1] === "jpeg" ? "jpg" : m[1]}`; fs.writeFileSync(path.join(PH, f), Buffer.from(m[2], "base64")); photos.push(f); });
     }
     const rep = { id, at, source, sourceName: sourceName || SOURCE_NAMES[source] || source, profile: o.profile || "scalp", dims, photos, ...(fallback ? { fallback } : {}), ...(demo ? { demo: true } : {}) };
     db.reports.push(rep); db.reports.sort((a, b) => a.at - b.at);
@@ -399,7 +485,7 @@ where 写在照片的哪一块看到的（比如「发际线」「头顶」「�
     if (!r) return null;
     const bad = r.dims.filter((d) => d.level != null && d.level < 4);
     return { id: r.id, date: ymd(r.at), at: r.at, source: r.sourceName, ...(r.demo ? { demo: true } : {}), ...(r.fallback ? { fallback: r.fallback } : {}),
-      items: r.dims.map((d) => ({ name: d.name, level: d.label, ...(d.regions && d.regions.length ? { regions: d.regions.join("、") } : {}), ...(d.note ? { note: d.note } : {}) })),
+      items: r.dims.map((d) => ({ name: d.name, level: d.label, ...(d.regions && d.regions.length ? { regions: d.regions.join("、") } : {}), ...(d.zones ? { zones: Object.entries(d.zones).map(([z, v]) => `${z}${labelOf(v)}`).join("、") } : {}), ...(d.note ? { note: d.note } : {}) })),
       summary: bad.length ? `要注意：${bad.sort((a, b) => a.level - b.level).map((d) => `${d.name}${d.label}`).join("、")}` : r.dims.some((d) => d.level != null) ? "测出来的几项都正常" : "这次没有测出结果",
       unknown: r.dims.filter((d) => d.level == null).map((d) => d.name), photos: (r.photos || []).length };
   }
@@ -485,7 +571,10 @@ where 写在照片的哪一块看到的（比如「发际线」「头顶」「�
   }
   const RE = /头皮|头发|发量|掉发|脱发|秃|发际线|头屑|出油|油头|泛红|毛囊|发丝|水润|检测|报告|八维|雷达|进步|退步|变好|变差|上周|这周|对比|比一比|自测|护理/;
 
-  return { config, setConfig, scan, importText, importFile, demo, wipe, remove, compare, trend, history, latest, view, photo, tools, RE, profile, QUIZ, DISCLAIMER, get: (id) => brief(get(id)) };
+  // 分区实拍的清单：每个部位、每种光拍什么；n 张照片按顺序自动标上部位和光源
+  const plan = () => ({ total: ZONES.length * LIGHTS.length, zones: ZONES.map((z) => ({ key: z.key, name: z.name })), lights: LIGHTS.map((l) => ({ key: l.key, name: l.name, see: l.see })),
+    tips: ["用专业头皮检测仪（放大 50～200 倍，带白光、偏振光、紫外光），镜头贴着头皮", "每个部位：拨开头发露出头皮，白光、偏振光、紫外光各拍一张，三张拍同一个位置", "部位顺序：前额 → 头顶 → 左侧 → 右侧 → 后枕；按这个顺序拍，导入时能自动标好", "对好焦、不要晃；画面里头皮和发根要清楚"] });
+  return { plan, autoLabel: (n) => autoLabel(n), config, setConfig, scan, importText, importFile, demo, wipe, remove, compare, trend, history, latest, view, photo, tools, RE, profile, QUIZ, DISCLAIMER, get: (id) => brief(get(id)) };
 }
 
-module.exports = { create, normalize, toLevel, parseCsv, PROFILES, QUIZ, TIPS, DISCLAIMER };
+module.exports = { create, normalize, toLevel, parseCsv, autoLabel, zoneOf, lightOf, PROFILES, ZONES, LIGHTS, QUIZ, TIPS, DISCLAIMER };

@@ -41,7 +41,10 @@ const ok = (m) => console.log("✓ " + m);
     for (const [k, b] of [["gpt", "g"], ["sovits", "s"], ["reftext", "你好呀"]]) fs.writeFileSync(path.join(lv, k), b);
     fs.copyFileSync(ref, path.join(lv, "ref"));
     fs.writeFileSync(path.join(gm, "state.json"), JSON.stringify({ current: { "laolao-voice": { version: 3, files: Object.fromEntries(["gpt", "sovits", "ref", "reftext"].map((k) => [k, path.join(lv, k)])) } }, pending: {}, checked: Date.now() }));
-    const sv3 = createService({ user, documents: user, version: "t", send() {}, pickFile: async () => null, pickDir: async () => gsv, openPath() {}, reveal() {}, openExternal() {},
+    let sysOn = false;
+    const MEDIA = require("../core/media");
+    const sysTtsFactory = () => ({ available: async () => (sysOn ? { ok: true } : { ok: false, why: "没有中文朗读" }), tts: async () => MEDIA.writeWav(new Float32Array(22050).map((_, i) => Math.sin(i / 7) * 0.3), 22050) });
+    const sv3 = createService({ sysTtsFactory, user, documents: user, version: "t", send() {}, pickFile: async () => null, pickDir: async () => gsv, openPath() {}, reveal() {}, openExternal() {},
       voiceOpt: { cmd: process.execPath, args: (p) => [path.join(__dirname, "fake-gsv.js"), String(p)], waitMs: 15000 } });
     const st3 = sv3.H.laoVoiceState(); assert.ok(st3.on && st3.model && st3.version === 3);
     const r = await sv3.H.laoSpeak("**好的**，第 3 页的标题改好了。公式 $x^2$ 也插进去了。");
@@ -55,11 +58,15 @@ const ok = (m) => console.log("✓ " + m);
     const user2 = fs.mkdtempSync(path.join(os.tmpdir(), "lppt-new-"));
     fs.cpSync(gm, path.join(user2, "grid-models"), { recursive: true });
     fs.writeFileSync(path.join(user2, "grid-models", "state.json"), fs.readFileSync(path.join(gm, "state.json"), "utf8").split(JSON.stringify(gm).slice(1, -1)).join(JSON.stringify(path.join(user2, "grid-models")).slice(1, -1)));
-    const sv4 = createService({ user: user2, documents: user2, version: "t", send() {}, pickFile: async () => null, pickDir: async () => gsv, openPath() {}, reveal() {}, openExternal() {}, gridModels: false,
+    const sv4 = createService({ sysTtsFactory, user: user2, documents: user2, version: "t", send() {}, pickFile: async () => null, pickDir: async () => gsv, openPath() {}, reveal() {}, openExternal() {}, gridModels: false,
       voiceOpt: { cmd: process.execPath, args: (p) => [path.join(__dirname, "fake-gsv.js"), String(p)], waitMs: 15000 } });
     const s4 = await sv4.H.showState();
     assert.equal(s4.voice.who, "laolao"); assert.match(s4.voice.label, /默认的捞捞声音（第 3 版）/); assert.equal(s4.avatar.own, false);
     assert.match((await sv4.H.showSpeak("你好")).skip, /装好 GPT-SoVITS/);
+    sysOn = true;
+    { const sy = await sv4.H.showSpeak("你好，同学们。"); assert.equal(sy.who, "sys"); assert.ok(sy.ms > 900 && sy.levels.length > 5 && /^data:audio\/wav;base64,/.test(sy.url)); }
+    { const vs = (await sv4.H.showState()).voice; assert.ok(vs.temp && /临时用电脑自带的朗读/.test(vs.label), vs.label); }
+    sysOn = false;
     await sv4.H.pickGsvDir();
     const sp = await sv4.H.showSpeak("明天有 **3** 次课。");
     assert.ok(sp.url.startsWith("data:audio/wav;base64,") && sp.who === "laolao" && sp.text === "明天有 3 次课。" && sp.ms > 0 && Array.isArray(sp.levels) && sp.levels.length > 0);

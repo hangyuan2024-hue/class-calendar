@@ -38,7 +38,8 @@
   const legend = (R) => `<div class="ck-legend"><span><i class="now"></i>${esc(R.latest.date)}</span>${R.base ? `<span><i class="base"></i>${esc(R.base.date)}</span>` : ""}<span class="muted">越靠外越好 · 虚线圈 = 信息不足</span></div>`;
 
   // ---------- 卡片 ----------
-  let V = null, base = "", photos = [], scanOpen = false, setOpen = false, wipeArm = 0, quizOpen = null;
+  let V = null, base = "", photos = [], scanOpen = false, setOpen = false, wipeArm = 0, quizOpen = null, zoned = false;
+  // photos：[{ url, zone, light }]；普通照片 zone / light 是空的。分区实拍（检测仪）：按拍摄时间排好，自动标「部位·光源」，每张可以改
   function paint() {
     if (!V || !$("#ckBody")) return;
     const c = V.config;
@@ -70,12 +71,23 @@
     el.innerHTML = `<div class="ck-panel">
       ${c.consent.local ? "" : `<label class="ck-ok"><input type="checkbox" id="ckConsent"> 我同意：检测照片和报告保存在这台电脑上（随时可以在「设置」里全部删除）</label>`}
       <div class="muted small">这次用：${src}</div>
-      <div class="ck-ph"><label class="btn small">选头皮照片（最多 6 张）<input type="file" id="ckFiles" accept="image/*" multiple hidden></label><span class="muted small">拨开头发、离近一点、光线亮一点</span></div>
-      <div class="ck-thumbs">${photos.map((u, i) => `<span><img src="${u}" alt="照片${i + 1}"><button class="ck-x" data-ph="${i}">×</button></span>`).join("")}</div>
+      <label class="ck-ok"><input type="checkbox" id="ckZoned" ${zoned ? "checked" : ""}> 用头皮检测仪分区实拍（前额、头顶、左侧、右侧、后枕，每个部位白光、偏振光、紫外光各一张，共 15 张）</label>
+      <div class="ck-ph"><label class="btn small">${zoned ? "选检测仪拍的照片（一次全选，最多 15 张）" : "选头皮照片（最多 6 张）"}<input type="file" id="ckFiles" accept="image/*" multiple hidden></label><span class="muted small">${zoned ? "按拍摄时间自动标好部位和光源，标错了在下面改" : "拨开头发、离近一点、光线亮一点"}</span></div>
+      ${zoned ? zoneHint() : ""}
+      <div class="ck-thumbs ${zoned ? "zoned" : ""}">${photos.map((p, i) => `<span><img src="${p.url}" alt="照片${i + 1}"><button class="ck-x" data-ph="${i}">×</button>${zoned ? `<select data-pz="${i}">${c.zones.map((z) => `<option value="${z.key}" ${z.key === p.zone ? "selected" : ""}>${esc(z.name)}</option>`).join("")}</select><select data-pl="${i}">${c.lights.map((l) => `<option value="${l.key}" ${l.key === p.light ? "selected" : ""}>${esc(l.name)}</option>`).join("")}</select>` : ""}</span>`).join("")}</div>
       <details class="ck-quiz" ${(quizOpen == null ? !photos.length : quizOpen) ? "open" : ""}><summary class="muted small">自测问卷（看照片看不出来的项目靠它补，可以不答）</summary>
         ${q.map((x) => `<div class="ck-q"><div>${esc(x.q)}</div><div class="ops">${x.options.map((t) => `<label><input type="radio" name="ckq-${x.key}" value="${esc(t)}" ${picked["ckq-" + x.key] === t ? "checked" : ""}> ${esc(t)}</label>`).join("")}</div></div>`).join("")}
       </details>
       <div class="btns"><button class="btn small primary" id="ckGo">开始检测</button><button class="btn small" id="ckCancel">取消</button></div></div>`;
+  }
+  // 分区实拍：还差哪几张、哪一格拍了两张
+  function zoneHint() {
+    const c = V.config, have = new Map();
+    for (const p of photos) { const k = p.zone + "/" + p.light; have.set(k, (have.get(k) || 0) + 1); }
+    const miss = [], twice = [];
+    for (const z of c.zones) for (const l of c.lights) { const n = have.get(z.key + "/" + l.key) || 0; if (!n) miss.push(z.name + "·" + l.name); if (n > 1) twice.push(z.name + "·" + l.name); }
+    return `<div class="muted small">${photos.length}/15 张${miss.length && photos.length ? `，还差：${esc(miss.slice(0, 6).join("、"))}${miss.length > 6 ? ` 等 ${miss.length} 张` : ""}（缺几张也能测，合作方可能要求拍全）` : ""}${twice.length ? `；<b style="color:var(--rd)">这几格拍了两张：${esc(twice.join("、"))}</b>` : ""}</div>
+      <div class="muted small">${c.lights.map((l) => `${esc(l.name)}看${esc(l.see)}`).join("；")}</div>`;
   }
   // 设置：数据来源、合作方接口、同意、演示数据、全部删除
   function paintSet() {
@@ -91,6 +103,10 @@
       <label>发照片的方式 <select id="ckPBody"><option value="json" ${p.body === "json" ? "selected" : ""}>JSON（照片转成 base64）</option><option value="multipart" ${p.body === "multipart" ? "selected" : ""}>表单上传文件（multipart）</option></select></label>
       <label>照片字段名 <input id="ckPField" value="${esc(p.imageField)}"></label>
       <label>字段对应（JSON，可以不填）<textarea id="ckPMap" rows="3" placeholder='{"items":"data.result","key":"code","level":"grade"}'>${esc(Object.keys(p.map || {}).length ? JSON.stringify(p.map) : "")}</textarea></label>
+      <div class="ck-sub">分区实拍（合作方要的 5 个部位 × 3 种光）</div>
+      <label>部位、光源的叫法（JSON，按合作方的改；不填就用 front/top/left/right/back、white/polarized/uv）<textarea id="ckPCodes" rows="2" placeholder='{"zones":{"front":"qianE"},"lights":{"uv":"UV"}}'>${esc(Object.keys(p.codes || {}).length ? JSON.stringify(p.codes) : "")}</textarea></label>
+      <label>表单上传时每张的字段名 <input id="ckPPat" value="${esc(p.fieldPattern || "{zone}_{light}")}"></label>
+      <label>至少要几张才发（0 = 不限；合作方要求拍全就填 15）<input id="ckPMin" type="number" min="0" max="15" value="${+p.minPhotos || 0}"></label>
       <label>额外参数（JSON，可以不填）<textarea id="ckPExtra" rows="2" placeholder='{"device":"comb-01"}'>${esc(Object.keys(p.extra || {}).length ? JSON.stringify(p.extra) : "")}</textarea></label>
       <label class="ck-ok"><input type="checkbox" id="ckPConsent" ${c.consent.partner ? "checked" : ""}> 同意把检测照片发给${esc(p.name)}（照片会离开这台电脑）</label>
       <label class="ck-ok"><input type="checkbox" id="ckKeep" ${c.keepPhotos ? "checked" : ""}> 在这台电脑上留着检测照片</label>
@@ -108,6 +124,11 @@
     });
   }
 
+  // 按顺序自动标（前额 白 偏 紫、头顶 白 偏 紫……）；已经手动改过的不动
+  function relabel() {
+    const zs = V.config.zones, ls = V.config.lights;
+    photos.forEach((p, i) => { if (!p.zone) p.zone = (zs[Math.floor(i / ls.length)] || zs[zs.length - 1]).key; if (!p.light) p.light = ls[i % ls.length].key; });
+  }
   function bind() {
     const card = $("#ckCard"); if (!card || card._b) return; card._b = true;
     $("#ckScanBtn").onclick = () => { scanOpen = !scanOpen; setOpen = false; paint(); };
@@ -115,19 +136,27 @@
     $("#ckImport").onclick = guard(async () => { const r = await call("showCheckupImport"); if (!r) return; V = r.view; base = ""; paint(); toast(`导入了 ${r.added} 次检测`); });
     card.addEventListener("change", guard(async (e) => {
       if (e.target.id === "ckBase") { base = e.target.value; await load(); }
-      if (e.target.id === "ckFiles") { const fs = [...e.target.files].slice(0, 6 - photos.length); for (const f of fs) photos.push(await shrink(f)); paintScan(); }
+      if (e.target.id === "ckZoned") { zoned = e.target.checked; if (zoned) relabel(); else photos = photos.slice(0, 6).map((p) => ({ url: p.url })); paintScan(); }
+      if (e.target.id === "ckFiles") {
+        // 检测仪的照片按拍摄时间排（文件名一般也是时间），一个部位三种光拍完再换下一个部位
+        const files = [...e.target.files].sort((a, b) => a.lastModified - b.lastModified || a.name.localeCompare(b.name, undefined, { numeric: true }));
+        for (const f of files.slice(0, (zoned ? 15 : 6) - photos.length)) photos.push({ url: await shrink(f) });
+        if (zoned) relabel(); paintScan();
+      }
+      if (e.target.dataset.pz != null) { photos[+e.target.dataset.pz].zone = e.target.value; paintScan(); }
+      if (e.target.dataset.pl != null) { photos[+e.target.dataset.pl].light = e.target.value; paintScan(); }
     }));
     card.addEventListener("click", guard(async (e) => {
       const t = e.target, id = t.id;
       if (t.dataset.rm) { V = await call("showCheckupRemove", t.dataset.rm); base = ""; paint(); return; }
       if (t.dataset.ph != null) { photos.splice(+t.dataset.ph, 1); paintScan(); return; }
       if (id === "ckDemo" || id === "ckDemo2") { V = await call("showCheckupDemo"); base = ""; setOpen = false; paint(); toast("放好了 6 次演示数据（虚构的）"); return; }
-      if (id === "ckCancel") { scanOpen = false; photos = []; paint(); return; }
+      if (id === "ckCancel") { scanOpen = false; photos = []; zoned = false; paint(); return; }
       if (id === "ckWipe") { if (wipeArm < Date.now()) { wipeArm = Date.now() + 4000; paintSet(); setTimeout(paintSet, 4100); return; } wipeArm = 0; V = await call("showCheckupWipe"); base = ""; paint(); toast("检测数据和照片都删掉了"); return; }
       if (id === "ckSave") {
         const g = (k) => $(k).value;
         await call("showCheckupConfig", { source: g("#ckSrc"), keepPhotos: $("#ckKeep").checked, consent: { partner: $("#ckPConsent").checked },
-          partner: { name: g("#ckPName"), url: g("#ckPUrl"), token: g("#ckPTok"), auth: g("#ckPAuth"), body: g("#ckPBody"), imageField: g("#ckPField"), map: g("#ckPMap"), extra: g("#ckPExtra") } });
+          partner: { name: g("#ckPName"), url: g("#ckPUrl"), token: g("#ckPTok"), auth: g("#ckPAuth"), body: g("#ckPBody"), imageField: g("#ckPField"), map: g("#ckPMap"), extra: g("#ckPExtra"), codes: g("#ckPCodes"), fieldPattern: g("#ckPPat"), minPhotos: +g("#ckPMin") || 0 } });
         setOpen = false; await load(); toast("保存好了"); return;
       }
       if (id === "ckGo") {
@@ -136,7 +165,7 @@
         const answers = {}; for (const x of V.config.local.quiz) { const r = document.querySelector(`input[name="ckq-${x.key}"]:checked`); if (r) answers[x.key] = r.value; }
         if (!photos.length && !Object.keys(answers).length) throw new Error("选几张照片，或者答几道自测题");
         const b = $("#ckGo"); b.disabled = true; b.textContent = photos.length ? "正在看照片（第一次要下载看图组件）…" : "正在分析…";
-        try { const r = await call("showCheckupScan", { images: photos, answers }); V = r.view; base = ""; scanOpen = false; photos = []; paint(); toast(r.report.fallback ? r.report.fallback : `测好了：${r.report.summary}`, !!r.report.fallback); }
+        try { const r = await call("showCheckupScan", { images: photos.map((p) => (zoned ? { url: p.url, zone: p.zone, light: p.light } : p.url)), answers }); V = r.view; base = ""; scanOpen = false; photos = []; zoned = false; paint(); toast(r.report.fallback ? r.report.fallback : `测好了：${r.report.summary}`, !!r.report.fallback); }
         finally { if (b.isConnected) { b.disabled = false; b.textContent = "开始检测"; } }
       }
     }));

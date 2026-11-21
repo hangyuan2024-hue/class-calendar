@@ -36,9 +36,13 @@ const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
   const ensured = []; let badLora = null, task = null, used = false;
   const llm = { ok: () => true, running: () => true, touch() {}, ensure: async (spec) => { ensured.push(spec); if (badLora && spec.lora && spec.lora.includes(badLora)) throw new Error("LoRA 加载失败"); return `http://127.0.0.1:${llama.address().port}`; } };
   const gsv = path.join(tmp, "gsv"); fs.mkdirSync(path.join(gsv, "runtime"), { recursive: true }); fs.writeFileSync(path.join(gsv, "api_v2.py"), ""); fs.writeFileSync(path.join(gsv, "runtime", "python.exe"), "");
-  let hasGsv = false;
+  let hasGsv = false, sysOn = false, sysSaid = 0;
+  const MEDIA = require("../../pptassist/core/media");
+  // 假的「电脑自带朗读」：开关控制这台电脑有没有中文朗读声音
+  const sysTtsFactory = () => ({ available: async () => (sysOn ? { ok: true, name: "慧慧" } : { ok: false, why: "这台电脑没有中文朗读声音" }),
+    tts: async (t) => { sysSaid++; return MEDIA.writeWav(new Float32Array(22050).map((_, i) => Math.sin(i / 8) * 0.3), 22050); } });
   const ev = [];
-  const show = Show.create({ dir: () => path.join(tmp, "work", "show"), server: () => base, llm, send: (e) => ev.push(e), busy: () => task, used: () => used, gsvDir: () => (hasGsv ? gsv : null),
+  const show = Show.create({ dir: () => path.join(tmp, "work", "show"), server: () => base, llm, send: (e) => ev.push(e), busy: () => task, used: () => used, gsvDir: () => (hasGsv ? gsv : null), sysTtsFactory,
     voiceOpt: { cmd: process.execPath, args: (p) => [path.join(__dirname, "..", "..", "pptassist", "test", "fake-gsv.js"), String(p)], waitMs: 15000 },
     hearOpt: { python: process.env.PYTHON || "python3", args: (p) => ["-u", require("../app/hear").SCRIPT, "--port", String(p), "--fake"], waitMs: 20000 } });
 
@@ -46,7 +50,16 @@ const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
   let st = await show.state();
   assert.equal(st.product.build, 0); assert.ok(st.product.parts.every((p) => !p.ready)); assert.equal(st.who.role, "student"); assert.equal(st.campus.student, 360);
   assert.match(st.voice.label, /还没训练好/);
-  ok("还没有发布过模型：成品第 0 版，四样都显示「还没训练好」；模拟教务已经能用");
+  assert.ok(st.product.parts.every((p) => p.temp), "每一样都写着临时用什么");
+  assert.equal(st.voice.can, false); assert.match((await show.speak("你好")).skip, /还没训练好.*没有中文朗读/);
+  ok("还没有发布过模型：成品第 0 版，每样都写着「临时用什么」；这台电脑也没有中文朗读 → 说清楚，回答只出字；模拟教务已经能用");
+  sysOn = true;
+  st = await show.state();
+  assert.equal(st.voice.can, true); assert.equal(st.voice.temp, true); assert.match(st.voice.label, /临时用电脑自带的朗读/);
+  let tsp = await show.speak("**你好**，同学们。");
+  assert.ok(tsp.temp && Buffer.from(tsp.wav, "base64").slice(0, 4).toString() === "RIFF" && tsp.ms > 900 && tsp.levels.length > 5, JSON.stringify(tsp).slice(0, 200));
+  await show.speak("**你好**，同学们。"); assert.equal(sysSaid, 1, "同一句念过就用存下的");
+  ok("捞捞的声音还没训练好：先用电脑自带的中文朗读念出来（带口型），念过的句子不重念");
 
   // 2. 调度中心发布了答题 LoRA 和捞捞的声音 → 自动下载、换上、记两笔
   publish("qa-lora", 1, { lora: ["qa-lora.gguf", "GGUF-v1"] }, { acc: 0.7, base_acc: 0.64 });
@@ -82,7 +95,10 @@ const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
   ok("又训练出新版：自动融合，下一句就带着新的 LoRA；新版带上启动不了 → 自动退回上一版，对话不断，坏的那一版不再反复换上");
 
   // 5. 说话：没装声音组件时说清楚；装了以后一句话 → 一段声音 + 每一帧的响度（口型）
-  assert.match((await show.speak("你好，同学们。")).skip, /还没装声音组件/);
+  assert.ok((await show.speak("你好，同学们。")).temp, "捞捞的声音下好了但没装声音组件：先用电脑自带朗读");
+  assert.match((await show.state()).voice.label, /第 1 版已下好/);
+  sysOn = false;
+  assert.match((await show.speak("你好呀。")).skip, /还没装声音组件/);
   hasGsv = true;
   const sp = await show.speak("**先设**未知数 $x$。");
   assert.ok(sp.wav.length > 1000 && Buffer.from(sp.wav, "base64").slice(0, 4).toString() === "RIFF" && sp.ms > 0 && sp.levels.length > 5 && sp.version === 1);

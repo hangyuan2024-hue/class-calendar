@@ -7,6 +7,7 @@ const crypto = require("crypto");
 const PPTX = require("./pptx");
 const MEDIA = require("./media");
 const VOICE = require("./voice");
+const SYSTTS = require("./systts");
 const DRAFT = require("./draft");
 const AI3D = require("./ai3d");
 const ENGINE = require("./engine");
@@ -70,6 +71,9 @@ function createService(env) {
     return t;
   };
   // 成品展示用谁的声音：老师自己的（训练过的 / 上传的录音）优先；没有就用默认的捞捞
+  // 捞捞的声音还没训练好 / 没装 GPT-SoVITS：成品展示先用电脑自带的中文朗读
+  const sysTts = (env.sysTtsFactory || SYSTTS.create)(env.sysTtsOpt || {});
+  const sysOk = () => sysTts.available().then((s) => !!s.ok).catch(() => false);
   function showVoice() {
     const tm = trainedVoice();
     if (tm) return { who: "own", label: "老师自己的声音（捞捞算力训练的）", ref: tm.files.ref, prompt: tm.prompt, gpt: tm.files.gpt, sovits: tm.files.sovits, tag: "t" + tm.version };
@@ -452,9 +456,12 @@ function createService(env) {
     async showState() {
       await show.ready();
       const a = await H.aiState(), v = showVoice(), lp = show.lastPpt(), me = show.who();
+      const useSys = (!v || !profile.gsvDir) && (await sysOk());
       const actor = show.campus.identities()[me.role];
       return { who: me, product: show.product(), llm: a.llm, model: a.model, exe: a.exe, busy: show.busy(),
-        voice: { on: profile.showSpeak !== false, who: v ? v.who : null, label: v ? v.label : "还没有声音：捞捞的声音训练好后会自动下载", gsv: !!profile.gsvDir, engine: voice.state.state },
+        voice: { on: profile.showSpeak !== false, who: useSys ? "sys" : v ? v.who : null, temp: useSys,
+          label: useSys ? (v ? `临时用电脑自带的朗读（装好 GPT-SoVITS 后换成${v.label}）` : "临时用电脑自带的朗读（捞捞的声音训练、考试通过后自动换上）") : v ? v.label : "还没有声音：捞捞的声音训练好后会自动下载",
+          gsv: !!profile.gsvDir, engine: voice.state.state },
         avatar: { own: !!(profile.avatar || profile.face), spec: profile.avatar || null },
         ppt: lp ? { name: path.basename(lp.file), title: lp.title, pages: lp.pages, rev: lp.rev } : null, exam: show.lastExam(),
         requests: show.campus.myRequests(actor).requests.slice(0, 8), pending: show.campus.pending(actor).requests.slice(0, 8), campus: show.campus.stats() };
@@ -482,8 +489,15 @@ function createService(env) {
     async showSpeak(text) {
       if (profile.showSpeak === false) return null;
       const v = showVoice();
-      if (!v) return { skip: "还没有声音：捞捞的声音训练好后会自动下载" };
       const t = sayable(text); if (!t) return null;
+      if ((!v || !profile.gsvDir) && (await sysOk())) {
+        fs.mkdirSync(P("cache"), { recursive: true });
+        const wav = P("cache", `show-${hash(t + "|sys")}.wav`);
+        if (!fs.existsSync(wav)) fs.writeFileSync(wav, await sysTts.tts(t));
+        const w = MEDIA.readWav(fs.readFileSync(wav));
+        return { url: dataUrl(wav, "audio/wav"), text: t, who: "sys", ms: Math.round(w.seconds * 1000), levels: MEDIA.lipLevels(w.samples, w.rate, 25) };
+      }
+      if (!v) return { skip: "还没有声音：捞捞的声音训练好后会自动下载" };
       if (voice.state.state !== "ready") {
         if (!profile.gsvDir) return { skip: "要先在「我的声音」里装好 GPT-SoVITS，才能开口说话" };
         await voice.start(profile.gsvDir, env.voiceOpt || {});

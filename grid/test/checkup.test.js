@@ -81,6 +81,56 @@ const IMG = "data:image/jpeg;base64," + Buffer.from("假的照片").toString("ba
   assert.throws(() => c.setConfig({ partner: { url: "ftp://x" } }), /http/);
   ok("合作方接口：同意了才发照片，口令只在本机；接口 403 / 连不上 → 自动换成捞捞自己的分析（看图为准、问卷补看不清的）并照实说明；JSON 和表单上传两种发法");
 
+  // ---------- 分区实拍：5 个部位 × 白光 / 偏振光 / 紫外光，发给合作方时每张都标上；读合作方按部位给的结果 ----------
+  {
+    const tags = CK.autoLabel(15);
+    assert.deepEqual(tags.slice(0, 4), [{ zone: "front", light: "white" }, { zone: "front", light: "polarized" }, { zone: "front", light: "uv" }, { zone: "top", light: "white" }]);
+    assert.deepEqual(tags[14], { zone: "back", light: "uv" });
+    const set15 = tags.map((t, i) => ({ url: "data:image/jpeg;base64," + Buffer.from(`照片${i + 1}`).toString("base64"), ...t }));
+    // 合作方按部位给结果：[{ zone, items }]
+    mode = "zones";
+    const zoneReply = { code: 0, data: { zones: [
+      { zone: "前额", items: [{ code: "oil", level: "轻度" }, { code: "redness", level: "正常" }] },
+      { zone: "头顶", items: [{ code: "oil", level: "中度", desc: "毛囊口油脂栓多" }, { code: "redness", level: "轻度" }, { code: "density", level: "轻度" }] },
+      { zone: "左侧", items: [{ code: "oil", level: "正常" }] },
+    ] } };
+    const pz = await listen((q, res) => { let b = ""; q.on("data", (x) => (b += x)); q.on("end", () => { hits.push({ type: q.headers["content-type"], body: b }); res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify(zoneReply)); }); });
+    c.setConfig({ partner: { url: `http://127.0.0.1:${pz.address().port}/scan`, body: "json", imageField: "images", extra: "{}" } });
+    const r2 = await c.scan({ images: set15 });
+    const sent = JSON.parse(hits[hits.length - 1].body);
+    assert.equal(sent.images.length, 15, "15 张都发了（以前最多 6 张）");
+    assert.deepEqual({ ...sent.images[4], image: undefined }, { zone: "top", zone_name: "头顶", light: "polarized", light_name: "偏振光", image: undefined });
+    assert.equal(Buffer.from(sent.images[4].image, "base64").toString(), "照片5");
+    const oil = r2.items.find((x) => x.name === "出油量");
+    assert.equal(oil.level, "中度", "总等级：取最差的部位"); assert.equal(oil.regions, "头顶、前额"); assert.match(oil.zones, /前额轻度、头顶中度、左侧正常/); assert.match(oil.note, /头顶：毛囊口油脂栓多/);
+    assert.equal(r2.items.find((x) => x.name === "敏感泛红").level, "轻度");
+    // 合作方叫法不一样（部位、光源代码）、表单上传：字段名按「部位_光源」
+    c.setConfig({ partner: { body: "multipart", imageField: "file", codes: { zones: { front: "qe", top: "dt" }, lights: { white: "W", polarized: "P", uv: "U" } } } });
+    await c.scan({ images: set15.slice(0, 6) });
+    const mb = hits[hits.length - 1].body;
+    assert.match(mb, /name="qe_W"; filename="qe_W.jpg"/); assert.match(mb, /name="dt_U"/); assert.match(mb, /name="photos"\r\n\r\n\[\{"zone":"qe","zone_name":"前额","light":"W"/);
+    // 同一个部位同一种光拍了两张：提示改
+    await assert.rejects(c.scan({ images: [set15[0], { ...set15[1], light: "white" }] }), /「前额·白光」有两张/);
+    // 合作方说照片不合格：原话转告重拍，不悄悄换成本机分析；要求拍全：发之前就拦住
+    const bad = await listen((q, res) => { q.resume(); q.on("end", () => { res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify({ code: 1001, msg: "头顶·紫外光 模糊，请重拍" })); }); });
+    c.setConfig({ partner: { url: `http://127.0.0.1:${bad.address().port}/scan`, body: "json" } });
+    await assert.rejects(c.scan({ images: set15 }), /梳子团队说：头顶·紫外光 模糊，请重拍/);
+    c.setConfig({ partner: { minPhotos: 15 } });
+    const n0 = hits.length;
+    await assert.rejects(c.scan({ images: set15.slice(0, 9) }), /要求拍够 15 张（现在 9 张）/);
+    assert.equal(hits.length, n0, "没拍全不发");
+    c.setConfig({ partner: { minPhotos: 0 } }); bad.close();
+    // 合作方不用了：本机兜底挑白光那几张，告诉模型哪张是哪个部位
+    c.setConfig({ source: "local" });
+    looked.length = 0;
+    await c.scan({ images: set15 });
+    assert.equal(looked[0].n, 4); assert.match(looked[0].prompt, /第 1 张 前额（白光），第 2 张 头顶（白光），第 3 张 左侧（白光），第 4 张 右侧（白光）/);
+    c.setConfig({ source: "auto", partner: { body: "json", imageField: "images", codes: "{}", url } });
+    pz.close(); mode = "ok";
+    assert.equal(c.plan().total, 15);
+    ok("分区实拍：15 张按拍摄顺序自动标好「部位·光源」，发给合作方时每张都带上（JSON 或表单，叫法可以按合作方的改）；合作方按部位给的结果合成总等级（取最差的部位）、关注部位、每个部位各是什么；同一格拍两张会提示；合作方不用时本机挑白光照片兜底");
+  }
+
   // 本机看图：不是头皮、一项都没看清
   {
     const c2 = CK.create({ dir: path.join(tmp, "c2"), look: async () => '{"is_scalp": false}' });

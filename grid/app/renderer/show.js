@@ -32,7 +32,7 @@
     $("#shVoice").textContent = "声音：" + S.voice.label;
     $("#shVoiceInstall").hidden = !(S.voice.model && !S.voice.gsv);
     $("#shChips").innerHTML = P.parts.map((p) => `<span class="sh-chip ${p.ready ? "" : "off"}">${esc(p.name)}<b>${p.ready ? "第 " + p.version + " 版" : "训练中"}</b></span>`).join("");
-    $("#shParts").innerHTML = P.parts.map((p) => `<div class="sh-part ${p.ready ? "" : "off"}"><b>${esc(p.name)}</b><span class="v">${p.ready ? `第 ${p.version} 版` : "还没训练好"}${p.pending ? ` <span class="new">→ 第 ${p.pending} 版已下好</span>` : ""}</span><small>${esc(p.what)}${p.metric != null ? ` · ${esc(p.metricName)} ${pct(p.metric)}${p.base != null ? `（没训练前 ${pct(p.base)}）` : ""}` : ""}</small></div>`).join("");
+    $("#shParts").innerHTML = P.parts.map((p) => `<div class="sh-part ${p.ready ? "" : "tmp"}"><b>${esc(p.name)}</b><span class="v">${p.ready ? `第 ${p.version} 版` : "临时版在用"}${p.pending ? ` <span class="new">→ 第 ${p.pending} 版已下好</span>` : ""}</span><small>${esc(p.what)}${!p.ready && p.temp ? `<br>现在${esc(p.temp)}，训练、考试通过后自动换上` : ""}${p.metric != null ? ` · ${esc(p.metricName)} ${pct(p.metric)}${p.base != null ? `（没训练前 ${pct(p.base)}）` : ""}` : ""}</small></div>`).join("");
     $("#shHist").innerHTML = P.log.length ? P.log.map((l) => `<div><i>${when(l.at)}</i>${esc(l.name)} ${l.from ? `第 ${l.from} 版 → ` : ""}第 ${l.to} 版${l.metric != null ? `，${pct(l.metric)}` : ""}</div>`).join("") : `<div>还没有发布过的模型：训练、考试通过一版，这里自动记一笔、自动换上</div>`;
     $("#shPptBtns").hidden = !S.ppt; $("#shPptName").textContent = (S.ppt ? `${S.ppt.title}（${S.ppt.pages} 页）` : "还没有 PPT：让它做一份，或者打开一份让它改") + (S.exam ? "\n" + examLine(S.exam) : "");
     if (S.ppt && deck && (!deck.data() || deck.data().rev !== S.ppt.rev)) deck.refresh();
@@ -208,7 +208,7 @@
   $("#shLog").addEventListener("click", (e) => { const b = e.target.closest(".ex"); if (b) send(b.textContent); });
   $("#shNew").onclick = guard(async () => { await call("showReset"); clear(); hello(); });
   $("#shRole").onchange = guard(async () => { S = await call("showRole", $("#shRole").value); clear(); paint(); hello(); });
-  $("#shSpeak").onchange = guard(async () => { S.voice = await call("setShowSpeak", $("#shSpeak").checked); if (!S.voice.on) spReset(); paint(); if (S.voice.on && !S.voice.model) toast(S.voice.label); });
+  $("#shSpeak").onchange = guard(async () => { S.voice = await call("setShowSpeak", $("#shSpeak").checked); if (!S.voice.on) spReset(); paint(); if (S.voice.on && !S.voice.can) toast(S.voice.label); });
   $("#shVoiceInstall").onclick = guard(async () => { const b = $("#shVoiceInstall"); b.disabled = true; b.textContent = "正在装（几个 G，可以先接着用）…"; try { S = await call("showInstallVoice"); paint(); toast("声音组件装好了"); } finally { b.disabled = false; b.textContent = "装上声音组件"; } });
   $("#shCheck").onclick = guard(async () => { const b = $("#shCheck"); b.disabled = true; b.textContent = "正在看…"; try { const n = S ? S.product.build : 0; S = await call("showCheck"); paint(); toast(S.product.build > n ? `有新版：成品现在是第 ${S.product.build} 版` : "没有新版：现在用的就是最新的"); } finally { b.disabled = false; b.textContent = "看有没有新版"; } });
   $("#shPptOpen").onclick = guard(() => call("showOpenPpt", false));
@@ -323,7 +323,7 @@
       if (!S.voice.on) S.voice = await call("setShowSpeak", true);
       paint();
       const c = S.call || {};
-      $("#shCallTip").textContent = (c.lora ? `口语对话第 ${c.lora} 版` : "口语对话大脑还在训练，先用答题大脑") + (S.voice.model ? "" : " · 捞捞的声音还没训练好，回答只出字");
+      $("#shCallTip").textContent = (c.lora ? `口语对话第 ${c.lora} 版` : "口语对话大脑还在训练，先用答题大脑") + (S.voice.can ? (S.voice.temp ? " · 先用电脑自带的声音说话" : "") : " · 这台电脑还出不了声，回答只出字");
     } catch (e) { toast(msgOf(e), true); }
     add("sh-step fuse", "✦ 电话接通了：直接说就行，说完停一下它就回答；它说话的时候你一开口就能打断");
   }
