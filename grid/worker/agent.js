@@ -962,7 +962,10 @@ function create(opt) {
             if (op === "stop") { opt.llm.stop(); return {}; }
             if (op === "info") return { version: opt.llm.version ? await opt.llm.version() : "", convert: opt.llm.convertDir ? opt.llm.convertDir() : "" };
             const spec = { ...((c.job.params || {}).llm || {}), ...(a.llm || {}) };
-            if (a.lora) { const f = path.resolve(c.dir, String(a.lora)); if (!f.startsWith(path.resolve(c.dir) + path.sep) || !fs.existsSync(f)) throw new Error("LoRA 文件要在任务文件夹里"); spec.lora = f; }
+            const inDir = (x) => { const f = path.resolve(c.dir, String(x)); if (!f.startsWith(path.resolve(c.dir) + path.sep) || !fs.existsSync(f)) throw new Error("LoRA 文件要在任务文件夹里"); return f; };
+            if (a.lora) spec.lora = inDir(a.lora);
+            // 底座的永久层（base-stack：合进底座的几个 LoRA，各带比例）：一直按比例挂着
+            if (Array.isArray(a.base)) spec.baseLoras = a.base.slice(0, 16).map((x) => ({ path: inDir(x.path), scale: Math.max(0, Math.min(2, +x.scale || 1)) }));
             return { url: await opt.llm.ensure(spec, (x) => { c.note = x; c.lastOut = Date.now(); emit("progress", { id: c.id, p: c.progress, note: x }); }) };
           })
           .then((r) => reply({ ok: true, ...r }), (e) => reply({ ok: false, error: e.message }));

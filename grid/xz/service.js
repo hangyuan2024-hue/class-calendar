@@ -22,10 +22,14 @@ function pickBase(user) {
   return ok(pub) ? pub : user;
 }
 
+// 显卡名字、显存（G）：nvidia-smi 问一下（没有 NVIDIA 显卡就是空的）
 function gpuName() {
   return new Promise((ok) => {
-    if (process.platform !== "win32") return ok("");
-    execFile("nvidia-smi", ["--query-gpu=name", "--format=csv,noheader"], { windowsHide: true, timeout: 8000 }, (e, out) => ok(e ? "" : String(out || "").split(/\r?\n/)[0].trim()));
+    if (process.platform !== "win32") return ok({ name: "", vram: 0 });
+    execFile("nvidia-smi", ["--query-gpu=name,memory.total", "--format=csv,noheader,nounits"], { windowsHide: true, timeout: 8000 }, (e, out) => {
+      const [name, mb] = String(e ? "" : out || "").split(/\r?\n/)[0].split(",").map((x) => x.trim());
+      ok({ name: name || "", vram: +mb ? Math.round((+mb / 1024) * 10) / 10 : 0 });
+    });
   });
 }
 
@@ -45,8 +49,8 @@ function createXz(o) {
   const regionNow = () => { try { return region.current(); } catch (e) { return "cn"; } };
   if (!o.noDetect) { const t = setTimeout(() => { try { region.detect().catch(() => {}); } catch (e) {} }, 20000); t.unref && t.unref(); }
   const mirror = (() => { try { return require(path.join(APP, "ppt", "mirror.js")).create({ region: regionNow }); } catch (e) { return null; } })();
-  let gpu = "";
-  gpuName().then((n) => { gpu = n; }).catch(() => {});
+  let gpu = "", vram = 0;
+  gpuName().then((g) => { gpu = g.name; vram = g.vram; }).catch(() => {});
 
   const llm = (o.llmFactory || LLMW.create)({ exe: o.llamaExe, base, mirror, region: regionNow, ...(o.llmOpt || {}) });
   const gsv = (o.gsvFactory || GSVW.create)({ base, get: () => cfg.gsv, set: (v) => { cfg.gsv = { ...(cfg.gsv || {}), ...v }; save(); }, gpuName: () => gpu,
@@ -57,7 +61,7 @@ function createXz(o) {
     busy: () => null, used: () => true,
     gsvDir: () => { const r = gsv.inspect((cfg.gsv || {}).dir) || gsv.find(path.join(base(), "ai", "LaolaoAI-GPT-SoVITS")); return r ? r.dir : null; },
     llmName: async () => { if (!mirror) return null; try { const hit = (await mirror.model("llmMain"))[0]; return hit && hit.name; } catch (e) { return null; } },
-    gsvEnsure: (say) => gsv.ensure((m) => say(m)), base,
+    gsvEnsure: (say) => gsv.ensure((m) => say(m)), base, vram: () => vram,
     ...(o.showOpt || {}) });
 
   const st = async () => ({ ...(await show.state()), paused: false, joined: true, fullscreen: o.isFullscreen ? !!o.isFullscreen() : false, app: { version: o.version || "", trial: true } });
@@ -97,6 +101,10 @@ function createXz(o) {
     showPrepRun: async (opt) => show.prepRun(opt || {}),
     async showVoicePref(v) { return show.setVoicePref(v); },
     showVoiceTest: async () => show.voiceTest(),
+    showApi: async () => show.apiInfo(),
+    showApiConnect: async () => show.apiConnect(),
+    showApiDisconnect: async () => show.apiDisconnect(),
+    showKb: async (open) => { const k = await show.kb(); if (open) o.openPath && o.openPath(k.dir); return k; },
     openSite: async () => { o.openExternal && o.openExternal("https://www.laolaokechengbiao.cn/xiaozhi/"); return true; },
   };
   return { H, show, llm, gsv, shutdown: () => { try { show.shutdown(); } catch (e) {} try { llm.stop(); } catch (e) {} } };

@@ -68,7 +68,10 @@
           "lazy": true,
           "ctx": 8192,
           "slots": 2
-        }
+        },
+        "modelsOf": [
+          "base-stack"
+        ]
       },
       "req": {
         "vram": 7.5,
@@ -81,7 +84,8 @@
     "model": "chat-lora",
     "from": "train",
     "files": [
-      "lora"
+      "lora",
+      "peft"
     ],
     "metrics": [
       {

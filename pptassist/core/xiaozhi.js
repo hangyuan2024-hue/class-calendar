@@ -17,10 +17,12 @@ const CAMPUS = require("./campus");
 const CHECKUP = require("./checkup");
 
 const PARTS = [
+  { key: "base-stack", name: "底座", what: "通义千问 4B 加上一轮轮考过、合进去的本事（答题、口语……）", temp: "先用通义千问 4B 原版", metric: "gsm8k", metricName: "回归考试（数学）", base: "base_gsm8k" },
   { key: "qa-lora", name: "学术问答", what: "答题大脑：一步一步讲题", temp: "先用没训练过的底子（通义千问 4B）讲题", metric: "acc", metricName: "考试答对率", base: "base_acc" },
   { key: "laolao-voice", name: "捞捞的声音", what: "默认声音：没上传自己声音的老师用它", temp: "先用 Kokoro 中文女声（好听的临时声音）" },
   { key: "voice-base", name: "声音克隆底座", what: "照着老师的一段录音学她说话", temp: "先用声音组件自带的底子" },
   { key: "qversion-lora", name: "Q版形象", what: "照着照片画 Q版 / 3D 公仔", temp: "先用画图引擎原本的画法" },
+  { key: "ground-lora", name: "先核对再回答", what: "照资料回答、标出处，说出口前逐句核对；资料里没有就说没有", temp: "先用底子自己核对（没训练过，核对得没那么准）", metric: "catch", metricName: "错句抓出来", base: "base_catch" },
   { key: "chat-lora", name: "口语对话", what: "打电话时说话像人：短、念得出来，听错字也懂", temp: "先用答题大脑接电话", metric: "acc", metricName: "口语考试说对", base: "base_acc" },
 ];
 // 打电话（实时语音对话）时加给捞小智的规则：和训练口语对话大脑时用的一字不差（grid/recipes/chat_gen.py、qa_train.py；测试里核对）
@@ -178,19 +180,21 @@ function create(o) {
   const RE_PPT = /ppt|课件|幻灯|演示文稿|讲义|这一页|上一页|下一页|最后一页|第\s*[0-9一二三四五六七八九十两]+\s*页|封面|标题|配色|颜色|版式|排版|字号|字体|字大|字小|大一点|小一点|加粗|标红|高亮|标出|表格|备注|讲稿|撤销|改回|大纲|要点|两栏|卡片|步骤图|加一页|删掉/i;
   const RE_CAMPUS = /课表|上课|有课|成绩|绩点|学分|考试|请假|销假|调课|停课|补课|教室|选课|退课|证明|审批|批准|驳回|申请|规定|校历|教务|辅导员|学籍|明天|后天|下周|这周|本周/;
   const PPT_NAMES = AGENT.TOOLS.map((t) => t.name);
+  const RE_MM = /导图|思维|脑图|mind\s*map|分支|节点/i;
   // 这一句带哪些工具（4B 的模型上下文有限，三十多个工具全带上它既慢又容易选错）：
   //   手上没有 PPT：做 PPT + 教务；手上有：说的是 PPT 的事带改 PPT 的那一套，说的是教务的事带教务的，分不清就都带
   let lastKind = "";
   //   说的是检测报告（头皮、比上周有什么进步…）或者发来了照片说头发的事：带检测的工具
   function pick(text, imgs) {
-    const names = new Set(["make_ppt"]), ppt = RE_PPT.test(text), cam = RE_CAMPUS.test(text), chk = checkup.RE.test(text) || !!(imgs && imgs.length && /头|发/.test(text));
+    const names = new Set(["make_ppt", ...webTools.map((t) => t.name), ...groundTools.map((t) => t.name)]), ppt = RE_PPT.test(text), cam = RE_CAMPUS.test(text), chk = checkup.RE.test(text) || !!(imgs && imgs.length && /头|发/.test(text)), mm = RE_MM.test(text);
     // 都没提（「再简单一点」「好的」）：接着上一句说的那件事
-    const kind = [ppt && "ppt", cam && "campus", chk && "check"].filter(Boolean).join("+") || lastKind || (cur ? "ppt" : "campus");
+    const kind = [ppt && "ppt", cam && "campus", chk && "check", mm && "mindmap"].filter(Boolean).join("+") || lastKind || (cur ? "ppt" : "campus");
     lastKind = kind;
     const has = (k) => kind.split("+").includes(k);
     if (cur && (has("ppt") || (!has("campus") && !has("check")))) for (const n of PPT_NAMES) names.add(n);
     if (has("campus") || (!cur && !has("check"))) for (const t of campusTools) names.add(t.name);
     if (has("check")) for (const t of checkTools) names.add(t.name);
+    if (has("mindmap")) for (const t of mindmapTools) names.add(t.name);
     return names;
   }
   const SYS = (names) => {
@@ -207,6 +211,10 @@ ${cur ? `现在手上的 PPT：「${cur.title}」，一共 ${cur.pages} 页（�
 
 你会${hasCheck ? "四" : "三"}类事，按对方说的挑：
 一、讲题和学术问题：直接回答。一步一步讲清楚，每一步说明为什么；算式写清楚，公式用 LaTeX（$...$）；最后给出答案。不知道的就说不知道，不要编。
+   · 思维导图（捞捞思维导图）：对方说「我的导图」「那张导图」→ mindmap_list 看有哪些、mindmap_read 读出来再讲 / 出题 / 做 PPT；要把一节课、一份 PPT、一段资料整理成导图 → mindmap_make（缩进大纲，3～4 层，每个节点一句短话）；在已有导图里补内容 → mindmap_add。导图里的内容也会被 answer_from_sources 当资料查。
+   · 问的是事实（学校规定、通知、某个知识点的定义和数据、某件事是什么、什么时候、多少）→ 先调用 answer_from_sources：它会查本机知识库（需要时联网，web 填 true）、照资料回答、逐句核对。你只转述它的 answer（可以去掉方括号、说得自然一点），不加资料外的内容，最后说一句来源；它说「资料里没有」就照实说没有，不要自己补答案。讲题、算题、闲聊不用它。
+${webTools.length ? `   · 能联网：问到新闻、最近的事、现在的价格 / 排名 / 政策 / 天气、某个人或产品的近况，或者你拿不准的事实 → 先调用 web_search 搜一下（摘要不够再 read_page 读一两个网页），照搜到的回答，最后一行写「来源：网站名」。常识和讲题不用搜。
+` : ""}
 二、PPT：
    · 对方要「做一份 PPT / 课件」→ 先想好整份怎么讲，再调用 make_ppt 一次做完。一般 8～12 页（对方说了几页就按他说的）：开头一页讲「这节课学什么」，中间按 2～3 个部分讲（每部分可以用 section 开头），结尾一页 summary 小结。
      每一页挑合适的版式，不要整份都是 bullets：并列的几个概念用 cards，有先后的过程用 steps，两样东西比一比用 compare，数据用 table，代码用 code，公式用 formula，最重要的一句话用 statement。
@@ -236,12 +244,24 @@ ${hasCheck ? `四、${checkup.profile.name}报告（${checkup.profile.dims.map((
   };
   const campusTools = campus.tools(actor);
   const checkTools = checkup.tools(() => lastImgs);
+  const webTools = o.web === false ? [] : (o.webTools || require("./websearch").tools(o.webOpt || {}));
+  // 先核对再回答：本机知识库（dir/kb 里的 .txt / .md）+ 需要时联网；照资料答、逐句核对（core/ground.js）
+  const GROUND = require("./ground");
+  const kb = o.kb || GROUND.kb(path.join(dir, "kb"));
+  // 捞捞思维导图（学习捞捞队的模块）：只走它公开的本机接口 / 存下来的 map.json，不改它的代码（core/mindmap.js）
+  const mindmap = o.mindmap === false ? null : (o.mindmap || require("./mindmap").create(o.mindmapOpt || {}));
+  const mindmapTools = mindmap ? mindmap.tools() : [];
+  const ground = o.ground || GROUND.create({ llm: o.llm, kb, sources: mindmap ? [mindmap] : [], web: o.web === false ? null : (() => { const W = require("./websearch"); return { search: (q) => W.search(q, o.webOpt || {}), read: (u) => W.read(u, o.webOpt || {}) }; })(), onStep: (m) => { if (o.onEvent) o.onEvent({ type: "note", text: m }); } });
+  const groundTools = ground.tools();
   const tools = [
     { name: "make_ppt", desc: "按要求从头做一份新的 PPT（.pptx）。title 整份的标题，subtitle 副标题（课程、章节），theme 配色（" + Object.entries(DECK.THEMES).map(([k, v]) => `${k} ${v.name}`).join(" / ") + "，不写用 blue），slides 每一页（封面不用写，会自动加）",
       params: { title: { type: "string" }, subtitle: { type: "string" }, theme: { type: "string", enum: Object.keys(DECK.THEMES) }, slides: { type: "array", items: { type: "object", properties: AGENT.PAGE } } }, req: ["title", "slides"], changes: true,
       say: (a) => `做一份 PPT「${a.title || ""}」（${Array.isArray(a.slides) ? a.slides.length + 1 : "?"} 页）`, run: makePpt },
     ...campusTools,
     ...checkTools,
+    ...webTools,
+    ...groundTools,
+    ...mindmapTools,
   ];
   const isPpt = new Set(PPT_NAMES);
   let tap = null;       // 考试的时候看它调了哪些工具
@@ -308,7 +328,7 @@ ${hasCheck ? `四、${checkup.profile.name}报告（${checkup.profile.dims.map((
   return {
     send: async (text, images) => { await boot; lastImgs = Array.isArray(images) ? images.slice(0, 6) : []; return agent.send(text, images); }, stop: () => agent.stop(), reset: () => agent.reset(), busy: () => agent.busy(), history: () => agent.history(),
     setRole(r) { if (!["student", "teacher", "staff"].includes(r)) throw new Error("身份只有：学生、教师、教务员"); if (r !== role) { role = r; lastKind = ""; agent.reset(); } return who(); },
-    who, product, campus, checkup, makePpt, openPpt, lastPpt, slides, pptTheme, pptUndo, pptExam, lastExam, pick, tools, ready: () => boot, deck: () => (cur ? cur.d : null),
+    who, product, campus, checkup, kb, ground, mindmap, makePpt, openPpt, lastPpt, slides, pptTheme, pptUndo, pptExam, lastExam, pick, tools, ready: () => boot, deck: () => (cur ? cur.d : null),
     // 打电话模式：开着时每一句都按语音通话的规则说
     setVoice(v) { voiceMode = !!v; return voiceMode; }, voice: () => voiceMode,
   };

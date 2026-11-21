@@ -28,6 +28,7 @@ const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
       const ms = body.messages || [], last = ms[ms.length - 1] || {}, t = typeof last.content === "string" ? last.content : "";
       const call = (name, args) => { r.write(`data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: "c" + reqs.length, function: { name, arguments: JSON.stringify(args) } }] } }] })}\n\n`); r.end("data: [DONE]\n\n"); };
       if (last.role === "user" && /做一份.*PPT/.test(t)) return call("make_ppt", { title: "数组", subtitle: "C 语言 · 第 5 章", theme: "green", slides: [{ title: "什么是数组", lines: ["一组类型相同的变量", "用下标访问"] }, { layout: "code", title: "定义数组", code: "int a[5];", lang: "C" }, { title: "小结", lines: ["下标从 0 开始"] }] });
+      if (last.role === "user" && t === "校运会是哪天") return call("answer_from_sources", { question: "校运会是哪天" });
       if (last.role === "user" && /两栏/.test(t)) return call("edit_slide", { slide: 2, layout: "compare", left: { head: "变量", lines: ["一次存一个数"] }, right: { head: "数组", lines: ["一次存一组数"] } });
       if (last.role === "tool") { r.write(`data: ${JSON.stringify({ choices: [{ delta: { content: "好了。" } }] })}\n\n`); return r.end("data: [DONE]\n\n"); }
       for (const w of ["先设未知数。", "解得 x=4。", "答案：4"]) r.write(`data: ${JSON.stringify({ choices: [{ delta: { content: w } }] })}\n\n`); r.end("data: [DONE]\n\n"); });
@@ -42,7 +43,9 @@ const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
   const sysTtsFactory = () => ({ available: async () => (sysOn ? { ok: true, name: "慧慧" } : { ok: false, why: "这台电脑没有中文朗读声音" }),
     tts: async (t) => { sysSaid++; return MEDIA.writeWav(new Float32Array(22050).map((_, i) => Math.sin(i / 8) * 0.3), 22050); } });
   const ev = [];
-  const show = Show.create({ dir: () => path.join(tmp, "work", "show"), server: () => base, llm, send: (e) => ev.push(e), busy: () => task, used: () => used, gsvDir: () => (hasGsv ? gsv : null), sysTtsFactory,
+  const extracted = [];
+  const show = Show.create({ dir: () => path.join(tmp, "work", "show"), server: () => base, llm, send: (e) => ev.push(e),
+    extract: async (file, dir) => { extracted.push(file); fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(path.join(dir, "layer0-qa-lora-v2.gguf"), "GGUF"); }, busy: () => task, used: () => used, gsvDir: () => (hasGsv ? gsv : null), sysTtsFactory,
     voiceOpt: { cmd: process.execPath, args: (p) => [path.join(__dirname, "..", "..", "pptassist", "test", "fake-gsv.js"), String(p)], waitMs: 15000 },
     hearOpt: { python: process.env.PYTHON || "python3", args: (p) => ["-u", require("../app/hear").SCRIPT, "--port", String(p), "--fake"], waitMs: 20000 } });
 
@@ -93,6 +96,20 @@ const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
   assert.ok(/qa-lora[\\/]2[\\/]/.test(ensured[ensured.length - 1].lora), "坏的那一版不再换回来");
   assert.equal((await show.state()).product.parts.find((p) => p.key === "qa-lora").version, 2);
   ok("又训练出新版：自动融合，下一句就带着新的 LoRA；新版带上启动不了 → 自动退回上一版，对话不断，坏的那一版不再反复换上");
+  // 「先核对再回答」考过了及格线：一起挂上、平时关着；查资料回答、核对的那几次请求才打开它、关掉答题 LoRA
+  publish("ground-lora", 1, { lora: ["ground-lora.gguf", "GGUF-g1"] }, { acc: 0.8, abstain: 0.9, catch: 0.9, clean: 0.9, base_catch: 0.5 });
+  await show.fuse("定时");
+  fs.mkdirSync(path.join(tmp, "work", "show", "kb"), { recursive: true });
+  fs.writeFileSync(path.join(tmp, "work", "show", "kb", "通知.txt"), "2026 年秋季校运会定于 11 月 28 日在东区田径场举行。");
+  reqs.length = 0; await show.send("校运会是哪天");
+  const le = ensured[ensured.length - 1];
+  assert.ok(/qa-lora[\\/]2[\\/]/.test(le.lora) && le.extraLoras && /ground-lora[\\/]1[\\/]lora\.gguf$/.test(le.extraLoras[0]), JSON.stringify(le));
+  const G = require("../app/ppt/ground.js");
+  const gq = reqs.filter((b) => b.messages && b.messages[0] && (b.messages[0].content === G.ANSWER_SYS || b.messages[0].content === G.CHECK_SYS));
+  assert.ok(gq.length >= 1 && gq.every((b) => JSON.stringify(b.lora) === JSON.stringify([{ id: 0, scale: 0 }, { id: 1, scale: 1 }])), JSON.stringify(gq.map((b) => b.lora)));
+  assert.ok(reqs.filter((b) => !gq.includes(b)).every((b) => !b.lora), "平时说话不带 lora 字段（答题 LoRA 照常起作用）");
+  assert.equal((await show.state()).product.parts.find((p) => p.key === "ground-lora").version, 1);
+  ok("先核对再回答 LoRA 发布了：和答题 LoRA 一起挂上；查资料回答、核对时才打开它，平时说话不受影响");
 
   // 5. 说话：没装声音组件时说清楚；装了以后一句话 → 一段声音 + 每一帧的响度（口型）
   assert.ok((await show.speak("你好，同学们。")).temp, "捞捞的声音下好了但没装声音组件：先用电脑自带朗读");
@@ -155,11 +172,25 @@ const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
   assert.equal((await show.slides()).designed, false);
   ok("做 PPT、接着改：做完说「第 2 页改成两栏」就改，每一页的预览跟着变；界面上直接换配色、撤销；老师自己的 .pptx 也能打开来改");
 
+  // 底座永久层发布了（答题 LoRA 第 2 版 ×0.7 合进底座）：挂上永久层，第 2 版答题 LoRA 不再单独挂（不然算两遍）；训练用的 train 包不下
+  publish("base-stack", 1, { stack: ["stack.json", JSON.stringify({ layers: [{ name: "qa-lora", version: 2, scale: 0.7, gguf: "layer0-qa-lora-v2.gguf" }] })], bundle: ["bundle.zip", "PK-bundle"], train: ["train.zip", "PK-train-only"] }, { gsm8k: 0.8, base_gsm8k: 0.7 });
+  await show.fuse("定时");
+  reqs.length = 0; await show.send("再来一道题");
+  const lb = ensured[ensured.length - 1];
+  assert.ok(lb.baseLoras && lb.baseLoras.length === 1 && lb.baseLoras[0].scale === 0.7 && /layer0-qa-lora-v2\.gguf$/.test(lb.baseLoras[0].path) && !lb.lora, JSON.stringify(lb));
+  assert.ok(/ground-lora/.test((lb.extraLoras || [])[0] || ""), "先核对再回答 LoRA 照样挂着");
+  assert.equal(extracted.length, 1);
+  assert.ok(!fs.readdirSync(path.join(tmp, "work", "show"), { recursive: true }).some((f) => /train/.test(String(f))), "训练用的包不下");
+  reqs.length = 0; await show.send("校运会是哪天");
+  const gq2 = reqs.filter((b) => b.messages && b.messages[0] && b.messages[0].content === require("../app/ppt/ground.js").ANSWER_SYS);
+  assert.ok(gq2.length && gq2.every((b) => JSON.stringify(b.lora) === JSON.stringify([{ id: 0, scale: 0.7 }, { id: 1, scale: 1 }])), "查资料时底座永久层照原比例写上：" + JSON.stringify(gq2.map((b) => b.lora)));
+  ok("底座永久层发布了：挂上（×0.7），已经合进去的答题 LoRA 不再单独挂；查资料时永久层照原比例；训练用的包不下");
+
   // 7. 换身份、审批、重开还在
   st = await show.setRole("teacher"); assert.equal(st.who.me.role, "教师");
   show.shutdown();
   const show2 = Show.create({ dir: () => path.join(tmp, "work", "show"), server: () => base, llm, send() {}, busy: () => null, used: () => false });
-  assert.equal((await show2.state()).product.build, 6);
+  assert.equal((await show2.state()).product.build, 8);
   show2.shutdown();
   ok("换身份；重开客户端，成品版本和记录都还在");
 

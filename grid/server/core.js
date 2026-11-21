@@ -101,12 +101,13 @@ function open(file, opt = {}) {
   }
   // 一台电脑有好几块显卡：每块多开一个「工位」（同一个人，名字是「电脑名 · 第 N 块显卡」），各领各的任务；重复要的给同一个工位换新口令
   function laneDevice(dev, { gpu, name, info } = {}) {
-    const g = Math.max(1, Math.min(15, +gpu || 1));
-    const nm = `${String(name || dev.name).slice(0, 30)} · 第 ${g + 1} 块显卡`;
+    const cpu = gpu === "cpu";   // CPU 工位：显卡电脑空闲时 CPU 也帮忙（做题、核对、跑大老师）
+    const g = cpu ? 0 : Math.max(1, Math.min(15, +gpu || 1));
+    const nm = `${String(name || dev.name).slice(0, 30)} · ${cpu ? "CPU" : `第 ${g + 1} 块显卡`}`;
     const token = "dev_" + rid(24);
     const ex = one("select id from devices where member_id=? and name=? and disabled=0", dev.member_id, nm);
     if (ex) run("update devices set token_hash=?, info=?, last_seen=? where id=?", hash(token), S(info || {}), clock(), ex.id);
-    else { run("insert into devices(member_id,name,token_hash,info,state,policy,last_seen,created) values(?,?,?,?,?,?,?,?)", dev.member_id, nm, hash(token), S(info || {}), "online", "{}", clock(), clock()); event("join", `「${dev.name}」的第 ${g + 1} 块显卡也来帮忙了`, { device: dev.id, member: dev.member_id }); }
+    else { run("insert into devices(member_id,name,token_hash,info,state,policy,last_seen,created) values(?,?,?,?,?,?,?,?)", dev.member_id, nm, hash(token), S(info || {}), "online", "{}", clock(), clock()); event("join", `「${dev.name}」的${cpu ? " CPU" : `第 ${g + 1} 块显卡`}也来帮忙了`, { device: dev.id, member: dev.member_id }); }
     const d = one("select id from devices where token_hash=?", hash(token));
     return { token, device: d.id, name: nm };
   }
@@ -239,6 +240,9 @@ function open(file, opt = {}) {
 
   // 机器能不能做这个任务（显存、内存、要不要显卡）
   function fits(req, caps) {
+    // CPU 工位（显卡电脑上另开的、只用 CPU 的那个）：只做 req.cpu 的活；req.cpu 的活：有显卡的主工位不做（让显卡去做显卡的活）
+    if (caps && caps.cpuOnly && !(req && req.cpu)) return false;
+    if (req && req.cpu && caps && caps.vram && !caps.cpuOnly) return false;
     if (!req) return true;
     if (req.gpu && !(caps.gpu && caps.vram)) return false;
     if (req.vram && (caps.vram || 0) < req.vram) return false;
@@ -328,6 +332,18 @@ function open(file, opt = {}) {
       let m = null;
       try { m = one("select files from models where name=? and state='released' order by version desc limit 1", String(P_.modelOf)); } catch (e) {}
       if (m) for (const f of J(m.files, []) || []) (out.files = out.files || {})["m_" + f.name] = f.key;
+    }
+    // 用好几个已发布模型的最新一版（params.modelsOf = ["base-stack", "qa-lora"]）：文件叫 m_模型名_文件名；extra.models 里记着各是第几版
+    if (Array.isArray(P_.modelsOf)) {
+      // 「qa-lora/lora」：只要这一个文件（做题的电脑不用下训练用的参数包）
+      for (const spec_ of P_.modelsOf.slice(0, 8).map(String)) {
+        const [name, only] = spec_.split("/");
+        let m = null;
+        try { m = one("select version, files from models where name=? and state='released' order by version desc limit 1", name); } catch (e) {}
+        if (!m) continue;
+        for (const f of J(m.files, []) || []) if (!only || only.split(",").includes(f.name)) (out.files = out.files || {})[`m_${name}_${f.name}`] = f.key;
+        out.extra = { ...(out.extra || {}), models: { ...((out.extra || {}).models || {}), [name]: m.version } };
+      }
     }
     // 接着上一版训（params.warmStart = 模型名）：把现在发布的那一版训练时交的 peft 包带上（文件名 opt_ 开头 = 下不到也不算错），
     //   再告诉它上一版用了多少条数据 → 这一轮只训新增的 + 抽一部分旧的，不用每次把全部数据从头训一遍

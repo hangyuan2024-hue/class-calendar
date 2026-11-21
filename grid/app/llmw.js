@@ -77,10 +77,16 @@ function create(o) {
 
   function launch(file, spec, lite, dev) {
     const ctx = Math.max(2048, +spec.ctx || 16384), slots = Math.max(1, +spec.slots || 2);
-    const args = ["-m", file, "--host", "127.0.0.1", "--port", String(port), "-ngl", "999", "-c", String(lite ? Math.min(ctx, 8192) : ctx), "-np", String(lite ? 1 : slots), "--jinja"];
+    // CPU 版（o.cpu：CPU 工位用）：不放进显卡，线程数按 o.threads()（默认一半核心）
+    const args = ["-m", file, "--host", "127.0.0.1", "--port", String(port), "-ngl", o.cpu ? "0" : "999", "-c", String(lite ? Math.min(ctx, 8192) : ctx), "-np", String(lite ? 1 : slots), "--jinja"];
+    if (o.cpu) args.push("-t", String(Math.max(1, +(o.threads ? o.threads() : 0) || Math.floor(require("os").cpus().length / 2) || 1)));
     if (!lite) args.push("-ctk", "q8_0", "-ctv", "q8_0");   // 省一半显存（8G 显卡上下文才放得下）；不支持就退回去
-    if (dev && !lite) args.push("--device", dev);
+    if (dev && !lite && !o.cpu) args.push("--device", dev);
+    // 底座的永久层（base-stack：合进底座的几个 LoRA，各带比例）：排在最前面，编号 0、1、2…
+    for (const x of spec.baseLoras || []) if (x && x.path && fs.existsSync(x.path)) args.push("--lora-scaled", x.path, String(x.scale != null ? x.scale : 1));
     if (spec.lora && fs.existsSync(spec.lora)) args.push("--lora", spec.lora);   // 训练好的 LoRA（考试用）
+    // 另外挂着、平时不起作用的 LoRA（比如「先核对再回答」ground-lora）：按请求里的 lora: [{ id, scale }] 临时打开
+    for (const x of spec.extraLoras || []) if (x && fs.existsSync(x)) args.push("--lora-scaled", x, "0");
     if (spec.mmFile) args.push("--mmproj", spec.mmFile);   // 看图要的视觉组件（spec.mmproj：Qwen3-VL 的 mmproj，约 0.8G；只有要看图时才带）
     const p = doSpawn(exe, args, { cwd: path.dirname(exe), windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
     let tail = "";
@@ -94,14 +100,14 @@ function create(o) {
   async function ensure(spec, say = () => {}) {
     if (!ok()) throw new Error("这台电脑的客户端里没有 llama.cpp（更新到新版客户端）");
     if (starting) await starting.catch(() => {});
-    const key = safe(spec.name) + "|" + (spec.ctx || "") + "|" + (spec.slots || "") + "|" + (spec.lora || "") + "|" + (spec.mmproj ? safe(spec.mmproj.name) : "");
+    const key = safe(spec.name) + "|" + (spec.ctx || "") + "|" + (spec.slots || "") + "|" + (spec.baseLoras || []).map((x) => x.path + "@" + x.scale).join(",") + "|" + (spec.lora || "") + "|" + (spec.extraLoras || []).join(",") + "|" + (spec.mmproj ? safe(spec.mmproj.name) : "");
     if (child && cur === key && (await ping(port))) { bump(); return `http://127.0.0.1:${port}`; }
     starting = (async () => {
       const file = await fetchModel(spec, say);
       const mmFile = spec.mmproj ? await fetchModel({ label: "看图组件", ...spec.mmproj }, say) : null;
       stop();
       if (o.beforeStart) await o.beforeStart();   // 关掉 ComfyUI，让出显存
-      const dev = await listDevices();
+      const dev = o.cpu ? null : await listDevices();
       if (dev) say(`用独立显卡（${dev}）`);
       for (const lite of [false, true]) {
         say(lite ? "换一种省事的方式再启动一次…" : "启动本地大模型（把模型放进显卡，大约半分钟）");

@@ -297,12 +297,15 @@ def comfy(op, /, **args):
 
 def llm(op, /, **args):
     """本地大模型（配方开头写「# needs: llm」）：
-        llm("start", llm={...可选，覆盖任务参数里的模型...}, lora=任务文件夹里的 LoRA)  → {"url": "http://127.0.0.1:端口"}
+        llm("start", llm={...可选，覆盖任务参数里的模型...}, lora=任务文件夹里的 LoRA, base=[{"path", "scale"}...])  → {"url": "http://127.0.0.1:端口"}
         llm("stop")                                → 关掉（让出显存给训练）
         llm("info")                                → {"version": "b6xxx"}（llama.cpp 的版本）
     """
     if "lora" in args and args["lora"]:
         args["lora"] = os.path.abspath(args["lora"])
+    # base=[{"path": ..., "scale": 0.7}, ...]：底座的永久层（合进底座的几个 LoRA），一直按比例挂着
+    if args.get("base"):
+        args["base"] = [{"path": os.path.abspath(x["path"]), "scale": float(x.get("scale", 1))} for x in args["base"]]
     return _call("llm", op, **args)
 
 

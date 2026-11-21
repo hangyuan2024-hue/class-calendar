@@ -58,6 +58,25 @@ const LLM_SPEC = { name: "Qwen3VL-4B-Instruct-Q4_K_M.gguf", mirrorModel: "llmMai
   "https://www.modelscope.cn/models/Qwen/Qwen3-VL-4B-Instruct-GGUF/resolve/master/Qwen3VL-4B-Instruct-Q4_K_M.gguf",
   "https://hf-mirror.com/Qwen/Qwen3-VL-4B-Instruct-GGUF/resolve/main/Qwen3VL-4B-Instruct-Q4_K_M.gguf",
   "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct-GGUF/resolve/main/Qwen3VL-4B-Instruct-Q4_K_M.gguf"] };
+// 更聪明的大脑：显卡 8G 以上、答题大脑还没训练出来、不用看图的时候，用 Qwen3-8B（和答题数据工厂的出题老师是同一个文件，国内存储里有）
+const BIG_SPEC = { name: "Qwen3-8B-Q4_K_M.gguf", size: 5027783488, mirrorModel: "gridTeacher", ctx: 16384, slots: 1, label: "更聪明的本地大模型（Qwen3-8B）", urls: [
+  "https://www.modelscope.cn/models/Qwen/Qwen3-8B-GGUF/resolve/master/Qwen3-8B-Q4_K_M.gguf",
+  "https://hf-mirror.com/Qwen/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q4_K_M.gguf",
+  "https://huggingface.co/Qwen/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q4_K_M.gguf"] };
+// Qwen3 会先写一段 <think>…</think> 再回答：关掉（chat_template_kwargs），万一还写了就滤掉，不显示、不念
+function noThink(onDelta) {
+  let inThink = false, buf = "";
+  return (t) => {
+    buf += t;
+    for (;;) {
+      if (inThink) { const k = buf.indexOf("</think>"); if (k < 0) { buf = buf.slice(-8); return; } buf = buf.slice(k + 8); inThink = false; continue; }
+      const k = buf.indexOf("<think>");
+      if (k < 0) { const at = buf.lastIndexOf("<"), tail = at >= 0 ? buf.slice(at) : "", keep = tail && "<think>".startsWith(tail) ? tail : ""; const out = buf.slice(0, buf.length - keep.length); buf = keep; if (out && onDelta) onDelta(out); return; }   // 只扣住可能是「<think>」开头的那一小截
+      if (k > 0 && onDelta) onDelta(buf.slice(0, k));
+      buf = buf.slice(k + 7); inThink = true;
+    }
+  };
+}
 // 看图组件（同一个模型的视觉部分）：只有检测报告看照片的时候才下载、才带上
 const MMPROJ_SPEC = { name: "mmproj-Qwen3VL-4B-Instruct-F16.gguf", mirrorModel: "llmMmproj", urls: [
   "https://www.modelscope.cn/models/Qwen/Qwen3-VL-4B-Instruct-GGUF/resolve/master/mmproj-Qwen3VL-4B-Instruct-F16.gguf",
@@ -83,6 +102,32 @@ function create(o) {
   const sysCheck = () => sys.available().then((st) => { sysSt = st; return st; }).catch(() => sysSt);
   const ear = (o.hearFactory || require("./hear").create)({ log: (m) => log("听写：" + m), ...(o.hearOpt || {}) });
 
+  // 用不用 8B：显卡 8G 以上（o.vram 报的）、不看图、答题大脑 / 口语对话还没训练出来（训练出来的 LoRA 是配 4B 的）
+  let bigNow = false;
+  function useBig() {
+    if (o.noBig || eyes) return false;
+    const v = o.vram ? +o.vram() || 0 : 0;
+    if (v < 7.5) return false;
+    try { const m = cur && cur.models; if (m && (m.use("qa-lora") || m.use("base-stack") || (calling && m.use("chat-lora")))) return false; } catch (e) {}
+    return true;
+  }
+  // 底座的永久层：发布的 base-stack = stack（哪几个 LoRA、各是第几版、比例多少）+ bundle（这些 LoRA 的 .gguf 打成的包）
+  //   第一次用时解压到 bundle 旁边；→ { layers, loras: [{ path, scale }] }
+  async function baseStack(models) {
+    const m = models.use("base-stack");
+    if (!m || !m.files || !m.files.stack || !m.files.bundle) return null;
+    const st = JSON.parse(fs.readFileSync(m.files.stack, "utf8"));
+    const dir = m.files.bundle + ".d";
+    if (!fs.existsSync(path.join(dir, ".ok"))) {
+      fs.rmSync(dir, { recursive: true, force: true });
+      await (o.extract || PPT("installer.js").extract)(m.files.bundle, dir, {});
+      fs.writeFileSync(path.join(dir, ".ok"), "");
+    }
+    const layers = (st.layers || []).filter((l) => l && l.gguf);
+    const loras = layers.map((l) => ({ path: path.join(dir, path.basename(l.gguf)), scale: +l.scale || 1 }));
+    for (const x of loras) if (!fs.existsSync(x.path)) throw new Error("包里少了 " + path.basename(x.path));
+    return { version: m.version, layers, loras };
+  }
   function S() {
     const dir = o.dir();
     if (cur && cur.dir === dir) return cur;
@@ -91,26 +136,46 @@ function create(o) {
     const server = String(o.server() || "").replace(/\/+$/, "");
     const models = (o.modelsFactory || GM.create)({ dir: path.join(dir, "models"), want: XZ.PARTS.map((p) => p.key), ...(server ? { sources: [server + "/pub/models/manifest.json"] } : {}),
       onEvent: (e) => { if (e.stage === "download") emit({ type: "note", text: `有新版：正在下载「${nameOf(e.name)}」第 ${e.version} 版…` }); }, ...(o.modelsOpt || {}) });
+    let loraIds = { base: [], main: -1, ground: -1 };
     const llm = {
       // 每一句之前都看一眼：答题 LoRA 换了新版，就带上新版重新启动（llmw 发现 LoRA 路径变了会自己重启）；带上起不来就退回上一版
       start: async (opt) => {
         const say = (m) => emit({ type: "note", text: m });
         if (opt && opt.eyes) eyes = true;
         // 文件名用组件镜像里的那个（和训练答题大脑时考试用的是同一个文件，不重复下 2.5G）
-        const spec = { ...LLM_SPEC, ...(eyes ? { mmproj: MMPROJ_SPEC } : {}) };
-        if (o.llmName) { try { const n = await o.llmName(); if (n && /\.gguf$/i.test(n)) spec.name = n; } catch (e) {} }
+        const big = useBig();
+        const spec = big ? { ...BIG_SPEC } : { ...LLM_SPEC, ...(eyes ? { mmproj: MMPROJ_SPEC } : {}) };
+        if (!big && o.llmName) { try { const n = await o.llmName(); if (n && /\.gguf$/i.test(n)) spec.name = n; } catch (e) {} }
+        bigNow = big;
         for (let i = 0; i < 3; i++) {
+          // 底座的永久层（base-stack）：合进底座的几个 LoRA，各带比例，一直挂着；已经合进底座的那一版答题 / 口语 LoRA 不再单独挂（不然算了两遍）
+          const stack = big ? null : await baseStack(models).catch((e) => { log("底座的永久层用不了（" + e.message + "）：退回上一版"); models.rollback("base-stack"); return null; });
+          const absorbed = (k) => { const m = models.use(k); return !!(stack && m && stack.layers.some((l) => l.name === k && l.version >= m.version)); };
           // 打电话的时候优先带口语对话 LoRA（没训练好就用答题 LoRA）；换了 LoRA，llmw 会自己重启大模型
-          const c = calling ? models.use("chat-lora") : null, key = c && c.files && c.files.lora ? "chat-lora" : "qa-lora";
-          const q = key === "chat-lora" ? c : models.use("qa-lora"), lora = q && q.files && q.files.lora;
-          try { url = await o.llm.ensure({ ...spec, ...(lora ? { lora } : {}) }, say); return; }
-          catch (e) { if (!lora || i === 2) throw e; log(`带上新的${key === "chat-lora" ? "口语对话" : "答题"} LoRA 启动不了（${e.message}）：退回上一版`); models.rollback(key); }
+          const c = calling && !absorbed("chat-lora") ? models.use("chat-lora") : null, key = c && c.files && c.files.lora ? "chat-lora" : "qa-lora";
+          const q = key === "chat-lora" ? c : absorbed("qa-lora") ? null : models.use("qa-lora"), lora = q && q.files && q.files.lora;
+          // 「先核对再回答」ground-lora（考过固定及格线才有）：一起挂上、平时关着，查资料回答、核对时才打开（8B 不挂：LoRA 是配 4B 的）
+          const g = models.use("ground-lora"), gl = !big && g && g.files && g.files.lora;
+          const bl = stack ? stack.loras : [], nb = bl.length;
+          try { url = await o.llm.ensure({ ...spec, ...(nb ? { baseLoras: bl } : {}), ...(lora && !big ? { lora } : {}), ...(gl ? { extraLoras: [gl] } : {}) }, say);
+            loraIds = { base: bl.map((x, j) => ({ id: j, scale: x.scale })), main: lora && !big ? nb : -1, ground: gl ? nb + (lora && !big ? 1 : 0) : -1 }; return; }
+          catch (e) {
+            if (gl) { log(`带上「先核对再回答」LoRA 启动不了（${e.message}）：退回上一版`); models.rollback("ground-lora"); continue; }
+            if (!lora || i === 2) throw e; log(`带上新的${key === "chat-lora" ? "口语对话" : "答题"} LoRA 启动不了（${e.message}）：退回上一版`); models.rollback(key);
+          }
         }
       },
-      chat: (m, opt) => { try { o.llm.touch && o.llm.touch(); } catch (e) {} return CHAT.chatAt(url, m, opt); },
+      chat: (m, opt = {}) => {
+        try { o.llm.touch && o.llm.touch(); } catch (e) {}
+        // 查资料回答、核对（opt.mode）：打开 ground-lora、关掉答题 / 口语 LoRA；llama-server 的 lora 字段没写到的都按 0
+        // 底座的永久层要照原来的比例写上（没写到的会被当成 0）
+        const lo = (opt.mode === "ground" || opt.mode === "check") && loraIds.ground >= 0 ? { lora: [...(loraIds.base || []), ...(loraIds.main >= 0 ? [{ id: loraIds.main, scale: 0 }] : []), { id: loraIds.ground, scale: 1 }] } : null;
+        const extra = { ...(bigNow ? { chat_template_kwargs: { enable_thinking: false } } : {}), ...(lo || {}) };
+        return CHAT.chatAt(url, m, { ...opt, ...(bigNow ? { onDelta: noThink(opt.onDelta) } : {}), ...(Object.keys(extra).length ? { extra } : {}) });
+      },
     };
     const xz = XZ.create({ dir, llm, grid: models, onEvent: (e) => emit(e), now: o.now, log: (m) => log(m), ...(o.xzOpt || {}) });
-    cur = { dir, models, xz };
+    cur = { dir, models, xz, llm };
     lastBuild = xz.product().build;
     return cur;
   }
@@ -252,14 +317,14 @@ function create(o) {
 
   // ---------- 准备组件：打开展示时先把要用的都下好，必需的下好了才开放使用 ----------
   const PREP = [
-    { key: "llm", name: "本地大模型", what: "讲题、做 PPT、办事", size: "约 2.5G", required: true },
+    { key: "llm", name: "本地大模型", what: "讲题、做 PPT、办事、联网查资料", size: "约 2.5G（8G 以上显卡用更聪明的 8B，约 5G）", required: true },
     { key: "voice", name: "好听的声音", what: "Kokoro 中文女声，本机合成", size: "约 330M", required: true },
     { key: "gsv", name: "声音组件", what: "打电话的听写、真人感声音（GPT-SoVITS）", size: "约 8G", required: false },
     { key: "ear", name: "听写模型", what: "打电话时把你说的话变成字", size: "约 1G", required: false, after: "gsv" },
     { key: "real", name: "真人感声音的参考录音", what: "公开录音 AISHELL-3 里的一位女声", size: "约 200M", required: false, after: "gsv" },
   ];
   const prep = { running: false, st: {} };
-  const llmSpec = async () => { const spec = { ...LLM_SPEC }; if (o.llmName) { try { const n = await o.llmName(); if (n && /\.gguf$/i.test(n)) spec.name = n; } catch (e) {} } return spec; };
+  const llmSpec = async () => { if (useBig()) return { ...BIG_SPEC }; const spec = { ...LLM_SPEC }; if (o.llmName) { try { const n = await o.llmName(); if (n && /\.gguf$/i.test(n)) spec.name = n; } catch (e) {} } return spec; };
   async function isReady(key) {
     const dir = o.gsvDir ? o.gsvDir() : null;
     if (key === "llm") return o.llm && o.llm.hasModel ? o.llm.hasModel(await llmSpec()) : true;
@@ -351,8 +416,19 @@ function create(o) {
 
   schedule();
   sysCheck();
+  // 本机大模型接口（app/localapi.js）：给捞捞思维导图当「自定义接口」用，背后就是捞小智现在用的模型和 LoRA
+  const api = (o.apiFactory || require("./localapi").create)({ dir: o.dir, log, busy: o.busy, port: o.apiPort, maxOut: o.apiMaxOut,
+    touch: () => { try { o.llm.touch && o.llm.touch(); } catch (e) {} },
+    backend: async ({ eyes: e }) => { const s = S(); await s.llm.start(e ? { eyes: true } : {}); return { url, extra: bigNow ? { chat_template_kwargs: { enable_thinking: false } } : null }; } });
+  const mm = () => S().xz.mindmap;
   return {
+    apiInfo: () => api.info(), apiConnect: async () => { if (!mm()) throw new Error("没有带思维导图的接入"); return api.connect(mm()); }, apiDisconnect: async () => api.disconnect(mm()),
     state, send, speak, fuse, product, setActive, hear, setCall, prepStatus, prepRun, setVoicePref, voiceTest,
+    // 知识库：捞小智「先核对再回答」查的本机资料（一个文件夹，放 .txt / .md）
+    kb: async () => { const x = S().xz, k = x.kb; fs.mkdirSync(k.dir, { recursive: true }); let maps = null; try { maps = x.mindmap ? (await x.mindmap.list()).maps.map((m) => m.title) : null; } catch (e) {} return { dir: k.dir, files: k.list(), maps }; },
+    // 训练任务要开始了：把显存让出来（声音组件、听写；本地大模型由 service 关）
+    releaseGpu: () => { try { voice.stop(); } catch (e) {} try { ear.stop(); } catch (e) {} },
+    apiStop: () => api.stop(false),
     stop: () => S().xz.stop(), reset: () => { S().xz.reset(); return true; },
     setRole: async (r) => { S().xz.setRole(r); return state(); },
     setSpeak: (on) => { speakOn = !!on; if (!speakOn) { try { voice.stop(); } catch (e) {} } return voiceInfo(); },
@@ -367,9 +443,9 @@ function create(o) {
     pptExam: async () => { const t = o.busy ? o.busy() : null; if (t) throw new Error(`这台电脑正在算「${t}」，显卡腾不出来：先点「暂停计算」再考`); return S().xz.pptExam(); },
     slides: (rev) => S().xz.slides(rev), pptTheme: (k) => S().xz.pptTheme(k), pptUndo: () => S().xz.pptUndo(),
     openPpt: async (file) => { if (!/\.pptx$/i.test(String(file || ""))) throw new Error("只能打开 .pptx（老版本的 .ppt 先在 PowerPoint 里另存成 .pptx）"); await S().xz.openPpt(file); return state(); },
-    shutdown: () => { clearInterval(timer); try { kok.stop(); } catch (e) {} try { voice.stop(); } catch (e) {} try { ear.stop(); } catch (e) {} if (cur) { try { cur.models.stop(); } catch (e) {} } tidy(); },
+    shutdown: () => { try { api.stop(false); } catch (e) {} clearInterval(timer); try { kok.stop(); } catch (e) {} try { voice.stop(); } catch (e) {} try { ear.stop(); } catch (e) {} if (cur) { try { cur.models.stop(); } catch (e) {} } tidy(); },
     LLM_SPEC, MMPROJ_SPEC,
   };
 }
 
-module.exports = { create, LLM_SPEC, MMPROJ_SPEC, speakNums, fixAsr };
+module.exports = { create, LLM_SPEC, MMPROJ_SPEC, BIG_SPEC, speakNums, fixAsr, noThink };

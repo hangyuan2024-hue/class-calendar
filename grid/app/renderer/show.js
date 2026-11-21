@@ -278,6 +278,31 @@
   $("#shPptOpen").onclick = guard(() => call("showOpenPpt", false));
   if ($("#shVoicePick")) $("#shVoicePick").onchange = guard(async () => { S.voice = await call("showVoicePref", $("#shVoicePick").value); spReset(); paint(); toast("声音换成：" + S.voice.label); });
   if ($("#shDeckClose")) $("#shDeckClose").onclick = () => showDeck(false);
+  if ($("#shKb")) $("#shKb").onclick = guard(async () => {
+    const k = await call("showKb", true);
+    add("sh-step ok", esc(`知识库里有 ${k.files.length} 份资料${k.files.length ? "：" + k.files.slice(0, 8).join("、") : ""}。`) + "<br>"
+      + esc(k.maps ? (k.maps.length ? `也连上了捞捞思维导图：${k.maps.length} 张导图（${k.maps.slice(0, 6).join("、")}）。` : "捞捞思维导图里还没有导图（在捞捞课程表电脑版里打开「思维导图」做一张）。") : "") + "<br>"
+      + esc("把讲义、学生手册、通知存成 .txt 或 .md 放进刚打开的文件夹。问事实类的问题时捞小智会先查它们和你的思维导图，照资料回答、逐句核对，资料里没有就直说没有。也可以直接说「把我的××导图做成 PPT」「把这节课整理成思维导图」。"));
+  });
+  if ($("#shMm")) $("#shMm").onclick = guard(async () => {
+    const b = $("#shMm"), cur = await call("showApi");
+    if (cur.connected && !confirm("思维导图现在用的是捞小智。要断开、换回原来用的平台吗？（原来那家的 Key 要在思维导图里重新填一次）")) return;
+    b.disabled = true;
+    try {
+      if (cur.connected) { await call("showApiDisconnect"); add("sh-step ok", esc("已断开：思维导图换回原来用的平台。")); return; }
+      if (!confirm("接入以后，捞捞思维导图里的提问、生成导图、复核都改由这台电脑上的捞小智回答（不再用外面平台的 Key，不花钱，也不上传资料）。现在还没正式训练好，回答质量会随训练变好。要接入吗？")) return;
+      let r;
+      try { r = await call("showApiConnect"); }
+      catch (e) {
+        // 自动填不了（课内学习的统一 AI 设置、网页版、老版本）：把地址、模型、Key 给出来，照着手动填
+        const m = await call("showApi");
+        add("sh-step err", esc(String((e && e.message) || e).replace(/^Error:\s*/, "")) + (m.url ? "<br>" + esc("地址（接口基础地址）：" + m.url) + "<br>" + esc("模型名称：" + m.model) + "<br>" + esc("Key：") + "<code>" + esc(m.key) + "</code>" : ""));
+        return;
+      }
+      add("sh-step ok", esc("接好了：思维导图的「大模型 API 接入」已经切到「自定义接口」，地址 " + r.url + "，模型 " + r.model + "。回到思维导图刷新一下页面，提问就是捞小智在答，回答照样变成导图节点。")
+        + "<br>" + esc("别的软件也想用：地址填 " + r.url + "，模型填 " + r.model + "，Key：") + "<code>" + esc(r.key) + "</code>");
+    } finally { b.disabled = false; }
+  });
   if ($("#shVoiceTest")) $("#shVoiceTest").onclick = guard(async () => {
     const b = $("#shVoiceTest"); b.disabled = true; b.textContent = "试声音中…";
     try {

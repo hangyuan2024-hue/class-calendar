@@ -5,6 +5,10 @@
   3. 考试：同一套题（GSM8K 测试集里固定的 100 道，MIT 许可），原版考一次、带 LoRA 考一次
      → 答对率（acc）、用中文讲的比例（zh_rate）；不比原版差、比现在发布的好，才发布给老师端
 要在新版客户端上跑（自带 llama.cpp）；第一次要下底子（约 9G，魔搭优先）和老师端用的量化模型（约 2.5G）。
+同一个配方还训「先核对再回答」（params.exam = "ground"，数据来自 ground_gen.py）：照资料回答、标出处、资料里没有就说没有；逐句核对有据 / 无据 / 矛盾。
+  考试用 CMRC 2018 验证集（和造数据用的训练集不重叠）做的一套固定题，对错全由程序判（见下面的 GROUND 考试）：
+  acc = 该答的答对了（答案对、出处对、数字资料里都有），abstain = 资料里没有时老实说没有，catch = 埋进去的错句抓出来，clean = 对的句子没被冤枉
+  发布有固定的及格线（plans/ground.json），不是「比原版好一点」就发：达不到就不发，客户端继续用底子自己核对。
 同一个配方也训「口语对话大脑」（params.exam = "chat"，数据来自 chat_gen.py）：打电话时说话像人——短、念得出来、听错字也懂。
   考试换成一套固定的口语考题（下面的 CHAT_EXAM：讲概念、口头算题、带识别错字的问法、闲聊、没说清楚的话）：
   acc = 关键信息说对了的比例，speak = 念得出来的比例（规则检查，和 chat_gen.py 的一样）
@@ -34,7 +38,8 @@ CACHE = os.path.abspath(os.path.join(work, "..", "..", "cache"))
 BASE_REPO = p.get("baseRepo", "Qwen/Qwen3-VL-4B-Instruct")
 GGUF_REPO = p.get("ggufRepo", "Qwen/Qwen3-VL-4B-Instruct-GGUF")
 CHAT = p.get("exam") == "chat"
-NAME = p.get("name") or ("chat-lora" if CHAT else "qa-lora")
+GROUND = p.get("exam") == "ground"   # 先核对再回答（数据来自 ground_gen.py；考试见下面的 GROUND 考试）
+NAME = p.get("name") or ("chat-lora" if CHAT else "ground-lora" if GROUND else "qa-lora")
 # 语音通话的规则：和 chat_gen.py、成品展示打电话时加给捞小智的那一段一字不差（测试里核对）
 SPOKEN = """现在是语音通话：你说的每一句都会被念出来。
 · 说口语、用短句，一次说两三句，先说最要紧的；要讲的内容很长，先讲第一步，再问对方要不要接着讲。
@@ -92,6 +97,28 @@ if _prev and p.get("warm", True) and 0 < _pn < len(rows) <= int(p.get("maxExampl
         replay = old_rows[: max(int(p.get("replayMin", 600)), int(len(new_rows) * float(p.get("replay", 2))))]
         WARM = {"zip": _prev, "new": len(new_rows), "replay": len(replay)}
         rows = new_rows + replay
+# ---- 底座的永久层（base-stack：已经考过、合进底座的几个 LoRA，各带比例）----
+# 有的话：先把它们按比例合进底子的权重（CPU 上做，每台电脑同一版只合一次，存在缓存里），在新底子上训；考试也带着它们考。
+#   上一版的 LoRA 已经合进底座了：就不能再接着它训（不然算了两遍），在新底座上重新开一个 LoRA（复习数据照样带）。
+STACK, STACK_ARG, STACK_SIG = [], {}, ""
+_sf, _bf = (t.get("files") or {}).get("m_base-stack_stack"), (t.get("files") or {}).get("m_base-stack_bundle")
+if _sf and _bf and os.path.exists(_sf) and os.path.exists(_bf):
+    import zipfile
+    _st = json.load(open(_sf, encoding="utf-8"))
+    _sd = os.path.join(work, "stack")
+    for _zf in (_bf, (t.get("files") or {}).get("m_base-stack_train")):
+        if _zf and os.path.exists(_zf):
+            with zipfile.ZipFile(_zf) as _z:
+                _z.extractall(_sd)
+    STACK = [dict(l, gguf_path=os.path.join(_sd, os.path.basename(l["gguf"])), peft_path=os.path.join(_sd, os.path.basename(l["peft"])) if l.get("peft") else None) for l in _st.get("layers", []) if l.get("gguf")]
+    STACK_SIG = hashlib.md5(json.dumps([(l["name"], l.get("version"), l.get("scale"), l.get("sha")) for l in STACK]).encode("utf-8")).hexdigest()[:12]
+    STACK_ARG = {"base": [{"path": l["gguf_path"], "scale": float(l.get("scale", 1))} for l in STACK]}
+    lg.log("底座有 %d 层合进去的本事（%s）：在合好的底子上训" % (len(STACK), "、".join("%s 第 %s 版 ×%s" % (l["name"], l.get("version"), l.get("scale")) for l in STACK)))
+    if WARM:
+        _h = hashlib.sha256(open(WARM["zip"], "rb").read()).hexdigest()
+        if any(l.get("sha") == _h for l in STACK):
+            lg.log("上一版已经合进底座了：在新底座上重新开一个 LoRA（复习数据照样带）")
+            WARM["fresh"] = True
 random.Random(0).shuffle(rows)
 rows = rows[: int(p.get("maxExamples", 8000))]
 
@@ -245,6 +272,50 @@ def small_opt(sd, torch):
         return sd
 
 
+def merged_base(base):
+    """把底座的永久层按比例合进底子的权重（CPU，半精度，约 9G 内存）：同一版每台电脑只合一次"""
+    if not STACK:
+        return base
+    d = os.path.join(CACHE, "hf", "merged-" + STACK_SIG)
+    if os.path.exists(os.path.join(d, ".ok")):
+        return d
+    import torch
+    import zipfile
+    from peft import PeftModel
+    from safetensors.torch import load_file, save_file
+    from transformers import AutoModelForImageTextToText, AutoProcessor
+    lg.progress(0.06, "把底座的永久层合进底子（CPU 上做，第一次要十几分钟）")
+    model = AutoModelForImageTextToText.from_pretrained(base, torch_dtype=torch.bfloat16, device_map={"": "cpu"})
+    for n, l in enumerate(STACK):
+        if not l.get("peft_path") or not os.path.exists(l["peft_path"]):
+            raise RuntimeError("底座第 %d 层少了训练用的参数包（%s）" % (n + 1, l["name"]))
+        pd = os.path.join(work, "stack-peft-%d" % n)
+        with zipfile.ZipFile(l["peft_path"]) as z:
+            z.extractall(pd)
+        cfgf = glob.glob(os.path.join(pd, "**", "adapter_config.json"), recursive=True)[0]
+        ad = os.path.dirname(cfgf)
+        sf = os.path.join(ad, "adapter_model.safetensors")
+        sd = load_file(sf)
+        sc = float(l.get("scale", 1))
+        if sc != 1:   # 按比例合：把 B 矩阵乘上比例（ΔW = B·A，乘 B 就是乘整个改动）
+            sd = {k: (v * sc if "lora_B" in k else v) for k, v in sd.items()}
+            save_file(sd, sf)
+        model = PeftModel.from_pretrained(model, ad).merge_and_unload()
+        lg.log("合进去了第 %d 层：%s 第 %s 版 ×%s" % (n + 1, l["name"], l.get("version"), sc))
+    tmp = d + ".tmp"
+    shutil.rmtree(tmp, ignore_errors=True)
+    model.save_pretrained(tmp, safe_serialization=True)
+    AutoProcessor.from_pretrained(base).save_pretrained(tmp)
+    for f in glob.glob(os.path.join(base, "*.json")) + glob.glob(os.path.join(base, "*.jinja")):
+        if not os.path.exists(os.path.join(tmp, os.path.basename(f))):
+            shutil.copy(f, tmp)
+    shutil.rmtree(d, ignore_errors=True)
+    os.rename(tmp, d)
+    open(os.path.join(d, ".ok"), "w").close()
+    del model
+    return d
+
+
 def train(base):
     import torch
     from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
@@ -281,6 +352,8 @@ def train(base):
                      target_modules=r".*language_model.*\.(q_proj|k_proj|v_proj|o_proj|gate_proj|up_proj|down_proj)")
     model = get_peft_model(model, cfg)
     global WARM
+    if WARM and WARM.get("fresh"):
+        WARM = None
     if WARM:
         try:
             import zipfile
@@ -740,6 +813,206 @@ def chat_hit(reply, kind, keys):
     return True
 
 
+# ---------------- GROUND 考试（exam = ground）：对错全由程序判，题目固定 ----------------
+G_ABSTAIN = "资料里没有"
+G_ANSWER_SYS = """你是「捞小智」，只根据下面给的资料回答问题。
+· 每句话后面用方括号标出依据是第几段资料，比如 [2]；一句话用到两段就写 [1][3]。
+· 资料里没写的内容一句也不要加，不要用自己的印象补充；数字、名字、日期照资料抄，不要改。
+· 资料里找不到答案：第一句就说「资料里没有」并说清楚缺的是什么，然后建议去哪里查，不要猜。
+· 用简体中文，先直接回答，再补充一两句资料里的相关细节。"""
+G_CHECK_SYS = """你是核对员。下面有几段资料和一个回答，回答已经按句编了号。逐句判断：
+· 有据：这句话的意思资料里明确写了，写成「第N句：有据[资料编号]」
+· 无据：资料里找不到这句话说的内容（哪怕它可能是对的），写成「第N句：无据」
+· 矛盾：这句话和资料说的不一样（数字、名字、日期、因果不对），写成「第N句：矛盾[资料编号]」
+每句一行，不要写别的。"""
+
+
+def g_norm(s):
+    return re.sub(r"[\s，,。．.、“”\"'《》]", "", s)
+
+
+def g_mats(mats):
+    return "\n\n".join("[%d] %s%s" % (k + 1, "（%s）" % m["title"] if m.get("title") else "", m["text"]) for k, m in enumerate(mats))
+
+
+def g_split(ctx, size=220):
+    if len(ctx) <= size * 1.4:
+        return [ctx]
+    out, cur = [], ""
+    for x in re.findall(r"[^。！？]+[。！？]?", ctx):
+        if cur and len(cur) + len(x) > size:
+            out.append(cur)
+            cur = ""
+        cur += x
+    if cur:
+        out.append(cur)
+    return out
+
+
+def g_sents(s):
+    out = []
+    for m in re.finditer(r"[^。！？!?\n]+(?:[。！？!?]+|$)(?:\s*(?:\[\d+\])+)?", re.sub(r"\n+", "\n", s).strip()):
+        x = m.group(0).strip()
+        if len(re.sub(r"(\[\d+\])+", "", x).strip()) >= 2:
+            out.append(x)
+    return out
+
+
+def as_outline(m):
+    """资料换成思维导图的样子（中心主题 › 一句一个分支）：捞小智查资料时导图是这样给的（pptassist/core/mindmap.js）"""
+    ss = re.findall(r"[^。！？]+[。！？]?", m["text"])
+    return {"title": "导图：" + (m.get("title") or "笔记"), "text": (m.get("title") or "笔记") + " › " + "\n".join("- " + x.strip() for x in ss if x.strip())}
+
+
+def ground_exam_set():
+    f = os.path.join(CACHE, "cmrc2018_dev.json")
+    if not os.path.exists(f) or os.path.getsize(f) < 100000:
+        for u in p.get("evalUrls") or ["https://cdn.jsdelivr.net/gh/ymcui/cmrc2018@master/squad-style-data/cmrc2018_dev.json",
+                                       "https://raw.githubusercontent.com/ymcui/cmrc2018/master/squad-style-data/cmrc2018_dev.json"]:
+            try:
+                lg.download(u, f)
+                break
+            except Exception:
+                pass
+    with open(f, encoding="utf-8") as fh:
+        d = json.load(fh)
+    items = []
+    for art in d["data"]:
+        for para in art["paragraphs"]:
+            for qa in para["qas"]:
+                ans = [a["text"].strip() for a in qa.get("answers", []) if a.get("text", "").strip()]
+                if ans:
+                    items.append({"title": art.get("title", ""), "context": para["context"].strip(), "q": qa["question"].strip(), "ans": ans})
+    R = random.Random(12345)   # 固定的一套题：每次考的都一样，分数才能比
+    R.shuffle(items)
+    all_ans = [g for it in items for g in it["ans"]]
+
+    def distract(it, n=2):
+        out = []
+        while len(out) < n:
+            o = R.choice(items)
+            if o["context"] != it["context"] and not any(g in o["context"] for g in it["ans"]):
+                out.append({"title": o["title"], "text": g_split(o["context"])[0]})
+        return out
+
+    qs = []
+    na, nb, nc = int(p.get("evalAnswer", 60)), int(p.get("evalAbstain", 40)), int(p.get("evalCheck", 50))
+    for it in items[:na]:
+        real = [{"title": it["title"], "text": x} for x in g_split(it["context"])]
+        mats = real + distract(it)
+        R.shuffle(mats)
+        mats = [as_outline(m) if R.random() < 0.25 else m for m in mats]   # 四分之一的资料是思维导图的样子
+        gi = {k for k, m in enumerate(mats) if any(g in m["text"] for g in it["ans"])}
+        qs.append(("answer", G_ANSWER_SYS, "资料：\n%s\n\n问题：%s" % (g_mats(mats), it["q"]), {"gold": it["ans"], "gi": gi, "mats": mats}))
+    for it in items[na:na + nb]:
+        mats = [as_outline(m) if R.random() < 0.25 else m for m in distract(it, 3)]
+        qs.append(("abstain", G_ANSWER_SYS, "资料：\n%s\n\n问题：%s" % (g_mats(mats), it["q"]), {"gold": it["ans"]}))
+    k = 0
+    for it in items[na + nb:]:
+        if k >= nc:
+            break
+        real = [{"title": it["title"], "text": x} for x in g_split(it["context"])]
+        mats = real + distract(it)
+        R.shuffle(mats)
+        g = next((g for g in it["ans"] if len(g) >= 2), None)
+        src = next((j for j, m in enumerate(mats) if g and g in m["text"]), None)
+        if src is None:
+            continue
+        ss_src = re.findall(r"[^。！？]{6,80}[。！？]", mats[src]["text"])
+        hit = [x for x in ss_src if g in x]
+        rest = [x for x in ss_src if g not in x]
+        if not hit or not rest:
+            continue
+        ss = [hit[0] + "[%d]" % (src + 1), rest[0] + "[%d]" % (src + 1)]
+        lab = ["有据", "有据"]
+        kind = k % 3   # 0 全对；1 把答案换掉（矛盾）；2 插一句别处的话（无据）
+        if kind == 1:
+            w = next((w for w in R.sample(all_ans, 50) if w not in mats[src]["text"] and 1 <= len(w) <= 20 and w != g), None)
+            if not w:
+                continue
+            ss[0] = ss[0].replace(g, w, 1)
+            lab[0] = "矛盾"
+        elif kind == 2:
+            o = R.choice(items)
+            fs = [x for x in re.findall(r"[^。！？]{8,60}[。！？]", o["context"]) if x[:10] not in "".join(m["text"] for m in mats)]
+            if not fs or o["context"] == it["context"]:
+                continue
+            ss.insert(1, fs[0] + "[%d]" % R.randint(1, len(mats)))
+            lab.insert(1, "无据")
+        user = "资料：\n%s\n\n问题：%s\n\n回答：\n%s" % (g_mats(mats), it["q"], "\n".join("第%d句：%s" % (j + 1, x) for j, x in enumerate(ss)))
+        qs.append(("check", G_CHECK_SYS, user, {"labels": lab}))
+        k += 1
+    return qs
+
+
+def ground_score(kind, reply, ref):
+    """→ 这道题记到哪几项、对了几个：[(项目, 对, 总)]"""
+    reply = re.sub(r"<think>.*?</think>", "", reply or "", flags=re.S).strip()
+    if kind == "abstain":
+        ok = reply.startswith(G_ABSTAIN) and not any(g_norm(g) in g_norm(reply) for g in ref["gold"] if len(g_norm(g)) >= 2)
+        return [("abstain", int(ok), 1)]
+    if kind == "answer":
+        ok = not reply.startswith(G_ABSTAIN) and any(g_norm(g) in g_norm(reply) for g in ref["gold"])
+        if ok:
+            all_ = "\n".join(m["text"] for m in ref["mats"])
+            for x in g_sents(reply):
+                cs = [int(c) for c in re.findall(r"\[(\d+)\]", x)]
+                if any(n not in all_ for n in re.findall(r"\d+(?:\.\d+)?", re.sub(r"\[\d+\]", "", x))):
+                    ok = False
+                if any(g_norm(g) in g_norm(x) for g in ref["gold"]) and not any((c - 1) in ref["gi"] for c in cs):
+                    ok = False
+        return [("acc", int(ok), 1)]
+    got = {}
+    for m in re.finditer(r"第\s*(\d+)\s*句\s*[：:]\s*(有据|无据|矛盾)", reply):
+        got[int(m.group(1)) - 1] = m.group(2)
+    out = []
+    for j, lab in enumerate(ref["labels"]):
+        v = got.get(j)
+        if lab == "有据":
+            out.append(("clean", int(v == "有据"), 1))
+        else:
+            out.append(("catch", int(v in ("无据", "矛盾")), 1))
+    return out
+
+
+def ground_exam(url, qs, label):
+    tot, hit = {}, {}
+    lock = threading.Lock()
+    todo = list(qs)
+
+    def ask(sys_, user):
+        body = {"messages": [{"role": "system", "content": sys_}, {"role": "user", "content": user}], "temperature": 0, "max_tokens": 600,
+                "chat_template_kwargs": {"enable_thinking": False}}
+        req = urllib.request.Request(url + "/v1/chat/completions", data=json.dumps(body).encode("utf-8"), headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=600) as r:
+            return json.loads(r.read().decode("utf-8"))["choices"][0]["message"].get("content") or ""
+
+    def work_():
+        while True:
+            with lock:
+                if not todo:
+                    return
+                kind, sys_, user, ref = todo.pop()
+            try:
+                s = ask(sys_, user)
+            except Exception:
+                s = ""
+            with lock:
+                for k_, a, b in ground_score(kind, s, ref):
+                    hit[k_] = hit.get(k_, 0) + a
+                    tot[k_] = tot.get(k_, 0) + b
+                n = sum(1 for _ in qs) - len(todo)
+                if n % 20 == 0:
+                    lg.log("%s：考了 %d/%d 道" % (label, n, len(qs)))
+
+    ths = [threading.Thread(target=work_) for _ in range(2)]
+    for x in ths:
+        x.start()
+    for x in ths:
+        x.join()
+    return {k_: round(hit.get(k_, 0) / max(1, tot.get(k_, 0)), 4) for k_ in ("acc", "abstain", "catch", "clean")}
+
+
 def exam_set():
     if CHAT:
         return [(q, (kind, keys)) for q, kind, keys in CHAT_EXAM]
@@ -811,20 +1084,39 @@ if p.get("dryRun"):   # 测试用：不真的训练（没有显卡的电脑上�
     open(gguf, "wb").write(b"GGUF" + b"\0" * 60)
 else:
     conv = converter()   # 先准备好转换脚本：下不来就别白训两个小时
-    base = base_dir()
+    base = merged_base(base_dir())
     adir = train(base)
     gguf = to_gguf(base, adir, conv)
 spec = dict(p.get("evalLlm") or teacher_gguf(), ctx=int(p.get("evalCtx", 8192)), slots=2)
+if GROUND:
+    qs = ground_exam_set()
+    _bn = "ground|%s|%d|%s" % (spec.get("name") or "", len(qs), STACK_SIG)
+    KS = ("acc", "abstain", "catch", "clean")
+    if p.get("reuseBase", True) and PREV.get("base_name") == _bn and all(isinstance(PREV.get("base_" + k), (int, float)) for k in KS):
+        r0 = {k: float(PREV["base_" + k]) for k in KS}
+        lg.log("原版的成绩用上一轮考的（同一套题、同一个原版），不重复考")
+    else:
+        lg.progress(0.8, "考试：原版")
+        r0 = ground_exam(lg.llm("start", llm=spec, **STACK_ARG)["url"], qs, "原版")
+    lg.progress(0.9, "考试：带上新训的 LoRA")
+    r1 = ground_exam(lg.llm("start", llm=spec, lora=gguf, **STACK_ARG)["url"], qs, "新训的")
+    lg.llm("stop")
+    zf = shutil.make_archive(os.path.join(work, NAME + "-peft"), "zip", adir)
+    lg.log("该答的答对：%.0f%% → %.0f%%；没有就说没有：%.0f%% → %.0f%%；错句抓出来：%.0f%% → %.0f%%；对的不冤枉：%.0f%% → %.0f%%" % tuple(
+        x * 100 for k in KS for x in (r0[k], r1[k])))
+    lg.done(lora=gguf, peft=zf, **{k: r1[k] for k in KS}, **{"base_" + k: r0[k] for k in KS},
+            examples=_total, trained=len(rows), warm=bool(WARM), hp=HP, tried=TRY, base_name=_bn, mins=round((time.time() - t0) / 60, 1))
+    raise SystemExit(0)
 qs = exam_set()
-_bn = "%s|%d" % (spec.get("name") or "", len(qs))
+_bn = "%s|%d%s" % (spec.get("name") or "", len(qs), "|" + STACK_SIG if STACK_SIG else "")
 if p.get("reuseBase", True) and PREV.get("base_name") == _bn and isinstance(PREV.get("base_acc"), (int, float)) and isinstance(PREV.get("base_zh_rate"), (int, float)):
     acc0, zh0 = float(PREV["base_acc"]), float(PREV["base_zh_rate"])
     lg.log("原版的成绩用上一轮考的（同一套题、同一个原版：答对 %.0f%%），不重复考，省一半考试时间" % (acc0 * 100))
 else:
     lg.progress(0.8, "考试：原版")
-    acc0, zh0 = exam(lg.llm("start", llm=spec)["url"], qs, "原版")
+    acc0, zh0 = exam(lg.llm("start", llm=spec, **STACK_ARG)["url"], qs, "原版")
 lg.progress(0.9, "考试：带上新训的 LoRA")
-acc1, zh1 = exam(lg.llm("start", llm=spec, lora=gguf)["url"], qs, "新训的")
+acc1, zh1 = exam(lg.llm("start", llm=spec, lora=gguf, **STACK_ARG)["url"], qs, "新训的")
 lg.llm("stop")
 zf = shutil.make_archive(os.path.join(work, NAME + "-peft"), "zip", adir)
 if CHAT:

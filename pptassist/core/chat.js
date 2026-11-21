@@ -3,10 +3,10 @@
 "use strict";
 const http = require("http");
 
-function chatAt(base, messages, { tools, onDelta, temperature = 0.3, maxTokens = 1500, model = "local" } = {}) {
+function chatAt(base, messages, { tools, onDelta, temperature = 0.3, maxTokens = 1500, model = "local", extra } = {}) {
   let req = null, stopped = false;
   const p = new Promise((resolve, reject) => {
-    const body = JSON.stringify({ model, messages, stream: true, temperature, max_tokens: maxTokens, ...(tools && tools.length ? { tools, tool_choice: "auto" } : {}) });
+    const body = JSON.stringify({ model, messages, stream: true, temperature, max_tokens: maxTokens, ...(tools && tools.length ? { tools, tool_choice: "auto" } : {}), ...(extra || {}) });
     req = http.request(String(base).replace(/\/+$/, "") + "/v1/chat/completions", { method: "POST", headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) } }, (res) => {
       if (res.statusCode !== 200) { let s = ""; res.on("data", (c) => (s += c)); res.on("end", () => reject(new Error("AI 助手出错（" + res.statusCode + "）：" + s.slice(0, 300)))); return; }
       let buf = "", content = ""; const calls = [];

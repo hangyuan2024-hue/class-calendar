@@ -80,7 +80,8 @@ function create(o) {
         fs.mkdirSync(vd, { recursive: true });
         const files = {};
         try {   // 一个模型下不好，不耽误别的
-        for (const f of rel.files) {
+        // 只有训练才用的文件（peft 参数包、底座永久层的 train 包）老师端不下：省流量、省硬盘
+        for (const f of rel.files.filter((x) => !(o.skipFiles || ["peft", "train"]).includes(x.name))) {
           const p = path.join(vd, f.name + path.extname(new URL(f.url).pathname || ""));
           let ok = false;
           try { ok = fs.statSync(p).size === f.size; } catch (e) {}

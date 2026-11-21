@@ -76,7 +76,7 @@ function createService(o) {
   // 显存上限（设置里可以留一点给自己用）：领活的时候只说这么多
   const capsNow = () => { const c = { ...((lastProbe && lastProbe.caps) || {}), comfy: !!(cfg.ai && cfg.ai.ready), llm: llm.ok(), gsv: process.platform === "win32" || !!(cfg.gsv && cfg.gsv.dir) }; if (cfg.set && cfg.set.vramCap && c.vram) c.vram = Math.min(c.vram, cfg.set.vramCap); return c; };
   // ---- 设置（默认值）、日志、防休眠、硬盘、地区 ----
-  const SET0 = { autostart: true, keepAwake: true, lid: false, pauseOnBattery: true, notify: true, netLimit: 0, vramCap: 0, maxPower: 0, region: "auto", pro: false, keepTaskDays: 2, stallMin: 45, multiGpu: true,
+  const SET0 = { autostart: true, keepAwake: true, lid: false, pauseOnBattery: true, notify: true, netLimit: 0, vramCap: 0, maxPower: 0, region: "auto", pro: false, keepTaskDays: 2, stallMin: 45, multiGpu: true, cpuLane: true, cpuPct: 50,
     memAuto: true, aiRecycleH: 6, memLowPct: 12, sweep: true, autoClean: true,
     // 睡眠模式：晚上照样算，但温度压到 70℃、密度最多 50%，风扇少转；训练时临时「最佳性能」；训练环境不见了自动重装；允许别人发远程协助请求（每次都要自己同意）
     quiet: true, quietFrom: "23:00", quietTo: "07:00", perfBoost: true, autoRepair: true, assist: true };
@@ -116,7 +116,14 @@ function createService(o) {
   }
   const repairTimer = o.noMemTimers ? null : setInterval(() => autoRepair().catch(() => {}), 10 * 60e3);
   if (repairTimer && repairTimer.unref) repairTimer.unref();
-  const beforeTask = async (x) => { if (x.lane == null) curNeeds = x.needs || []; await mem.beforeTask(x); };
+  // 领到任务、开始算之前：成品展示开着的本地大模型、声音组件、听写都关掉，把显存让给训练（以前开过展示的电脑训练时报「显存不够，别的程序占着」）
+  const beforeTask = async (x) => {
+    if (x.lane == null) curNeeds = x.needs || [];
+    const needs = x.needs || [];
+    if (!needs.includes("llm")) { try { llm.stop(); } catch (e) {} }
+    try { if (typeof show !== "undefined" && show && show.releaseGpu) show.releaseGpu(); } catch (e) {}
+    await mem.beforeTask(x);
+  };
   if (!o.noMemTimers) mem.start();
   if (cfg.autostart === undefined && cfg.set === undefined && o.setAutostart) { cfg.autostart = true; try { o.setAutostart(true); } catch (e) {} save(); }   // 第一次用：默认开机自启（藏在托盘里，接着上次的状态）
   const gallery = [];
@@ -172,7 +179,8 @@ function createService(o) {
   //   第 2 块起只做纯 Python 的任务（训练、评测、数据处理）：AI 引擎、本地大模型、GPT-SoVITS 一台电脑只开一个，留在第 1 块上
   let lanes = [];
   async function startLanes() {
-    if (!set().multiGpu || !agent || lanes.length) return;
+    await startCpuLane().catch((e) => L("CPU 工位没开起来：" + e.message, "warn", "CPU"));
+    if (!set().multiGpu || !agent || lanes.some((a) => a.laneKind === "gpu")) return;
     const gs = o.gpuList ? await o.gpuList() : await probe.gpus();
     if (gs.length < 2) return;
     cfg.lanes = cfg.lanes || {};
@@ -192,10 +200,40 @@ function createService(o) {
       a.on("any", ({ k, v }) => { if (k === "log") L(v.msg, v.level, "第 " + (i + 1) + " 块显卡"); if (k === "state" && agent) onState(agent.status()); if (k === "done") onDone(v); if (k === "command") onCommand(v, a).catch(() => {}); });
       a.setManual(cfg.manual || "auto");
       a.start();
+      a.laneKind = "gpu";
       lanes.push(a);
       L(`第 ${i + 1} 块显卡（${g.name}，${g.vram}G）也开始帮忙：控制中心里叫「${ln.name}」`, "info", "多显卡");
     }
     if (agent) agent.setEnv && agent.setEnv({ CUDA_VISIBLE_DEVICES: "0" });
+  }
+  // ---------- CPU 工位：有显卡的电脑，显卡在忙别的时 CPU 也能帮忙（做题搜索、核对答案、跑大老师、合并底座）----------
+  //   只领 req.cpu 的活；自己开一个只用 CPU 的本地大模型（另一个端口）；线程数 = 核心数 × cpuPct%（默认一半）；和主工位一样只在空闲时算、睡眠模式压着
+  //   没有显卡的电脑不开（主工位自己就做 CPU 的活）
+  let cpuLlm = null;
+  const cpuThreads = () => Math.max(1, Math.floor(require("os").cpus().length * Math.min(100, Math.max(10, set().cpuPct || 50)) / 100));
+  async function startCpuLane() {
+    if (!set().cpuLane || !agent || lanes.some((a) => a.laneKind === "cpu")) return;
+    const c0 = capsNow();
+    if (!c0.vram || !llm.ok()) return;
+    cfg.lanes = cfg.lanes || {};
+    let ln = cfg.lanes.cpu;
+    if (!ln || !ln.token) {
+      const r = await agent.api("/api/lane", { gpu: "cpu", name: cfg.deviceName, info: { cpu: require("os").cpus().length, ram: c0.ram } });
+      ln = cfg.lanes.cpu = { token: r.token, device: r.device, name: r.name }; save();
+    }
+    cpuLlm = cpuLlm || (o.cpuLlmFactory || LLMW.create)({ exe: o.llamaExe, base: () => base(), mirror: llmMirror, region: regionNow, cpu: true, port: 18299, threads: cpuThreads, ...(o.llmOpt || {}) });
+    const a = Agent.create({ server: cfg.server, token: ln.token, pubkey: cfg.pubkey, workDir: path.join(work(), "cpu"), cacheDir: path.join(work(), "cache", "shared"), python: () => env.python(), envReady, minFreeGB: o.minFreeGB != null ? o.minFreeGB : 10,
+      caps: { ...c0, gpu: "", vram: 0, comfy: false, gsv: false, llm: true, cpuOnly: true, cores: cpuThreads(), lane: "cpu" }, llm: cpuLlm,
+      policy: { mode: "off", idleMin: 5, ...(cfg.policy || {}), pauseOnBattery: set().pauseOnBattery, maxPower: set().maxPower, quiet: quietPolicy() },
+      idleSecs: o.idleSecs, onBattery: o.onBattery, stallMin: set().stallMin, region: regionNow, ensure: (pkgs) => env.ensure(pkgs), version: o.version,
+      env: { CUDA_VISIBLE_DEVICES: "", OMP_NUM_THREADS: String(cpuThreads()) }, gpuInfo: async () => null, gpuApps: async () => [],
+      extraInfo: () => ({ lane: "cpu", main: cfg.device, region: region.current() }), ...(o.agentOpt || {}) });
+    a.on("any", ({ k, v }) => { if (k === "log") L(v.msg, v.level, "CPU"); if (k === "state" && agent) onState(agent.status()); if (k === "done") onDone(v); if (k === "command") onCommand(v, a).catch(() => {}); });
+    a.setManual(cfg.manual || "auto");
+    a.start();
+    a.laneKind = "cpu";
+    lanes.push(a);
+    L(`CPU 也开始帮忙（${cpuThreads()} 个线程，只在空闲时算）：控制中心里叫「${ln.name}」`, "info", "CPU");
   }
   async function stopLanes() { const ls = lanes; lanes = []; for (const a of ls) { try { await a.stop(); } catch (e) {} } }
   // 要算的时候不让电脑睡：正在算、或者能算在等任务（「开始」了 / 在定时的时间里）；停了、在等你不用电脑、拔了电就照常睡
@@ -463,7 +501,7 @@ function createService(o) {
     for (const a of lanes) a.setPolicy({ quiet: quietPolicy() });
     boostCheck().catch(() => {});
     if (!next.keepAwake) power.keepAwake(false); else if (agent) onState(agent.status());
-    if (next.multiGpu !== cur.multiGpu) { if (next.multiGpu) startLanes().catch(() => {}); else await stopLanes(); }
+    if (next.multiGpu !== cur.multiGpu || next.cpuLane !== cur.cpuLane || next.cpuPct !== cur.cpuPct) { await stopLanes(); if (cpuLlm) { try { cpuLlm.stop(); } catch (e) {} cpuLlm = null; } startLanes().catch(() => {}); }
     L("改了设置：" + Object.keys(p).join("、"), "info", "设置");
     return H.settings();
   };
@@ -615,7 +653,7 @@ function createService(o) {
     // 没打开过展示的电脑不去下模型（不白占同事的硬盘和流量）；打开过一次以后，新版在后台先下好
     used: () => !!cfg.showUsed,
     llmName: async () => { const hit = (await llmMirror.model("llmMain"))[0]; return hit && hit.name; },
-    gsvEnsure: (say) => gsv.ensure((m) => say(m)), base: () => base(), ...(o.showOpt || {}) });
+    gsvEnsure: (say) => gsv.ensure((m) => say(m)), base: () => base(), vram: () => (lastProbe && lastProbe.caps && lastProbe.caps.vram) || 0, ...(o.showOpt || {}) });
   const showSt = async () => ({ ...(await show.state()), paused: cfg.manual === "off", joined: !!cfg.token, fullscreen: o.isFullscreen ? !!o.isFullscreen() : false });
   if (show) Object.assign(H, {
     showState: showSt,
@@ -661,6 +699,10 @@ function createService(o) {
     showPrepRun: async (opt) => show.prepRun(opt || {}),
     async showVoicePref(v) { return show.setVoicePref(v); },
     showVoiceTest: async () => show.voiceTest(),
+    showApi: async () => show.apiInfo(),
+    showApiConnect: async () => show.apiConnect(),
+    showApiDisconnect: async () => show.apiDisconnect(),
+    showKb: async (open) => { const k = await show.kb(); if (open) o.openPath && o.openPath(k.dir); return k; },
   });
   H.taskDir = async () => { const c = agent && agent.current(); if (!c) return null; o.openPath && o.openPath(c.dir); return c.dir; };
   H.killTask = async () => { if (!agent || !agent.current()) return false; await agent.kill("在本机结束了这个任务"); return true; };
@@ -695,7 +737,7 @@ function createService(o) {
   if (o.detectRegion !== false) { const rt = setTimeout(() => region.detect().catch(() => {}), 30e3); rt.unref && rt.unref(); }
   if (cfg.token) startAgent();
   L(`启动 ${o.version}（${o.hidden ? "开机自启，藏在托盘" : "打开了窗口"}）；上次的状态：${cfg.manual || "auto"}`, "info", "软件");
-  return { H, logs, power, region, autoRepair, boostCheck, assistDev, lan, lanes: () => lanes, shutdown: async () => { try { show.shutdown(); } catch (e) {} try { assistDev.end("软件关了"); lan.stop(); } catch (e) {} clearInterval(repairTimer); if (cfg.boostOn) { try { await power.perfBoost(false, cfg.boostSaved); cfg.boostOn = false; cfg.boostSaved = null; save(); } catch (e) {} } updater.stop(); clearInterval(wd); clearInterval(daily); clearInterval(hk); await stopLanes(); if (agent) await agent.stop(); power.keepAwake(false); logs.flush(); try { ai.stop(); } catch (e) {} try { llm.stop(); } catch (e) {} }, agent: () => agent, updater, ai, llm };
+  return { H, logs, power, region, autoRepair, boostCheck, assistDev, lan, lanes: () => lanes, shutdown: async () => { try { show.shutdown(); } catch (e) {} try { assistDev.end("软件关了"); lan.stop(); } catch (e) {} clearInterval(repairTimer); if (cfg.boostOn) { try { await power.perfBoost(false, cfg.boostSaved); cfg.boostOn = false; cfg.boostSaved = null; save(); } catch (e) {} } updater.stop(); clearInterval(wd); clearInterval(daily); clearInterval(hk); await stopLanes(); if (agent) await agent.stop(); power.keepAwake(false); logs.flush(); try { ai.stop(); } catch (e) {} try { llm.stop(); } catch (e) {} try { cpuLlm && cpuLlm.stop(); } catch (e) {} }, agent: () => agent, updater, ai, llm };
 }
 
 // 数据文件夹在哪（主进程启动时就要知道：找上次下好的新版安装包）

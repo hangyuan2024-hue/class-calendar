@@ -1,0 +1,77 @@
+{
+  "name": "前沿搜题工厂",
+  "mode": "continuous",
+  "stages": [
+    {
+      "key": "cpu",
+      "name": "前沿搜题（CPU：程序出题、程序判对错，留下有对有错的那些）",
+      "kind": "map",
+      "recipe": "math_search",
+      "recipeFile": "../recipes/math_search.py",
+      "standing": true,
+      "keep": 30,
+      "params": {
+        "per": 12,
+        "samples": 6,
+        "parallel": 1,
+        "tag": "qa-math",
+        "modelsOf": [
+          "base-stack/stack,bundle",
+          "qa-lora/lora"
+        ],
+        "llm": {
+          "name": "Qwen3VL-4B-Instruct-Q4_K_M.gguf",
+          "mirrorModel": "llmMain",
+          "ctx": 8192,
+          "slots": 1,
+          "urls": [
+            "https://www.modelscope.cn/models/Qwen/Qwen3-VL-4B-Instruct-GGUF/resolve/master/Qwen3VL-4B-Instruct-Q4_K_M.gguf",
+            "https://hf-mirror.com/Qwen/Qwen3-VL-4B-Instruct-GGUF/resolve/main/Qwen3VL-4B-Instruct-Q4_K_M.gguf",
+            "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct-GGUF/resolve/main/Qwen3VL-4B-Instruct-Q4_K_M.gguf"
+          ]
+        }
+      },
+      "req": {
+        "cpu": true,
+        "llm": true,
+        "ram": 8
+      },
+      "priority": 3
+    },
+    {
+      "key": "gpu",
+      "name": "前沿搜题（空闲显卡）",
+      "kind": "map",
+      "recipe": "math_search",
+      "recipeFile": "../recipes/math_search.py",
+      "standing": true,
+      "keep": 10,
+      "params": {
+        "per": 24,
+        "samples": 8,
+        "parallel": 2,
+        "tag": "qa-math",
+        "modelsOf": [
+          "base-stack/stack,bundle",
+          "qa-lora/lora"
+        ],
+        "llm": {
+          "name": "Qwen3VL-4B-Instruct-Q4_K_M.gguf",
+          "mirrorModel": "llmMain",
+          "ctx": 8192,
+          "slots": 2,
+          "urls": [
+            "https://www.modelscope.cn/models/Qwen/Qwen3-VL-4B-Instruct-GGUF/resolve/master/Qwen3VL-4B-Instruct-Q4_K_M.gguf",
+            "https://hf-mirror.com/Qwen/Qwen3-VL-4B-Instruct-GGUF/resolve/main/Qwen3VL-4B-Instruct-Q4_K_M.gguf",
+            "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct-GGUF/resolve/main/Qwen3VL-4B-Instruct-Q4_K_M.gguf"
+          ]
+        }
+      },
+      "req": {
+        "llm": true,
+        "vram": 4
+      },
+      "priority": 2
+    }
+  ]
+}

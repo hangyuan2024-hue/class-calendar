@@ -1,0 +1,110 @@
+{
+  "name": "先核对再回答工厂",
+  "mode": "continuous",
+  "stages": [
+    {
+      "key": "make",
+      "name": "造「照资料回答 + 逐句核对」的例子（对错由程序判）",
+      "kind": "map",
+      "recipe": "ground_gen",
+      "recipeFile": "../recipes/ground_gen.py",
+      "standing": true,
+      "keep": 20,
+      "params": {
+        "per": 24,
+        "parallel": 2,
+        "tries": 2,
+        "abstainShare": 0.35,
+        "tag": "ground",
+        "llm": {
+          "name": "Qwen3-8B-Q4_K_M.gguf",
+          "ctx": 16384,
+          "slots": 2,
+          "urls": [
+            "https://www.modelscope.cn/models/Qwen/Qwen3-8B-GGUF/resolve/master/Qwen3-8B-Q4_K_M.gguf",
+            "https://hf-mirror.com/Qwen/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q4_K_M.gguf",
+            "https://huggingface.co/Qwen/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q4_K_M.gguf"
+          ],
+          "mirrorModel": "gridTeacher"
+        }
+      },
+      "req": {
+        "vram": 7.5,
+        "llm": true
+      },
+      "priority": 9
+    },
+    {
+      "key": "train",
+      "name": "训练先核对再回答（同事显卡，QLoRA）",
+      "kind": "map",
+      "recipe": "qa_train",
+      "recipeFile": "../recipes/qa_train.py",
+      "when": {
+        "outputsOf": "ground",
+        "outputs": 40,
+        "minHours": 6
+      },
+      "params": {
+        "count": 1,
+        "exam": "ground",
+        "name": "ground-lora",
+        "outputsOf": "ground",
+        "warmStart": "ground-lora",
+        "minExamples": 1500,
+        "maxExamples": 12000,
+        "epochs": 2,
+        "rank": 16,
+        "lr": 0.0001,
+        "maxLen": 1536,
+        "llm": {
+          "lazy": true,
+          "ctx": 8192,
+          "slots": 2
+        },
+        "modelsOf": [
+          "base-stack"
+        ]
+      },
+      "req": {
+        "vram": 7.5,
+        "llm": true
+      },
+      "priority": 19
+    }
+  ],
+  "publish": {
+    "model": "ground-lora",
+    "from": "train",
+    "files": [
+      "lora",
+      "peft"
+    ],
+    "metrics": [
+      {
+        "k": "acc",
+        "better": "higher",
+        "tol": 0.03,
+        "min": 0.75
+      },
+      {
+        "k": "abstain",
+        "better": "higher",
+        "tol": 0.03,
+        "min": 0.85
+      },
+      {
+        "k": "catch",
+        "better": "higher",
+        "tol": 0.03,
+        "min": 0.85
+      },
+      {
+        "k": "clean",
+        "better": "higher",
+        "tol": 0.03,
+        "min": 0.85
+      }
+    ]
+  }
+}

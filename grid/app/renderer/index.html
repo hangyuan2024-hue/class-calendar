@@ -102,6 +102,8 @@
         <label class="muted sh-chk"><input type="checkbox" id="shSpeak" checked> 开口说话</label>
         <select id="shVoicePick" title="用哪种声音：Kokoro 女声不用装别的；真人感要先装好声音组件"><option value="kokoro">声音：Kokoro 女声</option><option value="real">声音：真人感（声音组件）</option></select>
         <button class="btn small" id="shVoiceTest" title="每种声音都试一句：哪种能用、不能用的原因">试一下声音</button>
+        <button class="btn small" id="shKb" title="捞小智回答事实类问题时先查这里的资料（讲义、学生手册、通知），照资料回答、逐句核对">知识库</button>
+        <button class="btn small" id="shMm" title="让捞捞思维导图用捞小智（本机模型）回答：导图里提问、生成、复核都不用外面平台的 Key">接入思维导图</button>
         <select id="shRole" title="换一个身份试试：学生、教师（辅导员）、教务员能办的事不一样"></select>
         <button class="btn small" id="shNew">新对话</button>
         <button class="btn small primary" id="shFull" title="全屏展示（Esc 退出）">⛶ 全屏展示</button>
@@ -283,6 +285,8 @@
           <label>显卡功耗上限 <input type="number" min="0" max="600" step="5" data-set="maxPower"> W（0 = 不限；超过就歇一会儿）</label>
           <label>网速上限 <input type="number" min="0" max="1000" step="1" data-set="netLimit"> MB/秒（0 = 不限；下载模型、传结果都算）</label>
           <label class="check"><input type="checkbox" data-set="multiGpu"> 有好几块 NVIDIA 显卡时都用上（每块各领各的任务；第 2 块起只做训练、评测这类）</label>
+          <label class="check"><input type="checkbox" data-set="cpuLane"> 有显卡的电脑，CPU 也帮忙（做题、核对答案、跑大老师；只在电脑空闲时算）</label>
+          <label>CPU 最多用 <input type="number" min="10" max="100" step="10" data-set="cpuPct"> %（按核心数算；默认一半，风扇吵就调小）</label>
         </div>
         <div class="glass panel">
           <h3>下载源</h3>
