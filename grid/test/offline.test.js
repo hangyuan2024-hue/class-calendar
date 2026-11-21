@@ -164,7 +164,8 @@ function flakyFetch() {
     const d = boot(await join("赵六"), "d", flakyFetch());
     const dl = []; d.on("log", (l) => dl.push(l.msg));
     d.start();
-    await until(() => app.core.overview(true).jobs.find((j) => j.id === j3).state === "done", 30000, "存档接着算");
+    // Windows 的打包机器很慢（起 Python、杀进程都要几秒）：多等一会儿；等不到就把这台电脑的日志打出来，好看出卡在哪
+    await until(() => app.core.overview(true).jobs.find((j) => j.id === j3).state === "done", 120000, "存档接着算").catch((e) => { throw new Error(e.message + "；这台电脑的日志：" + dl.slice(-12).join(" | ")); });
     assert.ok(dl.some((m) => m === "resume 7"), "第二次应该拿到第一次的存档：" + dl.slice(-10).join(" | "));
     ok("一个人算的大任务出错重来：从它自己最近的存档接着算（训练答题大脑不再从头训）");
     await d.stop();
