@@ -30,6 +30,8 @@ on:
       - "pptassist/core/gridmodels.js"
       - "pptassist/core/voice.js"
       - "pptassist/core/media.js"
+      - "pptassist/core/systts.js"
+      - "pptassist/core/checkup.js"
       - "pptassist/renderer/avatar3d.js"
   workflow_dispatch:
 
@@ -157,6 +159,78 @@ jobs:
             if git -C "$PUB" push origin "HEAD:${BRANCH}"; then exit 0; fi
           done
           echo "::error::安装包发布了，但写 download/grid-version.json 失败"; exit 1
+      # 捞小智电脑版（只有捞小智：讲题、做 PPT、办教务的事、打电话；模型从公开发布清单自动下载、换上）
+      #   只打包 xz/builder.json 里列的文件：不带配方、训练计划、调度中心、领任务的代码
+      - name: 打包捞小智电脑版
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npx electron-builder --config xz/builder.json --win nsis --publish never
+      # 捞捞算力 通用版（别人自己搭调度中心用）：不带捞捞的训练配方、捞小智；调度中心另打一个压缩包（带搭建说明）
+      - name: 打包捞捞算力通用版
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: |
+          node scripts/open.js
+          npx electron-builder --config open-builder.json --win nsis --publish never
+          node scripts/open-server.js dist-open/LaolaoGrid-Open-Server.zip
+          Remove-Item app/edition.json, open-builder.json -Force
+      - name: 发布捞小智、通用版到 Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          function Pub($tag, $title, $notes, $files) {
+            gh release view $tag --repo "${{ github.repository }}" *> $null
+            if ($LASTEXITCODE -eq 0) {
+              gh release upload $tag @files --repo "${{ github.repository }}" --clobber
+              gh release edit $tag --repo "${{ github.repository }}" --title $title --notes $notes --latest=false
+            } else {
+              gh release create $tag @files --repo "${{ github.repository }}" --target "${{ github.sha }}" --title $title --notes $notes --latest=false
+            }
+          }
+          Pub "laolao-xiaozhi" "捞小智 Windows 版 $v（体验版）" "捞小智：捞捞的 AI 助教（体验版）。讲题、做 PPT、办教务的事（模拟演示）、打电话。`n`n模型还没有正式训练好，现在用的是临时版；捞捞算力每训练、考试通过一版，软件会自动下载、换上。第一次提问要先下载大模型（约 2.5G）。" @("dist-xz\LaolaoXiaozhi-Setup.exe")
+          Pub "laolao-grid-open" "捞捞算力 通用版 $v" "捞捞算力 通用版：用自己的服务器搭训练网，几台电脑一起训练模型，一台停了下一台接着算。`n`n· LaolaoGrid-Open-Setup.exe：出力的电脑装这个`n· LaolaoGrid-Open-Server.zip：调度中心（装到你的 Linux 服务器上，里面有 README 搭建说明）" @("dist-open\LaolaoGrid-Open-Setup.exe", "dist-open\LaolaoGrid-Open-Server.zip")
+      - name: 捞小智、通用版传到国内存储，写版本文件
+        shell: bash
+        working-directory: .
+        env:
+          BRANCH: ${{ github.ref_name }}
+          CN_S3_ENDPOINT: ${{ secrets.CN_S3_ENDPOINT }}
+          CN_S3_REGION: ${{ secrets.CN_S3_REGION }}
+          CN_S3_BUCKET: ${{ secrets.CN_S3_BUCKET }}
+          CN_S3_KEY_ID: ${{ secrets.CN_S3_KEY_ID }}
+          CN_S3_SECRET: ${{ secrets.CN_S3_SECRET }}
+          CN_DL_BASE: ${{ secrets.CN_DL_BASE }}
+        run: |
+          set -euo pipefail
+          V="0.1.${{ github.run_number }}"
+          GH="https://github.com/${GITHUB_REPOSITORY}/releases/download"
+          meta() { local f="$1"; echo "$(stat -c %s "$f" 2>/dev/null || wc -c < "$f") $(sha256sum < "$f" | cut -d' ' -f1)"; }
+          XZ="${GITHUB_WORKSPACE}/grid/dist-xz/LaolaoXiaozhi-Setup.exe"
+          OC="${GITHUB_WORKSPACE}/grid/dist-open/LaolaoGrid-Open-Setup.exe"
+          OS="${GITHUB_WORKSPACE}/grid/dist-open/LaolaoGrid-Open-Server.zip"
+          read XZS XZH <<< "$(meta "$XZ")"; read OCS OCH <<< "$(meta "$OC")"; read OSS OSH <<< "$(meta "$OS")"
+          XZC=$(bash .github/workflows/cn-upload.sh "$XZ" "xiaozhi/LaolaoXiaozhi-Setup-${V}.exe")
+          OCC=$(bash .github/workflows/cn-upload.sh "$OC" "grid/LaolaoGrid-Open-Setup-${V}.exe")
+          OSC=$(bash .github/workflows/cn-upload.sh "$OS" "grid/LaolaoGrid-Open-Server-${V}.zip")
+          PUB="${RUNNER_TEMP}/xz-open-publish"
+          git fetch --no-tags origin "$BRANCH"
+          git worktree add --detach "$PUB" FETCH_HEAD
+          git -C "$PUB" config user.name "github-actions[bot]"
+          git -C "$PUB" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for ATTEMPT in 1 2 3; do
+            if [ "$ATTEMPT" -gt 1 ]; then git -C "$PUB" fetch --no-tags origin "$BRANCH"; git -C "$PUB" reset --hard FETCH_HEAD; fi
+            mkdir -p "$PUB/download"
+            AT="$(date -u +%FT%TZ)"
+            echo "{\"version\": \"${V}\", \"url\": \"${GH}/laolao-xiaozhi/LaolaoXiaozhi-Setup.exe\", \"cn\": \"${XZC}\", \"size\": ${XZS}, \"sha256\": \"${XZH}\", \"trial\": true, \"notes\": \"捞小智 ${V}（体验版：模型还没正式训练好）\", \"at\": \"${AT}\"}" > "$PUB/download/xiaozhi-version.json"
+            echo "{\"version\": \"${V}\", \"url\": \"${GH}/laolao-grid-open/LaolaoGrid-Open-Setup.exe\", \"cn\": \"${OCC}\", \"size\": ${OCS}, \"sha256\": \"${OCH}\", \"server\": {\"url\": \"${GH}/laolao-grid-open/LaolaoGrid-Open-Server.zip\", \"cn\": \"${OSC}\", \"size\": ${OSS}, \"sha256\": \"${OSH}\"}, \"notes\": \"捞捞算力 通用版 ${V}\", \"at\": \"${AT}\"}" > "$PUB/download/grid-open-version.json"
+            cat "$PUB/download/xiaozhi-version.json" "$PUB/download/grid-open-version.json"
+            git -C "$PUB" add -- download/xiaozhi-version.json download/grid-open-version.json
+            if git -C "$PUB" diff --cached --quiet; then echo "已经是最新"; exit 0; fi
+            git -C "$PUB" commit -m "捞小智、捞捞算力通用版 ${V}"
+            if git -C "$PUB" push origin "HEAD:${BRANCH}"; then exit 0; fi
+          done
+          echo "::error::安装包发布了，但写版本文件失败"; exit 1
       - name: 让国内网站也同步
         shell: bash
         working-directory: .
