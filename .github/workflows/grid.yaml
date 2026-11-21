@@ -34,6 +34,10 @@ on:
       - "pptassist/core/checkup.js"
       - "pptassist/renderer/avatar3d.js"
       - "pptassist/core/ai3d.js"
+      - "pptassist/core/websearch.js"
+      - "pptassist/core/ground.js"
+      - "pptassist/core/mindmap.js"
+      - "learn/mindmap/js/map-files.cjs"
       - "pptassist/ai3d/**"
   workflow_dispatch:
 
