@@ -128,7 +128,7 @@ const until = async (f, ms, what) => { const t0 = Date.now(); while (!(await f()
     ok(`睡眠模式（${from}～${to}）：照样算完，密度最多 50%、显卡最高 ${maxT}℃（平时全速会到 80℃）`);
   }
 
-  // ---------- 5. 慢电脑：做某类任务慢得不正常 → 6 小时内不再领这一类，先做别的 ----------
+  // ---------- 5. 慢电脑：做某类任务慢得不正常 → 第一次 1 小时内不再领这一类（连着慢才 3、6 小时），先做别的 ----------
   {
     const slowJob = await plan("慢训练", "import lg, sys\nt = lg.task()\nlg.unfit('这台电脑训练慢得不正常（每秒 12 字，正常是几百）：换别的电脑接着训')\nsys.exit(1)\n", 2, 9);
     const lightJob = await plan("轻活", "import lg\nt = lg.task()\nlg.done(ok=1)\n", 3, 8);
@@ -141,10 +141,10 @@ const until = async (f, ms, what) => { const t0 = Date.now(); while (!(await f()
     const sl = await tasksOf(slowJob);
     assert.ok(sl.every((t) => !t.errors && t.state === "queued"), "慢的那类不记失败、留给别的电脑：" + JSON.stringify(sl.map((t) => [t.state, t.errors])));
     assert.strictEqual(logs.filter((m) => /^领到任务：「慢训练」/.test(m)).length, 1, "慢的那类只领了一次");
-    assert.ok(logs.some((m) => /做「慢训练」太慢：6 小时内不再领这一类/.test(m)));
+    assert.ok(logs.some((m) => /做「慢训练」太慢：1 小时内不再领这一类/.test(m)));
     assert.ok(!states.some((w) => /分钟后自动再试/.test(w)), "不是整台电脑歇着：轻活照样做");
     assert.deepStrictEqual(a.avoiding().map((x) => x.recipe), ["慢训练"]);
-    ok("慢电脑做训练慢得不正常：这一类 6 小时内不再派给它（只领了一次），3 个轻活照样做完；训练留给别的电脑");
+    ok("慢电脑做训练慢得不正常：这一类先歇 1 小时（连着慢才加长），不再派给它（只领了一次），3 个轻活照样做完；训练留给别的电脑");
   }
 
   await app.close();

@@ -288,7 +288,8 @@ if p.get("openVoice") == "aishell3":
     os.makedirs(od, exist_ok=True)
     # 先从自己的存储下打好的包（国内腾讯云 / 国外自己的 GitHub）：说明 + 选好的那一位的全部录音，一个文件
     pack = [m for m in lg.mirror(model="aishell3") if m.get("sources")]
-    if pack and not os.path.exists(os.path.join(od, "pick.txt")):
+    # 本机还没有包里的录音（没下过，或者以前是从 hf-mirror 一句句下的、只有零星几句）：下自己存储里的包
+    if pack and (not os.path.exists(os.path.join(od, "pick.txt")) or sum(1 for f_ in os.listdir(od) if f_.endswith(".wav")) < int(p.get("minLocal", 60))):
         try:
             import tarfile
             tp = os.path.join(work, "aishell3.tar")
@@ -341,9 +342,17 @@ if p.get("openVoice") == "aishell3":
     if spk not in utts:
         raise RuntimeError("AISHELL-3 训练集里没有 %s" % spk)
     rows = utts[spk]
-    have = None if all(os.path.exists(os.path.join(od, r_[0])) for r_ in rows[:5]) else listed("train/wav/%s" % spk)
-    if have is not None:
-        rows = [r_ for r_ in rows if r_[0] in have]
+    # 自己的存储里的包已经下好了（这一位的录音都在本机）：只用本机有的，一句都不再去 hf-mirror 下
+    #   （以前按 content.txt 把这一位的句子全列出来，包里没有的那些再一句句去 hf-mirror 下，常常 SSL EOF、卡很久，甚至「失败太多」整轮失败）
+    local = set(f_ for f_ in os.listdir(od) if f_.endswith(".wav") and os.path.getsize(os.path.join(od, f_)) > 0)
+    mine = [r_ for r_ in rows if r_[0] in local]
+    if len(mine) >= int(p.get("minLocal", 60)):
+        rows, have = mine, local
+        lg.log("公开录音全部用本机已经下好的（%d 句，来自自己的存储），不再连 hf-mirror" % len(rows))
+    else:
+        have = None if all(os.path.exists(os.path.join(od, r_[0])) for r_ in rows[:5]) else listed("train/wav/%s" % spk)
+        if have is not None:
+            rows = [r_ for r_ in rows if r_[0] in have]
     lg.log("用 AISHELL-3 的 %s（%s）：%d 句%s" % (spk, " ".join(info.get(spk, ("?", "?", "?"))), len(rows), "（网上真有录音的）" if have is not None else ""))
     random.Random(7).shuffle(rows)
     MAXC = int(p.get("maxClips", 600))

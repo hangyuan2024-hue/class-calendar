@@ -389,11 +389,20 @@ function create(opt) {
   let avoid = {};
   try { avoid = JSON.parse(fs.readFileSync(avoidFile, "utf8")) || {}; } catch (e) {}
   const avoidNow = () => { const now = Date.now(); for (const k of Object.keys(avoid)) if (!(avoid[k].until > now)) delete avoid[k]; return Object.keys(avoid); };
+  //   偶尔慢一次（没插电、有人在打游戏）不该整类任务好几个小时不领：第一次只歇 1 小时，连着慢才 3 小时、6 小时；这一类做成一次就清零
+  const avoidN = {};
+  try { Object.assign(avoidN, JSON.parse(fs.readFileSync(avoidFile + ".n", "utf8")) || {}); } catch (e) {}
   function avoidRecipe(name, why) {
-    const h = opt.avoidH || 6;
+    const steps = opt.avoidSteps || [1, 3, 6], n = avoidN[name] || 0, h = opt.avoidH || steps[Math.min(n, steps.length - 1)];
+    avoidN[name] = n + 1;
     avoid[name] = { until: Date.now() + h * 3600e3, why: String(why || "").slice(0, 200) };
-    try { fs.writeFileSync(avoidFile, JSON.stringify(avoid)); } catch (e) {}
-    log(`这台电脑做「${name}」太慢：${h} 小时内不再领这一类，先做别的（生成数据、做题这些轻活照样做）`, "warn");
+    try { fs.writeFileSync(avoidFile, JSON.stringify(avoid)); fs.writeFileSync(avoidFile + ".n", JSON.stringify(avoidN)); } catch (e) {}
+    log(`这台电脑做「${name}」太慢：${h} 小时内不再领这一类，先做别的（生成数据、做题这些轻活照样做）${n ? "" : "；插上电源、关掉占显卡的程序，到时间自动再试"}`, "warn");
+  }
+  function avoidDone(name) {
+    if (!name || (!avoidN[name] && !avoid[name])) return;
+    delete avoidN[name]; delete avoid[name];
+    try { fs.writeFileSync(avoidFile, JSON.stringify(avoid)); fs.writeFileSync(avoidFile + ".n", JSON.stringify(avoidN)); } catch (e) {}
   }
   const HOLD_MIN = opt.holdMin || [5, 15, 30, 60];
   function holdOff(why) {
@@ -414,7 +423,8 @@ function create(opt) {
   const PACE_MIN = 0.15;
   const thermalFile = path.join(work, "thermal.json");
   const th = { duty: 1, at: 0, hotSince: 0, cool: false, told: 0, toldDuty: 1 };
-  try { const j = JSON.parse(fs.readFileSync(thermalFile, "utf8")); if (Date.now() - j.t < 7 * 86400e3 && j.duty > 0) th.duty = Math.max(PACE_MIN, Math.min(1, +j.duty)); } catch (e) {}
+  //   记下的密度只当起点参考：每过 1 小时往回加 10%，而且起点至少 60%——偶尔一次热（下午、旁边在打游戏）不该把以后都压低
+  try { const j = JSON.parse(fs.readFileSync(thermalFile, "utf8")); if (Date.now() - j.t < 7 * 86400e3 && j.duty > 0) th.duty = Math.max(opt.paceStart != null ? opt.paceStart : 0.6, Math.min(1, +j.duty + ((Date.now() - j.t) / 3600e3) * 0.1)); } catch (e) {}
   const saveThermal = () => { try { fs.writeFileSync(thermalFile, JSON.stringify({ duty: th.duty, t: Date.now() })); } catch (e) {} };
   const pct = (d) => Math.round(d * 100) + "%";
   // ---- 睡眠模式（晚上 23:00～7:00，设置里能改、能关）：照样算，但温度压到 70℃、密度最多 50%，风扇基本不吵 ----
@@ -450,13 +460,18 @@ function create(opt) {
     if (temp == null && !overPower) return null;
     const now = Date.now();
     if (temp != null && temp >= T0 + 5) return `显卡 ${temp}℃，比上限 ${T0}℃ 高太多`;
+    // 温度看最近一会儿的平均（一两秒冒高一下不算）；功耗超了也看平均
+    if (temp != null) th.tAvg = th.tAvg == null ? temp : th.tAvg * 0.7 + temp * 0.3;
     if (now - th.at >= (opt.paceEveryMs || 8000)) {
       th.at = now;
       let d = th.duty;
-      if (temp != null && temp >= T + 1) d *= 0.6;              // 已经超了：一下子放慢很多
-      else if ((temp != null && temp >= T - 1) || overPower) d *= 0.8;   // 快到了：放慢一点
-      else if (temp != null && temp <= T - 6) d += 0.1;         // 凉快：加回去
-      else if (temp != null && temp <= T - 4) d += 0.04;
+      const ta = th.tAvg != null ? th.tAvg : temp;
+      if (ta != null && ta >= T + 2) d *= 0.7;                   // 明显超了：放慢不少
+      else if (ta != null && ta >= T) d *= 0.85;                 // 到上限了：放慢一点
+      else if (overPower) d *= 0.9;
+      else if (ta != null && ta >= T - 1) { /* 贴着上限：保持 */ }
+      else if (ta != null && ta <= T - 6) d += 0.15;              // 凉快：大步加回去
+      else if (ta != null && ta <= T - 2) d += 0.06;              // 离上限还有余量：接着往上加
       d = Math.round(Math.max(PACE_MIN, Math.min(1, d)) * 100) / 100;
       if (d !== th.duty) {
         th.duty = d; writePace(c); emit("pace", { duty: d, temp });
@@ -796,6 +811,7 @@ function create(opt) {
       if (state === "offline") { c.note = "算完了，等连上调度中心交结果"; emit("progress", { id: c.id, p: c.progress, note: c.note }); }
       saveThermal();
       const r = await whenOnline(c, "交结果", () => api("/api/done", { task: c.id, result, outputs: c.outputs, reviews: c.reviews, secs, metrics: doneMetrics }));
+      if (r.ok && c.recipe) avoidDone(c.recipe.name);   // 这一类做成了：「太慢」的记录清零
       const mm = (x) => (x >= 90 ? (x / 60).toFixed(1) + " 分钟" : Math.round(x) + " 秒");
       log(r.ok ? `做完了「${L.job.name}」，用了 ${mm(secs)}：准备 ${mm(acct.prep)}、计算 ${mm(acct.run)}、上传 ${mm(acct.up)}${acct.gpu != null ? `；显卡平均占用 ${Math.round(acct.gpu)}%${acct.idle > 0.3 ? `（有 ${Math.round(acct.idle * 100)}% 的时间显卡基本空着）` : ""}` : ""}` : r.why, r.ok ? "ok" : "warn");
       emit("done", { id: c.id, ok: r.ok, secs, result });
