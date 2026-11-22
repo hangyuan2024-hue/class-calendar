@@ -1,6 +1,6 @@
 // 软件上次退出 / 重启 / 更新时没收干净的配方（Windows 上子程序不跟着软件退出）：
 //   还在后台训练、占着显卡，软件重新打开却显示「现在没有要算的」。
-//   · 软件一打开先收一遍（收完才领任务）
+//   · 软件一打开就在后台收一遍（不挡着领任务）
 //   · 没活的时候定期再看一眼
 //   · 别的工位（第 2 块显卡 / CPU）自己的配方不误杀；手上正在跑的不杀
 "use strict";
@@ -44,21 +44,16 @@ const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { 
   await a.stop();
   ok("软件一打开就把上次留下的孤儿配方收掉（别的工位的不动）");
 
-  // 收完才领任务；手上正在跑的配方不算孤儿；没活时定期再看
-  let listed = 0, killed = [];
-  let release;
-  const gate = new Promise((r) => (release = r));
+  // 不挡着领任务；手上正在跑的配方不算孤儿；只收命令行是自己配方文件夹的
+  let listed = 0; const killed = [];
   const b = Agent.create({ server: "http://127.0.0.1:9", token: "x", workDir: path.join(tmp, "w2"), allowUnsigned: true, tickMs: 30,
-    listProcs: async () => { listed++; if (listed === 1) await gate; return [{ pid: 424242, cmd: `python -u ${path.join(tmp, "w2", "recipes", "z.py")}` }, { pid: 434343, cmd: "python -u C:/别的程序/train.py" }]; },
+    listProcs: async () => { listed++; return [{ pid: 424242, cmd: `python -u ${path.join(tmp, "w2", "recipes", "z.py")}` }, { pid: 434343, cmd: "python -u C:/别的程序/train.py" }]; },
     killProc: async (pid) => { killed.push(pid); } });
   b.start();
-  await sleep(200);
-  assert.equal(killed.length, 0); assert.equal(listed, 1, "开头先查一遍，查完之前不往下走");
-  release();
   await until(() => killed.length === 1, 3000, "收掉孤儿");
   assert.deepEqual(killed, [424242], "只收命令行是自己配方文件夹的");
   await b.stop();
-  ok("收完才往下走；只收命令行是这个工位配方文件夹的进程");
+  ok("只收命令行是这个工位配方文件夹的进程");
 
   if (process.platform === "win32") require("child_process").spawnSync("taskkill", ["/F", "/T", "/PID", String(other)], { windowsHide: true });
   else { try { process.kill(-other, "SIGKILL"); } catch (e) {} }

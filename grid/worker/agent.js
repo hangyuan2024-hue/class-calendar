@@ -733,21 +733,22 @@ function create(opt) {
   }
 
   // ---- 收掉「孤儿配方」：命令行里是这台电脑（这个工位）自己的配方文件夹、但不是手上正在跑的那个 ----
-  //   软件刚打开时先收一遍（收完才领任务，不然两份训练抢一块显卡：显存不够、一批只放得下几百个字）；之后没活的时候每 5 分钟看一眼
+  //   软件刚打开时在后台收一遍（Windows 上查进程要调 PowerShell，几秒到十几秒：不挡着领任务）；之后没活的时候每 5 分钟看一眼
   const recKey = String(path.join(work, "recipes")).replace(/\\/g, "/").toLowerCase() + "/";
-  let lastSweep = 0, sweeping = null, swept = !!opt.noSweep;
+  let lastSweep = 0, sweeping = null;
   function sweepOrphans() {
     if (sweeping) return sweeping;
     lastSweep = Date.now();
     sweeping = (async () => {
       let ps = [];
       try { ps = await (opt.listProcs || listProcs)(); } catch (e) {}
-      if (cur) return 0;   // 查的时候刚领到任务：它的配方也在名单里，这一轮先不动
-      const left = ps.filter((p) => p && p.pid && p.pid !== process.pid && String(p.cmd || "").replace(/\\/g, "/").toLowerCase().includes(recKey));
-      for (const p of left) { try { await (opt.killProc || ((pid) => killTree(pid)))(p.pid); } catch (e) {} }
+      // 手上正在跑的配方（查的时候刚领到、刚开起来的）不算孤儿：杀之前按进程号再排除一次
+      const mine = () => (cur && cur.child && cur.child.pid) || 0;
+      const left = ps.filter((p) => p && p.pid && p.pid !== process.pid && p.pid !== mine() && String(p.cmd || "").replace(/\\/g, "/").toLowerCase().includes(recKey));
+      for (const p of left) { if (p.pid === mine()) continue; try { await (opt.killProc || ((pid) => killTree(pid)))(p.pid); } catch (e) {} }
       if (left.length) log(`发现 ${left.length} 个配方还在后台算，却不归软件管了（软件上次退出 / 重启 / 更新时没收干净）：白占着显卡和内存、结果也交不上去，已经结束它。那个任务调度中心会交给别的电脑（或者这台）从存档接着算`, "warn");
       return left.length;
-    })().finally(() => { sweeping = null; swept = true; });
+    })().finally(() => { sweeping = null; });
     return sweeping;
   }
 
@@ -784,7 +785,6 @@ function create(opt) {
         // 卡住了：好久没有任何输出（日志、进度、曲线）→ 结束它，交给别的电脑从存档接着算
         else if (opt.stallMin !== 0 && cur.child && Date.now() - (cur.lastOut || cur.started) > (opt.stallMin || 45) * 60e3 && !cur.stopping) { log(`这个任务 ${opt.stallMin || 45} 分钟没有动静，像是卡住了：结束它，交给别的电脑接着算`, "error"); await stopTask(true, "卡住了（很久没有输出）"); }
       } else if (!g.ok) setState(paused || manual === "off" ? "paused" : "waiting", g.why);
-      else if (!swept) { if (!sweeping) sweepOrphans(); }
       else if (Date.now() - lastLease > (opt.leaseEveryMs || 10000)) {
         lastLease = Date.now();
         const av = avoidNow();
@@ -793,7 +793,7 @@ function create(opt) {
         if (gpuNow && gpuNow.vram && gpuNow.used != null) { let own = 0; try { own = opt.vramOwn ? +(await opt.vramOwn()) || 0 : 0; } catch (e) {} vf = Math.round(Math.max(0, gpuNow.vram - gpuNow.used + own) * 10) / 10; }
         const r = await api("/api/lease", { caps: { ...(caps || {}), ...(av.length ? { avoid: av } : {}), ...(vf != null ? { vramFree: vf } : {}) } });
         if (r.task) runTask(r.task).catch((e) => log("任务出错：" + e.message, "error"));
-        else { setState("idle", "现在没有要算的"); if (!opt.noSweep && Date.now() - lastSweep > (opt.sweepMs || 5 * 60e3)) sweepOrphans(); }
+        else { setState("idle", "现在没有要算的"); if (!opt.noSweep && !sweeping && Date.now() - lastSweep > (opt.sweepMs || 5 * 60e3)) sweepOrphans(); }
       }
     } catch (e) {
       if (e.status === 401) { setState("offline", e.message); emit("kicked", e.message); }
@@ -801,7 +801,7 @@ function create(opt) {
     }
   }
   let timer = null;
-  function start() { stopped = false; lanStart(); if (!swept) sweepOrphans(); if (!timer) { timer = setInterval(tick, opt.tickMs || 2000); tick(); } return api; }
+  function start() { stopped = false; lanStart(); if (!opt.noSweep) sweepOrphans(); if (!timer) { timer = setInterval(tick, opt.tickMs || 2000); tick(); } return api; }
   async function stop() { stopped = true; clearInterval(timer); timer = null; lanStop(); if (cur) await stopTask(true, "客户端关闭"); }
 
   function liveOf() {
