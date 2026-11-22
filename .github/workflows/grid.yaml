@@ -100,6 +100,8 @@ jobs:
           New-Item -ItemType Directory -Force llama | Out-Null
           Copy-Item (Join-Path $exe.DirectoryName '*') llama -Recurse -Force
           Remove-Item llama-dl, llama-x -Recurse -Force
+          # 局域网里几台电脑合起来跑大模型要用 rpc-server（官方的 Windows 版里一般都带）：没有就提醒一声，不影响别的功能
+          if (-not (Test-Path llama/rpc-server.exe)) { Write-Host "::warning::这一版 llama.cpp 没带 rpc-server.exe：局域网合算（当帮手）用不了" }
           # 同一版的转换脚本（训练答题大脑以后把 LoRA 转成 llama.cpp 格式；客户端自带，不用在国内连 GitHub）
           Set-Content llama/version.txt $tag -NoNewline -Encoding ascii
           New-Item -ItemType Directory -Force llama-src | Out-Null
