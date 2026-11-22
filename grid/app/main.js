@@ -36,7 +36,8 @@ const svc = createService({
   powerSaveBlocker,
   onBattery: async () => { try { return powerMonitor.isOnBatteryPower(); } catch (e) { return false; } },
   notify: (title, body) => { try { if (Notification.isSupported()) { const n = new Notification({ title, body, icon: path.join(__dirname, "renderer", "icon.png"), silent: false }); n.on("click", show); n.show(); } } catch (e) {} },
-  restart: () => { quitting = true; app.relaunch({ args: process.argv.slice(1).filter((a) => a !== "--hidden").concat(win && win.isVisible() ? [] : ["--hidden"]) }); app.exit(0); },
+  // 重启：先把正在跑的配方停掉（最多等 15 秒）再重开，不然它在后台成了孤儿，一直占着显卡
+  restart: () => { quitting = true; const args = process.argv.slice(1).filter((a) => a !== "--hidden").concat(win && win.isVisible() ? [] : ["--hidden"]); shutdownOnce().finally(() => { app.relaunch({ args }); app.exit(0); }); },
   reveal: (f) => shell.showItemInFolder(f),
   openPath: (f) => shell.openPath(f),
   // 成品展示的全屏模式
@@ -142,11 +143,19 @@ app.whenReady().then(() => {
   } catch (e) {}
 });
 app.on("window-all-closed", () => {});
-app.on("before-quit", async () => {
+// 退出：Electron 不会等 async 的 before-quit 做完——以前软件已经退出了，正在跑的配方还没停，Windows 上它就成了没人管的孤儿，
+//   一直在后台训练、占着显卡（重新打开软件显示「现在没有要算的」，显卡却在忙）。现在先拦下退出，停完（最多 15 秒）再真的退
+let quitReady = false, shutP = null;
+function shutdownOnce() { if (!shutP) shutP = Promise.race([Promise.resolve().then(() => svc.shutdown()).catch(() => {}), new Promise((r) => setTimeout(r, 15000))]); return shutP; }
+app.on("before-quit", (e) => {
   quitting = true;
-  // 退出时发现新版已经下好：顺手装上（不重新打开）
-  try { const u = svc.updater.status(); if (app.isPackaged && u.state === "ready" && u.file) { const { spawn } = require("child_process"); spawn(u.file, ["/S"], { detached: true, stdio: "ignore", windowsHide: true }).unref(); } } catch (e) {}
-  await svc.shutdown();
+  if (quitReady) return;
+  e.preventDefault();
+  shutdownOnce().finally(() => {
+    // 退出时发现新版已经下好：顺手装上（不重新打开）——配方都停了再装
+    try { const u = svc.updater.status(); if (app.isPackaged && u.state === "ready" && u.file && u.state !== "installing") { const { spawn } = require("child_process"); spawn(u.file, ["/S"], { detached: true, stdio: "ignore", windowsHide: true }).unref(); } } catch (e2) {}
+    quitReady = true; app.quit();
+  });
 });
 // 睡醒了 / 插拔电源：马上看一眼（不用等下一轮）
 powerMonitor.on("resume", () => svc.logs.add("电脑睡醒了", "info", "电源"));

@@ -982,16 +982,54 @@ def train(base):
 
 
 # ---------------- 4. 转成 llama.cpp 的格式（老师端直接加载）----------------
+def conv_missing(src):
+    """转换脚本开头 import 的模块里，哪些在这个文件夹和训练环境里都找不到。
+    新版 llama.cpp 把转换代码拆进了 conversion/ 文件夹：以前打包、下载都只拿了根目录的 .py 和 gguf-py，少了它就
+    「No module named 'conversion'」，训了几个小时最后一步转格式失败"""
+    import importlib.util
+    names = set()
+    for f in ("convert_lora_to_gguf.py", "convert_hf_to_gguf.py"):
+        try:
+            txt = open(os.path.join(src, f), encoding="utf-8", errors="replace").read()
+        except OSError:
+            continue
+        for m in re.finditer(r"^(?:from\s+([A-Za-z_]\w*)[\w.]*\s+import|import\s+([A-Za-z_]\w*))", txt, re.M):
+            names.add(m.group(1) or m.group(2))
+    names.discard("__future__")
+    old = list(sys.path)
+    sys.path[:0] = [src, os.path.join(src, "gguf-py")]
+    try:
+        miss = []
+        for n in sorted(names):
+            if n in sys.modules or os.path.exists(os.path.join(src, n)) or os.path.exists(os.path.join(src, n + ".py")):
+                continue
+            try:
+                if importlib.util.find_spec(n) is None:
+                    miss.append(n)
+            except Exception:
+                miss.append(n)
+        return miss
+    finally:
+        sys.path[:] = old
+
+
 def converter():
-    """llama.cpp 的 LoRA 转换脚本：①客户端自带的（和 llama-server 同一版，不用联网）②下过的 ③从镜像下源码（GitHub 在国内常常连不上）"""
+    """llama.cpp 的 LoRA 转换脚本：①客户端自带的（和 llama-server 同一版，不用联网）②下过的 ③从镜像下源码（GitHub 在国内常常连不上）
+    每一种都先核对一遍齐不齐（少了文件夹就换下一种），别训完了才在转格式这一步失败"""
     info = lg.llm("info") or {}
     if info.get("convert") and os.path.exists(os.path.join(info["convert"], "convert_lora_to_gguf.py")):
-        lg.log("用客户端自带的 llama.cpp 转换脚本（%s）" % (info.get("version") or "?"))
-        return info["convert"]
+        miss = conv_missing(info["convert"])
+        if not miss:
+            lg.log("用客户端自带的 llama.cpp 转换脚本（%s）" % (info.get("version") or "?"))
+            return info["convert"]
+        lg.log("客户端自带的转换脚本不全（少了 %s，打包时漏了）：改用同一版的源码" % "、".join(miss))
     ver = (info.get("version") or "").strip()
     m = re.fullmatch(r"b(\d+)", ver)
     tag = ver if m and int(m.group(1)) >= 1000 else "master"   # 「b1」这种是没认出版本号
     src = os.path.join(CACHE, "llama-src-" + tag)
+    # 以前下过、但是按旧办法只解了根目录的 .py：不全，删了重下
+    if os.path.exists(os.path.join(src, "convert_lora_to_gguf.py")) and "conversion" in conv_missing(src):
+        shutil.rmtree(src, ignore_errors=True)
     if not os.path.exists(os.path.join(src, "convert_lora_to_gguf.py")):
         lg.progress(0.02, "下载 llama.cpp 的转换脚本（%s）" % tag)
         ref = ("refs/tags/" + tag) if tag != "master" else "refs/heads/master"
@@ -1009,12 +1047,16 @@ def converter():
         tmp = src + ".tmp"
         shutil.rmtree(tmp, ignore_errors=True)
         with tarfile.open(tgz) as tf:
-            want = [m for m in tf.getmembers() if re.search(r"^[^/]+/([^/]+\.py|gguf-py/.*)$", m.name) and ".." not in m.name]
+            # 所有 .py（包括 conversion/ 这类文件夹里的）+ gguf-py 整个：一共几 M
+            want = [m for m in tf.getmembers() if re.search(r"^[^/]+/(.*\.py|gguf-py/.*)$", m.name) and ".." not in m.name and (m.isfile() or m.isdir())]
             tf.extractall(tmp, members=want)
         top = os.path.join(tmp, os.listdir(tmp)[0])
         os.replace(top, src)
         shutil.rmtree(tmp, ignore_errors=True)
         os.remove(tgz)
+    miss = conv_missing(src)
+    if miss:
+        raise RuntimeError("llama.cpp 转换脚本要用的模块找不到：%s（训练好的结果已经存档，装好以后从存档接着转）" % "、".join(miss))
     return src
 
 

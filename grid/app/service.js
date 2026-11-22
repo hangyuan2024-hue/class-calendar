@@ -485,7 +485,7 @@ function createService(o) {
   };
   // 自动更新（只在装好的软件里开；开发和测试时 o.install 没给就不开）
   let recording = false;
-  const updater = Updater.create({ dir: base, version: o.version, agent: () => agent,
+  const updater = Updater.create({ dir: base, version: o.version, agent: () => agent, busy: () => lanes.some((l) => l.current && l.current()),
     gate: async (v, cur) => (agent && agent.api ? agent.api("/api/update-gate", { version: v, current: cur }) : { ok: true }), idleSecs: o.idleSecs, windowHidden: o.windowHidden, recording: () => recording,
     install: o.install || (async () => { throw new Error("这个版本不能自动更新"); }), onEvent: (e) => { send("update", e); if (e.state === "ready" && !e.waiting) L(`新版 ${e.latest} 下载好了`, "info", "更新"); },
     notify: (t, b) => notify(t, b, "update"), ...(EDITION.open ? { sources: Updater.OPEN_SOURCES } : {}), ...(o.updaterOpt || {}) });
@@ -751,7 +751,11 @@ function createService(o) {
   if (o.detectRegion !== false) { const rt = setTimeout(() => region.detect().catch(() => {}), 30e3); rt.unref && rt.unref(); }
   if (cfg.token) startAgent();
   L(`启动 ${o.version}（${o.hidden ? "开机自启，藏在托盘" : "打开了窗口"}）；上次的状态：${cfg.manual || "auto"}`, "info", "软件");
-  return { H, logs, power, region, autoRepair, boostCheck, assistDev, lan, lanes: () => lanes, shutdown: async () => { try { show.shutdown(); } catch (e) {} try { assistDev.end("软件关了"); lan.stop(); } catch (e) {} clearInterval(repairTimer); if (cfg.boostOn) { try { await power.perfBoost(false, cfg.boostSaved); cfg.boostOn = false; cfg.boostSaved = null; save(); } catch (e) {} } updater.stop(); clearInterval(wd); clearInterval(daily); clearInterval(hk); await stopLanes(); if (agent) await agent.stop(); power.keepAwake(false); logs.flush(); try { ai.stop(); } catch (e) {} try { llm.stop(); } catch (e) {} try { cpuLlm && cpuLlm.stop(); } catch (e) {} }, agent: () => agent, updater, ai, llm };
+  return { H, logs, power, region, autoRepair, boostCheck, assistDev, lan, lanes: () => lanes, shutdown: async () => {
+    // 先停正在跑的配方（主工位 + 其它显卡 / CPU 工位一起、马上开始停）：以前先等「切回原来的电源模式」等别的事，
+    //   软件已经退出了还没轮到停配方——Windows 上配方就成了没人管的孤儿，一直在后台训练、占着显卡
+    const stopping = [agent && agent.stop(), stopLanes()].map((p) => Promise.resolve(p).catch(() => {}));
+    try { show.shutdown(); } catch (e) {} try { assistDev.end("软件关了"); lan.stop(); } catch (e) {} clearInterval(repairTimer); if (cfg.boostOn) { try { await power.perfBoost(false, cfg.boostSaved); cfg.boostOn = false; cfg.boostSaved = null; save(); } catch (e) {} } updater.stop(); clearInterval(wd); clearInterval(daily); clearInterval(hk); await Promise.all(stopping); power.keepAwake(false); logs.flush(); try { ai.stop(); } catch (e) {} try { llm.stop(); } catch (e) {} try { cpuLlm && cpuLlm.stop(); } catch (e) {} }, agent: () => agent, updater, ai, llm };
 }
 
 // 数据文件夹在哪（主进程启动时就要知道：找上次下好的新版安装包）

@@ -56,7 +56,20 @@
     const running = st.state === "busy" || (st.state === "offline" && st.running);   // 断网了但手上的还在算
     $("#navBusy").hidden = !running; $("#navBusy").className = "dot";
     if (running && st.state === "offline") { $("#lvWhy").textContent = st.why || ""; return; }
-    if (st.state !== "busy") { $("#lvJob").textContent = st.state === "paused" ? "已暂停" : "等下一个任务"; $("#lvWhy").textContent = st.why || ""; $("#lvBar").style.width = "0%"; $("#lvPct").textContent = ""; }
+    if (st.state !== "busy") {
+      $("#lvJob").textContent = st.state === "paused" ? "已暂停" : "等下一个任务"; $("#lvWhy").textContent = st.why || ""; $("#lvBar").style.width = "0%"; $("#lvPct").textContent = "";
+      // 上一个任务已经结束：代码和日志还留着给你看，但标清楚「已结束」，别看着像还在算
+      if (curTask) { curTask = null; $("#codeFn").textContent = ""; $$("#code .ln.hit").forEach((el) => el.classList.remove("hit")); const n = $("#codeName"); if (n && !/已结束/.test(n.textContent)) n.textContent += "（上一个任务，已结束）"; }
+      paintLanes();
+    }
+  }
+  // 主工位没活，但别的显卡 / CPU 工位在算：也写出来（以前只显示主工位，「现在没有要算的」看着像整台电脑都闲着）
+  async function paintLanes() {
+    try {
+      const s = await call("status"); if (!s || !s.lanes) return;
+      const b = s.lanes.map((l, i) => ({ l, i })).filter((x) => x.l.state === "busy" && x.l.task);
+      if (b.length && !(s.agent && s.agent.state === "busy")) $("#lvWhy").textContent = b.map((x) => `另一个工位在算「${x.l.task.job.name}」${Math.round((x.l.task.progress || 0) * 100)}%`).join("；");
+    } catch (e) {}
   }
   // 手动开关：开始（一直算到点停止）/ 自动（按挂机设置）/ 停止（正在算的交给别人从存档接着算）
   const MANUAL = { on: "一直算，直到你点「停止」（还是会让着游戏、怕过热）", auto: "按挂机设置（默认：点「开始」才算）", off: "不算了；正在算的交给别的电脑接着算，不丢" };
@@ -163,7 +176,7 @@
     }
     if (k === "gpu") paintGpu(v);
     if (k === "image") addImage(v);
-    if (k === "done") { if (v.ok && v.secs > 60) toast(`算完一个任务（${dur(v.secs)}）`); }
+    if (k === "done") { if (v.ok && v.secs > 60) toast(`算完一个任务（${dur(v.secs)}）`); else if (!v.ok && v.error) toast("这个任务没算完：" + String(v.error).split("\n")[0].slice(0, 80), true); }
   });
   window.lg.on("kicked", (m) => toast("调度中心说：" + m, true));
   window.lg.on("agent", ({ k, v }) => { if (k === "manual") { if (S) S.manual = v; paintCtl(v); } });

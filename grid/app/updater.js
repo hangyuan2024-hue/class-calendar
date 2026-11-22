@@ -78,7 +78,7 @@ function create(o) {
     if (st.state !== "ready" || applying) return false;
     const a = o.agent && o.agent();
     if (!force) {
-      if (a && a.current()) { if (st.waiting !== "等手上的任务算完就更新（接着算，不耽误）") set({ waiting: "等手上的任务算完就更新（接着算，不耽误）" }); return false; }
+      if ((a && a.current()) || (o.busy && o.busy())) { if (st.waiting !== "等手上的任务算完就更新（接着算，不耽误）") set({ waiting: "等手上的任务算完就更新（接着算，不耽误）" }); return false; }
       if (o.recording && o.recording()) return false;
       const idle = o.idleSecs ? await o.idleSecs() : 1e9;
       const quiet = (o.windowHidden && o.windowHidden()) || idle >= 180;
