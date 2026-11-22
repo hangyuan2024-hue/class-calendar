@@ -38,9 +38,9 @@ const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { 
     gpuInfo: async () => null, idleSecs: async () => 1e9, policy: { mode: "always" } });
   a.on("any", ({ k, v }) => { if (k === "log") logs.push(v.msg); });
   a.start();
-  await until(() => !alive(orphan), 60000, "孤儿配方被收掉");   // Windows 上查进程（PowerShell）要几秒
+  // Windows 上查进程（PowerShell）要几秒；taskkill 还没返回、进程就已经没了：日志在 taskkill 返回以后才写，两样都等
+  await until(() => !alive(orphan) && logs.some((l) => /不归软件管了/.test(l)), 60000, "孤儿配方被收掉、日志写清楚");
   assert(alive(other), "别的工位自己的配方不动");
-  assert(logs.some((l) => /不归软件管了/.test(l)), "日志里说清楚收掉了什么");
   await a.stop();
   ok("软件一打开就把上次留下的孤儿配方收掉（别的工位的不动）");
 
