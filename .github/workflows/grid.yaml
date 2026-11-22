@@ -111,8 +111,21 @@ jobs:
           New-Item -ItemType Directory -Force llama/convert | Out-Null
           Copy-Item (Join-Path $root.FullName '*.py') llama/convert -Force
           Copy-Item (Join-Path $root.FullName 'gguf-py') llama/convert/gguf-py -Recurse -Force
-          Get-ChildItem $root.FullName -Directory | Where-Object { $_.Name -like 'convert*' } | ForEach-Object { Copy-Item $_.FullName (Join-Path llama/convert $_.Name) -Recurse -Force }
+          # 转换脚本自己的代码文件夹：新版拆进了 conversion/（以前只拷 convert* 开头的，漏了它，客户端转格式报 No module named 'conversion'）
+          #   根目录下所有 Python 包（有 __init__.py 的文件夹）和 conv* 开头的文件夹都拷上
+          Get-ChildItem $root.FullName -Directory | Where-Object { $_.Name -like 'conv*' -or (Test-Path (Join-Path $_.FullName '__init__.py')) } | ForEach-Object { Copy-Item $_.FullName (Join-Path llama/convert $_.Name) -Recurse -Force }
           if (-not (Test-Path llama/convert/convert_lora_to_gguf.py)) { throw "源码里没有 convert_lora_to_gguf.py" }
+          # 核对：转换脚本开头 import 的、源码里有的模块，打包里也得有（少了就别发这个版本）
+          foreach ($f in 'convert_lora_to_gguf.py', 'convert_hf_to_gguf.py') {
+            $p = Join-Path llama/convert $f
+            if (-not (Test-Path $p)) { continue }
+            foreach ($m in (Select-String -Path $p -Pattern '^(?:from\s+([A-Za-z_]\w*)|import\s+([A-Za-z_]\w*))' -AllMatches)) {
+              $n = if ($m.Matches[0].Groups[1].Success) { $m.Matches[0].Groups[1].Value } else { $m.Matches[0].Groups[2].Value }
+              $inSrc = (Test-Path (Join-Path $root.FullName $n)) -or (Test-Path (Join-Path $root.FullName "$n.py"))
+              $inPkg = (Test-Path (Join-Path llama/convert $n)) -or (Test-Path (Join-Path llama/convert "$n.py"))
+              if ($inSrc -and -not $inPkg) { throw "转换脚本要用的 $n 没打进安装包" }
+            }
+          }
           Remove-Item llama-src -Recurse -Force
           Get-ChildItem llama | Select-Object Name, Length
       - name: 打包
