@@ -1,0 +1,269 @@
+# 自动打包「捞捞算力」Windows 安装包（几台电脑一起训练捞捞的模型）：改了 grid/ 里的文件、或者在 Actions 页面手动点「Run workflow」时运行。
+# 先跑测试（调度中心、断电测试：随机拔电源后接力训练的结果和一台电脑算的一模一样、客户端），过了再打包。
+# 发布到仓库 Releases 的 laolao-grid（固定标签，每次覆盖），不抢 latest；配了国内存储（CN_S3_*）还会传一份到国内：
+#   https://github.com/<仓库>/releases/download/laolao-grid/LaolaoGrid-Setup.exe
+# 调度中心（服务器）不用打包：在云服务器上 git clone 后 bash grid/server/deploy.sh，见 grid/README.md。
+name: 捞捞算力
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "grid/**"
+      - ".github/workflows/grid.yaml"
+      # AI 引擎的代码是从捞捞PPT助手拷过来的（scripts/prepare.js）
+      - "pptassist/core/engine.js"
+      - "pptassist/core/workflows.js"
+      - "pptassist/core/dl.js"
+      - "pptassist/core/installer.js"
+      - "pptassist/core/mirror.js"
+      # 成品展示也是同一份代码
+      - "pptassist/core/chat.js"
+      - "pptassist/core/agent.js"
+      - "pptassist/core/xiaozhi.js"
+      - "pptassist/core/campus.js"
+      - "pptassist/core/pptedit.js"
+      - "pptassist/core/pptx.js"
+      - "pptassist/core/deck.js"
+      - "pptassist/core/pptview.js"
+      - "pptassist/renderer/deckview.js"
+      - "pptassist/core/gridmodels.js"
+      - "pptassist/core/voice.js"
+      - "pptassist/core/media.js"
+      - "pptassist/core/systts.js"
+      - "pptassist/core/checkup.js"
+      - "pptassist/renderer/avatar3d.js"
+      - "pptassist/core/ai3d.js"
+      - "pptassist/core/websearch.js"
+      - "pptassist/core/ground.js"
+      - "pptassist/core/mindmap.js"
+      - "pptassist/core/kbfiles.js"
+      - "pptassist/core/webexam.js"
+      - "pptassist/core/voiceexam.js"
+      - "learn/mindmap/js/map-files.cjs"
+      - "pptassist/ai3d/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write   # 写完版本号让「网站国内加速」同步一次（客户端从官网查新版本）
+
+concurrency:
+  group: laolao-grid
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: grid
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      # 版本号每次打包自动加一（0.1.<第几次运行>）：客户端靠它判断有没有新版
+      - name: 版本号
+        run: npm version "0.1.${{ github.run_number }}" --no-git-tag-version --allow-same-version
+      - name: 装依赖
+        run: |
+          npm install --no-audit --no-fund
+          python -m pip install --disable-pip-version-check numpy pillow pyyaml
+      - name: 准备界面（认脸组件、表情参数标准、AI 引擎代码）
+        run: npm run prepare-ui
+      - name: 测试
+        env:
+          PYTHON: python
+        run: npm test
+      - name: 下载 llama.cpp（本地大模型，Vulkan 版：NVIDIA / AMD / Intel 显卡都能用）
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force llama-dl | Out-Null
+          # 每个版本文件名会变：按名字挑 Windows x64 的 Vulkan 版；最新版里没有就往前找
+          $tags = gh release list --repo ggml-org/llama.cpp --limit 15 --json tagName --jq '.[].tagName'
+          $pick = $null
+          foreach ($t in $tags) {
+            $names = @(gh release view $t --repo ggml-org/llama.cpp --json assets --jq '.assets[].name')
+            $pick = $names | Where-Object { $_ -match 'win' -and $_ -match 'x64' -and $_ -match 'vulkan' -and $_ -match '\.zip$' } | Select-Object -First 1
+            if ($pick) { $tag = $t; Write-Host "使用 $t 里的 $pick"; gh release download $t --repo ggml-org/llama.cpp --pattern $pick --dir llama-dl --clobber; break }
+          }
+          if (-not $pick) { throw "没找到 llama.cpp 的 Windows Vulkan 版" }
+          Expand-Archive (Get-ChildItem llama-dl -Filter *.zip | Select-Object -First 1).FullName -DestinationPath llama-x -Force
+          $exe = Get-ChildItem llama-x -Recurse -Filter llama-server.exe | Select-Object -First 1
+          if (-not $exe) { throw "压缩包里没有 llama-server.exe" }
+          New-Item -ItemType Directory -Force llama | Out-Null
+          Copy-Item (Join-Path $exe.DirectoryName '*') llama -Recurse -Force
+          Remove-Item llama-dl, llama-x -Recurse -Force
+          # 局域网里几台电脑合起来跑大模型要用 rpc-server（官方的 Windows 版里一般都带）：没有就提醒一声，不影响别的功能
+          if (-not (Test-Path llama/rpc-server.exe)) { Write-Host "::warning::这一版 llama.cpp 没带 rpc-server.exe：局域网合算（当帮手）用不了" }
+          # 同一版的转换脚本（训练答题大脑以后把 LoRA 转成 llama.cpp 格式；客户端自带，不用在国内连 GitHub）
+          Set-Content llama/version.txt $tag -NoNewline -Encoding ascii
+          New-Item -ItemType Directory -Force llama-src | Out-Null
+          gh release download $tag --repo ggml-org/llama.cpp --archive tar.gz --dir llama-src --clobber
+          tar -xzf (Get-ChildItem llama-src -Filter *.tar.gz | Select-Object -First 1).FullName -C llama-src
+          $root = Get-ChildItem llama-src -Directory | Select-Object -First 1
+          New-Item -ItemType Directory -Force llama/convert | Out-Null
+          Copy-Item (Join-Path $root.FullName '*.py') llama/convert -Force
+          Copy-Item (Join-Path $root.FullName 'gguf-py') llama/convert/gguf-py -Recurse -Force
+          # 转换脚本自己的代码文件夹：新版拆进了 conversion/（以前只拷 convert* 开头的，漏了它，客户端转格式报 No module named 'conversion'）
+          #   根目录下所有 Python 包（有 __init__.py 的文件夹）和 conv* 开头的文件夹都拷上
+          Get-ChildItem $root.FullName -Directory | Where-Object { $_.Name -like 'conv*' -or (Test-Path (Join-Path $_.FullName '__init__.py')) } | ForEach-Object { Copy-Item $_.FullName (Join-Path llama/convert $_.Name) -Recurse -Force }
+          if (-not (Test-Path llama/convert/convert_lora_to_gguf.py)) { throw "源码里没有 convert_lora_to_gguf.py" }
+          # 核对：转换脚本开头 import 的、源码里有的模块，打包里也得有（少了就别发这个版本）
+          foreach ($f in 'convert_lora_to_gguf.py', 'convert_hf_to_gguf.py') {
+            $p = Join-Path llama/convert $f
+            if (-not (Test-Path $p)) { continue }
+            foreach ($m in (Select-String -Path $p -Pattern '^(?:from\s+([A-Za-z_]\w*)|import\s+([A-Za-z_]\w*))' -AllMatches)) {
+              $n = if ($m.Matches[0].Groups[1].Success) { $m.Matches[0].Groups[1].Value } else { $m.Matches[0].Groups[2].Value }
+              $inSrc = (Test-Path (Join-Path $root.FullName $n)) -or (Test-Path (Join-Path $root.FullName "$n.py"))
+              $inPkg = (Test-Path (Join-Path llama/convert $n)) -or (Test-Path (Join-Path llama/convert "$n.py"))
+              if ($inSrc -and -not $inPkg) { throw "转换脚本要用的 $n 没打进安装包" }
+            }
+          }
+          Remove-Item llama-src -Recurse -Force
+          Get-ChildItem llama | Select-Object Name, Length
+      - name: 打包
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npx electron-builder --win nsis --publish never
+      - name: 发布到 Releases（laolao-grid，不抢 latest）
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $notes = "捞捞算力 Windows 版 $v`n`n几台电脑一起训练捞捞自己的模型：一台停了，下一台接着算。装好后粘贴管理员发的邀请链接加入，按「任务向导」一步一步来（体检 → 装环境 → 跑通测试 → 录表情 → 挂机设置）。`n`n下载：https://github.com/${{ github.repository }}/releases/download/laolao-grid/LaolaoGrid-Setup.exe`n`n安装时如果 Windows 提示「已保护你的电脑」，点「更多信息 → 仍要运行」。"
+          gh release view laolao-grid --repo "${{ github.repository }}" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload laolao-grid dist\LaolaoGrid-Setup.exe --repo "${{ github.repository }}" --clobber
+            gh release edit laolao-grid --repo "${{ github.repository }}" --title "捞捞算力 Windows 版 $v" --notes $notes --latest=false
+          } else {
+            gh release create laolao-grid dist\LaolaoGrid-Setup.exe --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "捞捞算力 Windows 版 $v" --notes $notes --latest=false
+          }
+      # 传一份到国内存储；写官网的 download/grid-version.json（版本、地址、大小、sha256），客户端每 2 小时查一次，空闲时自动更新
+      - name: 传到国内存储，写版本号
+        shell: bash
+        working-directory: .
+        env:
+          BRANCH: ${{ github.ref_name }}
+          CN_S3_ENDPOINT: ${{ secrets.CN_S3_ENDPOINT }}
+          CN_S3_REGION: ${{ secrets.CN_S3_REGION }}
+          CN_S3_BUCKET: ${{ secrets.CN_S3_BUCKET }}
+          CN_S3_KEY_ID: ${{ secrets.CN_S3_KEY_ID }}
+          CN_S3_SECRET: ${{ secrets.CN_S3_SECRET }}
+          CN_DL_BASE: ${{ secrets.CN_DL_BASE }}
+        run: |
+          set -euo pipefail
+          V="0.1.${{ github.run_number }}"
+          SRC="${GITHUB_WORKSPACE}/grid/dist/LaolaoGrid-Setup.exe"
+          SIZE=$(stat -c %s "$SRC" 2>/dev/null || wc -c < "$SRC")
+          SHA=$(sha256sum < "$SRC" | cut -d' ' -f1)
+          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/laolao-grid/LaolaoGrid-Setup.exe"
+          CN=$(bash .github/workflows/cn-upload.sh "$SRC" "grid/LaolaoGrid-Setup-${V}.exe")
+          echo "国内下载地址：${CN:-（没配国内存储）}"
+          if [ -n "$CN" ]; then echo "### 国内下载地址：$CN" >> "$GITHUB_STEP_SUMMARY"; fi
+          PUB="${RUNNER_TEMP}/grid-publish"
+          git fetch --no-tags origin "$BRANCH"
+          git worktree add --detach "$PUB" FETCH_HEAD
+          git -C "$PUB" config user.name "github-actions[bot]"
+          git -C "$PUB" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for ATTEMPT in 1 2 3; do
+            if [ "$ATTEMPT" -gt 1 ]; then git -C "$PUB" fetch --no-tags origin "$BRANCH"; git -C "$PUB" reset --hard FETCH_HEAD; fi
+            mkdir -p "$PUB/download"
+            echo "{\"version\": \"${V}\", \"url\": \"${URL}\", \"cn\": \"${CN}\", \"size\": ${SIZE}, \"sha256\": \"${SHA}\", \"notes\": \"捞捞算力 ${V}\", \"at\": \"$(date -u +%FT%TZ)\"}" > "$PUB/download/grid-version.json"
+            cat "$PUB/download/grid-version.json"
+            git -C "$PUB" add -- download/grid-version.json
+            if git -C "$PUB" diff --cached --quiet; then echo "已经是最新"; exit 0; fi
+            git -C "$PUB" commit -m "捞捞算力 ${V}"
+            if git -C "$PUB" push origin "HEAD:${BRANCH}"; then exit 0; fi
+          done
+          echo "::error::安装包发布了，但写 download/grid-version.json 失败"; exit 1
+      # 捞小智电脑版（只有捞小智：讲题、做 PPT、办教务的事、打电话；模型从公开发布清单自动下载、换上）
+      #   只打包 xz/builder.json 里列的文件：不带配方、训练计划、调度中心、领任务的代码
+      - name: 打包捞小智电脑版
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npx electron-builder --config xz/builder.json --win nsis --publish never
+      # 捞捞算力 通用版（别人自己搭调度中心用）：不带捞捞的训练配方、捞小智；调度中心另打一个压缩包（带搭建说明）
+      - name: 打包捞捞算力通用版
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: |
+          node scripts/open.js
+          npx electron-builder --config open-builder.json --win nsis --publish never
+          node scripts/open-server.js dist-open/LaolaoGrid-Open-Server.zip
+          Remove-Item app/edition.json, open-builder.json -Force
+      - name: 发布捞小智、通用版到 Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          function Pub($tag, $title, $notes, $files) {
+            gh release view $tag --repo "${{ github.repository }}" *> $null
+            if ($LASTEXITCODE -eq 0) {
+              gh release upload $tag @files --repo "${{ github.repository }}" --clobber
+              gh release edit $tag --repo "${{ github.repository }}" --title $title --notes $notes --latest=false
+            } else {
+              gh release create $tag @files --repo "${{ github.repository }}" --target "${{ github.sha }}" --title $title --notes $notes --latest=false
+            }
+          }
+          Pub "laolao-xiaozhi" "捞小智 Windows 版 $v（体验版）" "捞小智：捞捞的 AI 助教（体验版）。讲题、做 PPT、办教务的事（模拟演示）、打电话。`n`n模型还没有正式训练好，现在用的是临时版；捞捞算力每训练、考试通过一版，软件会自动下载、换上。第一次提问要先下载大模型（约 2.5G）。" @("dist-xz\LaolaoXiaozhi-Setup.exe")
+          Pub "laolao-grid-open" "捞捞算力 通用版 $v" "捞捞算力 通用版：用自己的服务器搭训练网，几台电脑一起训练模型，一台停了下一台接着算。`n`n· LaolaoGrid-Open-Setup.exe：出力的电脑装这个`n· LaolaoGrid-Open-Server.zip：调度中心（装到你的 Linux 服务器上，里面有 README 搭建说明）" @("dist-open\LaolaoGrid-Open-Setup.exe", "dist-open\LaolaoGrid-Open-Server.zip")
+      - name: 捞小智、通用版传到国内存储，写版本文件
+        shell: bash
+        working-directory: .
+        env:
+          BRANCH: ${{ github.ref_name }}
+          CN_S3_ENDPOINT: ${{ secrets.CN_S3_ENDPOINT }}
+          CN_S3_REGION: ${{ secrets.CN_S3_REGION }}
+          CN_S3_BUCKET: ${{ secrets.CN_S3_BUCKET }}
+          CN_S3_KEY_ID: ${{ secrets.CN_S3_KEY_ID }}
+          CN_S3_SECRET: ${{ secrets.CN_S3_SECRET }}
+          CN_DL_BASE: ${{ secrets.CN_DL_BASE }}
+        run: |
+          set -euo pipefail
+          V="0.1.${{ github.run_number }}"
+          GH="https://github.com/${GITHUB_REPOSITORY}/releases/download"
+          meta() { local f="$1"; echo "$(stat -c %s "$f" 2>/dev/null || wc -c < "$f") $(sha256sum < "$f" | cut -d' ' -f1)"; }
+          XZ="${GITHUB_WORKSPACE}/grid/dist-xz/LaolaoXiaozhi-Setup.exe"
+          OC="${GITHUB_WORKSPACE}/grid/dist-open/LaolaoGrid-Open-Setup.exe"
+          OS="${GITHUB_WORKSPACE}/grid/dist-open/LaolaoGrid-Open-Server.zip"
+          read XZS XZH <<< "$(meta "$XZ")"; read OCS OCH <<< "$(meta "$OC")"; read OSS OSH <<< "$(meta "$OS")"
+          XZC=$(bash .github/workflows/cn-upload.sh "$XZ" "xiaozhi/LaolaoXiaozhi-Setup-${V}.exe")
+          OCC=$(bash .github/workflows/cn-upload.sh "$OC" "grid/LaolaoGrid-Open-Setup-${V}.exe")
+          OSC=$(bash .github/workflows/cn-upload.sh "$OS" "grid/LaolaoGrid-Open-Server-${V}.zip")
+          PUB="${RUNNER_TEMP}/xz-open-publish"
+          git fetch --no-tags origin "$BRANCH"
+          git worktree add --detach "$PUB" FETCH_HEAD
+          git -C "$PUB" config user.name "github-actions[bot]"
+          git -C "$PUB" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for ATTEMPT in 1 2 3; do
+            if [ "$ATTEMPT" -gt 1 ]; then git -C "$PUB" fetch --no-tags origin "$BRANCH"; git -C "$PUB" reset --hard FETCH_HEAD; fi
+            mkdir -p "$PUB/download"
+            AT="$(date -u +%FT%TZ)"
+            echo "{\"version\": \"${V}\", \"url\": \"${GH}/laolao-xiaozhi/LaolaoXiaozhi-Setup.exe\", \"cn\": \"${XZC}\", \"size\": ${XZS}, \"sha256\": \"${XZH}\", \"trial\": true, \"notes\": \"捞小智 ${V}（体验版：模型还没正式训练好）\", \"at\": \"${AT}\"}" > "$PUB/download/xiaozhi-version.json"
+            echo "{\"version\": \"${V}\", \"url\": \"${GH}/laolao-grid-open/LaolaoGrid-Open-Setup.exe\", \"cn\": \"${OCC}\", \"size\": ${OCS}, \"sha256\": \"${OCH}\", \"server\": {\"url\": \"${GH}/laolao-grid-open/LaolaoGrid-Open-Server.zip\", \"cn\": \"${OSC}\", \"size\": ${OSS}, \"sha256\": \"${OSH}\"}, \"notes\": \"捞捞算力 通用版 ${V}\", \"at\": \"${AT}\"}" > "$PUB/download/grid-open-version.json"
+            cat "$PUB/download/xiaozhi-version.json" "$PUB/download/grid-open-version.json"
+            git -C "$PUB" add -- download/xiaozhi-version.json download/grid-open-version.json
+            if git -C "$PUB" diff --cached --quiet; then echo "已经是最新"; exit 0; fi
+            git -C "$PUB" commit -m "捞小智、捞捞算力通用版 ${V}"
+            if git -C "$PUB" push origin "HEAD:${BRANCH}"; then exit 0; fi
+          done
+          echo "::error::安装包发布了，但写版本文件失败"; exit 1
+      - name: 让国内网站也同步
+        shell: bash
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # GitHub 偶尔回 504：隔一会儿再试，试 4 次
+          for i in 1 2 3 4; do
+            if gh workflow run site-cn.yml --repo "$GITHUB_REPOSITORY" --ref "${{ github.ref_name }}"; then echo "已经让「网站国内加速」重新同步"; exit 0; fi
+            echo "第 $i 次没成功，等一会儿再试"; sleep $((i * 20))
+          done
+          echo "::warning::没能自动触发「网站国内加速」，请到 Actions 里手动 Run workflow"
