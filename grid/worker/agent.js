@@ -460,7 +460,7 @@ function create(opt) {
   let stopped = false, paused = false, draining = false;
   // 手动开关：auto 按挂机设置；on 手动开始（不管空闲 / 定时，一直算到点「停止」，但还是让着游戏、怕过热）；off 停止
   let manual = opt.manual || "auto";
-  let lastHb = 0, lastLease = 0, lastTick = Date.now(), extraEnv = {};
+  let lastHb = 0, lastLease = 0, lastTick = Date.now(), extraEnv = {}, leasing = false;
   // 这台电脑自己的毛病（包装不上、引擎起不来、显存被占）：歇一会儿再领，别 2 秒一个把任务挨个领来弄失败
   let hold = { until: 0, why: "", n: 0 };
   // 这台电脑做某类任务慢得不正常（训练每秒十几个字）：记住，6 小时内不再领这一类（调度中心按配方名跳过），先做别的轻活
@@ -753,8 +753,15 @@ function create(opt) {
   }
 
   // ---- 主循环 ----
+  // 一轮没走完（查显卡、查空闲、发心跳偶尔要十几秒）不开下一轮：不然两轮同时领任务、同时停任务。卡了 3 分钟以上的那轮不再等它
+  let ticking = 0;
   async function tick() {
     if (stopped) return;
+    if (ticking && Date.now() - ticking < (opt.tickStuckMs || 180e3)) return;
+    const me = ticking = Date.now();
+    try { await tick1(); } finally { if (ticking === me) ticking = 0; }
+  }
+  async function tick1() {
     try {
       if (opt.gpuInfo) { const g = await opt.gpuInfo().catch(() => null); if (g) { gpuNow = g; emit("gpu", g); } }
       // 记账：配方在跑的时候，显卡到底用了多少（算完写进日志和曲线：哪些时间显卡在空等）
@@ -785,13 +792,19 @@ function create(opt) {
         // 卡住了：好久没有任何输出（日志、进度、曲线）→ 结束它，交给别的电脑从存档接着算
         else if (opt.stallMin !== 0 && cur.child && Date.now() - (cur.lastOut || cur.started) > (opt.stallMin || 45) * 60e3 && !cur.stopping) { log(`这个任务 ${opt.stallMin || 45} 分钟没有动静，像是卡住了：结束它，交给别的电脑接着算`, "error"); await stopTask(true, "卡住了（很久没有输出）"); }
       } else if (!g.ok) setState(paused || manual === "off" ? "paused" : "waiting", g.why);
-      else if (Date.now() - lastLease > (opt.leaseEveryMs || 10000)) {
+      else if (!leasing && Date.now() - lastLease > (opt.leaseEveryMs || 10000)) {
         lastLease = Date.now();
         const av = avoidNow();
         // 真正空着的显存（G）：显卡总量 - 已用 + 我们自己能腾出来的（本地大模型、画图引擎，训练开始前会关掉）。调度中心按它派吃显存的活（req.needFree）
         let vf = null;
         if (gpuNow && gpuNow.vram && gpuNow.used != null) { let own = 0; try { own = opt.vramOwn ? +(await opt.vramOwn()) || 0 : 0; } catch (e) {} vf = Math.round(Math.max(0, gpuNow.vram - gpuNow.used + own) * 10) / 10; }
-        const r = await api("/api/lease", { caps: { ...(caps || {}), ...(av.length ? { avoid: av } : {}), ...(vf != null ? { vramFree: vf } : {}) } });
+        // 同一时间只发一个「领任务」：以前网络慢、领任务的请求十几秒才回来，下一轮又发了一个——
+        //   调度中心对已经领了任务的电脑会把同一个任务再给一遍，结果同一个任务开了两份训练（抢一块显卡、都说显存不够），
+        //   先结束的那份把状态改成「现在没有要算的」，另一份其实还在算
+        leasing = true;
+        let r;
+        try { r = await api("/api/lease", { caps: { ...(caps || {}), ...(av.length ? { avoid: av } : {}), ...(vf != null ? { vramFree: vf } : {}) } }); }
+        finally { leasing = false; lastLease = Date.now(); }
         if (r.task) runTask(r.task).catch((e) => log("任务出错：" + e.message, "error"));
         else { setState("idle", "现在没有要算的"); if (!opt.noSweep && !sweeping && Date.now() - lastSweep > (opt.sweepMs || 5 * 60e3)) sweepOrphans(); }
       }
@@ -832,6 +845,8 @@ function create(opt) {
 
   const ensured = new Set();   // 装过的包这次开机不再装
   async function runTask(L) {
+    // 手上已经有任务：同一个就不再开一份（调度中心给的还是手上这个），别的也不接（不会同时跑两个）
+    if (cur) { if (cur.id !== L.task.id) log(`手上还有「${cur.job.name}」在算，没接「${L.job.name}」`, "warn"); return; }
     const dir = path.join(work, "tasks", String(L.task.id));
     fs.mkdirSync(dir, { recursive: true });
     // ctl：点「停止」/「暂停计算」时扳下它，正在下的存档、文件马上断开（下好的块留着，下回接着下），不然要等几个小时的下载下完才算停
@@ -1029,7 +1044,9 @@ function create(opt) {
       if (cur === c) cur = null;
       if (!opt.keepTaskDirs) fs.rm(dir, { recursive: true, force: true }, () => {});
       lastLease = 0;
-      setState(paused || manual === "off" ? "paused" : "idle");
+      // 手上还有别的在算（不该有，以防万一）：状态照实写「在算」，不写「没有要算的」
+      if (cur) setState("busy", cur.job.name);
+      else setState(paused || manual === "off" ? "paused" : "idle");
     }
   }
   async function put(c, file, name) {
