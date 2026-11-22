@@ -43,6 +43,49 @@
       "priority": 9
     },
     {
+      "key": "talk14",
+      "name": "造口语对话（打电话时怎么说话，自动检查）（局域网大老师 14B：同一局域网的两台电脑合起来跑）",
+      "kind": "map",
+      "recipe": "chat_gen",
+      "recipeFile": "../recipes/chat_gen.py",
+      "standing": true,
+      "keep": 10,
+      "params": {
+        "per": 16,
+        "parallel": 2,
+        "tries": 2,
+        "noise": 0.35,
+        "followup": 0.3,
+        "mix": {
+          "explain": 5,
+          "math": 2,
+          "chat": 2,
+          "clarify": 1,
+          "correct": 1
+        },
+        "tag": "chat",
+        "llm": {
+          "name": "Qwen3-14B-Q4_K_M.gguf",
+          "ctx": 16384,
+          "slots": 2,
+          "urls": [
+            "https://www.modelscope.cn/models/Qwen/Qwen3-14B-GGUF/resolve/master/Qwen3-14B-Q4_K_M.gguf",
+            "https://hf-mirror.com/Qwen/Qwen3-14B-GGUF/resolve/main/Qwen3-14B-Q4_K_M.gguf",
+            "https://huggingface.co/Qwen/Qwen3-14B-GGUF/resolve/main/Qwen3-14B-Q4_K_M.gguf"
+          ]
+        }
+      },
+      "req": {
+        "vram": 7.5,
+        "llm": true,
+        "gang": {
+          "size": 2,
+          "minMbps": 10
+        }
+      },
+      "priority": 10
+    },
+    {
       "key": "train",
       "name": "训练口语对话大脑（同事显卡，QLoRA）",
       "kind": "map",

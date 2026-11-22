@@ -15,10 +15,10 @@ class OOM(RuntimeError):
     pass
 
 
-def run(free_g=7.0, oom_over=None, secs_per_tok=0.001, n=64, params=None, bytes_per_tok=2 ** 20, plateau=None, extra_rows=None, img_oom=False):
+def run(free_g=7.0, oom_over=None, secs_per_tok=0.001, n=64, params=None, bytes_per_tok=2 ** 20, plateau=None, extra_rows=None, img_oom=False, reserved_g=None, oom_after=0):
     clock = [1000.0]
     calls, seen, peak = [], [], [0]
-    imgs_seen, tmpl_tools = [], []
+    imgs_seen, tmpl_tools, kept = [], [], []
     nstep, mode, vals = [0], [True], []
     sent, logs, ckpts, restored = [], [], [], []
     fake_time = types.SimpleNamespace(time=lambda: clock[0])
@@ -45,8 +45,14 @@ def run(free_g=7.0, oom_over=None, secs_per_tok=0.001, n=64, params=None, bytes_
         def train(self): mode[0] = True
         def eval(self): mode[0] = False
         def save_pretrained(self, out): os.makedirs(out, exist_ok=True)
-        def __call__(self, input_ids, labels, attention_mask=None, pixel_values=None, image_grid_thw=None):
+        def gradient_checkpointing_enable(self, **k): sent.append(("gck",))
+        def __call__(self, input_ids, labels, attention_mask=None, pixel_values=None, image_grid_thw=None, logits_to_keep=0):
             assert attention_mask is not None and len(attention_mask) == len(input_ids)
+            if logits_to_keep:
+                assert all(len(r) == logits_to_keep for r in labels) and logits_to_keep < len(input_ids[0]), "只算要学的那一段：标签跟着截"
+                assert all(r[0] == -100 for r in labels), "截的地方从要学的前一个字开始"
+                kept.append(logits_to_keep)
+                labels = [[-100] * (len(input_ids[0]) - logits_to_keep) + list(r) for r in labels]
             if pixel_values is not None:
                 assert len(input_ids) == 1 and image_grid_thw == "thw@cuda", "带图的一条一批，图跟着这一条"
                 imgs_seen.append(pixel_values)
@@ -55,7 +61,7 @@ def run(free_g=7.0, oom_over=None, secs_per_tok=0.001, n=64, params=None, bytes_
             width = len(input_ids[0])
             assert all(len(r) == width for r in input_ids) and all(len(r) == width for r in labels), "一批里要补齐到一样长"
             padded = width * len(input_ids)
-            if oom_over and padded > oom_over:
+            if oom_over and padded > oom_over and nstep[0] >= oom_after:
                 raise OOM("CUDA out of memory")
             # 假的损失：一步一步往下降；plateau = 降到第几步就不再降了（学到头了）
             lv = 2.0 / (1 + min(nstep[0], plateau if plateau is not None else 10 ** 9))
@@ -87,9 +93,10 @@ def run(free_g=7.0, oom_over=None, secs_per_tok=0.001, n=64, params=None, bytes_
     torch.no_grad = lambda: Ctx()
     torch.save = lambda obj, f: open(f, "wb").close()
     torch.load = lambda f, map_location=None: {}
-    torch.cuda = types.SimpleNamespace(is_available=lambda: True, mem_get_info=lambda: (int(free_g * 2 ** 30), 8 * 2 ** 30), empty_cache=lambda: None,
+    torch.cuda = types.SimpleNamespace(get_device_name=lambda i=0: "Fake 8G", is_available=lambda: True, mem_get_info=lambda: (int(free_g * 2 ** 30), 8 * 2 ** 30), empty_cache=lambda: None,
                                        set_per_process_memory_fraction=lambda f: sent.append(("frac", round(f, 2))), OutOfMemoryError=OOM,
-                                       max_memory_allocated=lambda: peak[0], reset_peak_memory_stats=lambda: peak.__setitem__(0, 0))
+                                       max_memory_allocated=lambda: peak[0], reset_peak_memory_stats=lambda: peak.__setitem__(0, 0),
+                                       memory_reserved=lambda: int(((reserved_g if reserved_g is not None else (8 - free_g)) * 2 ** 30)))
     torch.optim = types.SimpleNamespace(AdamW=Opt, lr_scheduler=types.SimpleNamespace(LambdaLR=Opt))
     torch.nn = types.SimpleNamespace(utils=types.SimpleNamespace(clip_grad_norm_=lambda *a: None))
     peft = types.ModuleType("peft")
@@ -135,19 +142,20 @@ def run(free_g=7.0, oom_over=None, secs_per_tok=0.001, n=64, params=None, bytes_
     rows = [[{"role": "system", "content": "s"}, {"role": "user", "content": "q" * 20}, {"role": "assistant", "content": "a" * (100 + (i * 37) % 800)}] for i in range(n)] + list(extra_rows or [])
     import hashlib, random, math
     ns = dict(HP={"lr": 1e-4, "epochs": 1, "replay": 2.0}, WARM=None, _total=len(rows), ALL_ROWS=list(rows), lg=lg, p={"epochs": 1, **(params or {})}, rows=rows, work=work, t={}, time=fake_time, os=os, json=json, hashlib=hashlib, random=random,
-              ppt_tools=lambda: [{"type": "function", "function": {"name": "set_text"}}])
+              ppt_tools=lambda: [{"type": "function", "function": {"name": "set_text"}}], CACHE=work)
     exec(CODE, ns)
     err = None
     try:
         ns["train"]("base")
     except Exception as e:
         err = e
-    return dict(err=err, sent=sent, logs=logs, ckpts=ckpts, clock=clock[0] - 1000.0, calls=calls, seen=seen, rows=rows, vals=vals, restored=restored, nstep=nstep[0], imgs=imgs_seen, tools=tmpl_tools)
+    return dict(err=err, sent=sent, logs=logs, ckpts=ckpts, clock=clock[0] - 1000.0, calls=calls, seen=seen, rows=rows, vals=vals, restored=restored, nstep=nstep[0], imgs=imgs_seen, tools=tmpl_tools, kept=kept, work=work)
 
 
 ok = lambda m: print("✓", m)
 
 r = run(params={"autoBatch": False})
+r0 = r
 assert r["err"] is None, r["err"]
 steps = [x for x in r["sent"] if x[0] == "metric"]
 # 显存上限：空着 7G，Windows 留 1.3G、别的系统留 0.8G（CUDA 自己和桌面要用，不然会溢出到共享内存）
@@ -182,9 +190,27 @@ assert any("一批最多" in l for l in r["logs"]) and not any(x[0] == "unfit" f
 assert all(n * w <= 500 for n, w in r["calls"])
 ok("显存不够：把一批缩小、最长的讲解截短再来，照样训完（不崩，也不会溢出到共享内存拖慢几十倍）")
 
-r = run(oom_over=100)
+r = run(oom_over=100, reserved_g=0.2)
 assert r["err"] is not None and any(x[0] == "unfit" and "显存不够" in x[1] for x in r["sent"]), r["sent"][-3:]
 ok("显存实在不够（256 个字都放不下）：告诉客户端「这台电脑算不了」，不算任务失败")
+
+# 只给要学的那部分算概率：一批里只截掉前面谁都不学的部分，损失照样只算要学的字
+assert r0["kept"] and all(k > 0 for k in r0["kept"]), "只算要学的那一段"
+ok("只给要学的那部分算概率（logits_to_keep）：前面谁都不学的提示部分不算 15 万个词的概率，省显存")
+# 档位记下来：同一台电脑下次直接从试出来的档位开始
+t1 = run(n=512, bytes_per_tok=2 ** 19, oom_over=3000, params={"earlyStop": False})
+tier = json.load(open(os.path.join(t1["work"], "vram-tier.json")))
+assert any(v["cap"] <= 3000 for v in tier.values()), tier
+ok("这台电脑试出来的档位记下来（一批最多 %d 字），下次直接从这里开始、不再撞同一个上限" % min(v["cap"] for v in tier.values()))
+# 显存不够、还没开省显存模式（大显卡默认不开）：先退一档打开它，再接着训
+g = run(free_g=15.0, oom_over=200, oom_after=0, params={"autoBatch": False, "earlyStop": False})
+assert any(x[0] == "gck" for x in g["sent"]), g["sent"][-3:]
+ok("显存不够：先退一档打开省显存模式接着训，不直接放弃")
+
+# 训了一阵以后显存碎了（训练进程自己留着一大块、别的程序没占）：存档、退出换新进程接着训，不说「这台电脑做不了」
+r = run(oom_over=100, oom_after=2, params={"autoBatch": False, "earlyStop": False})
+assert r["err"] is not None and "显存碎片" in str(r["err"]) and not any(x[0] == "unfit" for x in r["sent"]) and r["ckpts"], (r["err"], r["sent"][-3:], r["ckpts"])
+ok("训了一阵以后显存碎了（不是别的程序占的）：存档、换个新进程从这里接着训，不说这台电脑做不了")
 
 r = run(secs_per_tok=0.15)   # 每秒 6～7 个字：同事电脑上实际出现过的速度
 assert r["err"] is not None and any(x[0] == "unfit" and "慢得不正常" in x[1] for x in r["sent"]), (r["err"], r["sent"][-3:])

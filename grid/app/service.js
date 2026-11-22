@@ -154,6 +154,8 @@ function createService(o) {
       // 我们自己能腾出来的显存：本地大模型（成品展示 / 造数据开着的）训练开始前会关掉
       vramOwn: async () => { if (!llm.running || !llm.running()) return 0; try { const pid = llm.pid && llm.pid(), a = (await probe.gpuApps(undefined, [])).find((x) => x.pid === pid); if (a && a.mem) return a.mem / 1024; } catch (e) {} return llm.loadedGB ? llm.loadedGB() : 0; },
       env: lanes.length ? { CUDA_VISIBLE_DEVICES: "0" } : {},
+      // 局域网里当帮手用的 rpc-server（和 llama-server 在同一个文件夹；设置里关掉「局域网合算」就不开）
+      rpcExe: () => (o.llamaExe ? path.join(path.dirname(o.llamaExe), process.platform === "win32" ? "rpc-server.exe" : "rpc-server") : ""), lan: set().lan !== false,
       extraInfo: () => ({ lanes: lanes.length, region: region.current(), awake: power.status().awake, autostart: !!cfg.autostart, pro: !!set().pro, lid: !!set().lid, set: set() }),
       ...(o.agentOpt || {}),
     });

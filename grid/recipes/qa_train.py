@@ -36,6 +36,12 @@ import urllib.request
 
 import lg
 
+# 显存碎片：训了几个小时、一批批长短不一，PyTorch 留着的显存会碎成一小块一小块，最后连 256 个字都放不下（明明没别的程序占着）。
+#   让它别把大块切得太碎；Linux 上再打开「可扩展的显存段」（Windows 不支持，不设）
+_alloc = os.environ.get("PYTORCH_CUDA_ALLOC_CONF", "")
+if "max_split_size_mb" not in _alloc:
+    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = ",".join([x for x in [_alloc, "max_split_size_mb:128", "garbage_collection_threshold:0.7", "" if os.name == "nt" else "expandable_segments:True"] if x])
+
 
 def llm_start(**kw):
     """开本地大模型；要挂底座永久层却没挂上（旧版客户端不认得 base）→ 这台电脑做不了，交给别的电脑"""
@@ -585,7 +591,11 @@ def train(base):
     proc = AutoProcessor.from_pretrained(base)
     tok = proc.tokenizer
     bnb = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_use_double_quant=True, bnb_4bit_compute_dtype=torch.bfloat16)
-    model = AutoModelForImageTextToText.from_pretrained(base, quantization_config=bnb, device_map={"": 0}, torch_dtype=torch.bfloat16)
+    try:   # 注意力用 PyTorch 自带的省显存实现（SDPA）：长数据（改 PPT 的几千字）省得多；老版本不认得这个参数就照旧
+        model = AutoModelForImageTextToText.from_pretrained(base, quantization_config=bnb, device_map={"": 0}, torch_dtype=torch.bfloat16, attn_implementation="sdpa")
+    except (TypeError, ValueError, ImportError) as _e:
+        lg.log("省显存的注意力用不了（%s）：照旧" % str(_e)[:100])
+        model = AutoModelForImageTextToText.from_pretrained(base, quantization_config=bnb, device_map={"": 0}, torch_dtype=torch.bfloat16)
     # 梯度检查点是拿时间换显存的（慢三成左右）：8G 的卡必须开；显存空着 14G 以上的大卡关掉它，白捡这三成
     gck = p.get("gradCkpt", "auto")
     gck = (free_g < float(p.get("gradCkptBelow", 14))) if gck == "auto" else bool(gck)
@@ -660,6 +670,9 @@ def train(base):
         if imgs:
             from PIL import Image as _Img
             pics = [_Img.open(x).convert("RGB") for x in imgs]
+            # 图缩到长边不超过 visMaxSide（默认 896）：看清 PPT 上的字够了，图在模型里占的位置少一半，显存跟着少
+            _ms = int(p.get("visMaxSide", 896))
+            pics = [im.resize((max(28, int(im.size[0] * _ms / max(im.size))), max(28, int(im.size[1] * _ms / max(im.size))))) if max(im.size) > _ms else im for im in pics]
             full = proc.apply_chat_template(as_img_msgs(ms), tokenize=False, add_generation_prompt=False)
             head = proc.apply_chat_template(as_img_msgs(ms[:-1]), tokenize=False, add_generation_prompt=True)
             enc = proc(text=[full], images=pics, return_tensors="pt")
@@ -738,6 +751,29 @@ def train(base):
         pad_id = getattr(tok, "eos_token_id", None) or 0
     budget = int(p.get("tokBudget", max_len))
     top = int(p.get("maxBudget", max_len * 8))          # 预算最多加到这儿
+    # 这台电脑上次同一类训练试出来的档位（一批放多少字、最多放多少）：直接从那里开始，不用每次从小往上试、也不再撞同一个上限
+    tier_f = os.path.join(CACHE, "vram-tier.json")
+    try:
+        tier_k = "%s|%s|%d|%s" % (torch.cuda.get_device_name(0), p.get("exam") or "qa", max_len, "keep" if KEEP[0] else "full")
+    except Exception:
+        tier_k = "?|%s|%d" % (p.get("exam") or "qa", max_len)
+    try:
+        _t = json.load(open(tier_f, encoding="utf-8")).get(tier_k) or {}
+        if _t.get("ok") and "tokBudget" not in p:
+            top = min(top, int(_t.get("cap", top)))
+            budget = max(budget, min(top, int(_t["ok"])))
+            lg.log("这台电脑上次试出来的档位：一批 %d 个字起步（最多 %d）" % (budget, top))
+    except Exception:
+        pass
+
+    def save_tier():
+        try:
+            d = json.load(open(tier_f, encoding="utf-8")) if os.path.exists(tier_f) else {}
+            d[tier_k] = {"ok": budget, "cap": top, "at": int(time.time())}
+            os.makedirs(os.path.dirname(tier_f), exist_ok=True)
+            json.dump(d, open(tier_f, "w", encoding="utf-8"))
+        except Exception:
+            pass
     max_bs = int(p.get("maxBatch", accum))
     auto = bool(p.get("autoBatch", True))
     lim = max(1.0, (free_g - 0.5)) * 2 ** 30               # 这次训练最多能用的显存
@@ -746,6 +782,29 @@ def train(base):
     n_oom, n_skip, n_batch, n_ex, since = 0, 0, 0, 0, 0
     best, stale, stop_early = [float("inf"), 0, None], 0, False
     val_every = int(p.get("valEvery", 0)) or max(5, steps // 10)
+
+    KEEP = [bool(p.get("keepLogits", True))]
+
+    def fwd(b, width, ex):
+        """一批的前向（带损失）。只给要学的那部分算概率（logits_to_keep）：
+        通义千问的词表有 15 万个词，每个位置都算一遍概率，一条 4000 字的数据光这一步就要 3G 显存；
+        要学的只是最后模型说的那几百个字，前面的系统提示、工具说明、看过的结果都不用算。损失完全一样"""
+        heads = [next((j for j, v in enumerate(lab) if v != -100), len(lab)) for _, lab in b]
+        keep = width - min(heads) + 1 if KEEP[0] else 0
+        x = torch.tensor([ids + [pad_id] * (width - len(ids)) for ids, _ in b], device="cuda")
+        m = torch.tensor([[1] * len(ids) + [0] * (width - len(ids)) for ids, _ in b], device="cuda")
+        full = [labels + [-100] * (width - len(labels)) for _, labels in b]
+        if 0 < keep < width:
+            try:
+                y = torch.tensor([r[width - keep:] for r in full], device="cuda")
+                with torch.autocast("cuda", dtype=torch.bfloat16):
+                    return model(input_ids=x, attention_mask=m, labels=y, logits_to_keep=keep, **img_kw(ex)).loss
+            except TypeError:
+                KEEP[0] = False
+                lg.log("这个版本的 transformers 不支持只算一部分的概率：照旧全算")
+        y = torch.tensor(full, device="cuda")
+        with torch.autocast("cuda", dtype=torch.bfloat16):
+            return model(input_ids=x, attention_mask=m, labels=y, **img_kw(ex)).loss
 
     def take(seq, k):
         """从第 k 条往后拼一批：一批的大小 = 条数 × 最长那条的字数，不超过预算。带图的一条一批（图的大小各不一样）"""
@@ -772,11 +831,7 @@ def train(base):
             while i < len(vs):
                 n, width = take(vs, i)
                 b = [(ids[:width], labels[:width]) for ids, labels, _ in vs[i:i + n]]
-                x = torch.tensor([ids + [pad_id] * (width - len(ids)) for ids, _ in b], device="cuda")
-                m = torch.tensor([[1] * len(ids) + [0] * (width - len(ids)) for ids, _ in b], device="cuda")
-                y = torch.tensor([labels + [-100] * (width - len(labels)) for _, labels in b], device="cuda")
-                with torch.autocast("cuda", dtype=torch.bfloat16):
-                    tot += model(input_ids=x, attention_mask=m, labels=y, **img_kw(vs[i][2] if n == 1 else None)).loss.item() * len(b)
+                tot += fwd(b, width, vs[i][2] if n == 1 else None).item() * len(b)
                 cnt += len(b)
                 i += n
         model.train()
@@ -800,15 +855,11 @@ def train(base):
                 k += n
                 continue
             try:
-                x = torch.tensor([ids + [pad_id] * (width - len(ids)) for ids, _ in batch], device="cuda")
-                m = torch.tensor([[1] * len(ids) + [0] * (width - len(ids)) for ids, _ in batch], device="cuda")
-                y = torch.tensor([labels + [-100] * (width - len(labels)) for _, labels in batch], device="cuda")
-                with torch.autocast("cuda", dtype=torch.bfloat16):
-                    loss = model(input_ids=x, attention_mask=m, labels=y, **img_kw(ex)).loss * (len(batch) / float(accum))
+                loss = fwd(batch, width, ex) * (len(batch) / float(accum))
                 loss.backward()
                 lv = loss.item()
             except OOM:
-                x = m = y = loss = None
+                loss = None
                 torch.cuda.empty_cache()
                 n_oom += 1
                 if ex is not None:   # 一张图的一条都放不下：跳过这一条（不再缩预算，带图的本来就是一条一批）
@@ -816,7 +867,30 @@ def train(base):
                     k += 1
                     continue
                 used = len(batch) * width
+                if used <= 256 and not gck:
+                    # 退一档：打开省显存模式（拿时间换显存，慢三成），同一个位置再来
+                    try:
+                        model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
+                        if hasattr(model, "enable_input_require_grads"):
+                            model.enable_input_require_grads()
+                        gck = True
+                        budget = max(256, int(p.get("tokBudget", max_len)))
+                        lg.log("显存不够：退一档，打开省显存模式（慢三成）接着训")
+                        continue
+                    except Exception as _e:
+                        lg.log("省显存模式打不开（%s）" % str(_e)[:100])
                 if used <= 256:
+                    # 先分清楚：是别的程序占着显存，还是这个训练进程自己的显存碎了（训了几个小时以后常见）
+                    import gc
+                    gc.collect()
+                    torch.cuda.empty_cache()
+                    fr_b, tt_b = torch.cuda.mem_get_info()
+                    mine = (getattr(torch.cuda, "memory_reserved", lambda: 0)() or 0) / 2 ** 30
+                    others = max(0.0, (tt_b - fr_b) / 2 ** 30 - mine)
+                    if others < float(p.get("othersOk", 1.5)) and step > 0:
+                        # 不是别人占的：显存碎了。存个档、退出，换一个新进程从这里接着训（新进程的显存是整块的）；不算这台电脑做不了
+                        save_ck(ep, k, step)
+                        raise RuntimeError("显存碎片：训练进程自己留着 %.1fG，碎成小块放不下了（别的程序只占 %.1fG）。已存档（第 %d 步），换个新进程从这里接着训" % (mine, others, step))
                     try:
                         who = vram_users()
                     except Exception:   # 查不到是谁占的（没有 nvidia-smi）：照样说显存不够
@@ -890,6 +964,7 @@ def train(base):
                 if time.time() - last_ck > ckpt_min * 60:
                     save_ck(ep, k, step)
                     last_ck = time.time()
+    save_tier()
     lg.log("训练用了 %d 批（%d 条，平均一批 %.1f 条）%s%s" % (n_batch, n_ex, n_ex / float(max(1, n_batch)), "；显存不够退了 %d 次" % n_oom if n_oom else "", "；跳过 %d 条" % n_skip if n_skip else ""))
     # 最后的参数不如中途最好的那次：用最好的那次
     if best[2] is not None and best[1] != step:

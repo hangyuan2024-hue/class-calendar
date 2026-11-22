@@ -254,6 +254,8 @@ const IMG = "data:image/jpeg;base64," + Buffer.from("假的照片").toString("ba
     await L.ensure({ ...spec, mmproj: { name: "mmproj-M-F16.gguf", urls: [fu + "/mm.gguf"] } }, (m) => said.push(m));
     const a = spawned[spawned.length - 1]; assert.equal(path.basename(a[a.indexOf("--mmproj") + 1]), "mmproj-M-F16.gguf");
     assert.ok(said.some((m) => /下载看图组件/.test(m)));
+    await L.ensure({ ...spec, rpc: ["192.168.1.20:50052", "192.168.1.21:50052"] }, () => {});
+    const r = spawned[spawned.length - 1]; assert.equal(r[r.indexOf("--rpc") + 1], "192.168.1.20:50052,192.168.1.21:50052", "局域网里几台合起来跑：带 --rpc");
     L.stop(); files.close();
     ok("本地大模型：要看图时下载视觉组件（mmproj）、带上 --mmproj 重新启动；不看图不带");
   }

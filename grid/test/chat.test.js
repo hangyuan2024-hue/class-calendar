@@ -80,7 +80,7 @@ const listen = (h) => new Promise((r) => { const s = http.createServer(h); s.lis
   app.cycle.tick();
   ag.start();
   const db = app.core.db;
-  const job = db.prepare("select * from jobs where name like '造口语对话%' order by id desc limit 1").get();
+  const job = db.prepare("select * from jobs where name like '造口语对话%' and name not like '%局域网%' order by id desc limit 1").get();
   await until(() => db.prepare("select count(*) as n from tasks where job_id=? and state='done'").get(job.id).n >= 2, "造 2 批");
   ag.stop();
   assert.equal(ensured.name, plan.stages[0].params.llm.name, "按任务参数准备模型");

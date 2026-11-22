@@ -164,7 +164,14 @@ function create(opt = {}) {
     "POST /api/join": async (req, b) => core.join(b),
     // ---- 电脑（成员） ----
     // proto：调度中心认得哪些新东西（2 = CPU 工位、按真正空着的显存派活、分批推新版）。客户端的新功能要调度中心认得才打开
-    "POST /api/hb": (req, b, dev) => ({ ...(core.heartbeat(dev, b) || {}), proto: 2 }),
+    "POST /api/hb": (req, b, dev) => {
+      // 记下电脑上网的出口地址（同一个出口 + 同一个网段的，才让它们互相测局域网）
+      if (b && b.info && typeof b.info === "object") b.info.pubip = String(req.headers["x-real-ip"] || String(req.headers["x-forwarded-for"] || "").split(",")[0] || req.socket.remoteAddress || "").trim().slice(0, 60);
+      const r = core.heartbeat(dev, b) || {};
+      return { ...r, ...core.lanExtras(dev, b && b.info), proto: 3 };
+    },
+    "POST /api/lan-report": (req, b, dev) => core.lanReport(dev, b),
+    "GET /api/admin/lan": () => core.lanView(),
     "POST /api/lease": async (req, b, dev) => {
       const r = core.lease(dev, b.caps || {});
       // 发存档之前先核对它在存储里还在：确定不在了（404）就标掉、退回更早的存档（或者从头算），不让所有电脑一起卡在同一个 404 上

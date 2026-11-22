@@ -90,6 +90,8 @@ function create(o) {
     if (spec.lora && fs.existsSync(spec.lora)) args.push("--lora", spec.lora);   // 训练好的 LoRA（考试用）
     // 另外挂着、平时不起作用的 LoRA（比如「先核对再回答」ground-lora）：按请求里的 lora: [{ id, scale }] 临时打开
     for (const x of spec.extraLoras || []) if (x && fs.existsSync(x)) args.push("--lora-scaled", x, "0");
+    // 局域网里几台电脑合起来跑（别的电脑开着 rpc-server）：模型按层分到几台的显卡上
+    if (Array.isArray(spec.rpc) && spec.rpc.length && !o.cpu) args.push("--rpc", spec.rpc.map(String).join(","));
     if (spec.mmFile) args.push("--mmproj", spec.mmFile);   // 看图要的视觉组件（spec.mmproj：Qwen3-VL 的 mmproj，约 0.8G；只有要看图时才带）
     const p = doSpawn(exe, args, { cwd: path.dirname(exe), windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
     let tail = "";
@@ -103,7 +105,7 @@ function create(o) {
   async function ensure(spec, say = () => {}) {
     if (!ok()) throw new Error("这台电脑的客户端里没有 llama.cpp（更新到新版客户端）");
     if (starting) await starting.catch(() => {});
-    const key = safe(spec.name) + "|" + (spec.ctx || "") + "|" + (spec.slots || "") + "|" + (spec.baseLoras || []).map((x) => x.path + "@" + x.scale).join(",") + "|" + (spec.lora || "") + "|" + (spec.extraLoras || []).join(",") + "|" + (spec.mmproj ? safe(spec.mmproj.name) : "");
+    const key = safe(spec.name) + "|" + (spec.ctx || "") + "|" + (spec.slots || "") + "|" + (spec.baseLoras || []).map((x) => x.path + "@" + x.scale).join(",") + "|" + (spec.lora || "") + "|" + (spec.extraLoras || []).join(",") + "|" + (spec.mmproj ? safe(spec.mmproj.name) : "") + "|" + (Array.isArray(spec.rpc) ? spec.rpc.join(",") : "");
     if (child && cur === key && (await ping(port))) { bump(); return `http://127.0.0.1:${port}`; }
     starting = (async () => {
       const file = await fetchModel(spec, say);

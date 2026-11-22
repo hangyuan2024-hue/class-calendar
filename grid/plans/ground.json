@@ -35,6 +35,41 @@
       "priority": 9
     },
     {
+      "key": "make14",
+      "name": "造「照资料回答 + 逐句核对」的例子（对错由程序判）（局域网大老师 14B：同一局域网的两台电脑合起来跑）",
+      "kind": "map",
+      "recipe": "ground_gen",
+      "recipeFile": "../recipes/ground_gen.py",
+      "standing": true,
+      "keep": 10,
+      "params": {
+        "per": 24,
+        "parallel": 2,
+        "tries": 2,
+        "abstainShare": 0.35,
+        "tag": "ground",
+        "llm": {
+          "name": "Qwen3-14B-Q4_K_M.gguf",
+          "ctx": 16384,
+          "slots": 2,
+          "urls": [
+            "https://www.modelscope.cn/models/Qwen/Qwen3-14B-GGUF/resolve/master/Qwen3-14B-Q4_K_M.gguf",
+            "https://hf-mirror.com/Qwen/Qwen3-14B-GGUF/resolve/main/Qwen3-14B-Q4_K_M.gguf",
+            "https://huggingface.co/Qwen/Qwen3-14B-GGUF/resolve/main/Qwen3-14B-Q4_K_M.gguf"
+          ]
+        }
+      },
+      "req": {
+        "vram": 7.5,
+        "llm": true,
+        "gang": {
+          "size": 2,
+          "minMbps": 10
+        }
+      },
+      "priority": 10
+    },
+    {
       "key": "train",
       "name": "训练先核对再回答（同事显卡，QLoRA）",
       "kind": "map",

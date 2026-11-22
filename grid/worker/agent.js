@@ -354,6 +354,50 @@ function killTree(pid, since, until) {
   });
 }
 
+// ---- 局域网（几台电脑连起来跑大模型）----
+// 这台电脑的局域网地址：只要私有网段（10.x、172.16～31.x、192.168.x）
+function lanAddrs() {
+  const out = [];
+  for (const list of Object.values(require("os").networkInterfaces() || {})) for (const a of list || []) {
+    if (a.internal || (a.family !== "IPv4" && a.family !== 4)) continue;
+    if (/^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(a.address)) out.push({ ip: a.address, mask: a.netmask });
+  }
+  return out.slice(0, 8);
+}
+// 和局域网里的另一台测一下：连不连得通、来回多少毫秒、每秒多少 MB（对方的测试口令由调度中心给）
+function lanProbe(peer, o = {}) {
+  const net = require("net");
+  const talk = (req, expect) => new Promise((ok, bad) => {
+    const t0 = Date.now(); let got = 0, line = "";
+    const sk = net.connect({ host: peer.ip, port: peer.port, timeout: o.timeoutMs || 3000 }, () => sk.write(JSON.stringify({ key: peer.key, ...req }) + "\n"));
+    sk.on("data", (d) => { got += d.length; if (!expect) line += d.toString("utf8"); });
+    sk.on("timeout", () => sk.destroy(Object.assign(new Error("连不上（超时）"), { code: "ETIMEDOUT" })));
+    sk.on("error", bad);
+    sk.on("close", () => (expect ? (got >= expect ? ok({ ms: Date.now() - t0, got }) : bad(new Error("没收全"))) : /^pong/.test(line) ? ok({ ms: Date.now() - t0 }) : bad(new Error("口令不对或不是捞捞算力"))));
+  });
+  return (async () => {
+    try {
+      const pings = [];
+      for (let i = 0; i < 3; i++) pings.push((await talk({ op: "ping" })).ms);
+      const n = o.bytes || 16 * 1048576, r = await talk({ op: "bw", n }, n);
+      return { peer: peer.id, ip: peer.ip, ok: true, rtt: Math.min(...pings), mbps: +(n / 1048576 / Math.max(0.001, r.ms / 1000)).toFixed(1) };
+    } catch (e) { return { peer: peer.id, ip: peer.ip, ok: false, why: String(e.message || e).slice(0, 80) }; }
+  })();
+}
+// 等帮手的 rpc-server 都能连上（最多 timeoutMs）
+async function waitTcp(eps, timeoutMs = 90000) {
+  const net = require("net"), t0 = Date.now();
+  for (const ep of eps) {
+    const [host, port] = String(ep).split(":");
+    for (;;) {
+      const ok = await new Promise((r) => { const sk = net.connect({ host, port: +port, timeout: 2000 }, () => { sk.destroy(); r(true); }); sk.on("error", () => r(false)); sk.on("timeout", () => { sk.destroy(); r(false); }); });
+      if (ok) break;
+      if (Date.now() - t0 > timeoutMs) throw Object.assign(new Error("帮忙的电脑（" + ep + "）连不上：它可能刚关机、或者局域网断了"), { net: true });
+      await sleep(1000);
+    }
+  }
+}
+
 function create(opt) {
   const ev = new EventEmitter();
   const server = opt.server.replace(/\/+$/, "");
@@ -434,6 +478,55 @@ function create(opt) {
   const logs = [];
   let gpuNow = null;
   let serverProto = null;   // 调度中心报的版本（老的不报：null）
+  // 局域网测试口：别的电脑带着调度中心给的口令来测连通和网速。只开在局域网地址上
+  let lanKey = null, lanPort = 0, lanServers = [], rpcProc = null, rpcFor = null, lanTesting = false;
+  function lanStart() {
+    if (opt.lan === false || lanServers.length) return;
+    const net = require("net"), addrs = (opt.lanAddrs || lanAddrs)();
+    if (!addrs.length) return;
+    const handle = (sk) => {
+      let buf = "";
+      sk.setTimeout(30000, () => sk.destroy());
+      sk.on("error", () => {});
+      sk.on("data", (d) => {
+        buf += d.toString("utf8"); const i = buf.indexOf("\n"); if (i < 0) { if (buf.length > 4096) sk.destroy(); return; }
+        let m = {}; try { m = JSON.parse(buf.slice(0, i)); } catch (e) {}
+        if (!lanKey || m.key !== lanKey) return sk.end("bad\n");
+        if (m.op === "ping") return sk.end("pong\n");
+        if (m.op === "bw") { const n = Math.max(0, Math.min(64 * 1048576, +m.n || 0)), chunk = Buffer.alloc(65536); let left = n; const pump = () => { while (left > 0) { const c = left >= chunk.length ? chunk : chunk.subarray(0, left); left -= c.length; if (!sk.write(c)) return sk.once("drain", pump); } sk.end(); }; return pump(); }
+        sk.end("bad\n");
+      });
+    };
+    const base = opt.lanPort || 18330;
+    const tryPort = (p, left) => {
+      const srv = []; let failed = false, pending = addrs.length;
+      for (const a of addrs) {
+        const sv = net.createServer(handle);
+        sv.on("error", () => { failed = true; if (--pending === 0) done(); });
+        sv.listen(p, a.ip, () => { srv.push(sv); if (--pending === 0) done(); });
+      }
+      function done() {
+        if (!failed) { lanServers = srv; lanPort = p; return; }
+        for (const x of srv) try { x.close(); } catch (e) {}
+        if (left > 0) tryPort(p + 1, left - 1);
+      }
+    };
+    tryPort(base, 5);
+  }
+  function lanStop() { for (const x of lanServers) try { x.close(); } catch (e) {} lanServers = []; lanPort = 0; rpcStop(); }
+  const rpcExe = () => (opt.rpcExe && fs.existsSync(typeof opt.rpcExe === "function" ? opt.rpcExe() : opt.rpcExe) ? (typeof opt.rpcExe === "function" ? opt.rpcExe() : opt.rpcExe) : null);
+  // 当帮手：开 rpc-server（只开在局域网地址上），主机的活结束了就关
+  function rpcStart(r) {
+    if (rpcProc && rpcFor === r.task) return;
+    rpcStop();
+    const exe = rpcExe(); if (!exe) return;
+    try { if (opt.llm && opt.llm.stop) opt.llm.stop(); } catch (e) {}   // 显存让出来给主机的大模型
+    rpcProc = (opt.spawn || spawn)(exe, [...(opt.rpcArgs || []), "-H", r.ip, "-p", String(r.port)], { windowsHide: true, stdio: "ignore" });
+    rpcProc.on("exit", () => { rpcProc = null; });
+    rpcFor = r.task;
+    log(`局域网里的另一台电脑要跑大模型：这台电脑的显卡借给它（${r.ip}:${r.port}），它的活结束就收回`);
+  }
+  function rpcStop() { if (rpcProc) { try { rpcProc.kill(); } catch (e) {} rpcProc = null; log("帮别的电脑跑大模型的活结束了：显卡收回"); } rpcFor = null; }
   // ---- 显卡温度：自动调训练密度 ----
   //   以前：一到上限（83℃）就停、把任务还回去；凉一点又领回来、把大模型重新放进显卡（半分钟），没算几道题又到 83℃，
   //   散热差的电脑一直在「启动 → 停下」里打转，几乎没真正算。
@@ -634,7 +727,15 @@ function create(opt) {
       const g = await gate();
       if (Date.now() - lastHb > (opt.hbMs || 15000)) {
         lastHb = Date.now();
-        const hb = await api("/api/hb", { state: cur ? "busy" : g.ok ? "idle" : "waiting", why: g.ok ? "" : g.why, info: { ...(caps || {}), gpuNow, avoid: avoidNow(), quiet: !!quietNow(), version: opt.version || "", ...(opt.extraInfo ? opt.extraInfo() : {}) }, policy, live: cur ? liveOf() : null });
+        const hb = await api("/api/hb", { state: cur ? "busy" : g.ok ? "idle" : "waiting", why: g.ok ? "" : g.why, info: { ...(caps || {}), gpuNow, avoid: avoidNow(), quiet: !!quietNow(), version: opt.version || "", ...(lanPort ? { lan: (opt.lanAddrs || lanAddrs)(), lanPort, rpc: !!rpcExe(), rpcPort: opt.rpcPort || 50052 } : {}), ...(opt.extraInfo ? opt.extraInfo() : {}) }, policy, live: cur ? liveOf() : null });
+        if (hb && hb.lanKey) lanKey = hb.lanKey;
+        if (hb && hb.rpc && hb.rpc.port) rpcStart(hb.rpc); else if (hb && rpcProc) rpcStop();
+        if (hb && Array.isArray(hb.lantest) && hb.lantest.length && !lanTesting) {
+          lanTesting = true;
+          Promise.all(hb.lantest.slice(0, 4).map((pe) => lanProbe(pe, { bytes: opt.lanBytes })))
+            .then((results) => { log("和局域网里的电脑测了一下：" + results.map((r) => (r.ok ? `${r.ip} 通，每秒 ${r.mbps}MB` : `${r.ip} 不通（${r.why}）`)).join("；")); return api("/api/lan-report", { results }); })
+            .catch(() => {}).finally(() => { lanTesting = false; });
+        }
         // 控制中心远程遥控：开始 / 停止 / 更新 / 重启 / 取日志……交给软件去做，做完回个话
         if (hb && hb.proto != null) serverProto = +hb.proto || 0;
         for (const c of (hb && hb.cmds) || []) { log("控制中心让这台电脑：" + (CMD_NAMES[c.cmd] || c.cmd)); emit("command", c); }
@@ -665,8 +766,8 @@ function create(opt) {
     }
   }
   let timer = null;
-  function start() { stopped = false; if (!timer) { timer = setInterval(tick, opt.tickMs || 2000); tick(); } return api; }
-  async function stop() { stopped = true; clearInterval(timer); timer = null; if (cur) await stopTask(true, "客户端关闭"); }
+  function start() { stopped = false; lanStart(); if (!timer) { timer = setInterval(tick, opt.tickMs || 2000); tick(); } return api; }
+  async function stop() { stopped = true; clearInterval(timer); timer = null; lanStop(); if (cur) await stopTask(true, "客户端关闭"); }
 
   function liveOf() {
     if (!cur) return null;
@@ -738,7 +839,9 @@ function create(opt) {
         c.needsLlm = true;
         c.note = "准备本地大模型…";
         // lazy：配方自己决定什么时候开（比如先训练、训完再开大模型考试），这里不先开
-        if (!((L.job.params || {}).llm || {}).lazy) llmUrl = await opt.llm.ensure((L.job.params || {}).llm || {}, (m) => { c.note = m; c.lastOut = Date.now(); log(m); emit("progress", { id: c.id, p: c.progress, note: m }); });
+        // 成组的活：帮手的显卡（rpc-server）都连上了再开大模型，模型按层分到几台上
+        if (L.rpc && L.rpc.length) { c.note = "等帮忙的电脑准备好…"; log(`这个活要几台电脑合起来跑大模型：等 ${L.rpc.length} 台帮手准备好（${L.rpc.join("、")}）`); await waitTcp(L.rpc, opt.rpcWaitMs || 90000); }
+        if (!((L.job.params || {}).llm || {}).lazy) llmUrl = await opt.llm.ensure({ ...((L.job.params || {}).llm || {}), ...(L.rpc && L.rpc.length ? { rpc: L.rpc } : {}) }, (m) => { c.note = m; c.lastOut = Date.now(); log(m); emit("progress", { id: c.id, p: c.progress, note: m }); });
       }
       // 配方开头写「# needs: gsv」：要用 GPT-SoVITS 整合包（训练声音）；第一次自动装（几个 G）
       let gsv = null;
@@ -1095,4 +1198,4 @@ async function join(invite, name, device, fetchImpl = fetch) {
   return { server: inv.server, pubkey: inv.pubkey, token: j.token, device: j.device, member: j.member };
 }
 
-module.exports = { setNetLimit, setParallel, xferAny, create, join, parseInvite, verifySig, xfer, probe, netWhy, isNet, resetConnections, cachedLookup, DNS_CACHE };
+module.exports = { setNetLimit, setParallel, xferAny, create, join, parseInvite, verifySig, xfer, probe, netWhy, isNet, resetConnections, cachedLookup, DNS_CACHE, lanAddrs, lanProbe };

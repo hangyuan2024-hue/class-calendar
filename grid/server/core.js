@@ -59,6 +59,8 @@ create table if not exists outputs(id integer primary key, job_id integer, task_
 create table if not exists commands(id integer primary key, device_id integer not null, cmd text not null, args text, state text not null default 'queued', created integer, sent integer, done integer, ok integer, result text, by text);
 create index if not exists commands_d on commands(device_id, state);
 create table if not exists device_days(device_id integer, day text, online_secs real not null default 0, busy_secs real not null default 0, primary key(device_id, day));
+create table if not exists lan_links(a integer, b integer, ok integer, rtt real, mbps real, at integer, primary key(a, b));
+create table if not exists rpc_helpers(device_id integer primary key, task_id integer, ip text, port integer, at integer);
 create table if not exists device_logs(id integer primary key, device_id integer, key text, name text, created integer);
 `;
 
@@ -342,6 +344,8 @@ function open(file, opt = {}) {
     return tx(() => {
       const cur = dev.task_id && one("select * from tasks where id=? and state='leased' and device_id=?", dev.task_id, dev.id);
       if (cur) return pack(cur, dev);
+      // 正在给别的电脑当帮手（显卡借给它跑大模型）：先不领自己的活
+      if (one("select 1 from rpc_helpers h join tasks t on t.id=h.task_id where h.device_id=? and t.state='leased'", dev.id)) return null;
       // 同样优先级的几个活：哪个现在在算的电脑少就先给哪个（几种活一起推进，比如画 Q版 和 做数学题）；
       // 一样少就接着做这台电脑上一个做的（模型还在显存里，不用重新加载）
       const last = (one("select job_id from tasks where device_id=? order by started desc limit 1", dev.id) || {}).job_id || 0;
@@ -363,6 +367,11 @@ function open(file, opt = {}) {
         // 失败过的任务，排在后面再试；一台电脑不重复领自己刚失败的
         const t = one("select * from tasks where job_id=? and state='queued' and kind in ('run','merge') order by errors asc, case kind when 'merge' then 0 else 1 end, round asc, seq asc limit 1", j.id);
         if (!t) continue;
+        // 成组的活（局域网里几台合起来跑大模型）：找不齐帮手就先不给，给别的活
+        const gang = (J(j.req) || {}).gang;
+        let helpers = null;
+        if (gang) { helpers = pickHelpers(dev, gang); if (!helpers) continue; }
+        if (helpers) for (const h of helpers) run("insert into rpc_helpers(device_id,task_id,ip,port,at) values(?,?,?,?,?) on conflict(device_id) do update set task_id=excluded.task_id, ip=excluded.ip, port=excluded.port, at=excluded.at", h.d.id, t.id, h.ip, h.port, clock());
         run("update tasks set state='leased', device_id=?, member_id=?, lease_until=?, started=?, attempts=attempts+1, progress=0, prev_dev=null where id=?", dev.id, dev.member_id, clock() + leaseMs, clock(), t.id);
         run("update devices set task_id=? where id=?", t.id, dev.id);
         const tt = one("select * from tasks where id=?", t.id);
@@ -382,8 +391,9 @@ function open(file, opt = {}) {
   // 交给电脑的东西：任务、配方、要接着算的存档
   function pack(t, dev) {
     const j = one("select * from jobs where id=?", t.job_id);
+    const helpers = all("select ip, port from rpc_helpers where task_id=?", t.id);
     const r = j.recipe_id && one("select * from recipes where id=?", j.recipe_id);
-    const out = { task: { id: t.id, kind: t.kind, seq: t.seq, round: t.round, input: J(t.input, {}), attempts: t.attempts, leaseUntil: t.lease_until }, job: { id: j.id, name: j.name, kind: j.kind, params: J(j.params, {}) }, recipe: r ? { id: r.id, name: r.name, key: r.key, sig: r.sig, meta: J(r.meta, {}) } : null, resume: null };
+    const out = { ...(helpers.length ? { rpc: helpers.map((h) => `${h.ip}:${h.port}`) } : {}), task: { id: t.id, kind: t.kind, seq: t.seq, round: t.round, input: J(t.input, {}), attempts: t.attempts, leaseUntil: t.lease_until }, job: { id: j.id, name: j.name, kind: j.kind, params: J(j.params, {}) }, recipe: r ? { id: r.id, name: r.name, key: r.key, sig: r.sig, meta: J(r.meta, {}) } : null, resume: null };
     // 前面步骤的结果（文件由电脑下载到本机）、接着上一版训练的起点（warmStart）
     const deps = J(j.deps, []) || [];
     if (deps.length) {
@@ -805,6 +815,72 @@ function open(file, opt = {}) {
   function setDevice(id, { disabled }) { run("update devices set disabled=? where id=?", disabled ? 1 : 0, id); if (disabled) { const d = one("select * from devices where id=?", id); if (d && d.task_id) run("update tasks set state='queued', device_id=null, lease_until=null where id=? and state='leased'", d.task_id); } return { ok: true }; }
   function retry(jobId) { run("update tasks set state='queued', errors=0, lost=0, error=null where job_id=? and state='failed'", jobId); run("update jobs set state='active' where id=? and state!='done'", jobId); return { ok: true }; }
 
+  // ---------- 同一个局域网的几台电脑连起来算（llama.cpp RPC：一台主机 + 几台帮手，模型按层分到几台的显卡上）----------
+  //   · 电脑报自己的局域网地址（只报 10.x / 172.16-31.x / 192.168.x）、能不能当帮手（客户端带 rpc-server）
+  //   · 调度中心让同一个出口地址、同一个网段的电脑互相测一下：连不连得通（校园 Wi-Fi 常开「客户端隔离」）、每秒多少 MB
+  //   · 成组的活（req.gang = { size, minMbps }）：主机领活时，同时把测通过的几台空闲电脑拉来当帮手；活结束帮手自动放回
+  const ipNum = (ip) => String(ip || "").split(".").reduce((a, x) => a * 256 + (+x || 0), 0);
+  const sameNet = (a, b) => { const m = ipNum(a.mask || "255.255.255.0"); return (ipNum(a.ip) & m) >>> 0 === (ipNum(b.ip) & m) >>> 0 && (ipNum(b.mask || "255.255.255.0") === m); };
+  const lanOf = (d) => { const i = J(d.info, {}) || {}; return { lan: Array.isArray(i.lan) ? i.lan.slice(0, 8) : [], port: +i.lanPort || 0, rpc: !!i.rpc, rpcPort: +i.rpcPort || 50052, pubip: i.pubip || "" }; };
+  function lanKey(id) { let k = kv.get("lankey:" + id); if (!k) { k = rid(18); kv.set("lankey:" + id, k); } return k; }
+  // 两台之间测过、通的：网速（MB/秒）；没测过 / 不通：null
+  function link(a, b) {
+    const r = one("select * from lan_links where ((a=? and b=?) or (a=? and b=?)) and at>? order by at desc limit 1", a, b, b, a, clock() - 24 * 3600e3);
+    return r && r.ok ? r.mbps || 0 : null;
+  }
+  // 心跳的时候顺便告诉电脑：局域网口令、要不要和谁测一下、要不要当帮手
+  function lanExtras(dev, info) {
+    const out = {};
+    const me = lanOf({ info: S(info || {}) });
+    if (me.lan.length && me.port) out.lanKey = lanKey(dev.id);
+    // 帮手：主机的活还在算 → 接着开着 rpc-server；活结束了 → 放回
+    const h = one("select h.*, t.state from rpc_helpers h left join tasks t on t.id=h.task_id where h.device_id=?", dev.id);
+    if (h) { if (h.state === "leased") out.rpc = { task: h.task_id, port: h.port, ip: h.ip }; else run("delete from rpc_helpers where device_id=?", dev.id); }
+    // 该测了：同一个出口地址、同一个网段、在线、6 小时内没测过的（每台电脑 20 分钟最多派一次）
+    if (me.lan.length && me.port && clock() - (+kv.get("lantest_at:" + dev.id) || 0) > 20 * 60e3) {
+      const peers = [];
+      for (const d of all("select * from devices where id!=? and last_seen>? and coalesce(disabled,0)=0", dev.id, clock() - 120e3)) {
+        const o = lanOf(d);
+        if (!o.port || !o.lan.length || (me.pubip && o.pubip && me.pubip !== o.pubip)) continue;
+        if (one("select 1 from lan_links where ((a=? and b=?) or (a=? and b=?)) and at>?", dev.id, d.id, d.id, dev.id, clock() - 6 * 3600e3)) continue;
+        const ip = o.lan.find((x) => me.lan.some((y) => sameNet(x, y)));
+        if (ip) peers.push({ id: d.id, ip: ip.ip, port: o.port, key: lanKey(d.id) });
+        if (peers.length >= 4) break;
+      }
+      if (peers.length) { out.lantest = peers; kv.set("lantest_at:" + dev.id, clock()); }
+    }
+    return out;
+  }
+  function lanReport(dev, { results } = {}) {
+    let n = 0;
+    for (const r of Array.isArray(results) ? results.slice(0, 20) : []) {
+      const b = +r.peer;
+      if (!b || b === dev.id) continue;
+      run("insert into lan_links(a,b,ok,rtt,mbps,at) values(?,?,?,?,?,?) on conflict(a,b) do update set ok=excluded.ok, rtt=excluded.rtt, mbps=excluded.mbps, at=excluded.at", dev.id, b, r.ok ? 1 : 0, +r.rtt || null, +r.mbps || null, clock());
+      n++;
+    }
+    if (n) event("lan", `${dev.member_name}的「${dev.name}」测了局域网里的 ${n} 台：` + (results || []).map((r) => (r.ok ? `通（${Math.round(r.mbps || 0)}MB/秒）` : "不通")).join("、"), { device: dev.id });
+    return { ok: true, n };
+  }
+  // 主机领成组的活：找齐 size-1 台空闲、测通过、网速够的帮手（显卡越空的越先）；找不齐返回 null（这个活先不给它）
+  function pickHelpers(dev, gang) {
+    const need = Math.max(0, (+gang.size || 2) - 1), minMbps = +gang.minMbps || 0;
+    const busy = new Set(all("select h.device_id from rpc_helpers h join tasks t on t.id=h.task_id where t.state='leased'").map((r) => r.device_id));
+    const cands = [];
+    for (const d of all("select * from devices where id!=? and last_seen>? and task_id is null and state='idle' and coalesce(disabled,0)=0", dev.id, clock() - 90e3)) {
+      if (busy.has(d.id)) continue;
+      const o = lanOf(d), mb = link(dev.id, d.id);
+      if (!o.rpc || mb == null || mb < minMbps) continue;
+      const me = lanOf(dev), ip = o.lan.find((x) => me.lan.some((y) => sameNet(x, y)));
+      if (!ip) continue;
+      cands.push({ d, ip: ip.ip, port: o.rpcPort, mb, vram: +(J(d.info, {}) || {}).vram || 0 });
+    }
+    cands.sort((a, b) => b.vram - a.vram || b.mb - a.mb);
+    return cands.length >= need ? cands.slice(0, need) : null;
+  }
+  const lanView = () => ({ devices: all("select d.id, d.name, m.name as member, d.info, d.last_seen from devices d join members m on m.id=d.member_id").map((d) => ({ id: d.id, name: d.name, member: d.member, ...lanOf(d), online: d.last_seen > clock() - 120e3 })).filter((d) => d.lan.length),
+    links: all("select * from lan_links where at>? order by at desc", clock() - 7 * 86400e3), helpers: all("select * from rpc_helpers") });
+
   // ---------- 每天一份简报（北京时间早上 8 点，放进「动态」）：昨天算了多少、出了什么错（按类别）、发布了哪些模型、新版推得怎么样 ----------
   function brief(since = clock() - 86400e3) {
     const n = (sql, ...a) => (one(sql, ...a) || {}).n || 0;
@@ -845,7 +921,7 @@ function open(file, opt = {}) {
   }
 
   return {
-    db, kv, event, brief, dailyBrief, classifyError, inputKey, on: (f) => (listeners.add(f), () => listeners.delete(f)),
+    db, kv, event, brief, dailyBrief, classifyError, inputKey, lanExtras, lanReport, lanView, on: (f) => (listeners.add(f), () => listeners.delete(f)),
     adminToken, isAdmin, invite, join, auth, heartbeat, addRecipe, stage, createJob, lease, renew, checkpoint, lostCkpt, finish, fail, sweep,
     humanNext, humanDone, reviewNext, vote, cut, retire, addTasks, dataset, importVoice, voiceData, voices, addMember, laneDevice, updateGate, setRollout, rollouts, sendCommand, commandDone, commandsOf, stats, deviceLogs, overview, jobDetail, devicesView, board, setJob, setDevice, retry,
     recipe: (id) => one("select * from recipes where id=?", id), recipes: () => all("select id,name,meta,created from recipes order by created desc"),
