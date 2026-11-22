@@ -46,6 +46,13 @@ const ok = (m) => console.log("✓", m);
   const r2 = await Tools.pull(c, { root: pack, yes: true, noGithub: true, say: (m) => said.push(m) });
   assert.ok(r2.signed && said.some((l) => /没能和 GitHub 上的核对/.test(l)));
   ok("上不去 GitHub：照实提醒你只有确定调度中心刚 git pull 过才确认");
+  // 签名包双击的 sign.cmd：只有英文（Windows 命令行读中文容易出错、一闪就退），中文提示都由 grid.js sign 打
+  const cmd = fs.readFileSync(path.join(ROOT, "tools", "sign.cmd"), "utf8");
+  assert.ok(!/[^\x00-\x7f]/.test(cmd) && /\r\n/.test(cmd) && !/[^\r]\n/.test(cmd), "sign.cmd 只有英文、Windows 换行");
+  assert.ok(/node tools\\grid\.js sign/.test(cmd) && /pause/.test(cmd));
+  const r3 = require("child_process").spawnSync(process.execPath, [path.join(ROOT, "tools", "grid.js"), "sign"], { env: { ...process.env, LG_ADMIN_HOME: path.join(tmp, "nobody") }, encoding: "utf8" });
+  assert.ok(/没有签名用的私钥/.test(r3.stdout), r3.stdout + r3.stderr);
+  ok("sign.cmd 只有英文、Windows 换行（不再一闪就退）；没有私钥的电脑上照实说");
   app.close();
   try { fs.rmSync(tmp, { recursive: true, force: true }); } catch (e) {}
   console.log("签名包自己拉最新配方：全部通过");

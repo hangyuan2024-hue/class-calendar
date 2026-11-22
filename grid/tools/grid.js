@@ -168,6 +168,13 @@ if (require.main === module) {
     // 某位老师的声音码（发给这位老师，在捞捞PPT助手「我的声音」里填上）；--new 换一个（旧的作废）
     else if (cmd === "voice-code") { need(); const r = await api(c, "/api/admin/model/code", { name: "voice-" + a[0], rotate: a.includes("--new") }); console.log(`「${a[0]}」的声音码：${r.code}\n只发给${a[0]}本人；在捞捞PPT助手「我的声音」里填上，就能用捞捞训练的声音。泄露了用 --new 换一个。`); }
     else if (cmd === "promote") { need(); const r = await api(c, "/api/admin/model/promote", { from: a[0] || "qversion-lora-test", to: a[1] || "qversion-lora" }); console.log(`转正了：「${a[1] || "qversion-lora"}」第 ${r.version} 版，老师端会自动换上`); }
+    // 签名包双击的 sign.cmd 就调这个：中文提示都在这里打（.cmd 里只留英文，免得 Windows 的命令行读中文出错、一闪就退）
+    else if (cmd === "sign") {
+      if (!c.server || !c.token || !c.priv) { console.log("这台电脑上没有签名用的私钥：要在以前发过配方、建过自动训练的那台电脑上运行。"); return; }
+      console.log("从调度中心拉最新的训练计划和配方（每个都和 GitHub 上的核对），列给你看，你输入 y 才签名上传。\n");
+      const r = await pull(c, { yes: a.includes("--yes") });
+      console.log(r.signed ? `\n做完了：签好了 ${r.ids.length} 份训练计划（上面每份一行「……设好了」）。有红字就截图发给维护的人（别截到口令）。` : "\n没签。");
+    }
     else if (cmd === "pull") { need(); const r = await pull(c, { yes: a.includes("--yes"), noGithub: a.includes("--no-github") }); if (r.signed) console.log(`签好了：${r.ids.length} 份训练计划`); }
     else if (cmd === "cycle") { need(); const id = await cycle(c, a[0]); if (a.includes("--now")) { const r = await api(c, "/api/admin/pipeline/run", { id }); console.log(`现在就跑第 ${r.run} 轮`); } }
     else if (cmd === "invite") {
