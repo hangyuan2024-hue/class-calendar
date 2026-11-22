@@ -77,6 +77,7 @@
           <span class="k">标五官：</span>
           <button data-mark="e1">一只眼睛</button><button data-mark="e2">另一只眼睛</button><button data-mark="mouth">嘴巴中间</button>
         </div>
+        <div class="row"><button class="btn sm" id="dollAi" title="用捞捞自己训练的「眼力」看这张照片，认发型、刘海、发色、眼镜、上衣颜色（只在这台电脑上看，照片不存、不上传）">让 AI 再认一次发型和颜色</button></div>
         <div class="face-row"><canvas id="facePrev" width="96" height="96" hidden></canvas><p class="hint" id="faceHint">上传照片后会自动找到眼睛和嘴（找不到或者不准，就在照片上依次点：一只眼睛、另一只眼睛、嘴巴中间），量出你眉毛、眼睛、嘴的特点，照着画到公仔脸上；戴眼镜的话勾上「戴眼镜」。照片越清楚、正脸、光线均匀，量得越准。</p></div>
         <div class="row"><button class="btn sm" id="exportSkin" title="把这个形象（带照片的脸）存成捞捞编程「画出来」能用的皮肤文件">导出成捞捞编程皮肤</button></div>
       </div>
@@ -176,7 +177,7 @@
           <div class="card-h"><b>拍照插公式</b></div>
           <div class="row"><button class="btn sm" id="ocrPick">选公式照片</button><span class="muted">也可以把截图直接粘贴到这里</span></div>
           <img id="ocrImg" class="ocr-img" alt="" hidden>
-          <div class="row"><button class="btn sm pri" id="ocrGo" disabled>认公式</button></div>
+          <div class="row"><button class="btn sm pri" id="ocrGo" disabled>认公式</button><button class="btn sm" id="ocrPage" disabled title="照片是一整页课件（截图、拍的屏幕或投影）：认出来做成能改的一页，放在下面写的那一页后面">整页还原成一页</button></div>
           <label class="field"><span>LaTeX（认得不对可以直接改）</span><textarea id="ocrTex" rows="3" placeholder="比如 x=\frac{-b\pm\sqrt{b^2-4ac}}{2a}"></textarea></label>
           <div class="ocr-prev" id="ocrPrev"></div>
           <div class="row"><span>插到第</span><input id="ocrSlide" type="number" min="1" value="1" style="width:64px"><span>页</span>

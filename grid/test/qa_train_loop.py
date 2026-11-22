@@ -3,7 +3,7 @@
   2. 慢得不正常 → 存档、告诉客户端「这台电脑算不了」（不算任务失败）
   3. 显存被别的程序占了 → 一开始就说清楚，不硬训
 """
-import ast, os, sys, types, tempfile
+import ast, json, os, sys, types, tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = open(os.path.join(HERE, "..", "recipes", "qa_train.py"), encoding="utf-8").read()
@@ -15,9 +15,10 @@ class OOM(RuntimeError):
     pass
 
 
-def run(free_g=7.0, oom_over=None, secs_per_tok=0.001, n=64, params=None, bytes_per_tok=2 ** 20, plateau=None):
+def run(free_g=7.0, oom_over=None, secs_per_tok=0.001, n=64, params=None, bytes_per_tok=2 ** 20, plateau=None, extra_rows=None, img_oom=False):
     clock = [1000.0]
     calls, seen, peak = [], [], [0]
+    imgs_seen, tmpl_tools = [], []
     nstep, mode, vals = [0], [True], []
     sent, logs, ckpts, restored = [], [], [], []
     fake_time = types.SimpleNamespace(time=lambda: clock[0])
@@ -44,8 +45,13 @@ def run(free_g=7.0, oom_over=None, secs_per_tok=0.001, n=64, params=None, bytes_
         def train(self): mode[0] = True
         def eval(self): mode[0] = False
         def save_pretrained(self, out): os.makedirs(out, exist_ok=True)
-        def __call__(self, input_ids, labels, attention_mask=None):
+        def __call__(self, input_ids, labels, attention_mask=None, pixel_values=None, image_grid_thw=None):
             assert attention_mask is not None and len(attention_mask) == len(input_ids)
+            if pixel_values is not None:
+                assert len(input_ids) == 1 and image_grid_thw == "thw@cuda", "带图的一条一批，图跟着这一条"
+                imgs_seen.append(pixel_values)
+                if img_oom:
+                    raise OOM("CUDA out of memory")
             width = len(input_ids[0])
             assert all(len(r) == width for r in input_ids) and all(len(r) == width for r in labels), "一批里要补齐到一样长"
             padded = width * len(input_ids)
@@ -96,11 +102,24 @@ def run(free_g=7.0, oom_over=None, secs_per_tok=0.001, n=64, params=None, bytes_
         pad_token_id = 0
         def __call__(self, s, add_special_tokens=False): return {"input_ids": list(range(len(s)))}
 
+    class T:
+        def __init__(self, v): self.v = v
+        def tolist(self): return list(self.v)
+        def __len__(self): return len(self.v)
+        def to(self, dev, dtype=None): return "%s@%s" % (self.v, dev) if isinstance(self.v, str) else self
+
     class Proc:
         tokenizer = Tok()
         @staticmethod
         def from_pretrained(b): return Proc()
-        def apply_chat_template(self, ms, tokenize=False, add_generation_prompt=False): return "".join(m["content"][0]["text"] for m in ms)
+        def apply_chat_template(self, ms, tokenize=False, add_generation_prompt=False, tools=None):
+            if tools is not None:
+                tmpl_tools.append(tools)
+            txt = lambda c: c if isinstance(c, str) else "".join("<img>" * 40 if x.get("type") == "image" else x.get("text", "") for x in c)
+            return "".join(txt(m["content"]) + ("".join(c["function"]["name"] + json.dumps(c["function"]["arguments"]) for c in m.get("tool_calls") or [])) for m in ms) + ("<gen>" if add_generation_prompt else "")
+        def __call__(self, text, images=None, return_tensors=None):
+            assert images and all(hasattr(i, "size") for i in images), "图交给 processor"
+            return {"input_ids": [T(range(len(text[0])))], "pixel_values": T("pv"), "image_grid_thw": T("thw")}
 
     tf.AutoProcessor = Proc
     tf.AutoModelForImageTextToText = types.SimpleNamespace(from_pretrained=lambda *a, **k: Model())
@@ -113,16 +132,17 @@ def run(free_g=7.0, oom_over=None, secs_per_tok=0.001, n=64, params=None, bytes_
                                checkpoint=lambda f, step, **k: ckpts.append(step), unfit=lambda why: sent.append(("unfit", why)), gpu_guard=real_lg.gpu_guard)
     work = tempfile.mkdtemp(prefix="qa-loop-")
     # 讲解长短不一：最长的 900 个字
-    rows = [[{"role": "system", "content": "s"}, {"role": "user", "content": "q" * 20}, {"role": "assistant", "content": "a" * (100 + (i * 37) % 800)}] for i in range(n)]
-    import hashlib, json, random, math
-    ns = dict(HP={"lr": 1e-4, "epochs": 1, "replay": 2.0}, WARM=None, _total=len(rows), ALL_ROWS=list(rows), lg=lg, p={"epochs": 1, **(params or {})}, rows=rows, work=work, t={}, time=fake_time, os=os, json=json, hashlib=hashlib, random=random)
+    rows = [[{"role": "system", "content": "s"}, {"role": "user", "content": "q" * 20}, {"role": "assistant", "content": "a" * (100 + (i * 37) % 800)}] for i in range(n)] + list(extra_rows or [])
+    import hashlib, random, math
+    ns = dict(HP={"lr": 1e-4, "epochs": 1, "replay": 2.0}, WARM=None, _total=len(rows), ALL_ROWS=list(rows), lg=lg, p={"epochs": 1, **(params or {})}, rows=rows, work=work, t={}, time=fake_time, os=os, json=json, hashlib=hashlib, random=random,
+              ppt_tools=lambda: [{"type": "function", "function": {"name": "set_text"}}])
     exec(CODE, ns)
     err = None
     try:
         ns["train"]("base")
     except Exception as e:
         err = e
-    return dict(err=err, sent=sent, logs=logs, ckpts=ckpts, clock=clock[0] - 1000.0, calls=calls, seen=seen, rows=rows, vals=vals, restored=restored, nstep=nstep[0])
+    return dict(err=err, sent=sent, logs=logs, ckpts=ckpts, clock=clock[0] - 1000.0, calls=calls, seen=seen, rows=rows, vals=vals, restored=restored, nstep=nstep[0], imgs=imgs_seen, tools=tmpl_tools)
 
 
 ok = lambda m: print("✓", m)
@@ -183,6 +203,41 @@ assert any("提前停" in l for l in es["logs"]) and es["nstep"] < full["nstep"]
 assert es["restored"], "要换回最好的那次参数"
 ok("验证集不再变好就提前停：%d 步就停了（本来要 %d 步），并换回最好那一次的参数；一直在变好的照常训完" % (es["nstep"], full["nstep"]))
 
+# 带图的（看图反推）、带工具调用的（改 PPT）：带图的一条一批、图跟着那一条；工具说明交给对话模板；带图的放不下就跳过那一条（不死循环）
+from PIL import Image as _Im
+_d = tempfile.mkdtemp(prefix="qa-img-")
+_Im.new("RGB", (64, 48), "white").save(os.path.join(_d, "a.jpg"))
+
+
+class Msgs(list):
+    tools = None
+    images = ()
+
+
+def _img_row(i):
+    m = Msgs([{"role": "system", "content": "看图"}, {"role": "user", "content": [{"type": "image", "image": "a.jpg"}, {"type": "text", "text": "还原"}]}, {"role": "assistant", "content": "{\"title\":\"x%d\"}" % i}])
+    m.images = [os.path.join(_d, "a.jpg")]
+    return m
+
+
+def _tool_row(i):
+    m = Msgs([{"role": "system", "content": "改 PPT"}, {"role": "user", "content": "第 2 页标题改成 x"},
+              {"role": "assistant", "content": "", "tool_calls": [{"id": "c", "type": "function", "function": {"name": "set_text", "arguments": "{\"slide\": 2}"}}]},
+              {"role": "tool", "tool_call_id": "c", "name": "set_text", "content": "{\"ok\":true}"}, {"role": "assistant", "content": "改好了：第 2 页的标题已经改成了 x，这是第 %d 次" % i}])
+    m.tools = "$ppt"
+    return m
+
+
+mix = [_img_row(i) for i in range(6)] + [_tool_row(i) for i in range(6)]
+r = run(n=40, extra_rows=mix, params={"autoBatch": False, "earlyStop": False})
+assert r["err"] is None, r["err"]
+assert len(r["imgs"]) == 6 and len(r["seen"]) == 52, (len(r["imgs"]), len(r["seen"]))
+assert r["tools"] and all(t == [{"type": "function", "function": {"name": "set_text"}}] for t in r["tools"]), "工具说明交给对话模板"
+assert any("带图的 6 条、带工具调用的 6 条" in l for l in r["logs"]), r["logs"]
+r = run(n=40, extra_rows=mix, img_oom=True, params={"autoBatch": False, "earlyStop": False})
+assert r["err"] is None and len(r["seen"]) == 46, (r["err"], len(r["seen"]))
+ok("带图的一条一批（图跟着那一条），带工具调用的照通义千问自己的模板写；一张图都放不下就跳过那一条，照样训完")
+
 # 接着上一版训：只训新增的 + 复习一部分旧的
 A, B = SRC.index("# ---- 接着上一版训"), SRC.index("# ---------------- 2. 底子")
 import random as _r
@@ -225,4 +280,44 @@ assert 60 < len(changed) < 140 and all(2e-5 <= h["lr"] <= 4e-4 and 1 <= h["epoch
 assert all(sum(1 for k in ("lr", "epochs", "replay") if h[k] != {"lr": 1e-4, "epochs": 2, "replay": 2.0}[k]) == 1 for h, _, _ in changed)
 assert evo(1234, {"hp": {}})[0] == evo(1234, {"hp": {}})[0]
 ok("训练参数自己进化：没有上一版用默认的；有上一版从它的参数出发，约一半的轮次改动其中一个（每次只改一个、不出范围），同一轮重来改动一样")
+# 考试准了以后调得更快：现在发布的那一版是「改了某个参数发布的」→ 大概率接着往同一个方向试
+mom = [evo(n, {"hp": {"lr": 1e-4, "epochs": 2, "replay": 2.0}, "tried_k": "lr", "tried_x": 1.5}, {"momentum": 0.7}) for n in range(2000, 2200)]
+same_dir = [h for h, t, _ in mom if t and abs(h["lr"] - 1.5e-4) < 1e-12]
+assert 120 < len(same_dir) < 180, len(same_dir)
+ok("考试准了以后调得更快：上一次往哪个方向改、考得更好发布了，这一轮约七成接着往同一个方向再试一步（%d/200）" % len(same_dir))
+
+# 和考题去重、按类型均衡、数据指纹
+F2 = [n for n in ast.parse(SRC).body if isinstance(n, ast.FunctionDef) and n.name in ("ctext", "decontam")]
+ns2 = {"re": __import__("re"), "os": os}
+exec(compile(ast.Module(body=F2, type_ignores=[]), "qa_train.py", "exec"), ns2)
+exam_q = ["小明有 5 个苹果，又买了 3 个，吃掉 2 个，还剩几个苹果？请写出过程"]
+rs = [[{"role": "user", "content": "小明有 5 个苹果，又买了 3 个，吃掉 2 个，还剩几个苹果？请写出过程"}, {"role": "assistant", "content": "6"}],
+      [{"role": "user", "content": "题目：小明有5个苹果，又买了3个，吃掉2个，还剩几个苹果？"}, {"role": "assistant", "content": "6"}],
+      [{"role": "user", "content": "小红有 7 支铅笔，送给同学 4 支，还剩几支？"}, {"role": "assistant", "content": "3"}],
+      [{"role": "user", "content": [{"type": "image", "image": "a.jpg"}, {"type": "text", "text": "还原"}]}, {"role": "assistant", "content": "{}"}]]
+keep, bad = ns2["decontam"](rs, exam_q)
+assert bad == 2 and len(keep) == 2 and keep[0] is rs[2], (bad, keep)
+ok("和考题去重：问的几乎就是考题原话的（空格不同也算）不用；别的照常")
+B0, B1 = SRC.index("# ---- 按类型均衡"), SRC.index("# ---- 接着上一版训")
+
+
+class M(list):
+    pass
+
+
+def mk(kind, i):
+    m = M([{"role": "user", "content": "q%d" % i}, {"role": "assistant", "content": "a"}])
+    m.kind, m.fam, m.h = kind, None, "%s%04d" % (kind, i)
+    return m
+
+
+rs = [mk("doll", i) for i in range(80)] + [mk("slide", i) for i in range(20)]
+nsb = dict(rows=list(rs), EXAM_ROWS=[], p={"balance": {"by": "kind", "max": 0.5}, "minExamples": 1}, random=__import__("random"), hashlib=__import__("hashlib"), t={"files": {"data0": "x"}}, lg=types.SimpleNamespace(log=lambda *a: None))
+exec(SRC[B0:B1], nsb)
+kinds = [r.kind for r in nsb["rows"]]
+assert kinds.count("doll") == 50 and kinds.count("slide") == 20, (kinds.count("doll"), kinds.count("slide"))
+_ids = {id(r) for r in nsb["rows"]}
+assert [r.h for r in nsb["rows"]] == [r.h for r in rs if id(r) in _ids], "原来的先后不变"
+assert nsb["DATA_BY"] == {"doll": 50, "slide": 20} and len(nsb["DATA_SIG"]) == 16 and nsb["DATA_FILES"] == 1
+ok("按类型均衡：一类最多占一半（卡通小人 80 条只用 50 条），先后不变；记下各类多少条、数据指纹")
 print("训练答题大脑的循环：全部通过")

@@ -32,7 +32,8 @@ def find_hy3dgen(root):
     return None
 
 
-def run(image, out_glb, hy_root, quality="best", seed=1234, profile=None):
+def run(image, out_glb, hy_root, quality="best", seed=1234, profile=None, cands=1):
+    """cands > 1：用不同的随机种子做几个，每个都自己查一遍硬伤（lao3d/qc.py：断成几块、破洞、左右歪、比例），留最好的那个"""
     use_mirror()
     root = find_hy3dgen(hy_root)
     if not root:
@@ -83,14 +84,38 @@ def run(image, out_glb, hy_root, quality="best", seed=1234, profile=None):
         if hasattr(tex, "enable_model_cpu_offload"):
             tex.enable_model_cpu_offload()
 
-    say(stage="to3d", p=0.15, msg="长出造型" + ("（50 步，细节最多）" if best else ""))
+    cands = max(1, min(4, int(cands or 1)))
+    outs = []
+    for c in range(cands):
+        one = out_glb if cands == 1 else out_glb[:-4] + "-c%d.glb" % c
+        lo, hi = c / float(cands), (c + 1) / float(cands)
+        P = lambda x: round(lo + (hi - lo) * x, 3)
+        _one(shape, tex, img, one, int(seed) + c * 7919, best, P, torch, export_to_trimesh, FloaterRemover, DegenerateFaceRemover, FaceReducer, free_gpu, "（第 %d/%d 个）" % (c + 1, cands) if cands > 1 else "")
+        outs.append(one)
+    if cands == 1:
+        say(stage="to3d", p=1.0, msg="3D 模型做好了")
+        return out_glb
+    from .qc import rank
+    ranked = rank(outs)
+    for k, (f, r) in enumerate(ranked):
+        log("候选", k + 1, os.path.basename(f), "分数", r["score"], "；".join(r["problems"]) or "没有硬伤")
+    import shutil
+    shutil.copy(ranked[0][0], out_glb)
+    good = sum(1 for _, r in ranked if r["ok"])
+    say(stage="to3d", p=1.0, msg="做了 %d 个，%d 个没有硬伤，留了最好的那个" % (cands, good), qc=[{"file": os.path.basename(f), **r} for f, r in ranked])
+    return out_glb
+
+
+def _one(shape, tex, img, out_glb, seed, best, P, torch, export_to_trimesh, FloaterRemover, DegenerateFaceRemover, FaceReducer, free_gpu, tag=""):
+    """用一个随机种子做一个：长出造型 → 整理网格 → 上色"""
+    say(stage="to3d", p=P(0.15), msg="长出造型" + tag + ("（50 步，细节最多）" if best else ""))
     steps = 50 if best else 5
     gen = torch.Generator().manual_seed(int(seed))
 
     def cb(*a, **k):
         try:
             step = int(a[0]) if a else 0   # hy3dgen 调的是 callback(第几步, t, outputs)
-            say(stage="to3d", p=round(0.15 + 0.35 * (step + 1) / steps, 3), msg=f"长出造型：{step + 1}/{steps} 步")
+            say(stage="to3d", p=P(round(0.15 + 0.35 * (step + 1) / steps, 3)), msg=f"长出造型{tag}：{step + 1}/{steps} 步")
         except Exception:
             pass
     kw = dict(image=img, num_inference_steps=steps, guidance_scale=7.5 if best else 5.0, generator=gen, octree_resolution=384 if best else 256, num_chunks=100000, output_type="mesh")
@@ -99,14 +124,13 @@ def run(image, out_glb, hy_root, quality="best", seed=1234, profile=None):
     except TypeError:
         out = shape(**kw)
     mesh = export_to_trimesh(out)[0]
-    say(stage="to3d", p=0.52, msg="整理网格（去掉碎片、减面）")
+    say(stage="to3d", p=P(0.52), msg="整理网格（去掉碎片、减面）" + tag)
     mesh = FloaterRemover()(mesh)
     mesh = DegenerateFaceRemover()(mesh)
     mesh = FaceReducer()(mesh, max_facenum=60000 if best else 40000)
     mesh.export(os.path.join(os.path.dirname(out_glb) or ".", "shape.glb"))
     free_gpu()
-    say(stage="to3d", p=0.58, msg="上色：从几个角度画贴图（要几分钟）")
+    say(stage="to3d", p=P(0.58), msg="上色：从几个角度画贴图（要几分钟）" + tag)
     textured = tex(mesh, image=img)
     textured.export(out_glb)
-    say(stage="to3d", p=1.0, msg="3D 模型做好了")
     return out_glb

@@ -1,0 +1,168 @@
+{
+  "name": "看图反推工厂",
+  "mode": "continuous",
+  "stages": [
+    {
+      "key": "draw",
+      "name": "画 PPT 页面和卡通小人、故意弄脏（CPU，标签是画的时候就知道的）",
+      "kind": "map",
+      "recipe": "vis_gen",
+      "recipeFile": "../recipes/vis_gen.py",
+      "standing": true,
+      "keep": 20,
+      "params": {
+        "per": 64,
+        "kinds": [
+          "slide",
+          "doll"
+        ],
+        "examN": 100,
+        "tag": "vis"
+      },
+      "req": {
+        "cpu": true,
+        "ram": 4
+      },
+      "priority": 2
+    },
+    {
+      "key": "photo",
+      "name": "画虚拟老师的照片（AI 画图，虚构的人）→ 公仔特征",
+      "kind": "map",
+      "recipe": "vis_gen",
+      "recipeFile": "../recipes/vis_gen.py",
+      "standing": true,
+      "keep": 6,
+      "params": {
+        "per": 8,
+        "kinds": [
+          "photo"
+        ],
+        "exam": false,
+        "tag": "vis"
+      },
+      "req": {
+        "vram": 7.5,
+        "comfy": true
+      },
+      "priority": 3
+    },
+    {
+      "key": "train",
+      "name": "训练眼力（同事显卡，QLoRA，带图）",
+      "kind": "map",
+      "recipe": "qa_train",
+      "recipeFile": "../recipes/qa_train.py",
+      "when": {
+        "outputsOf": "vis",
+        "outputs": 30,
+        "minHours": 12
+      },
+      "params": {
+        "count": 1,
+        "exam": "vision",
+        "name": "vision-lora",
+        "outputsOf": "vis",
+        "warmStart": "vision-lora",
+        "minExamples": 1500,
+        "maxExamples": 12000,
+        "epochs": 2,
+        "rank": 16,
+        "lr": 0.0001,
+        "maxLen": 1536,
+        "evalN": 200,
+        "mmproj": {
+          "name": "mmproj-Qwen3VL-4B-Instruct-F16.gguf",
+          "mirrorModel": "llmMmproj",
+          "urls": [
+            "https://www.modelscope.cn/models/Qwen/Qwen3-VL-4B-Instruct-GGUF/resolve/master/mmproj-Qwen3VL-4B-Instruct-F16.gguf",
+            "https://hf-mirror.com/Qwen/Qwen3-VL-4B-Instruct-GGUF/resolve/main/mmproj-Qwen3VL-4B-Instruct-F16.gguf",
+            "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct-GGUF/resolve/main/mmproj-Qwen3VL-4B-Instruct-F16.gguf"
+          ]
+        },
+        "mixOf": [
+          {
+            "tag": "qa-math",
+            "max": 30
+          },
+          {
+            "tag": "chat",
+            "max": 10
+          },
+          {
+            "tag": "ground",
+            "max": 10
+          }
+        ],
+        "mixShare": 0.2,
+        "llm": {
+          "lazy": true,
+          "ctx": 8192,
+          "slots": 2
+        },
+        "modelsOf": [
+          "base-stack"
+        ],
+        "balance": {
+          "by": "kind",
+          "max": 0.5
+        }
+      },
+      "req": {
+        "vram": 7.5,
+        "llm": true,
+        "needFree": 6.5
+      },
+      "priority": 17
+    }
+  ],
+  "publish": {
+    "model": "vision-lora",
+    "from": "train",
+    "files": [
+      "lora",
+      "peft"
+    ],
+    "metrics": [
+      {
+        "k": "acc",
+        "better": "higher",
+        "tol": 9,
+        "min": "base_acc",
+        "minTol": 0.05
+      },
+      {
+        "k": "gain_lo",
+        "better": "higher",
+        "tol": 9,
+        "min": -0.02
+      },
+      {
+        "k": "cur_lo",
+        "better": "higher",
+        "tol": 9,
+        "min": -0.02
+      },
+      {
+        "k": "cur_gain",
+        "better": "higher",
+        "tol": 0,
+        "vs": "zero"
+      },
+      {
+        "k": "slide",
+        "better": "higher",
+        "tol": 9,
+        "min": "base_slide",
+        "minTol": 0.05
+      },
+      {
+        "k": "doll",
+        "better": "higher",
+        "tol": 9,
+        "min": "base_doll",
+        "minTol": 0.05
+      }
+    ]
+  }
+}

@@ -221,5 +221,65 @@ class Lao3D(unittest.TestCase):
         self.assertIn("error", json.loads([l for l in r.stdout.splitlines() if l.startswith("@@")][-1][2:]))
 
 
+def _sphere(c=(0, 0, 0), r=1.0, sy=1.0, nu=32, nv=20, cut=0.0):
+    """一个（竖着拉长的）球；cut > 0：把顶上挖掉一圈（留一个洞）"""
+    th = np.linspace(cut, np.pi, nv + 1)
+    ph = np.linspace(0, 2 * np.pi, nu + 1)[:-1]
+    pos = [(c[0] + r * np.sin(t) * np.cos(p), c[1] + r * np.cos(t) * sy, c[2] + r * np.sin(t) * np.sin(p)) for t in th for p in ph]
+    idx = []
+    for i in range(nv):
+        for j in range(nu):
+            a, b, d, e = i * nu + j, i * nu + (j + 1) % nu, (i + 1) * nu + j, (i + 1) * nu + (j + 1) % nu
+            idx += [(a, d, b), (b, d, e)]
+    return np.array(pos), np.array(idx)
+
+
+class QC(unittest.TestCase):
+    """生成出来的 3D 模型自己查硬伤：断成几块、破洞、左右歪、比例；几个候选里留最好的"""
+
+    @classmethod
+    def setUpClass(cls):
+        from lao3d.glb import Mesh
+        cls.tmp = tempfile.mkdtemp(prefix="lao3d-qc-")
+
+        def save(name, parts):
+            P, I, base = [], [], 0
+            for pos, idx in parts:
+                P.append(pos)
+                I.append(idx + base)
+                base += len(pos)
+            f = os.path.join(cls.tmp, name + ".glb")
+            write_glb(f, Mesh(np.concatenate(P), np.concatenate(I)))
+            return f
+        cls.good = save("good", [_sphere(sy=1.8)])
+        cls.broken = save("broken", [_sphere(sy=1.8), _sphere((2.5, 0, 0), 0.6)])
+        cls.holey = save("holey", [_sphere(sy=1.8, cut=0.5)])
+        lp, li = _sphere(sy=1.8)
+        lp = lp.copy()
+        lp[lp[:, 0] > 0, 0] *= 2.6   # 右半边鼓出去一大块
+        cls.lopsided = save("lopsided", [(lp, li)])
+
+    def test_check(self):
+        from lao3d.qc import check
+        g = check(self.good)
+        self.assertTrue(g["ok"], g)
+        self.assertIn("断成好几块", "".join(check(self.broken)["problems"]))
+        self.assertIn("有破洞", "".join(check(self.holey)["problems"]))
+        self.assertIn("左右歪", "".join(check(self.lopsided)["problems"]))
+
+    def test_rank_cli(self):
+        from lao3d.qc import rank
+        r = rank([self.broken, self.good, self.holey])
+        self.assertEqual(r[0][0], self.good)
+        out = os.path.join(self.tmp, "picked.glb")
+        env = dict(os.environ, PYTHONPATH=os.path.join(HERE, ".."), LAO3D_TEST_RAW=",".join([self.holey, self.good, self.broken]))
+        p = subprocess.run([sys.executable, "-m", "lao3d.run", "to3d", "--image", "x.png", "--out", out, "--cands", "3"], capture_output=True, text=True, env=env, encoding="utf-8")
+        self.assertEqual(p.returncode, 0, p.stderr[-2000:])
+        msgs = [json.loads(l[2:]) for l in p.stdout.splitlines() if l.startswith("@@")]
+        self.assertTrue(msgs[-1].get("done"))
+        self.assertEqual(open(out, "rb").read(), open(self.good, "rb").read())
+        self.assertTrue(any(m.get("qc") for m in msgs))
+
+
 if __name__ == "__main__":
     unittest.main()

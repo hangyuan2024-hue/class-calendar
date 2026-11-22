@@ -147,6 +147,10 @@
         "k": "zh_rate",
         "better": "higher",
         "tol": 0.02
+      },
+      {
+        "k": "frontier",
+        "info": true
       }
     ]
   }

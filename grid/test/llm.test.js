@@ -171,10 +171,12 @@ http.createServer((q,r)=>{r.writeHead(200);r.end("{}");}).listen(port,"127.0.0.1
     ag2.stop();
     assert.equal(db.prepare("select state from runs where id=?").get(pipe.runs[0].id).state, "done");
     assert.equal(seen[0], "stop", "训练前先关大模型，让出显存");
-    assert.ok(!seen[1].lora && seen[2].lora && /qa-lora\.gguf$/.test(seen[2].lora), "原版考一次、带上 LoRA 考一次");
+    assert.ok(seen.some((s) => s && Array.isArray(s.extraLoras) && /qa\-lora\.gguf$/.test(s.extraLoras[0]) && s.slots === 4), "原版、带上 qa-lora 同时考（一个大模型里挂着，请求里写比例）");
     assert.equal(seen[1].name, "Teacher-Q4.gguf");
     const m = await (await fetch(url + "/pub/models/manifest.json")).json();
-    assert.ok(m.models["qa-lora"] && m.models["qa-lora"].files[0].name === "lora", "考过了：发布给老师端");
+    assert.ok(m.models["qa-lora"] && m.models["qa-lora"].files[0].name === "lora", "考过了：发布给老师端（「前沿新题」只记下来，没有也不卡发布）");
+    const tr2 = JSON.parse(db.prepare("select t.result from tasks t join jobs j on j.id=t.job_id where j.name like '训练答题%' and t.state='done'").get().result);
+    assert.ok(/^[0-9a-f]{16}$/.test(tr2.data_sig) && tr2.data_by && tr2.data_files >= 2 && typeof tr2.decontam === "number", "这一轮用了哪些数据记下来了：" + JSON.stringify(tr2));
     ok(`训练答题大脑：新讲解攒够了自动开一轮；训练前先让出显存；原版和带 LoRA 各考一次（答对率 ${m.models["qa-lora"].metrics.acc}、原版 ${m.models["qa-lora"].metrics.base_acc}）；考过了发布 qa-lora`);
   }
 

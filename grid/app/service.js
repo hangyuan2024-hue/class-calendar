@@ -484,7 +484,7 @@ function createService(o) {
   // 自动更新（只在装好的软件里开；开发和测试时 o.install 没给就不开）
   let recording = false;
   const updater = Updater.create({ dir: base, version: o.version, agent: () => agent,
-    gate: async (v) => (agent && agent.api ? agent.api("/api/update-gate", { version: v }) : { ok: true }), idleSecs: o.idleSecs, windowHidden: o.windowHidden, recording: () => recording,
+    gate: async (v, cur) => (agent && agent.api ? agent.api("/api/update-gate", { version: v, current: cur }) : { ok: true }), idleSecs: o.idleSecs, windowHidden: o.windowHidden, recording: () => recording,
     install: o.install || (async () => { throw new Error("这个版本不能自动更新"); }), onEvent: (e) => { send("update", e); if (e.state === "ready" && !e.waiting) L(`新版 ${e.latest} 下载好了`, "info", "更新"); },
     notify: (t, b) => notify(t, b, "update"), ...(EDITION.open ? { sources: Updater.OPEN_SOURCES } : {}), ...(o.updaterOpt || {}) });
   if (o.install && o.autoUpdate !== false) updater.start();

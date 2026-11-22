@@ -107,6 +107,7 @@ def main(argv=None):
     ap.add_argument("--out")
     ap.add_argument("--n", type=int, default=3)
     ap.add_argument("--quality", default="best", choices=["best", "fast"])
+    ap.add_argument("--cands", type=int, default=1, help="to3d：用不同的随机种子做几个，自己查硬伤、留最好的（1～4）")
     ap.add_argument("--clothes", default="guochao", choices=["guochao", "photo", "style"])
     ap.add_argument("--seed", type=int)
     ap.add_argument("--hints")
@@ -128,10 +129,17 @@ def main(argv=None):
                 outs.append({"file": g, "seed": i})
                 say(stage="stylize", p=round((i + 1) / a.n, 2), msg=f"第 {i + 1} 张画好了（测试）", cand=g)
             say(stage="stylize", p=1.0, msg="立绘画好了，挑一张", done=True, cands=outs)
-        elif a.cmd == "to3d" and os.environ.get("LAO3D_TEST_RAW"):   # 测试用：拿现成的模型当生成的
+        elif a.cmd == "to3d" and os.environ.get("LAO3D_TEST_RAW"):   # 测试用：拿现成的模型当生成的（逗号隔开几个 = 几个候选，照样查硬伤、留最好的）
             import shutil
-            shutil.copy(os.environ["LAO3D_TEST_RAW"], a.out)
-            say(stage="to3d", p=1.0, msg="3D 模型做好了（测试）", done=True, file=a.out)
+            raws = os.environ["LAO3D_TEST_RAW"].split(",")
+            if len(raws) == 1:
+                shutil.copy(raws[0], a.out)
+                say(stage="to3d", p=1.0, msg="3D 模型做好了（测试）", done=True, file=a.out)
+            else:
+                from .qc import rank
+                ranked = rank(raws)
+                shutil.copy(ranked[0][0], a.out)
+                say(stage="to3d", p=1.0, msg="做了 %d 个，留了最好的那个（测试）" % len(raws), done=True, file=a.out, qc=[{"file": os.path.basename(f), **r} for f, r in ranked])
         elif a.cmd == "stylize":
             from .stylize import run
             extra = [f for f in (a.extra or "").split(",") if f and os.path.exists(f)]
@@ -139,7 +147,7 @@ def main(argv=None):
             say(stage="stylize", p=1.0, msg="立绘画好了，挑一张", done=True, cands=outs)
         elif a.cmd == "to3d":
             from .to3d import run
-            f = run(a.image, a.out, a.hy, quality=a.quality, seed=1234 if a.seed is None else a.seed)
+            f = run(a.image, a.out, a.hy, quality=a.quality, seed=1234 if a.seed is None else a.seed, cands=a.cands)
             say(stage="to3d", p=1.0, msg="3D 模型做好了", done=True, file=f)
         elif a.cmd == "build":
             from .build import build

@@ -35,19 +35,25 @@ function create(o) {
       for (const u of o.sources || SOURCES) { try { info = await fetchJson(u); if (info && info.version) break; } catch (e) { err = e; } }
       set({ checked: Date.now() });
       if (!info || !info.version) { set({ state: st.state === "ready" ? "ready" : "idle", error: "查不到新版本：" + (err ? err.message : "") }); return st; }
-      if (!newer(info.version, o.version)) { set({ state: "idle", latest: info.version, error: "" }); return st; }
       // 分批推：先问调度中心「这一台现在能不能换新版」（先一台试 → 一半 → 全部；新版出错多就停推）；遥控「立刻更新」不问
-      if (o.gate && !force) {
-        let g = null;
-        try { g = await o.gate(info.version); } catch (e) { g = null; }   // 老调度中心没有这个接口：照旧更新
-        if (g && g.ok === false) { set({ state: "held", latest: info.version, waiting: g.why || "新版先在别的电脑上试", error: "" }); return st; }
+      //   自己装着的就是停推的那个坏版本（调度中心说 rollback）：用留着的上一版安装包退回去
+      let g = null;
+      if (o.gate && !force && (newer(info.version, o.version) || info.version === o.version)) {
+        try { g = await o.gate(info.version, o.version); } catch (e) { g = null; }   // 老调度中心没有这个接口：照旧更新
+        if (g && g.rollback) {
+          const back = kept();
+          if (back) { set({ state: "ready", latest: back.version, file: back.file, progress: 1, error: "", readyAt: Date.now() - 7 * 3600e3, rollback: true, waiting: g.why || "新版出错多：退回上一版" }); return st; }
+          set({ error: "新版出错多，但这台电脑没留上一版的安装包：去官网下载上一版重装" });
+        }
       }
+      if (!newer(info.version, o.version)) { if (!(g && g.rollback)) set({ state: "idle", latest: info.version, error: "" }); return st; }
+      if (g && g.ok === false) { set({ state: "held", latest: info.version, waiting: g.why || "新版先在别的电脑上试", error: "" }); return st; }
       const file = path.join(dir(), `LaolaoGrid-Setup-${info.version}.exe`);
       if (st.state === "ready" && st.file === file && fs.existsSync(file)) return st;
       if (fs.existsSync(file + ".ok") && fs.existsSync(file)) { set({ state: "ready", latest: info.version, notes: info.notes || "", file, progress: 1, error: "", readyAt: st.readyAt || Date.now() }); return st; }
       fs.mkdirSync(dir(), { recursive: true });
-      // 旧的安装包删掉
-      for (const f of fs.readdirSync(dir())) if (!f.startsWith(`LaolaoGrid-Setup-${info.version}.exe`)) fs.rmSync(path.join(dir(), f), { force: true });
+      // 旧的安装包删掉（现在装着的这一版的留着：新版出错多时退回用）
+      for (const f of fs.readdirSync(dir())) if (!f.startsWith(`LaolaoGrid-Setup-${info.version}.exe`) && !f.startsWith(`LaolaoGrid-Setup-${o.version}.exe`)) fs.rmSync(path.join(dir(), f), { force: true });
       set({ state: "downloading", latest: info.version, notes: info.notes || "", progress: 0, error: "" });
       let ok = false;
       for (const u of [info.cn, info.url].filter(Boolean)) {
@@ -88,6 +94,17 @@ function create(o) {
     set({ state: "installing" });
     try { await o.install(st.file); return true; }
     catch (e) { applying = false; if (a) a.drain(false); set({ state: "ready", error: "安装失败：" + e.message }); return false; }
+  }
+  // 留着的、比现在旧的安装包里最新的那个（退回用）
+  function kept() {
+    try {
+      let best = null;
+      for (const f of fs.readdirSync(dir())) {
+        const m = /^LaolaoGrid-Setup-(\d+\.\d+\.\d+)\.exe$/.exec(f);
+        if (m && newer(o.version, m[1]) && fs.existsSync(path.join(dir(), f + ".ok")) && (!best || newer(m[1], best.version))) best = { version: m[1], file: path.join(dir(), f) };
+      }
+      return best;
+    } catch (e) { return null; }
   }
   // 上次下好还没装的（开机 / 退出时用）
   function pending() {

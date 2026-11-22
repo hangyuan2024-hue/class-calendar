@@ -889,7 +889,9 @@ function create(opt) {
         cacheEnv[k] = path.join(cacheDir, sub);
         try { fs.mkdirSync(cacheEnv[k], { recursive: true }); } catch (e) {}
       }
-      const env = { ...process.env, ...cacheEnv, ...(opt.env || {}), ...extraEnv, PYTHONPATH: PY_DIR + path.delimiter + (process.env.PYTHONPATH || ""), PYTHONUNBUFFERED: "1", PYTHONIOENCODING: "utf-8", LG_TASK: taskFile, LG_RECIPE: file, ...(c.paceFile ? { LG_PACE: c.paceFile } : {}) };
+      const env = { ...process.env, ...cacheEnv, ...(opt.env || {}), ...extraEnv, PYTHONPATH: PY_DIR + path.delimiter + (process.env.PYTHONPATH || ""), PYTHONUNBUFFERED: "1", PYTHONIOENCODING: "utf-8", LG_TASK: taskFile, LG_RECIPE: file,
+        // PPT 操作工厂要用捞捞PPT助手自己改 PPT 的那一套（app/ppt/pptlab.js）：用软件自带的 Node（Electron 当 Node 用）跑
+        LG_NODE: opt.nodeExe || process.execPath, LG_PPTLAB: opt.pptlab || path.join(__dirname, "..", "app", "ppt", "pptlab.js"), ...(c.paceFile ? { LG_PACE: c.paceFile } : {}) };
       const t0 = Date.now();
       const child = c.child = spawn(python(), ["-u", file], { cwd: c.dir, env, windowsHide: true, detached: process.platform !== "win32" });
       const lines = (s, err) => {
@@ -978,7 +980,9 @@ function create(opt) {
             if (a.lora) spec.lora = inDir(a.lora);
             // 底座的永久层（base-stack：合进底座的几个 LoRA，各带比例）：一直按比例挂着
             if (Array.isArray(a.base)) spec.baseLoras = a.base.slice(0, 16).map((x) => ({ path: inDir(x.path), scale: Math.max(0, Math.min(2, +x.scale || 1)) }));
-            return { url: await opt.llm.ensure(spec, (x) => { c.note = x; c.lastOut = Date.now(); emit("progress", { id: c.id, p: c.progress, note: x }); }), base: (spec.baseLoras || []).length };
+            // 另外挂着、平时比例 0 的 LoRA（考试时原版和新版在同一个大模型里同时考：请求里写各自的比例）
+            if (Array.isArray(a.extra)) spec.extraLoras = a.extra.slice(0, 4).map(inDir);
+            return { url: await opt.llm.ensure(spec, (x) => { c.note = x; c.lastOut = Date.now(); emit("progress", { id: c.id, p: c.progress, note: x }); }), base: (spec.baseLoras || []).length, extra: (spec.extraLoras || []).length };
           })
           .then((r) => reply({ ok: true, ...r }), (e) => reply({ ok: false, error: e.message }));
         break;

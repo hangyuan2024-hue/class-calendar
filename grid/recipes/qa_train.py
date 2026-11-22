@@ -12,6 +12,11 @@
 同一个配方也训「口语对话大脑」（params.exam = "chat"，数据来自 chat_gen.py）：打电话时说话像人——短、念得出来、听错字也懂。
   考试换成一套固定的口语考题（下面的 CHAT_EXAM：讲概念、口头算题、带识别错字的问法、闲聊、没说清楚的话）：
   acc = 关键信息说对了的比例，speak = 念得出来的比例（规则检查，和 chat_gen.py 的一样）
+同一个配方也训「改 PPT」（params.exam = "ppt"，数据来自 ppt_gen.py：练习场里做对的那几遍，每一步一条，带工具调用）：
+  考试在同一个练习场里真的去改（app/ppt/pptlab.js，种子固定）：acc = 练过的那些改法做对的比例，ood = 没练过的工具 / 版式做对的比例（看是不是真会了，不是背题）
+同一个配方也训「眼力」（params.exam = "vision"，数据来自 vis_gen.py：看图 → 写出 PPT 这一页的数据 / 公仔特征，带图片）：
+  考试用 vis_gen 交的固定考卷：acc 总的对的比例，slide / doll 分开看
+训新本事的时候顺便复习老本行（params.mixOf：答题、口语……最近交的数据，按 mixShare 的比例混进来），学了新的不忘旧的。
 """
 # needs: llm
 # requires: transformers>=4.57,<5 peft>=0.17 bitsandbytes>=0.46 accelerate modelscope sentencepiece protobuf
@@ -41,6 +46,83 @@ def llm_start(**kw):
         raise RuntimeError(why)
     return r
 
+
+# ==== PPT 练习场（ppt_gen.py 和 qa_train.py 里这一段一字不差，测试里核对）====
+class PptLab:
+    """捞捞PPT助手的练习场（app/ppt/pptlab.js）：出题、调工具、判对错。一行一个 JSON 命令"""
+
+    def __init__(self):
+        node, lab = os.environ.get("LG_NODE"), os.environ.get("LG_PPTLAB")
+        if not node or not lab or not os.path.exists(lab):
+            why = "这台电脑的客户端太旧，没有 PPT 练习场：更新客户端以后再领这个任务"
+            getattr(lg, "unfit", lambda w: None)(why)
+            raise RuntimeError(why)
+        env = dict(os.environ, ELECTRON_RUN_AS_NODE="1")
+        self.p = subprocess.Popen([node, lab], stdin=subprocess.PIPE, stdout=subprocess.PIPE, env=env, cwd=os.path.dirname(lab))
+        self.lock = threading.Lock()
+
+    def ask(self, **m):
+        with self.lock:
+            self.p.stdin.write((json.dumps(m, ensure_ascii=False) + "\n").encode("utf-8"))
+            self.p.stdin.flush()
+            line = self.p.stdout.readline()
+        if not line:
+            raise RuntimeError("PPT 练习场退出了")
+        return json.loads(line.decode("utf-8"))
+
+    def close(self):
+        try:
+            self.p.stdin.close()
+            self.p.wait(timeout=10)
+        except Exception:
+            try:
+                self.p.kill()
+            except Exception:
+                pass
+
+
+def ppt_chat(url, msgs, tools, temp, extra=None):
+    body = {"messages": msgs, "tools": tools, "temperature": temp, "top_p": 0.95, "max_tokens": 1500, "chat_template_kwargs": {"enable_thinking": False}, **(extra or {})}
+    req = urllib.request.Request(url + "/v1/chat/completions", data=json.dumps(body, ensure_ascii=False).encode("utf-8"), headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=900) as r:
+        return json.loads(r.read().decode("utf-8"))["choices"][0]["message"]
+
+
+def ppt_episode(url, lab, seed, split, temp=0.0, rounds=8, extra=None):
+    """做一道题：模型说一句 → 调工具（练习场真的去改，结果原样给它看）→ 再说……直到不调工具为止；最后程序判对错。
+    返回 dict(ok, why, fam, messages 整段对话（第一条是系统提示）, steps 模型说话的那几条的位置, id 题号)"""
+    t = lab.ask(op="task", seed=seed, split=split)
+    if not t.get("ok"):
+        raise RuntimeError(t.get("error") or "出不了题")
+    msgs = [{"role": "system", "content": t["system"]}] + t["messages"]
+    calls, reply, steps = [], "", []
+    for r in range(rounds):
+        m = ppt_chat(url, msgs, t["tools"], temp, extra)
+        content = re.sub(r"<think>.*?</think>", "", m.get("content") or "", flags=re.S).strip()
+        am = {"role": "assistant", "content": content}
+        tc = m.get("tool_calls") or []
+        if tc:
+            am["tool_calls"] = [{"id": c.get("id") or "call_%d_%d" % (r, j), "type": "function",
+                                 "function": {"name": (c.get("function") or {}).get("name") or "", "arguments": (c.get("function") or {}).get("arguments") or "{}"}} for j, c in enumerate(tc)]
+        msgs.append(am)
+        steps.append(len(msgs) - 1)
+        if not tc:
+            reply = content
+            break
+        for c in am["tool_calls"]:
+            name = c["function"]["name"]
+            calls.append(name)
+            try:
+                args = json.loads(c["function"]["arguments"] or "{}")
+            except ValueError:
+                args = {}
+            res = lab.ask(op="tool", id=t["id"], name=name, args=args if isinstance(args, dict) else {})
+            out = res["result"] if res.get("ok") else {"error": res.get("error")}
+            msgs.append({"role": "tool", "tool_call_id": c["id"], "name": name, "content": json.dumps(out, ensure_ascii=False, separators=(",", ":"))[:6000]})
+    ck = lab.ask(op="check", id=t["id"], reply=reply, calls=calls)
+    return {"ok": bool(ck.get("pass")), "why": ck.get("why"), "fam": t["fam"], "messages": msgs, "steps": steps, "id": t["id"], "tools": t["tools"], "nref": t.get("nref", 0)}
+# ==== PPT 练习场 结束 ====
+
 t = lg.task()
 p = t["job"]["params"]
 work = lg.work_dir()
@@ -49,7 +131,9 @@ BASE_REPO = p.get("baseRepo", "Qwen/Qwen3-VL-4B-Instruct")
 GGUF_REPO = p.get("ggufRepo", "Qwen/Qwen3-VL-4B-Instruct-GGUF")
 CHAT = p.get("exam") == "chat"
 GROUND = p.get("exam") == "ground"   # 先核对再回答（数据来自 ground_gen.py；考试见下面的 GROUND 考试）
-NAME = p.get("name") or ("chat-lora" if CHAT else "ground-lora" if GROUND else "qa-lora")
+PPT = p.get("exam") == "ppt"         # 改 PPT（数据来自 ppt_gen.py；考试在 PPT 练习场里真的去改）
+VISION = p.get("exam") == "vision"   # 看图反推（数据来自 vis_gen.py；考试用它交的固定考卷）
+NAME = p.get("name") or ("chat-lora" if CHAT else "ground-lora" if GROUND else "ppt-lora" if PPT else "vision-lora" if VISION else "qa-lora")
 # 语音通话的规则：和 chat_gen.py、成品展示打电话时加给捞小智的那一段一字不差（测试里核对）
 SPOKEN = """现在是语音通话：你说的每一句都会被念出来。
 · 说口语、用短句，一次说两三句，先说最要紧的；要讲的内容很长，先讲第一步，再问对方要不要接着讲。
@@ -68,25 +152,107 @@ def get(url, timeout=60):
 
 
 # ---------------- 1. 数据 ----------------
-rows, seen = [], set()
-for k, f in sorted((t.get("files") or {}).items()):
-    if not k.startswith("data"):
-        continue
+class Msgs(list):
+    """一条训练数据（一段对话）；带工具说明（tools）、图片（images：本机路径）的另外记着"""
+    tools = None
+    images = ()
+
+
+def ctext(c):
+    """消息内容里的字（内容可能是字符串，也可能是 [{type: text / image}] 这样的列表）"""
+    if isinstance(c, str):
+        return c
+    return "\n".join((x.get("text") or "") if x.get("type") == "text" else "[图:%s]" % os.path.basename(str(x.get("image") or "")) for x in (c or []) if isinstance(x, dict))
+
+
+def data_lines(f, k):
+    """一个数据文件 → (行, 图片所在的文件夹)。zip 的数据包（vis_gen 交的：rows.jsonl + 图片）先解开"""
+    if f.lower().endswith(".zip") or open(f, "rb").read(2) == b"PK":
+        import zipfile
+        d = os.path.join(work, "data-" + re.sub(r"[^\w-]", "_", k))
+        if not os.path.exists(os.path.join(d, ".ok")):
+            shutil.rmtree(d, ignore_errors=True)
+            with zipfile.ZipFile(f) as z:
+                z.extractall(d)
+            open(os.path.join(d, ".ok"), "w").close()
+        for rf in glob.glob(os.path.join(d, "**", "*.jsonl"), recursive=True):
+            with open(rf, encoding="utf-8") as fh:
+                for line in fh:
+                    yield line, os.path.dirname(rf)
+        return
     with open(f, encoding="utf-8") as fh:
         for line in fh:
+            yield line, None
+
+
+def load_rows(prefix):
+    out, exam, seen_ = [], [], set()
+    for k, f in sorted((t.get("files") or {}).items()):
+        if not k.startswith(prefix):
+            continue
+        for line, base_d in data_lines(f, k):
             try:
                 r = json.loads(line)
-                q = "\n".join(m["content"] for m in r["messages"] if m["role"] == "user")
+                q = "\n".join(ctext(m["content"]) for m in r["messages"] if m["role"] == "user")
                 last = r["messages"][-1]
                 if not q or last["role"] != "assistant":
                     continue
-            except (ValueError, KeyError, IndexError, TypeError):
+            except (ValueError, KeyError, IndexError, TypeError, AttributeError):
+                try:   # 前沿难题（math_search 交的：现在的模型一遍都做不对的题）：不训练，攒着当「质变」考试的新题
+                    if isinstance(r, dict) and r.get("q") and r.get("answer") is not None and "messages" not in r and r["q"] not in FRONTIER_SEEN:
+                        FRONTIER_SEEN.add(r["q"])
+                        FRONTIER.append((r["q"], r["answer"]))
+                except Exception:
+                    pass
                 continue
-            h = hashlib.md5((q + last["content"][:50]).encode("utf-8")).hexdigest()
-            if h not in seen:
-                seen.add(h)
-                rows.append(r["messages"])
-lg.log("讲解：%d 条（去掉了重复的）" % len(rows))
+            h = hashlib.md5((q + (last.get("content") or "")[:50] + json.dumps(last.get("tool_calls") or "", ensure_ascii=False) + str(len(r["messages"]))).encode("utf-8")).hexdigest()
+            if h in seen_:
+                continue
+            seen_.add(h)
+            ms = Msgs(r["messages"])
+            ms.tools = r.get("tools")
+            imgs = []
+            for m in ms:
+                if isinstance(m.get("content"), list):
+                    for x in m["content"]:
+                        if isinstance(x, dict) and x.get("type") == "image" and x.get("image"):
+                            imgs.append(os.path.join(base_d or "", x["image"]))
+            if imgs and not all(os.path.exists(x) for x in imgs):
+                continue
+            ms.images = imgs
+            ms.target = r.get("target")
+            ms.kind = r.get("kind") or ((r.get("meta") or {}).get("kind") if isinstance(r.get("meta"), dict) else None)
+            ms.fam = r.get("fam")
+            ms.h = h
+            (exam if r.get("exam") else out).append(ms)
+    return out, exam
+
+
+FRONTIER, FRONTIER_SEEN = [], set()
+rows, EXAM_ROWS = load_rows("data")
+# ---- 按类型均衡（params.balance = {"by": "kind" / "fam", "max": 0.4}）：哪一类太多就只留一部分，别让一种题占满 ----
+if p.get("balance") and rows:
+    _by, _mx = p["balance"].get("by", "kind"), float(p["balance"].get("max", 0.4))
+    _groups = {}
+    for _r in rows:
+        _groups.setdefault(getattr(_r, _by, None) or "?", []).append(_r)
+    if len(_groups) > 1:
+        _cap = max(1, int(_mx * len(rows)))
+        _keep = []
+        for _g, _rs in _groups.items():
+            random.Random(len(_rs)).shuffle(_rs)
+            if len(_rs) > _cap:
+                lg.log("按类型均衡：「%s」有 %d 条，太多了，只用 %d 条" % (_g, len(_rs), _cap))
+            _keep += _rs[:_cap]
+        _ks = set(id(x) for x in _keep)
+        rows = [x for x in rows if id(x) in _ks]   # 原来的先后不变（接着上一版训要按交上来的先后认新旧）
+DATA_BY = {}
+for _r in rows:
+    _k = str(getattr(_r, "kind", None) or "?") + ("·" + str(_r.fam) if getattr(_r, "fam", None) else "")
+    DATA_BY[_k] = DATA_BY.get(_k, 0) + 1
+DATA_SIG = hashlib.md5("".join(sorted(_r.h for _r in rows)).encode("utf-8")).hexdigest()[:16]   # 数据指纹：这一轮用了哪些数据（同一份数据指纹一样）
+DATA_FILES = sum(1 for _k in (t.get("files") or {}) if _k.startswith("data"))
+lg.log("讲解：%d 条（去掉了重复的）%s" % (len(rows), "；固定考题 %d 道" % len(EXAM_ROWS) if EXAM_ROWS else ""))
 if len(rows) < int(p.get("minExamples", 300)):
     lg.done(skip="讲解还不够（%d 条，要 %d 条），先攒着" % (len(rows), int(p.get("minExamples", 300))), examples=len(rows))
     raise SystemExit(0)
@@ -139,21 +305,31 @@ rows = rows[: int(p.get("maxExamples", 8000))]
 PREV = (t.get("extra") or {}).get("prev") or {}
 HP = {"lr": float(p.get("lr", 1e-4)), "epochs": int(p.get("epochs", 2)), "replay": float(p.get("replay", 2))}
 TRY = None
+TRY_K, TRY_X = None, None   # 这一轮改的是哪个参数、往哪个方向（发布了的话，下一轮接着往同一个方向试）
 if p.get("evolve", True):
     for _k, _v in (PREV.get("hp") or {}).items():
         if _k in HP and isinstance(_v, (int, float)) and _v > 0:
             HP[_k] = type(HP[_k])(_v)
     _rng = random.Random("hp-%d" % _total)
-    if PREV.get("hp") is not None and _rng.random() < float(p.get("evolveRate", 0.5)):
-        _k = _rng.choice(["lr", "lr", "epochs", "replay"])
+    # 考试准了以后调得更快：现在发布的那一版就是「改了某个参数、考得更好」发布的 → 这一轮大概率（momentum）接着往同一个方向再试一步
+    _mk, _mx = PREV.get("tried_k"), PREV.get("tried_x")
+    _mom = PREV.get("hp") is not None and _mk in ("lr", "epochs", "replay") and isinstance(_mx, (int, float)) and _rng.random() < float(p.get("momentum", 0.7))
+    if _mom or (PREV.get("hp") is not None and _rng.random() < float(p.get("evolveRate", 0.5))):
+        _k = _mk if _mom else _rng.choice(["lr", "lr", "epochs", "replay"])
         _old = HP[_k]
         if _k == "lr":
-            HP[_k] = min(4e-4, max(2e-5, _old * _rng.choice([0.67, 1.5])))
+            _x = float(_mx) if _mom else _rng.choice([0.67, 1.5])
+            HP[_k] = min(4e-4, max(2e-5, _old * _x))
         elif _k == "epochs":
-            HP[_k] = min(3, max(1, _old + _rng.choice([-1, 1])))
+            _x = int(_mx) if _mom else _rng.choice([-1, 1])
+            HP[_k] = min(3, max(1, _old + _x))
         else:
-            HP[_k] = min(6.0, max(0.5, _old * _rng.choice([0.5, 2.0])))
+            _x = float(_mx) if _mom else _rng.choice([0.5, 2.0])
+            HP[_k] = min(6.0, max(0.5, _old * _x))
         if HP[_k] != _old:
+            TRY_K, TRY_X = _k, _x
+            if _mom:
+                lg.log("上一次往这个方向改、考得更好发布了：这一轮接着往同一个方向再试一步")
             TRY = "%s：%s → %s" % ({"lr": "学习率", "epochs": "训几遍", "replay": "复习旧数据的倍数"}[_k], ("%g" % _old), ("%g" % HP[_k]))
             lg.log("这一轮试一个改动（考得更好就留下，没更好就淘汰）：" + TRY)
 if WARM and HP["replay"] != float(p.get("replay", 2)):
@@ -164,6 +340,18 @@ if WARM and HP["replay"] != float(p.get("replay", 2)):
     WARM["replay"] = len(_rp)
     rows = _new + _rp
     random.Random(0).shuffle(rows)
+
+
+# ---- 复习老本行：别的本事最近的数据（params.mixOf），按 mixShare 的比例混进来（学了新的不忘旧的）----
+MIX_N = 0
+if p.get("mixOf"):
+    _mix, _ = load_rows("mix_")
+    random.Random(len(rows)).shuffle(_mix)
+    MIX_N = min(len(_mix), int(len(rows) * float(p.get("mixShare", 0.2)) / max(0.05, 1 - float(p.get("mixShare", 0.2)))))
+    if MIX_N:
+        rows = rows + _mix[:MIX_N]
+        random.Random(1).shuffle(rows)
+        lg.log("顺便复习老本行：混进 %d 条（答题、口语……最近的数据），学了新的不忘旧的" % MIX_N)
 
 
 # ---------------- 2. 底子（Hugging Face 格式，训练用）----------------
@@ -437,18 +625,68 @@ def train(base):
     def as_msgs(ms):
         return [{"role": m["role"], "content": [{"type": "text", "text": m["content"]}]} for m in ms]
 
+    def as_img_msgs(ms):
+        """带图片的：图片那一格只写 {type: image}（图本身另外交给 processor），其余照旧"""
+        out = []
+        for m in ms:
+            c = m["content"]
+            if isinstance(c, list):
+                out.append({"role": m["role"], "content": [{"type": "image"} if x.get("type") == "image" else {"type": "text", "text": x.get("text") or ""} for x in c]})
+            else:
+                out.append({"role": m["role"], "content": [{"type": "text", "text": c or ""}]})
+        return out
+
+    def as_tool_msgs(ms):
+        """带工具调用的：照 OpenAI 的写法原样交给通义千问自己的对话模板（tool_calls、tool 的回话）"""
+        out = []
+        for m in ms:
+            x = {"role": m["role"], "content": m.get("content") or ""}
+            if m.get("tool_calls"):
+                x["tool_calls"] = [{"type": "function", "id": c.get("id"), "function": {"name": c["function"]["name"], "arguments": json.loads(c["function"]["arguments"] or "{}") if isinstance(c["function"].get("arguments"), str) else c["function"].get("arguments") or {}}} for c in m["tool_calls"]]
+            if m["role"] == "tool":
+                x["tool_call_id"] = m.get("tool_call_id")
+                x["name"] = m.get("name")
+            out.append(x)
+        return out
+
     max_len = int(p.get("maxLen", 1024))
-    data = []
+    data, n_img, n_tool = [], 0, 0
     for ms in rows:
-        full = proc.apply_chat_template(as_msgs(ms), tokenize=False, add_generation_prompt=False)
-        head = proc.apply_chat_template(as_msgs(ms[:-1]), tokenize=False, add_generation_prompt=True)
-        ids = tok(full, add_special_tokens=False)["input_ids"][:max_len]
-        n_head = len(tok(head, add_special_tokens=False)["input_ids"])
+        tools = getattr(ms, "tools", None)
+        if tools == "$ppt":
+            tools = ppt_tools()
+        imgs = list(getattr(ms, "images", ()) or ())
+        ex = None
+        if imgs:
+            from PIL import Image as _Img
+            pics = [_Img.open(x).convert("RGB") for x in imgs]
+            full = proc.apply_chat_template(as_img_msgs(ms), tokenize=False, add_generation_prompt=False)
+            head = proc.apply_chat_template(as_img_msgs(ms[:-1]), tokenize=False, add_generation_prompt=True)
+            enc = proc(text=[full], images=pics, return_tensors="pt")
+            ids = enc["input_ids"][0].tolist()
+            if len(ids) > max_len:
+                continue   # 带图的不能截（图的那几百个位置截掉就对不上了）：太长的不要
+            n_head = len(proc(text=[head], images=pics, return_tensors="pt")["input_ids"][0])
+            ex = {"pixel_values": enc["pixel_values"], "image_grid_thw": enc["image_grid_thw"]}
+            n_img += 1
+        elif tools:
+            full = proc.apply_chat_template(as_tool_msgs(ms), tools=tools, tokenize=False, add_generation_prompt=False)
+            head = proc.apply_chat_template(as_tool_msgs(ms[:-1]), tools=tools, tokenize=False, add_generation_prompt=True)
+            ids = tok(full, add_special_tokens=False)["input_ids"]
+            if len(ids) > max_len:
+                continue   # 截掉的是要学的那一句：太长的不要
+            n_head = len(tok(head, add_special_tokens=False)["input_ids"])
+            n_tool += 1
+        else:
+            full = proc.apply_chat_template(as_msgs(ms), tokenize=False, add_generation_prompt=False)
+            head = proc.apply_chat_template(as_msgs(ms[:-1]), tokenize=False, add_generation_prompt=True)
+            ids = tok(full, add_special_tokens=False)["input_ids"][:max_len]
+            n_head = len(tok(head, add_special_tokens=False)["input_ids"])
         if n_head >= len(ids) - 4:
             continue
         labels = [-100] * n_head + ids[n_head:]
-        data.append((ids, labels))
-    lg.log("能用的：%d 条（太长的截到 %d 个字）" % (len(data), max_len))
+        data.append((ids, labels, ex))
+    lg.log("能用的：%d 条（太长的截到 %d 个字%s）" % (len(data), max_len, "；带图的 %d 条、带工具调用的 %d 条" % (n_img, n_tool) if n_img or n_tool else ""))
 
     epochs, accum = int(HP["epochs"]), int(p.get("accum", 16))
     # 留一小部分不训，只用来测（验证集）：训着训着它不再变好，就是学到头了 → 提前停，不白算后面的
@@ -509,24 +747,36 @@ def train(base):
     best, stale, stop_early = [float("inf"), 0, None], 0, False
     val_every = int(p.get("valEvery", 0)) or max(5, steps // 10)
 
+    def take(seq, k):
+        """从第 k 条往后拼一批：一批的大小 = 条数 × 最长那条的字数，不超过预算。带图的一条一批（图的大小各不一样）"""
+        if seq[k][2] is not None:
+            return 1, len(seq[k][0])
+        n, width = 0, 0
+        while k + n < len(seq) and n < max_bs and seq[k + n][2] is None:
+            w2 = max(width, min(len(seq[k + n][0]), budget))
+            if n and (n + 1) * w2 > budget:
+                break
+            n, width = n + 1, w2
+        return n, width
+
+    def img_kw(ex):
+        if not ex:
+            return {}
+        return {"pixel_values": ex["pixel_values"].to("cuda", dtype=torch.bfloat16), "image_grid_thw": ex["image_grid_thw"].to("cuda")}
+
     def val_loss():
         model.eval()
         tot, cnt, i = 0.0, 0, 0
         vs = sorted(val, key=lambda d: -len(d[0]))
         with torch.no_grad():
             while i < len(vs):
-                n, width = 0, 0
-                while i + n < len(vs) and n < max_bs:
-                    w2 = max(width, min(len(vs[i + n][0]), budget))
-                    if n and (n + 1) * w2 > budget:
-                        break
-                    n, width = n + 1, w2
-                b = [(ids[:width], labels[:width]) for ids, labels in vs[i:i + n]]
+                n, width = take(vs, i)
+                b = [(ids[:width], labels[:width]) for ids, labels, _ in vs[i:i + n]]
                 x = torch.tensor([ids + [pad_id] * (width - len(ids)) for ids, _ in b], device="cuda")
                 m = torch.tensor([[1] * len(ids) + [0] * (width - len(ids)) for ids, _ in b], device="cuda")
                 y = torch.tensor([labels + [-100] * (width - len(labels)) for _, labels in b], device="cuda")
                 with torch.autocast("cuda", dtype=torch.bfloat16):
-                    tot += model(input_ids=x, attention_mask=m, labels=y).loss.item() * len(b)
+                    tot += model(input_ids=x, attention_mask=m, labels=y, **img_kw(vs[i][2] if n == 1 else None)).loss.item() * len(b)
                 cnt += len(b)
                 i += n
         model.train()
@@ -541,13 +791,9 @@ def train(base):
         k = start_k if ep == start_ep else 0
         while k < len(order) and not stop_early:
             # 从第 k 条往后拼一批
-            n, width = 0, 0
-            while k + n < len(order) and n < max_bs:
-                w2 = max(width, min(len(order[k + n][0]), budget))
-                if n and (n + 1) * w2 > budget:
-                    break
-                n, width = n + 1, w2
-            batch = [(ids[:width], labels[:width]) for ids, labels in order[k:k + n]]
+            n, width = take(order, k)
+            ex = order[k][2] if n == 1 else None
+            batch = [(ids[:width], labels[:width]) for ids, labels, _ in order[k:k + n]]
             batch = [(ids, labels) for ids, labels in batch if sum(1 for v in labels if v != -100) >= 4]   # 截短以后没剩下要学的字：跳过
             n_skip += n - len(batch)
             if not batch:
@@ -558,13 +804,17 @@ def train(base):
                 m = torch.tensor([[1] * len(ids) + [0] * (width - len(ids)) for ids, _ in batch], device="cuda")
                 y = torch.tensor([labels + [-100] * (width - len(labels)) for _, labels in batch], device="cuda")
                 with torch.autocast("cuda", dtype=torch.bfloat16):
-                    loss = model(input_ids=x, attention_mask=m, labels=y).loss * (len(batch) / float(accum))
+                    loss = model(input_ids=x, attention_mask=m, labels=y, **img_kw(ex)).loss * (len(batch) / float(accum))
                 loss.backward()
                 lv = loss.item()
             except OOM:
                 x = m = y = loss = None
                 torch.cuda.empty_cache()
                 n_oom += 1
+                if ex is not None:   # 一张图的一条都放不下：跳过这一条（不再缩预算，带图的本来就是一条一批）
+                    n_skip += 1
+                    k += 1
+                    continue
                 used = len(batch) * width
                 if used <= 256:
                     try:
@@ -1052,7 +1302,7 @@ def ground_exam(url, qs, label):
 
     def ask(sys_, user):
         body = {"messages": [{"role": "system", "content": sys_}, {"role": "user", "content": user}], "temperature": 0, "max_tokens": 600,
-                "chat_template_kwargs": {"enable_thinking": False}}
+                "chat_template_kwargs": {"enable_thinking": False}, **(getattr(url, "body", None) or {})}
         req = urllib.request.Request(url + "/v1/chat/completions", data=json.dumps(body).encode("utf-8"), headers={"Content-Type": "application/json"})
         with urllib.request.urlopen(req, timeout=600) as r:
             return json.loads(r.read().decode("utf-8"))["choices"][0]["message"].get("content") or ""
@@ -1121,7 +1371,7 @@ def exam(url, qs, label):
 
     def ask(q):
         body = {"messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": q if CHAT else q + "\n（请用中文讲解）"}], "temperature": 0, "max_tokens": 400 if CHAT else 1200,
-                **({"chat_template_kwargs": {"enable_thinking": False}} if CHAT else {})}
+                **({"chat_template_kwargs": {"enable_thinking": False}} if CHAT else {}), **(getattr(url, "body", None) or {})}
         req = urllib.request.Request(url + "/v1/chat/completions", data=json.dumps(body).encode("utf-8"), headers={"Content-Type": "application/json"})
         with urllib.request.urlopen(req, timeout=600) as r:
             return json.loads(r.read().decode("utf-8"))["choices"][0]["message"].get("content") or ""
@@ -1159,8 +1409,289 @@ def exam(url, qs, label):
     return right[0] / len(qs), zh[0] / len(qs), "".join(bits)
 
 
+# ---------------- 改 PPT 的考试（在 PPT 练习场里真的去改，程序判对错）----------------
+LAB = [None]
+_TOOLS = [None]
+
+
+def lab():
+    if LAB[0] is None:
+        LAB[0] = PptLab()
+    return LAB[0]
+
+
+def ppt_tools():
+    """给模型看的工具说明（和捞捞PPT助手里的一字不差：练习场出题时带的）"""
+    if _TOOLS[0] is None:
+        tk = lab().ask(op="task", seed=0, split="train")
+        if not tk.get("ok"):
+            raise RuntimeError(tk.get("error") or "PPT 练习场出不了题")
+        _TOOLS[0] = tk["tools"]
+        lab().ask(op="close", id=tk["id"])
+    return _TOOLS[0]
+
+
+def ppt_exam_set():
+    """固定的一套：练过的那些改法 evalN 道 + 没练过的工具 / 版式 oodN 道（种子固定，每次都一样）"""
+    return [("exam", k) for k in range(int(p.get("evalN", 120)))] + [("ood", k) for k in range(int(p.get("oodN", 60)))]
+
+
+def ppt_exam(url, qs, label):
+    bits = ["0"] * len(qs)
+    todo = list(enumerate(qs))
+    lock = threading.Lock()
+    done, fams = [0], {}
+
+    def work_():
+        while True:
+            with lock:
+                if not todo:
+                    return
+                idx, (split, seed) = todo.pop()
+            hit, fam = False, "?"
+            try:
+                ep = ppt_episode(url, lab(), seed, split, temp=0.0, extra=getattr(url, "body", None))
+                lab().ask(op="close", id=ep["id"])
+                hit, fam = ep["ok"], ep["fam"]
+            except Exception as e:
+                lg.log("%s：有一道出错了（%s）" % (label, str(e)[:120]))
+            with lock:
+                bits[idx] = "1" if hit else "0"
+                f = fams.setdefault(("没练过的·" if split == "ood" else "") + fam, [0, 0])
+                f[0] += hit
+                f[1] += 1
+                done[0] += 1
+                if done[0] % 10 == 0:
+                    lg.log("%s：考了 %d/%d 道" % (label, done[0], len(qs)))
+
+    ths = [threading.Thread(target=work_) for _ in range(2)]
+    for x in ths:
+        x.start()
+    for x in ths:
+        x.join()
+    ex = [b for b, (sp, _) in zip(bits, qs) if sp == "exam"]
+    od = [b for b, (sp, _) in zip(bits, qs) if sp == "ood"]
+    lg.log("%s：%s" % (label, "，".join("%s %d/%d" % (k, a, b) for k, (a, b) in sorted(fams.items()))))
+    return ex.count("1") / max(1, len(ex)), {"ood": od.count("1") / max(1, len(od))}, "".join(bits)
+
+
+# ---------------- 看图反推的考试（vis_gen 交的固定考卷）----------------
+def first_json(s):
+    s = re.sub(r"<think>.*?</think>", "", s or "", flags=re.S)
+    a = s.find("{")
+    while a >= 0:
+        depth, in_str, esc = 0, False, False
+        for j in range(a, len(s)):
+            c = s[j]
+            if in_str:
+                if esc:
+                    esc = False
+                elif c == "\\":
+                    esc = True
+                elif c == '"':
+                    in_str = False
+                continue
+            if c == '"':
+                in_str = True
+            elif c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0:
+                    try:
+                        return json.loads(s[a:j + 1])
+                    except ValueError:
+                        break
+        a = s.find("{", a + 1)
+    return None
+
+
+def flat_text(x):
+    if isinstance(x, str):
+        return x
+    if isinstance(x, dict):
+        return "".join(flat_text(v) for k, v in sorted(x.items()))
+    if isinstance(x, list):
+        return "".join(flat_text(v) for v in x)
+    return ""
+
+
+def char_f1(a, b):
+    from collections import Counter
+    A, B = Counter(re.sub(r"\s+", "", a)), Counter(re.sub(r"\s+", "", b))
+    if not A and not B:
+        return 1.0
+    hit = sum((A & B).values())
+    if not hit:
+        return 0.0
+    pr, rc = hit / float(sum(A.values())), hit / float(sum(B.values()))
+    return 2 * pr * rc / (pr + rc)
+
+
+def vis_score(kind, out, target):
+    """对不对：PPT 页面 = 版式对、标题一字不差、其余的字按字算 F1 ≥ 0.85；公仔 = 9 样特征至少对 8 样"""
+    j = first_json(out)
+    if not isinstance(j, dict):
+        return False
+    if kind == "slide":
+        norm = lambda x: re.sub(r"\s+", "", str(x or ""))
+        if j.get("layout") != target.get("layout") or norm(j.get("title")) != norm(target.get("title")):
+            return False
+        rest = lambda d: flat_text({k: v for k, v in d.items() if k not in ("layout", "title")})
+        return char_f1(rest(j), rest(target)) >= float(p.get("slideF1", 0.85))
+    keys = ["hairStyle", "bangs", "hair", "glasses", "top", "bottom", "faceShape", "eyeStyle", "earrings"]
+    return sum(1 for k in keys if j.get(k) == target.get(k)) >= len(keys) - 1
+
+
+def vis_exam(url, qs, label):
+    import base64
+    bits = ["0"] * len(qs)
+    todo = list(enumerate(qs))
+    lock = threading.Lock()
+    done = [0]
+
+    def ask(ms):
+        user = ms[1]
+        img = [x for x in user["content"] if x.get("type") == "image"][0]
+        text = "".join(x.get("text") or "" for x in user["content"] if x.get("type") == "text")
+        data = base64.b64encode(open(ms.images[0], "rb").read()).decode("ascii")
+        body = {"messages": [{"role": "system", "content": ms[0]["content"]}, {"role": "user", "content": [
+            {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + data}}, {"type": "text", "text": text}]}],
+            "temperature": 0, "max_tokens": 800, "chat_template_kwargs": {"enable_thinking": False}, **(getattr(url, "body", None) or {})}
+        del img
+        req = urllib.request.Request(url + "/v1/chat/completions", data=json.dumps(body, ensure_ascii=False).encode("utf-8"), headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=600) as r:
+            return json.loads(r.read().decode("utf-8"))["choices"][0]["message"].get("content") or ""
+
+    def work_():
+        while True:
+            with lock:
+                if not todo:
+                    return
+                idx, ms = todo.pop()
+            try:
+                hit = vis_score(ms.kind, ask(ms), ms.target or json.loads(ms[-1]["content"]))
+            except Exception:
+                hit = False
+            with lock:
+                bits[idx] = "1" if hit else "0"
+                done[0] += 1
+                if done[0] % 20 == 0:
+                    lg.log("%s：考了 %d/%d 道" % (label, done[0], len(qs)))
+
+    ths = [threading.Thread(target=work_) for _ in range(2)]
+    for x in ths:
+        x.start()
+    for x in ths:
+        x.join()
+    part = {}
+    for k in ("slide", "doll"):
+        b = [bits[i] for i, ms in enumerate(qs) if ms.kind == k]
+        part[k] = b.count("1") / max(1, len(b))
+    return bits.count("1") / max(1, len(bits)), part, "".join(bits)
+
+
+# ---------------- 原版、新版同时考 ----------------
+class Ep(str):
+    """考试用的大模型地址；body：每个请求另外带的字段（同时考的时候是 LoRA 的比例）"""
+    body = None
+
+
+def two_exams(run_exam, qs, spec, need_base, after=None):
+    """原版（need_base 时）和新训的各考一遍 → (原版的成绩 或 None, 新训的成绩)。
+    能同时考就同时考：一个大模型里挂着新训的 LoRA（平时比例 0），原版的题请求里写 0、新版的写 1，两边一起跑（examSlots 个位置），
+    不用先开原版考完、再带上 LoRA 重开一遍。旧版客户端挂不上：照以前的先后考。"""
+    if need_base and p.get("pairExam", True):
+        try:
+            slots = int(p.get("examSlots", 4))
+            sp = dict(spec, slots=slots, ctx=int(spec.get("ctx", 8192)) * slots // 2)
+            r = lg.llm("start", llm=sp, extra=[gguf], **STACK_ARG)
+            nb = len(STACK_ARG.get("base", []))
+            if r.get("extra") == 1 and r.get("base", 0) == nb:
+                base_l = [{"id": k, "scale": float(x["scale"])} for k, x in enumerate(STACK_ARG.get("base", []))]
+                e0, e1 = Ep(r["url"].rstrip("/")), Ep(r["url"].rstrip("/"))
+                e0.body = {"lora": base_l + [{"id": nb, "scale": 0}]}
+                e1.body = {"lora": base_l + [{"id": nb, "scale": 1}]}
+                lg.progress(0.8, "考试：原版和新训的同时考")
+                out, errs = {}, []
+
+                def go(k, e, label):
+                    try:
+                        out[k] = run_exam(e, qs, label)
+                    except Exception as x:
+                        errs.append(x)
+                ths = [threading.Thread(target=go, args=(0, e0, "原版")), threading.Thread(target=go, args=(1, e1, "新训的"))]
+                for x in ths:
+                    x.start()
+                for x in ths:
+                    x.join()
+                if errs:
+                    raise errs[0]
+                if after:
+                    after(e1)
+                return out[0], out[1]
+            lg.log("这台电脑的客户端挂不上「平时不起作用的 LoRA」：原版、新训的先后考")
+        except Exception as e:
+            lg.log("同时考没成（%s）：原版、新训的先后考" % str(e)[:160])
+    r0 = None
+    if need_base:
+        lg.progress(0.8, "考试：原版")
+        r0 = run_exam(Ep(llm_start(llm=spec, **STACK_ARG)["url"].rstrip("/")), qs, "原版")
+    lg.progress(0.9, "考试：带上新训的 LoRA")
+    e = Ep(llm_start(llm=spec, lora=gguf, **STACK_ARG)["url"].rstrip("/"))
+    r1 = run_exam(e, qs, "新训的")
+    if after:
+        after(e)
+    return r0, r1
+
+
+# ---------------- 和考题去重：训练数据里和考题几乎一样的不用（不然考得好是背的）----------------
+def decontam(rows_, texts, n=12, frac=0.6):
+    """texts：考题的文字。一条训练数据（只看问的那部分）里包含了某道考题 60% 以上的连续 12 字片段 → 算「见过考题」，不用"""
+    norm = lambda x: re.sub(r"\s+", "", x or "")
+    idx = {}
+    sizes = []
+    for qi, q in enumerate(texts):
+        q = norm(q)
+        sh = {q[k:k + n] for k in range(max(1, len(q) - n + 1))} if len(q) >= n else set()
+        sizes.append(len(sh))
+        for x in sh:
+            idx.setdefault(x, []).append(qi)
+    if not idx:
+        return rows_, 0
+    keep, bad = [], 0
+    for ms in rows_:
+        u = norm("\n".join(ctext(m["content"]) for m in ms if m["role"] == "user"))
+        hit = {}
+        for x in {u[k:k + n] for k in range(max(0, len(u) - n + 1))}:
+            for qi in idx.get(x, ()):
+                hit[qi] = hit.get(qi, 0) + 1
+        if any(c >= frac * sizes[qi] for qi, c in hit.items()):
+            bad += 1
+            continue
+        keep.append(ms)
+    return keep, bad
+
+
+def exam_texts():
+    """这一类的考题文字（去重用）"""
+    if PPT or VISION:
+        return []   # 改 PPT、看图的考题是程序用另外的种子出的，和练习的不重叠
+    if GROUND:   # 只看问题本身（资料、提示词是大家都有的，不算）
+        return [m.group(1) for it in ground_exam_set() for m in [re.search(r"问题：(.+)$", str(it[2]), re.S)] if m]
+    return [q for q, _ in exam_set()]
+
+
 # ---------------- 开始 ----------------
 lg.llm("stop")   # 训练要整块显卡
+DECONTAM = 0
+if p.get("decontam", True):
+    try:
+        rows, DECONTAM = decontam(rows, exam_texts())
+        if DECONTAM:
+            lg.log("和考题去重：%d 条训练数据里有考题的原话（问的几乎一样），不用（不然考得好是背的）" % DECONTAM)
+    except Exception as _e:
+        lg.log("和考题去重没做成（%s）：照常训练" % str(_e)[:160])
 if p.get("dryRun"):   # 测试用：不真的训练（没有显卡的电脑上检查数据、转交、考试、发布这些环节）
     adir = os.path.join(work, "peft")
     os.makedirs(adir, exist_ok=True)
@@ -1183,36 +1714,82 @@ else:
         raise
     gguf = to_gguf(base, adir, conv)
 spec = dict(p.get("evalLlm") or teacher_gguf(), ctx=int(p.get("evalCtx", 8192)), slots=2)
+if VISION and p.get("mmproj"):
+    spec["mmproj"] = p["mmproj"]   # 看图要的视觉组件（Qwen3-VL 的 mmproj）
+if PPT or VISION:
+    if VISION:
+        qs = sorted(EXAM_ROWS, key=lambda m: m.images[0])[: int(p.get("evalN", 400))]
+        if not qs:
+            raise RuntimeError("没有考卷：看图反推工厂每一轮的第一个小任务会交一份（vis-exam.zip），等它交了再训练")
+        _sig = hashlib.md5(json.dumps([m.target for m in qs], ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()[:10]
+        _bn = "vision|%s|%d|%s|%s" % (spec.get("name") or "", len(qs), _sig, STACK_SIG)
+        run_exam, KS = vis_exam, ("slide", "doll")
+    else:
+        qs = ppt_exam_set()
+        _bn = "ppt|%s|%d|%s" % (spec.get("name") or "", len(qs), STACK_SIG)
+        run_exam, KS = ppt_exam, ("ood",)
+    reuse = p.get("reuseBase", True) and PREV.get("base_name") == _bn and isinstance(PREV.get("base_acc"), (int, float)) and len(PREV.get("base_items") or "") == len(qs) \
+        and all(isinstance(PREV.get("base_" + k), (int, float)) for k in KS)
+    r0, (acc1, part1, bits1) = two_exams(run_exam, qs, spec, not reuse)
+    if reuse:
+        acc0, part0, bits0 = float(PREV["base_acc"]), {k: float(PREV["base_" + k]) for k in KS}, PREV["base_items"]
+        lg.log("原版的成绩用上一轮考的（同一套题、同一个原版），不重复考")
+    else:
+        acc0, part0, bits0 = r0
+    lg.llm("stop")
+    if LAB[0] is not None:
+        LAB[0].close()
+    same = PREV.get("base_name") == _bn
+    gain, gain_lo = paired(bits0, bits1)
+    cur_items = PREV.get("items") if same and len(PREV.get("items") or "") == len(qs) else None
+    cur_gain, cur_lo = paired(cur_items, bits1) if cur_items else (gain, gain_lo)
+    lg.log("%s：原版 %.0f%% → 新训的 %.0f%%；%s；逐题比：平均%s %.1f 分（有把握的下限 %.1f）" % (
+        "改 PPT 做对" if PPT else "看图写对", acc0 * 100, acc1 * 100, "；".join("%s %.0f%% → %.0f%%" % ({"ood": "没练过的", "slide": "PPT 页面", "doll": "公仔特征"}[k], part0[k] * 100, part1[k] * 100) for k in KS),
+        "涨" if gain >= 0 else "降", abs(gain) * 100, gain_lo * 100))
+    zf = shutil.make_archive(os.path.join(work, NAME + "-peft"), "zip", adir)
+    lg.done(lora=gguf, peft=zf, acc=round(acc1, 4), base_acc=round(acc0, 4), **{k: round(part1[k], 4) for k in KS}, **{"base_" + k: round(part0[k], 4) for k in KS},
+            items=bits1, base_items=bits0, gain=gain, gain_lo=gain_lo, cur_gain=cur_gain, cur_lo=cur_lo, zero=0, n=len(qs),
+            examples=_total, trained=len(rows), tried_k=TRY_K, tried_x=TRY_X, data_sig=DATA_SIG, data_by=DATA_BY, data_files=DATA_FILES, decontam=DECONTAM, mixed=MIX_N, warm=bool(WARM), hp=HP, tried=TRY, base_name=_bn, mins=round((time.time() - t0) / 60, 1))
+    raise SystemExit(0)
 if GROUND:
     qs = ground_exam_set()
     _bn = "ground|%s|%d|%s" % (spec.get("name") or "", len(qs), STACK_SIG)
     KS = ("acc", "abstain", "catch", "clean")
-    if p.get("reuseBase", True) and PREV.get("base_name") == _bn and all(isinstance(PREV.get("base_" + k), (int, float)) for k in KS):
+    reuse = p.get("reuseBase", True) and PREV.get("base_name") == _bn and all(isinstance(PREV.get("base_" + k), (int, float)) for k in KS)
+    r0, r1 = two_exams(ground_exam, qs, spec, not reuse)
+    if reuse:
         r0 = {k: float(PREV["base_" + k]) for k in KS}
         lg.log("原版的成绩用上一轮考的（同一套题、同一个原版），不重复考")
-    else:
-        lg.progress(0.8, "考试：原版")
-        r0 = ground_exam(llm_start(llm=spec, **STACK_ARG)["url"], qs, "原版")
-    lg.progress(0.9, "考试：带上新训的 LoRA")
-    r1 = ground_exam(llm_start(llm=spec, lora=gguf, **STACK_ARG)["url"], qs, "新训的")
     lg.llm("stop")
     zf = shutil.make_archive(os.path.join(work, NAME + "-peft"), "zip", adir)
     lg.log("该答的答对：%.0f%% → %.0f%%；没有就说没有：%.0f%% → %.0f%%；错句抓出来：%.0f%% → %.0f%%；对的不冤枉：%.0f%% → %.0f%%" % tuple(
         x * 100 for k in KS for x in (r0[k], r1[k])))
     lg.done(lora=gguf, peft=zf, **{k: r1[k] for k in KS}, **{"base_" + k: r0[k] for k in KS},
-            examples=_total, trained=len(rows), warm=bool(WARM), hp=HP, tried=TRY, base_name=_bn, mins=round((time.time() - t0) / 60, 1))
+            examples=_total, trained=len(rows), tried_k=TRY_K, tried_x=TRY_X, data_sig=DATA_SIG, data_by=DATA_BY, data_files=DATA_FILES, decontam=DECONTAM, warm=bool(WARM), hp=HP, tried=TRY, base_name=_bn, mins=round((time.time() - t0) / 60, 1))
     raise SystemExit(0)
 qs = exam_set()
 _bn = "%s|%d%s" % (spec.get("name") or "", len(qs), "|" + STACK_SIG if STACK_SIG else "")
 same = PREV.get("base_name") == _bn
-if p.get("reuseBase", True) and same and isinstance(PREV.get("base_acc"), (int, float)) and isinstance(PREV.get("base_zh_rate"), (int, float)) and len(PREV.get("base_items") or "") == len(qs):
+reuse = p.get("reuseBase", True) and same and isinstance(PREV.get("base_acc"), (int, float)) and isinstance(PREV.get("base_zh_rate"), (int, float)) and len(PREV.get("base_items") or "") == len(qs)
+FR = {}
+
+
+def frontier_exam(e):
+    """质变考试：前沿搜题攒下的、现在发布的模型一遍都做不对的新题（每一轮都是最新的那几十道）→ 新训的做对几道。只看、不卡发布"""
+    fq = [(q, num(a)) for q, a in FRONTIER[-int(p.get("frontierN", 60)):]]
+    if not fq or CHAT:
+        return
+    a, _, _ = exam(e, fq, "前沿新题")
+    FR.update(frontier=round(a, 4), frontier_n=len(fq))
+    lg.log("质变考试（前沿新题，现在发布的模型都做不对的）：新训的做对 %d/%d 道" % (round(a * len(fq)), len(fq)))
+
+
+r0, (acc1, zh1, bits1) = two_exams(exam, qs, spec, not reuse, after=frontier_exam)
+if reuse:
     acc0, zh0, bits0 = float(PREV["base_acc"]), float(PREV["base_zh_rate"]), PREV["base_items"]
     lg.log("原版的成绩用上一轮考的（同一套题、同一个原版：答对 %.0f%%），不重复考，省一半考试时间" % (acc0 * 100))
 else:
-    lg.progress(0.8, "考试：原版")
-    acc0, zh0, bits0 = exam(llm_start(llm=spec, **STACK_ARG)["url"], qs, "原版")
-lg.progress(0.9, "考试：带上新训的 LoRA")
-acc1, zh1, bits1 = exam(llm_start(llm=spec, lora=gguf, **STACK_ARG)["url"], qs, "新训的")
+    acc0, zh0, bits0 = r0
 lg.llm("stop")
 # 逐题比（不是只看总分差几分：100 道题的总分天然会上下差 5 分左右）：
 #   gain / gain_lo：比原版平均涨了多少、有 90% 把握至少涨了多少；cur_gain / cur_lo：比现在发布的那一版（它考试时每道题的对错记着，同一套题、同一个底才比）
@@ -1226,8 +1803,8 @@ zf = shutil.make_archive(os.path.join(work, NAME + "-peft"), "zip", adir)
 if CHAT:
     lg.log("关键信息说对：原版 %.0f%% → 新训的 %.0f%%；念得出来：%.0f%% → %.0f%%" % (acc0 * 100, acc1 * 100, zh0 * 100, zh1 * 100))
     lg.done(lora=gguf, peft=zf, acc=round(acc1, 4), base_acc=round(acc0, 4), speak=round(zh1, 4), base_speak=round(zh0, 4), base_zh_rate=round(zh0, 4), **STAT,
-            examples=_total, trained=len(rows), warm=bool(WARM), hp=HP, tried=TRY, base_name=_bn, mins=round((time.time() - t0) / 60, 1))
+            examples=_total, trained=len(rows), tried_k=TRY_K, tried_x=TRY_X, data_sig=DATA_SIG, data_by=DATA_BY, data_files=DATA_FILES, decontam=DECONTAM, warm=bool(WARM), hp=HP, tried=TRY, base_name=_bn, mins=round((time.time() - t0) / 60, 1))
 else:
     lg.log("答对率：原版 %.0f%% → 新训的 %.0f%%；用中文讲：%.0f%% → %.0f%%" % (acc0 * 100, acc1 * 100, zh0 * 100, zh1 * 100))
-    lg.done(lora=gguf, peft=zf, acc=round(acc1, 4), base_acc=round(acc0, 4), zh_rate=round(zh1, 4), base_zh_rate=round(zh0, 4), **STAT,
-            examples=_total, trained=len(rows), warm=bool(WARM), hp=HP, tried=TRY, base_name=_bn, mins=round((time.time() - t0) / 60, 1))
+    lg.done(lora=gguf, peft=zf, acc=round(acc1, 4), base_acc=round(acc0, 4), zh_rate=round(zh1, 4), base_zh_rate=round(zh0, 4), **STAT, **FR,
+            examples=_total, trained=len(rows), tried_k=TRY_K, tried_x=TRY_X, data_sig=DATA_SIG, data_by=DATA_BY, data_files=DATA_FILES, decontam=DECONTAM, warm=bool(WARM), hp=HP, tried=TRY, base_name=_bn, mins=round((time.time() - t0) / 60, 1))

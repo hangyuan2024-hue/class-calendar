@@ -4,7 +4,7 @@
   "stages": [
     {
       "key": "merge",
-      "name": "把考过试的答题 LoRA 合进底座（回归考试挑比例）",
+      "name": "把考过试的答题、改 PPT、眼力 LoRA 合进底座（回归考试挑比例）",
       "kind": "map",
       "recipe": "base_merge",
       "recipeFile": "../recipes/base_merge.py",
@@ -16,11 +16,15 @@
       "params": {
         "count": 1,
         "merge": [
-          "qa-lora"
+          "qa-lora",
+          "ppt-lora",
+          "vision-lora"
         ],
         "modelsOf": [
           "base-stack",
-          "qa-lora"
+          "qa-lora",
+          "ppt-lora",
+          "vision-lora"
         ],
         "scales": [
           1.0,

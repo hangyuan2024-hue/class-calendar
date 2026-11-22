@@ -15,6 +15,7 @@ const EDIT = require("./pptedit");
 const DECK = require("./deck");
 const CAMPUS = require("./campus");
 const CHECKUP = require("./checkup");
+const EYES = require("./eyes");
 
 const PARTS = [
   { key: "base-stack", name: "底座", what: "通义千问 4B 加上一轮轮考过、合进去的本事（答题、口语……）", temp: "先用通义千问 4B 原版", metric: "gsm8k", metricName: "回归考试（数学）", base: "base_gsm8k" },
@@ -23,6 +24,8 @@ const PARTS = [
   { key: "voice-base", name: "声音克隆底座", what: "照着老师的一段录音学她说话", temp: "先用声音组件自带的底子" },
   { key: "qversion-lora", name: "Q版形象", what: "照着照片画 Q版 / 3D 公仔", temp: "先用画图引擎原本的画法" },
   { key: "ground-lora", name: "先核对再回答", what: "照资料回答、标出处，说出口前逐句核对；资料里没有就说没有", temp: "先用底子自己核对（没训练过，核对得没那么准）", metric: "catch", metricName: "错句抓出来", base: "base_catch" },
+  { key: "ppt-lora", name: "改 PPT", what: "听懂老师怎么改 → 调对工具、改对地方，别的页不乱动", temp: "先用底子自己改（没专门练过）", metric: "acc", metricName: "改 PPT 考试做对", base: "base_acc" },
+  { key: "vision-lora", name: "眼力", what: "拍一张课件还原成能改的一页；看照片说出做公仔要的特征", temp: "先用底子自己看图", metric: "acc", metricName: "看图考试写对", base: "base_acc" },
   { key: "chat-lora", name: "口语对话", what: "打电话时说话像人：短、念得出来，听错字也懂", temp: "先用答题大脑接电话", metric: "acc", metricName: "口语考试说对", base: "base_acc" },
 ];
 // 打电话（实时语音对话）时加给捞小智的规则：和训练口语对话大脑时用的一字不差（grid/recipes/chat_gen.py、qa_train.py；测试里核对）
@@ -191,7 +194,7 @@ function create(o) {
     const kind = [ppt && "ppt", cam && "campus", chk && "check", mm && "mindmap"].filter(Boolean).join("+") || lastKind || (cur ? "ppt" : "campus");
     lastKind = kind;
     const has = (k) => kind.split("+").includes(k);
-    if (cur && (has("ppt") || (!has("campus") && !has("check")))) for (const n of PPT_NAMES) names.add(n);
+    if (cur && (has("ppt") || (!has("campus") && !has("check")))) { for (const n of PPT_NAMES) names.add(n); if (imgs && imgs.length) names.add("photo_to_slide"); }
     if (has("campus") || (!cur && !has("check"))) for (const t of campusTools) names.add(t.name);
     if (has("check")) for (const t of checkTools) names.add(t.name);
     if (has("mindmap")) for (const t of mindmapTools) names.add(t.name);
@@ -257,6 +260,18 @@ ${hasCheck ? `四、${checkup.profile.name}报告（${checkup.profile.dims.map((
     { name: "make_ppt", desc: "按要求从头做一份新的 PPT（.pptx）。title 整份的标题，subtitle 副标题（课程、章节），theme 配色（" + Object.entries(DECK.THEMES).map(([k, v]) => `${k} ${v.name}`).join(" / ") + "，不写用 blue），slides 每一页（封面不用写，会自动加）",
       params: { title: { type: "string" }, subtitle: { type: "string" }, theme: { type: "string", enum: Object.keys(DECK.THEMES) }, slides: { type: "array", items: { type: "object", properties: AGENT.PAGE } } }, req: ["title", "slides"], changes: true,
       say: (a) => `做一份 PPT「${a.title || ""}」（${Array.isArray(a.slides) ? a.slides.length + 1 : "?"} 页）`, run: makePpt },
+    // 拍一张课件 / 投影 / 讲义 → 还原成能改的一页，加进手上这份（训练出来的「眼力」：core/eyes.js）
+    { name: "photo_to_slide", desc: "把老师发来的一张 PPT 页面照片（截图、拍的屏幕或投影）还原成能编辑的一页，加到手上这份 PPT 里。after：放在第几页后面（不写就放最后）；image：老师这次发的第几张（默认 1）",
+      params: { after: { type: "integer" }, image: { type: "integer" } }, changes: true, say: (a) => "把照片还原成一页" + (a.after != null ? `（放在第 ${a.after} 页后面）` : ""),
+      run: async (a) => {
+        if (!cur) throw new Error("先做一份或者打开一份 PPT，再把照片还原成一页");
+        const u = lastImgs[(+a.image || 1) - 1];
+        if (!u) throw new Error("老师还没发照片：把课件的照片发过来");
+        const s = await EYES.slideFromImage(o.llm, u);
+        const n = await cur.d.count(), after = a.after != null ? Math.max(0, Math.min(n, +a.after)) : n;
+        const r = await cur.d.addDesigned(after, s);
+        return { ok: true, slide: after + 1, pages: r.pages || 1, layout: s.layout || "", title: s.title, note: "照片上的字是认出来的，请老师核对一遍" };
+      } },
     ...campusTools,
     ...checkTools,
     ...webTools,

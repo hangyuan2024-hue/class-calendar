@@ -11,6 +11,7 @@
 //   node tools/grid.js ab                                    新 Q版插件在审核里和现在的比，胜率多少
 //   node tools/grid.js promote                               新插件转正（qversion-lora-test → qversion-lora，老师端换上）
 //   node tools/grid.js cycle <自动训练.json> [--now]          设自动训练 / 每日一轮（签名上传用到的配方）；--now 马上跑一轮（训练一次）
+//   node tools/grid.js pull                                  从调度中心拉最新的训练计划和配方（和 GitHub 上的核对），列给你确认，确认了签名上传
 "use strict";
 const fs = require("fs");
 const os = require("os");
@@ -76,7 +77,58 @@ async function cycle(c, file) {
   return r.id;
 }
 
-module.exports = { keypair, sign, publish, plan, login, api, cycle };
+// 签名包自己拉最新的训练计划和配方：调度中心列出要签的那几份（它自己 git pull 下来的那份代码），
+//   每个文件再去 GitHub 上同一个仓库拿一份比对：两边一样才算数（调度中心被人动了手脚，也签不出坏配方）；GitHub 上不去就只用调度中心的，要你多确认一次
+//   列出「新增 / 改了 / 没变」给你看，你确认了才写进签名包、签名上传
+const DEFAULT_REPO = "hangyuan2024-hue/class-calendar@main";
+const sha = (t) => crypto.createHash("sha256").update(t, "utf8").digest("hex");
+async function fromGithub(repo, rel, o = {}) {
+  const [name, branch] = String(repo || DEFAULT_REPO).split("@");
+  for (const u of [`https://raw.githubusercontent.com/${name}/${branch || "main"}/grid/${rel}`, `https://cdn.jsdelivr.net/gh/${name}@${branch || "main"}/grid/${rel}`]) {
+    try { const r = await (o.fetch || fetch)(u, { signal: AbortSignal.timeout(15000) }); if (r.ok) return await r.text(); } catch (e) {}
+  }
+  return null;
+}
+async function pull(c, o = {}) {
+  const root = o.root || path.join(__dirname, "..");
+  const src = await api(c, "/api/admin/src");
+  const say = o.say || console.log;
+  const rows = [];
+  let gh = 0, ghMiss = 0;
+  for (const f of src.files) {
+    if (sha(f.text) !== f.sha256) throw new Error(`调度中心给的「${f.path}」不完整`);
+    const g = o.noGithub ? null : await fromGithub(c.repo, f.path, o);
+    if (g != null) {
+      gh++;
+      if (sha(g.replace(/\r\n/g, "\n")) !== sha(f.text.replace(/\r\n/g, "\n"))) throw new Error(`「${f.path}」调度中心的和 GitHub 上的不一样：先别签。可能调度中心还没 git pull，或者被人改过`);
+    } else ghMiss++;
+    const local = path.join(root, f.path);
+    const old = fs.existsSync(local) ? fs.readFileSync(local, "utf8") : null;
+    const state = old == null ? "新增" : sha(old.replace(/\r\n/g, "\n")) === sha(f.text.replace(/\r\n/g, "\n")) ? "没变" : "改了";
+    const a = old == null ? [] : old.split("\n"), b = f.text.split("\n");
+    const setA = new Set(a), setB = new Set(b);
+    rows.push({ ...f, state, plus: b.filter((x) => !setA.has(x)).length, minus: a.filter((x) => !setB.has(x)).length });
+  }
+  say("要签的训练计划和配方（来自调度中心" + (gh ? `，${gh} 个和 GitHub 上核对过一样` : "") + "）：");
+  for (const r of rows) say(`  ${r.state === "没变" ? "  " : r.state === "新增" ? "＋" : "＊"} ${r.path}  ${r.state}${r.state === "改了" ? `（多了 ${r.plus} 行、少了 ${r.minus} 行）` : ""}`);
+  if (ghMiss) say(`注意：有 ${ghMiss} 个文件没能和 GitHub 上的核对（上不去 GitHub）。只有你确定调度中心刚 git pull 过、没被别人动过，才确认。`);
+  const changed = rows.filter((r) => r.state !== "没变");
+  const ok = o.yes || (await (o.ask || ask)(changed.length ? `用这些${changed.length ? "新的" : ""}配方签名并上传吗？确认就输入 y 回车：` : "都没变，照样重新签一遍吗？确认就输入 y 回车："));
+  if (!ok) { say("没签。"); return { signed: false, rows }; }
+  for (const r of changed) {
+    if (r.path === "tools/grid.js") { fs.writeFileSync(path.join(root, "tools", "grid.js.new"), r.text); say("签名工具本身有新版：存成 tools/grid.js.new，下次换上（这次照旧用现在的）"); continue; }
+    fs.mkdirSync(path.dirname(path.join(root, r.path)), { recursive: true });
+    fs.writeFileSync(path.join(root, r.path), r.text);
+  }
+  const ids = [];
+  for (const p of src.plans) ids.push(await cycle(c, path.join(root, p)));
+  return { signed: true, rows, ids };
+}
+function ask(q) {
+  return new Promise((res) => { const rl = require("readline").createInterface({ input: process.stdin, output: process.stdout }); rl.question(q, (a) => { rl.close(); res(/^\s*(y|yes|是|确认)\s*$/i.test(a)); }); });
+}
+
+module.exports = { keypair, sign, publish, plan, login, api, cycle, pull, fromGithub };
 
 if (require.main === module) {
   const [cmd, ...a] = process.argv.slice(2);
@@ -116,6 +168,7 @@ if (require.main === module) {
     // 某位老师的声音码（发给这位老师，在捞捞PPT助手「我的声音」里填上）；--new 换一个（旧的作废）
     else if (cmd === "voice-code") { need(); const r = await api(c, "/api/admin/model/code", { name: "voice-" + a[0], rotate: a.includes("--new") }); console.log(`「${a[0]}」的声音码：${r.code}\n只发给${a[0]}本人；在捞捞PPT助手「我的声音」里填上，就能用捞捞训练的声音。泄露了用 --new 换一个。`); }
     else if (cmd === "promote") { need(); const r = await api(c, "/api/admin/model/promote", { from: a[0] || "qversion-lora-test", to: a[1] || "qversion-lora" }); console.log(`转正了：「${a[1] || "qversion-lora"}」第 ${r.version} 版，老师端会自动换上`); }
+    else if (cmd === "pull") { need(); const r = await pull(c, { yes: a.includes("--yes"), noGithub: a.includes("--no-github") }); if (r.signed) console.log(`签好了：${r.ids.length} 份训练计划`); }
     else if (cmd === "cycle") { need(); const id = await cycle(c, a[0]); if (a.includes("--now")) { const r = await api(c, "/api/admin/pipeline/run", { id }); console.log(`现在就跑第 ${r.run} 轮`); } }
     else if (cmd === "invite") {
       need();

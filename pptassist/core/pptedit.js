@@ -667,7 +667,7 @@ async function load(buf) {
   }
   // 压缩包里不留「文件夹」条目（有的网盘、在线预览遇到会打不开）
   const save = () => { for (const k of Object.keys(zip.files)) if (zip.files[k].dir) delete zip.files[k]; return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE", compressionOptions: { level: 6 } }); };
-  return { outline, slide, setText, replace, addSlide, addDesigned, editSlide, deleteSlide, moveSlide, duplicateSlide, insertFormula, insertTable, insertImage, deleteShape, setTheme, theme, formatText, scaleFont, setNotes, notes, check, preview, designed, undo, save, history: () => history.map((h) => h.label), size, count: async () => (await slides()).length };
+  return { xml: async (no) => (await get(no)).xml, outline, slide, setText, replace, addSlide, addDesigned, editSlide, deleteSlide, moveSlide, duplicateSlide, insertFormula, insertTable, insertImage, deleteShape, setTheme, theme, formatText, scaleFont, setNotes, notes, check, preview, designed, undo, save, history: () => history.map((h) => h.label), size, count: async () => (await slides()).length };
 }
 
 module.exports = { load, shapeList, imageInfo };

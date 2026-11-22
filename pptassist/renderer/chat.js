@@ -155,12 +155,21 @@
   $("#pg-ai").addEventListener("drop", (e) => { e.preventDefault(); guard(takeFiles)(e.dataTransfer.files, e.target.closest(".ai-side") ? "ocr" : "chat"); });
 
   // ---------- 拍照插公式 ----------
-  function setOcr(u) { ocrImage = u; const im = $("#ocrImg"); im.src = u; im.hidden = false; $("#ocrGo").disabled = false; }
+  function setOcr(u) { ocrImage = u; const im = $("#ocrImg"); im.src = u; im.hidden = false; $("#ocrGo").disabled = false; $("#ocrPage").disabled = false; }
   $("#ocrPick").onclick = guard(async () => { const u = await call("aiPickImage"); if (u) setOcr(await shrink(u)); });
   $("#ocrGo").onclick = guard(async () => {
     const b = $("#ocrGo"); b.disabled = true; b.textContent = "认公式中…";
     try { const r = await call("aiOcr", ocrImage); $("#ocrTex").value = r.latex; preview(); }
     finally { b.disabled = false; b.textContent = "认公式"; }
+  });
+  // 整页还原：训练出来的「眼力」把照片认成一页（版式、标题、要点……），放在「插到第几页」那一页后面
+  $("#ocrPage").onclick = guard(async () => {
+    const b = $("#ocrPage"); b.disabled = true; b.textContent = "认这一页…";
+    try {
+      const r = await call("aiSlideFromPhoto", ocrImage, +$("#ocrSlide").value || 0);
+      paintEdit(r.edit); toast(`做成了第 ${r.slide} 页「${r.spec.title}」：照片上的字是认出来的，请核对一遍`);
+      add("step ok", esc(`照片还原成了第 ${r.slide} 页「${r.spec.title}」`));
+    } finally { b.disabled = false; b.textContent = "整页还原成一页"; }
   });
   let pt = 0, styled = false;
   // MathJax 的样式表：第一次画公式时加到页面上

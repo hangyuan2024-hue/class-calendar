@@ -19,6 +19,27 @@ const AssistRelay = require("../shared/assist-relay");
 
 function arg(name, d) { const i = process.argv.indexOf("--" + name); return i > 0 ? process.argv[i + 1] : process.env["GRID_" + name.toUpperCase()] || d; }
 
+// 签名包要签的训练计划（以及它们用到的配方）
+const SIGN_PLANS = ["qa", "chat", "ground", "frontier", "base", "ppt", "vision"];
+function signSrc(root = path.join(__dirname, "..")) {
+  const out = [], seen = new Set();
+  const put = (rel) => {
+    if (seen.has(rel)) return;
+    const f = path.join(root, rel);
+    if (!fs.existsSync(f)) return;
+    seen.add(rel);
+    const text = fs.readFileSync(f, "utf8");
+    out.push({ path: rel, sha256: require("crypto").createHash("sha256").update(text, "utf8").digest("hex"), text });
+  };
+  for (const n of SIGN_PLANS) {
+    const rel = "plans/" + n + ".json";
+    put(rel);
+    try { for (const st of JSON.parse(fs.readFileSync(path.join(root, rel), "utf8")).stages || []) if (st.recipeFile) put(path.posix.join("recipes", path.basename(st.recipeFile))); } catch (e) {}
+  }
+  put("tools/grid.js");
+  return { plans: SIGN_PLANS.map((n) => "plans/" + n + ".json").filter((p) => seen.has(p)), files: out };
+}
+
 function create(opt = {}) {
   const dataDir = path.resolve(opt.data || "data");
   fs.mkdirSync(dataDir, { recursive: true });
@@ -44,7 +65,7 @@ function create(opt = {}) {
   const OPEN = opt.open != null ? !!opt.open : (() => { try { return !!JSON.parse(fs.readFileSync(path.join(__dirname, "edition.json"), "utf8")).open; } catch (e) { return false; } })();
   const relay = Relay.create({ env, dataDir, noTimer: !!opt.noTick || OPEN, ...(opt.relay || {}), log: (m) => { try { core.event && core.event("info", m); } catch (e) {} console.log(m); } });
   const gate = Gate.create({ env, dataDir, relay, ...(OPEN ? { noRefresh: true } : {}), ...(opt.gate || {}), log: (m) => { try { core.event && core.event("info", m); } catch (e) {} console.log(m); } });
-  const tickTimer = opt.noTick ? null : setInterval(() => { try { cycle.tick(); } catch (e) {} }, opt.tickMs || 30000);
+  const tickTimer = opt.noTick ? null : setInterval(() => { try { cycle.tick(); } catch (e) {} try { core.dailyBrief(); } catch (e) {} }, opt.tickMs || 30000);
   // 老师端读的发布清单：每个文件给一个固定地址（/pub/<key>），真正下载时再转到临时链接
   const pubManifest = () => { const m = cycle.manifest(); for (const v of Object.values(m.models)) v.files = v.files.map((f) => ({ ...f, url: `${publicBase}/pub/${f.key}` })); return m; };
 
@@ -128,6 +149,9 @@ function create(opt = {}) {
     "POST /api/admin/assist/input": (req, b) => assist.input(b.s, b.ev),
     "POST /api/admin/assist/end": (req, b) => assist.end(b.s, "管理员结束了"),
     // 客户端分批更新：看每个新版推到哪一档；停推的看过了没问题可以接着推（stage: half / all），也能手动停（paused）
+    "GET /api/admin/brief": () => core.brief(),
+    // 签名包要签的那几份训练计划和它们用到的配方（调度中心自己这份代码里的，git pull 以后就是最新的）：签名电脑拉下来列给管理员确认
+    "GET /api/admin/src": () => signSrc(),
     "GET /api/admin/rollouts": () => core.rollouts(),
     "POST /api/admin/rollout": (req, b) => core.setRollout(b.version, b.stage),
     "GET /api/admin/assist/list": () => assist.list(),
@@ -453,7 +477,7 @@ function inviteLink(server, code, pub) {
   return "LG1." + Buffer.from(JSON.stringify({ u: server, c: code, k: pub || "" })).toString("base64url");
 }
 
-module.exports = { create, verify, inviteLink };
+module.exports = { create, verify, inviteLink, signSrc, SIGN_PLANS };
 
 if (require.main === module) {
   const app = create({ data: arg("data", "data"), public: arg("public", "") });

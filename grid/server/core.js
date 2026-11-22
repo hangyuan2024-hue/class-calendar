@@ -13,6 +13,25 @@ const LEASE_MS = 120000;
 const MAX_ATTEMPTS = 5;   // 出错几次放一边
 const ENV_ERR = /出错：(装不上：|这台电脑还没装好|这台电脑的客户端太旧)/;   // 是那台电脑自己的环境问题，不算任务失败
 const MAX_LOST = 30;      // 掉线几次放一边
+const AGING_MS = 3600000, AGING_MAX = 10;   // 训练等久了自动升优先级：每等一小时 +1，最多 +10
+// 报错自动归类：[类别, 认法, 叫法, 已知问题怎么处理]
+//   release：不是任务本身的错（换台电脑、过一会儿就好）→ 任务交给别人、不算失败次数；但同一个任务这样来回超过 8 次就照常算（比如下载地址真的坏了）
+const ERR_KINDS = [
+  ["old", /客户端太旧|更新客户端以后/, "客户端太旧", "release"],
+  ["env", /装不上：|这台电脑还没装好|No module named|pip/i, "环境没装好", "release"],
+  ["vram", /显存|out of memory|OutOfMemory|CUDA_ERROR_OUT_OF_MEMORY/i, "显存不够", "release"],
+  ["gpu", /CUDA|cuBLAS|CUBLAS|cudnn|NVML|显卡出错|no kernel image/i, "显卡出错", "release"],
+  ["killed", /被系统结束|0x40010004|0xC000013A|1073807364|3221225786|-1073741510/i, "被系统结束（关机、睡眠、关窗口）", "release"],
+  ["disk", /ENOSPC|No space left|磁盘.*(满|不够)|空间不够/i, "磁盘满了", "release"],
+  ["net", /下载|download|timed? ?out|ECONNRESET|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|socket hang up|HTTP Error 5\d\d|下不来|下不动|连不上/i, "网络 / 下载", "release"],
+  ["slow", /慢得不正常/, "这台电脑太慢", "release"],
+  ["data", /数据|JSON|考卷|资料|没拿到/, "数据问题", null],
+];
+function classifyError(msg) {
+  const m = String(msg || "");
+  for (const [k, re, name, act] of ERR_KINDS) if (re.test(m)) return { kind: k, name, act };
+  return { kind: "other", name: "其他", act: null };
+}
 const now = () => Date.now();
 const J = (s, d = null) => { try { return s == null ? d : JSON.parse(s); } catch (e) { return d; } };
 const S = (o) => JSON.stringify(o == null ? null : o);
@@ -130,11 +149,12 @@ function open(file, opt = {}) {
     };
     return { newer: rate(nv), older: rate(ov), devices: nv.length };
   }
-  function updateGate(dev, { version } = {}) {
+  function updateGate(dev, { version, current } = {}) {
     const v = String(version || "").slice(0, 30);
     if (!/^\d+\.\d+\.\d+$/.test(v)) return { ok: true };
     const now = clock();
     let r = one("select * from rollout where version=?", v);
+    if (!r && String(current || "") === v) return { ok: true };   // 已经装着最新的（推新版以前就装了）：不算开始推
     if (!r) {
       run("insert into rollout(version,stage,started,stage_at,canary,note) values(?,?,?,?,?,?)", v, "canary", now, now, JSON.stringify([dev.id]), "");
       event("update", `新版 ${v} 先给「${dev.member_name}的${dev.name}」试，没问题再推给大家`, { device: dev.id });
@@ -155,6 +175,9 @@ function open(file, opt = {}) {
       r = one("select * from rollout where version=?", v);
     }
     const canary = JSON.parse(r.canary || "[]");
+    // 停推了、这台电脑已经装上了这个坏版本：让它自己退回上一版（客户端留着上一版的安装包）
+    const mine = String(current || (J(dev.info, {}) || {}).version || "");
+    if (r.stage === "paused" && mine === v) return { ok: false, stage: r.stage, rollback: true, why: `新版 ${v} 出错多（${r.note}）：退回上一版` };
     if (r.stage === "all" || canary.includes(dev.id)) return { ok: true, stage: r.stage };
     if (r.stage === "half" && dev.id % 2 === 0) return { ok: true, stage: r.stage };
     if (r.stage === "paused") return { ok: false, stage: r.stage, why: `新版 ${v} 在试的电脑上出错多，先不更新（${r.note}）` };
@@ -322,8 +345,12 @@ function open(file, opt = {}) {
       // 同样优先级的几个活：哪个现在在算的电脑少就先给哪个（几种活一起推进，比如画 Q版 和 做数学题）；
       // 一样少就接着做这台电脑上一个做的（模型还在显存里，不用重新加载）
       const last = (one("select job_id from tasks where device_id=? order by started desc limit 1", dev.id) || {}).job_id || 0;
-      const jobs = all(`select j.*, (select count(*) from tasks t where t.job_id=j.id and t.state='leased') as busy from jobs j where j.state='active' and j.kind!='record'
-        order by j.priority desc, busy asc, (j.id=?) desc, j.id asc`, last);
+      // 等久了自动升优先级：一轮里的步骤（训练、评测……）每等一小时 +1、最多 +10；一直开着的造数据任务（有 sig）不升，不然它们会一直压着别的
+      const jobs = all(`select j.*, (select count(*) from tasks t where t.job_id=j.id and t.state='leased') as busy,
+        j.priority + case when json_extract(j.params,'$.sig') is null and json_extract(j.params,'$.runId') is not null and (select count(*) from tasks t where t.job_id=j.id and t.state='leased')=0
+          then min(${AGING_MAX}, max(0, (? - j.created) / ${AGING_MS})) else 0 end as eff
+        from jobs j where j.state='active' and j.kind!='record'
+        order by eff desc, busy asc, (j.id=?) desc, j.id asc`, clock(), last);
       // 这台电脑做某类任务慢得不正常、自己说了「先别给我这一类」（caps.avoid：配方名）：跳过，给它别的活
       const avoid = new Set(Array.isArray(caps.avoid) ? caps.avoid.map(String).slice(0, 50) : []);
       const recipeName = (id) => (one("select name from recipes where id=?", id) || {}).name;
@@ -380,6 +407,15 @@ function open(file, opt = {}) {
       out.files = out.files || {};
       all("select o.key from outputs o join jobs jj on jj.id=o.job_id where json_extract(jj.params,'$.tag')=? order by o.id limit 20000", String(of)).forEach((o, n) => { out.files["data" + n] = o.key; });
     }
+    // 学新本事时顺便复习老本行（params.mixOf = [{ tag: "qa-math", max: 40 }]）：那一类任务最近交的几份结果，文件叫 mix_标签_n
+    const mo = (J(j.params, {}) || {}).mixOf;
+    if (Array.isArray(mo)) {
+      out.files = out.files || {};
+      for (const m of mo.slice(0, 6)) {
+        if (!m || !m.tag) continue;
+        all("select o.key from outputs o join jobs jj on jj.id=o.job_id where json_extract(jj.params,'$.tag')=? order by o.id desc limit ?", String(m.tag), Math.max(1, Math.min(400, +m.max || 40))).forEach((o, n) => { out.files["mix_" + String(m.tag).replace(/[^\w-]/g, "") + "_" + n] = o.key; });
+      }
+    }
     // 声音数据池：所有任务交上来的、名字以 voicepool- / voicedrill- 开头的数据包（各位老师清洗好的录音、练习里念得最好的句子）
     const P_ = J(j.params, {}) || {};
     if (P_.voicePool) {
@@ -413,7 +449,7 @@ function open(file, opt = {}) {
         for (const jid of Object.values(J(r && r.jobs, {}) || {})) {
           const jj = one("select meta from jobs where id=?", jid);
           const res = ((J(jj && jj.meta, {}) || {}).result) || {};
-          if (res.peft && typeof res.peft === "string") { (out.files = out.files || {}).opt_prev_peft = res.peft; out.extra = { ...(out.extra || {}), prevExamples: +res.examples || 0, prev: { hp: res.hp || {}, base_acc: res.base_acc, base_zh_rate: res.base_zh_rate, base_name: res.base_name, acc: res.acc, ...(typeof res.items === "string" ? { items: res.items } : {}), ...(typeof res.base_items === "string" ? { base_items: res.base_items } : {}) } }; }
+          if (res.peft && typeof res.peft === "string") { (out.files = out.files || {}).opt_prev_peft = res.peft; out.extra = { ...(out.extra || {}), prevExamples: +res.examples || 0, prev: { hp: res.hp || {}, ...Object.fromEntries(Object.entries(res).filter(([k, x]) => /^base_/.test(k) && typeof x === "number")), base_name: res.base_name, acc: res.acc, ...(res.tried_k ? { tried_k: res.tried_k, tried_x: res.tried_x } : {}), ...(typeof res.items === "string" ? { items: res.items } : {}), ...(typeof res.base_items === "string" ? { base_items: res.base_items } : {}) } }; }
         }
       } catch (e) {}
     }
@@ -627,10 +663,15 @@ function open(file, opt = {}) {
     // 旧版客户端不会说 env：从报错认出来（包装不上、没装引擎、客户端太旧，都是那台电脑的事）
     if (!release && ENV_ERR.test(String(error || ""))) env = true;
     if (env) release = true;
+    // 报错自动归类：已知的、不是任务本身的错（显存、显卡、被系统结束、磁盘、网络……）→ 交给别的电脑、不算失败次数（来回超过 8 次照常算）
+    const ck = classifyError(error);
+    let auto = false;
+    if (!release && ck.act === "release" && t.attempts < 8) { release = true; auto = true; }
     run("update tasks set state='queued', device_id=null, prev_dev=null, lease_until=null, error=?, errors=errors+? where id=?", String(error || "").slice(0, 2000), release ? 0 : 1, t.id);
     run("update devices set task_id=null where id=?", dev.id);
     const j = one("select * from jobs where id=?", t.job_id);
     if (!release && t.errors + 1 >= MAX_ATTEMPTS) run("update tasks set state='failed' where id=?", t.id);
+    if (auto) { event("error", `【${ck.name}·已知问题，自动处理】${dev.member_name}的「${dev.name}」算「${j.name}」出错了，任务交给别的电脑、不算失败：${String(error || "").split("\n").filter(Boolean).pop() || "没说原因"}`, { job: j.id, device: dev.id }); return { ok: true, kind: ck.kind }; }
     event(release && !env ? "release" : "error", release ? env ? `${dev.member_name}的「${dev.name}」现在算不了「${j.name}」（这台电脑的环境有问题，任务交给别人）：${String(error || "").split("\n").filter(Boolean).pop() || "没说原因"}` : `${dev.member_name}的「${dev.name}」要用电脑了，「${j.name}」交给别人接着算` : `${dev.member_name}的「${dev.name}」算「${j.name}」出错了：${String(error || "").split("\n").filter(Boolean).pop() || "没说原因"}`, { job: j.id, device: dev.id });
     return { ok: true };
   }
@@ -764,8 +805,38 @@ function open(file, opt = {}) {
   function setDevice(id, { disabled }) { run("update devices set disabled=? where id=?", disabled ? 1 : 0, id); if (disabled) { const d = one("select * from devices where id=?", id); if (d && d.task_id) run("update tasks set state='queued', device_id=null, lease_until=null where id=? and state='leased'", d.task_id); } return { ok: true }; }
   function retry(jobId) { run("update tasks set state='queued', errors=0, lost=0, error=null where job_id=? and state='failed'", jobId); run("update jobs set state='active' where id=? and state!='done'", jobId); return { ok: true }; }
 
+  // ---------- 每天一份简报（北京时间早上 8 点，放进「动态」）：昨天算了多少、出了什么错（按类别）、发布了哪些模型、新版推得怎么样 ----------
+  function brief(since = clock() - 86400e3) {
+    const n = (sql, ...a) => (one(sql, ...a) || {}).n || 0;
+    const done = n("select count(*) as n from tasks where state='done' and finished>=?", since);
+    const errs = {};
+    for (const e of all("select msg, device_id from events where type='error' and ts>=?", since)) { const c = classifyError(e.msg); const x = (errs[c.kind] = errs[c.kind] || { name: c.name, n: 0, devices: new Set() }); x.n++; if (e.device_id) x.devices.add(e.device_id); }
+    const errList = Object.entries(errs).map(([k, v]) => ({ kind: k, name: v.name, n: v.n, devices: v.devices.size })).sort((a, b) => b.n - a.n);
+    let models = [];
+    try { models = all("select name, version, state, note from models where created>=? order by id", since); } catch (e) {}
+    const online = n("select count(*) as n from devices where last_seen>=?", since);
+    const ro = all("select version, stage, note from rollout where stage_at>=? or started>=?", since, since);
+    const failedTasks = n("select count(*) as n from tasks where state='failed' and coalesce(finished, lease_until, started, 0)>=?", since);
+    const lines = [`昨天 ${online} 台电脑在线，算完 ${done} 个小任务${failedTasks ? `，${failedTasks} 个彻底失败` : ""}。`];
+    lines.push(errList.length ? "出错：" + errList.map((e) => `${e.name} ${e.n} 次（${e.devices} 台电脑）`).join("；") + "。" : "没有出错。");
+    if (models.length) lines.push("模型：" + models.map((m) => `「${m.name}」第 ${m.version} 版${m.state === "released" ? "发布了" : m.state === "candidate" ? "等你点发布" : "没发布（" + (m.note || "") + "）"}`).join("；") + "。");
+    if (ro.length) lines.push("新版推送：" + ro.map((r) => `${r.version} ${({ canary: "先一台试", half: "推给一半", all: "推给全部", paused: "停推了" })[r.stage] || r.stage}`).join("；") + "。");
+    const todo = errList.filter((e) => ["disk", "old", "env"].includes(e.kind)).map((e) => ({ disk: "有电脑磁盘满了：在控制中心看是哪台，清一清", old: "有电脑的客户端太旧：等它自动更新，或者遥控「立刻更新」", env: "有电脑环境没装好：在控制中心看出错信息" })[e.kind]);
+    if (todo.length) lines.push("要你看一眼的：" + todo.join("；") + "。");
+    return { since, done, failed: failedTasks, online, errors: errList, models, rollouts: ro, text: lines.join("") };
+  }
+  // 每分钟调一次：北京时间过了早上 8 点、今天还没发 → 发一份
+  function dailyBrief() {
+    const d = new Date(clock() + 8 * 3600e3), today = d.toISOString().slice(0, 10);
+    if (d.getUTCHours() < 8 || kv.get("brief_day") === today) return null;
+    kv.set("brief_day", today);
+    const b = brief();
+    event("brief", "【每日简报】" + b.text);
+    return b;
+  }
+
   return {
-    db, kv, event, on: (f) => (listeners.add(f), () => listeners.delete(f)),
+    db, kv, event, brief, dailyBrief, classifyError, on: (f) => (listeners.add(f), () => listeners.delete(f)),
     adminToken, isAdmin, invite, join, auth, heartbeat, addRecipe, stage, createJob, lease, renew, checkpoint, lostCkpt, finish, fail, sweep,
     humanNext, humanDone, reviewNext, vote, cut, retire, addTasks, dataset, importVoice, voiceData, voices, addMember, laneDevice, updateGate, setRollout, rollouts, sendCommand, commandDone, commandsOf, stats, deviceLogs, overview, jobDetail, devicesView, board, setJob, setDevice, retry,
     recipe: (id) => one("select * from recipes where id=?", id), recipes: () => all("select id,name,meta,created from recipes order by created desc"),

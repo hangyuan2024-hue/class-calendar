@@ -113,7 +113,7 @@ const squad = (from, n) => ({ data: Array.from({ length: n }, (_, k) => { const 
   await until(() => db.prepare("select state from runs where id=?").get(pipe.runs[0].id).state !== "running", "训练做完", 120000);
   ag2.stop();
   assert.equal(db.prepare("select state from runs where id=?").get(pipe.runs[0].id).state, "done");
-  assert.ok(!seen[1].lora && /ground-lora\.gguf$/.test(seen[2].lora), "原版考一次、带上 ground-lora 考一次");
+  assert.ok(seen.some((s) => s && Array.isArray(s.extraLoras) && /ground\-lora\.gguf$/.test(s.extraLoras[0]) && s.slots === 4), "原版、带上 ground-lora 同时考（一个大模型里挂着，请求里写比例）");
   assert.equal(calls.length, 300, "固定考题 150 道（该答 60、没有 40、核对 50）× 两次");
   const r2 = JSON.parse(db.prepare("select t.result from tasks t join jobs j on j.id=t.job_id where j.name like '训练先核对%' and t.state='done'").get().result);
   for (const k of ["acc", "abstain", "catch", "clean"]) assert.ok(r2[k] >= 0.85 && r2["base_" + k] != null, k + "：" + JSON.stringify(r2));

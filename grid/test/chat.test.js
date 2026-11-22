@@ -130,7 +130,7 @@ const listen = (h) => new Promise((r) => { const s = http.createServer(h); s.lis
     ag2.stop();
     assert.equal(db.prepare("select state from runs where id=?").get(pipe.runs[0].id).state, "done");
     assert.equal(seen[0], "stop", "训练前先关大模型，让出显存");
-    assert.ok(!seen[1].lora && seen[2].lora && /chat-lora\.gguf$/.test(seen[2].lora), "原版考一次、带上 chat-lora 考一次");
+    assert.ok(seen.some((s) => s && Array.isArray(s.extraLoras) && /chat\-lora\.gguf$/.test(s.extraLoras[0]) && s.slots === 4), "原版、带上 chat-lora 同时考（一个大模型里挂着，请求里写比例）");
     const exams = calls.filter((m) => m.messages[0].role === "system" && /语音通话/.test(m.messages[0].content));
     assert.equal(exams.length, 90, "口语考题 45 道 × 两次");
     assert.ok(exams.some((m) => /排续/.test(m.messages[1].content)), "考题里有带识别错字的问法");

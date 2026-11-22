@@ -71,7 +71,7 @@ function attach(core, opt = {}) {
   function better(spec, cur, cand) {
     // 及格线（min）：连第一版也要过（比如打分模型至少要比瞎猜好）
     for (const m of spec.metrics || []) {
-      if (m.min == null) continue;
+      if (m.info || m.min == null) continue;   // info：只记下来给人看（比如质变考试），不卡发布
       // 及格线可以是固定的数，也可以是评测结果里的另一项（比如 "base_acc"：至少不比没训练的原版差，差一点点 minTol 可以）
       const lim = typeof m.min === "string" ? +cand[m.min] - (m.minTol || 0) : m.min;
       const b = +cand[m.k];
@@ -81,6 +81,7 @@ function attach(core, opt = {}) {
     if (!cur) return { ok: true, why: "第一版" };
     let up = false;
     for (const m of spec.metrics || []) {
+      if (m.info) continue;
       const a = m.vs ? +cand[m.vs] : +J(cur.metrics, {})[m.k], b = +cand[m.k];
       if (!isFinite(b)) return { ok: false, why: `评测结果里没有 ${m.k}` };
       if (!isFinite(a)) { up = true; continue; }

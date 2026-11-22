@@ -16,6 +16,7 @@ const INSTALL = require("./installer");
 const LLM = require("./llm");
 const GridModels = require("./gridmodels");
 const AGENT = require("./agent");
+const EYES = require("./eyes");
 const XIAOZHI = require("./xiaozhi");
 const EDIT = require("./pptedit");
 const WF = require("./workflows");
@@ -55,11 +56,13 @@ function createService(env) {
   const eng = ENGINE.create({ mirror, ...(env.engineOpt || {}) });
   // AI 助手：本地大模型 + 正在改的 PPT（edit.deck，改完另存）
   // 捞捞自己训练的模型（捞捞算力每天训练、评测通过才发布）：后台自动下载，下次生成时才换上
-  const grid = GridModels.create({ dir: path.join(USER, "grid-models"), want: ["qversion-lora", "qa-lora", "laolao-voice", "voice-base"], codes: () => [profile && profile.voiceCode], onEvent: (e) => send("aiav", { stage: "gridmodel", ...e }), ...(env.gridOpt || {}) });
+  const grid = GridModels.create({ dir: path.join(USER, "grid-models"), want: ["qversion-lora", "qa-lora", "ppt-lora", "laolao-voice", "voice-base"], codes: () => [profile && profile.voiceCode], onEvent: (e) => send("aiav", { stage: "gridmodel", ...e }), ...(env.gridOpt || {}) });
   if (env.gridModels !== false) grid.start();
   const llm = LLM.create({ dir: P("llm", "x").slice(0, -2), exe: env.llamaExe, exeCpu: env.llamaCpuExe, mirror,
     // 捞捞算力训练、考试通过的答题 LoRA：下次启动 AI 助手时换上；带上起不来就退回上一版
-    lora: () => { const q = grid.use("qa-lora"); return (q && q.files && q.files.lora) || null; }, onLoraFail: () => grid.rollback("qa-lora"), onState: (st) => send("agent", { type: "state", state: st }), ...(env.llmOpt || {}) });
+    // PPT 助手主要是改 PPT：有考过试的「改 PPT」LoRA 就用它（它训练时混着答题的数据，讲题不会变差），没有再用答题 LoRA
+    lora: () => { const pp = grid.use("ppt-lora"); if (pp && pp.files && pp.files.lora) return pp.files.lora; const q = grid.use("qa-lora"); return (q && q.files && q.files.lora) || null; },
+    onLoraFail: () => { const pp = grid.use("ppt-lora"); grid.rollback(pp && pp.files && pp.files.lora ? "ppt-lora" : "qa-lora"); }, onState: (st) => send("agent", { type: "state", state: st }), ...(env.llmOpt || {}) });
   let edit = null;   // { deck, file, saved }
   const agent = AGENT.create({ llm, deck: () => (edit ? edit.deck : null), fileName: () => (edit ? path.basename(edit.file) : ""), onEvent: (e) => send("agent", e) });
   // 成品展示「捞小智」：讲题 + 做 PPT + 办教务的事（模拟教务后端）合在一个对话里；用的是同一个本地大模型和最新发布的各样模型
@@ -241,7 +244,9 @@ function createService(env) {
       const raw = path.join(gen, "raw.glb");
       if (!o.reuse || !fs.existsSync(raw)) {
         fs.rmSync(raw, { force: true });
-        await ai.run(aiRt(), ["to3d", "--image", fig, "--out", raw, "--quality", o.quality === "fast" ? "fast" : "best", ...(o.seed != null ? ["--seed", String(parseInt(o.seed) || 0)] : [])], aiSend);
+        // 一次做几个候选（不同的随机种子），自己查硬伤（断成几块、破洞、左右歪、比例）留最好的：快速档默认 3 个（一个一分钟左右），精细档默认 1 个（一个要好几分钟）
+        const cands = Math.max(1, Math.min(4, parseInt(o.cands) || (o.quality === "fast" ? 3 : 1)));
+        await ai.run(aiRt(), ["to3d", "--image", fig, "--out", raw, "--quality", o.quality === "fast" ? "fast" : "best", "--cands", String(cands), ...(o.seed != null ? ["--seed", String(parseInt(o.seed) || 0)] : [])], aiSend);
       }
       return H.ai3dRig();
     },
@@ -538,6 +543,18 @@ function createService(env) {
     async aiOcr(image) {
       if (typeof image !== "string" || !/^data:image\/(png|jpe?g|webp);base64,/.test(image)) throw new Error("图片不对");
       return agent.ocr(image);
+    },
+    // 训练出来的「眼力」（core/eyes.js）：拍一张课件 → 还原成能改的一页；一张照片 → 做公仔要的特征（只在本机看，不存照片）
+    async aiSlideFromPhoto(image, after) {
+      if (typeof image !== "string" || !/^data:image\/(png|jpe?g|webp);base64,/.test(image)) throw new Error("图片不对");
+      const d = await ensureDeck(); if (!d) throw new Error("先在「选页和内容」里打开一个 PPT");
+      const s = await EYES.slideFromImage(llm, image), n = await d.count(), at = after != null ? Math.max(0, Math.min(n, +after)) : n;
+      const r = await d.addDesigned(at, s); edit.saved = false;
+      return { slide: at + 1, pages: r.pages || 1, spec: s, edit: await editInfo() };
+    },
+    async aiDollFromPhoto(image) {
+      if (typeof image !== "string" || !/^data:image\/(png|jpe?g|webp);base64,/.test(image)) throw new Error("图片不对");
+      return EYES.dollFromImage(llm, image);
     },
     async aiInsertFormula(slide, latex, o = {}) {
       const d = await ensureDeck(); if (!d) throw new Error("先在「选页和内容」里打开一个 PPT");

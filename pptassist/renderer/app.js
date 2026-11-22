@@ -152,6 +152,19 @@
     $("#faceHint").textContent = (said || "五官找好了。") + (notes.length ? " 注意：" + notes.join("；") + "。" : "") + " 点的位置不准可以在照片上重新点。";
     return true;
   }
+  // 训练出来的「眼力」再认一次（core/eyes.js）：只给发型、刘海、颜色这几样粗的特征，认不出是谁；照片只在本机看
+  $("#dollAi").onclick = guard(async () => {
+    if (!photoImg) throw new Error("先上传一张照片");
+    const b = $("#dollAi"); b.disabled = true; b.textContent = "AI 在看…";
+    try {
+      const cv = document.createElement("canvas"), k = Math.min(1, 768 / Math.max(photoImg.width, photoImg.height));
+      cv.width = Math.round(photoImg.width * k); cv.height = Math.round(photoImg.height * k); cv.getContext("2d").drawImage(photoImg, 0, 0, cv.width, cv.height);
+      const r = await call("aiDollFromPhoto", cv.toDataURL("image/jpeg", 0.9));
+      for (const key of ["hairStyle", "bangs", "hair", "top", "bottom", "faceShape", "eyeStyle", "glasses", "earrings"]) if (r[key] != null) spec[key] = r[key];
+      changed(); paintForm();
+      $("#faceHint").textContent = `AI 认出来：发型「${HAIR_T[r.hairStyle] || r.hairStyle || "没认出"}」、刘海「${BANGS_T[r.bangs] || r.bangs || "没认出"}」${r.glasses ? "、戴眼镜" : ""}；颜色也换上了（不对就在右边改）。`;
+    } finally { b.disabled = false; b.textContent = "让 AI 再认一次发型和颜色"; }
+  });
   // 三个点都标好了：做脸（转正、卡通化）、取皮肤色、存起来、换到形象上
   async function buildFace() {
     if (!photoImg || !marks.e1 || !marks.e2 || !marks.mouth || !window.LaoFace) return;

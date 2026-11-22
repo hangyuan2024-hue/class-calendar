@@ -153,7 +153,7 @@ function create(o) {
     const server = String(o.server() || "").replace(/\/+$/, "");
     const models = (o.modelsFactory || GM.create)({ dir: path.join(dir, "models"), want: XZ.PARTS.map((p) => p.key), ...(server ? { sources: [server + "/pub/models/manifest.json"] } : {}),
       onEvent: (e) => { if (e.stage === "download") emit({ type: "note", text: `有新版：正在下载「${nameOf(e.name)}」第 ${e.version} 版…` }); }, ...(o.modelsOpt || {}) });
-    let loraIds = { base: [], main: -1, ground: -1 };
+    let loraIds = { base: [], main: -1, ground: -1, ppt: -1, eyes: -1 };
     const llm = {
       // 每一句之前都看一眼：答题 LoRA 换了新版，就带上新版重新启动（llmw 发现 LoRA 路径变了会自己重启）；带上起不来就退回上一版
       start: async (opt) => {
@@ -171,22 +171,27 @@ function create(o) {
           // 打电话的时候优先带口语对话 LoRA（没训练好就用答题 LoRA）；换了 LoRA，llmw 会自己重启大模型
           const c = calling && !absorbed("chat-lora") ? models.use("chat-lora") : null, key = c && c.files && c.files.lora ? "chat-lora" : "qa-lora";
           const q = key === "chat-lora" ? c : absorbed("qa-lora") ? null : models.use("qa-lora"), lora = q && q.files && q.files.lora;
-          // 「先核对再回答」ground-lora（考过固定及格线才有）：一起挂上、平时关着，查资料回答、核对时才打开（8B 不挂：LoRA 是配 4B 的）
-          const g = models.use("ground-lora"), gl = !big && g && g.files && g.files.lora;
-          const bl = stack ? stack.loras : [], nb = bl.length;
-          try { url = await o.llm.ensure({ ...spec, ...(nb ? { baseLoras: bl } : {}), ...(lora && !big ? { lora } : {}), ...(gl ? { extraLoras: [gl] } : {}) }, say);
-            loraIds = { base: bl.map((x, j) => ({ id: j, scale: x.scale })), main: lora && !big ? nb : -1, ground: gl ? nb + (lora && !big ? 1 : 0) : -1 }; return; }
+          // 平时关着、用到时才打开的几个 LoRA（考过试才有；8B 不挂：LoRA 是配 4B 的；已经合进底座的那一版不再单独挂）：
+          //   「先核对再回答」ground-lora（查资料回答、核对时）、「改 PPT」ppt-lora（调改 PPT 的工具时）、「眼力」vision-lora（看图还原 PPT、认公仔特征时）
+          const EXTRA = [["ground", "ground-lora", "先核对再回答"], ["ppt", "ppt-lora", "改 PPT"], ["eyes", "vision-lora", "眼力"]];
+          const ex = big ? [] : EXTRA.map(([k, key, name]) => { const m = absorbed(key) ? null : models.use(key); return m && m.files && m.files.lora ? { k, key, name, path: m.files.lora } : null; }).filter(Boolean);
+          const bl = stack ? stack.loras : [], nb = bl.length, nm = lora && !big ? 1 : 0;
+          try { url = await o.llm.ensure({ ...spec, ...(nb ? { baseLoras: bl } : {}), ...(lora && !big ? { lora } : {}), ...(ex.length ? { extraLoras: ex.map((x) => x.path) } : {}) }, say);
+            loraIds = { base: bl.map((x, j) => ({ id: j, scale: x.scale })), main: nm ? nb : -1, ground: -1, ppt: -1, eyes: -1 };
+            ex.forEach((x, j) => { loraIds[x.k] = nb + nm + j; });
+            return; }
           catch (e) {
-            if (gl) { log(`带上「先核对再回答」LoRA 启动不了（${e.message}）：退回上一版`); models.rollback("ground-lora"); continue; }
+            if (ex.length) { const x = ex[ex.length - 1]; log(`带上「${x.name}」LoRA 启动不了（${e.message}）：退回上一版`); models.rollback(x.key); continue; }
             if (!lora || i === 2) throw e; log(`带上新的${key === "chat-lora" ? "口语对话" : "答题"} LoRA 启动不了（${e.message}）：退回上一版`); models.rollback(key);
           }
         }
       },
       chat: (m, opt = {}) => {
         try { o.llm.touch && o.llm.touch(); } catch (e) {}
-        // 查资料回答、核对（opt.mode）：打开 ground-lora、关掉答题 / 口语 LoRA；llama-server 的 lora 字段没写到的都按 0
-        // 底座的永久层要照原来的比例写上（没写到的会被当成 0）
-        const lo = (opt.mode === "ground" || opt.mode === "check") && loraIds.ground >= 0 ? { lora: [...(loraIds.base || []), ...(loraIds.main >= 0 ? [{ id: loraIds.main, scale: 0 }] : []), { id: loraIds.ground, scale: 1 }] } : null;
+        // 查资料回答、核对（opt.mode = ground / check）：打开 ground-lora；改 PPT（ppt）：打开 ppt-lora；看图（eyes）：打开 vision-lora
+        //   这时关掉答题 / 口语 LoRA；llama-server 的 lora 字段没写到的都按 0。底座的永久层要照原来的比例写上（没写到的会被当成 0）
+        const want = opt.mode === "ground" || opt.mode === "check" ? "ground" : opt.mode === "ppt" ? "ppt" : opt.mode === "eyes" ? "eyes" : null;
+        const lo = want && loraIds[want] >= 0 ? { lora: [...(loraIds.base || []), ...(loraIds.main >= 0 ? [{ id: loraIds.main, scale: 0 }] : []), { id: loraIds[want], scale: 1 }] } : null;
         const extra = { ...(bigNow ? { chat_template_kwargs: { enable_thinking: false } } : {}), ...(lo || {}) };
         return CHAT.chatAt(url, m, { ...opt, ...(bigNow ? { onDelta: noThink(opt.onDelta) } : {}), ...(Object.keys(extra).length ? { extra } : {}) });
       },

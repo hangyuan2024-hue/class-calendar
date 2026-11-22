@@ -64,7 +64,11 @@
         },
         "modelsOf": [
           "base-stack"
-        ]
+        ],
+        "balance": {
+          "by": "kind",
+          "max": 0.5
+        }
       },
       "req": {
         "vram": 7.5,

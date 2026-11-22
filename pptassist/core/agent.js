@@ -103,7 +103,35 @@ function say(name, a = {}) {
   }
 }
 const READS = new Set(["get_outline", "get_slide", "check_ppt"]);
+const PPT_NAMES = new Set(TOOLS.map((t) => t.name));
 const CHANGES = new Set(TOOLS.map((t) => t.name).filter((n) => !READS.has(n)));
+
+// 改 PPT 的工具真的去改（d：core/pptedit.js 打开的一份）。「AI 改 PPT」、成品展示里的捞小智、训练用的 PPT 操作工厂（core/pptlab.js）都走这一个
+async function runPpt(d, name, a, images) {
+  switch (name) {
+    case "get_outline": { const ol = await d.outline(), cut = ol.length > 24 ? 50 : 120;
+      return ol.map((s) => ({ no: s.no, title: s.title, ...(s.layout ? { layout: s.layout } : {}), text: s.texts.join(" / ").slice(0, cut), ...(s.formulas ? { formulas: s.formulas } : {}), ...(s.pictures ? { pictures: s.pictures } : {}), ...(s.tables ? { tables: s.tables } : {}), ...(s.hidden ? { hidden: true } : {}) })); }
+    case "get_slide": return d.slide(a.slide);
+    case "set_text": return d.setText(a.slide, a.shape, a.lines || []);
+    case "replace_text": return d.replace(a.find, a.replace, a.slide);
+    case "add_slide": { const { title, lines, ...ex } = pageOf(a); return d.addSlide(a.after, title, lines || [], ex); }
+    case "edit_slide": return d.editSlide(a.slide, { ...pageOf(a), ...(a.font_scale ? { font_scale: a.font_scale } : {}) });
+    case "copy_slide": return d.duplicateSlide(a.slide);
+    case "set_theme": return d.setTheme({ theme: a.theme, color: a.color });
+    case "set_font_size": return d.scaleFont(a.slide, { scale: a.scale, shape: a.shape, size: a.size });
+    case "format_text": return d.formatText(a.slide, a.find, { bold: a.bold, italic: a.italic, underline: a.underline, color: a.color, highlight: a.highlight, size: a.size, shape: a.shape });
+    case "insert_table": return d.insertTable(a.slide, a.rows, { where: a.where });
+    case "insert_image": { const u = (images || [])[(+a.image || 1) - 1]; if (!u) throw new Error((images || []).length ? `老师只发了 ${(images || []).length} 张图片` : "老师还没发图片：请老师把图片发过来（拖进来或者点「加图片」）"); return d.insertImage(a.slide, u, { where: a.where }); }
+    case "delete_shape": return d.deleteShape(a.slide, a.shape);
+    case "set_notes": return d.setNotes(a.slide, a.text);
+    case "check_ppt": return d.check();
+    case "delete_slide": return d.deleteSlide(a.slide);
+    case "move_slide": return d.moveSlide(a.slide, a.to);
+    case "insert_formula": return d.insertFormula(a.slide, a.latex, { where: a.where, size: a.size });
+    case "undo": { const l = await d.undo(); return l ? { undone: l } : { undone: null, note: "没有可以撤销的了" }; }
+    default: throw new Error("没有这个工具：" + name);
+  }
+}
 
 function create(opt) {
   const llm = opt.llm;          // core/llm.js 的实例
@@ -128,29 +156,7 @@ function create(opt) {
     if (opt.ppt === false) throw new Error("没有这个工具：" + name);
     const d = deck();
     if (!d) throw new Error("老师还没打开 PPT（在「选页和内容」里打开一个）");
-    switch (name) {
-      case "get_outline": { const ol = await d.outline(), cut = ol.length > 24 ? 50 : 120;
-        return ol.map((s) => ({ no: s.no, title: s.title, ...(s.layout ? { layout: s.layout } : {}), text: s.texts.join(" / ").slice(0, cut), ...(s.formulas ? { formulas: s.formulas } : {}), ...(s.pictures ? { pictures: s.pictures } : {}), ...(s.tables ? { tables: s.tables } : {}), ...(s.hidden ? { hidden: true } : {}) })); }
-      case "get_slide": return d.slide(a.slide);
-      case "set_text": return d.setText(a.slide, a.shape, a.lines || []);
-      case "replace_text": return d.replace(a.find, a.replace, a.slide);
-      case "add_slide": { const { title, lines, ...ex } = pageOf(a); return d.addSlide(a.after, title, lines || [], ex); }
-      case "edit_slide": return d.editSlide(a.slide, { ...pageOf(a), ...(a.font_scale ? { font_scale: a.font_scale } : {}) });
-      case "copy_slide": return d.duplicateSlide(a.slide);
-      case "set_theme": return d.setTheme({ theme: a.theme, color: a.color });
-      case "set_font_size": return d.scaleFont(a.slide, { scale: a.scale, shape: a.shape, size: a.size });
-      case "format_text": return d.formatText(a.slide, a.find, { bold: a.bold, italic: a.italic, underline: a.underline, color: a.color, highlight: a.highlight, size: a.size, shape: a.shape });
-      case "insert_table": return d.insertTable(a.slide, a.rows, { where: a.where });
-      case "insert_image": { const u = images[(+a.image || 1) - 1]; if (!u) throw new Error(images.length ? `老师只发了 ${images.length} 张图片` : "老师还没发图片：请老师把图片发过来（拖进来或者点「加图片」）"); return d.insertImage(a.slide, u, { where: a.where }); }
-      case "delete_shape": return d.deleteShape(a.slide, a.shape);
-      case "set_notes": return d.setNotes(a.slide, a.text);
-      case "check_ppt": return d.check();
-      case "delete_slide": return d.deleteSlide(a.slide);
-      case "move_slide": return d.moveSlide(a.slide, a.to);
-      case "insert_formula": return d.insertFormula(a.slide, a.latex, { where: a.where, size: a.size });
-      case "undo": { const l = await d.undo(); return l ? { undone: l } : { undone: null, note: "没有可以撤销的了" }; }
-      default: throw new Error("没有这个工具：" + name);
-    }
+    return runPpt(d, name, a, images);
   }
 
   // text：老师说的话；images：[data:image/jpeg;base64,…]（照片、截图）
@@ -170,7 +176,8 @@ function create(opt) {
       await llm.start();
       for (let round = 0; round < (opt.maxRounds || 10); round++) {
         const sys = { role: "system", content: await sysOf(names) };
-        const p = llm.chat([sys, ...trim(messages)], { tools: toolSchema(use), onDelta: (t) => emit({ type: "delta", text: t }) });
+        // 带着改 PPT 的工具：mode = ppt（成品展示里会打开训练出来的「改 PPT」LoRA）
+        const p = llm.chat([sys, ...trim(messages)], { tools: toolSchema(use), onDelta: (t) => emit({ type: "delta", text: t }), ...(use.some((t) => PPT_NAMES.has(t.name)) ? { mode: "ppt" } : {}) });
         ac.abort = p.abort;
         const r = await p;
         if (ac.aborted) { messages.push({ role: "assistant", content: (r.content || "") + "（老师让我停下了）" }); emit({ type: "done", stopped: true, changed }); return; }
@@ -225,4 +232,4 @@ function create(opt) {
   return { send, stop, reset, ocr, history: () => messages.slice(), busy: () => !!busy };
 }
 
-module.exports = { create, SYSTEM, PPT_RULES, TOOLS, PAGE, PAGE0, pageOf, toolSchema, say };
+module.exports = { create, runPpt, READS, SYSTEM, PPT_RULES, TOOLS, PAGE, PAGE0, pageOf, toolSchema, say };
