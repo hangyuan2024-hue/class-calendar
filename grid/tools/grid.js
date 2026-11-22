@@ -85,7 +85,7 @@ const sha = (t) => crypto.createHash("sha256").update(t, "utf8").digest("hex");
 async function fromGithub(repo, rel, o = {}) {
   const [name, branch] = String(repo || DEFAULT_REPO).split("@");
   for (const u of [`https://raw.githubusercontent.com/${name}/${branch || "main"}/grid/${rel}`, `https://cdn.jsdelivr.net/gh/${name}@${branch || "main"}/grid/${rel}`]) {
-    try { const r = await (o.fetch || fetch)(u, { signal: AbortSignal.timeout(15000) }); if (r.ok) return await r.text(); } catch (e) {}
+    try { const r = await (o.fetch || fetch)(u, { signal: AbortSignal.timeout(o.ghTimeoutMs || 10000) }); if (r.ok) { const t = new String(await r.text()); t.cdn = /jsdelivr/.test(u); return t; } } catch (e) {}
   }
   return null;
 }
@@ -94,14 +94,25 @@ async function pull(c, o = {}) {
   const src = await api(c, "/api/admin/src");
   const say = o.say || console.log;
   const rows = [];
-  let gh = 0, ghMiss = 0;
+  let gh = 0, ghMiss = 0, cdnStale = 0;
+  say(`调度中心给了 ${src.files.length} 个文件，正在和 GitHub 上的核对（GitHub 慢的话要等一两分钟）…`);
+  // 先试一个：GitHub 上不去就不再一个个等超时（以前要干等好几分钟，看着像卡住了）
+  let ghOk = !o.noGithub && src.files.length ? (await fromGithub(c.repo, src.files[0].path, o)) != null : false;
+  if (!o.noGithub && !ghOk) say("GitHub 上不去：这次只用调度中心的（下面会提醒你）");
+  const ghText = {};
+  if (ghOk) {
+    let i = 0;
+    await Promise.all(Array.from({ length: 6 }, async () => { while (i < src.files.length) { const f = src.files[i++]; ghText[f.path] = await fromGithub(c.repo, f.path, o); } }));
+  }
   for (const f of src.files) {
     if (sha(f.text) !== f.sha256) throw new Error(`调度中心给的「${f.path}」不完整`);
-    const g = o.noGithub ? null : await fromGithub(c.repo, f.path, o);
-    if (g != null) {
-      gh++;
-      if (sha(g.replace(/\r\n/g, "\n")) !== sha(f.text.replace(/\r\n/g, "\n"))) throw new Error(`「${f.path}」调度中心的和 GitHub 上的不一样：先别签。可能调度中心还没 git pull，或者被人改过`);
-    } else ghMiss++;
+    const g = ghOk ? ghText[f.path] : null;
+    if (g != null && sha(String(g).replace(/\r\n/g, "\n")) !== sha(f.text.replace(/\r\n/g, "\n"))) {
+      // jsDelivr（GitHub 的国内镜像）会缓存好几个小时：和它对不上可能只是它还是旧的 → 算「没核对上」，不算出错
+      if (g.cdn) { ghMiss++; cdnStale++; }
+      else throw new Error(`「${f.path}」调度中心的和 GitHub 上的不一样：先别签。可能调度中心还没 git pull，或者被人改过`);
+    } else if (g != null) gh++;
+    else ghMiss++;
     const local = path.join(root, f.path);
     const old = fs.existsSync(local) ? fs.readFileSync(local, "utf8") : null;
     const state = old == null ? "新增" : sha(old.replace(/\r\n/g, "\n")) === sha(f.text.replace(/\r\n/g, "\n")) ? "没变" : "改了";
@@ -111,7 +122,7 @@ async function pull(c, o = {}) {
   }
   say("要签的训练计划和配方（来自调度中心" + (gh ? `，${gh} 个和 GitHub 上核对过一样` : "") + "）：");
   for (const r of rows) say(`  ${r.state === "没变" ? "  " : r.state === "新增" ? "＋" : "＊"} ${r.path}  ${r.state}${r.state === "改了" ? `（多了 ${r.plus} 行、少了 ${r.minus} 行）` : ""}`);
-  if (ghMiss) say(`注意：有 ${ghMiss} 个文件没能和 GitHub 上的核对（上不去 GitHub）。只有你确定调度中心刚 git pull 过、没被别人动过，才确认。`);
+  if (ghMiss) say(`注意：有 ${ghMiss} 个文件没能和 GitHub 上的核对（${cdnStale ? "GitHub 的国内镜像还是旧的" : "上不去 GitHub"}）。只有你确定调度中心刚 git pull 过、没被别人动过，才确认。`);
   const changed = rows.filter((r) => r.state !== "没变");
   const ok = o.yes || (await (o.ask || ask)(changed.length ? `用这些${changed.length ? "新的" : ""}配方签名并上传吗？确认就输入 y 回车：` : "都没变，照样重新签一遍吗？确认就输入 y 回车："));
   if (!ok) { say("没签。"); return { signed: false, rows }; }
