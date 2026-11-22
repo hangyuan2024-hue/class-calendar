@@ -29,6 +29,25 @@ function verifySig(pub, msg, sig) {
   } catch (e) { return false; }
 }
 
+// 域名解析加一层缓存：上千个小文件一个个下，以前每个都重新查一次域名（还要重新握手），
+//   Windows 上开着加速器、安全软件时偶尔一次查不到（getaddrinfo ENOTFOUND / EAI_AGAIN），整个训练就起不来。
+//   查到过的记 10 分钟；查不到时用上次查到的地址（存储的地址不会几分钟就变）
+const dns = require("dns");
+const DNS_CACHE = new Map();
+function cachedLookup(host, opts, cb) {
+  if (typeof opts === "function") { cb = opts; opts = {}; }
+  const key = host + "|" + (opts.family || 0) + "|" + (opts.all ? 1 : 0);
+  const hit = DNS_CACHE.get(key);
+  if (hit && Date.now() - hit.at < 10 * 60e3) return process.nextTick(() => cb(null, ...hit.res));
+  (cachedLookup.lookup || dns.lookup)(host, opts, (err, ...res) => {
+    if (!err) { DNS_CACHE.set(key, { at: Date.now(), res }); return cb(null, ...res); }
+    if (hit) return cb(null, ...hit.res);   // 这次查不到：用上次的
+    cb(err);
+  });
+}
+// 连接复用：同一个存储的文件一个接一个下，不用每个都重新连、重新握手
+const AGENTS = { "https:": new https.Agent({ keepAlive: true, maxSockets: 8, lookup: cachedLookup }), "http:": new http.Agent({ keepAlive: true, maxSockets: 8, lookup: cachedLookup }) };
+
 // 上传 / 下载（带 Content-Length，COS 的预签名 PUT 要它）
 // 同一个文件同时只下一次（比如刚重启时旧的下载还没停）：后来的等前面那个
 const inflight = new Map();
@@ -74,7 +93,8 @@ async function xferRetry(method, url, file, o = {}) {
       err = e;
       if (o.signal && o.signal.aborted) throw e;
       // 只重试「连上了又断了 / 卡住了」这种临时的；地址不通（连接被拒绝、域名不对）、存储报错交给下一个下载地址
-      if (!/^(ECONNRESET|ETIMEDOUT|EPIPE|ECONNABORTED|EAI_AGAIN|UND_ERR_SOCKET)$/.test(netCode(e)) && !/socket hang up|aborted/i.test(e.message || "")) throw e;
+      //   域名一时查不到（ENOTFOUND / EAI_AGAIN / EAI_FAIL，Windows 上开着加速器、安全软件时常见）也是临时的：等一会儿再试
+      if (!/^(ECONNRESET|ETIMEDOUT|EPIPE|ECONNABORTED|EAI_AGAIN|ENOTFOUND|EAI_FAIL|UND_ERR_SOCKET)$/.test(netCode(e)) && !/socket hang up|aborted/i.test(e.message || "")) throw e;
       if (i < tries - 1) await sleep(o.retryMs != null ? o.retryMs : Math.min(30000, 2000 * 2 ** i));
     }
   }
@@ -109,7 +129,7 @@ function getRes(url, headers, signal, hops = 0) {
   return new Promise((ok, bad) => {
     if (signal && signal.aborted) return bad(new Error("停了"));
     const u = new URL(url), mod = u.protocol === "https:" ? https : http;
-    const req = mod.get(u, { headers }, (res) => {
+    const req = mod.get(u, { headers, lookup: cachedLookup }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && hops < 5) { res.resume(); return getRes(new URL(res.headers.location, u).href, headers, signal, hops + 1).then(ok, bad); }
       ok({ res, url: u.href });
     });
@@ -216,13 +236,13 @@ async function xferPar(url, file, { onProgress, signal } = {}) {
   return { size };
 }
 
-function xfer1(method, url, file, { onProgress, signal } = {}) {
+function xfer1(method, url, file, { onProgress, signal, headers } = {}) {
   return new Promise((ok, bad) => {
     const u = new URL(url);
     const mod = u.protocol === "https:" ? https : http;
     if (method === "PUT") {
       const size = fs.statSync(file).size;
-      const req = mod.request(u, { method: "PUT", headers: { "content-length": size, ...(mimeOf(file) ? { "content-type": mimeOf(file) } : {}) } }, (res) => {
+      const req = mod.request(u, { method: "PUT", agent: AGENTS[u.protocol], headers: { "content-length": size, ...(mimeOf(file) ? { "content-type": mimeOf(file) } : {}) } }, (res) => {
         let b = ""; res.on("data", (c) => (b += c)); res.on("end", () => (res.statusCode < 300 ? ok({ size }) : bad(new Error(`上传失败 ${res.statusCode} ${b.slice(0, 200)}`))));
       });
       req.on("error", bad);
@@ -237,7 +257,7 @@ function xfer1(method, url, file, { onProgress, signal } = {}) {
     // 下载：断了接着下
     const tmp = file + ".part";
     let have = 0; try { have = fs.statSync(tmp).size; } catch (e) {}
-    const req = mod.get(u, { headers: have ? { range: `bytes=${have}-` } : {} }, (res) => {
+    const req = mod.get(u, { agent: AGENTS[u.protocol], headers: { ...(headers || {}), ...(have ? { range: `bytes=${have}-` } : {}) } }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) { res.resume(); return xfer1("GET", new URL(res.headers.location, u).href, file, { onProgress, signal }).then(ok, bad); }
       if (res.statusCode !== 200 && res.statusCode !== 206) { res.resume(); return bad(new Error(`下载失败 ${res.statusCode}`)); }
       if (res.statusCode === 200) have = 0;
@@ -397,7 +417,7 @@ function create(opt) {
     avoidN[name] = n + 1;
     avoid[name] = { until: Date.now() + h * 3600e3, why: String(why || "").slice(0, 200) };
     try { fs.writeFileSync(avoidFile, JSON.stringify(avoid)); fs.writeFileSync(avoidFile + ".n", JSON.stringify(avoidN)); } catch (e) {}
-    log(`这台电脑${/显卡出错/.test(String(why)) ? "现在显卡出错做不了" : /显存/.test(String(why)) ? "现在显存不够做" : "做"}「${name}」${/显存|显卡出错/.test(String(why)) ? "" : "太慢"}：${h >= 1 ? h + " 小时" : Math.round(h * 60) + " 分钟"}内不再领这一类，先做别的（生成数据、做题这些轻活照样做）${n ? "" : "；关掉占显卡的程序，到时间自动再试"}`, "warn");
+    log(`这台电脑${/显卡出错/.test(String(why)) ? "现在显卡出错做不了" : /显存/.test(String(why)) ? "现在显存不够做" : /下不动/.test(String(why)) ? "现在下不动" : "做"}「${name}」${/显存|显卡出错/.test(String(why)) ? "" : /下不动/.test(String(why)) ? "要用的文件" : "太慢"}：${h >= 1 ? h + " 小时" : Math.round(h * 60) + " 分钟"}内不再领这一类，先做别的（生成数据、做题这些轻活照样做）${n ? "" : "；关掉占显卡的程序，到时间自动再试"}`, "warn");
   }
   function avoidDone(name) {
     if (!name || (!avoidN[name] && !avoid[name])) return;
@@ -654,9 +674,18 @@ function create(opt) {
   }
 
   // ---- 跑一个任务 ----
-  async function fetchRecipe(r) {
+  async function fetchRecipe(r, taskId) {
     const f = path.join(work, "recipes", r.id + ".py");
-    if (!fs.existsSync(f)) await xfer("GET", r.url, f);
+    const dlOpt = { ...(opt.dlTries ? { tries: opt.dlTries } : {}), ...(opt.retryMs != null ? { retryMs: opt.retryMs } : {}) };
+    if (!fs.existsSync(f)) {
+      try { await xfer("GET", r.url, f, dlOpt); }
+      catch (e) {
+        // 直连存储下不动：经调度中心转一道（下来照样核对内容和签名，转的人改不了）
+        if (!taskId) throw e;
+        try { await xferRetry("GET", `${server}/api/input?task=${encodeURIComponent(taskId)}&k=%40recipe`, f, { tries: 3, headers: { authorization: "Bearer " + opt.token }, ...dlOpt }); log(`配方直连存储下不动（${String(e.message).slice(0, 80)}），经调度中心转了一道`, "warn"); }
+        catch (e2) { const err = new Error("下载配方失败：" + e.message); err.net = isNet(e) || /ENOTFOUND|EAI_AGAIN|getaddrinfo/i.test(e.message || ""); throw err; }
+      }
+    }
     const src = fs.readFileSync(f);
     const id = crypto.createHash("sha256").update(src).digest("hex");
     if (id !== r.id) { fs.rmSync(f, { force: true }); throw new Error("配方文件对不上（下载坏了），下次重新下"); }
@@ -686,7 +715,7 @@ function create(opt) {
     }, opt.renewMs || 20000);
     c.lastOut = Date.now();
     try {
-      const rc = await fetchRecipe(L.recipe);
+      const rc = await fetchRecipe(L.recipe, L.task.id);
       emit("source", { id: c.id, name: L.recipe.name, source: rc.source });
       // 配方开头写「# requires: diffusers==0.35.1 transformers」：先把要的包装好（装过的 pip 会跳过）
       const req = (/^#\s*requires:\s*(.+)$/m.exec(rc.source) || [])[1];
@@ -764,7 +793,7 @@ function create(opt) {
         c.note = "下载 " + k + "…";
         try {
           if (cf && fs.existsSync(cf)) { try { const now = new Date(); fs.utimesSync(cf, now, now); } catch (e) {} }
-          else await dl(xfer("GET", u, cf || f, { onProgress: dlProg(nIn > 1 ? `下载要用的文件（${iIn}/${nIn}）${k}` : `下载 ${k}`), signal: c.ctl.signal }));
+          else await dl(xfer("GET", u, cf || f, { onProgress: dlProg(nIn > 1 ? `下载要用的文件（${iIn}/${nIn}）${k}` : `下载 ${k}`), signal: c.ctl.signal, ...(opt.dlTries ? { tries: opt.dlTries } : {}), ...(opt.retryMs != null ? { retryMs: opt.retryMs } : {}) }));
           if (cf) { fs.mkdirSync(path.dirname(f), { recursive: true }); try { fs.linkSync(cf, f); } catch (e) { fs.copyFileSync(cf, f); } }
         } catch (e) {
           // opt_ 开头的是「有就用、没有也行」的文件（比如接着上一版训的起点）：下不到就不带，任务照常算
@@ -772,7 +801,21 @@ function create(opt) {
           // data0、data1… 是「到现在为止这一类任务交的所有结果」（几百个）：个别一个在存储里找不到（404）不该让整轮训练起不来，
           // 跳过它（配方只读存在的），日志里记一笔；别的错（断网、链接过期）照旧报错重试
           if (/^data\d+$/.test(k) && /\b404\b/.test(e.message) && !c.ctl.signal.aborted) { c.missing = (c.missing || 0) + 1; log(`数据文件「${k}」存储里找不到（404），跳过它`); continue; }
-          throw new Error(`下载要用的文件「${k}」失败：${e.message}`);
+          if (c.ctl.signal.aborted) throw e;
+          // 直连存储下不动（域名一时查不到、被加速器 / 安全软件拦了、存储那边一时连不上）：经调度中心转一道
+          let viaServer = null;
+          try {
+            await xferRetry("GET", `${server}/api/input?task=${encodeURIComponent(c.id)}&k=${encodeURIComponent(k)}`, cf || f, { signal: c.ctl.signal, tries: 3, headers: { authorization: "Bearer " + opt.token }, ...(opt.retryMs != null ? { retryMs: opt.retryMs } : {}) });
+            viaServer = true;
+            log(`「${k}」直连存储下不动（${String(e.message).slice(0, 80)}），经调度中心转了一道`, "warn");
+          } catch (e2) { viaServer = e2; }
+          if (viaServer !== true) {
+            // 数据文件（几百上千个里的一个）：两条路都下不了，个别几个就跳过它，用其余的接着训（不让一个文件卡住整轮）
+            const cap = Math.max(3, Math.floor(nIn * 0.02));
+            if (/^data\d+$/.test(k) && (c.missing || 0) < cap) { c.missing = (c.missing || 0) + 1; log(`数据文件「${k}」直连和经调度中心都下不了（${String(e.message).slice(0, 80)}），跳过它`, "warn"); continue; }
+            const err = new Error(`下载要用的文件「${k}」失败：${e.message}`); err.net = isNet(e) || /ENOTFOUND|EAI_AGAIN|getaddrinfo/i.test(e.message || ""); throw err;
+          }
+          if (cf) { fs.mkdirSync(path.dirname(f), { recursive: true }); try { fs.linkSync(cf, f); } catch (x) { fs.copyFileSync(cf, f); } }
         }
         t.files[k] = f;
       }
@@ -839,6 +882,8 @@ function create(opt) {
         const vram = !!(c.unfit && /显存|显卡出错/.test(c.unfit) && c.recipe && c.recipe.name);
         if (slow) avoidRecipe(c.recipe.name, c.unfit);
         else if (vram) avoidRecipe(c.recipe.name, c.unfit, opt.vramAvoidSteps || [0.5, 1, 3]);
+        // 只是这一个任务要用的文件下不动（网络）：不让整台电脑歇着（别的活照样领），只是这一类先缓 10 分钟 / 半小时 / 1 小时
+        else if (prep && e.net && c.recipe && c.recipe.name) avoidRecipe(c.recipe.name, "要用的文件下不动：" + e.message.split("\n")[0].slice(0, 160), opt.netAvoidSteps || [1 / 6, 0.5, 1]);
         else if (prep) holdOff(e.message.split("\n")[0].slice(0, 200));
       }
     } finally {
@@ -1050,4 +1095,4 @@ async function join(invite, name, device, fetchImpl = fetch) {
   return { server: inv.server, pubkey: inv.pubkey, token: j.token, device: j.device, member: j.member };
 }
 
-module.exports = { setNetLimit, setParallel, xferAny, create, join, parseInvite, verifySig, xfer, probe, netWhy, isNet, resetConnections };
+module.exports = { setNetLimit, setParallel, xferAny, create, join, parseInvite, verifySig, xfer, probe, netWhy, isNet, resetConnections, cachedLookup, DNS_CACHE };

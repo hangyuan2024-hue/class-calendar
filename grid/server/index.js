@@ -343,6 +343,21 @@ function create(opt = {}) {
       if (u.pathname === "/" || u.pathname === "/admin") { res.writeHead(302, { location: "/admin/" }); return res.end(); }
       if (u.pathname === "/admin/assist.html") return staticFile(res, path.join(__dirname, "..", "shared"), "assist-viewer.html");
       if (u.pathname.startsWith("/admin/")) return staticFile(res, ADMIN_DIR, u.pathname.slice(7) || "index.html");
+      // 下载要用的文件的后备路：电脑直连存储下不动（域名查不到、被加速器 / 安全软件拦了）→ 经调度中心转一道。只给它自己正在算的那个任务要用的文件
+      if (req.method === "GET" && u.pathname === "/api/input") {
+        const d = core.auth(tokenOf(req));
+        if (!d) return json(res, 401, { error: "要先加入" });
+        const key = core.inputKey(d, u.searchParams.get("task"), u.searchParams.get("k"));
+        if (!key) return json(res, 404, { error: "不是你正在算的任务要用的文件" });
+        const src = new URL(store.url("GET", key, 600));
+        if (store.kind === "local" || (store.kind === "hybrid" && local.exists(key))) return blob(Object.assign(req, { method: "GET" }), res, src);
+        let r;
+        try { r = await fetch(src.href, { signal: AbortSignal.timeout(120000) }); } catch (e) { return json(res, 502, { error: "调度中心也连不上存储：" + e.message }); }
+        if (!r.ok) return json(res, r.status === 404 ? 404 : 502, { error: "存储报错 " + r.status });
+        res.writeHead(200, { "content-type": "application/octet-stream", ...(r.headers.get("content-length") ? { "content-length": r.headers.get("content-length") } : {}) });
+        for await (const ch of r.body) res.write(ch);
+        return res.end();
+      }
       const route = routes[`${req.method} ${u.pathname}`];
       if (!route) return json(res, 404, { error: "没有这个接口" });
       const token = tokenOf(req);

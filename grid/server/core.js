@@ -825,6 +825,15 @@ function open(file, opt = {}) {
     if (todo.length) lines.push("要你看一眼的：" + todo.join("；") + "。");
     return { since, done, failed: failedTasks, online, errors: errList, models, rollouts: ro, text: lines.join("") };
   }
+  // 这台电脑正在算的任务要用的某个文件在存储里的名字（下载的后备路用：经调度中心转一道）
+  const inputCache = new Map();
+  function inputKey(dev, taskId, k) {
+    const t = one("select * from tasks where id=? and state='leased' and device_id=?", +taskId, dev.id);
+    if (!t) return null;
+    let c = inputCache.get(t.id);
+    if (!c || clock() - c.at > 10 * 60e3) { const pk = pack(t, dev); c = { at: clock(), files: { ...(pk.files || {}), ...(pk.recipe ? { "@recipe": pk.recipe.key } : {}) } }; inputCache.set(t.id, c); if (inputCache.size > 200) inputCache.delete(inputCache.keys().next().value); }
+    return c.files[String(k)] || null;   // "@recipe"：这个任务的配方（电脑那边照样核对签名）
+  }
   // 每分钟调一次：北京时间过了早上 8 点、今天还没发 → 发一份
   function dailyBrief() {
     const d = new Date(clock() + 8 * 3600e3), today = d.toISOString().slice(0, 10);
@@ -836,7 +845,7 @@ function open(file, opt = {}) {
   }
 
   return {
-    db, kv, event, brief, dailyBrief, classifyError, on: (f) => (listeners.add(f), () => listeners.delete(f)),
+    db, kv, event, brief, dailyBrief, classifyError, inputKey, on: (f) => (listeners.add(f), () => listeners.delete(f)),
     adminToken, isAdmin, invite, join, auth, heartbeat, addRecipe, stage, createJob, lease, renew, checkpoint, lostCkpt, finish, fail, sweep,
     humanNext, humanDone, reviewNext, vote, cut, retire, addTasks, dataset, importVoice, voiceData, voices, addMember, laneDevice, updateGate, setRollout, rollouts, sendCommand, commandDone, commandsOf, stats, deviceLogs, overview, jobDetail, devicesView, board, setJob, setDevice, retry,
     recipe: (id) => one("select * from recipes where id=?", id), recipes: () => all("select id,name,meta,created from recipes order by created desc"),
