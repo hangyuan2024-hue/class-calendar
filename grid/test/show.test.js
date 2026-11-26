@@ -310,6 +310,18 @@ const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
     assert.equal(show.outFile(r.file), path.join(tmp, "work", "show", "files", r.file));
     assert.throws(() => show.outFile("../../etc/passwd"), /不在了/);
     ok("交文件：Word（Markdown 写的标题、加粗、表格都在）、csv（带 BOM）；只能打开 files 里的文件");
+    // 本机文件夹：选了以后每句都带上找、看、读的工具，提示里写着连的是哪个文件夹；不选就不带
+    const fdir = path.join(tmp, "我的资料"); fs.mkdirSync(fdir, { recursive: true }); fs.writeFileSync(path.join(fdir, "a.txt"), "冒泡排序");
+    let st2 = await show.state(); assert.equal(st2.folder.root, "");
+    show.folderSet(fdir); st2 = await show.state(); assert.equal(st2.folder.name, "我的资料");
+    n0 = reqs.length; await show.send("在我的资料里找一下冒泡排序");
+    const rq = reqs.slice(n0)[0], tn = rq.tools.map((t) => t.function.name);
+    assert.ok(tn.includes("folder_find") && tn.includes("folder_read") && /本机文件夹「我的资料」/.test(rq.messages[0].content));
+    show.folderSet(null); n0 = reqs.length; await show.send("你好");
+    assert.ok(!reqs.slice(n0)[0].tools.map((t) => t.function.name).includes("folder_find"));
+    assert.throws(() => show.outFile("folder:../x"), /还没选文件夹/);
+    ok("本机文件夹：选了以后每句都带上找、读的工具，提示里写着是哪个文件夹；不用了就不带");
+
   }
 
   // 7. 换身份、审批、重开还在

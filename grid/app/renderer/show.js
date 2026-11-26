@@ -24,6 +24,7 @@
     if (!S) return;
     const P = S.product, me = S.who.me;
     $("#shBuild").textContent = `成品 第 ${P.build} 版`;
+    if (S.folder) paintFolder(S.folder);
     $("#shSpeak").checked = S.voice.on;
     const sel = $("#shRole");
     if (sel.options.length !== S.who.roles.length) sel.innerHTML = S.who.roles.map((r) => `<option value="${r.key}">${esc(r.name)}：${esc(r.who)}</option>`).join("");
@@ -295,6 +296,8 @@
       return;
     }
     if (e.type === "chats") { loadChats(); return; }
+    // 混合模式：这一句交给了谁（本机 / 云端），在回答上面小字写一行
+    if (e.type === "route") { endBot(); add("sh-route " + (e.where === "cloud" ? "cloud" : "local"), esc(e.where === "cloud" ? `云端回答 · ${e.why}` : `本机回答 · ${e.why}`)); return; }
     if (e.type === "exam") { endBot(); said = ""; add("sh-msg me", esc(`第 ${e.no} / ${e.total} 题：${e.q}`)); return; }
     if (e.type === "ear") { onEar(e); return; }
     if (e.type === "prep") { if (S) S.prep = e.prep; paintPrep(e.prep); if (e.prep.open && S && !e.prep.running) refresh(); return; }
@@ -312,6 +315,7 @@
       // 改了 PPT：预览马上跟着变，跳到改的那一页
       if (window.LaoCheckup && /^checkup_/.test(e.name)) window.LaoCheckup.onTool(e, add);
       if (e.ok && e.name === "make_file" && e.result && e.result.file) { el.remove(); fileCard(e.result); }
+      if (e.ok && e.result && (e.result.news || e.result.videos || e.result.images)) webCard(e.name, e.result);
       if (e.ok && e.name === "make_ppt") add("sh-hello", `<span>做好了，左边能看到每一页。接着说怎么改就行，比如：</span><div class="grp">${["把第 3 页改成两栏对比", "整份换成绿色的", "字再大一点", "最后加一页练习题", "给每一页写上讲稿", "检查一遍有没有问题"].map((x) => `<button class="ex">${esc(x)}</button>`).join("")}</div>`);
       if (e.ok && e.changed && deck && PPT_TOOL.test(e.name)) { const r = e.result || {}; deck.refresh(e.name === "make_ppt" ? 1 : r.no || r.to || (r.pages && r.pages[0]) || (e.args && e.args.slide) || null).then(() => showDeck(true)); }
       return;
@@ -365,6 +369,19 @@
     }
   }
   if ($("#shScreen")) { try { $("#shScreen").checked = localStorage.getItem("lg-screen") === "1"; } catch (e) {} $("#shScreen").onchange = () => { try { localStorage.setItem("lg-screen", $("#shScreen").checked ? "1" : "0"); } catch (e) {} if ($("#shScreen").checked) toast("看屏幕打开了：每次发话都会截一张屏幕给捞小智看（不保存）"); }; }
+  // 本机文件夹：选了以后，捞小智问到资料时自己去里面找、读；× 不用了
+  function paintFolder(f) {
+    if (!$("#shFolder")) return;
+    const on = !!(f && f.root);
+    $("#shFolderName").textContent = on ? f.name : "文件夹";
+    $("#shFolderBox").classList.toggle("on", on);
+    $("#shFolderBox").title = on ? `捞小智能在「${f.root}」里找文件、读文件（文件留在原地）。点名字换一个文件夹` : "选一个本机文件夹给捞小智：文件留在原地，问到时它自己去里面找、去读，不用一个个传";
+    $("#shFolderX").hidden = !on;
+  }
+  if ($("#shFolder")) {
+    $("#shFolder").onclick = guard(async () => { const f = await call("showFolderPick"); paintFolder(f); if (f.root) toast(`连上了「${f.name}」：可以直接问「在我的资料里找一下……」`); });
+    $("#shFolderX").onclick = guard(async () => { paintFolder(await call("showFolderClear")); toast("不再看这个文件夹了"); });
+  }
   if ($("#shAttach")) {
     $("#shAttach").onclick = () => $("#shFile").click();
     $("#shFile").onchange = () => { const fs = [...($("#shFile").files || [])]; if (!fs.length) return; addFiles(fs); setTimeout(() => { $("#shFile").value = ""; }, 0); };
@@ -375,10 +392,24 @@
     zone.addEventListener("drop", (e) => { e.preventDefault(); zone.classList.remove("drop"); addFiles(e.dataTransfer.files); });
     $("#shText").addEventListener("paste", (e) => { const fs = [...(e.clipboardData.files || [])]; if (fs.length) { e.preventDefault(); addFiles(fs.map((f, i) => (f.name && f.name !== "image.png" ? f : new File([f], `截图-${new Date().toTimeString().slice(0, 8).replace(/:/g, "")}${i ? "-" + i : ""}.png`, { type: f.type })))); } });
   }
+  // 新闻、视频、图片：在对话里直接列出来（标题点开原文、视频点「播放」在小窗口里放、图片点开所在网页）
+  function webCard(name, r) {
+    if (r.news && r.news.length) {
+      add("sh-web news", `<div class="wh">今天的新闻 · ${r.news.length} 条</div>` + r.news.map((x) => `<a href="#" data-u="${esc(x.url)}"><b>${esc(x.title)}</b><small>${esc(x.source)}${x.when === "昨天" ? " · 昨天" : ""}</small></a>`).join(""));
+    }
+    if (r.videos && r.videos.length) {
+      add("sh-web videos", `<div class="wh">${name === "news_video" ? "新闻联播" : "视频"} · ${r.videos.length} 个</div>` + r.videos.map((x) => `<div class="vi"><button class="play" data-u="${esc(x.url)}" data-play="1" aria-label="播放"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg></button><div class="vm"><b>${esc(x.title)}</b><small>${esc(x.source || "")}${x.when ? " · " + esc(x.when) : ""}</small></div><a href="#" data-u="${esc(x.url)}">原网页</a></div>`).join(""));
+    }
+    if (r.images && r.images.length) {
+      const d = add("sh-web images", `<div class="wh">图片 · ${r.images.length} 张</div><div class="ig">` + r.images.map((x) => `<a href="#" data-u="${esc(x.page)}" title="${esc((x.title ? x.title + " · " : "") + x.source)}"><img src="${esc(x.thumb)}" alt="${esc(x.title || "")}" loading="lazy" referrerpolicy="no-referrer"><span>${esc(x.source)}</span></a>`).join("") + "</div>");
+      d.querySelectorAll("img").forEach((i) => i.addEventListener("error", () => i.parentNode.remove()));
+    }
+  }
+  $("#shLog").addEventListener("click", guard(async (e) => { const a = e.target.closest(".sh-web [data-u]"); if (!a) return; e.preventDefault(); await call("showOpenUrl", a.dataset.u, a.dataset.play ? "play" : "open"); }));
   // 捞小智交的文件：一张小卡片，点开 / 在文件夹里看 / 另存为
   function fileCard(r) {
-    const d = add("sh-file", `<i>${esc(fileIco(r.file))}</i><div class="fm"><b>${esc(r.file)}</b><small>${esc(r.kind || "")}${r.size ? " · " + kb(r.size) : ""}</small></div><div class="fa"><button class="btn small" data-f="open">打开</button><button class="btn small ghost" data-f="reveal">在文件夹里看</button><button class="btn small ghost" data-f="save">另存为</button></div>`);
-    d.dataset.file = r.file;
+    const d = add("sh-file", `<i>${esc(fileIco(r.file))}</i><div class="fm"><b>${esc(r.file)}</b><small>${esc(r.kind || "")}${r.size ? " · " + kb(r.size) : ""}${r.saved ? " · " + esc(r.saved) : ""}</small></div><div class="fa"><button class="btn small" data-f="open">打开</button><button class="btn small ghost" data-f="reveal">在文件夹里看</button><button class="btn small ghost" data-f="save">另存为</button></div>`);
+    d.dataset.file = r.ref || r.file;
     return d;
   }
   $("#shLog").addEventListener("click", guard(async (e) => { const b = e.target.closest("[data-f]"); if (!b) return; const card = b.closest(".sh-file"); const r = await call("showFileOpen", card.dataset.file, b.dataset.f); if (b.dataset.f === "save" && r) toast("存好了：" + r); }));

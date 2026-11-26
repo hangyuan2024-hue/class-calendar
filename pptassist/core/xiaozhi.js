@@ -193,7 +193,8 @@ function create(o) {
   let lastKind = "";
   //   说的是检测报告（头皮、比上周有什么进步…）或者发来了照片说头发的事：带检测的工具
   function pick(text, imgs) {
-    const names = new Set(["make_ppt", "make_file", ...webTools.map((t) => t.name), ...groundTools.map((t) => t.name)]), ppt = RE_PPT.test(text), cam = RE_CAMPUS.test(text), chk = checkup.RE.test(text) || !!(imgs && imgs.length && /头|发/.test(text)), mm = RE_MM.test(text);
+    // 联网的工具：搜网页、读网页一直带；新闻、视频、图片这几个只在说到的时候带（少带几个工具，省 token）
+    const names = new Set(["make_ppt", "make_file", ...webTools.filter((t) => !t.when || t.when(text)).map((t) => t.name), ...groundTools.map((t) => t.name)]), ppt = RE_PPT.test(text), cam = RE_CAMPUS.test(text), chk = checkup.RE.test(text) || !!(imgs && imgs.length && /头|发/.test(text)), mm = RE_MM.test(text);
     // 都没提（「再简单一点」「好的」）：接着上一句说的那件事
     const kind = [ppt && "ppt", cam && "campus", chk && "check", mm && "mindmap"].filter(Boolean).join("+") || lastKind || (cur ? "ppt" : "campus");
     lastKind = kind;
@@ -203,6 +204,7 @@ function create(o) {
     if (has("check")) for (const t of checkTools) names.add(t.name);
     if (has("mindmap")) for (const t of mindmapTools) names.add(t.name);
     if (teamMode || RE_BIG.test(text) || text.length > 120) names.add("team_work");
+    if (folder && folder.root()) for (const t of folderTools) names.add(t.name);
     return names;
   }
   const SYS = (names) => {
@@ -252,18 +254,20 @@ ${hasCheck ? `四、${checkup.profile.name}报告（${checkup.profile.dims.map((
 现在和你说话的是：${w.role} ${w.name}（${w.role === "学生" ? `学号 ${w.id}，${w.class}` : w.role === "教师" ? `工号 ${w.id}，${w.dept}${w.counselor_of && w.counselor_of.length ? "，" + w.counselor_of.join("、") + "辅导员" : ""}` : "教务处"}）。
 今天是 ${w.today} ${w.weekday}，${w.term}第 ${w.week} 周；明天是 ${ymd(tm)}。
 这两周每一天的日期（一周从周一开始；说「下周五」就是下面写着「下周五」的那天，直接照抄，不要自己算）：${days2w(t)}
-${cur ? `现在手上的 PPT：「${cur.title}」，一共 ${cur.pages} 页（界面上能看到每一页）。对方说「这一页」「改一下」「换个颜色」指的就是它。` : "现在手上还没有 PPT。"}${voiceMode ? `\n\n${SPOKEN}\n（上面讲题、PPT、教务的规则照旧；只是说的话要按语音通话来：不写 LaTeX、不列条目。讲知识时一次讲完一个完整的点，四到六句，比上面「两三句」可以多一点，讲完再问要不要接着讲；不要每次都反问对方从哪开始。）` : ""}`;
+${cur ? `现在手上的 PPT：「${cur.title}」，一共 ${cur.pages} 页（界面上能看到每一页）。对方说「这一页」「改一下」「换个颜色」指的就是它。` : "现在手上还没有 PPT。"}${folder && folder.root() ? `\n对方连着本机文件夹「${require("path").basename(folder.root())}」：说到自己的资料、文件、作业、课件时，先用 folder_find 在里面找、folder_read 读，不要让对方再上传；读到的内容照原文用，标上是哪个文件。` : ""}${voiceMode ? `\n\n${SPOKEN}\n（上面讲题、PPT、教务的规则照旧；只是说的话要按语音通话来：不写 LaTeX、不列条目。讲知识时一次讲完一个完整的点，四到六句，比上面「两三句」可以多一点，讲完再问要不要接着讲；不要每次都反问对方从哪开始。）` : ""}`;
   };
   const campusTools = campus.tools(actor);
   const checkTools = checkup.tools(() => lastImgs);
-  const webTools = o.web === false ? [] : (o.webTools || require("./websearch").tools(o.webOpt || {}));
+  // 联网只看国内网站（cnOnly）：搜到的、读的、新闻、图片、视频都是国内媒体的
+  const webOpt = { cnOnly: true, ...(o.webOpt || {}) };
+  const webTools = o.web === false ? [] : (o.webTools || require("./websearch").tools(webOpt));
   // 先核对再回答：本机知识库（dir/kb 里的 .txt / .md）+ 需要时联网；照资料答、逐句核对（core/ground.js）
   const GROUND = require("./ground");
   const kb = o.kb || GROUND.kb(path.join(dir, "kb"), o.kbOpt || {});
   // 捞捞思维导图（学习捞捞队的模块）：只走它公开的本机接口 / 存下来的 map.json，不改它的代码（core/mindmap.js）
   const mindmap = o.mindmap === false ? null : (o.mindmap || require("./mindmap").create(o.mindmapOpt || {}));
   const mindmapTools = mindmap ? mindmap.tools() : [];
-  const ground = o.ground || GROUND.create({ llm: o.llm, kb, sources: mindmap ? [mindmap] : [], web: o.web === false ? null : (() => { const W = require("./websearch"); return { search: (q) => W.search(q, o.webOpt || {}), read: (u) => W.read(u, o.webOpt || {}) }; })(), onStep: (m) => { if (o.onEvent) o.onEvent({ type: "note", text: m }); } });
+  const ground = o.ground || GROUND.create({ llm: o.llm, kb, sources: mindmap ? [mindmap] : [], web: o.web === false ? null : (() => { const W = require("./websearch"); return { search: (q) => W.search(q, webOpt), read: (u) => W.read(u, webOpt) }; })(), onStep: (m) => { if (o.onEvent) o.onEvent({ type: "note", text: m }); } });
   const groundTools = ground.tools();
   // 多个助手一起干活（core/team.js）：助手用「干活模型」（默认这家最便宜的），只能查、不能办
   const TEAM = require("./team");
@@ -271,7 +275,10 @@ ${cur ? `现在手上的 PPT：「${cur.title}」，一共 ${cur.pages} 页（�
   const team = o.team || TEAM.create({ llm: o.llm, tools: () => tools, onEvent: (e) => { if (o.onEvent) o.onEvent(e); },
     worker: () => (cloudOf() ? cloudOf().workerModel() : null), workerName: () => (cloudOf() ? cloudOf().info().workerName : "本机模型"), concurrency: o.teamConcurrency || 3 });
   // 交文件：做成 Word / 表格 / 代码文件这些，存在 dir/files 里，界面上点开（core/files.js）
-  const fileTool = require("./files").tool({ dir });
+  // 本机文件夹（core/folder.js）：选了就带上找、看、读三个工具，文件留在原地，用到再读
+  const folder = o.folder || null;
+  const folderTools = folder ? folder.tools() : [];
+  const fileTool = require("./files").tool({ dir, folder });
   const tools = [
     { name: "make_ppt", desc: "按要求从头做一份新的 PPT（.pptx）。title 整份的标题，subtitle 副标题（课程、章节），theme 配色（" + Object.entries(DECK.THEMES).map(([k, v]) => `${k} ${v.name}`).join(" / ") + "，不写用 blue），slides 每一页（封面不用写，会自动加）",
       params: { title: { type: "string" }, subtitle: { type: "string" }, theme: { type: "string", enum: Object.keys(DECK.THEMES) }, slides: { type: "array", items: { type: "object", properties: AGENT.PAGE } } }, req: ["title", "slides"], changes: true,
@@ -295,6 +302,7 @@ ${cur ? `现在手上的 PPT：「${cur.title}」，一共 ${cur.pages} 页（�
     ...mindmapTools,
     team.tool,
     fileTool,
+    ...folderTools,
   ];
   const isPpt = new Set(PPT_NAMES);
   let tap = null;       // 考试的时候看它调了哪些工具

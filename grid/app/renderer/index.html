@@ -145,6 +145,7 @@
             <div class="sh-bar">
               <div class="sh-tools">
                 <button class="btn icon ghost" id="shAttach" title="传文件：Word、PPT、PDF、Excel、图片、代码……（也可以直接拖进来、粘贴截图）" aria-label="传文件"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1l8.6-8.6a3.4 3.4 0 0 1 4.8 4.8l-8.4 8.4a1.7 1.7 0 0 1-2.4-2.4l7.6-7.6"/></svg></button>
+                <span class="chip fold" id="shFolderBox" title="选一个本机文件夹给捞小智：文件留在原地，问到时它自己去里面找、去读，不用一个个传"><button type="button" id="shFolder"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.2h7a2 2 0 0 1 2 2v7.8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg><span id="shFolderName">文件夹</span></button><button type="button" id="shFolderX" class="fx" hidden aria-label="不用这个文件夹" title="不用这个文件夹">×</button></span>
                 <label class="chip" title="用哪个模型回答：本机模型免费、不联网；云端模型要在「插件 → 模型」里填自己的 Key"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7.5 4.3v9.4L12 21l-7.5-4.3V7.3z"/><path d="M12 12l7.5-4.7M12 12v9M12 12L4.5 7.3"/></svg><select id="shModelPick" aria-label="模型"></select></label>
                 <label class="sw" title="大任务（对比、整理、一整套……）拆给几个助手同时做，更快、更省；助手用便宜的模型"><input type="checkbox" id="shTeam"><i></i><span>多个助手</span></label>
                 <label class="sw" title="回答念出来，形象的嘴跟着动"><input type="checkbox" id="shSpeak" checked><i></i><span>念出来</span></label>

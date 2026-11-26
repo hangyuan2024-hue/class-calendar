@@ -49,6 +49,15 @@ const svc = createService({
     if (!src || src.thumbnail.isEmpty()) throw new Error("截不到屏幕（系统没给权限？）");
     return "data:image/jpeg;base64," + src.thumbnail.toJPEG(72).toString("base64");
   },
+  // 新闻、视频：「打开原文」用系统浏览器；「播放」开一个小窗口直接放（只放国内网站的页面）
+  openExternal: (u) => shell.openExternal(u),
+  openVideo: (u, title) => {
+    const w = new BrowserWindow({ width: 1280, height: 780, title: title || "播放", backgroundColor: "#000000", autoHideMenuBar: true, icon: require("path").join(__dirname, "renderer", "icon.png"),
+      webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false, autoplayPolicy: "no-user-gesture-required" } });
+    w.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: "deny" }; });
+    w.loadURL(u);
+  },
+  pickFolder: async () => { const r = await dialog.showOpenDialog(win, { title: "选一个文件夹给捞小智（文件留在原地，用到再读）", properties: ["openDirectory"] }); return r.canceled ? null : r.filePaths[0]; },
   // 捞小智做的文件「另存为」：选个地方拷一份过去
   saveCopy: async (f) => { const r = await dialog.showSaveDialog(win, { title: "另存为", defaultPath: require("path").basename(f) }); if (r.canceled || !r.filePath) return null; require("fs").copyFileSync(f, r.filePath); return r.filePath; },
   // 成品展示的全屏模式

@@ -204,9 +204,16 @@ function create(o) {
       },
     };
     // 云端开着：对话走云端，看图走本机（local）；关着：全部走本机
-    const llm = CLOUD.wrap(local, cloud);
-    const xz = XZ.create({ dir, llm, grid: models, kbOpt: { transcribe }, onEvent: (e) => emit(e), now: o.now, log: (m) => log(m), ...(o.xzOpt || {}) });
-    cur = { dir, models, xz, llm };
+    // 混合模式：本机优先，难题交给云端；这台电脑显卡 8G 以上（本机跑 8B）就多留给本机；本机模型没准备好就都走云端
+    const llm = CLOUD.wrap(local, cloud, {
+      tier: () => (o.vram && (+o.vram() || 0) >= 7.5 && !o.noBig ? "big" : "small"),
+      localOk: () => { try { return !!(o.llm && o.llm.ok()); } catch (e) { return false; } },
+      onRoute: (r) => emit({ type: "route", ...r }),
+    });
+    // 本机文件夹：选了就让捞小智自己去里面找、读（文件留在原地）
+    const folder = PPT("folder.js").create({ file: path.join(dir, "folder.json"), cacheDir: path.join(dir, "foldercache") });
+    const xz = XZ.create({ dir, llm, grid: models, folder, kbOpt: { transcribe }, onEvent: (e) => emit(e), now: o.now, log: (m) => log(m), ...(o.xzOpt || {}) });
+    cur = { dir, models, xz, llm, folder };
     lastBuild = xz.product().build;
     return cur;
   }
@@ -446,7 +453,7 @@ function create(o) {
     const { xz } = S(); await xz.ready(); await sysCheck();
     const me = xz.who(), actor = xz.campus.identities()[me.role], lp = xz.lastPpt();
     return { who: me, product: xz.product(), busy: xz.busy(), voice: voiceInfo(), prep: await prepStatus(), call: callInfo(), llm: { ok: !!(o.llm && o.llm.ok()), running: !!(o.llm && o.llm.running && o.llm.running()) },
-      cloud: cloud.info(), team: xz.teamMode(), task: o.busy ? o.busy() : null, ppt: lp ? { name: path.basename(lp.file), title: lp.title, pages: lp.pages, rev: lp.rev } : null, exam: xz.lastExam(),
+      cloud: cloud.info(), team: xz.teamMode(), folder: S().folder.info(), task: o.busy ? o.busy() : null, ppt: lp ? { name: path.basename(lp.file), title: lp.title, pages: lp.pages, rev: lp.rev } : null, exam: xz.lastExam(),
       requests: xz.campus.myRequests(actor).requests.slice(0, 8), pending: xz.campus.pending(actor).requests.slice(0, 8), campus: xz.campus.stats() };
   }
   // ---------- 对话历史：每段对话存在这台电脑上（不上传），左边列出来，点开接着聊 ----------
@@ -462,7 +469,8 @@ function create(o) {
     const { xz } = S();
     const ms = xz.history().map((m) => { const { _c, ...r } = m; return r.role === "user" && Array.isArray(r.content) ? { ...r, content: textOf(r.content) || "（发过一张图片）" } : r; });
     if (!ms.some((m) => m.role === "user")) return null;
-    const first = textOf((ms.find((m) => m.role === "user") || {}).content).replace(/\s+/g, " ").trim();
+    // 标题只取问的那句话：带的文件全文、「附：屏幕截图」那句说明都不算
+    const first = textOf((ms.find((m) => m.role === "user") || {}).content).split(ATT_MARK)[0].replace(/\n\n（附：我现在电脑屏幕的截图[\s\S]*$/, "").replace(/\s+/g, " ").trim();
     const idx = chatIdx();
     if (!chatId) chatId = "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     const old = idx.find((x) => x.id === chatId);
@@ -547,6 +555,7 @@ function create(o) {
   }
   // 做出来的文件：只认 files 文件夹里的（防止界面传进来别的路径）
   function outFile(name) {
+    if (/^folder:/.test(String(name || ""))) return S().folder.inside(String(name).slice(7));   // 存进本机文件夹的
     const f = path.join(o.dir(), "files", path.basename(String(name || "")));
     if (!name || !fs.existsSync(f)) throw new Error("文件不在了：可能被删掉或者挪走了");
     return f;
@@ -607,7 +616,8 @@ function create(o) {
     releaseGpu: () => { try { voice.stop(); } catch (e) {} try { ear.stop(); } catch (e) {} },
     apiStop: () => api.stop(false),
     stop: () => S().xz.stop(), reset: () => { S().xz.reset(); chatId = null; return true; },
-    attach, outFile,
+    attach, outFile, web: () => PPT("websearch.js"),
+    folderInfo: () => S().folder.info(), folderSet: (dir) => S().folder.set(dir || null),
     chatList: () => chats.list(), chatOpen: (id) => chats.open(id), chatRemove: (id) => chats.remove(id), chatRename: (id, t) => chats.rename(id, t),
     // 云端大脑：看设置、改设置（换了大脑就开一段新对话：两边的对话记录格式不一样）、试一下连不连得上
     cloudInfo: () => cloud.info(),

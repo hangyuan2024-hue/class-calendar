@@ -147,6 +147,53 @@ const ok = (m) => console.log("✓ " + m);
   cloud.setConfig({ current: "deepseek/deepseek-flash" });
   ok("多家模型：填了哪家的 Key 下拉里就有哪家；切换模型；各家思考参数照它的来（DeepSeek thinking、通义 enable_thinking、不认识的不传）；别家去掉 reasoning_content；能拉模型列表、加自己的模型名、接自定义接口；干活模型默认用便宜的");
 
+  // ---------- 混合：本机优先，难题交给云端 ----------
+  {
+    const st0 = local.started.length;
+    cloud.setConfig({ current: "deepseek/deepseek-flash" });
+    let I2 = cloud.setConfig({ current: "auto" });
+    assert.equal(I2.current, "auto"); assert.equal(I2.hybrid, true); assert.match(I2.currentName, /混合.*DeepSeek/);
+    assert.ok(I2.choices.some((x) => x.value === "auto"));
+    const routes = []; let tier = "small", lok = true;
+    const hy = CLOUD.wrap(local, cloud, { tier: () => tier, localOk: () => lok, onRoute: (r) => routes.push(r) });
+    const n0 = reqs.length; local.chats.length = 0;
+    await hy.chat([{ role: "user", content: "明天有什么课？" }]);
+    assert.equal(reqs.length, n0); assert.equal(local.chats.length, 1); assert.equal(routes.pop().where, "local");
+    await hy.chat([{ role: "user", content: "证明根号 2 是无理数" }]);
+    assert.equal(reqs.length, n0 + 1); assert.equal(routes.pop().where, "cloud", "难题走云端");
+    await hy.chat([{ role: "user", content: "帮我写一个快速排序的代码" }]); assert.equal(routes.pop().where, "cloud");
+    tier = "big"; await hy.chat([{ role: "user", content: "帮我写一个快速排序的代码" }]); assert.equal(routes.pop().where, "local", "电脑好（8B）：一般的难题本机就行");
+    await hy.chat([{ role: "user", content: "x" }], { mode: "ppt" }); assert.equal(routes.pop().where, "local");
+    tier = "small"; await hy.chat([{ role: "user", content: "做一份 PPT" }], { mode: "ppt" }); assert.equal(routes.pop().where, "cloud", "小模型做 PPT 交给云端");
+    lok = false; await hy.chat([{ role: "user", content: "你好" }]); const r = routes.pop(); assert.equal(r.where, "cloud"); assert.match(r.why, /本机模型还没准备好/);
+    lok = true; const before = routes.length; await hy.chat([{ role: "user", content: "你好" }]); await hy.chat([{ role: "user", content: "你好" }]); assert.equal(routes.length, before + 1, "同一句话的几轮只报一次");
+    assert.equal(CLOUD.route([{ role: "user", content: "看看\n\n【附件：a.docx】\n" + "字".repeat(4000) }]).where, "cloud", "带了长文件");
+    I2 = cloud.setConfig({ current: "deepseek/deepseek-flash" }); assert.equal(I2.hybrid, false); assert.equal(I2.current, "deepseek/deepseek-flash");
+    const fresh = CLOUD.create({ file: path.join(dir, "h", "cloud.json"), env: {} });
+    assert.throws(() => fresh.setConfig({ current: "auto" }), /混合模式要先接一家云端模型/);
+    local.started.length = st0;
+  }
+  ok("混合：本机优先；证明、写代码、带长文件、小模型做 PPT 交给云端；电脑好（8B）多留给本机；本机没准备好全走云端；每句报一次走了哪边");
+
+  // ---------- 连接中途断了：一个字还没收到就悄悄再试一次；收到过字了就说人话报错 ----------
+  {
+    const http = require("http"); let n = 0, mode = "cut-early";
+    const s2 = http.createServer((q, r) => { let b = ""; q.on("data", (c) => (b += c)); q.on("end", () => {
+      n++; r.writeHead(200, { "content-type": "text/event-stream" });
+      if (mode === "cut-early" && n === 1) return setTimeout(() => q.socket.destroy(), 20);
+      if (mode === "cut-late") { r.write(`data: ${JSON.stringify({ choices: [{ delta: { content: "写到一半" } }] })}\n\n`); return setTimeout(() => q.socket.destroy(), 30); }
+      r.write(`data: ${JSON.stringify({ choices: [{ delta: { content: "好了" } }] })}\n\n`); r.end("data: [DONE]\n\n"); }); });
+    await new Promise((d) => s2.listen(0, "127.0.0.1", d));
+    const c2 = CLOUD.create({ file: path.join(dir, "c2", "cloud.json"), base: `http://127.0.0.1:${s2.address().port}`, env: { LAOLAO_DEEPSEEK_KEY: "sk-cut12345678" } });
+    c2.setConfig({ brain: "cloud" });
+    const r1 = await c2.chat([{ role: "user", content: "x" }], { think: false }); assert.equal(r1.content, "好了"); assert.equal(n, 2, "断了重试了一次");
+    mode = "cut-late"; const got = [];
+    await assert.rejects(() => c2.chat([{ role: "user", content: "x" }], { think: false, onDelta: (t) => got.push(t) }), /连接中途断了/);
+    assert.deepEqual(got, ["写到一半"]); assert.equal(n, 3, "收到过字就不重试");
+    s2.close();
+  }
+  ok("和云端的连接中途断了：一个字都没收到就自动再试一次；已经在写了就报「连接中途断了」，不再是一句 aborted");
+
   // ---------- 关掉云端 → 全回本机 ----------
   cloud.setConfig({ brain: "local" });
   const nl = reqs.length; local.chats.length = 0;

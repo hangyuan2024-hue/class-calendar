@@ -84,6 +84,7 @@ function create(o = {}) {
     return { pid, mid, P: PROVIDERS[pid], model: PROVIDERS[pid].models.find((m) => m.id === mid) || { id: mid, name: mid } };
   }
   const active = () => !!target(raw());
+  const hybrid = () => { const c = raw(); return !!(c.hybrid && target(c)); };
 
   function setConfig(patch = {}) {
     const c = raw(), prov = { ...c.providers };
@@ -93,7 +94,7 @@ function create(o = {}) {
     if (patch.key != null) prov.deepseek = { ...(prov.deepseek || {}), key: checkKey(patch.key) };
     if (patch.model != null) { need(PROVIDERS.deepseek.models.some((m) => m.id === patch.model), "没有这个模型：" + patch.model); c.lastDeepseek = patch.model; if (split(c.current)[0] === "deepseek") c.current = "deepseek/" + patch.model; }
     if (patch.brain != null) {
-      need(["local", "cloud"].includes(patch.brain), "大脑只能选本机或云端");
+      need(["local", "cloud"].includes(patch.brain), "大脑只能选本机或云端"); c.hybrid = false;
       c.current = patch.brain === "local" ? "local" : "deepseek/" + (patch.model || (split(c.current)[0] === "deepseek" ? split(c.current)[1] : c.lastDeepseek) || "deepseek-flash");
     }
     // 新的写法：填某一家的 Key / 地址 / 自己加的模型名
@@ -108,8 +109,16 @@ function create(o = {}) {
     }
     if (patch.current != null) {
       const v = String(patch.current);
-      if (v === "local") c.current = "local";
+      if (v === "local") { c.current = "local"; c.hybrid = false; }
+      // 混合：本机优先，难题自动交给云端（云端用的是之前选的那个模型；还没选过就用第一家能用的）
+      else if (v === "auto") {
+        let tv = target({ ...c, providers: prov }) ? c.current : null;
+        if (!tv) { const pid = Object.keys(PROVIDERS).find((id) => usable({ providers: prov }, id)); if (pid) tv = `${pid}/${pid === "deepseek" ? c.lastDeepseek || "deepseek-flash" : (modelsOf({ providers: prov }, pid)[0] || {}).id}`; }
+        need(tv && target({ ...c, providers: prov }, tv), "混合模式要先接一家云端模型：在「插件 → 模型」里填好 Key");
+        c.current = tv; c.hybrid = true;
+      }
       else {
+        c.hybrid = false;
         const [pid, mid] = split(v); need(PROVIDERS[pid], "还不支持这家：" + pid); need(mid && MODEL_RE.test(mid), "模型名看着不对");
         need(usable({ providers: prov }, pid) || (pid === "deepseek" && env.LAOLAO_DEEPSEEK_KEY), PROVIDERS[pid].custom && !(prov[pid] || {}).base ? "要先填接口地址和 Key" : `要先填 ${PROVIDERS[pid].name} 的 API Key（在 ${PROVIDERS[pid].site || "它的开放平台"} 申请）`);
         c.current = v;
@@ -119,7 +128,7 @@ function create(o = {}) {
     if (patch.worker != null) { const w = String(patch.worker); need(!w || w === "local" || (PROVIDERS[split(w)[0]] && split(w)[1]), "干活模型看着不对"); c.worker = w; }
     // 选了云端却没 Key
     if (split(c.current)[0] !== "local") { const pid = split(c.current)[0]; need(usable({ providers: prov }, pid), `要先填 ${PROVIDERS[pid].name} 的 API Key（在 ${PROVIDERS[pid].site || "它的开放平台"} 申请）`); }
-    write(fileOf(), { current: c.current, think: c.think, worker: c.worker || "", lastDeepseek: c.lastDeepseek, providers: prov });
+    write(fileOf(), { current: c.current, hybrid: !!c.hybrid, think: c.think, worker: c.worker || "", lastDeepseek: c.lastDeepseek, providers: prov });
     return info();
   }
 
@@ -154,10 +163,12 @@ function create(o = {}) {
     const c = raw(), t = target(c), pid = t ? t.pid : "deepseek", P = PROVIDERS[pid], key = keyOf(c, pid);
     const providers = Object.entries(PROVIDERS).map(([id, Q]) => { const k = keyOf(c, id); return { id, name: Q.custom && (c.providers[id] || {}).name ? c.providers[id].name : Q.name, site: Q.site, custom: !!Q.custom, base: Q.custom ? baseOf(c, id) : "", keySet: !!k, keyTail: k ? k.slice(-4) : "", keyFromEnv: id === "deepseek" && !((c.providers.deepseek || {}).key) && !!k, models: modelsOf(c, id) }; });
     const choices = [{ value: "local", name: "本机模型（免费、不联网，慢一些）" }];
+    if (t || providers.some((p) => usable(c, p.id))) choices.push({ value: "auto", name: "混合：本机优先，难题用云端" });
     for (const p of providers) if (usable(c, p.id)) for (const m of p.models) choices.push({ value: `${p.id}/${m.id}`, name: `${p.name} · ${m.name}` });
     if (c.current !== "local" && !choices.some((x) => x.value === c.current) && t) choices.push({ value: c.current, name: nameOf(c, c.current) });
     const wm = workerModel();
-    return { on: !!t, current: t ? c.current : "local", currentName: nameOf(c, t ? c.current : "local"), brain: t ? "cloud" : "local",
+    const hy = !!(t && c.hybrid);
+    return { on: !!t, hybrid: hy, current: hy ? "auto" : t ? c.current : "local", cloudModel: t ? c.current : "", currentName: hy ? `混合（难题用 ${nameOf(c, c.current)}）` : nameOf(c, t ? c.current : "local"), brain: t ? "cloud" : "local",
       provider: pid, providerName: P.name, site: P.site, keySet: !!key, keyTail: key ? key.slice(-4) : "", keyFromEnv: pid === "deepseek" && !((c.providers.deepseek || {}).key) && !!key,
       model: t ? t.mid : c.lastDeepseek || "deepseek-flash", models: modelsOf(c, "deepseek"), think: c.think, vision: false, peak: peak(now()), usage: usage(),
       providers, choices, worker: c.worker || "", workerNow: wm, workerName: nameOf(c, wm) };
@@ -193,14 +204,19 @@ function create(o = {}) {
     const onThink = (x) => { if (!told) { told = true; o.onThinking && o.onThinking(); } opt.onThink && opt.onThink(x); };
     const cap = style === "deepseek" ? 32768 : 8192;
     const { model: _m, think: _t, ...rest } = opt;
-    const inner = CHAT.chatAt(o.base || baseOf(c, t.pid), msgs, {
-      ...rest, model: t.mid, apiKey: keyOf(c, t.pid), onThink, timeoutMs: o.timeoutMs || 180000,
+    // 连接中途断了、而且一个字都还没收到：悄悄再试一次（收到过字了就不重试，免得说两遍）
+    let got = false, inner = null, stopped = false;
+    const onDelta = opt.onDelta ? (x) => { got = true; opt.onDelta(x); } : null;
+    const onThink2 = (x) => { got = true; onThink(x); };
+    const go = () => (inner = CHAT.chatAt(o.base || baseOf(c, t.pid), msgs, {
+      ...rest, ...(onDelta ? { onDelta } : {}), model: t.mid, apiKey: keyOf(c, t.pid), onThink: onThink2, timeoutMs: o.timeoutMs || 180000,
       temperature: think ? null : opt.temperature,                      // 思考模式不认 temperature
       maxTokens: think ? Math.max(opt.maxTokens || 0, cap) : Math.max(opt.maxTokens || 0, 4096),   // 思考也算在输出里，给够，免得答到一半被截断
       extra,
-    });
-    const p = inner.then((r) => { record(t.model, r.usage); if (style === "deepseek" && think && r.reasoning_content == null) r.reasoning_content = ""; if (style !== "deepseek") delete r.reasoning_content; r.model = `${t.pid}/${t.mid}`; return r; });
-    p.abort = inner.abort;
+    }));
+    const first = go();
+    const p = first.catch((e) => { if (!e.cut || got || stopped) throw e; return go(); }).then((r) => { record(t.model, r.usage); if (style === "deepseek" && think && r.reasoning_content == null) r.reasoning_content = ""; if (style !== "deepseek") delete r.reasoning_content; r.model = `${t.pid}/${t.mid}`; return r; });
+    p.abort = () => { stopped = true; if (inner && inner.abort) inner.abort(); };
     return p;
   }
 
@@ -227,12 +243,36 @@ function create(o = {}) {
     });
   }
 
-  return { info, setConfig, active, chat, test, usage, listModels, workerModel, start: async () => ({ status: "ready", msg: nameOf(raw(), raw().current) }) };
+  return { info, setConfig, active, hybrid, chat, test, usage, listModels, workerModel, start: async () => ({ status: "ready", msg: nameOf(raw(), raw().current) }) };
 }
 
 // 包一层：云端开着就走云端；看图（start({ eyes: true })、这一句带图）走本机；其它方法照旧用本机的
 //   opt.model = "local"：这一句指定用本机（多个助手一起干活、干活模型选了本机时）
-function wrap(local, cloud) {
+// ---------- 混合模式：这一句交给本机还是云端 ----------
+//   本机优先（免费、不联网、快）；难的才交给云端：证明推导、写代码查报错、论文报告、长文翻译润色、带了长文件、做 PPT、
+//   说的话很长、一次要几个助手一起做。电脑好（显卡 8G 以上，本机跑的是 8B）就多留一些给本机；本机模型还没准备好就都走云端。
+//   查课表、请假、闲聊这些办事和日常一律本机。
+const HARD = /证明|推导|求证|论文|综述|文献|代码|编程|程序|函数|报错|调试|bug|debug|算法|复杂度|数据结构|高数|高等数学|微积分|积分|导数|极限|微分方程|矩阵|线性代数|行列式|概率论|统计学|物理|化学|有机|电路|经济学|金融|法律|翻译|润色|改写|写一篇|作文|报告|方案|计划书|策划|总结一下|详细分析|深入|对比.*(区别|优缺点)|优缺点|原理|为什么会|推荐.*(方案|路线)|面试|简历/i;
+const EASY = /课表|有什么课|请假|销假|借教室|空教室|成绩|绩点|学分|考试安排|校历|几点|在哪|食堂|宿舍|你好|您好|谢谢|再见|哈哈|在吗|你是谁|你叫什么|天气/;
+const ATT = "【附件：";
+function route(messages, opt = {}, env = {}) {
+  const lastUser = [...messages].reverse().find((m) => m.role === "user");
+  const t = !lastUser ? "" : typeof lastUser.content === "string" ? lastUser.content : (lastUser.content || []).filter((c) => c.type === "text").map((c) => c.text).join("\n");
+  if (env.localOk && !env.localOk()) return { where: "cloud", why: "本机模型还没准备好" };
+  const ask = t.split("\n\n" + ATT)[0].replace(/\n\n（附：我现在电脑屏幕的截图[\s\S]*$/, "");
+  const big = env.tier && env.tier() === "big";
+  let score = 0; const why = [];
+  if (t.includes(ATT) && t.length > 3000) { score += 3; why.push("带了长文件"); }
+  if (ask.length > 300) { score += 2; why.push("问题很长"); }
+  if (HARD.test(ask)) { score += 3; why.push("问题比较难"); }
+  if (opt.mode === "ppt") { score += 3; why.push("做 PPT"); }
+  if ((opt.tools || []).some((x) => (x.function || x).name === "team_work") && /team|对比|整理|汇总/.test(ask)) { score += 1; }
+  if (EASY.test(ask) && ask.length < 80) score -= 3;
+  const need = big ? 5 : 3;
+  return score >= need ? { where: "cloud", why: why.join("、") || "问题比较难" } : { where: "local", why: big ? "日常问题，本机（8B）就能答好" : "日常问题，本机就能答" };
+}
+
+function wrap(local, cloud, env = {}) {
   const w = Object.create(local);
   w.start = async (opt) => (cloud.active() && !(opt && opt.eyes) ? cloud.start() : local.start(opt));
   const viaLocal = (messages, opt, eyes) => {
@@ -247,10 +287,17 @@ function wrap(local, cloud) {
     p.abort = () => { stopped = true; if (inner && inner.abort) inner.abort(); };
     return p;
   };
+  let lastTold = "";
+  const tell = (r, lastUser) => { const k = r.where + "|" + (lastUser ? JSON.stringify(lastUser.content).slice(0, 200) : ""); if (k === lastTold) return; lastTold = k; if (env.onRoute) try { env.onRoute(r); } catch (e) {} };
   w.chat = (messages, opt = {}) => {
     if (opt.model === "local") return viaLocal(messages, opt, false);
     if (!cloud.active() && !opt.model) return local.chat(messages, opt);
     const lastUser = [...messages].reverse().find((m) => m.role === "user");
+    if (!hasImg(lastUser) && !opt.model && cloud.hybrid && cloud.hybrid()) {
+      const r = route(messages, opt, env); tell(r, lastUser);
+      return r.where === "local" ? viaLocal(messages, opt, false) : cloud.chat(messages, opt);
+    }
+    if (hasImg(lastUser) && cloud.hybrid && cloud.hybrid()) tell({ where: "local", why: "带了图片，本机看图" }, lastUser);
     if (!hasImg(lastUser)) return cloud.chat(messages, opt);
     // 这一句带图：本机模型（带视觉组件）来看；它的回答没有思考内容，下一句云端会先不开思考（见 thinkFor）
     return viaLocal(messages, opt, true);
@@ -260,4 +307,4 @@ function wrap(local, cloud) {
   return w;
 }
 
-module.exports = { create, wrap, PROVIDERS, peak, cost, dayOf };
+module.exports = { create, wrap, route, PROVIDERS, peak, cost, dayOf };

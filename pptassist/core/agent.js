@@ -194,7 +194,7 @@ function create(opt) {
           try { res = await run(name, a); if (changes(name)) { changed++; if (opt.onChanged) { const x = await opt.onChanged(name, res, a); if (x && res && typeof res === "object") res = { ...res, ...x }; } } }
           catch (e) { ok = false; res = { error: e.message }; }
           emit({ type: "tool", stage: "done", name, args: a, say: sayOf(name, a), ok, result: res, changed: ok && changes(name) });
-          messages.push({ role: "tool", tool_call_id: c.id, name, content: JSON.stringify(res).slice(0, opt.maxResult || 6000) });
+          messages.push({ role: "tool", tool_call_id: c.id, name, content: (res && typeof res.forModel === "string" ? res.forModel : JSON.stringify(res)).slice(0, opt.maxResult || 6000) });   // forModel：工具自己写好的给模型看的精简版（界面上的卡片用完整的结果）
           if (ac.aborted) break;
         }
         if (ac.aborted) { emit({ type: "done", stopped: true, changed }); return; }

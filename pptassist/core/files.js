@@ -133,19 +133,20 @@ function tool(o) {
     name: "make_file",
     desc: "把内容做成一个文件交给对方（对方能直接打开、保存）。对方说「做成文件 / 导出 / 生成 Word / 给我一个 xx 文件 / 写成文档 / 下载」，或者要一份作业、报告、计划、名单、代码文件时用。" +
       "format 是文件类型：" + Object.entries(FORMATS).map(([k, v]) => `${k} ${v}`).join("、") + "。content 写完整的内容，不要省略：docx 用 Markdown 写（# 标题、## 小标题、- 列表、1. 编号、| 表格 |、**加粗**）；csv 第一行是表头、用英文逗号隔开，有逗号的格子加双引号；代码文件只写代码。name 是文件名（不带后缀）。做好以后简单说一句做了什么，不要把整份内容再贴一遍。",
-    params: { name: { type: "string" }, format: { type: "string", enum: Object.keys(FORMATS) }, content: { type: "string" } }, req: ["name", "format", "content"],
+    params: { name: { type: "string" }, format: { type: "string", enum: Object.keys(FORMATS) }, content: { type: "string" }, ...(o.folder ? { to_folder: { type: "boolean", description: "对方说「存到我的文件夹 / 放到资料里」时为 true：存进对方连上的本机文件夹（里面的「捞小智做的」文件夹）" } } : {}) }, req: ["name", "format", "content"],
     say: (a) => `做文件「${safeName(a.name) || "文件"}.${a.format || "txt"}」`,
     run: async (a) => {
       const fmt = FORMATS[a.format] ? a.format : "txt";
       const content = String(a.content || "");
       if (!content.trim()) throw new Error("文件内容是空的");
       if (content.length > 400000) throw new Error("内容太长了（最多 40 万字）");
-      const d = path.join(dir(), "files"); fs.mkdirSync(d, { recursive: true });
+      const toFolder = !!(a.to_folder && o.folder && o.folder.root());
+      const d = toFolder ? path.join(o.folder.root(), "捞小智做的") : path.join(dir(), "files"); fs.mkdirSync(d, { recursive: true });
       let base = safeName(a.name) || "捞小智做的文件", f = path.join(d, `${base}.${fmt}`);
       for (let k = 2; fs.existsSync(f); k++) f = path.join(d, `${base}（${k}）.${fmt}`);
       const buf = fmt === "docx" ? await docx(content) : Buffer.from((fmt === "csv" ? "﻿" : "") + content, "utf8");   // csv 带 BOM：Excel 打开中文不乱码
       fs.writeFileSync(f, buf);
-      const r = { ok: true, file: path.basename(f), format: fmt, kind: FORMATS[fmt], size: buf.length };
+      const r = { ok: true, file: path.basename(f), format: fmt, kind: FORMATS[fmt], size: buf.length, ...(toFolder ? { ref: "folder:" + path.relative(o.folder.root(), f).split(path.sep).join("/"), saved: "存在你的文件夹「" + path.basename(o.folder.root()) + "/捞小智做的」里" } : {}) };
       if (o.onFile) try { o.onFile({ ...r, path: f }); } catch (e) {}
       return { ...r, note: "文件做好了，界面上已经显示出来，对方点一下就能打开" };
     },

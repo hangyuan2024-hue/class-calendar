@@ -671,6 +671,12 @@ function createService(o) {
     showState: showSt,
     async showSend(text, ids, opt) { await show.send(text, ids, opt || {}); return showSt(); },
     showAttach: async (name, bytes) => show.attach(name, bytes),
+    // 本机文件夹：选一个（文件留在原地，捞小智用到再去读）/ 不用了
+    showFolderPick: async () => { const d = o.pickFolder ? await o.pickFolder() : null; if (!d) return show.folderInfo(); return show.folderSet(d); },
+    showFolderClear: async () => show.folderSet(null),
+    showFolderOpen: async () => { const i = show.folderInfo(); if (i.root) o.openPath && o.openPath(i.root); return i; },
+    // 新闻、图片、视频卡片上的按钮：只开国内网站（websearch.isCn）；play = 在小窗口里播放
+    showOpenUrl: async (u, how) => { const W = show.web(); if (!W.isCn(String(u || ""))) throw new Error("只打开国内网站的链接"); if (how === "play" && o.openVideo) o.openVideo(u); else o.openExternal && o.openExternal(u); return true; },
     // 捞小智做出来的文件：open 打开、reveal 在文件夹里看、save 另存到别处
     showFileOpen: async (name, how) => { const f = show.outFile(name); if (how === "reveal") o.reveal && o.reveal(f); else if (how === "save") return o.saveCopy ? o.saveCopy(f) : (o.reveal && o.reveal(f), null); else o.openPath && o.openPath(f); return true; },
     showStop: async () => show.stop(),

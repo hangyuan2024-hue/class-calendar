@@ -22,7 +22,7 @@ function httpError(code, body, cloud) {
 }
 
 function chatAt(base, messages, { tools, onDelta, onThink, temperature = 0.3, maxTokens = 1500, model = "local", extra, apiKey, timeoutMs } = {}) {
-  let req = null, stopped = false;
+  let req = null, stopped = false, timedOut = false;
   const url = new URL(endpoint(base)), lib = url.protocol === "https:" ? https : http;
   const p = new Promise((resolve, reject) => {
     const body = JSON.stringify({ model, messages, stream: true, ...(temperature != null ? { temperature } : {}), max_tokens: maxTokens, ...(tools && tools.length ? { tools, tool_choice: "auto" } : {}),
@@ -58,11 +58,12 @@ function chatAt(base, messages, { tools, onDelta, onThink, temperature = 0.3, ma
         resolve(r);
       };
       res.on("end", end); res.on("close", end);
-      res.on("error", (e) => (stopped ? end() : reject(e)));
+      // 连接中途断了（res 报 aborted）：说人话；等太久被我们自己掐断的，报「等了多久」
+      res.on("error", (e) => (stopped ? end() : reject(timedOut ? new Error(`等了 ${Math.round(timeoutMs / 1000)} 秒没有回音（网络不稳，或者一次要写的内容太长）`) : /aborted|ECONNRESET|socket hang up/i.test(e.message) ? Object.assign(new Error("和 AI 服务的连接中途断了（网络不稳，或者一次要写的内容太长）：再发一次试试；要做很长的文件可以说「分成几个文件」"), { cut: true }) : e)));
     });
     // 云端：一直没有回音（网断了一半）就别干等；思考模式下第一个字可能要等一会儿，所以给得宽一点
-    if (timeoutMs) req.setTimeout(timeoutMs, () => { if (!stopped) req.destroy(new Error(`等了 ${Math.round(timeoutMs / 1000)} 秒没有回音`)); });
-    req.on("error", (e) => (stopped ? resolve(finish("", [])) : reject(new Error((apiKey ? "连不上 AI 服务：" : "连不上 AI 助手：") + e.message))));
+    if (timeoutMs) req.setTimeout(timeoutMs, () => { if (!stopped) { timedOut = true; req.destroy(new Error(`等了 ${Math.round(timeoutMs / 1000)} 秒没有回音`)); } });
+    req.on("error", (e) => (stopped ? resolve(finish("", [])) : reject(Object.assign(new Error((apiKey ? "连不上 AI 服务：" : "连不上 AI 助手：") + (timedOut ? `等了 ${Math.round(timeoutMs / 1000)} 秒没有回音` : e.message)), { cut: /ECONNRESET|socket hang up|aborted/i.test(e.message) }))));
     req.end(body);
   });
   p.abort = () => { stopped = true; try { req && req.destroy(); } catch (e) {} };
