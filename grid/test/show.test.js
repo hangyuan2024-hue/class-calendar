@@ -49,6 +49,7 @@ const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
   fs.writeFileSync(path.join(ffDir, "ff.js"), `const MEDIA = require(${JSON.stringify(path.join(__dirname, "..", "..", "pptassist", "core", "media.js"))}); require("fs").writeFileSync(process.argv[process.argv.length - 1], MEDIA.writeWav(new Float32Array(16000), 16000));`);
 
   const show = Show.create({ dir: () => path.join(tmp, "work", "show"), server: () => base, llm, send: (e) => ev.push(e),
+    cloudOpt: { base: `http://127.0.0.1:${llama.address().port}`, env: {} },   // 「云端大脑」也指到上面那个假模型（OpenAI 兼容，一样认）
     ffmpeg: [process.execPath, path.join(ffDir, "ff.js")],   // 用 node 跑假的 ffmpeg（Windows 上不能直接跑 sh 脚本）
     extract: async (file, dir) => { extracted.push(file); fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(path.join(dir, "layer0-qa-lora-v2.gguf"), "GGUF"); }, busy: () => task, used: () => used, gsvDir: () => (hasGsv ? gsv : null), sysTtsFactory,
     voiceOpt: { cmd: process.execPath, args: (p) => [path.join(__dirname, "..", "..", "pptassist", "test", "fake-gsv.js"), String(p)], waitMs: 15000 },
@@ -135,6 +136,21 @@ const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
   assert.equal((await show.state()).task, "训练答题大脑");
   task = null;
   ok("这台电脑正在算任务：不抢显卡，提示先暂停计算");
+
+  // 6b. 大脑换成云端（DeepSeek）：在算任务也能问（不占显卡）、不启动本机模型；准备组件里不用再下本地大模型；换回本机照旧
+  st = await show.state(); assert.equal(st.cloud.on, false); assert.equal(st.prep.items.find((x) => x.key === "llm").name, "本地大模型");
+  assert.throws(() => show.cloudSet({ brain: "cloud" }), /先填 DeepSeek 的 API Key/);
+  show.cloudSet({ brain: "cloud", key: "sk-test1234567890" });
+  st = await show.state(); assert.equal(st.cloud.on, true); assert.equal(st.cloud.keyTail, "7890"); assert.ok(!JSON.stringify(st).includes("sk-test"), "界面拿不到完整的 Key");
+  const li = st.prep.items.find((x) => x.key === "llm"); assert.equal(li.state, "ready"); assert.match(li.name, /DeepSeek（云端）/);
+  task = "训练答题大脑"; const nq = reqs.length, ne = ensured.length;
+  await show.send("鸡兔同笼，头 35 个、脚 94 只");
+  const cq = reqs[reqs.length - 1];
+  assert.ok(reqs.length > nq); assert.equal(cq.model, "deepseek-flash"); assert.deepEqual(cq.thinking, { type: "enabled" }); assert.equal(cq.temperature, undefined);
+  assert.equal(ensured.length, ne, "云端开着：不启动本机模型、不占显卡");
+  assert.equal((await show.cloudTest()).ok, true);
+  task = null; show.cloudSet({ brain: "local" }); assert.equal((await show.state()).cloud.on, false);
+  ok("大脑换成云端（DeepSeek）：这台电脑在算任务也能问、不启动本机模型；准备组件不用下本地大模型；换回本机照旧");
 
   // 6a. 打电话：说的话照语音通话的规矩来（系统提示里加上），大模型换带「口语对话」LoRA（发布了才有，没有就还用答题 LoRA）；
   //     录到的一句话送到本机听写变成文字；挂了电话换回答题 LoRA

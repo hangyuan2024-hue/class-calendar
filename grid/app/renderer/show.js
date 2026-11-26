@@ -17,7 +17,7 @@
     teacher: [["讲题", ["出三道一元二次方程的练习题，带答案"]], ["做 PPT", ["做一份「期中复习：数组」的课件，7 页"]], ["办事", ["有没有等我审批的申请？", "我这周有哪些课？", "下周的课我要出差，想调到周六上午"]]],
     staff: [["办事", ["有哪些申请等我审批？", "明天上午第 3 节有哪些空教室？"]], ["讲题", ["请假超过 7 天要谁批？"]]],
   };
-  let S = null, bot = null, busy = false, steps = new Map(), av = null, shown = false, timer = null, full = false;
+  let S = null, bot = null, busy = false, steps = new Map(), av = null, shown = false, timer = null, full = false, brainDirty = false;
 
   // ---------- 画 ----------
   function paint() {
@@ -34,6 +34,7 @@
     const vp = $("#shVoicePick");
     if (vp) { vp.value = S.voice.kind === "real" ? "real" : "kokoro"; vp.querySelector('[value="real"]').disabled = !(S.voice.choices && S.voice.choices.real); vp.hidden = S.voice.kind === "trained"; }
     if (S.prep) paintPrep(S.prep);
+    paintBrain();
     $("#shChips").innerHTML = P.parts.map((p) => `<span class="sh-chip ${p.ready ? "" : "off"}">${esc(p.name)}<b>${p.ready ? "第 " + p.version + " 版" : "训练中"}</b></span>`).join("");
     $("#shParts").innerHTML = P.parts.map((p) => `<div class="sh-part ${p.ready ? "" : "tmp"}"><b>${esc(p.name)}</b><span class="v">${p.ready ? `第 ${p.version} 版` : "临时版在用"}${p.pending ? ` <span class="new">→ 第 ${p.pending} 版已下好</span>` : ""}</span><small>${esc(p.what)}${!p.ready && p.temp ? `<br>现在${esc(p.temp)}，训练、考试通过后自动换上` : ""}${p.metric != null ? ` · ${esc(p.metricName)} ${pct(p.metric)}${p.base != null ? `（没训练前 ${pct(p.base)}）` : ""}` : ""}</small></div>`).join("");
     $("#shHist").innerHTML = P.log.length ? P.log.map((l) => `<div><i>${when(l.at)}</i>${esc(l.name)} ${l.from ? `第 ${l.from} 版 → ` : ""}第 ${l.to} 版${l.metric != null ? `，${pct(l.metric)}` : ""}</div>`).join("") : `<div>还没有发布过的模型：训练、考试通过一版，这里自动记一笔、自动换上</div>`;
@@ -44,7 +45,7 @@
     const row = (r, mine) => `<div class="sh-req"><div class="top"><b>${esc(r.kind)}</b><span class="st ${/^已(批准|通过|出具)/.test(r.status) ? "ok" : /驳回|撤销/.test(r.status) ? "bad" : "wait"}">${esc(r.status)}</span><code>${esc(r.id)}</code><span class="grow"></span>${/^待/.test(r.status) ? `<button class="btn small" data-ap="${esc(r.id)}">${mine ? "模拟审批" : "同意"}</button>` : ""}</div><div class="sum">${esc(r.summary)}</div></div>`;
     $("#shReqs").innerHTML = (S.pending.length ? `<div class="muted small">等我审批的</div>` + S.pending.map((r) => row(r, false)).join("") : "") + (S.requests.length ? `<div class="muted small">我提交的</div>` + S.requests.map((r) => row(r, true)).join("") : "") || `<div class="muted small">还没有申请：让捞小智帮你请个假、借个教室试试</div>`;
     // 这台电脑正在算任务：显卡腾不出来
-    $("#shBusy").hidden = !S.task; if (S.task) $("#shBusyTip").textContent = `这台电脑正在算「${S.task}」，显卡腾不出来同时展示。暂停以后，手上的任务会交给别的电脑从存档接着算；看完再点「接着算」。`;
+    $("#shBusy").hidden = !S.task || !!(S.cloud && S.cloud.on); if (S.task) $("#shBusyTip").textContent = `这台电脑正在算「${S.task}」，显卡腾不出来同时展示。暂停以后，手上的任务会交给别的电脑从存档接着算；看完再点「接着算」。`;
     $("#shPaused").hidden = !(S.paused && !S.task);
     $("#shTicker").innerHTML = `<span><b>成品 第 ${P.build} 版</b></span>` + P.parts.map((p) => `<span>${esc(p.name)} <b>${p.ready ? "第 " + p.version + " 版" : "训练中"}</b>${p.metric != null ? " " + esc(p.metricName) + " " + pct(p.metric) : ""}</span>`).join("") + `<span class="live">● 自动融合：训练出新版就自动换上</span>` + `<span>${S.task ? "这台电脑：正在算「" + esc(S.task) + "」" : S.paused ? "这台电脑：计算先停着" : "这台电脑：空着，可以展示"}</span>`;
   }
@@ -58,6 +59,9 @@
     box.querySelector(".go").hidden = P.running || (!needLeft && !optLeft);
     box.querySelector(".go").textContent = P.items.some((x) => x.state === "error") ? "重新下载没成的" : "开始准备";
     box.querySelector(".use").hidden = !!needLeft;
+    // 本地大模型还没下好：可以不下，填 DeepSeek 的 Key 改用云端（大脑那张卡片在下面被挡着，这里直接给个入口）
+    const cq = box.querySelector(".cloudq"), llmIt = P.items.find((x) => x.key === "llm");
+    if (cq) cq.hidden = !llmIt || llmIt.state === "ready";
     box.querySelector(".tip").textContent = needLeft ? `先下好标着「必需」的 ${needLeft} 样才能开始用；其他的可以开始用以后接着在后台下。` : optLeft ? "必需的都好了，可以开始用了。打电话和真人感声音要用的还在后台下，下好了自动能用。" : "全部准备好了。";
     box.hidden = !!(P.open && (prepWasOpen !== false || box.dataset.closed === "1"));
     document.querySelector("#p-show .sh-grid").classList.toggle("locked", !P.open);
@@ -271,6 +275,46 @@
   $("#shText").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); } });
   $("#shLog").addEventListener("click", (e) => { const b = e.target.closest(".ex"); if (b) send(b.textContent); });
   $("#shNew").onclick = guard(async () => { await call("showReset"); clear(); hello(); });
+  // ---------- 大脑：本机模型 / 云端（DeepSeek）----------
+  //   Key 输入框平时是空的（界面拿不到完整的 Key），只显示后四位；填了新的才换
+  function paintBrain() {
+    const c = S && S.cloud; if (!c) return;
+    $("#shBrainNow").textContent = c.on ? `${c.providerName}（云端）` : "本机模型";
+    if (!brainDirty) {
+      $("#shBrain").value = c.brain === "cloud" ? "cloud" : "local";
+      const m = $("#shModel"); if (m.options.length !== c.models.length) m.innerHTML = c.models.map((x) => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join("");
+      m.value = c.model; $("#shThink").value = c.think;
+      $("#shKey").placeholder = c.keySet ? `已经填好（…${c.keyTail}${c.keyFromEnv ? "，来自环境变量" : ""}）；要换就填新的` : `sk-…（在 ${c.site.replace(/^https?:\/\//, "")} 申请）`;
+    }
+    $("#shBrainCloud").hidden = $("#shBrain").value !== "cloud";
+    $("#shBrainTest").hidden = !(c.keySet && $("#shBrain").value === "cloud");
+    const u = c.usage || { today: {}, month: {} };
+    $("#shUsage").textContent = c.keySet ? `用量（估算，以开放平台账单为准）：今天 ${u.today.calls || 0} 次、约 ¥${u.today.cost || 0}；本月约 ¥${u.month.cost || 0}。现在是${c.peak ? "高峰时段（工作日 9–12 点、14–18 点，价格翻倍）" : "空闲时段（半价）"}` : "";
+  }
+  { const cq = document.querySelector("#shPrep .cloudq");
+    if (cq) cq.querySelector("button").onclick = guard(async () => {
+      const k = cq.querySelector("input").value.trim(); if (!k) return toast("先填 DeepSeek 的 API Key（在 platform.deepseek.com 申请）", true);
+      S = await call("showCloudSet", { brain: "cloud", key: k }); cq.querySelector("input").value = ""; brainDirty = false; paint();
+      const r = await call("showCloudTest"); toast(`改用 DeepSeek 了：${(r.ms / 1000).toFixed(1)} 秒连上，不用下本地大模型`);
+    }); }
+  $("#shBrain").onchange = () => { brainDirty = true; paintBrain(); };
+  $("#shModel").onchange = $("#shThink").onchange = $("#shKey").oninput = () => { brainDirty = true; };
+  $("#shBrainSave").onclick = guard(async () => {
+    const patch = { brain: $("#shBrain").value, model: $("#shModel").value, think: $("#shThink").value }, k = $("#shKey").value.trim();
+    if (k) patch.key = k;
+    const was = S && S.cloud;
+    S = await call("showCloudSet", patch); brainDirty = false; $("#shKey").value = "";
+    paint();
+    const c = S.cloud;
+    if (!was || was.on !== c.on || was.model !== c.model || was.think !== c.think) { clear(); hello(); }   // 换了大脑：开一段新对话
+    toast(c.on ? `大脑换成 ${c.providerName}（云端）了` : "大脑用本机模型");
+    if (c.on && k) $("#shBrainTest").click();   // 刚填了 Key：马上试一下
+  });
+  $("#shBrainTest").onclick = guard(async () => {
+    const b = $("#shBrainTest"); b.disabled = true; b.textContent = "正在试…";
+    try { const r = await call("showCloudTest"); toast(`连上了：${r.model}，${(r.ms / 1000).toFixed(1)} 秒回了「${r.reply}」`); S.cloud = await call("showCloud"); paintBrain(); }
+    finally { b.disabled = false; b.textContent = "试一下"; }
+  });
   $("#shRole").onchange = guard(async () => { S = await call("showRole", $("#shRole").value); clear(); paint(); hello(); });
   $("#shSpeak").onchange = guard(async () => { S.voice = await call("setShowSpeak", $("#shSpeak").checked); if (!S.voice.on) spReset(); paint(); if (S.voice.on && !S.voice.can) toast(S.voice.label); });
   $("#shVoiceInstall").onclick = guard(async () => { const b = $("#shVoiceInstall"); b.disabled = true; b.textContent = "正在装（几个 G，可以先接着用）…"; try { S = await call("showInstallVoice"); paint(); toast("声音组件装好了"); } finally { b.disabled = false; b.textContent = "装上声音组件"; } });

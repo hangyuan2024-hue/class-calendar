@@ -102,6 +102,10 @@ function createXz(o) {
     async showVoicePref(v) { return show.setVoicePref(v); },
     showVoiceTest: async () => show.voiceTest(),
     showApi: async () => show.apiInfo(),
+    // 捞小智的大脑：本机模型 / 云端（DeepSeek）
+    showCloud: async () => show.cloudInfo(),
+    async showCloudSet(patch) { show.cloudSet(patch || {}); return st(); },
+    showCloudTest: async () => show.cloudTest(),
     showKbImport: async () => show.kbImport(),
     showWebExam: async (mode) => show.webExam(mode),
     showVoiceExam: async () => show.voiceExam(),

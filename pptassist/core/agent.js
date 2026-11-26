@@ -180,8 +180,10 @@ function create(opt) {
         const p = llm.chat([sys, ...trim(messages)], { tools: toolSchema(use), onDelta: (t) => emit({ type: "delta", text: t }), ...(use.some((t) => PPT_NAMES.has(t.name)) ? { mode: "ppt" } : {}) });
         ac.abort = p.abort;
         const r = await p;
-        if (ac.aborted) { messages.push({ role: "assistant", content: (r.content || "") + "（老师让我停下了）" }); emit({ type: "done", stopped: true, changed }); return; }
-        messages.push({ role: "assistant", content: r.content || "", ...(r.tool_calls.length ? { tool_calls: r.tool_calls } : {}) });
+        // 思考模式（DeepSeek）：带着工具的对话，之前每一轮的思考内容都要原样带回去，不然会报 400
+        const rc = r.reasoning_content != null ? { reasoning_content: r.reasoning_content } : {};
+        if (ac.aborted) { messages.push({ role: "assistant", content: (r.content || "") + "（老师让我停下了）", ...rc }); emit({ type: "done", stopped: true, changed }); return; }
+        messages.push({ role: "assistant", content: r.content || "", ...(r.tool_calls.length ? { tool_calls: r.tool_calls } : {}), ...rc });
         if (!r.tool_calls.length) { emit({ type: "done", changed }); return; }
         for (const c of r.tool_calls) {
           let a = {}; try { a = JSON.parse(c.function.arguments || "{}"); } catch (e) {}

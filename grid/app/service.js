@@ -711,6 +711,10 @@ function createService(o) {
     async showVoicePref(v) { return show.setVoicePref(v); },
     showVoiceTest: async () => show.voiceTest(),
     showApi: async () => show.apiInfo(),
+    // 捞小智的大脑：本机模型 / 云端（DeepSeek）；Key 只存在这台电脑上，界面上只拿得到后四位
+    showCloud: async () => show.cloudInfo(),
+    async showCloudSet(patch) { show.cloudSet(patch || {}); return showSt(); },
+    showCloudTest: async () => show.cloudTest(),
     showKbImport: async () => show.kbImport(),
     showWebExam: async (mode) => show.webExam(mode),
     showVoiceExam: async () => show.voiceExam(),

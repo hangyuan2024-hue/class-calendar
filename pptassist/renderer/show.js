@@ -25,6 +25,8 @@
     $("#shPill").textContent = t; $("#shPill").className = "pill " + c;
     $("#shModel").textContent = S.model.ready ? S.model.name : `${S.model.name}：还没下载`;
     $("#shDl").hidden = S.model.ready; $("#shGo").hidden = !S.model.ready || S.llm.status === "ready" || S.llm.status === "starting";
+    // 大脑换成了云端（show/cloud.json）：对话不用本机模型，只有看图时才用
+    if (S.cloud && S.cloud.on) { $("#shPill").textContent = "云端 · " + S.cloud.providerName; $("#shPill").className = "pill ok"; $("#shModel").textContent = `大脑：${S.cloud.providerName}（${S.cloud.model}）；看图用本机模型`; $("#shDl").hidden = true; $("#shGo").hidden = true; }
     $("#shSpeak").checked = S.voice.on; $("#shSpeakWrap").title = S.voice.label + (S.voice.gsv || S.voice.temp ? "" : "（要先在「我的声音」里装好 GPT-SoVITS）");
     $("#shVoice").textContent = "声音：" + S.voice.label;
     const sel = $("#shRole");

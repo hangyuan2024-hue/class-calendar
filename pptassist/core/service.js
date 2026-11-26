@@ -18,6 +18,7 @@ const GridModels = require("./gridmodels");
 const AGENT = require("./agent");
 const EYES = require("./eyes");
 const XIAOZHI = require("./xiaozhi");
+const CLOUD = require("./cloud");
 const EDIT = require("./pptedit");
 const WF = require("./workflows");
 
@@ -66,7 +67,9 @@ function createService(env) {
   let edit = null;   // { deck, file, saved }
   const agent = AGENT.create({ llm, deck: () => (edit ? edit.deck : null), fileName: () => (edit ? path.basename(edit.file) : ""), onEvent: (e) => send("agent", e) });
   // 成品展示「捞小智」：讲题 + 做 PPT + 办教务的事（模拟教务后端）合在一个对话里；用的是同一个本地大模型和最新发布的各样模型
-  const show = XIAOZHI.create({ dir: P("show"), llm, grid, onEvent: (e) => send("show", e), ...(env.showOpt || {}) });
+  // 捞小智的大脑可以换成云端（DeepSeek，配置在 show/cloud.json，Key 只存在这台电脑上）：对话走云端，看图照旧走本机模型；「AI 改 PPT」那边还是本机
+  const cloud = CLOUD.create({ file: path.join(P("show"), "cloud.json"), onThinking: () => send("show", { type: "note", text: "正在想（DeepSeek 思考中）…" }), ...(env.cloudOpt || {}) });
+  const show = XIAOZHI.create({ dir: P("show"), llm: CLOUD.wrap(llm, cloud), grid, onEvent: (e) => send("show", e), ...(env.showOpt || {}) });
   // 念出来的只要说的话：去掉公式、代码、markdown 符号；太长的只念前几句
   const sayable = (text, max = 160) => {
     let t = String(text || "").replace(/```[\s\S]*?```/g, "").replace(/\$\$?[^$]*\$\$?/g, "（公式）").replace(/[#*`>_~|]/g, "").replace(/\s+/g, " ").trim();
@@ -463,7 +466,7 @@ function createService(env) {
       const a = await H.aiState(), v = showVoice(), lp = show.lastPpt(), me = show.who();
       const useSys = (!v || !profile.gsvDir) && (await sysOk());
       const actor = show.campus.identities()[me.role];
-      return { who: me, product: show.product(), llm: a.llm, model: a.model, exe: a.exe, busy: show.busy(),
+      return { who: me, product: show.product(), llm: a.llm, model: a.model, exe: a.exe, busy: show.busy(), cloud: cloud.info(),
         voice: { on: profile.showSpeak !== false, who: useSys ? "sys" : v ? v.who : null, temp: useSys,
           label: useSys ? (v ? `临时用电脑自带的朗读（装好 GPT-SoVITS 后换成${v.label}）` : "临时用电脑自带的朗读（捞捞的声音训练、考试通过后自动换上）") : v ? v.label : "还没有声音：捞捞的声音训练好后会自动下载",
           gsv: !!profile.gsvDir, engine: voice.state.state },
@@ -478,6 +481,10 @@ function createService(env) {
       return H.showState();
     },
     showStop() { return show.stop(); },
+    // 捞小智的大脑：本机 / 云端（DeepSeek）；换了大脑开一段新对话
+    showCloud() { return cloud.info(); },
+    showCloudSet(patch) { const b = cloud.info(), r = cloud.setConfig(patch || {}); if (b.on !== r.on || b.model !== r.model || b.think !== r.think) show.reset(); return H.showState(); },
+    showCloudTest() { return cloud.test(); },
     showReset() { show.reset(); return true; },
     showRole(r) { show.setRole(r); return H.showState(); },
     async showCheck() { await grid.check(); for (const k of XIAOZHI.PARTS) grid.use(k.key); return H.showState(); },

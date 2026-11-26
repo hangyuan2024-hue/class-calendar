@@ -84,8 +84,11 @@ const MMPROJ_SPEC = { name: "mmproj-Qwen3VL-4B-Instruct-F16.gguf", mirrorModel: 
   "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct-GGUF/resolve/main/mmproj-Qwen3VL-4B-Instruct-F16.gguf"] };
 
 function create(o) {
-  const XZ = PPT("xiaozhi.js"), GM = PPT("gridmodels.js"), VOICE = PPT("voice.js"), MEDIA = PPT("media.js"), CHAT = PPT("chat.js");
+  const XZ = PPT("xiaozhi.js"), GM = PPT("gridmodels.js"), VOICE = PPT("voice.js"), MEDIA = PPT("media.js"), CHAT = PPT("chat.js"), CLOUD = PPT("cloud.js");
   const emit = (e) => { try { o.send && o.send(e); } catch (x) {} };
+  // 云端大脑（DeepSeek）：选了云端、填了 Key，讲题、做 PPT、办事就交给它（不占这台电脑的显卡）；看图照旧用本机模型。配置存在数据文件夹的 cloud.json
+  const cloud = (o.cloudFactory || CLOUD.create)({ file: () => path.join(o.dir(), "cloud.json"), onThinking: () => emit({ type: "note", text: "正在想（DeepSeek 思考中）…" }), ...(o.cloudOpt || {}) });
+  const cloudOn = () => { try { return cloud.active(); } catch (e) { return false; } };
   const log = o.log || (() => {});
   let cur = null;       // { dir, models, xz }：数据文件夹搬了就重新来
   let speakOn = true, active = false, timer = null, url = null, lastBuild = -1, checking = null, calling = false, eyes = false;
@@ -154,7 +157,7 @@ function create(o) {
     const models = (o.modelsFactory || GM.create)({ dir: path.join(dir, "models"), want: XZ.PARTS.map((p) => p.key), ...(server ? { sources: [server + "/pub/models/manifest.json"] } : {}),
       onEvent: (e) => { if (e.stage === "download") emit({ type: "note", text: `有新版：正在下载「${nameOf(e.name)}」第 ${e.version} 版…` }); }, ...(o.modelsOpt || {}) });
     let loraIds = { base: [], main: -1, ground: -1, ppt: -1, eyes: -1 };
-    const llm = {
+    const local = {
       // 每一句之前都看一眼：答题 LoRA 换了新版，就带上新版重新启动（llmw 发现 LoRA 路径变了会自己重启）；带上起不来就退回上一版
       start: async (opt) => {
         const say = (m) => emit({ type: "note", text: m });
@@ -196,6 +199,8 @@ function create(o) {
         return CHAT.chatAt(url, m, { ...opt, ...(bigNow ? { onDelta: noThink(opt.onDelta) } : {}), ...(Object.keys(extra).length ? { extra } : {}) });
       },
     };
+    // 云端开着：对话走云端，看图走本机（local）；关着：全部走本机
+    const llm = CLOUD.wrap(local, cloud);
     const xz = XZ.create({ dir, llm, grid: models, kbOpt: { transcribe }, onEvent: (e) => emit(e), now: o.now, log: (m) => log(m), ...(o.xzOpt || {}) });
     cur = { dir, models, xz, llm };
     lastBuild = xz.product().build;
@@ -362,7 +367,7 @@ function create(o) {
   const llmSpec = async () => { if (useBig()) return { ...BIG_SPEC }; const spec = { ...LLM_SPEC }; if (o.llmName) { try { const n = await o.llmName(); if (n && /\.gguf$/i.test(n)) spec.name = n; } catch (e) {} } return spec; };
   async function isReady(key) {
     const dir = o.gsvDir ? o.gsvDir() : null;
-    if (key === "llm") return o.llm && o.llm.hasModel ? o.llm.hasModel(await llmSpec()) : true;
+    if (key === "llm") return cloudOn() || (o.llm && o.llm.hasModel ? o.llm.hasModel(await llmSpec()) : true);   // 用云端大脑：不用下本地大模型
     if (key === "voice") return kok.ready();
     if (key === "gsv") return !!dir;
     if (key === "ear") return !!(dir && ear.ready(dir));
@@ -371,7 +376,8 @@ function create(o) {
   }
   async function prepStatus() {
     const items = [];
-    for (const p of PREP) { const r = await isReady(p.key); const s = prep.st[p.key] || {}; items.push({ ...p, state: r ? "ready" : s.state || "missing", pct: r ? 100 : s.pct != null ? s.pct : null, text: s.text || "", err: s.err || "" }); }
+    for (const p0 of PREP) { const p = p0.key === "llm" && cloudOn() ? { ...p0, name: "大脑：" + cloud.info().providerName + "（云端）", what: "讲题、做 PPT、办事都交给云端，不用下本地大模型（看图时才用本机的）", size: "不用下载" } : p0;
+      const r = await isReady(p.key); const s = prep.st[p.key] || {}; items.push({ ...p, state: r ? "ready" : s.state || "missing", pct: r ? 100 : s.pct != null ? s.pct : null, text: s.text || "", err: s.err || "" }); }
     const open = items.filter((x) => x.required).every((x) => x.state === "ready");
     return { items, open, running: prep.running, optional: !!prep.optional };
   }
@@ -427,12 +433,12 @@ function create(o) {
     const { xz } = S(); await xz.ready(); await sysCheck();
     const me = xz.who(), actor = xz.campus.identities()[me.role], lp = xz.lastPpt();
     return { who: me, product: xz.product(), busy: xz.busy(), voice: voiceInfo(), prep: await prepStatus(), call: callInfo(), llm: { ok: !!(o.llm && o.llm.ok()), running: !!(o.llm && o.llm.running && o.llm.running()) },
-      task: o.busy ? o.busy() : null, ppt: lp ? { name: path.basename(lp.file), title: lp.title, pages: lp.pages, rev: lp.rev } : null, exam: xz.lastExam(),
+      cloud: cloud.info(), task: o.busy ? o.busy() : null, ppt: lp ? { name: path.basename(lp.file), title: lp.title, pages: lp.pages, rev: lp.rev } : null, exam: xz.lastExam(),
       requests: xz.campus.myRequests(actor).requests.slice(0, 8), pending: xz.campus.pending(actor).requests.slice(0, 8), campus: xz.campus.stats() };
   }
   async function send(text) {
     const t = o.busy ? o.busy() : null;
-    if (t) throw new Error(`这台电脑正在算「${t}」，显卡腾不出来：先点「暂停计算」再试`);
+    if (t && !cloudOn()) throw new Error(`这台电脑正在算「${t}」，显卡腾不出来：先点「暂停计算」再试（或者把大脑换成云端，就不用停）`);
     const { xz } = S();
     await xz.send(String(text || "").slice(0, 4000), []);
     // 这一句说完了：要是刚才下好了新版，现在换上
@@ -466,7 +472,7 @@ function create(o) {
     // 联网考试（core/webexam.js）：第一次录快照（要上网），以后都按快照考，分数能和上一版比
     webExam: async (mode) => {
       const t = o.busy ? o.busy() : null;
-      if (t) throw new Error(`这台电脑正在算「${t}」，先暂停计算再考`);
+      if (t && !cloudOn()) throw new Error(`这台电脑正在算「${t}」，先暂停计算再考`);
       const { llm } = S(), dir = path.join(o.dir(), "webexam");
       const m = mode === "record" || !fs.existsSync(path.join(dir, "record.json")) ? "record" : "replay";
       return PPT("webexam.js").run({ dir, mode: m, llm, onProgress: (i, n) => emit({ type: "note", text: `联网考试：第 ${i}/${n} 道` }) });
@@ -477,6 +483,10 @@ function create(o) {
     releaseGpu: () => { try { voice.stop(); } catch (e) {} try { ear.stop(); } catch (e) {} },
     apiStop: () => api.stop(false),
     stop: () => S().xz.stop(), reset: () => { S().xz.reset(); return true; },
+    // 云端大脑：看设置、改设置（换了大脑就开一段新对话：两边的对话记录格式不一样）、试一下连不连得上
+    cloudInfo: () => cloud.info(),
+    cloudSet: (patch) => { const before = cloud.info(), r = cloud.setConfig(patch || {}); if (before.on !== r.on || before.model !== r.model || before.think !== r.think) { try { S().xz.reset(); } catch (e) {} } return r; },
+    cloudTest: () => cloud.test(),
     setRole: async (r) => { S().xz.setRole(r); return state(); },
     setSpeak: (on) => { speakOn = !!on; if (!speakOn) { try { voice.stop(); } catch (e) {} } return voiceInfo(); },
     approve: async (id, ok) => { S().xz.campus.approveNext(String(id), ok !== false); return state(); },
@@ -487,7 +497,7 @@ function create(o) {
     checkupPhoto: (f) => CK().photo(f),
     // PPT 预览：每一页一张 SVG（rev 没变就返回 null）；界面上直接点的换配色、撤销；打开老师自己的 .pptx 让它改
     // 考一考现在这版模型做 PPT、改 PPT 的本事（8 道题，程序核对）
-    pptExam: async () => { const t = o.busy ? o.busy() : null; if (t) throw new Error(`这台电脑正在算「${t}」，显卡腾不出来：先点「暂停计算」再考`); return S().xz.pptExam(); },
+    pptExam: async () => { const t = o.busy ? o.busy() : null; if (t && !cloudOn()) throw new Error(`这台电脑正在算「${t}」，显卡腾不出来：先点「暂停计算」再考`); return S().xz.pptExam(); },
     slides: (rev) => S().xz.slides(rev), pptTheme: (k) => S().xz.pptTheme(k), pptUndo: () => S().xz.pptUndo(),
     openPpt: async (file) => { if (!/\.pptx$/i.test(String(file || ""))) throw new Error("只能打开 .pptx（老版本的 .ppt 先在 PowerPoint 里另存成 .pptx）"); await S().xz.openPpt(file); return state(); },
     shutdown: () => { try { api.stop(false); } catch (e) {} clearInterval(timer); try { kok.stop(); } catch (e) {} try { voice.stop(); } catch (e) {} try { ear.stop(); } catch (e) {} if (cur) { try { cur.models.stop(); } catch (e) {} } tidy(); },

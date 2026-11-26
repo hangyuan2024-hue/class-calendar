@@ -14,7 +14,7 @@ fs.mkdirSync(pout, { recursive: true });
 for (const f of ["engine.js", "workflows.js", "dl.js", "installer.js", "mirror.js"]) fs.copyFileSync(path.join(ppt, f), path.join(pout, f));
 console.log("pptassist/core 的 AI 引擎代码 → app/ppt");
 // 成品展示「捞小智」（讲题 + 做 PPT + 办教务的事 + 说话）：也是和捞捞PPT助手同一份代码
-for (const f of ["chat.js", "agent.js", "xiaozhi.js", "campus.js", "checkup.js", "pptedit.js", "pptx.js", "deck.js", "pptview.js", "latex2omml.js", "gridmodels.js", "voice.js", "media.js", "systts.js", "ai3d.js", "websearch.js", "ground.js", "mindmap.js", "kbfiles.js", "webexam.js", "voiceexam.js", "eyes.js", "pptlab.js"]) fs.copyFileSync(path.join(ppt, f), path.join(pout, f));
+for (const f of ["chat.js", "cloud.js", "agent.js", "xiaozhi.js", "campus.js", "checkup.js", "pptedit.js", "pptx.js", "deck.js", "pptview.js", "latex2omml.js", "gridmodels.js", "voice.js", "media.js", "systts.js", "ai3d.js", "websearch.js", "ground.js", "mindmap.js", "kbfiles.js", "webexam.js", "voiceexam.js", "eyes.js", "pptlab.js"]) fs.copyFileSync(path.join(ppt, f), path.join(pout, f));
 // 展示里的 PPT 预览（大图 + 缩略图）
 fs.copyFileSync(path.join(R, "..", "pptassist", "renderer", "deckview.js"), path.join(R, "app", "renderer", "deckview.js"));
 // 展示里的形象：捞小智（app/renderer/zhi3d.js，自带）+ three.js

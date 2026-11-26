@@ -115,6 +115,7 @@
       <div class="sh-prep glass" id="shPrep" hidden>
         <div class="hd"><b>先准备好捞小智要用的组件</b><span class="muted small">都从国内存储下载，断了会接着下；只下这一次</span></div>
         <div class="list"></div>
+        <div class="cloudq" hidden><span class="muted small">不想下本地大模型？填上 DeepSeek 的 API Key，讲题、做 PPT、办事都交给云端（按用量付费，问题会发到 DeepSeek）：</span><input type="password" autocomplete="off" spellcheck="false" placeholder="sk-…（在 platform.deepseek.com 申请）"><button class="btn small">改用 DeepSeek</button></div>
         <div class="ft"><span class="tip muted small"></span><span class="grow"></span><button class="btn primary go">开始准备</button><button class="btn use" hidden>开始使用</button></div>
       </div>
       <div class="sh-grid">
@@ -135,6 +136,20 @@
           </div>
         </div>
         <div class="sh-side">
+          <div class="glass sh-card" id="shBrainCard">
+            <div class="sh-card-h"><b>捞小智的大脑</b><span class="grow"></span><span class="muted small" id="shBrainNow">本机模型</span></div>
+            <div class="sh-brain">
+              <label>用哪个<select id="shBrain"><option value="local">本机模型（不联网、不花钱，慢一些）</option><option value="cloud">DeepSeek（云端，答得更好，按用量付费）</option></select></label>
+              <div id="shBrainCloud" hidden>
+                <label>API Key<input type="password" id="shKey" autocomplete="off" spellcheck="false" placeholder="sk-…（在 platform.deepseek.com 申请）"></label>
+                <label>模型<select id="shModel"></select></label>
+                <label>思考<select id="shThink"><option value="auto">自动（讲题、办事时先想再答）</option><option value="on">总是先想再答</option><option value="off">不思考（更快、更省钱）</option></select></label>
+                <div class="muted small" id="shUsage"></div>
+                <div class="muted small">问的问题会发到 DeepSeek 的服务器；照片、截图还是在这台电脑上看。Key 只存在这台电脑上。</div>
+              </div>
+              <div class="btns"><button class="btn small primary" id="shBrainSave">保存</button><button class="btn small" id="shBrainTest" hidden>试一下</button></div>
+            </div>
+          </div>
           <div class="glass sh-card">
             <div class="sh-card-h"><b>现在的成品</b><span class="grow"></span><button class="btn small" id="shCheck">看有没有新版</button></div>
             <div class="sh-parts" id="shParts"></div>
