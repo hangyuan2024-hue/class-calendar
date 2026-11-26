@@ -898,3 +898,9 @@ body.clean .sh-log > .sh-file { align-self: flex-start; }
 .lm-packs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .lm-packs span { font-size: 12px; padding: 3px 9px; border-radius: 99px; background: #f2f2f2; color: #3a3a3a; }
 .lm-packs span.off { color: #a3a3a3; text-decoration: line-through; }
+/* 搜到的网页：一排小卡片 */
+.sh-web.srcs .sl { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px; }
+.sh-web.srcs .sl a { display: grid; gap: 2px; padding: 8px 10px; border: 1px solid #ededed; border-radius: 10px; text-decoration: none; color: #111; min-width: 0; }
+.sh-web.srcs .sl a:hover { background: #f6f6f6; }
+.sh-web.srcs .sl b { font-weight: 500; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sh-web.srcs .sl small { font-size: 11.5px; color: #8a8a8a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

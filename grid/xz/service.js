@@ -61,6 +61,7 @@ function createXz(o) {
   const show = (o.showFactory || require(path.join(APP, "show")).create)({
     dir: () => path.join(base(), "show"), server: () => "", llm, log, send: (e) => send("show", e),
     captureScreen: o.captureScreen,
+    renderPage: o.renderPage,
     modelsOpt: { sources: o.sources || SOURCES, ...(o.modelsOpt || {}) },
     busy: () => null, used: () => true,
     gsvDir: () => { const r = gsv.inspect((cfg.gsv || {}).dir) || gsv.find(path.join(base(), "ai", "LaolaoAI-GPT-SoVITS")) || (store && store.pack("gsv") ? gsv.inspect(store.pack("gsv")) : null); return r ? r.dir : null; },

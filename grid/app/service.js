@@ -664,6 +664,7 @@ function createService(o) {
   const show = EDITION.open ? null : (o.showFactory || require("./show").create)({
     dir: () => path.join(work(), "show"), server: () => cfg.server, llm, log: (m) => L(m, "info", "展示"), send: (e) => send("show", e),
     captureScreen: o.captureScreen,
+    renderPage: o.renderPage,
     // 正在算的任务名（c.job 是整个任务信息，要取 name；以前直接拿来显示成了 [object Object]）；已经在停的不算
     busy: () => { const c = agent && agent.current(); return c && !c.stopping ? (c.job && c.job.name) || "任务" : null; },
     gsvDir: () => { const r = gsv.inspect((cfg.gsv || {}).dir) || gsv.find(path.join(base(), "ai", "LaolaoAI-GPT-SoVITS")) || (store && store.pack("gsv") ? gsv.inspect(store.pack("gsv")) : null); return r ? r.dir : null; },

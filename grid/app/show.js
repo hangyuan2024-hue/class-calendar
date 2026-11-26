@@ -215,7 +215,7 @@ function create(o) {
     });
     // 本机文件夹：选了就让捞小智自己去里面找、读（文件留在原地）
     const folder = PPT("folder.js").create({ file: path.join(dir, "folder.json"), cacheDir: path.join(dir, "foldercache") });
-    const xz = XZ.create({ dir, llm, grid: models, folder, kbOpt: { transcribe }, onEvent: (e) => emit(e), now: o.now, log: (m) => log(m), ...(o.xzOpt || {}) });
+    const xz = XZ.create({ dir, llm, grid: models, folder, ...(o.renderPage ? { webOpt: { render: o.renderPage } } : {}), kbOpt: { transcribe }, onEvent: (e) => emit(e), now: o.now, log: (m) => log(m), ...(o.xzOpt || {}) });
     cur = { dir, models, xz, llm, folder, local };
     lastBuild = xz.product().build;
     return cur;

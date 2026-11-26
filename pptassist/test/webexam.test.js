@@ -17,7 +17,7 @@ const resp = (html, status = 200) => ({ ok: status === 200, status, url: "", hea
   assert.equal(W.scrub("我手机 13812345678 学号 202312345678 查一下 a.b@c.com 奖学金"), "我手机 学号 查一下 奖学金");
   const asked = [];
   const r = await W.search("奖学金 13812345678", { cacheMs: 0, fetch: async (u) => { asked.push(u); if (/bing/.test(u)) return resp("", 503); return resp(`<h3 class="res-title"><a href="https://news.example.edu/a">奖学金评定办法</a></h3><p class="res-desc">每年 10 月评定</p>`); } });
-  assert.equal(r[0].engine, "360 搜索"); assert.equal(asked.length, 3, "必应两个地址都不行，换 360");
+  assert.ok(/360 搜索/.test(r[0].engine)); assert.ok(asked.some((u) => /so\.com/.test(u)) && asked.some((u) => /baidu\.com/.test(u)), "几家一起搜：必应不行，360 的结果照样用");
   assert.ok(asked.every((u) => !/13812345678/.test(decodeURIComponent(u))), "手机号没发出去");
   W._recent.length = 0;
   let n = 0; const quick = { cacheMs: 0, perMin: 3, fetch: async () => { n++; return resp(bing([{ url: "https://a.example.com/", title: "t", snippet: "s" }])); } };

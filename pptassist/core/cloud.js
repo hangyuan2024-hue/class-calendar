@@ -265,7 +265,8 @@ function route(messages, opt = {}, env = {}) {
   if (t.includes(ATT) && t.length > 3000) { score += 3; why.push("带了长文件"); }
   if (ask.length > 300) { score += 2; why.push("问题很长"); }
   if (HARD.test(ask)) { score += 3; why.push("问题比较难"); }
-  if (opt.mode === "ppt") { score += 3; why.push("做 PPT"); }
+  // 手上开着 PPT 时每句都带着改 PPT 的工具（mode = ppt），但只有真在说 PPT 的事才算「做 PPT」
+  if (opt.mode === "ppt" && /PPT|ppt|幻灯片|课件|第\s*\d+\s*页|这一页|配色|版式|讲稿/.test(ask)) { score += 3; why.push("做 PPT"); }
   if ((opt.tools || []).some((x) => (x.function || x).name === "team_work") && /team|对比|整理|汇总/.test(ask)) { score += 1; }
   if (EASY.test(ask) && ask.length < 80) score -= 3;
   const need = big ? 5 : 3;

@@ -315,7 +315,7 @@
       // 改了 PPT：预览马上跟着变，跳到改的那一页
       if (window.LaoCheckup && /^checkup_/.test(e.name)) window.LaoCheckup.onTool(e, add);
       if (e.ok && e.name === "make_file" && e.result && e.result.file) { el.remove(); fileCard(e.result); }
-      if (e.ok && e.result && (e.result.news || e.result.videos || e.result.images)) webCard(e.name, e.result);
+      if (e.ok && e.result && (e.result.news || e.result.videos || e.result.images || e.result.results || e.result.pages)) webCard(e.name, e.result);
       if (e.ok && e.name === "make_ppt") add("sh-hello", `<span>做好了，左边能看到每一页。接着说怎么改就行，比如：</span><div class="grp">${["把第 3 页改成两栏对比", "整份换成绿色的", "字再大一点", "最后加一页练习题", "给每一页写上讲稿", "检查一遍有没有问题"].map((x) => `<button class="ex">${esc(x)}</button>`).join("")}</div>`);
       if (e.ok && e.changed && deck && PPT_TOOL.test(e.name)) { const r = e.result || {}; deck.refresh(e.name === "make_ppt" ? 1 : r.no || r.to || (r.pages && r.pages[0]) || (e.args && e.args.slide) || null).then(() => showDeck(true)); }
       return;
@@ -394,6 +394,12 @@
   }
   // 新闻、视频、图片：在对话里直接列出来（标题点开原文、视频点「播放」在小窗口里放、图片点开所在网页）
   function webCard(name, r) {
+    // 搜到的网页 / 顺着网站读过的几页：一排可以点开的来源
+    const srcs = r.results || r.pages;
+    if (srcs && srcs.length) {
+      const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch (x) { return ""; } };
+      add("sh-web srcs", `<div class="wh">${r.pages ? `在 ${esc(r.site || "")} 上读了 ${r.pages.length} 页` : `搜到 ${srcs.length} 个网页`}</div><div class="sl">` + srcs.slice(0, 10).map((x) => `<a href="#" data-u="${esc(x.url)}" title="${esc(x.snippet || x.text || "")}"><b>${esc(x.title || host(x.url))}</b><small>${esc(host(x.url))}${x.engine ? " · " + esc(x.engine) : ""}</small></a>`).join("") + "</div>");
+    }
     if (r.news && r.news.length) {
       add("sh-web news", `<div class="wh">今天的新闻 · ${r.news.length} 条</div>` + r.news.map((x) => `<a href="#" data-u="${esc(x.url)}"><b>${esc(x.title)}</b><small>${esc(x.source)}${x.when === "昨天" ? " · 昨天" : ""}</small></a>`).join(""));
     }

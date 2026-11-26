@@ -35,6 +35,32 @@ const xz = createXz({
     w.loadURL(u);
   },
   pickFolder: async () => { const r = await dialog.showOpenDialog(win, { title: "选一个文件夹给捞小智（文件留在原地，用到再读）", properties: ["openDirectory"] }); return r.canceled ? null : r.filePaths[0]; },
+  // 抓网页用的「看不见的浏览器」：有的网站打开以后才用 JS 把内容画出来（B 站、知乎、各种学校新官网），直接下载网页只拿到一个空壳；
+  //   搜索网站偶尔给验证页。这时就真的开一个隐藏窗口加载，等它画完、往下滚一滚（懒加载的也出来），把整页拿回来。
+  //   不加载图片、视频、字体（快、省流量）；静音；不准弹新窗口；同时最多开 2 个；20 秒没好就算了。只开公开的 http / https 网址
+  renderPage: (() => {
+    let running = 0; const waiters = [];
+    const slot = () => (running < 2 ? (running++, Promise.resolve()) : new Promise((r) => waiters.push(r)));
+    const free = () => { const w = waiters.shift(); if (w) w(); else running--; };
+    return async (url, opt = {}) => {
+      const u = new URL(String(url));
+      if (!/^https?:$/.test(u.protocol) || /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.)/.test(u.hostname) || /^172\.(1[6-9]|2\d|3[01])\./.test(u.hostname)) throw new Error("只打开公开的网页");
+      await slot();
+      const ses = session.fromPartition("persist:laolao-crawl");
+      if (!ses.__lgSet) { ses.__lgSet = true; ses.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"); ses.webRequest.onBeforeRequest((d, cb) => cb({ cancel: ["image", "media", "font"].includes(d.resourceType) })); ses.setPermissionRequestHandler((wc, p, cb) => cb(false)); }
+      const w = new BrowserWindow({ show: false, width: 1280, height: 900, webPreferences: { partition: "persist:laolao-crawl", sandbox: true, contextIsolation: true, nodeIntegration: false, images: false, backgroundThrottling: false } });
+      w.webContents.setAudioMuted(true);
+      w.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+      try {
+        await Promise.race([w.loadURL(u.href).catch(() => {}), new Promise((r) => setTimeout(r, opt.timeoutMs || 20000))]);
+        await new Promise((r) => setTimeout(r, opt.waitMs || 1500));
+        try { await w.webContents.executeJavaScript("new Promise((r) => { let n = 0; const t = setInterval(() => { window.scrollBy(0, 1200); if (++n >= 4) { clearInterval(t); r(); } }, 300); })", true); } catch (e) {}
+        await new Promise((r) => setTimeout(r, 600));
+        const html = await w.webContents.executeJavaScript("document.documentElement.outerHTML", true);
+        return { html: String(html || ""), url: w.webContents.getURL() || u.href };
+      } finally { try { w.destroy(); } catch (e) {} free(); }
+    };
+  })(),
   // 捞小智做的文件「另存为」：选个地方拷一份过去
   saveCopy: async (f) => { const r = await dialog.showSaveDialog(win, { title: "另存为", defaultPath: require("path").basename(f) }); if (r.canceled || !r.filePath) return null; require("fs").copyFileSync(f, r.filePath); return r.filePath; },
   openExternal: (u) => { if (/^https:\/\/www\.laolaokechengbiao\.cn\//.test(u)) shell.openExternal(u); },
