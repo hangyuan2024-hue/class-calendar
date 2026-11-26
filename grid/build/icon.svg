@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- 捞小智 / 捞捞算力 图标：和官网「捞捞调度」同一套画法（圆角方块 + 白色 L + 橙色光标），底色换成墨黑，跟软件的黑白界面一致。
+       L 的横笔后面一个白色小圆点、一根橙色光标：像对话框里正在打字，也像调度里正在运行的那一格 -->
+  <rect width="64" height="64" rx="15" fill="#15171A"/>
+  <path d="M20 17V44H29" fill="none" stroke="#FFFFFF" stroke-width="8.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="35.5" y="39.5" width="7" height="7" rx="3.5" fill="#FFFFFF" fill-opacity="0.55"/>
+  <rect x="46" y="30" width="8" height="17" rx="2.5" fill="#FF7A2F"/>
+</svg>

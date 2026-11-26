@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: file: http: https:; media-src 'self' blob:; frame-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>捞小智</title>
+<link rel="icon" href="icon.png">
 <link rel="stylesheet" href="fonts.css">
 <link rel="stylesheet" href="vendor/katex/katex.min.css">
 <link rel="stylesheet" href="style.css">
@@ -14,7 +15,7 @@
 <!-- 第一次打开：加入训练网 -->
 <section id="joinPage" class="join" hidden>
   <div class="join-card glass">
-    <div class="logo-big"><span>捞</span></div>
+    <div class="logo-big"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M20 17V44H29" fill="none" stroke="#fff" stroke-width="8.5" stroke-linecap="round" stroke-linejoin="round"/><rect x="35.5" y="39.5" width="7" height="7" rx="3.5" fill="#fff" fill-opacity=".55"/><rect x="46" y="30" width="8" height="17" rx="2.5" fill="#FF7A2F"/></svg></div>
     <h1>捞捞算力</h1>
     <p class="sub">几台电脑一起训练捞捞自己的模型：一台停了，下一台接着算。只有拿到密钥的成员才需要登录。</p>
     <label>密钥（管理员发给你的邀请链接，LG1. 开头）<textarea id="jInvite" rows="3" placeholder="LG1.eyJ1Ijoi…"></textarea></label>
@@ -31,7 +32,7 @@
 
 <div id="appShell" class="shell" hidden>
   <nav class="side">
-    <div class="brand"><div class="logo"><span>捞</span></div><div><b>捞小智</b><small id="meName">校园智能体</small></div></div>
+    <div class="brand"><div class="logo"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M20 17V44H29" fill="none" stroke="#fff" stroke-width="8.5" stroke-linecap="round" stroke-linejoin="round"/><rect x="35.5" y="39.5" width="7" height="7" rx="3.5" fill="#fff" fill-opacity=".55"/><rect x="46" y="30" width="8" height="17" rx="2.5" fill="#FF7A2F"/></svg></div><div><b>捞小智</b><small id="meName">校园智能体</small></div></div>
     <div class="mode" id="modeSw" role="tablist" aria-label="切换" hidden><button data-m="chat" class="on" role="tab">对话<em id="navShow" hidden>新</em></button><button data-m="grid" role="tab">捞捞算力</button></div>
     <div class="nav-chat" id="navChat">
       <button class="new-chat" id="sideNew"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>新对话</button>
@@ -64,6 +65,7 @@
   <main>
     <!-- 星图 -->
     <section class="page" id="p-home">
+      <h2 class="home-h">星图 <small class="muted">几台电脑一起训练捞捞自己的模型：一台停了，下一台从存档接着算</small></h2>
       <div class="hero">
         <canvas id="star"></canvas>
         <div class="hero-left glass">
@@ -419,6 +421,7 @@
 <script src="zhi3d.js"></script>
 <script src="deckview.js"></script>
 <script src="checkup.js"></script>
+<script src="titlebar.js"></script>
 <script src="vendor/katex/katex.min.js"></script>
 <script src="md.js"></script>
 <script src="show.js"></script>

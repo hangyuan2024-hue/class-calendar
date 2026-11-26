@@ -24,8 +24,11 @@
     const camera = new T.PerspectiveCamera(30, 1, 0.1, 50);
     camera.position.set(0, 0.15, 4.2); camera.lookAt(0, 0.05, 0);
 
+    // 白底界面（捞小智版）：界面是黑白的，捞小智自己要有颜色——发光的部分改成正常叠加（白底上「加亮」看不见），
+    //   地面反光不再是深紫，耳朵用图标上那根光标的橙色
+    const light = !!(document.body && document.body.classList.contains("clean"));
     // 灯光（和编程舞台一样的配方）：天光 + 主光 + 背后的青色、紫色轮廓光
-    scene.add(new T.HemisphereLight(0xbfdcff, 0x1b1236, 0.85));
+    scene.add(new T.HemisphereLight(0xbfdcff, light ? 0xc9d3ec : 0x1b1236, 0.85));
     const key = new T.DirectionalLight(0xffffff, 1.35); key.position.set(-4, 9, 7); scene.add(key);
     const rim = new T.PointLight(0x22d3ee, 1.4, 30); rim.position.set(0, 3, -4); scene.add(rim);
     const rim2 = new T.PointLight(0xa855f7, 0.9, 30); rim2.position.set(4, 1.5, -2); scene.add(rim2);
@@ -36,7 +39,7 @@
     gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(0.25, "rgba(255,255,255,.55)"); gr.addColorStop(1, "rgba(255,255,255,0)");
     gg.fillStyle = gr; gg.fillRect(0, 0, 64, 64);
     const glow = new T.CanvasTexture(gc);
-    const glowSprite = (color, sx, sy, op = 1) => { const s = new T.Sprite(new T.SpriteMaterial({ map: glow, color, transparent: true, opacity: op, blending: T.AdditiveBlending, depthWrite: false })); s.scale.set(sx, sy || sx, 1); return s; };
+    const glowSprite = (color, sx, sy, op = 1) => { const s = new T.Sprite(new T.SpriteMaterial({ map: glow, color, transparent: true, opacity: op, blending: light ? T.NormalBlending : T.AdditiveBlending, depthWrite: false })); s.scale.set(sx, sy || sx, 1); return s; };
 
     // ---------- 捞小智（造型和编程舞台上的一模一样） ----------
     const Z = { g: new T.Group(), head: new T.Group() };
@@ -55,13 +58,13 @@
     const open = new T.Mesh(new T.CircleGeometry(0.05, 24), eyeMat); open.position.set(0, -0.085, 0.418); open.scale.set(1, 0.01, 1); open.visible = false; Z.head.add(open);
     const ant = new T.Mesh(new T.CylinderGeometry(0.012, 0.012, 0.22, 8), new T.MeshStandardMaterial({ color: 0x9fb2d6, metalness: 0.6, roughness: 0.3 })); ant.position.y = 0.5; Z.head.add(ant);
     const tip = new T.Mesh(new T.SphereGeometry(0.05, 16, 12), new T.MeshBasicMaterial({ color: 0x22d3ee })); tip.position.y = 0.63; Z.head.add(tip);
-    const tipGlow = glowSprite(0x22d3ee, 0.35); tipGlow.position.y = 0.63; Z.head.add(tipGlow);
-    for (const s of [-1, 1]) { const ear = new T.Mesh(new T.CylinderGeometry(0.08, 0.08, 0.07, 24), new T.MeshStandardMaterial({ color: 0xc7d4ee, roughness: 0.3 })); ear.rotation.z = Math.PI / 2; ear.position.set(s * 0.42, 0.02, 0); Z.head.add(ear); }
+    const tipGlow = glowSprite(0x22d3ee, 0.35, 0.35, light ? 0.55 : 1); tipGlow.position.y = 0.63; Z.head.add(tipGlow);
+    for (const s of [-1, 1]) { const ear = new T.Mesh(new T.CylinderGeometry(0.08, 0.08, 0.07, 24), new T.MeshStandardMaterial({ color: light ? 0xff7a2f : 0xc7d4ee, roughness: 0.35 })); ear.rotation.z = Math.PI / 2; ear.position.set(s * 0.42, 0.02, 0); Z.head.add(ear); }
     const hands = [-1, 1].map((s) => { const h = new T.Mesh(new T.SphereGeometry(0.08, 20, 14), shell); h.position.set(s * 0.56, -0.18, 0.08); Z.g.add(h); return h; });
-    const jet = glowSprite(0x22d3ee, 0.5, 0.75, 0.9); jet.position.y = -0.5; Z.g.add(jet);
+    const jet = glowSprite(0x22d3ee, 0.5, 0.75, light ? 0.6 : 0.9); jet.position.y = -0.5; Z.g.add(jet);
     const jl = new T.PointLight(0x22d3ee, 0.8, 3); jl.position.y = -0.45; Z.g.add(jl);
     // 脚下一圈淡淡的光（站在展示台上）
-    const ring = new T.Mesh(new T.RingGeometry(0.34, 0.5, 48), new T.MeshBasicMaterial({ color: 0x22d3ee, transparent: true, opacity: 0.18, side: T.DoubleSide, blending: T.AdditiveBlending, depthWrite: false }));
+    const ring = new T.Mesh(new T.RingGeometry(0.34, 0.5, 48), new T.MeshBasicMaterial({ color: 0x22d3ee, transparent: true, opacity: light ? 0.3 : 0.18, side: T.DoubleSide, blending: light ? T.NormalBlending : T.AdditiveBlending, depthWrite: false }));
     ring.rotation.x = -Math.PI / 2; ring.position.y = -0.95; scene.add(ring);
     Z.g.scale.setScalar(1.25);
 

@@ -28,10 +28,21 @@ ipcMain.handle("call", async (_e, method, args) => {
   return fn(...(Array.isArray(args) ? args : []));
 });
 
+// 自己画的标题栏（最小化 / 最大化 / 关闭）：窗口没有系统边框，界面上的三个按钮走这里
+function winCtl(ev, a) {
+  const w = BrowserWindow.fromWebContents(ev.sender); if (!w || w.isDestroyed()) return null;
+  if (a === "min") w.minimize();
+  else if (a === "max") { if (w.isMaximized()) w.unmaximize(); else w.maximize(); }
+  else if (a === "close") w.close();
+  return { frameless: !!w.__frameless, max: w.isMaximized(), full: w.isFullScreen() };
+}
+ipcMain.handle("win", (ev, a) => winCtl(ev, a));
+const winEvents = (w) => { const s = () => { if (!w.isDestroyed()) w.webContents.send("win", { max: w.isMaximized(), full: w.isFullScreen() }); }; for (const e of ["maximize", "unmaximize", "enter-full-screen", "leave-full-screen"]) w.on(e, s); };
 function createWindow() {
-  win = new BrowserWindow({ width: 1440, height: 900, minWidth: 1100, minHeight: 700, title: "捞小智", backgroundColor: "#060a16", autoHideMenuBar: true,
+  win = new BrowserWindow({ width: 1440, height: 900, minWidth: 1100, minHeight: 700, title: "捞小智", backgroundColor: "#ffffff", autoHideMenuBar: true, frame: false,
     icon: path.join(__dirname, "..", "app", "renderer", "icon.png"),
     webPreferences: { preload: path.join(__dirname, "..", "app", "preload.js"), contextIsolation: true, sandbox: true } });
+  win.__frameless = true; winEvents(win);
   win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   win.webContents.on("will-navigate", (e) => e.preventDefault());
   win.loadFile(path.join(__dirname, "renderer", "index.html"));
