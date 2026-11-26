@@ -168,7 +168,10 @@ const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
   const cf = ev.find((e) => e.type === "product").fresh.find((f) => f.key === "chat-lora"); assert.ok(cf && cf.to === 1 && cf.name === "口语对话" && cf.metric === 0.8);
   assert.equal((await show.state()).call.lora, 1);
   await show.send("那兔子有几只");
-  assert.ok(/chat-lora[\\/]1[\\/]lora\.gguf$/.test(ensured[ensured.length - 1].lora), "打电话带口语对话 LoRA：" + ensured[ensured.length - 1].lora);
+  { const sp = ensured[ensured.length - 1], i = (sp.extraLoras || []).findIndex((x) => /chat-lora[\\/]1[\\/]lora\.gguf$/.test(x));
+    assert.ok(i >= 0 && /qa-lora[\\/]2[\\/]/.test(sp.lora), "口语对话 LoRA 一直挂着（比例 0），主 LoRA 不换（不用重启大模型）：" + JSON.stringify(sp));
+    const lo = reqs[reqs.length - 1].lora || [], chatId = (sp.baseLoras || []).length + 1 + i;
+    assert.ok(lo.some((x) => x.id === chatId && x.scale === 1) && lo.some((x) => x.id === (sp.baseLoras || []).length && x.scale === 0), "打电话时按请求打开口语对话 LoRA：" + JSON.stringify(lo)); }
   const wav = Buffer.alloc(44 + 3200); wav.write("RIFF", 0); wav.write("WAVE", 8);
   const t0 = Date.now(); const heard = await show.hear(wav.toString("base64"));
   assert.match(heard.text, /假的识别：3244 字节/);
@@ -178,6 +181,7 @@ const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
   await show.send("再讲一道");
   sys = reqs[reqs.length - 1].messages[0].content; assert.ok(!/现在是语音通话/.test(sys));
   assert.ok(/qa-lora[\\/]2[\\/]/.test(ensured[ensured.length - 1].lora), "挂了电话换回答题 LoRA");
+  assert.ok(!(reqs[reqs.length - 1].lora || []).some((x) => x.scale === 1 && x.id > (ensured[ensured.length - 1].baseLoras || []).length), "挂了以后不再打开口语对话 LoRA");
   ok(`打电话：按语音通话的规矩说话，带「口语对话」LoRA（没训练好先用答题 LoRA，发布了自动换上）；录到的话本机听写成文字（第一句 ${((t1 - t0) / 1000).toFixed(1)} 秒含启动）；挂了换回来`);
 
   // 6b. 做 PPT、接着改：界面要的每一页预览（SVG）跟着变；界面上直接点换配色 / 撤销；打开老师自己的 PPT

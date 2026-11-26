@@ -52,15 +52,18 @@ function createXz(o) {
   let gpu = "", vram = 0;
   gpuName().then((g) => { gpu = g.name; vram = g.vram; }).catch(() => {});
 
-  const llm = (o.llmFactory || LLMW.create)({ exe: o.llamaExe, base, mirror, region: regionNow, ...(o.llmOpt || {}) });
-  const gsv = (o.gsvFactory || GSVW.create)({ base, get: () => cfg.gsv, set: (v) => { cfg.gsv = { ...(cfg.gsv || {}), ...v }; save(); }, gpuName: () => gpu,
+  // 捞捞模型仓库：和捞小智（捞捞算力）、PPT 助手共用一份大模型和声音组件（core/modelstore.js）
+  const store = o.store || (!o.sharedStore ? null : (() => { try { return require(path.join(APP, "ppt", "modelstore.js")).create({ app: "捞小智电脑版" }); } catch (e) { return null; } })());
+  const llm = (o.llmFactory || LLMW.create)({ exe: o.llamaExe, base, store, mirror, region: regionNow, ...(o.llmOpt || {}) });
+  if (store) { const t = setTimeout(() => { try { if (llm.running && llm.running()) return; store.sweep([path.join(base(), "llm")]); } catch (e) {} }, 20000); t.unref && t.unref(); }
+  const gsv = (o.gsvFactory || GSVW.create)({ base, store, get: () => cfg.gsv, set: (v) => { cfg.gsv = { ...(cfg.gsv || {}), ...v }; save(); }, gpuName: () => gpu,
     mirrorOpt: { region: regionNow }, beforeStart: async () => { try { llm.stop(); } catch (e) {} }, ...(o.gsvOpt || {}) });
   const show = (o.showFactory || require(path.join(APP, "show")).create)({
     dir: () => path.join(base(), "show"), server: () => "", llm, log, send: (e) => send("show", e),
     captureScreen: o.captureScreen,
     modelsOpt: { sources: o.sources || SOURCES, ...(o.modelsOpt || {}) },
     busy: () => null, used: () => true,
-    gsvDir: () => { const r = gsv.inspect((cfg.gsv || {}).dir) || gsv.find(path.join(base(), "ai", "LaolaoAI-GPT-SoVITS")); return r ? r.dir : null; },
+    gsvDir: () => { const r = gsv.inspect((cfg.gsv || {}).dir) || gsv.find(path.join(base(), "ai", "LaolaoAI-GPT-SoVITS")) || (store && store.pack("gsv") ? gsv.inspect(store.pack("gsv")) : null); return r ? r.dir : null; },
     llmName: async () => { if (!mirror) return null; try { const hit = (await mirror.model("llmMain"))[0]; return hit && hit.name; } catch (e) { return null; } },
     gsvEnsure: (say) => gsv.ensure((m) => say(m)), base, vram: () => vram,
     ...(o.showOpt || {}) });
@@ -70,6 +73,10 @@ function createXz(o) {
     showState: st,
     async showSend(text, ids, opt) { await show.send(text, ids, opt || {}); return st(); },
     showAttach: async (name, bytes) => show.attach(name, bytes),
+    // 插件页「本地模型」：仓库里有哪些模型（谁什么时候用过）、整合包装在哪、现在开着什么
+    showLocalModels: async () => { if (!store) return { on: false }; const L = store.list(); return { on: true, ...L, running: { llm: !!(llm.running && llm.running()), gb: llm.loadedGB ? llm.loadedGB() : 0 } }; },
+    showLocalPrune: async () => { if (!store) throw new Error("这个版本没有模型仓库"); return store.prune(60, []); },
+    showLocalOpen: async () => { if (store) o.openPath && o.openPath(store.dir()); return true; },
     // 本机文件夹：选一个（文件留在原地，捞小智用到再去读）/ 不用了
     showFolderPick: async () => { const d = o.pickFolder ? await o.pickFolder() : null; if (!d) return show.folderInfo(); return show.folderSet(d); },
     showFolderClear: async () => show.folderSet(null),

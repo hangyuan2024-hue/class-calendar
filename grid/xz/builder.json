@@ -36,6 +36,7 @@
     "app/ppt/team.js",
     "app/ppt/files.js",
     "app/ppt/folder.js",
+    "app/ppt/modelstore.js",
     "app/ppt/checkup.js",
     "app/ppt/deck.js",
     "app/ppt/dl.js",

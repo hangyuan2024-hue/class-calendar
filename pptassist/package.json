@@ -10,7 +10,7 @@
   "scripts": {
     "start": "electron .",
     "prepare-ui": "node scripts/prepare.js",
-    "test": "node test/pptx.test.js && node test/pptlab.test.js && node test/eyes.test.js && node test/media.test.js && node test/voice.test.js && node test/service.test.js && node test/ai3d.test.js && node test/vision.test.js && node test/avatar.test.js && node test/engine.test.js && node test/puppet.test.js && node test/installer.test.js && node test/latex.test.js && node test/pptedit.test.js && node test/deck.test.js && node test/agent.test.js && node test/cloud.test.js && node test/team.test.js && node test/folder.test.js && node test/campus.test.js && node test/ground.test.js && node test/kbfiles.test.js && node test/webexam.test.js && node test/voiceexam.test.js && node test/mindmap.test.js && node test/xiaozhi.test.js && node test/gridmodels.test.js",
+    "test": "node test/pptx.test.js && node test/pptlab.test.js && node test/eyes.test.js && node test/media.test.js && node test/voice.test.js && node test/service.test.js && node test/ai3d.test.js && node test/vision.test.js && node test/avatar.test.js && node test/engine.test.js && node test/puppet.test.js && node test/installer.test.js && node test/latex.test.js && node test/pptedit.test.js && node test/deck.test.js && node test/agent.test.js && node test/cloud.test.js && node test/team.test.js && node test/folder.test.js && node test/modelstore.test.js && node test/campus.test.js && node test/ground.test.js && node test/kbfiles.test.js && node test/webexam.test.js && node test/voiceexam.test.js && node test/mindmap.test.js && node test/xiaozhi.test.js && node test/gridmodels.test.js",
     "dist": "node scripts/prepare.js && electron-builder --win nsis"
   },
   "dependencies": {

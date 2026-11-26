@@ -77,6 +77,23 @@
   $("#shThink").onchange = guard(async () => { C = await call("showCloudSet", { think: $("#shThink").value }); paint(); changed(); toast("改好了：开了一段新对话"); });
   window.addEventListener("lg-models-changed", refresh);
   window.addEventListener("lg-models", () => setTimeout(refresh, 50));
-  window.addEventListener("lg-page", (e) => { if (e.detail === "plugins") refresh(); });
+  // ---------- 本地模型：共用仓库里的文件、谁用过、现在开着什么 ----------
+  const GB = (n) => (n >= 1e9 ? (n / 1e9).toFixed(1) + "G" : Math.max(1, Math.round(n / 1e6)) + "M");
+  const ago = (t) => { const d = (Date.now() - t) / 864e5; return d < 1 ? "今天" : d < 2 ? "昨天" : Math.floor(d) + " 天前"; };
+  const PACK = { gsv: "声音组件（GPT-SoVITS）", comfy: "AI 引擎（ComfyUI）", hy3d: "3D 引擎（Hunyuan3D）" };
+  async function localModels() {
+    const box = document.getElementById("lmList"); if (!box) return;
+    let L; try { L = await call("showLocalModels"); } catch (e) { return; }
+    if (!L || !L.on) { document.getElementById("lmCard").hidden = true; return; }
+    const total = L.files.reduce((a, f) => a + f.size, 0);
+    document.getElementById("lmNow").textContent = `${L.files.length} 个模型 · ${GB(total)}` + (L.running.llm ? ` · 大模型开着（约 ${L.running.gb}G 显存）` : "");
+    box.innerHTML = (L.files.length ? L.files.map((f) => { const us = Object.entries(f.used || {}).sort((a, b) => b[1] - a[1]); return `<div class="lm-row"><b title="${esc(f.name)}">${esc(f.name)}</b><span>${GB(f.size)}</span><small>${us.length ? us.map(([k, t]) => `${esc(k)} ${ago(t)}`).join("，") : "还没用过"}</small></div>`; }).join("") : `<div class="muted small">仓库里还没有模型：用到时会自动下载到这里</div>`) +
+      (L.packs.length ? `<div class="lm-packs">${L.packs.map((p) => `<span class="${p.ok ? "" : "off"}" title="${esc(p.dir)}">${esc(PACK[p.name] || p.name)}${p.ok ? "" : "（不在了）"}</span>`).join("")}</div>` : "");
+  }
+  if (document.getElementById("lmPrune")) {
+    document.getElementById("lmPrune").onclick = async () => { try { const r = await call("showLocalPrune"); toast(r.removed.length ? `清掉 ${r.removed.length} 个，腾出 ${GB(r.freed)}` : "没有 60 天没用的模型"); localModels(); } catch (e) { toast(String(e.message || e), true); } };
+    document.getElementById("lmOpen").onclick = () => call("showLocalOpen").catch(() => {});
+  }
+  window.addEventListener("lg-page", (e) => { if (e.detail === "plugins") { refresh(); localModels(); } });
   refresh();
 })();

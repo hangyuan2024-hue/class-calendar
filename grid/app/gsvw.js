@@ -35,10 +35,11 @@ function create(o) {
   async function ensure(say = () => {}) {
     if (o.beforeStart) await o.beforeStart();
     const st = o.get() || {};
+    const reg = (d) => { try { o.store && o.store.setPack("gsv", d); } catch (e) {} };   // 记进模型仓库：别的捞捞软件直接用，不再装第二遍
     let r = st.dir && inspect(st.dir);
-    if (r) return r;
-    r = find(path.join(parent(), "LaolaoAI-GPT-SoVITS"));
-    if (r) { o.set({ dir: r.dir }); return r; }
+    if (r) { reg(r.dir); return r; }
+    r = find(path.join(parent(), "LaolaoAI-GPT-SoVITS")) || (o.store && o.store.pack("gsv") ? inspect(o.store.pack("gsv")) : null);
+    if (r) { o.set({ dir: r.dir }); reg(r.dir); return r; }
     if (busy) return busy;
     busy = (async () => {
       if (!/^[\x20-\x7e]+$/.test(parent()) || /\s/.test(parent())) throw new Error("数据文件夹的路径里有中文或空格，GPT-SoVITS 会出错：在任务向导第 1 步换到 D 盘");
@@ -51,7 +52,7 @@ function create(o) {
       } });
       const f = find(x.dir) || find(path.join(parent(), "LaolaoAI-GPT-SoVITS"));
       if (!f) throw new Error("GPT-SoVITS 解压好了，但找不到 api_v2.py");
-      o.set({ dir: f.dir, ver: x.ver || "" });
+      o.set({ dir: f.dir, ver: x.ver || "" }); reg(f.dir);
       say("GPT-SoVITS 装好了");
       return f;
     })();

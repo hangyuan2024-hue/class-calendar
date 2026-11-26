@@ -18,6 +18,7 @@ const svc = createService({
   reveal: (f) => shell.showItemInFolder(f),
   // AI 助手的本地模型程序（llama.cpp），打包时放在 resources/llama
   llamaCpuExe: app.isPackaged ? path.join(process.resourcesPath, "llama-cpu", "llama-server.exe") : path.join(__dirname, "resources", "llama-cpu", process.platform === "win32" ? "llama-server.exe" : "llama-server"),
+  sharedStore: true,   // 和别的捞捞软件共用模型仓库（core/modelstore.js）
   llamaExe: app.isPackaged ? path.join(process.resourcesPath, "llama", "llama-server.exe") : path.join(__dirname, "resources", "llama", process.platform === "win32" ? "llama-server.exe" : "llama-server"),
   openExternal: (u) => { if (/^https:\/\/(github\.com|www\.laolaokechengbiao\.cn)\//.test(u)) shell.openExternal(u); },
 });

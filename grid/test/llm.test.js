@@ -180,6 +180,21 @@ http.createServer((q,r)=>{r.writeHead(200);r.end("{}");}).listen(port,"127.0.0.1
     ok(`训练答题大脑：新讲解攒够了自动开一轮；训练前先让出显存；原版和带 LoRA 各考一次（答对率 ${m.models["qa-lora"].metrics.acc}、原版 ${m.models["qa-lora"].metrics.base_acc}）；考过了发布 qa-lora`);
   }
 
+  // 模型仓库：别的捞捞软件下过就直接用（不下载）；自己 llm 文件夹里以前下的收进仓库；新下的直接下进仓库
+  {
+    const MS = require("../../pptassist/core/modelstore");
+    const st = MS.create({ pointer: path.join(tmp, "home", "store.json"), app: "test", defaultDir: path.join(tmp, "shared") });
+    fs.mkdirSync(path.join(tmp, "shared"), { recursive: true }); fs.writeFileSync(path.join(tmp, "shared", "A.gguf"), Buffer.alloc(10, 1));
+    const dls = [];
+    const lw = LLMW.create({ exe: process.execPath, base: () => path.join(tmp, "app2"), store: st, dl: { download: async (urls, f) => { dls.push(f); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, Buffer.alloc(20, 2)); } } });
+    assert.equal(await lw.prefetch({ name: "A.gguf", size: 10, urls: ["https://x/A.gguf"] }), path.join(tmp, "shared", "A.gguf")); assert.equal(dls.length, 0, "仓库里有：不下载");
+    assert.ok(lw.hasModel({ name: "A.gguf", size: 10 }));
+    fs.mkdirSync(path.join(tmp, "app2", "llm"), { recursive: true }); fs.writeFileSync(path.join(tmp, "app2", "llm", "B.gguf"), Buffer.alloc(5, 3));
+    assert.equal(await lw.prefetch({ name: "B.gguf", size: 5, urls: ["https://x/B.gguf"] }), path.join(tmp, "shared", "B.gguf")); assert.ok(!fs.existsSync(path.join(tmp, "app2", "llm", "B.gguf")), "旧的收进仓库");
+    assert.equal(await lw.prefetch({ name: "C.gguf", size: 20, urls: ["https://x/C.gguf"] }), path.join(tmp, "shared", "C.gguf")); assert.deepEqual(dls, [path.join(tmp, "shared", "C.gguf")], "新下的直接下进仓库");
+    ok("本地大模型用模型仓库：别的软件下过就直接用；以前下的收进仓库；新下的下进仓库");
+  }
+
   app.close(); gsm.close(); llm.close();
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch (e) {}   // Windows 上文件可能还没放开：清不掉也不算测试失败
   console.log("本地大模型 + 答题数据工厂：全部通过");

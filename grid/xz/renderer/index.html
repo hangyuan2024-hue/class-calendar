@@ -101,6 +101,12 @@
             <div class="md-row"><label>多个助手一起做时用<select id="mdWorker"></select></label><label>思考<select id="shThink"><option value="auto">自动</option><option value="on">总是先想再答</option><option value="off">不思考（更快、更省）</option></select></label></div>
             <div class="muted small" id="shUsage"></div>
           </div>
+          <div class="glass sh-card" id="lmCard">
+            <div class="sh-card-h"><b>本地模型</b><span class="grow"></span><span class="muted small" id="lmNow"></span></div>
+            <div class="muted small">捞小智、捞小智电脑版、PPT 助手共用一个模型仓库：同一个模型只下一次；用到时自动启动，没人用自动关掉，腾出显存。</div>
+            <div id="lmList" class="lm-list"></div>
+            <div class="btns"><button class="btn small" id="lmPrune" title="60 天里哪个软件都没用过的模型删掉（用到时会自动重新下）">清掉 60 天没用的</button><button class="btn small ghost" id="lmOpen">打开仓库文件夹</button></div>
+          </div>
           <div class="glass sh-card">
             <div class="sh-card-h"><b>声音</b></div>
             <div class="muted small">对话框下面能选声音、开关「念出来」；老师自己的声音在「形象」里做。</div>

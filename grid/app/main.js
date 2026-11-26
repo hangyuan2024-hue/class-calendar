@@ -25,6 +25,7 @@ const svc = createService({
   autoDrive: true,
   version: app.getVersion(),
   // 本地大模型的程序（安装包里带的 llama.cpp Vulkan 版）
+  sharedStore: true,   // 和别的捞捞软件共用模型仓库（core/modelstore.js）
   llamaExe: app.isPackaged ? path.join(process.resourcesPath, "llama", "llama-server.exe") : process.env.LG_LLAMA || null,
   send: (ch, d) => {
     if (win && !win.isDestroyed()) win.webContents.send(ch, d);

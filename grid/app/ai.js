@@ -25,7 +25,13 @@ function create(o) {
   const say = (m) => { try { o.onEvent && o.onEvent(m); } catch (e) {} };
   let ac = null, idle = null, n = 0;
 
-  function rt() { const d = st().dir; if (!d) return null; const r = ENGINE.inspect(d); return r.ok ? r : null; }
+  // 没装过：看看模型仓库里有没有别的捞捞软件（比如 PPT 助手）装好的 ComfyUI，有就直接用
+  function rt() {
+    let d = st().dir;
+    if (!d && o.store) { const p = o.store.pack("comfy"); if (p && ENGINE.inspect(p).ok) { d = p; set({ dir: p }); } }
+    if (!d) return null; const r = ENGINE.inspect(d); return r.ok ? r : null;
+  }
+  const reg = (d) => { try { o.store && o.store.setPack("comfy", d); } catch (e) {} };
   const vram = () => +st().vram || +o.vram() || 8;
 
   async function check() {
@@ -47,7 +53,7 @@ function create(o) {
         say({ stage: "pkg", msg: "下载 ComfyUI 整合包（约 2G，从国内存储）" });
         const need = WF.NEEDS[FEATURE].reduce((s, k) => s + WF.MODELS[k].size, 0);
         const x = await INSTALL.install("comfyui", parent, { mirror, gpu: o.gpuName ? o.gpuName() : "", signal: ac.signal, extraSpace: need, onMsg: (m) => say({ ...m, part: "pkg" }) });
-        set({ dir: x.dir, ver: x.ver || "" });
+        set({ dir: x.dir, ver: x.ver || "" }); reg(x.dir);
         r = rt();
         if (!r) throw new Error("ComfyUI 解压好了，但认不出来");
         say({ stage: "pkg", msg: "ComfyUI 装好了", done: true });
@@ -71,7 +77,7 @@ function create(o) {
     const r = ENGINE.inspect(d);
     if (!r.ok) throw new Error(r.error);
     if (/[^\x00-\x7f]/.test(r.dir) || /\s/.test(r.dir)) throw new Error("ComfyUI 的路径里有中文或空格，会出错：换一个");
-    set({ dir: r.dir });
+    set({ dir: r.dir }); reg(r.dir);
     return check();
   }
   function cancel() { if (ac) ac.abort(); eng.cancel().catch(() => {}); }

@@ -40,6 +40,8 @@ function createService(env) {
   // 老师的资料：形象（捏脸数据）、照片、参考录音、GPT-SoVITS 在哪
   let profile = { avatar: null, photo: null, voice: null, gsvDir: null, side: "right", scale: 0.6, ...readJson(P("profile.json"), {}) };
   const saveProfile = () => fs.writeFileSync(P("profile.json"), JSON.stringify(profile, null, 2));
+  // 捞捞模型仓库（core/modelstore.js）：大模型文件和别的捞捞软件共用一份；声音组件、3D 引擎、AI 引擎别的软件装过就直接用
+  const STORE = env.store || (env.sharedStore ? require("./modelstore").create({ app: "捞捞PPT助手" }) : null);
   const voice = VOICE.create({ onState: (s) => send("voice", s) });
   let doc = null;   // 打开的 PPT：{ file, info }
   // AI 3D 形象：工坊的文件都放在 用户目录/ai3d 下面（立绘候选 cands/、生成的模型 gen/、绑好骨骼的 out/）
@@ -59,7 +61,7 @@ function createService(env) {
   // 捞捞自己训练的模型（捞捞算力每天训练、评测通过才发布）：后台自动下载，下次生成时才换上
   const grid = GridModels.create({ dir: path.join(USER, "grid-models"), want: ["qversion-lora", "qa-lora", "ppt-lora", "laolao-voice", "voice-base"], codes: () => [profile && profile.voiceCode], onEvent: (e) => send("aiav", { stage: "gridmodel", ...e }), ...(env.gridOpt || {}) });
   if (env.gridModels !== false) grid.start();
-  const llm = LLM.create({ dir: P("llm", "x").slice(0, -2), exe: env.llamaExe, exeCpu: env.llamaCpuExe, mirror,
+  const llm = LLM.create({ dir: P("llm", "x").slice(0, -2), store: STORE, exe: env.llamaExe, exeCpu: env.llamaCpuExe, mirror,
     // 捞捞算力训练、考试通过的答题 LoRA：下次启动 AI 助手时换上；带上起不来就退回上一版
     // PPT 助手主要是改 PPT：有考过试的「改 PPT」LoRA 就用它（它训练时混着答题的数据，讲题不会变差），没有再用答题 LoRA
     lora: () => { const pp = grid.use("ppt-lora"); if (pp && pp.files && pp.files.lora) return pp.files.lora; const q = grid.use("qa-lora"); return (q && q.files && q.files.lora) || null; },
@@ -109,6 +111,17 @@ function createService(env) {
     } finally { setupJob = null; }
   }
   const AV = () => (profile.aiav = profile.aiav || { files: {} });
+  // 捞捞模型仓库（core/modelstore.js）：大模型文件和别的捞捞软件共用一份；声音组件、3D 引擎、AI 引擎别的软件装过就直接用
+  if (STORE) try {
+    let ch = false;
+    if (!profile.gsvDir && STORE.pack("gsv")) { profile.gsvDir = STORE.pack("gsv"); ch = true; }
+    if (!A3().dir && STORE.pack("hy3d")) { A3().dir = STORE.pack("hy3d"); ch = true; }
+    if (!AV().dir && STORE.pack("comfy")) { AV().dir = STORE.pack("comfy"); ch = true; }
+    if (profile.gsvDir) STORE.setPack("gsv", profile.gsvDir);
+    if (A3().dir) STORE.setPack("hy3d", A3().dir);
+    if (AV().dir) STORE.setPack("comfy", AV().dir);
+    if (ch) saveProfile();
+  } catch (e) {}
   const avFile = (...a) => P("aiav", ...a);
   const avSend = (m) => send("aiav", m);
   const avRt = () => { const d = AV().dir; if (!d) throw new Error("先选 ComfyUI 整合包的文件夹"); const r = ENGINE.inspect(d); if (!r.ok) throw new Error(r.error); return r; };
@@ -289,7 +302,7 @@ function createService(env) {
     async aiavPickDir() {
       const d = await env.pickDir("选 ComfyUI 整合包（ComfyUI_windows_portable）的文件夹"); if (!d) return null;
       const r = ENGINE.inspect(d); if (!r.ok) throw new Error(r.error);
-      AV().dir = r.dir; saveProfile();
+      AV().dir = r.dir; saveProfile(); try { STORE && STORE.setPack("comfy", r.dir); } catch (e) {}
       return H.aiavState();
     },
     async aiavStart(o = {}) { const st = await eng.start(avRt(), { lowvram: !!o.lowvram }); if (!st.vram.gpu) avSend({ warn: "没认出 NVIDIA 显卡：AI 形象要用 NVIDIA 显卡（显存 8G 以上，说话视频要 12G 以上）" }); return H.aiavState(); },
@@ -420,7 +433,7 @@ function createService(env) {
         const need = WF.NEEDS[feature].reduce((s, k) => s + WF.MODELS[k].size, 0);
         const r = await runSetup("comfyui", `选一个放 AI 引擎的文件夹（路径只能有英文和数字，比如 D:\\AI；要留出大约 ${Math.ceil(need / 1e9 + 8)}G 空间）`, async (x) => x);
         if (!r) return null;
-        AV().dir = r.dir; saveProfile(); rt = avRt();
+        AV().dir = r.dir; saveProfile(); try { STORE && STORE.setPack("comfy", r.dir); } catch (e) {} rt = avRt();
       }
       if (!eng.status().running) { avSend({ stage: "setup", step: "start" }); await eng.start(rt); }
       const c = await eng.check(rt, AV().files);
@@ -431,13 +444,13 @@ function createService(env) {
     async voiceInstall() {
       return runSetup("gsv", "选一个放声音克隆（GPT-SoVITS）的文件夹（路径只能有英文和数字，比如 D:\\AI；要留出大约 25G 空间）", async (r) => {
         const i = VOICE.inspect(r.dir); if (!i.ok) throw new Error(i.error);
-        profile.gsvDir = r.dir; saveProfile(); return r.dir;
+        profile.gsvDir = r.dir; saveProfile(); try { STORE && STORE.setPack("gsv", r.dir); } catch (e) {} return r.dir;
       });
     },
     async ai3dInstall() {
       return runSetup("hy3d", "选一个放 AI 3D 形象（Hunyuan3D-2）的文件夹（路径只能有英文和数字，比如 D:\\AI；要留出大约 80G 空间）", async (r) => {
         const i = AI3D.inspect(r.dir); if (!i.ok) throw new Error(i.error);
-        A3().dir = r.dir; A3().check = null; saveProfile(); return H.ai3dCheck().catch(() => null);
+        A3().dir = r.dir; A3().check = null; saveProfile(); try { STORE && STORE.setPack("hy3d", r.dir); } catch (e) {} return H.ai3dCheck().catch(() => null);
       });
     },
     // ---------- AI 助手：对话改 PPT ----------

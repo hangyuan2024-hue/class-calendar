@@ -888,3 +888,13 @@ body.clean .sh-log > .sh-file { align-self: flex-start; }
 .chip.fold .fx:hover { background: #ececec; color: #111; }
 .chip.fold.on { background: #111; border-color: #111; color: #fff; }
 .chip.fold.on .fx { color: #bdbdbd; } .chip.fold.on .fx:hover { background: #333; color: #fff; }
+/* 插件页：本地模型 */
+.lm-list { display: grid; gap: 2px; margin: 10px 0 4px; }
+.lm-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 10px; padding: 7px 2px; border-top: 1px solid #f0f0f0; }
+.lm-row:first-child { border-top: 0; }
+.lm-row b { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lm-row span { font-size: 12.5px; color: #4a4a4a; }
+.lm-row small { grid-column: 1 / -1; font-size: 11.5px; color: #8a8a8a; }
+.lm-packs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.lm-packs span { font-size: 12px; padding: 3px 9px; border-radius: 99px; background: #f2f2f2; color: #3a3a3a; }
+.lm-packs span.off { color: #a3a3a3; text-decoration: line-through; }

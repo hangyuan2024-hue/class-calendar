@@ -63,15 +63,20 @@ function createService(o) {
   const mkEnv = () => Env.create({ dir: path.join(base(), "env"), python: o.python || cfg.python, onEvent: (e) => send("env", e), region: regionNow });
   let env = mkEnv();
   let agent = null, lastProbe = cfg.probe || null, sources = {};
+  // 捞捞模型仓库：这台电脑上几个捞捞软件共用一份大模型、一套声音组件 / AI 引擎（core/modelstore.js）
+  //   仓库默认在数据文件夹的 models 里（别的软件已经建了仓库就用那个）
+  const store = o.store || (!o.sharedStore ? null : (() => { try { return require(path.join(__dirname, "ppt", "modelstore.js")).create({ app: EDITION.open ? "捞捞算力通用版" : "捞小智", defaultDir: () => path.join(base(), "models") }); } catch (e) { return null; } })());
   // AI 引擎（ComfyUI + 画 Q版的模型），装在数据文件夹的 ai 里
-  const ai = (o.aiFactory || AI.create)({ get: () => cfg.ai, set: (v) => { cfg.ai = v; save(); }, onEvent: (e) => send("ai", e),
+  const ai = (o.aiFactory || AI.create)({ store, get: () => cfg.ai, set: (v) => { cfg.ai = v; save(); }, onEvent: (e) => send("ai", e),
     vram: () => (lastProbe && lastProbe.caps && lastProbe.caps.vram) || 0, gpuName: () => (lastProbe && lastProbe.caps && lastProbe.caps.gpu) || "", mirrorOpt: { region: regionNow }, engineOpt: { env: () => cacheEnvOf(work()) }, ...(o.aiOpt || {}) });
   // 本地大模型（llama.cpp 跟着安装包走）；和 ComfyUI 抢显存：开一个先关另一个
   const llmMirror = (() => { try { return require(path.join(__dirname, "ppt", "mirror.js")).create({ region: regionNow }); } catch (e) { return null; } })();
-  const llm = (o.llmFactory || LLMW.create)({ exe: o.llamaExe, base: () => base(), mirror: llmMirror, region: regionNow, beforeStart: async () => { try { ai.stop(); } catch (e) {} }, ...(o.llmOpt || {}) });
+  const llm = (o.llmFactory || LLMW.create)({ exe: o.llamaExe, base: () => base(), store, mirror: llmMirror, region: regionNow, beforeStart: async () => { try { ai.stop(); } catch (e) {} }, ...(o.llmOpt || {}) });
   const comfy = { ...ai, ensure: async () => { llm.stop(); return ai.ensure(); } };
+  // 开软件 20 秒后：以前下在自己 llm 文件夹里的大模型收进共用的仓库（别的软件已经有一样的就删掉这份，腾硬盘）
+  if (store) { const t = setTimeout(() => { try { if (llm.running && llm.running()) return; const r = store.sweep([path.join(base(), "llm")]); if (r.moved || r.deduped) L(`模型仓库：收进 ${r.moved} 个${r.deduped ? `，删掉重复的 ${r.deduped} 个（腾出 ${(r.freed / 1e9).toFixed(1)}G）` : ""}`, "info", "模型"); } catch (e) {} }, o.sweepMs != null ? o.sweepMs : 20000); t.unref && t.unref(); }
   // GPT-SoVITS（训练声音）：第一次用的时候自动装；训练前关掉 ComfyUI 和本地大模型
-  const gsv = (o.gsvFactory || GSVW.create)({ base: () => base(), get: () => cfg.gsv, set: (v) => { cfg.gsv = { ...(cfg.gsv || {}), ...v }; save(); },
+  const gsv = (o.gsvFactory || GSVW.create)({ base: () => base(), store, get: () => cfg.gsv, set: (v) => { cfg.gsv = { ...(cfg.gsv || {}), ...v }; save(); },
     gpuName: () => (lastProbe && lastProbe.caps && lastProbe.caps.gpu) || "", mirrorOpt: { region: regionNow }, beforeStart: async () => { try { ai.stop(); } catch (e) {} try { llm.stop(); } catch (e) {} }, ...(o.gsvOpt || {}) });
   // 显存上限（设置里可以留一点给自己用）：领活的时候只说这么多
   const capsNow = () => { const c = { ...((lastProbe && lastProbe.caps) || {}), comfy: !!(cfg.ai && cfg.ai.ready), llm: llm.ok(), gsv: process.platform === "win32" || !!(cfg.gsv && cfg.gsv.dir) }; if (cfg.set && cfg.set.vramCap && c.vram) c.vram = Math.min(c.vram, cfg.set.vramCap); return c; };
@@ -231,7 +236,7 @@ function createService(o) {
       if (!r || r.cpu !== true) { L("调度中心还是旧版，不认得 CPU 工位：先不开（调度中心更新以后自动开）", "warn", "CPU"); return; }
       ln = cfg.lanes.cpu = { token: r.token, device: r.device, name: r.name }; save();
     }
-    cpuLlm = cpuLlm || (o.cpuLlmFactory || LLMW.create)({ exe: o.llamaExe, base: () => base(), mirror: llmMirror, region: regionNow, cpu: true, port: 18299, threads: cpuThreads, ...(o.llmOpt || {}) });
+    cpuLlm = cpuLlm || (o.cpuLlmFactory || LLMW.create)({ exe: o.llamaExe, base: () => base(), store, mirror: llmMirror, region: regionNow, cpu: true, port: 18299, threads: cpuThreads, ...(o.llmOpt || {}) });
     const a = Agent.create({ server: cfg.server, token: ln.token, pubkey: cfg.pubkey, workDir: path.join(work(), "cpu"), cacheDir: path.join(work(), "cache", "shared"), python: () => env.python(), envReady, minFreeGB: o.minFreeGB != null ? o.minFreeGB : 10,
       caps: { ...c0, gpu: "", vram: 0, comfy: false, gsv: false, llm: true, cpuOnly: true, cores: cpuThreads(), lane: "cpu" }, llm: cpuLlm,
       policy: { mode: "off", idleMin: 5, ...(cfg.policy || {}), pauseOnBattery: set().pauseOnBattery, maxPower: set().maxPower, quiet: quietPolicy() },
@@ -661,7 +666,7 @@ function createService(o) {
     captureScreen: o.captureScreen,
     // 正在算的任务名（c.job 是整个任务信息，要取 name；以前直接拿来显示成了 [object Object]）；已经在停的不算
     busy: () => { const c = agent && agent.current(); return c && !c.stopping ? (c.job && c.job.name) || "任务" : null; },
-    gsvDir: () => { const r = gsv.inspect((cfg.gsv || {}).dir) || gsv.find(path.join(base(), "ai", "LaolaoAI-GPT-SoVITS")); return r ? r.dir : null; },
+    gsvDir: () => { const r = gsv.inspect((cfg.gsv || {}).dir) || gsv.find(path.join(base(), "ai", "LaolaoAI-GPT-SoVITS")) || (store && store.pack("gsv") ? gsv.inspect(store.pack("gsv")) : null); return r ? r.dir : null; },
     // 没打开过展示的电脑不去下模型（不白占同事的硬盘和流量）；打开过一次以后，新版在后台先下好
     used: () => !!cfg.showUsed,
     llmName: async () => { const hit = (await llmMirror.model("llmMain"))[0]; return hit && hit.name; },
@@ -671,6 +676,10 @@ function createService(o) {
     showState: showSt,
     async showSend(text, ids, opt) { await show.send(text, ids, opt || {}); return showSt(); },
     showAttach: async (name, bytes) => show.attach(name, bytes),
+    // 插件页「本地模型」：仓库里有哪些模型（谁什么时候用过）、整合包装在哪、现在开着什么
+    showLocalModels: async () => { if (!store) return { on: false }; const L = store.list(); return { on: true, ...L, running: { llm: !!(llm.running && llm.running()), gb: llm.loadedGB ? llm.loadedGB() : 0 } }; },
+    showLocalPrune: async () => { if (!store) throw new Error("这个版本没有模型仓库"); return store.prune(60, []); },
+    showLocalOpen: async () => { if (store) o.openPath && o.openPath(store.dir()); return true; },
     // 本机文件夹：选一个（文件留在原地，捞小智用到再去读）/ 不用了
     showFolderPick: async () => { const d = o.pickFolder ? await o.pickFolder() : null; if (!d) return show.folderInfo(); return show.folderSet(d); },
     showFolderClear: async () => show.folderSet(null),

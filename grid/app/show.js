@@ -160,12 +160,14 @@ function create(o) {
     const server = String(o.server() || "").replace(/\/+$/, "");
     const models = (o.modelsFactory || GM.create)({ dir: path.join(dir, "models"), want: XZ.PARTS.map((p) => p.key), ...(server ? { sources: [server + "/pub/models/manifest.json"] } : {}),
       onEvent: (e) => { if (e.stage === "download") emit({ type: "note", text: `有新版：正在下载「${nameOf(e.name)}」第 ${e.version} 版…` }); }, ...(o.modelsOpt || {}) });
-    let loraIds = { base: [], main: -1, ground: -1, ppt: -1, eyes: -1 };
+    let loraIds = { base: [], main: -1, ground: -1, ppt: -1, eyes: -1, chat: -1 };
     const local = {
       // 每一句之前都看一眼：答题 LoRA 换了新版，就带上新版重新启动（llmw 发现 LoRA 路径变了会自己重启）；带上起不来就退回上一版
       start: async (opt) => {
         const say = (m) => emit({ type: "note", text: m });
         if (opt && opt.eyes) eyes = true;
+        // 显卡 6G 以上：一开始就把看图组件（0.8G）一起带上，第一次发图片不用重启大模型（重启要十几二十秒）
+        if (!eyes && o.vram && (+o.vram() || 0) >= 6 && !useBig()) eyes = true;
         // 文件名用组件镜像里的那个（和训练答题大脑时考试用的是同一个文件，不重复下 2.5G）
         const big = useBig();
         const spec = big ? { ...BIG_SPEC } : { ...LLM_SPEC, ...(eyes ? { mmproj: MMPROJ_SPEC } : {}) };
@@ -176,15 +178,16 @@ function create(o) {
           const stack = big ? null : await baseStack(models).catch((e) => { log("底座的永久层用不了（" + e.message + "）：退回上一版"); models.rollback("base-stack"); return null; });
           const absorbed = (k) => { const m = models.use(k); return !!(stack && m && stack.layers.some((l) => l.name === k && l.version >= m.version)); };
           // 打电话的时候优先带口语对话 LoRA（没训练好就用答题 LoRA）；换了 LoRA，llmw 会自己重启大模型
-          const c = calling && !absorbed("chat-lora") ? models.use("chat-lora") : null, key = c && c.files && c.files.lora ? "chat-lora" : "qa-lora";
-          const q = key === "chat-lora" ? c : absorbed("qa-lora") ? null : models.use("qa-lora"), lora = q && q.files && q.files.lora;
+          //   以前打电话时把主 LoRA 换成口语对话的，要重启大模型；现在口语对话 LoRA 一直挂着（比例 0），打电话时按请求打开，不用重启
+          const key = "qa-lora";
+          const q = absorbed("qa-lora") ? null : models.use("qa-lora"), lora = q && q.files && q.files.lora;
           // 平时关着、用到时才打开的几个 LoRA（考过试才有；8B 不挂：LoRA 是配 4B 的；已经合进底座的那一版不再单独挂）：
           //   「先核对再回答」ground-lora（查资料回答、核对时）、「改 PPT」ppt-lora（调改 PPT 的工具时）、「眼力」vision-lora（看图还原 PPT、认公仔特征时）
-          const EXTRA = [["ground", "ground-lora", "先核对再回答"], ["ppt", "ppt-lora", "改 PPT"], ["eyes", "vision-lora", "眼力"]];
+          const EXTRA = [["ground", "ground-lora", "先核对再回答"], ["ppt", "ppt-lora", "改 PPT"], ["eyes", "vision-lora", "眼力"], ["chat", "chat-lora", "口语对话"]];
           const ex = big ? [] : EXTRA.map(([k, key, name]) => { const m = absorbed(key) ? null : models.use(key); return m && m.files && m.files.lora ? { k, key, name, path: m.files.lora } : null; }).filter(Boolean);
           const bl = stack ? stack.loras : [], nb = bl.length, nm = lora && !big ? 1 : 0;
           try { url = await o.llm.ensure({ ...spec, ...(nb ? { baseLoras: bl } : {}), ...(lora && !big ? { lora } : {}), ...(ex.length ? { extraLoras: ex.map((x) => x.path) } : {}) }, say);
-            loraIds = { base: bl.map((x, j) => ({ id: j, scale: x.scale })), main: nm ? nb : -1, ground: -1, ppt: -1, eyes: -1 };
+            loraIds = { base: bl.map((x, j) => ({ id: j, scale: x.scale })), main: nm ? nb : -1, ground: -1, ppt: -1, eyes: -1, chat: -1 };
             ex.forEach((x, j) => { loraIds[x.k] = nb + nm + j; });
             return; }
           catch (e) {
@@ -197,7 +200,7 @@ function create(o) {
         try { o.llm.touch && o.llm.touch(); } catch (e) {}
         // 查资料回答、核对（opt.mode = ground / check）：打开 ground-lora；改 PPT（ppt）：打开 ppt-lora；看图（eyes）：打开 vision-lora
         //   这时关掉答题 / 口语 LoRA；llama-server 的 lora 字段没写到的都按 0。底座的永久层要照原来的比例写上（没写到的会被当成 0）
-        const want = opt.mode === "ground" || opt.mode === "check" ? "ground" : opt.mode === "ppt" ? "ppt" : opt.mode === "eyes" ? "eyes" : null;
+        const want = opt.mode === "ground" || opt.mode === "check" ? "ground" : opt.mode === "ppt" ? "ppt" : opt.mode === "eyes" ? "eyes" : calling && loraIds.chat >= 0 ? "chat" : null;
         const lo = want && loraIds[want] >= 0 ? { lora: [...(loraIds.base || []), ...(loraIds.main >= 0 ? [{ id: loraIds.main, scale: 0 }] : []), { id: loraIds[want], scale: 1 }] } : null;
         const extra = { ...(bigNow ? { chat_template_kwargs: { enable_thinking: false } } : {}), ...(lo || {}) };
         return CHAT.chatAt(url, m, { ...opt, ...(bigNow ? { onDelta: noThink(opt.onDelta) } : {}), ...(Object.keys(extra).length ? { extra } : {}) });
@@ -213,7 +216,7 @@ function create(o) {
     // 本机文件夹：选了就让捞小智自己去里面找、读（文件留在原地）
     const folder = PPT("folder.js").create({ file: path.join(dir, "folder.json"), cacheDir: path.join(dir, "foldercache") });
     const xz = XZ.create({ dir, llm, grid: models, folder, kbOpt: { transcribe }, onEvent: (e) => emit(e), now: o.now, log: (m) => log(m), ...(o.xzOpt || {}) });
-    cur = { dir, models, xz, llm, folder };
+    cur = { dir, models, xz, llm, folder, local };
     lastBuild = xz.product().build;
     return cur;
   }
@@ -246,7 +249,19 @@ function create(o) {
   const product = () => S().xz.product();
   // 开着展示的时候每 3 分钟看一次；没开着的时候半小时看一次（新版先下好，打开就能用）
   function schedule() { clearInterval(timer); if (!active && o.used && !o.used()) return; timer = setInterval(() => fuse("定时").catch(() => {}), active ? (o.activeMs || 3 * 60e3) : (o.idleMs || 30 * 60e3)); timer.unref && timer.unref(); }
-  function setActive(v) { active = !!v; schedule(); if (active) { fuse("打开展示").catch(() => {}); earPrefetch(); } return active; }
+  // 预热：一打开对话页就在后台把本机大模型启动好（第一句不用等十几秒）；只用云端、电脑在算任务、模型还没下好时不预热
+  let warming = null;
+  async function prewarm() {
+    try {
+      if (warming || (cloudOn() && !(cloud.hybrid && cloud.hybrid()))) return;
+      if (o.busy && o.busy()) return;
+      if (o.llm && o.llm.running && o.llm.running()) return;
+      if (!o.llm || !o.llm.ok || !o.llm.ok()) return;
+      if (o.llm.hasModel && !o.llm.hasModel(await llmSpec())) return;
+      warming = S().local.start().catch((e) => log("预热本机大模型没成：" + e.message)).finally(() => { warming = null; });
+    } catch (e) {}
+  }
+  function setActive(v) { active = !!v; schedule(); if (active) { fuse("打开展示").catch(() => {}); earPrefetch(); setTimeout(prewarm, o.warmDelayMs != null ? o.warmDelayMs : 1500); } return active; }
   // 听写模型（几百 M）：打开展示时就在后台先下好（只在还没下过的时候；下好后 10 分钟没人用自己关），不用等到打电话说完第一句才开始下
   const earSay = (m, p) => emit({ type: "ear", text: m, pct: p && p.pct != null ? p.pct : null, done: !!(p && p.done) });
   function earPrefetch() {

@@ -45,14 +45,21 @@ function create(opt = {}) {
   const addLog = (s) => { for (const l of String(s).split(/\r?\n/)) if (l.trim()) { log.push(l); if (log.length > 80) log.shift(); } };
   const set = (status, msg = "") => { state = { status, msg }; opt.onState && opt.onState(state); };
 
+  // 共用的模型仓库（core/modelstore.js）：先看仓库，再看自己的 llm 文件夹；新下的下进仓库
+  const store = opt.store || null;
+  const dirs = () => [store ? (() => { try { return store.dir(); } catch (e) { return null; } })() : null, dir].filter(Boolean);
   const files = () => {
     const out = {};
     for (const k of ["main", "mmproj"]) {
-      let f = null; try { f = fs.readdirSync(dir).filter((n) => MODEL[k].test(n)).map((n) => path.join(dir, n)).find((p) => isGguf(p, opt.minBytes != null ? opt.minBytes : MODEL[k].minBytes)); } catch (e) {}
+      let f = null;
+      for (const d of dirs()) { try { f = fs.readdirSync(d).filter((n) => MODEL[k].test(n)).map((n) => path.join(d, n)).find((p) => isGguf(p, opt.minBytes != null ? opt.minBytes : MODEL[k].minBytes)); } catch (e) {} if (f) break; }
       out[k] = f || null;
     }
     return out;
   };
+  // 以前下在自己 llm 文件夹里的：收进仓库（仓库里已经有一样的就删掉这份）
+  let swept = false;
+  const sweep = () => { if (swept || !store) return; swept = true; try { store.sweep([dir]); } catch (e) {} };
   const ready = () => { const f = files(); return !!(f.main && f.mmproj); };
 
   // 要下载的文件：国内存储清单 → Hugging Face 镜像的列表（挑量化）→ 默认名字
@@ -75,11 +82,13 @@ function create(opt = {}) {
     return out;
   }
   async function download(onProg, signal) {
-    fs.mkdirSync(dir, { recursive: true });
+    sweep();
+    const to = store ? store.dir() : dir;
+    fs.mkdirSync(to, { recursive: true });
     const have = files(), todo = (await plan()).filter((x) => !have[x.k]);
     for (let i = 0; i < todo.length; i++) {
       const x = todo[i];
-      await DL.download(x.urls, path.join(dir, x.name), { fetch: doFetch, signal, log: addLog, want: { size: x.size, sha256: x.sha256 }, onProg: (p) => onProg && onProg({ ...p, name: x.name, i, n: todo.length }) });
+      await DL.download(x.urls, path.join(to, x.name), { fetch: doFetch, signal, log: addLog, want: { size: x.size, sha256: x.sha256 }, onProg: (p) => onProg && onProg({ ...p, name: x.name, i, n: todo.length }) });
     }
     return files();
   }
@@ -88,7 +97,9 @@ function create(opt = {}) {
     if (state.status === "ready" && (await getJSON(`http://127.0.0.1:${port}/health`, 1500)).status === 200) return state;
     if (starting) return starting;
     starting = (async () => {
+      sweep();
       const f = files();
+      if (store) { try { if (f.main) store.used(path.basename(f.main)); if (f.mmproj) store.used(path.basename(f.mmproj)); } catch (e) {} }
       if (!f.main || !f.mmproj) { set("need-model", "AI 助手的模型还没下载（约 3G）"); throw new Error("先下载 AI 助手的模型（约 3G）"); }
       if (!exe || !fs.existsSync(exe)) { set("missing", "这个版本没带本地模型程序（llama-server），重新下载安装包试试"); throw new Error("这个版本没带本地模型程序（llama-server）"); }
       const h0 = await getJSON(`http://127.0.0.1:${port}/health`, 800);

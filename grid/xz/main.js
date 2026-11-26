@@ -12,6 +12,7 @@ let win = null;
 const xz = createXz({
   user: app.getPath("userData"),
   version: app.getVersion(),
+  sharedStore: true,   // 和别的捞捞软件共用模型仓库（core/modelstore.js）
   llamaExe: app.isPackaged ? path.join(process.resourcesPath, "llama", "llama-server.exe") : process.env.LG_LLAMA || null,
   send: (ch, d) => { if (win && !win.isDestroyed()) win.webContents.send(ch, d); },
   reveal: (f) => shell.showItemInFolder(f),

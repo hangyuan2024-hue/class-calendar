@@ -33,7 +33,14 @@ function create(o) {
   async function fetchModel(spec, say) {
     const name = safe(spec.name);
     if (!name || !/\.gguf$/i.test(name)) throw new Error("任务没说用哪个模型（llm.name）");
-    const f = path.join(dir(), name);
+    // 共用的模型仓库（core/modelstore.js）：别的捞捞软件下过就直接用；自己以前下在 llm 文件夹里的收进仓库；新下的直接下进仓库
+    const store = o.store || null;
+    if (store) {
+      try { const hit = store.find(name, spec.size); if (hit) return hit; } catch (e) {}
+      const old = path.join(dir(), name);
+      if (fs.existsSync(old) && (!spec.size || fs.statSync(old).size === spec.size)) { try { const x = store.adopt(old); store.used(name); return typeof x === "string" ? x : x.file; } catch (e) { return old; } }
+    }
+    const f = store ? store.target(name) : path.join(dir(), name);
     if (fs.existsSync(f) && (!spec.size || fs.statSync(f).size === spec.size)) return f;
     // 组件镜像里有这个模型（spec.mirrorModel，比如 gridTeacher）：按地区排好的地址放最前面（国内腾讯云 / 国外自己的 GitHub）
     let mirrored = [];
@@ -49,6 +56,7 @@ function create(o) {
       const pct = p.total ? Math.floor((p.got / p.total) * 100) : 0;
       say(`下载${spec.label || "本地大模型"}：${pct}%${p.speed ? `，${(p.speed / 1e6).toFixed(1)}M/秒` : ""}`);
     } });
+    if (store) try { store.used(name); } catch (e) {}
     return f;
   }
 
@@ -153,7 +161,7 @@ function create(o) {
   // 任务还在用（配方直接问 llama-server，不经过 ensure）：续一下「没人用就关」的计时
   function touch() { if (child) bump(); }
   // 准备组件页用：只下载不启动；下好了没有
-  const hasModel = (spec) => { try { const f = path.join(dir(), safe(spec.name)); return fs.existsSync(f) && (!spec.size || fs.statSync(f).size === spec.size); } catch (e) { return false; } };
+  const hasModel = (spec) => { try { if (o.store && o.store.find(safe(spec.name), spec.size)) return true; const f = path.join(dir(), safe(spec.name)); return fs.existsSync(f) && (!spec.size || fs.statSync(f).size === spec.size); } catch (e) { return false; } };
   // 现在放在显卡里的大约有多大（模型文件 + 上下文，G）：调度中心算「真正空着的显存」时，这部分算可以腾出来的（训练开始前会关掉它）
   return { ensure, stop, ok, version, convertDir, touch, running: () => !!child, pid: () => (child ? child.pid : null), loadedGB: () => (child ? Math.round(loadedGB * 10) / 10 : 0), PORT: port, prefetch: (spec, say = () => {}) => fetchModel(spec, say), hasModel };
 }
