@@ -93,10 +93,14 @@
     // 一直保持的状态：listen 在听（歪头、凑近、眼睛亮）、think 在想（往上看）、talk 在说、"" 平时
     function setMode(m) { mode = MODE_FACE[m] != null ? m : ""; if (!act) setFace(MODE_FACE[mode] || ""); }
 
-    // 眼睛跟着鼠标
-    let lookX = 0, lookY = 0, lookTX = 0, lookTY = 0;
-    const onMove = (e) => { const r = el.getBoundingClientRect(); lookTX = clamp(((e.clientX - r.left) / Math.max(1, r.width)) * 2 - 1, -1.5, 1.5); lookTY = clamp(((e.clientY - r.top) / Math.max(1, r.height)) * 2 - 1, -1.5, 1.5); };
-    root.addEventListener("pointermove", onMove);
+    // 看哪儿：不跟着鼠标转（看着别扭），平时看前面，隔几秒自己轻轻往旁边瞟一下，显得是活的
+    let lookX = 0, lookY = 0, lookTX = 0, lookTY = 0, nextGlance = 0;
+    const glance = (t) => {
+      if (t < nextGlance) return;
+      const away = Math.random() < 0.35;   // 大多数时候看前面
+      lookTX = away ? (Math.random() * 2 - 1) * 0.5 : 0; lookTY = away ? (Math.random() * 2 - 1) * 0.25 : 0;
+      nextGlance = t + (away ? 0.8 + Math.random() * 0.8 : 3 + Math.random() * 4);
+    };
 
     // ---------- 大小、画 ----------
     let W = 1, H = 1;
@@ -127,7 +131,8 @@
       Z.g.rotation.y = act === "spin" ? Math.min(1, ak / 0.9) * Math.PI * 2 : lerp(Z.g.rotation.y % (Math.PI * 2), 0, 0.2);
       Z.g.position.z = lerp(Z.g.position.z, mode === "listen" || act === "listen" ? 0.35 : 0, 0.08);
       if (act === "droop") Z.g.position.y -= 0.08;
-      // 看鼠标 / 想事情的时候往上看
+      // 平时看前面、偶尔瞟一下；想事情的时候往上看
+      glance(t);
       lookX = lerp(lookX, act === "think" ? 0.35 : lookTX, 0.08); lookY = lerp(lookY, act === "think" ? -0.6 : lookTY, 0.08);
       Z.head.rotation.y = lookX * 0.35 + (act === "shake" ? Math.sin(t * 11) * 0.3 : 0);
       Z.head.rotation.x = lookY * 0.18 + (act === "nod" ? Math.sin(t * 9) * 0.18 : 0) + (act === "bow" ? Math.sin(Math.min(1, ak / 1.2) * Math.PI) * 0.5 : 0) + (act === "droop" ? 0.25 : 0);
@@ -169,7 +174,7 @@
       ok: true,
       talk(v) { levelT = clamp(+v || 0, 0, 1); },
       mood, setMode,
-      dispose() { dead = true; cancelAnimationFrame(raf); root.removeEventListener("pointermove", onMove); if (ro) ro.disconnect(); try { renderer.dispose(); } catch (e) {} renderer.domElement.remove(); },
+      dispose() { dead = true; cancelAnimationFrame(raf); if (ro) ro.disconnect(); try { renderer.dispose(); } catch (e) {} renderer.domElement.remove(); },
     };
   }
 

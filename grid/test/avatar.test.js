@@ -57,5 +57,27 @@ const ok = (m) => console.log("✓", m);
   assert.equal(st.use, "robot"); assert.equal(st.photo, false); assert.equal(st.has3d, false); assert.equal(st.consent, null);
   assert.ok(!fs.existsSync(path.join(base, "avatar", "cands")));
   ok("一键删除：照片、立绘、3D 模型都删掉，授权撤回，换回机器人");
+  // 装了 AI 引擎（ComfyUI，模型在国内存储）：画 Q版立绘用它，不走 3D 工坊自己的画法（那条要从 Hugging Face 下模型，国内常连不上）
+  {
+    const base2 = path.join(tmp, "data2"); fs.mkdirSync(base2);
+    const calls = [], runs2 = [];
+    const comfy = { ready: async () => true, call: async (op, a, ctx) => {
+      calls.push(op);
+      if (op === "info") return { models: { qwenEdit: "q.safetensors", qwenClip: "c.safetensors", qwenVae: "v.safetensors", qwenFast: "f.safetensors" } };
+      if (op === "upload") { assert.ok(fs.existsSync(path.join(ctx.dir, a.path)), "照片先拷进工作文件夹"); return { name: "lg-" + a.as }; }
+      if (op === "run") {
+        const g = a.graph, load = Object.values(g).find((n) => n.class_type === "LoadImage"), lat = Object.values(g).find((n) => n.class_type === "EmptySD3LatentImage");
+        assert.equal(load.inputs.image, "lg-avatar-photo.jpg"); assert.equal(lat.inputs.batch_size, 3);
+        const out = path.join(ctx.dir, "comfy-1"); fs.mkdirSync(out, { recursive: true });
+        return { files: [0, 1, 2].map((i) => { const f = path.join(out, `p_${i}.png`); fs.writeFileSync(f, "png" + i); return f; }) };
+      }
+    } };
+    const av2 = AV.create({ base: () => base2, pickFile: async () => photo, ai3dMod, ai3dFactory: () => ({ state: () => ({ busy: false }), cancel: () => true, run: async (rt, args) => { runs2.push(args[0]); return {}; } }), install, comfy });
+    await av2.setPhoto({ ok: true });
+    const u2 = await av2.stylize({ n: 3 });
+    assert.equal(u2.length, 3); assert.deepEqual(calls, ["info", "upload", "run"]); assert.ok(!runs2.includes("stylize"), "没走 3D 工坊的画法");
+    assert.ok(!fs.existsSync(path.join(base2, "avatar", "comfy")), "临时文件夹删掉了");
+    ok("装了 AI 引擎：Q版立绘用 ComfyUI 画（模型在国内存储），不用 3D 工坊从 Hugging Face 下模型");
+  }
   console.log("捞小智的形象：全部通过");
 })().catch((e) => { console.error(e); process.exit(1); });

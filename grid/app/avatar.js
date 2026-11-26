@@ -64,11 +64,33 @@ function create(o) {
     load().consent = { at: Date.now(), by: String(consent.by || "").slice(0, 40) }; save();
     return state();
   }
-  // AI 画 3 张 Q版立绘（4bit 画图引擎，要 NVIDIA 显卡，几分钟）
+  // AI 画 3 张 Q版立绘（要 NVIDIA 显卡，几分钟）
+  //   优先用这台电脑的 AI 引擎（ComfyUI + Qwen-Image-Edit-2511，模型从国内存储下，和「画 Q版」任务、捞捞PPT助手同一套）；
+  //   没装 AI 引擎才用 3D 工坊自己的画法（diffusers，模型要从 Hugging Face / hf-mirror 下，国内网络经常连不上）
+  async function comfyReady() { try { return !!(o.comfy && (await o.comfy.ready())); } catch (e) { return false; } }
+  async function stylizeComfy(opt, say) {
+    const WF = PPT("workflows.js"), work = F("comfy");
+    fs.rmSync(work, { recursive: true, force: true }); fs.mkdirSync(work, { recursive: true });
+    const src = photo(), local = path.join(work, "photo" + path.extname(src).toLowerCase());
+    fs.copyFileSync(src, local);
+    const ctx = { dir: work, onMsg: (m) => say(typeof m === "string" ? m : m.msg || m.text || "画 Q版立绘…", m && m.p != null ? { p: m.p } : undefined) };
+    say("用 AI 引擎画 Q版立绘（ComfyUI，第一次启动要一两分钟）…", { p: 0.02 });
+    const info = await o.comfy.call("info", {}, ctx);
+    const up = await o.comfy.call("upload", { path: path.basename(local), as: "avatar-photo" + path.extname(local) }, ctx);
+    const n = Math.max(1, Math.min(4, parseInt(opt.n) || 3));
+    const g = WF.portrait({ photo: up.name, style: "toy", batch: n, fast: opt.quality !== "best", seed: 1 + Math.floor(Math.random() * (2 ** 31 - 2)) }, (k) => (info.models && info.models[k]) || WF.MODELS[k].name);
+    const r = await o.comfy.call("run", { graph: g, kind: "画 Q版立绘" }, ctx);
+    const imgs = (r.files || []).filter((f) => /\.(png|jpe?g|webp)$/i.test(f));
+    need(imgs.length, "AI 引擎没画出图来：看看日志里的报错");
+    imgs.slice(0, n).forEach((f, i) => fs.copyFileSync(f, F("cands", `cand-${i + 1}.png`)));
+    fs.rmSync(work, { recursive: true, force: true });
+  }
   async function stylize(opt = {}, say = () => {}) {
-    const e = engine(); need(e && load().setupOk, "先装好 3D 引擎");
+    const viaComfy = await comfyReady(), e = engine();
+    if (!viaComfy) need(e && load().setupOk, "先装好 3D 引擎");
     need(photo(), "先上传老师的照片");
     fs.rmSync(F("cands"), { recursive: true, force: true }); fs.mkdirSync(F("cands"), { recursive: true });
+    if (viaComfy) { await stylizeComfy(opt, say); return cands().map(dataUrl); }
     await ai.run(e, ["stylize", "--photo", photo(), "--out", F("cands"), "--n", String(Math.max(1, Math.min(4, parseInt(opt.n) || 3))), "--quality", opt.quality === "fast" ? "fast" : "best", "--clothes", ["style", "photo"].includes(opt.clothes) ? opt.clothes : "guochao"], (m) => say(m.msg || "", m));
     return cands().map(dataUrl);
   }

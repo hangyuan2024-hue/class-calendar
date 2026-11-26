@@ -705,7 +705,7 @@ function createService(o) {
     async showCheckupRemove(id) { show.checkupRemove(id); return show.checkupView(); },
     showCheckupPhoto: async (f) => show.checkupPhoto(f),
     async showFullscreen(on) { if (o.fullscreen) o.fullscreen(!!on); return !!on; },
-    ...(() => { const AV = require("./avatar"); const av = AV.create({ base: () => base(), pickFile: o.pickFile, gpuName: () => (lastProbe && lastProbe.caps && lastProbe.caps.gpu) || "", mirrorOpt: { region: regionNow }, log: (m) => L(m, "info", "形象") }); return AV.handlers(av, (e) => send("show", e)); })(),
+    ...(() => { const AV = require("./avatar"); const av = AV.create({ base: () => base(), pickFile: o.pickFile, comfy: { ready: async () => (await ai.check()).ready, call: (op, x, ctx) => ai.call(op, x, ctx) } /* 画 Q版立绘优先用 AI 引擎（模型在国内存储） */, gpuName: () => (lastProbe && lastProbe.caps && lastProbe.caps.gpu) || "", mirrorOpt: { region: regionNow }, log: (m) => L(m, "info", "形象") }); return AV.handlers(av, (e) => send("show", e)); })(),
     showPrep: async () => show.prepStatus(),
     showPrepRun: async (opt) => show.prepRun(opt || {}),
     async showVoicePref(v) { return show.setVoicePref(v); },

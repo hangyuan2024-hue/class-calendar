@@ -36,13 +36,30 @@ def reachable(url, timeout=4):
         return hasattr(e, "code")
 
 
+def api_ok(base, timeout=8):
+    """真的能查到模型信息才算连得上（以前只看网站有没有回音：被拦截时返回个错误页也当成连上了，结果下模型时才失败）"""
+    try:
+        req = urllib.request.Request(base.rstrip("/") + "/api/models/tencent/Hunyuan3D-2", headers={"User-Agent": "laolao-3d"})
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return r.status == 200 and b'"id"' in r.read(4096)
+    except Exception:
+        return False
+
+
 def use_mirror():
     """国内连不上 huggingface.co 时，模型从 hf-mirror.com 下（老师也可以自己先设好 HF_ENDPOINT）"""
+    # 别的软件设了「离线」（HF_HUB_OFFLINE）：这里要下模型，去掉（不然只会在本机找、找不到就报 local_files_only）
+    for k in ("HF_HUB_OFFLINE", "TRANSFORMERS_OFFLINE", "DIFFUSERS_OFFLINE"):
+        if os.environ.get(k) not in (None, "", "0"):
+            log("去掉了环境变量 %s（要下模型）" % k)
+            os.environ.pop(k, None)
+    os.environ.setdefault("HF_HUB_ETAG_TIMEOUT", "30")       # 镜像有时慢，默认 10 秒太短
+    os.environ.setdefault("HF_HUB_DOWNLOAD_TIMEOUT", "60")
     if os.environ.get("HF_ENDPOINT"):
         return os.environ["HF_ENDPOINT"]
-    if not reachable("https://huggingface.co"):
+    if not api_ok("https://huggingface.co"):
         os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
-        log("连不上 huggingface.co，改用镜像 https://hf-mirror.com")
+        log("连不上 huggingface.co，改用镜像 https://hf-mirror.com" + ("" if api_ok("https://hf-mirror.com") else "（镜像也没连上，下模型可能会失败）"))
     return os.environ.get("HF_ENDPOINT", "https://huggingface.co")
 
 

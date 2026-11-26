@@ -176,6 +176,9 @@ def main(argv=None):
         msg = str(e) or e.__class__.__name__
         if "out of memory" in msg.lower():
             msg = "显存不够了（关掉别的占显卡的程序再试；或者选「快」）：" + msg
+        elif any(w in msg for w in ("local_files_only", "from the Hub", "fetch metadata", "Couldn't connect", "couldn't connect", "Connection", "SSLError", "Max retries")):
+            msg = ("下载模型时连不上模型网站（Hugging Face 和国内镜像 hf-mirror.com 都没连上，本机也还没下好）："
+                   "检查网络，关掉代理 / VPN 再试，或者换个网络；画 Q版立绘可以先装好「AI 引擎」（任务向导第 4 步，模型从国内存储下）就不走这条路了。原始错误：" + msg[:300])
         say(stage=a.cmd, error=msg)
         return 1
 
