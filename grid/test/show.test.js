@@ -278,6 +278,40 @@ const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
   }
   ok("对话历史：每段存在本机、新的在前；点开以前的接着聊（带的是那段的记录）；改名、删除；新对话另起一段");
 
+  // 6.95 传文件、看屏幕、交文件
+  {
+    show.reset();
+    await assert.rejects(() => show.attach("病毒.exe", Buffer.from("MZ")), /读不了/);
+    const a1 = await show.attach("作业要求.md", new TextEncoder().encode("# 作业\n写一篇 800 字的读后感"));
+    assert.equal(a1.kind, "text"); assert.ok(a1.chars > 5);
+    const a2 = await show.attach("截图.png", Buffer.from("89504e470d0a1a0a0000", "hex"));
+    assert.equal(a2.kind, "image");
+    let n0 = reqs.length; await show.send("帮我看看", [a1.id, a2.id]);
+    let last = reqs.slice(n0)[0].messages.filter((m) => m.role === "user").pop();
+    const txt = typeof last.content === "string" ? last.content : last.content.filter((c) => c.type === "text").map((c) => c.text).join("");
+    assert.ok(/帮我看看/.test(txt) && /【附件：作业要求\.md】/.test(txt) && /800 字的读后感/.test(txt), txt);
+    const o = await show.chatOpen(show.chatList().cur);
+    const me = o.view.find((v) => v.k === "me");
+    assert.equal(me.t, "帮我看看"); assert.deepEqual(me.files, ["作业要求.md", "截图.png"]);
+    ok("传文件：读成文字跟着这句话给模型；历史里只显示问的话和文件名");
+
+    n0 = reqs.length;
+    await assert.rejects(() => show.send("屏幕上这道题怎么做", [], { screen: true }), /截不了屏幕/);
+    show.reset();
+    const F = require("../app/ppt/files.js");
+    const T = F.tool({ dir: path.join(tmp, "work", "show") });
+    const r = await T.run({ name: "读后感/提纲", format: "docx", content: "# 读后感提纲\n\n## 一、开头\n- 写**为什么**读这本书\n\n| 段落 | 字数 |\n|---|---|\n| 开头 | 100 |" });
+    assert.ok(r.ok && /^读后感_提纲\.docx$/.test(r.file), JSON.stringify(r));
+    const z = await require("jszip").loadAsync(fs.readFileSync(path.join(tmp, "work", "show", "files", r.file)));
+    const doc = await z.file("word/document.xml").async("string");
+    assert.ok(doc.includes("读后感提纲") && doc.includes("<w:b/>") && doc.includes("<w:tbl>"));
+    const r2 = await T.run({ name: "名单", format: "csv", content: "姓名,学号\n张三,1" });
+    assert.equal(fs.readFileSync(path.join(tmp, "work", "show", "files", r2.file), "utf8").charCodeAt(0), 0xfeff, "csv 带 BOM，Excel 打开不乱码");
+    assert.equal(show.outFile(r.file), path.join(tmp, "work", "show", "files", r.file));
+    assert.throws(() => show.outFile("../../etc/passwd"), /不在了/);
+    ok("交文件：Word（Markdown 写的标题、加粗、表格都在）、csv（带 BOM）；只能打开 files 里的文件");
+  }
+
   // 7. 换身份、审批、重开还在
   st = await show.setRole("teacher"); assert.equal(st.who.me.role, "教师");
   show.shutdown();

@@ -311,6 +311,7 @@
       if (e.changed) refresh();
       // 改了 PPT：预览马上跟着变，跳到改的那一页
       if (window.LaoCheckup && /^checkup_/.test(e.name)) window.LaoCheckup.onTool(e, add);
+      if (e.ok && e.name === "make_file" && e.result && e.result.file) { el.remove(); fileCard(e.result); }
       if (e.ok && e.name === "make_ppt") add("sh-hello", `<span>做好了，左边能看到每一页。接着说怎么改就行，比如：</span><div class="grp">${["把第 3 页改成两栏对比", "整份换成绿色的", "字再大一点", "最后加一页练习题", "给每一页写上讲稿", "检查一遍有没有问题"].map((x) => `<button class="ex">${esc(x)}</button>`).join("")}</div>`);
       if (e.ok && e.changed && deck && PPT_TOOL.test(e.name)) { const r = e.result || {}; deck.refresh(e.name === "make_ppt" ? 1 : r.no || r.to || (r.pages && r.pages[0]) || (e.args && e.args.slide) || null).then(() => showDeck(true)); }
       return;
@@ -318,21 +319,69 @@
     if (e.type === "done") { if (!cl.on) avMode(""); endBot(); said = ""; if (e.note) add("sh-msg bot", esc(e.note)); if (e.stopped) add("sh-step", "停下了"); return; }
     if (e.type === "error") { endBot(); said = ""; add("sh-msg bot err", esc(e.message)); }
   });
+  // 自己发的一句：文字 + 带的文件（一排小卡片）
+  const fileIco = (n) => { const x = (String(n).split(".").pop() || "").toLowerCase(); return /^(png|jpe?g|webp|gif|bmp)$/.test(x) ? "图" : /^docx?$/.test(x) ? "W" : /^pptx?$/.test(x) ? "P" : /^(xlsx?|csv|tsv)$/.test(x) ? "X" : x === "pdf" ? "PDF" : "</>"; };
+  const meHtml = (text, files) => (files && files.length ? `<div class="me-files">${files.map((n) => `<span class="fchip"><i>${esc(fileIco(n))}</i>${esc(n)}</span>`).join("")}</div>` : "") + esc(text || "");
   async function send(text) {
-    text = (text != null ? text : $("#shText").value).trim();
-    if (!text || busy) return;
+    const typed = text == null;
+    text = (typed ? $("#shText").value : text).trim();
+    const ups = typed ? pend.filter((a) => a.id) : [];
+    if (typed && pend.some((a) => !a.id && !a.err)) { toast("文件还在读，等一下再发", true); return; }
+    if ((!text && !ups.length) || busy) return;
     if (S && S.prep && !S.prep.open) { toast("组件还在准备：上面的「必需」两样下好了就能用", true); return; }
     $("#shText").value = "";
+    if (typed) { pend = []; paintAtts(); }
     if (!cl.on) { avMode("think"); act("think", 1.5); }
     const h = document.querySelector(".sh-hello"); if (h) h.remove();
     spReset(); said = "";
-    add("sh-msg me", esc(text));
+    add("sh-msg me", meHtml(text, ups.map((a) => a.name).concat($("#shScreen") && $("#shScreen").checked ? ["屏幕截图.jpg"] : [])));
     busy = true; $("#shSend").hidden = true; $("#shStop").hidden = false;
-    try { S = await call("showSend", text); paint(); }
+    const scr = !!($("#shScreen") && $("#shScreen").checked);
+    try { S = await call("showSend", text, ups.map((a) => a.id), { screen: scr }); paint(); }
     catch (e) { endBot(); const m = msgOf(e); if (!/还没说完/.test(m)) add("sh-msg bot err", esc(m)); if (/暂停计算/.test(m)) refresh(); }
     // 这一句的收尾（把最后一段送去合成）等「done」事件来做：回话的最后几个字可能比这里晚到
     finally { busy = false; $("#shSend").hidden = false; $("#shStop").hidden = true; const n = steps.get("note"); if (n) { n.remove(); steps.delete("note"); } }
   }
+  // ---------- 传文件：点回形针、拖进来、粘贴截图；先传上去读好，发的时候跟这句话一起 ----------
+  let pend = [];
+  const kb = (n) => (n > 1048576 ? (n / 1048576).toFixed(1) + "M" : Math.max(1, Math.round(n / 1024)) + "K");
+  function paintAtts() {
+    const box = $("#shAtts"); if (!box) return;
+    box.hidden = !pend.length;
+    box.innerHTML = pend.map((a, i) => `<span class="fchip ${a.err ? "bad" : !a.id ? "up" : ""}" title="${esc(a.err || a.note || a.name)}"><i>${esc(fileIco(a.name))}</i><span class="fn">${esc(a.name)}</span><small>${a.err ? "读不了" : !a.id ? "在读…" : kb(a.size)}</small><button data-i="${i}" aria-label="去掉">×</button></span>`).join("");
+  }
+  async function addFiles(list) {
+    for (const f of [...(list || [])].slice(0, 8)) {
+      if (pend.length >= 8) { toast("一次最多带 8 个文件", true); break; }
+      const a = { name: f.name || "截图.png", size: f.size };
+      pend.push(a); paintAtts();
+      try {
+        if (f.size > 30 * 1048576) throw new Error("太大了：最多 30M");
+        const r = await call("showAttach", a.name, new Uint8Array(await f.arrayBuffer()));
+        Object.assign(a, { id: r.id, note: r.note, kind: r.kind });
+        if (r.note) toast(r.note);
+      } catch (e) { a.err = msgOf(e); toast(a.err, true); }
+      paintAtts();
+    }
+  }
+  if ($("#shScreen")) { try { $("#shScreen").checked = localStorage.getItem("lg-screen") === "1"; } catch (e) {} $("#shScreen").onchange = () => { try { localStorage.setItem("lg-screen", $("#shScreen").checked ? "1" : "0"); } catch (e) {} if ($("#shScreen").checked) toast("看屏幕打开了：每次发话都会截一张屏幕给捞小智看（不保存）"); }; }
+  if ($("#shAttach")) {
+    $("#shAttach").onclick = () => $("#shFile").click();
+    $("#shFile").onchange = () => { const fs = [...($("#shFile").files || [])]; if (!fs.length) return; addFiles(fs); setTimeout(() => { $("#shFile").value = ""; }, 0); };
+    $("#shAtts").addEventListener("click", (e) => { const b = e.target.closest("button[data-i]"); if (b) { pend.splice(+b.dataset.i, 1); paintAtts(); } });
+    const zone = document.querySelector(".sh-chat");
+    zone.addEventListener("dragover", (e) => { if ([...(e.dataTransfer.types || [])].includes("Files")) { e.preventDefault(); zone.classList.add("drop"); } });
+    zone.addEventListener("dragleave", (e) => { if (!zone.contains(e.relatedTarget)) zone.classList.remove("drop"); });
+    zone.addEventListener("drop", (e) => { e.preventDefault(); zone.classList.remove("drop"); addFiles(e.dataTransfer.files); });
+    $("#shText").addEventListener("paste", (e) => { const fs = [...(e.clipboardData.files || [])]; if (fs.length) { e.preventDefault(); addFiles(fs.map((f, i) => (f.name && f.name !== "image.png" ? f : new File([f], `截图-${new Date().toTimeString().slice(0, 8).replace(/:/g, "")}${i ? "-" + i : ""}.png`, { type: f.type })))); } });
+  }
+  // 捞小智交的文件：一张小卡片，点开 / 在文件夹里看 / 另存为
+  function fileCard(r) {
+    const d = add("sh-file", `<i>${esc(fileIco(r.file))}</i><div class="fm"><b>${esc(r.file)}</b><small>${esc(r.kind || "")}${r.size ? " · " + kb(r.size) : ""}</small></div><div class="fa"><button class="btn small" data-f="open">打开</button><button class="btn small ghost" data-f="reveal">在文件夹里看</button><button class="btn small ghost" data-f="save">另存为</button></div>`);
+    d.dataset.file = r.file;
+    return d;
+  }
+  $("#shLog").addEventListener("click", guard(async (e) => { const b = e.target.closest("[data-f]"); if (!b) return; const card = b.closest(".sh-file"); const r = await call("showFileOpen", card.dataset.file, b.dataset.f); if (b.dataset.f === "save" && r) toast("存好了：" + r); }));
   const clear = () => { log().innerHTML = ""; bot = null; said = ""; steps.clear(); spReset(); teamBox = null; };
   $("#shSend").onclick = () => send();
   $("#shStop").onclick = guard(async () => { spReset(); await call("showStop"); });
@@ -370,7 +419,8 @@
     clear(); chatCur = r.id; paintChats();
     window.dispatchEvent(new CustomEvent("lg-go", { detail: "show" }));
     for (const v of r.view || []) {
-      if (v.k === "me") add("sh-msg me", esc(v.t));
+      if (v.k === "me") add("sh-msg me", meHtml(v.t, v.files));
+      else if (v.k === "file") fileCard(v);
       else if (v.k === "bot") { const d = add("sh-msg bot", '<span class="t"></span>'); paintBot(d, v.t); }
       else add("sh-step ok", esc(v.t));
     }
@@ -645,7 +695,7 @@
     cl.node = ctx.createScriptProcessor(FRAME, 1, 1);
     cl.node.onaudioprocess = onAudio;
     cl.src.connect(cl.node); cl.node.connect(ctx.destination);   // 不接到输出 Chromium 不跑它（输出是静音的）
-    $("#shCallBar").hidden = false; $("#shCall").classList.add("on"); $("#shCall").textContent = "📞 挂断";
+    $("#shCallBar").hidden = false; $("#shCall").classList.add("on"); $("#shCall").title = "挂断"; $("#shCall").setAttribute("aria-label", "挂断");
     const h = document.querySelector(".sh-hello"); if (h) h.remove();
     callSt("listen");
     try {
@@ -667,7 +717,7 @@
     try { cl.node.disconnect(); cl.src.disconnect(); } catch (e) {}
     try { cl.stream.getTracks().forEach((t) => t.stop()); } catch (e) {}
     try { await cl.ctx.close(); } catch (e) {}
-    $("#shCallBar").hidden = true; $("#shCall").classList.remove("on"); $("#shCall").textContent = "📞 打电话"; cl.st = "off"; avMode("");
+    $("#shCallBar").hidden = true; $("#shCall").classList.remove("on"); $("#shCall").title = "打电话：一直听着，你说完一停它就回答；它说话的时候你一开口就能打断"; $("#shCall").setAttribute("aria-label", "打电话"); cl.st = "off"; avMode("");
     try { S = await call("showCall", false); paint(); } catch (e) {}
   }
   $("#shCall").onclick = () => (cl.on ? callOff() : callOn());

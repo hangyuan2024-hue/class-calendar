@@ -40,6 +40,17 @@ const svc = createService({
   restart: () => { quitting = true; const args = process.argv.slice(1).filter((a) => a !== "--hidden").concat(win && win.isVisible() ? [] : ["--hidden"]); shutdownOnce().finally(() => { app.relaunch({ args }); app.exit(0); }); },
   reveal: (f) => shell.showItemInFolder(f),
   openPath: (f) => shell.openPath(f),
+  // 「看屏幕」：发这句话的时候截一张主屏幕（缩到 1600 宽），跟着这句话给模型看；只在打开了开关时截
+  captureScreen: async () => {
+    const { desktopCapturer, screen } = require("electron");
+    const d = screen.getPrimaryDisplay(), k = Math.min(1, 1600 / (d.size.width * d.scaleFactor));
+    const srcs = await desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: Math.round(d.size.width * d.scaleFactor * k), height: Math.round(d.size.height * d.scaleFactor * k) } });
+    const src = srcs.find((x) => x.display_id === String(d.id)) || srcs[0];
+    if (!src || src.thumbnail.isEmpty()) throw new Error("截不到屏幕（系统没给权限？）");
+    return "data:image/jpeg;base64," + src.thumbnail.toJPEG(72).toString("base64");
+  },
+  // 捞小智做的文件「另存为」：选个地方拷一份过去
+  saveCopy: async (f) => { const r = await dialog.showSaveDialog(win, { title: "另存为", defaultPath: require("path").basename(f) }); if (r.canceled || !r.filePath) return null; require("fs").copyFileSync(f, r.filePath); return r.filePath; },
   // 成品展示的全屏模式
   fullscreen: (v) => { if (win && !win.isDestroyed()) win.setFullScreen(!!v); },
   isFullscreen: () => !!(win && !win.isDestroyed() && win.isFullScreen()),

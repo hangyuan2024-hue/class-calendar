@@ -57,6 +57,7 @@ function createXz(o) {
     mirrorOpt: { region: regionNow }, beforeStart: async () => { try { llm.stop(); } catch (e) {} }, ...(o.gsvOpt || {}) });
   const show = (o.showFactory || require(path.join(APP, "show")).create)({
     dir: () => path.join(base(), "show"), server: () => "", llm, log, send: (e) => send("show", e),
+    captureScreen: o.captureScreen,
     modelsOpt: { sources: o.sources || SOURCES, ...(o.modelsOpt || {}) },
     busy: () => null, used: () => true,
     gsvDir: () => { const r = gsv.inspect((cfg.gsv || {}).dir) || gsv.find(path.join(base(), "ai", "LaolaoAI-GPT-SoVITS")); return r ? r.dir : null; },
@@ -67,7 +68,10 @@ function createXz(o) {
   const st = async () => ({ ...(await show.state()), paused: false, joined: true, fullscreen: o.isFullscreen ? !!o.isFullscreen() : false, app: { version: o.version || "", trial: true } });
   const H = {
     showState: st,
-    async showSend(text) { await show.send(text); return st(); },
+    async showSend(text, ids, opt) { await show.send(text, ids, opt || {}); return st(); },
+    showAttach: async (name, bytes) => show.attach(name, bytes),
+    // 捞小智做出来的文件：open 打开、reveal 在文件夹里看、save 另存到别处
+    showFileOpen: async (name, how) => { const f = show.outFile(name); if (how === "reveal") o.reveal && o.reveal(f); else if (how === "save") return o.saveCopy ? o.saveCopy(f) : (o.reveal && o.reveal(f), null); else o.openPath && o.openPath(f); return true; },
     showStop: async () => show.stop(),
     showReset: async () => show.reset(),
     showChats: async () => show.chatList(),

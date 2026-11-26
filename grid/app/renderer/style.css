@@ -822,3 +822,38 @@ body.clean .sh-stagebox { background: #fff; }
 body.clean .sh-stage { background: radial-gradient(circle at 50% 74%, rgba(34, 211, 238, .2), rgba(168, 85, 247, .07) 42%, rgba(255, 255, 255, 0) 68%); }
 body.clean .sh-stage.talk { box-shadow: inset 0 0 0 2px rgba(34, 211, 238, .35); }
 body.clean .sh-stage .sh-fallback { background: linear-gradient(135deg, #22d3ee, #a855f7); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+/* ---------- 输入区第三版：左边一组工具（窄了自动折到第二行，不挤扁），右边打电话、发送永远在右下角 ---------- */
+.sh-bar { display: flex; align-items: flex-end; gap: 8px; flex-wrap: nowrap; padding: 4px 10px 10px 10px; }
+.sh-tools { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.sh-tools > * { flex: none; }
+.sh-tools .chip select { min-width: 0; max-width: 170px; }
+.sh-bar .tok { flex: none; align-self: center; }
+.sh-acts { flex: none; display: flex; align-items: center; gap: 8px; }
+.sh-bar .sw span { white-space: nowrap; }
+@container (max-width: 980px) { .sh-bar .tok { display: none; } }
+@container (max-width: 760px) { .sh-tools .chip select { max-width: 140px; } }
+#shAttach { width: 32px; height: 32px; border-color: transparent; }
+#shAttach:hover { background: #f0f0f0; }
+#shCall { flex: none; width: 34px; height: 34px; }
+#shCall.on { background: #d9483b; border-color: #d9483b; color: #fff; }
+/* 带的文件：输入框上面一排小卡片 */
+.sh-atts { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 12px 0; }
+.fchip { display: inline-flex; align-items: center; gap: 6px; max-width: 260px; padding: 4px 6px 4px 4px; border: 1px solid #e3e3e3; border-radius: 10px; background: #fafafa; font-size: 12.5px; color: #111; }
+.fchip i { font-style: normal; font-size: 10px; font-weight: 700; min-width: 22px; height: 22px; padding: 0 4px; border-radius: 6px; background: #111; color: #fff; display: grid; place-items: center; }
+.fchip .fn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.fchip small { color: #8a8a8a; flex: none; }
+.fchip button { border: 0; background: none; width: 18px; height: 18px; border-radius: 5px; cursor: pointer; color: #8a8a8a; font-size: 14px; line-height: 1; padding: 0; }
+.fchip button:hover { background: #e8e8e8; color: #111; }
+.fchip.up i { background: #bdbdbd; } .fchip.bad { border-color: #f1c4bf; background: #fff6f5; } .fchip.bad i { background: #d9483b; }
+.sh-msg.me .me-files { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 6px; }
+.sh-msg.me .me-files .fchip { background: #fff; }
+.sh-chat.drop { outline: 2px dashed #111; outline-offset: -6px; border-radius: 16px; }
+/* 捞小智交的文件 */
+.sh-file { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid #e3e3e3; border-radius: 14px; background: #fff; max-width: 560px; }
+.sh-file > i { font-style: normal; font-weight: 700; font-size: 12px; width: 40px; height: 40px; border-radius: 10px; background: #111; color: #fff; display: grid; place-items: center; flex: none; }
+.sh-file .fm { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.sh-file .fm b { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sh-file .fm small { color: #8a8a8a; font-size: 12px; }
+.sh-file .fa { display: flex; gap: 6px; flex: none; flex-wrap: wrap; justify-content: flex-end; }
+body.clean .sh-log > .sh-file { align-self: flex-start; }

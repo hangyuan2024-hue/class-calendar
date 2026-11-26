@@ -138,17 +138,25 @@
         <div class="glass sh-chat">
           <div class="sh-log" id="shLog"></div>
           <div class="sh-callbar" id="shCallBar" hidden><span class="dot" id="shCallDot"></span><b id="shCallSt">在听…</b><span class="lvl"><i id="shCallLvl"></i></span><span class="muted small grow" id="shCallTip"></span><button class="btn small" id="shHang">挂断</button></div>
-          <div class="sh-composer">
+          <div class="sh-composer" id="shComposer">
+            <div class="sh-atts" id="shAtts" hidden></div>
+            <input type="file" id="shFile" multiple hidden>
             <textarea id="shText" rows="2" placeholder="问一道题、办一件学校的事、让它做一份 PPT…"></textarea>
             <div class="sh-bar">
-              <label class="chip" title="用哪个模型回答：本机模型免费、不联网；云端模型要在「插件 → 模型」里填自己的 Key"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7.5 4.3v9.4L12 21l-7.5-4.3V7.3z"/><path d="M12 12l7.5-4.7M12 12v9M12 12L4.5 7.3"/></svg><select id="shModelPick" aria-label="模型"></select></label>
-              <label class="sw" title="大任务（对比、整理、一整套……）拆给几个助手同时做，更快、更省；助手用便宜的模型"><input type="checkbox" id="shTeam"><i></i><span>多个助手</span></label>
-              <label class="sw" title="回答念出来，形象的嘴跟着动"><input type="checkbox" id="shSpeak" checked><i></i><span>念出来</span></label>
-              <label class="chip" title="用哪种声音：Kokoro 女声不用装别的；真人感、老师的声音要先装好声音组件"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg><select id="shVoicePick" aria-label="声音"><option value="kokoro">Kokoro 女声</option><option value="real">真人感</option><option value="teacher">老师的声音</option></select></label>
-              <span class="grow"></span>
+              <div class="sh-tools">
+                <button class="btn icon ghost" id="shAttach" title="传文件：Word、PPT、PDF、Excel、图片、代码……（也可以直接拖进来、粘贴截图）" aria-label="传文件"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1l8.6-8.6a3.4 3.4 0 0 1 4.8 4.8l-8.4 8.4a1.7 1.7 0 0 1-2.4-2.4l7.6-7.6"/></svg></button>
+                <label class="chip" title="用哪个模型回答：本机模型免费、不联网；云端模型要在「插件 → 模型」里填自己的 Key"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7.5 4.3v9.4L12 21l-7.5-4.3V7.3z"/><path d="M12 12l7.5-4.7M12 12v9M12 12L4.5 7.3"/></svg><select id="shModelPick" aria-label="模型"></select></label>
+                <label class="sw" title="大任务（对比、整理、一整套……）拆给几个助手同时做，更快、更省；助手用便宜的模型"><input type="checkbox" id="shTeam"><i></i><span>多个助手</span></label>
+                <label class="sw" title="回答念出来，形象的嘴跟着动"><input type="checkbox" id="shSpeak" checked><i></i><span>念出来</span></label>
+                <label class="sw" title="打开以后，每次发话（包括打电话时说的每一句）都会截一张屏幕给捞小智看：问「这道题怎么做」「这个报错什么意思」不用再复制。截图只给模型看、不保存"><input type="checkbox" id="shScreen"><i></i><span>看屏幕</span></label>
+                <label class="chip" title="用哪种声音：Kokoro 女声不用装别的；真人感、老师的声音要先装好声音组件"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg><select id="shVoicePick" aria-label="声音"><option value="kokoro">Kokoro 女声</option><option value="real">真人感</option><option value="teacher">老师的声音</option></select></label>
+              </div>
               <span class="tok" id="shTok" title="云端模型今天的用量（估算）"></span>
-              <button class="btn icon" id="shCall" title="打电话：一直听着，你说完一停它就回答；它说话的时候你一开口就能打断" aria-label="打电话"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 4h3.2l1.8 4.6-2.3 1.4a11 11 0 0 0 5.8 5.8l1.4-2.3 4.6 1.8v3.2a2 2 0 0 1-2.2 2A16.5 16.5 0 0 1 3.5 6.2 2 2 0 0 1 5.5 4z"/></svg></button>
-              <button class="btn primary send" id="shSend">发送</button><button class="btn" id="shStop" hidden>停下</button>
+              <div class="sh-acts">
+                <button class="btn icon" id="shCall" title="打电话：一直听着，你说完一停它就回答；它说话的时候你一开口就能打断" aria-label="打电话"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 4h3.2l1.8 4.6-2.3 1.4a11 11 0 0 0 5.8 5.8l1.4-2.3 4.6 1.8v3.2a2 2 0 0 1-2.2 2A16.5 16.5 0 0 1 3.5 6.2 2 2 0 0 1 5.5 4z"/></svg></button>
+                <button class="btn primary send" id="shSend">发送</button><button class="btn" id="shStop" hidden>停下</button>
+            
+              </div>
             </div>
           </div>
         </div>

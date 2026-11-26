@@ -479,7 +479,12 @@ function create(o) {
   function chatView(ms) {
     const out = [];
     for (const m of ms) {
-      if (m.role === "user") out.push({ k: "me", t: textOf(m.content) });
+      if (m.role === "user") {
+        let t = textOf(m.content); const scr = /\n\n（附：我现在电脑屏幕的截图/.test(t); t = t.replace(/\n\n（附：我现在电脑屏幕的截图[^）]*）/, "");
+        const i = t.indexOf(ATT_MARK), files = i < 0 ? [] : [...t.slice(i).matchAll(/【附件：([^】\n]+)】/g)].map((x) => x[1]);
+        if (scr) files.push("屏幕截图.jpg");
+        out.push({ k: "me", t: (i < 0 ? t : t.slice(0, i)).trim(), ...(files.length ? { files } : {}) });
+      } else if (m.role === "tool" && m.name === "make_file") { try { const r = JSON.parse(m.content); if (r.file) out.push({ k: "file", file: r.file, kind: r.kind, size: r.size }); } catch (e) {} }
       else if (m.role === "assistant") {
         const t = textOf(m.content).replace(/<tool_call>[\s\S]*?(<\/tool_call>|$)/g, "").trim();
         if (t) out.push({ k: "bot", t });
@@ -504,11 +509,61 @@ function create(o) {
     rename: (id, title) => { const t = String(title || "").replace(/\s+/g, " ").trim().slice(0, 40); if (!t) throw new Error("名字不能是空的"); const idx = chatIdx(); const x = idx.find((r) => r.id === id); if (!x) throw new Error("没有这段对话"); x.title = t; chatIdxSave(idx); try { const f = chatFile(id), c = JSON.parse(fs.readFileSync(f, "utf8")); c.title = t; fs.writeFileSync(f, JSON.stringify(c)); } catch (e) {} emit({ type: "chats" }); return chats.list(); },
   };
 
-  async function send(text) {
+  // ---------- 传文件：存到 uploads，读成文字（Word、PPT、PDF、Excel、代码……）或图片；发的时候跟着这句话一起给模型 ----------
+  //   .pptx 顺手打开成「手上这份」，接着说怎么改就行。做出来的文件在 files 里（make_file 工具，core/files.js）
+  const ATT_MARK = "\n\n【附件：";
+  const atts = new Map();
+  const PER_ATT = 24000, ALL_ATT = 48000;
+  async function attach(name, bytes) {
+    const FILES = PPT("files.js");
+    name = String(name || "").replace(/[\\/:*?"<>|\u0000-\u001f]+/g, "_").trim().slice(-80) || "文件";
+    if (!FILES.canRead(name)) throw new Error(`「${name}」这种文件还读不了：能读 Word、PPT、PDF、Excel、网页、图片、代码和纯文本`);
+    const buf = Buffer.from(bytes && bytes.buffer ? new Uint8Array(bytes.buffer, bytes.byteOffset || 0, bytes.byteLength) : bytes || []);
+    if (!buf.length) throw new Error("文件是空的");
+    if (buf.length > 30 * 1048576) throw new Error(`「${name}」太大了：最多 30M`);
+    const d = path.join(o.dir(), "uploads"); fs.mkdirSync(d, { recursive: true });
+    // 只留最近 50 个
+    try { const old = fs.readdirSync(d).map((n) => ({ n, t: fs.statSync(path.join(d, n)).mtimeMs })).sort((a, b) => b.t - a.t).slice(49); for (const x of old) fs.rmSync(path.join(d, x.n), { force: true }); } catch (e) {}
+    const id = "a" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const f = path.join(d, id + "-" + name); fs.writeFileSync(f, buf);
+    const r = await FILES.read(f);
+    let note = "";
+    if (r.kind === "ppt") { try { await S().xz.openPpt(f, { keep: true }); note = "已经打开成手上这份 PPT，可以直接说怎么改"; } catch (e) { note = "PPT 里的文字读出来了（打开来改没成：" + e.message + "）"; } }
+    const a = { id, name, file: f, kind: r.kind, text: r.text || "", image: r.image || null, size: buf.length };
+    atts.set(id, a); if (atts.size > 30) atts.delete(atts.keys().next().value);
+    return { id, name, kind: r.kind, size: buf.length, chars: a.text.length, note };
+  }
+  function withAtts(text, ids) {
+    const list = (Array.isArray(ids) ? ids : []).map((i) => atts.get(i)).filter(Boolean).slice(0, 8);
+    if (!list.length) return { text, images: [] };
+    const images = list.filter((a) => a.image).map((a) => a.image).slice(0, 6);
+    let left = ALL_ATT, body = "";
+    for (const a of list) {
+      if (a.image) { body += `${ATT_MARK}${a.name}】（图片，见上面发的第 ${images.indexOf(a.image) + 1} 张）`; continue; }
+      const cap = Math.max(0, Math.min(PER_ATT, left)), t = a.text.slice(0, cap); left -= t.length;
+      body += `${ATT_MARK}${a.name}】\n${t}${a.text.length > t.length ? `\n……（后面还有 ${a.text.length - t.length} 字没放进来；要看后面的部分就让对方说具体哪一段）` : ""}`;
+    }
+    return { text: (String(text || "").trim() || "看一下我发的文件") + body, images };
+  }
+  // 做出来的文件：只认 files 文件夹里的（防止界面传进来别的路径）
+  function outFile(name) {
+    const f = path.join(o.dir(), "files", path.basename(String(name || "")));
+    if (!name || !fs.existsSync(f)) throw new Error("文件不在了：可能被删掉或者挪走了");
+    return f;
+  }
+
+  async function send(text, ids, opt = {}) {
     const t = o.busy ? o.busy() : null;
     if (t && !cloudOn()) throw new Error(`这台电脑正在算「${t}」，显卡腾不出来：先点「暂停计算」再试（或者把大脑换成云端，就不用停）`);
     const { xz } = S();
-    try { await xz.send(String(text || "").slice(0, 4000), []); }
+    const m = withAtts(String(text || "").slice(0, 4000), ids);
+    if (opt.screen) {
+      if (!o.captureScreen) throw new Error("这个版本截不了屏幕");
+      const img = await o.captureScreen();
+      m.images.unshift(img);
+      m.text += "\n\n（附：我现在电脑屏幕的截图，是发过来的第 1 张图。我问的可能和屏幕上的内容有关：先看清屏幕上是什么，再回答；看不清就直说）";
+    }
+    try { await xz.send(m.text, m.images); }
     finally { try { chatSave(); } catch (e) { log("对话没存上：" + e.message); } }
     // 这一句说完了：要是刚才下好了新版，现在换上
     fuse("说完一句").catch(() => {});
@@ -552,6 +607,7 @@ function create(o) {
     releaseGpu: () => { try { voice.stop(); } catch (e) {} try { ear.stop(); } catch (e) {} },
     apiStop: () => api.stop(false),
     stop: () => S().xz.stop(), reset: () => { S().xz.reset(); chatId = null; return true; },
+    attach, outFile,
     chatList: () => chats.list(), chatOpen: (id) => chats.open(id), chatRemove: (id) => chats.remove(id), chatRename: (id, t) => chats.rename(id, t),
     // 云端大脑：看设置、改设置（换了大脑就开一段新对话：两边的对话记录格式不一样）、试一下连不连得上
     cloudInfo: () => cloud.info(),

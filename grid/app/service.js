@@ -658,6 +658,7 @@ function createService(o) {
   // ---------- 成品展示「捞小智」（app/show.js）：就在算力客户端里试训练出来的成品；新版一发布自动换上 ----------
   const show = EDITION.open ? null : (o.showFactory || require("./show").create)({
     dir: () => path.join(work(), "show"), server: () => cfg.server, llm, log: (m) => L(m, "info", "展示"), send: (e) => send("show", e),
+    captureScreen: o.captureScreen,
     // 正在算的任务名（c.job 是整个任务信息，要取 name；以前直接拿来显示成了 [object Object]）；已经在停的不算
     busy: () => { const c = agent && agent.current(); return c && !c.stopping ? (c.job && c.job.name) || "任务" : null; },
     gsvDir: () => { const r = gsv.inspect((cfg.gsv || {}).dir) || gsv.find(path.join(base(), "ai", "LaolaoAI-GPT-SoVITS")); return r ? r.dir : null; },
@@ -668,7 +669,10 @@ function createService(o) {
   const showSt = async () => ({ ...(await show.state()), paused: cfg.manual === "off", joined: !!cfg.token, fullscreen: o.isFullscreen ? !!o.isFullscreen() : false });
   if (show) Object.assign(H, {
     showState: showSt,
-    async showSend(text) { await show.send(text); return showSt(); },
+    async showSend(text, ids, opt) { await show.send(text, ids, opt || {}); return showSt(); },
+    showAttach: async (name, bytes) => show.attach(name, bytes),
+    // 捞小智做出来的文件：open 打开、reveal 在文件夹里看、save 另存到别处
+    showFileOpen: async (name, how) => { const f = show.outFile(name); if (how === "reveal") o.reveal && o.reveal(f); else if (how === "save") return o.saveCopy ? o.saveCopy(f) : (o.reveal && o.reveal(f), null); else o.openPath && o.openPath(f); return true; },
     showStop: async () => show.stop(),
     showReset: async () => show.reset(),
     showChats: async () => show.chatList(),

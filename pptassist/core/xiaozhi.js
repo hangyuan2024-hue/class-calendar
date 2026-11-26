@@ -154,12 +154,13 @@ function create(o) {
       note: "做好了，界面上可以直接看每一页、也可以用 PowerPoint 打开。还想改哪里直接说：比如「第 3 页改成两栏对比」「换成绿色的」「字大一点」「加一页练习题」" };
   }
   // 打开老师自己的 .pptx 接着改：不动原文件，改的存在展示的文件夹里
-  async function openPpt(file) {
+  // keep：在对话里传上来的 PPT —— 打开成手上这份，但不清掉刚才聊的
+  async function openPpt(file, opt = {}) {
     const buf = fs.readFileSync(file), d = await EDIT.load(buf);
     const name = path.basename(file).replace(/\.pptx$/i, "");
     fs.mkdirSync(outDir, { recursive: true });
     cur = { d, file: path.join(outDir, `${safe(name)}-改-${stamp()}.pptx`), title: name, own: false, from: file };
-    await saveCur(); agent.reset();
+    await saveCur(); if (!opt.keep) agent.reset();
     return lastPpt();
   }
   const lastPpt = () => (cur ? { file: cur.file, title: cur.title, pages: cur.pages, rev: cur.rev, own: !!cur.own } : null);
@@ -192,7 +193,7 @@ function create(o) {
   let lastKind = "";
   //   说的是检测报告（头皮、比上周有什么进步…）或者发来了照片说头发的事：带检测的工具
   function pick(text, imgs) {
-    const names = new Set(["make_ppt", ...webTools.map((t) => t.name), ...groundTools.map((t) => t.name)]), ppt = RE_PPT.test(text), cam = RE_CAMPUS.test(text), chk = checkup.RE.test(text) || !!(imgs && imgs.length && /头|发/.test(text)), mm = RE_MM.test(text);
+    const names = new Set(["make_ppt", "make_file", ...webTools.map((t) => t.name), ...groundTools.map((t) => t.name)]), ppt = RE_PPT.test(text), cam = RE_CAMPUS.test(text), chk = checkup.RE.test(text) || !!(imgs && imgs.length && /头|发/.test(text)), mm = RE_MM.test(text);
     // 都没提（「再简单一点」「好的」）：接着上一句说的那件事
     const kind = [ppt && "ppt", cam && "campus", chk && "check", mm && "mindmap"].filter(Boolean).join("+") || lastKind || (cur ? "ppt" : "campus");
     lastKind = kind;
@@ -269,6 +270,8 @@ ${cur ? `现在手上的 PPT：「${cur.title}」，一共 ${cur.pages} 页（�
   const cloudOf = () => (o.llm && o.llm.cloud) || null;
   const team = o.team || TEAM.create({ llm: o.llm, tools: () => tools, onEvent: (e) => { if (o.onEvent) o.onEvent(e); },
     worker: () => (cloudOf() ? cloudOf().workerModel() : null), workerName: () => (cloudOf() ? cloudOf().info().workerName : "本机模型"), concurrency: o.teamConcurrency || 3 });
+  // 交文件：做成 Word / 表格 / 代码文件这些，存在 dir/files 里，界面上点开（core/files.js）
+  const fileTool = require("./files").tool({ dir });
   const tools = [
     { name: "make_ppt", desc: "按要求从头做一份新的 PPT（.pptx）。title 整份的标题，subtitle 副标题（课程、章节），theme 配色（" + Object.entries(DECK.THEMES).map(([k, v]) => `${k} ${v.name}`).join(" / ") + "，不写用 blue），slides 每一页（封面不用写，会自动加）",
       params: { title: { type: "string" }, subtitle: { type: "string" }, theme: { type: "string", enum: Object.keys(DECK.THEMES) }, slides: { type: "array", items: { type: "object", properties: AGENT.PAGE } } }, req: ["title", "slides"], changes: true,
@@ -291,6 +294,7 @@ ${cur ? `现在手上的 PPT：「${cur.title}」，一共 ${cur.pages} 页（�
     ...groundTools,
     ...mindmapTools,
     team.tool,
+    fileTool,
   ];
   const isPpt = new Set(PPT_NAMES);
   let tap = null;       // 考试的时候看它调了哪些工具

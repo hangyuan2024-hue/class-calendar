@@ -58,8 +58,8 @@ function fakeLlama(port, st) {
   assert.match(said(), /答案：4/);
   const sys = st.reqs[0].messages[0].content, names = st.reqs[0].tools.map((t) => t.function.name);
   assert.match(sys, /捞小智/); assert.match(sys, /今天是 2026-11-17 周二/); assert.match(sys, /明天是 2026-11-18/); assert.match(sys, /学生 /);
-  assert.ok(names.includes("make_ppt") && names.includes("apply_leave") && names.includes("get_timetable") && !names.includes("set_text") && names.includes("web_search") && names.includes("answer_from_sources") && names.length === 19);
-  ok("讲题：直接回答；系统提示里写着现在是谁、今天几号第几周、明天几号；带着做 PPT、教务办事、联网和查资料核对的 19 个工具");
+  assert.ok(names.includes("make_ppt") && names.includes("apply_leave") && names.includes("get_timetable") && !names.includes("set_text") && names.includes("web_search") && names.includes("answer_from_sources") && names.includes("make_file") && names.length === 20);
+  ok("讲题：直接回答；系统提示里写着现在是谁、今天几号第几周、明天几号；带着做 PPT、教务办事、联网和查资料核对、交文件的 20 个工具");
 
   // 2. 办事：查课表、请假（真的写进了教务后端）
   ev.length = 0; await xz.send("明天有什么课");
@@ -100,7 +100,7 @@ function fakeLlama(port, st) {
   let sl = await xz.slides(); assert.equal(sl.pages, 4); assert.equal(sl.svgs.length, 4); assert.ok(sl.svgs.every((x) => x.startsWith("<svg"))); assert.equal(sl.themes.length, 8); assert.equal(await xz.slides(sl.rev), null);
   ev.length = 0; await xz.send("把第 2 页改成卡片");
   let rq = st.reqs[st.reqs.length - 1], tn = rq.tools.map((x) => x.function.name);
-  assert.ok(tn.includes("edit_slide") && tn.includes("set_theme") && tn.includes("make_ppt") && !tn.includes("apply_leave") && tn.includes("web_search") && tn.length === 23);
+  assert.ok(tn.includes("edit_slide") && tn.includes("set_theme") && tn.includes("make_ppt") && !tn.includes("apply_leave") && tn.includes("web_search") && tn.length === 24);
   assert.match(rq.messages[0].content, /现在手上的 PPT：「冒泡排序」，一共 4 页/); assert.match(rq.messages[0].content, /改 PPT 的规矩/);
   assert.ok(steps()[0].ok && steps()[0].changed, JSON.stringify(steps()[0].result)); assert.match(steps()[0].say, /重排第 2 页，换成「卡片」/);
   assert.equal((await (await onDisk()).outline())[1].layout, "cards");
@@ -110,7 +110,7 @@ function fakeLlama(port, st) {
   ev.length = 0; await xz.send("检查一遍"); assert.equal(steps()[0].name, "check_ppt"); assert.equal(steps()[0].changed, false); assert.equal(typeof steps()[0].result.ok, "boolean");
   // 中间问一句教务的事：带的是教务的工具；再说 PPT 的事又换回来
   ev.length = 0; await xz.send("明天有什么课"); tn = st.reqs[st.reqs.length - 1].tools.map((x) => x.function.name);
-  assert.ok(tn.includes("get_timetable") && !tn.includes("edit_slide") && tn.includes("web_search") && tn.length === 19);
+  assert.ok(tn.includes("get_timetable") && !tn.includes("edit_slide") && tn.includes("web_search") && tn.length === 20);
   // 老师正开着这个文件（Windows 上写不进去）：另存成新名字，告诉她
   const f0 = xz.lastPpt().file, w0 = fs.writeFileSync; let locked = 0;
   fs.writeFileSync = (f, ...a) => { if (f === f0) { locked++; const e = new Error("EBUSY: resource busy or locked"); e.code = "EBUSY"; throw e; } return w0(f, ...a); };
