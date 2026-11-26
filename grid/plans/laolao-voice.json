@@ -17,7 +17,7 @@
         "member": "捞捞",
         "openVoice": "aishell3",
         "shift": 2,
-        "minSeconds": 300,
+        "minSeconds": 120,
         "sovitsEpochs": 8,
         "gptEpochs": 15,
         "batch": 4,
