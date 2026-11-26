@@ -1,7 +1,7 @@
 // 捞小智联网搜索（pptassist/core/websearch.js）：解析搜索结果（必应的跳转链接解出真网址）、读网页正文（GBK 也行）、不读本机和内网
 "use strict";
 const assert = require("assert");
-const W = require("../../pptassist/core/websearch");
+const W = require("../app/ppt/websearch");
 const ok = (m) => console.log("✓", m);
 (async () => {
   const b64 = Buffer.from("https://news.example.cn/2026/a.html").toString("base64").replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_");
@@ -102,7 +102,7 @@ const ok = (m) => console.log("✓", m);
       "https://search.bilibili.com/all?keyword=C%E8%AF%AD%E8%A8%80%E6%95%99%E7%A8%8B": { body: `<div><a href="//www.bilibili.com/video/BV1q54y1q79w/" title="C语言教程 从入门到精通（翁恺）">x</a><a href="//www.bilibili.com/video/BV1q54y1q79w/">重复的</a></div>` },
       "https://image.baidu.com/search/acjson?tn=resultjson_com&ipn=rj&ie=utf-8&oe=utf-8&pn=0&rn=30&word=C%E8%AF%AD%E8%A8%80": { body: JSON.stringify({ data: [{ thumbURL: "https://img1.baidu.com/it/u=1.jpg", fromPageTitleEnc: "C语言入门", replaceUrl: [{ ObjURL: "https://pic.example.cn/c.png", FromURL: "https://www.runoob.com/c.html" }] }, {}] }) },
     };
-    pages["https://example.cn/doc.docx"].raw = await require("../../pptassist/core/files").docx("# 作业\n\n- 指针练习三道");
+    pages["https://example.cn/doc.docx"].raw = await require("../app/ppt/files").docx("# 作业\n\n- 指针练习三道");
     const f4 = async (u, opt = {}) => {
       if (/cn\.bing\.com\/search/.test(u)) return { ok: true, status: 200, url: u, headers: { get: () => "text/html" }, arrayBuffer: async () => Buffer.from(bing) };
       if (/www\.baidu\.com\/s\?/.test(u)) return { ok: true, status: 200, url: u, headers: { get: () => "text/html" }, arrayBuffer: async () => Buffer.from(baidu) };
