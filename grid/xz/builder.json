@@ -25,6 +25,7 @@
     "app/localapi.js",
     "app/tts-worker.js",
     "app/realvoice.js",
+    "app/teachervoice.js",
     "app/avatar.js",
     "app/ai3d/**",
     "app/preload.js",

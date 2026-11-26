@@ -715,6 +715,12 @@ function createService(o) {
     showCloud: async () => show.cloudInfo(),
     async showCloudSet(patch) { show.cloudSet(patch || {}); return showSt(); },
     showCloudTest: async () => show.cloudTest(),
+    // 老师的声音：选一段老师的录音（要先勾授权）→ 自动听写、截一段当参考 → 捞小智用老师的声音说话
+    async showTeacherVoicePick(consent) { const f = o.pickFile ? await o.pickFile(["wav", "mp3", "m4a", "aac", "flac", "ogg", "opus", "wma", "amr", "mp4", "mov"], "选一段老师的录音（安静的地方、自然说几句话，几十秒到几分钟都行）", "录音") : null; if (!f) return null; return show.teacherVoiceFrom(f, consent); },
+    showTeacherVoice: async () => show.teacherVoice(),
+    showTeacherVoiceText: async (t) => show.teacherVoiceText(t),
+    showTeacherVoicePreview: async () => show.teacherVoicePreview(),
+    showTeacherVoiceWipe: async () => show.teacherVoiceWipe(),
     showKbImport: async () => show.kbImport(),
     showWebExam: async (mode) => show.webExam(mode),
     showVoiceExam: async () => show.voiceExam(),

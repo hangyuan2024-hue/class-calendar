@@ -32,7 +32,12 @@
     $("#shVoice").textContent = "声音：" + S.voice.label;
     $("#shVoiceInstall").hidden = !(S.voice.model && !S.voice.gsv);
     const vp = $("#shVoicePick");
-    if (vp) { vp.value = S.voice.kind === "real" ? "real" : "kokoro"; vp.querySelector('[value="real"]').disabled = !(S.voice.choices && S.voice.choices.real); vp.hidden = S.voice.kind === "trained"; }
+    if (vp) {
+      const ch = S.voice.choices || {}, tOpt = vp.querySelector('[value="teacher"]');
+      vp.value = S.voice.kind === "real" || S.voice.kind === "teacher" ? S.voice.kind : "kokoro";
+      vp.querySelector('[value="real"]').disabled = !ch.real; if (tOpt) { tOpt.disabled = !ch.teacher; tOpt.hidden = !ch.teacher; }
+      vp.hidden = S.voice.kind === "trained" && !ch.teacher;   // 捞捞的声音训练好了就用它；有老师的声音时还能换
+    }
     if (S.prep) paintPrep(S.prep);
     paintBrain();
     $("#shChips").innerHTML = P.parts.map((p) => `<span class="sh-chip ${p.ready ? "" : "off"}">${esc(p.name)}<b>${p.ready ? "第 " + p.version + " 版" : "训练中"}</b></span>`).join("");
@@ -121,6 +126,9 @@
     } catch (e) { toast("3D 形象读不出来：" + msgOf(e), true); }
   }
   window.addEventListener("lg-avatar", () => loadAvatar());
+  // 形象卡片里换了老师的声音：重新看一下现在用哪种声音；「用老师的声音说一句」：照常念出来（带口型和动作）
+  window.addEventListener("lg-voice", async () => { try { S = await call("showState"); spReset(); paint(); } catch (e) {} });
+  window.addEventListener("lg-say", (e) => { if (!S) return; if (!S.voice.on) return toast("先勾上「开口说话」", true); spReset(); sayOne(String(e.detail || "")); });
 
   // ---------- 实时合成：回复一边出来，一句一句送去合成声音，按顺序念，公仔跟着张嘴 ----------
   const sp = { gen: 0, sent: 0, text: "", synth: Promise.resolve(), play: Promise.resolve(), player: null, told: false, q: 0 };   // q：排着没念完的句数（打电话时判断它是不是还在说）

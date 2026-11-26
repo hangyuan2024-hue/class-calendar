@@ -46,7 +46,7 @@ const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
   const extracted = [];
   // 假的 ffmpeg：把最后一个参数写成一段 1 秒的静音 wav
   const ffDir = path.join(tmp, "ff"); fs.mkdirSync(ffDir, { recursive: true });
-  fs.writeFileSync(path.join(ffDir, "ff.js"), `const MEDIA = require(${JSON.stringify(path.join(__dirname, "..", "..", "pptassist", "core", "media.js"))}); require("fs").writeFileSync(process.argv[process.argv.length - 1], MEDIA.writeWav(new Float32Array(16000), 16000));`);
+  fs.writeFileSync(path.join(ffDir, "ff.js"), `const MEDIA = require(${JSON.stringify(path.join(__dirname, "..", "..", "pptassist", "core", "media.js"))}); require("fs").writeFileSync(process.argv[process.argv.length - 1], MEDIA.writeWav(new Float32Array(Math.round((+process.env.FAKE_FF_SECS || 1) * 16000)), 16000));`);   // FAKE_FF_SECS：假装录音有多长
 
   const show = Show.create({ dir: () => path.join(tmp, "work", "show"), server: () => base, llm, send: (e) => ev.push(e),
     cloudOpt: { base: `http://127.0.0.1:${llama.address().port}`, env: {} },   // 「云端大脑」也指到上面那个假模型（OpenAI 兼容，一样认）
@@ -222,6 +222,28 @@ const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
     ok("声音自动考试（合成 → 听写回来比）；知识库里的视频点「整理」才听写，抽声音用声音组件的 ffmpeg");
   }
 
+  // 6c. 老师的声音：要授权；传一段录音 → 本机听写 → 挑参考（假的听写句子都太长 → 截前 8 秒、文字让老师填）→ 填好文字就默认用老师的声音说话（带口型）；删掉换回来
+  {
+    const was = hasGsv; hasGsv = true; process.env.FAKE_FF_SECS = "12";
+    const rec = path.join(tmp, "老师的录音.m4a"); fs.writeFileSync(rec, "假的录音");
+    await assert.rejects(show.teacherVoiceFrom(rec, {}), /要先勾选/);
+    await assert.rejects(show.teacherVoiceFrom(path.join(tmp, "x.txt"), { ok: true }), /不是常见的录音格式/);
+    let r = await show.teacherVoiceFrom(rec, { ok: true });
+    assert.equal(r.has, true); assert.equal(r.ready, false); assert.equal(r.needText, true); assert.equal(r.from, "老师的录音.m4a"); assert.ok(r.preview && Buffer.from(r.preview, "base64").slice(0, 4).toString() === "RIFF");
+    assert.notEqual(r.voice.kind, "teacher", "文字还没填：先不用");
+    assert.throws(() => show.teacherVoiceText("嗯"), /太短/);
+    r = show.teacherVoiceText("同学们好今天我们来讲一元二次方程");
+    assert.equal(r.ready, true); assert.equal(r.text, "同学们好今天我们来讲一元二次方程。"); assert.equal(r.voice.kind, "teacher"); assert.match(r.voice.label, /老师的声音/); assert.equal(r.voice.choices.teacher, true);
+    const said = await show.speak("这道题我们先看已知条件。");
+    assert.equal(said.kind, "teacher"); assert.ok(said.levels.length > 3 && said.ms > 0, "带口型");
+    assert.equal((await show.state()).voice.kind, "teacher");
+    assert.ok((await show.voiceTest()).results.some((x) => x.kind === "teacher" && x.ok), "试一下声音里也有老师的声音");
+    r = show.teacherVoiceWipe(); assert.equal(r.has, false); assert.notEqual(r.voice.kind, "teacher");
+    assert.ok(!fs.existsSync(path.join(tmp, "work", "teacher-voice")), "录音全删了");
+    delete process.env.FAKE_FF_SECS; hasGsv = was;
+    ok("老师的声音：先勾授权；传一段录音 → 本机听写、截一段当参考（听不清就让老师填文字）→ 捞小智默认用老师的声音说话（带口型）；一键删掉换回原来的声音");
+  }
+
   // 7. 换身份、审批、重开还在
   st = await show.setRole("teacher"); assert.equal(st.who.me.role, "教师");
   show.shutdown();
@@ -246,5 +268,14 @@ const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
   a.equal(S.speakNums("第11周"), "第十一周");
   a.equal(S.fixAsr("Pardon语言有什么用？C元呢？硬件城。"), "Python语言有什么用？C语言呢？硬件层。");
   a.equal(S.fixAsr("公元前"), "公元前", "不是 C 开头的不动");
+  const TV = require("../app/teachervoice");
+  // 挑参考：连在一起的几句凑到 3～10 秒、最接近 7 秒；中间停太久的不连；太短的、字太少的不要
+  let pk = TV.pickRef([{ start: 0.5, end: 2, text: "大家好" }, { start: 2.2, end: 6.8, text: "今天我们来讲一元二次方程" }, { start: 7, end: 9.5, text: "先看第一题" }, { start: 14, end: 30, text: "很长很长的一句" }], 31);
+  a.equal(pk.needText, false); a.equal(pk.text, "今天我们来讲一元二次方程先看第一题", "两句连起来 7.3 秒，比三句的 9 秒更接近 7 秒"); a.ok(pk.start >= 2 && pk.start < 2.2 && pk.end >= 9.5 && pk.end < 10);
+  pk = TV.pickRef([{ start: 0, end: 1, text: "嗯" }, { start: 5, end: 9, text: "我们先把公式写出来" }], 12);
+  a.equal(pk.text, "我们先把公式写出来"); a.ok(pk.start >= 4.8);
+  pk = TV.pickRef([{ start: 0, end: 0, text: "同学们好今天讲方程" }], 6); a.equal(pk.needText, false); a.equal(pk.end, 6);
+  pk = TV.pickRef([{ start: 0, end: 25, text: "一整段很长的话" }], 25); a.equal(pk.needText, true); a.equal(pk.end - pk.start, 8);
+  console.log("✓ 老师的声音挑参考：几句连起来凑 3～10 秒、最接近 7 秒；停顿太久不连；整段不到 10 秒就整段用；挑不出来截 8 秒让老师填文字");
   console.log("✓ 数字：长编号、学号、年份、教室一位一位念，个数按数值念，日期时间百分数念对；听写常见的听错（Python、C语言、硬件层）改回来");
 }

@@ -100,7 +100,7 @@
         <span class="sh-build" id="shBuild">成品 第 0 版</span>
         <span class="grow"></span>
         <label class="muted sh-chk"><input type="checkbox" id="shSpeak" checked> 开口说话</label>
-        <select id="shVoicePick" title="用哪种声音：Kokoro 女声不用装别的；真人感要先装好声音组件"><option value="kokoro">声音：Kokoro 女声</option><option value="real">声音：真人感（声音组件）</option></select>
+        <select id="shVoicePick" title="用哪种声音：Kokoro 女声不用装别的；真人感要先装好声音组件"><option value="kokoro">声音：Kokoro 女声</option><option value="real">声音：真人感（声音组件）</option><option value="teacher">声音：老师的声音</option></select>
         <button class="btn small" id="shVoiceTest" title="每种声音都试一句：哪种能用、不能用的原因">试一下声音</button>
         <button class="btn small" id="shVoiceExam" title="用现在的声音念几句固定的话，再用本机听写听回来：看错字率、数字念对没有（不用人听）">声音考试</button>
         <button class="btn small" id="shKb" title="捞小智回答事实类问题时先查这里的资料（讲义、学生手册、通知），照资料回答、逐句核对">知识库</button>
@@ -157,12 +157,14 @@
           </div>
           <div class="glass sh-card" id="avCard">
             <div class="sh-card-h"><b>捞小智的形象</b><span class="grow"></span><span class="muted small" id="avNow">机器人捞小智</span></div>
-            <div class="btns"><button class="btn small primary" id="avMake">换成老师的 3D 小人</button><button class="btn small" id="avImport" title="导入做好的 avatar.glb（比如捞捞PPT助手里做的）">导入 3D 形象</button><button class="btn small" id="avRobot" hidden>换回机器人</button></div>
+            <div class="btns"><button class="btn small primary" id="avMake">做老师的分身（3D 小人 + 声音）</button><button class="btn small" id="avImport" title="导入做好的 avatar.glb（比如捞捞PPT助手里做的）">导入 3D 形象</button><button class="btn small" id="avRobot" hidden>换回机器人</button></div>
             <div class="av-steps" id="avSteps" hidden>
               <div class="av-st" data-s="engine"><b>① 装 3D 引擎</b><span class="muted small">Hunyuan3D-2，约 10G，要 NVIDIA 显卡（8G 以上显存更稳）</span><button class="btn small" id="avInstall">装 3D 引擎</button></div>
               <div class="av-st" data-s="photo"><b>② 上传老师的照片</b><label class="check small"><input type="checkbox" id="avConsent"> 照片里是我本人，或者我已经得到照片里的人同意，只用来做捞小智的形象（只在这台电脑上处理，不上传）</label><button class="btn small" id="avPhoto">选照片</button></div>
               <div class="av-st" data-s="draw"><b>③ 画 Q版立绘，挑一张</b><span class="muted small">几分钟</span><button class="btn small" id="avDraw">画 3 张</button><div class="av-cands" id="avCands"></div></div>
               <div class="av-st" data-s="build"><b>④ 做成 3D 小人</b><span class="muted small">几分钟，做好自动换上；会眨眼、会张嘴说话、会做动作</span><button class="btn small primary" id="avBuild">做成 3D</button></div>
+              <div class="av-st" data-s="voice"><b>⑤ 老师的声音</b><span class="muted small">传一段老师的录音（手机录音机录的就行，自然说几句话，几十秒到几分钟都行），自动挑一段当参考，捞小智就用老师的声音说话；不用训练。要先装声音组件（约 8G，没装会自动装）</span><label class="check small"><input type="checkbox" id="avVoiceConsent"> 录音里是我本人，或者我已经得到本人同意，只用来做捞小智的声音（只在这台电脑上处理，不上传）</label><button class="btn small" id="avVoice">选录音</button>
+                <div class="av-voice" id="avVoiceBox" hidden><span class="muted small" id="avVoiceInfo"></span><input id="avVoiceText" maxlength="120" placeholder="截出来的这段录音里说的话（要一字不差）"><div class="btns"><button class="btn small" id="avVoicePlay">听截出来的那段</button><button class="btn small" id="avVoiceSave">保存文字</button><button class="btn small primary" id="avVoiceTry">用老师的声音说一句</button><button class="btn small" id="avVoiceDel">删除录音</button></div></div></div>
               <div class="muted small av-msg" id="avMsg"></div>
               <div class="btns"><button class="btn small" id="avStop" hidden>停下</button><span class="grow"></span><button class="btn small" id="avWipe" title="照片、立绘、3D 模型全部删掉，授权也撤回">删除照片和模型</button></div>
             </div>
