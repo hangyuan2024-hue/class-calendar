@@ -5,6 +5,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: file: http: https:; media-src 'self' blob:; frame-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>捞小智</title>
 <link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -31,8 +32,13 @@
 <div id="appShell" class="shell" hidden>
   <nav class="side">
     <div class="brand"><div class="logo"><span>捞</span></div><div><b>捞小智</b><small id="meName">校园智能体</small></div></div>
-    <a data-p="show" class="on"><i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5h16v10.5H10l-5 4v-4H4z"/></svg></i><span>对话</span><em id="navShow" hidden>新</em></a>
-    <a data-p="plugins"><i><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.8"/><rect x="13" y="4" width="7" height="7" rx="1.8"/><rect x="4" y="13" width="7" height="7" rx="1.8"/><path d="M16.5 13.5v6M13.5 16.5h6"/></svg></i><span>插件</span></a>
+    <div class="mode" id="modeSw" role="tablist" aria-label="切换" hidden><button data-m="chat" class="on" role="tab">对话<em id="navShow" hidden>新</em></button><button data-m="grid" role="tab">捞捞算力</button></div>
+    <div class="nav-chat" id="navChat">
+      <button class="new-chat" id="sideNew"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>新对话</button>
+      <a data-p="plugins"><i><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.8"/><rect x="13" y="4" width="7" height="7" rx="1.8"/><rect x="4" y="13" width="7" height="7" rx="1.8"/><path d="M16.5 13.5v6M13.5 16.5h6"/></svg></i><span>插件</span></a>
+      <div class="nav-sec">最近的对话</div>
+      <div class="chat-list" id="chatList"></div>
+    </div>
     <div class="nav-grid" id="navGrid" hidden>
       <div class="nav-sec">捞捞算力</div>
       <a data-p="home"><i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.5 5.3 5.8.7-4.3 4 1.2 5.8L12 16.4l-5.2 2.9 1.2-5.8-4.3-4 5.8-.7z"/></svg></i><span>星图</span></a>
@@ -109,6 +115,12 @@
         <span class="sh-build" id="shBuild" title="捞捞自己训练的几样本事，每训练、考试通过一版加一">成品 第 0 版</span>
         <span class="grow"></span>
         <select id="shRole" title="换一个身份试试：学生、教师（辅导员）、教务员能办的事不一样"></select>
+        <div class="sh-view" id="shView"><button class="btn small" id="shViewBtn" aria-expanded="false" title="右边显示哪些东西">右边显示<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg></button><div class="sh-view-pop" id="shViewPop" hidden>
+          <label class="sw"><input type="checkbox" data-v="avatar"><i></i><span>捞小智形象</span></label>
+          <label class="sw"><input type="checkbox" data-v="ppt"><i></i><span>PPT 预览<small>做好、改好时自动打开</small></span></label>
+          <label class="sw"><input type="checkbox" data-v="info"><i></i><span>身份和声音说明</span></label>
+          <div class="muted small">全关掉就只留对话，占满整个宽度。</div>
+        </div></div>
         <button class="btn small" id="shNew">新对话</button>
         <button class="btn small" id="shFull" title="全屏（Esc 退出）">⛶ 全屏</button>
       </div>
@@ -121,14 +133,6 @@
         <div class="ft"><span class="tip muted small"></span><span class="grow"></span><button class="btn primary go">开始准备</button><button class="btn use" hidden>开始使用</button></div>
       </div>
       <div class="sh-grid">
-        <div class="glass sh-stagebox">
-          <button class="btn small sh-deck-x" id="shDeckClose" hidden title="关掉 PPT，回到捞小智">✕ 关闭 PPT</button>
-          <div class="sh-deck" id="shDeck" hidden></div>
-          <div class="sh-stage" id="shStage"></div>
-          <div class="sh-sub" id="shSub"></div>
-          <div class="sh-me"><span class="muted" id="shMe"></span><span class="muted" id="shVoice"></span><button class="btn small" id="shVoiceInstall" hidden>装上声音组件</button></div>
-          <div class="sh-chips" id="shChips"></div>
-        </div>
         <div class="glass sh-chat">
           <div class="sh-log" id="shLog"></div>
           <div class="sh-callbar" id="shCallBar" hidden><span class="dot" id="shCallDot"></span><b id="shCallSt">在听…</b><span class="lvl"><i id="shCallLvl"></i></span><span class="muted small grow" id="shCallTip"></span><button class="btn small" id="shHang">挂断</button></div>
@@ -145,6 +149,14 @@
               <button class="btn primary send" id="shSend">发送</button><button class="btn" id="shStop" hidden>停下</button>
             </div>
           </div>
+        </div>
+        <div class="glass sh-stagebox">
+          <button class="btn small sh-deck-x" id="shDeckClose" hidden title="关掉 PPT，回到捞小智">✕ 关闭 PPT</button>
+          <div class="sh-deck" id="shDeck" hidden></div>
+          <div class="sh-stage" id="shStage"></div>
+          <div class="sh-sub" id="shSub"></div>
+          <div class="sh-me"><span class="muted" id="shMe"></span><span class="muted" id="shVoice"></span><button class="btn small" id="shVoiceInstall" hidden>装上声音组件</button></div>
+          <div class="sh-chips" id="shChips"></div>
         </div>
       </div>
       <div class="sh-ticker" id="shTicker"></div>
@@ -281,7 +293,7 @@
           <select id="lgDay"></select>
           <select id="lgLevel"><option value="">全部</option><option value="warn">注意和错误</option><option value="error">只看错误</option></select>
           <input id="lgQ" placeholder="搜索（比如：任务、下载、显卡）">
-          <label class="check"><input type="checkbox" id="lgFollow" checked> 跟着最新的</label>
+          <label class="sw"><input type="checkbox" id="lgFollow" checked><i></i><span>跟着最新的</span></label>
           <span class="grow"></span>
           <button class="btn small" id="lgExport">导出最近 3 天</button>
           <button class="btn small ghost" id="lgDir">打开日志文件夹</button>
@@ -407,6 +419,8 @@
 <script src="zhi3d.js"></script>
 <script src="deckview.js"></script>
 <script src="checkup.js"></script>
+<script src="vendor/katex/katex.min.js"></script>
+<script src="md.js"></script>
 <script src="show.js"></script>
 <script src="avatar-ui.js"></script>
 <script src="models-ui.js"></script>

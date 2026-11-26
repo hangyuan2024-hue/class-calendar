@@ -25,4 +25,7 @@ fs.cpSync(path.join(R, "..", "pptassist", "ai3d", "lao3d"), path.join(R, "app", 
 fs.mkdirSync(path.join(R, "app", "renderer", "vendor", "three"), { recursive: true });
 fs.copyFileSync(path.join(R, "node_modules", "three", "build", "three.min.js"), path.join(R, "app", "renderer", "vendor", "three", "three.min.js"));
 fs.copyFileSync(path.join(R, "node_modules", "three", "examples", "js", "loaders", "GLTFLoader.js"), path.join(R, "app", "renderer", "vendor", "three", "GLTFLoader.js"));
+// 回答里的公式：KaTeX（仓库里思维导图用的同一份，打包时拷过来，不用联网）
+fs.rmSync(path.join(R, "app", "renderer", "vendor", "katex"), { recursive: true, force: true });
+fs.cpSync(path.join(R, "..", "learn", "mindmap", "vendor", "katex"), path.join(R, "app", "renderer", "vendor", "katex"), { recursive: true });
 console.log("成品展示的代码、three.js → app/ppt、app/renderer");

@@ -86,12 +86,42 @@
 
   // ---------- PPT 预览：做好 / 改好的每一页直接画出来；有 PPT 的时候它占大块，公仔缩到左下角 ----------
   let deckOn = false;
-  const showDeck = (v) => { deckOn = !!v && deck && deck.has(); $("#shDeck").hidden = !deckOn; const dc = $("#shDeckClose"); if (dc) dc.hidden = !deckOn; document.querySelector(".sh-stagebox").classList.toggle("deck", deckOn); document.querySelector(".sh-grid").classList.toggle("deck", deckOn); $("#shPptShow").textContent = deckOn ? "看形象" : "看 PPT"; setTimeout(() => window.dispatchEvent(new Event("resize")), 60); };
+  const showDeck = (v) => { deckOn = !!v && deck && deck.has(); $("#shDeck").hidden = !deckOn; const dc = $("#shDeckClose"); if (dc) dc.hidden = !deckOn; document.querySelector(".sh-stagebox").classList.toggle("deck", deckOn); document.querySelector(".sh-grid").classList.toggle("deck", deckOn); $("#shPptShow").textContent = deckOn ? "看形象" : "看 PPT"; applyView(); setTimeout(() => window.dispatchEvent(new Event("resize")), 60); };
+
+  // ---------- 右边显示什么：形象 / PPT 预览 / 说明文字，各自能关；全关掉就只留对话 ----------
+  const VIEW_KEY = "lg-show-view";
+  let view = { avatar: true, ppt: true, info: true };
+  try { view = { ...view, ...(JSON.parse(localStorage.getItem(VIEW_KEY)) || {}) }; } catch (e) {}
+  function applyView() {
+    const g = document.querySelector(".sh-grid"); if (!g) return;
+    document.body.classList.toggle("v-noav", !view.avatar);
+    document.body.classList.toggle("v-noinfo", !view.info);
+    const solo = !deckOn && !view.avatar;
+    if (g.classList.contains("solo") !== solo) { g.classList.toggle("solo", solo); setTimeout(() => window.dispatchEvent(new Event("resize")), 60); }
+    document.querySelectorAll("#shViewPop [data-v]").forEach((x) => { x.checked = !!view[x.dataset.v]; });
+  }
+  (function viewMenu() {
+    const btn = $("#shViewBtn"), pop = $("#shViewPop"); if (!btn || !pop) return;
+    const open = (v) => { pop.hidden = !v; btn.setAttribute("aria-expanded", v ? "true" : "false"); };
+    btn.onclick = (e) => { e.stopPropagation(); open(pop.hidden); };
+    document.addEventListener("click", (e) => { if (!pop.hidden && !e.target.closest("#shView")) open(false); });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !pop.hidden) open(false); });
+    pop.addEventListener("change", (e) => {
+      const k = e.target.dataset && e.target.dataset.v; if (!k) return;
+      view[k] = e.target.checked;
+      try { localStorage.setItem(VIEW_KEY, JSON.stringify(view)); } catch (x) {}
+      if (k === "ppt") { if (!view.ppt && deckOn) showDeck(false); else if (view.ppt && deck && deck.has()) showDeck(true); }
+      applyView();
+    });
+  })();
   const deck = window.LaoDeckView ? window.LaoDeckView.create($("#shDeck"), {
     load: (rev) => call("showSlides", rev), theme: (k) => call("showPptTheme", k), undo: async () => { const r = await call("showPptUndo"); toast("撤销了：" + r.undone); },
     open: () => call("showOpenPpt", false), reveal: () => call("showOpenPpt", true), onError: (e) => toast(msgOf(e), true),
-    onChange: (has, fresh) => { if (!has) showDeck(false); else if (fresh || deckOn) showDeck(true); },
+    onChange: (has, fresh) => { if (!has) showDeck(false); else if ((fresh && view.ppt) || deckOn) showDeck(true); },
   }) : null;
+  // 「关闭 PPT」放进 PPT 那一排按钮的最后，不再浮在右上角压住「用 PowerPoint 打开」
+  { const bar = document.querySelector("#shDeck .dv-bar"), dc = $("#shDeckClose"); if (bar && dc) bar.appendChild(dc); }
+  applyView();
   const PPT_TOOL = /^(make_ppt|set_text|replace_text|add_slide|edit_slide|delete_slide|move_slide|copy_slide|set_theme|set_font_size|format_text|insert_formula|insert_table|insert_image|delete_shape|set_notes|undo)$/;
 
   // ---------- 形象 ----------
@@ -163,6 +193,7 @@
   function act(m, secs) { if (av) try { av.mood(m, secs); } catch (e) {} }
   function avMode(m) { if (av && av.setMode) try { av.setMode(m); } catch (e) {} }
   function sayOne(sentence) {
+    if (window.LaoMd) sentence = window.LaoMd.speech(sentence).trim();   // 「**」「$x^2$」这些记号不念出来
     if (!S || !S.voice.on || sentence.replace(/[\s，。！？、,.!?：:；;（）()]/g, "").length < 2) return;
     const gen = sp.gen;
     sp.q++;
@@ -204,13 +235,19 @@
   // ---------- 对话 ----------
   const log = () => $("#shLog");
   const scroll = () => { const l = log(); l.scrollTop = l.scrollHeight; };
+  // 回答按 Markdown 画（加粗、列表、表格、公式）；没有 md.js 时照旧纯文字
+  function paintBot(el, raw) {
+    const t = String(raw || "").replace(/<tool_call>[\s\S]*?(<\/tool_call>|$)/g, "").replace(/<\/?tool_call>?$/, "").trim();
+    const box = el.querySelector(".t"); el._plain = t;
+    if (window.LaoMd) { box.innerHTML = window.LaoMd.render(t); box.classList.add("md"); } else box.textContent = t;
+  }
   function add(cls, html) { const d = document.createElement("div"); d.className = cls; d.innerHTML = html; log().appendChild(d); scroll(); return d; }
   const fused = new Set();   // 已经在对话里提过的「××第 N 版换上了」，不重复提
   let said = "";   // 这一轮到现在为止说的话（几段回复接起来，给合成用）
   function botText(t) {
     if (!bot) { bot = add("sh-msg bot", '<span class="t"></span><span class="cursor"></span>'); bot._t = ""; }
     bot._t += t;
-    bot.querySelector(".t").textContent = bot._t.replace(/<tool_call>[\s\S]*?(<\/tool_call>|$)/g, "").replace(/<\/?tool_call>?$/, "").trim();
+    paintBot(bot, bot._t);
     spFeed(said + bot._t, false);
     scroll();
   }
@@ -218,7 +255,7 @@
     if (!bot) return;
     said += bot._t + "\n";
     const c = bot.querySelector(".cursor"); if (c) c.remove();
-    if (!bot.querySelector(".t").textContent.trim()) bot.remove();
+    if (!(bot._plain || "").trim()) bot.remove();
     bot = null;
     spFeed(said, true);
   }
@@ -257,6 +294,7 @@
       if (!shown && (e.fresh || []).length) $("#navShow").hidden = false;
       return;
     }
+    if (e.type === "chats") { loadChats(); return; }
     if (e.type === "exam") { endBot(); said = ""; add("sh-msg me", esc(`第 ${e.no} / ${e.total} 题：${e.q}`)); return; }
     if (e.type === "ear") { onEar(e); return; }
     if (e.type === "prep") { if (S) S.prep = e.prep; paintPrep(e.prep); if (e.prep.open && S && !e.prep.running) refresh(); return; }
@@ -295,12 +333,88 @@
     // 这一句的收尾（把最后一段送去合成）等「done」事件来做：回话的最后几个字可能比这里晚到
     finally { busy = false; $("#shSend").hidden = false; $("#shStop").hidden = true; const n = steps.get("note"); if (n) { n.remove(); steps.delete("note"); } }
   }
-  const clear = () => { log().innerHTML = ""; bot = null; said = ""; steps.clear(); spReset(); };
+  const clear = () => { log().innerHTML = ""; bot = null; said = ""; steps.clear(); spReset(); teamBox = null; };
   $("#shSend").onclick = () => send();
   $("#shStop").onclick = guard(async () => { spReset(); await call("showStop"); });
   $("#shText").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); } });
   $("#shLog").addEventListener("click", (e) => { const b = e.target.closest(".ex"); if (b) send(b.textContent); });
-  $("#shNew").onclick = guard(async () => { await call("showReset"); clear(); hello(); });
+  const newChat = guard(async () => { if (busy) await call("showStop").catch(() => {}); await call("showReset"); clear(); hello(); chatCur = null; paintChats(); window.dispatchEvent(new CustomEvent("lg-go", { detail: "show" })); setTimeout(() => $("#shText").focus(), 50); });
+  $("#shNew").onclick = newChat;
+  if ($("#sideNew")) $("#sideNew").onclick = newChat;
+
+  // ---------- 左边栏：最近的对话（存在这台电脑上），点开接着聊；⋯ 里改名、删除 ----------
+  let chatRows = [], chatCur = null;
+  const dayOf = (t) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
+  function paintChats() {
+    const box = $("#chatList"); if (!box) return;
+    if (!chatRows.length) { box.innerHTML = `<div class="cl-empty">聊过的会留在这里，点一下接着聊</div>`; return; }
+    const today = dayOf(Date.now()), DAY = 864e5;
+    const grp = (t) => { const d = dayOf(t); return d >= today ? "今天" : d >= today - DAY ? "昨天" : d >= today - 6 * DAY ? "这一周" : d >= today - 29 * DAY ? "这个月" : "更早"; };
+    let last = "", html = "";
+    for (const c of chatRows) {
+      const g = grp(c.at); if (g !== last) { html += `<div class="cl-g">${g}</div>`; last = g; }
+      html += `<div class="ci${c.id === chatCur ? " on" : ""}" data-id="${esc(c.id)}" title="${esc(c.title)}" tabindex="0" role="button"><span class="ct">${esc(c.title)}</span><button class="ci-more" aria-label="更多" title="改名、删除"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="18" cy="12" r="1.4"/></svg></button></div>`;
+    }
+    box.innerHTML = html;
+  }
+  let chatsBooted = false;
+  const loadChats = guard(async () => {
+    if (!$("#chatList")) return;
+    const r = await call("showChats"); chatRows = r.list || []; chatCur = r.cur || null; paintChats();
+    // 界面刚打开（或者重新载入）而后台还在一段对话里：把那段画出来，左边亮着的和中间的对得上
+    if (!chatsBooted) { chatsBooted = true; if (chatCur && !log().querySelector(".sh-msg")) openChat(chatCur); }
+  });
+  const openChat = guard(async (id) => {
+    if (busy) { toast("捞小智正在回答，等它说完再换", true); return; }
+    const r = await call("showChatOpen", id);
+    clear(); chatCur = r.id; paintChats();
+    window.dispatchEvent(new CustomEvent("lg-go", { detail: "show" }));
+    for (const v of r.view || []) {
+      if (v.k === "me") add("sh-msg me", esc(v.t));
+      else if (v.k === "bot") { const d = add("sh-msg bot", '<span class="t"></span>'); paintBot(d, v.t); }
+      else add("sh-step ok", esc(v.t));
+    }
+    if (!(r.view || []).length) hello();
+    refresh();   // 身份可能跟着这段对话换了
+    scroll();
+  });
+  function chatMenu(row) {
+    document.querySelectorAll(".ci-menu").forEach((m) => m.remove());
+    const m = document.createElement("div"); m.className = "ci-menu";
+    m.innerHTML = `<button data-a="ren">改名</button><button data-a="del" class="danger">删除</button>`;
+    row.appendChild(m);
+    m.onclick = guard(async (e) => {
+      e.stopPropagation();
+      const a = e.target.closest("[data-a]"); if (!a) return; m.remove();
+      const id = row.dataset.id;
+      if (a.dataset.a === "del") {
+        if (!confirm("删除这段对话？删掉就找不回来了。")) return;
+        const r = await call("showChatRemove", id); chatRows = r.list || [];
+        if (chatCur === id) { clear(); hello(); chatCur = null; }
+        paintChats();
+      } else {
+        const ct = row.querySelector(".ct"), old = ct.textContent;
+        const inp = document.createElement("input"); inp.className = "ci-ren"; inp.value = old; inp.maxLength = 40;
+        ct.replaceWith(inp); inp.focus(); inp.select();
+        let done = false;
+        const fin = guard(async (save) => { if (done) return; done = true; const v = inp.value.trim(); if (save && v && v !== old) { const r = await call("showChatRename", id, v); chatRows = r.list || []; } paintChats(); });
+        inp.onkeydown = (ev) => { if (ev.key === "Enter") { ev.preventDefault(); fin(true); } if (ev.key === "Escape") fin(false); };
+        inp.onblur = () => fin(true);
+        inp.onclick = (ev) => ev.stopPropagation();
+      }
+    });
+  }
+  if ($("#chatList")) {
+    $("#chatList").addEventListener("click", (e) => {
+      const row = e.target.closest(".ci"); if (!row) return;
+      if (e.target.closest(".ci-more")) { e.stopPropagation(); chatMenu(row); return; }
+      if (e.target.closest(".ci-menu, .ci-ren")) return;
+      openChat(row.dataset.id);
+    });
+    $("#chatList").addEventListener("keydown", (e) => { const row = e.target.closest(".ci"); if (row && (e.key === "Enter" || e.key === " ") && e.target === row) { e.preventDefault(); openChat(row.dataset.id); } });
+    document.addEventListener("click", (e) => { if (!e.target.closest(".ci-menu, .ci-more")) document.querySelectorAll(".ci-menu").forEach((m) => m.remove()); });
+    loadChats();
+  }
   // ---------- 对话框下面：选模型、多个助手一起做、今天的用量 ----------
   //   模型的 Key、自己加的模型、干活模型在「插件 → 模型」里管（models-ui.js），改完发 lg-models，这里跟着变
   function paintBrain() {
@@ -323,7 +437,7 @@
     if (was !== S.cloud.current) { clear(); hello(); toast("换成「" + S.cloud.currentName + "」：开了一段新对话"); }
   });
   $("#shTeam").onchange = guard(async () => { S = await call("showTeam", $("#shTeam").checked); paint(); toast(S.team ? "大任务会拆给几个助手同时做（用「" + (S.cloud.workerName || "本机模型") + "」）" : "不拆了：捞小智自己做"); });
-  window.addEventListener("lg-models", async () => { try { const was = S && S.cloud ? S.cloud.current + "|" + S.cloud.think : ""; S = await call("showState"); paint(); if (was && was !== S.cloud.current + "|" + S.cloud.think) { clear(); hello(); } } catch (e) {} });
+  window.addEventListener("lg-models", async () => { try { const was = S && S.cloud ? S.cloud.current + "|" + S.cloud.think : ""; S = await call("showState"); paint(); if (was && was !== S.cloud.current + "|" + S.cloud.think) { clear(); hello(); chatCur = null; paintChats(); } } catch (e) {} });
   { const cq = document.querySelector("#shPrep .cloudq");
     if (cq) cq.querySelector("button").onclick = guard(async () => {
       const k = cq.querySelector("input").value.trim(); if (!k) return toast("先填 DeepSeek 的 API Key（在 platform.deepseek.com 申请）", true);
@@ -331,7 +445,7 @@
       window.dispatchEvent(new CustomEvent("lg-models-changed"));
       const r = await call("showCloudTest"); toast(`改用 DeepSeek 了：${(r.ms / 1000).toFixed(1)} 秒连上，不用下本地大模型`);
     }); }
-  $("#shRole").onchange = guard(async () => { S = await call("showRole", $("#shRole").value); clear(); paint(); hello(); });
+  $("#shRole").onchange = guard(async () => { S = await call("showRole", $("#shRole").value); clear(); paint(); hello(); chatCur = null; paintChats(); });
   $("#shSpeak").onchange = guard(async () => { S.voice = await call("setShowSpeak", $("#shSpeak").checked); if (!S.voice.on) spReset(); paint(); if (S.voice.on && !S.voice.can) toast(S.voice.label); });
   $("#shVoiceInstall").onclick = guard(async () => { const b = $("#shVoiceInstall"); b.disabled = true; b.textContent = "正在装（几个 G，可以先接着用）…"; try { S = await call("showInstallVoice"); paint(); toast("声音组件装好了"); } finally { b.disabled = false; b.textContent = "装上声音组件"; } });
   $("#shCheck").onclick = guard(async () => { const b = $("#shCheck"); b.disabled = true; b.textContent = "正在看…"; try { const n = S ? S.product.build : 0; S = await call("showCheck"); paint(); toast(S.product.build > n ? `有新版：成品现在是第 ${S.product.build} 版` : "没有新版：现在用的就是最新的"); } finally { b.disabled = false; b.textContent = "看有没有新版"; } });

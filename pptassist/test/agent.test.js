@@ -83,6 +83,26 @@ const ok = (m) => console.log("✓ " + m);
   assert.equal(imgs.length, 1); assert.ok(imgs[0].image_url.url.endsWith("BBB"));
   ok("对话里有好几张图时只把最近一张发给模型（省内存、快）");
 
+  // 接着以前的一段对话：记录放回去；工具调用和结果成对的留着，只剩半截的去掉；图片换成一句话
+  {
+    const ag = AG.create({ llm: { chat: async () => ({ content: "", tool_calls: [] }) }, deck: () => null, tools: [], system: "x" });
+    const n = ag.load([
+      { role: "user", content: [{ type: "image_url", image_url: { url: "data:x" } }, { type: "text", text: "看这张" }] },
+      { role: "assistant", content: "", tool_calls: [{ id: "a", function: { name: "f", arguments: "{}" } }], reasoning_content: "想" },
+      { role: "tool", tool_call_id: "a", content: "{}" },
+      { role: "assistant", content: "答案", reasoning_content: "r" },
+      { role: "user", content: "再来" },
+      { role: "assistant", content: "做到一半", tool_calls: [{ id: "b", function: { name: "f", arguments: "{}" } }] },
+      { role: "system", content: "不要" },
+    ]);
+    const h = ag.history();
+    assert.equal(n, 6); assert.equal(h[0].content, "看这张");
+    assert.equal(h[1].tool_calls[0].id, "a"); assert.equal(h[2].role, "tool"); assert.equal(h[3].reasoning_content, "r");
+    assert.deepEqual(h[5], { role: "assistant", content: "做到一半" });
+    assert.ok(!h.some((m) => m.role === "system"));
+  }
+  ok("接着以前的对话聊：记录放回去，半截的工具调用去掉，图片换成一句话");
+
   fake.close(); llm.stop();
   console.log("AI 助手：全部通过");
 })().catch((e) => { console.error(e); process.exit(1); });

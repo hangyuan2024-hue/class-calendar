@@ -17,8 +17,21 @@
   const star = window.LaoStar($("#star"));
 
   // ---------- 页面切换 ----------
+  // 左上角「对话 / 捞捞算力」切换：对话那边左栏是历史对话，算力那边是星图、我的电脑这些（要用密钥登录过才有）
+  let lastGrid = "home", isOpen = false;
+  const CHAT_PAGES = ["show", "plugins"];
+  function paintMode(p) {
+    const joined = !!(S && S.joined), grid = isOpen || !CHAT_PAGES.includes(p);
+    if (!CHAT_PAGES.includes(p)) lastGrid = p;
+    document.body.classList.toggle("m-grid", grid);
+    const sw = $("#modeSw"); if (sw) { sw.hidden = isOpen || !joined; sw.querySelectorAll("[data-m]").forEach((b) => { const on = (b.dataset.m === "grid") === grid; b.classList.toggle("on", on); b.setAttribute("aria-selected", on ? "true" : "false"); }); }
+    const nc = $("#navChat"); if (nc) nc.hidden = grid;
+    $("#navGrid").hidden = !joined || !grid;
+    $("#gridFoot").hidden = !joined || !grid;
+  }
   function go(p) {
     page = p;
+    paintMode(p);
     window.dispatchEvent(new CustomEvent("lg-page", { detail: p }));   // 成品展示（show.js）靠它知道进来 / 离开了
     document.querySelector("main").scrollTop = 0;
     if (p !== "record") Promise.resolve(call("recording", false)).catch(() => {});
@@ -33,6 +46,7 @@
     if (p === "settings") loadSettings();
   }
   $$(".side a").forEach((a) => (a.onclick = () => go(a.dataset.p)));
+  $$("#modeSw [data-m]").forEach((b) => (b.onclick = () => go(b.dataset.m === "grid" ? lastGrid : "show")));
   window.addEventListener("lg-go", (e) => go(e.detail));   // 对话框下面「接自己的模型…」→ 插件页
   // 捞捞算力要用密钥（管理员发的邀请链接）登录才出现；没登录时一打开就是捞小智
   $("#navJoin").onclick = () => { $("#joinPage").hidden = false; $("#appShell").hidden = true; $("#jBack").hidden = false; };
@@ -452,7 +466,8 @@
   // 通用版（自己搭调度中心的训练网用）：没有成品展示，加入页的说明不提捞捞的模型
   function edition() {
     document.title = "捞捞算力 通用版"; document.body.classList.remove("clean");
-    document.querySelectorAll('[data-p="show"], #p-show, [data-p="plugins"], #p-plugins, #navJoin').forEach((el) => el.remove());
+    isOpen = true;
+    document.querySelectorAll('#p-show, #p-plugins, #navJoin, #modeSw, #navChat').forEach((el) => el.remove());
     document.title = "捞捞算力 通用版";
     const sub = $("#joinPage .sub"); if (sub) sub.textContent = "几台电脑一起训练模型：一台停了，下一台接着算。（通用版：加入你们自己搭的训练网）";
     const c = $("#jConsent"); if (c && c.parentNode) c.parentNode.lastChild.textContent = " 我同意：用这台电脑的空闲算力帮这个训练网训练模型；录表情时只上传表情参数和录音，不上传视频；随时可以暂停或退出。";
@@ -466,7 +481,7 @@
     if (open && !S.joined) { $("#joinPage").hidden = false; $("#appShell").hidden = true; return; }
     $("#joinPage").hidden = true; $("#appShell").hidden = false;
     $("#verLabel").textContent = "v" + (S.version || "");
-    $("#navGrid").hidden = !S.joined; $("#gridFoot").hidden = !S.joined; if ($("#navJoin")) $("#navJoin").hidden = !!S.joined;
+    paintMode(page); if ($("#navJoin")) $("#navJoin").hidden = !!S.joined;
     if (!S.joined) { $("#meName").textContent = "校园智能体"; go("show"); return; }
     $("#meName").textContent = `${S.me ? S.me.name : ""} · ${S.deviceName}`;
     $("#navAdmin").hidden = !(S.me && S.me.role === "admin");

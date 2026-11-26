@@ -449,11 +449,67 @@ function create(o) {
       cloud: cloud.info(), team: xz.teamMode(), task: o.busy ? o.busy() : null, ppt: lp ? { name: path.basename(lp.file), title: lp.title, pages: lp.pages, rev: lp.rev } : null, exam: xz.lastExam(),
       requests: xz.campus.myRequests(actor).requests.slice(0, 8), pending: xz.campus.pending(actor).requests.slice(0, 8), campus: xz.campus.stats() };
   }
+  // ---------- 对话历史：每段对话存在这台电脑上（不上传），左边列出来，点开接着聊 ----------
+  //   chats/index.json：[{ id, title, at, role }]，新的在前；chats/<id>.json：{ id, title, role, at, messages }
+  let chatId = null;
+  const chatDir = () => path.join(o.dir(), "chats");
+  const chatIdx = () => { try { const a = JSON.parse(fs.readFileSync(path.join(chatDir(), "index.json"), "utf8")); return Array.isArray(a) ? a : []; } catch (e) { return []; } };
+  const chatIdxSave = (a) => { fs.mkdirSync(chatDir(), { recursive: true }); const f = path.join(chatDir(), "index.json"); fs.writeFileSync(f + ".tmp", JSON.stringify(a)); fs.renameSync(f + ".tmp", f); };
+  const chatFile = (id) => { if (!/^c[0-9a-z]{6,24}$/.test(String(id))) throw new Error("没有这段对话"); return path.join(chatDir(), id + ".json"); };
+  const textOf = (c) => (typeof c === "string" ? c : Array.isArray(c) ? c.filter((x) => x && x.type === "text").map((x) => x.text).join("\n") : "");
+  const CHAT_MAX = 300;
+  function chatSave() {
+    const { xz } = S();
+    const ms = xz.history().map((m) => { const { _c, ...r } = m; return r.role === "user" && Array.isArray(r.content) ? { ...r, content: textOf(r.content) || "（发过一张图片）" } : r; });
+    if (!ms.some((m) => m.role === "user")) return null;
+    const first = textOf((ms.find((m) => m.role === "user") || {}).content).replace(/\s+/g, " ").trim();
+    const idx = chatIdx();
+    if (!chatId) chatId = "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const old = idx.find((x) => x.id === chatId);
+    const row = { id: chatId, title: (old && old.title) || first.slice(0, 30) || "新对话", at: Date.now(), role: xz.who().role, n: ms.filter((m) => m.role === "user").length };
+    fs.mkdirSync(chatDir(), { recursive: true });
+    fs.writeFileSync(chatFile(chatId), JSON.stringify({ ...row, messages: ms }));
+    const rest = idx.filter((x) => x.id !== chatId);
+    for (const x of rest.slice(CHAT_MAX - 1)) { try { fs.rmSync(chatFile(x.id), { force: true }); } catch (e) {} }
+    chatIdxSave([row, ...rest.slice(0, CHAT_MAX - 1)]);
+    emit({ type: "chats" });
+    return row;
+  }
+  // 给界面画的：一段对话里人能看的部分（问的话、回答、做了哪些事）
+  function chatView(ms) {
+    const out = [];
+    for (const m of ms) {
+      if (m.role === "user") out.push({ k: "me", t: textOf(m.content) });
+      else if (m.role === "assistant") {
+        const t = textOf(m.content).replace(/<tool_call>[\s\S]*?(<\/tool_call>|$)/g, "").trim();
+        if (t) out.push({ k: "bot", t });
+        for (const c of m.tool_calls || []) { const n = c.function && c.function.name; if (n) out.push({ k: "step", t: AGENT_SAY(n) }); }
+      }
+    }
+    return out;
+  }
+  const AGENT_SAY = (n) => { try { const a = PPT("agent.js"); return a.say ? a.say(n) : n; } catch (e) { return n; } };
+  const chats = {
+    list: () => ({ cur: chatId, list: chatIdx().map(({ id, title, at, role, n }) => ({ id, title, at, role, n })) }),
+    open: async (id) => {
+      const { xz } = S();
+      if (xz.busy()) throw new Error("捞小智正在回答，等它说完再换");
+      const c = JSON.parse(fs.readFileSync(chatFile(id), "utf8"));
+      if (c.role && c.role !== xz.who().role) { try { xz.setRole(c.role); } catch (e) {} }
+      xz.load(c.messages || []);
+      chatId = c.id;
+      return { id: c.id, title: c.title, role: xz.who().role, view: chatView(c.messages || []) };
+    },
+    remove: (id) => { chatFile(id); fs.rmSync(chatFile(id), { force: true }); chatIdxSave(chatIdx().filter((x) => x.id !== id)); if (chatId === id) { chatId = null; try { S().xz.reset(); } catch (e) {} } emit({ type: "chats" }); return chats.list(); },
+    rename: (id, title) => { const t = String(title || "").replace(/\s+/g, " ").trim().slice(0, 40); if (!t) throw new Error("名字不能是空的"); const idx = chatIdx(); const x = idx.find((r) => r.id === id); if (!x) throw new Error("没有这段对话"); x.title = t; chatIdxSave(idx); try { const f = chatFile(id), c = JSON.parse(fs.readFileSync(f, "utf8")); c.title = t; fs.writeFileSync(f, JSON.stringify(c)); } catch (e) {} emit({ type: "chats" }); return chats.list(); },
+  };
+
   async function send(text) {
     const t = o.busy ? o.busy() : null;
     if (t && !cloudOn()) throw new Error(`这台电脑正在算「${t}」，显卡腾不出来：先点「暂停计算」再试（或者把大脑换成云端，就不用停）`);
     const { xz } = S();
-    await xz.send(String(text || "").slice(0, 4000), []);
+    try { await xz.send(String(text || "").slice(0, 4000), []); }
+    finally { try { chatSave(); } catch (e) { log("对话没存上：" + e.message); } }
     // 这一句说完了：要是刚才下好了新版，现在换上
     fuse("说完一句").catch(() => {});
     return state();
@@ -495,10 +551,11 @@ function create(o) {
     // 训练任务要开始了：把显存让出来（声音组件、听写；本地大模型由 service 关）
     releaseGpu: () => { try { voice.stop(); } catch (e) {} try { ear.stop(); } catch (e) {} },
     apiStop: () => api.stop(false),
-    stop: () => S().xz.stop(), reset: () => { S().xz.reset(); return true; },
+    stop: () => S().xz.stop(), reset: () => { S().xz.reset(); chatId = null; return true; },
+    chatList: () => chats.list(), chatOpen: (id) => chats.open(id), chatRemove: (id) => chats.remove(id), chatRename: (id, t) => chats.rename(id, t),
     // 云端大脑：看设置、改设置（换了大脑就开一段新对话：两边的对话记录格式不一样）、试一下连不连得上
     cloudInfo: () => cloud.info(),
-    cloudSet: (patch) => { const before = cloud.info(), r = cloud.setConfig(patch || {}); if (before.current !== r.current || before.think !== r.think) { try { S().xz.reset(); } catch (e) {} } return r; },
+    cloudSet: (patch) => { const before = cloud.info(), r = cloud.setConfig(patch || {}); if (before.current !== r.current || before.think !== r.think) { try { S().xz.reset(); chatId = null; } catch (e) {} } return r; },
     cloudModels: (id) => cloud.listModels(String(id || "")),
     // 「多个助手一起做」开关（对话框下面）
     setTeam: (on) => S().xz.setTeam(!!on),
@@ -515,7 +572,7 @@ function create(o) {
     teacherVoiceText: (t) => { const r = tv.setText(t); if (r.ready && voicePref !== "teacher") setVoicePref("teacher"); return { ...r, voice: voiceInfo() }; },
     teacherVoicePreview: () => tv.preview(),
     teacherVoiceWipe: () => { const r = tv.wipe(); if (voicePref === "teacher") setVoicePref("kokoro"); return { ...r, voice: voiceInfo() }; },
-    setRole: async (r) => { S().xz.setRole(r); return state(); },
+    setRole: async (r) => { const was = S().xz.who().role; S().xz.setRole(r); if (r !== was) chatId = null; return state(); },
     setSpeak: (on) => { speakOn = !!on; if (!speakOn) { try { voice.stop(); } catch (e) {} } return voiceInfo(); },
     approve: async (id, ok) => { S().xz.campus.approveNext(String(id), ok !== false); return state(); },
     campusReset: async () => { S().xz.campus.reset(); S().xz.reset(); return state(); },

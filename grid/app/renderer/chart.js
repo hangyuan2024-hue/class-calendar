@@ -16,7 +16,8 @@ window.LaoChart = function draw(cv, series, opt = {}) {
   let x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
   if (x1 === x0) x1 = x0 + 1; if (y1 === y0) { y1 += 0.5; y0 -= 0.5; }
   const px = (x) => L + (x - x0) / (x1 - x0) * (W - L - R), py = (y) => T + (1 - (y - y0) / (y1 - y0)) * (H - T - B);
-  g.strokeStyle = "rgba(120,170,255,.1)"; g.fillStyle = "#5b6a8c"; g.textAlign = "right";
+  const light = document.body.classList.contains("clean");
+  g.strokeStyle = light ? "rgba(0,0,0,.07)" : "rgba(120,170,255,.1)"; g.fillStyle = light ? "#868e8a" : "#5b6a8c"; g.textAlign = "right";
   for (let i = 0; i <= 4; i++) {
     const y = y0 + (y1 - y0) * i / 4, Y = py(y);
     g.beginPath(); g.moveTo(L, Y); g.lineTo(W - R, Y); g.stroke();
@@ -25,7 +26,7 @@ window.LaoChart = function draw(cv, series, opt = {}) {
   }
   g.textAlign = "center"; g.fillText(String(Math.round(x0)), L, H - 6); g.fillText(String(Math.round(x1)), W - R - 10, H - 6);
   const grad = g.createLinearGradient(0, T, 0, H - B);
-  const c = opt.color || "#36e2ff";
+  const c = opt.color || (document.body.classList.contains("clean") ? "#12946a" : "#36e2ff");
   grad.addColorStop(0, c + "55"); grad.addColorStop(1, c + "00");
   g.beginPath(); pts.forEach((p, i) => (i ? g.lineTo : g.moveTo).call(g, px(p[0]), py(fy(p[1]))));
   g.lineTo(px(pts[pts.length - 1][0]), H - B); g.lineTo(px(pts[0][0]), H - B); g.closePath(); g.fillStyle = grad; g.fill();

@@ -59,6 +59,8 @@
     "app/renderer/fonts.css",
     "app/renderer/fonts/**",
     "app/renderer/show.js",
+    "app/renderer/md.js",
+    "app/renderer/vendor/katex/**",
     "app/renderer/models-ui.js",
     "app/renderer/avatar-ui.js",
     "app/renderer/checkup.js",

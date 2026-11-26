@@ -355,7 +355,7 @@ ${cur ? `现在手上的 PPT：「${cur.title}」，一共 ${cur.pages} 页（�
   }
 
   return {
-    send: async (text, images) => { await boot; lastImgs = Array.isArray(images) ? images.slice(0, 6) : []; return agent.send(text, images); }, stop: () => { team.stop(); return agent.stop(); }, reset: () => agent.reset(), busy: () => agent.busy(), history: () => agent.history(),
+    send: async (text, images) => { await boot; lastImgs = Array.isArray(images) ? images.slice(0, 6) : []; return agent.send(text, images); }, stop: () => { team.stop(); return agent.stop(); }, reset: () => agent.reset(), load: (ms) => { lastKind = ""; return agent.load(ms); }, busy: () => agent.busy(), history: () => agent.history(),
     setRole(r) { if (!["student", "teacher", "staff"].includes(r)) throw new Error("身份只有：学生、教师、教务员"); if (r !== role) { role = r; lastKind = ""; agent.reset(); } return who(); },
     who, product, campus, checkup, kb, ground, mindmap, makePpt, openPpt, lastPpt, slides, pptTheme, pptUndo, pptExam, lastExam, pick, tools, ready: () => boot, deck: () => (cur ? cur.d : null),
     // 打电话模式：开着时每一句都按语音通话的规则说

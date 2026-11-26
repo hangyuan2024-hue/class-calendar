@@ -248,6 +248,36 @@ const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
     ok("老师的声音：先勾授权；传一段录音 → 本机听写、截一段当参考（听不清就让老师填文字）→ 捞小智默认用老师的声音说话（带口型）；一键删掉换回原来的声音");
   }
 
+  // 6.9 对话历史：每段存在这台电脑上，左边列出来；点开接着聊（记录放回去），能改名、删掉；新对话另起一段
+  {
+    show.reset();
+    await show.send("历史一：解方程 2x+3=11");
+    let L = show.chatList(); const first = L.list[0];
+    assert.ok(first && /^历史一/.test(first.title) && L.cur === first.id && first.n === 1, JSON.stringify(L));
+    await show.send("历史一的第二句");
+    L = show.chatList(); assert.equal(L.list.filter((x) => x.id === first.id).length, 1); assert.equal(L.list[0].n, 2);
+    show.reset(); assert.equal(show.chatList().cur, null);
+    await show.send("历史二：鸡兔同笼");
+    L = show.chatList(); assert.ok(/^历史二/.test(L.list[0].title) && L.list[1].id === first.id, "新的在最前");
+    const o = await show.chatOpen(first.id);
+    assert.equal(o.id, first.id); assert.deepEqual(o.view.filter((v) => v.k === "me").map((v) => v.t), ["历史一：解方程 2x+3=11", "历史一的第二句"]);
+    assert.ok(o.view.some((v) => v.k === "bot" && /解得/.test(v.t)));
+    const n0 = reqs.length; await show.send("接着问");
+    const sent = reqs.slice(n0)[0].messages.filter((m) => m.role === "user").map((m) => m.content);
+    assert.ok(sent.includes("历史一的第二句") && sent.includes("接着问") && !sent.some((c) => /历史二/.test(String(c))), "点开以前的接着聊：带的是那一段的记录");
+    assert.equal(show.chatList().list[0].id, first.id, "接着聊的那段挪到最前");
+    show.chatRename(first.id, "  方程练习  "); assert.equal(show.chatList().list.find((x) => x.id === first.id).title, "方程练习");
+    await show.send("再问一句"); assert.equal(show.chatList().list[0].title, "方程练习", "改过的名字不被第一句话盖掉");
+    assert.throws(() => show.chatRename(first.id, "   "), /不能是空的/);
+    await assert.rejects(() => show.chatOpen("../../etc/passwd"), /没有这段对话/);
+    show.chatRemove(first.id);
+    L = show.chatList(); assert.ok(!L.list.some((x) => x.id === first.id) && L.cur === null);
+    assert.ok(!fs.existsSync(path.join(tmp, "work", "show", "chats", first.id + ".json")));
+    assert.ok(ev.some((e) => e.type === "chats"));
+    show.reset();
+  }
+  ok("对话历史：每段存在本机、新的在前；点开以前的接着聊（带的是那段的记录）；改名、删除；新对话另起一段");
+
   // 7. 换身份、审批、重开还在
   st = await show.setRole("teacher"); assert.equal(st.who.me.role, "教师");
   show.shutdown();

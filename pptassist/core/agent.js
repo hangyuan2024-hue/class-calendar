@@ -246,7 +246,28 @@ function create(opt) {
     if (!latex) throw new Error("没认出公式：照片拍清楚一点、只拍公式那一块再试");
     return { latex, text: M.linear(latex) };
   }
-  return { send, stop, reset, ocr, history: () => messages.slice(), busy: () => !!busy };
+  // 接着以前的一段对话聊：把那段的记录放回来（图片不留；工具调用和结果成对留着，半截的丢掉）
+  function load(ms) {
+    stop(); images = [];
+    const ok = (Array.isArray(ms) ? ms : []).filter((m) => m && ["user", "assistant", "tool"].includes(m.role));
+    const out = [];
+    for (let i = 0; i < ok.length; i++) {
+      const m = ok[i];
+      if (m.role === "assistant" && Array.isArray(m.tool_calls) && m.tool_calls.length) {
+        const ids = new Set(m.tool_calls.map((c) => c.id)), res = [];
+        let j = i + 1; while (j < ok.length && ok[j].role === "tool" && ids.has(ok[j].tool_call_id)) res.push(ok[j++]);
+        if (res.length === ids.size) { out.push(m, ...res); i = j - 1; continue; }
+        if (m.content) out.push({ role: "assistant", content: m.content, ...(m.reasoning_content != null ? { reasoning_content: m.reasoning_content } : {}) });
+        i = j - 1; continue;
+      }
+      if (m.role === "tool") continue;
+      if (m.role === "user" && Array.isArray(m.content)) { const t = m.content.filter((c) => c.type === "text").map((c) => c.text).join("\n"); out.push({ role: "user", content: t || "（发过一张图片）" }); continue; }
+      out.push(m);
+    }
+    messages = out;
+    return messages.length;
+  }
+  return { send, stop, reset, load, ocr, history: () => messages.slice(), busy: () => !!busy };
 }
 
 module.exports = { create, runPpt, READS, SYSTEM, PPT_RULES, TOOLS, PAGE, PAGE0, pageOf, toolSchema, say };
