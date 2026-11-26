@@ -446,7 +446,7 @@ function create(o) {
     const { xz } = S(); await xz.ready(); await sysCheck();
     const me = xz.who(), actor = xz.campus.identities()[me.role], lp = xz.lastPpt();
     return { who: me, product: xz.product(), busy: xz.busy(), voice: voiceInfo(), prep: await prepStatus(), call: callInfo(), llm: { ok: !!(o.llm && o.llm.ok()), running: !!(o.llm && o.llm.running && o.llm.running()) },
-      cloud: cloud.info(), task: o.busy ? o.busy() : null, ppt: lp ? { name: path.basename(lp.file), title: lp.title, pages: lp.pages, rev: lp.rev } : null, exam: xz.lastExam(),
+      cloud: cloud.info(), team: xz.teamMode(), task: o.busy ? o.busy() : null, ppt: lp ? { name: path.basename(lp.file), title: lp.title, pages: lp.pages, rev: lp.rev } : null, exam: xz.lastExam(),
       requests: xz.campus.myRequests(actor).requests.slice(0, 8), pending: xz.campus.pending(actor).requests.slice(0, 8), campus: xz.campus.stats() };
   }
   async function send(text) {
@@ -498,8 +498,11 @@ function create(o) {
     stop: () => S().xz.stop(), reset: () => { S().xz.reset(); return true; },
     // 云端大脑：看设置、改设置（换了大脑就开一段新对话：两边的对话记录格式不一样）、试一下连不连得上
     cloudInfo: () => cloud.info(),
-    cloudSet: (patch) => { const before = cloud.info(), r = cloud.setConfig(patch || {}); if (before.on !== r.on || before.model !== r.model || before.think !== r.think) { try { S().xz.reset(); } catch (e) {} } return r; },
-    cloudTest: () => cloud.test(),
+    cloudSet: (patch) => { const before = cloud.info(), r = cloud.setConfig(patch || {}); if (before.current !== r.current || before.think !== r.think) { try { S().xz.reset(); } catch (e) {} } return r; },
+    cloudModels: (id) => cloud.listModels(String(id || "")),
+    // 「多个助手一起做」开关（对话框下面）
+    setTeam: (on) => S().xz.setTeam(!!on),
+    cloudTest: (v) => cloud.test(v || undefined),
     // 老师的声音：传录音（要授权）→ 挑好参考、默认就用它；改参考文字；听一下截出来的那段；删掉
     teacherVoice: () => tv.info(),
     teacherVoiceFrom: async (file, consent) => {

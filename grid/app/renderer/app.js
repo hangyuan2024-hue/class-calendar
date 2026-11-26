@@ -10,8 +10,9 @@
   const pts = (p) => (p < 10 ? Math.round(p * 10) / 10 : Math.round(p));
   const dur = (s) => (s == null ? "—" : s < 90 ? Math.round(s) + " 秒" : s < 5400 ? Math.round(s / 60) + " 分钟" : (s / 3600).toFixed(1) + " 小时");
 
-  let S = null, page = "home", ov = null, curTask = null, metricKey = null;
+  let S = null, page = "show", ov = null, curTask = null, metricKey = null;
   const curve = [];
+  document.body.classList.add("clean");   // 捞小智版：简洁风格（通用版在 edition() 里去掉）
   window.LaoBg($("#bg"));
   const star = window.LaoStar($("#star"));
 
@@ -32,6 +33,10 @@
     if (p === "settings") loadSettings();
   }
   $$(".side a").forEach((a) => (a.onclick = () => go(a.dataset.p)));
+  window.addEventListener("lg-go", (e) => go(e.detail));   // 对话框下面「接自己的模型…」→ 插件页
+  // 捞捞算力要用密钥（管理员发的邀请链接）登录才出现；没登录时一打开就是捞小智
+  $("#navJoin").onclick = () => { $("#joinPage").hidden = false; $("#appShell").hidden = true; $("#jBack").hidden = false; };
+  $("#jBack").onclick = () => { $("#joinPage").hidden = true; $("#appShell").hidden = false; };
 
   // ---------- 加入 ----------
   $("#jGo").onclick = async () => {
@@ -41,9 +46,10 @@
     try {
       await call("consent", true);
       S = await call("join", $("#jInvite").value, $("#jName").value, $("#jDev").value);
-      boot();
+      boot.went = true; page = "guide";   // 刚登录：先去任务向导（体检、装环境）
+      await boot();
     } catch (e) { $("#jErr").textContent = String(e.message || e).replace(/^Error invoking remote method '\w+': (Error: )?/, ""); }
-    $("#jGo").disabled = false; $("#jGo").textContent = "加入训练网";
+    $("#jGo").disabled = false; $("#jGo").textContent = "登录捞捞算力";
   };
 
   // ---------- 状态 ----------
@@ -445,8 +451,9 @@
   // ---------- 启动 ----------
   // 通用版（自己搭调度中心的训练网用）：没有成品展示，加入页的说明不提捞捞的模型
   function edition() {
+    document.title = "捞捞算力 通用版"; document.body.classList.remove("clean");
+    document.querySelectorAll('[data-p="show"], #p-show, [data-p="plugins"], #p-plugins, #navJoin').forEach((el) => el.remove());
     document.title = "捞捞算力 通用版";
-    document.querySelectorAll('[data-p="show"], #p-show').forEach((el) => el.remove());
     const sub = $("#joinPage .sub"); if (sub) sub.textContent = "几台电脑一起训练模型：一台停了，下一台接着算。（通用版：加入你们自己搭的训练网）";
     const c = $("#jConsent"); if (c && c.parentNode) c.parentNode.lastChild.textContent = " 我同意：用这台电脑的空闲算力帮这个训练网训练模型；录表情时只上传表情参数和录音，不上传视频；随时可以暂停或退出。";
     const b = $(".brand b"); if (b) b.textContent = "捞捞算力 通用版";
@@ -454,8 +461,13 @@
   async function boot() {
     S = await call("status");
     if (S.edition === "open") edition();
-    if (!S.joined) { $("#joinPage").hidden = false; $("#appShell").hidden = true; return; }
+    const open = S.edition === "open";
+    // 通用版（只是训练网）：没登录就是登录页；捞小智版：没登录也直接进捞小智，捞捞算力那几页藏着
+    if (open && !S.joined) { $("#joinPage").hidden = false; $("#appShell").hidden = true; return; }
     $("#joinPage").hidden = true; $("#appShell").hidden = false;
+    $("#verLabel").textContent = "v" + (S.version || "");
+    $("#navGrid").hidden = !S.joined; $("#gridFoot").hidden = !S.joined; if ($("#navJoin")) $("#navJoin").hidden = !!S.joined;
+    if (!S.joined) { $("#meName").textContent = "校园智能体"; go("show"); return; }
     $("#meName").textContent = `${S.me ? S.me.name : ""} · ${S.deviceName}`;
     $("#navAdmin").hidden = !(S.me && S.me.role === "admin");
     $("#verLabel").textContent = "v" + (S.version || "");
@@ -464,10 +476,12 @@
     if (S.agent) { paintState(S.agent); if (S.agent.task) { curTask = S.agent.task; $("#lvJob").textContent = S.agent.task.job.name; const src = await call("source", S.agent.task.id); showSource(src); } S.agent.logs.slice(-80).forEach(addLog); paintGpu(S.agent.gpu); }
     paintGuide();
     const first = ["probe", "env", "test", "ai", "record", "policy"].find((k) => !S.steps[k]);
-    go(first && !S.steps.probe ? "guide" : "home");
+    // 打开默认进捞小智；通用版没有捞小智，照旧进星图 / 任务向导
+    go(!open ? (boot.went ? page : "show") : first && !S.steps.probe ? "guide" : "home"); boot.went = true;
     clearInterval(boot.t); boot.t = setInterval(() => { if (page === "home") refreshOverview(); else if (page === "review" && !rv) loadReview(); }, 3000);
     refreshOverview();
   }
-  boot();
+  // 等后面的脚本（show.js 这些）都加载完再开始：一打开就进捞小智，它得先在听「进到这一页了」
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => boot()); else boot();
   window.__ready = true;
 })();

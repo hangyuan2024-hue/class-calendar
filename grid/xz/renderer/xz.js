@@ -15,3 +15,14 @@
   }
   setTimeout(check, 3000); setInterval(check, 10 * 60e3);
 })();
+// 没有左边栏：对话页顶上加一个「插件」按钮，插件页顶上「回到对话」；对话框下面「接自己的模型…」也跳到插件页
+(function () {
+  "use strict";
+  const $ = (s) => document.querySelector(s);
+  const go = (p) => { document.querySelectorAll(".page").forEach((x) => x.classList.toggle("on", x.id === "p-" + p)); window.dispatchEvent(new CustomEvent("lg-page", { detail: p })); };
+  const b = document.createElement("button"); b.className = "btn small"; b.textContent = "⧉ 插件"; b.onclick = () => go("plugins");
+  const head = $("#p-show .sh-head"); if (head) head.insertBefore(b, $("#shNew"));
+  const back = document.createElement("button"); back.className = "btn small"; back.textContent = "← 回到对话"; back.style.marginLeft = "12px"; back.onclick = () => go("show");
+  const h2 = $("#p-plugins h2"); if (h2) h2.appendChild(back);
+  window.addEventListener("lg-go", (e) => go(e.detail));
+})();

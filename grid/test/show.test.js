@@ -149,6 +149,10 @@ const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
   assert.ok(reqs.length > nq); assert.equal(cq.model, "deepseek-flash"); assert.deepEqual(cq.thinking, { type: "enabled" }); assert.equal(cq.temperature, undefined);
   assert.equal(ensured.length, ne, "云端开着：不启动本机模型、不占显卡");
   assert.equal((await show.cloudTest()).ok, true);
+  // 对话框下面：选模型（下拉里有本机 + 填了 Key 的那几家）、「多个助手一起做」
+  st = await show.state(); assert.ok(st.cloud.choices.some((x) => x.value === "deepseek/deepseek-flash") && st.cloud.choices[0].value === "local");
+  assert.equal(st.team, false); show.setTeam(true); assert.equal((await show.state()).team, true); show.setTeam(false);
+  show.cloudSet({ current: "deepseek/deepseek-v4-pro" }); assert.equal((await show.state()).cloud.current, "deepseek/deepseek-v4-pro"); show.cloudSet({ current: "deepseek/deepseek-flash" });
   task = null; show.cloudSet({ brain: "local" }); assert.equal((await show.state()).cloud.on, false);
   ok("大脑换成云端（DeepSeek）：这台电脑在算任务也能问、不启动本机模型；准备组件不用下本地大模型；换回本机照旧");
 

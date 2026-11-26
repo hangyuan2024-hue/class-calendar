@@ -449,6 +449,8 @@ function create(opt) {
   }
   fs.mkdirSync(path.join(work, "recipes"), { recursive: true });
   fs.mkdirSync(path.join(work, "tasks"), { recursive: true });
+  // 上次没删完的旧任务文件夹（改了名等着删的）：开机顺手清掉
+  try { for (const n of fs.readdirSync(path.join(work, "tasks"))) if (/\.old-\d+$/.test(n)) fs.rm(path.join(work, "tasks", n), { recursive: true, force: true }, () => {}); } catch (e) {}
   // 下载缓存（任务要用的输入文件）：10 天没用到的清掉
   try { const d = path.join(work, "cache", "inputs"); for (const f of fs.readdirSync(d)) { const x = path.join(d, f); try { if (Date.now() - fs.statSync(x).mtimeMs > 10 * 86400e3) fs.rmSync(x, { force: true }); } catch (e) {} } } catch (e) {}
   const python = () => (typeof opt.python === "function" ? opt.python() : opt.python) || (process.platform === "win32" ? "python" : "python3");
@@ -1042,7 +1044,13 @@ function create(opt) {
     } finally {
       clearInterval(renewTimer);
       if (cur === c) cur = null;
-      if (!opt.keepTaskDirs) fs.rm(dir, { recursive: true, force: true }, () => {});
+      // 先同步改个名再慢慢删：同一个任务马上又领回这台电脑时（出错重来、接着存档算），新建的 tasks/<id> 不会被这次的后台删除删掉
+      if (!opt.keepTaskDirs) {
+        let gone = dir;
+        try { gone = dir + ".old-" + Date.now(); fs.renameSync(dir, gone); } catch (e) { gone = dir; }
+        if (gone === dir) { try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) {} }
+        else fs.rm(gone, { recursive: true, force: true }, () => {});
+      }
       lastLease = 0;
       // 手上还有别的在算（不该有，以防万一）：状态照实写「在算」，不写「没有要算的」
       if (cur) setState("busy", cur.job.name);

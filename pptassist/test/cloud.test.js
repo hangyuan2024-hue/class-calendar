@@ -11,6 +11,7 @@ const ok = (m) => console.log("✓ " + m);
   // ---------- 假的 DeepSeek ----------
   const reqs = []; let mode = "ok";
   const srv = http.createServer((q, r) => {
+    if (q.method === "GET" && /\/models$/.test(q.url)) { r.writeHead(200, { "content-type": "application/json" }); return r.end(JSON.stringify({ data: [{ id: "qwen-plus" }, { id: "qwen3-max" }, { id: "坏 名字" }] })); }
     let b = ""; q.on("data", (c) => (b += c));
     q.on("end", () => {
       const body = JSON.parse(b || "{}"); reqs.push({ url: q.url, auth: q.headers.authorization, body });
@@ -116,6 +117,35 @@ const ok = (m) => console.log("✓ " + m);
   assert.equal(CHAT.endpoint("https://dashscope.aliyuncs.com/compatible-mode/v1/"), "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions");
   assert.equal(CHAT.endpoint("http://127.0.0.1:18097"), "http://127.0.0.1:18097/v1/chat/completions");
   ok("试一下：Key 对就回「好的」和用了多久；Key 不对、余额不足、连不上都说人话；地址带不带 /v1 都行");
+
+  // ---------- 多家模型：填别家的 Key、切换、各家思考参数不一样、拉模型列表、干活模型 ----------
+  assert.throws(() => cloud.setConfig({ current: "qwen/qwen-plus" }), /先填 通义千问.*API Key/);
+  I = cloud.setConfig({ provider: { id: "qwen", key: "sk-qwen1234567890" } });
+  assert.ok(I.choices.some((x) => x.value === "qwen/qwen-plus"), "填了 Key，下拉里就有它的模型"); assert.ok(I.choices.some((x) => x.value === "deepseek/deepseek-flash")); assert.equal(I.choices[0].value, "local");
+  I = cloud.setConfig({ current: "qwen/qwen-plus" }); assert.equal(I.current, "qwen/qwen-plus"); assert.match(I.currentName, /通义千问.* · qwen-plus/);
+  let n1 = reqs.length;
+  r = await cloud.chat([{ role: "user", content: "你好" }, { role: "assistant", content: "好", reasoning_content: "想" }, { role: "user", content: "鸡兔同笼" }], { temperature: 0.3 });
+  q = reqs[n1]; assert.equal(q.auth, "Bearer sk-qwen1234567890"); assert.equal(q.body.model, "qwen-plus");
+  assert.equal(q.body.enable_thinking, undefined, "自动：用它自己的默认，不传"); assert.equal(q.body.thinking, undefined); assert.equal(q.body.temperature, 0.3);
+  assert.ok(!JSON.stringify(q.body.messages).includes("reasoning_content"), "别家不认 reasoning_content：去掉"); assert.equal(r.reasoning_content, undefined); assert.equal(r.model, "qwen/qwen-plus");
+  cloud.setConfig({ think: "on" }); await cloud.chat([{ role: "user", content: "x" }]); assert.equal(reqs[reqs.length - 1].body.enable_thinking, true);
+  cloud.setConfig({ think: "auto" });
+  // 干活模型：默认这家最便宜的那个；临时指定别的模型
+  assert.equal(cloud.workerModel(), "qwen/qwen-flash", "大任务里的助手默认用这家便宜的那个");
+  cloud.setConfig({ provider: { id: "qwen", models: "qwen3-max" } });
+  cloud.setConfig({ worker: "deepseek/deepseek-flash" }); assert.equal(cloud.workerModel(), "deepseek/deepseek-flash", "也能指定"); cloud.setConfig({ worker: "" });
+  await cloud.chat([{ role: "user", content: "x" }], { model: "deepseek/deepseek-flash", think: false }); assert.equal(reqs[reqs.length - 1].body.model, "deepseek-flash"); assert.equal(reqs[reqs.length - 1].auth, "Bearer sk-test1234567890abcd");
+  assert.ok(cloud.info().choices.some((x) => x.value === "qwen/qwen3-max"), "自己加的模型名也在下拉里");
+  // 拉模型列表（它的 /models）
+  const lm = await cloud.listModels("qwen"); assert.equal(lm.from, "api"); assert.deepEqual(lm.models, ["qwen-plus", "qwen3-max"]);
+  // 自定义接口：要地址
+  assert.throws(() => cloud.setConfig({ provider: { id: "custom", base: "ftp://x" } }), /http/);
+  cloud.setConfig({ provider: { id: "custom", base: base + "/v1", key: "sk-custom12345678", name: "学校的模型", models: "school-7b" } });
+  I = cloud.setConfig({ current: "custom/school-7b" }); assert.match(I.currentName, /学校的模型 · school-7b/);
+  await cloud.chat([{ role: "user", content: "x" }]); assert.equal(reqs[reqs.length - 1].body.model, "school-7b"); assert.equal(reqs[reqs.length - 1].body.thinking, undefined, "不认识的接口：不传思考参数");
+  I = cloud.setConfig({ provider: { id: "custom", remove: true } }); assert.equal(I.current, "local", "删掉正在用的那家：回到本机");
+  cloud.setConfig({ current: "deepseek/deepseek-flash" });
+  ok("多家模型：填了哪家的 Key 下拉里就有哪家；切换模型；各家思考参数照它的来（DeepSeek thinking、通义 enable_thinking、不认识的不传）；别家去掉 reasoning_content；能拉模型列表、加自己的模型名、接自定义接口；干活模型默认用便宜的");
 
   // ---------- 关掉云端 → 全回本机 ----------
   cloud.setConfig({ brain: "local" });

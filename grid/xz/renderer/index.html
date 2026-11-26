@@ -4,10 +4,11 @@
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: file:; media-src 'self' blob: data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>捞小智</title>
+<link rel="stylesheet" href="../../app/renderer/fonts.css">
 <link rel="stylesheet" href="../../app/renderer/style.css">
 <link rel="stylesheet" href="xz.css">
 </head>
-<body class="xz">
+<body class="xz clean">
 <div class="shell xz-shell">
   <main>
     <div class="xz-trial" id="xzTrial">
@@ -18,26 +19,19 @@
     </div>
     <section class="page on" id="p-show">
       <div class="sh-head">
-        <h2>捞小智 <small class="muted">讲题、做 PPT、办教务的事、打电话 · 训练出新版自动换上</small></h2>
-        <span class="sh-build" id="shBuild">成品 第 0 版</span>
+        <h2>捞小智</h2>
+        <span class="sh-build" id="shBuild" title="捞捞自己训练的几样本事，每训练、考试通过一版加一">成品 第 0 版</span>
         <span class="grow"></span>
-        <label class="muted sh-chk"><input type="checkbox" id="shSpeak" checked> 开口说话</label>
-        <select id="shVoicePick" title="用哪种声音：Kokoro 女声不用装别的；真人感要先装好声音组件"><option value="kokoro">声音：Kokoro 女声</option><option value="real">声音：真人感（声音组件）</option><option value="teacher">声音：老师的声音</option></select>
-        <button class="btn small" id="shVoiceTest" title="每种声音都试一句：哪种能用、不能用的原因">试一下声音</button>
-        <button class="btn small" id="shVoiceExam" title="用现在的声音念几句固定的话，再用本机听写听回来：看错字率、数字念对没有（不用人听）">声音考试</button>
-        <button class="btn small" id="shKb" title="捞小智回答事实类问题时先查这里的资料（讲义、学生手册、通知），照资料回答、逐句核对">知识库</button>
-        <button class="btn small" id="shMm" title="让捞捞思维导图用捞小智（本机模型）回答：导图里提问、生成、复核都不用外面平台的 Key">接入思维导图</button>
-        <button class="btn small" id="shWebExam" title="一套固定的联网问答题：第一次上网录一遍存成快照，以后都按快照考，看答对率、出处对不对">联网考试</button>
         <select id="shRole" title="换一个身份试试：学生、教师（辅导员）、教务员能办的事不一样"></select>
         <button class="btn small" id="shNew">新对话</button>
-        <button class="btn small primary" id="shFull" title="全屏展示（Esc 退出）">⛶ 全屏展示</button>
+        <button class="btn small" id="shFull" title="全屏（Esc 退出）">⛶ 全屏</button>
       </div>
-      <div class="warnbox" id="shBusy" hidden><span id="shBusyTip"></span><div class="btns"><button class="btn small primary" id="shPause">暂停计算，开始展示</button></div></div>
-      <div class="warnbox ok" id="shPaused" hidden>为了展示，这台电脑的计算先停着（手上的任务交给别人从存档接着算了）。<div class="btns"><button class="btn small" id="shResume">看完了，接着算</button></div></div>
+      <div class="warnbox" id="shBusy" hidden><span id="shBusyTip"></span><div class="btns"><button class="btn small primary" id="shPause">暂停计算，开始对话</button></div></div>
+      <div class="warnbox ok" id="shPaused" hidden>为了对话，这台电脑的计算先停着（手上的任务交给别人从存档接着算了）。<div class="btns"><button class="btn small" id="shResume">接着算</button></div></div>
       <div class="sh-prep glass" id="shPrep" hidden>
         <div class="hd"><b>先准备好捞小智要用的组件</b><span class="muted small">都从国内存储下载，断了会接着下；只下这一次</span></div>
         <div class="list"></div>
-        <div class="cloudq" hidden><span class="muted small">不想下本地大模型？填上 DeepSeek 的 API Key，讲题、做 PPT、办事都交给云端（按用量付费，问题会发到 DeepSeek）：</span><input type="password" autocomplete="off" spellcheck="false" placeholder="sk-…（在 platform.deepseek.com 申请）"><button class="btn small">改用 DeepSeek</button></div>
+        <div class="cloudq" hidden><span class="muted small">不想下本地大模型？填上 DeepSeek 的 API Key，对话都交给云端（按用量付费，问题会发到 DeepSeek；别家的模型在「插件 → 模型」里接）：</span><input type="password" autocomplete="off" spellcheck="false" placeholder="sk-…（在 platform.deepseek.com 申请）"><button class="btn small">改用 DeepSeek</button></div>
         <div class="ft"><span class="tip muted small"></span><span class="grow"></span><button class="btn primary go">开始准备</button><button class="btn use" hidden>开始使用</button></div>
       </div>
       <div class="sh-grid">
@@ -46,31 +40,50 @@
           <div class="sh-deck" id="shDeck" hidden></div>
           <div class="sh-stage" id="shStage"></div>
           <div class="sh-sub" id="shSub"></div>
-          <div class="sh-me"><b>捞小智</b><span class="muted" id="shMe"></span><span class="muted" id="shVoice"></span><button class="btn small" id="shVoiceInstall" hidden>装上声音组件</button></div>
+          <div class="sh-me"><span class="muted" id="shMe"></span><span class="muted" id="shVoice"></span><button class="btn small" id="shVoiceInstall" hidden>装上声音组件</button></div>
           <div class="sh-chips" id="shChips"></div>
         </div>
         <div class="glass sh-chat">
           <div class="sh-log" id="shLog"></div>
           <div class="sh-callbar" id="shCallBar" hidden><span class="dot" id="shCallDot"></span><b id="shCallSt">在听…</b><span class="lvl"><i id="shCallLvl"></i></span><span class="muted small grow" id="shCallTip"></span><button class="btn small" id="shHang">挂断</button></div>
-          <div class="sh-in">
-            <textarea id="shText" rows="2" placeholder="问一道题、让它做一份 PPT（做完接着说怎么改）、或者办一件教务的事（Enter 发送）"></textarea>
-            <button class="btn" id="shCall" title="像打电话一样：一直听着，你说完一停它就回答；它说话的时候你一开口就能打断">📞 打电话</button><button class="btn primary" id="shSend">发送</button><button class="btn" id="shStop" hidden>停下</button>
+          <div class="sh-composer">
+            <textarea id="shText" rows="2" placeholder="问一道题、办一件学校的事、让它做一份 PPT…"></textarea>
+            <div class="sh-bar">
+              <label class="chip" title="用哪个模型回答：本机模型免费、不联网；云端模型要在「插件 → 模型」里填自己的 Key"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7.5 4.3v9.4L12 21l-7.5-4.3V7.3z"/><path d="M12 12l7.5-4.7M12 12v9M12 12L4.5 7.3"/></svg><select id="shModelPick" aria-label="模型"></select></label>
+              <label class="sw" title="大任务（对比、整理、一整套……）拆给几个助手同时做，更快、更省；助手用便宜的模型"><input type="checkbox" id="shTeam"><i></i><span>多个助手</span></label>
+              <label class="sw" title="回答念出来，形象的嘴跟着动"><input type="checkbox" id="shSpeak" checked><i></i><span>念出来</span></label>
+              <label class="chip" title="用哪种声音：Kokoro 女声不用装别的；真人感、老师的声音要先装好声音组件"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg><select id="shVoicePick" aria-label="声音"><option value="kokoro">Kokoro 女声</option><option value="real">真人感</option><option value="teacher">老师的声音</option></select></label>
+              <span class="grow"></span>
+              <span class="tok" id="shTok" title="云端模型今天的用量（估算）"></span>
+              <button class="btn icon" id="shCall" title="打电话：一直听着，你说完一停它就回答；它说话的时候你一开口就能打断" aria-label="打电话"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 4h3.2l1.8 4.6-2.3 1.4a11 11 0 0 0 5.8 5.8l1.4-2.3 4.6 1.8v3.2a2 2 0 0 1-2.2 2A16.5 16.5 0 0 1 3.5 6.2 2 2 0 0 1 5.5 4z"/></svg></button>
+              <button class="btn primary send" id="shSend">发送</button><button class="btn" id="shStop" hidden>停下</button>
+            </div>
           </div>
         </div>
-        <div class="sh-side">
-          <div class="glass sh-card" id="shBrainCard">
-            <div class="sh-card-h"><b>捞小智的大脑</b><span class="grow"></span><span class="muted small" id="shBrainNow">本机模型</span></div>
-            <div class="sh-brain">
-              <label>用哪个<select id="shBrain"><option value="local">本机模型（不联网、不花钱，慢一些）</option><option value="cloud">DeepSeek（云端，答得更好，按用量付费）</option></select></label>
-              <div id="shBrainCloud" hidden>
-                <label>API Key<input type="password" id="shKey" autocomplete="off" spellcheck="false" placeholder="sk-…（在 platform.deepseek.com 申请）"></label>
-                <label>模型<select id="shModel"></select></label>
-                <label>思考<select id="shThink"><option value="auto">自动（讲题、办事时先想再答）</option><option value="on">总是先想再答</option><option value="off">不思考（更快、更省钱）</option></select></label>
-                <div class="muted small" id="shUsage"></div>
-                <div class="muted small">问的问题会发到 DeepSeek 的服务器；照片、截图还是在这台电脑上看。Key 只存在这台电脑上。</div>
-              </div>
-              <div class="btns"><button class="btn small primary" id="shBrainSave">保存</button><button class="btn small" id="shBrainTest" hidden>试一下</button></div>
-            </div>
+      </div>
+      <div class="sh-ticker" id="shTicker"></div>
+    </section>
+
+    <!-- 插件：模型、形象、声音、资料、PPT、教务、检测报告…… -->
+    <section class="page" id="p-plugins">
+      <h2>插件 <small class="muted">捞小智的扩展本事：用到哪个开哪个</small></h2>
+      <div class="pl-grid">
+          <div class="glass sh-card wide" id="mdCard">
+            <div class="sh-card-h"><b>模型</b><span class="grow"></span><span class="muted small" id="mdNow"></span></div>
+            <div class="muted small">接自己的模型：填上哪家的 Key，对话框下面就能选它。Key 只存在这台电脑上，问题会发到那一家。</div>
+            <div id="mdList" class="md-list"></div>
+            <div class="md-row"><label>多个助手一起做时用<select id="mdWorker"></select></label><label>思考<select id="shThink"><option value="auto">自动</option><option value="on">总是先想再答</option><option value="off">不思考（更快、更省）</option></select></label></div>
+            <div class="muted small" id="shUsage"></div>
+          </div>
+          <div class="glass sh-card">
+            <div class="sh-card-h"><b>声音</b></div>
+            <div class="muted small">对话框下面能选声音、开关「念出来」；老师自己的声音在「形象」里做。</div>
+            <div class="btns"><button class="btn small" id="shVoiceTest" title="每种声音都试一句：哪种能用、不能用的原因">试一下声音</button><button class="btn small" id="shVoiceExam" title="用现在的声音念几句固定的话，再用本机听写听回来：看错字率、数字念对没有（不用人听）">声音考试</button></div>
+          </div>
+          <div class="glass sh-card">
+            <div class="sh-card-h"><b>资料和工具</b></div>
+            <div class="muted small">知识库：老师 / 学校放进来的讲义、规定、通知，捞小智回答事实类问题时先查这里、逐句核对。</div>
+            <div class="btns"><button class="btn small" id="shKb" title="捞小智回答事实类问题时先查这里的资料（讲义、学生手册、通知），照资料回答、逐句核对">知识库</button><button class="btn small" id="shMm" title="让捞捞思维导图用捞小智回答：导图里提问、生成、复核都不用外面平台的 Key">接入思维导图</button><button class="btn small" id="shWebExam" title="一套固定的联网问答题：第一次上网录一遍存成快照，以后都按快照考，看答对率、出处对不对">联网考试</button></div>
           </div>
           <div class="glass sh-card">
             <div class="sh-card-h"><b>现在的成品</b><span class="grow"></span><button class="btn small" id="shCheck">看有没有新版</button></div>
@@ -108,9 +121,8 @@
             <div class="muted small" id="shCampus"></div>
             <div class="sh-reqs" id="shReqs"></div>
           </div>
-        </div>
+
       </div>
-      <div class="sh-ticker" id="shTicker"></div>
     </section>
   </main>
 </div>
@@ -124,6 +136,7 @@
 <script src="../../app/renderer/checkup.js"></script>
 <script src="../../app/renderer/show.js"></script>
 <script src="../../app/renderer/avatar-ui.js"></script>
+<script src="../../app/renderer/models-ui.js"></script>
 <script src="xz.js"></script>
 </body>
 </html>

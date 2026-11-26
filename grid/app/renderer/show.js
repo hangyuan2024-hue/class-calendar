@@ -17,7 +17,7 @@
     teacher: [["讲题", ["出三道一元二次方程的练习题，带答案"]], ["做 PPT", ["做一份「期中复习：数组」的课件，7 页"]], ["办事", ["有没有等我审批的申请？", "我这周有哪些课？", "下周的课我要出差，想调到周六上午"]]],
     staff: [["办事", ["有哪些申请等我审批？", "明天上午第 3 节有哪些空教室？"]], ["讲题", ["请假超过 7 天要谁批？"]]],
   };
-  let S = null, bot = null, busy = false, steps = new Map(), av = null, shown = false, timer = null, full = false, brainDirty = false;
+  let S = null, bot = null, busy = false, steps = new Map(), av = null, shown = false, timer = null, full = false;
 
   // ---------- 画 ----------
   function paint() {
@@ -77,7 +77,9 @@
   function hello() {
     const l = $("#shLog"); if (l.children.length || !S) return;
     const d = document.createElement("div"); d.className = "sh-hello";
-    d.innerHTML = `<b>你好，我是捞小智。</b><span>讲题、做 PPT、办教务的事都可以找我，比如：</span>` + (EX[S.who.role] || EX.student).map(([g, xs]) => `<div class="grp"><span>${g}</span>${xs.map((x) => `<button class="ex">${esc(x)}</button>`).join("")}</div>`).join("");
+    const h = new Date().getHours(), part = h < 5 ? "夜深了" : h < 11 ? "早上好" : h < 13 ? "中午好" : h < 18 ? "下午好" : "晚上好", name = S.who && S.who.me ? S.who.me.name : "";
+    d.innerHTML = `<div class="hi">${part}${name ? "，" + esc(name) : ""}</div><p>我是捞小智。讲题、查课表、请假借教室、做 PPT，直接跟我说就行。试试这些：</p>` +
+      `<div class="grps">` + (EX[S.who.role] || EX.student).map(([g, xs]) => `<div class="grp"><span>${g}</span>${xs.map((x) => `<button class="ex">${esc(x)}</button>`).join("")}</div>`).join("") + `</div>`;
     l.appendChild(d);
   }
   const refresh = guard(async () => { S = await call("showState"); paint(); hello(); });
@@ -230,6 +232,21 @@
     if (typeof r.count === "number") return `${e.say}（${r.count} 条）`;
     return e.say + "：好了";
   }
+  // 多个助手一起做：一行一个助手，排队 → 在做 → 在查什么 → 做完（几秒）/ 没做成
+  let teamBox = null;
+  function teamStep(e) {
+    if (e.stage === "plan") {
+      endBot();
+      teamBox = add("sh-step team", `<b>分给 ${e.tasks.length} 个助手同时做</b> <span class="muted">${esc(e.model || "")}</span>` + e.tasks.map((t, i) => `<div class="tm" data-i="${i}"><i>○</i> ${esc(t)} <span class="muted">排队</span></div>`).join(""));
+      return;
+    }
+    const row = teamBox && teamBox.querySelector(`.tm[data-i="${e.i}"]`); if (!row) return;
+    const ic = row.querySelector("i"), st = row.querySelector("span");
+    if (e.stage === "start") { ic.textContent = "◔"; st.textContent = "在做…"; }
+    else if (e.stage === "tool") st.textContent = "在" + (e.say || "查资料") + "…";
+    else if (e.stage === "done") { ic.textContent = e.ok ? "✓" : "✗"; st.textContent = e.ok ? `${e.secs} 秒` : e.error || "没做成"; row.classList.add(e.ok ? "ok" : "bad"); }
+    scroll();
+  }
   window.lg.on("show", (e) => {
     if (e.type === "product") {   // 训练出了新版，后台已经换上
       if (S) { S.product = e.product; paint(); }
@@ -246,6 +263,7 @@
     if (e.type === "note") { if (shown) { const k = "note"; const el = steps.get(k) || add("sh-step run", ""); steps.set(k, el); el.textContent = e.text; scroll(); } return; }
     if (e.type === "delta") { if (!cl.on) avMode("talk"); }
     if (e.type === "delta") { const n = steps.get("note"); if (n) { n.remove(); steps.delete("note"); } return botText(e.text); }
+    if (e.type === "team") { teamStep(e); return; }
     if (e.type === "tool") {
       endBot();
       const key = e.name + JSON.stringify(e.args);
@@ -283,46 +301,36 @@
   $("#shText").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); } });
   $("#shLog").addEventListener("click", (e) => { const b = e.target.closest(".ex"); if (b) send(b.textContent); });
   $("#shNew").onclick = guard(async () => { await call("showReset"); clear(); hello(); });
-  // ---------- 大脑：本机模型 / 云端（DeepSeek）----------
-  //   Key 输入框平时是空的（界面拿不到完整的 Key），只显示后四位；填了新的才换
+  // ---------- 对话框下面：选模型、多个助手一起做、今天的用量 ----------
+  //   模型的 Key、自己加的模型、干活模型在「插件 → 模型」里管（models-ui.js），改完发 lg-models，这里跟着变
   function paintBrain() {
     const c = S && S.cloud; if (!c) return;
-    $("#shBrainNow").textContent = c.on ? `${c.providerName}（云端）` : "本机模型";
-    if (!brainDirty) {
-      $("#shBrain").value = c.brain === "cloud" ? "cloud" : "local";
-      const m = $("#shModel"); if (m.options.length !== c.models.length) m.innerHTML = c.models.map((x) => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join("");
-      m.value = c.model; $("#shThink").value = c.think;
-      $("#shKey").placeholder = c.keySet ? `已经填好（…${c.keyTail}${c.keyFromEnv ? "，来自环境变量" : ""}）；要换就填新的` : `sk-…（在 ${c.site.replace(/^https?:\/\//, "")} 申请）`;
-    }
-    $("#shBrainCloud").hidden = $("#shBrain").value !== "cloud";
-    $("#shBrainTest").hidden = !(c.keySet && $("#shBrain").value === "cloud");
-    const u = c.usage || { today: {}, month: {} };
-    $("#shUsage").textContent = c.keySet ? `用量（估算，以开放平台账单为准）：今天 ${u.today.calls || 0} 次、约 ¥${u.today.cost || 0}；本月约 ¥${u.month.cost || 0}。现在是${c.peak ? "高峰时段（工作日 9–12 点、14–18 点，价格翻倍）" : "空闲时段（半价）"}` : "";
+    const sel = $("#shModelPick"), want = (c.choices || []).map((x) => x.value + "|" + x.name).join(",");
+    if (sel.dataset.v !== want) { sel.innerHTML = (c.choices || [{ value: "local", name: "本机模型" }]).map((x) => `<option value="${esc(x.value)}">${esc(x.name)}</option>`).join("") + `<option value="__add">＋ 接自己的模型…</option>`; sel.dataset.v = want; }
+    sel.value = c.current || "local";
+    $("#shTeam").checked = !!S.team;
+    const u = c.usage || { today: {} };
+    $("#shTok").textContent = c.on || (u.today && u.today.calls) ? `今天 ${u.today.calls || 0} 次 · ${fmtTok(u.today.tokens || 0)}${u.today.cost ? ` · 约 ¥${u.today.cost}` : ""}` : "";
+    if ($("#shUsage")) $("#shUsage").textContent = u.today && u.today.calls ? `云端用量（估算，以各家账单为准）：今天 ${u.today.calls} 次、${fmtTok(u.today.tokens || 0)} tokens（其中 ${fmtTok(u.today.cached || 0)} 命中缓存，便宜几十倍）${u.today.cost ? `、DeepSeek 约 ¥${u.today.cost}` : ""}；本月 ${u.month.calls || 0} 次${u.month.cost ? `、约 ¥${u.month.cost}` : ""}。${c.provider === "deepseek" && c.on ? (c.peak ? "现在是 DeepSeek 高峰时段（工作日 9–12 点、14–18 点，价格翻倍）。" : "现在是 DeepSeek 空闲时段（半价）。") : ""}` : "";
   }
+  const fmtTok = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? Math.round(n / 1e3) + "k" : String(n)) + (n ? " tokens" : "");
+  $("#shModelPick").onchange = guard(async () => {
+    const v = $("#shModelPick").value;
+    if (v === "__add") { $("#shModelPick").value = (S && S.cloud && S.cloud.current) || "local"; window.dispatchEvent(new CustomEvent("lg-go", { detail: "plugins" })); return; }
+    const was = S && S.cloud && S.cloud.current;
+    try { S = await call("showCloudSet", { current: v }); } catch (e) { paintBrain(); throw e; }
+    paint();
+    if (was !== S.cloud.current) { clear(); hello(); toast("换成「" + S.cloud.currentName + "」：开了一段新对话"); }
+  });
+  $("#shTeam").onchange = guard(async () => { S = await call("showTeam", $("#shTeam").checked); paint(); toast(S.team ? "大任务会拆给几个助手同时做（用「" + (S.cloud.workerName || "本机模型") + "」）" : "不拆了：捞小智自己做"); });
+  window.addEventListener("lg-models", async () => { try { const was = S && S.cloud ? S.cloud.current + "|" + S.cloud.think : ""; S = await call("showState"); paint(); if (was && was !== S.cloud.current + "|" + S.cloud.think) { clear(); hello(); } } catch (e) {} });
   { const cq = document.querySelector("#shPrep .cloudq");
     if (cq) cq.querySelector("button").onclick = guard(async () => {
       const k = cq.querySelector("input").value.trim(); if (!k) return toast("先填 DeepSeek 的 API Key（在 platform.deepseek.com 申请）", true);
-      S = await call("showCloudSet", { brain: "cloud", key: k }); cq.querySelector("input").value = ""; brainDirty = false; paint();
+      S = await call("showCloudSet", { brain: "cloud", key: k }); cq.querySelector("input").value = ""; paint();
+      window.dispatchEvent(new CustomEvent("lg-models-changed"));
       const r = await call("showCloudTest"); toast(`改用 DeepSeek 了：${(r.ms / 1000).toFixed(1)} 秒连上，不用下本地大模型`);
     }); }
-  $("#shBrain").onchange = () => { brainDirty = true; paintBrain(); };
-  $("#shModel").onchange = $("#shThink").onchange = $("#shKey").oninput = () => { brainDirty = true; };
-  $("#shBrainSave").onclick = guard(async () => {
-    const patch = { brain: $("#shBrain").value, model: $("#shModel").value, think: $("#shThink").value }, k = $("#shKey").value.trim();
-    if (k) patch.key = k;
-    const was = S && S.cloud;
-    S = await call("showCloudSet", patch); brainDirty = false; $("#shKey").value = "";
-    paint();
-    const c = S.cloud;
-    if (!was || was.on !== c.on || was.model !== c.model || was.think !== c.think) { clear(); hello(); }   // 换了大脑：开一段新对话
-    toast(c.on ? `大脑换成 ${c.providerName}（云端）了` : "大脑用本机模型");
-    if (c.on && k) $("#shBrainTest").click();   // 刚填了 Key：马上试一下
-  });
-  $("#shBrainTest").onclick = guard(async () => {
-    const b = $("#shBrainTest"); b.disabled = true; b.textContent = "正在试…";
-    try { const r = await call("showCloudTest"); toast(`连上了：${r.model}，${(r.ms / 1000).toFixed(1)} 秒回了「${r.reply}」`); S.cloud = await call("showCloud"); paintBrain(); }
-    finally { b.disabled = false; b.textContent = "试一下"; }
-  });
   $("#shRole").onchange = guard(async () => { S = await call("showRole", $("#shRole").value); clear(); paint(); hello(); });
   $("#shSpeak").onchange = guard(async () => { S.voice = await call("setShowSpeak", $("#shSpeak").checked); if (!S.voice.on) spReset(); paint(); if (S.voice.on && !S.voice.can) toast(S.voice.label); });
   $("#shVoiceInstall").onclick = guard(async () => { const b = $("#shVoiceInstall"); b.disabled = true; b.textContent = "正在装（几个 G，可以先接着用）…"; try { S = await call("showInstallVoice"); paint(); toast("声音组件装好了"); } finally { b.disabled = false; b.textContent = "装上声音组件"; } });

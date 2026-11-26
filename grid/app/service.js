@@ -714,7 +714,9 @@ function createService(o) {
     // 捞小智的大脑：本机模型 / 云端（DeepSeek）；Key 只存在这台电脑上，界面上只拿得到后四位
     showCloud: async () => show.cloudInfo(),
     async showCloudSet(patch) { show.cloudSet(patch || {}); return showSt(); },
-    showCloudTest: async () => show.cloudTest(),
+    showCloudTest: async (v) => show.cloudTest(v),
+    showCloudModels: async (id) => show.cloudModels(id),
+    async showTeam(on) { show.setTeam(on); return showSt(); },
     // 老师的声音：选一段老师的录音（要先勾授权）→ 自动听写、截一段当参考 → 捞小智用老师的声音说话
     async showTeacherVoicePick(consent) { const f = o.pickFile ? await o.pickFile(["wav", "mp3", "m4a", "aac", "flac", "ogg", "opus", "wma", "amr", "mp4", "mov"], "选一段老师的录音（安静的地方、自然说几句话，几十秒到几分钟都行）", "录音") : null; if (!f) return null; return show.teacherVoiceFrom(f, consent); },
     showTeacherVoice: async () => show.teacherVoice(),

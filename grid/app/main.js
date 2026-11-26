@@ -111,7 +111,7 @@ const syncUi = (m) => { if (win && !win.isDestroyed()) win.webContents.send("age
 function show() { if (!win) createWindow(); else { win.show(); win.focus(); } }
 function createWindow() {
   Menu.setApplicationMenu(null);
-  win = new BrowserWindow({ width: 1380, height: 880, minWidth: 1100, minHeight: 700, title: EDITION.open ? "捞捞算力 通用版" : "捞捞算力", backgroundColor: "#050914", show: false,
+  win = new BrowserWindow({ width: 1380, height: 880, minWidth: 1100, minHeight: 700, title: EDITION.open ? "捞捞算力 通用版" : "捞小智", backgroundColor: EDITION.open ? "#050914" : "#111318", show: false,
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: true, nodeIntegration: false, backgroundThrottling: false } });
   win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   win.webContents.on("will-navigate", (e) => e.preventDefault());

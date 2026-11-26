@@ -168,6 +168,7 @@ function create(opt) {
     // 这一句带哪些工具：opt.pick(这句话) 返回工具名的集合（工具多的时候按这句话在说什么挑，省模型的上下文）；不给就全带
     const names = opt.pick ? opt.pick(text, imgs) : null, use = names ? ALL.filter((t) => names.has(t.name)) : ALL;
     const user = imgs.length ? { role: "user", content: [...imgs.map((u) => ({ type: "image_url", image_url: { url: u } })), { type: "text", text: text || "这是什么？" }] } : { role: "user", content: text };
+    compact();
     messages.push(user);
     const ac = { aborted: false };
     busy = ac;
@@ -204,9 +205,23 @@ function create(opt) {
       throw e;
     } finally { busy = null; }
   }
-  // 对话太长时只留最近的（图片只留最近一张，省内存、省时间）
+  // 省 token：上一句以前的工具结果（课表、网页、资料……常常几千字）只留开头一小段，很长的回答也截短；
+  //   每问一句才压一次（压完以后这些历史不再变，云端的缓存接着命中）
+  function compact() {
+    const T = opt.keepTool || 300, A = opt.keepAnswer || 1200;
+    messages = messages.map((m) => {
+      if (m._c) return m;
+      if (m.role === "tool" && typeof m.content === "string" && m.content.length > T + 40) return { ...m, content: m.content.slice(0, T) + "…（之前查到的，后面省了；要细节就再查一次）", _c: 1 };
+      if (m.role === "assistant" && typeof m.content === "string" && m.content.length > A + 40) return { ...m, content: m.content.slice(0, A) + "…（之前的回答，后面省了）", _c: 1 };
+      return { ...m, _c: 1 };
+    });
+  }
+  // 对话太长时只留最近的（图片只留最近一张，省内存、省时间）；总字数超过预算，从最早的一问一答开始丢
   function trim(ms) {
-    let out = ms.slice(-30);
+    let out = ms.slice(-30).map(({ _c, ...m }) => m);
+    const size = (x) => x.reduce((n, m) => n + (typeof m.content === "string" ? m.content.length : 600) + (m.reasoning_content ? m.reasoning_content.length : 0) + (m.tool_calls ? JSON.stringify(m.tool_calls).length : 0), 0);
+    const budget = opt.maxChars || 24000;
+    while (size(out) > budget) { const k = out.findIndex((m, i) => i > 0 && m.role === "user"); if (k <= 0 || k >= out.length - 1) break; out = out.slice(k); }
     while (out.length && out[0].role === "tool") out = out.slice(1);
     let seenImg = false;
     return out.slice().reverse().map((m) => {

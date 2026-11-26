@@ -184,6 +184,9 @@ function create(o) {
   const RE_CAMPUS = /课表|上课|有课|成绩|绩点|学分|考试|请假|销假|调课|停课|补课|教室|选课|退课|证明|审批|批准|驳回|申请|规定|校历|教务|辅导员|学籍|明天|后天|下周|这周|本周/;
   const PPT_NAMES = AGENT.TOOLS.map((t) => t.name);
   const RE_MM = /导图|思维|脑图|mind\s*map|分支|节点/i;
+  // 大任务（要查好几样、分几部分写、出一整套、整理一学期）：带上「多个助手一起干活」；界面上开了「多个助手」就一直带
+  const RE_BIG = /对比|比较一下|调研|方案|计划|规划|整理|汇总|一整套|整套|分别|各自|每一[个章节门课]|几个方面|全面|报告|综述|一学期|大任务/;
+  let teamMode = false;
   // 这一句带哪些工具（4B 的模型上下文有限，三十多个工具全带上它既慢又容易选错）：
   //   手上没有 PPT：做 PPT + 教务；手上有：说的是 PPT 的事带改 PPT 的那一套，说的是教务的事带教务的，分不清就都带
   let lastKind = "";
@@ -198,6 +201,7 @@ function create(o) {
     if (has("campus") || (!cur && !has("check"))) for (const t of campusTools) names.add(t.name);
     if (has("check")) for (const t of checkTools) names.add(t.name);
     if (has("mindmap")) for (const t of mindmapTools) names.add(t.name);
+    if (teamMode || RE_BIG.test(text) || text.length > 120) names.add("team_work");
     return names;
   }
   const SYS = (names) => {
@@ -205,12 +209,9 @@ function create(o) {
     const t = now(), tm = new Date(t); tm.setDate(tm.getDate() + 1);
     const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     const hasEdit = !names || names.has("edit_slide"), hasCampus = !names || campusTools.some((x) => names.has(x.name)), hasCheck = !names || checkTools.some((x) => names.has(x.name));
-    return `你是「捞小智」，捞捞课程表的校园智能体：会讲题、会做 PPT 和改 PPT、会帮师生办教务的事。你在这台电脑上运行，不联网。
-
-现在和你说话的是：${w.role} ${w.name}（${w.role === "学生" ? `学号 ${w.id}，${w.class}` : w.role === "教师" ? `工号 ${w.id}，${w.dept}${w.counselor_of && w.counselor_of.length ? "，" + w.counselor_of.join("、") + "辅导员" : ""}` : "教务处"}）。
-今天是 ${w.today} ${w.weekday}，${w.term}第 ${w.week} 周；明天是 ${ymd(tm)}。
-这两周每一天的日期（一周从周一开始；说「下周五」就是下面写着「下周五」的那天，直接照抄，不要自己算）：${days2w(t)}
-${cur ? `现在手上的 PPT：「${cur.title}」，一共 ${cur.pages} 页（界面上能看到每一页）。对方说「这一页」「改一下」「换个颜色」指的就是它。` : "现在手上还没有 PPT。"}
+    // 不变的规则放前面、这一句才有的情况（谁、今天几号、手上的 PPT）放最后：云端模型能缓存前面不变的那一大段，重复的部分便宜几十倍
+    const hasTeam = !names || names.has("team_work");
+    return `你是「捞小智」，捞捞课程表的校园智能体：会讲题、会做 PPT 和改 PPT、会帮师生办教务的事。
 
 你会${hasCheck ? "四" : "三"}类事，按对方说的挑：
 一、讲题和学术问题：直接回答。一步一步讲清楚，每一步说明为什么；算式写清楚，公式用 LaTeX（$...$）；最后给出答案。不知道的就说不知道，不要编。
@@ -243,7 +244,14 @@ ${hasCheck ? `四、${checkup.profile.name}报告（${checkup.profile.dims.map((
    · 这是护理参考，不是医学诊断：不要说得了什么病，不要推荐药品；有重度、疼痛或者掉发很多，建议去看皮肤科医生。
 ` : ""}
 回答用简体中文，口语化；不要输出 JSON 和代码（公式的 LaTeX、讲题时的代码除外）。
-回答要有内容：讲题、讲知识至少讲清楚一个完整的点——是什么、为什么、举一个具体的例子（五到八句话）。对方说了想学什么就直接讲下去，不要只说一两句就反问「你从哪一步开始」；讲完一个点，最后再问一句要不要接着讲下一步。办事、闲聊照常简短。${voiceMode ? `\n\n${SPOKEN}\n（上面讲题、PPT、教务的规则照旧；只是说的话要按语音通话来：不写 LaTeX、不列条目。讲知识时一次讲完一个完整的点，四到六句，比上面「两三句」可以多一点，讲完再问要不要接着讲；不要每次都反问对方从哪开始。）` : ""}`;
+回答要有内容：讲题、讲知识至少讲清楚一个完整的点——是什么、为什么、举一个具体的例子（五到八句话）。对方说了想学什么就直接讲下去，不要只说一两句就反问「你从哪一步开始」；讲完一个点，最后再问一句要不要接着讲下一步。办事、闲聊照常简短。${hasTeam ? `
+大任务（要分别查好几样再对比、分几部分写、出一整套题、整理一学期的安排…）→ 用 team_work 拆成几件互不依赖的小事，交给几个助手同时做，拿到结果再汇总成一个完整的回答；${teamMode ? "对方打开了「多个助手一起做」，能拆就拆。" : "一步就能答的、闲聊、讲一道题不要拆。"}办事（请假、调课、审批）你自己来，不要交给助手。` : ""}
+
+【现在的情况】
+现在和你说话的是：${w.role} ${w.name}（${w.role === "学生" ? `学号 ${w.id}，${w.class}` : w.role === "教师" ? `工号 ${w.id}，${w.dept}${w.counselor_of && w.counselor_of.length ? "，" + w.counselor_of.join("、") + "辅导员" : ""}` : "教务处"}）。
+今天是 ${w.today} ${w.weekday}，${w.term}第 ${w.week} 周；明天是 ${ymd(tm)}。
+这两周每一天的日期（一周从周一开始；说「下周五」就是下面写着「下周五」的那天，直接照抄，不要自己算）：${days2w(t)}
+${cur ? `现在手上的 PPT：「${cur.title}」，一共 ${cur.pages} 页（界面上能看到每一页）。对方说「这一页」「改一下」「换个颜色」指的就是它。` : "现在手上还没有 PPT。"}${voiceMode ? `\n\n${SPOKEN}\n（上面讲题、PPT、教务的规则照旧；只是说的话要按语音通话来：不写 LaTeX、不列条目。讲知识时一次讲完一个完整的点，四到六句，比上面「两三句」可以多一点，讲完再问要不要接着讲；不要每次都反问对方从哪开始。）` : ""}`;
   };
   const campusTools = campus.tools(actor);
   const checkTools = checkup.tools(() => lastImgs);
@@ -256,6 +264,11 @@ ${hasCheck ? `四、${checkup.profile.name}报告（${checkup.profile.dims.map((
   const mindmapTools = mindmap ? mindmap.tools() : [];
   const ground = o.ground || GROUND.create({ llm: o.llm, kb, sources: mindmap ? [mindmap] : [], web: o.web === false ? null : (() => { const W = require("./websearch"); return { search: (q) => W.search(q, o.webOpt || {}), read: (u) => W.read(u, o.webOpt || {}) }; })(), onStep: (m) => { if (o.onEvent) o.onEvent({ type: "note", text: m }); } });
   const groundTools = ground.tools();
+  // 多个助手一起干活（core/team.js）：助手用「干活模型」（默认这家最便宜的），只能查、不能办
+  const TEAM = require("./team");
+  const cloudOf = () => (o.llm && o.llm.cloud) || null;
+  const team = o.team || TEAM.create({ llm: o.llm, tools: () => tools, onEvent: (e) => { if (o.onEvent) o.onEvent(e); },
+    worker: () => (cloudOf() ? cloudOf().workerModel() : null), workerName: () => (cloudOf() ? cloudOf().info().workerName : "本机模型"), concurrency: o.teamConcurrency || 3 });
   const tools = [
     { name: "make_ppt", desc: "按要求从头做一份新的 PPT（.pptx）。title 整份的标题，subtitle 副标题（课程、章节），theme 配色（" + Object.entries(DECK.THEMES).map(([k, v]) => `${k} ${v.name}`).join(" / ") + "，不写用 blue），slides 每一页（封面不用写，会自动加）",
       params: { title: { type: "string" }, subtitle: { type: "string" }, theme: { type: "string", enum: Object.keys(DECK.THEMES) }, slides: { type: "array", items: { type: "object", properties: AGENT.PAGE } } }, req: ["title", "slides"], changes: true,
@@ -277,6 +290,7 @@ ${hasCheck ? `四、${checkup.profile.name}报告（${checkup.profile.dims.map((
     ...webTools,
     ...groundTools,
     ...mindmapTools,
+    team.tool,
   ];
   const isPpt = new Set(PPT_NAMES);
   let tap = null;       // 考试的时候看它调了哪些工具
@@ -341,11 +355,13 @@ ${hasCheck ? `四、${checkup.profile.name}报告（${checkup.profile.dims.map((
   }
 
   return {
-    send: async (text, images) => { await boot; lastImgs = Array.isArray(images) ? images.slice(0, 6) : []; return agent.send(text, images); }, stop: () => agent.stop(), reset: () => agent.reset(), busy: () => agent.busy(), history: () => agent.history(),
+    send: async (text, images) => { await boot; lastImgs = Array.isArray(images) ? images.slice(0, 6) : []; return agent.send(text, images); }, stop: () => { team.stop(); return agent.stop(); }, reset: () => agent.reset(), busy: () => agent.busy(), history: () => agent.history(),
     setRole(r) { if (!["student", "teacher", "staff"].includes(r)) throw new Error("身份只有：学生、教师、教务员"); if (r !== role) { role = r; lastKind = ""; agent.reset(); } return who(); },
     who, product, campus, checkup, kb, ground, mindmap, makePpt, openPpt, lastPpt, slides, pptTheme, pptUndo, pptExam, lastExam, pick, tools, ready: () => boot, deck: () => (cur ? cur.d : null),
     // 打电话模式：开着时每一句都按语音通话的规则说
     setVoice(v) { voiceMode = !!v; return voiceMode; }, voice: () => voiceMode,
+    // 「多个助手一起做」：开着时每一句都带上 team_work，提示里让它能拆就拆
+    setTeam(v) { teamMode = !!v; return teamMode; }, teamMode: () => teamMode,
   };
   function who() { const I = campus.identities(); return { role, me: campus.who(actor()), roles: ["student", "teacher", "staff"].map((k) => ({ key: k, name: { student: "学生", teacher: "教师（辅导员）", staff: "教务员" }[k], who: I[k].name, note: I[k].note })) }; }
 }
