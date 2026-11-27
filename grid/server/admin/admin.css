@@ -122,3 +122,8 @@ main { padding: 18px 26px 40px; display: grid; gap: 16px; }
 .stats-card h2 select { margin-left: 10px; font-size: 12px; width: auto; display: inline-block; padding: 3px 8px; }
 #stBars, #devBars, #mChart, #dChart { width: 100%; display: block; }
 .remote { flex-wrap: wrap; gap: 6px; }
+
+/* 任务详情里的试听 */
+.aud { display: flex; align-items: center; gap: 12px; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
+.aud span { min-width: 160px; font-size: 13px; color: var(--mut, #9aa4c7); word-break: break-all; }
+.aud audio { flex: 1; height: 34px; }

@@ -53,6 +53,7 @@ snapshot_download("lj1995/GPT-SoVITS", local_dir=dst, max_workers=8, allow_patte
 print("预训练模型：", sorted(os.listdir(dst)))
 EOF
 
+mkdir -p GPT_SoVITS/pretrained_models/fast_langdetect   # 念句子分中英文用；文件夹不在直接报错
 say "5/5 多音字模型（G2PW）"
 G2="GPT_SoVITS/text/G2PWModel"
 if [ ! -d "$G2" ]; then

@@ -237,6 +237,8 @@ function create(opt = {}) {
       if (!d) throw new Error("没有这个任务");
       d.reviews = d.reviews.slice(0, 60).map((r) => ({ ...r, payload: r.payload ? signed(r.payload) : null }));
       d.thumbs = d.outputs.filter((o) => /\.(png|jpe?g|webp)$/i.test(o.name)).slice(0, 24).map((o) => ({ name: o.name, url: store.url("GET", o.key, 3600) }));
+      // 训练出来的声音（试听句、参考声音）：控制中心里直接点开听
+      d.audios = d.outputs.filter((o) => /\.(wav|mp3|m4a|ogg|flac)$/i.test(o.name) && !/^voicepool-/.test(o.name)).slice(-24).map((o) => ({ name: o.name, url: store.url("GET", o.key, 3600), created: o.created }));
       return d;
     },
     "POST /api/admin/job": (req, b) => ({ id: core.createJob(b) }),
