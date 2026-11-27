@@ -26,8 +26,18 @@ fi
 cd "$DIR"
 
 say "3/5 Python 包（清华源；镜像里自带的 PyTorch 不动）"
+# 镜像自带的 PyTorch 锁死（别的包会顺手把它升到最新版，CUDA 对不上、torchaudio 也跟着坏）；torchaudio 装同一版
+TV=$("$PY" -c "import torch;print(torch.__version__.split('+')[0])")
+CU=$("$PY" -c "import torch;print('cu'+torch.version.cuda.replace('.','') if torch.version.cuda else 'cpu')")
+echo "torch==$TV" > /tmp/gsv-pin.txt
+"$PY" -c "import torchvision" 2>/dev/null && echo "torchvision==$("$PY" -c "import torchvision;print(torchvision.__version__.split('+')[0])")" >> /tmp/gsv-pin.txt || true
+if ! "$PY" -c "import torchaudio" 2>/dev/null; then
+  "$PY" -m pip install -q "torchaudio==$TV" -f "https://mirrors.aliyun.com/pytorch-wheels/$CU/" -c /tmp/gsv-pin.txt \
+    || "$PY" -m pip install -q "torchaudio==$TV" --index-url "https://download.pytorch.org/whl/$CU" -c /tmp/gsv-pin.txt
+fi
+echo "torchaudio==$("$PY" -c "import torchaudio;print(torchaudio.__version__.split('+')[0])")" >> /tmp/gsv-pin.txt
 grep -viE '^(torch|torchaudio|torchvision)([<>=! ].*)?$' requirements.txt > /tmp/gsv-req.txt
-"$PY" -m pip install -q -i "$PIP_IDX" -r /tmp/gsv-req.txt
+"$PY" -m pip install -q -i "$PIP_IDX" -r /tmp/gsv-req.txt -c /tmp/gsv-pin.txt
 [ -f extra-req.txt ] && "$PY" -m pip install -q -i "$PIP_IDX" -r extra-req.txt --no-deps || true
 "$PY" -m pip install -q -i "$PIP_IDX" huggingface_hub modelscope
 
