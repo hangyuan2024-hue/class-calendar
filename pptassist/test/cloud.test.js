@@ -218,6 +218,25 @@ const ok = (m) => console.log("✓ " + m);
   await llm.chat([{ role: "user", content: "x" }]); assert.equal(reqs.length, nl); assert.equal(local.chats.length, 1);
   ok("换回本机：start、chat 全部走本机模型，一句都不发到云端");
 
+  // ---------- 本机服务不认某个采样参数（llama-server 有的版本 dry_penalty_last_n 不收 -1）：去掉它重发，以后不再发 ----------
+  {
+    const bodies = [];
+    const s2 = http.createServer((q, r) => { let b = ""; q.on("data", (c) => (b += c)); q.on("end", () => {
+      const j = JSON.parse(b); bodies.push(j);
+      if ("dry_penalty_last_n" in j) { r.writeHead(400, { "Content-Type": "application/json" }); return r.end(JSON.stringify({ error: { code: 400, message: "Field 'dry_penalty_last_n': Value must be between 0 <= value <= 2147483647, but got -1", type: "invalid_request_error" } })); }
+      r.writeHead(200, { "Content-Type": "text/event-stream" }); r.end('data: {"choices":[{"delta":{"content":"今天的新闻有这些。"}}]}\n\ndata: [DONE]\n\n');
+    }); }).listen(0);
+    await new Promise((r) => s2.once("listening", r));
+    const base = "http://127.0.0.1:" + s2.address().port, ex = { dry_multiplier: 0.8, dry_penalty_last_n: -1, repeat_penalty: 1.05, chat_template_kwargs: { enable_thinking: false } };
+    const r1 = await CHAT.chatAt(base, [{ role: "user", content: "今天的热点新闻" }], { extra: ex });
+    assert.equal(r1.content, "今天的新闻有这些。");
+    assert.equal(bodies.length, 2); assert.ok(!("dry_penalty_last_n" in bodies[1]) && bodies[1].dry_multiplier === 0.8 && bodies[1].chat_template_kwargs, "只去掉它点名的那个");
+    await CHAT.chatAt(base, [{ role: "user", content: "再来" }], { extra: ex });
+    assert.equal(bodies.length, 3, "第二次直接不发，不再先报错一次");
+    s2.close();
+    ok("本机服务不认某个采样参数：去掉它重发一次、记住这个服务以后不再发，不会每句都报 400");
+  }
+
   srv.close();
   console.log("云端大脑：全部通过");
 })().catch((e) => { console.error(e); process.exit(1); });

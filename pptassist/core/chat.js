@@ -18,7 +18,7 @@ function httpError(code, body, cloud) {
     if (code === 429) return new Error("请求太频繁了（429）：等一会儿再问");
     if (code >= 500) return new Error(`AI 服务那边出错了（${code}），等一会儿再试：${msg}`);
   }
-  return new Error("AI 助手出错（" + code + "）：" + msg);
+  return Object.assign(new Error("AI 助手出错（" + code + "）：" + msg), { status: code, raw: msg });
 }
 
 // 复读检测：小模型偶尔会卡在一个词上一直重复（「豆腐脑、豆腐脑、豆腐脑……」），一直写到字数上限才停。
@@ -32,7 +32,29 @@ function loopAt(t) {
   }
   return -1;
 }
-function chatAt(base, messages, { tools, onDelta, onThink, temperature = 0.3, maxTokens = 1500, model = "local", extra, apiKey, timeoutMs, loopGuard = true } = {}) {
+// 采样参数不是每个服务都认（有的版本 dry_penalty_last_n 不收 -1、有的不认 dry_*）：
+//   报 400 而且点名了某个附加参数 → 记下来（按服务地址），去掉它重发一次；以后对这个服务都不再发
+const BAD_EXTRA = new Map();
+function chatAt(base, messages, opt = {}) {
+  const bad = BAD_EXTRA.get(base);
+  const strip = (x) => { if (!x || !bad) return x; const o = { ...x }; for (const k of bad) delete o[k]; return o; };
+  let cur = chatOnce(base, messages, { ...opt, extra: strip(opt.extra) }), aborted = false;
+  const p = cur.catch((e) => {
+    const keys = Object.keys(strip(opt.extra) || {});
+    if (aborted || e.status !== 400 || !keys.length) throw e;
+    const named = keys.filter((k) => String(e.raw || e.message).includes(k));
+    // 没点名但像是参数校验报错（unknown / invalid / must be）：附加的采样参数全去掉试一次
+    const drop = named.length ? named : /field|param|unknown|invalid|must be|unrecognized|extra/i.test(String(e.raw || e.message)) ? keys.filter((k) => /^(dry_|repeat_)/.test(k)) : [];
+    if (!drop.length) throw e;
+    BAD_EXTRA.set(base, new Set([...(bad || []), ...drop]));
+    const now = BAD_EXTRA.get(base);
+    cur = chatOnce(base, messages, { ...opt, extra: Object.fromEntries(Object.entries(opt.extra).filter(([k]) => !now.has(k))) });
+    return cur;
+  });
+  p.abort = () => { aborted = true; cur.abort(); };
+  return p;
+}
+function chatOnce(base, messages, { tools, onDelta, onThink, temperature = 0.3, maxTokens = 1500, model = "local", extra, apiKey, timeoutMs, loopGuard = true } = {}) {
   let req = null, stopped = false, timedOut = false;
   const url = new URL(endpoint(base)), lib = url.protocol === "https:" ? https : http;
   const p = new Promise((resolve, reject) => {
@@ -100,4 +122,4 @@ function finish(content, calls) {
   return { content: text.trim(), tool_calls: out };
 }
 
-module.exports = { chatAt, finish, endpoint, loopAt };
+module.exports = { chatAt, finish, endpoint, loopAt, BAD_EXTRA };

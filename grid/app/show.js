@@ -84,7 +84,7 @@ const MMPROJ_SPEC = { name: "mmproj-Qwen3VL-4B-Instruct-F16.gguf", mirrorModel: 
   "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct-GGUF/resolve/main/mmproj-Qwen3VL-4B-Instruct-F16.gguf"] };
 
 // 本机大模型的防复读采样参数（llama-server）：DRY 惩罚「同一串字又出现」、repeat_penalty 轻一点免得影响公式和代码
-const ANTI_LOOP = { dry_multiplier: 0.8, dry_base: 1.75, dry_allowed_length: 3, dry_penalty_last_n: -1, repeat_penalty: 1.05, repeat_last_n: 256 };
+const ANTI_LOOP = { dry_multiplier: 0.8, dry_base: 1.75, dry_allowed_length: 3, dry_penalty_last_n: 1024, repeat_penalty: 1.05, repeat_last_n: 256 };
 function create(o) {
   const XZ = PPT("xiaozhi.js"), GM = PPT("gridmodels.js"), VOICE = PPT("voice.js"), MEDIA = PPT("media.js"), CHAT = PPT("chat.js"), CLOUD = PPT("cloud.js");
   const emit = (e) => { try { o.send && o.send(e); } catch (x) {} };
