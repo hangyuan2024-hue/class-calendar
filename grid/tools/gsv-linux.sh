@@ -39,7 +39,8 @@ echo "torchaudio==$("$PY" -c "import torchaudio;print(torchaudio.__version__.spl
 grep -viE '^(torch|torchaudio|torchvision)([<>=! ].*)?$' requirements.txt > /tmp/gsv-req.txt
 "$PY" -m pip install -q -i "$PIP_IDX" -r /tmp/gsv-req.txt -c /tmp/gsv-pin.txt
 [ -f extra-req.txt ] && "$PY" -m pip install -q -i "$PIP_IDX" -r extra-req.txt --no-deps || true
-"$PY" -m pip install -q -i "$PIP_IDX" huggingface_hub modelscope
+# 念句子（api_v2）还要这几个，requirements.txt 里没列全（缺了 /tts 直接 400：No module named 'resampy'）
+"$PY" -m pip install -q -i "$PIP_IDX" huggingface_hub modelscope resampy -c /tmp/gsv-pin.txt
 
 say "4/5 预训练模型（hf-mirror：lj1995/GPT-SoVITS，只下训练要用的）"
 "$PY" - <<'EOF'

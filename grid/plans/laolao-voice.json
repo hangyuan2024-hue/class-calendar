@@ -33,7 +33,7 @@
         "pitchAlign": true,
         "maxClips": 600,
         "minClips": 120,
-        "refText": "你好，我是捞捞，有什么问题都可以问我。",
+        "refText": "你好，我是捞捞，你的学习小助手，有什么问题都可以随时来问我。",
         "maxSim": 0.75
       },
       "req": {

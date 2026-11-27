@@ -36,7 +36,7 @@ const need = (keys) => `import os,sys\nmiss=[k for k in ${JSON.stringify(keys)} 
 W(path.join(G, "api_v2.py"), `import sys,json,http.server,struct,math
 port=int(sys.argv[sys.argv.index("-p")+1])
 def wav(text):
-    n=32000; pcm=b"".join(struct.pack("<h",int(math.sin(2*math.pi*509*i/32000)*8000)) for i in range(n))
+    n=112000; pcm=b"".join(struct.pack("<h",int(math.sin(2*math.pi*509*i/32000)*8000)) for i in range(n))
     t=text.encode("utf-8"); t+=b"\\0"*(len(t)%2)
     body=b"WAVE"+b"fmt "+struct.pack("<IHHIIHH",16,1,1,32000,64000,2,16)+b"lgtx"+struct.pack("<I",len(t))+t+b"data"+struct.pack("<I",len(pcm))+pcm
     return b"RIFF"+struct.pack("<I",len(body))+body

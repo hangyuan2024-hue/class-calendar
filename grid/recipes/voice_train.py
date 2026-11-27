@@ -17,6 +17,7 @@ import socket
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 import wave
@@ -723,8 +724,11 @@ try:
     def tts(txt, rw, rt, out):
         body = {"text": txt, "text_lang": "zh", "ref_audio_path": rw, "prompt_text": rt, "prompt_lang": "zh", "text_split_method": "cut5", "media_type": "wav"}
         req = urllib.request.Request(base + "/tts", data=json.dumps(body).encode("utf-8"), headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=600) as r:
-            b = r.read()
+        try:
+            with urllib.request.urlopen(req, timeout=600) as r:
+                b = r.read()
+        except urllib.error.HTTPError as e:   # api_v2 念失败时回 400 + 原因（JSON）：把原因带出来，光说「400」查不了
+            raise RuntimeError("HTTP %d：%s" % (e.code, e.read().decode("utf-8", "replace")[:600]))
         if b[:4] != b"RIFF" or len(b) <= 8000:
             return None
         open(out, "wb").write(b)
@@ -734,7 +738,7 @@ try:
     #   用新模型拿每位的录音各念一遍同一句话，再用说话人模型比一比：选「和原来哪一位都最不像」的那一句，当捞捞以后说话的参考声音
     if MIXED:
         lg.progress(0.82, "打碎：挑一句「谁都不像」的当捞捞的参考声音")
-        RT = p.get("refText") or "你好，我是捞捞，有什么问题都可以问我。"
+        RT = p.get("refText") or "你好，我是捞捞，你的学习小助手，有什么问题都可以随时来问我。"
         cands = []
         for s_ in MIXED:
             src_ = [x for x in lines if os.path.basename(x[0]).startswith("o_%s_" % s_) and 3 <= x[2] <= 10]
@@ -742,7 +746,11 @@ try:
                 continue
             for j_ in range(int(p.get("refTries", 2))):
                 c_ = tts(RT, src_[j_ % len(src_)][0], src_[j_ % len(src_)][1], os.path.join(work, "refcand-%s-%d.wav" % (s_, j_)))
-                if c_ and 0.9 <= secs(c_) <= 12:
+                # 以后要拿它当参考声音：GPT-SoVITS 只收 3～10 秒的（不然念的时候 400：outside the 3-10 second range）
+                if c_ and secs(c_) < 3.2:
+                    subprocess.run(FF + ["-y", "-v", "error", "-i", c_, "-af", "apad=whole_dur=3.4", c_ + ".pad.wav"], check=True, cwd=work)
+                    c_ = c_ + ".pad.wav"
+                if c_ and 3.0 <= secs(c_) <= 10:
                     cands.append(c_)
         if not cands:
             raise RuntimeError("新模型念不出参考句")

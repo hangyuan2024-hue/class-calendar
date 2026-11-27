@@ -450,8 +450,11 @@ class Api:
         self.ensure()
         body = {"text": text, "text_lang": "zh", "ref_audio_path": ref, "prompt_text": prompt, "prompt_lang": "zh", "text_split_method": "cut5", "media_type": "wav", "seed": seed}
         req = urllib.request.Request(self.base + "/tts", data=json.dumps(body).encode("utf-8"), headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=600) as r:
-            b = r.read()
+        try:
+            with urllib.request.urlopen(req, timeout=600) as r:
+                b = r.read()
+        except urllib.error.HTTPError as e:   # api_v2 念失败时回 400 + 原因（JSON）：把原因带出来，光说「400」查不了
+            raise RuntimeError("HTTP %d：%s" % (e.code, e.read().decode("utf-8", "replace")[:600]))
         if b[:4] != b"RIFF" or len(b) < 8000:
             return None
         with open(out, "wb") as fh:
