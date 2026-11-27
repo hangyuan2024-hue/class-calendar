@@ -83,6 +83,8 @@ const MMPROJ_SPEC = { name: "mmproj-Qwen3VL-4B-Instruct-F16.gguf", mirrorModel: 
   "https://hf-mirror.com/Qwen/Qwen3-VL-4B-Instruct-GGUF/resolve/main/mmproj-Qwen3VL-4B-Instruct-F16.gguf",
   "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct-GGUF/resolve/main/mmproj-Qwen3VL-4B-Instruct-F16.gguf"] };
 
+// 本机大模型的防复读采样参数（llama-server）：DRY 惩罚「同一串字又出现」、repeat_penalty 轻一点免得影响公式和代码
+const ANTI_LOOP = { dry_multiplier: 0.8, dry_base: 1.75, dry_allowed_length: 3, dry_penalty_last_n: -1, repeat_penalty: 1.05, repeat_last_n: 256 };
 function create(o) {
   const XZ = PPT("xiaozhi.js"), GM = PPT("gridmodels.js"), VOICE = PPT("voice.js"), MEDIA = PPT("media.js"), CHAT = PPT("chat.js"), CLOUD = PPT("cloud.js");
   const emit = (e) => { try { o.send && o.send(e); } catch (x) {} };
@@ -202,7 +204,8 @@ function create(o) {
         //   这时关掉答题 / 口语 LoRA；llama-server 的 lora 字段没写到的都按 0。底座的永久层要照原来的比例写上（没写到的会被当成 0）
         const want = opt.mode === "ground" || opt.mode === "check" ? "ground" : opt.mode === "ppt" ? "ppt" : opt.mode === "eyes" ? "eyes" : calling && loraIds.chat >= 0 ? "chat" : null;
         const lo = want && loraIds[want] >= 0 ? { lora: [...(loraIds.base || []), ...(loraIds.main >= 0 ? [{ id: loraIds.main, scale: 0 }] : []), { id: loraIds[want], scale: 1 }] } : null;
-        const extra = { ...(bigNow ? { chat_template_kwargs: { enable_thinking: false } } : {}), ...(lo || {}) };
+        // 防复读（小模型偶尔卡在一个词上一直重复）：llama.cpp 的 DRY 采样 + 轻一点的重复惩罚；真卡住了 chat.js 里的复读检测会把它停下
+        const extra = { ...ANTI_LOOP, ...(bigNow ? { chat_template_kwargs: { enable_thinking: false } } : {}), ...(lo || {}) };
         return CHAT.chatAt(url, m, { ...opt, ...(bigNow ? { onDelta: noThink(opt.onDelta) } : {}), ...(Object.keys(extra).length ? { extra } : {}) });
       },
     };
@@ -622,8 +625,12 @@ function create(o) {
       const t = o.busy ? o.busy() : null;
       if (t && !cloudOn()) throw new Error(`这台电脑正在算「${t}」，先暂停计算再考`);
       const { llm } = S(), dir = path.join(o.dir(), "webexam");
-      const m = mode === "record" || !fs.existsSync(path.join(dir, "record.json")) ? "record" : "replay";
-      return PPT("webexam.js").run({ dir, mode: m, llm, onProgress: (i, n) => emit({ type: "note", text: `联网考试：第 ${i}/${n} 道` }) });
+      // 考的是「查实了再回答」（core/research.js）：本机模型写和核对，云端（这家最便宜的干活模型）只在录快照时出主意
+      const m = mode === "record" || !fs.existsSync(path.join(dir, "record-research.json")) ? "record" : "replay";
+      const c = llm.cloud, wm = c && c.active && c.active() && c.workerModel ? c.workerModel() : null;
+      const local = { start: (x) => llm.start && llm.start(x), chat: (ms, x) => llm.chat(ms, { ...x, model: "local" }) };
+      const cloud = wm && wm !== "local" ? { chat: (ms, x) => llm.chat(ms, { ...x, model: wm }) } : null;
+      return PPT("webexam.js").run({ dir, mode: m, engine: "research", llm: local, cloud, onProgress: (i, n) => emit({ type: "note", text: `联网考试：第 ${i}/${n} 道` }) });
     },
     // 整理知识库：读新放进来的文件，视频、录音听写成带时间的文字稿（慢，点了才做）
     kbImport: async () => { const k = S().xz.kb; const r = await k.refresh({ media: true, say: (m) => emit({ type: "note", text: m }) }); return { ...r, status: k.status() }; },
@@ -631,7 +638,7 @@ function create(o) {
     releaseGpu: () => { try { voice.stop(); } catch (e) {} try { ear.stop(); } catch (e) {} },
     apiStop: () => api.stop(false),
     stop: () => S().xz.stop(), reset: () => { S().xz.reset(); chatId = null; return true; },
-    attach, outFile, web: () => PPT("websearch.js"),
+    attach, outFile, web: () => PPT("websearch.js"), sourceBad: (u) => S().xz.sourceBad(u),
     folderInfo: () => S().folder.info(), folderSet: (dir) => S().folder.set(dir || null),
     chatList: () => chats.list(), chatOpen: (id) => chats.open(id), chatRemove: (id) => chats.remove(id), chatRename: (id, t) => chats.rename(id, t),
     // 云端大脑：看设置、改设置（换了大脑就开一段新对话：两边的对话记录格式不一样）、试一下连不连得上

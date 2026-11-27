@@ -21,7 +21,18 @@ function httpError(code, body, cloud) {
   return new Error("AI 助手出错（" + code + "）：" + msg);
 }
 
-function chatAt(base, messages, { tools, onDelta, onThink, temperature = 0.3, maxTokens = 1500, model = "local", extra, apiKey, timeoutMs } = {}) {
+// 复读检测：小模型偶尔会卡在一个词上一直重复（「豆腐脑、豆腐脑、豆腐脑……」），一直写到字数上限才停。
+//   结尾是同一小段（2~30 字）连着重复 6 遍以上、同一句（8~30 字）重复 4 遍以上、或者同一大段（30~200 字）连着重复 3 遍以上，就算卡住了 → 返回该截断的位置。
+//   只看带字的（「|---|---|」表格线、「0, 0, 0」这种不算）
+function loopAt(t) {
+  const tail = t.slice(-1500), off = t.length - tail.length;
+  for (const [re, min] of [[/([\s\S]{2,30}?)\1{5,}[\s\S]{0,30}$/u, 36], [/([\s\S]{8,30}?)\1{3,}[\s\S]{0,30}$/u, 60], [/([\s\S]{30,200}?)\1{2,}[\s\S]{0,200}$/u, 120]]) {
+    const m = re.exec(tail);
+    if (m && /\p{L}/u.test(m[1]) && m[0].length >= min) return off + m.index + m[1].length;   // 留第一遍
+  }
+  return -1;
+}
+function chatAt(base, messages, { tools, onDelta, onThink, temperature = 0.3, maxTokens = 1500, model = "local", extra, apiKey, timeoutMs, loopGuard = true } = {}) {
   let req = null, stopped = false, timedOut = false;
   const url = new URL(endpoint(base)), lib = url.protocol === "https:" ? https : http;
   const p = new Promise((resolve, reject) => {
@@ -30,7 +41,7 @@ function chatAt(base, messages, { tools, onDelta, onThink, temperature = 0.3, ma
     const headers = { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body), ...(apiKey ? { Authorization: "Bearer " + apiKey } : {}) };
     req = lib.request(url, { method: "POST", headers }, (res) => {
       if (res.statusCode !== 200) { let s = ""; res.on("data", (c) => (s += c)); res.on("end", () => reject(httpError(res.statusCode, s, !!apiKey))); return; }
-      let buf = "", content = "", think = "", usage = null, done = false; const calls = [];
+      let buf = "", content = "", think = "", usage = null, done = false, checked = 0, looped = false; const calls = [];
       res.setEncoding("utf8");
       const line = (l) => {
         l = l.trim(); if (!l.startsWith("data:")) return;
@@ -39,7 +50,14 @@ function chatAt(base, messages, { tools, onDelta, onThink, temperature = 0.3, ma
         if (j.usage) usage = j.usage;
         const delta = ((j.choices || [])[0] || {}).delta || {};
         if (delta.reasoning_content) { think += delta.reasoning_content; onThink && onThink(delta.reasoning_content); }
-        if (delta.content) { content += delta.content; onDelta && onDelta(delta.content); }
+        if (delta.content) {
+          content += delta.content; onDelta && onDelta(delta.content);
+          if (loopGuard && content.length - checked >= 40) {
+            checked = content.length;
+            const cut = loopAt(content);
+            if (cut > 0) { content = content.slice(0, cut).replace(/[、，,\s]+$/, "") + "……"; looped = true; onDelta && onDelta("\n\n（后面在重复同样的话，先停下了）"); stopped = true; try { req.destroy(); } catch (e) {} end(); }
+          }
+        }
         for (const tc of delta.tool_calls || []) {
           const k = tc.index != null ? tc.index : calls.length;
           calls[k] = calls[k] || { id: tc.id || "call_" + k, type: "function", function: { name: "", arguments: "" } };
@@ -55,6 +73,7 @@ function chatAt(base, messages, { tools, onDelta, onThink, temperature = 0.3, ma
         const r = finish(content, calls.filter(Boolean));
         if (think) r.reasoning_content = think;
         if (usage) r.usage = usage;
+        if (looped) r.looped = true;
         resolve(r);
       };
       res.on("end", end); res.on("close", end);
@@ -81,4 +100,4 @@ function finish(content, calls) {
   return { content: text.trim(), tool_calls: out };
 }
 
-module.exports = { chatAt, finish, endpoint };
+module.exports = { chatAt, finish, endpoint, loopAt };

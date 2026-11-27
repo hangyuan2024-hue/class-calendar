@@ -143,7 +143,9 @@ function create(opt = {}) {
   function stop() { if (child) { try { child.kill(); } catch (e) {} child = null; } if (state.status !== "need-model") set("off", ""); }
 
   // 流式对话：onDelta(这一小段文字)；返回 { content, tool_calls }；p.abort() 停下
-  const chat = (messages, opt = {}) => CHAT.chatAt(`http://127.0.0.1:${port}`, messages, { model: MODEL.id, ...opt });
+  // 防复读：llama.cpp 的 DRY 采样 + 轻一点的重复惩罚（真卡住了 chat.js 的复读检测会停下）
+  const ANTI_LOOP = { dry_multiplier: 0.8, dry_base: 1.75, dry_allowed_length: 3, dry_penalty_last_n: -1, repeat_penalty: 1.05, repeat_last_n: 256 };
+  const chat = (messages, opt = {}) => CHAT.chatAt(`http://127.0.0.1:${port}`, messages, { model: MODEL.id, ...opt, extra: { ...ANTI_LOOP, ...(opt.extra || {}) } });
   return { start, stop, chat, download, plan, files, ready, state: () => state, log, port };
 }
 

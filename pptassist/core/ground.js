@@ -156,7 +156,9 @@ const nums = (s) => (String(s).replace(/\[\d+\]/g, "").match(/\d+(?:\.\d+)?/g) |
 // 程序检查：句子里的数字资料里都有；标的出处存在
 function ruleCheck(sent, mats) {
   const all = mats.map((m) => m.text).join("\n");
-  for (const x of nums(sent)) if (!all.includes(x)) return `数字 ${x} 资料里没有`;
+  // 数字要整个对上（「7」不能算在「57」「273」里）；资料写成 1,000 的也认
+  const plain = all.replace(/(\d),(?=\d{3})/g, "$1");
+  for (const x of nums(sent)) if (!new RegExp(`(?<![\\d.])${x.replace(".", "\\.")}(?![\\d]|\\.\\d)`).test(plain)) return `数字 ${x} 资料里没有`;
   for (const c of citesOf(sent)) if (c < 1 || c > mats.length) return `标的出处 [${c}] 不存在`;
   return null;
 }
@@ -218,12 +220,13 @@ function create(o) {
   async function answer(q, opt = {}) {
     q = String(q || "").trim();
     if (!q) throw new Error("要问什么（question）");
-    say("找资料");
-    const mats = await gather(q, opt);
+    // opt.mats：资料已经找好了（core/research.js 查实过的），直接用；opt.hint：回答要覆盖的要点（云端给的提纲）
+    if (!opt.mats) say("找资料");
+    const mats = opt.mats || await gather(q, opt);
     const nothing = () => ({ text: `${ABSTAIN}能回答「${q.slice(0, 40)}」的内容。${o.kb ? "可以把相关的讲义、通知放进知识库，" : ""}${opt.web ? "" : "或者让我联网查一下，"}也可以去问老师或看官方通知。`, abstained: true, sources: [], dropped: [], checked: true, mats });
     if (!mats.length) return nothing();
     say("照资料回答");
-    const user = `资料：\n${matText(mats)}\n\n问题：${q}`;
+    const user = `资料：\n${matText(mats)}\n\n问题：${q}${opt.hint ? `\n（回答时照资料覆盖这几点：${opt.hint}）` : ""}`;
     let reply = await ask("ground", ANSWER_SYS, user, 700);
     if (abstained(reply)) return { text: reply, abstained: true, sources: [], dropped: [], checked: true, mats };
     let ss = sentences(reply), res = [];
@@ -259,4 +262,4 @@ function create(o) {
   return { answer, gather, check, tools };
 }
 
-module.exports = { create, kb, toks, chunks, rank, sentences, parseCheck, ruleCheck, abstained, citesOf, ABSTAIN, ANSWER_SYS, CHECK_SYS };
+module.exports = { create, kb, toks, chunks, rank, sentences, parseCheck, ruleCheck, abstained, citesOf, matText, numbered, ABSTAIN, ANSWER_SYS, CHECK_SYS };

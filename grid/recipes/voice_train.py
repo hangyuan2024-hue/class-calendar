@@ -509,6 +509,10 @@ if not n_txt or not n_sem:
 # ---------------- 4. 训练 ----------------
 SW, GW = os.path.join(GD, "SoVITS_weights_" + VER), os.path.join(GD, "GPT_weights_" + VER)
 os.makedirs(SW, exist_ok=True)
+# 训练脚本存中间存档时直接往 exp_dir/logs_s2_<版本> 里挪（官方界面会先建好这个文件夹，命令行跑不会）：
+#   没有这个文件夹就报「[WinError 3] 系统找不到指定的路径」（shutil.move ... save_checkpoint）。先都建好
+for _d in ("logs_s2_" + VER, "logs_s2", "logs_s1_" + VER, "logs_s1"):
+    os.makedirs(os.path.join(exp_dir, _d), exist_ok=True)
 os.makedirs(GW, exist_ok=True)
 e2, e1 = int(p.get("sovitsEpochs", 8)), int(p.get("gptEpochs", 15))
 # 录音越多、训得越久越像（GPT-SoVITS 官方建议的范围里）：10 分钟以上 12/20 轮，30 分钟以上 16/25 轮

@@ -194,6 +194,23 @@ const ok = (m) => console.log("✓ " + m);
   }
   ok("和云端的连接中途断了：一个字都没收到就自动再试一次；已经在写了就报「连接中途断了」，不再是一句 aborted");
 
+  // ---------- 复读：卡在一个词上一直重复 → 停下、截掉重复的部分 ----------
+  {
+    const http = require("http"); let wrote = 0;
+    const s3 = http.createServer((q, r) => { q.on("data", () => {}); q.on("end", async () => {
+      r.writeHead(200, { "content-type": "text/event-stream" });
+      const parts = ["饮食：北国有东北菜，比如锅包肉、"].concat(Array(300).fill("豆腐脑、"));
+      for (const x of parts) { if (r.destroyed || r.writableEnded) break; r.write(`data: ${JSON.stringify({ choices: [{ delta: { content: x } }] })}\n\n`); wrote++; await new Promise((d) => setTimeout(d, 1)); }
+      if (!r.writableEnded) r.end("data: [DONE]\n\n"); }); });
+    await new Promise((d) => s3.listen(0, "127.0.0.1", d));
+    const CH = require("../core/chat"); const seen = [];
+    const r = await CH.chatAt(`http://127.0.0.1:${s3.address().port}`, [{ role: "user", content: "北国" }], { onDelta: (t) => seen.push(t) });
+    assert.ok(r.looped); assert.equal(r.content, "饮食：北国有东北菜，比如锅包肉、豆腐脑……");
+    assert.ok(wrote < 60, "很快就停了：" + wrote); assert.match(seen[seen.length - 1], /重复/);
+    s3.close();
+  }
+  ok("复读：卡在一个词上一直重复，几遍以后就停下，回答里只留一遍");
+
   // ---------- 关掉云端 → 全回本机 ----------
   cloud.setConfig({ brain: "local" });
   const nl = reqs.length; local.chats.length = 0;

@@ -268,6 +268,7 @@
     if (PPT_TOOL.test(e.name)) return e.say + "：好了" + (r.warn ? `（${r.warn}）` : r.note ? `（${r.note}）` : "");
     if (r.id && r.status) return `${e.say}：${r.id}，${r.status}`;
     if (typeof r.count === "number") return `${e.say}（${r.count} 条）`;
+    if (r.research) return r.research.fromCard ? "查实资料：用了之前核实过的资料（没联网）" : `查实资料：看了 ${r.research.pages + r.research.rejected.length} 个网页，用了 ${r.research.pages} 个（${r.research.secs} 秒）`;
     return e.say + "：好了";
   }
   // 多个助手一起做：一行一个助手，排队 → 在做 → 在查什么 → 做完（几秒）/ 没做成
@@ -316,6 +317,7 @@
       if (window.LaoCheckup && /^checkup_/.test(e.name)) window.LaoCheckup.onTool(e, add);
       if (e.ok && e.name === "make_file" && e.result && e.result.file) { el.remove(); fileCard(e.result); }
       if (e.ok && e.result && (e.result.news || e.result.videos || e.result.images || e.result.results || e.result.pages)) webCard(e.name, e.result);
+      if (e.ok && e.result && e.result.research) researchCard(e.result.research);
       if (e.ok && e.name === "make_ppt") add("sh-hello", `<span>做好了，左边能看到每一页。接着说怎么改就行，比如：</span><div class="grp">${["把第 3 页改成两栏对比", "整份换成绿色的", "字再大一点", "最后加一页练习题", "给每一页写上讲稿", "检查一遍有没有问题"].map((x) => `<button class="ex">${esc(x)}</button>`).join("")}</div>`);
       if (e.ok && e.changed && deck && PPT_TOOL.test(e.name)) { const r = e.result || {}; deck.refresh(e.name === "make_ppt" ? 1 : r.no || r.to || (r.pages && r.pages[0]) || (e.args && e.args.slide) || null).then(() => showDeck(true)); }
       return;
@@ -411,6 +413,18 @@
       d.querySelectorAll("img").forEach((i) => i.addEventListener("error", () => i.parentNode.remove()));
     }
   }
+  // 查实资料：每个要核实的点查到没有（✓ 查实 / ! 只有一家、说法不一致 / ✗ 没查到），用了哪些来源（权威 / 可靠 / 参考），扔掉了哪些网页、为什么
+  function researchCard(R) {
+    const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch (x) { return ""; } };
+    const TN = { 1: "权威", 2: "可靠", 3: "参考" };
+    const ST = { ok: ["✓", "查实"], single: ["!", "只有一家"], conflict: ["!", "说法不一致"], none: ["✗", "没查到"] };
+    const slots = (R.slots || []).map((s) => { const [ic, t] = ST[s.state] || ST.none; return `<div class="rs ${s.state}"><i>${ic}</i><div><b>${esc(s.key === "答案" ? "答案" : s.key)}</b> <span class="muted">${esc(t)}${s.why ? " · " + esc(s.why) : ""}</span>${s.quote ? `<q>${esc(s.quote)}</q><small>${esc(s.site || "")}${s.tier ? " · " + TN[s.tier] : ""}${s.date ? " · " + esc(s.date) : ""}</small>` : ""}${(s.both || []).map((b) => `<q>${esc(b.quote)}</q><small>${esc(b.site)} · ${TN[b.tier] || ""}${b.date ? " · " + esc(b.date) : ""}</small>`).join("")}</div></div>`; }).join("");
+    const srcs = (R.sources || []).filter((x) => /^https?:/.test(x.src)).map((x) => `<div class="rsrc"><a href="#" data-u="${esc(x.src)}"><b>[${x.n}] ${esc(String(x.title || "").replace(/｜[^｜]*$/, ""))}</b><small>${esc(host(x.src))} · <em class="t${x.tier}">${TN[x.tier] || ""}</em>${x.date ? " · " + esc(x.date) : ""}</small></a><button class="bad" data-bad="${esc(x.src)}" title="这个来源说得不对：以后少用它">来源不对</button></div>`).join("");
+    const rej = (R.rejected || []).length ? `<details><summary>没采用 ${R.rejected.length} 个网页</summary>${R.rejected.map((x) => `<div class="rj"><span>${esc(x.title || host(x.url))}</span><small>${esc(host(x.url))} · ${esc(x.why)}</small></div>`).join("")}</details>` : "";
+    const by = R.plan ? `<span class="muted">${R.plan.by === "云端" ? "云端出的搜索词" : "按规则搜"}${R.usage && R.usage.calls ? ` · 云端 ${R.usage.in + R.usage.out} token` : ""}</span>` : "";
+    add("sh-web research", `<div class="wh">查实资料 ${by}</div>${slots}${srcs ? `<div class="sl">${srcs}</div>` : ""}${rej}`);
+  }
+  $("#shLog").addEventListener("click", guard(async (e) => { const b = e.target.closest("[data-bad]"); if (!b) return; b.disabled = true; const r = await call("showSourceBad", b.dataset.bad); b.textContent = "记下了"; toast(r && r.cards ? `记下了：这个网站以后往后排，用过它的 ${r.cards} 条记忆已经删掉` : "记下了：这个网站以后往后排"); }));
   $("#shLog").addEventListener("click", guard(async (e) => { const a = e.target.closest(".sh-web [data-u]"); if (!a) return; e.preventDefault(); await call("showOpenUrl", a.dataset.u, a.dataset.play ? "play" : "open"); }));
   // 捞小智交的文件：一张小卡片，点开 / 在文件夹里看 / 另存为
   function fileCard(r) {
@@ -567,8 +581,10 @@
     try {
       const r = await call("showWebExam");
       const pc = (x) => Math.round(x * 100) + "%";
-      add("sh-step ok", esc(`${r.mode === "record" ? "第一次：上网做了一遍、存成快照" : "按快照考的（和上次比得了）"}：${r.total} 道，答对 ${pc(r.acc)}，出处对 ${pc(r.cite)}，说「资料里没有」${pc(r.abstain)}，平均 ${r.secs} 秒一道。`)
-        + r.items.filter((x) => !x.right).slice(0, 5).map((x) => "<br>" + esc("✗ " + x.q + (x.error ? "（" + x.error + "）" : x.abstained ? "（说资料里没有）" : "（答成：" + x.answer.slice(0, 40) + "）"))).join(""));
+      const extra = r.engine === "research" ? `来源有效 ${pc(r.src)}，查不到的老实说没有 ${pc(r.honest)}，答错还说得很肯定 ${pc(r.wrong)}，` : "";
+      const gate = r.gate ? (r.gate.pass ? "过了发版门槛。" : "没过发版门槛：" + r.gate.why.join("；") + "。") : "";
+      add("sh-step " + (r.gate && !r.gate.pass ? "err" : "ok"), esc(`${r.mode === "record" ? "第一次：上网做了一遍、存成快照" : "按快照考的（和上次比得了）"}：${r.total} 道，答对 ${pc(r.acc)}，出处对 ${pc(r.cite)}，${extra}平均 ${r.secs} 秒一道。${gate}`)
+        + r.items.filter((x) => (x.none ? !x.honest : !x.right)).slice(0, 5).map((x) => "<br>" + esc("✗ " + x.q + (x.error ? "（" + x.error + "）" : x.none ? "（网上没有答案，却答了：" + x.answer.slice(0, 40) + "）" : x.abstained ? "（说没查到）" : "（答成：" + x.answer.slice(0, 40) + "）"))).join(""));
     } finally { b.disabled = false; b.textContent = "联网考试"; }
   });
   if ($("#shMm")) $("#shMm").onclick = guard(async () => {

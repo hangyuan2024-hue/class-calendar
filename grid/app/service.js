@@ -689,6 +689,8 @@ function createService(o) {
     showOpenUrl: async (u, how) => { const W = show.web(); if (!W.isCn(String(u || ""))) throw new Error("只打开国内网站的链接"); if (how === "play" && o.openVideo) o.openVideo(u); else o.openExternal && o.openExternal(u); return true; },
     // 捞小智做出来的文件：open 打开、reveal 在文件夹里看、save 另存到别处
     showFileOpen: async (name, how) => { const f = show.outFile(name); if (how === "reveal") o.reveal && o.reveal(f); else if (how === "save") return o.saveCopy ? o.saveCopy(f) : (o.reveal && o.reveal(f), null); else o.openPath && o.openPath(f); return true; },
+    // 回答下面「这个来源不对」：网站信誉 -1、用过它的知识卡片作废（core/research.js）
+    showSourceBad: async (u) => show.sourceBad(String(u || "")),
     showStop: async () => show.stop(),
     showReset: async () => show.reset(),
     showChats: async () => show.chatList(),

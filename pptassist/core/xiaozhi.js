@@ -268,7 +268,73 @@ ${cur ? `现在手上的 PPT：「${cur.title}」，一共 ${cur.pages} 页（�
   const mindmap = o.mindmap === false ? null : (o.mindmap || require("./mindmap").create(o.mindmapOpt || {}));
   const mindmapTools = mindmap ? mindmap.tools() : [];
   const ground = o.ground || GROUND.create({ llm: o.llm, kb, sources: mindmap ? [mindmap] : [], web: o.web === false ? null : (() => { const W = require("./websearch"); return { search: (q) => W.search(q, webOpt), read: (u) => W.read(u, webOpt) }; })(), onStep: (m) => { if (o.onEvent) o.onEvent({ type: "note", text: m }); } });
-  const groundTools = ground.tools();
+  // 查实了再回答（core/research.js）：云端出主意（只看问题）→ 本机按需联网查、程序把关来源 → 本机照查实的资料写、逐句核对
+  //   本机回答的时候（本机模式、混合模式交给本机的那句）用它；整句都交给云端时不用（云端自己带着联网工具答）
+  const RESEARCH = require("./research"), SRC = require("./sources");
+  const rdir = path.join(dir, "research");
+  const reputation = o.reputation || SRC.reputation(path.join(rdir, "reputation.json"));
+  const cards = o.cards || RESEARCH.cards(path.join(rdir, "cards.json"));
+  const cloudOf0 = () => (o.llm && o.llm.cloud) || null;
+  // 云端出主意、判打架、审稿：用这家最便宜的「干活模型」，不开思考
+  const rcloud = () => { const c = cloudOf0(); if (!c || !c.active || !c.active()) return null; const wm = c.workerModel ? c.workerModel() : null; return wm && wm !== "local" ? wm : null; };
+  const localLlm = { start: (x) => (o.llm.start ? o.llm.start(x) : null), chat: (m, opt) => o.llm.chat(m, { ...opt, model: "local" }) };
+  const research = o.web === false ? null : (o.research || RESEARCH.create({
+    llm: localLlm, ground: GROUND.create({ llm: localLlm, kb, onStep: (m) => { if (o.onEvent) o.onEvent({ type: "note", text: m }); } }),
+    cloud: { ok: () => !!rcloud(), chat: (m, opt) => o.llm.chat(m, { ...opt, model: rcloud() }) },
+    web: (() => { const W = o.researchWeb || require("./websearch"); return { search: (q, x) => W.search(q, { ...webOpt, ...(x || {}) }), read: (u) => W.read(u, webOpt) }; })(),
+    localMats: async (q) => kb.find(q).slice(0, 3).map((m) => ({ title: m.title || m.src, src: m.src, text: m.text })),
+    reputation, cards, now: () => +now(), onStep: (m) => { if (o.onEvent) o.onEvent({ type: "note", text: m }); },
+  }));
+  const groundTools = ground.tools().map((t) => (t.name !== "answer_from_sources" || !research ? t : { ...t, run: async (a) => {
+    if (!a.web) return t.run(a);
+    const r = await research.answer(a.question, { force: true });
+    return { answer: r.text, abstained: !!r.abstained, sources: (r.sources || []).map((s) => `[${s.n}] ${s.title}${/^https?:/.test(s.src) ? "（" + s.src + "）" : ""}`),
+      tip: r.abstained ? "资料里没有：照这句告诉对方，不要自己编答案" : "照 answer 的内容说（可以去掉方括号、说得口语一点，但不要加资料外的内容，「没查到」「说法不一致」的话要原样说），最后说一句来源" };
+  } }));
+  // 这一句要不要先查实：问的是事实（数字、日期、规定、新闻、知识点的准确说法）、本机来回答、没带图和附件、不是办事
+  const CAMPUS_Q = /课表|有什么课|上什么课|请假|销假|借教室|空教室|我的(成绩|绩点|学分|考勤)|考试安排|天气|检测报告|体检报告/;
+  let lastQ = "";
+  function researchFor(text, images) {
+    if (!research || o.research === false || (images && images.length)) return null;
+    if (/【附件：|（附：我现在电脑屏幕的截图/.test(text) || CAMPUS_Q.test(text) || text.length > 300) return null;
+    const c = cloudOf0();
+    if (c && c.active && c.active()) {
+      if (!(c.hybrid && c.hybrid())) return null;                              // 整句交给云端：云端自己带工具答
+      if (require("./cloud").route([{ role: "user", content: text }], {}, {}).where === "cloud") return null;
+    }
+    // 接着上一句问（「那去年呢」）：带上上一句，不然搜不准
+    const q = text.length < 16 && lastQ && /^(那|这|它|他|她|那么|还有)|呢[？?]?$/.test(text) ? `${lastQ}（接着问：${text}）` : text;
+    const rp = RESEARCH.rulePlan(q);
+    if (rp.need === "facts") return q;
+    // 规则看不出来、但像是在问问题，而且有云端帮着判断：让云端出主意时说要不要查
+    return rcloud() && /[？?]$|吗$|是什么|有哪些|为什么|怎么回事/.test(text) ? q : null;
+  }
+  let rbusy = null;
+  async function researchSend(text, images) {
+    const q = researchFor(text, images);
+    lastQ = text.length >= 16 || !lastQ ? text : lastQ;
+    if (!q) return null;
+    const me = rbusy = { stopped: false };
+    const emit = (e) => { if (o.onEvent) try { o.onEvent(e); } catch (x) {} };
+    let r = null;
+    try { r = await research.answer(q); }
+    catch (e) { emit({ type: "note", text: "查资料没成（" + e.message + "），直接回答" }); return null; }
+    finally { rbusy = null; }
+    if (me.stopped) { emit({ type: "done", stopped: true }); return true; }
+    if (!r || r.skip) return null;
+    // 什么都没搜到（多半是没联网）：交给平常的回答，但提醒它拿不准就说不知道
+    if (r.abstained && !r.pages && !(r.rejected || []).length && !r.fromCard) return { hint: "（联网没查到资料。拿不准的事实直接说不知道，不要编。）" };
+    const src = (r.sources || []).map((s) => `[${s.n}] ${s.title}${/^https?:/.test(s.src) ? "（" + s.src + "）" : ""}`);
+    const reply = r.text + (src.length ? "\n\n来源：\n" + src.join("\n") : "");
+    emit({ type: "tool", stage: "start", name: "research", args: { q }, say: "查实资料" });
+    emit({ type: "tool", stage: "done", name: "research", args: { q }, say: "查实资料", ok: true, result: { research: {
+      slots: r.slots, sources: r.sources, fromCard: !!r.fromCard, pages: r.pages || 0, rounds: r.rounds || 0, secs: Math.round((r.ms || 0) / 100) / 10, usage: r.usage,
+      rejected: (r.rejected || []).slice(0, 12).map((x) => ({ url: x.url, title: x.title, why: x.why })), plan: r.plan ? { by: r.plan.by, queries: r.plan.queries } : null } } });
+    emit({ type: "delta", text: reply });
+    agent.load([...agent.history(), { role: "user", content: text }, { role: "assistant", content: reply }]);
+    emit({ type: "done", changed: 0 });
+    return true;
+  }
   // 多个助手一起干活（core/team.js）：助手用「干活模型」（默认这家最便宜的），只能查、不能办
   const TEAM = require("./team");
   const cloudOf = () => (o.llm && o.llm.cloud) || null;
@@ -367,7 +433,18 @@ ${cur ? `现在手上的 PPT：「${cur.title}」，一共 ${cur.pages} 页（�
   }
 
   return {
-    send: async (text, images) => { await boot; lastImgs = Array.isArray(images) ? images.slice(0, 6) : []; return agent.send(text, images); }, stop: () => { team.stop(); return agent.stop(); }, reset: () => agent.reset(), load: (ms) => { lastKind = ""; return agent.load(ms); }, busy: () => agent.busy(), history: () => agent.history(),
+    send: async (text, images) => {
+      await boot; lastImgs = Array.isArray(images) ? images.slice(0, 6) : [];
+      if (rbusy || agent.busy()) throw new Error("上一句还没说完");
+      const t = String(text || "").trim();
+      const pre = await researchSend(t, images);
+      if (pre === true) return;
+      return agent.send(pre && pre.hint ? t + "\n\n" + pre.hint : text, images);
+    },
+    stop: () => { team.stop(); if (rbusy) { rbusy.stopped = true; return true; } return agent.stop(); },
+    // 回答下面的「这个来源不对」：这个网站信誉 -1，用过它的知识卡片作废
+    sourceBad: (url) => { reputation.mark(url, false); reputation.flush(); let n = 0; for (const c of cards.list()) if ((c.mats || []).some((m) => m.src === url)) { cards.remove(c.q); n++; } return { ok: true, cards: n, score: reputation.score(url) }; },
+    research, reputation, cards, reset: () => agent.reset(), load: (ms) => { lastKind = ""; return agent.load(ms); }, busy: () => !!rbusy || agent.busy(), history: () => agent.history(),
     setRole(r) { if (!["student", "teacher", "staff"].includes(r)) throw new Error("身份只有：学生、教师、教务员"); if (r !== role) { role = r; lastKind = ""; agent.reset(); } return who(); },
     who, product, campus, checkup, kb, ground, mindmap, makePpt, openPpt, lastPpt, slides, pptTheme, pptUndo, pptExam, lastExam, pick, tools, ready: () => boot, deck: () => (cur ? cur.d : null),
     // 打电话模式：开着时每一句都按语音通话的规则说

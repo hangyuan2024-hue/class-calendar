@@ -60,6 +60,39 @@ const resp = (html, status = 200) => ({ ok: status === 200, status, url: "", hea
   assert.ok(EX.QUESTIONS.length >= 10);
   ok(`联网考试：录一遍存快照（${rec.total} 道，答对 ${rec.acc}、出处对 ${rec.cite}），断网按快照再考分数一样；编的答案判错`);
 
+  // ---------- 查实考试（engine = research）：多算来源有效、该说没有时说没有、答错还肯定；过不了门槛不发版 ----------
+  const R = require("../core/research");
+  const rdir = fs.mkdtempSync(path.join(os.tmpdir(), "webexam-r-"));
+  const rqs = [{ q: "嫦娥四号着陆在月球的正面还是背面？", a: ["背面"] }, { q: "中国恢复高考是在哪一年？", a: ["1977"] }, { q: "月球背面第一家火锅店叫什么名字？", a: [] }];
+  const net2 = async (u) => {
+    if (/bing\.com/.test(u)) return resp(bing(/高考/.test(decodeURIComponent(u)) ? [{ url: "https://www.moe.gov.cn/gk", title: "恢复高考", snippet: "1977 年恢复高考" }] : [{ url: "https://www.cnsa.gov.cn/ce4", title: "嫦娥四号", snippet: "着陆月球背面" }]));
+    if (/ce4/.test(u)) return resp(page("嫦娥四号", "2019 年 1 月，嫦娥四号在月球背面南极艾特肯盆地着陆，是人类第一次在月球背面软着陆。着陆后，着陆器和巡视器分离，玉兔二号月球车开始在月面巡视探测，开展科学研究。"));
+    if (/gk/.test(u)) return resp(page("恢复高考", "1977 年冬天，中断十年的高考恢复，570 万人走进考场。这一年的考试由各省自行命题，录取了二十七万多名新生，改变了一代人的命运。"));
+    return resp("", 404);
+  };
+  let planAsked = 0;
+  const cloud = { chat: async (ms) => { if (!ms[0].content.startsWith("你是查资料的策划")) return { content: "[]", usage: { prompt_tokens: 20, completion_tokens: 2 } }; planAsked++; return { content: JSON.stringify({ need: "facts", type: "general", queries: [ms[1].content], sites: [], slots: [{ key: "答案", ask: ms[1].content }], outline: [] }), usage: { prompt_tokens: 50, completion_tokens: 30 } }; } };
+  const llmR = (lie) => ({ chat: async (ms) => {
+    const sys = ms[0].content, u = ms[1].content;
+    if (sys === R.QUOTE_SYS) { const m = /嫦娥四号在月球背面[^，。]*着陆|1977 年冬天，中断十年的高考恢复/.exec(u.split("问题：")[0]); return { content: m && !/火锅/.test(u.split("问题：")[1]) ? m[0] : "没有" }; }
+    if (sys === G.ANSWER_SYS) return { content: /火锅/.test(u) ? "第一家火锅店叫嫦娥火锅。[1]" : /嫦娥/.test(u) ? (lie ? "嫦娥四号着陆在月球正面。[1]" : "嫦娥四号着陆在月球背面。[1]") : "中国在 1977 年恢复高考。[1]" };
+    if (sys === G.CHECK_SYS) return { content: /火锅/.test(u) ? "第1句：无据" : "第1句：有据[1]" };
+    return { content: "" };
+  } });
+  W._cache.clear();
+  const rr = await EX.run({ dir: rdir, mode: "record", engine: "research", questions: rqs, llm: llmR(false), cloud, webOpt: { fetch: net2 }, now: () => Date.parse("2026-11-27") });
+  assert.equal(rr.acc, 1, JSON.stringify(rr.items, null, 1)); assert.equal(rr.honest, 1, "查不到的火锅店：老实说没查到"); assert.equal(rr.wrong, 0); assert.equal(rr.src, 1, "用的都是权威来源");
+  assert.ok(rr.gate.pass, rr.gate.why.join("；")); assert.equal(planAsked, 3); assert.ok(rr.cloudTokens > 0);
+  assert.ok(fs.existsSync(path.join(rdir, "plans.json")), "云端出的主意存进快照");
+  W._cache.clear();
+  const rp2 = await EX.run({ dir: rdir, mode: "replay", engine: "research", questions: rqs, llm: llmR(false), cloud, webOpt: { fetch: async () => { throw new Error("断网了"); } }, now: () => Date.parse("2026-11-27") });
+  assert.equal(planAsked, 3, "重考不再问云端"); assert.equal(rp2.acc, rr.acc); assert.equal(rp2.honest, rr.honest);
+  const lie = await EX.run({ dir: rdir, mode: "replay", engine: "research", questions: rqs, llm: llmR(true), webOpt: {}, now: () => Date.parse("2026-11-27") });
+  assert.ok(lie.wrong > 0.1 && !lie.gate.pass && lie.gate.why.some((w) => /答错还说得很肯定/.test(w)), "模型说错了还核对成有据：门槛拦下");
+  assert.ok(EX.RESEARCH_QUESTIONS.some((x) => !x.a.length));
+  ok(`查实考试：答对 ${rr.acc}、来源有效 ${rr.src}、查不到老实说 ${rr.honest}、答错还肯定 ${rr.wrong}；云端主意存快照、重考不花云端；答错的版本过不了发版门槛`);
+  fs.rmSync(rdir, { recursive: true, force: true });
+
   fs.rmSync(dir, { recursive: true, force: true });
   console.log("联网考试：全部通过");
   process.exit(0);

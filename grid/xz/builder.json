@@ -53,6 +53,8 @@
     "app/ppt/xiaozhi.js",
     "app/ppt/websearch.js",
     "app/ppt/ground.js",
+    "app/ppt/sources.js",
+    "app/ppt/research.js",
     "app/ppt/mindmap.js",
     "app/ppt/kbfiles.js",
     "app/ppt/webexam.js",
