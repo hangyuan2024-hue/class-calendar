@@ -232,9 +232,9 @@ W(FF, "import sys,shutil,os\na=sys.argv\nshutil.copy(a[a.index('-i')+1],a[-1])\n
 
   // 网上公开的高质量录音（AISHELL-3）：只下挑中的那一位；第一个地址坏了换下一个
   const OD = path.join(tmp, "aishell3");
-  W(path.join(OD, "spk-info.txt"), "# 说明\nSSB0001 B female north\nSSB0002 C female north\nSSB0003 C male north\nSSB0004 C female south\n");
+  W(path.join(OD, "spk-info.txt"), "# 说明\nSSB0001 B female north\nSSB0002 C female north\nSSB0003 C male north\nSSB0004 C female south\nSSB0005 B male south\nSSB0006 A male north\n");
   const content = [];
-  for (const [spk, n] of [["SSB0001", 30], ["SSB0002", 12], ["SSB0003", 40], ["SSB0004", 50]])
+  for (const [spk, n] of [["SSB0001", 30], ["SSB0002", 12], ["SSB0003", 40], ["SSB0004", 50], ["SSB0005", 25], ["SSB0006", 10]])
     for (let i = 1; i <= n; i++) {
       const id = `${spk}${String(i).padStart(4, "0")}.wav`;
       content.push(`${id}\t同 tong2 学 xue2 们 men5 好 hao3 第 di4 ${i} 句`);
@@ -253,7 +253,7 @@ W(FF, "import sys,shutil,os\na=sys.argv\nshutil.copy(a[a.index('-i')+1],a[-1])\n
   const ob = [`http://127.0.0.1:1/nothing`, `http://127.0.0.1:${fsrv.address().port}`];
   const lp = JSON.parse(fs.readFileSync(path.join(ROOT, "plans", "laolao-voice.json"), "utf8"));
   const lpf = path.join(tmp, "lv.json");
-  fs.writeFileSync(lpf, JSON.stringify({ ...lp, stages: lp.stages.map((s) => ({ ...s, recipeFile: path.join(ROOT, "recipes", "voice_train.py"), params: { ...s.params, minSeconds: 20 } })) }));
+  fs.writeFileSync(lpf, JSON.stringify({ ...lp, stages: lp.stages.map((s) => ({ ...s, req: { ...s.req, vram: 5.5 }, recipeFile: path.join(ROOT, "recipes", "voice_train.py"), params: { ...s.params, minSeconds: 20, mix: 1, gender: "female", shift: 2, maxClips: 600, samples: s.params.samples.slice(0, 3) } })) }));
   await Tools.cycle(admin, lpf);
   const r2 = await Tools.api(admin, "/api/admin/pipeline/run", { name: "捞捞声音", extra: { openBase: ob.join(",") } });
   ag.start();
@@ -289,6 +289,24 @@ W(FF, "import sys,shutil,os\na=sys.argv\nshutil.copy(a[a.index('-i')+1],a[-1])\n
   assert.equal(resP.clips, 30, "用的是包里选好的那一位（SSB0001）的 30 句");
   assert.ok(hits.some((h) => /aishell3-laolao\.tar/.test(h)) && hits.every((h) => !/\/train\//.test(h)), "只下了一个包，没再一句一句去下");
   ok("公开录音先从自己的存储下打好的包：hf-mirror / Hugging Face 连不上（SSL 断开）也能训捞捞的声音");
+
+  // 打碎成捞捞自己的声音：挑几位录音多的男声混在一起训（每人一样多），参考声音用新模型自己念的、不用原来哪位的录音
+  hits.length = 0;
+  const mixf = path.join(tmp, "lv-mix.json");
+  fs.writeFileSync(mixf, JSON.stringify({ ...lp, stages: lp.stages.map((s) => ({ ...s, req: { ...s.req, vram: 5.5 }, recipeFile: path.join(ROOT, "recipes", "voice_train.py"), params: { ...s.params, minSeconds: 20, mix: 2, shift: 1, maxClips: 40, minClips: 10, refText: "你好，我是捞捞。" } })) }));
+  await Tools.cycle(admin, mixf);
+  const rM = await Tools.api(admin, "/api/admin/pipeline/run", { name: "捞捞声音", extra: { openBase: ob.join(",") } });
+  const logsM = []; ag.on("log", (l) => logsM.push(String((l && l.msg) || l)));
+  ag.start();
+  await until(() => app.core.db.prepare("select state from runs where id=?").get(rM.run).state !== "running", "打碎训练").catch((e) => { console.log(app.core.db.prepare("select error from tasks where error is not null order by id desc limit 2").all()); throw e; });
+  ag.stop();
+  assert.equal(app.core.db.prepare("select state from runs where id=?").get(rM.run).state, "done");
+  const resM = JSON.parse(app.core.db.prepare("select result from tasks t join jobs j on j.id=t.job_id where j.run_id=?").get(rM.run).result);
+  assert.equal(resM.clips, 40, "两位男声各 20 句（谁也不占大头）");
+  assert.ok(hits.some((h) => /SSB0003/.test(h)) && hits.some((h) => /SSB0005/.test(h)) && hits.every((h) => !/SSB000[1246]\//.test(h)), "只下录音最多的两位男声：" + hits.filter((h) => /wav/.test(h)).slice(0, 3));
+  const logM = logsM.join("\n");
+  assert.ok(/打碎成捞捞自己的声音：2 位男声混在一起/.test(logM));
+  ok("打碎：挑录音最多的几位男声、每人一样多混在一起训，音高对齐后整体挪；参考声音是新模型自己念的");
 
   // ---------- 声音底座：练习（念难句子、自动打分）→ 攒够了用所有老师 + 公开录音接着训整个模型 → 考试 → 发布 ----------
   const pools = app.core.db.prepare("select name from outputs where name like 'voicepool-%'").all();

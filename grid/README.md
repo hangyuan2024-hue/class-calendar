@@ -138,7 +138,19 @@ node grid/tools/grid.js voice-code 王老师                                 # �
 
 配方里要用本机的 AI 引擎：开头写 `# needs: comfy`，用 `lg.comfy("info" / "upload" / "lora" / "run", ...)`；训练要审核结果：任务参数写 `"dataset": "标签"`，配方里 `lg.dataset()`。配方改了直接 `cycle` 重新签名上传，客户端不用更新。
 
-## 训练路线（8G 显存的 5060 × 3 + 你的电脑）
+## 捞捞的声音（租一张卡，2 小时内训完）
+
+AISHELL-3（Apache-2.0，录音棚录的公开数据）里挑 3 位录音最多的男声，每人一样多（约 200 句）、音高对齐到大家的中间值，混在一起当一个人训 —— 音色是几个人揉在一起的「新人」；参考声音用新模型自己念的那句（说话人模型比过：和原来哪一位都最不像），不用原来哪位的录音。
+1. 签名包里 `node tools/grid.js pull`（新配方、新计划一起签好；`plans/laolao-voice.json` 要 20G 显存，只有租的卡会领）
+2. 租一台 4090（AutoDL，PyTorch 镜像，一小时两三块），装 Node 22、拉代码（见上面「命令行版」），再：
+   ```bash
+   bash tools/gsv-linux.sh /root/autodl-tmp/GPT-SoVITS          # 装 GPT-SoVITS（国内源，十几分钟）
+   node tools/worker.js join "邀请链接" "租的4090"
+   node tools/worker.js run --gsv /root/autodl-tmp/GPT-SoVITS --hours 2
+   ```
+3. 控制中心点「捞捞声音 → 现在训练一次」（或 `node tools/grid.js laolao-voice --male --mix 3`）。下录音 10～20 分钟、训练 20～30 分钟，训完念 4 句试听，自动发布 `laolao-voice`，老师端自动换上
+
+
 
 | 阶段 | 做什么 | 分法 |
 |---|---|---|

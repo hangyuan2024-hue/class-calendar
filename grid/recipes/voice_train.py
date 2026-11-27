@@ -315,7 +315,8 @@ if p.get("openVoice") == "aishell3":
             if len(a) >= 4 and a[0].startswith("SSB"):
                 info[a[0]] = (a[1], a[2], a[3])
     utts = {}
-    with open(fetch("train/content.txt", os.path.join(od, "content.txt")), encoding="utf-8", errors="replace") as fh:
+    # 打碎（几个人混在一起）要全部人的句子表；自己存储里的包只带了挑中那一位的，所以另存一份全的
+    with open(fetch("train/content.txt", os.path.join(od, "content-all.txt" if int(p.get("mix", 1)) > 1 else "content.txt")), encoding="utf-8", errors="replace") as fh:
         for ln in fh:
             a = ln.split()
             if len(a) < 3 or not a[0].endswith(".wav"):
@@ -323,7 +324,23 @@ if p.get("openVoice") == "aishell3":
             txt = "".join(x for x in a[1:] if not re.search(r"[A-Za-z0-9%$]", x))
             if len(txt) >= 4:
                 utts.setdefault(a[0][:7], []).append((a[0], txt))
+    MIX = max(1, int(p.get("mix", 1)))
     spk = p.get("speaker")
+    if MIX > 1:
+        # 「打碎」：挑几位同性别、录音多的人，混在一起当成一个人训 —— 训出来的音色是几个人揉在一起的，不是其中任何一位
+        want_g, want_age = p.get("gender", "male"), p.get("ages") or ["B", "C", "D"]
+        cands = [s_ for s_ in utts if s_ in info and info[s_][1] == want_g and info[s_][0] in want_age] or [s_ for s_ in utts if s_ in info and info[s_][1] == want_g]
+        cands.sort(key=lambda s_: -len(utts[s_]))
+        mixed = []
+        for s_ in cands[:40]:
+            h_ = listed("train/wav/%s" % s_)
+            if h_ is None or len(h_) >= int(p.get("minClips", 120)):
+                mixed.append((s_, h_))
+            if len(mixed) >= MIX:
+                break
+        if len(mixed) < 2:
+            raise RuntimeError("AISHELL-3 里没找到够 %d 位录音多的%s声（网上的文件列表问不到，或者网络不行）" % (MIX, "男" if want_g == "male" else "女"))
+        spk = mixed[0][0]
     if not spk:
         want_g, want_age = p.get("gender", "female"), p.get("ages") or ["C", "D"]
         cands = [s_ for s_ in utts if s_ in info and info[s_][1] == want_g and info[s_][0] in want_age and info[s_][2] == p.get("accent", "north")]
@@ -339,6 +356,91 @@ if p.get("openVoice") == "aishell3":
                 if h_ is None or len(h_) >= int(p.get("minClips", 150)):
                     spk = s_
                     break
+if p.get("openVoice") == "aishell3" and MIX > 1:
+    # 每人一样多的句子（谁也不占大头），先都下下来
+    per = int(p.get("maxClips", 600)) // len(mixed)
+    raw_by = {}
+    jobs = []
+    for s_, h_ in mixed:
+        rows_ = [r_ for r_ in utts[s_] if h_ is None or r_[0] in h_]
+        random.Random(7).shuffle(rows_)
+        raw_by[s_] = []
+        jobs += [(s_, r_) for r_ in rows_[: per if h_ is not None else per * 2]]
+    lg.log("打碎成捞捞自己的声音：%d 位%s声混在一起（%s），每人最多 %d 句" % (len(mixed), "男" if p.get("gender", "male") == "male" else "女", "、".join("%s %s" % (s_, "".join(info.get(s_, ("?", "?", "?"))[0::2])) for s_, _ in mixed), per))
+    dn, bad, gone = [0], 0, 0
+
+    def get1(job):
+        s_, r_ = job
+        src = fetch("train/wav/%s/%s" % (s_, r_[0]), os.path.join(od, r_[0]))
+        dn[0] += 1
+        if dn[0] % 25 == 0:
+            lg.progress(0.02 + 0.06 * dn[0] / len(jobs), "下载公开录音：%d/%d 句" % (dn[0], len(jobs)))
+        return s_, src, r_[1]
+
+    with concurrent.futures.ThreadPoolExecutor(8) as ex:
+        for fut in [ex.submit(get1, j_) for j_ in jobs]:
+            try:
+                s_, src, txt = fut.result()
+                if len(raw_by[s_]) < per:
+                    raw_by[s_].append((src, txt))
+            except FileNotFoundError:
+                gone += 1
+            except Exception as e:
+                bad += 1
+                if bad <= 5:
+                    lg.log("跳过一句：%s" % str(e)[:160])
+    if bad > (len(jobs) - gone) // 3:
+        raise RuntimeError("公开录音下载失败太多（%d/%d 句）：网络不行，过会儿再试" % (bad, len(jobs)))
+    # 音高往中间拉：每个人的声音高低不一样，各自升 / 降几个半音对齐到大家的中间值（音色一起变，揉得更匀）
+    #   再整体按 shift 挪（不挪也行：几个人揉在一起已经不是谁了）
+    F0_PY = r'''
+import json, sys, numpy as np, librosa
+out = {}
+for k, fs in json.load(open(sys.argv[1], encoding="utf-8")).items():
+    v = []
+    for f in fs[:12]:
+        try:
+            y, sr = librosa.load(f, sr=16000)
+            f0, vo, _ = librosa.pyin(y, fmin=60, fmax=400, sr=sr)
+            f0 = f0[~np.isnan(f0)]
+            if len(f0):
+                v.append(float(np.median(f0)))
+        except Exception as e:
+            print("跳过", f, e)
+    out[k] = float(np.median(v)) if v else 0
+json.dump(out, open(sys.argv[2], "w"))
+'''
+    f0p, f0i, f0o = os.path.join(work, "lg_f0.py"), os.path.join(work, "f0_in.json"), os.path.join(work, "f0_out.json")
+    open(f0p, "w", encoding="utf-8").write(F0_PY)
+    json.dump({k: [x[0] for x in v] for k, v in raw_by.items()}, open(f0i, "w", encoding="utf-8"))
+    med = {}
+    if p.get("pitchAlign", True):
+        try:
+            sh([PY, "-s", f0p, f0i, f0o], label="量音高")
+            med = {k: v for k, v in json.load(open(f0o)).items() if v > 0}
+        except Exception as e:
+            lg.log("量音高没成，不对齐：%s" % str(e)[-200:])
+    import math
+    tgt = math.exp(sum(math.log(v) for v in med.values()) / len(med)) if med else 0
+    if p.get("targetF0"):
+        tgt = float(p["targetF0"])
+    for s_, items in raw_by.items():
+        semis = (12 * math.log2(tgt / med[s_]) if tgt and s_ in med else 0) + float(p.get("shift", 0) or 0)
+        semis = max(-4.0, min(4.0, semis))
+        lg.log("%s：原来的音高 %s，%s" % (s_, ("%.0f Hz" % med[s_]) if s_ in med else "没量出来", ("挪 %+.1f 个半音" % semis) if abs(semis) >= 0.1 else "不挪"))
+        for i, (src, txt) in enumerate(items):
+            try:
+                w = to_wav(src, os.path.join(wavs, "o_%s_%04d.wav" % (s_, i)), shift_filter(src, semis if abs(semis) >= 0.1 else 0))
+                d = secs(w)
+                if 0.8 <= d <= 20:
+                    lines.append((w, txt, d))
+            except Exception as e:
+                lg.log("跳过一句：%s" % str(e)[:120])
+    MIXED = {s_: [x[0] for x in v][:6] for s_, v in raw_by.items()}
+    p["openVoice"] = "aishell3-mixed"   # 下面单人那一段不再走
+else:
+    MIXED = {}
+if p.get("openVoice") == "aishell3":
     if spk not in utts:
         raise RuntimeError("AISHELL-3 训练集里没有 %s" % spk)
     rows = utts[spk]
@@ -418,7 +520,7 @@ def write_pool(items, who):
 
 
 # 这位老师自己的录音（不是公开录音）攒进声音数据池
-pooled = write_pool(lines, MEMBER) if MEMBER and p.get("openVoice") != "aishell3" else 0
+pooled = write_pool(lines, MEMBER) if MEMBER and not str(p.get("openVoice") or "").startswith("aishell3") else 0
 if p.get("poolOnly"):
     lg.done(skip="只整理了%s的录音交给声音数据池（%d 句），这次不训练" % (MEMBER, pooled), pooled=pooled)
     raise SystemExit(0)
@@ -509,6 +611,34 @@ if not n_txt or not n_sem:
 # ---------------- 4. 训练 ----------------
 SW, GW = os.path.join(GD, "SoVITS_weights_" + VER), os.path.join(GD, "GPT_weights_" + VER)
 os.makedirs(SW, exist_ok=True)
+# GPT-SoVITS 存档的写法是「先存到当前文件夹的临时文件、再 shutil.move 过去」（utils.my_save）：目标文件夹不在就报
+#   「FileNotFoundError: [WinError 3] 系统找不到指定的路径」。不同版本的整合包存档文件夹名不一样（logs_s2_v2Pro、带 LoRA 档位的……），
+#   光靠事先建文件夹建不全 —— 直接给整合包里这几行补上「目标文件夹不在就先建」，哪个版本都管用（改过的有记号，不重复改；原文件留一份 .lls-orig）
+def patch_pack():
+    import re as _re
+    n = 0
+    for root, _, fs in os.walk(os.path.join(GD, "GPT_SoVITS")):
+        for fn in fs:
+            if not fn.endswith(".py"):
+                continue
+            fp = os.path.join(root, fn)
+            try:
+                src = open(fp, encoding="utf-8").read()
+            except Exception:
+                continue
+            if "shutil.move(" not in src or "def my_save" not in src or "# lls: mkdir" in src:
+                continue
+            out = _re.sub(r"(?m)^([ \t]*)shutil\.move\(\s*([^,\n]+?)\s*,\s*(.+?)\)[ \t]*$",
+                          lambda m: "%simport os as _lls_os; _lls_os.makedirs(_lls_os.path.dirname(_lls_os.path.abspath(%s)) or '.', exist_ok=True)  # lls: mkdir\n%s" % (m.group(1), m.group(3), m.group(0)), src)
+            if out != src:
+                if not os.path.exists(fp + ".lls-orig"):
+                    shutil.copyfile(fp, fp + ".lls-orig")
+                open(fp, "w", encoding="utf-8").write(out)
+                n += 1
+    lg.log("整合包存档函数：%s" % ("补上了「目标文件夹不在就先建」（%d 个文件）" % n if n else "已经补过 / 不用补"))
+
+
+patch_pack()
 # 训练脚本存中间存档时直接往 exp_dir/logs_s2_<版本> 里挪（官方界面会先建好这个文件夹，命令行跑不会）：
 #   没有这个文件夹就报「[WinError 3] 系统找不到指定的路径」（shutil.move ... save_checkpoint）。先都建好
 for _d in ("logs_s2_" + VER, "logs_s2", "logs_s1_" + VER, "logs_s1"):
@@ -590,16 +720,67 @@ try:
             time.sleep(0.5)
     for k, v in (("set_gpt_weights", gpt), ("set_sovits_weights", sov)):
         urllib.request.urlopen(base + "/%s?weights_path=%s" % (k, urllib.parse.quote(v)), timeout=300).read()
-    samples = p.get("samples") or ["同学们好，今天我们一起来学习新的内容。", "这道题我们一步一步来，先看已知条件。", "很好，你说得非常清楚，大家给他鼓鼓掌。"]
-    ok = 0
-    for k, txt in enumerate(samples):
-        body = {"text": txt, "text_lang": "zh", "ref_audio_path": ref_wav, "prompt_text": ref[1], "prompt_lang": "zh", "text_split_method": "cut5", "media_type": "wav"}
+    def tts(txt, rw, rt, out):
+        body = {"text": txt, "text_lang": "zh", "ref_audio_path": rw, "prompt_text": rt, "prompt_lang": "zh", "text_split_method": "cut5", "media_type": "wav"}
         req = urllib.request.Request(base + "/tts", data=json.dumps(body).encode("utf-8"), headers={"Content-Type": "application/json"})
         with urllib.request.urlopen(req, timeout=600) as r:
             b = r.read()
-        if b[:4] == b"RIFF" and len(b) > 8000:
-            out = os.path.join(work, "sample-%d.wav" % (k + 1))
-            open(out, "wb").write(b)
+        if b[:4] != b"RIFF" or len(b) <= 8000:
+            return None
+        open(out, "wb").write(b)
+        return out
+
+    # 打碎的声音：参考声音不能用原来那几位的录音（念出来会往那个人身上靠）。
+    #   用新模型拿每位的录音各念一遍同一句话，再用说话人模型比一比：选「和原来哪一位都最不像」的那一句，当捞捞以后说话的参考声音
+    if MIXED:
+        lg.progress(0.82, "打碎：挑一句「谁都不像」的当捞捞的参考声音")
+        RT = p.get("refText") or "你好，我是捞捞，有什么问题都可以问我。"
+        cands = []
+        for s_ in MIXED:
+            src_ = [x for x in lines if os.path.basename(x[0]).startswith("o_%s_" % s_) and 3 <= x[2] <= 10]
+            if not src_:
+                continue
+            for j_ in range(int(p.get("refTries", 2))):
+                c_ = tts(RT, src_[j_ % len(src_)][0], src_[j_ % len(src_)][1], os.path.join(work, "refcand-%s-%d.wav" % (s_, j_)))
+                if c_ and 0.9 <= secs(c_) <= 12:
+                    cands.append(c_)
+        if not cands:
+            raise RuntimeError("新模型念不出参考句")
+        pick, score = cands[0], None
+        svck = sorted(glob.glob(os.path.join(GD, "GPT_SoVITS", "pretrained_models", "sv", "*.ckpt")))
+        if svck:
+            try:
+                import numpy as np
+                allf = cands + [f_ for v_ in MIXED.values() for f_ in v_]
+                lst_, emb_ = os.path.join(work, "sv_in.json"), os.path.join(work, "sv_out.json")
+                json.dump(allf, open(lst_, "w", encoding="utf-8"))
+                open(os.path.join(work, "lg_sv.py"), "w", encoding="utf-8").write(SV_PY)
+                sh([PY, "-s", os.path.join(work, "lg_sv.py"), lst_, emb_], label="比像不像")
+                E = json.load(open(emb_, encoding="utf-8"))
+                nv = lambda v: np.asarray(v, dtype=np.float32) / (np.linalg.norm(v) + 1e-8)
+                cen = {s_: nv(np.mean([nv(E[f_]) for f_ in v_ if f_ in E], axis=0)) for s_, v_ in MIXED.items() if any(f_ in E for f_ in v_)}
+                rows_ = []
+                for c_ in cands:
+                    if c_ in E:
+                        sims = {s_: float(nv(E[c_]) @ cv) for s_, cv in cen.items()}
+                        rows_.append((max(sims.values()), c_, sims))
+                rows_.sort(key=lambda x: x[0])
+                if rows_:
+                    score, pick = rows_[0][0], rows_[0][1]
+                    lg.log("参考声音：选了 %s，和原来几位的相似度 %s（越低越不像原来的人；同一个人一般在 0.7 以上）" % (os.path.basename(pick), "、".join("%s %.2f" % kv for kv in rows_[0][2].items())))
+                    if score > float(p.get("maxSim", 0.75)):
+                        lg.log("提醒：最不像的那句和 %s 还是有点像（%.2f）：可以多混几位（mix）或者整体挪一点音高（shift）再训" % (max(rows_[0][2], key=rows_[0][2].get), score))
+            except Exception as e:
+                lg.log("比像不像没成功，先用第一句：%s" % str(e)[-200:])
+        shutil.copyfile(pick, ref_wav)
+        ref = (ref_wav, RT, secs(ref_wav))
+        with open(ref_txt, "w", encoding="utf-8") as f:
+            f.write(RT)
+    samples = p.get("samples") or ["同学们好，今天我们一起来学习新的内容。", "这道题我们一步一步来，先看已知条件。", "很好，你说得非常清楚，大家给他鼓鼓掌。"]
+    ok = 0
+    for k, txt in enumerate(samples):
+        out = tts(txt, ref_wav, ref[1], os.path.join(work, "sample-%d.wav" % (k + 1)))
+        if out:
             lg.output(out)
             ok += 1
     if ok < len(samples):

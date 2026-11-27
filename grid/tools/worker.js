@@ -10,6 +10,8 @@
 //        --work /root/lg      放任务文件的地方（默认 ~/laolao-grid-work，数据盘更好）
 //        --llama /path/llama-server   要做「本地大模型」的任务时给出 llama-server 的路径
 //        --hours 4            最多算几个小时（到点算完手上这个就停，免得忘了关机多花钱）
+//        --gsv /root/GPT-SoVITS   训练声音的任务：GPT-SoVITS 装在哪（先跑一次 bash tools/gsv-linux.sh 装好，几分钟）
+//        --gsv-python python3     GPT-SoVITS 用哪个 Python（默认和 --python 一样）
 "use strict";
 const fs = require("fs");
 const os = require("os");
@@ -56,8 +58,18 @@ async function run(a, o = {}) {
   for (const it of pr.items) say(`体检 · ${it.name}：${it.value}${it.tip ? "（" + it.tip + "）" : ""}`);
   let llm = null;
   if (llamaExe) llm = require("../app/llmw").create({ exe: llamaExe, base: () => work });
-  const caps = { ...pr.caps, llm: !!(llm && llm.ok()), rented: true };
-  const ag = Agent.create({ server: cfg.server, token: cfg.token, pubkey: cfg.pubkey, workDir: work, python: py, caps, llm,
+  // 训练声音：租的 Linux 上没有 Windows 整合包，用装好的 GPT-SoVITS 源码（tools/gsv-linux.sh）
+  const gsvDir = arg(a, "--gsv", null);
+  let gsv = null;
+  if (gsvDir) {
+    const dir = path.resolve(gsvDir);
+    if (!fs.existsSync(path.join(dir, "api_v2.py"))) throw new Error(`--gsv 给的文件夹里没有 api_v2.py：${dir}（先 bash tools/gsv-linux.sh ${dir}）`);
+    const got = { dir, python: arg(a, "--gsv-python", py), ffmpeg: "ffmpeg" };
+    gsv = { ensure: async () => got };
+    say(`训练声音用：${dir}`);
+  }
+  const caps = { ...pr.caps, llm: !!(llm && llm.ok()), gsv: !!gsv, rented: true };
+  const ag = Agent.create({ server: cfg.server, token: cfg.token, pubkey: cfg.pubkey, workDir: work, python: py, caps, llm, gsv,
     ensure: (pkgs) => pipInstall(py, pkgs), version: "cli", policy: { mode: "always", yieldGames: false, maxTemp: 88 }, ...(o.agentOpt || {}) });
   ag.on("any", ({ k, v }) => {
     if (k === "log") say(v.msg || v);

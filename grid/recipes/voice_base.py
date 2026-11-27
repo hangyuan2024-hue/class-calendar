@@ -768,6 +768,34 @@ if not merge("2-name2text-*.txt", "2-name2text.txt") or not merge("6-name2semant
 
 SW, GW = os.path.join(GD, "SoVITS_weights_" + VER), os.path.join(GD, "GPT_weights_" + VER)
 os.makedirs(SW, exist_ok=True)
+# GPT-SoVITS 存档的写法是「先存到当前文件夹的临时文件、再 shutil.move 过去」（utils.my_save）：目标文件夹不在就报
+#   「FileNotFoundError: [WinError 3] 系统找不到指定的路径」。不同版本的整合包存档文件夹名不一样（logs_s2_v2Pro、带 LoRA 档位的……），
+#   光靠事先建文件夹建不全 —— 直接给整合包里这几行补上「目标文件夹不在就先建」，哪个版本都管用（改过的有记号，不重复改；原文件留一份 .lls-orig）
+def patch_pack():
+    import re as _re
+    n = 0
+    for root, _, fs in os.walk(os.path.join(GD, "GPT_SoVITS")):
+        for fn in fs:
+            if not fn.endswith(".py"):
+                continue
+            fp = os.path.join(root, fn)
+            try:
+                src = open(fp, encoding="utf-8").read()
+            except Exception:
+                continue
+            if "shutil.move(" not in src or "def my_save" not in src or "# lls: mkdir" in src:
+                continue
+            out = _re.sub(r"(?m)^([ \t]*)shutil\.move\(\s*([^,\n]+?)\s*,\s*(.+?)\)[ \t]*$",
+                          lambda m: "%simport os as _lls_os; _lls_os.makedirs(_lls_os.path.dirname(_lls_os.path.abspath(%s)) or '.', exist_ok=True)  # lls: mkdir\n%s" % (m.group(1), m.group(3), m.group(0)), src)
+            if out != src:
+                if not os.path.exists(fp + ".lls-orig"):
+                    shutil.copyfile(fp, fp + ".lls-orig")
+                open(fp, "w", encoding="utf-8").write(out)
+                n += 1
+    lg.log("整合包存档函数：%s" % ("补上了「目标文件夹不在就先建」（%d 个文件）" % n if n else "已经补过 / 不用补"))
+
+
+patch_pack()
 # 训练脚本存中间存档时直接往 exp_dir/logs_s2_<版本> 里挪（官方界面会先建好这个文件夹，命令行跑不会）：
 #   没有这个文件夹就报「[WinError 3] 系统找不到指定的路径」（shutil.move ... save_checkpoint）。先都建好
 for _d in ("logs_s2_" + VER, "logs_s2", "logs_s1_" + VER, "logs_s1"):

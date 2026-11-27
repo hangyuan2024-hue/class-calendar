@@ -20,7 +20,7 @@ const AssistRelay = require("../shared/assist-relay");
 function arg(name, d) { const i = process.argv.indexOf("--" + name); return i > 0 ? process.argv[i + 1] : process.env["GRID_" + name.toUpperCase()] || d; }
 
 // 签名包要签的训练计划（以及它们用到的配方）
-const SIGN_PLANS = ["qa", "chat", "ground", "frontier", "base", "ppt", "vision"];
+const SIGN_PLANS = ["qa", "chat", "ground", "frontier", "base", "ppt", "vision", "laolao-voice"];   // laolao-voice：捞捞的声音（pull 一次就把新配方签好、设好）
 function signSrc(root = path.join(__dirname, "..")) {
   const out = [], seen = new Set();
   const put = (rel) => {

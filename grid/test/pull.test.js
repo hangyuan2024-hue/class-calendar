@@ -35,12 +35,12 @@ const ok = (m) => console.log("✓", m);
 
   said.length = 0;
   const r = await Tools.pull(c, { root: pack, say: (m) => said.push(m), ask: async () => true, ...gh() });
-  assert.ok(r.signed && r.ids.length === 7);
+  assert.ok(r.signed && r.ids.length === 8);
   assert.equal(fs.readFileSync(path.join(pack, "plans", "qa.json"), "utf8"), fs.readFileSync(path.join(ROOT, "plans", "qa.json"), "utf8"));
   const names = app.cycle.view().pipelines.map((p) => p.name);
   for (const n of ["答题数据工厂", "PPT 操作工厂", "看图反推工厂", "底座合并"]) assert.ok(names.includes(n), n + " 没设好：" + names);
   assert.ok(app.core.recipes().some((x) => x.name === "ppt_gen") && app.core.recipes().some((x) => x.name === "vis_gen"));
-  ok("确认了：新的写进签名包、7 份训练计划和用到的配方全部签名上传");
+  ok("确认了：新的写进签名包、8 份训练计划（含捞捞的声音）和用到的配方全部签名上传");
 
   said.length = 0;
   const r2 = await Tools.pull(c, { root: pack, yes: true, noGithub: true, say: (m) => said.push(m) });

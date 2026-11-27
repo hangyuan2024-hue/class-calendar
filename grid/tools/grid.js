@@ -7,7 +7,7 @@
 //   node tools/grid.js plan <计划.json>                       按计划建任务（只运行一次，运行两次会建两份）
 //   node tools/grid.js voice 老师名字                         训练这位老师的声音（用她录的和导入的录音）
 //   node tools/grid.js voice-import 老师名字 录音文件...      导入手机录音机录的原文件
-//   node tools/grid.js laolao-voice [SSB0xxx] [--shift 2] [--male]   训捞捞智能体的专属声音（公开录音 AISHELL-3 + 变声；先 cycle plans/laolao-voice.json）
+//   node tools/grid.js laolao-voice [SSB0xxx] [--shift 2] [--male] [--mix 3]   训捞捞智能体的专属声音（默认：AISHELL-3 里 3 位男声打碎混在一起；先 pull 或 cycle plans/laolao-voice.json）
 //   node tools/grid.js ab                                    新 Q版插件在审核里和现在的比，胜率多少
 //   node tools/grid.js promote                               新插件转正（qversion-lora-test → qversion-lora，老师端换上）
 //   node tools/grid.js cycle <自动训练.json> [--now]          设自动训练 / 每日一轮（签名上传用到的配方）；--now 马上跑一轮（训练一次）
@@ -158,7 +158,8 @@ if (require.main === module) {
       need();
       const spk = a.find((x) => /^SSB\d+$/i.test(x));
       const sh = a.indexOf("--shift");
-      const extra = { member: "捞捞", ...(spk ? { speaker: spk.toUpperCase() } : {}), ...(a.includes("--male") ? { gender: "male" } : {}), ...(sh >= 0 ? { shift: +a[sh + 1] || 0 } : {}) };
+      const mx = a.indexOf("--mix");
+      const extra = { member: "捞捞", ...(spk ? { speaker: spk.toUpperCase(), mix: 1 } : {}), ...(a.includes("--male") ? { gender: "male" } : {}), ...(a.includes("--female") ? { gender: "female" } : {}), ...(sh >= 0 ? { shift: +a[sh + 1] || 0 } : {}), ...(mx >= 0 ? { mix: +a[mx + 1] || 1 } : {}) };
       const r = await api(c, "/api/admin/pipeline/run", { name: "捞捞声音", extra });
       console.log(`开始训练捞捞的专属声音（第 ${r.run} 轮${spk ? "，用 " + spk.toUpperCase() : ""}${sh >= 0 ? "，升 " + (+a[sh + 1] || 0) + " 个半音" : ""}）：领到的电脑先下约 20 分钟的录音棚录音，再训练；控制中心能听 3 句试听。训好自动发给老师端（「AI 改 PPT」里勾「捞捞说话」）`);
     }
