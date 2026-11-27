@@ -21,7 +21,9 @@ process.env.LG_ADMIN_HOME = path.join(tmp, "admin");
 const Tools = require("../tools/grid");
 const ok = (m) => console.log("✓", m);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const until = async (f, ms, what) => { const t0 = Date.now(); while (!(await f())) { if (Date.now() - t0 > ms) throw new Error("等太久了：" + what); await sleep(50); } };
+// GitHub 的 Windows 打包机慢（起 Python、杀毒扫描）：等待时间放宽到 3 倍，免得偶尔「等太久了」误报
+const SLOW = process.platform === "win32" || process.env.CI ? 3 : 1;
+const until = async (f, ms, what) => { const t0 = Date.now(); while (!(await f())) { if (Date.now() - t0 > ms * SLOW) throw new Error("等太久了：" + what); await sleep(50); } };
 
 // 假装连不上：和 Node 自带 fetch 断网时一模一样的错误（TypeError: fetch failed，cause 里是 ECONNREFUSED）
 function flakyFetch() {
@@ -108,7 +110,7 @@ function flakyFetch() {
   const blogs = []; b.on("log", (l) => blogs.push(l.msg));
   let bdone = null; b.on("done", (d) => { bdone = d; });
   b.start();
-  await until(() => b.current() && b.current().ckpts >= 1, 20000, "李四开始算、存了档");
+  await until(() => b.current() && b.current().ckpts >= 1, 20000, "李四开始算、存了档").catch((e) => { console.log(blogs.slice(-20).join("\n")); throw e; });
   f2.down = true;
   await sleep(2000);
   const c = boot(await join("王五"), "c", flakyFetch());   // 别的电脑：一上线就领走（顺便触发收回）
