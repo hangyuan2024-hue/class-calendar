@@ -110,7 +110,16 @@ function flakyFetch() {
   const blogs = []; b.on("log", (l) => blogs.push(l.msg));
   let bdone = null; b.on("done", (d) => { bdone = d; });
   b.start();
-  await until(() => b.current() && b.current().ckpts >= 1, 20000, "李四开始算、存了档").catch((e) => { console.log(blogs.slice(-20).join("\n")); throw e; });
+  await until(() => b.current() && b.current().ckpts >= 1, 20000, "李四开始算、存了档").catch(async (e) => {
+    // 查不清的时候把现场打出来：李四手上有没有任务、进度到哪、为什么不领；这个任务在调度中心那边归谁
+    const cu = b.current();
+    console.log("李四的日志：\n" + blogs.slice(-30).join("\n"));
+    console.log("李四手上：", JSON.stringify(cu && { p: cu.progress, ckpts: cu.ckpts, lastCkpt: cu.lastCkpt, line: cu.line, note: cu.note, exit: cu.child && cu.child.exitCode }));
+    console.log("李四能不能领：", JSON.stringify(await b.gate().catch((x) => String(x))));
+    try { console.log("任务 2 在调度中心：", JSON.stringify(app.core.db.prepare("select t.id, t.state, t.device_id, t.error from tasks t where t.job_id=?").all(job2))); } catch (x) { console.log(String(x)); }
+    try { console.log("电脑：", JSON.stringify(app.core.db.prepare("select id, name, state, task_id from devices").all())); } catch (x) {}
+    throw e;
+  });
   f2.down = true;
   await sleep(2000);
   const c = boot(await join("王五"), "c", flakyFetch());   // 别的电脑：一上线就领走（顺便触发收回）
