@@ -17,7 +17,7 @@
         "member": "捞捞",
         "openVoice": "aishell3",
         "shift": 0,
-        "minSeconds": 600,
+        "minSeconds": 300,
         "sovitsEpochs": 12,
         "gptEpochs": 20,
         "batch": 8,
@@ -34,7 +34,9 @@
         "maxClips": 600,
         "minClips": 120,
         "refText": "你好，我是捞捞，你的学习小助手，有什么问题都可以随时来问我。",
-        "maxSim": 0.75
+        "maxSim": 0.75,
+        "localMix": 6,
+        "minLocalClips": 100
       },
       "req": {
         "vram": 20,

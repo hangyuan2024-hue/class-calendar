@@ -332,9 +332,50 @@ if p.get("openVoice") == "aishell3":
         want_g, want_age = p.get("gender", "male"), p.get("ages") or ["B", "C", "D"]
         cands = [s_ for s_ in utts if s_ in info and info[s_][1] == want_g and info[s_][0] in want_age] or [s_ for s_ in utts if s_ in info and info[s_][1] == want_g]
         cands.sort(key=lambda s_: -len(utts[s_]))
-        mixed = []
-        for s_ in cands[:40]:
+        mixed, LOCAL = [], {}
+        # 先用本机已经有的：声音底座的公开录音包（aishell3-base，80 位 × 40 句，下过一次就在缓存里），一句都不用再下
+        #   （hf-mirror 上很多人的录音其实没传、文件列表又常常问不到：以前一句句试了 8 分钟，全是 404，0 句能用）
+        bd = os.path.join(lg.cache_dir() if hasattr(lg, "cache_dir") else work, "aishell3-base", "train")
+        if os.path.isdir(bd):
+            btxt = {}
+            try:
+                for ln in open(os.path.join(bd, "content.txt"), encoding="utf-8", errors="replace"):
+                    a_ = ln.split()
+                    if len(a_) >= 3 and a_[0].endswith(".wav"):
+                        t_ = "".join(x for x in a_[1:] if not re.search(r"[A-Za-z0-9%$]", x))
+                        if len(t_) >= 4:
+                            btxt[a_[0]] = t_
+            except Exception:
+                pass
+            for s_ in sorted(os.listdir(bd)):
+                d_ = os.path.join(bd, s_)
+                if not os.path.isdir(d_) or s_ not in info or info[s_][1] != want_g:
+                    continue
+                rows_ = [(os.path.join(d_, f_), btxt.get(f_) or dict(utts.get(s_, [])).get(f_)) for f_ in sorted(os.listdir(d_)) if f_.endswith(".wav")]
+                rows_ = [x for x in rows_ if x[1]]
+                if len(rows_) >= int(p.get("minLocalPer", 20)):
+                    LOCAL[s_] = rows_
+            pick_ = sorted(LOCAL, key=lambda k: -len(LOCAL[k]))[: max(MIX, int(p.get("localMix", 6)))]
+            LOCAL = {k: LOCAL[k] for k in pick_}
+            n_ = sum(len(v) for v in LOCAL.values())
+            lg.log("本机的公开录音包里有 %d 位%s声、%d 句能直接用" % (len(LOCAL), "男" if want_g == "male" else "女", n_))
+            if len(LOCAL) >= 2 and n_ >= int(p.get("minLocalClips", 150)):
+                mixed = [(k, None) for k in LOCAL]
+            else:
+                LOCAL = {}
+        for s_ in ([] if mixed else cands[:40]):
             h_ = listed("train/wav/%s" % s_)
+            if h_ is None:
+                # 文件列表问不到：先试下 3 句，一句都没有就换人（别把几百句都试一遍）
+                got_ = 0
+                for r_ in utts[s_][:3]:
+                    try:
+                        fetch("train/wav/%s/%s" % (s_, r_[0]), os.path.join(od, r_[0]), tries=2)
+                        got_ += 1
+                    except Exception:
+                        pass
+                if not got_:
+                    continue
             if h_ is None or len(h_) >= int(p.get("minClips", 120)):
                 mixed.append((s_, h_))
             if len(mixed) >= MIX:
@@ -362,7 +403,7 @@ if p.get("openVoice") == "aishell3" and MIX > 1:
     per = int(p.get("maxClips", 600)) // len(mixed)
     raw_by = {}
     jobs = []
-    for s_, h_ in mixed:
+    for s_, h_ in ([] if LOCAL else mixed):
         rows_ = [r_ for r_ in utts[s_] if h_ is None or r_[0] in h_]
         random.Random(7).shuffle(rows_)
         raw_by[s_] = []
@@ -390,8 +431,15 @@ if p.get("openVoice") == "aishell3" and MIX > 1:
                 bad += 1
                 if bad <= 5:
                     lg.log("跳过一句：%s" % str(e)[:160])
+    if LOCAL:
+        for s_, rows_ in LOCAL.items():
+            raw_by[s_] = rows_[:per]
+    if gone:
+        lg.log("网上没有的 %d 句跳过了" % gone)
     if bad > (len(jobs) - gone) // 3:
         raise RuntimeError("公开录音下载失败太多（%d/%d 句）：网络不行，过会儿再试" % (bad, len(jobs)))
+    if sum(len(v) for v in raw_by.values()) < 40:
+        raise RuntimeError("几位%s声一共只拿到 %d 句录音（网上没有 %d 句、下载失败 %d 句）：不够训练" % ("男" if p.get("gender", "male") == "male" else "女", sum(len(v) for v in raw_by.values()), gone, bad))
     # 音高往中间拉：每个人的声音高低不一样，各自升 / 降几个半音对齐到大家的中间值（音色一起变，揉得更匀）
     #   再整体按 shift 挪（不挪也行：几个人揉在一起已经不是谁了）
     F0_PY = r'''

@@ -352,6 +352,28 @@ W(FF, "import sys,shutil,os\na=sys.argv\nshutil.copy(a[a.index('-i')+1],a[-1])\n
   const res4 = JSON.parse(app.core.db.prepare("select t.result from tasks t join jobs j on j.id=t.job_id where j.run_id=? and t.state='done'").get(r4.run).result);
   assert.equal(res4.base, "voice-base", "老师的声音从底座接着训");
   ok("老师自己的声音：从声音底座接着训（底座越好，老师的声音越像）");
+
+  // 打碎：本机已经有声音底座的公开录音包（aishell3-base）→ 直接用包里的男声，一句都不再去网上下
+  {
+    const cacheBase = (function find(d, n = 0) { if (n > 6 || !fs.existsSync(d)) return null; for (const x of fs.readdirSync(d, { withFileTypes: true })) { if (!x.isDirectory()) continue; const p = path.join(d, x.name); if (x.name === "aishell3-base") return p; const r = find(p, n + 1); if (r) return r; } return null; })(tmp);
+    assert.ok(cacheBase, "声音底座下过公开录音包");
+    const tr = path.join(cacheBase, "train");
+    for (const spk of ["SSB0003", "SSB0005"]) { fs.mkdirSync(path.join(tr, spk), { recursive: true }); for (let i = 1; i <= 25; i++) wav(path.join(tr, spk, `${spk}9${String(i).padStart(3, "0")}.wav`), 3.5); }
+    fs.appendFileSync(path.join(tr, "content.txt"), ["SSB0003", "SSB0005"].flatMap((spk) => Array.from({ length: 25 }, (_, i) => `${spk}9${String(i + 1).padStart(3, "0")}.wav\t大 da4 家 jia1 好 hao3 呀 ya5`)).join("\n") + "\n");
+    hits.length = 0;
+    const lf = path.join(tmp, "lv-local.json");
+    fs.writeFileSync(lf, JSON.stringify({ ...lp, stages: lp.stages.map((s) => ({ ...s, req: { ...s.req, vram: 5.5 }, recipeFile: path.join(ROOT, "recipes", "voice_train.py"), params: { ...s.params, minSeconds: 20, mix: 2, minLocalClips: 40, refText: "你好，我是捞捞。" } })) }));
+    await Tools.cycle(admin, lf);
+    const rL = await Tools.api(admin, "/api/admin/pipeline/run", { name: "捞捞声音", extra: { openBase: "http://127.0.0.1:1/nothing" } });
+    const logsL = []; ag.on("log", (l) => logsL.push(String((l && l.msg) || l)));
+    ag.start();
+    await until(() => app.core.db.prepare("select state from runs where id=?").get(rL.run).state !== "running", "打碎（本机录音包）").catch((e) => { console.log(app.core.db.prepare("select error from tasks where error is not null order by id desc limit 2").all()); throw e; });
+    ag.stop();
+    assert.equal(app.core.db.prepare("select state from runs where id=?").get(rL.run).state, "done");
+    assert.ok(logsL.some((m) => /本机的公开录音包里有 \d+ 位男声/.test(m)), logsL.filter((m) => /本机|打碎/.test(m)).join("\n"));
+    assert.ok(hits.every((h) => !/\/train\/wav\//.test(h)), "一句都没去网上下");
+    ok("打碎：本机已经有公开录音包就直接用包里的几位男声，不再一句句去网上试（以前 8 分钟全是 404、0 句）");
+  }
   fsrv.close();
 
   app.close();
