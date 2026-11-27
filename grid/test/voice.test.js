@@ -266,7 +266,7 @@ W(FF, "import sys,shutil,os\na=sys.argv\nshutil.copy(a[a.index('-i')+1],a[-1])\n
   const af = afAll().filter((x) => /^asetrate/.test(x));
   assert.equal(af.length, 7); assert.match(af[0], /^asetrate=35919,aresample=32000,atempo=0\.8908/, "升 2 个半音、音色一起变、语速不变");
   const pub2 = await (await fetch(url + "/pub/models/manifest.json")).json();
-  assert.ok(pub2.models["laolao-voice"] && pub2.models["laolao-voice"].files.map((f) => f.name).join() === "gpt,sovits,ref,reftext", "捞捞的声音公开发布，老师端自动下载");
+  assert.ok(pub2.models["laolao-voice"] && pub2.models["laolao-voice"].files.map((f) => f.name).join() === "gpt,sovits,ref,reftext,params", "捞捞的声音公开发布，老师端自动下载");
   ok(`捞捞的专属声音：自动挑了 SSB0002（26～40 岁、北方、女），只下这一位的 ${res2.clips} 句，升 2 个半音（变成另一个「人」）；第一个地址坏了换下一个；网上没有的句子（404）直接跳过、不算失败；公开发布 laolao-voice`);
 
   // 同事电脑连 hf-mirror / Hugging Face 不稳（SSL EOF）：先从自己的存储下打好的包（说明 + 挑中那一位的录音），一个文件

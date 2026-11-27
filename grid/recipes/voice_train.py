@@ -330,8 +330,9 @@ if p.get("openVoice") == "aishell3":
     if MIX > 1:
         # 「打碎」：挑几位同性别、录音多的人，混在一起当成一个人训 —— 训出来的音色是几个人揉在一起的，不是其中任何一位
         want_g, want_age = p.get("gender", "male"), p.get("ages") or ["B", "C", "D"]
-        cands = [s_ for s_ in utts if s_ in info and info[s_][1] == want_g and info[s_][0] in want_age] or [s_ for s_ in utts if s_ in info and info[s_][1] == want_g]
-        cands.sort(key=lambda s_: -len(utts[s_]))
+        # 先要指定年龄段的（默认 26 岁以上的成年人：声音稳），不够再用别的年龄段补
+        cands = [s_ for s_ in utts if s_ in info and info[s_][1] == want_g]
+        cands.sort(key=lambda s_: (info[s_][0] not in want_age, -len(utts[s_])))
         mixed, LOCAL = [], {}
         # 先用本机已经有的：声音底座的公开录音包（aishell3-base，80 位 × 40 句，下过一次就在缓存里），一句都不用再下
         #   （hf-mirror 上很多人的录音其实没传、文件列表又常常问不到：以前一句句试了 8 分钟，全是 404，0 句能用）
@@ -355,15 +356,23 @@ if p.get("openVoice") == "aishell3":
                 rows_ = [x for x in rows_ if x[1]]
                 if len(rows_) >= int(p.get("minLocalPer", 20)):
                     LOCAL[s_] = rows_
-            pick_ = sorted(LOCAL, key=lambda k: -len(LOCAL[k]))[: max(MIX, int(p.get("localMix", 6)))]
+            pick_ = sorted(LOCAL, key=lambda k: (info[k][0] not in want_age, -len(LOCAL[k])))[: max(MIX, int(p.get("localMix", 6)))]
+            young_ = [k for k in pick_ if info[k][0] not in want_age]
+            if young_:
+                lg.log("本机包里 %s 年龄段的%s声不够，用了 %d 位别的年龄段的补（%s）" % ("/".join(want_age), "男" if want_g == "male" else "女", len(young_), "、".join(young_)))
             LOCAL = {k: LOCAL[k] for k in pick_}
             n_ = sum(len(v) for v in LOCAL.values())
             lg.log("本机的公开录音包里有 %d 位%s声、%d 句能直接用" % (len(LOCAL), "男" if want_g == "male" else "女", n_))
-            if len(LOCAL) >= 2 and n_ >= int(p.get("minLocalClips", 150)):
+            adult_ = [k for k in LOCAL if info[k][0] in want_age]
+            # 本机包里要的年龄段够人数：直接用；不够：先去网上找要的年龄段的人，网上也找不到再退回用本机包（年轻一点也凑合）
+            LOCAL_ANY = dict(LOCAL) if len(LOCAL) >= 2 and n_ >= int(p.get("minLocalClips", 150)) else {}
+            if LOCAL_ANY and (len(adult_) >= min(MIX, 3) or p.get("allowYoung")):
                 mixed = [(k, None) for k in LOCAL]
             else:
                 LOCAL = {}
-        for s_ in ([] if mixed else cands[:40]):
+        else:
+            LOCAL_ANY = {}
+        for s_ in ([] if mixed else cands[:40]):   # 要的年龄段排在前面，不够再往后补
             h_ = listed("train/wav/%s" % s_)
             if h_ is None:
                 # 文件列表问不到：先试下 3 句，一句都没有就换人（别把几百句都试一遍）
@@ -380,6 +389,10 @@ if p.get("openVoice") == "aishell3":
                 mixed.append((s_, h_))
             if len(mixed) >= MIX:
                 break
+        if len(mixed) < 2 and LOCAL_ANY:
+            lg.log("网上没找到够 %d 位 %s 年龄段的%s声：退回用本机包里的（有几位年轻一点）" % (MIX, "/".join(want_age), "男" if want_g == "male" else "女"))
+            LOCAL = LOCAL_ANY
+            mixed = [(k, None) for k in LOCAL]
         if len(mixed) < 2:
             raise RuntimeError("AISHELL-3 里没找到够 %d 位录音多的%s声（网上的文件列表问不到，或者网络不行）" % (MIX, "男" if want_g == "male" else "女"))
         spk = mixed[0][0]
@@ -473,9 +486,18 @@ json.dump(out, open(sys.argv[2], "w"))
     tgt = math.exp(sum(math.log(v) for v in med.values()) / len(med)) if med else 0
     if p.get("targetF0"):
         tgt = float(p["targetF0"])
+    # 声音偏高的人先拿掉（原声太高的人往下挪多了会闷、不挪又显得嫩）：至少留 2 位
+    if med and p.get("maxF0"):
+        hi_ = [k for k, v in med.items() if v > float(p["maxF0"])]
+        if hi_ and len(raw_by) - len(hi_) >= 2:
+            for k in hi_:
+                lg.log("%s 原来的音高 %.0f Hz，比要的（%s Hz 以下）高：不用" % (k, med[k], p["maxF0"]))
+                raw_by.pop(k, None)
+    # 往上挪会连共振峰一起抬高，声音变「嫩」、发傻：只往下挪（最多 upMax，默认 0.5 个半音），往下最多 downMax
+    up_max, down_max = float(p.get("upMax", 0.5)), float(p.get("downMax", 3.0))
     for s_, items in raw_by.items():
         semis = (12 * math.log2(tgt / med[s_]) if tgt and s_ in med else 0) + float(p.get("shift", 0) or 0)
-        semis = max(-4.0, min(4.0, semis))
+        semis = max(-down_max, min(up_max, semis))
         lg.log("%s：原来的音高 %s，%s" % (s_, ("%.0f Hz" % med[s_]) if s_ in med else "没量出来", ("挪 %+.1f 个半音" % semis) if abs(semis) >= 0.1 else "不挪"))
         for i, (src, txt) in enumerate(items):
             try:
@@ -772,7 +794,8 @@ try:
     for k, v in (("set_gpt_weights", gpt), ("set_sovits_weights", sov)):
         urllib.request.urlopen(base + "/%s?weights_path=%s" % (k, urllib.parse.quote(v)), timeout=300).read()
     def tts(txt, rw, rt, out):
-        body = {"text": txt, "text_lang": "zh", "ref_audio_path": rw, "prompt_text": rt, "prompt_lang": "zh", "text_split_method": "cut5", "media_type": "wav"}
+        body = {"text": txt, "text_lang": "zh", "ref_audio_path": rw, "prompt_text": rt, "prompt_lang": "zh", "text_split_method": "cut5", "media_type": "wav",
+                "speed_factor": float(p.get("speed", 1.0)), **{k: p[k] for k in ("temperature", "top_p", "top_k") if k in p}}
         req = urllib.request.Request(base + "/tts", data=json.dumps(body).encode("utf-8"), headers={"Content-Type": "application/json"})
         try:
             with urllib.request.urlopen(req, timeout=600) as r:
@@ -788,7 +811,7 @@ try:
     #   用新模型拿每位的录音各念一遍同一句话，再用说话人模型比一比：选「和原来哪一位都最不像」的那一句，当捞捞以后说话的参考声音
     if MIXED:
         lg.progress(0.82, "打碎：挑一句「谁都不像」的当捞捞的参考声音")
-        RT = p.get("refText") or "你好，我是捞捞，你的学习小助手，有什么问题都可以随时来问我。"
+        RT = p.get("refText") or "这个问题其实不难，我们先把已知条件理清楚，再一步一步往下推。"
         cands = []
         for s_ in MIXED:
             src_ = [x for x in lines if os.path.basename(x[0]).startswith("o_%s_" % s_) and 3 <= x[2] <= 10]
@@ -822,7 +845,20 @@ try:
                     if c_ in E:
                         sims = {s_: float(nv(E[c_]) @ cv) for s_, cv in cen.items()}
                         rows_.append((max(sims.values()), c_, sims))
-                rows_.sort(key=lambda x: x[0])
+                # 参考声音同时要「谁都不像」和「音高接近要的」（低沉稳重一点，不要尖）：
+                #   分数 = 最像的那位的相似度 + 每偏离 1 个半音加 0.03
+                cf0 = {}
+                if tgt and p.get("pitchAlign", True):
+                    try:
+                        json.dump({c_: [c_] for c_ in cands}, open(f0i, "w", encoding="utf-8"))
+                        sh([PY, "-s", f0p, f0i, f0o], label="量参考句的音高")
+                        cf0 = {k: v for k, v in json.load(open(f0o)).items() if v > 0}
+                    except Exception as e:
+                        lg.log("量参考句的音高没成：%s" % str(e)[-160:])
+                pen = lambda c_: (abs(12 * math.log2(cf0[c_] / tgt)) * 0.03) if c_ in cf0 else 0.0
+                rows_.sort(key=lambda x: x[0] + pen(x[1]))
+                if rows_ and rows_[0][1] in cf0:
+                    lg.log("参考句的音高：%s" % "、".join("%s %.0f Hz" % (os.path.basename(k).split("-")[1], v) for k, v in sorted(cf0.items(), key=lambda kv: kv[1])))
                 if rows_:
                     score, pick = rows_[0][0], rows_[0][1]
                     lg.log("参考声音：选了 %s，和原来几位的相似度 %s（越低越不像原来的人；同一个人一般在 0.7 以上）" % (os.path.basename(pick), "、".join("%s %.2f" % kv for kv in rows_[0][2].items())))
@@ -845,4 +881,8 @@ try:
         raise RuntimeError("新模型念出来的声音不对（%d/%d 句正常）" % (ok, len(samples)))
 finally:
     api.kill()
-lg.done(gpt=gpt, sovits=sov, ref=ref_wav, reftext=ref_txt, version=VER, base=FROM, clips=len(lines), minutes=round(total / 60, 1), mins=round((time.time() - t0) / 60, 1))
+# 念的时候用的参数（老师端照这个念）：稍慢一点、采样收一点，听起来更稳
+params_f = os.path.join(work, "voice-params.json")
+with open(params_f, "w", encoding="utf-8") as f:
+    json.dump({k: p[k] for k in ("speed", "temperature", "top_p", "top_k") if k in p}, f)
+lg.done(gpt=gpt, sovits=sov, ref=ref_wav, reftext=ref_txt, params=params_f, version=VER, base=FROM, clips=len(lines), minutes=round(total / 60, 1), mins=round((time.time() - t0) / 60, 1))

@@ -343,7 +343,10 @@ function create(o) {
         if (e.eng === "teacher") return await speakTeacher(t);
         if (e.eng === "trained") {
           const m = e.m; let prompt = ""; try { prompt = fs.readFileSync(m.files.reftext, "utf8").trim(); } catch (x) {}
-          return pack(await cached(t, "v" + m.version, () => voice.tts({ text: t, refWav: m.files.ref, promptText: prompt, gpt: m.files.gpt, sovits: m.files.sovits })), t, { version: m.version, kind: "trained" });
+          // 训练时定好的念法（语速、采样）：跟着模型一起发布的 voice-params.json，老版本没有就用默认
+          let vp = {}; try { if (m.files.params) vp = JSON.parse(fs.readFileSync(m.files.params, "utf8")) || {}; } catch (x) {}
+          const extra = {}; for (const k of ["temperature", "top_p", "top_k"]) if (typeof vp[k] === "number") extra[k] = vp[k];
+          return pack(await cached(t, "v" + m.version, () => voice.tts({ text: t, refWav: m.files.ref, promptText: prompt, gpt: m.files.gpt, sovits: m.files.sovits, speed: typeof vp.speed === "number" ? vp.speed : 1.0, extra })), t, { version: m.version, kind: "trained" });
         }
         const r = real.ref();
         return pack(await cached(t, "real|" + r.wav, () => voice.tts({ text: t, refWav: r.wav, promptText: r.text })), t, { version: 0, temp: true, kind: "real" });

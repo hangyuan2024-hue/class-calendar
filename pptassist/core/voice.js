@@ -88,7 +88,7 @@ function create({ log = () => {}, onState = () => {} } = {}) {
     }
   }
   // 用参考录音的声音念 text，返回 wav（Buffer）
-  async function tts({ text, refWav, promptText, speed = 1.0, gpt, sovits }) {
+  async function tts({ text, refWav, promptText, speed = 1.0, gpt, sovits, extra }) {
     if (state !== "ready") throw new Error("老师的声音还没准备好：先在「我的声音」里启动 GPT-SoVITS");
     if (gpt || sovits) await weights(gpt, sovits);
     // 之前换成了别的模型（捞捞的声音、声音底座），这次要整合包自带的：重开一下（api_v2 没有「换回默认」）
@@ -96,6 +96,7 @@ function create({ log = () => {}, onState = () => {} } = {}) {
     const r = await post(port, "/tts", {
       text: String(text), text_lang: "zh", ref_audio_path: refWav, prompt_text: String(promptText || ""), prompt_lang: "zh",
       text_split_method: "cut5", batch_size: 1, media_type: "wav", streaming_mode: false, speed_factor: speed, parallel_infer: true, repetition_penalty: 1.35,
+      ...(extra || {}),   // 训练时定好的采样参数（temperature / top_p / top_k）
     }, 10 * 60 * 1000);
     if (r.status !== 200 || r.body.toString("ascii", 0, 4) !== "RIFF") {
       let msg = r.body.toString("utf8").slice(0, 300); try { const j = JSON.parse(msg); msg = j.message || j.detail || msg; if (typeof msg !== "string") msg = JSON.stringify(msg); } catch (e) {}

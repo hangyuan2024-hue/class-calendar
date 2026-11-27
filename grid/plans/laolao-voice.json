@@ -4,7 +4,7 @@
   "stages": [
     {
       "key": "voice",
-      "name": "训练捞捞的专属声音（公开录音 AISHELL-3 的几位男声打碎混在一起）",
+      "name": "训练捞捞的专属声音（公开录音 AISHELL-3 的几位成年男声打碎混在一起：沉稳、偏低）",
       "kind": "map",
       "recipe": "voice_train",
       "recipeFile": "../recipes/voice_train.py",
@@ -22,10 +22,11 @@
         "gptEpochs": 20,
         "batch": 8,
         "samples": [
-          "你好，我是捞捞，今天要改哪一页？",
+          "你好，我是捞捞。这个问题可以从三个方面来理解，我们先看第一点。",
           "好的，第三页的标题已经改好了，你看看行不行。",
           "这道题我们一步一步来，先看已知条件。",
-          "二零二六年计算机学硕的国家线是二百七十三分。"
+          "二零二六年计算机学硕的国家线是二百七十三分。",
+          "滕王阁序是唐代王勃写的，开篇交代了地点、人物和这场宴会。"
         ],
         "modelOf": "voice-base",
         "gender": "male",
@@ -33,10 +34,22 @@
         "pitchAlign": true,
         "maxClips": 600,
         "minClips": 120,
-        "refText": "你好，我是捞捞，你的学习小助手，有什么问题都可以随时来问我。",
+        "refText": "这个问题其实不难，我们先把已知条件理清楚，再一步一步往下推。",
         "maxSim": 0.75,
         "localMix": 6,
-        "minLocalClips": 100
+        "minLocalClips": 100,
+        "ages": [
+          "C",
+          "D"
+        ],
+        "targetF0": 118,
+        "maxF0": 150,
+        "upMax": 0.5,
+        "downMax": 3.0,
+        "speed": 0.95,
+        "temperature": 0.8,
+        "top_p": 0.9,
+        "top_k": 15
       },
       "req": {
         "vram": 20,
@@ -52,7 +65,8 @@
       "gpt",
       "sovits",
       "ref",
-      "reftext"
+      "reftext",
+      "params"
     ],
     "releaseEqual": true,
     "metrics": []
