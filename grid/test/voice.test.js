@@ -17,7 +17,8 @@ const ok = (m) => console.log("✓", m);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 process.env.LG_MIRROR = "off";   // 配方别去读真的组件镜像清单
 process.env.NO_PROXY = process.env.no_proxy = "127.0.0.1,localhost" + (process.env.NO_PROXY ? "," + process.env.NO_PROXY : "");
-const until = async (f, what, ms = 90000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { const v = await f(); if (v) return v; await sleep(100); } throw new Error("等太久了：" + what); };
+const SLOW = process.platform === "win32" || process.env.CI ? 3 : 1;   // Windows / CI 上的机器慢
+const until = async (f, what, ms = 90000) => { const t0 = Date.now(); while (Date.now() - t0 < ms * SLOW) { const v = await f(); if (v) return v; await sleep(100); } throw new Error("等太久了：" + what); };
 const W = (f, s) => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, s); };
 
 // 一段 1.5 秒的 wav（16 位、32k）
@@ -395,7 +396,12 @@ W(FF, "import sys,shutil,os\na=sys.argv\nshutil.copy(a[a.index('-i')+1],a[-1])\n
     await Tools.cycle(admin, gf);
     const rG = await Tools.api(admin, "/api/admin/pipeline/run", { name: "捞捞声音", extra: { openBase: "http://127.0.0.1:1/nothing" } });
     ag.start();
-    await until(() => app.core.db.prepare("select count(*) n from tasks t join jobs j on j.id=t.job_id where j.run_id=? and t.error like '%不发布%'").get(rG.run).n > 0, "把关拦下");
+    const logsG = []; ag.on("log", (l) => logsG.push(String((l && l.msg) || l)));
+    await until(() => app.core.db.prepare("select count(*) n from tasks t join jobs j on j.id=t.job_id where j.run_id=? and t.error like '%不发布%'").get(rG.run).n > 0, "把关拦下").catch((e) => {
+      console.log("任务：", app.core.db.prepare("select t.state, t.attempts, t.errors, substr(t.error,1,600) as error from tasks t join jobs j on j.id=t.job_id where j.run_id=?").all(rG.run));
+      console.log("最后的日志：\n" + logsG.slice(-25).join("\n"));
+      throw e;
+    });
     ag.stop();
     const after = (await (await fetch(url + "/pub/models/manifest.json")).json()).models["laolao-voice"] || {};
     assert.equal(after.version, before.version, "没发布新版本");
