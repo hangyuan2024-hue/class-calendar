@@ -794,7 +794,7 @@ function create(opt) {
         // 卡住了：好久没有任何输出（日志、进度、曲线）→ 结束它，交给别的电脑从存档接着算
         else if (opt.stallMin !== 0 && cur.child && Date.now() - (cur.lastOut || cur.started) > (opt.stallMin || 45) * 60e3 && !cur.stopping) { log(`这个任务 ${opt.stallMin || 45} 分钟没有动静，像是卡住了：结束它，交给别的电脑接着算`, "error"); await stopTask(true, "卡住了（很久没有输出）"); }
       } else if (!g.ok) setState(paused || manual === "off" ? "paused" : "waiting", g.why);
-      else if (!leasing && Date.now() - lastLease > (opt.leaseEveryMs || 10000)) {
+      else if (!stopped && !leasing && Date.now() - lastLease > (opt.leaseEveryMs || 10000)) {
         lastLease = Date.now();
         const av = avoidNow();
         // 真正空着的显存（G）：显卡总量 - 已用 + 我们自己能腾出来的（本地大模型、画图引擎，训练开始前会关掉）。调度中心按它派吃显存的活（req.needFree）
@@ -807,6 +807,8 @@ function create(opt) {
         let r;
         try { r = await api("/api/lease", { caps: { ...(caps || {}), ...(av.length ? { avoid: av } : {}), ...(vf != null ? { vramFree: vf } : {}) } }); }
         finally { leasing = false; lastLease = Date.now(); }
+        // 领任务的请求在路上的时候软件被关了（stop）：领到的还回去，别关了以后还在算
+        if (r.task && stopped) { await api("/api/fail", { task: r.task.id, release: true, error: "客户端关闭" }).catch(() => {}); return; }
         if (r.task) runTask(r.task).catch((e) => log("任务出错：" + e.message, "error"));
         else { setState("idle", "现在没有要算的"); if (!opt.noSweep && !sweeping && Date.now() - lastSweep > (opt.sweepMs || 5 * 60e3)) sweepOrphans(); }
       }

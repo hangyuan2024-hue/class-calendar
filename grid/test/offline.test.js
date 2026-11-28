@@ -98,6 +98,8 @@ function flakyFetch() {
   assert.ok(logs.some((m) => /又连上调度中心了/.test(m)));
   ok("连回来了：任务还给原来那台，断网期间算的结果交上去了，任务完成（没有从存档重算）");
   await a.stop();
+  // 张三这台下线：Windows 上 stop() 以后它的主循环偶尔还会再转一圈，把下面给李四的任务抢去算完（以前「李四开始算、存了档」等不到就是这个）
+  app.core.db.prepare("update devices set disabled=1 where name='张三的电脑'").run();
 
   // ---------- 4：断网期间被别的电脑领走 → 原来那台连回来就停，不重复交 ----------
   const planFile2 = path.join(tmp, "plan2.json");
