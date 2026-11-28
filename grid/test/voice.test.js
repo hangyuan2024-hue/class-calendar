@@ -397,12 +397,16 @@ W(FF, "import sys,shutil,os\na=sys.argv\nshutil.copy(a[a.index('-i')+1],a[-1])\n
     const rG = await Tools.api(admin, "/api/admin/pipeline/run", { name: "捞捞声音", extra: { openBase: "http://127.0.0.1:1/nothing" } });
     ag.start();
     const logsG = []; ag.on("log", (l) => logsG.push(String((l && l.msg) || l)));
-    await until(() => app.core.db.prepare("select count(*) n from tasks t join jobs j on j.id=t.job_id where j.run_id=? and t.error like '%不发布%'").get(rG.run).n > 0, "把关拦下").catch((e) => {
+    // 配方报「不发布」就算拦下了（Windows 上配方报错以后，电脑那边收尾、交回报错还要一会儿，不一定马上写进任务）
+    await until(() => logsG.some((m) => /不发布/.test(m)) || app.core.db.prepare("select count(*) n from tasks t join jobs j on j.id=t.job_id where j.run_id=? and t.error like '%不发布%'").get(rG.run).n > 0, "把关拦下").catch((e) => {
       console.log("任务：", app.core.db.prepare("select t.state, t.attempts, t.errors, substr(t.error,1,600) as error from tasks t join jobs j on j.id=t.job_id where j.run_id=?").all(rG.run));
       console.log("最后的日志：\n" + logsG.slice(-25).join("\n"));
       throw e;
     });
     ag.stop();
+    // 拦下的这一轮收掉：别让下一段测试开始以后，电脑又去重试它
+    app.core.db.prepare("update tasks set state='failed', device_id=null where job_id in (select id from jobs where run_id=?) and state!='done'").run(rG.run);
+    app.core.db.prepare("update runs set state='failed' where id=?").run(rG.run);
     const after = (await (await fetch(url + "/pub/models/manifest.json")).json()).models["laolao-voice"] || {};
     assert.equal(after.version, before.version, "没发布新版本");
     ok("把关：试听句识别回文字，错字率超过要求就不发布（念得乱的声音不会发给老师端）");
