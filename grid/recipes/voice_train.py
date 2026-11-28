@@ -11,6 +11,7 @@
 import glob
 import hashlib
 import json
+import re
 import os
 import shutil
 import socket
@@ -180,6 +181,139 @@ def text_ok(txt, d):
     return 1.5 <= rate <= 9.5
 
 
+_CN_DIGIT = dict(zip("0123456789", "零一二三四五六七八九"))
+_WORDS = {}
+
+
+def _anorm(t):
+    """对齐用：只留汉字、英文单词、数字（数字一个一个换成汉字：2026 → 二零二六；一个英文单词算一个字）。
+       返回（规整后的字串，每个字在原文里的 [起, 止)）"""
+    out, spans = [], []
+    t = str(t)
+    for m in re.finditer(r"[A-Za-z]+|[0-9]|[\u4e00-\u9fff]", t):
+        c = m.group(0)
+        if c[0].isascii() and c[0].isalpha():
+            c = _WORDS.setdefault(c.lower(), chr(0xE000 + len(_WORDS)))
+        elif c in _CN_DIGIT:
+            c = _CN_DIGIT[c]
+        out.append(c)
+        spans.append((m.start(), m.end()))
+    return "".join(out), spans
+
+
+def _semi(q, T):
+    """q 在 T 里最像的一段（两头不算错）：返回（错几个字，起点，终点）"""
+    n = len(T)
+    prev, ps = [0] * (n + 1), list(range(n + 1))
+    for i in range(1, len(q) + 1):
+        cur, cs = [i] + [0] * n, [0] + [0] * n
+        qc = q[i - 1]
+        for j in range(1, n + 1):
+            a, b, c = prev[j - 1] + (qc != T[j - 1]), prev[j] + 1, cur[j - 1] + 1
+            if a <= b and a <= c:
+                cur[j], cs[j] = a, ps[j - 1]
+            elif b <= c:
+                cur[j], cs[j] = b, ps[j]
+            else:
+                cur[j], cs[j] = c, cs[j - 1]
+        prev, ps = cur, cs
+    j = min(range(n + 1), key=lambda k: prev[k])
+    return prev[j], ps[j], j
+
+
+_PUNC = "，。！？、；：,.!?;:…"
+
+
+def align_script(got, script):
+    """照稿子念的录音（真人录音稿）：识别出来的字只用来找「念的是稿子里哪一段」，训练用的文字换成稿子原文
+       （识别会听错字、数字会写成阿拉伯数字、英文会听成中文；稿子是对的）。对不上稿子的扔掉；同一句念了两遍的，留后面那遍（念错了才会重读）"""
+    lines_ = [str(x).strip() for x in script if str(x).strip()]
+    N = [_anorm(x) for x in lines_]
+    # 每句里能停顿的地方（句首、句末、标点后面）：录音是在停顿处切开的，对出来的头尾离这些地方只差一两个字就靠过去
+    cuts = []
+    for k, (s_, sp) in enumerate(N):
+        c = {0, len(s_)}
+        for i in range(1, len(s_)):
+            if any(ch in _PUNC for ch in lines_[k][sp[i - 1][1]:sp[i][0]]):
+                c.add(i)
+        cuts.append(sorted(c))
+    bi = [set(a[k:k + 2] for k in range(len(a) - 1)) for a, _ in N]
+    max_cer, snap = float(p.get("alignMaxCer", 0.3)), int(p.get("alignSnap", 2))
+    keep, bad = [], 0
+    for wp, txt, d in got:
+        q, _ = _anorm(txt)
+        if len(q) < 2:
+            bad += 1
+            continue
+        qb = set(q[k:k + 2] for k in range(len(q) - 1)) or {q}
+        top = sorted(range(len(lines_)), key=lambda i: -len(qb & bi[i]))[:3]
+        best = None
+        for i in top:
+            lo, hi = max(0, i - 1), min(len(lines_), i + 2)   # 一段录音可能跨两句：带上前后各一句
+            T, mp = "", []
+            for k in range(lo, hi):
+                T += N[k][0]
+                mp += [(k, x) for x in range(len(N[k][0]))]
+            e, s_, t_ = _semi(q, T)
+            if t_ > s_ and (best is None or e < best[0]):
+                best = (e, mp[s_], mp[t_ - 1])
+        if not best or best[0] / float(len(q)) > max_cer:
+            bad += 1
+            continue
+        (k0, i0), (k1, i1) = best[1], best[2]
+        near = lambda k, i: min(cuts[k], key=lambda c: abs(c - i))
+        if abs(near(k0, i0) - i0) <= snap and near(k0, i0) < len(N[k0][0]):
+            i0 = near(k0, i0)
+        if abs(near(k1, i1 + 1) - (i1 + 1)) <= snap and near(k1, i1 + 1) > 0:
+            i1 = near(k1, i1 + 1) - 1
+        if k0 == k1 and i1 < i0:
+            bad += 1
+            continue
+        seg = []
+        for k in range(k0, k1 + 1):
+            a = N[k][1][i0][0] if k == k0 else 0
+            b = N[k][1][i1][1] if k == k1 else len(lines_[k])
+            if k == k1:   # 句末标点带上
+                while b < len(lines_[k]) and lines_[k][b] in _PUNC + "”）)》":
+                    b += 1
+            seg.append(lines_[k][a:b])
+        text = "".join(seg).strip(" ，、；：,;:")
+        base = lambda k: sum(len(N[j][0]) for j in range(k))
+        keep.append((wp, text, d, (base(k0) + i0, base(k1) + i1 + 1), best[0] / float(len(q))))
+
+    # 念了两遍：同一个原文件里稿子同一段（重叠一半以上）留后念的那遍
+    def order(x):
+        b = os.path.basename(x[0])
+        m = re.search(r"_(\d+)_(\d+)\.wav$", b)
+        return (b[:m.start()] if m else b, int(m.group(1)) if m else 0)
+    keep.sort(key=order)
+    out, dup = [], 0
+    for x in keep:
+        src = order(x)[0]
+        for y in list(out):
+            if order(y)[0] != src:
+                continue
+            o = min(x[3][1], y[3][1]) - max(x[3][0], y[3][0])
+            if o > 0.5 * min(x[3][1] - x[3][0], y[3][1] - y[3][0]):
+                out.remove(y)
+                dup += 1
+        out.append(x)
+    hit, a = set(), 0
+    for k, (s_, _) in enumerate(N):
+        if any(x[3][0] < a + len(s_) and x[3][1] > a for x in out):
+            hit.add(k)
+        a += len(s_)
+    af_ = os.path.join(work, "align.tsv")   # 每段对上了哪句（控制中心能下载下来核对）
+    with open(af_, "w", encoding="utf-8") as fh:
+        fh.write("录音\t识别出来的\t训练用的（稿子原文）\t识别错字\n")
+        for x in out:
+            fh.write("%s\t%s\t%s\t%.0f%%\n" % (os.path.basename(x[0]), dict((g[0], g[1]) for g in got).get(x[0], ""), x[1], x[4] * 100))
+    lg.output(af_)
+    lg.log("对照录音稿：%d 段对上了稿子（文字换成稿子原文，平均识别错字 %.0f%%），%d 段对不上扔掉，%d 段是重读的（留了后念的那遍）；稿子 %d 句里念到了 %d 句"
+           % (len(out), 100 * sum(x[4] for x in out) / max(len(out), 1), bad, dup, len(lines_), len(hit)))
+    return [(x[0], x[1], x[2]) for x in out]
+
+
 if imps:
     raw = os.path.join(work, "imp_raw")
     sliced = os.path.join(work, "imp_sliced")
@@ -216,6 +350,8 @@ if imps:
                         else:
                             bad_txt += 1
     lg.log("识别出 %d 句能用，%d 句文字不靠谱扔掉" % (len(got), bad_txt))
+    if p.get("script"):
+        got = align_script(got, p["script"])
     lg.progress(0.1, "认出哪些句子是老师本人说的")
     got, sims = keep_main_speaker(got)
     # 挑最好的：最像老师本人的、3～12 秒的优先；太多了训练太慢，最多用 maxMinutes 分钟
@@ -772,6 +908,13 @@ gpt = shutil.copyfile(newest(GW, EXP + "*.ckpt"), os.path.join(work, "voice-gpt.
 
 # ---------------- 5. 试听：用新模型念 3 句（和老师端一样走 api_v2）----------------
 ref = max((x for x in lines if 3 <= x[2] <= 10), key=lambda x: x[2], default=None) or max(lines, key=lambda x: x[2])
+# 真人照稿子念的：参考声音挑稿子里指定的几句（讲解的语气、完整一句、3～10 秒），挑不到再用最长的
+for _want in p.get("refPick") or []:
+    _hit = [x for x in lines if 3 <= x[2] <= 10 and _anorm(x[1])[0] == _anorm(_want)[0]]
+    if _hit:
+        ref = _hit[-1]
+        lg.log("参考声音：用稿子里的「%s」（%.1f 秒）" % (ref[1], ref[2]))
+        break
 ref_wav = shutil.copyfile(ref[0], os.path.join(work, "voice-ref.wav"))
 ref_txt = os.path.join(work, "voice-ref.txt")
 with open(ref_txt, "w", encoding="utf-8") as f:
@@ -819,14 +962,22 @@ try:
                 continue
             for j_ in range(int(p.get("refTries", 2))):
                 c_ = tts(RT, src_[j_ % len(src_)][0], src_[j_ % len(src_)][1], os.path.join(work, "refcand-%s-%d.wav" % (s_, j_)))
-                # 以后要拿它当参考声音：GPT-SoVITS 只收 3～10 秒的（不然念的时候 400：outside the 3-10 second range）
-                if c_ and secs(c_) < 3.2:
-                    subprocess.run(FF + ["-y", "-v", "error", "-i", c_, "-af", "apad=whole_dur=3.4", c_ + ".pad.wav"], check=True, cwd=work)
-                    c_ = c_ + ".pad.wav"
-                if c_ and 3.0 <= secs(c_) <= 10:
+                # 念出来的长度要对得上字数（正常每秒 3～7 个字）：太短 = 吞字 / 念一半就停，这种不能当参考声音
+                #   （以前补静音凑够 3 秒：参考声音只有半句、提示文字却是整句，对不上 → 后面念的全是乱的）
+                n_ = len(re.sub(r"[^\u4e00-\u9fff]", "", RT))
+                if c_:
+                    d_ = secs(c_)
+                    if not (3.0 <= d_ <= 10 and n_ / 7.5 <= d_ <= n_ / 2.0 + 1.0):
+                        lg.log("参考句候选 %s：%.1f 秒（%d 个字），长度不对，不用" % (os.path.basename(c_), d_, n_))
+                        continue
                     cands.append(c_)
         if not cands:
-            raise RuntimeError("新模型念不出参考句")
+            # 新模型念不全一句话：退回用训练录音里的一句原声当参考（文字和声音一定对得上；会更像那一位，但至少不乱）
+            src_ = sorted([x for x in lines if 4 <= x[2] <= 9], key=lambda x: -x[2])
+            if not src_:
+                raise RuntimeError("新模型念不全参考句，训练录音里也没有 4～9 秒的句子")
+            lg.log("新模型念不全参考句（多半是录音太少、训得不稳）：先用训练录音里的原声 %s 当参考" % os.path.basename(src_[0][0]))
+            cands, RT = [src_[0][0]], src_[0][1]
         pick, score = cands[0], None
         svck = sorted(glob.glob(os.path.join(GD, "GPT_SoVITS", "pretrained_models", "sv", "*.ckpt")))
         if svck:
@@ -881,6 +1032,64 @@ try:
         raise RuntimeError("新模型念出来的声音不对（%d/%d 句正常）" % (ok, len(samples)))
 finally:
     api.kill()
+
+# ---------------- 6. 把关：试听句识别回文字，错字太多 = 念得乱，不发布 ----------------
+#   （以前不考就发布：第 2 版念出来全是乱的，也直接发给了老师端）
+def _norm(t):
+    import re as _r
+    return _r.sub(r"[^\u4e00-\u9fffA-Za-z0-9]", "", str(t)).lower()
+
+
+def _cer(a, b):
+    a, b = _norm(a), _norm(b)
+    if not a:
+        return 0.0
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i] + [0] * len(b)
+        for j, cb in enumerate(b, 1):
+            cur[j] = min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb))
+        prev = cur
+    return prev[-1] / float(len(a))
+
+
+gate_cer = None
+if p.get("gate", True) and os.path.exists(os.path.join(GD, "tools", "asr", "funasr_asr.py")):
+    sd = os.path.join(work, "samples_asr_in")
+    os.makedirs(sd, exist_ok=True)
+    for k in range(len(samples)):
+        f_ = os.path.join(work, "sample-%d.wav" % (k + 1))
+        if os.path.exists(f_):
+            shutil.copyfile(f_, os.path.join(sd, "sample-%d.wav" % (k + 1)))
+    so = os.path.join(work, "samples_asr_out")
+    os.makedirs(so, exist_ok=True)
+    try:
+        lg.progress(0.92, "把关：试听句识别回文字，看念得对不对")
+        _cmd = [PY, "-s", os.path.join(GD, "tools", "asr", "funasr_asr.py"), "-i", sd, "-o", so, "-s", "large", "-l", "zh"]
+        try:
+            sh(_cmd + ["-p", "float16"], label="识别试听句")
+        except RuntimeError:   # 显卡上识别不行：换 CPU（几句话很快）
+            sh(_cmd + ["-p", "float32"], env=dict(ENV, CUDA_VISIBLE_DEVICES="", _CUDA_VISIBLE_DEVICES=""), label="识别试听句（CPU）")
+        heard = {}
+        for f_ in glob.glob(os.path.join(so, "*.list")):
+            for ln in open(f_, encoding="utf-8"):
+                a_ = ln.rstrip("\n").split("|")
+                if len(a_) >= 4:
+                    heard[os.path.basename(a_[0])] = a_[3]
+        errs = []
+        for k, txt in enumerate(samples):
+            h_ = heard.get("sample-%d.wav" % (k + 1), "")
+            c_ = _cer(txt, h_)
+            errs.append(c_)
+            lg.log("试听 %d：错字率 %.0f%%｜要念：%s｜听成：%s" % (k + 1, c_ * 100, txt, h_ or "（什么都没听出来）"))
+        gate_cer = sum(errs) / max(len(errs), 1)
+        lg.metric(0, cer=gate_cer)
+    except Exception as e:
+        lg.log("把关的识别没成功（%s）：这次不发布，免得把念不好的声音发出去" % str(e)[-200:])
+        raise RuntimeError("试听句没法识别，不确定念得对不对：不发布")
+    if gate_cer > float(p.get("maxCer", 0.2)):
+        raise RuntimeError("试听句平均错字率 %.0f%%（要 %.0f%% 以下）：念得不对，不发布。多半是录音太少或音高挪得太多；控制中心「试听」里能听到念成什么样" % (gate_cer * 100, float(p.get("maxCer", 0.2)) * 100))
+    lg.log("把关通过：试听句平均错字率 %.0f%%" % (gate_cer * 100))
 # 念的时候用的参数（老师端照这个念）：稍慢一点、采样收一点，听起来更稳
 params_f = os.path.join(work, "voice-params.json")
 with open(params_f, "w", encoding="utf-8") as f:

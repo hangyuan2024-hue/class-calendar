@@ -21,6 +21,15 @@ const until = async (f, what, ms = 90000) => { const t0 = Date.now(); while (Dat
 const W = (f, s) => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, s); };
 
 // 一段 1.5 秒的 wav（16 位、32k）
+// 带文字的录音（假的识别从 lgtx 块里读出「听到了什么」）
+function wavT(f, sec, text) {
+  wav(f, sec);
+  const b = fs.readFileSync(f), t0 = Buffer.from(text, "utf8"), t = Buffer.concat([t0, Buffer.alloc(t0.length % 2)]);
+  const head = Buffer.alloc(8); head.write("lgtx", 0); head.writeUInt32LE(t.length, 4);
+  const out = Buffer.concat([b.subarray(0, 36), head, t, b.subarray(36)]); out.writeUInt32LE(out.length - 8, 4);
+  W(f, out);
+  return f;
+}
 function wav(f, sec = 1.5, hz = 509) {
   const n = Math.floor(32000 * sec), b = Buffer.alloc(44 + n * 2);
   b.write("RIFF", 0); b.writeUInt32LE(36 + n * 2, 4); b.write("WAVEfmt ", 8); b.writeUInt32LE(16, 16); b.writeUInt16LE(1, 20); b.writeUInt16LE(1, 22);
@@ -251,7 +260,10 @@ W(FF, "import sys,shutil,os\na=sys.argv\nshutil.copy(a[a.index('-i')+1],a[-1])\n
   const fsrv = http.createServer((q, s_) => { const fp = path.join(OD, decodeURIComponent(q.url.split("?")[0])); hits.push(q.url); if (fs.existsSync(fp) && fs.statSync(fp).isFile()) { s_.writeHead(200); s_.end(fs.readFileSync(fp)); } else { s_.writeHead(404); s_.end(); } });
   await new Promise((r_) => fsrv.listen(0, "127.0.0.1", r_));
   const ob = [`http://127.0.0.1:1/nothing`, `http://127.0.0.1:${fsrv.address().port}`];
-  const lp = JSON.parse(fs.readFileSync(path.join(ROOT, "plans", "laolao-voice.json"), "utf8"));
+  // 下面几段测的是「公开录音打碎」那条路（现在的 laolao-voice 改成了真人录音，参数换回打碎用的那套）
+  const lp0 = JSON.parse(fs.readFileSync(path.join(ROOT, "plans", "laolao-voice.json"), "utf8"));
+  const AISH = { openVoice: "aishell3", voiceOf: null, script: null, refPick: null, gender: "male", mix: 3, shift: 0, pitchAlign: true, maxClips: 600, minClips: 120, refText: "这个问题其实不难，我们先把已知条件理清楚，再一步一步往下推。", maxSim: 0.75, localMix: 6, minLocalClips: 100, ages: ["C", "D"], targetF0: 128, maxF0: 180, upMax: 0.5, downMax: 2.0 };
+  const lp = { ...lp0, stages: lp0.stages.map((s) => ({ ...s, params: { ...s.params, ...AISH } })) };
   const lpf = path.join(tmp, "lv.json");
   fs.writeFileSync(lpf, JSON.stringify({ ...lp, stages: lp.stages.map((s) => ({ ...s, req: { ...s.req, vram: 5.5 }, recipeFile: path.join(ROOT, "recipes", "voice_train.py"), params: { ...s.params, minSeconds: 20, mix: 1, gender: "female", shift: 2, maxClips: 600, samples: s.params.samples.slice(0, 3) } })) }));
   await Tools.cycle(admin, lpf);
@@ -373,6 +385,60 @@ W(FF, "import sys,shutil,os\na=sys.argv\nshutil.copy(a[a.index('-i')+1],a[-1])\n
     assert.ok(logsL.some((m) => /本机的公开录音包里有 \d+ 位男声/.test(m)), logsL.filter((m) => /本机|打碎/.test(m)).join("\n"));
     assert.ok(hits.every((h) => !/\/train\/wav\//.test(h)), "一句都没去网上下");
     ok("打碎：本机已经有公开录音包就直接用包里的几位男声，不再一句句去网上试（以前 8 分钟全是 404、0 句）");
+  }
+
+  // 把关：试听句识别回来错字太多 → 不发布（第 2 版念得全是乱的也发出去了）
+  {
+    const before = JSON.parse(JSON.stringify((await (await fetch(url + "/pub/models/manifest.json")).json()).models["laolao-voice"] || {}));
+    const gf = path.join(tmp, "lv-gate.json");
+    fs.writeFileSync(gf, JSON.stringify({ ...lp, stages: lp.stages.map((s) => ({ ...s, req: { ...s.req, vram: 5.5 }, recipeFile: path.join(ROOT, "recipes", "voice_train.py"), params: { ...s.params, minSeconds: 20, mix: 2, minLocalClips: 40, refText: "你好，我是捞捞。", maxCer: -1 } })) }));
+    await Tools.cycle(admin, gf);
+    const rG = await Tools.api(admin, "/api/admin/pipeline/run", { name: "捞捞声音", extra: { openBase: "http://127.0.0.1:1/nothing" } });
+    ag.start();
+    await until(() => app.core.db.prepare("select count(*) n from tasks t join jobs j on j.id=t.job_id where j.run_id=? and t.error like '%不发布%'").get(rG.run).n > 0, "把关拦下");
+    ag.stop();
+    const after = (await (await fetch(url + "/pub/models/manifest.json")).json()).models["laolao-voice"] || {};
+    assert.equal(after.version, before.version, "没发布新版本");
+    ok("把关：试听句识别回文字，错字率超过要求就不发布（念得乱的声音不会发给老师端）");
+  }
+  // 真人照录音稿念的录音：导入到「捞捞」名下 → 识别出来的字只用来找念的是哪一句，训练用稿子原文；对不上稿子的扔掉
+  {
+    await Tools.api(admin, "/api/admin/member/add", { name: "捞捞" });
+    const up = (name, f) => fetch(`${url}/api/admin/upload?member=${encodeURIComponent("捞捞")}&name=${encodeURIComponent(name)}`, { method: "PUT", headers: { authorization: "Bearer " + admin.token }, body: fs.readFileSync(f) });
+    const heard = [
+      ["A.mp3", 5, "这个问题其实不难我们先把已知条件理清楚"],            // 参考句
+      ["B.mp3", 6, "今天是2026年十一月二十七日星期五"],                  // 识别写成阿拉伯数字
+      ["D.mp3", 5, "在派森里print函数会把结果显示出来"],                 // 英文词识别成了中文
+      ["E.mp3", 4, "很好你说的非常清楚"],                                // 的 / 得 听错
+      ["F.mp3", 5, "我们去吃火锅吧今晚上八点钟见"],                       // 稿子里没有：扔掉
+      ["K.mp3", 8, "阳光穿过大气层的时候会碰到空气中很小的分子波长短的蓝光更容易被这些分子散射开来"],   // 跨两句
+    ];
+    for (const [n, sec, t] of heard) assert.ok((await (await up(n, wavT(path.join(tmp, "laolao", n.replace(".mp3", ".wav")), sec, t))).json()).ok);
+    const sf = path.join(tmp, "lv-real.json");
+    fs.writeFileSync(sf, JSON.stringify({ ...lp0, stages: lp0.stages.map((s) => ({ ...s, req: { ...s.req, vram: 5.5 }, recipeFile: path.join(ROOT, "recipes", "voice_train.py"), params: { ...s.params, minSeconds: 20 } })) }));
+    await Tools.cycle(admin, sf);
+    const rR = await Tools.api(admin, "/api/admin/pipeline/run", { name: "捞捞声音" });
+    const logsR = []; ag.on("log", (l) => logsR.push(String((l && l.msg) || l)));
+    ag.start();
+    await until(() => app.core.db.prepare("select state from runs where id=?").get(rR.run).state !== "running", "真人录音训练").catch((e) => { console.log(app.core.db.prepare("select error from tasks where error is not null order by id desc limit 2").all()); throw e; });
+    ag.stop();
+    assert.equal(app.core.db.prepare("select state from runs where id=?").get(rR.run).state, "done", logsR.slice(-15).join("\n"));
+    const resR = JSON.parse(app.core.db.prepare("select result from tasks t join jobs j on j.id=t.job_id where j.run_id=?").get(rR.run).result);
+    assert.equal(resR.clips, 5, "对不上稿子的 1 段扔掉了");
+    assert.ok(logsR.some((m) => /对照录音稿：5 段对上了稿子.*1 段对不上/.test(m)), logsR.filter((m) => /对照|识别/.test(m)).join("\n"));
+    assert.ok(logsR.some((m) => /参考声音：用稿子里的「这个问题其实不难，我们先把已知条件理清楚。」/.test(m)), "参考句用稿子里指定的那句");
+    const ao = app.core.db.prepare("select o.key from outputs o join jobs j on j.id=o.job_id where j.run_id=? and o.name like 'align%'").get(rR.run);
+    assert.ok(ao, "每段对上了哪句交上去了（align.tsv）");
+    const findF = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? findF(path.join(d, e.name)) : e.name === path.basename(ao.key) ? [path.join(d, e.name)] : []));
+    const tl = fs.readFileSync(findF(path.join(tmp, "server"))[0], "utf8");
+    assert.match(tl, /今天是二零二六年十一月二十七日，星期五。/, "数字换成稿子原文");
+    assert.match(tl, /在 Python 里，print 函数会把结果显示出来。/);
+    assert.match(tl, /很好，你说得非常清楚。/);
+    assert.match(tl, /阳光穿过大气层的时候，会碰到空气中很小的分子。波长短的蓝光更容易被这些分子散射开来/, "跨两句的也对上了");
+    assert.ok(!/火锅/.test(tl));
+    const afR = afAll().join("\n");
+    assert.match(afR, /highpass=f=80,afftdn=nf=-30/, "照稿子念的录音只轻度去噪");
+    ok("真人录音：照录音稿对齐（识别的错字、阿拉伯数字、英文都换成稿子原文），对不上稿子的扔掉，参考句用稿子里指定的那句");
   }
   fsrv.close();
 

@@ -39,6 +39,11 @@ echo "torchaudio==$("$PY" -c "import torchaudio;print(torchaudio.__version__.spl
 grep -viE '^(torch|torchaudio|torchvision)([<>=! ].*)?$' requirements.txt > /tmp/gsv-req.txt
 "$PY" -m pip install -q -i "$PIP_IDX" -r /tmp/gsv-req.txt -c /tmp/gsv-pin.txt
 [ -f extra-req.txt ] && "$PY" -m pip install -q -i "$PIP_IDX" -r extra-req.txt --no-deps || true
+# GPT-SoVITS 要 numpy 1.x；镜像里的 scipy 可能是只配 numpy 2 的新版（一导入就「All ufuncs must have type numpy.ufunc」）：换成配套的
+if "$PY" -c "import numpy,sys;sys.exit(0 if numpy.__version__.startswith('1.') else 1)" 2>/dev/null && ! "$PY" -c "import scipy.special" 2>/dev/null; then
+  "$PY" -m pip install -q -i "$PIP_IDX" "scipy==1.13.1" "numpy==$("$PY" -c "import numpy;print(numpy.__version__)")"
+fi
+"$PY" -c "import numpy, scipy.special, librosa; print('numpy', numpy.__version__, 'scipy', __import__('scipy').__version__)" || echo "！numpy / scipy 还是不对：把上面几行截图发给维护的人"
 # 念句子（api_v2）还要这几个，requirements.txt 里没列全（缺了 /tts 直接 400：No module named 'resampy'）
 "$PY" -m pip install -q -i "$PIP_IDX" huggingface_hub modelscope resampy -c /tmp/gsv-pin.txt
 
